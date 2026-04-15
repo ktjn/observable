@@ -142,7 +142,54 @@ CI must make every change reproducible, reviewable, and releasable before merge.
 - Flaky checks must be quarantined only with an owner, expiry date, linked issue, and replacement signal.
 - CI failures that affect hot-path correctness, tenant isolation, auth, schema compatibility, or migrations require root-cause notes before retrying.
 
-### 16.7 AI Agent Guidance
+### 16.7 Local Development Workflow
+
+Local development must use the same source-controlled tasks and contract checks as CI, while keeping the feedback loop fast enough for daily work.
+
+**Required local tools**
+- Rust toolchain pinned by repo configuration
+- Node.js and `pnpm` pinned by repo configuration
+- `just` for task entry points
+- Docker or an equivalent OCI-compatible local runtime
+- `buf` once protobuf contracts exist
+- Kubernetes local runtime only for integration work, preferably `kind`
+
+**Local task contract**
+- `just setup`: install/check local tool prerequisites and hooks
+- `just fmt`: run repository formatting
+- `just lint`: run static checks that do not require external services
+- `just test`: run unit tests for changed packages by default, with an option for the full suite
+- `just contract`: run protobuf/OpenAPI lint, generation, and breaking-change checks
+- `just dev`: start the minimal local service graph for the current feature
+- `just smoke`: run local smoke checks against the running service graph
+- `just ci-local`: run the closest practical local equivalent of required PR checks
+
+**Runtime modes**
+- **Unit mode:** no external services; default for fast backend/frontend tests.
+- **Service mode:** run one service plus mocked dependencies or lightweight local dependencies.
+- **Compose mode:** run dependencies such as ClickHouse, Kafka/Redpanda-compatible broker, object storage emulator, and OpenFGA-compatible store for integration smoke.
+- **Kind mode:** run Kubernetes manifests in a local `kind` cluster when validating deployment, service discovery, ingress, policy, or operator behavior.
+
+**Local data and credentials**
+- Use synthetic telemetry, golden traces/log bundles, malformed payload samples, and high-cardinality fixture slices from the test corpus.
+- Local tenants, users, API keys, and OIDC identities must be deterministic fixtures.
+- Production, staging, and shared integration credentials must never be required for local development.
+- Secrets must be loaded from local-only files or developer secret stores that are ignored by git.
+
+**Developer loop**
+1. create a task branch
+2. run `just setup` when tool versions or hooks change
+3. run targeted `just fmt`, `just lint`, `just test`, and `just contract` while editing
+4. use `just dev` and `just smoke` for service-level validation
+5. run `just ci-local` before opening a PR when the change affects code, contracts, migrations, deployment, auth, tenancy, or hot-path behavior
+
+**Local boundaries**
+- Local runs may use reduced fidelity, smaller datasets, and mock external providers.
+- Local runs must preserve tenant context, auth boundaries, schema validation, and migration behavior.
+- Local tooling must not depend on cloud-only services unless the feature explicitly integrates with that provider.
+- CI remains authoritative for release artifacts, SBOMs, provenance, signing, container scanning, and promotion.
+
+### 16.8 AI Agent Guidance
 
 When utilizing AI agents for development, the following mandates apply:
 

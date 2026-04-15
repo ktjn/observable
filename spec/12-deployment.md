@@ -78,12 +78,43 @@ Builds are produced by CI and promoted by GitOps. CI owns artifact creation; dep
 
 ### 19.4 Environment Topology
 
-- local dev
-- CI ephemeral
-- shared integration
-- perf/staging
-- production
-- regulated/single-tenant variant
+| Environment | Purpose | Ownership | Notes |
+|-------------|---------|-----------|-------|
+| local dev | fast developer feedback | developer | native tools plus local dependencies; no production credentials |
+| CI ephemeral | PR validation and smoke tests | CI | short-lived, disposable, may be created by GitHub Actions |
+| shared integration | merged `main` validation | platform team | GitOps-managed, receives signed main artifacts |
+| perf/staging | release candidate validation | platform team | production-like scale and policy gates |
+| production | customer workloads | operations | progressive rollout with automated analysis |
+| regulated/single-tenant variant | isolated customer or compliance deployments | operations/security | same product architecture with isolated deployment boundary |
+
+### 19.4.1 Local Development Environment
+
+Local development should make the common edit/test/debug loop fast without hiding production-critical boundaries.
+
+**Recommended local shape**
+- native Rust and TypeScript processes for active services
+- `pnpm` and Vite for frontend development
+- Docker-backed local dependencies for ClickHouse, Kafka/Redpanda-compatible broker, object storage emulator, and OpenFGA-compatible store
+- deterministic local fixtures for tenants, API keys, auth identities, dashboards, alerts, and sample telemetry
+- optional `kind` cluster for Kubernetes manifest, ingress, policy, and operator validation
+
+**Local startup profile**
+1. metadata store
+2. authz store
+3. broker
+4. telemetry store
+5. object storage emulator
+6. selected backend services
+7. frontend dev server
+8. synthetic telemetry generator
+
+**Local environment rules**
+- Developers must be able to run unit and contract checks without starting the full service graph.
+- A single-service workflow must be available for most backend work.
+- Full local integration is allowed to be slower but must remain deterministic and resettable.
+- Local services must emit logs, metrics, and traces to the local collector path where practical.
+- Local data reset must not require deleting unrelated developer files or credentials.
+- Local config must model tenant context, auth checks, schema validation, and migration application even when using small datasets.
 
 ### 19.5 Disaster Recovery
 

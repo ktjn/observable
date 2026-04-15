@@ -94,3 +94,18 @@ CI gates map the test strategy to merge and release decisions.
 | Production canary | progressive rollout | SLO analysis, alert latency, queue lag, ingest error rate, query latency, tenant isolation smoke |
 
 Tests that guard tenant isolation, auth bypass, schema compatibility, migrations, and data loss are release blockers. Performance and chaos failures are promotion blockers unless explicitly waived by the responsible domain owner with a documented expiry.
+
+### 18.5 Local Test Scope
+
+Local tests optimize for fast feedback and confidence before PR submission. They do not replace CI gates.
+
+| Scope | Local command | Purpose |
+|-------|---------------|---------|
+| Formatting | `just fmt` | keep generated and handwritten code consistent |
+| Static checks | `just lint` | catch obvious Rust, TypeScript, docs, and config issues |
+| Unit tests | `just test` | validate changed packages without external services |
+| Contract checks | `just contract` | verify protobuf/OpenAPI compatibility and generated-code drift |
+| Service smoke | `just smoke` | validate one service against local dependencies |
+| CI approximation | `just ci-local` | run the closest practical local equivalent of required PR checks |
+
+Local integration fixtures must include at least one tenant-isolation case, one malformed telemetry payload, one golden trace/log correlation bundle, and one high-cardinality sample slice for any feature that touches ingest, query, storage, auth, or schema logic.
