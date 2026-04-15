@@ -73,6 +73,15 @@ Polyrepo acceptable if org scale requires it.
 - every service exports health, metrics, traces, and logs
 - every persistent schema change uses migrations
 
+### 16.6 AI Agent Guidance
+
+When utilizing AI agents for development, the following mandates apply:
+
+- **No Unreviewed Merges:** Nothing can be merged or committed to the main branch without a human review.
+- **Verification & Testing:** Every change must be thoroughly tested and verified before being considered complete.
+- **Clarity Above All:** Nothing can be left unclear. If instructions, requirements, or code changes are ambiguous, the agent must seek clarification before proceeding.
+- **Specification Alignment:** All changes must align with the core architectural principles and specifications defined in the `spec/` directory.
+
 ---
 
 ## 17. Project Plan: Small Steps to Production

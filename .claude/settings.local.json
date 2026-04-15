@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -v \"^d.*\\\\\\\\.git\")",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git log *)"
+    ]
+  }
+}
