@@ -83,6 +83,21 @@ When utilizing AI agents for development, the following mandates apply:
 - **Clarity Above All:** Nothing can be left unclear. If instructions, requirements, or code changes are ambiguous, the agent must seek clarification before proceeding.
 - **Specification Alignment:** All changes must align with the core architectural principles and specifications defined in the `spec/` directory.
 
+### 16.7 AI Agent Iteration Workflow
+
+Every agent iteration must follow this lifecycle:
+
+1. **Preflight:** inspect the current branch and working tree with `git status --short --branch`. Identify any uncommitted or unrelated user changes before editing.
+2. **Branch:** create or switch to a dedicated short-lived branch named for the current task. If the task builds on an unmerged agent PR, create a stacked branch from that PR branch and target the new PR at the parent branch.
+3. **Clarify:** confirm acceptance criteria, impacted specs, likely tests, and rollback/docs implications. Ask only when the missing information materially changes the implementation.
+4. **Implement:** keep edits scoped to the task, align with the `spec/` directory, and avoid unrelated refactors.
+5. **Verify:** run the smallest sufficient test set for the risk of the change. Documentation-only changes require a diff review and an explicit note that code tests were not run.
+6. **Commit:** commit the completed iteration on the task branch with a clear message.
+7. **Publish:** push the branch to GitHub and open a pull request. The PR body must summarize the change, list verification performed, and call out skipped checks or residual risk.
+8. **Handoff:** report the branch, commit, PR link, verification, and any blockers.
+
+If publishing is blocked by credentials, network, or repository permissions, the agent must leave the branch and commit ready locally and report the exact command and failure.
+
 ---
 
 ## 17. Project Plan: Small Steps to Production
