@@ -1,7 +1,7 @@
 # ADR-006: React/Vite Frontend
 
 **Date:** 2026-04-15  
-**Status:** Proposed  
+**Status:** Accepted  
 **Authors:** Gemini CLI  
 **Deciders:** Project Stakeholders  
 **Review date:** 2026-04-15  
