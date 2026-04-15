@@ -1,0 +1,472 @@
+# Domain Model
+
+This document is the authoritative domain model for the Observable platform. It defines all core entities, their relationships, telemetry schemas, cross-signal join keys, state machines, and authorization model. Other specs (query language, ADRs, storage) should reference this document rather than define their own entity schemas.
+
+---
+
+## 1. Entity Glossary
+
+### Tenant
+A top-level isolation boundary. All data within Observable belongs to exactly one tenant. Tenant boundaries are enforced at the storage, query, and API layers. No data crosses tenant boundaries without explicit export.
+
+- **Cardinality:** 1 Tenant has 1..N Projects
+- **OTel resource attribute:** `observable.tenant_id` (injected at ingest)
+
+### Account
+The billing entity. An account maps to one or more projects and owns the subscription, usage limits, and billing contact. In single-project setups, account and project map one-to-one.
+
+- **Cardinality:** 1 Account has 1..N Projects
+- **OTel resource attribute:** none (billing metadata, not signal metadata)
+
+### Organization
+An optional grouping layer between account and project, used in enterprise deployments to model divisions, business units, or subsidiaries. When present, an organization owns one or more projects within an account.
+
+- **Cardinality:** 1 Account has 0..N Organizations; 1 Organization has 1..N Projects
+- **OTel resource attribute:** none
+
+### Project
+A logical grouping of services and environments within a tenant. A project is the primary unit of access control and configuration. Teams typically own one or more projects.
+
+- **Cardinality:** 1 Project has 1..N Environments, 1..N Services
+- **OTel resource attribute:** `observable.project_id` (injected at ingest)
+
+### Environment
+A named deployment stage within a project (e.g. production, staging, development, canary). Environments partition signals so that metrics and traces from different stages do not mix in queries unless explicitly requested.
+
+- **Cardinality:** belongs to 1 Project; receives 0..N Deployments; runs 0..N Workloads
+- **OTel resource attribute:** `deployment.environment` (OTel semantic convention)
+
+### Service
+A named deployable unit — a microservice, monolith, function, or job. The service is the primary entity around which SLOs, alerts, and RED metrics are organized.
+
+- **Cardinality:** 1 Service has 1..N Workloads, 1..N Deployments
+- **OTel resource attributes:** `service.name`, `service.namespace`
+
+### Workload
+A runtime instance of a service — a pod, process, container, or serverless invocation. Workloads are ephemeral; they are created when a service instance starts and retired when it stops. Workload identity is derived from infrastructure metadata.
+
+- **Cardinality:** belongs to 1 Service; runs on 1 Host; emits Spans, LogRecords, MetricSeries, ProfileSamples
+- **OTel resource attributes:** `k8s.pod.name`, `process.pid`, `container.id`
+
+### Deployment
+A versioned release event linking a specific service version to an environment at a point in time. Deployments are used to correlate error rate changes with code changes and to annotate dashboards.
+
+- **Cardinality:** belongs to 1 Service; targets 1 Environment
+- **OTel resource attribute:** `service.version` (version carried on the release); `deployment_id` injected at ingest
+
+### Host
+A physical or virtual machine that runs one or more workloads. Host identity is used to correlate workload-level telemetry with infrastructure metrics (CPU, memory, disk, network).
+
+- **Cardinality:** runs 0..N Workloads; member of 0..1 Cluster
+- **OTel resource attributes:** `host.id`, `host.name`
+
+### Cluster
+A Kubernetes cluster or orchestration domain. Clusters group hosts and namespaces and provide a join key for infrastructure-level aggregations.
+
+- **Cardinality:** 1 Cluster has 1..N Hosts, 1..N Namespaces
+- **OTel resource attribute:** `k8s.cluster.name`
+
+### Namespace
+A Kubernetes namespace within a cluster, used to isolate workloads within a shared cluster. Namespaces map to teams or services in most deployments.
+
+- **Cardinality:** belongs to 1 Cluster; contains 0..N Workloads
+- **OTel resource attribute:** `k8s.namespace.name`
+
+---
+
+## 2. Core Telemetry Entity Schemas
+
+The fields below align with OTel semantic conventions (1.x). Fields marked `resource attr` are carried in the OTel resource attributes map, not the signal body. All schemas include `tenant_id` as the mandatory first-level partition key.
+
+### Span
+
+| Field | Type | Required | OTel Mapping |
+|---|---|---|---|
+| tenant_id | UUID | yes | resource attr: `observable.tenant_id` |
+| trace_id | bytes[16] | yes | `trace_id` |
+| span_id | bytes[8] | yes | `span_id` |
+| parent_span_id | bytes[8] | no | `parent_span_id` |
+| service_name | string | yes | resource attr: `service.name` |
+| service_namespace | string | no | resource attr: `service.namespace` |
+| service_version | string | no | resource attr: `service.version` |
+| operation_name | string | yes | `name` |
+| span_kind | enum(INTERNAL, SERVER, CLIENT, PRODUCER, CONSUMER) | yes | `kind` |
+| start_time_unix_nano | uint64 | yes | `start_time_unix_nano` |
+| end_time_unix_nano | uint64 | yes | `end_time_unix_nano` |
+| duration_ns | uint64 | yes | derived: `end - start` |
+| status_code | enum(OK, ERROR, UNSET) | yes | `status.code` |
+| status_message | string | no | `status.message` |
+| attributes | map[string]AnyValue | no | `attributes` |
+| events | array[SpanEvent] | no | `events` |
+| links | array[SpanLink] | no | `links` |
+| resource_attributes | map[string]AnyValue | no | `resource.attributes` |
+| deployment_id | string | no | injected at ingest |
+| environment | string | no | resource attr: `deployment.environment` |
+| host_id | string | no | resource attr: `host.id` |
+| workload | string | no | resource attr: `k8s.pod.name` / `process.pid` |
+
+**Retention tier default:** hot (3-14d)
+
+---
+
+### Trace
+
+A Trace is a materialized rollup over its constituent Spans. It is written once (or updated incrementally) as spans arrive and provides fast trace-level queries without scanning all spans.
+
+| Field | Type | Required | OTel Mapping |
+|---|---|---|---|
+| tenant_id | UUID | yes | resource attr: `observable.tenant_id` |
+| trace_id | bytes[16] | yes | `trace_id` |
+| root_span_id | bytes[8] | yes | derived from root span |
+| root_operation_name | string | yes | `name` of root span |
+| service_name | string | yes | resource attr: `service.name` of root span |
+| start_time_unix_nano | uint64 | yes | min(`start_time_unix_nano`) across spans |
+| end_time_unix_nano | uint64 | yes | max(`end_time_unix_nano`) across spans |
+| duration_ns | uint64 | yes | `end - start` of trace |
+| span_count | uint32 | yes | count of spans in trace |
+| error_span_count | uint32 | yes | count of spans with `status.code = ERROR` |
+| has_error | bool | yes | derived: `error_span_count > 0` |
+| services | array[string] | yes | distinct service_names in trace |
+| environment | string | no | resource attr: `deployment.environment` |
+| deployment_id | string | no | injected at ingest |
+
+**Retention tier default:** hot (3-14d)
+
+---
+
+### LogRecord
+
+| Field | Type | Required | OTel Mapping |
+|---|---|---|---|
+| tenant_id | UUID | yes | resource attr: `observable.tenant_id` |
+| log_id | UUID | yes | generated at ingest |
+| timestamp_unix_nano | uint64 | yes | `timestamp_unix_nano` |
+| observed_timestamp_unix_nano | uint64 | yes | `observed_timestamp_unix_nano` |
+| severity_number | int32 | yes | `severity_number` (1-24, OTel spec) |
+| severity_text | string | no | `severity_text` |
+| body | AnyValue | yes | `body` |
+| trace_id | bytes[16] | no | `trace_id` |
+| span_id | bytes[8] | no | `span_id` |
+| trace_flags | uint32 | no | `trace_flags` |
+| attributes | map[string]AnyValue | no | `attributes` |
+| resource_attributes | map[string]AnyValue | no | `resource.attributes` |
+| service_name | string | yes | resource attr: `service.name` |
+| environment | string | no | resource attr: `deployment.environment` |
+| host_id | string | no | resource attr: `host.id` |
+| fingerprint | uint64 | no | log pattern hash; injected at ingest |
+| parsed_fields | map[string]string | no | extracted structured fields; injected at ingest |
+
+**Retention tier default:** warm (up to 60d); hot for error/fatal severity
+
+---
+
+### MetricSeries
+
+A MetricSeries represents a unique combination of metric name and label set (a time series). MetricPoints are associated with a series.
+
+| Field | Type | Required | OTel Mapping |
+|---|---|---|---|
+| tenant_id | UUID | yes | resource attr: `observable.tenant_id` |
+| metric_series_id | UUID | yes | generated at ingest (hash of name + labels) |
+| metric_name | string | yes | `name` |
+| description | string | no | `description` |
+| unit | string | no | `unit` |
+| type | enum(gauge, sum, histogram, exponential_histogram, summary) | yes | `data` oneof type |
+| is_monotonic | bool | no | `sum.is_monotonic` |
+| aggregation_temporality | enum(delta, cumulative) | no | `aggregation_temporality` |
+| attributes | map[string]string | yes | `attributes` (the label set) |
+| resource_attributes | map[string]AnyValue | no | `resource.attributes` |
+| service_name | string | yes | resource attr: `service.name` |
+| environment | string | no | resource attr: `deployment.environment` |
+| start_time_unix_nano | uint64 | no | `start_time_unix_nano` (for sums/histograms) |
+
+**Retention tier default:** hot (3-14d) → warm with rollups
+
+---
+
+### MetricPoint
+
+A single data point within a MetricSeries at a specific timestamp.
+
+| Field | Type | Required | OTel Mapping |
+|---|---|---|---|
+| tenant_id | UUID | yes | partitioning key |
+| metric_series_id | UUID | yes | foreign key to MetricSeries |
+| metric_name | string | yes | denormalized for query performance |
+| service_name | string | yes | denormalized for query performance |
+| time_unix_nano | uint64 | yes | `time_unix_nano` |
+| value_double | float64 | no | `as_double` (gauge/sum) |
+| value_int | int64 | no | `as_int` (gauge/sum) |
+| histogram_count | uint64 | no | `histogram.data_point.count` |
+| histogram_sum | float64 | no | `histogram.data_point.sum` |
+| histogram_bucket_counts | array[uint64] | no | `histogram.data_point.bucket_counts` |
+| histogram_explicit_bounds | array[float64] | no | `histogram.data_point.explicit_bounds` |
+| exemplars | array[Exemplar] | no | `exemplars` |
+| flags | uint32 | no | `flags` |
+
+**Retention tier default:** hot (3-14d); cold with hourly/daily rollups at warm/cold tiers
+
+---
+
+### ProfileSample
+
+| Field | Type | Required | OTel Mapping |
+|---|---|---|---|
+| tenant_id | UUID | yes | resource attr: `observable.tenant_id` |
+| profile_id | UUID | yes | OTel Profiles: `profile_id` |
+| service_name | string | yes | resource attr: `service.name` |
+| service_version | string | no | resource attr: `service.version` |
+| environment | string | no | resource attr: `deployment.environment` |
+| start_time_unix_nano | uint64 | yes | `start_time_unix_nano` |
+| end_time_unix_nano | uint64 | no | `end_time_unix_nano` |
+| duration_ns | uint64 | yes | derived or explicit |
+| sample_type | string | yes | OTel Profiles: `sample_type.type` (e.g. `cpu`, `heap`, `goroutine`) |
+| sample_unit | string | yes | OTel Profiles: `sample_type.unit` (e.g. `nanoseconds`, `bytes`) |
+| period | int64 | yes | OTel Profiles: `period` |
+| period_type | string | yes | OTel Profiles: `period_type.type` |
+| frames | array[StackFrame] | yes | OTel Profiles: `location` + `function` tables |
+| attributes | map[string]AnyValue | no | `attribute_units` / `attributes` |
+| host_id | string | no | resource attr: `host.id` |
+| workload | string | no | resource attr: `k8s.pod.name` |
+
+**Retention tier default:** cold (2-12 months); hot only for on-demand continuous profiling windows
+
+---
+
+### Event
+
+An Event is a discrete occurrence that is not a log line — a deployment, config change, incident trigger, or manual annotation. Events are rendered as overlay markers on dashboards and timelines.
+
+| Field | Type | Required | OTel Mapping |
+|---|---|---|---|
+| tenant_id | UUID | yes | `observable.tenant_id` |
+| event_id | UUID | yes | generated at ingest |
+| event_name | string | yes | human-readable label |
+| timestamp_unix_nano | uint64 | yes | event occurrence time |
+| source_type | enum(deployment, config_change, incident, manual, alert_fired, alert_resolved) | yes | Observable internal |
+| payload | JSON | yes | arbitrary structured event data |
+| trace_id | bytes[16] | no | optional trace context |
+| span_id | bytes[8] | no | optional span context |
+| service_name | string | no | associated service |
+| environment | string | no | associated environment |
+| deployment_id | string | no | for `source_type = deployment` |
+| created_by | string | no | user or system that created the event |
+
+**Retention tier default:** warm (up to 60d)
+
+---
+
+### SyntheticCheck
+
+A SyntheticCheck is the result of one execution of a synthetic monitor — an HTTP probe, multi-step journey, or API check run from a specific region.
+
+| Field | Type | Required | OTel Mapping |
+|---|---|---|---|
+| tenant_id | UUID | yes | `observable.tenant_id` |
+| check_id | UUID | yes | ID of the check definition |
+| check_name | string | yes | human-readable name |
+| target_url | string | yes | URL or endpoint under test |
+| status | enum(PASS, FAIL, TIMEOUT, ERROR) | yes | Observable internal |
+| duration_ms | uint32 | yes | total check duration |
+| timestamp_unix_nano | uint64 | yes | check execution time |
+| region | string | yes | probe region (e.g. `us-east-1`) |
+| assertions_passed | uint32 | yes | number of assertions that passed |
+| assertions_failed | uint32 | yes | number of assertions that failed |
+| assertion_details | array[AssertionResult] | no | per-assertion pass/fail detail |
+| http_status_code | uint32 | no | HTTP response code |
+| trace_id | bytes[16] | no | W3C trace context if injected into probe request |
+| error_message | string | no | error detail on FAIL/TIMEOUT |
+| environment | string | no | target environment label |
+
+**Retention tier default:** warm (30-60d)
+
+---
+
+## 3. Cross-Signal Join Key Matrix
+
+| From | To | Join Key | Notes |
+|---|---|---|---|
+| Span | LogRecord | `trace_id` | Log must carry trace context (`trace_id` + `span_id`); not guaranteed for all log sources |
+| Span | MetricPoint | `service_name` + time window | Approximate time-window join; use exemplars in MetricPoint where available for precise correlation |
+| Span | Deployment | `service_name` + `deployment_id` | `deployment_id` injected at ingest from active deployment registry |
+| Span | Event | `trace_id` (optional) | Events may not carry trace context; fall back to `service_name` + time proximity |
+| Span | Trace | `trace_id` | 1:N; every span belongs to exactly one trace |
+| LogRecord | Host | `host.id` (resource attr) | Extracted from `resource_attributes`; requires OTel resource enrichment |
+| LogRecord | Span | `trace_id` + `span_id` | Bidirectional; span must be in retention window |
+| Workload | Host | `host_id` | Scheduling metadata; populated by infra agent or k8s metadata enrichment |
+| Workload | Span | `service_name` + workload identifiers | Via resource attributes (`k8s.pod.name`, `process.pid`) |
+| Workload | MetricSeries | `service_name` + `k8s.pod.name` | For per-instance RED metric breakdown |
+| Service | Deployment | `service_name` | Latest deployment per environment; join on `service_name` + `environment` |
+| Service | SLODefinition | `service_name` | SLO is defined at service level |
+| MetricSeries | Service | `service_name` (label) | For RED metrics derivation (rate, errors, duration) |
+| MetricPoint | Span | exemplar `trace_id` | High-value exemplars carry `trace_id` for precise trace-metric correlation |
+| ProfileSample | Service | `service_name` | For profiling explorer and flame graph aggregation |
+| ProfileSample | Span | `trace_id` (optional) | Continuous profiling correlation; requires trace context propagation |
+| SyntheticCheck | Span | `trace_id` | Only when probe injects W3C trace context into outbound request |
+| Event | Deployment | `deployment_id` | For `source_type = deployment` events |
+
+---
+
+## 4. Entity Relationship Diagram
+
+```mermaid
+erDiagram
+    TENANT ||--o{ PROJECT : has
+    PROJECT ||--o{ ENVIRONMENT : has
+    PROJECT ||--o{ SERVICE : contains
+    SERVICE ||--o{ WORKLOAD : runs_as
+    SERVICE ||--o{ DEPLOYMENT : releases
+    DEPLOYMENT ||--|| ENVIRONMENT : targets
+    WORKLOAD }|--|| HOST : runs_on
+    HOST }|--o| CLUSTER : member_of
+    CLUSTER ||--o{ NAMESPACE : partitioned_into
+    WORKLOAD ||--o{ SPAN : emits
+    SPAN }o--|| TRACE : belongs_to
+    WORKLOAD ||--o{ LOG_RECORD : emits
+    WORKLOAD ||--o{ METRIC_SERIES : emits
+    WORKLOAD ||--o{ PROFILE_SAMPLE : emits
+    SERVICE ||--o{ SLO_DEFINITION : defines
+    ALERT_RULE ||--o{ INCIDENT : triggers
+```
+
+---
+
+## 5. SLO and Alert Entity State Machines
+
+### SLODefinition
+
+An SLO is a target for service reliability expressed as a ratio over a rolling time window. SLOs are evaluated continuously using burn rate calculations over MetricSeries and Span data.
+
+| Field | Type | Notes |
+|---|---|---|
+| slo_id | UUID | |
+| tenant_id | UUID | |
+| project_id | UUID | |
+| service_name | string | must match a known Service entity |
+| environment | string | SLO is environment-scoped |
+| sli_type | enum(availability, latency, error_rate, throughput) | determines how the SLI is computed |
+| target | float64 | 0-1, e.g. `0.999` for 99.9% |
+| window_days | int | rolling window length, e.g. `30` |
+| latency_threshold_ms | uint32 | for `sli_type = latency`; good request threshold |
+| burn_rate_fast_threshold | float64 | fast-burn alert multiplier (e.g. `14.4` = consume 2% budget in 1h) |
+| burn_rate_slow_threshold | float64 | slow-burn alert multiplier (e.g. `1.0` = trending to miss) |
+| description | string | human-readable SLO description |
+| created_at | timestamp | |
+| updated_at | timestamp | |
+
+### SLOBudget (derived, not stored as primary record)
+
+Error budget is derived continuously:
+- `error_budget_total = (1 - target) * window_events`
+- `error_budget_remaining = error_budget_total - bad_events`
+- `burn_rate = bad_events_last_Nh / (error_budget_total * (N / window_hours))`
+
+### AlertRule States
+
+```
+Pending → Active → Resolved → Silenced
+Pending → Suppressed  (inhibition rule match)
+Active  → Suppressed  (inhibition rule match)
+```
+
+- **Pending:** Condition has been met but the `for` duration has not elapsed (avoids flapping on transient spikes)
+- **Active:** Condition has been met for the full `for` duration; notifications are firing
+- **Resolved:** Condition is no longer met; resolution notification sent
+- **Silenced:** Alert is firing but suppressed by an active silence rule; no notifications sent
+- **Suppressed:** Alert is suppressed by an inhibition rule (a higher-severity alert is active for the same service)
+
+### Incident States
+
+```
+Triggered → Acknowledged → Investigating → Resolved → Post-mortem
+```
+
+- **Triggered:** Alert fired and no acknowledgement within `auto_trigger_delay`; incident record created
+- **Acknowledged:** On-call responder has accepted the incident
+- **Investigating:** Responder is actively working the incident; timeline is being recorded
+- **Resolved:** Service has recovered; resolution time recorded; SLO impact calculated
+- **Post-mortem:** Incident closed; post-mortem document linked (optional, may be skipped for low-severity)
+
+---
+
+## 6. Authorization Entities
+
+Observable uses a hybrid RBAC + ReBAC authorization model. Coarse-grained access is controlled by RBAC roles scoped to tenant and project. Fine-grained resource access (dashboards, incidents, data scopes) is controlled by relationship tuples in an OpenFGA-compatible store.
+
+### Coarse RBAC Roles
+
+| Role | Scope | Permissions |
+|---|---|---|
+| TenantAdmin | Tenant | All operations within tenant; manage projects, billing contacts, SSO, API keys |
+| ProjectAdmin | Project | All operations within project; manage members, environments, integrations |
+| Member | Project | Read + write dashboards, alerts, SLO definitions; acknowledge incidents |
+| Viewer | Project | Read only; cannot write dashboards or alerts; cannot acknowledge incidents |
+
+Role assignment is stored as `(user_id, role, scope_type, scope_id)` tuples.
+
+### ReBAC (OpenFGA-style) Tuple Format
+
+Fine-grained resource access uses relationship tuples:
+
+```
+(subject: user:<id>, relation: <relation>, object: <type>:<id>)
+```
+
+Examples:
+- `(subject: user:alice, relation: viewer, object: dashboard:xyz)`
+- `(subject: user:bob, relation: editor, object: project:prod)`
+- `(subject: team:sre, relation: responder, object: incident:INC-001)`
+- `(subject: user:carol, relation: owner, object: alert_rule:high-latency-checkout)`
+- `(subject: team:platform, relation: admin, object: environment:production)`
+
+### Resource Types Requiring ReBAC
+
+| Resource Type | Relations | Notes |
+|---|---|---|
+| Dashboard | owner, editor, viewer | default viewer = project members |
+| Project | admin, editor, viewer | parent of most other resources |
+| Environment | admin, viewer | production env may restrict write access |
+| Incident | responder, viewer | responder can acknowledge and resolve |
+| DataScope | owner, user | defines what data a user or team can query; used for data-level access control |
+| AlertRule | owner, editor, viewer | ownership for silence/modify permissions |
+| SLODefinition | owner, editor, viewer | |
+
+### DataScope Entity
+
+A DataScope constrains what signals a subject can read, independent of project membership. Used for contractor access, compliance isolation, or per-team data partitioning.
+
+| Field | Type | Notes |
+|---|---|---|
+| scope_id | UUID | |
+| tenant_id | UUID | |
+| allowed_services | array[string] | empty = all services |
+| allowed_environments | array[string] | empty = all environments |
+| allowed_signal_types | array[enum] | spans, logs, metrics, profiles |
+| max_lookback_days | int | caps how far back queries can reach |
+| description | string | |
+
+---
+
+## 7. Common Dimensions Reference
+
+The following fields appear across all signal types and align with the common dimensions defined in `spec/03-storage.md`. They are injected or enriched at ingest time from OTel resource attributes.
+
+| Field | OTel Resource Attribute | Description |
+|---|---|---|
+| `tenant_id` | `observable.tenant_id` | Top-level isolation key |
+| `account_id` | `observable.account_id` | Billing entity |
+| `project_id` | `observable.project_id` | Project scope |
+| `environment` | `deployment.environment` | Named deployment stage |
+| `service_name` | `service.name` | Service identifier |
+| `service_namespace` | `service.namespace` | Optional service grouping |
+| `service_version` | `service.version` | Deployed version |
+| `deployment_id` | injected at ingest | Active deployment at time of signal |
+| `region` | `cloud.region` | Cloud or datacenter region |
+| `cloud_provider` | `cloud.provider` | e.g. `aws`, `gcp`, `azure` |
+| `cluster` | `k8s.cluster.name` | Kubernetes cluster |
+| `namespace` | `k8s.namespace.name` | Kubernetes namespace |
+| `workload` | `k8s.pod.name` / `process.pid` | Runtime instance identifier |
+| `host_id` | `host.id` | Physical/virtual machine ID |
+| `container_id` | `container.id` | Container instance ID |
+| `trace_id` | `trace_id` | Distributed trace identifier |
+| `span_id` | `span_id` | Span within trace |
