@@ -38,6 +38,18 @@ Deployment sequence:
 
 Builds are produced by CI and promoted by GitOps. CI owns artifact creation; deployment controllers own reconciliation into Kubernetes environments.
 
+**Recommended CI/CD tools**
+- GitHub Actions produces builds, runs checks, signs/attests artifacts, and publishes immutable artifacts.
+- Argo CD reconciles environment repositories into Kubernetes clusters.
+- Argo Rollouts manages canary, blue-green, progressive rollout, automated analysis, and rollback behavior.
+- `just` provides a thin local and CI task interface over native tools so developers and CI run the same commands.
+
+**Tool ownership boundaries**
+- GitHub Actions may deploy only to ephemeral CI environments and may update GitOps repositories through reviewed automation.
+- Argo CD owns reconciliation for shared integration, perf/staging, production, and regulated/single-tenant environments.
+- Argo Rollouts owns progressive rollout state and automated analysis gates inside Kubernetes.
+- Production promotion must use the same signed artifact built by CI; deployment automation must not rebuild images during promotion.
+
 **Build stages**
 1. resolve pinned dependencies from lockfiles
 2. validate generated code, protobuf/OpenAPI contracts, and schema migrations

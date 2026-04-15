@@ -78,6 +78,22 @@ Polyrepo acceptable if org scale requires it.
 
 CI must make every change reproducible, reviewable, and releasable before merge. The default target is a monorepo with Rust services, TypeScript frontend packages, protobuf/OpenAPI contracts, containerized services, and Kubernetes deployment artifacts.
 
+**Recommended toolchain**
+- CI orchestrator: GitHub Actions
+- CD/GitOps: Argo CD
+- progressive delivery: Argo Rollouts
+- local task wrapper: `just`
+- Rust checks: `cargo fmt`, `cargo clippy`, `cargo test`, and `cargo nextest` when the workspace is large enough to benefit
+- frontend checks: `pnpm`, TypeScript, Vite production build, and Playwright for E2E
+- contract checks: `buf` for protobuf and OpenAPI lint/diff tooling when OpenAPI contracts exist
+- container builds: Docker Buildx or an equivalent OCI image builder
+- supply chain: GitHub OIDC, GitHub artifact attestations, SBOM generation, provenance attestations, image signing, dependency scanning, and secret scanning
+
+**Deferred tools**
+- Do not introduce Bazel, Pants, Nx, or a custom build system until native Rust/TypeScript tooling is too slow or inconsistent to operate.
+- Do not introduce Buildkite or self-hosted runners until GitHub-hosted runners become a demonstrated bottleneck for cost, queue time, hardware access, or isolation.
+- Do not let CI deploy directly to production with imperative cluster commands. CI publishes signed artifacts; GitOps controllers reconcile deployment state.
+
 **Pipeline triggers**
 - Pull request to `main`: run validation, build, unit, contract, integration smoke, security, and documentation checks.
 - Merge to `main`: repeat required checks, publish versioned build artifacts, and update the integration environment through GitOps.
