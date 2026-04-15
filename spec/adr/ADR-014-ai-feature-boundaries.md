@@ -1,7 +1,7 @@
 # ADR-014: AI Feature Boundaries
 
 **Date:** 2026-04-15  
-**Status:** Proposed  
+**Status:** Accepted  
 **Authors:** Gemini CLI  
 **Deciders:** Project Stakeholders  
 **Review date:** 2026-04-15  
@@ -13,7 +13,7 @@ AI/ML features are high-value but can be opaque and unreliable if not grounded i
 ## Decision
 
 The platform will follow a **"Ship AI Late" strategy**. 
-- Foundational observability (Phase 0–4) must be solid before Phase 7 (Intelligence) features are broadly introduced.
+- Foundational observability (Phase 0–4) must be solid before Phase 8 (Intelligence) features are broadly introduced.
 - AI will be used primarily as an advisory layer (summarization, root-cause candidate ranking) rather than an automated decision-maker.
 - No auto-remediation will be performed without explicit policy gates and human-in-the-loop approvals.
 
@@ -42,5 +42,5 @@ Rejected because human-readable and deterministic query results are essential fo
 ## Related
 
 - `spec/08-ai-ml.md` (AI/ML Features)
-- `spec/10-process.md` (Phase 7: Intelligence)
+- `spec/10-process.md` (Phase 8: Intelligence)
 - `spec/13-risks-roadmap.md` (Risk 6: AI-first roadmap)

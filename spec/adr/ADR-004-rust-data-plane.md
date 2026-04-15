@@ -1,7 +1,7 @@
 # ADR-004: Rust for Data Plane Services
 
 **Date:** 2026-04-15  
-**Status:** Proposed  
+**Status:** Accepted  
 **Authors:** Gemini CLI  
 **Deciders:** Project Stakeholders  
 **Review date:** 2026-04-15  
