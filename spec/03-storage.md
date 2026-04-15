@@ -68,11 +68,18 @@ Use for:
 
 **Metrics schema**
 - `metric_name`
-- `type`
+- `type` (`gauge`, `sum`, `histogram`, `exponential_histogram`, `summary`)
 - `timestamp`
-- `value` / `histogram` / `summary`
-- `dimensions`
-- `exemplar_refs`
+- `start_timestamp` when supplied by OTel cumulative/delta streams
+- numeric value for gauges and sums
+- explicit histogram buckets
+- exponential histogram buckets
+- summary count/sum/quantiles for compatibility imports
+- `dimensions` / metric attributes
+- `resource_attrs`
+- instrumentation scope name/version
+- aggregation temporality and monotonicity where applicable
+- exemplars with optional `trace_id` / `span_id` refs
 
 **Logs schema**
 - `timestamp`
@@ -83,6 +90,8 @@ Use for:
 - `trace_id` / `span_id` refs
 - `fingerprint`
 - `parsed_fields`
+
+Logs and spans are correlated, not nested. Exact span-log joins require `tenant_id + trace_id + span_id`; trace-level log joins may use `tenant_id + trace_id` when the log lacks a span id.
 
 **Traces schema**
 - `trace_id`
@@ -96,6 +105,8 @@ Use for:
 - `events`
 - `links`
 - `resource_attrs`
+
+Spans are the source of truth for trace waterfall reconstruction. Trace rows are materialized rollups, and span events remain part of the span payload unless explicitly duplicated into logs by a transformation.
 
 **Profiles schema**
 - `profile_id`

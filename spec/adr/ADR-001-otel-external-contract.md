@@ -41,3 +41,4 @@ Rejected to maintain vendor neutrality and broad ecosystem compatibility. OTel a
 - `spec/01-overview.md` (Product Principles: OpenTelemetry first)
 - `spec/02-architecture.md` (Ingestion)
 - `spec/06-agents.md` (Agent and Collector Strategy)
+- `spec/14-domain-model.md` (OTel-aligned telemetry schemas and cross-signal joins)
