@@ -60,7 +60,7 @@ Deployment sequence:
 - protobuf
 - Arrow
 - DataFusion
-- Kafka/Redpanda/NATS JetStream class broker
+- Kafka/Redpanda class broker
 - ClickHouse for logs/traces
 - object storage
 - OTel Collector distribution

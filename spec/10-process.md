@@ -15,7 +15,7 @@ Maintain ADRs from day 1.
 7. multi-tenant isolation strategy
 8. authorization model
 9. queue/stream backbone
-10. deployment model: k8s-first or hybrid
+10. deployment model: k8s-first
 11. sampling strategy
 12. retention and tiering
 13. schema governance
@@ -52,6 +52,7 @@ Polyrepo acceptable if org scale requires it.
 - data retention impact identified
 - auth impact identified
 - runbook/docs impact identified
+- ADR/spec synchronization impact identified
 
 ### 16.4 Definition of Done
 
@@ -60,7 +61,7 @@ Polyrepo acceptable if org scale requires it.
 - dashboards/alerts updated if relevant
 - security review complete if boundary changed
 - load test impact assessed if hot path changed
-- ADR updated if architecture changed
+- ADRs and specs updated together if architecture, technology choices, deployment model, data model, security model, or roadmap scope changed
 - migration path documented
 - rollback path documented
 
@@ -82,6 +83,7 @@ When utilizing AI agents for development, the following mandates apply:
 - **Verification & Testing:** Every change must be thoroughly tested and verified before being considered complete.
 - **Clarity Above All:** Nothing can be left unclear. If instructions, requirements, or code changes are ambiguous, the agent must seek clarification before proceeding.
 - **Specification Alignment:** All changes must align with the core architectural principles and specifications defined in the `spec/` directory.
+- **ADR and Spec Synchronization:** Architecture, technology, deployment, data model, security, and roadmap changes must update both the relevant ADRs and affected specs in the same iteration. If an ADR change is not required, the PR must explain why.
 
 ---
 
@@ -110,7 +112,7 @@ The roadmap is staged to prove the risky foundations before broadening the produ
 9. Define platform SLOs and first non-functional acceptance targets.
 10. Create the initial staffing and ownership map.
 
-**Exit gate:** all foundational specs exist, ADRs are at least Proposed, acceptance targets are documented, and the implementation backlog can be traced back to specs.
+**Exit gate:** all foundational specs exist, the initial ADR set is Accepted, acceptance targets are documented, and the implementation backlog can be traced back to specs.
 
 ### Phase 1 — Internal MVP: Ingest to Query
 
