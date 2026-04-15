@@ -15,7 +15,7 @@ Full-stack observability platform specification — Dynatrace / New Relic class,
 | [07-alerting-slo.md](07-alerting-slo.md) | Alerting, incident management, SLOs |
 | [08-ai-ml.md](08-ai-ml.md) | AI/ML features and constraints |
 | [09-api.md](09-api.md) | Public APIs, SDKs, extension points |
-| [10-process.md](10-process.md) | ADRs, development process, CI/build process, phased project plan |
-| [11-testing.md](11-testing.md) | Test strategy, CI gates, test data, non-functional targets |
+| [10-process.md](10-process.md) | ADRs, development process, CI/build process, tiny agent iteration workflow, phased project plan |
+| [11-testing.md](11-testing.md) | Test strategy, CI gates, agent iteration verification, test data, non-functional targets |
 | [12-deployment.md](12-deployment.md) | Deployment, build artifacts, tooling recommendations, build-vs-buy |
 | [13-risks-roadmap.md](13-risks-roadmap.md) | Risks, initial deliverables, v1 scope, final recommendation |
