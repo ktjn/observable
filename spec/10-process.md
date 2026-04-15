@@ -137,6 +137,59 @@ When utilizing AI agents for development, the following mandates apply:
 - **Specification Alignment:** All changes must align with the core architectural principles and specifications defined in the `spec/` directory.
 - **ADR and Spec Synchronization:** Architecture, technology, deployment, data model, security, and roadmap changes must update both the relevant ADRs and affected specs in the same iteration. If an ADR change is not required, the PR must explain why.
 
+### 16.8 Tiny Agent Iteration Workflow
+
+Agents must move from specification to final product through small, reviewable vertical slices. An iteration should be small enough that a reviewer can understand the intent, diff, tests, and remaining risk in one sitting.
+
+**Iteration size limits**
+- Prefer one behavior, one API endpoint, one schema change, one UI state, one deployment check, or one documentation correction per iteration.
+- Keep pull requests below roughly 300 changed lines unless generated files or mechanical migrations make that impossible.
+- Avoid mixing concerns. Do not combine unrelated backend, frontend, infrastructure, and documentation work unless the slice cannot function without all of them.
+- Do not start the next slice until the current branch has a PR with verification notes and a clear merge or follow-up path.
+
+**Spec-to-slice loop**
+1. **Select source spec:** identify the exact spec, ADR, phase item, and acceptance target driving the work.
+2. **Define the smallest user-visible or operator-visible outcome:** state what will work after this slice that did not work before.
+3. **Write the slice contract:** list inputs, outputs, touched boundaries, test evidence, telemetry impact, rollback path, and any ADR/spec sync requirement.
+4. **Create a branch:** use a short-lived branch named for the slice before editing files.
+5. **Implement the smallest coherent change:** prefer a thin end-to-end path over a broad partial subsystem.
+6. **Verify locally:** run the narrowest useful checks first, then the required local/CI-equivalent checks for the touched area.
+7. **Update docs/specs/ADRs:** keep implementation, specs, and architectural decisions aligned in the same branch.
+8. **Open a PR:** include source spec links, acceptance criteria, verification output, known gaps, rollback notes, and the next suggested tiny slice.
+9. **Wait for review or CI signal:** only stack follow-up work when the dependency is explicit and the new branch targets the previous PR branch.
+
+**Slice contract template**
+
+```markdown
+Source spec:
+Acceptance target:
+User/operator outcome:
+Files or modules expected to change:
+Out of scope:
+Verification:
+Telemetry impact:
+Auth/tenancy impact:
+Data retention or migration impact:
+Rollback path:
+ADR/spec sync:
+Next smallest slice:
+```
+
+**Preferred product-building sequence**
+1. Start with a failing or pending contract test that names the expected behavior.
+2. Add the minimum domain/API shape needed to satisfy the contract.
+3. Add the smallest persistence or integration path needed for the behavior.
+4. Add a minimal UI or CLI path only when the backend contract exists.
+5. Add telemetry, docs, and runbook notes in the same slice when the behavior is operationally meaningful.
+6. Harden with follow-up slices: edge cases, performance, resilience, security, and UX polish.
+
+**Agent PR requirements**
+- PR titles must describe the tiny outcome, not the broad phase.
+- PR bodies must include the slice contract or a concise equivalent.
+- PRs must state whether ADRs and specs are in sync. If no ADR update is required, explain why.
+- PRs must identify any skipped checks and why they were not relevant or could not run.
+- PRs must name the next smallest useful slice so the project can continue without re-planning from scratch.
+
 ---
 
 ## 17. Project Plan: Small Steps to Production
@@ -150,6 +203,38 @@ The roadmap is staged to prove the risky foundations before broadening the produ
 3. MVP means internally dogfoodable. v1 means externally supportable for selected production customers.
 4. Do not start advanced telemetry, incident workflows, or AI features until the ingest, query, retention, and authorization foundations are measured under load.
 5. Any new phase work must identify contract, data-retention, auth, test, rollback, and telemetry impacts before implementation starts.
+6. Every numbered phase item must be decomposed into tiny agent iterations before implementation. A phase item is not ready for execution until its first slice has a source spec, acceptance target, verification plan, and rollback note.
+7. Agents should prefer vertical walking skeletons over horizontal platform layers: prove ingest-to-query before broadening signal coverage; prove one tenant-safe path before adding more roles or environments.
+
+### 17.2 Agent Backlog Decomposition
+
+Each phase item should be split into three levels:
+
+| Level | Purpose | Example |
+|---|---|---|
+| Phase item | Product capability or risk reduction target | Build OTLP HTTP/gRPC ingest for traces and logs |
+| Slice | One reviewable behavior with tests | Accept one valid OTLP trace payload and return a durable acknowledgement |
+| Task | Local implementation step inside the slice | Add route, parser test, tenant lookup stub, and ingest metric |
+
+Agents must not turn phase items directly into large implementation PRs. The first slice for any capability should establish the contract and a runnable path; later slices can expand coverage, performance, and edge cases.
+
+**Tiny slice examples for Phase 1**
+
+| Phase item | First tiny slice | Follow-up slices |
+|---|---|---|
+| Monorepo and CI scaffold | Create workspace skeleton with one Rust service crate, one frontend package placeholder, and required format/lint tasks | Add protobuf lint; add container build; add docs link checks |
+| OTLP ingest | Accept a minimal trace request through one protocol with tenant-scoped validation and a contract test | Add logs; add gRPC; add malformed payload corpus; add backpressure behavior |
+| Tenant authentication | Validate one API key against an in-memory/test fixture store | Add hashed key storage; add workload identity; add audit logs; add rotation |
+| Durable buffering | Write one normalized envelope to the queue with idempotency key and retry test | Add partition strategy; add dead-letter handling; add queue lag telemetry |
+| ClickHouse writes | Persist one span table shape behind a repository interface and migration | Add logs table; add batch writer; add dedupe; add retention policy |
+| Query APIs | Return one trace by `tenant_id + trace_id` from a repository contract | Add log search; add metric query; add pagination; add auth scopes |
+| React UI | Render trace search form against a mocked API contract | Connect live API; add loading/error states; add deep link; add smoke test |
+
+**Definition of a complete tiny slice**
+- The slice maps to a spec or ADR.
+- The changed behavior can be demonstrated by a test, local command, screenshot, API example, or rendered artifact.
+- The PR can be reverted without leaving partially adopted architecture behind.
+- Follow-up work is explicit and smaller than the parent phase item.
 
 ### Phase 0 — Foundations
 

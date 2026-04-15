@@ -94,3 +94,23 @@ CI gates map the test strategy to merge and release decisions.
 | Production canary | progressive rollout | SLO analysis, alert latency, queue lag, ingest error rate, query latency, tenant isolation smoke |
 
 Tests that guard tenant isolation, auth bypass, schema compatibility, migrations, and data loss are release blockers. Performance and chaos failures are promotion blockers unless explicitly waived by the responsible domain owner with a documented expiry.
+
+### 18.5 Agent Iteration Verification
+
+Tiny agent iterations must include enough verification for the slice they change without forcing unrelated full-suite work into every PR.
+
+| Slice type | Minimum verification |
+|------------|----------------------|
+| Spec or ADR only | diff review, Markdown/link or diagram check when available, ADR/spec synchronization note |
+| API or schema contract | contract test, generated-code drift check, backward-compatibility check |
+| Backend behavior | focused unit test, service contract test, relevant lint/format checks |
+| Ingest or storage path | parser/normalization test, persistence or queue integration smoke, tenant partition assertion |
+| Auth or tenancy | positive and negative policy tests, tenant-cross-read denial test |
+| Frontend behavior | component/unit test or browser smoke for the changed route/state, typecheck |
+| Deployment or CI | render/dry-run check, policy validation, rollback note |
+
+Agent PRs must report:
+- commands run and their result
+- checks intentionally skipped and why
+- evidence that specs and ADRs are synchronized
+- the next smallest slice needed to continue toward the phase exit gate

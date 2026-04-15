@@ -94,6 +94,8 @@ Do not block v1 on:
 9. Add Kubernetes/GitOps/canary delivery.
 10. Add correlation, service catalog, RED metrics, SLOs, burn-rate alerts, and warm retention for v1.
 
+Each execution-order item must be delivered through tiny agent iterations. The first PR for an item should prove the smallest runnable contract; subsequent PRs should add breadth, resilience, performance, and polish. Do not use one execution-order item as one implementation branch.
+
 ---
 
 ## 25. Final Recommendation
