@@ -2,6 +2,9 @@
 
 **Date:** YYYY-MM-DD  
 **Status:** Proposed | Accepted | Superseded | Deprecated  
+<!-- Proposed = under review / open for comment | Accepted = merged to main, decision is active | Superseded = replaced by a later ADR | Deprecated = no longer applicable but not replaced -->
+**Authors:** [Names or team]  
+**Deciders:** [Names or team — who had to agree]  
 **Superseded by:** (ADR link if applicable)  
 **Review date:** YYYY-MM-DD  
 
