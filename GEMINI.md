@@ -9,5 +9,6 @@ These instructions are foundational mandates for any AI agent interacting with t
 - **Verification & Testing:** Every change must be thoroughly tested and verified before being considered complete.
 - **Clarity Above All:** Nothing can be left unclear. If instructions, requirements, or code changes are ambiguous, the agent must seek clarification before proceeding.
 - **Specification Alignment:** All changes must align with the core architectural principles and specifications defined in the `spec/` directory.
+- **ADR and Spec Synchronization:** Any change to architecture, technology choices, deployment model, data model, security model, or roadmap scope must update both the relevant ADRs and the affected specs in the same iteration. If no ADR change is needed, state why in the PR.
 
 Refer to `spec/10-process.md` for the official development process and AI agent guidance.
