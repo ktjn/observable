@@ -78,6 +78,14 @@ A Kubernetes namespace within a cluster, used to isolate workloads within a shar
 
 The fields below align with OTel semantic conventions (1.x). Fields marked `resource attr` are carried in the OTel resource attributes map, not the signal body. All schemas include `tenant_id` as the mandatory first-level partition key.
 
+### Telemetry Model Consistency Rules
+
+- OTel remains the external ingestion contract; internal fields may be denormalized for query speed, but they must preserve the original OTel identity, resource attributes, scope attributes, signal attributes, timestamps, and flags needed to reconstruct the signal.
+- Cross-signal joins must always include `tenant_id`; IDs such as `trace_id`, `span_id`, `metric_series_id`, and `log_id` are not globally meaningful across tenants.
+- `trace_id` identifies a distributed trace. `span_id` identifies one span within that trace. A log may carry `trace_id` without `span_id`; in that case it joins to the trace, not to a specific span.
+- Span events are part of the span payload. They are not stored as LogRecords unless an explicit transformation duplicates them into the log pipeline.
+- Metrics are modeled as OTel instruments and data points, not as a single generic numeric table. The model must support gauges, sums/counters, histograms, exponential histograms, summaries, exemplars, monotonicity, and delta/cumulative temporality.
+
 ### Span
 
 | Field | Type | Required | OTel Mapping |
@@ -136,6 +144,8 @@ A Trace is a materialized rollup over its constituent Spans. It is written once 
 
 ### LogRecord
 
+A LogRecord may be correlated to tracing context, but logs are independent signals. The canonical exact span-log join is `tenant_id + trace_id + span_id` when both trace fields are present. A log with only `trace_id` is trace-correlated and should appear in trace-level log views, but it must not be attributed to a specific span without an additional time/resource heuristic.
+
 | Field | Type | Required | OTel Mapping |
 |---|---|---|---|
 | tenant_id | UUID | yes | resource attr: `observable.tenant_id` |
@@ -162,23 +172,25 @@ A Trace is a materialized rollup over its constituent Spans. It is written once 
 
 ### MetricSeries
 
-A MetricSeries represents a unique combination of metric name and label set (a time series). MetricPoints are associated with a series.
+A MetricSeries represents one OTel metric stream: metric identity plus resource attributes, instrumentation scope, metric attributes, type, and aggregation contract. MetricPoints are associated with a series.
 
 | Field | Type | Required | OTel Mapping |
 |---|---|---|---|
 | tenant_id | UUID | yes | resource attr: `observable.tenant_id` |
-| metric_series_id | UUID | yes | generated at ingest (hash of name + labels) |
+| metric_series_id | UUID | yes | generated at ingest from tenant, resource identity, scope, metric name, attributes, type, temporality |
 | metric_name | string | yes | `name` |
 | description | string | no | `description` |
 | unit | string | no | `unit` |
 | type | enum(gauge, sum, histogram, exponential_histogram, summary) | yes | `data` oneof type |
 | is_monotonic | bool | no | `sum.is_monotonic` |
-| aggregation_temporality | enum(delta, cumulative) | no | `aggregation_temporality` |
+| aggregation_temporality | enum(delta, cumulative) | no | `aggregation_temporality`; required for sum, histogram, and exponential_histogram |
 | attributes | map[string]string | yes | `attributes` (the label set) |
 | resource_attributes | map[string]AnyValue | no | `resource.attributes` |
+| scope_name | string | no | instrumentation scope `name` |
+| scope_version | string | no | instrumentation scope `version` |
+| schema_url | string | no | resource/scope/metric schema URL when provided |
 | service_name | string | yes | resource attr: `service.name` |
 | environment | string | no | resource attr: `deployment.environment` |
-| start_time_unix_nano | uint64 | no | `start_time_unix_nano` (for sums/histograms) |
 
 **Retention tier default:** hot (3-14d) → warm with rollups
 
@@ -186,7 +198,7 @@ A MetricSeries represents a unique combination of metric name and label set (a t
 
 ### MetricPoint
 
-A single data point within a MetricSeries at a specific timestamp.
+A single data point within a MetricSeries at a specific timestamp. Exactly one value family is populated per point, according to the series `type`.
 
 | Field | Type | Required | OTel Mapping |
 |---|---|---|---|
@@ -195,18 +207,42 @@ A single data point within a MetricSeries at a specific timestamp.
 | metric_name | string | yes | denormalized for query performance |
 | service_name | string | yes | denormalized for query performance |
 | time_unix_nano | uint64 | yes | `time_unix_nano` |
+| start_time_unix_nano | uint64 | no | `start_time_unix_nano`; required for delta/cumulative sums and histograms when provided by source |
 | value_double | float64 | no | `as_double` (gauge/sum) |
 | value_int | int64 | no | `as_int` (gauge/sum) |
 | histogram_count | uint64 | no | `histogram.data_point.count` |
 | histogram_sum | float64 | no | `histogram.data_point.sum` |
 | histogram_bucket_counts | array[uint64] | no | `histogram.data_point.bucket_counts` |
 | histogram_explicit_bounds | array[float64] | no | `histogram.data_point.explicit_bounds` |
+| exp_histogram_scale | int32 | no | `exponential_histogram.data_point.scale` |
+| exp_histogram_zero_count | uint64 | no | `exponential_histogram.data_point.zero_count` |
+| exp_histogram_positive | ExponentialHistogramBuckets | no | `exponential_histogram.data_point.positive` |
+| exp_histogram_negative | ExponentialHistogramBuckets | no | `exponential_histogram.data_point.negative` |
+| summary_count | uint64 | no | `summary.data_point.count` |
+| summary_sum | float64 | no | `summary.data_point.sum` |
+| summary_quantile_values | array[QuantileValue] | no | `summary.data_point.quantile_values` |
 | exemplars | array[Exemplar] | no | `exemplars` |
 | flags | uint32 | no | `flags` |
 
 **Retention tier default:** hot (3-14d); cold with hourly/daily rollups at warm/cold tiers
 
 ---
+
+### Metric Type Semantics
+
+| Metric type | Required point fields | Semantics |
+|---|---|---|
+| `gauge` | one of `value_double`, `value_int` | Latest sampled value. No aggregation temporality. |
+| `sum` | one of `value_double`, `value_int`; `is_monotonic`; `aggregation_temporality` | Counter-like streams when monotonic, up/down sums when non-monotonic. Supports delta and cumulative sources. |
+| `histogram` | `histogram_count`, optional `histogram_sum`, `histogram_bucket_counts`, `histogram_explicit_bounds`, `aggregation_temporality` | Explicit bucket distribution for latency, size, and similar measurements. |
+| `exponential_histogram` | `histogram_count`, optional `histogram_sum`, `exp_histogram_scale`, positive/negative buckets, `aggregation_temporality` | Base-2 exponential bucket distribution. Preserve native representation instead of converting to explicit buckets at ingest. |
+| `summary` | `summary_count`, optional `summary_sum`, `summary_quantile_values` | Imported compatibility type. Do not use summary quantiles for cross-series aggregation. |
+
+Metric query and alert code must respect OTel temporality:
+- Delta streams can be summed over query windows directly after alignment.
+- Cumulative monotonic streams require reset-aware rate/increase calculations.
+- Histograms and exponential histograms aggregate by bucket representation; conversion between explicit and exponential buckets is a query-layer operation, not a required ingest mutation.
+- Exemplars may carry `trace_id` and `span_id`; they provide precise metric-to-trace correlation for sampled measurements.
 
 ### ProfileSample
 
@@ -286,20 +322,20 @@ A SyntheticCheck is the result of one execution of a synthetic monitor — an HT
 
 | From | To | Join Key | Notes |
 |---|---|---|---|
-| Span | LogRecord | `trace_id` | Log must carry trace context (`trace_id` + `span_id`); not guaranteed for all log sources |
-| Span | MetricPoint | `service_name` + time window | Approximate time-window join; use exemplars in MetricPoint where available for precise correlation |
+| Span | LogRecord | `tenant_id` + `trace_id` + `span_id` | Exact span-log correlation when logs carry full trace context; use `tenant_id` + `trace_id` for trace-level log views when `span_id` is absent |
+| Span | MetricPoint | exemplar `trace_id` + `span_id` | Precise correlation when exemplars are present; otherwise fall back to service/resource attributes plus time window |
 | Span | Deployment | `service_name` + `deployment_id` | `deployment_id` injected at ingest from active deployment registry |
 | Span | Event | `trace_id` (optional) | Events may not carry trace context; fall back to `service_name` + time proximity |
-| Span | Trace | `trace_id` | 1:N; every span belongs to exactly one trace |
+| Span | Trace | `tenant_id` + `trace_id` | 1:N; every span belongs to exactly one trace within a tenant |
 | LogRecord | Host | `host.id` (resource attr) | Extracted from `resource_attributes`; requires OTel resource enrichment |
-| LogRecord | Span | `trace_id` + `span_id` | Bidirectional; span must be in retention window |
+| LogRecord | Span | `tenant_id` + `trace_id` + `span_id` | Bidirectional exact join; span must be in retention window |
 | Workload | Host | `host_id` | Scheduling metadata; populated by infra agent or k8s metadata enrichment |
 | Workload | Span | `service_name` + workload identifiers | Via resource attributes (`k8s.pod.name`, `process.pid`) |
 | Workload | MetricSeries | `service_name` + `k8s.pod.name` | For per-instance RED metric breakdown |
 | Service | Deployment | `service_name` | Latest deployment per environment; join on `service_name` + `environment` |
 | Service | SLODefinition | `service_name` | SLO is defined at service level |
 | MetricSeries | Service | `service_name` (label) | For RED metrics derivation (rate, errors, duration) |
-| MetricPoint | Span | exemplar `trace_id` | High-value exemplars carry `trace_id` for precise trace-metric correlation |
+| MetricPoint | Span | exemplar `trace_id` + `span_id` | High-value exemplars carry trace context for precise trace-metric correlation |
 | ProfileSample | Service | `service_name` | For profiling explorer and flame graph aggregation |
 | ProfileSample | Span | `trace_id` (optional) | Continuous profiling correlation; requires trace context propagation |
 | SyntheticCheck | Span | `trace_id` | Only when probe injects W3C trace context into outbound request |

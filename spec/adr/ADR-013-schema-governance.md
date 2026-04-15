@@ -44,4 +44,5 @@ Rejected due to poor query performance and lack of data quality guarantees for c
 
 - `spec/10-process.md` (Engineering Standards: API-first)
 - `spec/03-storage.md` (Logical Data Model)
+- `spec/14-domain-model.md` (Authoritative domain model and metric/log/span contracts)
 - `spec/adr/ADR-001: OpenTelemetry as External Contract`
