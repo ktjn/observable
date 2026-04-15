@@ -78,6 +78,7 @@ Polyrepo acceptable if org scale requires it.
 When utilizing AI agents for development, the following mandates apply:
 
 - **No Unreviewed Merges:** Nothing can be merged or committed to the main branch without a human review.
+- **Branch and PR Every Iteration:** Before changing files, the agent must create or switch to a dedicated short-lived branch for the current task. The agent must commit only to that branch, push it to GitHub, and open a pull request for every iteration.
 - **Verification & Testing:** Every change must be thoroughly tested and verified before being considered complete.
 - **Clarity Above All:** Nothing can be left unclear. If instructions, requirements, or code changes are ambiguous, the agent must seek clarification before proceeding.
 - **Specification Alignment:** All changes must align with the core architectural principles and specifications defined in the `spec/` directory.
