@@ -57,6 +57,7 @@ Polyrepo acceptable if org scale requires it.
 ### 16.4 Definition of Done
 
 - tests pass
+- no new errors, warnings, regressions, flaky tests, type errors, lint findings, generated-code drift, policy violations, or documentation check failures are introduced by the change
 - telemetry emitted
 - dashboards/alerts updated if relevant
 - security review complete if boundary changed
@@ -132,7 +133,7 @@ When utilizing AI agents for development, the following mandates apply:
 
 - **No Unreviewed Merges:** Nothing can be merged or committed to the main branch without a human review.
 - **Branch and PR Every Iteration:** Before changing files, the agent must create or switch to a dedicated short-lived branch for the current task. The agent must commit only to that branch, push it to GitHub, and open a pull request for every iteration.
-- **Verification & Testing:** Every change must be thoroughly tested and verified before being considered complete.
+- **Verification & Testing:** Every change must be thoroughly tested and verified before being considered complete. An iteration is not complete if it introduces any new error, warning, regression, flaky test, type error, lint finding, generated-code drift, policy violation, or documentation check failure.
 - **Clarity Above All:** Nothing can be left unclear. If instructions, requirements, or code changes are ambiguous, the agent must seek clarification before proceeding.
 - **Specification Alignment:** All changes must align with the core architectural principles and specifications defined in the `spec/` directory.
 - **ADR and Spec Synchronization:** Architecture, technology, deployment, data model, security, and roadmap changes must update both the relevant ADRs and affected specs in the same iteration. If an ADR change is not required, the PR must explain why.
@@ -153,7 +154,7 @@ Agents must move from specification to final product through small, reviewable v
 3. **Write the slice contract:** list inputs, outputs, touched boundaries, test evidence, telemetry impact, rollback path, and any ADR/spec sync requirement.
 4. **Create a branch:** use a short-lived branch named for the slice before editing files.
 5. **Implement the smallest coherent change:** prefer a thin end-to-end path over a broad partial subsystem.
-6. **Verify locally:** run the narrowest useful checks first, then the required local/CI-equivalent checks for the touched area.
+6. **Verify locally:** run the narrowest useful checks first, then the required local/CI-equivalent checks for the touched area. Compare results with the known baseline and fix any new failure before opening the PR.
 7. **Update docs/specs/ADRs:** keep implementation, specs, and architectural decisions aligned in the same branch.
 8. **Open a PR:** include source spec links, acceptance criteria, verification output, known gaps, rollback notes, and the next suggested tiny slice.
 9. **Wait for review or CI signal:** only stack follow-up work when the dependency is explicit and the new branch targets the previous PR branch.
@@ -167,6 +168,8 @@ User/operator outcome:
 Files or modules expected to change:
 Out of scope:
 Verification:
+Baseline:
+New errors introduced:
 Telemetry impact:
 Auth/tenancy impact:
 Data retention or migration impact:
@@ -187,6 +190,7 @@ Next smallest slice:
 - PR titles must describe the tiny outcome, not the broad phase.
 - PR bodies must include the slice contract or a concise equivalent.
 - PRs must state whether ADRs and specs are in sync. If no ADR update is required, explain why.
+- PRs must state whether any new errors were introduced. The expected answer is `none`; any exception requires an explicit owner, issue, expiry, and reviewer approval.
 - PRs must identify any skipped checks and why they were not relevant or could not run.
 - PRs must name the next smallest useful slice so the project can continue without re-planning from scratch.
 
