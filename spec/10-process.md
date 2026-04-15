@@ -74,7 +74,59 @@ Polyrepo acceptable if org scale requires it.
 - every service exports health, metrics, traces, and logs
 - every persistent schema change uses migrations
 
-### 16.6 AI Agent Guidance
+### 16.6 CI and Build Process
+
+CI must make every change reproducible, reviewable, and releasable before merge. The default target is a monorepo with Rust services, TypeScript frontend packages, protobuf/OpenAPI contracts, containerized services, and Kubernetes deployment artifacts.
+
+**Pipeline triggers**
+- Pull request to `main`: run validation, build, unit, contract, integration smoke, security, and documentation checks.
+- Merge to `main`: repeat required checks, publish versioned build artifacts, and update the integration environment through GitOps.
+- Release tag: build immutable release artifacts, sign them, generate SBOM/provenance, and promote through staging to production.
+- Nightly: run extended integration, E2E, performance, high-cardinality, chaos, dependency, and vulnerability scans.
+
+**Required PR checks**
+1. repository hygiene: formatting, linting, dependency policy, secret scan, and generated-code drift
+2. contract checks: protobuf/OpenAPI linting, breaking-change detection, and SDK/client generation
+3. backend checks: Rust format, clippy, unit tests, and service-level contract tests
+4. frontend checks: TypeScript typecheck, lint, unit tests, production build, and component/smoke tests
+5. infrastructure checks: Kubernetes manifest render, policy validation, IaC linting, and migration dry-run where relevant
+6. security checks: dependency audit, container scan for changed images, SBOM generation, and license policy
+7. documentation checks: ADR/spec synchronization review, Markdown link checks, and diagram syntax checks where supported
+
+**Build outputs**
+- Rust service binaries compiled in release mode
+- frontend static assets
+- protobuf/OpenAPI generated clients and schema artifacts
+- container images for deployable services
+- Helm/Kustomize render output for each environment profile
+- database migration bundles
+- SBOMs, provenance attestations, image signatures, and checksums
+
+**Artifact rules**
+- Every artifact must be traceable to a git commit, CI run, source branch, and dependency lockfile.
+- Container images must use immutable tags based on commit SHA and release version; mutable tags are aliases only.
+- Generated code must be committed only when required by the repo layout and must be checked for drift in CI.
+- Build scripts must be deterministic and runnable locally without requiring production credentials.
+- Secrets must never be baked into artifacts, images, generated config, or test fixtures.
+
+**Promotion gates**
+1. PR validation passes and human review approves.
+2. Merge to `main` publishes artifacts and deploys to shared integration.
+3. Integration smoke and contract suites pass.
+4. Release candidate deploys to perf/staging.
+5. Performance, security, migration, backup/restore, and rollback checks pass for release scope.
+6. Canary deploys to an internal tenant.
+7. Automated analysis validates platform SLOs, error budgets, logs, traces, queue lag, query latency, and alert latency.
+8. Production rollout proceeds progressively and rolls back automatically on SLO regression.
+
+**Failure handling**
+- Required PR checks block merge.
+- Failed artifact signing, SBOM generation, provenance generation, or secret scanning blocks release.
+- Failed integration or staging deployment blocks promotion, not unrelated PR validation.
+- Flaky checks must be quarantined only with an owner, expiry date, linked issue, and replacement signal.
+- CI failures that affect hot-path correctness, tenant isolation, auth, schema compatibility, or migrations require root-cause notes before retrying.
+
+### 16.7 AI Agent Guidance
 
 When utilizing AI agents for development, the following mandates apply:
 

@@ -79,3 +79,18 @@
 | alert detection latency | < 60s |
 | tenant cross-read | zero in all policy tests |
 | data loss | zero for committed buffered ingest under single-node failure |
+
+### 18.4 CI Test Gates
+
+CI gates map the test strategy to merge and release decisions.
+
+| Gate | Trigger | Required scope |
+|------|---------|----------------|
+| PR fast path | pull request | formatting, linting, unit tests, contract linting, changed-package builds, docs checks |
+| PR integration smoke | pull request | changed service integration tests, tenant isolation policy tests, migration dry-runs |
+| Main integration | merge to `main` | full unit suite, contract suite, integration suite, generated client drift checks |
+| Nightly extended | scheduled | E2E workflows, high-cardinality datasets, malformed payload corpus, chaos/resilience, dependency scans |
+| Release candidate | release tag or promotion branch | full E2E, performance, security, backup/restore, rollback, upgrade, and migration tests |
+| Production canary | progressive rollout | SLO analysis, alert latency, queue lag, ingest error rate, query latency, tenant isolation smoke |
+
+Tests that guard tenant isolation, auth bypass, schema compatibility, migrations, and data loss are release blockers. Performance and chaos failures are promotion blockers unless explicitly waived by the responsible domain owner with a documented expiry.
