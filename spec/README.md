@@ -7,7 +7,7 @@ Full-stack observability platform specification — Dynatrace / New Relic class,
 | File | Contents |
 |------|----------|
 | [01-overview.md](01-overview.md) | Scope, product definition, product principles |
-| [02-architecture.md](02-architecture.md) | Reference architecture, core technical architecture |
+| [02-architecture.md](02-architecture.md) | System context, container diagrams, reference architecture, core technical architecture |
 | [03-storage.md](03-storage.md) | Storage strategy, data model, retention tiers, query engine |
 | [04-tenancy-security.md](04-tenancy-security.md) | Multi-tenancy models, isolation levels, security specification |
 | [05-frontend.md](05-frontend.md) | Frontend stack, modules, UX requirements |
