@@ -21,3 +21,6 @@ Architecture Decision Records (ADRs) capture significant technology and design c
 | [ADR-013](ADR-013-schema-governance.md) | Schema Governance | Accepted |
 | [ADR-014](ADR-014-ai-feature-boundaries.md) | AI Feature Boundaries | Accepted |
 | [ADR-015](ADR-015-build-vs-buy.md) | Build vs Buy (Incident/Auth/Billing) | Accepted |
+| [ADR-016](ADR-016-grafana-visualization-strategy.md) | Grafana Visualization Strategy | Accepted |
+| [ADR-017](ADR-017-prometheus-remote-write.md) | Prometheus remote_write Compatibility | Accepted |
+| [ADR-018](ADR-018-rum-browser-mobile-ingestion.md) | RUM / Browser and Mobile Ingestion | Accepted |

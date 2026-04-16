@@ -108,4 +108,4 @@ General-purpose, grammar-of-graphics libraries with good TypeScript support.
 - `spec/05-frontend.md` § 9.1 Stack, § 9.7 Dashboard Architecture
 - `ADR-006-react-vite-frontend.md` — React/Vite decision; this ADR extends the visualization choice
 - `ADR-015-build-vs-buy.md` — Build vs. buy boundary; visualization is "buy" via Apache-2.0 npm packages
-- `spec/13-risks-roadmap.md` § Chart library lock-in risk
+- `spec/13-risks-roadmap.md` § Risk 1 (single-engine fantasy) and Risk 7 (no cost model) — visualization library choice has analogous build-vs-buy and lock-in trade-offs; no dedicated chart library risk exists in the risks registry

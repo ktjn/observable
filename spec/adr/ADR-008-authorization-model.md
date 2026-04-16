@@ -41,5 +41,6 @@ Rejected due to lack of consistency, poor auditability, and high maintenance ove
 ## Related
 
 - `spec/04-tenancy-security.md` (Authorization)
+- `spec/14-domain-model.md` §6 (Authoritative authorization entity definitions: RBAC roles, ReBAC tuple format, resource types, DataScope)
 - `spec/10-process.md` (ADR list)
-- `spec/adr/ADR-007: Multi-Tenant Isolation Strategy`
+- `spec/adr/ADR-007-multi-tenant-isolation.md` (Multi-Tenant Isolation Strategy)
