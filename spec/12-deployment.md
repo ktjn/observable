@@ -130,7 +130,7 @@ npm run dev                    # run the React frontend (from apps/frontend)
 - Arrow
 - DataFusion
 - Kafka/Redpanda class broker
-- ClickHouse for logs/traces
+- ClickHouse for logs, traces, and metrics
 - object storage
 - OTel Collector distribution
 - OpenFGA for fine-grained auth

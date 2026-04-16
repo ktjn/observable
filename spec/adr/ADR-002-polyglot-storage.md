@@ -14,7 +14,7 @@ Different telemetry signals (logs, traces, metrics, profiles) have distinct acce
 
 The platform will adopt a **polyglot storage strategy**. Instead of a single engine, we will use specialized storage engines optimized for each signal type:
 - **Logs and Traces:** ClickHouse (Columnar OLAP).
-- **Metrics:** Time-series optimized engine (initially ClickHouse, with the option to move to a dedicated TSDB if economics/semantics dictate).
+- **Metrics:** ClickHouse (Phase 1 and beyond; revisit if cardinality testing shows P50 > 1 s — see `ADR-003-clickhouse-boundary.md` for the revisit condition).
 - **Profiles:** Modular storage (initially object storage + specialized indexing).
 - **Metadata/Configuration:** Relational database (e.g., PostgreSQL).
 - **Long-term/Cold Storage:** Object storage (S3-compatible).
