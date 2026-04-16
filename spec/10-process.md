@@ -202,6 +202,8 @@ Any agent PR that touches files under `spec/` or `docs/` must run the `doc-revie
 
 **Phases — all must pass:**
 
+A **WARN** indicates a finding that is noted but does not block the PR (e.g., a cross-reference that is stale but not incorrect, or a missing bidirectional link to an external resource outside the repo). A **FAIL** indicates a finding that makes the change incorrect or incomplete and blocks the PR.
+
 #### Phase 1: Structural Validation
 - Valid Markdown: no unclosed fences, broken headings
 - No bare `TODO` or `TBD` placeholders remaining in the document
@@ -216,7 +218,7 @@ For every ADR or spec referenced in a changed file:
 - The description of the linked decision matches what the linked file actually says
 
 #### Phase 3: Coverage Completeness
-- If a spec change touches architecture, technology choices, deployment model, data model, security model, or roadmap scope → an ADR must also be touched, or the PR must explicitly state why no ADR change is needed
+- If a spec change touches architecture, technology, deployment, data model, security, or roadmap → an ADR must also be touched, or the PR must explicitly state why no ADR change is needed
 - If an ADR is touched → all specs that reference that ADR must be checked for staleness
 - `spec/README.md` table must accurately reflect any added, renamed, or removed spec files
 
