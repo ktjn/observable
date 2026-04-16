@@ -12,17 +12,15 @@ ClickHouse is a strong fit for observability workloads. It is explicitly positio
 
 **Metrics**
 
-Use a time-series optimized engine with:
+Use ClickHouse for metrics in Phase 1 and until a concrete performance or cardinality constraint justifies a dedicated TSDB. ClickHouse supports all required metric workload characteristics:
 - high ingest throughput
-- compression
-- rollups/downsampling
-- histogram support
-- exemplars
-- native label filtering
+- columnar compression
+- rollups/downsampling via materialized views
+- histogram and exponential histogram storage
+- exemplar support
+- label filtering via WHERE clauses on attribute columns
 
-Two valid options:
-- keep metrics in ClickHouse if you want fewer moving parts
-- use a dedicated TSDB if you want metric-specific economics and query semantics
+**Revisit condition:** If Phase 2 or Phase 3 cardinality testing reveals that ClickHouse cannot meet the P50 < 1 s query target under production-representative label cardinality, open a new ADR to evaluate a dedicated TSDB (e.g., VictoriaMetrics). The query facade abstracts storage engines from clients, so a later migration is contained.
 
 **Profiles**
 
