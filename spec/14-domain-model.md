@@ -45,8 +45,8 @@ A named deployable unit — a microservice, monolith, function, or job. The serv
 ### Workload
 A runtime instance of a service — a pod, process, container, or serverless invocation. Workloads are ephemeral; they are created when a service instance starts and retired when it stops. Workload identity is derived from infrastructure metadata.
 
-- **Cardinality:** belongs to 1 Service; runs on 1 Host; emits Spans, LogRecords, MetricSeries, ProfileSamples
-- **OTel resource attributes:** `k8s.pod.name`, `process.pid`, `container.id`
+- **Cardinality:** belongs to 1 Service; runs on 1 Host; belongs to 0..1 Namespace; emits Spans, LogRecords, MetricSeries, ProfileSamples
+- **OTel resource attributes:** `k8s.pod.name`, `process.pid`, `container.id`, `k8s.namespace.name`
 
 ### Deployment
 A versioned release event linking a specific service version to an environment at a point in time. Deployments are used to correlate error rate changes with code changes and to annotate dashboards.
@@ -367,7 +367,90 @@ erDiagram
 
 ---
 
-## 5. SLO and Alert Entity State Machines
+## 5. SLO, Alert, and Incident Entities
+
+### Deployment
+
+A Deployment entity is the authoritative record of a versioned release event. It is the join key for deployment correlation across all signal types.
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| deployment_id | UUID | yes | generated at ingest or via CI/CD API |
+| tenant_id | UUID | yes | |
+| project_id | UUID | yes | |
+| service_name | string | yes | must match a known Service entity |
+| environment | string | yes | target environment |
+| service_version | string | yes | version string from `service.version` resource attribute |
+| deployed_by | string | no | user or system identity that triggered the deployment |
+| commit_sha | string | no | VCS commit identifier |
+| started_at | timestamp | yes | deployment initiation time |
+| finished_at | timestamp | no | deployment completion time; null if in-progress |
+| status | enum(in_progress, success, failed, rolled_back) | yes | |
+| rollback_of | UUID | no | `deployment_id` of the deployment this reverts |
+| metadata | JSON | no | arbitrary structured deployment metadata from CI/CD payload |
+
+### AlertRule
+
+An AlertRule defines the conditions under which a notification is sent or an incident is triggered. Alert rules are evaluated continuously by the alert evaluator against materialised telemetry.
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| rule_id | UUID | yes | |
+| tenant_id | UUID | yes | |
+| project_id | UUID | yes | |
+| service_name | string | no | if absent, rule applies across all services in the project |
+| environment | string | no | if absent, rule applies across all environments |
+| name | string | yes | human-readable rule name |
+| alert_type | enum(threshold, anomaly, change_detection, deadman, composite, topology_impact, slo_burn_rate, deployment_regression) | yes | |
+| severity | enum(critical, warning, info) | yes | |
+| condition | string | yes | query expression or burn-rate spec defining the firing condition |
+| for_duration | duration | no | minimum time the condition must be met before firing (avoids flapping) |
+| labels | map[string]string | no | routing and grouping labels attached to fired alerts |
+| annotations | map[string]string | no | human-readable context: summary, description, runbook URL |
+| notification_channels | array[string] | no | channel IDs to notify on state change |
+| auto_trigger_incident | bool | yes | if true, an Incident is created when the rule enters Active state |
+| auto_trigger_delay | duration | no | grace period after alert fires before auto-creating an Incident; default 0 |
+| created_by | string | yes | user or system that created the rule |
+| created_at | timestamp | yes | |
+| updated_at | timestamp | yes | |
+
+### Incident
+
+An Incident is a structured event representing a service disruption. Incidents are created automatically from AlertRule firings (when `auto_trigger_incident = true`) or manually by operators.
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| incident_id | UUID | yes | |
+| tenant_id | UUID | yes | |
+| project_id | UUID | yes | |
+| service_name | string | yes | primary service affected |
+| environment | string | yes | |
+| title | string | yes | human-readable summary |
+| severity | enum(critical, warning, info) | yes | inherited from triggering AlertRule or set manually |
+| status | enum(triggered, acknowledged, investigating, resolved, post_mortem) | yes | see state machine below |
+| dedup_key | string | yes | used to prevent duplicate incidents; derived from rule_id + service_name + environment |
+| triggered_by_rule_id | UUID | no | `rule_id` of the AlertRule that triggered this incident |
+| triggered_at | timestamp | yes | |
+| acknowledged_at | timestamp | no | |
+| acknowledged_by | string | no | |
+| resolved_at | timestamp | no | |
+| resolved_by | string | no | |
+| runbook_url | string | no | |
+| timeline | array[IncidentEvent] | no | ordered list of responder actions and system events |
+| related_deployment_id | UUID | no | deployment correlated with the incident |
+| slo_impact | JSON | no | calculated error budget burn during the incident window |
+| postmortem_url | string | no | link to post-mortem document |
+| created_at | timestamp | yes | |
+| updated_at | timestamp | yes | |
+
+**IncidentEvent** (embedded in `timeline`):
+
+| Field | Type | Notes |
+|---|---|---|
+| event_time | timestamp | |
+| event_type | enum(triggered, acknowledged, comment, status_change, deployment_linked, alert_fired, alert_resolved) | |
+| actor | string | user or system |
+| message | string | |
 
 ### SLODefinition
 
@@ -396,6 +479,17 @@ Error budget is derived continuously:
 - `error_budget_total = (1 - target) * window_events`
 - `error_budget_remaining = error_budget_total - bad_events`
 - `burn_rate = bad_events_last_Nh / (error_budget_total * (N / window_hours))`
+
+**SLI type definitions — what counts as a good vs. bad event:**
+
+| `sli_type` | Good event | Bad event | Primary data source |
+|---|---|---|---|
+| `availability` | Span with `status_code = OK` or `UNSET` | Span with `status_code = ERROR` | Span table; filter by `service_name` + `environment` |
+| `latency` | Span where `duration_ns <= latency_threshold_ms * 1_000_000` | Span where `duration_ns > latency_threshold_ms * 1_000_000` | Span table; requires `latency_threshold_ms` to be set on the SLODefinition |
+| `error_rate` | Request where no error attribute is set | Request where `span.attributes["error"] = true` or `status_code = ERROR` | Span table; equivalent to `availability` but expressed as a rate rather than ratio |
+| `throughput` | Any ingested request event above the defined minimum rate | Any measurement window where observed request rate < configured minimum RPS threshold | Derived from `MetricSeries` (request count sum) or Span count per window |
+
+For `availability` and `latency`, `window_events` = total spans matching `service_name + environment` within the rolling `window_days` window. For `throughput`, `window_events` = count of measurement windows within the rolling window where throughput was above threshold.
 
 ### AlertRule States
 
@@ -491,6 +585,7 @@ The following fields appear across all signal types and align with the common di
 |---|---|---|
 | `tenant_id` | `observable.tenant_id` | Top-level isolation key |
 | `account_id` | `observable.account_id` | Billing entity |
+| `org_id` | `observable.org_id` (injected at ingest) | Organization grouping layer; only populated for tenants that have Organizations configured. Injected by the control plane at ingest from the project-to-organization mapping. Not emitted by OTel SDKs. |
 | `project_id` | `observable.project_id` | Project scope |
 | `environment` | `deployment.environment` | Named deployment stage |
 | `service_name` | `service.name` | Service identifier |
@@ -500,9 +595,12 @@ The following fields appear across all signal types and align with the common di
 | `region` | `cloud.region` | Cloud or datacenter region |
 | `cloud_provider` | `cloud.provider` | e.g. `aws`, `gcp`, `azure` |
 | `cluster` | `k8s.cluster.name` | Kubernetes cluster |
-| `namespace` | `k8s.namespace.name` | Kubernetes namespace |
+| `namespace` | `k8s.namespace.name` | Kubernetes namespace; also present in Workload schema denormalized from this dimension |
 | `workload` | `k8s.pod.name` / `process.pid` | Runtime instance identifier |
 | `host_id` | `host.id` | Physical/virtual machine ID |
 | `container_id` | `container.id` | Container instance ID |
 | `trace_id` | `trace_id` | Distributed trace identifier |
 | `span_id` | `span_id` | Span within trace |
+| `session_id` | `observable.session_id` (injected by browser/mobile SDK) | RUM session identifier. Present on signals emitted from browser or mobile SDK instrumentation. Absent on server-side signals unless explicitly propagated via W3C baggage. Used for "user session ↔ backend trace" correlation. |
+| `user_hash` | `observable.user_hash` (injected by browser/mobile SDK) | One-way hash of the end-user identity for session attribution. Never stores raw PII. Absent on server-side signals unless explicitly propagated. |
+| `tags` | n/a (platform-level annotation) | Operator-defined key-value labels attached to a project, environment, or service in the control plane. Injected at ingest alongside resource attributes. Distinct from signal-level `attributes` (which come from instrumentation). Used for cost allocation, team ownership, and cross-cutting filters that are not part of the OTel semantic model. |

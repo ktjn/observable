@@ -41,28 +41,31 @@ Use for:
 
 **Common dimensions**
 
+The authoritative common dimensions reference (OTel attribute mappings, descriptions, and injection rules) is in `spec/14-domain-model.md §7`. The fields below are the storage-layer summary; refer to the domain model for semantics.
+
 | Field | Description |
 |-------|-------------|
-| `tenant_id` | |
-| `account_id` | |
-| `project_id` | |
-| `environment` | |
-| `service_name` | |
-| `service_namespace` | |
-| `service_version` | |
-| `deployment_id` | |
-| `region` | |
-| `cloud_provider` | |
-| `cluster` | |
-| `namespace` | |
-| `workload` | |
-| `host_id` | |
-| `container_id` | |
-| `trace_id` | |
-| `span_id` | |
-| `session_id` | |
-| `user_hash` | |
-| `tags` | map |
+| `tenant_id` | Top-level isolation key |
+| `account_id` | Billing entity |
+| `org_id` | Organization grouping layer; injected at ingest from project-to-org mapping |
+| `project_id` | Project scope |
+| `environment` | Named deployment stage |
+| `service_name` | Service identifier |
+| `service_namespace` | Optional service grouping |
+| `service_version` | Deployed version |
+| `deployment_id` | Active deployment at time of signal |
+| `region` | Cloud or datacenter region |
+| `cloud_provider` | e.g. `aws`, `gcp`, `azure` |
+| `cluster` | Kubernetes cluster |
+| `namespace` | Kubernetes namespace |
+| `workload` | Runtime instance identifier |
+| `host_id` | Physical/virtual machine ID |
+| `container_id` | Container instance ID |
+| `trace_id` | Distributed trace identifier |
+| `span_id` | Span within trace |
+| `session_id` | RUM session identifier; present on browser/mobile SDK signals only |
+| `user_hash` | One-way hash of end-user identity; present on browser/mobile SDK signals only |
+| `tags` | Operator-defined key-value labels from the control plane; distinct from OTel signal `attributes` |
 
 **Metrics schema**
 - `metric_name`
@@ -115,6 +118,8 @@ Spans are the source of truth for trace waterfall reconstruction. Trace rows are
 - `labels`
 - `service` / `version` / `build` refs
 
+Profile blobs are stored in object storage. Indexing uses a lightweight ClickHouse metadata table (profile_id, tenant_id, service_name, sample_type, start_time, end_time, environment, host_id) that enables time-range and service-scoped queries without scanning blob content. Full stack frame data is fetched from object storage on demand. Symbol resolution (source file + line number mapping) uses a separate symbol table also in object storage, keyed by `service_version` + `build_id`.
+
 ### 5.3 Retention Tiers
 
 | Tier | Duration | Characteristics |
@@ -123,6 +128,25 @@ Spans are the source of truth for trace waterfall reconstruction. Trace rows are
 | warm | 15–60 days | indexed + partial rollups |
 | cold | 2–12 months | compressed / object-backed |
 | archive | compliance | export, restore-on-demand |
+
+### 5.4 Schema Registry
+
+The Schema Registry is a control plane service that tracks and versions the schemas of telemetry types and custom instrumentation. It is distinct from `spec/14-domain-model.md`, which is the static design-time authoritative model. The Schema Registry is the runtime authority.
+
+**Responsibilities:**
+- Stores the canonical field definitions for each telemetry type (Span, LogRecord, MetricSeries, MetricPoint, ProfileSample, Event, SyntheticCheck), versioned against the OTel specification release that introduced each field
+- Discovers and indexes custom attributes observed at ingest time (schema-on-write); tracks cardinality and last-seen timestamps per attribute key
+- Exposes a gRPC/HTTP API used by the query facade to resolve field names, types, and cardinality hints for query autocomplete and cost estimation
+- Enforces the `ADR-013` schema governance tiers: standard (strictly enforced), high-velocity (auto-indexed), low-velocity (schema-on-read)
+- Versioned: schema changes increment a monotonic version; breaking changes require a migration plan
+
+**Storage:** Schema Registry metadata is stored in the relational control plane store (PostgreSQL). It is not stored in ClickHouse.
+
+**API surface:**
+- `GET /schemas/{signal_type}` — current schema for a signal type
+- `GET /schemas/{signal_type}/attributes` — discovered attributes with cardinality and index status
+- `POST /schemas/{signal_type}/attributes/{key}/index` — promote a schema-on-read attribute to schema-on-write (operator action)
+- `GET /schemas/versions` — schema version history
 
 ---
 
