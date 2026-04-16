@@ -92,6 +92,10 @@ cargo run -p <service-name>    # run a specific Rust service
 npm run dev                    # run the React frontend (from apps/frontend)
 ```
 
+For full detail on the frontend local development workflow, directory layout, environment
+variables, Vite proxy config, mock strategy, production build, nginx hosting, and Playwright
+E2E setup see `spec/15-frontend-local-dev.md`.
+
 **Dependency stack**
 
 | Service    | Image                        | Ports      | Purpose                      |

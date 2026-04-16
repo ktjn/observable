@@ -16,6 +16,9 @@
 
 See ADR-006 for the React/Vite decision rationale and ADR-016 for the visualization library choice.
 
+For local development setup, Vite dev server configuration, environment variables, mock strategy,
+production build output, hosting model, and Playwright E2E setup see `spec/15-frontend-local-dev.md`.
+
 ### 9.2 Navigation Model: Entity-Centric, Not Signal-Centric
 
 Navigation is organized around **business entities** (services, deployments, environments) rather than signal types (metrics tab, logs tab). This reflects how operators investigate incidents—they start with a service, not with a metric.
