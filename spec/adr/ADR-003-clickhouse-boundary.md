@@ -12,9 +12,13 @@ ClickHouse is a high-performance, columnar OLAP database that is highly effectiv
 
 ## Decision
 
-ClickHouse will be the **primary engine for all high-volume telemetry data (logs, traces, and initially metrics)**. 
-- It will NOT be used for transactional metadata, user accounts, or fine-grained configuration (which belong in PostgreSQL).
-- We will adopt a "ClickHouse-first" approach for data plane services but maintain a strict service boundary so that the storage engine can be swapped or augmented if necessary.
+ClickHouse is the **primary engine for all high-volume telemetry data: logs, traces, and metrics**.
+
+- It will NOT be used for transactional metadata, user accounts, or fine-grained configuration (those belong in PostgreSQL).
+- We adopt a "ClickHouse-first" approach for data plane services and maintain a strict service boundary so the storage engine can be swapped or augmented if necessary.
+- Metrics use the `MetricSeries` + `MetricPoint` table design defined in `spec/14-domain-model.md`. Rollups are implemented as ClickHouse materialized views.
+
+**Revisit condition for metrics:** If Phase 2 or Phase 3 cardinality testing shows ClickHouse cannot meet the P50 < 1 s query latency target under production-representative label cardinality, open a new ADR to evaluate a dedicated TSDB (e.g., VictoriaMetrics). The query facade already abstracts storage engines from clients.
 
 ## Consequences
 
@@ -42,4 +46,5 @@ Rejected to maintain platform portability and avoid high egress/ingest costs.
 ## Related
 
 - `spec/03-storage.md` (Storage Strategy)
-- `spec/adr/ADR-002: Polyglot Storage vs Single Engine`
+- `spec/14-domain-model.md` (MetricSeries and MetricPoint schemas)
+- `spec/adr/ADR-002-polyglot-storage.md` (Polyglot Storage vs Single Engine)
