@@ -194,6 +194,65 @@ Next smallest slice:
 - PRs must identify any skipped checks and why they were not relevant or could not run.
 - PRs must name the next smallest useful slice so the project can continue without re-planning from scratch.
 
+### 16.9 Documentation and Spec Review
+
+Any agent PR that touches files under `spec/` or `docs/` must run the `doc-review` skill and pass all four phases before opening a PR or claiming the change complete.
+
+**Trigger rule:** Mandatory whenever the agent modifies any file under `spec/` or `docs/`. Not optional. Must complete before `superpowers:verification-before-completion` or PR creation.
+
+**Phases — all must pass:**
+
+#### Phase 1: Structural Validation
+- Valid Markdown: no unclosed fences, broken headings
+- No bare `TODO` or `TBD` placeholders remaining in the document
+- ADR files must contain: Status, Context, Decision, Consequences sections
+- Spec files must have a numbered heading consistent with their filename
+- Diagrams (Mermaid or similar) must have valid syntax
+
+#### Phase 2: Cross-Reference Consistency
+For every ADR or spec referenced in a changed file:
+- The linked file exists at the stated path
+- The reference is bidirectional (if spec A links to ADR-007, ADR-007 must be consistent with spec A)
+- The description of the linked decision matches what the linked file actually says
+
+#### Phase 3: Coverage Completeness
+- If a spec change touches architecture, technology choices, deployment model, data model, security model, or roadmap scope → an ADR must also be touched, or the PR must explicitly state why no ADR change is needed
+- If an ADR is touched → all specs that reference that ADR must be checked for staleness
+- `spec/README.md` table must accurately reflect any added, renamed, or removed spec files
+
+#### Phase 4: Quality Gates
+- No contradictions between changed files and the rest of the corpus
+- No sections removed without a replacement or an explicit note explaining the removal
+- Changed files maintain accurate cross-links to related specs
+
+**Report format:**
+
+```
+## Doc/Spec Review Report
+
+### Phase 1: Structural Validation — PASS | WARN | FAIL
+- [finding] → [file:line]
+
+### Phase 2: Cross-Reference Consistency — PASS | WARN | FAIL
+- [finding] → [file:line] ↔ [linked file:line]
+
+### Phase 3: Coverage Completeness — PASS | WARN | FAIL
+- [finding] → [spec file] requires ADR update OR [ADR file] requires spec sync
+
+### Phase 4: Quality Gates — PASS | WARN | FAIL
+- [finding] → [contradiction or gap location]
+
+### Summary
+Overall: PASS | FAIL
+Warnings requiring PR acknowledgement: N
+Blockers requiring fix before PR: N
+```
+
+**Failure handling:**
+- `FAIL` in any phase: agent fixes the issue and re-runs from Phase 1. Cannot open a PR until all phases pass.
+- `WARN`: agent lists all warnings in the PR body under "Acknowledged doc/spec review warnings."
+- `PASS` (all phases): agent notes "Doc/spec review: all phases passed" in the PR body.
+
 ---
 
 ## 17. Project Plan: Small Steps to Production
