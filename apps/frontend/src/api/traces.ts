@@ -4,8 +4,8 @@ export interface Span {
   span_id: string;
   service_name: string;
   operation_name: string;
-  start_time_unix_nano: string;
-  end_time_unix_nano: string;
+  start_time_unix_nano: number;
+  end_time_unix_nano: number;
   duration_ns: number;
   status_code: string;
 }
