@@ -1,0 +1,94 @@
+openapi: "3.1.0"
+info:
+  title: Observable Query API
+  version: "1.0.0"
+paths:
+  /v1/traces/{trace_id}:
+    get:
+      summary: Get trace by ID
+      operationId: getTrace
+      parameters:
+        - name: trace_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Trace with all spans
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TraceResponse"
+        "404": { description: Not found }
+        "401": { description: Unauthorized }
+  /v1/traces:
+    get:
+      summary: Search traces
+      operationId: searchTraces
+      parameters:
+        - name: service
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50, maximum: 500 }
+      responses:
+        "200":
+          description: List of traces
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TraceListResponse"
+  /v1/logs:
+    get:
+      summary: Search logs
+      operationId: searchLogs
+      parameters:
+        - name: service
+          in: query
+          schema: { type: string }
+        - name: severity
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 100, maximum: 1000 }
+      responses:
+        "200":
+          description: List of log records
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    TraceResponse:
+      type: object
+      properties:
+        trace_id: { type: string }
+        spans:
+          type: array
+          items:
+            type: object
+    TraceListResponse:
+      type: object
+      properties:
+        traces:
+          type: array
+          items:
+            type: object
+        total: { type: integer }
+security:
+  - BearerAuth: []
