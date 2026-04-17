@@ -1,0 +1,62 @@
+version: "3.9"
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    ports: ["8123:8123", "9000:9000"]
+    environment:
+      CLICKHOUSE_DB: observable
+      CLICKHOUSE_USER: ${CH_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-}
+    volumes: [clickhouse_data:/var/lib/clickhouse]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redpanda:
+    image: redpandadata/redpanda:v23.3.1
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=512M
+      - --overprovisioned
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://localhost:9092
+    ports: ["9092:9092", "9644:9644"]
+    volumes: [redpanda_data:/var/lib/redpanda/data]
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "info"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:16
+    ports: ["5432:5432"]
+    environment:
+      POSTGRES_DB: ${PG_DB:-observable}
+      POSTGRES_USER: ${PG_USER:-observable}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-observable}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-observable}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  openfga:
+    image: openfga/openfga:v1.5
+    command: run
+    ports: ["8080:8080", "8081:8081"]
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://${PG_USER:-observable}:${PG_PASSWORD:-observable}@postgres:5432/${PG_DB:-observable}
+    depends_on:
+      postgres: { condition: service_healthy }
+
+volumes:
+  clickhouse_data:
+  redpanda_data:
+  postgres_data:

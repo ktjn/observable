@@ -1,1 +1,5 @@
 .worktrees/
+.env.local
+target/
+node_modules/
+dist/
