@@ -1,0 +1,6 @@
+{
+  "name": "observable",
+  "private": true,
+  "workspaces": ["apps/frontend"],
+  "scripts": {}
+}
