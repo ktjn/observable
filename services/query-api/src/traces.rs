@@ -11,6 +11,7 @@ use crate::middleware::auth::TenantContext;
 
 #[derive(Clone)]
 pub struct AppState {
+    #[allow(dead_code)]
     pub ch: Client,
 }
 

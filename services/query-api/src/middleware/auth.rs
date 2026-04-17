@@ -3,6 +3,7 @@ use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct TenantContext {
+    #[allow(dead_code)]
     pub tenant_id: Uuid,
 }
 

@@ -33,14 +33,15 @@ async fn validate_handler(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
             .ok_or(StatusCode::UNAUTHORIZED)?;
 
-    let revoked_at: Option<chrono::DateTime<chrono::Utc>> =
-        row.try_get("revoked_at").unwrap_or(None);
-    if revoked_at.is_some() {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-    let tenant_id: Uuid = row
-        .try_get("tenant_id")
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let entry = validate::ApiKeyEntry {
+        tenant_id: row
+            .try_get("tenant_id")
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+        key_hash: hash,
+        revoked_at: row.try_get("revoked_at").unwrap_or(None),
+    };
+    let tenant_id = validate::validate_key_against_entry(&req.api_key, &entry)
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
     Ok(Json(ValidateResponse { tenant_id }))
 }
 
