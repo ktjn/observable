@@ -79,7 +79,8 @@ pub fn build_router(state: AppState) -> Router {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().json().init();
+    let otlp = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
+    domain::telemetry::init_telemetry("ingest-gateway", otlp.as_deref())?;
     let port: u16 = std::env::var("INGEST_GATEWAY_PORT")
         .unwrap_or_else(|_| "4317".into())
         .parse()?;

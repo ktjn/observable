@@ -5,7 +5,8 @@ use domain::{EnvelopePayload, TelemetryEnvelope};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().json().init();
+    let otlp = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
+    domain::telemetry::init_telemetry("stream-processor", otlp.as_deref())?;
     let brokers = std::env::var("REDPANDA_BROKERS")?;
     let topic = std::env::var("INGEST_TOPIC")?;
     let writer_url = std::env::var("STORAGE_WRITER_URL")

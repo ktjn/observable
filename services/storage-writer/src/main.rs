@@ -58,7 +58,8 @@ async fn write_metrics(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().json().init();
+    let otlp = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
+    domain::telemetry::init_telemetry("storage-writer", otlp.as_deref())?;
     let ch_url = std::env::var("CLICKHOUSE_URL")
         .unwrap_or_else(|_| "http://localhost:8123".into());
     let ch = Client::default()

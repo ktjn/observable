@@ -47,7 +47,8 @@ async fn validate_handler(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().json().init();
+    let otlp = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
+    domain::telemetry::init_telemetry("auth-service", otlp.as_deref())?;
     let db_url = std::env::var("DATABASE_URL")?;
     let db = PgPool::connect(&db_url).await?;
     let port: u16 = std::env::var("AUTH_SERVICE_PORT")
