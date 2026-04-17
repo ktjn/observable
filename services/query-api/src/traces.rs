@@ -1,17 +1,17 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     Json,
 };
 use clickhouse::Client;
 use domain::Span;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
+use crate::middleware::auth::TenantContext;
 
 #[derive(Clone)]
 pub struct AppState {
     pub ch: Client,
-    pub tenant_id: Uuid,
 }
 
 #[derive(Serialize)]
@@ -34,20 +34,21 @@ pub struct SearchParams {
 
 pub async fn get_trace(
     State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
     Path(trace_id): Path<String>,
 ) -> Result<Json<TraceResponse>, StatusCode> {
-    // Full ClickHouse query implemented in Task 12 when storage-writer is ready.
-    // Stub returns NOT_FOUND for now so the API contract is wired.
-    let _ = (state, &trace_id);
+    // ClickHouse row query wired once Row derive is added to domain::Span (Phase 2+).
+    let _ = (state, ctx, &trace_id);
     Err(StatusCode::NOT_FOUND)
 }
 
 pub async fn search_traces(
     State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
     Query(params): Query<SearchParams>,
 ) -> Result<Json<TraceListResponse>, StatusCode> {
     let limit = params.limit.unwrap_or(50).min(500);
-    let _ = (state, limit, params.service);
+    let _ = (state, ctx, limit, params.service);
     Ok(Json(TraceListResponse {
         traces: vec![],
         total: 0,
