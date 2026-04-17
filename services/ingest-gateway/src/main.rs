@@ -1,13 +1,18 @@
 mod auth;
+mod queue;
 mod routes;
 
 use axum::{middleware, routing::post, Router};
+use std::sync::Arc;
 use uuid::Uuid;
+
+use queue::producer::QueueProducer;
 
 #[derive(Clone)]
 pub struct AppState {
     pub auth_service_url: String,
     pub http_client: reqwest::Client,
+    pub producer: Option<Arc<QueueProducer>>,
     #[cfg(test)]
     pub stub_tenant: Option<Uuid>,
 }
@@ -44,6 +49,7 @@ impl AppState {
         Self {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
+            producer: None,
             stub_tenant: None,
         }
     }
@@ -53,6 +59,7 @@ impl AppState {
         Self {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
+            producer: None,
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
     }
@@ -76,10 +83,16 @@ async fn main() -> anyhow::Result<()> {
     let port: u16 = std::env::var("INGEST_GATEWAY_PORT")
         .unwrap_or_else(|_| "4317".into())
         .parse()?;
+    let brokers = std::env::var("REDPANDA_BROKERS")
+        .unwrap_or_else(|_| "localhost:9092".into());
+    let topic = std::env::var("INGEST_TOPIC")
+        .unwrap_or_else(|_| "telemetry.raw".into());
+    let producer = Arc::new(QueueProducer::new(&brokers, &topic)?);
     let state = AppState {
         auth_service_url: std::env::var("AUTH_SERVICE_URL")
             .unwrap_or_else(|_| "http://localhost:4318".into()),
         http_client: reqwest::Client::new(),
+        producer: Some(producer),
         #[cfg(test)]
         stub_tenant: None,
     };

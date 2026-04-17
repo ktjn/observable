@@ -10,7 +10,7 @@ pub struct TelemetryEnvelope {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum EnvelopePayload {
     Spans(Vec<crate::span::Span>),
     Logs(Vec<crate::log::LogRecord>),
