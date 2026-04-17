@@ -1,4 +1,8 @@
-use axum::{extract::{Extension, State}, http::StatusCode, Json};
+use axum::{
+    extract::{Extension, State},
+    http::StatusCode,
+    Json,
+};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -55,8 +59,7 @@ fn parse_otlp_metrics(
             .and_then(|r| r.get("attributes"))
             .cloned()
             .unwrap_or_default();
-        let service_name = extract_string_attr(&resource_attrs, "service.name")
-            .unwrap_or_default();
+        let service_name = extract_string_attr(&resource_attrs, "service.name").unwrap_or_default();
 
         for scope_metrics in rm
             .get("scopeMetrics")
@@ -99,12 +102,8 @@ fn parse_otlp_metrics(
                             .and_then(|v| v.as_str())
                             .and_then(|s| s.parse().ok())
                             .unwrap_or(0);
-                        let value_double = dp
-                            .get("asDouble")
-                            .and_then(|v| v.as_f64());
-                        let value_int = dp
-                            .get("asInt")
-                            .and_then(|v| v.as_i64());
+                        let value_double = dp.get("asDouble").and_then(|v| v.as_f64());
+                        let value_int = dp.get("asInt").and_then(|v| v.as_i64());
                         all_points.push(domain::MetricPoint {
                             tenant_id,
                             metric_series_id: series_id,
@@ -124,7 +123,12 @@ fn parse_otlp_metrics(
 }
 
 fn extract_string_attr(attrs: &Value, key: &str) -> Option<String> {
-    attrs.as_array()?.iter().find(|a| {
-        a.get("key").and_then(|k| k.as_str()) == Some(key)
-    })?.get("value")?.get("stringValue")?.as_str().map(String::from)
+    attrs
+        .as_array()?
+        .iter()
+        .find(|a| a.get("key").and_then(|k| k.as_str()) == Some(key))?
+        .get("value")?
+        .get("stringValue")?
+        .as_str()
+        .map(String::from)
 }

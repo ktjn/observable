@@ -8,8 +8,7 @@ use clickhouse::Client;
 async fn main() -> anyhow::Result<()> {
     let otlp = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
     domain::telemetry::init_telemetry("query-api", otlp.as_deref())?;
-    let ch_url = std::env::var("CLICKHOUSE_URL")
-        .unwrap_or_else(|_| "http://localhost:8123".into());
+    let ch_url = std::env::var("CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".into());
     let ch = Client::default()
         .with_url(ch_url)
         .with_database("observable");

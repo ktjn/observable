@@ -41,8 +41,7 @@ impl From<MetricSeries> for MetricSeriesRow {
                 AggregationTemporality::Cumulative => "cumulative".into(),
             }),
             attributes: serde_json::to_string(&s.attributes).unwrap_or_default(),
-            resource_attributes: serde_json::to_string(&s.resource_attributes)
-                .unwrap_or_default(),
+            resource_attributes: serde_json::to_string(&s.resource_attributes).unwrap_or_default(),
             service_name: s.service_name,
             environment: s.environment,
         }
@@ -84,10 +83,7 @@ impl From<MetricPoint> for MetricPointRow {
     }
 }
 
-pub async fn insert_metric_series(
-    ch: &Client,
-    series: Vec<MetricSeries>,
-) -> anyhow::Result<()> {
+pub async fn insert_metric_series(ch: &Client, series: Vec<MetricSeries>) -> anyhow::Result<()> {
     let mut insert = ch.insert("metric_series")?;
     for s in series {
         insert.write(&MetricSeriesRow::from(s)).await?;
@@ -96,10 +92,7 @@ pub async fn insert_metric_series(
     Ok(())
 }
 
-pub async fn insert_metric_points(
-    ch: &Client,
-    points: Vec<MetricPoint>,
-) -> anyhow::Result<()> {
+pub async fn insert_metric_points(ch: &Client, points: Vec<MetricPoint>) -> anyhow::Result<()> {
     let mut insert = ch.insert("metric_points")?;
     for p in points {
         insert.write(&MetricPointRow::from(p)).await?;

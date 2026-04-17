@@ -26,9 +26,7 @@ impl QueueProducer {
         let key = envelope.tenant_id.to_string();
         self.producer
             .send(
-                FutureRecord::to(&self.topic)
-                    .key(&key)
-                    .payload(&payload),
+                FutureRecord::to(&self.topic).key(&key).payload(&payload),
                 Duration::from_secs(5),
             )
             .await
@@ -55,10 +53,7 @@ mod tests {
 
     #[test]
     fn envelope_serializes_for_kafka() {
-        let env = build_envelope(
-            Uuid::new_v4(),
-            domain::EnvelopePayload::Spans(vec![]),
-        );
+        let env = build_envelope(Uuid::new_v4(), domain::EnvelopePayload::Spans(vec![]));
         let bytes = serde_json::to_vec(&env).unwrap();
         assert!(!bytes.is_empty());
     }

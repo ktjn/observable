@@ -1,4 +1,8 @@
-use axum::{extract::{Extension, State}, http::StatusCode, Json};
+use axum::{
+    extract::{Extension, State},
+    http::StatusCode,
+    Json,
+};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -47,8 +51,7 @@ fn parse_otlp_logs(body: &Value, tenant_id: Uuid) -> Result<Vec<domain::LogRecor
             .and_then(|r| r.get("attributes"))
             .cloned()
             .unwrap_or_default();
-        let service_name = extract_string_attr(&resource_attrs, "service.name")
-            .unwrap_or_default();
+        let service_name = extract_string_attr(&resource_attrs, "service.name").unwrap_or_default();
         for scope_logs in rl
             .get("scopeLogs")
             .and_then(|v| v.as_array())
@@ -88,7 +91,12 @@ fn parse_otlp_logs(body: &Value, tenant_id: Uuid) -> Result<Vec<domain::LogRecor
 }
 
 fn extract_string_attr(attrs: &Value, key: &str) -> Option<String> {
-    attrs.as_array()?.iter().find(|a| {
-        a.get("key").and_then(|k| k.as_str()) == Some(key)
-    })?.get("value")?.get("stringValue")?.as_str().map(String::from)
+    attrs
+        .as_array()?
+        .iter()
+        .find(|a| a.get("key").and_then(|k| k.as_str()) == Some(key))?
+        .get("value")?
+        .get("stringValue")?
+        .as_str()
+        .map(String::from)
 }

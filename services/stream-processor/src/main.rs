@@ -9,8 +9,8 @@ async fn main() -> anyhow::Result<()> {
     domain::telemetry::init_telemetry("stream-processor", otlp.as_deref())?;
     let brokers = std::env::var("REDPANDA_BROKERS")?;
     let topic = std::env::var("INGEST_TOPIC")?;
-    let writer_url = std::env::var("STORAGE_WRITER_URL")
-        .unwrap_or_else(|_| "http://localhost:4320".into());
+    let writer_url =
+        std::env::var("STORAGE_WRITER_URL").unwrap_or_else(|_| "http://localhost:4320".into());
     let http = reqwest::Client::new();
 
     let qc = consumer::QueueConsumer::new(&brokers, "stream-processor", &topic)?;

@@ -43,10 +43,7 @@ struct MetricsBatch {
     points: Vec<domain::MetricPoint>,
 }
 
-async fn write_metrics(
-    State(state): State<AppState>,
-    Json(b): Json<MetricsBatch>,
-) -> StatusCode {
+async fn write_metrics(State(state): State<AppState>, Json(b): Json<MetricsBatch>) -> StatusCode {
     let r1 = metrics::insert_metric_series(&state.ch, b.series).await;
     let r2 = metrics::insert_metric_points(&state.ch, b.points).await;
     if r1.is_err() || r2.is_err() {
@@ -60,8 +57,7 @@ async fn write_metrics(
 async fn main() -> anyhow::Result<()> {
     let otlp = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
     domain::telemetry::init_telemetry("storage-writer", otlp.as_deref())?;
-    let ch_url = std::env::var("CLICKHOUSE_URL")
-        .unwrap_or_else(|_| "http://localhost:8123".into());
+    let ch_url = std::env::var("CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".into());
     let ch = Client::default()
         .with_url(ch_url)
         .with_database("observable");

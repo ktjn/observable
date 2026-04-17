@@ -4,7 +4,11 @@
 pub fn init_telemetry(service_name: &str, otlp_endpoint: Option<&str>) -> anyhow::Result<()> {
     tracing_subscriber::fmt().json().init();
     if let Some(ep) = otlp_endpoint {
-        tracing::info!(service = service_name, otlp_endpoint = ep, "OTLP export configured (Phase 2 SDK wiring)");
+        tracing::info!(
+            service = service_name,
+            otlp_endpoint = ep,
+            "OTLP export configured (Phase 2 SDK wiring)"
+        );
     } else {
         tracing::info!(service = service_name, "telemetry initialised");
     }

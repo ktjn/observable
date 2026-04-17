@@ -25,14 +25,13 @@ async fn validate_handler(
     Json(req): Json<ValidateRequest>,
 ) -> Result<Json<ValidateResponse>, StatusCode> {
     let hash = validate::sha256_hex(&req.api_key);
-    let row = sqlx::query(
-        "SELECT tenant_id, key_hash, revoked_at FROM api_keys WHERE key_hash = $1",
-    )
-    .bind(&hash)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::UNAUTHORIZED)?;
+    let row =
+        sqlx::query("SELECT tenant_id, key_hash, revoked_at FROM api_keys WHERE key_hash = $1")
+            .bind(&hash)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .ok_or(StatusCode::UNAUTHORIZED)?;
 
     let revoked_at: Option<chrono::DateTime<chrono::Utc>> =
         row.try_get("revoked_at").unwrap_or(None);

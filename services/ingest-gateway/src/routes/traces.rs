@@ -1,4 +1,8 @@
-use axum::{extract::{Extension, State}, http::StatusCode, Json};
+use axum::{
+    extract::{Extension, State},
+    http::StatusCode,
+    Json,
+};
 use serde_json::Value;
 
 use crate::auth::TenantContext;
@@ -33,10 +37,7 @@ pub async fn export_traces(
     Ok(Json(serde_json::json!({ "partialSuccess": {} })))
 }
 
-fn parse_otlp_traces(
-    body: &Value,
-    tenant_id: uuid::Uuid,
-) -> Result<Vec<domain::Span>, StatusCode> {
+fn parse_otlp_traces(body: &Value, tenant_id: uuid::Uuid) -> Result<Vec<domain::Span>, StatusCode> {
     let resource_spans = body
         .get("resourceSpans")
         .and_then(|v| v.as_array())
@@ -49,8 +50,7 @@ fn parse_otlp_traces(
             .and_then(|r| r.get("attributes"))
             .cloned()
             .unwrap_or_default();
-        let service_name = extract_string_attr(&resource_attrs, "service.name")
-            .unwrap_or_default();
+        let service_name = extract_string_attr(&resource_attrs, "service.name").unwrap_or_default();
         for scope_spans in rs
             .get("scopeSpans")
             .and_then(|v| v.as_array())
@@ -101,9 +101,14 @@ fn parse_otlp_traces(
 }
 
 fn extract_string_attr(attrs: &Value, key: &str) -> Option<String> {
-    attrs.as_array()?.iter().find(|a| {
-        a.get("key").and_then(|k| k.as_str()) == Some(key)
-    })?.get("value")?.get("stringValue")?.as_str().map(String::from)
+    attrs
+        .as_array()?
+        .iter()
+        .find(|a| a.get("key").and_then(|k| k.as_str()) == Some(key))?
+        .get("value")?
+        .get("stringValue")?
+        .as_str()
+        .map(String::from)
 }
 
 #[cfg(test)]

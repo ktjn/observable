@@ -35,8 +35,7 @@ impl From<LogRecord> for LogRow {
             trace_id: l.trace_id,
             span_id: l.span_id,
             attributes: serde_json::to_string(&l.attributes).unwrap_or_default(),
-            resource_attributes: serde_json::to_string(&l.resource_attributes)
-                .unwrap_or_default(),
+            resource_attributes: serde_json::to_string(&l.resource_attributes).unwrap_or_default(),
             service_name: l.service_name,
             environment: l.environment,
             host_id: l.host_id,

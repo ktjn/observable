@@ -59,8 +59,7 @@ impl From<Span> for SpanRow {
             status_code,
             status_message: s.status_message,
             attributes: serde_json::to_string(&s.attributes).unwrap_or_default(),
-            resource_attributes: serde_json::to_string(&s.resource_attributes)
-                .unwrap_or_default(),
+            resource_attributes: serde_json::to_string(&s.resource_attributes).unwrap_or_default(),
             environment: s.environment,
             host_id: s.host_id,
             workload: s.workload,

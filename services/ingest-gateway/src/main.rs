@@ -37,10 +37,7 @@ impl AppState {
             anyhow::bail!("auth rejected");
         }
         let body: serde_json::Value = resp.json().await?;
-        let id = body["tenant_id"]
-            .as_str()
-            .unwrap_or_default()
-            .parse()?;
+        let id = body["tenant_id"].as_str().unwrap_or_default().parse()?;
         Ok(id)
     }
 
@@ -84,10 +81,8 @@ async fn main() -> anyhow::Result<()> {
     let port: u16 = std::env::var("INGEST_GATEWAY_PORT")
         .unwrap_or_else(|_| "4317".into())
         .parse()?;
-    let brokers = std::env::var("REDPANDA_BROKERS")
-        .unwrap_or_else(|_| "localhost:9092".into());
-    let topic = std::env::var("INGEST_TOPIC")
-        .unwrap_or_else(|_| "telemetry.raw".into());
+    let brokers = std::env::var("REDPANDA_BROKERS").unwrap_or_else(|_| "localhost:9092".into());
+    let topic = std::env::var("INGEST_TOPIC").unwrap_or_else(|_| "telemetry.raw".into());
     let producer = Arc::new(QueueProducer::new(&brokers, &topic)?);
     let state = AppState {
         auth_service_url: std::env::var("AUTH_SERVICE_URL")
