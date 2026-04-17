@@ -1,0 +1,29 @@
+name: Nightly Smoke Test
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get install -y cmake libsasl2-dev libcurl4-openssl-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Start infrastructure
+        run: docker compose up -d --wait
+      - name: Run migrations
+        run: make migrate
+      - name: Build services
+        run: cargo build --release
+      - name: Start services
+        run: |
+          ./target/release/auth-service &
+          ./target/release/storage-writer &
+          ./target/release/stream-processor &
+          ./target/release/ingest-gateway &
+          ./target/release/query-api &
+          sleep 5
+      - name: Run smoke test
+        run: bash tests/e2e/smoke_test.sh
