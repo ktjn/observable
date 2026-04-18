@@ -1,3 +1,4 @@
+mod audit;
 mod discovery;
 mod logs;
 mod metrics;
@@ -6,6 +7,7 @@ mod traces;
 
 use axum::{middleware as axum_middleware, routing::get, Router};
 use clickhouse::Client;
+use sqlx::postgres::PgPoolOptions;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -19,10 +21,16 @@ async fn main() -> anyhow::Result<()> {
         .with_user(ch_user)
         .with_password(ch_password)
         .with_database("observable");
+    let database_url =
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://localhost/observable".into());
+    let db = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
+        .await?;
     let port: u16 = std::env::var("QUERY_API_PORT")
         .unwrap_or_else(|_| "8090".into())
         .parse()?;
-    let state = traces::AppState { ch };
+    let state = traces::AppState { ch, db };
     let app = Router::new()
         .route("/v1/traces", get(traces::search_traces))
         .route("/v1/traces/:trace_id", get(traces::get_trace))

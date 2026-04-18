@@ -173,6 +173,7 @@ services:
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CH_USER:-default}
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
+      DATABASE_URL: postgres://observable:observable@postgres:5432/observable
     ports: ["8090:8090"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
@@ -181,6 +182,7 @@ services:
       retries: 10
     depends_on:
       clickhouse-setup: { condition: service_completed_successfully }
+      postgres-setup: { condition: service_completed_successfully }
 
   # --- VERIFICATION ---
   smoke-test:

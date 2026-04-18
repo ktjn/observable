@@ -6,6 +6,7 @@ use axum::{
 use clickhouse::Client;
 use domain::{Span, SpanRow};
 use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 use std::collections::HashSet;
 
 use crate::middleware::auth::TenantContext;
@@ -13,6 +14,7 @@ use crate::middleware::auth::TenantContext;
 #[derive(Clone)]
 pub struct AppState {
     pub ch: Client,
+    pub db: PgPool,
 }
 
 #[derive(Serialize)]
@@ -66,7 +68,17 @@ pub async fn get_trace(
     if rows.is_empty() {
         return Err(StatusCode::NOT_FOUND);
     }
+    let span_count = rows.len() as i64;
     let spans: Vec<Span> = rows.into_iter().map(Span::from).collect();
+    crate::audit::write(
+        &state.db,
+        &crate::audit::QueryAuditEntry {
+            action: "trace_get",
+            tenant_id: ctx.tenant_id,
+            result_count: span_count,
+        },
+    )
+    .await;
     Ok(Json(TraceResponse { trace_id, spans }))
 }
 
@@ -130,6 +142,16 @@ pub async fn search_traces(
             });
         }
     }
+
+    crate::audit::write(
+        &state.db,
+        &crate::audit::QueryAuditEntry {
+            action: "trace_search",
+            tenant_id: ctx.tenant_id,
+            result_count: traces.len() as i64,
+        },
+    )
+    .await;
 
     Ok(Json(TraceListResponse { traces, total }))
 }

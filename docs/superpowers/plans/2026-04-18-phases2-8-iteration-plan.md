@@ -139,9 +139,9 @@ Next smallest slice:
   - Outcome: API key validation produces immutable audit records for allow and deny outcomes. The auth-service now appends a row to `credential_audit_log` on every call to `/internal/validate` — both allow and deny paths. Fields: `occurred_at`, `action` ("credential_validate"), `outcome` ("allow"/"deny"), `credential_hash` (SHA-256 of presented key; this is both the actor identity and the credential identifier at this layer), `tenant_id` (nullable; NULL when the key is not found), `denial_reason` (NULL on allow; "not_found", "revoked", or "hash_mismatch" on deny). Audit writes are fire-and-forget: a failure logs a warning but does not fail the auth response. Migration `004_create_credential_audit_log.sql` adds the table with indexes on `occurred_at` and `tenant_id`. Three new unit tests verify the `AuditEntry` constructor fields for all three outcomes.
   - Checkpoint: are audit fields sufficient for tenant, actor, action, credential identifier, and outcome? Answer: yes. `tenant_id` covers tenant (nullable for key-not-found); `credential_hash` serves as both actor and credential identifier (no plaintext exposure); `action` is the fixed label "credential_validate"; `outcome` is "allow" or "deny"; `denial_reason` further qualifies deny outcomes.
 
-- [ ] **P2-S5b: Add audit logging for query reads**
-  - Outcome: trace, log, and metric reads produce audit records with tenant, actor, action, and result metadata
-  - Checkpoint: can query-read auditing run without logging sensitive payload contents?
+- [x] **P2-S5b: Add audit logging for query reads**
+  - Outcome: trace, log, and metric reads produce audit records with tenant, actor, action, and result metadata. The query-api now appends a row to `query_audit_log` on every successful read across all five handlers: `trace_get`, `trace_search`, `log_search`, `metric_series_list`, and `metric_points_get`. Fields: `occurred_at`, `action` (handler label), `tenant_id` (the authenticated tenant; serves as both tenant and actor at this layer), `result_count` (number of rows returned; no payload content). Writes are fire-and-forget: a failure logs a warning but does not fail the query response. Migration `005_create_query_audit_log.sql` adds the table with indexes on `occurred_at` and `tenant_id`. Three new unit tests verify `QueryAuditEntry` field values for `trace_get`, `log_search`, and `metric_points_get` action labels.
+  - Checkpoint: can query-read auditing run without logging sensitive payload contents? Answer: yes. Only `action`, `tenant_id`, and `result_count` (an integer) are recorded. No query parameters, field names, attribute values, or payload bytes are written to the audit table.
 
 - [ ] **P2-S6a: Add minimal RBAC distinction for one role pair**
   - Outcome: at least one privileged and one read-only role differ in observable API behavior
@@ -412,7 +412,8 @@ After this planning reconciliation, the next implementation slice should be:
 3. ~~P2-S1d: assert tenant partition preservation in storage writes~~ (done)
 4. ~~P2-S2a: add deterministic rate limiting for trace ingest~~ (done)
 5. ~~P2-S5a: add audit logging for credential validation~~ (done)
-6. **P2-S5b: add audit logging for query reads**
+6. ~~P2-S5b: add audit logging for query reads~~ (done)
+7. **P2-S6a: add minimal RBAC distinction for one role pair**
 
 That sequence moves the project from "works" to "safe to keep running."
 
