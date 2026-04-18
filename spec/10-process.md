@@ -139,18 +139,18 @@ When utilizing AI agents for development, the following mandates apply:
 - **Implementation Plan Adherence:** All tasks must follow the latest implementation plans and iteration documents located in `docs/superpowers/plans/`.
 - **ADR and Spec Synchronization:** Architecture, technology, deployment, data model, security, and roadmap changes must update both the relevant ADRs and affected specs in the same iteration. If an ADR change is not required, the PR must explain why.
 
-**Before Pushing Any Branch**
+**MANDATORY: Before Pushing ANY Code**
 
-Before running `git push`, agents must:
+You **MUST** run the following checks before pushing **ANY** code changes to the repository. No exceptions. Do not push and rely on CI to catch errors.
 
-1. Run `cargo fmt --all` — fix any formatting issues before committing.
+1. Run `cargo fmt --all` — fix all formatting issues.
 2. Run `cargo clippy --all-targets --all-features -- -D warnings` — fix all warnings.
 3. Run `cargo test --all-targets --all-features` — ensure all tests pass.
 4. If Docker is available:
    - Run `docker compose up -d` to ensure the stack is running.
-   - Run `docker compose up smoke-test --abort-on-container-exit` — all checks must pass.
+   - Run `docker compose up smoke-test --abort-on-container-exit` — all checks MUST pass.
 
-If any check fails, the agent must fix it before pushing. Do not push and rely on CI to catch it.
+If any check fails, you **MUST** fix it before pushing.
 
 ### 16.8 Tiny Agent Iteration Workflow
 
