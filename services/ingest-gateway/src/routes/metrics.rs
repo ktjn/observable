@@ -21,9 +21,14 @@ pub async fn export_metrics(
 
     let (series, points) = parse_otlp_metrics(&body, ctx.tenant_id)?;
 
+    state
+        .metric_cardinality
+        .observe(ctx.tenant_id, series.len());
+
     tracing::info!(
         tenant_id = %ctx.tenant_id,
         resource_count = resource_metrics.len(),
+        series_count = series.len(),
         "received metrics export request"
     );
 
@@ -131,4 +136,87 @@ fn extract_string_attr(attrs: &Value, key: &str) -> Option<String> {
         .get("stringValue")?
         .as_str()
         .map(String::from)
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::http::StatusCode;
+    use axum_test::TestServer;
+
+    use crate::build_router;
+    use crate::AppState;
+
+    const TENANT: &str = "00000000-0000-0000-0000-000000000001";
+
+    fn auth_header() -> (axum::http::HeaderName, axum::http::HeaderValue) {
+        (
+            axum::http::header::AUTHORIZATION,
+            axum::http::HeaderValue::from_static("Bearer dev-api-key-0000"),
+        )
+    }
+
+    fn two_series_payload() -> serde_json::Value {
+        serde_json::json!({
+            "resourceMetrics": [{
+                "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "svc-a"}}]},
+                "scopeMetrics": [{
+                    "metrics": [
+                        {"name": "http.requests", "sum": {"dataPoints": [{"timeUnixNano": "1000", "asDouble": 10.0}]}},
+                        {"name": "http.errors",   "sum": {"dataPoints": [{"timeUnixNano": "1000", "asDouble": 2.0}]}}
+                    ]
+                }]
+            }]
+        })
+    }
+
+    #[tokio::test]
+    async fn metrics_export_returns_200() {
+        let app = build_router(AppState::with_stub_auth(TENANT));
+        let server = TestServer::new(app).unwrap();
+        let resp = server
+            .post("/v1/metrics")
+            .add_header(auth_header().0, auth_header().1)
+            .json(&two_series_payload())
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn metrics_export_updates_cardinality_counter() {
+        let state = AppState::with_stub_auth(TENANT);
+        let cardinality = state.metric_cardinality.clone();
+        let tenant_id = uuid::Uuid::parse_str(TENANT).unwrap();
+
+        let app = build_router(state);
+        let server = TestServer::new(app).unwrap();
+        server
+            .post("/v1/metrics")
+            .add_header(auth_header().0, auth_header().1)
+            .json(&two_series_payload())
+            .await;
+
+        assert_eq!(cardinality.current_count(tenant_id), 2);
+    }
+
+    #[tokio::test]
+    async fn metrics_export_above_budget_still_returns_200() {
+        // Budget of 1; request carries 2 series — ingest must NOT be rejected.
+        let state = AppState::with_stub_auth_and_metric_budget(TENANT, 1);
+        let app = build_router(state);
+        let server = TestServer::new(app).unwrap();
+        let resp = server
+            .post("/v1/metrics")
+            .add_header(auth_header().0, auth_header().1)
+            .json(&two_series_payload())
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn metrics_export_missing_auth_returns_401() {
+        let app = build_router(AppState::test_stub());
+        let server = TestServer::new(app).unwrap();
+        let resp = server.post("/v1/metrics").json(&two_series_payload()).await;
+        assert_eq!(resp.status_code(), StatusCode::UNAUTHORIZED);
+    }
 }

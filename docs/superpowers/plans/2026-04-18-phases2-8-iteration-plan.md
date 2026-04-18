@@ -127,9 +127,9 @@ Next smallest slice:
   - Outcome: one authenticated tenant exceeding a trace-ingest request budget gets a stable `429` rejection path. The ingest-gateway now enforces a per-tenant token-bucket quota (default 100 req/s, configurable via `TRACE_INGEST_RATE_LIMIT_PER_SECOND`) using the `governor` crate. Exceeded requests return HTTP 429 with a `Retry-After: 1` header and a JSON body `{"error":"rate_limit_exceeded","message":"Trace ingest rate limit exceeded"}`. A warning log with `tenant_id` is emitted on every rejection.
   - Checkpoint: are status code, error body, retry semantics, and telemetry stable enough to reuse for logs and metrics? Answer: yes. Status code is 429, error body uses a stable `error`/`message` shape, `Retry-After` is set, and the warn log carries tenant context. The same pattern (add `DefaultKeyedRateLimiter<Uuid>` to AppState, check before handler body, emit warn log) applies directly to log and metric ingest handlers with no redesign needed.
 
-- [ ] **P2-S3a: Add cardinality budget observation for one signal**
-  - Outcome: operators can see budget consumption for one signal before enforcement starts
-  - Checkpoint: do we have operator-visible telemetry for budget exhaustion without changing ingest acceptance yet?
+- [x] **P2-S3a: Add cardinality budget observation for one signal**
+  - Outcome: operators can see budget consumption for one signal before enforcement starts. A `MetricCardinalityBudget` tracker was added to the ingest-gateway (`cardinality.rs`). Every `/v1/metrics` request increments a per-tenant cumulative series counter; when the total meets or exceeds the configurable budget (`METRIC_SERIES_BUDGET_PER_TENANT`, default 10 000), a `warn!` log is emitted with `tenant_id`, `series_count`, and `budget`. Ingest is never rejected; the counter is observation-only. Four unit tests cover counter accumulation, independent-tenant tracking, budget exhaustion, and the exact boundary. Four integration tests verify HTTP 200 on valid payloads, counter increment after a request, continued HTTP 200 when budget is exceeded, and 401 on missing auth.
+  - Checkpoint: do we have operator-visible telemetry for budget exhaustion without changing ingest acceptance yet? Answer: yes. The `warn!` log fires when `series_count >= budget` and carries structured fields an operator can query or alert on. Ingest acceptance is unchanged — the handler always returns 200 after the observe call regardless of budget state.
 
 - [ ] **P2-S4a: Add hot retention policy for traces**
   - Outcome: one trace retention path is enforced end to end
@@ -414,7 +414,8 @@ After this planning reconciliation, the next implementation slice should be:
 5. ~~P2-S5a: add audit logging for credential validation~~ (done)
 6. ~~P2-S5b: add audit logging for query reads~~ (done)
 7. ~~P2-S6a: add minimal RBAC distinction for one role pair~~ (done)
-8. **P2-S3a: add cardinality budget observation for one signal**
+8. ~~P2-S3a: add cardinality budget observation for one signal~~ (done)
+9. **P2-S4a: add hot retention policy for traces**
 
 That sequence moves the project from "works" to "safe to keep running."
 
