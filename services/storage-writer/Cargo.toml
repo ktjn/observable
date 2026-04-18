@@ -8,7 +8,7 @@ name = "storage-writer"
 path = "src/main.rs"
 
 [dependencies]
-domain             = { path = "../../libs/domain" }
+domain             = { path = "../../libs/domain", features = ["storage"] }
 tokio              = { workspace = true }
 axum               = { workspace = true }
 serde              = { workspace = true }

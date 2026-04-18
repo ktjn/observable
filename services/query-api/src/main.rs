@@ -1,3 +1,5 @@
+mod logs;
+mod metrics;
 mod middleware;
 mod traces;
 
@@ -23,6 +25,9 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/v1/traces", get(traces::search_traces))
         .route("/v1/traces/:trace_id", get(traces::get_trace))
+        .route("/v1/logs", get(logs::search_logs))
+        .route("/v1/metrics", get(metrics::list_metrics))
+        .route("/v1/metrics/:series_id", get(metrics::get_metric_points))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .with_state(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
