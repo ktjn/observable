@@ -143,9 +143,9 @@ Next smallest slice:
   - Outcome: trace, log, and metric reads produce audit records with tenant, actor, action, and result metadata. The query-api now appends a row to `query_audit_log` on every successful read across all five handlers: `trace_get`, `trace_search`, `log_search`, `metric_series_list`, and `metric_points_get`. Fields: `occurred_at`, `action` (handler label), `tenant_id` (the authenticated tenant; serves as both tenant and actor at this layer), `result_count` (number of rows returned; no payload content). Writes are fire-and-forget: a failure logs a warning but does not fail the query response. Migration `005_create_query_audit_log.sql` adds the table with indexes on `occurred_at` and `tenant_id`. Three new unit tests verify `QueryAuditEntry` field values for `trace_get`, `log_search`, and `metric_points_get` action labels.
   - Checkpoint: can query-read auditing run without logging sensitive payload contents? Answer: yes. Only `action`, `tenant_id`, and `result_count` (an integer) are recorded. No query parameters, field names, attribute values, or payload bytes are written to the audit table.
 
-- [ ] **P2-S6a: Add minimal RBAC distinction for one role pair**
-  - Outcome: at least one privileged and one read-only role differ in observable API behavior
-  - Checkpoint: is the role model still simple enough to extend without redesign?
+- [x] **P2-S6a: Add minimal RBAC distinction for one role pair**
+  - Outcome: at least one privileged and one read-only role differ in observable API behavior. A `role` column (`viewer` | `member` | `admin`, default `member`) was added to `api_keys` via migration `006_add_role_to_api_keys.sql`. The auth-service now returns `role` alongside `tenant_id` in `/internal/validate` responses. The ingest-gateway extracts role from the auth response, stores it in `TenantContext`, and rejects requests with `403 Forbidden` when the role is `viewer`. A seeded viewer dev key (`dev-viewer-key-0000`) is available for testing. Unit tests cover `member`/`admin` allowed and `viewer` rejected for both `can_ingest()` logic and the full HTTP path (`POST /v1/traces`). Query endpoints remain open to all roles (read-only paths require no role restriction at this stage).
+  - Checkpoint: is the role model still simple enough to extend without redesign? Answer: yes. Role is a single `TEXT` column on `api_keys` with a `CHECK` constraint; adding new roles or moving to a separate `roles` table is a straightforward migration. The `can_ingest()` method is the single enforcement point; extending to per-endpoint checks or a role-hierarchy follows the same pattern with no architectural change needed.
 
 - [ ] **P2-S7a: Add one threshold alert evaluation path**
   - Outcome: an operator can define a threshold and see an alert fire
@@ -413,7 +413,8 @@ After this planning reconciliation, the next implementation slice should be:
 4. ~~P2-S2a: add deterministic rate limiting for trace ingest~~ (done)
 5. ~~P2-S5a: add audit logging for credential validation~~ (done)
 6. ~~P2-S5b: add audit logging for query reads~~ (done)
-7. **P2-S6a: add minimal RBAC distinction for one role pair**
+7. ~~P2-S6a: add minimal RBAC distinction for one role pair~~ (done)
+8. **P2-S3a: add cardinality budget observation for one signal**
 
 That sequence moves the project from "works" to "safe to keep running."
 

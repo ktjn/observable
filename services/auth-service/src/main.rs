@@ -24,6 +24,7 @@ struct ValidateRequest {
 #[derive(Serialize)]
 struct ValidateResponse {
     tenant_id: Uuid,
+    role: String,
 }
 
 async fn validate_handler(
@@ -32,12 +33,13 @@ async fn validate_handler(
 ) -> Result<Json<ValidateResponse>, StatusCode> {
     let hash = validate::sha256_hex(&req.api_key);
 
-    let row =
-        sqlx::query("SELECT tenant_id, key_hash, revoked_at FROM api_keys WHERE key_hash = $1")
-            .bind(&hash)
-            .fetch_optional(&state.db)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let row = sqlx::query(
+        "SELECT tenant_id, key_hash, revoked_at, role FROM api_keys WHERE key_hash = $1",
+    )
+    .bind(&hash)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let Some(row) = row else {
         audit::write(&state.db, &audit::AuditEntry::deny_not_found(hash)).await;
@@ -49,17 +51,24 @@ async fn validate_handler(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let revoked_at: Option<chrono::DateTime<chrono::Utc>> =
         row.try_get("revoked_at").unwrap_or(None);
+    let role: String = row
+        .try_get("role")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let entry = validate::ApiKeyEntry {
         tenant_id,
         key_hash: hash.clone(),
         revoked_at,
+        role,
     };
 
     match validate::validate_key_against_entry(&req.api_key, &entry) {
-        Ok(tid) => {
+        Ok((tid, role)) => {
             audit::write(&state.db, &audit::AuditEntry::allow(hash, tid)).await;
-            Ok(Json(ValidateResponse { tenant_id: tid }))
+            Ok(Json(ValidateResponse {
+                tenant_id: tid,
+                role,
+            }))
         }
         Err(_) => {
             let reason = if entry.revoked_at.is_some() {
