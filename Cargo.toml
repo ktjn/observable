@@ -22,7 +22,7 @@ bytes              = "1"
 prost              = "0.12"
 tonic              = "0.11"
 sqlx               = { version = "0.7", features = ["postgres", "runtime-tokio", "uuid", "chrono"] }
-clickhouse         = { version = "0.11", features = ["uuid"] }
+clickhouse         = { version = "0.15", features = ["uuid"] }
 rdkafka            = { version = "0.36", features = ["tokio", "cmake-build"] }
 chrono             = { version = "0.4", features = ["serde"] }
 config             = "0.14"

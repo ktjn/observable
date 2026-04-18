@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 #[derive(Debug, Row, Serialize, Deserialize)]
 pub struct SpanRow {
+    #[serde(with = "clickhouse::serde::uuid")]
     pub tenant_id: Uuid,
     pub trace_id: String,
     pub span_id: String,
@@ -69,7 +70,7 @@ impl From<Span> for SpanRow {
 }
 
 pub async fn insert_spans(ch: &Client, spans: Vec<Span>) -> anyhow::Result<()> {
-    let mut insert = ch.insert("spans")?;
+    let mut insert = ch.insert::<SpanRow>("spans").await?;
     for span in spans {
         insert.write(&SpanRow::from(span)).await?;
     }

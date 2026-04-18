@@ -6,7 +6,7 @@ services:
     environment:
       CLICKHOUSE_DB: observable
       CLICKHOUSE_USER: ${CH_USER:-default}
-      CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-}
+      CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
     volumes: [clickhouse_data:/var/lib/clickhouse]
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
