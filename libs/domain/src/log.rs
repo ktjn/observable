@@ -24,7 +24,9 @@ pub struct LogRecord {
 #[cfg(feature = "storage")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, clickhouse::Row)]
 pub struct LogRow {
+    #[serde(with = "clickhouse::serde::uuid")]
     pub tenant_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
     pub log_id: Uuid,
     pub timestamp_unix_nano: u64,
     pub observed_timestamp_unix_nano: u64,

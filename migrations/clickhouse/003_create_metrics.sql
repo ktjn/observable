@@ -30,8 +30,8 @@ CREATE TABLE IF NOT EXISTS observable.metric_points
     value_int                 Nullable(Int64),
     histogram_count           Nullable(UInt64),
     histogram_sum             Nullable(Float64),
-    histogram_bucket_counts   Nullable(Array(UInt64)),
-    histogram_explicit_bounds Nullable(Array(Float64)),
+    histogram_bucket_counts   Array(UInt64) DEFAULT [],
+    histogram_explicit_bounds Array(Float64) DEFAULT [],
     INDEX idx_series metric_series_id TYPE set(0) GRANULARITY 1
 )
 ENGINE = MergeTree()
