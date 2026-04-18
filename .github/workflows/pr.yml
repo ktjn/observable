@@ -25,3 +25,9 @@ jobs:
       - run: npm run lint --workspace=apps/frontend
       - run: npm run build --workspace=apps/frontend
       - run: npm run test --workspace=apps/frontend -- --run
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run end-to-end smoke test
+        run: docker compose up --build smoke-test --abort-on-container-exit

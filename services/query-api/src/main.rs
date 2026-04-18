@@ -32,6 +32,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/services", get(discovery::list_services))
         .route("/v1/environments", get(discovery::list_environments))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
+        .route("/health", get(|| async { axum::http::StatusCode::OK }))
         .with_state(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "query-api listening");

@@ -2,7 +2,12 @@ mod logs;
 mod metrics;
 mod spans;
 
-use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    routing::{get, post},
+    Json, Router,
+};
 use clickhouse::Client;
 use serde::Deserialize;
 
@@ -69,6 +74,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "4320".into())
         .parse()?;
     let app = Router::new()
+        .route("/health", get(|| async { StatusCode::OK }))
         .route("/internal/spans", post(write_spans))
         .route("/internal/logs", post(write_logs))
         .route("/internal/metrics", post(write_metrics))

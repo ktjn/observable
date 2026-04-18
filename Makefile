@@ -1,9 +1,8 @@
-.PHONY: dev dev-down test lint migrate
+.PHONY: dev dev-down test lint smoke-test
 
 dev:
-	cp -n .env.local.example .env.local 2>/dev/null || true
-	docker compose --env-file .env.local up -d --wait
-	@echo "Stack ready. Run 'cargo run -p <service>' or 'npm run dev --workspace=apps/frontend'"
+	docker compose up -d
+	@echo "Stack ready. Run 'docker compose up smoke-test' to verify."
 
 dev-down:
 	docker compose down
@@ -17,5 +16,5 @@ lint:
 	cargo clippy --all-targets -- -D warnings
 	npm run lint --workspace=apps/frontend
 
-migrate:
-	bash scripts/migrate.sh
+smoke-test:
+	docker compose up smoke-test --abort-on-container-exit

@@ -2,7 +2,11 @@ mod auth;
 mod queue;
 mod routes;
 
-use axum::{middleware, routing::post, Router};
+use axum::{
+    middleware,
+    routing::{get, post},
+    Router,
+};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -71,6 +75,7 @@ pub fn build_router(state: AppState) -> Router {
             state.clone(),
             auth::auth_middleware,
         ))
+        .route("/health", get(|| async { axum::http::StatusCode::OK }))
         .with_state(state)
 }
 
