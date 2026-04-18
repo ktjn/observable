@@ -22,7 +22,23 @@ paths:
                 $ref: "#/components/schemas/ExportTraceServiceResponse"
         "400": { description: Bad request }
         "401": { description: Unauthorized }
-        "429": { description: Rate limited }
+        "429":
+          description: Rate limited
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: rate_limit_exceeded
+                  message:
+                    type: string
+                    example: Trace ingest rate limit exceeded
   /v1/logs:
     post:
       summary: Export OTLP logs

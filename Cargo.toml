@@ -26,3 +26,4 @@ clickhouse         = { version = "0.15", features = ["uuid"] }
 rdkafka            = { version = "0.36", features = ["tokio", "cmake-build"] }
 chrono             = { version = "0.4", features = ["serde"] }
 config             = "0.14"
+governor           = { version = "0.8", features = [] }
