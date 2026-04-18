@@ -24,6 +24,7 @@ async fn main() -> anyhow::Result<()> {
         .parse()?;
     let state = traces::AppState { ch };
     let app = Router::new()
+        .route("/health", get(|| async { axum::http::StatusCode::OK }))
         .route("/v1/traces", get(traces::search_traces))
         .route("/v1/traces/:trace_id", get(traces::get_trace))
         .route("/v1/logs", get(logs::search_logs))

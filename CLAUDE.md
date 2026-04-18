@@ -30,14 +30,15 @@ Before running `git push`:
 1. Run `cargo fmt --all` — fix any formatting issues before committing.
 2. Run `cargo clippy --all-targets --all-features -- -D warnings` — fix all warnings.
 3. Run `cargo test --all-targets --all-features` — ensure all tests pass.
-4. If Docker is available and the stack is running:
-   - Run `bash scripts/migrate.sh` to apply any schema changes.
-   - Run `bash scripts/start-services.sh` to start all services (kill any already running first).
-   - Run `bash tests/e2e/smoke_test.sh` — all checks must pass.
+4. If Docker is available:
+   - Run `docker compose up -d` to ensure the stack is running.
+   - Run `docker compose up smoke-test --abort-on-container-exit` — all checks must pass.
 
 If any check fails, fix it before pushing. Do not push and rely on CI to catch it.
 
 ## CI and Scripts
 
 - All non-trivial CI logic must live in `scripts/` and be runnable locally (see ADR-019).
-- Migrations run via `bash scripts/migrate.sh` (uses `docker compose exec`; no host-installed DB clients required).
+- Migrations and smoke tests are handled automatically by Docker Compose.
+- Run `docker compose up -d` to start the system and run migrations.
+- Run `docker compose up smoke-test --abort-on-container-exit` to verify.

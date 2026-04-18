@@ -1,6 +1,11 @@
 mod validate;
 
-use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    routing::{get, post},
+    Json, Router,
+};
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
@@ -55,6 +60,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "4318".into())
         .parse()?;
     let app = Router::new()
+        .route("/health", get(|| async { StatusCode::OK }))
         .route("/internal/validate", post(validate_handler))
         .with_state(AppState { db });
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;

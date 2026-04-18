@@ -20,7 +20,7 @@ RUN cargo build --release --workspace
 FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates libssl3 \
+    && apt-get install -y --no-install-recommends ca-certificates libssl3 curl jq \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/target/release/auth-service /usr/local/bin/auth-service
