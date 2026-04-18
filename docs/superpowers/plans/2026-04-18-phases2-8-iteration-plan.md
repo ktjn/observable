@@ -123,9 +123,9 @@ Next smallest slice:
   - Outcome: span, log, and metric storage rows preserve the tenant partition key from the normalized envelope. The stream-processor now stamps `env.tenant_id` onto every span, log, metric series, and metric point before forwarding to the storage-writer, making the envelope the single authoritative source of tenant identity. Unit tests in the storage-writer verify that `SpanRow`, `LogRow`, `MetricSeriesRow`, and `MetricPointRow` each preserve the tenant_id from the domain object unchanged.
   - Checkpoint: can storage writer tests identify a tenant-key regression without relying on query API behavior? Answer: yes. Four new storage-writer tests (`span_row_preserves_tenant_id`, `log_row_preserves_tenant_id`, `metric_series_row_preserves_tenant_id`, `metric_point_row_preserves_tenant_id`) and four new stream-processor normalise tests (`normalise_span_stamps_envelope_tenant_id`, `normalise_log_stamps_envelope_tenant_id`, `normalise_metric_series_stamps_envelope_tenant_id`, `normalise_metric_point_stamps_envelope_tenant_id`) all pass without touching the query API.
 
-- [ ] **P2-S2a: Add deterministic rate limiting for trace ingest**
-  - Outcome: one authenticated tenant exceeding a trace-ingest request budget gets a stable `429` rejection path
-  - Checkpoint: are status code, error body, retry semantics, and telemetry stable enough to reuse for logs and metrics?
+- [x] **P2-S2a: Add deterministic rate limiting for trace ingest**
+  - Outcome: one authenticated tenant exceeding a trace-ingest request budget gets a stable `429` rejection path. The ingest-gateway now enforces a per-tenant token-bucket quota (default 100 req/s, configurable via `TRACE_INGEST_RATE_LIMIT_PER_SECOND`) using the `governor` crate. Exceeded requests return HTTP 429 with a `Retry-After: 1` header and a JSON body `{"error":"rate_limit_exceeded","message":"Trace ingest rate limit exceeded"}`. A warning log with `tenant_id` is emitted on every rejection.
+  - Checkpoint: are status code, error body, retry semantics, and telemetry stable enough to reuse for logs and metrics? Answer: yes. Status code is 429, error body uses a stable `error`/`message` shape, `Retry-After` is set, and the warn log carries tenant context. The same pattern (add `DefaultKeyedRateLimiter<Uuid>` to AppState, check before handler body, emit warn log) applies directly to log and metric ingest handlers with no redesign needed.
 
 - [ ] **P2-S3a: Add cardinality budget observation for one signal**
   - Outcome: operators can see budget consumption for one signal before enforcement starts
@@ -410,8 +410,8 @@ After this planning reconciliation, the next implementation slice should be:
 1. ~~P2-S1b: enforce tenant isolation for log query~~ (done)
 2. ~~P2-S1c: enforce tenant isolation for metric query~~ (done)
 3. ~~P2-S1d: assert tenant partition preservation in storage writes~~ (done)
-4. **P2-S2a: add deterministic rate limiting for trace ingest**
-5. P2-S5a: add audit logging for credential validation
+4. ~~P2-S2a: add deterministic rate limiting for trace ingest~~ (done)
+5. **P2-S5a: add audit logging for credential validation**
 
 That sequence moves the project from "works" to "safe to keep running."
 

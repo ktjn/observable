@@ -7,6 +7,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use std::num::NonZeroU32;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -17,8 +18,16 @@ pub struct AppState {
     pub auth_service_url: String,
     pub http_client: reqwest::Client,
     pub producer: Option<Arc<QueueProducer>>,
+    pub trace_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
     #[cfg(test)]
     pub stub_tenant: Option<Uuid>,
+}
+
+fn build_trace_rate_limiter(per_second: u32) -> Arc<governor::DefaultKeyedRateLimiter<Uuid>> {
+    let quota = governor::Quota::per_second(
+        NonZeroU32::new(per_second).expect("TRACE_INGEST_RATE_LIMIT_PER_SECOND must be > 0"),
+    );
+    Arc::new(governor::RateLimiter::keyed(quota))
 }
 
 impl AppState {
@@ -51,6 +60,7 @@ impl AppState {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
             producer: None,
+            trace_rate_limiter: build_trace_rate_limiter(1000),
             stub_tenant: None,
         }
     }
@@ -61,6 +71,18 @@ impl AppState {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
             producer: None,
+            trace_rate_limiter: build_trace_rate_limiter(1000),
+            stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn with_stub_auth_and_rate_limit(tenant_id: &str, per_second: u32) -> Self {
+        Self {
+            auth_service_url: String::new(),
+            http_client: reqwest::Client::new(),
+            producer: None,
+            trace_rate_limiter: build_trace_rate_limiter(per_second),
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
     }
@@ -89,11 +111,16 @@ async fn main() -> anyhow::Result<()> {
     let brokers = std::env::var("REDPANDA_BROKERS").unwrap_or_else(|_| "localhost:9092".into());
     let topic = std::env::var("INGEST_TOPIC").unwrap_or_else(|_| "telemetry.raw".into());
     let producer = Arc::new(QueueProducer::new(&brokers, &topic)?);
+    let trace_rate_limit: u32 = std::env::var("TRACE_INGEST_RATE_LIMIT_PER_SECOND")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(100);
     let state = AppState {
         auth_service_url: std::env::var("AUTH_SERVICE_URL")
             .unwrap_or_else(|_| "http://localhost:4318".into()),
         http_client: reqwest::Client::new(),
         producer: Some(producer),
+        trace_rate_limiter: build_trace_rate_limiter(trace_rate_limit),
         #[cfg(test)]
         stub_tenant: None,
     };
