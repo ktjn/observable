@@ -62,6 +62,7 @@ pub async fn get_trace(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
+    validate_trace_rows_for_tenant(&rows, ctx.tenant_id)?;
     if rows.is_empty() {
         return Err(StatusCode::NOT_FOUND);
     }
@@ -115,6 +116,8 @@ pub async fn search_traces(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
+    validate_trace_rows_for_tenant(&rows, ctx.tenant_id)?;
+
     // Grouping by trace_id to handle potential (though rare) duplicate timestamps.
     let mut seen: HashSet<String> = HashSet::new();
     let mut traces: Vec<TraceResponse> = Vec::new();
@@ -129,6 +132,21 @@ pub async fn search_traces(
     }
 
     Ok(Json(TraceListResponse { traces, total }))
+}
+
+fn validate_trace_rows_for_tenant(
+    rows: &[SpanRow],
+    tenant_id: uuid::Uuid,
+) -> Result<(), StatusCode> {
+    if rows.iter().all(|row| row.tenant_id == tenant_id) {
+        return Ok(());
+    }
+
+    tracing::error!(
+        expected_tenant_id = %tenant_id,
+        "trace query returned rows outside tenant context"
+    );
+    Err(StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 #[cfg(test)]
@@ -162,9 +180,37 @@ mod tests {
         assert!(json.contains("abc123"));
     }
 
+    #[test]
+    fn trace_rows_validate_for_same_tenant() {
+        let tenant_id = Uuid::new_v4();
+        let rows = vec![make_tenant_row(tenant_id), make_tenant_row(tenant_id)];
+
+        let result = validate_trace_rows_for_tenant(&rows, tenant_id);
+
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn trace_rows_reject_cross_tenant_result() {
+        let tenant_id = Uuid::new_v4();
+        let other_tenant_id = Uuid::new_v4();
+        let rows = vec![make_tenant_row(tenant_id), make_tenant_row(other_tenant_id)];
+
+        let result = validate_trace_rows_for_tenant(&rows, tenant_id);
+
+        assert_eq!(result, Err(StatusCode::INTERNAL_SERVER_ERROR));
+    }
+
     fn make_row(span_kind: &str, status_code: &str) -> SpanRow {
+        let mut row = make_tenant_row(Uuid::new_v4());
+        row.span_kind = span_kind.into();
+        row.status_code = status_code.into();
+        row
+    }
+
+    fn make_tenant_row(tenant_id: Uuid) -> SpanRow {
         SpanRow {
-            tenant_id: Uuid::new_v4(),
+            tenant_id,
             trace_id: "abc".into(),
             span_id: "def".into(),
             parent_span_id: None,
@@ -172,11 +218,11 @@ mod tests {
             service_namespace: "".into(),
             service_version: "".into(),
             operation_name: "op".into(),
-            span_kind: span_kind.into(),
+            span_kind: "INTERNAL".into(),
             start_time_unix_nano: 0,
             end_time_unix_nano: 1_000_000,
             duration_ns: 1_000_000,
-            status_code: status_code.into(),
+            status_code: "OK".into(),
             status_message: "".into(),
             attributes: "{}".into(),
             resource_attributes: "{}".into(),

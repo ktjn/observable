@@ -107,9 +107,9 @@ Next smallest slice:
   - Outcome: Phase 1 closure, resolved query API bug state, and Phase 2 next-slice guidance agree across the plan and API spec
   - Checkpoint: can an agent start Phase 2 without resolving contradictory planning state first? Answer: yes, after this docs-only reconciliation PR is merged.
 
-- [ ] **P2-S1a: Enforce tenant context contract for trace query**
+- [x] **P2-S1a: Enforce tenant context contract for trace query**
   - Outcome: trace query code cannot execute without tenant context, and tenant A cannot read tenant B traces
-  - Checkpoint: do we have a failing-then-passing tenant-escape test for trace lookup and trace search?
+  - Checkpoint: do we have a failing-then-passing tenant-escape test for trace lookup and trace search? Answer: yes. Query API now rejects missing tenant context before handlers run, trace responses validate all returned rows against the request tenant, and tests cover missing/invalid tenant context plus same-tenant and cross-tenant trace rows.
 
 - [ ] **P2-S1b: Enforce tenant isolation for log query**
   - Outcome: tenant A cannot read tenant B log records
@@ -387,9 +387,9 @@ Do not keep a 50-slice active queue. Keep the active horizon short and the roadm
 
 After this planning reconciliation, the next implementation slice should be:
 
-1. **P2-S1a: Enforce tenant context contract for trace query**
-2. P2-S1b: enforce tenant isolation for log query
-3. P2-S1c: enforce tenant isolation for metric query
+1. **P2-S1b: enforce tenant isolation for log query**
+2. P2-S1c: enforce tenant isolation for metric query
+3. P2-S1d: assert tenant partition preservation in storage writes
 4. P2-S2a: add deterministic rate limiting for trace ingest
 5. P2-S5a: add audit logging for credential validation
 
