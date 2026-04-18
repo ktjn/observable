@@ -92,9 +92,9 @@ Next smallest slice:
 **Goal:** Make the internal MVP safe to run continuously with tenant isolation, cost controls, release controls, and auditability.
 
 **Entry gate:**
-- [x] Phase 1 exit gate passed (2026-04-18)
-- [x] known query API correctness bugs are fixed or explicitly accepted as temporary debt (2026-04-18)
-- [x] baseline ingest/query smoke tests are stable (2026-04-18)
+- [x] Phase 1 exit gate passed and Task 17 through Task 20 status is reconciled in the Phase 1 plan (2026-04-18)
+- [x] Query API correctness bugs are recorded as resolved in `spec/09-api.md` with Phase 1 Task 20 as closure evidence (2026-04-18)
+- [x] Baseline ingest/query smoke-test stability is recorded in the Phase 1 plan (2026-04-18)
 
 **Exit gate:**
 - tenant isolation enforced and tested
@@ -103,39 +103,63 @@ Next smallest slice:
 
 ### Priority slice order
 
-- [ ] **P2-S1: Enforce tenant filters in query and storage tests**
-  - Outcome: a tenant cannot read another tenant's spans, logs, or metrics
-  - Checkpoint: do we have one failing tenant-escape test per signal and does each now pass?
+- [x] **P2-S0: Reconcile plan and spec state before Phase 2 implementation**
+  - Outcome: Phase 1 closure, resolved query API bug state, and Phase 2 next-slice guidance agree across the plan and API spec
+  - Checkpoint: can an agent start Phase 2 without resolving contradictory planning state first? Answer: yes, after this docs-only reconciliation PR is merged.
 
-- [ ] **P2-S2: Add API-level rate limits for one authenticated tenant**
-  - Outcome: one tenant exceeding budget gets a deterministic rejection path
-  - Checkpoint: are rejection semantics stable enough to document externally?
+- [ ] **P2-S1a: Enforce tenant context contract for trace query**
+  - Outcome: trace query code cannot execute without tenant context, and tenant A cannot read tenant B traces
+  - Checkpoint: do we have a failing-then-passing tenant-escape test for trace lookup and trace search?
 
-- [ ] **P2-S3: Add ingest quotas and cardinality budget counters**
-  - Outcome: the platform can reject or flag abusive ingest before cost spikes
-  - Checkpoint: do we have operator-visible telemetry for budget exhaustion?
+- [ ] **P2-S1b: Enforce tenant isolation for log query**
+  - Outcome: tenant A cannot read tenant B log records
+  - Checkpoint: do we have one negative cross-tenant test and one positive same-tenant test for log search?
 
-- [ ] **P2-S4: Add retention policy for one signal class**
-  - Outcome: one trace/log/metric retention path is enforced end to end
+- [ ] **P2-S1c: Enforce tenant isolation for metric query**
+  - Outcome: tenant A cannot read tenant B metric series or points
+  - Checkpoint: do metric series lookup and point lookup both include tenant-scoped assertions?
+
+- [ ] **P2-S1d: Assert tenant partition preservation in storage writes**
+  - Outcome: span, log, and metric storage rows preserve the tenant partition key from the normalized envelope
+  - Checkpoint: can storage writer tests identify a tenant-key regression without relying on query API behavior?
+
+- [ ] **P2-S2a: Add deterministic rate limiting for trace ingest**
+  - Outcome: one authenticated tenant exceeding a trace-ingest request budget gets a stable `429` rejection path
+  - Checkpoint: are status code, error body, retry semantics, and telemetry stable enough to reuse for logs and metrics?
+
+- [ ] **P2-S3a: Add cardinality budget observation for one signal**
+  - Outcome: operators can see budget consumption for one signal before enforcement starts
+  - Checkpoint: do we have operator-visible telemetry for budget exhaustion without changing ingest acceptance yet?
+
+- [ ] **P2-S4a: Add hot retention policy for traces**
+  - Outcome: one trace retention path is enforced end to end
   - Checkpoint: can we explain deletion timing and rollback behavior clearly?
 
-- [ ] **P2-S5: Add audit logging for credential validation and query reads**
-  - Outcome: sensitive actions produce immutable audit records
-  - Checkpoint: are audit fields sufficient for tenant, actor, action, and outcome?
+- [ ] **P2-S5a: Add audit logging for credential validation**
+  - Outcome: API key validation produces immutable audit records for allow and deny outcomes
+  - Checkpoint: are audit fields sufficient for tenant, actor, action, credential identifier, and outcome?
 
-- [ ] **P2-S6: Add RBAC for one role pair**
-  - Outcome: at least one privileged and one read-only role differ in observable behavior
+- [ ] **P2-S5b: Add audit logging for query reads**
+  - Outcome: trace, log, and metric reads produce audit records with tenant, actor, action, and result metadata
+  - Checkpoint: can query-read auditing run without logging sensitive payload contents?
+
+- [ ] **P2-S6a: Add minimal RBAC distinction for one role pair**
+  - Outcome: at least one privileged and one read-only role differ in observable API behavior
   - Checkpoint: is the role model still simple enough to extend without redesign?
 
-- [ ] **P2-S7: Add one threshold alert evaluation path**
+- [ ] **P2-S7a: Add one threshold alert evaluation path**
   - Outcome: an operator can define a threshold and see an alert fire
   - Checkpoint: is the evaluation model stable enough to support burn-rate later?
 
-- [ ] **P2-S8: Add Kubernetes deployment and one canary/rollback path**
-  - Outcome: one deployable environment can promote and revert safely
-  - Checkpoint: does rollback restore both runtime and schema assumptions?
+- [ ] **P2-S8a: Add Kubernetes manifest render and rollback skeleton**
+  - Outcome: one deployable environment has rendered manifests and a documented rollback path
+  - Checkpoint: does rollback documentation cover both runtime and schema assumptions?
 
-- [ ] **P2-S9: Add perf smoke tests for ingest and common query paths**
+- [ ] **P2-S8b: Add one canary promotion path**
+  - Outcome: one deployable environment can promote progressively and revert safely
+  - Checkpoint: do automated analysis gates have enough telemetry to make rollback decisions?
+
+- [ ] **P2-S9a: Add perf smoke baseline for ingest and common query paths**
   - Outcome: Phase 2 has measurable performance baselines instead of assumptions
   - Checkpoint: are the numbers good enough to proceed to correlation features?
 
@@ -361,13 +385,13 @@ Do not keep a 50-slice active queue. Keep the active horizon short and the roadm
 
 ## 13. Recommended Next Slice Right Now
 
-Assuming Phase 1 is nearly complete but not yet governed, the next planning and implementation focus should be:
+After this planning reconciliation, the next implementation slice should be:
 
-1. fix known query API correctness issues
-2. enforce tenant isolation tests across traces, logs, and metrics
-3. add one API rate-limit path
-4. add one audit-log path
-5. add one RBAC distinction
+1. **P2-S1a: Enforce tenant context contract for trace query**
+2. P2-S1b: enforce tenant isolation for log query
+3. P2-S1c: enforce tenant isolation for metric query
+4. P2-S2a: add deterministic rate limiting for trace ingest
+5. P2-S5a: add audit logging for credential validation
 
 That sequence moves the project from "works" to "safe to keep running."
 

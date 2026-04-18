@@ -31,45 +31,41 @@
 - dashboard widgets
 - query macros/functions
 
-### Known Query API Bugs
+### Resolved Query API Bugs
 
 #### Bug Report: Query API MVP response correctness regressions
 
-**Status:** Open
+**Status:** Resolved in Phase 1 Task 20 (`docs/superpowers/plans/2026-04-17-phase1-internal-mvp.md`)
 
 **Affected endpoints:**
 - `GET /v1/traces`
 - `GET /v1/logs`
 - `GET /v1/metrics/:series_id`
 
-**Observed issues:**
-1. `GET /v1/traces` currently uses a `SELECT DISTINCT trace_id ... ORDER BY start_time_unix_nano DESC`
-   pattern. In ClickHouse, `DISTINCT` is applied before `ORDER BY`, so the returned trace order is
-   not guaranteed to reflect the most recent span for each trace.
-2. `GET /v1/traces` and `GET /v1/logs` currently set `total` to the number of rows returned after
-   `LIMIT`, not the total number of matching results. This breaks pagination and any UI that needs
-   "showing N of M" semantics.
-3. `GET /v1/metrics/:series_id` currently returns `histogram_bucket_counts` and
-   `histogram_explicit_bounds` as present-but-empty arrays for non-histogram points because the
-   storage-row conversion collapses `None` into `[]` and restores it as `Some(vec![])`. This
-   changes the metric point shape and loses the distinction between non-histogram data and an empty
-   histogram payload.
+**Resolved issues:**
+1. `GET /v1/traces` no longer depends on a `SELECT DISTINCT trace_id ... ORDER BY start_time_unix_nano DESC`
+   pattern. Trace listing must order by an explicit aggregate such as the latest span timestamp.
+2. `GET /v1/traces` and `GET /v1/logs` must report `total` independently of page size.
+3. `GET /v1/metrics/:series_id` must preserve absent histogram arrays as absent values rather than
+   serializing non-histogram points as present-but-empty histogram payloads.
 
 **Expected behavior:**
 - Trace list ordering must be based on a deterministic "latest span in trace" value.
 - Response `total` fields must report the total match count independently of page size.
 - Metric point serialization must preserve optional histogram fields exactly.
 
-**Impact:**
-- Trace explorer can show stale or unstable ordering.
-- Clients cannot implement correct pagination or result-count UX.
-- Metric consumers can misclassify gauge and sum points as histogram-like records.
+**Previous impact:**
+- Trace explorer could show stale or unstable ordering.
+- Clients could not implement correct pagination or result-count UX.
+- Metric consumers could misclassify gauge and sum points as histogram-like records.
+
+**Closure evidence:**
+- Phase 1 Task 20 records the query ordering/count fixes, metric point serialization fix, discovery
+  endpoints, and smoke-test verification.
 
 **Required follow-up:**
-- Replace the trace listing query with a grouped or subquery-based form that orders by an explicit
-  aggregate such as `max(start_time_unix_nano)`.
-- Add a count query or equivalent pagination metadata for list endpoints.
-- Preserve `Option<Vec<_>>` semantics across metric point storage conversions.
+- Keep these response-shape guarantees covered by regression tests when tenant isolation, RBAC, and
+  retention filters are added in Phase 2.
 
 **ADR/spec sync:** No ADR update required. This report documents implementation bugs against the
 existing API contract rather than a change to architecture, data model, security model, or

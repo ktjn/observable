@@ -2714,7 +2714,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 
 ---
 
-## Task 17: Platform Telemetry (Self-Observability)
+## Task 17: Platform Telemetry (Self-Observability) [DONE]
 
 > **Parallel with Task 18. After Task 16.**
 
@@ -2797,7 +2797,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 
 ---
 
-## Task 18: Frontend Trace Detail View
+## Task 18: Frontend Trace Detail View [DONE]
 
 > **Parallel with Task 17. After Tasks 12 and 14.**
 
@@ -2932,7 +2932,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 
 ---
 
-## Task 19: End-to-End Smoke Test + Phase 1 PR
+## Task 19: End-to-End Smoke Test + Phase 1 PR [DONE]
 
 > **Final task. After Tasks 17 and 18.**
 
