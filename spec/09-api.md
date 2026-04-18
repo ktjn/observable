@@ -31,6 +31,27 @@
 - dashboard widgets
 - query macros/functions
 
+### 14.1 Query API Requirements for UI Patterns
+
+The Query API must support the following patterns required by the Frontend (see `spec/05-frontend.md`):
+
+#### Log Context
+- **Endpoint**: `GET /v1/logs/{log_id}/context`
+- **Behavior**: Returns logs surrounding the specified log line by timestamp, filtered to the same `service_name` and `host.name`.
+- **Default Window**: ±1 minute.
+
+#### Field Faceting (Statistics)
+- **Capability**: Search endpoints (`GET /v1/logs`, `GET /v1/traces`) must support a `facets` parameter (e.g., `?facets=service_name,log_level,http.status_code`).
+- **Response**: The response must include a `facets` object containing the top N (default 10) values and counts for each requested field within the search result set.
+
+#### Live Tail
+- **Endpoint**: `GET /v1/logs/tail`
+- **Behavior**: Provides a streaming response (Server-Sent Events or chunked JSON) of newly ingested logs.
+- **Parameters**: Supports the same filtering parameters as the historical search.
+
+#### Infrastructure Correlation
+- **Capability**: Every telemetry record must expose its resource attributes (e.g., `host.name`, `k8s.pod.name`) to enable the UI to link to infrastructure-specific views.
+
 ### Resolved Query API Bugs
 
 #### Bug Report: Query API MVP response correctness regressions
