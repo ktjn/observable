@@ -36,6 +36,7 @@ pub struct SearchParams {
 
 #[derive(Row, Deserialize)]
 struct SpanRow {
+    #[serde(with = "clickhouse::serde::uuid")]
     tenant_id: Uuid,
     trace_id: String,
     span_id: String,

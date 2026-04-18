@@ -4,19 +4,19 @@ CREATE TABLE IF NOT EXISTS observable.spans
     trace_id             String,
     span_id              String,
     parent_span_id       Nullable(String),
-    service_name         LowCardinality(String),
-    service_namespace    LowCardinality(String) DEFAULT '',
+    service_name         String,
+    service_namespace    String DEFAULT '',
     service_version      String DEFAULT '',
     operation_name       String,
-    span_kind            Enum8('INTERNAL'=0,'SERVER'=1,'CLIENT'=2,'PRODUCER'=3,'CONSUMER'=4) DEFAULT 'INTERNAL',
+    span_kind            String DEFAULT 'INTERNAL',
     start_time_unix_nano UInt64,
     end_time_unix_nano   UInt64,
     duration_ns          UInt64,
-    status_code          Enum8('UNSET'=0,'OK'=1,'ERROR'=2) DEFAULT 'UNSET',
+    status_code          String DEFAULT 'UNSET',
     status_message       String DEFAULT '',
     attributes           String DEFAULT '{}',
     resource_attributes  String DEFAULT '{}',
-    environment          LowCardinality(String) DEFAULT '',
+    environment          String DEFAULT '',
     host_id              String DEFAULT '',
     workload             String DEFAULT '',
     deployment_id        String DEFAULT '',
@@ -26,5 +26,5 @@ CREATE TABLE IF NOT EXISTS observable.spans
 ENGINE = MergeTree()
 PARTITION BY (tenant_id, toYYYYMM(fromUnixTimestamp64Nano(start_time_unix_nano)))
 ORDER BY (tenant_id, service_name, start_time_unix_nano, trace_id, span_id)
-TTL fromUnixTimestamp64Nano(start_time_unix_nano) + INTERVAL 14 DAY
+TTL toDateTime(fromUnixTimestamp64Nano(start_time_unix_nano)) + INTERVAL 14 DAY
 SETTINGS index_granularity = 8192;

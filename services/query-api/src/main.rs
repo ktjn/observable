@@ -9,8 +9,12 @@ async fn main() -> anyhow::Result<()> {
     let otlp = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
     domain::telemetry::init_telemetry("query-api", otlp.as_deref())?;
     let ch_url = std::env::var("CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".into());
+    let ch_user = std::env::var("CLICKHOUSE_USER").unwrap_or_else(|_| "default".into());
+    let ch_password = std::env::var("CLICKHOUSE_PASSWORD").unwrap_or_default();
     let ch = Client::default()
         .with_url(ch_url)
+        .with_user(ch_user)
+        .with_password(ch_password)
         .with_database("observable");
     let port: u16 = std::env::var("QUERY_API_PORT")
         .unwrap_or_else(|_| "8090".into())

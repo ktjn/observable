@@ -5,7 +5,9 @@ use uuid::Uuid;
 
 #[derive(Debug, Row, Serialize, Deserialize)]
 pub struct MetricSeriesRow {
+    #[serde(with = "clickhouse::serde::uuid")]
     pub tenant_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
     pub metric_series_id: Uuid,
     pub metric_name: String,
     pub description: String,
@@ -50,7 +52,9 @@ impl From<MetricSeries> for MetricSeriesRow {
 
 #[derive(Debug, Row, Serialize, Deserialize)]
 pub struct MetricPointRow {
+    #[serde(with = "clickhouse::serde::uuid")]
     pub tenant_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
     pub metric_series_id: Uuid,
     pub metric_name: String,
     pub service_name: String,
@@ -84,7 +88,7 @@ impl From<MetricPoint> for MetricPointRow {
 }
 
 pub async fn insert_metric_series(ch: &Client, series: Vec<MetricSeries>) -> anyhow::Result<()> {
-    let mut insert = ch.insert("metric_series")?;
+    let mut insert = ch.insert::<MetricSeriesRow>("metric_series").await?;
     for s in series {
         insert.write(&MetricSeriesRow::from(s)).await?;
     }
@@ -93,7 +97,7 @@ pub async fn insert_metric_series(ch: &Client, series: Vec<MetricSeries>) -> any
 }
 
 pub async fn insert_metric_points(ch: &Client, points: Vec<MetricPoint>) -> anyhow::Result<()> {
-    let mut insert = ch.insert("metric_points")?;
+    let mut insert = ch.insert::<MetricPointRow>("metric_points").await?;
     for p in points {
         insert.write(&MetricPointRow::from(p)).await?;
     }

@@ -5,7 +5,9 @@ use uuid::Uuid;
 
 #[derive(Debug, Row, Serialize, Deserialize)]
 pub struct LogRow {
+    #[serde(with = "clickhouse::serde::uuid")]
     pub tenant_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
     pub log_id: Uuid,
     pub timestamp_unix_nano: u64,
     pub observed_timestamp_unix_nano: u64,
@@ -45,7 +47,7 @@ impl From<LogRecord> for LogRow {
 }
 
 pub async fn insert_logs(ch: &Client, logs: Vec<LogRecord>) -> anyhow::Result<()> {
-    let mut insert = ch.insert("logs")?;
+    let mut insert = ch.insert::<LogRow>("logs").await?;
     for log in logs {
         insert.write(&LogRow::from(log)).await?;
     }
