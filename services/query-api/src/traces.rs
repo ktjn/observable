@@ -4,10 +4,9 @@ use axum::{
     Json,
 };
 use clickhouse::Client;
-use domain::{Span, SpanKind, SpanRow, StatusCode as SpanStatus};
+use domain::{Span, SpanRow};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use uuid::Uuid;
 
 use crate::middleware::auth::TenantContext;
 
@@ -129,6 +128,8 @@ pub async fn search_traces(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use domain::{SpanKind, StatusCode as SpanStatus};
+    use uuid::Uuid;
 
     #[test]
     fn span_row_converts_status() {
