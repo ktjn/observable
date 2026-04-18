@@ -2,7 +2,7 @@ use clickhouse::Client;
 use domain::{MetricPoint, MetricPointRow, MetricSeries, MetricSeriesRow};
 
 pub async fn insert_metric_series(ch: &Client, series: Vec<MetricSeries>) -> anyhow::Result<()> {
-    let mut insert = ch.insert("metric_series")?;
+    let mut insert = ch.insert::<MetricSeriesRow>("metric_series").await?;
     for s in series {
         insert.write(&MetricSeriesRow::from(s)).await?;
     }
@@ -11,7 +11,7 @@ pub async fn insert_metric_series(ch: &Client, series: Vec<MetricSeries>) -> any
 }
 
 pub async fn insert_metric_points(ch: &Client, points: Vec<MetricPoint>) -> anyhow::Result<()> {
-    let mut insert = ch.insert("metric_points")?;
+    let mut insert = ch.insert::<MetricPointRow>("metric_points").await?;
     for p in points {
         insert.write(&MetricPointRow::from(p)).await?;
     }

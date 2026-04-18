@@ -13,6 +13,6 @@ CREATE INDEX api_keys_tenant_id_idx ON api_keys(tenant_id);
 -- SHA-256("dev-api-key-0000") stored; services compare hash, not plaintext
 INSERT INTO api_keys (tenant_id, key_hash, name) VALUES (
     '00000000-0000-0000-0000-000000000001',
-    '5a3f8e2b4d1c9f07a6b2e8d3c4f1a9e2b7d5c3f8e1a4b6d9c2e5f7a3b8d1c4e6',
+    'e18f3d8fb3eb31a042e4a55877e0276960294d0980b8076efaac30dabdbbf67b',
     'dev-key'
 ) ON CONFLICT DO NOTHING;

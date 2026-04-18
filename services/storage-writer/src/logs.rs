@@ -2,7 +2,7 @@ use clickhouse::Client;
 use domain::{LogRecord, LogRow};
 
 pub async fn insert_logs(ch: &Client, logs: Vec<LogRecord>) -> anyhow::Result<()> {
-    let mut insert = ch.insert("logs")?;
+    let mut insert = ch.insert::<LogRow>("logs").await?;
     for log in logs {
         insert.write(&LogRow::from(log)).await?;
     }
