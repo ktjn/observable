@@ -18,10 +18,4 @@ lint:
 	npm run lint --workspace=apps/frontend
 
 migrate:
-	@echo "Running ClickHouse migrations..."
-	for f in migrations/clickhouse/*.sql; do \
-	  clickhouse-client --host localhost --query "$$(cat $$f)"; \
-	done
-	@echo "Running PostgreSQL migrations..."
-	DATABASE_URL=$$(grep DATABASE_URL .env.local | cut -d= -f2) \
-	  sqlx migrate run --source migrations/postgres
+	bash scripts/migrate.sh

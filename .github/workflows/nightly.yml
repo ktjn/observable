@@ -14,16 +14,10 @@ jobs:
       - name: Start infrastructure
         run: docker compose up -d --wait
       - name: Run migrations
-        run: make migrate
+        run: bash scripts/migrate.sh
       - name: Build services
         run: cargo build --release
       - name: Start services
-        run: |
-          ./target/release/auth-service &
-          ./target/release/storage-writer &
-          ./target/release/stream-processor &
-          ./target/release/ingest-gateway &
-          ./target/release/query-api &
-          sleep 5
+        run: bash scripts/start-services.sh
       - name: Run smoke test
         run: bash tests/e2e/smoke_test.sh
