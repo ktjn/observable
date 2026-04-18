@@ -4,6 +4,7 @@ set -euo pipefail
 INGEST="http://localhost:4317"
 QUERY="http://localhost:8090"
 TOKEN="dev-api-key-0000"
+TENANT_ID="00000000-0000-0000-0000-000000000001"
 TRACE_ID="4bf92f3577b34da6a3ce929d0e0e4736"
 
 echo "=== Phase 1 Smoke Test ==="
@@ -19,12 +20,12 @@ echo "2. Waiting for pipeline..."
 sleep 3
 
 echo "3. Querying trace detail..."
-RESULT=$(curl -sf "$QUERY/v1/traces/$TRACE_ID")
+RESULT=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" "$QUERY/v1/traces/$TRACE_ID")
 echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); assert len(d['spans'])>0, 'no spans'"
 echo " OK (detail) — $(echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d['spans']),'spans')")"
 
 echo "3b. Searching traces..."
-SEARCH_RESULT=$(curl -sf "$QUERY/v1/traces?service=smoke-svc")
+SEARCH_RESULT=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" "$QUERY/v1/traces?service=smoke-svc")
 echo "$SEARCH_RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['total'] > 0, 'total traces is 0'"
 echo " OK (search)"
 
@@ -43,7 +44,7 @@ curl -sf -X POST "$INGEST/v1/metrics" \
 echo " OK"
 
 echo "6. Checking discovery endpoints..."
-curl -sf "$QUERY/v1/services" | python3 -c "import sys,json; d=json.load(sys.stdin); assert 'smoke-svc' in d['items'], 'smoke-svc not found'"
+curl -sf -H "X-Tenant-ID: $TENANT_ID" "$QUERY/v1/services" | python3 -c "import sys,json; d=json.load(sys.stdin); assert 'smoke-svc' in d['items'], 'smoke-svc not found'"
 echo " OK (discovery)"
 
 echo ""
