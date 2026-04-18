@@ -22,6 +22,16 @@ Refer to `spec/10-process.md` for the official development process and AI agent 
    - **GitHub Actions:** use the latest release tag of every action (e.g. `actions/checkout@v4`); check the action's release page if uncertain.
    - Do not pin to an older version without a documented reason in the PR description.
 
+## Before Pushing Any Branch
+
+Before running `git push`, if Docker is available and the stack is running:
+
+1. Run `bash scripts/migrate.sh` to apply any schema changes.
+2. Run `bash scripts/start-services.sh` to start all services (kill any already running first).
+3. Run `bash tests/e2e/smoke_test.sh` — all checks must pass.
+
+If the smoke test fails, fix it before pushing. Do not push and rely on CI to catch it.
+
 ## CI and Scripts
 
 - All non-trivial CI logic must live in `scripts/` and be runnable locally (see ADR-019).
