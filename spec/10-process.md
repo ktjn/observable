@@ -138,6 +138,20 @@ When utilizing AI agents for development, the following mandates apply:
 - **Specification Alignment:** All changes must align with the core architectural principles and specifications defined in the `spec/` directory.
 - **ADR and Spec Synchronization:** Architecture, technology, deployment, data model, security, and roadmap changes must update both the relevant ADRs and affected specs in the same iteration. If an ADR change is not required, the PR must explain why.
 
+**Before Pushing Any Branch**
+
+Before running `git push`, agents must:
+
+1. Run `cargo fmt --all` — fix any formatting issues before committing.
+2. Run `cargo clippy --all-targets --all-features -- -D warnings` — fix all warnings.
+3. Run `cargo test --all-targets --all-features` — ensure all tests pass.
+4. If Docker is available and the stack is running:
+   - Run `bash scripts/migrate.sh` to apply any schema changes.
+   - Run `bash scripts/start-services.sh` to start all services (kill any already running first).
+   - Run `bash tests/e2e/smoke_test.sh` — all checks must pass.
+
+If any check fails, the agent must fix it before pushing. Do not push and rely on CI to catch it.
+
 ### 16.8 Tiny Agent Iteration Workflow
 
 Agents must move from specification to final product through small, reviewable vertical slices. An iteration should be small enough that a reviewer can understand the intent, diff, tests, and remaining risk in one sitting.

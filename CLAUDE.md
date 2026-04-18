@@ -27,13 +27,14 @@ Refer to `spec/10-process.md` for the official development process and AI agent 
 Before running `git push`:
 
 1. Run `cargo fmt --all` — fix any formatting issues before committing.
-2. Run `cargo clippy -- -D warnings` — fix all warnings.
-3. If Docker is available and the stack is running:
+2. Run `cargo clippy --all-targets --all-features -- -D warnings` — fix all warnings.
+3. Run `cargo test --all-targets --all-features` — ensure all tests pass.
+4. If Docker is available and the stack is running:
    - Run `bash scripts/migrate.sh` to apply any schema changes.
    - Run `bash scripts/start-services.sh` to start all services (kill any already running first).
    - Run `bash tests/e2e/smoke_test.sh` — all checks must pass.
 
-If the smoke test fails, fix it before pushing. Do not push and rely on CI to catch it.
+If any check fails, fix it before pushing. Do not push and rely on CI to catch it.
 
 ## CI and Scripts
 
