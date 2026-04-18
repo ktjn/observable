@@ -6,6 +6,8 @@ Full-stack observability platform specification.
 
 The full specification is located in the [spec/](spec/) directory.
 
+Implementation plans and iteration documents can be found in [docs/superpowers/plans/](docs/superpowers/plans/).
+
 ## AI Agent Instructions
 
 Mandatory instructions for any AI agent interacting with this repository can be found in:

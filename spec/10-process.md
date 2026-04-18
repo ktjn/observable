@@ -136,6 +136,7 @@ When utilizing AI agents for development, the following mandates apply:
 - **Verification & Testing:** Every change must be thoroughly tested and verified before being considered complete. An iteration is not complete if it introduces any new error, warning, regression, flaky test, type error, lint finding, generated-code drift, policy violation, or documentation check failure.
 - **Clarity Above All:** Nothing can be left unclear. If instructions, requirements, or code changes are ambiguous, the agent must seek clarification before proceeding.
 - **Specification Alignment:** All changes must align with the core architectural principles and specifications defined in the `spec/` directory.
+- **Implementation Plan Adherence:** All tasks must follow the latest implementation plans and iteration documents located in `docs/superpowers/plans/`.
 - **ADR and Spec Synchronization:** Architecture, technology, deployment, data model, security, and roadmap changes must update both the relevant ADRs and affected specs in the same iteration. If an ADR change is not required, the PR must explain why.
 
 **Before Pushing Any Branch**
