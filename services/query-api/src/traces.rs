@@ -34,7 +34,6 @@ pub struct SearchParams {
     pub limit: Option<u32>,
 }
 
-
 const SELECT_COLS: &str = "tenant_id, trace_id, span_id, parent_span_id, service_name, \
     service_namespace, service_version, operation_name, span_kind, \
     start_time_unix_nano, end_time_unix_nano, duration_ns, \

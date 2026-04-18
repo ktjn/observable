@@ -100,7 +100,9 @@ impl From<MetricSeries> for MetricSeriesRow {
                 _ => format!("{:?}", s.metric_type).to_lowercase(),
             },
             is_monotonic: s.is_monotonic.map(|m| if m { 1 } else { 0 }),
-            aggregation_temporality: s.aggregation_temporality.map(|t| format!("{:?}", t).to_lowercase()),
+            aggregation_temporality: s
+                .aggregation_temporality
+                .map(|t| format!("{:?}", t).to_lowercase()),
             attributes: serde_json::to_string(&s.attributes).unwrap_or_default(),
             resource_attributes: serde_json::to_string(&s.resource_attributes).unwrap_or_default(),
             service_name: s.service_name,
@@ -120,11 +122,13 @@ impl From<MetricSeriesRow> for MetricSeries {
             "summary" => MetricType::Summary,
             _ => MetricType::Gauge,
         };
-        let aggregation_temporality = row.aggregation_temporality.and_then(|t| match t.to_lowercase().as_str() {
-            "delta" => Some(AggregationTemporality::Delta),
-            "cumulative" => Some(AggregationTemporality::Cumulative),
-            _ => None,
-        });
+        let aggregation_temporality =
+            row.aggregation_temporality
+                .and_then(|t| match t.to_lowercase().as_str() {
+                    "delta" => Some(AggregationTemporality::Delta),
+                    "cumulative" => Some(AggregationTemporality::Cumulative),
+                    _ => None,
+                });
         Self {
             tenant_id: row.tenant_id,
             metric_series_id: row.metric_series_id,
