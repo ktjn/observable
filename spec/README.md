@@ -19,3 +19,7 @@ Full-stack observability platform specification — Dynatrace / New Relic class,
 | [11-testing.md](11-testing.md) | Test strategy, CI gates, agent iteration verification, no-regression rules, test data, non-functional targets |
 | [12-deployment.md](12-deployment.md) | Deployment, build artifacts, tooling recommendations, build-vs-buy |
 | [13-risks-roadmap.md](13-risks-roadmap.md) | Risks, initial deliverables, v1 scope, final recommendation |
+
+## Implementation Plans
+
+Active implementation plans and iteration documents are located in the [docs/superpowers/plans/](../docs/superpowers/plans/) directory.
