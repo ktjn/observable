@@ -190,6 +190,14 @@ Before Phase 3 starts, answer:
   - Outcome: a trace detail view can fetch exact correlated log lines
   - Checkpoint: are joins based on canonical IDs only, with no fuzzy heuristics yet?
 
+- [ ] **P3-S1b: Add log-context (surrounding logs) capability**
+  - Outcome: operators can view logs occurring before and after a specific log line for the same host/service
+  - Checkpoint: does the context view correctly ignore search filters while preserving tenant and host/service scope?
+
+- [ ] **P3-S1c: Add live tail capability for logs**
+  - Outcome: real-time streaming of logs in the explorer with auto-scroll
+  - Checkpoint: is the end-to-end latency from ingest to UI display < 2s?
+
 - [ ] **P3-S2: Add trace-level log correlation when `span_id` is absent**
   - Outcome: trace views show trace-correlated logs without claiming exact span linkage
   - Checkpoint: is the UI language precise about exact vs trace-level correlation?
@@ -214,9 +222,21 @@ Before Phase 3 starts, answer:
   - Outcome: context survives reload and cross-navigation
   - Checkpoint: are URLs now the source of truth for investigation context?
 
+- [ ] **P3-S7b: Add field faceting and statistics to explorers**
+  - Outcome: Log and Trace explorers show distribution of common fields (e.g. status codes, log levels)
+  - Checkpoint: does the UI correctly handle high-cardinality facets by showing Top N?
+
+- [ ] **P3-S7c: Add "Promote to Dashboard" from explorers**
+  - Outcome: ad-hoc queries can be saved directly as new dashboard panels
+  - Checkpoint: does the promoted panel preserve all filters and time range settings?
+
 - [ ] **P3-S8: Add dashboard-as-code import/export for one dashboard shape**
   - Outcome: one dashboard can round-trip through API, storage, and UI
   - Checkpoint: is the serialized contract stable enough to support CI validation later?
+
+- [ ] **P3-S9: Add infrastructure correlation from service and trace views**
+  - Outcome: users can navigate from a service or trace to correlated host/pod/container metrics and logs
+  - Checkpoint: are links derived correctly from OTel resource attributes?
 
 ### Phase 3 pause point
 

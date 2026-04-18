@@ -30,7 +30,7 @@ Platform
 └── Project / Environment
     └── Service Catalog  ←── entry point for most workflows
         └── Service Detail
-            ├── Health Overview     (RED metrics, error budget, SLO status)
+            ├── Health Overview     (RED metrics, SLIs, error budget, SLO status)
             ├── Traces              (filtered to this service)
             ├── Logs                (filtered to this service)
             ├── Metrics             (filtered to this service)
@@ -58,16 +58,17 @@ Platform
 |---|---|
 | Onboarding / Setup | Agent install wizard, API key generation, first signal validation |
 | Service Catalog | List all services with health ring, error rate, P95 latency; entry point |
-| Trace Explorer | Full-text + attribute search, trace waterfall, span detail |
-| Log Explorer | Structured search, histogram timeline, log detail with trace link |
+| Trace Explorer | Full-text + attribute search, waterfall, span detail, field faceting |
+| Log Explorer | Structured search, histogram, log detail, live tail, context (surrounding logs) |
 | Metric Explorer | Series browser, cardinality inspector, ad-hoc PromQL-style graph |
-| Basic Dashboards | Fixed-layout panels, time range picker, saved views |
+| Basic Dashboards | Fixed-layout panels, time range picker, promote-to-dashboard from explorers |
 | Threshold Alerts | Create / edit / silence rules; active incidents list |
 
 #### Phase 2–3
 | Module | Purpose |
 |---|---|
 | Service Map | Interactive topology graph derived from trace data |
+| Trace Comparison | Compare two traces (e.g. fast vs slow) to identify bottlenecks or path diffs |
 | Deployment Timeline | Overlay deployments on metrics/traces; diff environment configs |
 | Query Workbench | Monaco-based multi-signal notebook, shareable query URLs |
 | Dashboard Builder | Drag-and-drop panel editor generating dashboard-as-code |
@@ -111,6 +112,15 @@ This is data-driven (JOIN via `service_name + time window`), not manually curate
 #### Side-by-Side Correlated Panes
 The trace waterfall view supports a split view: trace on the left, correlated logs on the right, synchronized time cursor. Clicking a span highlights correlated log lines.
 
+#### Infrastructure Correlation
+Every service detail, trace, and log view must provide links to the underlying infrastructure (host, pod, container) metrics and logs. This is achieved by joining on OTel resource attributes (`host.name`, `k8s.pod.name`, etc.).
+
+#### Log Context (Surrounding Logs)
+When viewing a specific log line in the explorer or detail view, the operator can click "View Context". This opens a view showing logs from the same service and host that occurred immediately before and after the selected log line (±1 minute by default), ignoring other active search filters.
+
+#### Promote to Dashboard
+Every query in the Trace, Log, or Metric Explorer must have a "Promote to Dashboard" action. This allows the operator to quickly turn a successful ad-hoc discovery into a permanent monitoring panel.
+
 ### 9.5 High-Cardinality Exploration
 
 The platform stores millions of distinct label combinations. The UI must expose these without performance degradation or overwhelming the operator.
@@ -122,9 +132,12 @@ The Metric Explorer includes a **Cardinality Inspector** that shows:
 - Estimated storage impact per label key
 
 #### BubbleUp-Style Comparison
-Inspired by Honeycomb's BubbleUp: when viewing a time series anomaly, the operator can select the anomalous window. The UI automatically compares attribute value distributions in that window against the baseline period and surfaces the dimensions (service version, region, customer tier) that are statistically over-represented in errors.
+Inspired by Honeycomb's BubbleUp: when viewing a time series anomaly or a set of error logs, the operator can select the anomalous window. The UI automatically compares attribute value distributions in that window against the baseline period and surfaces the dimensions (service version, region, customer tier, host) that are statistically over-represented in errors.
 
 This is implemented as a query against the query facade—no ML required—using GROUP BY + percentage comparison.
+
+#### Faceting and Field Statistics
+The Log and Trace explorers include a sidebar showing the distribution of common fields (facets) for the current result set (e.g., status codes, log levels, service names). This allows for rapid narrowing of search results without typing complex queries.
 
 #### Free-Form Field Exploration
 Log and trace explorers support arbitrary attribute filtering without pre-indexing. The autocomplete suggests attribute keys from the current result set (streamed from the query facade).
@@ -275,4 +288,13 @@ Apply the **inverted pyramid**: show the minimum information needed to assess he
 | User preferences (theme, timezone, default project) | Server-persisted profile | Consistent across devices |
 | Dashboard configuration | Platform config API | Version-controlled, CI/CD deployable |
 
-No global client-side state store (Redux/Zustand) is needed. URL state + TanStack Query covers the vast majority of observable state.
+#### 9.14 Live Tail and Streaming
+
+Real-time visibility is critical for verifying deployments and debugging active incidents.
+
+**Requirements:**
+- **Live Tail Mode**: In the Log Explorer, a "Live" toggle initiates a tailing session.
+- **Auto-scroll**: New log lines are appended to the bottom and the view scrolls automatically (can be paused).
+- **Sampling**: If ingest volume exceeds a threshold, the UI samples the live stream to maintain performance, with a clear indicator.
+- **Consistency**: Filters applied in Live Tail mode must use the same syntax as historical search.
+- **Latency**: End-to-end latency from ingest to UI display should be < 2s for live tail.
