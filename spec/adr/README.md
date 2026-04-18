@@ -2,25 +2,28 @@
 
 Architecture Decision Records (ADRs) capture significant technology and design choices made in the Observable platform. Each ADR documents the context, the decision, its consequences, and alternatives considered.
 
-**To create a new ADR:** copy `ADR-000-template.md`, assign the next available number, fill in all sections, and open a PR. Update the status column below when merged. Update this table whenever a new ADR is merged.
+**To create a new ADR:** copy `ADR-000-template.md`, assign the next available number, fill in all sections, and open a PR. Update the status column and the decision summary below when merged.
 
-| ADR | Title | Status |
-|-----|-------|--------|
-| [ADR-001](ADR-001-otel-external-contract.md) | OTel as External Contract | Accepted |
-| [ADR-002](ADR-002-polyglot-storage.md) | Polyglot Storage vs Single Engine | Accepted |
-| [ADR-003](ADR-003-clickhouse-boundary.md) | ClickHouse Adoption Boundary | Accepted |
-| [ADR-004](ADR-004-rust-data-plane.md) | Rust for Data Plane Services | Accepted |
-| [ADR-005](ADR-005-arrow-datafusion.md) | Arrow/DataFusion Query Layer | Accepted |
-| [ADR-006](ADR-006-react-vite-frontend.md) | React/Vite Frontend | Accepted |
-| [ADR-007](ADR-007-multi-tenant-isolation.md) | Multi-Tenant Isolation Strategy | Accepted |
-| [ADR-008](ADR-008-authorization-model.md) | Authorization Model | Accepted |
-| [ADR-009](ADR-009-queue-stream-backbone.md) | Queue/Stream Backbone | Accepted |
-| [ADR-010](ADR-010-deployment-model.md) | Deployment Model (k8s-first) | Accepted |
-| [ADR-011](ADR-011-sampling-strategy.md) | Sampling Strategy | Accepted |
-| [ADR-012](ADR-012-retention-tiering.md) | Retention and Tiering | Accepted |
-| [ADR-013](ADR-013-schema-governance.md) | Schema Governance | Accepted |
-| [ADR-014](ADR-014-ai-feature-boundaries.md) | AI Feature Boundaries | Accepted |
-| [ADR-015](ADR-015-build-vs-buy.md) | Build vs Buy (Incident/Auth/Billing) | Accepted |
-| [ADR-016](ADR-016-grafana-visualization-strategy.md) | Grafana Visualization Strategy | Accepted |
-| [ADR-017](ADR-017-prometheus-remote-write.md) | Prometheus remote_write Compatibility | Accepted |
-| [ADR-018](ADR-018-rum-browser-mobile-ingestion.md) | RUM / Browser and Mobile Ingestion | Accepted |
+**Agent guidance:** scan the Decision column below to identify ADRs relevant to your task, then read those files in full before writing code.
+
+| ADR | Title | Status | Decision (one line) |
+|-----|-------|--------|---------------------|
+| [ADR-001](ADR-001-otel-external-contract.md) | OTel as External Contract | Accepted | OpenTelemetry Protocol is the only supported ingest format; no proprietary wire protocol |
+| [ADR-002](ADR-002-polyglot-storage.md) | Polyglot Storage vs Single Engine | Accepted | ClickHouse for telemetry, PostgreSQL for control-plane metadata; no single unified store |
+| [ADR-003](ADR-003-clickhouse-boundary.md) | ClickHouse Adoption Boundary | Accepted | ClickHouse is used only for append-only telemetry reads/writes; no OLTP or auth data |
+| [ADR-004](ADR-004-rust-data-plane.md) | Rust for Data Plane Services | Accepted | All ingest, processing, storage, and query services are written in Rust |
+| [ADR-005](ADR-005-arrow-datafusion.md) | Arrow/DataFusion Query Layer | Accepted | Arrow/DataFusion is the query execution layer for analytics; ClickHouse is the storage backend |
+| [ADR-006](ADR-006-react-vite-frontend.md) | React/Vite Frontend | Accepted | React 19 + Vite + TanStack Query/Router for the frontend; no Next.js or SSR framework |
+| [ADR-007](ADR-007-multi-tenant-isolation.md) | Multi-Tenant Isolation Strategy | Accepted | tenant_id column on every telemetry table; enforced at query layer, not DB-level separation |
+| [ADR-008](ADR-008-authorization-model.md) | Authorization Model | Accepted | OpenFGA (Zanzibar-model) for RBAC; PostgreSQL-backed API key store hashed with SHA-256 |
+| [ADR-009](ADR-009-queue-stream-backbone.md) | Queue/Stream Backbone | Accepted | Redpanda is the only inter-service queue; no direct service-to-service HTTP for telemetry data |
+| [ADR-010](ADR-010-deployment-model.md) | Deployment Model (k8s-first) | Accepted | Kubernetes is the target deployment platform; Docker Compose is for local dev only |
+| [ADR-011](ADR-011-sampling-strategy.md) | Sampling Strategy | Accepted | Tail-based sampling at the ingest gateway; head-based sampling is the client's responsibility |
+| [ADR-012](ADR-012-retention-tiering.md) | Retention and Tiering | Accepted | ClickHouse TTL for hot tier; S3-compatible object storage for cold tier |
+| [ADR-013](ADR-013-schema-governance.md) | Schema Governance | Accepted | Versioned SQL migration files under `migrations/`; no ORM-generated schema changes |
+| [ADR-014](ADR-014-ai-feature-boundaries.md) | AI Feature Boundaries | Accepted | AI features are read-only assistants; no AI-initiated writes or alerts without human approval |
+| [ADR-015](ADR-015-build-vs-buy.md) | Build vs Buy (Incident/Auth/Billing) | Accepted | Buy/integrate for incident management, billing, and IdP; build only the observability core |
+| [ADR-016](ADR-016-grafana-visualization-strategy.md) | Grafana Visualization Strategy | Accepted | Grafana is supported as an optional visualization layer via datasource plugins; not the default UI |
+| [ADR-017](ADR-017-prometheus-remote-write.md) | Prometheus remote_write Compatibility | Accepted | Ingest gateway accepts Prometheus remote_write in addition to OTLP |
+| [ADR-018](ADR-018-rum-browser-mobile-ingestion.md) | RUM / Browser and Mobile Ingestion | Accepted | Browser/mobile SDKs send to a dedicated RUM endpoint; not the same path as backend OTLP |
+| [ADR-019](ADR-019-ci-scripts-runnable-locally.md) | CI Scripts Runnable Locally | Accepted | All non-trivial CI logic lives in `scripts/`; migrations use `docker compose exec` (no host DB clients) |
