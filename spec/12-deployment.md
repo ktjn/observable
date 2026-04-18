@@ -82,13 +82,14 @@ Builds are produced by CI and promoted by GitOps. CI owns artifact creation; dep
 
 ### 19.6 Local Development
 
-Local development uses Docker Compose for all external dependencies. Rust services and the React frontend run natively on the developer's machine.
+Local development uses Docker Compose for external dependencies and Rust services. The React frontend runs natively on the developer's machine.
 
 **Quick start**
 
 ```bash
 make dev                       # start Docker Compose dependency stack
-cargo run -p <service-name>    # run a specific Rust service
+bash scripts/migrate.sh        # apply ClickHouse and PostgreSQL migrations
+bash scripts/start-services.sh # build and start Rust services in Docker Compose
 npm run dev                    # run the React frontend (from apps/frontend)
 ```
 
@@ -105,22 +106,34 @@ E2E setup see `spec/15-frontend-local-dev.md`.
 | postgres   | postgres:16                  | 5432       | Control plane metadata store |
 | openfga    | openfga/openfga              | 8080       | Fine-grained auth store      |
 
+**Application services**
+
+The Rust service containers are built from the repo-root `Dockerfile` and run through the Compose `services` profile.
+
+| Service          | Host port | Internal dependencies                    |
+|------------------|-----------|------------------------------------------|
+| auth-service     | 4318      | postgres                                 |
+| storage-writer   | 4320      | clickhouse                               |
+| stream-processor | none      | redpanda, storage-writer                 |
+| ingest-gateway   | 4317      | auth-service, redpanda                   |
+| query-api        | 8090      | clickhouse                               |
+
 **Configuration**
 
 - Copy `.env.local.example` (committed) to `.env.local` (gitignored) at the repo root.
-- Each Rust service reads config from environment variables. `.env.local` supplies local defaults pointing to the Compose services above.
+- Each Rust service reads config from environment variables supplied by `docker-compose.yml`. `.env.local` supplies local defaults for dependency credentials and host-facing ports.
 - No production secrets are required for local development.
 
 **Schema migrations**
 
-- In local mode, Rust services accept a `--migrate` flag that runs pending ClickHouse and Postgres migrations on startup.
+- In local mode, run `bash scripts/migrate.sh` after starting the Compose dependency stack and before starting the Rust service containers.
 - In CI and production, migrations are explicit pipeline steps and do not run automatically on service startup.
 
 **Rules**
 
-- `docker compose up` must start cleanly from scratch with no manual seed steps beyond those automated in `make dev`.
+- `docker compose up` must start cleanly from scratch with no manual seed steps beyond those automated in `make dev`, `scripts/migrate.sh`, and `scripts/start-services.sh`.
 - Do not bake credentials into `docker-compose.yml`; read all values from environment variables or `.env.local`.
-- Local ports must not conflict across services: ClickHouse 8123/9000, Redpanda 9092/9644, Postgres 5432, OpenFGA 8080.
+- Local ports must not conflict across services: ClickHouse 8123/9000, Redpanda 9092/9644, Postgres 5432, OpenFGA 8080, ingest-gateway 4317, auth-service 4318, storage-writer 4320, query-api 8090.
 - `make dev` must be documented in the repo root README as the single starting point for new contributors.
 
 ---

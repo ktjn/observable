@@ -51,7 +51,7 @@ Observable/                         ← repo root
 |------|----------------|-------|
 | Node.js | 22 LTS | Use `nvm` or `fnm` to pin via `.nvmrc` at repo root |
 | npm | 10 | Bundled with Node 22; do not substitute yarn or pnpm without an ADR |
-| Docker | 24 | Required for `make dev` dependency stack |
+| Docker | 24 | Required for the local Compose stack |
 | Docker Compose | v2 plugin | `docker compose` (v2); not standalone `docker-compose` v1 |
 
 A `.nvmrc` file at the repo root pins the Node version:
@@ -152,10 +152,13 @@ cd ../..
 # 2. Start the Docker Compose dependency stack (ClickHouse, Redpanda, Postgres, OpenFGA).
 make dev
 
-# 3. Start the backend control-plane service (runs migrations automatically in local mode).
-cargo run -p control-plane -- --migrate
+# 3. Apply schema migrations.
+bash scripts/migrate.sh
 
-# 4. Start the Vite dev server with HMR.
+# 4. Build and start the Rust services in Docker Compose.
+bash scripts/start-services.sh
+
+# 5. Start the Vite dev server with HMR.
 cd apps/frontend
 npm run dev
 ```

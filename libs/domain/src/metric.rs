@@ -55,7 +55,9 @@ pub struct MetricPoint {
 #[cfg(feature = "storage")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, clickhouse::Row)]
 pub struct MetricSeriesRow {
+    #[serde(with = "clickhouse::serde::uuid")]
     pub tenant_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
     pub metric_series_id: Uuid,
     pub metric_name: String,
     pub description: String,
@@ -72,7 +74,9 @@ pub struct MetricSeriesRow {
 #[cfg(feature = "storage")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, clickhouse::Row)]
 pub struct MetricPointRow {
+    #[serde(with = "clickhouse::serde::uuid")]
     pub tenant_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
     pub metric_series_id: Uuid,
     pub metric_name: String,
     pub service_name: String,
@@ -82,8 +86,8 @@ pub struct MetricPointRow {
     pub value_int: Option<i64>,
     pub histogram_count: Option<u64>,
     pub histogram_sum: Option<f64>,
-    pub histogram_bucket_counts: Option<Vec<u64>>,
-    pub histogram_explicit_bounds: Option<Vec<f64>>,
+    pub histogram_bucket_counts: Vec<u64>,
+    pub histogram_explicit_bounds: Vec<f64>,
 }
 
 #[cfg(feature = "storage")]
@@ -160,8 +164,8 @@ impl From<MetricPoint> for MetricPointRow {
             value_int: p.value_int,
             histogram_count: p.histogram_count,
             histogram_sum: p.histogram_sum,
-            histogram_bucket_counts: p.histogram_bucket_counts,
-            histogram_explicit_bounds: p.histogram_explicit_bounds,
+            histogram_bucket_counts: p.histogram_bucket_counts.unwrap_or_default(),
+            histogram_explicit_bounds: p.histogram_explicit_bounds.unwrap_or_default(),
         }
     }
 }
@@ -180,8 +184,72 @@ impl From<MetricPointRow> for MetricPoint {
             value_int: row.value_int,
             histogram_count: row.histogram_count,
             histogram_sum: row.histogram_sum,
-            histogram_bucket_counts: row.histogram_bucket_counts,
-            histogram_explicit_bounds: row.histogram_explicit_bounds,
+            histogram_bucket_counts: non_empty(row.histogram_bucket_counts),
+            histogram_explicit_bounds: non_empty(row.histogram_explicit_bounds),
         }
+    }
+}
+
+#[cfg(feature = "storage")]
+fn non_empty<T>(values: Vec<T>) -> Option<Vec<T>> {
+    if values.is_empty() {
+        None
+    } else {
+        Some(values)
+    }
+}
+
+#[cfg(all(test, feature = "storage"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metric_point_row_uses_empty_arrays_for_absent_histogram_buckets() {
+        let row = MetricPointRow::from(MetricPoint::default());
+
+        assert!(row.histogram_bucket_counts.is_empty());
+        assert!(row.histogram_explicit_bounds.is_empty());
+    }
+
+    #[test]
+    fn metric_point_restores_empty_histogram_arrays_as_absent() {
+        let point = MetricPoint::from(MetricPointRow {
+            tenant_id: Uuid::nil(),
+            metric_series_id: Uuid::nil(),
+            metric_name: String::new(),
+            service_name: String::new(),
+            time_unix_nano: 0,
+            start_time_unix_nano: None,
+            value_double: None,
+            value_int: None,
+            histogram_count: None,
+            histogram_sum: None,
+            histogram_bucket_counts: Vec::new(),
+            histogram_explicit_bounds: Vec::new(),
+        });
+
+        assert_eq!(point.histogram_bucket_counts, None);
+        assert_eq!(point.histogram_explicit_bounds, None);
+    }
+
+    #[test]
+    fn metric_point_preserves_non_empty_histogram_arrays() {
+        let point = MetricPoint::from(MetricPointRow {
+            tenant_id: Uuid::nil(),
+            metric_series_id: Uuid::nil(),
+            metric_name: String::new(),
+            service_name: String::new(),
+            time_unix_nano: 0,
+            start_time_unix_nano: None,
+            value_double: None,
+            value_int: None,
+            histogram_count: Some(3),
+            histogram_sum: Some(4.5),
+            histogram_bucket_counts: vec![1, 2, 3],
+            histogram_explicit_bounds: vec![10.0, 20.0],
+        });
+
+        assert_eq!(point.histogram_bucket_counts, Some(vec![1, 2, 3]));
+        assert_eq!(point.histogram_explicit_bounds, Some(vec![10.0, 20.0]));
     }
 }

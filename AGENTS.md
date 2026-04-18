@@ -21,7 +21,8 @@ Before running `git push`:
 1. Run `cargo fmt --all` — fix any formatting issues before committing.
 2. Run `cargo clippy --all-targets --all-features -- -D warnings` — fix all warnings.
 3. Run `cargo test --all-targets --all-features` — ensure all tests pass.
-4. If Docker is available and the stack is running:
+4. If Docker is available:
+   - Start the Docker Compose dependency stack first, for example with `make dev` or `docker compose --env-file .env.local up -d --wait`.
    - Run `bash scripts/migrate.sh` to apply any schema changes.
    - Run `bash scripts/start-services.sh` to start all services (kill any already running first).
    - Run `bash tests/e2e/smoke_test.sh` — all checks must pass.

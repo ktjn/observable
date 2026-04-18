@@ -1,4 +1,4 @@
-CREATE TABLE api_keys (
+CREATE TABLE IF NOT EXISTS api_keys (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id  UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     key_hash   TEXT NOT NULL UNIQUE,
@@ -7,7 +7,7 @@ CREATE TABLE api_keys (
     revoked_at TIMESTAMPTZ
 );
 
-CREATE INDEX api_keys_tenant_id_idx ON api_keys(tenant_id);
+CREATE INDEX IF NOT EXISTS api_keys_tenant_id_idx ON api_keys(tenant_id);
 
 -- Seed dev API key: value = "dev-api-key-0000" (SHA-256 hash)
 -- SHA-256("dev-api-key-0000") stored; services compare hash, not plaintext

@@ -21,8 +21,8 @@ docker compose -f "$REPO_ROOT/docker-compose.yml" exec -T redpanda \
 echo "=== PostgreSQL migrations ==="
 for f in "$REPO_ROOT"/migrations/postgres/*.sql; do
   echo "  applying $(basename "$f")"
-  cat "$f" | docker compose -f "$REPO_ROOT/docker-compose.yml" exec -T postgres \
-    psql -U observable -d observable -f -
+  (printf "SET client_min_messages TO warning;\n"; cat "$f") | docker compose -f "$REPO_ROOT/docker-compose.yml" exec -T postgres \
+    psql -v ON_ERROR_STOP=1 -q -U observable -d observable -f -
 done
 
 echo "=== Migrations complete ==="

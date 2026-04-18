@@ -20,7 +20,7 @@ All non-trivial logic in GitHub Actions `run:` steps must live in a versioned sh
 
 Concretely:
 - `scripts/migrate.sh` — runs all ClickHouse and PostgreSQL migrations via `docker compose exec`, requiring no host-installed database clients.
-- `scripts/start-services.sh` — starts compiled service binaries in the background with a configurable build directory.
+- `scripts/start-services.sh` — builds and starts the Rust service containers through the Docker Compose `services` profile.
 - `tests/e2e/smoke_test.sh` — end-to-end pipeline validation (already in place).
 
 The `Makefile` `migrate` target calls `scripts/migrate.sh` so that `make dev && make migrate` remains the local dev workflow.
@@ -34,7 +34,7 @@ The `Makefile` `migrate` target calls `scripts/migrate.sh` so that `make dev && 
 
 **Harder:**
 - Scripts need to be written defensively (`set -euo pipefail`, explicit paths) so they work both in the repo root and from CI working directories.
-- Script authors must consider both local (host tools available, `.env.local` present) and CI (Docker-only, no extra CLI tools) execution contexts.
+- Script authors must consider both local (`.env.local` may be present) and CI (Docker-only, no extra CLI tools) execution contexts.
 
 **Constrained:**
 - Host-installed CLI tools (`clickhouse-client`, `sqlx-cli`) must not be assumed present on CI runners. Migrations and other database operations must go through `docker compose exec`.
@@ -50,6 +50,6 @@ Document which tools must be pre-installed on self-hosted runners. Rejected: sel
 ## Related
 
 - `scripts/migrate.sh` — implements this decision for migrations
-- `scripts/start-services.sh` — implements this decision for service startup
+- `scripts/start-services.sh` — implements this decision for Docker Compose service startup
 - `tests/e2e/smoke_test.sh` — pre-existing example of the pattern
 - `.github/workflows/nightly.yml` — first workflow refactored to comply

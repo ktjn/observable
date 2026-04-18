@@ -36,18 +36,19 @@ Use ClickHouse for metrics in Phase 1 and until a concrete performance or cardin
 
 ---
 
-### 2. Local Dev: Docker Compose + native services
+### 2. Local Dev: Docker Compose services + native frontend
 
-**Approach:** Docker Compose starts all external dependencies. Rust services and the React frontend run natively.
+**Approach:** Docker Compose starts all external dependencies and Rust services. The React frontend runs natively.
 
 **Developer workflow:**
 ```
-make dev          # starts Docker Compose dependency stack
-cargo run -p <service>   # run a specific Rust service
-npm run dev       # run the React frontend
+make dev                       # starts Docker Compose dependency stack
+bash scripts/migrate.sh        # applies schema migrations
+bash scripts/start-services.sh # builds and starts Rust services in Docker Compose
+npm run dev                    # run the React frontend
 ```
 
-**Docker Compose services (dependency stack):**
+**Docker Compose dependency services:**
 
 | Service       | Image                        | Port  | Purpose                        |
 |---------------|------------------------------|-------|-------------------------------|
@@ -56,11 +57,21 @@ npm run dev       # run the React frontend
 | postgres      | postgres:16                  | 5432  | Control plane metadata store  |
 | openfga       | openfga/openfga              | 8080  | Fine-grained auth store       |
 
+**Docker Compose application services:**
+
+| Service          | Port | Purpose                         |
+|------------------|------|---------------------------------|
+| auth-service     | 4318 | Tenant validation               |
+| ingest-gateway   | 4317 | OTLP ingest endpoint            |
+| storage-writer   | 4320 | ClickHouse write API            |
+| stream-processor | n/a  | Redpanda consumer               |
+| query-api        | 8090 | Telemetry query API             |
+
 **Rules:**
 - Local env uses fixture API keys and seeded tenant data — no production secrets needed.
-- Each Rust service reads config from environment variables with local defaults in `.env.local` at the repo root (gitignored; `.env.local.example` is committed as a template).
-- ClickHouse schema migrations run automatically on service startup in local mode; in CI and production they are explicit migration steps.
-- The Compose stack must start cleanly from scratch with `docker compose up` — no manual seed steps except those in `make dev`.
+- Each Rust service reads config from environment variables supplied by Docker Compose, with local defaults in `.env.local` at the repo root (gitignored; `.env.local.example` is committed as a template).
+- ClickHouse and Postgres schema migrations run through `bash scripts/migrate.sh` after the dependency stack is up and before Rust service containers start.
+- The Compose stack must start cleanly from scratch with no manual seed steps except those automated by `make dev`, `scripts/migrate.sh`, and `scripts/start-services.sh`.
 
 **Spec changes required:**
 - `spec/12-deployment.md`: Add `§19.6 Local Development` section documenting the above.

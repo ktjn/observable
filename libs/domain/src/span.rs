@@ -29,6 +29,7 @@ pub struct Span {
 #[cfg(feature = "storage")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, clickhouse::Row)]
 pub struct SpanRow {
+    #[serde(with = "clickhouse::serde::uuid")]
     pub tenant_id: Uuid,
     pub trace_id: String,
     pub span_id: String,
