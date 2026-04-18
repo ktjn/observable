@@ -115,9 +115,9 @@ Next smallest slice:
   - Outcome: tenant A cannot read tenant B log records
   - Checkpoint: do we have one negative cross-tenant test and one positive same-tenant test for log search? Answer: yes. `search_logs` now collects all LogRow values before converting them, calls `validate_log_rows_for_tenant` which fails closed on any cross-tenant row, and unit tests cover same-tenant valid, cross-tenant rejected, and empty result cases.
 
-- [ ] **P2-S1c: Enforce tenant isolation for metric query**
+- [x] **P2-S1c: Enforce tenant isolation for metric query**
   - Outcome: tenant A cannot read tenant B metric series or points
-  - Checkpoint: do metric series lookup and point lookup both include tenant-scoped assertions?
+  - Checkpoint: do metric series lookup and point lookup both include tenant-scoped assertions? Answer: yes. `list_metrics` now collects all MetricSeriesRow values before converting them, calls `validate_metric_series_rows_for_tenant` which fails closed on any cross-tenant row; `get_metric_points` does the same with `validate_metric_point_rows_for_tenant`. Unit tests cover same-tenant valid, cross-tenant rejected, and empty result cases for both series and point lookups.
 
 - [ ] **P2-S1d: Assert tenant partition preservation in storage writes**
   - Outcome: span, log, and metric storage rows preserve the tenant partition key from the normalized envelope
