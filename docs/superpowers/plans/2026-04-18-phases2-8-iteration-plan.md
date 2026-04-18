@@ -111,9 +111,9 @@ Next smallest slice:
   - Outcome: trace query code cannot execute without tenant context, and tenant A cannot read tenant B traces
   - Checkpoint: do we have a failing-then-passing tenant-escape test for trace lookup and trace search? Answer: yes. Query API now rejects missing tenant context before handlers run, trace responses validate all returned rows against the request tenant, and tests cover missing/invalid tenant context plus same-tenant and cross-tenant trace rows.
 
-- [ ] **P2-S1b: Enforce tenant isolation for log query**
+- [x] **P2-S1b: Enforce tenant isolation for log query**
   - Outcome: tenant A cannot read tenant B log records
-  - Checkpoint: do we have one negative cross-tenant test and one positive same-tenant test for log search?
+  - Checkpoint: do we have one negative cross-tenant test and one positive same-tenant test for log search? Answer: yes. `search_logs` now collects all LogRow values before converting them, calls `validate_log_rows_for_tenant` which fails closed on any cross-tenant row, and unit tests cover same-tenant valid, cross-tenant rejected, and empty result cases.
 
 - [ ] **P2-S1c: Enforce tenant isolation for metric query**
   - Outcome: tenant A cannot read tenant B metric series or points
