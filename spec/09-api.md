@@ -94,29 +94,30 @@ technology choice.
 
 ### Query Tenant Context Contract
 
-**Status:** Active for trace query endpoints as of Phase 2 slice P2-S1a
+**Status:** Active for trace and log query endpoints as of Phase 2 slices P2-S1a and P2-S1b
 (`docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`).
 
 **Affected endpoints:**
 - `GET /v1/traces`
 - `GET /v1/traces/{trace_id}`
+- `GET /v1/logs`
 
 **Required behavior:**
-- Query API requests must carry an explicit tenant context before trace handlers execute.
+- Query API requests must carry an explicit tenant context before handlers execute.
 - Missing tenant context must be rejected with `401 Unauthorized`.
 - Malformed tenant context must be rejected with `400 Bad Request`.
-- Trace lookup and trace search must constrain storage reads by tenant ID.
-- Trace responses must not include rows whose `tenant_id` differs from the request tenant. If storage
+- Trace, log lookup, and log search must constrain storage reads by tenant ID.
+- Responses must not include rows whose `tenant_id` differs from the request tenant. If storage
   returns a mixed-tenant result, the API must fail closed rather than returning partial cross-tenant
   data.
 
 **Closure evidence:**
 - Unit tests cover missing, malformed, and valid tenant context extraction.
-- Unit tests cover same-tenant trace rows and cross-tenant trace-row rejection.
+- Unit tests cover same-tenant trace rows and cross-tenant trace-row rejection (P2-S1a).
+- Unit tests cover same-tenant log rows, cross-tenant log-row rejection, and empty result (P2-S1b).
 - The Phase 1 smoke test now sends an explicit `X-Tenant-ID` header for query API calls.
 
 **Required follow-up:**
-- Apply the same tenant context and fail-closed validation pattern to log query in P2-S1b.
 - Apply the same tenant context and fail-closed validation pattern to metric query in P2-S1c.
 
 **ADR/spec sync:** No ADR update required. This slice enforces the accepted tenant isolation strategy
