@@ -16,6 +16,27 @@ This document captures research findings that informed the revision of `spec/05-
 4. **Dashboard-as-code is the correct default** — provide a UI builder that generates the same JSON artifact, not a separate "export" workflow.
 5. **High-cardinality exploration requires a dedicated UI pattern** — BubbleUp-style comparison (Honeycomb model) surfaces anomalies the operator would never find manually.
 
+### 2026-04-18 Suitability Review
+
+The current conclusion remains: **Grafana is suitable as a visualization dependency and optional
+interop target, but not suitable as the primary Observable UI.**
+
+Use Grafana in three bounded ways:
+
+1. **Adopt Grafana libraries inside the custom React UI**: continue using `@grafana/ui`,
+   `@grafana/data`, and `@grafana/scenes` for panels, DataFrames, time ranges, variables, and
+   dashboard-like scene state.
+2. **Keep the Observable dashboard format compatible with Grafana concepts**: panels, variables,
+   layout, annotations, dashboard JSON, and data frames should remain easy to adapt to Grafana.
+3. **Defer a managed Grafana service or Grafana data source plugin to Phase 4+**: only add it if
+   enterprise users require existing Grafana dashboards or plugins, and only with explicit
+   licensing, auth, tenant isolation, and data-scope review.
+
+Do not replace the Observable React application with Grafana OSS/Enterprise as the main UI in
+Phase 1–3. That would move core product workflows outside the platform UX plane defined in
+`spec/02-architecture.md` and would weaken the service-first navigation, cross-signal breadcrumbs,
+query workbench, admin console, and tenant-aware audit model required by `spec/05-frontend.md`.
+
 ---
 
 ## 1. Grafana Integration Options
@@ -63,6 +84,43 @@ Running Grafana as an opt-in sidecar for enterprise customers who need ecosystem
 - Data scope enforcement at the query facade level for both surfaces
 
 This path is not blocked by the current architecture. The query facade already exposes a query API that can be wired as a Grafana data source plugin. An ADR amendment (ADR-016 revision) would be required if this path is taken.
+
+### 1.4 Grafana Application as Primary UI (2026-04-18 Assessment)
+
+Grafana as a complete UI should be treated as **not suitable for the primary product surface**.
+
+| Dimension | Finding | Suitability |
+|---|---|---|
+| Product workflow fit | Grafana is dashboard- and data-source-centric; Observable requires entity-centric investigation, service catalog, trace/log/metric correlation, onboarding, admin, fleet, quota, and audit workflows. | Poor |
+| Cross-signal correlation | Grafana supports links, annotations, correlations, and Explore-style workflows, but the Observable spec requires URL-owned investigation context, breadcrumbs, split panes, and service-first navigation across all modules. | Partial |
+| Tenant isolation | Grafana has organizations, folders, permissions, and Enterprise RBAC, but Observable requires tenant context on every API, queue message, storage write, query, and audit record. That isolation belongs in the platform query facade, not a parallel UI authority. | Partial |
+| Auth and embedding | Grafana can authenticate with its own mechanisms and API tokens, but iframe embedding requires enabling `allow_embedding`, changing cookie/CSP behavior, and accepting frame-bound UX and security complexity. | Poor |
+| Dashboard-as-code | Grafana has dashboard APIs, provisioning, stable dashboard UIDs, and JSON dashboard models. This is useful as an interop target, not enough to replace the custom dashboard artifact model. | Good |
+| Plugin ecosystem | Grafana data source plugins can expose an in-house query API through DataFrames, query editors, and health checks. This is valuable for external compatibility. | Good |
+| Licensing | Grafana core projects moved to AGPLv3; commercial/OEM licensing is required if modified network-service use must avoid AGPL obligations. Grafana Enterprise licensing adds active-user and feature constraints. | Risky unless explicitly licensed |
+| Operational ownership | Running Grafana introduces another deployable service, database/config lifecycle, plugin lifecycle, SSO/RBAC sync path, and incident surface. | Mixed |
+
+**Conclusion:** Grafana is better used as a library and compatibility surface than as the product
+shell. The custom React UI remains necessary because Observable's differentiator is not generic
+dashboard rendering; it is tenant-safe, entity-centric, cross-signal operations.
+
+### 1.5 Grafana Plugin or Sidecar Path (Deferred)
+
+If later customer demand requires Grafana ecosystem compatibility, implement it as a separate
+Phase 4+ slice:
+
+- Build an Observable Grafana data source plugin that talks only to the Observable query facade.
+- Return Grafana DataFrames from the plugin adapter, preserving tenant and auth context at the
+  query facade boundary.
+- Use Grafana dashboard APIs or provisioning only for import/export compatibility, not as the
+  authoritative Observable dashboard store.
+- Require Grafana OEM/commercial licensing review before offering a bundled or modified Grafana
+  service to customers.
+- Require an ADR-016 amendment and updates to `spec/05-frontend.md`, `spec/09-api.md`,
+  `spec/10-process.md`, and deployment/security specs before shipping a managed Grafana surface.
+
+This keeps compatibility available without forcing Phase 1–3 product workflows through Grafana's
+application model.
 
 ---
 
@@ -233,3 +291,49 @@ The platform differentiates on **multi-tenant isolation + full OTLP data model +
 ADR-006 is NOT amended because the core React/Vite decision is unchanged. ADR-016 extends it with the visualization library decision.
 
 ADR-015 (build vs. buy) is NOT amended because the visualization layer (npm packages) falls within the existing "buy" boundary for the frontend toolchain.
+
+---
+
+## 8. Sources Checked For 2026-04-18 Review
+
+Primary sources checked:
+
+- Grafana Labs licensing FAQ: core Grafana, Loki, and Tempo moved from Apache-2.0 to AGPLv3;
+  plugins, agents, and some libraries remain Apache-licensed; commercial licensing is the route
+  for modified network-service use that must avoid AGPL obligations.
+  <https://grafana.com/licensing/>
+- Grafana Enterprise license documentation: Enterprise features and active-user license limits
+  require a purchased and activated Enterprise license.
+  <https://grafana.com/docs/grafana/latest/enterprise/license/license-restrictions/>
+- Grafana HTTP API reference: Grafana exposes APIs for dashboards, folders, data sources,
+  organizations, service accounts, alerting, and related resources; new-generation APIs under
+  `/apis` are replacing legacy `/api` routes.
+  <https://grafana.com/docs/grafana/latest/developer-resources/api-reference/http-api/>
+- Grafana dashboard API documentation: dashboard create, update, get, list, permission scopes,
+  unique dashboard UIDs, and legacy dashboard endpoints support dashboard-as-code interop.
+  <https://grafana.com/docs/grafana/latest/http_api/dashboard/>
+- Grafana configuration documentation: `allow_embedding` defaults to `false` and otherwise sets
+  `X-Frame-Options: deny`; cookie SameSite, CSP, CSRF, and other security settings affect embedded
+  deployments.
+  <https://grafana.com/docs/grafana/latest/installation/configuration/>
+- Grafana security documentation: data source proxy and request-security behavior create an
+  additional server-side request boundary that must be controlled when Grafana can reach internal
+  services.
+  <https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/>
+- Grafana data source plugin tutorial: custom data source plugins can query an in-house API,
+  return DataFrames, provide a query editor, and implement health checks.
+  <https://grafana.com/developers/plugin-tools/tutorials/build-a-data-source-plugin>
+- Grafana DataFrame guide: DataFrames are the shared columnar shape for plugin query results and
+  panel rendering.
+  <https://grafana.com/developers/plugin-tools/how-to-guides/data-source-plugins/create-data-frames>
+- Grafana Scenes core concepts: Scenes model dashboards as object trees containing data, time
+  ranges, variables, layout, and visualizations, which matches the dashboard state architecture
+  already adopted in `spec/05-frontend.md`.
+  <https://grafana.com/developers/scenes/core-concepts>
+- npm package metadata for `@grafana/ui`: current public package metadata lists Apache-2.0
+  licensing and shows active publication of the React component library.
+  <https://www.npmjs.com/package/@grafana/ui>
+
+ADR/spec sync: no ADR or spec change is required for this review because it does not change the
+accepted architecture. It documents that the existing ADR-016 choice remains suitable: use Grafana
+libraries in the custom React application, while rejecting Grafana-as-primary-UI for now.
