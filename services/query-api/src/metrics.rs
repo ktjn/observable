@@ -44,7 +44,18 @@ pub async fn list_metrics(
 
     validate_metric_series_rows_for_tenant(&rows, ctx.tenant_id)?;
 
+    let result_count = rows.len() as i64;
     let series = rows.into_iter().map(MetricSeries::from).collect();
+
+    crate::audit::write(
+        &state.db,
+        &crate::audit::QueryAuditEntry {
+            action: "metric_series_list",
+            tenant_id: ctx.tenant_id,
+            result_count,
+        },
+    )
+    .await;
 
     Ok(Json(MetricSeriesListResponse { series }))
 }
@@ -75,7 +86,18 @@ pub async fn get_metric_points(
 
     validate_metric_point_rows_for_tenant(&rows, ctx.tenant_id)?;
 
+    let result_count = rows.len() as i64;
     let points = rows.into_iter().map(MetricPoint::from).collect();
+
+    crate::audit::write(
+        &state.db,
+        &crate::audit::QueryAuditEntry {
+            action: "metric_points_get",
+            tenant_id: ctx.tenant_id,
+            result_count,
+        },
+    )
+    .await;
 
     Ok(Json(MetricPointsResponse { points }))
 }

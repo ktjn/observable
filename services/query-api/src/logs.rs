@@ -84,7 +84,18 @@ pub async fn search_logs(
 
     validate_log_rows_for_tenant(&rows, ctx.tenant_id)?;
 
+    let result_count = rows.len() as i64;
     let logs = rows.into_iter().map(LogRecord::from).collect();
+
+    crate::audit::write(
+        &state.db,
+        &crate::audit::QueryAuditEntry {
+            action: "log_search",
+            tenant_id: ctx.tenant_id,
+            result_count,
+        },
+    )
+    .await;
 
     Ok(Json(LogListResponse { logs, total }))
 }
