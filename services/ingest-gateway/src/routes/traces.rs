@@ -148,6 +148,13 @@ mod tests {
         )
     }
 
+    fn viewer_auth_header() -> (axum::http::HeaderName, axum::http::HeaderValue) {
+        (
+            axum::http::header::AUTHORIZATION,
+            axum::http::HeaderValue::from_static("Bearer dev-viewer-key-0000"),
+        )
+    }
+
     const TENANT: &str = "00000000-0000-0000-0000-000000000001";
 
     #[tokio::test]
@@ -246,5 +253,17 @@ mod tests {
             .json(&serde_json::json!({"resourceSpans": []}))
             .await;
         assert_eq!(resp_b.status_code(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn viewer_role_cannot_ingest_traces() {
+        let app = build_router(AppState::with_stub_auth(TENANT));
+        let server = TestServer::new(app).unwrap();
+        let resp = server
+            .post("/v1/traces")
+            .add_header(viewer_auth_header().0, viewer_auth_header().1)
+            .json(&serde_json::json!({"resourceSpans": []}))
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::FORBIDDEN);
     }
 }

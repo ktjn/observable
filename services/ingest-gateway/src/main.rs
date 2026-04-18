@@ -31,11 +31,14 @@ fn build_trace_rate_limiter(per_second: u32) -> Arc<governor::DefaultKeyedRateLi
 }
 
 impl AppState {
-    pub async fn validate_api_key(&self, key: &str) -> anyhow::Result<Uuid> {
+    pub async fn validate_api_key(&self, key: &str) -> anyhow::Result<(Uuid, String)> {
         #[cfg(test)]
         if let Some(id) = self.stub_tenant {
             if key == "dev-api-key-0000" {
-                return Ok(id);
+                return Ok((id, "member".to_string()));
+            }
+            if key == "dev-viewer-key-0000" {
+                return Ok((id, "viewer".to_string()));
             }
             anyhow::bail!("stub auth rejected");
         }
@@ -51,7 +54,8 @@ impl AppState {
         }
         let body: serde_json::Value = resp.json().await?;
         let id = body["tenant_id"].as_str().unwrap_or_default().parse()?;
-        Ok(id)
+        let role = body["role"].as_str().unwrap_or("member").to_string();
+        Ok((id, role))
     }
 
     #[cfg(test)]
