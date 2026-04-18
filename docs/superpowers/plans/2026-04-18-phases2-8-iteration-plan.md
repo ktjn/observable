@@ -119,9 +119,9 @@ Next smallest slice:
   - Outcome: tenant A cannot read tenant B metric series or points
   - Checkpoint: do metric series lookup and point lookup both include tenant-scoped assertions? Answer: yes. `list_metrics` now collects all MetricSeriesRow values before converting them, calls `validate_metric_series_rows_for_tenant` which fails closed on any cross-tenant row; `get_metric_points` does the same with `validate_metric_point_rows_for_tenant`. Unit tests cover same-tenant valid, cross-tenant rejected, and empty result cases for both series and point lookups.
 
-- [ ] **P2-S1d: Assert tenant partition preservation in storage writes**
-  - Outcome: span, log, and metric storage rows preserve the tenant partition key from the normalized envelope
-  - Checkpoint: can storage writer tests identify a tenant-key regression without relying on query API behavior?
+- [x] **P2-S1d: Assert tenant partition preservation in storage writes**
+  - Outcome: span, log, and metric storage rows preserve the tenant partition key from the normalized envelope. The stream-processor now stamps `env.tenant_id` onto every span, log, metric series, and metric point before forwarding to the storage-writer, making the envelope the single authoritative source of tenant identity. Unit tests in the storage-writer verify that `SpanRow`, `LogRow`, `MetricSeriesRow`, and `MetricPointRow` each preserve the tenant_id from the domain object unchanged.
+  - Checkpoint: can storage writer tests identify a tenant-key regression without relying on query API behavior? Answer: yes. Four new storage-writer tests (`span_row_preserves_tenant_id`, `log_row_preserves_tenant_id`, `metric_series_row_preserves_tenant_id`, `metric_point_row_preserves_tenant_id`) and four new stream-processor normalise tests (`normalise_span_stamps_envelope_tenant_id`, `normalise_log_stamps_envelope_tenant_id`, `normalise_metric_series_stamps_envelope_tenant_id`, `normalise_metric_point_stamps_envelope_tenant_id`) all pass without touching the query API.
 
 - [ ] **P2-S2a: Add deterministic rate limiting for trace ingest**
   - Outcome: one authenticated tenant exceeding a trace-ingest request budget gets a stable `429` rejection path
@@ -407,10 +407,10 @@ Do not keep a 50-slice active queue. Keep the active horizon short and the roadm
 
 After this planning reconciliation, the next implementation slice should be:
 
-1. **P2-S1b: enforce tenant isolation for log query**
-2. P2-S1c: enforce tenant isolation for metric query
-3. P2-S1d: assert tenant partition preservation in storage writes
-4. P2-S2a: add deterministic rate limiting for trace ingest
+1. ~~P2-S1b: enforce tenant isolation for log query~~ (done)
+2. ~~P2-S1c: enforce tenant isolation for metric query~~ (done)
+3. ~~P2-S1d: assert tenant partition preservation in storage writes~~ (done)
+4. **P2-S2a: add deterministic rate limiting for trace ingest**
 5. P2-S5a: add audit logging for credential validation
 
 That sequence moves the project from "works" to "safe to keep running."

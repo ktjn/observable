@@ -29,4 +29,15 @@ mod tests {
         let row = LogRow::from(log);
         assert_eq!(row.severity_number, 17);
     }
+
+    #[test]
+    fn log_row_preserves_tenant_id() {
+        let tenant_id = Uuid::new_v4();
+        let log = LogRecord {
+            tenant_id,
+            ..Default::default()
+        };
+        let row = LogRow::from(log);
+        assert_eq!(row.tenant_id, tenant_id);
+    }
 }

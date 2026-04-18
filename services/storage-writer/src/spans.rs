@@ -31,4 +31,15 @@ mod tests {
         let row = SpanRow::from(span);
         assert_eq!(row.status_code, "ERROR");
     }
+
+    #[test]
+    fn span_row_preserves_tenant_id() {
+        let tenant_id = Uuid::new_v4();
+        let span = Span {
+            tenant_id,
+            ..Default::default()
+        };
+        let row = SpanRow::from(span);
+        assert_eq!(row.tenant_id, tenant_id);
+    }
 }
