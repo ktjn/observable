@@ -23,18 +23,18 @@ Refer to `spec/10-process.md` for the official development process and AI agent 
    - **GitHub Actions:** use the latest release tag of every action (e.g. `actions/checkout@v4`); check the action's release page if uncertain.
    - Do not pin to an older version without a documented reason in the PR description.
 
-## Before Pushing Any Branch
+## MANDATORY: Before Pushing ANY Code
 
-Before running `git push`:
+You **MUST** run the following checks before pushing **ANY** code changes to the repository. No exceptions. Do not push and rely on CI to catch errors.
 
-1. Run `cargo fmt --all` — fix any formatting issues before committing.
+1. Run `cargo fmt --all` — fix all formatting issues.
 2. Run `cargo clippy --all-targets --all-features -- -D warnings` — fix all warnings.
 3. Run `cargo test --all-targets --all-features` — ensure all tests pass.
 4. If Docker is available:
    - Run `docker compose up -d` to ensure the stack is running.
-   - Run `docker compose up smoke-test --abort-on-container-exit` — all checks must pass.
+   - Run `docker compose up smoke-test --abort-on-container-exit` — all checks MUST pass.
 
-If any check fails, fix it before pushing. Do not push and rely on CI to catch it.
+If any check fails, you **MUST** fix it before pushing.
 
 ## CI and Scripts
 
