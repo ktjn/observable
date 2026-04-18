@@ -63,10 +63,10 @@ services:
       - /bin/bash
       - -c
       - |
-        clickhouse-client --host clickhouse --query "CREATE DATABASE IF NOT EXISTS observable"
+        clickhouse-client --host clickhouse --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} --query "CREATE DATABASE IF NOT EXISTS observable"
         for f in /migrations/clickhouse/*.sql; do
           echo "Applying ClickHouse migration: $$f"
-          clickhouse-client --host clickhouse --multiquery < "$$f"
+          clickhouse-client --host clickhouse --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} --multiquery < "$$f"
         done
     volumes: ["./migrations:/migrations:ro"]
     depends_on:
