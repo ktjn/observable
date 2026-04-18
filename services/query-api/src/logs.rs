@@ -29,6 +29,27 @@ pub async fn search_logs(
 ) -> Result<Json<LogListResponse>, StatusCode> {
     let limit = params.limit.unwrap_or(50).min(500);
 
+    // Count total matching logs.
+    let mut count_sql = "SELECT count() FROM logs WHERE tenant_id = ?".to_string();
+    if params.service.is_some() {
+        count_sql.push_str(" AND service_name = ?");
+    }
+    if params.severity.is_some() {
+        count_sql.push_str(" AND severity_number >= ?");
+    }
+    let mut count_query = state.ch.query(&count_sql).bind(ctx.tenant_id);
+    if let Some(service) = &params.service {
+        count_query = count_query.bind(service);
+    }
+    if let Some(severity) = params.severity {
+        count_query = count_query.bind(severity);
+    }
+    let total: u64 = count_query.fetch_one().await.map_err(|e| {
+        tracing::error!("ClickHouse count error: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Fetch logs.
     let mut query = "SELECT ?fields FROM logs WHERE tenant_id = ?".to_string();
     if params.service.is_some() {
         query.push_str(" AND service_name = ?");
@@ -59,8 +80,6 @@ pub async fn search_logs(
     })? {
         logs.push(LogRecord::from(row));
     }
-
-    let total = logs.len() as u64;
 
     Ok(Json(LogListResponse { logs, total }))
 }

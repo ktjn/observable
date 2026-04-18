@@ -75,37 +75,47 @@ pub async fn search_traces(
     Query(params): Query<SearchParams>,
 ) -> Result<Json<TraceListResponse>, StatusCode> {
     let limit = params.limit.unwrap_or(50).min(500) as u64;
-    // Fetch more rows than limit to ensure enough distinct traces after de-duplication.
-    let fetch = limit * 10;
 
-    let sql_base = format!("SELECT {SELECT_COLS} FROM spans WHERE tenant_id = ?");
-    let rows: Vec<SpanRow> = if let Some(ref svc) = params.service {
-        let sql =
-            format!("{sql_base} AND service_name = ? ORDER BY start_time_unix_nano DESC LIMIT ?");
-        state
-            .ch
-            .query(&sql)
-            .bind(ctx.tenant_id)
-            .bind(svc.as_str())
-            .bind(fetch)
-            .fetch_all()
-            .await
+    // First, count total distinct traces.
+    let count_sql = if params.service.is_some() {
+        "SELECT count(DISTINCT trace_id) FROM spans WHERE tenant_id = ? AND service_name = ?"
     } else {
-        let sql = format!("{sql_base} ORDER BY start_time_unix_nano DESC LIMIT ?");
-        state
-            .ch
-            .query(&sql)
-            .bind(ctx.tenant_id)
-            .bind(fetch)
-            .fetch_all()
-            .await
+        "SELECT count(DISTINCT trace_id) FROM spans WHERE tenant_id = ?"
+    };
+    let mut count_query = state.ch.query(count_sql).bind(ctx.tenant_id);
+    if let Some(ref svc) = params.service {
+        count_query = count_query.bind(svc.as_str());
     }
-    .map_err(|e| {
-        tracing::error!(error = ?e, "ClickHouse query error");
+    let total: u64 = count_query.fetch_one().await.map_err(|e| {
+        tracing::error!(error = ?e, "ClickHouse total count error");
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // Group by trace_id; keep first (chronologically latest start) span per trace.
+    // Then, fetch the newest span for each of the newest N traces.
+    let subquery = if params.service.is_some() {
+        "(SELECT tenant_id, trace_id, max(start_time_unix_nano) FROM spans WHERE tenant_id = ? AND service_name = ? GROUP BY tenant_id, trace_id ORDER BY max(start_time_unix_nano) DESC LIMIT ?)"
+    } else {
+        "(SELECT tenant_id, trace_id, max(start_time_unix_nano) FROM spans WHERE tenant_id = ? GROUP BY tenant_id, trace_id ORDER BY max(start_time_unix_nano) DESC LIMIT ?)"
+    };
+
+    let sql = format!(
+        "SELECT {SELECT_COLS} FROM spans \
+         WHERE (tenant_id, trace_id, start_time_unix_nano) IN {subquery} \
+         ORDER BY start_time_unix_nano DESC"
+    );
+
+    let mut query = state.ch.query(&sql).bind(ctx.tenant_id);
+    if let Some(ref svc) = params.service {
+        query = query.bind(svc.as_str());
+    }
+    query = query.bind(limit);
+
+    let rows: Vec<SpanRow> = query.fetch_all().await.map_err(|e| {
+        tracing::error!(error = ?e, "ClickHouse search traces error");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Grouping by trace_id to handle potential (though rare) duplicate timestamps.
     let mut seen: HashSet<String> = HashSet::new();
     let mut traces: Vec<TraceResponse> = Vec::new();
     for row in rows {
@@ -115,13 +125,9 @@ pub async fn search_traces(
                 trace_id,
                 spans: vec![Span::from(row)],
             });
-            if traces.len() >= limit as usize {
-                break;
-            }
         }
     }
 
-    let total = traces.len() as u64;
     Ok(Json(TraceListResponse { traces, total }))
 }
 

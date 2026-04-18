@@ -57,7 +57,7 @@ Task 1 (scaffold)
 
 ---
 
-## Task 1: Monorepo Scaffold
+## Task 1: Monorepo Scaffold [DONE]
 
 **Files:**
 - Create: `Cargo.toml` (workspace root)
@@ -254,7 +254,7 @@ Task 1 (scaffold)
 
 ---
 
-## Task 2: Docker Compose + Local Dev Tooling
+## Task 2: Docker Compose + Local Dev Tooling [DONE]
 
 > **Can run in parallel with Tasks 3–6.**
 
@@ -425,7 +425,7 @@ Task 1 (scaffold)
 
 ---
 
-## Task 3: Domain Types Library
+## Task 3: Domain Types Library [DONE]
 
 > **Parallel with Tasks 2, 4, 5, 6.**
 
@@ -658,7 +658,7 @@ Task 1 (scaffold)
 
 ---
 
-## Task 4: ClickHouse Migrations
+## Task 4: ClickHouse Migrations [DONE]
 
 > **Parallel with Tasks 2, 3, 5, 6.**
 
@@ -814,7 +814,7 @@ Task 1 (scaffold)
 
 ---
 
-## Task 5: PostgreSQL Migrations
+## Task 5: PostgreSQL Migrations [DONE]
 
 > **Parallel with Tasks 2, 3, 4, 6.**
 
@@ -902,7 +902,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 
 ---
 
-## Task 6: OpenAPI Contracts
+## Task 6: OpenAPI Contracts [DONE]
 
 > **Parallel with Tasks 2–5.**
 
@@ -1100,7 +1100,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 
 ---
 
-## Task 7: Auth Service — API Key Validation
+## Task 7: Auth Service — API Key Validation [DONE]
 
 > **Parallel with Tasks 8 and 9. Depends on Tasks 3 and 5.**
 
@@ -1277,7 +1277,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 
 ---
 
-## Task 8: Ingest Gateway Skeleton — OTLP/HTTP Trace Ingest
+## Task 8: Ingest Gateway Skeleton — OTLP/HTTP Trace Ingest [DONE]
 
 > **Parallel with Tasks 7 and 9. Depends on Tasks 3 and 6.**
 
@@ -1471,7 +1471,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 
 ---
 
-## Task 9: Query API Skeleton — Trace Lookup
+## Task 9: Query API Skeleton — Trace Lookup [DONE]
 
 > **Parallel with Tasks 7 and 8. Depends on Tasks 3 and 4.**
 
@@ -1634,7 +1634,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 
 ---
 
-## Task 10: Queue Producer in Ingest Gateway
+## Task 10: Queue Producer in Ingest Gateway [DONE]
 
 > **Sequential after Task 8.**
 
@@ -1808,7 +1808,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 
 ---
 
-## Task 11: Stream Processor — Consume and Normalise
+## Task 11: Stream Processor — Consume and Normalise [DONE]
 
 > **Sequential after Task 10.**
 
@@ -1978,7 +1978,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 
 ---
 
-## Task 12: Storage Writer — Batch Write Spans to ClickHouse
+## Task 12: Storage Writer — Batch Write Spans to ClickHouse [DONE]
 
 > **Sequential after Task 11.**
 
@@ -2194,7 +2194,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 
 ---
 
-## Task 13: API Gateway Middleware
+## Task 13: API Gateway Middleware [DONE]
 
 > **Parallel with Task 14. Depends on Task 7.**
 
@@ -2270,7 +2270,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 
 ---
 
-## Task 14: Frontend Scaffold
+## Task 14: Frontend Scaffold [DONE]
 
 > **Parallel with Task 13. Depends on Task 1.**
 
@@ -2484,7 +2484,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 
 ---
 
-## Task 15: Log Ingest + Storage
+## Task 15: Log Ingest + Storage [DONE]
 
 > **Sequential after Task 12.**
 
@@ -2613,7 +2613,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 
 ---
 
-## Task 16: Metrics Ingest + Storage
+## Task 16: Metrics Ingest + Storage [DONE]
 
 > **Sequential after Task 15.**
 
@@ -3090,3 +3090,31 @@ Each phase plan follows the same format as this document: parallel execution map
 - `SpanRow` defined in Task 12, maps from `domain::Span` defined in Task 3 ✓
 - `AppState` pattern consistent across all services ✓
 - `TraceResponse` / `TraceListResponse` defined in Task 9, consumed by frontend in Task 14 ✓
+
+---
+
+## Task 20: Query API MVP Refinement & Discovery APIs [DONE]
+
+> **Refine Phase 1 Query API to meet MVP quality gates.**
+
+**Files:**
+- Modify: `services/query-api/src/traces.rs` (fix ordering/counts)
+- Modify: `services/query-api/src/logs.rs` (fix ordering/counts)
+- Modify: `libs/domain/src/metric.rs` (fix serialization)
+- Modify: `services/query-api/src/main.rs` (discovery endpoints)
+
+- [x] **Step 1: Fix trace search ordering and total counts using subqueries**
+
+  Update `search_traces` in `services/query-api/src/traces.rs` to use a subquery for correctly ordering by the newest span in the trace and returning the accurate total count of matching traces.
+
+- [x] **Step 2: Fix metric point serialization for histogram fields**
+
+  Refactor `MetricPointRow` in `libs/domain/src/metric.rs` to use `Option<Vec<f64>>` for histogram buckets and explicit serialization that handles ClickHouse `Nullable(Array)` correctly.
+
+- [x] **Step 3: Add service and environment discovery endpoints to query-api**
+
+  Implement `GET /v1/services` and `GET /v1/environments` in `query-api` to allow the frontend to discover available services and environments from stored telemetry.
+
+- [x] **Step 4: Verify with smoke tests**
+
+  Run `cargo test` and updated `smoke_test.sh` to verify the refined behavior.

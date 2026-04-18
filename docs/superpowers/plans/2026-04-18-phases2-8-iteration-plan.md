@@ -92,9 +92,9 @@ Next smallest slice:
 **Goal:** Make the internal MVP safe to run continuously with tenant isolation, cost controls, release controls, and auditability.
 
 **Entry gate:**
-- Phase 1 exit gate passed
-- known query API correctness bugs are fixed or explicitly accepted as temporary debt
-- baseline ingest/query smoke tests are stable
+- [x] Phase 1 exit gate passed (2026-04-18)
+- [x] known query API correctness bugs are fixed or explicitly accepted as temporary debt (2026-04-18)
+- [x] baseline ingest/query smoke tests are stable (2026-04-18)
 
 **Exit gate:**
 - tenant isolation enforced and tested
