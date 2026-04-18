@@ -1,3 +1,4 @@
+mod audit;
 mod validate;
 
 use axum::{
@@ -30,24 +31,46 @@ async fn validate_handler(
     Json(req): Json<ValidateRequest>,
 ) -> Result<Json<ValidateResponse>, StatusCode> {
     let hash = validate::sha256_hex(&req.api_key);
+
     let row =
         sqlx::query("SELECT tenant_id, key_hash, revoked_at FROM api_keys WHERE key_hash = $1")
             .bind(&hash)
             .fetch_optional(&state.db)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-            .ok_or(StatusCode::UNAUTHORIZED)?;
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let Some(row) = row else {
+        audit::write(&state.db, &audit::AuditEntry::deny_not_found(hash)).await;
+        return Err(StatusCode::UNAUTHORIZED);
+    };
+
+    let tenant_id: Uuid = row
+        .try_get("tenant_id")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let revoked_at: Option<chrono::DateTime<chrono::Utc>> =
+        row.try_get("revoked_at").unwrap_or(None);
 
     let entry = validate::ApiKeyEntry {
-        tenant_id: row
-            .try_get("tenant_id")
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
-        key_hash: hash,
-        revoked_at: row.try_get("revoked_at").unwrap_or(None),
+        tenant_id,
+        key_hash: hash.clone(),
+        revoked_at,
     };
-    let tenant_id = validate::validate_key_against_entry(&req.api_key, &entry)
-        .map_err(|_| StatusCode::UNAUTHORIZED)?;
-    Ok(Json(ValidateResponse { tenant_id }))
+
+    match validate::validate_key_against_entry(&req.api_key, &entry) {
+        Ok(tid) => {
+            audit::write(&state.db, &audit::AuditEntry::allow(hash, tid)).await;
+            Ok(Json(ValidateResponse { tenant_id: tid }))
+        }
+        Err(_) => {
+            let reason = if entry.revoked_at.is_some() {
+                "revoked"
+            } else {
+                "hash_mismatch"
+            };
+            audit::write(&state.db, &audit::AuditEntry::deny(hash, tenant_id, reason)).await;
+            Err(StatusCode::UNAUTHORIZED)
+        }
+    }
 }
 
 #[tokio::main]
