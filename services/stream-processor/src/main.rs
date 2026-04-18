@@ -18,24 +18,37 @@ async fn main() -> anyhow::Result<()> {
         let http = http.clone();
         let writer_url = writer_url.clone();
         async move {
+            let tenant_id = env.tenant_id;
             match env.payload {
                 EnvelopePayload::Spans(spans) => {
-                    let normalised: Vec<_> =
-                        spans.into_iter().map(normalise::normalise_span).collect();
+                    let normalised: Vec<_> = spans
+                        .into_iter()
+                        .map(|s| normalise::normalise_span(s, tenant_id))
+                        .collect();
                     http.post(format!("{writer_url}/internal/spans"))
                         .json(&normalised)
                         .send()
                         .await?;
                 }
                 EnvelopePayload::Logs(logs) => {
-                    let normalised: Vec<_> =
-                        logs.into_iter().map(normalise::normalise_log).collect();
+                    let normalised: Vec<_> = logs
+                        .into_iter()
+                        .map(|l| normalise::normalise_log(l, tenant_id))
+                        .collect();
                     http.post(format!("{writer_url}/internal/logs"))
                         .json(&normalised)
                         .send()
                         .await?;
                 }
                 EnvelopePayload::Metrics { series, points } => {
+                    let series: Vec<_> = series
+                        .into_iter()
+                        .map(|s| normalise::normalise_metric_series(s, tenant_id))
+                        .collect();
+                    let points: Vec<_> = points
+                        .into_iter()
+                        .map(|p| normalise::normalise_metric_point(p, tenant_id))
+                        .collect();
                     http.post(format!("{writer_url}/internal/metrics"))
                         .json(&serde_json::json!({ "series": series, "points": points }))
                         .send()

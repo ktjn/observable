@@ -38,4 +38,26 @@ mod tests {
         let row = MetricSeriesRow::from(series);
         assert_eq!(row.metric_type, "histogram");
     }
+
+    #[test]
+    fn metric_series_row_preserves_tenant_id() {
+        let tenant_id = Uuid::new_v4();
+        let series = MetricSeries {
+            tenant_id,
+            ..Default::default()
+        };
+        let row = MetricSeriesRow::from(series);
+        assert_eq!(row.tenant_id, tenant_id);
+    }
+
+    #[test]
+    fn metric_point_row_preserves_tenant_id() {
+        let tenant_id = Uuid::new_v4();
+        let point = MetricPoint {
+            tenant_id,
+            ..Default::default()
+        };
+        let row = MetricPointRow::from(point);
+        assert_eq!(row.tenant_id, tenant_id);
+    }
 }
