@@ -184,11 +184,13 @@
   **Quick start**
 
   ```bash
-  make dev                       # start Docker Compose dependency stack
-  bash scripts/migrate.sh        # apply schema migrations
-  bash scripts/start-services.sh # build and start Rust services in Docker Compose
+  make dev                       # start Docker Compose stack (including services and migrations)
   npm run dev                    # run the React frontend (from apps/frontend)
   ```
+
+  For advanced control, individual steps are available:
+  - `bash scripts/migrate.sh` — explicitly run ClickHouse/Postgres setup and migrations.
+  - `bash scripts/start-services.sh` — explicitly start Rust services.
 
   **Dependency services**
 
@@ -217,12 +219,13 @@
 
   **Schema migrations**
 
-  - In local mode, run `bash scripts/migrate.sh` after starting the Compose dependency stack and before starting the Rust service containers.
+  - In local mode, migrations run automatically via `docker-compose.yml` setup containers when the stack starts.
+  - For manual execution, run `bash scripts/migrate.sh` after starting the Compose dependency stack.
   - In CI and production, migrations are explicit pipeline steps and do not run automatically on service startup.
 
   **Rules**
 
-  - `docker compose up` must start cleanly from scratch with no manual seed steps beyond those automated in `make dev`, `scripts/migrate.sh`, and `scripts/start-services.sh`.
+  - `docker compose up` must start cleanly from scratch with no manual seed steps. Setup and migrations are automated via `clickhouse-setup`, `postgres-setup`, and `redpanda-setup` containers.
   - Do not bake credentials into `docker-compose.yml`; read all values from environment variables or `.env.local`.
   - Local ports must not conflict across services: ClickHouse 8123/9000, Redpanda 9092/9644, Postgres 5432, OpenFGA 8080, auth-service 4318, ingest-gateway 4317, storage-writer 4320, query-api 8090.
   - `make dev` must be documented in the repo root README as the single starting point for new contributors.

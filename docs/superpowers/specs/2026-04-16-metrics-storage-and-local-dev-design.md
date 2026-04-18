@@ -42,11 +42,13 @@ Use ClickHouse for metrics in Phase 1 and until a concrete performance or cardin
 
 **Developer workflow:**
 ```
-make dev                       # starts Docker Compose dependency stack
-bash scripts/migrate.sh        # applies schema migrations
-bash scripts/start-services.sh # builds and starts Rust services in Docker Compose
+make dev                       # starts Docker Compose stack (including services and migrations)
 npm run dev                    # run the React frontend
 ```
+
+For advanced control, individual steps are available:
+- `bash scripts/migrate.sh` — explicitly run ClickHouse/Postgres setup and migrations.
+- `bash scripts/start-services.sh` — explicitly start Rust services.
 
 **Docker Compose dependency services:**
 
@@ -70,8 +72,8 @@ npm run dev                    # run the React frontend
 **Rules:**
 - Local env uses fixture API keys and seeded tenant data — no production secrets needed.
 - Each Rust service reads config from environment variables supplied by Docker Compose, with local defaults in `.env.local` at the repo root (gitignored; `.env.local.example` is committed as a template).
-- ClickHouse and Postgres schema migrations run through `bash scripts/migrate.sh` after the dependency stack is up and before Rust service containers start.
-- The Compose stack must start cleanly from scratch with no manual seed steps except those automated by `make dev`, `scripts/migrate.sh`, and `scripts/start-services.sh`.
+- ClickHouse and Postgres schema migrations are automated via `docker-compose.yml` setup containers and can be explicitly triggered via `bash scripts/migrate.sh`.
+- The Compose stack must start cleanly from scratch with no manual seed steps.
 
 **Spec changes required:**
 - `spec/12-deployment.md`: Add `§19.6 Local Development` section documenting the above.

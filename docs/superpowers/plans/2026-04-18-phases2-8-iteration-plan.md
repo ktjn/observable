@@ -104,8 +104,8 @@ Next smallest slice:
 ### Priority slice order
 
 - [x] **P2-S0: Reconcile plan and spec state before Phase 2 implementation**
-  - Outcome: Phase 1 closure, resolved query API bug state, and Phase 2 next-slice guidance agree across the plan and API spec
-  - Checkpoint: can an agent start Phase 2 without resolving contradictory planning state first? Answer: yes, after this docs-only reconciliation PR is merged.
+  - Outcome: Phase 1 closure, resolved query API bug state, and Phase 2 next-slice guidance agree across the plan and API spec. Standardized on a unified Docker Compose workflow and updated ADR-019 and referencing specs to reflect the simplified setup.
+  - Checkpoint: can an agent start Phase 2 without resolving contradictory planning state first? Answer: yes, after the initial reconciliation and subsequent synchronization of deployment scripts and specs.
 
 - [x] **P2-S1a: Enforce tenant context contract for trace query**
   - Outcome: trace query code cannot execute without tenant context, and tenant A cannot read tenant B traces

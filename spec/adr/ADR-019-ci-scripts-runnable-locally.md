@@ -18,10 +18,12 @@ GitHub Actions workflows have a tendency to accumulate inline shell logic — mu
 
 All non-trivial logic in GitHub Actions `run:` steps must live in a versioned shell script under `scripts/`. Workflow YAML steps invoke those scripts with a single line (`bash scripts/foo.sh`). Steps that are truly one-liners (`cargo build --release`, `npm ci`) may remain inline.
 
+To ensure consistency and ease of use, these scripts should delegate to **Docker Compose** whenever possible. This centralizes initialization logic, health checks, and service dependencies in `docker-compose.yml`, while keeping the scripts as stable entry points for both developers and CI.
+
 Concretely:
-- `scripts/migrate.sh` — runs all ClickHouse and PostgreSQL migrations via `docker compose exec`, requiring no host-installed database clients.
-- `scripts/start-services.sh` — builds and starts the Rust service containers through the Docker Compose `services` profile.
-- `tests/e2e/smoke_test.sh` — end-to-end pipeline validation (already in place).
+- `scripts/migrate.sh` — thin wrapper that runs `docker compose up clickhouse-setup postgres-setup redpanda-setup`.
+- `scripts/start-services.sh` — thin wrapper that runs `docker compose up -d <services>`.
+- `tests/e2e/smoke_test.sh` — end-to-end pipeline validation (can be run via `docker compose up smoke-test`).
 
 The `Makefile` `migrate` target calls `scripts/migrate.sh` so that `make dev && make migrate` remains the local dev workflow.
 
@@ -37,7 +39,7 @@ The `Makefile` `migrate` target calls `scripts/migrate.sh` so that `make dev && 
 - Script authors must consider both local (`.env.local` may be present) and CI (Docker-only, no extra CLI tools) execution contexts.
 
 **Constrained:**
-- Host-installed CLI tools (`clickhouse-client`, `sqlx-cli`) must not be assumed present on CI runners. Migrations and other database operations must go through `docker compose exec`.
+- Host-installed CLI tools (`clickhouse-client`, `sqlx-cli`) must not be assumed present on CI runners. Migrations and other database operations must go through Docker-based setup containers or `docker compose exec`.
 
 ## Alternatives Considered
 
