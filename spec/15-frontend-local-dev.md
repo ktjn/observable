@@ -149,16 +149,10 @@ cd apps/frontend
 npm install
 cd ../..
 
-# 2. Start the Docker Compose dependency stack (ClickHouse, Redpanda, Postgres, OpenFGA).
+# 2. Start the backend stack and dependencies.
 make dev
 
-# 3. Apply schema migrations.
-bash scripts/migrate.sh
-
-# 4. Build and start the Rust services in Docker Compose.
-bash scripts/start-services.sh
-
-# 5. Start the Vite dev server with HMR.
+# 3. Start the Vite dev server with HMR.
 cd apps/frontend
 npm run dev
 ```
