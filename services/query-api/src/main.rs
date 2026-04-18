@@ -1,3 +1,4 @@
+mod discovery;
 mod logs;
 mod metrics;
 mod middleware;
@@ -28,6 +29,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/logs", get(logs::search_logs))
         .route("/v1/metrics", get(metrics::list_metrics))
         .route("/v1/metrics/:series_id", get(metrics::get_metric_points))
+        .route("/v1/services", get(discovery::list_services))
+        .route("/v1/environments", get(discovery::list_environments))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .with_state(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;

@@ -82,8 +82,8 @@ pub struct MetricPointRow {
     pub value_int: Option<i64>,
     pub histogram_count: Option<u64>,
     pub histogram_sum: Option<f64>,
-    pub histogram_bucket_counts: Vec<u64>,
-    pub histogram_explicit_bounds: Vec<f64>,
+    pub histogram_bucket_counts: Option<Vec<u64>>,
+    pub histogram_explicit_bounds: Option<Vec<f64>>,
 }
 
 #[cfg(feature = "storage")]
@@ -160,8 +160,8 @@ impl From<MetricPoint> for MetricPointRow {
             value_int: p.value_int,
             histogram_count: p.histogram_count,
             histogram_sum: p.histogram_sum,
-            histogram_bucket_counts: p.histogram_bucket_counts.unwrap_or_default(),
-            histogram_explicit_bounds: p.histogram_explicit_bounds.unwrap_or_default(),
+            histogram_bucket_counts: p.histogram_bucket_counts,
+            histogram_explicit_bounds: p.histogram_explicit_bounds,
         }
     }
 }
@@ -180,8 +180,8 @@ impl From<MetricPointRow> for MetricPoint {
             value_int: row.value_int,
             histogram_count: row.histogram_count,
             histogram_sum: row.histogram_sum,
-            histogram_bucket_counts: Some(row.histogram_bucket_counts),
-            histogram_explicit_bounds: Some(row.histogram_explicit_bounds),
+            histogram_bucket_counts: row.histogram_bucket_counts,
+            histogram_explicit_bounds: row.histogram_explicit_bounds,
         }
     }
 }

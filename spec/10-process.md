@@ -338,8 +338,8 @@ Agents must not turn phase items directly into large implementation PRs. The fir
 4. Add durable buffering before expensive transforms.
 5. Implement validation, normalization, tenant routing, and idempotent write design.
 6. Store traces and logs in ClickHouse using the canonical domain model.
-7. Add basic metrics ingestion and storage using ClickHouse (Phase 1 decision; see `spec/03-storage.md §5.1` and `spec/adr/ADR-003-clickhouse-boundary.md`).
-8. Expose initial trace, log, metric, and configuration query APIs.
+7. Add basic metrics ingestion and storage using ClickHouse (DONE).
+8. Expose initial trace, log, metric, and configuration query APIs (DONE).
 9. Ship a simple React UI for trace search, log search, metric exploration, and one dashboard view.
 10. Emit platform telemetry from every service and publish internal health dashboards.
 11. Run internal dogfooding with synthetic and real service telemetry.
