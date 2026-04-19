@@ -19,7 +19,8 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS cacher
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
+# Cook with --all-targets to include dev-dependencies used by clippy and tests
+RUN cargo chef cook --release --all-targets --recipe-path recipe.json
 
 FROM cacher AS builder
 COPY . .
