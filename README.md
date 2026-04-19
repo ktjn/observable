@@ -20,8 +20,14 @@ Mandatory instructions for any AI agent interacting with this repository can be 
 The entire stack can be started with Docker Compose. This will build the services, run migrations, and start the system.
 
 ```bash
-# Start everything
+# Install frontend dependencies (once)
+npm install
+
+# Start backend services
 docker compose up -d
+
+# Start the frontend dev server
+npm run dev --workspace=apps/frontend
 
 # Run smoke tests
 docker compose up smoke-test --abort-on-container-exit
