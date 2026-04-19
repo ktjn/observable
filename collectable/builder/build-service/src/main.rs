@@ -2,6 +2,7 @@ mod definition;
 mod codegen;
 mod compiler;
 mod packaging;
+mod parse;
 mod api;
 
 use anyhow::Result;

@@ -10,6 +10,10 @@ export default defineConfig({
         target: process.env.VITE_BUILD_SERVICE_URL ?? 'http://localhost:8091',
         changeOrigin: true,
       },
+      '/api': {
+        target: process.env.VITE_BUILD_SERVICE_URL ?? 'http://localhost:8091',
+        changeOrigin: true,
+      },
     },
   },
 });

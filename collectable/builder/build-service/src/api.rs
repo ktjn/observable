@@ -1,5 +1,5 @@
 /// HTTP API routes for the build service.
-use crate::{codegen, compiler, definition::PipelineDefinition, packaging};
+use crate::{codegen, compiler, definition::PipelineDefinition, packaging, parse};
 use axum::{
     extract::Json,
     http::{header, StatusCode},
@@ -7,14 +7,47 @@ use axum::{
     routing::post,
     Router,
 };
-use serde::Deserialize;
-use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, path::PathBuf};
 use uuid::Uuid;
 
 #[derive(Deserialize)]
 struct BuildRequest {
     definition: PipelineDefinition,
     target: String,
+}
+
+// ── /api/parse ────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct ParseRequest {
+    /// Parser config (same shape as PipelineDefinition.parser).
+    parser: ParseParams,
+    /// Raw sample lines sent from the UI (max ~50).
+    lines: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct ParseParams {
+    #[serde(rename = "type")]
+    kind: String,
+    #[serde(flatten)]
+    params: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Serialize)]
+struct ParseResponse {
+    rows: Vec<HashMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+async fn parse_preview(Json(req): Json<ParseRequest>) -> Json<ParseResponse> {
+    let capped: Vec<String> = req.lines.into_iter().take(20).collect();
+    match parse::parse_lines(&req.parser.kind, &req.parser.params, &capped) {
+        Ok(rows) => Json(ParseResponse { rows, error: None }),
+        Err(e) => Json(ParseResponse { rows: vec![], error: Some(e) }),
+    }
 }
 
 async fn build(Json(req): Json<BuildRequest>) -> Response {
@@ -74,5 +107,7 @@ async fn build(Json(req): Json<BuildRequest>) -> Response {
 }
 
 pub fn router() -> Router {
-    Router::new().route("/build", post(build))
+    Router::new()
+        .route("/build", post(build))
+        .route("/api/parse", post(parse_preview))
 }
