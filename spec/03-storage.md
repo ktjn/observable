@@ -148,6 +148,38 @@ The Schema Registry is a control plane service that tracks and versions the sche
 - `POST /schemas/{signal_type}/attributes/{key}/index` — promote a schema-on-read attribute to schema-on-write (operator action)
 - `GET /schemas/versions` — schema version history
 
+#### 5.4.1 Semantic Annotations
+
+The Schema Registry tracks *structural* metadata — field names, types, cardinality hints. To enable
+reliable LLM-assisted query generation (see [spec/08 §13.1](08-ai-ml.md)), it must also carry
+*semantic* metadata: operator-authored annotations that describe the business meaning of each field
+or attribute key, independent of its OTel type.
+
+Semantic annotations are optional, operator-maintained overlays on top of schema entries. They do
+not affect query execution or indexing. They are exposed via the Schema Registry API and consumed
+by the NL query layer to ground generated queries.
+
+**Semantic annotation fields (per attribute key or metric name):**
+
+| Field | Type | Description |
+|---|---|---|
+| `display_name` | string | Human-readable label for use in UI and LLM narration (e.g. `"Checkout Revenue (EUR)"`) |
+| `business_description` | string | Free-text explanation of what this field represents in business terms |
+| `owner_team` | string | Team or contact responsible for this signal (e.g. `"payments-team"`) |
+| `interpretation_rule` | enum | How to interpret the direction of change: `higher_is_worse`, `higher_is_better`, `directional`, `contextual` |
+| `effective_sample_rate` | float | Approximate fraction of events captured (e.g. `0.05` for 5% tail sampling). Used by LLM to qualify count estimates. |
+| `known_derivations` | string[] | Named derived metrics or views computed from this field (e.g. `["p99_latency", "error_rate"]`) |
+| `not_for_billing` | bool | Explicit marker that this field is approximate and must not be used for billing or contractual SLA evidence |
+
+**API additions for semantic annotations:**
+- `GET /schemas/{signal_type}/attributes/{key}/annotations` — get semantic annotations for a field
+- `PUT /schemas/{signal_type}/attributes/{key}/annotations` — create or replace annotations (operator role required)
+- `PATCH /schemas/{signal_type}/attributes/{key}/annotations` — partial update
+- `DELETE /schemas/{signal_type}/attributes/{key}/annotations` — remove annotations
+
+**Storage:** Semantic annotations are stored in PostgreSQL alongside the Schema Registry entries.
+They are versioned with the same monotonic version counter as structural schema changes.
+
 ---
 
 ## 6. Query Engine and Compute
