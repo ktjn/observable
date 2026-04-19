@@ -159,9 +159,9 @@ Next smallest slice:
   - Outcome: one deployable environment can promote progressively and revert safely. A canary Deployment + Service template (`charts/observable/templates/ingest-gateway-canary.yaml`) deploys a candidate `ingest-gateway` image tag alongside the stable release, isolated behind a dedicated `ingest-gateway-canary` Service so production traffic is never diverted. `scripts/canary-promote.sh` runs three automated gates (health, smoke ingest, zero 5xx in pod logs after a configurable soak) and either promotes stable (upgrades global image tag, removes canary) or reverts (removes canary, stable unchanged). `spec/12-deployment.md §19.8` documents lifecycle, rollback contract, and the relationship to Argo Rollouts.
   - Checkpoint: do automated analysis gates have enough telemetry to make rollback decisions? Answer: yes at this stage. Gate 1 (health) and Gate 2 (smoke ingest) provide binary liveness and acceptance signal; Gate 3 (5xx count in pod logs) provides an error-rate signal sufficient to catch regression during soak. The gates are conservative (zero-5xx tolerance, HTTP 200 required) and can be refined without changing the promotion contract. Full metric-based SLO burn-rate gates (using the alert-evaluator path from P2-S7a) are the next evolution when Argo Rollouts is provisioned.
 
-- [ ] **P2-S9a: Add perf smoke baseline for ingest and common query paths**
-  - Outcome: Phase 2 has measurable performance baselines instead of assumptions
-  - Checkpoint: are the numbers good enough to proceed to correlation features?
+- [x] **P2-S9a: Add perf smoke baseline for ingest and common query paths**
+  - Outcome: Phase 2 has measurable performance baselines instead of assumptions. `scripts/perf-smoke.sh` seeds one trace/log/metric, waits for the pipeline, then samples each ingest and query endpoint 20 times. It reports P50 and P95 per path and exits non-zero if any path exceeds its threshold (ingest P50 < 500 ms / P95 < 1000 ms; query P50 < 1000 ms / P95 < 3000 ms per spec/11-testing.md §18.3). A `perf-smoke` Docker Compose service runs the script against the live stack. The nightly CI workflow (`.github/workflows/nightly.yml`) runs `perf-smoke` after the existing smoke-test step. Thresholds are overridable via env vars.
+  - Checkpoint: are the numbers good enough to proceed to correlation features? Answer: yes. In a local Docker Compose environment with minimal synthetic data, all ingest paths complete well under 500 ms P50 (auth + Redpanda publish on a single machine) and all query paths complete well under 1000 ms P50 (ClickHouse hot cache with minimal data). The baseline script is the regression gate — any future change that pushes P50 or P95 over threshold will fail the nightly extended gate before reaching Phase 3 work.
 
 ### Phase 2 pause point
 
@@ -419,9 +419,14 @@ After this planning reconciliation, the next implementation slice should be:
 10. ~~P2-S7a: add one threshold alert evaluation path~~ (done)
 11. ~~P2-S8a: add Kubernetes manifest render and rollback skeleton~~ (done)
 12. ~~P2-S8b: add one canary promotion path~~ (done)
-13. **P2-S9a: add perf smoke baseline for ingest and common query paths**
+13. ~~P2-S9a: add perf smoke baseline for ingest and common query paths~~ (done)
 
-That sequence moves the project from "works" to "safe to keep running."
+**Phase 2 exit gate is now satisfied.** All Phase 2 slices (P2-S0 through P2-S9a) are complete. Before starting Phase 3, answer the Phase 2 pause-point questions:
+- Tenant safety under test: yes — P2-S1a through P2-S1d enforce and test cross-tenant isolation for all signal types.
+- Cost controls without hand-waving: yes — P2-S2a (rate limiting), P2-S3a (cardinality budget observation), P2-S4a (hot retention) are all in place.
+- Roll back a bad deploy without manual heroics: yes — P2-S8a (Helm rollback skeleton) and P2-S8b (canary promotion path) cover both runtime and schema rollback.
+
+**Next recommended slice: P3-S1 — Add trace-to-log correlation for logs with full trace context.**
 
 ---
 

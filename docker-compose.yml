@@ -220,6 +220,21 @@ services:
       query-api: { condition: service_healthy }
       stream-processor: { condition: service_started }
 
+  perf-smoke:
+    image: observable-services:local
+    build: { context: ., dockerfile: Dockerfile }
+    environment:
+      INGEST_URL: http://ingest-gateway:4317
+      QUERY_URL: http://query-api:8090
+      SAMPLE_COUNT: "20"
+    entrypoint: ["/bin/bash", "/app/scripts/perf-smoke.sh"]
+    volumes:
+      - .:/app:ro
+    depends_on:
+      ingest-gateway: { condition: service_healthy }
+      query-api: { condition: service_healthy }
+      stream-processor: { condition: service_started }
+
 volumes:
   clickhouse_data:
   redpanda_data:
