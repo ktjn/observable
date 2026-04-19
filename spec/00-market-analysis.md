@@ -144,6 +144,9 @@ As AI proliferates, regulated industries and mature SRE teams push back on black
 **Gap 5: Predictable cost at scale.**
 Every SaaS vendor has horror stories of unexpected cardinality bills. Observable's cardinality budgets enforced at ingest, combined with the tiered retention model, give operators deterministic cost control before data reaches storage.
 
+**Gap 6: Operational business analytics without a data platform.**
+Traditional BI data platforms deliver certified answers — but at high cost and slow cadence. In practice, most operational and tactical business questions are never answered because the cost to model and pipeline the data exceeds the decision value. Observable's telemetry store, combined with an LLM natural language query layer, delivers approximate answers in seconds at near-zero marginal cost. This is not a replacement for financial reconciliation or regulatory reporting, but for the majority of operational questions — *"which customers are affected by this degradation?", "did this deploy hurt conversion?", "which tenants are consuming the most resources?"* — an approximate answer at decision time has higher expected value than a precise answer after the window has closed. Cross-signal corroboration (traces + metrics + logs + events converging on the same conclusion) further raises confidence without requiring a curated data warehouse. See [ADR-021](adr/ADR-021-nl-query-layer.md) for the architectural decision.
+
 ---
 
 ## 3. Tier 2 Gaps — Specced but No Delivery Slice

@@ -28,3 +28,4 @@ Architecture Decision Records (ADRs) capture significant technology and design c
 | [ADR-018](ADR-018-rum-browser-mobile-ingestion.md) | RUM / Browser and Mobile Ingestion | Accepted | Browser/mobile SDKs send to a dedicated RUM endpoint; not the same path as backend OTLP |
 | [ADR-019](ADR-019-ci-scripts-runnable-locally.md) | CI Scripts Runnable Locally | Accepted | All non-trivial CI logic lives in `scripts/`; migrations use `docker compose exec` (no host DB clients) |
 | [ADR-020](ADR-020-helm-chart-strategy.md) | Helm Chart Strategy | Accepted | Helm v3 with library + umbrella chart pattern; kind for local k8s integration testing |
+| [ADR-021](ADR-021-nl-query-layer.md) | LLM Natural Language Query Layer | Proposed | LLM advisory query layer on top of existing query substrate; cross-signal triangulation; provenance required |
