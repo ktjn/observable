@@ -52,6 +52,13 @@ services:
     enabled: true
     port: 4317
     replicas: 1
+    # Canary deployment settings.  Set canary.enabled=true and canary.tag to
+    # a new image tag to deploy a second ingest-gateway alongside stable for
+    # analysis-gated promotion (see scripts/canary-promote.sh).
+    canary:
+      enabled: false
+      tag: ""      # defaults to global.image.tag when blank
+      replicas: 1
     resources:
       requests:
         cpu: 200m
