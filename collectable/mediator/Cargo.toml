@@ -1,0 +1,38 @@
+[workspace]
+resolver = "2"
+members = [".", "build-service"]
+
+[package]
+name = "collectable-mediator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio        = { version = "1", features = ["full"] }
+axum         = { version = "0.7", features = ["json"] }
+serde        = { version = "1", features = ["derive"] }
+serde_json   = "1"
+anyhow       = "1"
+tracing      = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+config       = "0.14"
+signal-hook  = "0.3"
+syslog-loose = "0.21"
+grok         = "2"
+regex        = "1"
+csv          = "1"
+rumqttc      = "0.24"
+rdkafka      = { version = "0.36", features = ["tokio", "cmake-build"] }
+opentelemetry        = { version = "0.26", features = ["logs"] }
+opentelemetry-sdk    = { version = "0.26", features = ["rt-tokio", "logs"] }
+opentelemetry-otlp   = { version = "0.26", features = ["http-proto", "logs", "grpc-tonic"] }
+opentelemetry-semantic-conventions = "0.26"
+tonic        = "0.11"
+chrono       = { version = "0.4", features = ["serde"] }
+
+[profile.release]
+opt-level     = "z"
+lto           = true
+codegen-units = 1
+strip         = true
+panic         = "abort"

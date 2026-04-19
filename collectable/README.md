@@ -1,0 +1,92 @@
+# Collectable
+
+An independent compiled-mediator tool for forwarding logs and metrics from legacy
+sources to any OTLP-compatible backend.
+
+## What it is
+
+Collectable solves a specific problem: legacy sources (syslog, log4j2, MQTT topics,
+HTTP webhooks, Kafka topics, file tails) cannot emit OTLP natively. Configuring
+Fluent Bit or the OTel Collector to do the translation correctly — especially the
+OTLP field mapping — is notoriously difficult and hard to debug.
+
+Collectable takes a different approach:
+
+1. You define your pipeline (transport → parser → OTLP mapping) in a **web UI**
+   with live preview against your own sample log lines.
+2. The builder **generates and compiles a Rust binary** from your definition.
+3. You download a **deployment package** containing the binary, its source code,
+   and ready-to-use systemd/init.d/Docker deployment artifacts.
+
+The resulting binary is static, small (~5–15 MB), and has no external dependencies.
+It emits OTLP to any OTLP endpoint — Observable, Grafana, Jaeger, or your own backend.
+
+## Quick start
+
+```bash
+# Start the builder UI and build service
+docker compose up
+
+# Open the parser development UI
+open http://localhost:8090
+```
+
+No Observable account required. No cloud connectivity required.
+
+## Repository layout
+
+```
+collectable/
+  docker-compose.yml          # Runs builder UI + build service
+  builder/
+    ui/                       # React + Vite + TypeScript parser development UI
+    build-service/            # Rust HTTP service: definition → codegen → compile → package
+  mediator/                   # Mediator runtime library (standalone Rust workspace)
+    src/
+      transport/              # syslog, http_webhook, mqtt, kafka, file_tail, stdin
+      parser/                 # json, grok, key_value, multiline, log4j2, regex, csv
+      otlp/                   # OTLP emitter and field mapping helpers
+      config.rs               # Env var + config file unified config
+      signals.rs              # SIGTERM/SIGINT graceful shutdown
+    templates/                # Code generation templates (systemd, init.d, Dockerfile, etc.)
+```
+
+## Supported transports
+
+| ID | Protocol |
+|---|---|
+| `syslog_tcp` | Syslog over TCP (RFC3164 / RFC5424) |
+| `syslog_udp` | Syslog over UDP |
+| `http_webhook` | HTTPS POST receiver (Firehose, Heroku, Splunk HEC, generic) |
+| `mqtt` | MQTT topic subscriber (3.1.1 and 5.0) |
+| `kafka` | Kafka consumer group |
+| `file_tail` | File tail with rotation detection |
+| `stdin` | Standard input |
+
+## Supported parsers
+
+| ID | Format |
+|---|---|
+| `json` | JSON objects (one per line or framed) |
+| `grok` | Grok patterns (Elastic-compatible) |
+| `regex` | Named capture groups |
+| `key_value` | `key=value` pairs |
+| `multiline` | Multiline assembler (start-pattern triggered) |
+| `log4j2_pattern` | Log4j2 PatternLayout string |
+| `log4j2_json` | Log4j2 JSONLayout output |
+| `csv` | Delimiter-separated values |
+| `passthrough` | Raw string as body |
+
+Any transport can be combined with any parser.
+
+## Compiled output targets
+
+`x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`,
+`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,
+`x86_64-pc-windows-gnu`, `x86_64-apple-darwin`, `aarch64-apple-darwin`
+
+## Specification
+
+See [spec/16-collectable.md](../spec/16-collectable.md) for the full specification.
+See [spec/adr/ADR-022-collectable-mediator.md](../spec/adr/ADR-022-collectable-mediator.md)
+for the architectural decision record.

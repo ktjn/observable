@@ -1,0 +1,17 @@
+[Unit]
+Description={{name}} — Collectable OTLP mediator
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/{{name}}
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier={{name}}
+EnvironmentFile=-/etc/collectable/{{name}}.env
+PIDFile={{pid_file}}
+
+[Install]
+WantedBy=multi-user.target

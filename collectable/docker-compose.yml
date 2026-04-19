@@ -1,0 +1,23 @@
+services:
+  ui:
+    build: ./builder/ui
+    ports:
+      - "8090:8090"
+    environment:
+      - VITE_BUILD_SERVICE_URL=http://build-service:8091
+    depends_on:
+      - build-service
+
+  build-service:
+    build: ./builder/build-service
+    ports:
+      - "8091:8091"
+    volumes:
+      - build-cache:/usr/local/cargo/registry
+      - target-cache:/build/target
+    environment:
+      - RUST_LOG=info
+
+volumes:
+  build-cache:
+  target-cache:
