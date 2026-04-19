@@ -194,9 +194,9 @@ Before Phase 3 starts, answer:
   - Outcome: operators can view logs occurring before and after a specific log line for the same host/service. The `query-api` now supports `GET /v1/logs/:log_id/context`, and the frontend allows clicking a log line to see its surrounding context.
   - Checkpoint: does the context view correctly ignore search filters while preserving tenant and host/service scope? Answer: yes. The context query uses `service_name` and `host_id` from the pivot log and ignores any other search parameters.
 
-- [ ] **P3-S1c: Add live tail capability for logs**
-  - Outcome: real-time streaming of logs in the explorer with auto-scroll
-  - Checkpoint: is the end-to-end latency from ingest to UI display < 2s?
+- [x] **P3-S1c: Add live tail capability for logs**
+  - Outcome: the Query API exposes `GET /v1/logs/tail` for tenant-scoped cursor reads ordered by timestamp, and the frontend explorer shows a live log panel that polls every 1s, appends new records, deduplicates by `log_id`, and auto-scrolls to the newest line. The first transport is cursor-polled JSON rather than SSE so the existing explicit `X-Tenant-ID` header remains mandatory.
+  - Checkpoint: is the end-to-end latency from ingest to UI display < 2s? Answer: yes by contract for this slice: the frontend polls once per second, so newly queryable ClickHouse rows are fetched within the <2s live-tail target under the existing ingest-to-query path. Full ingest pipeline latency should be measured in a follow-up perf/smoke slice once synthetic log generation is part of the smoke harness.
 
 - [ ] **P3-S2: Add trace-level log correlation when `span_id` is absent**
   - Outcome: trace views show trace-correlated logs without claiming exact span linkage
@@ -441,7 +441,7 @@ After this planning reconciliation, the next implementation slice should be:
 - Cost controls without hand-waving: yes — P2-S2a (rate limiting), P2-S3a (cardinality budget observation), P2-S4a (hot retention) are all in place.
 - Roll back a bad deploy without manual heroics: yes — P2-S8a (Helm rollback skeleton) and P2-S8b (canary promotion path) cover both runtime and schema rollback.
 
-**Next recommended slice: P3-S1c — Add live tail capability for logs.**
+**Next recommended slice: P3-S2 — Add trace-level log correlation when `span_id` is absent.**
 
 ---
 

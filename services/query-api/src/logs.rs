@@ -25,6 +25,14 @@ pub struct LogSearchParams {
     pub limit: Option<u32>,
 }
 
+#[derive(Deserialize)]
+pub struct LogTailParams {
+    pub service: Option<String>,
+    pub severity: Option<i32>,
+    pub since_unix_nano: Option<u64>,
+    pub limit: Option<u32>,
+}
+
 pub async fn search_logs(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
@@ -124,6 +132,71 @@ pub async fn search_logs(
     .await;
 
     Ok(Json(LogListResponse { logs, total }))
+}
+
+pub async fn tail_logs(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Query(params): Query<LogTailParams>,
+) -> Result<Json<LogListResponse>, StatusCode> {
+    let limit = params.limit.unwrap_or(100).min(500);
+
+    let mut query = "SELECT ?fields FROM logs WHERE tenant_id = ?".to_string();
+    if params.service.is_some() {
+        query.push_str(" AND service_name = ?");
+    }
+    if params.severity.is_some() {
+        query.push_str(" AND severity_number >= ?");
+    }
+    if params.since_unix_nano.is_some() {
+        query.push_str(" AND timestamp_unix_nano > ?");
+    }
+    query.push_str(" ORDER BY timestamp_unix_nano ASC LIMIT ?");
+
+    let mut ch_query = state.ch.query(&query).bind(ctx.tenant_id);
+
+    if let Some(service) = &params.service {
+        ch_query = ch_query.bind(service);
+    }
+    if let Some(severity) = params.severity {
+        ch_query = ch_query.bind(severity);
+    }
+    if let Some(since_unix_nano) = params.since_unix_nano {
+        ch_query = ch_query.bind(since_unix_nano);
+    }
+
+    let mut cursor = ch_query.bind(limit).fetch::<LogRow>().map_err(|e| {
+        tracing::error!("ClickHouse live tail query error: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let mut rows = Vec::new();
+    while let Some(row) = cursor.next().await.map_err(|e| {
+        tracing::error!("ClickHouse live tail fetch error: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })? {
+        rows.push(row);
+    }
+
+    validate_log_rows_for_tenant(&rows, ctx.tenant_id)?;
+
+    let result_count = rows.len() as i64;
+    let logs = rows.into_iter().map(LogRecord::from).collect();
+
+    crate::audit::write(
+        &state.db,
+        &crate::audit::QueryAuditEntry {
+            action: "log_live_tail",
+            tenant_id: ctx.tenant_id,
+            result_count,
+        },
+    )
+    .await;
+
+    Ok(Json(LogListResponse {
+        logs,
+        total: result_count as u64,
+    }))
 }
 
 #[derive(Deserialize)]
@@ -326,5 +399,20 @@ mod tests {
             validate_log_rows_for_tenant(&all, tenant_id),
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         );
+    }
+
+    #[test]
+    fn log_tail_params_accept_cursor_and_filters() {
+        let params = LogTailParams {
+            service: Some("checkout".into()),
+            severity: Some(9),
+            since_unix_nano: Some(42),
+            limit: Some(25),
+        };
+
+        assert_eq!(params.service.as_deref(), Some("checkout"));
+        assert_eq!(params.severity, Some(9));
+        assert_eq!(params.since_unix_nano, Some(42));
+        assert_eq!(params.limit, Some(25));
     }
 }

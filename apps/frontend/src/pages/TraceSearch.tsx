@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { searchTraces } from "../api/traces";
+import { LogLiveTail } from "../components/LogLiveTail";
 
 export default function TraceSearch() {
   const [service, setService] = useState("");
@@ -47,6 +48,7 @@ export default function TraceSearch() {
           })}
         </tbody>
       </table>
+      <LogLiveTail />
     </div>
   );
 }

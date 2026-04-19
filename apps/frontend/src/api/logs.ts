@@ -38,6 +38,27 @@ export async function searchLogs(params: {
   return res.json();
 }
 
+export async function tailLogs(params: {
+  service?: string;
+  severity?: number;
+  since_unix_nano?: string;
+  limit?: number;
+}): Promise<LogListResponse> {
+  const url = new URL("/v1/logs/tail", window.location.origin);
+  if (params.service) url.searchParams.set("service", params.service);
+  if (params.severity !== undefined) {
+    url.searchParams.set("severity", String(params.severity));
+  }
+  if (params.since_unix_nano) {
+    url.searchParams.set("since_unix_nano", params.since_unix_nano);
+  }
+  if (params.limit) url.searchParams.set("limit", String(params.limit));
+
+  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  if (!res.ok) throw new Error(`Live tail failed: ${res.status}`);
+  return res.json();
+}
+
 export async function getLogContext(
   logId: string,
   params: { window?: number } = {}
