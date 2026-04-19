@@ -21,7 +21,7 @@ The entire stack can be started with Docker Compose. This will build the service
 
 ```bash
 # Install frontend dependencies (once)
-npm install
+npm ci
 
 # Start backend services
 docker compose up -d

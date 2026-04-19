@@ -1,6 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM rust:1.89-bookworm AS builder
-
+FROM lukemathwalker/cargo-chef:latest-rust-1.89-bookworm AS chef
 WORKDIR /app
 
 RUN apt-get update \
@@ -12,14 +11,19 @@ RUN apt-get update \
         zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY Cargo.toml Cargo.lock ./
-COPY libs ./libs
-COPY services ./services
+RUN rustup component add clippy rustfmt
 
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=/app/target \
-    cargo build --release --workspace \
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS cacher
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+FROM cacher AS builder
+COPY . .
+RUN cargo build --release --workspace \
     && mkdir -p /app/bin \
     && cp /app/target/release/auth-service \
           /app/target/release/storage-writer \
@@ -29,8 +33,19 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
           /app/target/release/alert-evaluator \
           /app/bin/
 
-FROM debian:bookworm-slim AS runtime
+FROM cacher AS tester
+COPY . .
+RUN cargo test --release --workspace
 
+FROM cacher AS linter
+COPY . .
+RUN cargo clippy --release --all-targets --all-features -- -D warnings
+
+FROM chef AS formatter
+COPY . .
+RUN cargo fmt --check
+
+FROM debian:bookworm-slim AS runtime
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates libssl3 curl jq \
     && rm -rf /var/lib/apt/lists/*
