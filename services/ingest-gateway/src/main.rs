@@ -1,4 +1,5 @@
 mod auth;
+mod cardinality;
 mod queue;
 mod routes;
 
@@ -19,6 +20,7 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     pub producer: Option<Arc<QueueProducer>>,
     pub trace_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
+    pub metric_cardinality: Arc<cardinality::MetricCardinalityBudget>,
     #[cfg(test)]
     pub stub_tenant: Option<Uuid>,
 }
@@ -65,6 +67,7 @@ impl AppState {
             http_client: reqwest::Client::new(),
             producer: None,
             trace_rate_limiter: build_trace_rate_limiter(1000),
+            metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
             stub_tenant: None,
         }
     }
@@ -76,6 +79,7 @@ impl AppState {
             http_client: reqwest::Client::new(),
             producer: None,
             trace_rate_limiter: build_trace_rate_limiter(1000),
+            metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
     }
@@ -87,6 +91,19 @@ impl AppState {
             http_client: reqwest::Client::new(),
             producer: None,
             trace_rate_limiter: build_trace_rate_limiter(per_second),
+            metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
+            stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn with_stub_auth_and_metric_budget(tenant_id: &str, budget: u64) -> Self {
+        Self {
+            auth_service_url: String::new(),
+            http_client: reqwest::Client::new(),
+            producer: None,
+            trace_rate_limiter: build_trace_rate_limiter(1000),
+            metric_cardinality: cardinality::MetricCardinalityBudget::new(budget),
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
     }
@@ -119,12 +136,17 @@ async fn main() -> anyhow::Result<()> {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(100);
+    let metric_series_budget: u64 = std::env::var("METRIC_SERIES_BUDGET_PER_TENANT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(10_000);
     let state = AppState {
         auth_service_url: std::env::var("AUTH_SERVICE_URL")
             .unwrap_or_else(|_| "http://localhost:4318".into()),
         http_client: reqwest::Client::new(),
         producer: Some(producer),
         trace_rate_limiter: build_trace_rate_limiter(trace_rate_limit),
+        metric_cardinality: cardinality::MetricCardinalityBudget::new(metric_series_budget),
         #[cfg(test)]
         stub_tenant: None,
     };
