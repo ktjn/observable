@@ -1,4 +1,4 @@
-.PHONY: dev dev-down test lint smoke-test
+.PHONY: dev dev-down test lint smoke-test ci
 
 dev:
 	docker compose up -d
@@ -18,3 +18,6 @@ lint:
 
 smoke-test:
 	docker compose up smoke-test --abort-on-container-exit
+
+ci:
+	bash scripts/ci.sh

@@ -27,38 +27,14 @@ jobs:
       - uses: actions/checkout@v6
       - uses: docker/setup-buildx-action@v4
 
-      - name: Formatter (cargo fmt)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: formatter
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Linter (clippy)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: linter
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Tester (cargo test)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: tester
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build Final Image
+      - name: Build, test, and load final image
         uses: docker/build-push-action@v6
         with:
           context: .
           load: true
           tags: observable-services:local
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=observable-services
+          cache-to: type=gha,mode=max,scope=observable-services
 
       - name: Export image
         run: docker save observable-services:local | gzip > /tmp/image.tar.gz
