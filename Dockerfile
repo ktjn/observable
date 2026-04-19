@@ -21,10 +21,8 @@ FROM chef AS cacher
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 
-FROM chef AS builder
+FROM cacher AS builder
 COPY . .
-COPY --from=cacher /app/target target
-COPY --from=cacher /usr/local/cargo /usr/local/cargo
 RUN cargo build --release --workspace \
     && mkdir -p /app/bin \
     && cp /app/target/release/auth-service \
@@ -35,15 +33,11 @@ RUN cargo build --release --workspace \
           /app/target/release/alert-evaluator \
           /app/bin/
 
-FROM chef AS tester
-COPY --from=cacher /app/target target
-COPY --from=cacher /usr/local/cargo /usr/local/cargo
+FROM cacher AS tester
 COPY . .
 RUN cargo test --release --workspace
 
-FROM chef AS linter
-COPY --from=cacher /app/target target
-COPY --from=cacher /usr/local/cargo /usr/local/cargo
+FROM cacher AS linter
 COPY . .
 RUN cargo clippy --release --all-targets --all-features -- -D warnings
 
