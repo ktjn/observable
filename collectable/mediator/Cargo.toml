@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = [".", "build-service"]
+members = ["."]
 
 [package]
 name = "collectable-mediator"

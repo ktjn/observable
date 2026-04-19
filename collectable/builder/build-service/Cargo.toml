@@ -15,7 +15,6 @@ serde_json = "1"
 anyhow     = "1"
 tracing    = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-tera       = "1"       # template rendering
-zip        = "2"       # output package assembly
+tera       = "1"
+zip        = "2"
 uuid       = { version = "1", features = ["v4"] }
-tokio-process = "1"

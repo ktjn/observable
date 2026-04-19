@@ -4,6 +4,11 @@ use anyhow::Result;
 use std::path::PathBuf;
 use tera::{Context, Tera};
 
+fn templates_dir() -> String {
+    std::env::var("MEDIATOR_TEMPLATES_DIR")
+        .unwrap_or_else(|_| "../../mediator/templates".into())
+}
+
 pub fn generate(def: &PipelineDefinition, out_dir: &PathBuf) -> Result<()> {
     let mut ctx = Context::new();
     ctx.insert("name", &def.name);
@@ -14,7 +19,8 @@ pub fn generate(def: &PipelineDefinition, out_dir: &PathBuf) -> Result<()> {
     ctx.insert("mapping", &def.mapping);
     ctx.insert("output", &def.output);
 
-    let tera = Tera::new("../../mediator/templates/**/*")?;
+    let glob = format!("{}/**/*", templates_dir());
+    let tera = Tera::new(&glob)?;
     let main_rs = tera.render("main.rs.tmpl", &ctx)?;
     let cargo_toml = tera.render("Cargo.toml.tmpl", &ctx)?;
 

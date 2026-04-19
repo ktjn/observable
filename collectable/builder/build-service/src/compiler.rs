@@ -1,4 +1,6 @@
-/// Cross-compilation: invoke `cross build --release --target <abi>`.
+/// Cross-compilation: invoke `cargo build --release --target <abi>`.
+/// The Rust toolchain with the required targets is pre-installed in the
+/// build-service Docker image. No Docker-in-Docker required.
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 use tokio::process::Command;
@@ -18,21 +20,26 @@ pub async fn compile(workspace: &PathBuf, target: &str) -> Result<PathBuf> {
         anyhow::bail!("unsupported target: {target}");
     }
 
-    let status = Command::new("cross")
+    let status = Command::new("cargo")
         .args(["build", "--release", "--target", target])
         .current_dir(workspace)
         .status()
         .await
-        .context("failed to invoke cross")?;
+        .context("failed to invoke cargo")?;
 
     if !status.success() {
-        anyhow::bail!("cross build failed for target {target}");
+        anyhow::bail!("cargo build failed for target {target}");
     }
 
+    let pkg_name = workspace
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
     let binary_name = if target.contains("windows") {
-        format!("{}.exe", workspace.file_name().unwrap().to_string_lossy())
+        format!("{pkg_name}.exe")
     } else {
-        workspace.file_name().unwrap().to_string_lossy().to_string()
+        pkg_name
     };
 
     Ok(workspace
