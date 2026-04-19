@@ -62,6 +62,18 @@ show_pods() {
   kubectl get pods --namespace "$ns" -o wide 2>/dev/null || true
 }
 
+watch_pods() {
+  local ns="${1:-$NAMESPACE}"
+  local interval="${2:-20}"
+  while true; do
+    sleep "$interval"
+    echo ""
+    echo "    [$(date +%H:%M:%S)] pod status (ns: $ns):"
+    kubectl get pods --namespace "$ns" -o wide --no-headers 2>/dev/null \
+      | sed 's/^/      /' || true
+  done
+}
+
 dump_pod_events() {
   local ns="${1:-$NAMESPACE}"
   echo ""
@@ -195,10 +207,13 @@ show_pods cnpg-system
 
 log "Installing infrastructure chart"
 helm dependency update "$REPO_ROOT/charts/observable-infra"
+watch_pods "$NAMESPACE" 20 &
+WATCH_INFRA=$!
 helm install observable-infra "$REPO_ROOT/charts/observable-infra" \
   --namespace "$NAMESPACE" \
   --wait \
   --timeout 10m
+kill "$WATCH_INFRA" 2>/dev/null || true
 show_pods "$NAMESPACE"
 
 log "Waiting for PostgreSQL cluster to become ready"
@@ -234,6 +249,8 @@ log "Resolving Helm chart dependencies"
 helm dependency update "$APP_CHART"
 
 log "Installing Observable chart (revision 1)"
+watch_pods "$NAMESPACE" 20 &
+WATCH_APP=$!
 helm install "$RELEASE_NAME" "$APP_CHART" \
   --namespace "$NAMESPACE" \
   --set global.image.repository=observable-services \
@@ -241,7 +258,8 @@ helm install "$RELEASE_NAME" "$APP_CHART" \
   --set global.image.pullPolicy=Never \
   --wait \
   --timeout 5m \
-  || { dump_pod_events "$NAMESPACE"; exit 1; }
+  || { kill "$WATCH_APP" 2>/dev/null || true; dump_pod_events "$NAMESPACE"; exit 1; }
+kill "$WATCH_APP" 2>/dev/null || true
 
 log "Helm release status"
 helm status "$RELEASE_NAME" --namespace "$NAMESPACE"
