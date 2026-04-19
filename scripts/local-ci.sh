@@ -80,6 +80,11 @@ if [[ $SKIP_DOCKER -eq 0 ]]; then
     docker build --tag observable-services:local . && ok "docker build" || fail "docker build"
   fi
 
+  if [[ $SKIP_FRONTEND -eq 0 ]]; then
+    step "Frontend image build"
+    docker compose build frontend && ok "frontend image build" || fail "frontend image build"
+  fi
+
   if [[ $SKIP_SMOKE -eq 0 ]]; then
     step "Smoke test"
     SMOKE_COMPOSE_STARTED=1

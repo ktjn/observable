@@ -49,6 +49,10 @@ Builds are produced by CI and promoted by GitOps. CI owns artifact creation; dep
 8. render Helm/Kustomize manifests for target environment profiles
 9. publish artifacts to registries using immutable commit-based tags
 
+Container builds must use multi-stage Dockerfiles and BuildKit cache mounts for package manager
+and compiler caches. Cache mounts are allowed for apt, Cargo registry/git/target, and npm cache
+directories; runtime images must receive only compiled binaries or static frontend assets.
+
 **Artifact inventory**
 - service container images
 - frontend static asset bundle or frontend container image

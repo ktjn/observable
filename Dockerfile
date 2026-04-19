@@ -1,16 +1,17 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1.7
 
 # --- Rust Build ---
 FROM lukemathwalker/cargo-chef:latest-rust-1.89-bookworm AS chef
 WORKDIR /app
-RUN apt-get update \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
         cmake \
         libssl-dev \
         pkg-config \
-        zlib1g-dev \
-    && rm -rf /var/lib/apt/lists/*
+        zlib1g-dev
 RUN rustup component add clippy rustfmt
 
 FROM chef AS planner
@@ -19,16 +20,28 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS cacher
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --all-targets --recipe-path recipe.json
+RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
+    cargo chef cook --release --all-targets --recipe-path recipe.json
 
 FROM cacher AS rust-ci
 COPY . .
 RUN cargo fmt --check
-RUN cargo clippy --workspace --all-targets -- -D warnings
-RUN cargo test --workspace --all-targets
+RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
+    cargo clippy --workspace --all-targets -- -D warnings
+RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
+    cargo test --workspace --all-targets
 
 FROM rust-ci AS rust-builder
-RUN cargo build --release --workspace \
+RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
+    cargo build --release --workspace \
     && mkdir -p /app/bin \
     && cp /app/target/release/auth-service \
           /app/target/release/storage-writer \
@@ -40,9 +53,10 @@ RUN cargo build --release --workspace \
 
 # --- Final Runtime Image ---
 FROM debian:bookworm-slim AS runtime
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates libssl3 curl jq \
-    && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates libssl3 curl jq
 
 COPY --from=rust-builder /app/bin/auth-service /usr/local/bin/auth-service
 COPY --from=rust-builder /app/bin/storage-writer /usr/local/bin/storage-writer
