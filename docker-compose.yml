@@ -205,6 +205,18 @@ services:
       postgres-setup: { condition: service_completed_successfully }
       clickhouse-setup: { condition: service_completed_successfully }
 
+  frontend:
+    image: observable-frontend:local
+    build: { context: ., dockerfile: apps/frontend/Dockerfile }
+    ports: ["${FRONTEND_PORT:-5173}:80"]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
+      interval: 2s
+      timeout: 1s
+      retries: 10
+    depends_on:
+      query-api: { condition: service_healthy }
+
   # --- VERIFICATION ---
   smoke-test:
     image: observable-services:local

@@ -67,7 +67,7 @@ Copy `.env.local.example` to `.env.local` at the repo root before running any se
 **Frontend-relevant variables in `.env.local`:**
 
 ```dotenv
-# URL the Vite proxy forwards /api/* requests to.
+# URL the Vite proxy forwards /v1/* requests to.
 # Points to the platform control-plane HTTP API.
 VITE_API_BASE_URL=http://localhost:8090
 
@@ -91,7 +91,7 @@ VITE_FEATURE_FLAGS=
 ### 22.4 Vite Dev Server Configuration
 
 The dev server runs at `http://localhost:5173` by default. Vite's proxy rewrites
-`/api/*` requests to the backend control-plane service, avoiding CORS issues and matching the
+`/v1/*` requests to the backend control-plane service, avoiding CORS issues and matching the
 production routing model where both the SPA and the API share one origin.
 
 `apps/frontend/vite.config.ts` (authoritative reference):
@@ -107,7 +107,7 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       proxy: {
-        '/api': {
+        '/v1': {
           target: env.VITE_API_BASE_URL ?? 'http://localhost:8090',
           changeOrigin: true,
         },
@@ -144,21 +144,24 @@ export default defineConfig(({ mode }) => {
 ### 22.5 Quick Start (Step by Step)
 
 ```bash
-# 1. Install Node dependencies.
-cd apps/frontend
-npm install
-cd ../..
-
-# 2. Start the backend stack and dependencies.
+# Start the Compose stack, including the nginx-hosted frontend.
 make dev
-
-# 3. Start the Vite dev server with HMR.
-cd apps/frontend
-npm run dev
 ```
 
-The app is now available at `http://localhost:5173`. Hot module replacement (HMR) is active;
-saving any source file updates the browser without a full page reload.
+The containerized app is now available at `http://localhost:5173`.
+
+For frontend development with HMR, run the Vite dev server instead:
+
+```bash
+# 1. Install Node dependencies.
+npm ci
+
+# 2. Start Vite.
+npm run dev --workspace=apps/frontend
+```
+
+Hot module replacement (HMR) is active in Vite mode; saving any source file updates the browser
+without a full page reload.
 
 To run the frontend **without a running backend** (UI development only), start Vite with the
 mock service worker enabled:
@@ -298,32 +301,24 @@ as a prerequisite for Phase 1.
 `apps/frontend/Dockerfile`:
 
 ```dockerfile
-# ── Build stage ─────────────────────────────────────────────────────────────
+# syntax=docker/dockerfile:1
+
 FROM node:22-alpine AS build
 WORKDIR /app
 
-# Install dependencies from lockfile (deterministic).
 COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts
+COPY apps/frontend/package.json apps/frontend/package.json
+RUN npm ci --workspace=apps/frontend --ignore-scripts
 
-# Copy source and build.
-COPY . .
-ARG VITE_API_BASE_URL
-ARG VITE_DEFAULT_TENANT_ID
-ARG VITE_FEATURE_FLAGS
+COPY apps/frontend apps/frontend
+WORKDIR /app/apps/frontend
 RUN npm run build
 
-# ── Runtime stage ────────────────────────────────────────────────────────────
 FROM nginx:1.27-alpine AS runtime
 
-# Remove default nginx content.
 RUN rm -rf /usr/share/nginx/html/*
-
-# Copy build output.
-COPY --from=build /app/dist /usr/share/nginx/html
-
-# SPA routing: all non-asset paths serve index.html (client-side routing).
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/apps/frontend/dist /usr/share/nginx/html
+COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
@@ -336,6 +331,7 @@ server {
     listen 80;
     root /usr/share/nginx/html;
     index index.html;
+    resolver 127.0.0.11 valid=10s ipv6=off;
 
     # Serve static assets with long cache TTL (filenames include content hash).
     location /assets/ {
@@ -343,25 +339,33 @@ server {
         add_header Cache-Control "public, immutable";
     }
 
-    # Proxy /api/* to the control-plane backend service.
+    # Proxy /v1/* to the control-plane backend service.
     # In production, the Kubernetes ingress handles this routing;
     # this nginx rule is only active when running the container standalone.
-    location /api/ {
-        proxy_pass http://control-plane:8090;
+    location /v1/ {
+        set $query_api http://query-api:8090;
+        proxy_pass $query_api;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /index.html {
+        add_header Cache-Control "no-cache";
     }
 
     # SPA fallback: serve index.html for all unmatched paths.
     location / {
         try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-cache";
     }
 }
 ```
 
 **Rules:**
 
-- The nginx `location /api/` block is a local-container convenience only. In Kubernetes,
+- The nginx `location /v1/` block is a local-container convenience only. In Kubernetes,
   path-based routing is handled by the ingress controller, not by nginx inside the frontend
   container.
 - `index.html` must **not** be cached. The nginx default `Cache-Control: no-cache` for
