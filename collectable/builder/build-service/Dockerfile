@@ -14,11 +14,17 @@ RUN cargo build --release
 FROM rust:bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    musl-tools \
     gcc-aarch64-linux-gnu \
     binutils-aarch64-linux-gnu \
-    cmake pkg-config libssl-dev ca-certificates \
+    cmake pkg-config libssl-dev ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Proper musl cross-compilers from musl.cc (Debian's musl-tools uses a hybrid
+# gcc that defaults to PIE/dynamic and cannot produce working static binaries).
+RUN curl -fsSL https://musl.cc/x86_64-linux-musl-cross.tgz \
+        | tar xzf - -C /opt \
+    && curl -fsSL https://musl.cc/aarch64-linux-musl-cross.tgz \
+        | tar xzf - -C /opt
 
 # Cross-compilation targets
 RUN rustup target add \
@@ -28,7 +34,9 @@ RUN rustup target add \
     aarch64-unknown-linux-gnu
 
 # Linker configuration for cross targets
-ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
+# musl.cc toolchains produce fully static binaries with +crt-static
+ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=/opt/x86_64-linux-musl-cross/bin/x86_64-linux-musl-gcc
+ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/opt/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc
 ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
 
 # Copy the build-service binary

@@ -26,9 +26,9 @@ pub async fn compile(workspace: &PathBuf, target: &str, name: &str) -> Result<Pa
     cmd.args(["build", "--release", "--target", target])
         .current_dir(workspace);
     if target.contains("musl") {
-        // Debian's musl-gcc wraps the host GCC and defaults to PIE/dynamic.
-        // -C link-arg=-static forces the linker to produce a fully static binary.
-        cmd.env("RUSTFLAGS", "-C target-feature=+crt-static -C link-arg=-static");
+        // musl.cc cross-compiler defaults to static linking; +crt-static
+        // statically embeds musl libc. No extra link flags needed.
+        cmd.env("RUSTFLAGS", "-C target-feature=+crt-static");
     }
     let status = cmd
         .status()
