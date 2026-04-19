@@ -51,7 +51,7 @@ spec:
               command: ["rpk", "cluster", "info"]
             initialDelaySeconds: 10
             periodSeconds: 5
-            failureThreshold: 20
+            failureThreshold: 36
           resources:
             requests:
               cpu: 200m

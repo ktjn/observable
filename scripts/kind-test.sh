@@ -141,7 +141,7 @@ kubectl wait deployment/clickhouse \
 kubectl wait deployment/postgres \
   --for=condition=available --namespace "$NAMESPACE" --timeout=180s
 kubectl wait deployment/redpanda \
-  --for=condition=available --namespace "$NAMESPACE" --timeout=180s
+  --for=condition=available --namespace "$NAMESPACE" --timeout=300s
 
 log "Waiting for Redpanda topic setup Job to complete"
 kubectl wait job/redpanda-setup \
