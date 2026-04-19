@@ -7,6 +7,7 @@ members = [
     "services/stream-processor",
     "services/storage-writer",
     "services/query-api",
+    "services/alert-evaluator",
 ]
 
 [workspace.dependencies]
@@ -21,7 +22,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 bytes              = "1"
 prost              = "0.12"
 tonic              = "0.11"
-sqlx               = { version = "0.7", features = ["postgres", "runtime-tokio", "uuid", "chrono"] }
+sqlx               = { version = "0.7", features = ["postgres", "runtime-tokio", "uuid", "chrono", "json"] }
 clickhouse         = { version = "0.15", features = ["uuid"] }
 rdkafka            = { version = "0.36", features = ["tokio", "cmake-build"] }
 chrono             = { version = "0.4", features = ["serde"] }

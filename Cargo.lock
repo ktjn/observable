@@ -25,6 +25,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "alert-evaluator"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "clickhouse",
+ "domain",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "allocator-api2"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"

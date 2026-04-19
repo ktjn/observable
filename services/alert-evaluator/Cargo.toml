@@ -1,0 +1,21 @@
+[package]
+name    = "alert-evaluator"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "alert-evaluator"
+path = "src/main.rs"
+
+[dependencies]
+domain             = { path = "../../libs/domain" }
+tokio              = { workspace = true }
+axum               = { workspace = true }
+serde              = { workspace = true }
+serde_json         = { workspace = true }
+uuid               = { workspace = true }
+anyhow             = { workspace = true }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true }
+sqlx               = { workspace = true }
+clickhouse         = { workspace = true }

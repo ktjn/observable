@@ -147,9 +147,9 @@ Next smallest slice:
   - Outcome: at least one privileged and one read-only role differ in observable API behavior. A `role` column (`viewer` | `member` | `admin`, default `member`) was added to `api_keys` via migration `006_add_role_to_api_keys.sql`. The auth-service now returns `role` alongside `tenant_id` in `/internal/validate` responses. The ingest-gateway extracts role from the auth response, stores it in `TenantContext`, and rejects requests with `403 Forbidden` when the role is `viewer`. A seeded viewer dev key (`dev-viewer-key-0000`) is available for testing. Unit tests cover `member`/`admin` allowed and `viewer` rejected for both `can_ingest()` logic and the full HTTP path (`POST /v1/traces`). Query endpoints remain open to all roles (read-only paths require no role restriction at this stage).
   - Checkpoint: is the role model still simple enough to extend without redesign? Answer: yes. Role is a single `TEXT` column on `api_keys` with a `CHECK` constraint; adding new roles or moving to a separate `roles` table is a straightforward migration. The `can_ingest()` method is the single enforcement point; extending to per-endpoint checks or a role-hierarchy follows the same pattern with no architectural change needed.
 
-- [ ] **P2-S7a: Add one threshold alert evaluation path**
-  - Outcome: an operator can define a threshold and see an alert fire
-  - Checkpoint: is the evaluation model stable enough to support burn-rate later?
+- [x] **P2-S7a: Add one threshold alert evaluation path**
+  - Outcome: an operator can define a threshold and see an alert fire. A new `alert-evaluator` service reads `alert_rules` (type `threshold`) from PostgreSQL, queries the most recent metric point for each rule from ClickHouse, evaluates the scalar value against the condition (`gt`, `gte`, `lt`, `lte`, `eq`), writes an `alert_firings` row (state `active`), and emits a `warn!` log with `rule_id`, `tenant_id`, `metric_name`, `value`, and `threshold` when the condition fires. Migrations `007_create_alert_rules.sql` and `008_create_alert_firings.sql` add the tables. A seeded dev rule fires when `error_rate > 0.05`. Eight unit tests cover all operators.
+  - Checkpoint: is the evaluation model stable enough to support burn-rate later? Answer: yes. The `alert_rules` table holds `alert_type` with an enum constraint that already includes `slo_burn_rate`; the `condition` JSONB column can carry a different structure for burn-rate rules without schema migration. The evaluator's dispatch model (read rules → branch on `alert_type` → evaluate → record firing) extends naturally: add a new `alert_type = 'slo_burn_rate'` branch that parses a burn-rate condition struct and queries the error budget window from ClickHouse. The `alert_firings` table and `start_eval_worker` loop are reused unchanged. The `for_duration_secs` column is present for the Pending→Active debounce but is not yet enforced; enforce it when flap avoidance becomes a requirement.
 
 - [ ] **P2-S8a: Add Kubernetes manifest render and rollback skeleton**
   - Outcome: one deployable environment has rendered manifests and a documented rollback path
@@ -416,7 +416,8 @@ After this planning reconciliation, the next implementation slice should be:
 7. ~~P2-S6a: add minimal RBAC distinction for one role pair~~ (done)
 8. ~~P2-S3a: add cardinality budget observation for one signal~~ (done)
 9. ~~P2-S4a: add hot retention policy for traces~~ (done)
-10. **P2-S7a: add one threshold alert evaluation path**
+10. ~~P2-S7a: add one threshold alert evaluation path~~ (done)
+11. **P2-S8a: add Kubernetes manifest render and rollback skeleton**
 
 That sequence moves the project from "works" to "safe to keep running."
 
