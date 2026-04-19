@@ -16,15 +16,15 @@ Refer to `spec/10-process.md` for the official development process and AI agent 
 
 ## MANDATORY: Before Pushing ANY Code
 
-You **MUST** run the following checks before pushing **ANY** code changes to the repository. No exceptions. Do not push and rely on CI to catch errors.
+You **MUST** run `bash scripts/local-ci.sh` before pushing **ANY** code changes. No exceptions. GitHub CI is disabled — do not push and rely on it to catch errors.
 
-You can run `make ci` to execute steps 1-3 and build the final Docker image in one command.
+**Note:** Pure documentation changes (files under `docs/`, `spec/`, or any `.md` files) are exempt.
 
-1. Run `cargo fmt --all` — fix all formatting issues.
-2. Run `cargo clippy --workspace --all-targets -- -D warnings` — fix all warnings in workspace crates and targets.
-3. Run `cargo test --workspace --all-targets` — ensure all workspace tests pass.
-4. If Docker is available:
-   - Run `docker compose up -d` to ensure the stack is running.
-   - Run `docker compose up smoke-test --abort-on-container-exit` — all checks MUST pass.
+`scripts/local-ci.sh` runs: Rust fmt, clippy, tests, frontend typecheck/lint/build/test, Docker image build, and smoke test.
+
+Use flags to skip stages when Docker or Node are unavailable:
+- `--skip-docker` — skip image build and smoke test
+- `--skip-frontend` — skip all npm checks
+- `--skip-smoke` — build image but skip smoke test
 
 If any check fails, you **MUST** fix it before pushing.
