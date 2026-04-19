@@ -301,15 +301,17 @@ as a prerequisite for Phase 1.
 `apps/frontend/Dockerfile`:
 
 ```dockerfile
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1.7
 
-FROM node:22-alpine AS build
+FROM node:22-alpine AS deps
 WORKDIR /app
 
 COPY package.json package-lock.json ./
 COPY apps/frontend/package.json apps/frontend/package.json
-RUN npm ci --workspace=apps/frontend --ignore-scripts
+RUN --mount=type=cache,id=observable-npm,target=/root/.npm,sharing=locked \
+    npm ci --workspace=apps/frontend --ignore-scripts
 
+FROM deps AS build
 COPY apps/frontend apps/frontend
 WORKDIR /app/apps/frontend
 RUN npm run build

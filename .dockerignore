@@ -4,3 +4,11 @@ target/
 node_modules/
 dist/
 .env.local
+**/node_modules/
+**/dist/
+**/.turbo/
+**/.vite/
+**/coverage/
+npm-debug.log*
+Dockerfile
+docker-compose*.yml
