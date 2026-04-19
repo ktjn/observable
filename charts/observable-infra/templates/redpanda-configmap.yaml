@@ -1,0 +1,42 @@
+{{- if .Values.redpanda.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redpanda-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: redpanda
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  redpanda.yaml: |
+    redpanda:
+      data_directory: /var/lib/redpanda/data
+      developer_mode: true
+      empty_seed_starts_cluster: true
+      kafka_api:
+        - name: internal
+          address: 0.0.0.0
+          port: 9093
+      advertised_kafka_api:
+        - name: internal
+          address: redpanda
+          port: 9093
+      admin:
+        - address: 0.0.0.0
+          port: 9644
+      rpc_server:
+        address: 0.0.0.0
+        port: 33145
+      seed_servers: []
+    rpk:
+      additional_start_flags:
+        - --smp=1
+        - --memory={{ .Values.redpanda.processMemory }}
+      kafka_api:
+        brokers:
+          - 127.0.0.1:9093
+      admin_api:
+        addresses:
+          - 127.0.0.1:9644
+      overprovisioned: true
+{{- end }}

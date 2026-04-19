@@ -12,7 +12,7 @@ spec:
         - name: setup
           # Redpanda official chart uses image.repository and image.tag
           # We mirror those for our setup job. Default to current versions if not yet resolved.
-          image: "redpandadata/redpanda:v26.1.1"
+          image: "{{ .Values.redpanda.image.repository }}:{{ .Values.redpanda.image.tag }}"
           command:
             - /bin/bash
             - -c

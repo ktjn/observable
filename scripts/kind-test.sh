@@ -53,14 +53,61 @@ done
 # Helpers
 # ---------------------------------------------------------------------------
 
-log()  { echo ""; echo "==> $*"; }
+log()  { echo ""; echo "==> [$(date +%H:%M:%S)] $*"; }
 info() { echo "    $*"; }
+
+show_pods() {
+  local ns="${1:-$NAMESPACE}"
+  echo ""
+  kubectl get pods --namespace "$ns" -o wide 2>/dev/null || true
+}
+
+watch_pods() {
+  local ns="${1:-$NAMESPACE}"
+  local interval="${2:-20}"
+  while true; do
+    sleep "$interval"
+    echo ""
+    echo "    [$(date +%H:%M:%S)] pod status (ns: $ns):"
+    kubectl get pods --namespace "$ns" -o wide --no-headers 2>/dev/null \
+      | sed 's/^/      /' || true
+    echo "    recent events:"
+    kubectl get events --namespace "$ns" --sort-by='.lastTimestamp' 2>/dev/null \
+      | tail -8 | sed 's/^/      /' || true
+  done
+}
+
+dump_pod_events() {
+  local ns="${1:-$NAMESPACE}"
+  echo ""
+  info "--- Pod status (namespace: $ns) ---"
+  kubectl get pods --namespace "$ns" -o wide 2>/dev/null || true
+  echo ""
+  info "--- Recent events ---"
+  kubectl get events --namespace "$ns" --sort-by='.lastTimestamp' 2>/dev/null | tail -20 || true
+  echo ""
+  info "--- Non-running pods ---"
+  kubectl get pods --namespace "$ns" --field-selector='status.phase!=Running' -o wide 2>/dev/null || true
+}
+
 wait_for_rollout() {
   local resource="$1"
   local timeout="${2:-180s}"
+  local name="${resource##*/}"
+  info "waiting for $resource (timeout: $timeout)"
   kubectl rollout status "$resource" \
     --namespace "$NAMESPACE" \
-    --timeout "$timeout"
+    --timeout "$timeout" &
+  local pid=$!
+  local elapsed=0
+  while kill -0 "$pid" 2>/dev/null; do
+    sleep 15
+    elapsed=$((elapsed + 15))
+    info "  [${elapsed}s] pods matching '$name':"
+    kubectl get pods --namespace "$NAMESPACE" --no-headers 2>/dev/null \
+      | grep "$name" | sed 's/^/    /' || true
+  done
+  wait "$pid"
 }
 
 cleanup() {
@@ -117,12 +164,30 @@ kind create cluster \
 
 kubectl cluster-info --context "kind-$CLUSTER_NAME"
 
+log "Cluster node resources"
+kubectl get nodes -o wide
+kubectl describe nodes | grep -A8 "Allocatable:"
+
 # ---------------------------------------------------------------------------
 # Load image into kind (avoids needing a registry)
 # ---------------------------------------------------------------------------
 
 log "Loading '$IMAGE_NAME' into kind cluster"
 kind load docker-image "$IMAGE_NAME" --name "$CLUSTER_NAME"
+
+# ---------------------------------------------------------------------------
+# Pre-pull infra images into kind to avoid slow pulls during Helm install
+# ---------------------------------------------------------------------------
+
+#log "Pre-pulling infrastructure images into kind node"
+#for img in \
+#  "redpandadata/redpanda:v26.1.1" \
+#  "clickhouse/clickhouse-server:24.3" \
+#  "ghcr.io/cloudnative-pg/postgresql:16"; do
+#  docker pull "$img"
+#  kind load docker-image "$img" --name "$CLUSTER_NAME"
+#  info "loaded $img"
+#done
 
 # ---------------------------------------------------------------------------
 # Deploy infrastructure
@@ -133,7 +198,6 @@ kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -
 
 log "Installing infrastructure dependencies"
 helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
-helm repo add redpanda https://charts.redpanda.com
 helm repo add openfga https://openfga.github.io/helm-charts
 helm repo update
 
@@ -142,21 +206,28 @@ helm install cnpg-operator cloudnative-pg/cloudnative-pg \
   --namespace cnpg-system \
   --create-namespace \
   --wait
+show_pods cnpg-system
 
 log "Installing infrastructure chart"
 helm dependency update "$REPO_ROOT/charts/observable-infra"
+watch_pods "$NAMESPACE" 20 &
+WATCH_INFRA=$!
 helm install observable-infra "$REPO_ROOT/charts/observable-infra" \
   --namespace "$NAMESPACE" \
   --wait \
-  --timeout 5m
+  --timeout 10m
+kill "$WATCH_INFRA" 2>/dev/null || true
+show_pods "$NAMESPACE"
 
 log "Waiting for PostgreSQL cluster to become ready"
 kubectl wait cluster/postgres \
-  --for=condition=Ready --namespace "$NAMESPACE" --timeout=180s
+  --for=condition=Ready --namespace "$NAMESPACE" --timeout=180s \
+  || { dump_pod_events "$NAMESPACE"; exit 1; }
 
 log "Waiting for Redpanda topic setup Job to complete"
 kubectl wait job/redpanda-setup \
-  --for=condition=complete --namespace "$NAMESPACE" --timeout=120s
+  --for=condition=complete --namespace "$NAMESPACE" --timeout=120s \
+  || { dump_pod_events "$NAMESPACE"; exit 1; }
 
 # ---------------------------------------------------------------------------
 # Create migration ConfigMaps (mirrors the volumes in docker-compose.yml)
@@ -181,16 +252,21 @@ log "Resolving Helm chart dependencies"
 helm dependency update "$APP_CHART"
 
 log "Installing Observable chart (revision 1)"
+watch_pods "$NAMESPACE" 20 &
+WATCH_APP=$!
 helm install "$RELEASE_NAME" "$APP_CHART" \
   --namespace "$NAMESPACE" \
   --set global.image.repository=observable-services \
   --set global.image.tag=local \
   --set global.image.pullPolicy=Never \
   --wait \
-  --timeout 5m
+  --timeout 5m \
+  || { kill "$WATCH_APP" 2>/dev/null || true; dump_pod_events "$NAMESPACE"; exit 1; }
+kill "$WATCH_APP" 2>/dev/null || true
 
 log "Helm release status"
 helm status "$RELEASE_NAME" --namespace "$NAMESPACE"
+show_pods "$NAMESPACE"
 
 # ---------------------------------------------------------------------------
 # Wait for all service Deployments
@@ -198,7 +274,8 @@ helm status "$RELEASE_NAME" --namespace "$NAMESPACE"
 
 log "Verifying all service Deployments are ready"
 for svc in auth-service ingest-gateway stream-processor storage-writer query-api alert-evaluator; do
-  wait_for_rollout "deployment/$svc"
+  wait_for_rollout "deployment/$svc" \
+    || { info "FAILED: $svc did not become ready"; dump_pod_events "$NAMESPACE"; exit 1; }
   info "$svc: ready"
 done
 

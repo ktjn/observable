@@ -31,22 +31,19 @@ clickhouse:
       memory: 1Gi
 
 redpanda:
-  fullnameOverride: redpanda
-  tls:
-    enabled: false
-  statefulset:
-    replicas: 1
-  storage:
-    persistentVolume:
-      enabled: false
+  enabled: true
+  image:
+    repository: redpandadata/redpanda
+    tag: v26.1.1
+  # Redpanda process memory (passed to --memory). Must be less than resources.limits.memory.
+  processMemory: 400M
   resources:
-    cpu:
-      cores: 1
-    memory:
-      container:
-        max: 2Gi
-  console:
-    enabled: false
+    limits:
+      memory: 500Mi
+      cpu: "1"
+    requests:
+      memory: 500Mi
+      cpu: "1"
 
 openfga:
   fullnameOverride: openfga

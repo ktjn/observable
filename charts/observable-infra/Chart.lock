@@ -1,9 +1,6 @@
 dependencies:
-- name: redpanda
-  repository: https://charts.redpanda.com
-  version: 26.1.2
 - name: openfga
   repository: https://openfga.github.io/helm-charts
   version: 0.3.2
-digest: sha256:23ccd1997a62bff9fcc55f3815e80605e9b7f73be5feb575a3ebac0726d66638
-generated: "2026-04-19T12:52:18.6188113+02:00"
+digest: sha256:69dd365c8d9c319a4c83a6245d39e1e7fa4fc6eb28bc5aaec7d7a6415e5a8a9b
+generated: "2026-04-19T17:25:48.2832802+02:00"

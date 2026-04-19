@@ -1,0 +1,92 @@
+{{- if .Values.redpanda.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redpanda
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: redpanda
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redpanda
+  serviceName: redpanda
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redpanda
+    spec:
+      # fsGroup 101 (redpanda) ensures emptyDir volumes are group-writable by the
+      # redpanda user, so temp files created during config writes are already
+      # 101:101 and the subsequent chown is a no-op the kernel permits without
+      # CAP_CHOWN.
+      securityContext:
+        fsGroup: 101
+      initContainers:
+        - name: init-config
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              cp /tmp/redpanda-config/redpanda.yaml /etc/redpanda/redpanda.yaml
+              chown 101:101 /etc/redpanda/redpanda.yaml
+          volumeMounts:
+            - name: config-template
+              mountPath: /tmp/redpanda-config
+            - name: config
+              mountPath: /etc/redpanda
+      containers:
+        - name: redpanda
+          image: "{{ .Values.redpanda.image.repository }}:{{ .Values.redpanda.image.tag }}"
+          securityContext:
+            runAsUser: 101
+            runAsGroup: 101
+          command:
+            - rpk
+            - redpanda
+            - start
+            - --advertise-rpc-addr=redpanda:33145
+          ports:
+            - name: kafka
+              containerPort: 9093
+            - name: admin
+              containerPort: 9644
+            - name: rpc
+              containerPort: 33145
+          volumeMounts:
+            - name: config
+              mountPath: /etc/redpanda
+            - name: datadir
+              mountPath: /var/lib/redpanda/data
+          resources:
+            limits:
+              memory: {{ .Values.redpanda.resources.limits.memory }}
+              cpu: {{ .Values.redpanda.resources.limits.cpu | quote }}
+            requests:
+              memory: {{ .Values.redpanda.resources.requests.memory }}
+              cpu: {{ .Values.redpanda.resources.requests.cpu | quote }}
+          startupProbe:
+            httpGet:
+              path: /v1/status/ready
+              port: 9644
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /v1/status/ready
+              port: 9644
+            periodSeconds: 10
+            failureThreshold: 3
+      volumes:
+        - name: config-template
+          configMap:
+            name: redpanda-config
+        - name: config
+          emptyDir: {}
+        - name: datadir
+          emptyDir: {}
+{{- end }}

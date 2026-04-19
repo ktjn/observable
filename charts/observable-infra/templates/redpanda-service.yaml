@@ -1,0 +1,20 @@
+{{- if .Values.redpanda.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: redpanda
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  selector:
+    app.kubernetes.io/name: redpanda
+  ports:
+    - name: kafka
+      port: 9093
+      targetPort: 9093
+    - name: admin
+      port: 9644
+      targetPort: 9644
+{{- end }}
