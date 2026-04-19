@@ -4,7 +4,7 @@
 >
 > **Purpose:** Define the cost structure for building and delivering Observable as a product, and establish the product lifecycle management (PLM) framework that governs roadmap versioning, support windows, end-of-life decisions, and upgrade incentive design.
 >
-> **Relationship to customer-facing document:** This document and `docs/91-customer-tco.md` are intentionally separate. The customer document describes what the customer expects to pay and operate. This document describes what Observable costs to build and deliver, and how Observable will manage its own product lifecycle. Keeping them separate prevents the product team from unconsciously biasing customer-facing cost models with manufacturer incentives — a common source of lifecycle mismatches and customer dissatisfaction.
+> **Relationship to customer-facing document:** This document and `91-customer-tco.md` are intentionally separate. The customer document describes what the customer expects to pay and operate. This document describes what Observable costs to build and deliver, and how Observable will manage its own product lifecycle. Keeping them separate prevents the product team from unconsciously biasing customer-facing cost models with manufacturer incentives — a common source of lifecycle mismatches and customer dissatisfaction.
 
 ---
 
@@ -26,16 +26,16 @@ The up-front engineering cost of building Observable. This is the cost the produ
 
 | Investment Area | Description | Primary Spec Reference |
 |---|---|---|
-| **Core data plane services** | Ingest gateway, stream processor, storage writer, query API, alert evaluator — all in Rust | [ADR-004](../spec/adr/ADR-004-rust-data-plane.md), [spec/02](../spec/02-architecture.md) |
-| **Storage schema and migrations** | ClickHouse and PostgreSQL schema design, migration tooling, retention policy implementation | [ADR-002](../spec/adr/ADR-002-polyglot-storage.md), [ADR-013](../spec/adr/ADR-013-schema-governance.md) |
-| **Query layer** | Arrow/DataFusion federated query execution, custom operators (trace waterfall, service graph rollup, histogram, SLO burn-rate) | [ADR-005](../spec/adr/ADR-005-arrow-datafusion.md), [spec/03 §6](../spec/03-storage.md) |
-| **Frontend** | React 19 + Vite + TanStack Query/Router; entity-centric navigation; cross-signal correlation UX | [ADR-006](../spec/adr/ADR-006-react-vite-frontend.md), [spec/05](../spec/05-frontend.md) |
-| **Auth and authorization** | OIDC integration, OpenFGA ReBAC model, API key management | [ADR-008](../spec/adr/ADR-008-authorization-model.md), [spec/04](../spec/04-tenancy-security.md) |
-| **Agent ecosystem** | OTel Collector distribution, k8s operator, language auto-instrumentation, eBPF sensor, browser/mobile SDKs, OpAMP remote config | [spec/06](../spec/06-agents.md) |
-| **Deployment and release tooling** | Helm charts, GitOps delivery, canary promotion scripts, kind integration test harness | [ADR-020](../spec/adr/ADR-020-helm-chart-strategy.md), [spec/12](../spec/12-deployment.md) |
-| **CI/CD pipeline** | GitHub Actions; all non-trivial logic in `scripts/` and runnable locally | [ADR-019](../spec/adr/ADR-019-ci-scripts-runnable-locally.md) |
+| **Core data plane services** | Ingest gateway, stream processor, storage writer, query API, alert evaluator — all in Rust | [ADR-004](adr/ADR-004-rust-data-plane.md), [spec/02](02-architecture.md) |
+| **Storage schema and migrations** | ClickHouse and PostgreSQL schema design, migration tooling, retention policy implementation | [ADR-002](adr/ADR-002-polyglot-storage.md), [ADR-013](adr/ADR-013-schema-governance.md) |
+| **Query layer** | Arrow/DataFusion federated query execution, custom operators (trace waterfall, service graph rollup, histogram, SLO burn-rate) | [ADR-005](adr/ADR-005-arrow-datafusion.md), [spec/03 §6](03-storage.md) |
+| **Frontend** | React 19 + Vite + TanStack Query/Router; entity-centric navigation; cross-signal correlation UX | [ADR-006](adr/ADR-006-react-vite-frontend.md), [spec/05](05-frontend.md) |
+| **Auth and authorization** | OIDC integration, OpenFGA ReBAC model, API key management | [ADR-008](adr/ADR-008-authorization-model.md), [spec/04](04-tenancy-security.md) |
+| **Agent ecosystem** | OTel Collector distribution, k8s operator, language auto-instrumentation, eBPF sensor, browser/mobile SDKs, OpAMP remote config | [spec/06](06-agents.md) |
+| **Deployment and release tooling** | Helm charts, GitOps delivery, canary promotion scripts, kind integration test harness | [ADR-020](adr/ADR-020-helm-chart-strategy.md), [spec/12](12-deployment.md) |
+| **CI/CD pipeline** | GitHub Actions; all non-trivial logic in `scripts/` and runnable locally | [ADR-019](adr/ADR-019-ci-scripts-runnable-locally.md) |
 
-**Investment sequencing discipline:** Observable's phased roadmap ([spec/10-process.md §17](../spec/10-process.md)) requires that ingest, storage, query, and auth foundations are production-stable before advanced features (AI, profiling, session replay) receive investment. This prevents the common failure mode of investing in differentiating features before the commodity foundation is reliable.
+**Investment sequencing discipline:** Observable's phased roadmap ([spec/10-process.md §17](10-process.md)) requires that ingest, storage, query, and auth foundations are production-stable before advanced features (AI, profiling, session replay) receive investment. This prevents the common failure mode of investing in differentiating features before the commodity foundation is reliable.
 
 **Amortization model:** Product CAPEX is amortized across customers and phases. Each phase delivers a working vertical slice; no phase requires the next phase to be delivered before customers receive value.
 
@@ -43,7 +43,7 @@ The up-front engineering cost of building Observable. This is the cost the produ
 
 ### 1.2 Delivery OPEX — Cost to Run for Customers
 
-The recurring cost to deliver Observable as a hosted service. For self-hosted customers, these costs are transferred to the customer (see `docs/91-customer-tco.md §1.2`).
+The recurring cost to deliver Observable as a hosted service. For self-hosted customers, these costs are transferred to the customer (see `91-customer-tco.md §1.2`).
 
 #### Per-tenant infrastructure cost model
 
@@ -88,7 +88,7 @@ Support costs are the cost of engineering and operations time spent resolving cu
 
 #### Support cost drivers
 
-- **Documentation quality:** Well-maintained runbooks ([spec/12-deployment.md §19.7](../spec/12-deployment.md)) and operator guides reduce support volume significantly. Every operational incident class should have a documented triage path.
+- **Documentation quality:** Well-maintained runbooks ([spec/12-deployment.md §19.7](12-deployment.md)) and operator guides reduce support volume significantly. Every operational incident class should have a documented triage path.
 - **Platform self-telemetry:** Observable emits health metrics, traces, and logs from every service. A well-maintained internal health dashboard reduces MTTD (mean time to detect) before customers notice issues.
 - **Agent compatibility surface:** Supporting N−2 agent versions multiplies the support matrix. The compatibility policy (agents: N−1 minor versions, platform: N−2 major) bounds this surface.
 - **Migration support:** Customers migrating from Datadog, New Relic, or Dynatrace will require migration support. Documented migration paths for common tool combinations reduce this cost.
@@ -103,7 +103,7 @@ Observable publishes security patches on the following cadence:
 | High (CVSS 7.0–8.9) | 7 days | Current stable + N−1 |
 | Medium/Low | Next regular release | Current stable only |
 
-Dependency audits run nightly in CI (`cargo audit`, `npm audit`, container image scanning). See [ADR-019](../spec/adr/ADR-019-ci-scripts-runnable-locally.md) and [spec/11-testing.md](../spec/11-testing.md).
+Dependency audits run nightly in CI (`cargo audit`, `npm audit`, container image scanning). See [ADR-019](adr/ADR-019-ci-scripts-runnable-locally.md) and [spec/11-testing.md](11-testing.md).
 
 ---
 
@@ -113,14 +113,14 @@ The cost of outages, data loss events, and SLA breaches. These are avoided costs
 
 | Incident class | Primary mitigation | Spec reference |
 |---|---|---|
-| **Ingest data loss** | Durable Redpanda queue; at-least-once delivery; idempotent writes | [ADR-009](../spec/adr/ADR-009-queue-stream-backbone.md) |
-| **Query outage** | Stateless query API; multiple replicas; graceful degradation | [spec/02 §3.2](../spec/02-architecture.md) |
-| **Auth boundary failure** | Tenant isolation tests in CI; fail-closed design on cross-tenant results | [ADR-007](../spec/adr/ADR-007-multi-tenant-isolation.md) |
-| **Schema migration failure** | Expand–migrate–contract pattern; forward-only migrations; N−1 compatibility gate | [ADR-013](../spec/adr/ADR-013-schema-governance.md) |
-| **Cardinality cost explosion** | Per-tenant cardinality budgets enforced at ingest | [spec/03 §5.4](../spec/03-storage.md) |
-| **Canary regression** | Automated SLO-based rollback during canary promotion | [spec/12 §19.3](../spec/12-deployment.md), `scripts/canary-promote.sh` |
+| **Ingest data loss** | Durable Redpanda queue; at-least-once delivery; idempotent writes | [ADR-009](adr/ADR-009-queue-stream-backbone.md) |
+| **Query outage** | Stateless query API; multiple replicas; graceful degradation | [spec/02 §3.2](02-architecture.md) |
+| **Auth boundary failure** | Tenant isolation tests in CI; fail-closed design on cross-tenant results | [ADR-007](adr/ADR-007-multi-tenant-isolation.md) |
+| **Schema migration failure** | Expand–migrate–contract pattern; forward-only migrations; N−1 compatibility gate | [ADR-013](adr/ADR-013-schema-governance.md) |
+| **Cardinality cost explosion** | Per-tenant cardinality budgets enforced at ingest | [spec/03 §5.4](03-storage.md) |
+| **Canary regression** | Automated SLO-based rollback during canary promotion | [spec/12 §19.3](12-deployment.md), `scripts/canary-promote.sh` |
 
-Platform SLOs (ingest latency, query latency P95, alert delivery latency) are defined in [spec/11-testing.md §18](../spec/11-testing.md). Breaching these SLOs in a customer environment triggers warranty obligations for hosted deployments.
+Platform SLOs (ingest latency, query latency P95, alert delivery latency) are defined in [spec/11-testing.md §18](11-testing.md). Breaching these SLOs in a customer environment triggers warranty obligations for hosted deployments.
 
 ---
 
@@ -141,7 +141,7 @@ PLM
 
 **Phased roadmap:**
 
-Observable's roadmap is structured into eight phases ([spec/10-process.md §17](../spec/10-process.md)). The phased model is deliberate — it enforces investment in reliability, tenancy, and cost controls before advanced features. This prevents the common PLM failure of building differentiated features on an unstable foundation.
+Observable's roadmap is structured into eight phases ([spec/10-process.md §17](10-process.md)). The phased model is deliberate — it enforces investment in reliability, tenancy, and cost controls before advanced features. This prevents the common PLM failure of building differentiated features on an unstable foundation.
 
 | Phase | Milestone | PLM implication |
 |---|---|---|
@@ -165,7 +165,7 @@ Observable's roadmap is structured into eight phases ([spec/10-process.md §17](
 - The previous major API version must remain supported for a minimum of **two minor product release cycles** after the new version ships.
 - Deprecation is announced in the CHANGELOG and via a `Deprecation` response header on deprecated endpoints.
 
-**Schema versioning policy ([ADR-013](../spec/adr/ADR-013-schema-governance.md)):**
+**Schema versioning policy ([ADR-013](adr/ADR-013-schema-governance.md)):**
 - All schema changes are versioned SQL migration files under `migrations/`.
 - No ORM-generated schema changes are permitted.
 - Migrations are forward-only; the expand–migrate–contract pattern is required for breaking changes.
@@ -191,7 +191,7 @@ Support windows define how long a given product version receives security patche
 
 #### Agent support windows
 
-Agents follow the same `stable`/`preview`/`lts` channel model ([spec/06 §10.8](../spec/06-agents.md)):
+Agents follow the same `stable`/`preview`/`lts` channel model ([spec/06 §10.8](06-agents.md)):
 - The ingest gateway accepts telemetry from agents up to **two major versions** behind the current release.
 - Agents at N−3 major version or older receive no security patches and are not guaranteed to be compatible with the ingest gateway.
 - The k8s operator manages automated agent upgrades for DaemonSet-managed agents.
@@ -304,7 +304,7 @@ The product lifecycle strategy and revenue model must align to avoid conflicts t
 
 ## 3. How the Two Documents Interact
 
-The customer-facing TCO document (`docs/91-customer-tco.md`) and this product lifecycle document define complementary constraints on product development decisions.
+The customer-facing TCO document (`91-customer-tco.md`) and this product lifecycle document define complementary constraints on product development decisions.
 
 ```
 Customer document                    This document
@@ -320,7 +320,7 @@ Customer document                    This document
 ```
 
 **Product development governance:** When evaluating a new feature, pricing change, or deprecation, cross-reference both documents:
-1. Does this change create a new CAPEX or OPEX burden for the customer not disclosed in `docs/91-customer-tco.md`?
+1. Does this change create a new CAPEX or OPEX burden for the customer not disclosed in `91-customer-tco.md`?
 2. Does this change require updating a support window, compatibility promise, or deprecation timeline in this document?
 3. If yes to either: update both documents in the same PR as the code change.
 
