@@ -35,7 +35,7 @@ spec:
       containers:
         - name: redpanda
           image: redpandadata/redpanda:v23.3.1
-          command:
+          args:
             - redpanda
             - start
             - --smp=1
