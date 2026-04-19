@@ -11,6 +11,30 @@ step() { echo -e "\n${BOLD}==> $1${NC}"; }
 ok()   { echo -e "${GREEN}OK${NC}  $1"; }
 fail() { echo -e "${RED}FAIL${NC} $1"; exit 1; }
 
+SMOKE_COMPOSE_STARTED=0
+
+cleanup_smoke_compose() {
+  local status=$?
+
+  if [[ $SMOKE_COMPOSE_STARTED -eq 1 ]]; then
+    step "Compose cleanup"
+    if docker compose down --remove-orphans; then
+      ok "docker compose down"
+    else
+      local cleanup_status=$?
+      echo -e "${RED}FAIL${NC} docker compose down"
+      if [[ $status -eq 0 ]]; then
+        status=$cleanup_status
+      fi
+    fi
+  fi
+
+  trap - EXIT
+  exit "$status"
+}
+
+trap cleanup_smoke_compose EXIT
+
 SKIP_DOCKER=${SKIP_DOCKER:-0}
 SKIP_FRONTEND=${SKIP_FRONTEND:-0}
 SKIP_SMOKE=${SKIP_SMOKE:-0}
@@ -58,6 +82,7 @@ if [[ $SKIP_DOCKER -eq 0 ]]; then
 
   if [[ $SKIP_SMOKE -eq 0 ]]; then
     step "Smoke test"
+    SMOKE_COMPOSE_STARTED=1
     docker compose up smoke-test --abort-on-container-exit && ok "smoke-test" || fail "smoke-test"
   fi
 fi
