@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM rust:1.89-bookworm AS builder
 
 WORKDIR /app
@@ -15,7 +16,10 @@ COPY Cargo.toml Cargo.lock ./
 COPY libs ./libs
 COPY services ./services
 
-RUN cargo build --release --workspace
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cargo build --release --workspace
 
 FROM debian:bookworm-slim AS runtime
 
