@@ -25,7 +25,6 @@ helm lint "$COMMON_CHART"
 echo ""
 echo "==> Resolving dependencies for observable-infra"
 helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
-helm repo add redpanda https://charts.redpanda.com
 helm repo add openfga https://openfga.github.io/helm-charts
 helm repo update
 helm dependency update "$INFRA_CHART"

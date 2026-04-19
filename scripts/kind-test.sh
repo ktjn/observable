@@ -183,7 +183,6 @@ kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -
 
 log "Installing infrastructure dependencies"
 helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
-helm repo add redpanda https://charts.redpanda.com
 helm repo add openfga https://openfga.github.io/helm-charts
 helm repo update
 
