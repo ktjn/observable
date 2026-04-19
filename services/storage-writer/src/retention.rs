@@ -10,13 +10,18 @@ pub struct RetentionConfig {
 
 impl RetentionConfig {
     pub fn from_env() -> Self {
-        let days = std::env::var("TRACE_HOT_RETENTION_DAYS")
-            .ok()
+        Self::from_values(
+            std::env::var("TRACE_HOT_RETENTION_DAYS").ok(),
+            std::env::var("RETENTION_CHECK_INTERVAL_SECONDS").ok(),
+        )
+    }
+
+    fn from_values(retention_days: Option<String>, interval_secs: Option<String>) -> Self {
+        let days = retention_days
             .and_then(|v| v.parse::<u64>().ok())
             .unwrap_or(14)
             .clamp(3, 14);
-        let interval_secs = std::env::var("RETENTION_CHECK_INTERVAL_SECONDS")
-            .ok()
+        let interval_secs = interval_secs
             .and_then(|v| v.parse::<u64>().ok())
             .unwrap_or(3600);
         Self {
@@ -85,27 +90,21 @@ mod tests {
 
     #[test]
     fn config_defaults_when_env_unset() {
-        std::env::remove_var("TRACE_HOT_RETENTION_DAYS");
-        std::env::remove_var("RETENTION_CHECK_INTERVAL_SECONDS");
-        let config = RetentionConfig::from_env();
+        let config = RetentionConfig::from_values(None, None);
         assert_eq!(config.hot_trace_days, 14);
         assert_eq!(config.check_interval, Duration::from_secs(3600));
     }
 
     #[test]
     fn config_clamps_below_minimum() {
-        std::env::set_var("TRACE_HOT_RETENTION_DAYS", "1");
-        let config = RetentionConfig::from_env();
+        let config = RetentionConfig::from_values(Some("1".into()), None);
         assert_eq!(config.hot_trace_days, 3);
-        std::env::remove_var("TRACE_HOT_RETENTION_DAYS");
     }
 
     #[test]
     fn config_clamps_above_maximum() {
-        std::env::set_var("TRACE_HOT_RETENTION_DAYS", "30");
-        let config = RetentionConfig::from_env();
+        let config = RetentionConfig::from_values(Some("30".into()), None);
         assert_eq!(config.hot_trace_days, 14);
-        std::env::remove_var("TRACE_HOT_RETENTION_DAYS");
     }
 
     #[test]
