@@ -6,6 +6,7 @@ Full-stack observability platform specification — Dynatrace / New Relic class,
 
 | File | Contents |
 |------|----------|
+| [00-market-analysis.md](00-market-analysis.md) | Competitive landscape, product positioning, USPs, Tier 2 and Tier 3 feature gaps |
 | [01-overview.md](01-overview.md) | Scope, product definition, product principles |
 | [02-architecture.md](02-architecture.md) | System context, container diagrams, reference architecture, core technical architecture |
 | [03-storage.md](03-storage.md) | Storage strategy, data model, retention tiers, query engine |
