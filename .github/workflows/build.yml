@@ -1,0 +1,108 @@
+name: Build & Test
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: sudo apt-get install -y cmake libsasl2-dev libcurl4-openssl-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: "clippy,rustfmt" }
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo test --all
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: "npm" }
+      - run: npm ci
+      - run: npm run typecheck --workspace=apps/frontend
+      - run: npm run lint --workspace=apps/frontend
+      - run: npm run build --workspace=apps/frontend
+      - run: npm run test --workspace=apps/frontend -- --run
+
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: azure/setup-helm@v5
+        with:
+          version: "3.14.4"
+      - run: bash scripts/helm-lint.sh
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build Docker image
+        run: docker build --tag observable-services:local .
+      - name: Export image
+        run: docker save observable-services:local | gzip > /tmp/image.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp/image.tar.gz
+          retention-days: 1
+
+  smoke:
+    needs: docker-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp
+      - run: docker load < /tmp/image.tar.gz
+      - run: docker compose up smoke-test --abort-on-container-exit
+
+  kind:
+    needs: docker-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: azure/setup-helm@v5
+        with:
+          version: "3.14.4"
+      - name: Set up kind
+        uses: helm/kind-action@v1.14.0
+        with:
+          install_only: true
+          version: "v0.22.0"
+      - uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp
+      - run: docker load < /tmp/image.tar.gz
+      - name: Run kind integration test
+        run: bash scripts/kind-test.sh --skip-build
+      - name: Collect kind logs on failure
+        if: failure()
+        run: bash scripts/collect-kind-logs.sh
+
+  perf-smoke:
+    needs: docker-build
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp
+      - run: docker load < /tmp/image.tar.gz
+      - run: docker compose up smoke-test --abort-on-container-exit
+      - run: docker compose up perf-smoke --abort-on-container-exit
