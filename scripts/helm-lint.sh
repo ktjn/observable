@@ -12,6 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 COMMON_CHART="$REPO_ROOT/charts/observable-common"
+INFRA_CHART="$REPO_ROOT/charts/observable-infra"
 APP_CHART="$REPO_ROOT/charts/observable"
 
 echo "==> Checking helm version"
@@ -20,6 +21,18 @@ helm version --short
 echo ""
 echo "==> Linting observable-common (library chart)"
 helm lint "$COMMON_CHART"
+
+echo ""
+echo "==> Resolving dependencies for observable-infra"
+helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
+helm repo add redpanda https://charts.redpanda.com
+helm repo add openfga https://openfga.github.io/helm-charts
+helm repo update
+helm dependency update "$INFRA_CHART"
+
+echo ""
+echo "==> Linting observable-infra"
+helm lint "$INFRA_CHART"
 
 echo ""
 echo "==> Resolving dependencies for observable"

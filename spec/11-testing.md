@@ -176,8 +176,8 @@ additional gates at the manifest and cluster-level.
 **Layer 2 — kind cluster integration (every push to main + nightly)**
 
 - `scripts/kind-test.sh` creates a fresh kind cluster, loads the local Docker image, deploys
-  the infra manifests from `deploy/kind/infra/`, creates migration ConfigMaps, installs the
-  chart, and verifies each service health endpoint responds.
+  the infrastructure Helm chart (`charts/observable-infra`), creates migration ConfigMaps,
+  installs the application chart, and verifies each service health endpoint responds.
 - The smoke path sends an OTLP trace through ingest-gateway and queries it back via query-api,
   proving the ingest→Redpanda→stream-processor→ClickHouse→query-api pipeline round-trips in k8s.
 - Rollback verification: the test upgrades to revision 2 and executes `helm rollback 1`,

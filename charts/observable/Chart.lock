@@ -1,0 +1,6 @@
+dependencies:
+- name: observable-common
+  repository: file://../observable-common
+  version: 0.1.0
+digest: sha256:598b70bc6841a5a203491c09c70c353ce59da9b890df5f6227bfa1ac94e22f9e
+generated: "2026-04-19T12:45:33.9815174+02:00"

@@ -1,0 +1,14 @@
+apiVersion: v2
+name: observable-infra
+description: A Helm chart for deploying infrastructure dependencies in development (kind).
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+dependencies:
+  - name: redpanda
+    version: "26.1.2"
+    repository: "https://charts.redpanda.com"
+  - name: openfga
+    version: "0.3.2"
+    repository: "https://openfga.github.io/helm-charts"

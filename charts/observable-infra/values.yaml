@@ -1,0 +1,63 @@
+# Observable infrastructure components using official community charts and images.
+#
+# These are intended for development and testing (e.g. kind).
+# For production, use CloudNativePG and official charts with persistence/HA.
+
+# Custom setup logic
+infraSetup:
+  redpanda:
+    enabled: true
+    topic: telemetry.raw
+
+postgresql:
+  enabled: true
+  auth:
+    database: observable
+    username: observable
+    password: observable
+
+clickhouse:
+  enabled: true
+  auth:
+    database: observable
+    username: default
+    password: observable
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+redpanda:
+  fullnameOverride: redpanda
+  tls:
+    enabled: false
+  statefulset:
+    replicas: 1
+  storage:
+    persistentVolume:
+      enabled: false
+  resources:
+    cpu:
+      cores: 1
+    memory:
+      container:
+        max: 2Gi
+  console:
+    enabled: false
+
+openfga:
+  fullnameOverride: openfga
+  replicaCount: 1
+  datastore:
+    engine: memory
+    applyMigrations: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
