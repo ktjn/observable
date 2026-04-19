@@ -143,6 +143,8 @@ When utilizing AI agents for development, the following mandates apply:
 
 You **MUST** run the following checks before pushing **ANY** code changes to the repository. No exceptions. Do not push and rely on CI to catch errors.
 
+**Note:** Pure documentation changes (e.g., files under `docs/`, `spec/`, or any `.md` files) are exempt from these mandatory code checks.
+
 1. Run `cargo fmt --all` — fix all formatting issues.
 2. Run `cargo clippy --all-targets --all-features -- -D warnings` — fix all warnings.
 3. Run `cargo test --all-targets --all-features` — ensure all tests pass.
