@@ -28,5 +28,6 @@ COPY --from=builder /app/target/release/storage-writer /usr/local/bin/storage-wr
 COPY --from=builder /app/target/release/stream-processor /usr/local/bin/stream-processor
 COPY --from=builder /app/target/release/ingest-gateway /usr/local/bin/ingest-gateway
 COPY --from=builder /app/target/release/query-api /usr/local/bin/query-api
+COPY --from=builder /app/target/release/alert-evaluator /usr/local/bin/alert-evaluator
 
 USER 65532:65532
