@@ -78,9 +78,21 @@ dump_pod_events() {
 wait_for_rollout() {
   local resource="$1"
   local timeout="${2:-180s}"
+  local name="${resource##*/}"
+  info "waiting for $resource (timeout: $timeout)"
   kubectl rollout status "$resource" \
     --namespace "$NAMESPACE" \
-    --timeout "$timeout"
+    --timeout "$timeout" &
+  local pid=$!
+  local elapsed=0
+  while kill -0 "$pid" 2>/dev/null; do
+    sleep 15
+    elapsed=$((elapsed + 15))
+    info "  [${elapsed}s] pods matching '$name':"
+    kubectl get pods --namespace "$NAMESPACE" --no-headers 2>/dev/null \
+      | grep "$name" | sed 's/^/    /' || true
+  done
+  wait "$pid"
 }
 
 cleanup() {
