@@ -10,3 +10,5 @@ jobs:
       - uses: actions/checkout@v6
       - name: Run end-to-end smoke test
         run: docker compose up --build smoke-test --abort-on-container-exit
+      - name: Run performance smoke baseline
+        run: docker compose up perf-smoke --abort-on-container-exit
