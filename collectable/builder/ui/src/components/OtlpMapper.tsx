@@ -85,7 +85,12 @@ export function OtlpMapper({ definition, onChange, onNext }: Props) {
   React.useEffect(() => {
     let mapping = (definition.mapping as Record<string, unknown>) ?? {};
     fields.forEach(f => { mapping = applyMapping(mapping, f, defaultTarget(f)); });
-    onChange({ ...definition, mapping });
+    const output = (definition.output as Record<string, unknown>) ?? {};
+    onChange({
+      ...definition,
+      mapping,
+      output: { endpoint: '${OTLP_ENDPOINT}', protocol: 'grpc', ...output },
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -127,17 +132,19 @@ export function OtlpMapper({ definition, onChange, onNext }: Props) {
       <div style={{ marginTop: 20 }}>
         <label>OTLP endpoint<br />
           <input type="text" style={{ width: '100%' }}
-            defaultValue="${OTLP_ENDPOINT}"
+            value={((definition.output as Record<string,unknown>)?.endpoint as string) ?? '${OTLP_ENDPOINT}'}
             onChange={e => onChange({
               ...definition,
               output: { ...((definition.output as object) ?? {}), endpoint: e.target.value },
             })} />
         </label>
         <label style={{ display: 'block', marginTop: 8 }}>Protocol<br />
-          <select defaultValue="grpc" onChange={e => onChange({
-            ...definition,
-            output: { ...((definition.output as object) ?? {}), protocol: e.target.value },
-          })}>
+          <select
+            value={((definition.output as Record<string,unknown>)?.protocol as string) ?? 'grpc'}
+            onChange={e => onChange({
+              ...definition,
+              output: { ...((definition.output as object) ?? {}), protocol: e.target.value },
+            })}>
             <option value="grpc">gRPC</option>
             <option value="http">HTTP</option>
           </select>

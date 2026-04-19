@@ -126,6 +126,7 @@ export function ParserEditor({ definition, onChange, onNext }: Props) {
         <label style={{ display: 'block', marginTop: 12 }}>Grok pattern<br />
           <input type="text" style={{ width: '100%' }}
             placeholder="%{TIMESTAMP_ISO8601:timestamp} %{LOGLEVEL:level} %{GREEDYDATA:message}"
+            value={(parser.pattern as string) ?? ''}
             onChange={e => set({ pattern: e.target.value })} />
         </label>
       )}
@@ -134,6 +135,7 @@ export function ParserEditor({ definition, onChange, onNext }: Props) {
         <label style={{ display: 'block', marginTop: 12 }}>Regex (named groups)<br />
           <input type="text" style={{ width: '100%' }}
             placeholder="(?P<timestamp>\d{4}-\d{2}-\d{2}) (?P<level>\w+) (?P<message>.+)"
+            value={(parser.pattern as string) ?? ''}
             onChange={e => set({ pattern: e.target.value })} />
         </label>
       )}
@@ -142,20 +144,23 @@ export function ParserEditor({ definition, onChange, onNext }: Props) {
         <label style={{ display: 'block', marginTop: 12 }}>PatternLayout string<br />
           <input type="text" style={{ width: '100%' }}
             placeholder="%d{ISO8601} [%t] %-5level %logger{36} - %msg%n"
+            value={(parser.pattern as string) ?? ''}
             onChange={e => set({ pattern: e.target.value })} />
         </label>
       )}
 
       {parser.type === 'key_value' && (
         <label style={{ display: 'block', marginTop: 12 }}>Field separator<br />
-          <input type="text" defaultValue=" " style={{ width: 60 }}
+          <input type="text" style={{ width: 60 }}
+            value={(parser.separator as string) ?? ' '}
             onChange={e => set({ separator: e.target.value })} />
         </label>
       )}
 
       {parser.type === 'csv' && (
         <label style={{ display: 'block', marginTop: 12 }}>Delimiter<br />
-          <input type="text" defaultValue="," style={{ width: 60 }}
+          <input type="text" style={{ width: 60 }}
+            value={(parser.delimiter as string) ?? ','}
             onChange={e => set({ delimiter: e.target.value })} />
         </label>
       )}
