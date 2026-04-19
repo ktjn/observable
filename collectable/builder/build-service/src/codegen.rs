@@ -41,10 +41,10 @@ pub fn generate(def: &PipelineDefinition, out_dir: &PathBuf) -> Result<()> {
     std::fs::write(
         cargo_config_dir.join("config.toml"),
         r#"[target.x86_64-unknown-linux-musl]
-rustflags = ["-C", "target-feature=+crt-static"]
+rustflags = ["-C", "target-feature=+crt-static", "-C", "link-arg=-static"]
 
 [target.aarch64-unknown-linux-musl]
-rustflags = ["-C", "target-feature=+crt-static"]
+rustflags = ["-C", "target-feature=+crt-static", "-C", "link-arg=-static"]
 "#,
     )?;
 
