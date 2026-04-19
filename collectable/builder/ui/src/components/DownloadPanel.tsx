@@ -61,6 +61,21 @@ export function DownloadPanel({ definition }: Props) {
         Dockerfile, and docker-compose.yml snippet.
       </p>
 
+      <details style={{ marginTop: 12 }}>
+        <summary style={{ fontSize: 13, cursor: 'pointer' }}>Environment variables for test / production</summary>
+        <pre style={{ background: '#f4f4f4', padding: 12, fontSize: 12, marginTop: 8 }}>{`# Required
+OTLP_ENDPOINT=https://ingest.example.com:4317
+OTLP_TOKEN=your-token-here
+
+# Optional overrides
+OTLP_PROTOCOL=grpc          # grpc (default) or http
+OTLP_INSECURE=false         # true for local dev (disables TLS)
+TRANSPORT_PORT=5140         # transport listen port
+COLLECTABLE_LOG_LEVEL=info  # trace / debug / info / warn / error
+COLLECTABLE_LOG_FORMAT=json # json or text`}
+        </pre>
+      </details>
+
       <button style={{ marginTop: 16 }} onClick={build} disabled={building}>
         {building ? 'Building…' : 'Build & Download'}
       </button>

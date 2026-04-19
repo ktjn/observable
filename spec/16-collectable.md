@@ -84,7 +84,7 @@ not in Observable's control plane.
   "name": "nginx-access-logs",
   "transport": {
     "type": "syslog_tcp",
-    "port": 5140,
+    "port": "${TRANSPORT_PORT:-5140}",
     "tls": false
   },
   "parser": {
@@ -312,12 +312,81 @@ No hidden build flags, no patches, no private registries.
 
 Config is read from two sources, merged in this order (later wins):
 
-1. Config file: `collectable.toml` (or path set via `--config`)
-2. Environment variables: `COLLECTABLE_<SECTION>_<KEY>` (e.g., `COLLECTABLE_OUTPUT_ENDPOINT`)
+1. Config file: `collectable.toml` (or path set via `--config <path>`)
+2. Environment variables (take precedence over the config file)
 
-All `${ENV_VAR}` references in the pipeline definition are resolved from the
-process environment at startup. Missing required variables cause an immediate
-startup failure with a clear error message.
+**`${ENV_VAR}` interpolation applies to all string-typed values in the pipeline
+definition** — transport params, parser params, output config, and mapping literals.
+This is the primary mechanism for separating test and production deployments: build
+one binary, deploy it with different environment variables.
+
+Optional default syntax is supported: `${VAR:-default_value}`.
+
+#### Standard well-known environment variables
+
+These are the variables the generated binary resolves at startup. All connection
+details default to `${...}` references in the UI output step so that the binary
+is portable across environments without recompilation.
+
+| Variable | Required | Description |
+|---|---|---|
+| `OTLP_ENDPOINT` | Yes | OTLP receiver URL, e.g. `https://ingest.example.com:4317` |
+| `OTLP_TOKEN` | No | Bearer token for `Authorization` header |
+| `OTLP_PROTOCOL` | No | `grpc` (default) or `http` |
+| `OTLP_INSECURE` | No | Set to `true` to disable TLS (useful for local dev) |
+
+Transport-specific variables (used when transport params contain `${...}` references):
+
+| Variable | Transport | Description |
+|---|---|---|
+| `TRANSPORT_LISTEN_HOST` | syslog_tcp, http_webhook | Bind address (default `0.0.0.0`) |
+| `TRANSPORT_PORT` | syslog_tcp, syslog_udp, http_webhook | Listen port |
+| `MQTT_BROKER` | mqtt | Broker URL, e.g. `mqtt://broker:1883` |
+| `MQTT_TOPIC` | mqtt | Subscription topic |
+| `MQTT_USERNAME` | mqtt | Optional username |
+| `MQTT_PASSWORD` | mqtt | Optional password |
+| `KAFKA_BROKERS` | kafka | Bootstrap server list |
+| `KAFKA_TOPIC` | kafka | Consumer topic |
+| `KAFKA_GROUP_ID` | kafka | Consumer group ID |
+| `FILE_PATH` | file_tail | File path or glob pattern |
+
+Operational variables (always available, not part of the pipeline definition):
+
+| Variable | Default | Description |
+|---|---|---|
+| `COLLECTABLE_LOG_LEVEL` | `info` | Log verbosity: `trace`, `debug`, `info`, `warn`, `error` |
+| `COLLECTABLE_LOG_FORMAT` | `json` | `json` or `text` |
+| `COLLECTABLE_HEALTH_PORT` | `9090` | Port for `/health` and `/metrics` endpoints |
+| `COLLECTABLE_SHUTDOWN_TIMEOUT_SECS` | `10` | Graceful shutdown drain timeout |
+| `COLLECTABLE_PID_FILE` | *(none)* | Write PID file at this path (init.d use) |
+
+#### Environment variable precedence example
+
+The pipeline definition emitted by the UI uses `${...}` references for all
+connection details by default:
+
+```json
+"transport": { "type": "syslog_tcp", "port": "${TRANSPORT_PORT:-5140}" },
+"output": {
+  "endpoint": "${OTLP_ENDPOINT}",
+  "protocol": "${OTLP_PROTOCOL:-grpc}",
+  "headers": { "Authorization": "Bearer ${OTLP_TOKEN}" }
+}
+```
+
+To point the same binary at different backends:
+
+```bash
+# Test
+OTLP_ENDPOINT=http://localhost:4317 OTLP_INSECURE=true ./my-mediator
+
+# Production
+OTLP_ENDPOINT=https://ingest.prod.example.com:4317 OTLP_TOKEN=sk-... ./my-mediator
+```
+
+Missing required variables (those with no default and no value) cause an
+immediate startup failure with a descriptive error message listing the missing
+variables.
 
 ### 9.2 Logging
 
