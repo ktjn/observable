@@ -14,22 +14,44 @@ interface Props {
   definition: Record<string, unknown>;
 }
 
+function buildPayload(definition: Record<string, unknown>, target: string): string {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { parsed_fields: _pf, _sample, _includeRaw, ...cleanDef } = definition;
+  return JSON.stringify({ definition: cleanDef, target });
+}
+
+function makeCurlCommand(definition: Record<string, unknown>, target: string): string {
+  const host = `${window.location.hostname}:8091`;
+  const url = `http://${host}/build`;
+  const payload = buildPayload(definition, target);
+  const name = (definition.name as string) ?? 'mediator';
+  return `curl -X POST '${url}' \\\n  -H 'Content-Type: application/json' \\\n  -d '${payload.replace(/'/g, "'\\''")}' \\\n  --output ${name}-${target}.zip`;
+}
+
 export function DownloadPanel({ definition }: Props) {
   const [target, setTarget] = useState('x86_64-unknown-linux-musl');
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const curlCmd = makeCurlCommand(definition, target);
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(curlCmd).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   const build = async () => {
     setBuilding(true);
     setError(null);
     try {
-      // Strip UI-only bookkeeping fields before sending to the build service
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { parsed_fields: _pf, _sample, _includeRaw, ...cleanDef } = definition as Record<string, unknown>;
+      const body = buildPayload(definition, target);
       const res = await fetch('/build', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ definition: cleanDef, target }),
+        body,
       });
       if (!res.ok) {
         const text = await res.text();
@@ -60,9 +82,35 @@ export function DownloadPanel({ definition }: Props) {
 
       <p style={{ fontSize: 13, color: '#555', marginTop: 8 }}>
         The download package contains: compiled binary, generated Rust source,
-        Cargo.toml with pinned dependencies, systemd unit file, init.d script,
-        Dockerfile, and docker-compose.yml snippet.
+        systemd unit file, init.d script, Dockerfile, and docker-compose.yml snippet.
       </p>
+
+      {/* Curl command */}
+      <div style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>curl command</span>
+          <button
+            onClick={copyToClipboard}
+            style={{ fontSize: 12, padding: '2px 10px', cursor: 'pointer' }}
+          >
+            {copied ? '✓ Copied' : 'Copy'}
+          </button>
+        </div>
+        <pre style={{
+          background: '#1e1e1e',
+          color: '#d4d4d4',
+          padding: 12,
+          borderRadius: 4,
+          fontSize: 12,
+          overflowX: 'auto',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-all',
+          userSelect: 'all',
+          cursor: 'text',
+        }}>
+          {curlCmd}
+        </pre>
+      </div>
 
       <details style={{ marginTop: 12 }}>
         <summary style={{ fontSize: 13, cursor: 'pointer' }}>Environment variables for test / production</summary>

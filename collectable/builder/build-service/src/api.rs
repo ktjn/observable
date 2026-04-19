@@ -57,16 +57,20 @@ async fn build(Json(req): Json<BuildRequest>) -> Response {
     let result = async {
         std::fs::create_dir_all(&work_dir)?;
 
+        // Assemble deploy dir path early (needed before compile for render_deploy)
+        let deploy_dir = work_dir.join("deploy");
+        let zip_path = work_dir.join(format!("{}.zip", req.definition.name));
+
         // Generate Rust source
         codegen::generate(&req.definition, &work_dir)?;
 
+        // Render deployment artefacts
+        codegen::render_deploy(&req.definition, &deploy_dir)?;
+
         // Compile
-        let binary = compiler::compile(&work_dir, &req.target).await?;
+        let binary = compiler::compile(&work_dir, &req.target, &req.definition.name).await?;
 
         // Assemble package
-        let zip_path = work_dir.join(format!("{}.zip", req.definition.name));
-        let deploy_dir = work_dir.join("deploy");
-        std::fs::create_dir_all(&deploy_dir)?;
         let pipeline_json = serde_json::to_string_pretty(&req.definition)?;
 
         packaging::assemble(

@@ -11,7 +11,7 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier={{name}}
 EnvironmentFile=-/etc/collectable/{{name}}.env
-PIDFile={{pid_file}}
+PIDFile={{ pid_file | default(value="/var/run/collectable.pid") }}
 
 [Install]
 WantedBy=multi-user.target

@@ -15,7 +15,7 @@ pub const SUPPORTED_TARGETS: &[&str] = &[
     "aarch64-apple-darwin",
 ];
 
-pub async fn compile(workspace: &PathBuf, target: &str) -> Result<PathBuf> {
+pub async fn compile(workspace: &PathBuf, target: &str, name: &str) -> Result<PathBuf> {
     if !SUPPORTED_TARGETS.contains(&target) {
         anyhow::bail!("unsupported target: {target}");
     }
@@ -31,15 +31,10 @@ pub async fn compile(workspace: &PathBuf, target: &str) -> Result<PathBuf> {
         anyhow::bail!("cargo build failed for target {target}");
     }
 
-    let pkg_name = workspace
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
     let binary_name = if target.contains("windows") {
-        format!("{pkg_name}.exe")
+        format!("{name}.exe")
     } else {
-        pkg_name
+        name.to_string()
     };
 
     Ok(workspace
