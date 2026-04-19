@@ -34,6 +34,20 @@ pub fn generate(def: &PipelineDefinition, out_dir: &PathBuf) -> Result<()> {
     std::fs::write(src_dir.join("main.rs"), main_rs)?;
     std::fs::write(out_dir.join("Cargo.toml"), cargo_toml)?;
 
+    // Write .cargo/config.toml so musl targets are always fully static,
+    // regardless of how cargo is invoked.
+    let cargo_config_dir = out_dir.join(".cargo");
+    std::fs::create_dir_all(&cargo_config_dir)?;
+    std::fs::write(
+        cargo_config_dir.join("config.toml"),
+        r#"[target.x86_64-unknown-linux-musl]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-unknown-linux-musl]
+rustflags = ["-C", "target-feature=+crt-static"]
+"#,
+    )?;
+
     Ok(())
 }
 

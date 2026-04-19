@@ -20,9 +20,15 @@ pub async fn compile(workspace: &PathBuf, target: &str, name: &str) -> Result<Pa
         anyhow::bail!("unsupported target: {target}");
     }
 
-    let status = Command::new("cargo")
-        .args(["build", "--release", "--target", target])
-        .current_dir(workspace)
+    // Force static libc embedding for musl targets so the binary has no
+    // dynamic interpreter dependency on ld-musl-*.so.
+    let mut cmd = Command::new("cargo");
+    cmd.args(["build", "--release", "--target", target])
+        .current_dir(workspace);
+    if target.contains("musl") {
+        cmd.env("RUSTFLAGS", "-C target-feature=+crt-static");
+    }
+    let status = cmd
         .status()
         .await
         .context("failed to invoke cargo")?;
