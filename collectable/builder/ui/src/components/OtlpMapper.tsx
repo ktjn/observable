@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface Props {
   definition: Record<string, unknown>;
@@ -6,86 +6,137 @@ interface Props {
   onNext: () => void;
 }
 
-const TARGETS = [
-  'resource_attributes',
-  'log_attributes',
-  'body',
-  'severity_text',
-  'trace_id',
-  'span_id',
-  'drop',
-];
+const ALL_TARGETS = ['time_field', 'body', 'severity_text', 'trace_id', 'span_id', 'resource_attributes', 'log_attributes', 'drop'];
+
+/** Suggest a sensible default OTLP target for a field name. */
+function defaultTarget(field: string): string {
+  if (field === '$raw') return 'body';
+  const f = field.toLowerCase();
+  if (/^(timestamp|time|date|datetime|@timestamp)$/.test(f)) return 'time_field';
+  if (/^(level|severity|log_?level|loglevel|priority)$/.test(f)) return 'severity_text';
+  if (/^(message|msg|body|text|log)$/.test(f)) return 'body';
+  if (/^trace_?id$/.test(f)) return 'trace_id';
+  if (/^span_?id$/.test(f)) return 'span_id';
+  return 'log_attributes';
+}
+
+function applyMapping(
+  mapping: Record<string, unknown>,
+  field: string,
+  target: string,
+): Record<string, unknown> {
+  const m = { ...mapping };
+
+  // Clear previous location for this field
+  (['resource_attributes', 'log_attributes'] as const).forEach(section => {
+    const s = m[section] as Record<string, unknown> | undefined;
+    if (s && field in s) {
+      const updated = { ...s };
+      delete updated[field];
+      m[section] = updated;
+    }
+  });
+  if ((m.body as Record<string,unknown>)?.field === field) delete m.body;
+  if ((m.severity_text as Record<string,unknown>)?.field === field) delete m.severity_text;
+  if ((m.time_field as Record<string,unknown>)?.field === field) delete m.time_field;
+  if ((m.trace_id as Record<string,unknown>)?.field === field) delete m.trace_id;
+  if ((m.span_id as Record<string,unknown>)?.field === field) delete m.span_id;
+
+  if (target === 'drop') return m;
+  if (target === 'body') { m.body = { field }; return m; }
+  if (target === 'severity_text') { m.severity_text = { field }; return m; }
+  if (target === 'time_field') { m.time_field = { field, format: 'auto' }; return m; }
+  if (target === 'trace_id') { m.trace_id = { field }; return m; }
+  if (target === 'span_id') { m.span_id = { field }; return m; }
+  if (target === 'resource_attributes') {
+    m.resource_attributes = { ...((m.resource_attributes as object) ?? {}), [field]: { field } };
+    return m;
+  }
+  // log_attributes (default)
+  m.log_attributes = { ...((m.log_attributes as object) ?? {}), [field]: { field } };
+  return m;
+}
 
 export function OtlpMapper({ definition, onChange, onNext }: Props) {
-  const mapping = (definition.mapping as Record<string, unknown>) ?? {};
+  const fields = (definition.parsed_fields as string[]) ?? ['$raw'];
+  const [fieldTargets, setFieldTargets] = useState<Record<string, string>>(() =>
+    Object.fromEntries(fields.map(f => [f, defaultTarget(f)])),
+  );
 
-  const setOutput = (field: string, target: string) => {
-    const updated = { ...mapping };
-    if (target === 'drop') {
-      delete (updated as Record<string, unknown>)[field];
-    } else if (target === 'body') {
-      updated.body = { field };
-    } else if (target === 'severity_text') {
-      updated.severity_text = { field };
-    } else if (target === 'resource_attributes') {
-      const ra = (updated.resource_attributes as Record<string, unknown>) ?? {};
-      updated.resource_attributes = { ...ra, [field]: { field } };
-    } else if (target === 'log_attributes') {
-      const la = (updated.log_attributes as Record<string, unknown>) ?? {};
-      updated.log_attributes = { ...la, [field]: { field } };
-    }
-    onChange({ ...definition, mapping: updated });
+  // Sync if fields change (user went back to Step 2)
+  const currentFields = (definition.parsed_fields as string[]) ?? ['$raw'];
+  const missingInState = currentFields.filter(f => !(f in fieldTargets));
+  if (missingInState.length > 0) {
+    setFieldTargets(prev => ({
+      ...prev,
+      ...Object.fromEntries(missingInState.map(f => [f, defaultTarget(f)])),
+    }));
+  }
+
+  const handleChange = (field: string, target: string) => {
+    const newTargets = { ...fieldTargets, [field]: target };
+    setFieldTargets(newTargets);
+    let mapping = (definition.mapping as Record<string, unknown>) ?? {};
+    mapping = applyMapping(mapping, field, target);
+    onChange({ ...definition, mapping });
   };
+
+  // Initialise mapping from defaults on first render
+  React.useEffect(() => {
+    let mapping = (definition.mapping as Record<string, unknown>) ?? {};
+    fields.forEach(f => { mapping = applyMapping(mapping, f, defaultTarget(f)); });
+    onChange({ ...definition, mapping });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div>
       <h2>Step 3 — OTLP Mapping</h2>
-      <p>For each extracted field, choose where it maps in the OTel LogRecord.</p>
+      <p>Map each extracted field to its destination in the OTel LogRecord.</p>
+
+      {currentFields.length === 1 && currentFields[0] === '$raw' && (
+        <p style={{ color: '#c66', fontSize: 13 }}>
+          ⚠ No fields extracted — go back to Step 2, paste sample data, and confirm the parser config.
+        </p>
+      )}
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
-          <tr>
-            <th style={{ textAlign: 'left', padding: '4px 8px' }}>Field</th>
-            <th style={{ textAlign: 'left', padding: '4px 8px' }}>OTLP target</th>
+          <tr style={{ background: '#f4f4f4' }}>
+            <th style={{ textAlign: 'left', padding: '6px 8px' }}>Extracted field</th>
+            <th style={{ textAlign: 'left', padding: '6px 8px' }}>OTLP target</th>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td style={{ padding: '4px 8px', fontFamily: 'monospace' }}>$raw</td>
-            <td style={{ padding: '4px 8px' }}>
-              <select defaultValue="body" onChange={e => setOutput('$raw', e.target.value)}>
-                {TARGETS.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </td>
-          </tr>
-          <tr>
-            <td style={{ padding: '4px 8px', fontFamily: 'monospace' }}>timestamp</td>
-            <td style={{ padding: '4px 8px' }}>
-              <select defaultValue="drop" onChange={e => setOutput('timestamp', e.target.value)}>
-                {['time_field', ...TARGETS].map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </td>
-          </tr>
+          {currentFields.map(field => (
+            <tr key={field} style={{ borderBottom: '1px solid #eee' }}>
+              <td style={{ padding: '6px 8px', fontFamily: 'monospace', fontSize: 13 }}>{field}</td>
+              <td style={{ padding: '6px 8px' }}>
+                <select
+                  value={fieldTargets[field] ?? defaultTarget(field)}
+                  onChange={e => handleChange(field, e.target.value)}
+                >
+                  {ALL_TARGETS.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
 
-      <p style={{ color: '#888', fontSize: 12, marginTop: 8 }}>
-        Additional fields will be populated from parsed output after Step 2 is complete.
-      </p>
-
-      <div style={{ marginTop: 16 }}>
+      <div style={{ marginTop: 20 }}>
         <label>OTLP endpoint<br />
           <input type="text" style={{ width: '100%' }}
-            placeholder="${OTLP_ENDPOINT}"
+            defaultValue="${OTLP_ENDPOINT}"
             onChange={e => onChange({
               ...definition,
-              output: { ...((definition.output as object) ?? {}), endpoint: e.target.value }
+              output: { ...((definition.output as object) ?? {}), endpoint: e.target.value },
             })} />
         </label>
         <label style={{ display: 'block', marginTop: 8 }}>Protocol<br />
-          <select onChange={e => onChange({
+          <select defaultValue="grpc" onChange={e => onChange({
             ...definition,
-            output: { ...((definition.output as object) ?? {}), protocol: e.target.value }
+            output: { ...((definition.output as object) ?? {}), protocol: e.target.value },
           })}>
             <option value="grpc">gRPC</option>
             <option value="http">HTTP</option>
@@ -93,9 +144,7 @@ export function OtlpMapper({ definition, onChange, onNext }: Props) {
         </label>
       </div>
 
-      <button style={{ marginTop: 24 }} onClick={onNext}>
-        Next →
-      </button>
+      <button style={{ marginTop: 24 }} onClick={onNext}>Next →</button>
     </div>
   );
 }
