@@ -1,0 +1,16 @@
+{{- if .Values.services.streamProcessor.enabled -}}
+{{- $env := list
+    (dict "name" "REDPANDA_BROKERS"    "value" .Values.redpanda.brokers)
+    (dict "name" "INGEST_TOPIC"        "value" .Values.redpanda.ingestTopic)
+    (dict "name" "STORAGE_WRITER_URL"  "value" (printf "http://storage-writer:%d" (int .Values.services.storageWriter.port))) -}}
+{{- $ctx := dict
+    "name"    "stream-processor"
+    "command" "stream-processor"
+    "port"    0
+    "service" .Values.services.streamProcessor
+    "env"     $env
+    "Values"  .Values
+    "Chart"   .Chart
+    "Release" .Release -}}
+{{ include "observable-common.deployment" $ctx }}
+{{- end }}

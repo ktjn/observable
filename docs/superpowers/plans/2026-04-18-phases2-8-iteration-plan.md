@@ -151,9 +151,9 @@ Next smallest slice:
   - Outcome: an operator can define a threshold and see an alert fire. A new `alert-evaluator` service reads `alert_rules` (type `threshold`) from PostgreSQL, queries the most recent metric point for each rule from ClickHouse, evaluates the scalar value against the condition (`gt`, `gte`, `lt`, `lte`, `eq`), writes an `alert_firings` row (state `active`), and emits a `warn!` log with `rule_id`, `tenant_id`, `metric_name`, `value`, and `threshold` when the condition fires. Migrations `007_create_alert_rules.sql` and `008_create_alert_firings.sql` add the tables. A seeded dev rule fires when `error_rate > 0.05`. Eight unit tests cover all operators.
   - Checkpoint: is the evaluation model stable enough to support burn-rate later? Answer: yes. The `alert_rules` table holds `alert_type` with an enum constraint that already includes `slo_burn_rate`; the `condition` JSONB column can carry a different structure for burn-rate rules without schema migration. The evaluator's dispatch model (read rules → branch on `alert_type` → evaluate → record firing) extends naturally: add a new `alert_type = 'slo_burn_rate'` branch that parses a burn-rate condition struct and queries the error budget window from ClickHouse. The `alert_firings` table and `start_eval_worker` loop are reused unchanged. The `for_duration_secs` column is present for the Pending→Active debounce but is not yet enforced; enforce it when flap avoidance becomes a requirement.
 
-- [ ] **P2-S8a: Add Kubernetes manifest render and rollback skeleton**
-  - Outcome: one deployable environment has rendered manifests and a documented rollback path
-  - Checkpoint: does rollback documentation cover both runtime and schema assumptions?
+- [x] **P2-S8a: Add Kubernetes manifest render and rollback skeleton**
+  - Outcome: one deployable environment has rendered manifests and a documented rollback path. A Helm library chart (`charts/observable-common`) provides shared Deployment, Service, and label templates; an umbrella chart (`charts/observable`) composes all six services with a pre-install migration Job hook. Infrastructure is deployed in kind via `deploy/kind/infra/` manifests using the same images and env var names as `docker-compose.yml`. `scripts/kind-test.sh` creates a kind cluster, installs the chart, runs ingest-to-query smoke checks, and verifies `helm rollback`. `scripts/helm-lint.sh` validates chart syntax. ADR-020 documents the Helm and kind tooling decisions. `spec/11-testing.md §18.7` documents the full Kubernetes test strategy.
+  - Checkpoint: does rollback documentation cover both runtime and schema assumptions? Answer: yes. `spec/12-deployment.md §19.7` documents: (1) runtime rollback via `helm rollback <release> <revision>` which redeploys the previous Deployment specs without re-executing migration Jobs; (2) schema rollback policy — migrations are forward-only (ADR-013), backward compatibility with the preceding image version is a release gate, and the expand–migrate–contract pattern is required for any migration that would break a previous service version. `scripts/kind-test.sh` exercises the rollback path as part of the kind integration test.
 
 - [ ] **P2-S8b: Add one canary promotion path**
   - Outcome: one deployable environment can promote progressively and revert safely
@@ -417,7 +417,8 @@ After this planning reconciliation, the next implementation slice should be:
 8. ~~P2-S3a: add cardinality budget observation for one signal~~ (done)
 9. ~~P2-S4a: add hot retention policy for traces~~ (done)
 10. ~~P2-S7a: add one threshold alert evaluation path~~ (done)
-11. **P2-S8a: add Kubernetes manifest render and rollback skeleton**
+11. ~~P2-S8a: add Kubernetes manifest render and rollback skeleton~~ (done)
+12. **P2-S8b: add one canary promotion path**
 
 That sequence moves the project from "works" to "safe to keep running."
 

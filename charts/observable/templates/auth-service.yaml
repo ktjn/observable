@@ -1,0 +1,17 @@
+{{- if .Values.services.authService.enabled -}}
+{{- $env := list
+    (dict "name" "DATABASE_URL"      "value" .Values.postgres.url)
+    (dict "name" "AUTH_SERVICE_PORT" "value" (toString .Values.services.authService.port)) -}}
+{{- $ctx := dict
+    "name"    "auth-service"
+    "command" "auth-service"
+    "port"    .Values.services.authService.port
+    "service" .Values.services.authService
+    "env"     $env
+    "Values"  .Values
+    "Chart"   .Chart
+    "Release" .Release -}}
+{{ include "observable-common.deployment" $ctx }}
+---
+{{ include "observable-common.service" $ctx }}
+{{- end }}

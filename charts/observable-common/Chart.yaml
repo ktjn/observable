@@ -1,0 +1,5 @@
+apiVersion: v2
+name: observable-common
+description: Shared Helm library chart for Observable platform services
+type: library
+version: 0.1.0

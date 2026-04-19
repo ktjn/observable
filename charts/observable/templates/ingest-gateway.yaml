@@ -1,0 +1,19 @@
+{{- if .Values.services.ingestGateway.enabled -}}
+{{- $env := list
+    (dict "name" "INGEST_GATEWAY_PORT" "value" (toString .Values.services.ingestGateway.port))
+    (dict "name" "REDPANDA_BROKERS"    "value" .Values.redpanda.brokers)
+    (dict "name" "INGEST_TOPIC"        "value" .Values.redpanda.ingestTopic)
+    (dict "name" "AUTH_SERVICE_URL"    "value" (printf "http://auth-service:%d" (int .Values.services.authService.port))) -}}
+{{- $ctx := dict
+    "name"    "ingest-gateway"
+    "command" "ingest-gateway"
+    "port"    .Values.services.ingestGateway.port
+    "service" .Values.services.ingestGateway
+    "env"     $env
+    "Values"  .Values
+    "Chart"   .Chart
+    "Release" .Release -}}
+{{ include "observable-common.deployment" $ctx }}
+---
+{{ include "observable-common.service" $ctx }}
+{{- end }}

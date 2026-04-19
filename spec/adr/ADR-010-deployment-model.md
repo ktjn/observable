@@ -12,11 +12,12 @@ The platform is composed of multiple distributed services (ingest gateways, proc
 
 ## Decision
 
-The platform will use a **Kubernetes-first deployment model**. 
+The platform will use a **Kubernetes-first deployment model**.
 - All services will be packaged as containers.
-- Helm or Kustomize will be used for configuration and deployment management.
+- **Helm v3** is the chosen configuration and deployment management tool (Kustomize deferred — see ADR-020).
 - We will target standard Kubernetes environments (e.g., EKS, GKE, AKS, and bare-metal distributions like RKE2).
-- Operators (e.g., ClickHouse Operator, Strimzi/Redpanda Operator) will be used to manage complex stateful components.
+- Operators (e.g., ClickHouse Operator, Strimzi/Redpanda Operator) will be used to manage complex stateful components in production; **kind** is used for local Kubernetes integration testing (see ADR-020).
+- Docker Compose remains the canonical local development environment; Helm targets CI/staging/production environments.
 
 ## Consequences
 
@@ -46,3 +47,4 @@ Rejected because Kubernetes provides a standard and more flexible orchestration 
 - `spec/10-process.md` (ADR list)
 - `spec/12-deployment.md` (Deployment Strategy)
 - `spec/13-risks-roadmap.md` (Final Recommendation)
+- `ADR-020`: Helm Chart Strategy (library + umbrella chart, kind for testing)

@@ -1,0 +1,19 @@
+{{- if .Values.services.storageWriter.enabled -}}
+{{- $env := list
+    (dict "name" "CLICKHOUSE_URL"      "value" .Values.clickhouse.url)
+    (dict "name" "CLICKHOUSE_USER"     "value" .Values.clickhouse.user)
+    (dict "name" "CLICKHOUSE_PASSWORD" "value" .Values.clickhouse.password)
+    (dict "name" "STORAGE_WRITER_PORT" "value" (toString .Values.services.storageWriter.port)) -}}
+{{- $ctx := dict
+    "name"    "storage-writer"
+    "command" "storage-writer"
+    "port"    .Values.services.storageWriter.port
+    "service" .Values.services.storageWriter
+    "env"     $env
+    "Values"  .Values
+    "Chart"   .Chart
+    "Release" .Release -}}
+{{ include "observable-common.deployment" $ctx }}
+---
+{{ include "observable-common.service" $ctx }}
+{{- end }}

@@ -1,0 +1,120 @@
+# Observable platform Helm values.
+#
+# Environment-variable names mirror docker-compose.yml so operators can
+# cross-reference the two definitions without separate documentation.
+# Override per-environment in a separate values file:
+#   helm install observable ./charts/observable -f values.prod.yaml
+
+global:
+  image:
+    # Built from the repo-root Dockerfile.  In CI set to the immutable commit-tag.
+    repository: observable-services
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+# Infrastructure connection strings.
+# These are consumed by multiple services and centralised here to avoid
+# repetition.  They must be overridden in production (use ExternalSecret or
+# a sealed-secrets file).
+clickhouse:
+  url: "http://clickhouse:8123"
+  user: "default"
+  password: "observable"
+  database: "observable"
+
+postgres:
+  # Must include credentials; rotate via ExternalSecret in production.
+  url: "postgres://observable:observable@postgres:5432/observable"
+  user: "observable"
+  password: "observable"
+
+redpanda:
+  brokers: "redpanda:9092"
+  ingestTopic: "telemetry.raw"
+
+# Per-service configuration.
+# Each block maps directly to one Deployment + one Service (except
+# streamProcessor which is headless).
+services:
+  authService:
+    enabled: true
+    port: 4318
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+  ingestGateway:
+    enabled: true
+    port: 4317
+    replicas: 1
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 512Mi
+
+  # stream-processor has no HTTP listener; no Service is created.
+  streamProcessor:
+    enabled: true
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+  storageWriter:
+    enabled: true
+    port: 4320
+    replicas: 1
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 512Mi
+
+  queryApi:
+    enabled: true
+    port: 8090
+    replicas: 1
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 512Mi
+
+  alertEvaluator:
+    enabled: true
+    port: 4321
+    replicas: 1
+    # Interval at which the evaluator polls for alert conditions (seconds).
+    evalIntervalSeconds: "60"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+# Migration job settings (pre-install / pre-upgrade Helm hook).
+migrations:
+  # BackoffLimit for the migration Job before Helm marks the hook failed.
+  backoffLimit: 3
+  # ConfigMap names that must exist before helm install.
+  # Created by scripts/kind-test.sh (kind) or the release pipeline (CI).
+  postgresConfigMap: observable-migrations-postgres
+  clickhouseConfigMap: observable-migrations-clickhouse

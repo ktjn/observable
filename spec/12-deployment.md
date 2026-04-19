@@ -139,6 +139,81 @@ The Rust service containers are built from the repo-root `Dockerfile` and run th
 - Local ports must not conflict across services: ClickHouse 8123/9000, Redpanda 9092/9644, Postgres 5432, OpenFGA 8080, ingest-gateway 4317, auth-service 4318, storage-writer 4320, query-api 8090.
 - `make dev` must be documented in the repo root README as the single starting point for new contributors.
 
+### 19.7 Helm Chart Layout and Rollback
+
+**Helm** (v3) is the chosen deployment tool (ADR-020). Charts live under `charts/` in the
+monorepo root:
+
+```
+charts/
+  observable-common/    # Library chart — shared Deployment, Service, and label templates
+  observable/           # Application chart — all six services + migration Job
+```
+
+**Common library chart (`observable-common`):**  
+Provides three named Go templates: `observable-common.deployment`, `observable-common.service`,
+and label/selector helpers. The library chart is a Helm `type: library` dependency of the
+application chart. Adding a new service requires one new template file in `charts/observable/templates/`
+that calls the common templates; no scaffolding code is duplicated.
+
+**Application chart (`observable`):**  
+Declares `observable-common` as a local file dependency. One template file per service. Values
+(`charts/observable/values.yaml`) are keyed to mirror `docker-compose.yml` environment variable
+names so an operator can cross-reference both without separate documentation.
+
+**Install sequence:**
+
+```bash
+# 1. Create migration ConfigMaps from the repo-root migration SQL files
+kubectl create configmap observable-migrations-postgres \
+  --from-file=migrations/postgres/ --namespace observable
+kubectl create configmap observable-migrations-clickhouse \
+  --from-file=migrations/clickhouse/ --namespace observable
+
+# 2. Resolve chart dependencies
+helm dependency update charts/observable
+
+# 3. Install
+helm install observable charts/observable --namespace observable --wait
+```
+
+**Rollback path:**
+
+Schema migrations are forward-only (ADR-013). Rolling back a bad application release is safe
+when the deployed image version is backward-compatible with the current schema. Any migration
+that would break a previous service version is a release blocker.
+
+```bash
+# List revisions
+helm history observable --namespace observable
+
+# Roll back to a specific revision (does not re-run migration Jobs)
+helm rollback observable <revision> --namespace observable --wait
+```
+
+Runtime rollback constraints:
+- `helm rollback` redeploys the previous Deployment specs; it does **not** re-execute hook Jobs.
+- Migrations already applied remain in place. This is intentional: schema backward compatibility
+  is a release gate, not a rollback responsibility.
+- If a migration must be reversed, write a compensating migration file (ADR-013).
+
+**Local Kubernetes testing (kind):**
+
+```bash
+# Lint charts (fast, no cluster needed)
+bash scripts/helm-lint.sh
+
+# Full cluster test: create cluster, deploy, smoke check, rollback, teardown
+bash scripts/kind-test.sh
+
+# Keep cluster alive for debugging
+bash scripts/kind-test.sh --keep-cluster
+```
+
+`scripts/kind-test.sh` deploys the same images and env var names as `docker-compose.yml` into
+a kind cluster, exercising the complete ingest-to-query path and verifying `helm rollback`
+reverts the application tier.
+
 ---
 
 ## 20. Tooling and Framework Recommendations

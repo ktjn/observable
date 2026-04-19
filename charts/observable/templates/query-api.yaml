@@ -1,0 +1,20 @@
+{{- if .Values.services.queryApi.enabled -}}
+{{- $env := list
+    (dict "name" "QUERY_API_PORT"      "value" (toString .Values.services.queryApi.port))
+    (dict "name" "CLICKHOUSE_URL"      "value" .Values.clickhouse.url)
+    (dict "name" "CLICKHOUSE_USER"     "value" .Values.clickhouse.user)
+    (dict "name" "CLICKHOUSE_PASSWORD" "value" .Values.clickhouse.password)
+    (dict "name" "DATABASE_URL"        "value" .Values.postgres.url) -}}
+{{- $ctx := dict
+    "name"    "query-api"
+    "command" "query-api"
+    "port"    .Values.services.queryApi.port
+    "service" .Values.services.queryApi
+    "env"     $env
+    "Values"  .Values
+    "Chart"   .Chart
+    "Release" .Release -}}
+{{ include "observable-common.deployment" $ctx }}
+---
+{{ include "observable-common.service" $ctx }}
+{{- end }}

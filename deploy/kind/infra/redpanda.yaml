@@ -1,0 +1,82 @@
+# Redpanda for kind integration tests.
+# Uses the same image as docker-compose.yml; single broker.
+# Not for production HA use.
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+  namespace: observable
+spec:
+  selector:
+    app: redpanda
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: 9092
+    - name: admin
+      port: 9644
+      targetPort: 9644
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda
+  namespace: observable
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redpanda
+  template:
+    metadata:
+      labels:
+        app: redpanda
+    spec:
+      containers:
+        - name: redpanda
+          image: redpandadata/redpanda:v23.3.1
+          command:
+            - redpanda
+            - start
+            - --smp=1
+            - --memory=512M
+            - --overprovisioned
+            - --kafka-addr=internal://0.0.0.0:9092
+            - --advertise-kafka-addr=internal://redpanda:9092
+          ports:
+            - containerPort: 9092
+            - containerPort: 9644
+          readinessProbe:
+            exec:
+              command: ["rpk", "cluster", "info"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 20
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 768Mi
+---
+# Topic setup Job — mirrors redpanda-setup in docker-compose.yml.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: redpanda-setup
+  namespace: observable
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: setup
+          image: redpandadata/redpanda:v23.3.1
+          command:
+            - /bin/bash
+            - -c
+            - |
+              rpk topic create telemetry.raw --brokers redpanda:9092 2>/dev/null || true
+              echo "Redpanda topic setup complete."

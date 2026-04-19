@@ -1,0 +1,56 @@
+# PostgreSQL for kind integration tests.
+# Uses the same image and environment variables as docker-compose.yml.
+# Single-replica; not for production HA use.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: observable
+spec:
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: observable
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: observable
+            - name: POSTGRES_USER
+              value: observable
+            - name: POSTGRES_PASSWORD
+              value: observable
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "observable"]
+            initialDelaySeconds: 5
+            periodSeconds: 3
+            failureThreshold: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
