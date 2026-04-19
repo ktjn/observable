@@ -84,7 +84,7 @@ Risk costs are the financial exposure from incidents, data loss, and strategic l
 |---|---|---|
 | **Instrumentation lock-in** | Negligible. OTel SDK instrumentation is portable to any OTel-compatible backend. | High. Proprietary agents require full re-instrumentation to switch vendors. |
 | **Query language lock-in** | Low. Arrow/DataFusion uses standard SQL-compatible semantics. No proprietary DSL. | High. Datadog Query Language (DQL), NRQL, and DynaQL are not transferable. |
-| **Data portability** | High. Export APIs (CSV, JSON, OTLP) are planned (see `spec/00-market-analysis.md §3`). | Low. Data is generally inaccessible outside the vendor's UI/API. |
+| **Data portability** | High. Export APIs (CSV, JSON, OTLP) are planned (see `00-market-analysis.md §3`). | Low. Data is generally inaccessible outside the vendor's UI/API. |
 | **Dashboard portability** | High. Every dashboard is a JSON artifact in git; CI/CD-reviewable and version-controlled. | Low. Dashboard definitions are proprietary formats stored in vendor systems. |
 
 #### Operational risk
@@ -114,7 +114,7 @@ Costs incurred when decommissioning an Observable deployment or migrating to a d
 
 | Cost Item | Observable | Notes |
 |---|---|---|
-| **Data export** | Export APIs planned for CSV, JSON, and OTLP formats. Cold-tier data in object storage is directly accessible (standard S3 format). | Requires implementing the planned export API endpoints (see `spec/00-market-analysis.md §3`). |
+| **Data export** | Export APIs planned for CSV, JSON, and OTLP formats. Cold-tier data in object storage is directly accessible (standard S3 format). | Requires implementing the planned export API endpoints (see `00-market-analysis.md §3`). |
 | **Instrumentation migration** | Zero. OTel SDK instrumentation works unchanged with any OTel-compatible successor platform. | This is the single most significant EOL cost reduction compared to proprietary-agent platforms. |
 | **Dashboard migration** | Dashboard JSON artifacts are serializable and version-controlled. An export-to-Grafana adapter is achievable. | Depends on target platform format. |
 | **Knowledge transfer** | Platform team retains transferable knowledge: Kubernetes operations, ClickHouse SQL, Redpanda Kafka APIs, OTel semantics. These are all standard skills. | No vendor-specific certification cliff. |
@@ -142,7 +142,7 @@ LCM
 - [ ] Object storage available (S3 or S3-compatible)
 - [ ] Workloads instrumented with OTel SDKs, or an OTel Collector can be added as a local hop
 - [ ] Platform engineering team can commit 0.25–0.5 FTE to operate the platform
-- [ ] Security team has reviewed the [tenancy and security spec](../spec/04-tenancy-security.md)
+- [ ] Security team has reviewed the [tenancy and security spec](04-tenancy-security.md)
 - [ ] Data residency requirements are understood (self-hosted deployment gives full control)
 
 **Total cost comparison inputs (3-year horizon, 500 engineers, 200 services):**
@@ -209,7 +209,7 @@ Retention windows directly control OPEX. Tune them to match actual investigation
 **Cardinality budget management:**
 - Monitor `METRIC_SERIES_BUDGET_PER_TENANT` alerts (emitted as structured warnings by the ingest gateway)
 - Increase the budget or identify and remove high-cardinality label sources before the budget is exhausted
-- Use the planned Cardinality Inspector UI ([spec/05 §9.5](../spec/05-frontend.md)) to identify top offenders
+- Use the planned Cardinality Inspector UI ([spec/05 §9.5](05-frontend.md)) to identify top offenders
 
 **Capacity planning signals:**
 - Redpanda consumer lag → ingest pipeline is falling behind; scale stream-processor replicas
@@ -231,7 +231,7 @@ Retention windows directly control OPEX. Tune them to match actual investigation
       helm rollback observable <previous-revision>
 ```
 
-**Schema migration policy ([ADR-013](../spec/adr/ADR-013-schema-governance.md)):**
+**Schema migration policy ([ADR-013](adr/ADR-013-schema-governance.md)):**
 - Migrations are **forward-only**. There is no rollback for applied schema changes.
 - The expand–migrate–contract pattern is required for any migration that would break the previous service version.
 - Migration compatibility with the N−1 service version is a release gate.
