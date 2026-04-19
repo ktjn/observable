@@ -20,6 +20,8 @@ Full-stack observability platform specification — Dynatrace / New Relic class,
 | [11-testing.md](11-testing.md) | Test strategy, CI gates, agent iteration verification, no-regression rules, test data, non-functional targets |
 | [12-deployment.md](12-deployment.md) | Deployment, build artifacts, tooling recommendations, build-vs-buy |
 | [13-risks-roadmap.md](13-risks-roadmap.md) | Risks, initial deliverables, v1 scope, final recommendation |
+| [81-product-lifecycle.md](81-product-lifecycle.md) | Product cost structure (CAPEX/OPEX), lifecycle management, support tiers, versioning and EOL policy |
+| [91-customer-tco.md](91-customer-tco.md) | Customer total cost of ownership, acquisition planning, deployment, upgrade strategy, and decommission guide |
 
 ## Implementation Plans
 
