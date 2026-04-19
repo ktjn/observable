@@ -71,6 +71,9 @@ watch_pods() {
     echo "    [$(date +%H:%M:%S)] pod status (ns: $ns):"
     kubectl get pods --namespace "$ns" -o wide --no-headers 2>/dev/null \
       | sed 's/^/      /' || true
+    echo "    recent events:"
+    kubectl get events --namespace "$ns" --sort-by='.lastTimestamp' 2>/dev/null \
+      | tail -8 | sed 's/^/      /' || true
   done
 }
 
