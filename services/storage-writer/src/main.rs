@@ -1,5 +1,6 @@
 mod logs;
 mod metrics;
+mod retention;
 mod spans;
 
 use axum::{
@@ -73,6 +74,11 @@ async fn main() -> anyhow::Result<()> {
     let port: u16 = std::env::var("STORAGE_WRITER_PORT")
         .unwrap_or_else(|_| "4320".into())
         .parse()?;
+    let retention_config = retention::RetentionConfig::from_env();
+    tokio::spawn(retention::start_retention_worker(
+        ch.clone(),
+        retention_config,
+    ));
     let app = Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/internal/spans", post(write_spans))

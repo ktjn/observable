@@ -131,9 +131,9 @@ Next smallest slice:
   - Outcome: operators can see budget consumption for one signal before enforcement starts. A `MetricCardinalityBudget` tracker was added to the ingest-gateway (`cardinality.rs`). Every `/v1/metrics` request increments a per-tenant cumulative series counter; when the total meets or exceeds the configurable budget (`METRIC_SERIES_BUDGET_PER_TENANT`, default 10 000), a `warn!` log is emitted with `tenant_id`, `series_count`, and `budget`. Ingest is never rejected; the counter is observation-only. Four unit tests cover counter accumulation, independent-tenant tracking, budget exhaustion, and the exact boundary. Four integration tests verify HTTP 200 on valid payloads, counter increment after a request, continued HTTP 200 when budget is exceeded, and 401 on missing auth.
   - Checkpoint: do we have operator-visible telemetry for budget exhaustion without changing ingest acceptance yet? Answer: yes. The `warn!` log fires when `series_count >= budget` and carries structured fields an operator can query or alert on. Ingest acceptance is unchanged — the handler always returns 200 after the observe call regardless of budget state.
 
-- [ ] **P2-S4a: Add hot retention policy for traces**
-  - Outcome: one trace retention path is enforced end to end
-  - Checkpoint: can we explain deletion timing and rollback behavior clearly?
+- [x] **P2-S4a: Add hot retention policy for traces**
+  - Outcome: one trace retention path is enforced end to end. A `RetentionConfig` struct in `services/storage-writer/src/retention.rs` reads `TRACE_HOT_RETENTION_DAYS` (default 14, clamped to 3–14 per ADR-012) and `RETENTION_CHECK_INTERVAL_SECONDS` (default 3600). A background Tokio task starts at service startup, ticks every interval, computes a Unix-nanosecond cutoff, and issues `ALTER TABLE observable.spans DELETE WHERE start_time_unix_nano < {cutoff_ns}` against ClickHouse. Every cycle logs the configured retention window and cutoff timestamp before submitting the mutation. Failures are logged as warnings; the HTTP server continues regardless. Six unit tests cover: cutoff arithmetic, underflow safety, default config, clamping below minimum, clamping above maximum, and the SQL shape.
+  - Checkpoint: deletion timing and rollback behavior are explicit. Timing: the worker fires once per `RETENTION_CHECK_INTERVAL_SECONDS` (default 1 h); the cutoff is `now - hot_trace_days * 86 400 s`, converted to nanoseconds. The schema-level TTL (14-day) remains as a safety net. Rollback: remove the `TRACE_HOT_RETENTION_DAYS` env var to restore the default, or stop the storage-writer (the mutation is already queued in ClickHouse and runs asynchronously, but no new mutations will be issued). The ClickHouse TTL ensures eventual cleanup even if the explicit worker is disabled.
 
 - [x] **P2-S5a: Add audit logging for credential validation**
   - Outcome: API key validation produces immutable audit records for allow and deny outcomes. The auth-service now appends a row to `credential_audit_log` on every call to `/internal/validate` — both allow and deny paths. Fields: `occurred_at`, `action` ("credential_validate"), `outcome` ("allow"/"deny"), `credential_hash` (SHA-256 of presented key; this is both the actor identity and the credential identifier at this layer), `tenant_id` (nullable; NULL when the key is not found), `denial_reason` (NULL on allow; "not_found", "revoked", or "hash_mismatch" on deny). Audit writes are fire-and-forget: a failure logs a warning but does not fail the auth response. Migration `004_create_credential_audit_log.sql` adds the table with indexes on `occurred_at` and `tenant_id`. Three new unit tests verify the `AuditEntry` constructor fields for all three outcomes.
@@ -415,7 +415,8 @@ After this planning reconciliation, the next implementation slice should be:
 6. ~~P2-S5b: add audit logging for query reads~~ (done)
 7. ~~P2-S6a: add minimal RBAC distinction for one role pair~~ (done)
 8. ~~P2-S3a: add cardinality budget observation for one signal~~ (done)
-9. **P2-S4a: add hot retention policy for traces**
+9. ~~P2-S4a: add hot retention policy for traces~~ (done)
+10. **P2-S7a: add one threshold alert evaluation path**
 
 That sequence moves the project from "works" to "safe to keep running."
 
