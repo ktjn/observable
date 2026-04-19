@@ -1,0 +1,10 @@
+apiVersion: v2
+name: observable
+description: Observable platform — full-stack Kubernetes deployment
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: observable-common
+    version: "0.1.0"
+    repository: "file://../observable-common"

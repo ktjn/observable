@@ -154,3 +154,65 @@ Agent PRs must report:
 - confirmation that no new errors were introduced
 - evidence that specs and ADRs are synchronized
 - the next smallest slice needed to continue toward the phase exit gate
+
+---
+
+### 18.7 Kubernetes Test Strategy
+
+Kubernetes-specific testing follows the same layered model as other test categories, with
+additional gates at the manifest and cluster-level.
+
+**Layer 1 — Manifest validation (every PR)**
+
+- `helm lint` validates YAML syntax, required fields, and Helm template correctness for
+  both `charts/observable-common` (library) and `charts/observable` (application).
+- `helm template --dry-run` renders the full manifest set and confirms all library template
+  calls resolve without errors.
+- Run locally: `bash scripts/helm-lint.sh`
+- Run in CI: `.github/workflows/pr.yml` → `helm` job.
+
+**Layer 2 — kind cluster integration (every push to main + nightly)**
+
+- `scripts/kind-test.sh` creates a fresh kind cluster, loads the local Docker image, deploys
+  the infra manifests from `deploy/kind/infra/`, creates migration ConfigMaps, installs the
+  chart, and verifies each service health endpoint responds.
+- The smoke path sends an OTLP trace through ingest-gateway and queries it back via query-api,
+  proving the ingest→Redpanda→stream-processor→ClickHouse→query-api pipeline round-trips in k8s.
+- Rollback verification: the test upgrades to revision 2 and executes `helm rollback 1`,
+  then asserts Deployment replica counts match revision 1 values.
+- Run locally: `bash scripts/kind-test.sh`
+- Run in CI: `.github/workflows/kind-test.yml` (triggered on push to main and nightly).
+
+**Layer 3 — Shared integration cluster (release candidates)**
+
+- Release candidate artifacts (immutable commit-tagged images) are deployed to a shared
+  integration cluster using the same chart.
+- Smoke, tenant-isolation, RBAC, and audit-log checks run against the shared cluster.
+- This environment is not created by this PR; it is a future Phase 4 gate.
+
+**What kind tests do not cover**
+
+| Gap | Mitigation |
+|-----|-----------|
+| Persistent volume behaviour | Docker Compose smoke test covers storage round-trip |
+| Multi-replica HA | ClickHouse/Redpanda Operator work deferred to Phase 4 |
+| Network policy enforcement | Deferred; unit tests verify tenant isolation at code level |
+| Operator-managed stateful services | In-cluster single-pod infra used for kind tests |
+| Production resource sizing | Values tuned per environment via overrides file |
+
+**Rollback test acceptance criteria**
+
+A Kubernetes slice is considered verified when:
+1. `helm lint` exits 0 with no warnings.
+2. `helm template --dry-run` renders without errors.
+3. `scripts/kind-test.sh` exits 0, meaning all service Deployments became `Available`
+   and `helm rollback` returned the cluster to the previous revision.
+4. No new errors are introduced in the Rust unit/integration suite.
+
+**Schema rollback policy (referenced in 18.4 and ADR-013)**
+
+Schema migrations are forward-only. Every migration file must be backward-compatible with the
+immediately preceding application image version. CI gates for release candidates include a
+matrix test that deploys the new schema against the previous image to verify compatibility.
+If compatibility cannot be maintained, the migration is split into a zero-downtime multi-step
+deployment (expand–migrate–contract pattern).

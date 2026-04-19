@@ -1,0 +1,60 @@
+# OpenFGA for kind integration tests.
+# Uses the same image and config as docker-compose.yml.
+# Requires postgres to be ready first.
+apiVersion: v1
+kind: Service
+metadata:
+  name: openfga
+  namespace: observable
+spec:
+  selector:
+    app: openfga
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: grpc
+      port: 8081
+      targetPort: 8081
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openfga
+  namespace: observable
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openfga
+  template:
+    metadata:
+      labels:
+        app: openfga
+    spec:
+      containers:
+        - name: openfga
+          image: openfga/openfga:v1.5
+          command: ["run"]
+          ports:
+            - containerPort: 8080
+            - containerPort: 8081
+          env:
+            - name: OPENFGA_DATASTORE_ENGINE
+              value: postgres
+            - name: OPENFGA_DATASTORE_URI
+              value: postgres://observable:observable@postgres:5432/observable
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

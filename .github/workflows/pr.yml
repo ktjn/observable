@@ -25,6 +25,15 @@ jobs:
       - run: npm run lint --workspace=apps/frontend
       - run: npm run build --workspace=apps/frontend
       - run: npm run test --workspace=apps/frontend -- --run
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: azure/setup-helm@v4
+        with:
+          version: "3.14.4"
+      - name: Helm lint and template render
+        run: bash scripts/helm-lint.sh
   smoke:
     runs-on: ubuntu-latest
     steps:

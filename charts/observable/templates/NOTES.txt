@@ -1,0 +1,40 @@
+Observable platform deployed successfully.
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+BEFORE FIRST INSTALL — create migration ConfigMaps from the repo root:
+
+  kubectl create configmap observable-migrations-postgres \
+    --from-file=migrations/postgres/ --namespace {{ .Release.Namespace }}
+
+  kubectl create configmap observable-migrations-clickhouse \
+    --from-file=migrations/clickhouse/ --namespace {{ .Release.Namespace }}
+
+Then install or upgrade the chart:
+
+  helm dependency update charts/observable
+  helm install {{ .Release.Name }} charts/observable --namespace {{ .Release.Namespace }}
+
+ROLLBACK
+
+List revisions:
+  helm history {{ .Release.Name }} --namespace {{ .Release.Namespace }}
+
+Roll back to a previous revision:
+  helm rollback {{ .Release.Name }} <revision> --namespace {{ .Release.Namespace }}
+
+Note: schema migrations are forward-only (ADR-013).  Rolling back the
+application tier is safe as long as the previous image version is compatible
+with the current schema.  Do not re-run the migration Job after rollback.
+
+SERVICE ENDPOINTS (ClusterIP — use kubectl port-forward or an Ingress):
+{{- if .Values.services.ingestGateway.enabled }}
+  ingest-gateway  :{{ .Values.services.ingestGateway.port }}  (OTLP HTTP)
+{{- end }}
+{{- if .Values.services.queryApi.enabled }}
+  query-api       :{{ .Values.services.queryApi.port }}       (HTTP query facade)
+{{- end }}
+{{- if .Values.services.authService.enabled }}
+  auth-service    :{{ .Values.services.authService.port }}    (internal auth)
+{{- end }}
