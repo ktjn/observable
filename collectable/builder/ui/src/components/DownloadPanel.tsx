@@ -23,10 +23,13 @@ export function DownloadPanel({ definition }: Props) {
     setBuilding(true);
     setError(null);
     try {
+      // Strip UI-only bookkeeping fields before sending to the build service
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { parsed_fields: _pf, _sample, _includeRaw, ...cleanDef } = definition as Record<string, unknown>;
       const res = await fetch('/build', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ definition, target }),
+        body: JSON.stringify({ definition: cleanDef, target }),
       });
       if (!res.ok) {
         const text = await res.text();
