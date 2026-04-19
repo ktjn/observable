@@ -293,6 +293,7 @@ Task 1 (scaffold)
     redpanda:
       image: redpandadata/redpanda:v23.3.1
       command:
+        - rpk
         - redpanda
         - start
         - --smp=1

@@ -29,7 +29,7 @@ postgres:
   password: "observable"
 
 redpanda:
-  brokers: "redpanda:9092"
+  brokers: "redpanda:9093"
   ingestTopic: "telemetry.raw"
 
 # Per-service configuration.

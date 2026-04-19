@@ -1,0 +1,41 @@
+{{- if .Values.postgresql.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-auth
+type: kubernetes.io/basic-auth
+stringData:
+  username: {{ .Values.postgresql.auth.username }}
+  password: {{ .Values.postgresql.auth.password }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+spec:
+  instances: 1
+  # Use official CloudNativePG image (which is official Postgres + CNPG tools)
+  imageName: ghcr.io/cloudnative-pg/postgresql:16
+  storage:
+    size: 1Gi
+  bootstrap:
+    initdb:
+      database: {{ .Values.postgresql.auth.database }}
+      owner: {{ .Values.postgresql.auth.username }}
+      secret:
+        name: postgres-auth
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+  selector:
+    # CloudNativePG uses these labels for the primary service
+    cnpg.io/cluster: postgres
+    role: primary
+{{- end }}

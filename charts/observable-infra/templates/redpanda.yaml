@@ -1,0 +1,37 @@
+{{- if .Values.infraSetup.redpanda.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: redpanda-setup
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: setup
+          # Redpanda official chart uses image.repository and image.tag
+          # We mirror those for our setup job. Default to current versions if not yet resolved.
+          image: "redpandadata/redpanda:v26.1.1"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              until rpk cluster info --brokers redpanda:9093 >/dev/null 2>&1; do
+                echo "Waiting for Redpanda broker..."
+                sleep 2
+              done
+
+              if rpk topic create {{ .Values.infraSetup.redpanda.topic | quote }} --brokers redpanda:9093 2>/tmp/rpk-topic-create.err; then
+                echo "Created Redpanda topic {{ .Values.infraSetup.redpanda.topic }}."
+              elif rpk topic describe {{ .Values.infraSetup.redpanda.topic | quote }} --brokers redpanda:9093 >/dev/null 2>&1; then
+                echo "Redpanda topic {{ .Values.infraSetup.redpanda.topic }} already exists."
+              else
+                cat /tmp/rpk-topic-create.err >&2
+                exit 1
+              fi
+
+              echo "Redpanda topic setup complete."
+{{- end }}

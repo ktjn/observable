@@ -68,14 +68,26 @@ without consulting separate documentation.
 
 ### Infrastructure in kind Tests
 
-Infrastructure services (ClickHouse, PostgreSQL, Redpanda, OpenFGA) are deployed in the kind
-cluster using raw Kubernetes manifests stored in `deploy/kind/infra/`. These manifests use
-the same Docker images and environment-variable names as `docker-compose.yml` so there is one
-source of truth for image versions and configuration shape.
+Infrastructure services are deployed in the kind cluster using a dedicated **infrastructure Helm
+chart** (`charts/observable-infra`). This chart prioritizes official, community-maintained
+alternatives over third-party repackagers like Bitnami (which moved to a restricted model in 2025):
+- `redpanda-data/redpanda` (Official)
+- `openfga/openfga` (Official)
+- `CloudNativePG` (CNCF Project) for PostgreSQL
+- Official `clickhouse/clickhouse-server` images for ClickHouse
 
-Operators are **not** used in the kind test environment. The ClickHouse Operator, Strimzi, and
-Redpanda Operator are deferred to production-scale environments where their HA guarantees are
-needed. The kind environment validates application behaviour, not stateful-service HA.
+Using official community resources ensures that our integration environment remains sustainable
+and aligned with production best practices. The `kind-test.sh` script automates the installation
+of the `CloudNativePG` operator before deploying the infrastructure chart.
+
+A custom `redpanda-setup` Job is included in the `observable-infra` chart to automate topic
+creation on startup.
+
+The kind integration chart runs OpenFGA with its in-memory datastore. Authorization persistence
+is not exercised by the current application smoke path, and using in-memory OpenFGA avoids a
+Helm hook race where the OpenFGA migration job can run before the CloudNativePG cluster has
+finished bootstrapping. PostgreSQL remains deployed through CloudNativePG for application
+database migrations and runtime connectivity.
 
 ### Database Migrations in Kubernetes
 
@@ -162,7 +174,7 @@ Minikube adds a hypervisor dependency that is not available in all CI runners.
 - `spec/12-deployment.md §19.7`: Rollback documentation
 - `spec/11-testing.md §18.7`: Kubernetes test strategy
 - `charts/observable-common/`: Library chart
+- `charts/observable-infra/`: Infrastructure chart
 - `charts/observable/`: Application chart
-- `deploy/kind/infra/`: Infrastructure manifests for kind
 - `scripts/kind-test.sh`: Local kind cluster test script
 - `scripts/helm-lint.sh`: Helm lint script (runnable locally, used in CI)

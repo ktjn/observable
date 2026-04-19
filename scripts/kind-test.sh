@@ -7,7 +7,7 @@
 #   1. Creates a kind cluster named "observable-test"
 #   2. Builds the observable-services Docker image (if not already built)
 #   3. Loads the image into the kind cluster (no registry needed)
-#   4. Applies infra manifests (ClickHouse, PostgreSQL, Redpanda, OpenFGA)
+#   4. Installs the infra Helm chart (ClickHouse, PostgreSQL, Redpanda, OpenFGA)
 #   5. Waits for infra to become ready
 #   6. Creates migration ConfigMaps from migrations/ directory
 #   7. Resolves Helm dependencies and installs the observable chart
@@ -129,19 +129,30 @@ kind load docker-image "$IMAGE_NAME" --name "$CLUSTER_NAME"
 # ---------------------------------------------------------------------------
 
 log "Deploying namespace and infrastructure"
-kubectl apply -f "$REPO_ROOT/deploy/kind/infra/namespace.yaml"
-kubectl apply -f "$REPO_ROOT/deploy/kind/infra/clickhouse.yaml"
-kubectl apply -f "$REPO_ROOT/deploy/kind/infra/postgres.yaml"
-kubectl apply -f "$REPO_ROOT/deploy/kind/infra/redpanda.yaml"
-kubectl apply -f "$REPO_ROOT/deploy/kind/infra/openfga.yaml"
+kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
-log "Waiting for infrastructure to become ready (up to 3 minutes)"
-kubectl wait deployment/clickhouse \
-  --for=condition=available --namespace "$NAMESPACE" --timeout=180s
-kubectl wait deployment/postgres \
-  --for=condition=available --namespace "$NAMESPACE" --timeout=180s
-kubectl wait deployment/redpanda \
-  --for=condition=available --namespace "$NAMESPACE" --timeout=180s
+log "Installing infrastructure dependencies"
+helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
+helm repo add redpanda https://charts.redpanda.com
+helm repo add openfga https://openfga.github.io/helm-charts
+helm repo update
+
+log "Installing CloudNativePG operator"
+helm install cnpg-operator cloudnative-pg/cloudnative-pg \
+  --namespace cnpg-system \
+  --create-namespace \
+  --wait
+
+log "Installing infrastructure chart"
+helm dependency update "$REPO_ROOT/charts/observable-infra"
+helm install observable-infra "$REPO_ROOT/charts/observable-infra" \
+  --namespace "$NAMESPACE" \
+  --wait \
+  --timeout 5m
+
+log "Waiting for PostgreSQL cluster to become ready"
+kubectl wait cluster/postgres \
+  --for=condition=Ready --namespace "$NAMESPACE" --timeout=180s
 
 log "Waiting for Redpanda topic setup Job to complete"
 kubectl wait job/redpanda-setup \
