@@ -155,9 +155,9 @@ Next smallest slice:
   - Outcome: one deployable environment has rendered manifests and a documented rollback path. A Helm library chart (`charts/observable-common`) provides shared Deployment, Service, and label templates; an umbrella chart (`charts/observable`) composes all six services with a pre-install migration Job hook. Infrastructure is deployed in kind via `deploy/kind/infra/` manifests using the same images and env var names as `docker-compose.yml`. `scripts/kind-test.sh` creates a kind cluster, installs the chart, runs ingest-to-query smoke checks, and verifies `helm rollback`. `scripts/helm-lint.sh` validates chart syntax. ADR-020 documents the Helm and kind tooling decisions. `spec/11-testing.md §18.7` documents the full Kubernetes test strategy.
   - Checkpoint: does rollback documentation cover both runtime and schema assumptions? Answer: yes. `spec/12-deployment.md §19.7` documents: (1) runtime rollback via `helm rollback <release> <revision>` which redeploys the previous Deployment specs without re-executing migration Jobs; (2) schema rollback policy — migrations are forward-only (ADR-013), backward compatibility with the preceding image version is a release gate, and the expand–migrate–contract pattern is required for any migration that would break a previous service version. `scripts/kind-test.sh` exercises the rollback path as part of the kind integration test.
 
-- [ ] **P2-S8b: Add one canary promotion path**
-  - Outcome: one deployable environment can promote progressively and revert safely
-  - Checkpoint: do automated analysis gates have enough telemetry to make rollback decisions?
+- [x] **P2-S8b: Add one canary promotion path**
+  - Outcome: one deployable environment can promote progressively and revert safely. A canary Deployment + Service template (`charts/observable/templates/ingest-gateway-canary.yaml`) deploys a candidate `ingest-gateway` image tag alongside the stable release, isolated behind a dedicated `ingest-gateway-canary` Service so production traffic is never diverted. `scripts/canary-promote.sh` runs three automated gates (health, smoke ingest, zero 5xx in pod logs after a configurable soak) and either promotes stable (upgrades global image tag, removes canary) or reverts (removes canary, stable unchanged). `spec/12-deployment.md §19.8` documents lifecycle, rollback contract, and the relationship to Argo Rollouts.
+  - Checkpoint: do automated analysis gates have enough telemetry to make rollback decisions? Answer: yes at this stage. Gate 1 (health) and Gate 2 (smoke ingest) provide binary liveness and acceptance signal; Gate 3 (5xx count in pod logs) provides an error-rate signal sufficient to catch regression during soak. The gates are conservative (zero-5xx tolerance, HTTP 200 required) and can be refined without changing the promotion contract. Full metric-based SLO burn-rate gates (using the alert-evaluator path from P2-S7a) are the next evolution when Argo Rollouts is provisioned.
 
 - [ ] **P2-S9a: Add perf smoke baseline for ingest and common query paths**
   - Outcome: Phase 2 has measurable performance baselines instead of assumptions
@@ -418,7 +418,8 @@ After this planning reconciliation, the next implementation slice should be:
 9. ~~P2-S4a: add hot retention policy for traces~~ (done)
 10. ~~P2-S7a: add one threshold alert evaluation path~~ (done)
 11. ~~P2-S8a: add Kubernetes manifest render and rollback skeleton~~ (done)
-12. **P2-S8b: add one canary promotion path**
+12. ~~P2-S8b: add one canary promotion path~~ (done)
+13. **P2-S9a: add perf smoke baseline for ingest and common query paths**
 
 That sequence moves the project from "works" to "safe to keep running."
 

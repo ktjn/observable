@@ -214,6 +214,65 @@ bash scripts/kind-test.sh --keep-cluster
 a kind cluster, exercising the complete ingest-to-query path and verifying `helm rollback`
 reverts the application tier.
 
+### 19.8 Canary Promotion Pattern
+
+The canary pattern deploys a second instance of one service (`ingest-gateway-canary`) running
+a candidate image tag alongside the stable release. The stable Kubernetes Service does not
+select canary pods — they are isolated behind a dedicated `ingest-gateway-canary` Service and
+are never reached by production traffic.
+
+**Motivation:** provides an automated analysis gate between a CI-built artifact and a full
+stable promotion, satisfying the deployment sequence in §19.3 (steps 4–6) without requiring
+Argo Rollouts at this stage of the project.
+
+**Canary lifecycle:**
+
+```
+helm upgrade (canary.enabled=true) → analysis gates → promote or revert
+```
+
+1. The canary Deployment is created alongside stable when `services.ingestGateway.canary.enabled=true`
+   and `services.ingestGateway.canary.tag=<new-tag>` are set via `helm upgrade --reuse-values`.
+2. `scripts/canary-promote.sh` runs three gates against the canary Service:
+   - **Gate 1 (health):** `GET /health` must return HTTP 200 with body containing `ok`.
+   - **Gate 2 (smoke ingest):** `POST /v1/traces` must return HTTP 200.
+   - **Gate 3 (error rate):** zero HTTP 5xx responses in canary pod logs after the soak period.
+3. **Promote (all gates pass):** stable is upgraded to the new tag and the canary Deployment
+   and Service are removed in the same `helm upgrade` call.
+4. **Revert (any gate fails):** canary is removed via `helm upgrade --set canary.enabled=false`.
+   The stable release is untouched. The script exits with status 1.
+
+**Usage:**
+
+```bash
+# Run canary analysis against a new image tag (soak 60 s before gate 3)
+bash scripts/canary-promote.sh --tag sha-abc1234 --soak-seconds 60
+
+# Additional options
+bash scripts/canary-promote.sh --tag sha-abc1234 \
+  --namespace observable \
+  --release  observable \
+  --soak-seconds 60 \
+  --dev-key  dev-api-key-0000
+```
+
+**Rollback contract:**
+
+| Event | Effect on stable | Effect on schema |
+|-------|-----------------|-----------------|
+| Gate failure | Unchanged | Unchanged |
+| Manual abort (`Ctrl-C`) | Unchanged | Unchanged |
+| Successful promotion | Upgraded to new tag | Migration Jobs are not re-run; schema is forward-only (ADR-013) |
+
+The canary Deployment never shares the stable `ingest-gateway` Service selector, so no
+production tenant traffic is diverted to the canary pod at any point.
+
+**Relationship to Argo Rollouts:**
+
+`scripts/canary-promote.sh` is a Helm-native skeleton that satisfies the Phase 2 requirement.
+Production deployments will use Argo Rollouts for traffic-weighted canary and automated
+analysis (spec §19.3), replacing this script when that tooling is provisioned.
+
 ---
 
 ## 20. Tooling and Framework Recommendations
