@@ -164,15 +164,15 @@ kind load docker-image "$IMAGE_NAME" --name "$CLUSTER_NAME"
 # Pre-pull infra images into kind to avoid slow pulls during Helm install
 # ---------------------------------------------------------------------------
 
-log "Pre-pulling infrastructure images into kind node"
-for img in \
-  "redpandadata/redpanda:v26.1.1" \
-  "clickhouse/clickhouse-server:24.3" \
-  "ghcr.io/cloudnative-pg/postgresql:16"; do
-  docker pull "$img"
-  kind load docker-image "$img" --name "$CLUSTER_NAME"
-  info "loaded $img"
-done
+#log "Pre-pulling infrastructure images into kind node"
+#for img in \
+#  "redpandadata/redpanda:v26.1.1" \
+#  "clickhouse/clickhouse-server:24.3" \
+#  "ghcr.io/cloudnative-pg/postgresql:16"; do
+#  docker pull "$img"
+#  kind load docker-image "$img" --name "$CLUSTER_NAME"
+#  info "loaded $img"
+#done
 
 # ---------------------------------------------------------------------------
 # Deploy infrastructure

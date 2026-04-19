@@ -52,6 +52,12 @@ redpanda:
   resources:
     cpu:
       cores: 1
+    memory:
+      container:
+        max: 1Gi
+      redpanda:
+        memory: 100Mi
+        reserveMemory: 0Mi
 
   console:
     enabled: false
