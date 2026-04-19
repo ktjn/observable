@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Span } from "../api/traces";
+import { LogCorrelatedList } from "../components/LogCorrelatedList";
 
 interface Props {
   traceId: string;
@@ -6,6 +8,7 @@ interface Props {
 }
 
 export function TraceDetail({ traceId, spans }: Props) {
+  const [selectedSpanId, setSelectedSpanId] = useState<string | undefined>();
   const minStart = Math.min(...spans.map((s) => Number(s.start_time_unix_nano)));
   const maxEnd = Math.max(...spans.map((s) => Number(s.end_time_unix_nano)));
   const totalNs = maxEnd - minStart || 1;
@@ -24,7 +27,16 @@ export function TraceDetail({ traceId, spans }: Props) {
           return (
             <div
               key={span.span_id}
-              style={{ display: "flex", alignItems: "center", marginBottom: 4 }}
+              onClick={() => setSelectedSpanId(span.span_id === selectedSpanId ? undefined : span.span_id)}
+              style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                marginBottom: 4, 
+                cursor: "pointer",
+                background: selectedSpanId === span.span_id ? "#edf2f7" : "transparent",
+                borderRadius: "4px",
+                padding: "2px 0"
+              }}
             >
               <span
                 style={{
@@ -64,6 +76,7 @@ export function TraceDetail({ traceId, spans }: Props) {
           );
         })}
       </div>
+      <LogCorrelatedList traceId={traceId} spanId={selectedSpanId} />
     </div>
   );
 }

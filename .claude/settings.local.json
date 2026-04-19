@@ -4,7 +4,11 @@
       "Bash(grep -v \"^d.*\\\\\\\\.git\")",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git log *)"
+      "Bash(git log *)",
+      "Bash(chmod +x *)",
+      "Bash(git checkout *)",
+      "Bash(git push *)",
+      "Bash(gh pr *)"
     ]
   }
 }

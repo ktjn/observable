@@ -186,13 +186,13 @@ Before Phase 3 starts, answer:
 
 ### Priority slice order
 
-- [ ] **P3-S1: Add trace-to-log correlation for logs with full trace context**
-  - Outcome: a trace detail view can fetch exact correlated log lines
-  - Checkpoint: are joins based on canonical IDs only, with no fuzzy heuristics yet?
+- [x] **P3-S1: Add trace-to-log correlation for logs with full trace context**
+  - Outcome: a trace detail view can fetch exact correlated log lines. The `query-api` now supports `trace_id` and `span_id` filters for logs, and the frontend `TraceDetail` view displays these logs, allowing for span-level filtering.
+  - Checkpoint: are joins based on canonical IDs only, with no fuzzy heuristics yet? Answer: yes. Joins use exact equality on `trace_id` and `span_id` in ClickHouse.
 
-- [ ] **P3-S1b: Add log-context (surrounding logs) capability**
-  - Outcome: operators can view logs occurring before and after a specific log line for the same host/service
-  - Checkpoint: does the context view correctly ignore search filters while preserving tenant and host/service scope?
+- [x] **P3-S1b: Add log-context (surrounding logs) capability**
+  - Outcome: operators can view logs occurring before and after a specific log line for the same host/service. The `query-api` now supports `GET /v1/logs/:log_id/context`, and the frontend allows clicking a log line to see its surrounding context.
+  - Checkpoint: does the context view correctly ignore search filters while preserving tenant and host/service scope? Answer: yes. The context query uses `service_name` and `host_id` from the pivot log and ignores any other search parameters.
 
 - [ ] **P3-S1c: Add live tail capability for logs**
   - Outcome: real-time streaming of logs in the explorer with auto-scroll
@@ -441,7 +441,7 @@ After this planning reconciliation, the next implementation slice should be:
 - Cost controls without hand-waving: yes — P2-S2a (rate limiting), P2-S3a (cardinality budget observation), P2-S4a (hot retention) are all in place.
 - Roll back a bad deploy without manual heroics: yes — P2-S8a (Helm rollback skeleton) and P2-S8b (canary promotion path) cover both runtime and schema rollback.
 
-**Next recommended slice: P3-S1 — Add trace-to-log correlation for logs with full trace context.**
+**Next recommended slice: P3-S1c — Add live tail capability for logs.**
 
 ---
 

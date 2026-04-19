@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Extension, Query, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -20,6 +20,8 @@ pub struct LogListResponse {
 pub struct LogSearchParams {
     pub service: Option<String>,
     pub severity: Option<i32>,
+    pub trace_id: Option<String>,
+    pub span_id: Option<String>,
     pub limit: Option<u32>,
 }
 
@@ -38,12 +40,24 @@ pub async fn search_logs(
     if params.severity.is_some() {
         count_sql.push_str(" AND severity_number >= ?");
     }
+    if params.trace_id.is_some() {
+        count_sql.push_str(" AND trace_id = ?");
+    }
+    if params.span_id.is_some() {
+        count_sql.push_str(" AND span_id = ?");
+    }
     let mut count_query = state.ch.query(&count_sql).bind(ctx.tenant_id);
     if let Some(service) = &params.service {
         count_query = count_query.bind(service);
     }
     if let Some(severity) = params.severity {
         count_query = count_query.bind(severity);
+    }
+    if let Some(trace_id) = &params.trace_id {
+        count_query = count_query.bind(trace_id);
+    }
+    if let Some(span_id) = &params.span_id {
+        count_query = count_query.bind(span_id);
     }
     let total: u64 = count_query.fetch_one().await.map_err(|e| {
         tracing::error!("ClickHouse count error: {:?}", e);
@@ -58,6 +72,12 @@ pub async fn search_logs(
     if params.severity.is_some() {
         query.push_str(" AND severity_number >= ?");
     }
+    if params.trace_id.is_some() {
+        query.push_str(" AND trace_id = ?");
+    }
+    if params.span_id.is_some() {
+        query.push_str(" AND span_id = ?");
+    }
     query.push_str(" ORDER BY timestamp_unix_nano DESC LIMIT ?");
 
     let mut ch_query = state.ch.query(&query).bind(ctx.tenant_id);
@@ -67,6 +87,12 @@ pub async fn search_logs(
     }
     if let Some(severity) = params.severity {
         ch_query = ch_query.bind(severity);
+    }
+    if let Some(trace_id) = &params.trace_id {
+        ch_query = ch_query.bind(trace_id);
+    }
+    if let Some(span_id) = &params.span_id {
+        ch_query = ch_query.bind(span_id);
     }
 
     let mut cursor = ch_query.bind(limit).fetch::<LogRow>().map_err(|e| {
@@ -98,6 +124,105 @@ pub async fn search_logs(
     .await;
 
     Ok(Json(LogListResponse { logs, total }))
+}
+
+#[derive(Deserialize)]
+pub struct LogContextParams {
+    pub window: Option<u32>,
+}
+
+pub async fn get_log_context(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(log_id): Path<Uuid>,
+    Query(params): Query<LogContextParams>,
+) -> Result<Json<LogListResponse>, StatusCode> {
+    let window = params.window.unwrap_or(10).min(100);
+
+    // 1. Fetch the pivot log
+    let pivot_row: LogRow = state
+        .ch
+        .query("SELECT ?fields FROM logs WHERE tenant_id = ? AND log_id = ?")
+        .bind(ctx.tenant_id)
+        .bind(log_id)
+        .fetch_optional::<LogRow>()
+        .await
+        .map_err(|e| {
+            tracing::error!("ClickHouse pivot fetch error: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // 2. Fetch logs BEFORE
+    let mut before_cursor = state
+        .ch
+        .query("SELECT ?fields FROM logs WHERE tenant_id = ? AND service_name = ? AND host_id = ? AND timestamp_unix_nano < ? ORDER BY timestamp_unix_nano DESC LIMIT ?")
+        .bind(ctx.tenant_id)
+        .bind(&pivot_row.service_name)
+        .bind(&pivot_row.host_id)
+        .bind(pivot_row.timestamp_unix_nano)
+        .bind(window)
+        .fetch::<LogRow>()
+        .map_err(|e| {
+            tracing::error!("ClickHouse before fetch error: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let mut before_rows = Vec::new();
+    while let Some(row) = before_cursor.next().await.map_err(|e| {
+        tracing::error!("ClickHouse before next error: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })? {
+        before_rows.push(row);
+    }
+    before_rows.reverse();
+
+    // 3. Fetch logs AFTER
+    let mut after_cursor = state
+        .ch
+        .query("SELECT ?fields FROM logs WHERE tenant_id = ? AND service_name = ? AND host_id = ? AND timestamp_unix_nano > ? ORDER BY timestamp_unix_nano ASC LIMIT ?")
+        .bind(ctx.tenant_id)
+        .bind(&pivot_row.service_name)
+        .bind(&pivot_row.host_id)
+        .bind(pivot_row.timestamp_unix_nano)
+        .bind(window)
+        .fetch::<LogRow>()
+        .map_err(|e| {
+            tracing::error!("ClickHouse after fetch error: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let mut after_rows = Vec::new();
+    while let Some(row) = after_cursor.next().await.map_err(|e| {
+        tracing::error!("ClickHouse after next error: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })? {
+        after_rows.push(row);
+    }
+
+    let mut all_rows = before_rows;
+    all_rows.push(pivot_row);
+    all_rows.extend(after_rows);
+
+    validate_log_rows_for_tenant(&all_rows, ctx.tenant_id)?;
+
+    let result_count = all_rows.len() as i64;
+    let logs = all_rows.into_iter().map(LogRecord::from).collect();
+
+    crate::audit::write(
+        &state.db,
+        &crate::audit::QueryAuditEntry {
+            action: "log_context",
+            tenant_id: ctx.tenant_id,
+            result_count,
+        },
+    )
+    .await;
+
+    Ok(Json(LogListResponse {
+        logs,
+        total: result_count as u64,
+    }))
 }
 
 fn validate_log_rows_for_tenant(rows: &[LogRow], tenant_id: Uuid) -> Result<(), StatusCode> {
@@ -158,5 +283,48 @@ mod tests {
     fn empty_log_rows_are_valid() {
         let tenant_id = Uuid::new_v4();
         assert_eq!(validate_log_rows_for_tenant(&[], tenant_id), Ok(()));
+    }
+
+    #[test]
+    fn make_log_row_with_trace_context() {
+        let tenant_id = Uuid::new_v4();
+        let mut row = make_log_row(tenant_id);
+        row.trace_id = Some("trace-1".into());
+        row.span_id = Some("span-1".into());
+
+        assert_eq!(row.trace_id, Some("trace-1".into()));
+        assert_eq!(row.span_id, Some("span-1".into()));
+    }
+
+    #[test]
+    fn validate_combined_context_rows() {
+        let tenant_id = Uuid::new_v4();
+        let before = vec![make_log_row(tenant_id), make_log_row(tenant_id)];
+        let pivot = make_log_row(tenant_id);
+        let after = vec![make_log_row(tenant_id)];
+
+        let mut all = before;
+        all.push(pivot);
+        all.extend(after);
+
+        assert_eq!(validate_log_rows_for_tenant(&all, tenant_id), Ok(()));
+    }
+
+    #[test]
+    fn reject_combined_context_rows_on_tenant_mismatch() {
+        let tenant_id = Uuid::new_v4();
+        let other = Uuid::new_v4();
+        let before = vec![make_log_row(tenant_id)];
+        let pivot = make_log_row(other); // Mismatch!
+        let after = vec![make_log_row(tenant_id)];
+
+        let mut all = before;
+        all.push(pivot);
+        all.extend(after);
+
+        assert_eq!(
+            validate_log_rows_for_tenant(&all, tenant_id),
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        );
     }
 }
