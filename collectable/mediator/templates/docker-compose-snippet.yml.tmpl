@@ -1,0 +1,8 @@
+  {{name}}:
+    image: {{name}}:latest
+    restart: unless-stopped
+    environment:
+      - OTLP_ENDPOINT=${OTLP_ENDPOINT}
+      - OTLP_TOKEN=${OTLP_TOKEN}
+    ports:
+      - "9090:9090"   # health / metrics

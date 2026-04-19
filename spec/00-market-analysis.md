@@ -191,15 +191,19 @@ These features are described in the spec or ADRs but have no named implementatio
 
 These capabilities are offered by major competitors but are **not specced in Observable at all**. Each entry requires a decision: add a spec section and plan a delivery slice, or explicitly mark it out-of-scope with a documented rationale.
 
-### 4.1 Log Pipeline / Parsing Engine ⚠️ High Priority — Adoption Blocker
+### 4.1 Log Pipeline / Parsing Engine ✅ Resolved — Collectable
 
 **Description:** Structured field extraction from raw log strings — grok patterns, regex-based field extraction, JSON path parsing, key-value parsing, multiline log assembly, log routing rules.
 
-**Why it matters:** Observable assumes logs arrive pre-structured via OTel SDKs. In practice, 80%+ of enterprise log volume comes from legacy applications, syslog, nginx, database engines, and cloud platform logs that emit unstructured or semi-structured text. Without an ingestion-time parsing pipeline, Observable requires customers to pre-process all logs externally (e.g., via an OTel Collector with custom processors), which significantly raises the adoption bar for existing infrastructure.
+**Why it matters:** Requiring pre-structured OTel logs is a deliberate offloading strategy: parsing complexity is pushed to the edge rather than absorbed by the Observable backend. This is architecturally correct but raises the adoption bar, because 80%+ of enterprise log volume originates from legacy applications, syslog, nginx, database engines, and cloud platform logs that cannot emit OTLP natively.
+
+The alternative — accepting logs in raw native formats at the ingest gateway — does not simply add a parsing layer; it compounds complexity by requiring Observable to support a wide variety of *transports* (syslog, webhooks, Kafka, MQTT, etc.) **in addition to** a wide variety of *parsers* for each format, each with its own auth, framing, and reliability semantics. This violates ADR-001 and makes the ingest gateway surface hard to maintain.
+
+Existing edge tools (Fluent Bit, OTel Collector) can bridge the gap in principle but are hard to use correctly for OTLP output. Fluent Bit's OTLP plugin requires manually mapping internal record fields to OTLP LogRecord structure (resource attributes vs log attributes vs body vs severity) with no guidance and silent errors. The OTel Collector has a 50–150 MB footprint and the same mapping ambiguity problem. Both are difficult to debug.
+
+**Resolution:** [Collectable](16-collectable.md) — an independent compiled-mediator tool in the Observable repository. Users define a pipeline (transport + parser + OTLP mapping) in a web UI with live preview against sample data. The output is a compiled static Rust binary with the mapping baked in at compile time — no runtime config interpretation, no OTLP mapping guesswork. See [ADR-022](adr/ADR-022-collectable-mediator.md).
 
 **Competitors:** Datadog Log Management Pipelines, New Relic Log Patterns, Elastic Logstash/Beats, Vector (open source)
-
-**Recommended action:** Add a spec section to [spec/06-agents.md](06-agents.md) or create a new `spec/16-log-pipeline.md` covering ingest-time parsing rules, their delivery model (remote config or control plane API), and the storage schema implications.
 
 ---
 
@@ -227,7 +231,7 @@ These capabilities are offered by major competitors but are **not specced in Obs
 
 ---
 
-### 4.4 Cloud Log Forwarding / Webhook Ingest ⚠️ High Priority — Adoption Blocker
+### 4.4 Cloud Log Forwarding / Webhook Ingest ✅ Resolved — Collectable
 
 **Description:** Ingest path for logs emitted by managed cloud services through their native channels: AWS CloudWatch, Azure Monitor, GCP Cloud Logging, Heroku log drains, generic HTTPS log-push webhooks.
 
@@ -235,7 +239,7 @@ These capabilities are offered by major competitors but are **not specced in Obs
 
 **Competitors:** Datadog Lambda Forwarder and Firehose integration, New Relic Log API, Elastic Beats/Agent cloud integrations
 
-**Recommended action:** Add a log forwarding ingest spec to [spec/06-agents.md](06-agents.md) or a new `spec/16-log-pipeline.md`. The ingest gateway can be extended with a generic HTTP log receiver that normalizes payloads into the existing LogRecord domain type before enqueuing.
+**Recommended action:** Collectable's `http_webhook` transport handles these sources — it receives HTTPS POST payloads from Firehose, Heroku log drains, Splunk HEC, and generic webhooks, then emits OTLP to the Observable ingest gateway. No changes to the ingest gateway are required. See [spec/16-collectable.md](16-collectable.md).
 
 ---
 

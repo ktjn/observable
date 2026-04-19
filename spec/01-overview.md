@@ -83,7 +83,7 @@ The platform shall provide:
 
 ## 2. Product Principles
 
-1. **OpenTelemetry first** — OTel is the primary ingestion and semantic model boundary. Vendor-specific agents are optional overlays, not core dependencies.
+1. **OpenTelemetry first** — OTel is the primary ingestion and semantic model boundary. Vendor-specific agents are optional overlays, not core dependencies. The ingest gateway accepts **OTLP only** (gRPC and HTTP). Sources that cannot emit OTLP natively are handled by [Collectable](../collectable/README.md) — an independent edge-transformation tool that compiles transport + parser + OTLP-mapping pipelines into static binaries deployable anywhere. See [spec/16-collectable.md](16-collectable.md) and [ADR-022](adr/ADR-022-collectable-mediator.md).
 
 2. **Unified data model, specialized storage** — Single product UX. Separate physical engines where workloads differ.
 

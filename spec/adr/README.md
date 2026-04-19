@@ -29,3 +29,4 @@ Architecture Decision Records (ADRs) capture significant technology and design c
 | [ADR-019](ADR-019-ci-scripts-runnable-locally.md) | CI Scripts Runnable Locally | Accepted | All non-trivial CI logic lives in `scripts/`; migrations use `docker compose exec` (no host DB clients) |
 | [ADR-020](ADR-020-helm-chart-strategy.md) | Helm Chart Strategy | Accepted | Helm v3 with library + umbrella chart pattern; kind for local k8s integration testing |
 | [ADR-021](ADR-021-nl-query-layer.md) | LLM Natural Language Query Layer | Proposed | LLM advisory query layer on top of existing query substrate; cross-signal triangulation; provenance required |
+| [ADR-022](ADR-022-collectable-mediator.md) | Collectable — Compiled-Mediator Tool | Accepted | Build Collectable as an independent compiled-mediator tool; Observable ingest gateway remains OTLP-only |

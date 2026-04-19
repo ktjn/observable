@@ -1,0 +1,27 @@
+services:
+  ui:
+    build:
+      context: ./builder/ui
+      dockerfile: Dockerfile
+    ports:
+      - "8090:8090"
+    environment:
+      - VITE_BUILD_SERVICE_URL=http://build-service:8091
+
+  build-service:
+    build:
+      context: .                             # collectable/ root — needed to access mediator/templates
+      dockerfile: builder/build-service/Dockerfile
+    ports:
+      - "8091:8091"
+    volumes:
+      - build-cache:/usr/local/cargo/registry
+      - target-cache:/root/.cache/collectable-builds
+    environment:
+      - RUST_LOG=info
+      - MEDIATOR_TEMPLATES_DIR=/mediator/templates
+      - MEDIATOR_SRC_DIR=/mediator
+
+volumes:
+  build-cache:
+  target-cache:

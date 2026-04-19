@@ -13,6 +13,7 @@
 | Mobile SDK | iOS/Android traces, crash reporting, session context |
 | eBPF sensor | Kernel-level network and syscall telemetry without code changes |
 | OTel Collector distribution | Local gateway/aggregation hop between agents and the ingest backend |
+| Collectable | Independent compiled-mediator tool for legacy sources (syslog, log4j2, MQTT, webhooks, etc.) that cannot emit OTLP natively. Pipelines are defined in a web UI and compiled to static Rust binaries. Integrates with Observable via OTLP only. See [spec/16-collectable.md](16-collectable.md). |
 
 ### 10.2 Rule
 
