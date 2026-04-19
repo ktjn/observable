@@ -82,13 +82,12 @@ Builds are produced by CI and promoted by GitOps. CI owns artifact creation; dep
 
 ### 19.6 Local Development
 
-Local development uses Docker Compose for external dependencies and Rust services. The React frontend runs natively on the developer's machine.
+Local development uses Docker Compose for external dependencies, Rust services, and the React frontend. The frontend is served from an nginx container built from `apps/frontend/Dockerfile`.
 
 **Quick start**
 
 ```bash
-make dev                       # start Docker Compose stack (including services and migrations)
-npm run dev                    # run the React frontend (from apps/frontend)
+make dev                       # start Docker Compose stack, services, migrations, and frontend
 ```
 
 For advanced control, individual steps are available:
@@ -110,7 +109,7 @@ E2E setup see `spec/15-frontend-local-dev.md`.
 
 **Application services**
 
-The Rust service containers are built from the repo-root `Dockerfile` and run through the Compose `services` profile.
+The Rust service containers are built from the repo-root `Dockerfile`. The frontend container is built from `apps/frontend/Dockerfile` and serves static Vite assets through nginx.
 
 | Service          | Host port | Internal dependencies                    |
 |------------------|-----------|------------------------------------------|
@@ -119,6 +118,7 @@ The Rust service containers are built from the repo-root `Dockerfile` and run th
 | stream-processor | none      | redpanda, storage-writer                 |
 | ingest-gateway   | 4317      | auth-service, redpanda                   |
 | query-api        | 8090      | clickhouse                               |
+| frontend         | 5173      | query-api                                |
 
 **Configuration**
 
@@ -136,7 +136,7 @@ The Rust service containers are built from the repo-root `Dockerfile` and run th
 
 - `docker compose up` must start cleanly from scratch with no manual seed steps. Setup and migrations are automated via `clickhouse-setup`, `postgres-setup`, and `redpanda-setup` containers.
 - Do not bake credentials into `docker-compose.yml`; read all values from environment variables or `.env.local`.
-- Local ports must not conflict across services: ClickHouse 8123/9000, Redpanda 9092/9644, Postgres 5432, OpenFGA 8080, ingest-gateway 4317, auth-service 4318, storage-writer 4320, query-api 8090.
+- Local ports must not conflict across services: ClickHouse 8123/9000, Redpanda 9092/9644, Postgres 5432, OpenFGA 8080, ingest-gateway 4317, auth-service 4318, storage-writer 4320, query-api 8090, frontend 5173.
 - `make dev` must be documented in the repo root README as the single starting point for new contributors.
 
 ### 19.7 Helm Chart Layout and Rollback
