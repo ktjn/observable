@@ -202,6 +202,14 @@ Before Phase 3 starts, answer:
   - Outcome: trace views show trace-correlated logs without claiming exact span linkage
   - Checkpoint: is the UI language precise about exact vs trace-level correlation?
 
+- [ ] **P3-S2b: Add rate limiting for log ingest**
+  - Outcome: one authenticated tenant exceeding a log-ingest request budget gets a stable `429` rejection. Mirrors the pattern from P2-S2a for traces.
+  - Checkpoint: is the rate-limit response shape (status code, error body, `Retry-After`, warn log) identical to the trace path so operators face a consistent contract?
+
+- [ ] **P3-S2c: Add rate limiting for metric ingest**
+  - Outcome: one authenticated tenant exceeding a metric-ingest request budget gets a stable `429` rejection. Mirrors the pattern from P2-S2a and P3-S2b.
+  - Checkpoint: are all three signal ingest paths (traces, logs, metrics) now covered by rate limiting?
+
 - [ ] **P3-S3: Build a minimal service catalog from resource attributes**
   - Outcome: services appear as navigable entities with stable IDs
   - Checkpoint: do we have a durable service identity model or are we still overfitting to labels?
@@ -237,6 +245,10 @@ Before Phase 3 starts, answer:
 - [ ] **P3-S9: Add infrastructure correlation from service and trace views**
   - Outcome: users can navigate from a service or trace to correlated host/pod/container metrics and logs
   - Checkpoint: are links derived correctly from OTel resource attributes?
+
+- [ ] **P3-S10: Add Schema Registry with semantic annotations for one signal type**
+  - Outcome: one signal type's fields have business-meaning annotations queryable via API; sets the grounding foundation required by the NL query layer (ADR-021). See `spec/03-storage.md §5.4.1`.
+  - Checkpoint: are annotations stored structurally separate from schema shape so they can evolve independently of structural metadata?
 
 ### Phase 3 pause point
 
@@ -385,6 +397,9 @@ Before Phase 5 starts, answer:
 - [ ] **P8-S3: Add incident summarization with source links**
 - [ ] **P8-S4: Add capacity forecasting for one storage or ingest dimension**
 - [ ] **P8-S5: Add remediation hooks with explicit approval controls**
+- [ ] **P8-S6: Add NL query layer for one explorer view using semantic annotations**
+  - Outcome: operators can ask natural-language questions against one signal type and receive an explained, sourced answer grounded in semantic annotations from the Schema Registry (P3-S10). Governed by ADR-021 and within ADR-014 advisory-only, provenance-required, read-only constraints.
+  - Checkpoint: does every response carry provenance (source queries, time range, signal type) and can it be ignored without affecting platform correctness?
 
 **Checkpoint question:** can every AI output be explained, audited, and ignored without harming correctness?
 
@@ -433,3 +448,5 @@ After this planning reconciliation, the next implementation slice should be:
 ## 14. ADR/Spec Sync Note
 
 No ADR update is included in this document. This plan decomposes the already-defined roadmap into an execution sequence. If future edits change roadmap scope, architecture, deployment model, data model, security model, or technology choice, update the relevant ADRs and specs in the same iteration.
+
+**ADR-021** (NL query layer, Proposed — added 2026-04-19 via PR #53) introduces the NL query layer as a new Phase 8 feature and the Schema Registry semantic annotations as a Phase 3 prerequisite. P3-S10 and P8-S6 above reflect this. ADR-021 operates within the advisory-only, provenance-required, read-only constraints established by ADR-014.
