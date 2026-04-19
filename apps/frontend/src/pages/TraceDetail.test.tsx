@@ -1,5 +1,14 @@
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TraceDetail } from "./TraceDetail";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+});
 
 test("renders waterfall with spans", () => {
   const spans = [
@@ -15,7 +24,11 @@ test("renders waterfall with spans", () => {
       tenant_id: "t1",
     },
   ];
-  render(<TraceDetail traceId="abc" spans={spans} />);
+  render(
+    <QueryClientProvider client={queryClient}>
+      <TraceDetail traceId="abc" spans={spans} />
+    </QueryClientProvider>
+  );
   expect(screen.getByText(/POST \/order/)).toBeInTheDocument();
   expect(screen.getByText("5.00ms")).toBeInTheDocument();
 });
