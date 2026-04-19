@@ -27,6 +27,8 @@ Refer to `spec/10-process.md` for the official development process and AI agent 
 
 You **MUST** run the following checks before pushing **ANY** code changes to the repository. No exceptions. Do not push and rely on CI to catch errors.
 
+You can run `make ci` to execute steps 1-3 and build the final Docker image in one command.
+
 1. Run `cargo fmt --all` — fix all formatting issues.
 2. Run `cargo clippy --all-targets --all-features -- -D warnings` — fix all warnings.
 3. Run `cargo test --all-targets --all-features` — ensure all tests pass.

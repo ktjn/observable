@@ -27,38 +27,14 @@ jobs:
       - uses: actions/checkout@v6
       - uses: docker/setup-buildx-action@v4
 
-      - name: Rust - Formatter
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: rust-formatter
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Rust - Linter
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: rust-linter
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Rust - Tester
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: rust-tester
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build Final Image
+      - name: Build, test, and load final image
         uses: docker/build-push-action@v6
         with:
           context: .
           load: true
           tags: observable-services:local
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=observable-services
+          cache-to: type=gha,mode=max,scope=observable-services
 
       - name: Export image
         run: docker save observable-services:local | gzip > /tmp/image.tar.gz
