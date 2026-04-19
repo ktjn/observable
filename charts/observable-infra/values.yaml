@@ -32,19 +32,27 @@ clickhouse:
 
 redpanda:
   fullnameOverride: redpanda
+
   tls:
     enabled: false
+
   statefulset:
     replicas: 1
+    additionalRedpandaCmdFlags:
+      - "--overprovisioned"
+
+  config:
+    node:
+      developer_mode: true
+
   storage:
     persistentVolume:
       enabled: false
+
   resources:
     cpu:
       cores: 1
-    memory:
-      container:
-        max: 2Gi
+
   console:
     enabled: false
 
