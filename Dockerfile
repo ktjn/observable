@@ -19,7 +19,15 @@ COPY services ./services
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/app/target \
-    cargo build --release --workspace
+    cargo build --release --workspace \
+    && mkdir -p /app/bin \
+    && cp /app/target/release/auth-service \
+          /app/target/release/storage-writer \
+          /app/target/release/stream-processor \
+          /app/target/release/ingest-gateway \
+          /app/target/release/query-api \
+          /app/target/release/alert-evaluator \
+          /app/bin/
 
 FROM debian:bookworm-slim AS runtime
 
@@ -27,11 +35,11 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates libssl3 curl jq \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/target/release/auth-service /usr/local/bin/auth-service
-COPY --from=builder /app/target/release/storage-writer /usr/local/bin/storage-writer
-COPY --from=builder /app/target/release/stream-processor /usr/local/bin/stream-processor
-COPY --from=builder /app/target/release/ingest-gateway /usr/local/bin/ingest-gateway
-COPY --from=builder /app/target/release/query-api /usr/local/bin/query-api
-COPY --from=builder /app/target/release/alert-evaluator /usr/local/bin/alert-evaluator
+COPY --from=builder /app/bin/auth-service /usr/local/bin/auth-service
+COPY --from=builder /app/bin/storage-writer /usr/local/bin/storage-writer
+COPY --from=builder /app/bin/stream-processor /usr/local/bin/stream-processor
+COPY --from=builder /app/bin/ingest-gateway /usr/local/bin/ingest-gateway
+COPY --from=builder /app/bin/query-api /usr/local/bin/query-api
+COPY --from=builder /app/bin/alert-evaluator /usr/local/bin/alert-evaluator
 
 USER 65532:65532
