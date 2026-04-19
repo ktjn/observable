@@ -605,18 +605,7 @@ async fn main() -> Result<()> {
     {% endif %}
     let resource = opentelemetry_sdk::Resource::new(kv_list);
 
-    {% if output.protocol == "grpc" %}
-    let provider = opentelemetry_otlp::new_pipeline()
-        .logging()
-        .with_resource(resource)
-        .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                .tonic()
-                .with_endpoint(&endpoint),
-        )
-        .install_simple()
-        .context("build OTLP gRPC exporter")?;
-    {% else %}
+    {% if output.protocol == "http" %}
     let provider = opentelemetry_otlp::new_pipeline()
         .logging()
         .with_resource(resource)
@@ -627,6 +616,18 @@ async fn main() -> Result<()> {
         )
         .install_simple()
         .context("build OTLP HTTP exporter")?;
+    {% else %}
+    // Default: gRPC (tonic) — used for protocol "grpc" or if protocol is unset.
+    let provider = opentelemetry_otlp::new_pipeline()
+        .logging()
+        .with_resource(resource)
+        .with_exporter(
+            opentelemetry_otlp::new_exporter()
+                .tonic()
+                .with_endpoint(&endpoint),
+        )
+        .install_simple()
+        .context("build OTLP gRPC exporter")?;
     {% endif %}
     let provider = Arc::new(provider);
 
