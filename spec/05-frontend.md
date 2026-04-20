@@ -23,12 +23,53 @@ production build output, hosting model, and Playwright E2E setup see `spec/15-fr
 
 Navigation is organized around **business entities** (services, deployments, environments) rather than signal types (metrics tab, logs tab). This reflects how operators investigate incidents—they start with a service, not with a metric.
 
+The UI must make it easy to move between related operational surfaces without losing project,
+environment, tenant, time range, or filter context. The primary information architecture is:
+
+- **Services**: service catalog and service-scoped investigation workspace.
+- **Infrastructure**: hosts, Kubernetes clusters, namespaces, pods, containers, and related infrastructure signals.
+- **Service Overview**: topology map of services and their observed relationships.
+- **Dashboards**: saved and ad-hoc dashboards, backed by dashboard-as-code artifacts.
+- **Alerts & SLOs**: alert rules, active incidents, SLO status, and burn-rate investigation.
+- **Admin / Fleet / Billing**: platform administration, agent fleet, tenant settings, and billing.
+
 **Primary navigation hierarchy:**
 
 ```
 Platform
 └── Project / Environment
-    └── Service Catalog  ←── entry point for most workflows
+    └── Services
+        └── Service Catalog  ←── entry point for most workflows
+            └── Service Detail
+                ├── Overview            (quick performance, health, SLOs, deployment context)
+                ├── Logs                (service-filtered log explorer)
+                ├── Metrics             (service-filtered common metrics + custom series)
+                ├── Traces              (service-filtered trace explorer)
+                ├── Deployments         (timeline, diff, trace correlation)
+                └── Alerts / Incidents  (scoped to this service)
+    └── Infrastructure
+        ├── Hosts
+        ├── Kubernetes Clusters
+        ├── Namespaces
+        ├── Pods / Containers
+        └── Infrastructure Dashboards
+    └── Service Overview
+        └── Service Map                 (topology derived from traces)
+    └── Cross-Service Views
+        ├── Trace Explorer              (cross-service search)
+        ├── Log Explorer                (cross-service search)
+        └── Metric Explorer             (cross-service, cardinality browser)
+    └── Dashboards                      (as-code + UI builder)
+    └── Alerts & SLOs                   (global management)
+    └── Admin / Fleet / Billing
+```
+
+**Service detail route contract:**
+
+```
+Platform
+└── Project / Environment
+    └── Service Catalog
         └── Service Detail
             ├── Health Overview     (RED metrics, SLIs, error budget, SLO status)
             ├── Traces              (filtered to this service)
@@ -36,20 +77,57 @@ Platform
             ├── Metrics             (filtered to this service)
             ├── Deployments         (timeline, diff, trace correlation)
             └── Alerts / Incidents  (scoped to this service)
-    └── Cross-Service Views
-        ├── Service Map             (topology derived from traces)
-        ├── Trace Explorer          (cross-service search)
-        ├── Log Explorer            (cross-service search)
-        └── Metric Explorer         (cross-service, cardinality browser)
-    └── Dashboards                  (as-code + UI builder)
-    └── Alerts & SLOs               (global management)
-    └── Admin / Fleet / Billing
 ```
 
 **Design rationale:**
 - Mirrors New Relic's entity synthesis model and Datadog's service catalog
 - Reduces context switching: a single incident can be triaged entirely within the service detail view
 - Avoids signal-centric anti-pattern where finding a slow service requires visiting three separate tab groups
+- Keeps service topology separate from service catalog so operators can switch between inventory and relationship views quickly
+
+### 9.2.1 Required Product Views
+
+#### Services
+
+The Services area is the default operational workspace.
+
+**Service Catalog requirements:**
+- List every discovered service entity in the selected project/environment.
+- Show quick performance and health columns: request rate, error rate, P95 latency, current SLO state, active alert count, and last deployment.
+- Support search, owner/team filter, environment filter, health filter, and sort by health or performance signal.
+- Preserve selected project, environment, time range, and filters when navigating into a service and back.
+
+**Service Detail requirements:**
+- Render an **Overview** tab first, with a compact health and performance dashboard for the selected service.
+- Provide direct tabs for **Logs**, **Metrics**, and **Traces**. Each tab opens with the selected service and current time range already applied.
+- Provide a full aggregated service log view that combines all workloads for the service, ordered by timestamp, with severity, workload, host/pod, trace, and span correlation columns.
+- Provide common service metrics out of the box: request rate, error rate, latency percentiles, saturation/resource usage, and availability/SLO status.
+- Provide trace search scoped to the service, with upstream/downstream filters and a path from each trace back to correlated logs and metrics.
+- Keep all service tabs deep-linkable and browser-back friendly.
+
+#### Infrastructure
+
+The Infrastructure area provides infrastructure-first views for teams investigating host,
+cluster, pod, container, or namespace health.
+
+**Infrastructure view requirements:**
+- Provide inventory lists for hosts, Kubernetes clusters, namespaces, pods, and containers when the attributes exist in telemetry or catalog data.
+- Show quick health and utilization summaries: CPU, memory, disk, network, restart count, and recent error/log rate where available.
+- Link every infrastructure entity to related services, logs, metrics, and traces using OTel resource attributes.
+- Support infrastructure dashboards scoped by host, cluster, namespace, pod, and container.
+- Preserve context when moving from service detail into infrastructure and back.
+
+#### Service Overview
+
+The Service Overview area is the topology view of the system.
+
+**Service Overview requirements:**
+- Render a map of services and their observed relationships.
+- Derive service nodes and edges from trace data; do not require manually maintained topology.
+- Show relationship health using edge-level request rate, error rate, and latency.
+- Let operators click a service node to open the service detail overview.
+- Let operators click an edge to open traces/logs filtered to that caller-callee relationship.
+- Support an overview mode for the full graph and a focused mode for one service plus direct upstream/downstream dependencies.
 
 ### 9.3 Frontend Modules
 
@@ -58,6 +136,7 @@ Platform
 |---|---|
 | Onboarding / Setup | Agent install wizard, API key generation, first signal validation |
 | Service Catalog | List all services with health ring, error rate, P95 latency; entry point |
+| Service Detail Overview | Compact service dashboard with quick performance, logs, metrics, traces, SLO, deployment, and alert context |
 | Trace Explorer | Full-text + attribute search, waterfall, span detail, field faceting |
 | Log Explorer | Structured search, histogram, log detail, live tail, context (surrounding logs) |
 | Metric Explorer | Series browser, cardinality inspector, ad-hoc PromQL-style graph |
@@ -68,6 +147,7 @@ Platform
 | Module | Purpose |
 |---|---|
 | Service Map | Interactive topology graph derived from trace data |
+| Infrastructure Views | Host, cluster, namespace, pod, and container inventory with linked logs, metrics, traces, and related services |
 | Trace Comparison | Compare two traces (e.g. fast vs slow) to identify bottlenecks or path diffs |
 | Deployment Timeline | Overlay deployments on metrics/traces; diff environment configs |
 | Query Workbench | Monaco-based multi-signal notebook, shareable query URLs |
@@ -114,6 +194,10 @@ The trace waterfall view supports a split view: trace on the left, correlated lo
 
 #### Infrastructure Correlation
 Every service detail, trace, and log view must provide links to the underlying infrastructure (host, pod, container) metrics and logs. This is achieved by joining on OTel resource attributes (`host.name`, `k8s.pod.name`, etc.).
+
+Infrastructure detail views must provide the inverse relationship: from a host, pod, container,
+namespace, or cluster, the operator can open related services, logs, metrics, and traces without
+manually reconstructing filters.
 
 #### Log Context (Surrounding Logs)
 When viewing a specific log line in the explorer or detail view, the operator can click "View Context". This opens a view showing logs from the same service and host that occurred immediately before and after the selected log line (±1 minute by default), ignoring other active search filters.
@@ -251,6 +335,7 @@ Apply the **inverted pyramid**: show the minimum information needed to assess he
 | Trace waterfall render | < 500ms | P95 for traces with ≤ 1000 spans |
 | Log search results | < 2s | P95 for last-24h hot window |
 | Service map initial render | < 3s | P95 for ≤ 500 service nodes |
+| Infrastructure inventory load | < 2s | P95 from page navigation for ≤ 5000 entities |
 
 **Implementation strategies:**
 - **Virtualization**: Use windowed rendering for log lines and trace span tables (> 200 rows)
@@ -265,7 +350,8 @@ Apply the **inverted pyramid**: show the minimum information needed to assess he
 - **Saved views**: Named bookmarks for search configurations (filter set + time range + column selection), scoped per user or shared within project
 - **Keyboard-driven query UX**: Tab-complete in search bars, keyboard shortcuts for common actions (time range, toggle panels, expand detail)
 - **Export APIs**: All data visible in the UI must be exportable (CSV, JSON, OTLP). Export respects current filter and time range
-- **Dark mode**: Design tokens support dark and light themes; user preference persists in profile
+- **Themes**: Design tokens must support light, dark, and system themes. The system theme follows the browser/OS `prefers-color-scheme` value, and the resolved theme updates when the system preference changes.
+- **Theme persistence**: Explicit light/dark/system preference persists in the user profile; anonymous or pre-login screens may use local storage until profile sync is available.
 - **Accessibility baseline**: WCAG 2.1 AA: keyboard navigation, focus management, ARIA roles on custom components, sufficient color contrast
 
 ### 9.12 Frontend Anti-Patterns
@@ -285,7 +371,7 @@ Apply the **inverted pyramid**: show the minimum information needed to assess he
 | Server data (queries, results) | TanStack Query | Caching, dedup, background refresh |
 | URL state (time range, filters, selected entity) | TanStack Router | Deep links, compare mode, browser back |
 | UI-local state (panel expand/collapse, tooltip hover) | React useState | No sharing required |
-| User preferences (theme, timezone, default project) | Server-persisted profile | Consistent across devices |
+| User preferences (theme, timezone, default project) | Server-persisted profile | Consistent across devices; theme values are `light`, `dark`, or `system` |
 | Dashboard configuration | Platform config API | Version-controlled, CI/CD deployable |
 
 #### 9.14 Live Tail and Streaming

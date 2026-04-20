@@ -56,6 +56,21 @@ The Query API must support the following patterns required by the Frontend (see 
 #### Infrastructure Correlation
 - **Capability**: Every telemetry record must expose its resource attributes (e.g., `host.name`, `k8s.pod.name`) to enable the UI to link to infrastructure-specific views.
 
+#### Service Overview Topology
+- **Capability**: Query endpoints must expose service relationship data derived from traces so the UI can render the Service Overview map without a manually maintained CMDB.
+- **Required Fields**: Caller service, callee service, request count, error count/error rate, P95 latency, and the time range used to compute the relationship.
+- **Filtering**: Must support project, environment, tenant, time range, service, and caller-callee pair filters.
+
+#### Service Detail Summary
+- **Capability**: The UI needs a service summary query for the service detail overview and service catalog.
+- **Required Fields**: Request rate, error rate, latency percentiles, active alert count, current SLO state, latest deployment marker, and links or identifiers for related logs, metrics, traces, and infrastructure entities.
+- **Filtering**: Must support project, environment, tenant, service, and time range filters.
+
+#### Infrastructure Views
+- **Capability**: Query endpoints must support infrastructure inventory and detail views for hosts, Kubernetes clusters, namespaces, pods, and containers when those resource attributes or catalog entities exist.
+- **Required Fields**: Entity identity, entity type, health state, CPU, memory, disk, network, restart count where applicable, recent log/error rate, related service names, and last-seen timestamp.
+- **Filtering**: Must support project, environment, tenant, entity type, entity ID/name, related service, and time range filters.
+
 ### Resolved Query API Bugs
 
 #### Bug Report: Query API MVP response correctness regressions
