@@ -28,7 +28,7 @@ It emits OTLP to any OTLP endpoint — Observable, Grafana, Jaeger, or your own 
 docker compose up
 
 # Open the parser development UI
-open http://localhost:8090
+open http://localhost:8095
 ```
 
 No Observable account required. No cloud connectivity required.

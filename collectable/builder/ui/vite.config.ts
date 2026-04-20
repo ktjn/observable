@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 8090,
+    port: 8095,
     proxy: {
       '/build': {
         target: process.env.VITE_BUILD_SERVICE_URL ?? 'http://localhost:8091',

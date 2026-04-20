@@ -4,7 +4,7 @@ services:
       context: ./builder/ui
       dockerfile: Dockerfile
     ports:
-      - "8090:8090"
+      - "8095:8095"
     environment:
       - VITE_BUILD_SERVICE_URL=http://build-service:8091
 
