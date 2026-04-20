@@ -210,6 +210,12 @@ Before Phase 3 starts, answer:
   - Outcome: one authenticated tenant exceeding a metric-ingest request budget gets a stable `429` rejection. Mirrors the pattern from P2-S2a and P3-S2b.
   - Checkpoint: are all three signal ingest paths (traces, logs, metrics) now covered by rate limiting?
 
+- [ ] **P3-S2d: Fix OTLP standard port conformance for the ingest-gateway**
+  - Source spec: `spec/02-architecture.md §4.1` (required interfaces: OTLP/gRPC and OTLP/HTTP), ADR-001.
+  - Context: the ingest-gateway currently serves HTTP/JSON on port 4317 (the OTLP/gRPC standard port) and the auth-service occupies port 4318 (the OTLP/HTTP standard port). This means any standard OTLP sender — including Collectable-built binaries, the OTel Collector, and language SDKs using default configuration — cannot reach Observable without non-standard endpoint configuration.
+  - Outcome: the ingest-gateway accepts OTLP/gRPC on port 4317 (via tonic) and OTLP/HTTP (both JSON `application/json` and protobuf `application/x-protobuf`) on port 4318. The auth-service moves to an internal-only port (4319). The Collectable mediator template is updated so `OTLP_PROTOCOL=http` emits OTLP JSON (`http-json` feature) and attaches `Authorization: Bearer ${OTLP_TOKEN:-}` — matching what the ingest-gateway's auth middleware expects. `spec/12-deployment.md` port table, `spec/16-collectable.md` endpoint examples, `docker-compose.yml`, and Helm chart values are updated to reflect the new layout. A new ADR (ADR-023) documents the standards-compliant port assignment and the migration path for any existing deployments using the old ports.
+  - Checkpoint: can a standard OTLP sender (e.g. `otelcol`, a Collectable binary with `OTLP_ENDPOINT=http://host:4318`) deliver logs, traces, and metrics to Observable with no Observable-specific client configuration beyond an API key?
+
 - [ ] **P3-S3: Add frontend navigation shell and theme system**
   - Source spec: `spec/05-frontend.md` §9.2, §9.11, §9.13.
   - Outcome: the React app has primary navigation entries for Services, Infrastructure, Service Overview, Dashboards, Alerts & SLOs, and Admin / Fleet / Billing. Light, dark, and system themes are selectable and persisted as `light`, `dark`, or `system`.
