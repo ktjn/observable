@@ -652,25 +652,45 @@ async fn main() -> Result<()> {
     let resource = opentelemetry_sdk::Resource::new(kv_list);
 
     {% if output.protocol == "http" %}
+    // Attach Authorization header if OTLP_TOKEN is set.
+    let mut http_headers = std::collections::HashMap::new();
+    if let Ok(token) = std::env::var("OTLP_TOKEN") {
+        if !token.is_empty() {
+            http_headers.insert("Authorization".to_string(), format!("Bearer {}", token));
+        }
+    }
     let provider = opentelemetry_otlp::new_pipeline()
         .logging()
         .with_resource(resource)
         .with_exporter(
             opentelemetry_otlp::new_exporter()
                 .http()
-                .with_endpoint(&endpoint),
+                .with_endpoint(&endpoint)
+                .with_headers(http_headers),
         )
         .install_simple()
         .context("build OTLP HTTP exporter")?;
     {% else %}
     // Default: gRPC (tonic) — used for protocol "grpc" or if protocol is unset.
+    // Attach Authorization metadata if OTLP_TOKEN is set.
+    let mut grpc_metadata = tonic::metadata::MetadataMap::new();
+    if let Ok(token) = std::env::var("OTLP_TOKEN") {
+        if !token.is_empty() {
+            if let Ok(val) = tonic::metadata::MetadataValue::try_from(
+                format!("Bearer {}", token)
+            ) {
+                grpc_metadata.insert("authorization", val);
+            }
+        }
+    }
     let provider = opentelemetry_otlp::new_pipeline()
         .logging()
         .with_resource(resource)
         .with_exporter(
             opentelemetry_otlp::new_exporter()
                 .tonic()
-                .with_endpoint(&endpoint),
+                .with_endpoint(&endpoint)
+                .with_metadata(grpc_metadata),
         )
         .install_simple()
         .context("build OTLP gRPC exporter")?;

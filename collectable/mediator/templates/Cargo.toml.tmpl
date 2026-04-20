@@ -24,7 +24,7 @@ opentelemetry-otlp  = { version = "0.26", features = ["logs", "http-proto", "req
 reqwest             = { version = "0.12", features = ["rustls-tls"], default-features = false }
 {% else %}
 opentelemetry-otlp  = { version = "0.26", features = ["logs", "grpc-tonic", "tls-roots"] }
-tonic        = { version = "0.11", features = ["tls", "tls-roots"] }
+tonic        = { version = "0.12", features = ["tls", "tls-roots"] }
 {% endif %}
 {% if transport_kind == "tcp_syslog" or transport_kind == "udp_syslog" %}syslog_loose = "0.23"
 {% endif %}{% if transport_kind == "http_webhook" %}axum = { version = "0.7", features = ["json"] }
