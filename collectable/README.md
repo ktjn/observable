@@ -100,7 +100,7 @@ Build & Download
 ```bash
 curl -X POST 'http://localhost:8091/build' \
   -H 'Content-Type: application/json' \
-  -d '{"definition":{"version":"1","name":"journalctl-to-otlp","transport":{"type":"stdin"},"parser":{"type":"grok","pattern":"%{TIMESTAMP_ISO8601:timestamp} %{GREEDYDATA:message}"},"mapping":{"time_field":{"field":"timestamp","format":"auto"},"body":{"field":"message"}},"output":{"endpoint":"http://localhost:4317","protocol":"grpc"}},"target":"x86_64-unknown-linux-musl"}' \
+  -d '{"definition":{"version":"1","name":"journalctl-to-otlp","transport":{"type":"stdin"},"parser":{"type":"grok","pattern":"%{TIMESTAMP_ISO8601:timestamp} %{GREEDYDATA:message}"},"mapping":{"time_field":{"field":"timestamp","format":"auto"},"body":{"field":"message"}},"output":{"endpoint":"http://localhost:4317/v1/logs","protocol":"http"}},"target":"x86_64-unknown-linux-musl"}' \
   --output journalctl-to-otlp-x86_64-unknown-linux-musl.zip
 ```
 
