@@ -93,6 +93,8 @@ for the architectural decision record.
 
 ## Sample invocation
 
+## Sample invocation
+
 Build & Download
 
 ```bash
@@ -110,10 +112,36 @@ Run
 unzip journalctl-to-otlp-x86_64-unknown-linux-musl.zip
 chmod +x journalctl-to-otlp-x86_64-unknown-linux-musl/journalctl-to-otlp
 
-OTLP_TOKEN=<your-api-key> sudo -E journalctl -o short-iso-precise -f | \
+export OTLP_TOKEN=<your-api-key>
+export OTLP_ENDPOINT=http://localhost:4317/v1/logs   # optional: overrides compiled-in endpoint
+sudo journalctl -o short-iso-precise -f | \
   journalctl-to-otlp-x86_64-unknown-linux-musl/journalctl-to-otlp
 ```
 
 `OTLP_TOKEN` is sent as `Authorization: Bearer <your-api-key>` on every OTLP
 export request. Required when connecting to a protected endpoint (e.g. Observable
 `dev-api-key-0000` for the local dev environment).
+
+## Environment variables
+
+All variables are read at **runtime** by the compiled binary.
+
+| Variable | Default | Description |
+|---|---|---|
+| `OTLP_ENDPOINT` | compiled-in | Override the OTLP endpoint URL. For HTTP protocol include the full path, e.g. `http://host:4317/v1/logs`. |
+| `OTLP_TOKEN` | — | Sent as `Authorization: Bearer <token>` on every export request. |
+| `OTLP_INSECURE` | `false` | Set to `true` to disable TLS certificate verification. |
+| `COLLECTABLE_LOG_LEVEL` | `info` | Log level: `trace`, `debug`, `info`, `warn`, `error`. |
+| `COLLECTABLE_LOG_FORMAT` | `json` | Log format: `json` or `text`. |
+| `COLLECTABLE_HEALTH_PORT` | `9090` | Port for the `/health` HTTP endpoint. |
+| `COLLECTABLE_SHUTDOWN_TIMEOUT_SECS` | `10` | Seconds to wait for graceful shutdown. |
+| `COLLECTABLE_PID_FILE` | — | If set, the binary writes its PID to this path (useful with init.d). |
+| `TRANSPORT_LISTEN_HOST` | `0.0.0.0` | Bind address for syslog/webhook transports. |
+| `TRANSPORT_PORT` | — | Listen port for syslog/webhook transports. |
+| `MQTT_BROKER` | — | MQTT broker URL (e.g. `tcp://localhost:1883`). |
+| `MQTT_TOPIC` | — | MQTT topic to subscribe to. |
+| `MQTT_USERNAME` / `MQTT_PASSWORD` | — | MQTT credentials. |
+| `KAFKA_BROKERS` | — | Comma-separated Kafka broker list. |
+| `KAFKA_TOPIC` | — | Kafka topic to consume. |
+| `KAFKA_GROUP_ID` | — | Kafka consumer group ID. |
+| `FILE_PATH` | — | File path or glob for the file tail transport. |
