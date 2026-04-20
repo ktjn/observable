@@ -198,9 +198,9 @@ Before Phase 3 starts, answer:
   - Outcome: the Query API exposes `GET /v1/logs/tail` for tenant-scoped cursor reads ordered by timestamp, and the frontend explorer shows a live log panel that polls every 1s, appends new records, deduplicates by `log_id`, and auto-scrolls to the newest line. The first transport is cursor-polled JSON rather than SSE so the existing explicit `X-Tenant-ID` header remains mandatory.
   - Checkpoint: is the end-to-end latency from ingest to UI display < 2s? Answer: yes by contract for this slice: the frontend polls once per second, so newly queryable ClickHouse rows are fetched within the <2s live-tail target under the existing ingest-to-query path. Full ingest pipeline latency should be measured in a follow-up perf/smoke slice once synthetic log generation is part of the smoke harness.
 
-- [ ] **P3-S2: Add trace-level log correlation when `span_id` is absent**
-  - Outcome: trace views show trace-correlated logs without claiming exact span linkage
-  - Checkpoint: is the UI language precise about exact vs trace-level correlation?
+- [x] **P3-S2: Add trace-level log correlation when `span_id` is absent**
+  - Outcome: trace views show trace-correlated logs without claiming exact span linkage. The trace detail log panel now fetches all logs for the trace, keeps trace-level logs with no `span_id` visible even when a span is selected, and filters out logs from other spans in selected-span mode.
+  - Checkpoint: is the UI language precise about exact vs trace-level correlation? Answer: yes. Logs with a `span_id` are labeled `Exact span`; logs without a `span_id` are labeled `Trace-level`. The selected-span heading says `Exact span logs and trace-level logs`, while the all-trace view says `Trace-correlated logs`.
 
 - [ ] **P3-S2b: Add rate limiting for log ingest**
   - Outcome: one authenticated tenant exceeding a log-ingest request budget gets a stable `429` rejection. Mirrors the pattern from P2-S2a for traces.
@@ -441,7 +441,7 @@ After this planning reconciliation, the next implementation slice should be:
 - Cost controls without hand-waving: yes — P2-S2a (rate limiting), P2-S3a (cardinality budget observation), P2-S4a (hot retention) are all in place.
 - Roll back a bad deploy without manual heroics: yes — P2-S8a (Helm rollback skeleton) and P2-S8b (canary promotion path) cover both runtime and schema rollback.
 
-**Next recommended slice: P3-S2 — Add trace-level log correlation when `span_id` is absent.**
+**Next recommended slice: P3-S2b — Add rate limiting for log ingest.**
 
 ---
 

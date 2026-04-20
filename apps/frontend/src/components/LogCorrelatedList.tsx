@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type { LogRecord } from "../api/logs";
 import { searchLogs } from "../api/logs";
 import { LogContextView } from "./LogContextView";
 
@@ -11,16 +12,21 @@ interface Props {
 export function LogCorrelatedList({ traceId, spanId }: Props) {
   const [focusedLogId, setFocusedLogId] = useState<string | undefined>();
   const { data, isLoading } = useQuery({
-    queryKey: ["logs", traceId, spanId],
-    queryFn: () => searchLogs({ trace_id: traceId, span_id: spanId }),
+    queryKey: ["logs", traceId],
+    queryFn: () => searchLogs({ trace_id: traceId }),
   });
 
   if (isLoading) return <p>Loading logs…</p>;
-  if (!data?.logs?.length) return <p>No correlated logs found.</p>;
+  const logs = filterCorrelatedLogs(data?.logs ?? [], spanId);
+  if (!logs.length) return <p>No correlated logs found.</p>;
 
   return (
     <div style={{ marginTop: 20 }}>
-      <h3>Correlated Logs {spanId ? `(Span: ${spanId.substring(0, 8)})` : "(Trace)"}</h3>
+      <h3>
+        {spanId
+          ? `Exact span logs and trace-level logs (${spanId.substring(0, 8)})`
+          : "Trace-correlated logs"}
+      </h3>
       <div style={{ 
         fontFamily: "monospace", 
         fontSize: "12px", 
@@ -30,7 +36,7 @@ export function LogCorrelatedList({ traceId, spanId }: Props) {
         borderRadius: "4px",
         padding: "8px"
       }}>
-        {data.logs.map((log) => (
+        {logs.map((log) => (
           <div 
             key={log.log_id} 
             onClick={() => setFocusedLogId(log.log_id)}
@@ -53,6 +59,9 @@ export function LogCorrelatedList({ traceId, spanId }: Props) {
             }}>
               {log.severity_text || `LVL ${log.severity_number}`}
             </span>
+            <span style={{ width: "90px", color: log.span_id ? "#2b6cb0" : "#805ad5" }}>
+              {correlationLabel(log)}
+            </span>
             <span style={{ flex: 1 }}>
               {typeof log.body === 'string' ? log.body : JSON.stringify(log.body)}
             </span>
@@ -67,6 +76,18 @@ export function LogCorrelatedList({ traceId, spanId }: Props) {
       )}
     </div>
   );
+}
+
+export function filterCorrelatedLogs(logs: LogRecord[], spanId?: string): LogRecord[] {
+  if (!spanId) {
+    return logs;
+  }
+
+  return logs.filter((log) => log.span_id === spanId || !log.span_id);
+}
+
+export function correlationLabel(log: LogRecord): "Exact span" | "Trace-level" {
+  return log.span_id ? "Exact span" : "Trace-level";
 }
 
 function getSeverityColor(severity: number): string {
