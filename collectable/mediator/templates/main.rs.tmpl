@@ -669,6 +669,7 @@ async fn main() -> Result<()> {
         .with_exporter(
             opentelemetry_otlp::new_exporter()
                 .http()
+                .with_protocol(opentelemetry_otlp::Protocol::HttpJson)
                 .with_endpoint(&endpoint)
                 .with_headers(http_headers),
         )
