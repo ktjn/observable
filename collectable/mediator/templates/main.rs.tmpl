@@ -10,7 +10,7 @@ use opentelemetry_sdk::logs::LoggerProvider as SdkLoggerProvider;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use std::time::SystemTime;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 {% if transport_kind == "tcp_syslog" or transport_kind == "udp_syslog" %}
 // syslog_loose used for RFC 3164/5424 header extraction
@@ -255,8 +255,6 @@ fn emit_record(fields: &Fields, provider: &SdkLoggerProvider) {
     let logger = provider.logger("{{ name }}");
     let mut record = logger.create_log_record();
     record.set_observed_timestamp(SystemTime::now());
-
-    // body
     {% if mapping.body %}
     {% if mapping.body.field %}
     if let Some(v) = fields.get("{{ mapping.body.field }}") {
@@ -446,10 +444,22 @@ async fn run_transport(provider: Arc<SdkLoggerProvider>) -> Result<()> {
         .with_context(|| format!("open file {}", path))?;
     let reader = tokio::io::BufReader::new(file);
     let mut lines = reader.lines();
-    while let Ok(Some(line)) = lines.next_line().await {
-        if !line.is_empty() {
-            let fields = parse_frame(&line);
-            emit_record(&fields, &provider);
+    loop {
+        match lines.next_line().await {
+            Ok(Some(line)) if !line.is_empty() => {
+                let fields = parse_frame(&line);
+                if fields.is_empty() {
+                    warn!(raw = %line, "parse produced no fields — line skipped");
+                } else {
+                    emit_record(&fields, &provider);
+                }
+            }
+            Ok(Some(_)) => {}
+            Ok(None) => break,
+            Err(e) => {
+                error!(error = %e, path = %path, "file read error");
+                break;
+            }
         }
     }
     // Simple tail: poll for new data
@@ -497,6 +507,10 @@ async fn run_transport(provider: Arc<SdkLoggerProvider>) -> Result<()> {
                 for line in payload.lines() {
                     if !line.is_empty() {
                         let fields = parse_frame(line);
+                        if fields.is_empty() {
+                            warn!(raw = %line, "parse produced no fields — line skipped");
+                            continue;
+                        }
                         emit_record(&fields, &provider);
                     }
                 }
@@ -534,6 +548,10 @@ async fn run_transport(provider: Arc<SdkLoggerProvider>) -> Result<()> {
                     for line in s.lines() {
                         if !line.is_empty() {
                             let fields = parse_frame(line);
+                            if fields.is_empty() {
+                                warn!(raw = %line, "parse produced no fields — line skipped");
+                                continue;
+                            }
                             emit_record(&fields, &provider);
                         }
                     }
@@ -552,10 +570,26 @@ async fn run_transport(provider: Arc<SdkLoggerProvider>) -> Result<()> {
     let reader = tokio::io::BufReader::new(tokio::io::stdin());
     let mut lines = reader.lines();
     info!("reading from stdin");
-    while let Ok(Some(line)) = lines.next_line().await {
-        if !line.is_empty() {
-            let fields = parse_frame(&line);
-            emit_record(&fields, &provider);
+    loop {
+        match lines.next_line().await {
+            Ok(Some(line)) => {
+                if !line.is_empty() {
+                    let fields = parse_frame(&line);
+                    if fields.is_empty() {
+                        warn!(raw = %line, "parse produced no fields — line skipped");
+                        continue;
+                    }
+                    emit_record(&fields, &provider);
+                }
+            }
+            Ok(None) => {
+                info!("stdin closed — exiting");
+                break;
+            }
+            Err(e) => {
+                error!(error = %e, "stdin read error — exiting");
+                break;
+            }
         }
     }
     Ok(())
@@ -584,8 +618,20 @@ async fn main() -> Result<()> {
             .init();
     }
 
+    // Route OpenTelemetry SDK internal errors (export failures, connection refused,
+    // auth rejections) through the tracing subscriber so they appear in console output.
+    opentelemetry::global::set_error_handler(|e| {
+        tracing::error!(error = %e, "OTLP export error");
+    })
+    .expect("failed to install OTel error handler");
+
     // OTLP exporter via pipeline API (opentelemetry-otlp 0.26)
     let endpoint = resolve_env("{{ output.endpoint }}")?;
+    info!(
+        endpoint = %endpoint,
+        protocol = "{{ output.protocol | default(value="grpc") }}",
+        "OTLP exporter configured"
+    );
 
     // Resource attributes
     let mut kv_list: Vec<opentelemetry::KeyValue> = vec![
