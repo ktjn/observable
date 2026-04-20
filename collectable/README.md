@@ -108,7 +108,12 @@ Run
 
 ```bash
 unzip journalctl-to-otlp-x86_64-unknown-linux-musl.zip
-chmod +x unzip journalctl-to-otlp-x86_64-unknown-linux-musl/journalctl-to-otlp
+chmod +x journalctl-to-otlp-x86_64-unknown-linux-musl/journalctl-to-otlp
 
-sudo journalctl -o short-iso-precise -f | journalctl-to-otlp-x86_64-unknown-linux-musl/journalctl-to-otlp
+OTLP_TOKEN=<your-api-key> sudo -E journalctl -o short-iso-precise -f | \
+  journalctl-to-otlp-x86_64-unknown-linux-musl/journalctl-to-otlp
 ```
+
+`OTLP_TOKEN` is sent as `Authorization: Bearer <your-api-key>` on every OTLP
+export request. Required when connecting to a protected endpoint (e.g. Observable
+`dev-api-key-0000` for the local dev environment).
