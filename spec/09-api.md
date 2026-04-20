@@ -46,8 +46,12 @@ The Query API must support the following patterns required by the Frontend (see 
 
 #### Live Tail
 - **Endpoint**: `GET /v1/logs/tail`
-- **Behavior**: Provides a streaming response (Server-Sent Events or chunked JSON) of newly ingested logs.
-- **Parameters**: Supports the same filtering parameters as the historical search.
+- **Behavior**: Returns newly ingested logs after a cursor for live-tail clients. The initial
+  implementation uses cursor-polled JSON so browser clients can preserve the required tenant header;
+  SSE or chunked JSON may replace the transport later without changing the log cursor semantics.
+- **Parameters**: Supports `service`, `severity`, `since_unix_nano`, and `limit`.
+- **Ordering**: Results are ordered by `timestamp_unix_nano ASC` so clients can append to the tail
+  and advance the cursor to the newest returned timestamp.
 
 #### Infrastructure Correlation
 - **Capability**: Every telemetry record must expose its resource attributes (e.g., `host.name`, `k8s.pod.name`) to enable the UI to link to infrastructure-specific views.

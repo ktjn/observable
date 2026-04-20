@@ -297,4 +297,7 @@ Real-time visibility is critical for verifying deployments and debugging active 
 - **Auto-scroll**: New log lines are appended to the bottom and the view scrolls automatically (can be paused).
 - **Sampling**: If ingest volume exceeds a threshold, the UI samples the live stream to maintain performance, with a clear indicator.
 - **Consistency**: Filters applied in Live Tail mode must use the same syntax as historical search.
+- **Transport**: The initial live tail client may poll `GET /v1/logs/tail` with a timestamp cursor
+  at a fixed interval so tenant headers remain explicit; future streaming transports must preserve
+  the same filter and cursor semantics.
 - **Latency**: End-to-end latency from ingest to UI display should be < 2s for live tail.
