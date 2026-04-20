@@ -626,7 +626,11 @@ async fn main() -> Result<()> {
     .expect("failed to install OTel error handler");
 
     // OTLP exporter via pipeline API (opentelemetry-otlp 0.26)
-    let endpoint = resolve_env("{{ output.endpoint }}")?;
+    // OTLP_ENDPOINT env var overrides the compiled-in endpoint at runtime.
+    let endpoint = match std::env::var("OTLP_ENDPOINT").ok().filter(|s| !s.is_empty()) {
+        Some(ep) => ep,
+        None => resolve_env("{{ output.endpoint }}")?,
+    };
     info!(
         endpoint = %endpoint,
         protocol = "{{ output.protocol | default(value="grpc") }}",
