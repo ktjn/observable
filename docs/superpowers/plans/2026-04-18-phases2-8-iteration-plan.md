@@ -210,43 +210,87 @@ Before Phase 3 starts, answer:
   - Outcome: one authenticated tenant exceeding a metric-ingest request budget gets a stable `429` rejection. Mirrors the pattern from P2-S2a and P3-S2b.
   - Checkpoint: are all three signal ingest paths (traces, logs, metrics) now covered by rate limiting?
 
-- [ ] **P3-S3: Build a minimal service catalog from resource attributes**
-  - Outcome: services appear as navigable entities with stable IDs
+- [ ] **P3-S3: Add frontend navigation shell and theme system**
+  - Source spec: `spec/05-frontend.md` §9.2, §9.11, §9.13.
+  - Outcome: the React app has primary navigation entries for Services, Infrastructure, Service Overview, Dashboards, Alerts & SLOs, and Admin / Fleet / Billing. Light, dark, and system themes are selectable and persisted as `light`, `dark`, or `system`.
+  - Files or modules expected to change: `apps/frontend/src/App.tsx`, router setup, layout/navigation components, design token/theme utilities, frontend tests.
+  - Out of scope: real service, infrastructure, or topology data. Use current routes, placeholders, or existing mock data until backend endpoints exist.
+  - Verification: frontend unit tests cover route rendering and theme preference behavior; frontend typecheck/lint/build pass.
+  - Checkpoint: can operators switch major product areas and theme modes without losing project, environment, tenant, time range, or URL state?
+
+- [ ] **P3-S4: Build the Services catalog from resource attributes**
+  - Source spec: `spec/05-frontend.md` §9.2.1 Services; `spec/09-api.md` Service Detail Summary.
+  - Outcome: services appear as navigable entities with stable IDs, health/performance columns, search, filters, and sort controls.
+  - Files or modules expected to change: query-api service discovery/summary endpoint, service catalog API client, Services route, catalog table/list component, tests.
+  - Out of scope: full service detail page. Rows link to a placeholder service detail route if the detail view is not implemented yet.
+  - Verification: API tests prove tenant-scoped service listing; frontend tests cover service rendering, empty state, filter state, and navigation.
   - Checkpoint: do we have a durable service identity model or are we still overfitting to labels?
 
-- [ ] **P3-S4: Add RED metric derivation for one service**
-  - Outcome: one service detail page shows request rate, errors, and duration from spans
-  - Checkpoint: is the derived metric contract good enough for alerting reuse?
+- [ ] **P3-S5: Add service detail overview with quick performance**
+  - Source spec: `spec/05-frontend.md` §9.2.1 Services; `spec/09-api.md` Service Detail Summary.
+  - Outcome: one service detail overview shows request rate, error rate, latency percentiles, SLO/health state, active alert count, latest deployment marker, and related signal entry points.
+  - Files or modules expected to change: query-api service summary path, RED metric derivation for one service, frontend service detail route, overview panels, tests.
+  - Out of scope: editable dashboards and advanced SLO management.
+  - Verification: API tests cover one service summary; frontend tests cover overview rendering and links to Logs, Metrics, Traces, and Infrastructure.
+  - Checkpoint: is the derived service summary contract good enough for alerting, dashboards, and later SLO reuse?
 
-- [ ] **P3-S5: Add deployment event ingestion and one timeline overlay**
+- [ ] **P3-S6: Add service-scoped Logs, Metrics, and Traces tabs**
+  - Source spec: `spec/05-frontend.md` §9.2.1 Services and §9.4.
+  - Outcome: service detail has Logs, Metrics, and Traces tabs. Each tab opens with service and time range filters applied, preserves URL state, and links back to the overview.
+  - Files or modules expected to change: frontend service detail route tree, existing trace/log/metric explorer filter wiring, API client query parameters, tests.
+  - Out of scope: new query language features. Reuse existing explorer capabilities and backend filters.
+  - Verification: frontend tests cover tab deep links, browser-back behavior, and service filter preservation; API tests cover service-scoped query filters where missing.
+  - Checkpoint: are URLs now the source of truth for service investigation context across traces, logs, and metrics?
+
+- [ ] **P3-S7: Add field faceting and statistics to explorers**
+  - Source spec: `spec/05-frontend.md` §9.5; `spec/09-api.md` Field Faceting.
+  - Outcome: Log and Trace explorers show distribution of common fields such as status codes, log levels, and service names.
+  - Files or modules expected to change: query-api facet responses if incomplete, explorer sidebar components, tests.
+  - Out of scope: arbitrary high-cardinality analytics beyond Top N facets.
+  - Verification: API tests cover facet counts; frontend tests cover facet rendering, selection, and query update behavior.
+  - Checkpoint: does the UI correctly handle high-cardinality facets by showing Top N?
+
+- [ ] **P3-S8: Add Service Overview map from trace-derived topology**
+  - Source spec: `spec/05-frontend.md` §9.2.1 Service Overview and §9.6; `spec/09-api.md` Service Overview Topology.
+  - Outcome: Service Overview renders a topology map from trace-derived service relationships. Operators can click a node to open service detail and an edge to open caller-callee filtered traces/logs.
+  - Files or modules expected to change: topology rollup/query path, frontend Service Overview route, canvas graph component, route filters, tests.
+  - Out of scope: full-graph diff mode and large-enterprise topology tuning. Start with overview and focused mode.
+  - Verification: API tests cover caller/callee relationship data; frontend tests cover node/edge navigation; visual smoke verifies nonblank map rendering.
+  - Checkpoint: do topology rollups stay performant before broad graph work starts?
+
+- [ ] **P3-S9: Add Infrastructure inventory and detail views**
+  - Source spec: `spec/05-frontend.md` §9.2.1 Infrastructure and §9.4 Infrastructure Correlation; `spec/09-api.md` Infrastructure Views.
+  - Outcome: Infrastructure provides host, Kubernetes cluster, namespace, pod, and container inventory/detail views when resource attributes or catalog entities exist.
+  - Files or modules expected to change: infrastructure inventory query path, frontend Infrastructure routes, inventory tables/detail panels, related service links, tests.
+  - Out of scope: persistent infrastructure asset catalog independent of telemetry. Use telemetry/resource attributes first; catalog promotion can be a later domain-model slice.
+  - Verification: API tests cover tenant-scoped infrastructure inventory; frontend tests cover inventory rendering, detail links, and empty states.
+  - Checkpoint: can users move from infrastructure to related services, logs, metrics, and traces without manually reconstructing filters?
+
+- [ ] **P3-S10: Add infrastructure correlation from service and trace views**
+  - Source spec: `spec/05-frontend.md` §9.4 Infrastructure Correlation.
+  - Outcome: users can navigate from a service, trace, or log view to correlated host/pod/container metrics and logs using OTel resource attributes.
+  - Files or modules expected to change: service detail related-infrastructure panel, trace/log detail links, shared resource-attribute link builder, tests.
+  - Out of scope: infrastructure inventory implementation if P3-S9 is not complete. In that case links may target filtered explorer routes.
+  - Verification: frontend tests cover generated links from `host.name`, `k8s.pod.name`, and container attributes; API tests cover resource attributes in responses where missing.
+  - Checkpoint: are links derived correctly from OTel resource attributes?
+
+- [ ] **P3-S11: Add deployment event ingestion and one timeline overlay**
   - Outcome: traces or metrics can be viewed against deploy events
   - Checkpoint: is deployment identity clean enough for rollback analysis later?
 
-- [ ] **P3-S6: Add a focused service map view**
-  - Outcome: one service and its direct edges can be rendered from trace data
-  - Checkpoint: do topology rollups stay performant before broad graph work starts?
-
-- [ ] **P3-S7: Add deep links across trace, log, metric, and service views**
-  - Outcome: context survives reload and cross-navigation
-  - Checkpoint: are URLs now the source of truth for investigation context?
-
-- [ ] **P3-S7b: Add field faceting and statistics to explorers**
-  - Outcome: Log and Trace explorers show distribution of common fields (e.g. status codes, log levels)
-  - Checkpoint: does the UI correctly handle high-cardinality facets by showing Top N?
-
-- [ ] **P3-S7c: Add "Promote to Dashboard" from explorers**
-  - Outcome: ad-hoc queries can be saved directly as new dashboard panels
+- [ ] **P3-S12: Add "Promote to Dashboard" from explorers**
+  - Source spec: `spec/05-frontend.md` §9.4 Promote to Dashboard and §9.7.
+  - Outcome: ad-hoc queries can be saved directly as new dashboard panels.
+  - Files or modules expected to change: dashboard config API if missing, explorer actions, dashboard serialization path, tests.
+  - Out of scope: full drag-and-drop dashboard builder.
+  - Verification: frontend tests cover promoted query payload; API tests cover dashboard create/update shape.
   - Checkpoint: does the promoted panel preserve all filters and time range settings?
 
-- [ ] **P3-S8: Add dashboard-as-code import/export for one dashboard shape**
+- [ ] **P3-S13: Add dashboard-as-code import/export for one dashboard shape**
   - Outcome: one dashboard can round-trip through API, storage, and UI
   - Checkpoint: is the serialized contract stable enough to support CI validation later?
 
-- [ ] **P3-S9: Add infrastructure correlation from service and trace views**
-  - Outcome: users can navigate from a service or trace to correlated host/pod/container metrics and logs
-  - Checkpoint: are links derived correctly from OTel resource attributes?
-
-- [ ] **P3-S10: Add Schema Registry with semantic annotations for one signal type**
+- [ ] **P3-S14: Add Schema Registry with semantic annotations for one signal type**
   - Outcome: one signal type's fields have business-meaning annotations queryable via API; sets the grounding foundation required by the NL query layer (ADR-021). See `spec/03-storage.md §5.4.1`.
   - Checkpoint: are annotations stored structurally separate from schema shape so they can evolve independently of structural metadata?
 
@@ -255,6 +299,7 @@ Before Phase 3 starts, answer:
 Before Phase 4 starts, answer:
 - Are services first-class entities now?
 - Are cross-signal links precise enough to trust during incidents?
+- Can operators navigate Services, Infrastructure, and Service Overview without manual filter reconstruction?
 - Is the dashboard artifact shape stable enough to version?
 
 ---
@@ -398,7 +443,7 @@ Before Phase 5 starts, answer:
 - [ ] **P8-S4: Add capacity forecasting for one storage or ingest dimension**
 - [ ] **P8-S5: Add remediation hooks with explicit approval controls**
 - [ ] **P8-S6: Add NL query layer for one explorer view using semantic annotations**
-  - Outcome: operators can ask natural-language questions against one signal type and receive an explained, sourced answer grounded in semantic annotations from the Schema Registry (P3-S10). Governed by ADR-021 and within ADR-014 advisory-only, provenance-required, read-only constraints.
+  - Outcome: operators can ask natural-language questions against one signal type and receive an explained, sourced answer grounded in semantic annotations from the Schema Registry (P3-S14). Governed by ADR-021 and within ADR-014 advisory-only, provenance-required, read-only constraints.
   - Checkpoint: does every response carry provenance (source queries, time range, signal type) and can it be ignored without affecting platform correctness?
 
 **Checkpoint question:** can every AI output be explained, audited, and ignored without harming correctness?
@@ -449,4 +494,4 @@ After this planning reconciliation, the next implementation slice should be:
 
 No ADR update is included in this document. This plan decomposes the already-defined roadmap into an execution sequence. If future edits change roadmap scope, architecture, deployment model, data model, security model, or technology choice, update the relevant ADRs and specs in the same iteration.
 
-**ADR-021** (NL query layer, Proposed — added 2026-04-19 via PR #53) introduces the NL query layer as a new Phase 8 feature and the Schema Registry semantic annotations as a Phase 3 prerequisite. P3-S10 and P8-S6 above reflect this. ADR-021 operates within the advisory-only, provenance-required, read-only constraints established by ADR-014.
+**ADR-021** (NL query layer, Proposed — added 2026-04-19 via PR #53) introduces the NL query layer as a new Phase 8 feature and the Schema Registry semantic annotations as a Phase 3 prerequisite. P3-S14 and P8-S6 above reflect this. ADR-021 operates within the advisory-only, provenance-required, read-only constraints established by ADR-014.
