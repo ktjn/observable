@@ -216,13 +216,13 @@ Before Phase 3 starts, answer:
   - Outcome: the ingest-gateway accepts OTLP/gRPC on port 4317 (via tonic) and OTLP/HTTP (both JSON `application/json` and protobuf `application/x-protobuf`) on port 4318. The auth-service moves to an internal-only port (4319). The Collectable mediator template is updated so `OTLP_PROTOCOL=http` emits OTLP JSON (`http-json` feature) and attaches `Authorization: Bearer ${OTLP_TOKEN:-}` — matching what the ingest-gateway's auth middleware expects. `spec/12-deployment.md` port table, `spec/16-collectable.md` endpoint examples, `docker-compose.yml`, and Helm chart values are updated to reflect the new layout. A new ADR (ADR-023) documents the standards-compliant port assignment and the migration path for any existing deployments using the old ports.
   - Checkpoint: can a standard OTLP sender (e.g. `otelcol`, a Collectable binary with `OTLP_ENDPOINT=http://host:4318`) deliver logs, traces, and metrics to Observable with no Observable-specific client configuration beyond an API key?
 
-- [ ] **P3-S3: Add frontend navigation shell and theme system**
+- [x] **P3-S3: Add frontend navigation shell and theme system**
   - Source spec: `spec/05-frontend.md` §9.2, §9.11, §9.13.
-  - Outcome: the React app has primary navigation entries for Services, Infrastructure, Service Overview, Dashboards, Alerts & SLOs, and Admin / Fleet / Billing. Light, dark, and system themes are selectable and persisted as `light`, `dark`, or `system`.
+  - Outcome: the React app has primary navigation entries for Services, Infrastructure, Service Overview, Dashboards, Alerts & SLOs, and Admin / Fleet / Billing. Light, dark, and system themes are selectable and persisted as `light`, `dark`, or `system`. Completed 2026-04-21 with a root app shell, token-based light/dark styles, persisted theme preference, product-area routes, and focused frontend tests.
   - Files or modules expected to change: `apps/frontend/src/App.tsx`, router setup, layout/navigation components, design token/theme utilities, frontend tests.
   - Out of scope: real service, infrastructure, or topology data. Use current routes, placeholders, or existing mock data until backend endpoints exist.
   - Verification: frontend unit tests cover route rendering and theme preference behavior; frontend typecheck/lint/build pass.
-  - Checkpoint: can operators switch major product areas and theme modes without losing project, environment, tenant, time range, or URL state?
+  - Checkpoint: can operators switch major product areas and theme modes without losing project, environment, tenant, time range, or URL state? Answer: yes for the shell-level contract. Product-area routes keep the current project/environment/tenant/time-range context visible in the app shell, and theme changes persist independently of route state. Service-specific filter preservation remains part of P3-S4 through P3-S6.
 
 - [ ] **P3-S4: Build the Services catalog from resource attributes**
   - Source spec: `spec/05-frontend.md` §9.2.1 Services; `spec/09-api.md` Service Detail Summary.
@@ -492,7 +492,7 @@ After this planning reconciliation, the next implementation slice should be:
 - Cost controls without hand-waving: yes — P2-S2a (rate limiting), P2-S3a (cardinality budget observation), P2-S4a (hot retention) are all in place.
 - Roll back a bad deploy without manual heroics: yes — P2-S8a (Helm rollback skeleton) and P2-S8b (canary promotion path) cover both runtime and schema rollback.
 
-**Next recommended slice: P3-S2b — Add rate limiting for log ingest.**
+**Next recommended slice: P3-S4 - Build the Services catalog from resource attributes.**
 
 ---
 

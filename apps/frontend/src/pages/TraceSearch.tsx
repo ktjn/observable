@@ -11,7 +11,7 @@ export default function TraceSearch() {
   });
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "monospace" }}>
+    <div className="trace-explorer-page" style={{ fontFamily: "monospace" }}>
       <h1>Trace Explorer</h1>
       <input
         placeholder="Filter by service"
