@@ -20,6 +20,10 @@ Full-stack observability platform specification — Dynatrace / New Relic class,
 | [11-testing.md](11-testing.md) | Test strategy, CI gates, agent iteration verification, no-regression rules, test data, non-functional targets |
 | [12-deployment.md](12-deployment.md) | Deployment, build artifacts, tooling recommendations, build-vs-buy |
 | [13-risks-roadmap.md](13-risks-roadmap.md) | Risks, initial deliverables, v1 scope, final recommendation |
+| [14-domain-model.md](14-domain-model.md) | Data models, entities, and relationships |
+| [15-frontend-local-dev.md](15-frontend-local-dev.md) | Frontend local development, storybook, mock data, and developer experience |
+| [16-collectable.md](16-collectable.md) | Multi-tenant OTel collector mediator (Collectable) |
+| [17-self-observability.md](17-self-observability.md) | Platform self-observability, monitoring, and health checks |
 | [81-product-lifecycle.md](81-product-lifecycle.md) | Product cost structure (CAPEX/OPEX), lifecycle management, support tiers, versioning and EOL policy |
 | [91-customer-tco.md](91-customer-tco.md) | Customer total cost of ownership, acquisition planning, deployment, upgrade strategy, and decommission guide |
 

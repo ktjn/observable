@@ -2787,11 +2787,36 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
   cargo test --workspace
   ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Add /health and /ready endpoints to each service**
+
+  Every service MUST expose:
+  - `GET /health`: Returns 200 OK (liveness).
+  - `GET /ready`: Returns 200 OK only if core dependencies (DB, Redpanda, ClickHouse) are connected.
+
+  Add to `libs/domain/src/telemetry.rs` (shared Axum handlers):
+  ```rust
+  pub async fn health_handler() -> &'static str { "OK" }
+  // ... and a trait/interface for readiness checks
+  ```
+
+- [ ] **Step 8: Add Prometheus metrics endpoint to each service**
+
+  Every service MUST expose `GET /metrics` returning Prometheus-formatted metrics.
+  Use `opentelemetry-prometheus` exporter or a standard `prometheus` crate collector.
+
+- [ ] **Step 9: Configure a "system" tenant for platform telemetry**
+
+  In `docker-compose.yml` and `.env.local.example`, ensure a `SYSTEM_TENANT_ID` is defined and used by services when exporting their own telemetry if they are "platform-aware".
+
+- [ ] **Step 10: Verify self-telemetry flow**
+
+  Start the stack, verify that services show up in their own trace/log/metric explorers under the "system" tenant.
+
+- [ ] **Step 11: Commit**
 
   ```bash
-  git add libs/domain/src/telemetry.rs services/
-  git commit -m "feat(telemetry): add OpenTelemetry self-instrumentation to all services
+  git add libs/domain/ services/
+  git commit -m "feat(telemetry): implement comprehensive self-observability (OTel + Health + Prometheus)
 
   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
   ```

@@ -70,7 +70,7 @@ SLO scope types:
 - API operation SLO (scoped to `service_name + operation_name`)
 - dependency SLO (tracks a downstream service from the perspective of the caller)
 - tenant-specific SLO (customer-visible reliability commitment)
-- platform internal SLO (monitors the observability platform itself)
+- platform internal SLO (monitors the observability platform itself; see [spec/17-self-observability.md](17-self-observability.md))
 
 ### 12.2 SLIs
 
