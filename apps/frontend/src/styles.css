@@ -397,3 +397,17 @@ th {
     grid-template-columns: 1fr;
   }
 }
+
+.table-panel table th.sortable {
+  cursor: pointer;
+}
+
+.table-panel table th.sortable:hover {
+  background: var(--surface-subtle);
+}
+
+.loading-state {
+  padding: 48px;
+  text-align: center;
+  color: var(--muted);
+}

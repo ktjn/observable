@@ -19,6 +19,11 @@ const servicesRoute = createRoute({
   path: "/services",
   component: () => createElement(ProductAreaPage, { area: "services" }),
 });
+const serviceDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/services/$serviceId",
+  component: () => createElement(ProductAreaPage, { area: "services" }),
+});
 const infrastructureRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/infrastructure",
@@ -58,6 +63,7 @@ export const router = createRouter({
   routeTree: rootRoute.addChildren([
     homeRoute,
     servicesRoute,
+    serviceDetailRoute,
     infrastructureRoute,
     serviceOverviewRoute,
     dashboardsRoute,
