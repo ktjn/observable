@@ -1,3 +1,4 @@
+use crate::queue::producer::build_envelope;
 use crate::AppState;
 use opentelemetry_proto::tonic::collector::metrics::v1::{
     metrics_service_server::MetricsService, ExportMetricsServiceRequest,
@@ -51,7 +52,27 @@ impl MetricsService for OltpMetricService {
             ));
         }
 
-        tracing::info!(tenant_id = %tenant_id, "received gRPC metric export");
+        let inner = request.into_inner();
+        let (series, points) =
+            super::convert::proto_metrics_to_domain(&inner.resource_metrics, tenant_id);
+
+        tracing::info!(
+            tenant_id = %tenant_id,
+            series_count = series.len(),
+            point_count = points.len(),
+            "received gRPC metric export"
+        );
+
+        if let Some(producer) = &self.state.producer {
+            let envelope = build_envelope(
+                tenant_id,
+                domain::EnvelopePayload::Metrics { series, points },
+            );
+            producer
+                .publish(&envelope)
+                .await
+                .map_err(|_| Status::internal("failed to publish metrics"))?;
+        }
 
         Ok(Response::new(ExportMetricsServiceResponse {
             partial_success: None,

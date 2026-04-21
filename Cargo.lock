@@ -1353,6 +1353,7 @@ dependencies = [
  "config",
  "domain",
  "governor",
+ "hex",
  "opentelemetry-proto",
  "prost 0.12.6",
  "prost-types",

@@ -1,3 +1,4 @@
+use crate::queue::producer::build_envelope;
 use crate::AppState;
 use opentelemetry_proto::tonic::collector::trace::v1::{
     trace_service_server::TraceService, ExportTraceServiceRequest, ExportTraceServiceResponse,
@@ -20,7 +21,6 @@ impl TraceService for OltpTraceService {
         &self,
         request: Request<ExportTraceServiceRequest>,
     ) -> Result<Response<ExportTraceServiceResponse>, Status> {
-        // 1. Authenticate
         let metadata = request.metadata();
         let auth_header = metadata
             .get("authorization")
@@ -40,23 +40,24 @@ impl TraceService for OltpTraceService {
             ));
         }
 
-        // 2. Rate limit
         if self.state.trace_rate_limiter.check_key(&tenant_id).is_err() {
             return Err(Status::resource_exhausted(
                 "trace ingest rate limit exceeded",
             ));
         }
 
-        let _inner = request.into_inner();
+        let inner = request.into_inner();
+        let spans = super::convert::proto_spans_to_domain(&inner.resource_spans, tenant_id);
 
-        // 3. Process spans
-        // For simplicity in this slice, I'll log and return OK.
-        // In a real impl, I should convert Prost types to Domain types and publish to Redpanda.
-        // But converting OTLP Prost to Domain is complex.
-        // Actually, the ingest-gateway already has logic to parse OTLP JSON.
-        // I should probably reuse that or add Protobuf parsing.
+        tracing::info!(tenant_id = %tenant_id, span_count = spans.len(), "received gRPC trace export");
 
-        tracing::info!(tenant_id = %tenant_id, "received gRPC trace export");
+        if let Some(producer) = &self.state.producer {
+            let envelope = build_envelope(tenant_id, domain::EnvelopePayload::Spans(spans));
+            producer
+                .publish(&envelope)
+                .await
+                .map_err(|_| Status::internal("failed to publish spans"))?;
+        }
 
         Ok(Response::new(ExportTraceServiceResponse {
             partial_success: None,
