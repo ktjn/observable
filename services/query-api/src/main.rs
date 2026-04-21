@@ -44,6 +44,10 @@ async fn main() -> anyhow::Result<()> {
             "/v1/services/summary",
             get(discovery::list_service_summaries),
         )
+        .route(
+            "/v1/services/:service_name/summary",
+            get(discovery::get_service_summary),
+        )
         .route("/v1/environments", get(discovery::list_environments))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .route("/health", get(|| async { axum::http::StatusCode::OK }))

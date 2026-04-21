@@ -2,6 +2,7 @@ import { createRouter, createRoute, createRootRoute } from "@tanstack/react-rout
 import { createElement } from "react";
 import { AppShell } from "./components/AppShell";
 import { ProductAreaPage } from "./pages/ProductAreaPage";
+import ServiceDetailPage from "./pages/ServiceDetailPage";
 import TraceSearch from "./pages/TraceSearch";
 import TraceDetailPage from "./pages/TraceDetailPage";
 
@@ -22,7 +23,7 @@ const servicesRoute = createRoute({
 const serviceDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/services/$serviceId",
-  component: () => createElement(ProductAreaPage, { area: "services" }),
+  component: ServiceDetailPage,
 });
 const infrastructureRoute = createRoute({
   getParentRoute: () => rootRoute,

@@ -65,8 +65,8 @@ export function ProductAreaPage({ area }: { area: ProductArea }) {
 
     // Sort
     items.sort((a, b) => {
-      let valA: string | number = a[sortBy as keyof ServiceSummary];
-      let valB: string | number = b[sortBy as keyof ServiceSummary];
+      let valA: string | number = a[sortBy as keyof ServiceSummary] ?? "";
+      let valB: string | number = b[sortBy as keyof ServiceSummary] ?? "";
       
       if (sortBy === "health") {
         valA = a.error_rate; // use error rate as proxy for health sorting
@@ -129,7 +129,11 @@ export function ProductAreaPage({ area }: { area: ProductArea }) {
         
         <div className="metric-grid" aria-label="Service summary">
           <MetricTile label="Services" value={String(stats.count)} tone="info" />
-          <MetricTile label="Active Alerts" value="0" tone="warn" />
+          <MetricTile
+            label="Active Alerts"
+            value={String(servicesData?.items.reduce((acc, s) => acc + s.active_alert_count, 0) ?? 0)}
+            tone="warn"
+          />
           <MetricTile label="Avg P95" value={`${Math.round(stats.avgP95)}ms`} tone="good" />
           <MetricTile label="Avg Error Rate" value={(stats.avgError * 100).toFixed(2) + "%"} tone={stats.avgError > 0.01 ? "warn" : "good"} />
         </div>
@@ -159,11 +163,11 @@ export function ProductAreaPage({ area }: { area: ProductArea }) {
                     </td>
                     <td>{row.request_rate.toFixed(2)}</td>
                     <td>
-                      <HealthStatus errorRate={row.error_rate} />
+                      <HealthStatus healthState={row.health_state} />
                     </td>
                     <td>{(row.error_rate * 100).toFixed(2)}%</td>
                     <td>{Math.round(row.p95_latency_ms)}ms</td>
-                    <td>0</td>
+                    <td>{row.active_alert_count}</td>
                   </tr>
                 ))}
               </tbody>
@@ -204,9 +208,9 @@ export function ProductAreaPage({ area }: { area: ProductArea }) {
   );
 }
 
-function HealthStatus({ errorRate }: { errorRate: number }) {
-  if (errorRate > 0.05) return <span className="status bad">Breach</span>;
-  if (errorRate > 0.01) return <span className="status warn">Watch</span>;
+function HealthStatus({ healthState }: { healthState: ServiceSummary["health_state"] }) {
+  if (healthState === "breach") return <span className="status bad">Breach</span>;
+  if (healthState === "watch") return <span className="status warn">Watch</span>;
   return <span className="status good">Healthy</span>;
 }
 
