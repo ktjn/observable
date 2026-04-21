@@ -224,8 +224,8 @@ services:
     build: { context: ., dockerfile: Dockerfile }
     environment:
       INGEST_URL: http://ingest-gateway:4318
+      GRPC_INGEST_URL: http://ingest-gateway:4317
       QUERY_URL: http://query-api:8090
-    entrypoint: ["/bin/bash", "/app/tests/e2e/smoke_test.sh"]
     volumes:
       - .:/app:ro
     depends_on:
