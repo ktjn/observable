@@ -1,6 +1,7 @@
 use axum::{
     extract::{Extension, State},
-    http::StatusCode,
+    http::{header, StatusCode},
+    response::{IntoResponse, Response},
     Json,
 };
 use serde_json::Value;
@@ -13,13 +14,29 @@ pub async fn export_logs(
     State(state): State<crate::AppState>,
     Extension(ctx): Extension<TenantContext>,
     Json(body): Json<Value>,
-) -> Result<Json<Value>, StatusCode> {
-    let resource_logs = body
-        .get("resourceLogs")
-        .and_then(|v| v.as_array())
-        .ok_or(StatusCode::BAD_REQUEST)?;
+) -> Response {
+    if state.log_rate_limiter.check_key(&ctx.tenant_id).is_err() {
+        tracing::warn!(tenant_id = %ctx.tenant_id, "log ingest rate limit exceeded");
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            [(header::RETRY_AFTER, "1")],
+            Json(serde_json::json!({
+                "error": "rate_limit_exceeded",
+                "message": "Log ingest rate limit exceeded"
+            })),
+        )
+            .into_response();
+    }
 
-    let logs = parse_otlp_logs(&body, ctx.tenant_id)?;
+    let resource_logs = match body.get("resourceLogs").and_then(|v| v.as_array()) {
+        Some(s) => s,
+        None => return StatusCode::BAD_REQUEST.into_response(),
+    };
+
+    let logs = match parse_otlp_logs(&body, ctx.tenant_id) {
+        Ok(l) => l,
+        Err(status) => return status.into_response(),
+    };
 
     tracing::info!(
         tenant_id = %ctx.tenant_id,
@@ -29,13 +46,12 @@ pub async fn export_logs(
 
     if let Some(producer) = &state.producer {
         let envelope = build_envelope(ctx.tenant_id, domain::EnvelopePayload::Logs(logs));
-        producer
-            .publish(&envelope)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        if producer.publish(&envelope).await.is_err() {
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
     }
 
-    Ok(Json(serde_json::json!({})))
+    Json(serde_json::json!({})).into_response()
 }
 
 fn parse_otlp_logs(body: &Value, tenant_id: Uuid) -> Result<Vec<domain::LogRecord>, StatusCode> {
@@ -99,4 +115,68 @@ fn extract_string_attr(attrs: &Value, key: &str) -> Option<String> {
         .get("stringValue")?
         .as_str()
         .map(String::from)
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::http::StatusCode;
+    use axum_test::TestServer;
+
+    use crate::build_router;
+    use crate::AppState;
+
+    const TENANT: &str = "00000000-0000-0000-0000-000000000001";
+
+    fn auth_header() -> (axum::http::HeaderName, axum::http::HeaderValue) {
+        (
+            axum::http::header::AUTHORIZATION,
+            axum::http::HeaderValue::from_static("Bearer dev-api-key-0000"),
+        )
+    }
+
+    fn simple_log_payload() -> serde_json::Value {
+        serde_json::json!({
+            "resourceLogs": [{
+                "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "test-svc"}}]},
+                "scopeLogs": [{
+                    "logRecords": [{"timeUnixNano": "1000", "severityText": "INFO", "body": {"stringValue": "hello"}}]
+                }]
+            }]
+        })
+    }
+
+    #[tokio::test]
+    async fn logs_export_returns_200() {
+        let app = build_router(AppState::with_stub_auth(TENANT));
+        let server = TestServer::new(app).unwrap();
+        let resp = server
+            .post("/v1/logs")
+            .add_header(auth_header().0, auth_header().1)
+            .json(&simple_log_payload())
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn exceeding_rate_limit_returns_429() {
+        let app = build_router(AppState::with_stub_auth_and_rate_limit(TENANT, 1));
+        let server = TestServer::new(app).unwrap();
+
+        let first = server
+            .post("/v1/logs")
+            .add_header(auth_header().0, auth_header().1)
+            .json(&simple_log_payload())
+            .await;
+        assert_eq!(first.status_code(), StatusCode::OK);
+
+        let second = server
+            .post("/v1/logs")
+            .add_header(auth_header().0, auth_header().1)
+            .json(&simple_log_payload())
+            .await;
+        assert_eq!(second.status_code(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(second.headers()["retry-after"], "1");
+        let body: serde_json::Value = second.json();
+        assert_eq!(body["error"], "rate_limit_exceeded");
+    }
 }

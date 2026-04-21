@@ -20,14 +20,16 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     pub producer: Option<Arc<QueueProducer>>,
     pub trace_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
+    pub log_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
+    pub metric_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
     pub metric_cardinality: Arc<cardinality::MetricCardinalityBudget>,
     #[cfg(test)]
     pub stub_tenant: Option<Uuid>,
 }
 
-fn build_trace_rate_limiter(per_second: u32) -> Arc<governor::DefaultKeyedRateLimiter<Uuid>> {
+fn build_rate_limiter(per_second: u32) -> Arc<governor::DefaultKeyedRateLimiter<Uuid>> {
     let quota = governor::Quota::per_second(
-        NonZeroU32::new(per_second).expect("TRACE_INGEST_RATE_LIMIT_PER_SECOND must be > 0"),
+        NonZeroU32::new(per_second).expect("rate limit per second must be > 0"),
     );
     Arc::new(governor::RateLimiter::keyed(quota))
 }
@@ -66,7 +68,9 @@ impl AppState {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
             producer: None,
-            trace_rate_limiter: build_trace_rate_limiter(1000),
+            trace_rate_limiter: build_rate_limiter(1000),
+            log_rate_limiter: build_rate_limiter(1000),
+            metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
             stub_tenant: None,
         }
@@ -78,7 +82,9 @@ impl AppState {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
             producer: None,
-            trace_rate_limiter: build_trace_rate_limiter(1000),
+            trace_rate_limiter: build_rate_limiter(1000),
+            log_rate_limiter: build_rate_limiter(1000),
+            metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
@@ -90,7 +96,9 @@ impl AppState {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
             producer: None,
-            trace_rate_limiter: build_trace_rate_limiter(per_second),
+            trace_rate_limiter: build_rate_limiter(per_second),
+            log_rate_limiter: build_rate_limiter(per_second),
+            metric_rate_limiter: build_rate_limiter(per_second),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
@@ -102,7 +110,9 @@ impl AppState {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
             producer: None,
-            trace_rate_limiter: build_trace_rate_limiter(1000),
+            trace_rate_limiter: build_rate_limiter(1000),
+            log_rate_limiter: build_rate_limiter(1000),
+            metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(budget),
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
@@ -136,6 +146,14 @@ async fn main() -> anyhow::Result<()> {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(100);
+    let log_rate_limit: u32 = std::env::var("LOG_INGEST_RATE_LIMIT_PER_SECOND")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(100);
+    let metric_rate_limit: u32 = std::env::var("METRIC_INGEST_RATE_LIMIT_PER_SECOND")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(100);
     let metric_series_budget: u64 = std::env::var("METRIC_SERIES_BUDGET_PER_TENANT")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -145,7 +163,9 @@ async fn main() -> anyhow::Result<()> {
             .unwrap_or_else(|_| "http://localhost:4318".into()),
         http_client: reqwest::Client::new(),
         producer: Some(producer),
-        trace_rate_limiter: build_trace_rate_limiter(trace_rate_limit),
+        trace_rate_limiter: build_rate_limiter(trace_rate_limit),
+        log_rate_limiter: build_rate_limiter(log_rate_limit),
+        metric_rate_limiter: build_rate_limiter(metric_rate_limit),
         metric_cardinality: cardinality::MetricCardinalityBudget::new(metric_series_budget),
         #[cfg(test)]
         stub_tenant: None,
