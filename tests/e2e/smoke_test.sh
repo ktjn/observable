@@ -56,14 +56,27 @@ echo " OK"
 
 echo "5b. Sending log via gRPC..."
 GRPC_HOST=$(echo "$GRPC_INGEST" | sed 's|http://||')
+GRPC_BODY="smoke-grpc-log-$(date +%s%N)"
 grpcurl -plaintext \
   -import-path /proto/otlp \
   -proto opentelemetry/proto/collector/logs/v1/logs_service.proto \
   -H "Authorization: Bearer $TOKEN" \
-  -d "{\"resourceLogs\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"smoke-svc\"}}]},\"scopeLogs\":[{\"logRecords\":[{\"timeUnixNano\":\"$(date +%s%N)\",\"severityNumber\":9,\"body\":{\"stringValue\":\"smoke grpc log\"}}]}]}]}" \
+  -d "{\"resourceLogs\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"smoke-grpc-svc\"}}]},\"scopeLogs\":[{\"logRecords\":[{\"timeUnixNano\":\"$(date +%s%N)\",\"severityNumber\":9,\"body\":{\"stringValue\":\"$GRPC_BODY\"}}]}]}]}" \
   "$GRPC_HOST" \
   opentelemetry.proto.collector.logs.v1.LogsService/Export
-echo " OK"
+echo " OK (sent)"
+
+echo "5c. Verifying gRPC log landed in ClickHouse..."
+sleep 3
+GRPC_LOG_RESULT=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" "$QUERY/v1/logs?service=smoke-grpc-svc")
+GRPC_LOG_COUNT=$(echo "$GRPC_LOG_RESULT" | jq '.logs | length')
+if [ "$GRPC_LOG_COUNT" -gt 0 ]; then
+  echo " OK (verified) — $GRPC_LOG_COUNT log record(s) in ClickHouse"
+else
+  echo " FAIL: gRPC log not found in ClickHouse"
+  echo " Result: $GRPC_LOG_RESULT"
+  exit 1
+fi
 
 echo "6. Checking discovery endpoints..."
 SERVICES=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" "$QUERY/v1/services")
