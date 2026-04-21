@@ -221,7 +221,7 @@ The builder tool is distributed as a Docker Compose application:
 git clone https://github.com/ktjn/Observable
 cd collectable
 docker compose up
-# Open http://localhost:8090
+# Open http://localhost:8095
 ```
 
 No other dependencies are required. The build service container includes the Rust
