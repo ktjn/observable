@@ -232,13 +232,13 @@ Before Phase 3 starts, answer:
   - Verification: API tests prove tenant-scoped service listing; frontend tests cover service rendering, empty state, filter state, and navigation.
   - Checkpoint: do we have a durable service identity model or are we still overfitting to labels?
 
-- [ ] **P3-S5: Add service detail overview with quick performance**
+- [x] **P3-S5: Add service detail overview with quick performance**
   - Source spec: `spec/05-frontend.md` §9.2.1 Services; `spec/09-api.md` Service Detail Summary.
-  - Outcome: one service detail overview shows request rate, error rate, latency percentiles, SLO/health state, active alert count, latest deployment marker, and related signal entry points.
+  - Outcome: one service detail overview shows request rate, error rate, latency percentiles, SLO/health state, active alert count, latest deployment marker, and related signal entry points. Completed 2026-04-21 with a tenant-scoped single-service summary endpoint, frontend service detail overview route, and focused backend/frontend tests.
   - Files or modules expected to change: query-api service summary path, RED metric derivation for one service, frontend service detail route, overview panels, tests.
   - Out of scope: editable dashboards and advanced SLO management.
-  - Verification: API tests cover one service summary; frontend tests cover overview rendering and links to Logs, Metrics, Traces, and Infrastructure.
-  - Checkpoint: is the derived service summary contract good enough for alerting, dashboards, and later SLO reuse?
+  - Verification: API tests cover one service summary; frontend tests cover overview rendering and links to Logs, Metrics, Traces, and Infrastructure. `bash scripts/local-ci.sh` passed.
+  - Checkpoint: is the derived service summary contract good enough for alerting, dashboards, and later SLO reuse? Answer: yes for P3 scope. The summary contract now has stable RED metrics, health state, active alert count, and latest deployment marker fields; alert count and deployment marker are explicit placeholders until alert/deployment slices populate them.
 
 - [ ] **P3-S6: Add service-scoped Logs, Metrics, and Traces tabs**
   - Source spec: `spec/05-frontend.md` §9.2.1 Services and §9.4.
@@ -492,12 +492,14 @@ After this planning reconciliation, the next implementation slice should be:
 - Cost controls without hand-waving: yes — P2-S2a (rate limiting), P2-S3a (cardinality budget observation), P2-S4a (hot retention) are all in place.
 - Roll back a bad deploy without manual heroics: yes — P2-S8a (Helm rollback skeleton) and P2-S8b (canary promotion path) cover both runtime and schema rollback.
 
-**Next recommended slice: P3-S4 - Build the Services catalog from resource attributes.**
+**Next recommended slice: P3-S6 - Add service-scoped Logs, Metrics, and Traces tabs.**
 
 ---
 
 ## 14. ADR/Spec Sync Note
 
 No ADR update is included in this document. This plan decomposes the already-defined roadmap into an execution sequence. If future edits change roadmap scope, architecture, deployment model, data model, security model, or technology choice, update the relevant ADRs and specs in the same iteration.
+
+P3-S5 added a concrete single-service summary endpoint for an existing Service Detail Summary capability. `spec/09-api.md` was updated with the route and current response fields. No ADR update is needed because the iteration does not change architecture, technology choice, deployment model, data model, security model, or roadmap scope.
 
 **ADR-021** (NL query layer, Proposed — added 2026-04-19 via PR #53) introduces the NL query layer as a new Phase 8 feature and the Schema Registry semantic annotations as a Phase 3 prerequisite. P3-S14 and P8-S6 above reflect this. ADR-021 operates within the advisory-only, provenance-required, read-only constraints established by ADR-014.
