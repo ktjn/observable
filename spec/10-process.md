@@ -273,6 +273,37 @@ Blockers requiring fix before PR: N
 
 ---
 
+### 16.10 Dependency Maintenance Policy
+
+#### Pinning rules
+
+| Ecosystem | Version specifier | Lockfile | Notes |
+|---|---|---|---|
+| Rust crates | `^major.minor` in `Cargo.toml` | `Cargo.lock` committed | Lockfile is the exact pin |
+| npm packages | `^major` in `package.json` | `package-lock.json` committed | Lockfile is the exact pin |
+| Docker Compose (local/dev) | `image:major.minor` minimum | n/a | |
+| Production Dockerfiles / base images | `image:major.minor.patch` | SHA digest strongly preferred | |
+| GitHub Actions | `action@vN` (latest major tag) | n/a | |
+
+Lockfiles are always committed. Range specifiers without committed lockfiles are not permitted.
+
+#### Update cadence
+
+- **Routine:** monthly sweep — bump all dependencies to the latest stable version within the declared range, run `bash scripts/local-ci.sh`, open a dedicated PR.
+- **Security (critical or high CVE):** 7-day SLA from public disclosure. Patch-only bumps bypass the monthly cycle.
+- **Security (medium CVE):** 30-day SLA.
+- **Breaking upgrades** (major version bumps, image EOL): treated as a feature slice — the PR must include a source spec reference, acceptance target, and rollback note. Do not bundle breaking upgrades with routine dependency updates.
+
+#### Automation
+
+Dependabot or Renovate is the preferred tool for surfacing routine update PRs. Configuration lives in `.github/dependabot.yml` or `renovate.json`. Automation is not required immediately but is the target state. Configure it once the core CI pipeline described in §16.6 is operational.
+For CI-level dependency audit, SBOM generation, and license policy enforcement, see §16.6 PR check #6.
+
+#### Ownership
+
+- The PR author is responsible for verifying the update does not break `bash scripts/local-ci.sh` before pushing. No exceptions.
+- Routine dependency PRs must state: what changed, whether local-ci passed, and whether any lockfile drift was introduced.
+
 ## 17. Project Plan: Small Steps to Production
 
 ### 17.1 Planning Rules
