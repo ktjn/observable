@@ -8,7 +8,10 @@
       "Bash(chmod +x *)",
       "Bash(git checkout *)",
       "Bash(git push *)",
-      "Bash(gh pr *)"
+      "Bash(gh pr *)",
+      "Bash(git -C /c/git/Observable show spec/dependency-maintenance-policy:spec/10-process.md)",
+      "Bash(awk 'NR>=210 && NR<=340')",
+      "Bash(git *)"
     ]
   }
 }

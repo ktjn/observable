@@ -38,7 +38,7 @@ redpanda:
 services:
   authService:
     enabled: true
-    port: 4318
+    port: 4319
     replicas: 1
     resources:
       requests:
@@ -50,7 +50,8 @@ services:
 
   ingestGateway:
     enabled: true
-    port: 4317
+    port: 4318
+    grpcPort: 4317
     replicas: 1
     # Canary deployment settings.  Set canary.enabled=true and canary.tag to
     # a new image tag to deploy a second ingest-gateway alongside stable for

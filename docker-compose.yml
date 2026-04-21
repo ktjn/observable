@@ -105,10 +105,10 @@ services:
     command: ["auth-service"]
     environment:
       DATABASE_URL: postgres://observable:observable@postgres:5432/observable
-      AUTH_SERVICE_PORT: "4318"
-    ports: ["4318:4318"]
+      AUTH_SERVICE_PORT: "4319"
+    ports: ["4319:4319"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4318/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:4319/health"]
       interval: 2s
       timeout: 1s
       retries: 10
@@ -150,13 +150,14 @@ services:
     build: { context: ., dockerfile: Dockerfile }
     command: ["ingest-gateway"]
     environment:
-      INGEST_GATEWAY_PORT: "4317"
+      INGEST_GATEWAY_PORT: "4318"
+      INGEST_GATEWAY_GRPC_PORT: "4317"
       REDPANDA_BROKERS: redpanda:9092
       INGEST_TOPIC: telemetry.raw
-      AUTH_SERVICE_URL: http://auth-service:4318
-    ports: ["4317:4317"]
+      AUTH_SERVICE_URL: http://auth-service:4319
+    ports: ["4317:4317", "4318:4318"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4317/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:4318/health"]
       interval: 2s
       timeout: 1s
       retries: 10
@@ -222,7 +223,7 @@ services:
     image: observable-services:local
     build: { context: ., dockerfile: Dockerfile }
     environment:
-      INGEST_URL: http://ingest-gateway:4317
+      INGEST_URL: http://ingest-gateway:4318
       QUERY_URL: http://query-api:8090
     entrypoint: ["/bin/bash", "/app/tests/e2e/smoke_test.sh"]
     volumes:
@@ -236,7 +237,7 @@ services:
     image: observable-services:local
     build: { context: ., dockerfile: Dockerfile }
     environment:
-      INGEST_URL: http://ingest-gateway:4317
+      INGEST_URL: http://ingest-gateway:4318
       QUERY_URL: http://query-api:8090
       SAMPLE_COUNT: "20"
     entrypoint: ["/bin/bash", "/app/scripts/perf-smoke.sh"]

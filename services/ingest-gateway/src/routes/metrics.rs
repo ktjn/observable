@@ -1,6 +1,7 @@
 use axum::{
     extract::{Extension, State},
-    http::StatusCode,
+    http::{header, StatusCode},
+    response::{IntoResponse, Response},
     Json,
 };
 use serde_json::Value;
@@ -13,13 +14,29 @@ pub async fn export_metrics(
     State(state): State<crate::AppState>,
     Extension(ctx): Extension<TenantContext>,
     Json(body): Json<Value>,
-) -> Result<Json<Value>, StatusCode> {
-    let resource_metrics = body
-        .get("resourceMetrics")
-        .and_then(|v| v.as_array())
-        .ok_or(StatusCode::BAD_REQUEST)?;
+) -> Response {
+    if state.metric_rate_limiter.check_key(&ctx.tenant_id).is_err() {
+        tracing::warn!(tenant_id = %ctx.tenant_id, "metric ingest rate limit exceeded");
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            [(header::RETRY_AFTER, "1")],
+            Json(serde_json::json!({
+                "error": "rate_limit_exceeded",
+                "message": "Metric ingest rate limit exceeded"
+            })),
+        )
+            .into_response();
+    }
 
-    let (series, points) = parse_otlp_metrics(&body, ctx.tenant_id)?;
+    let resource_metrics = match body.get("resourceMetrics").and_then(|v| v.as_array()) {
+        Some(s) => s,
+        None => return StatusCode::BAD_REQUEST.into_response(),
+    };
+
+    let (series, points) = match parse_otlp_metrics(&body, ctx.tenant_id) {
+        Ok(m) => m,
+        Err(status) => return status.into_response(),
+    };
 
     state
         .metric_cardinality
@@ -37,13 +54,12 @@ pub async fn export_metrics(
             ctx.tenant_id,
             domain::EnvelopePayload::Metrics { series, points },
         );
-        producer
-            .publish(&envelope)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        if producer.publish(&envelope).await.is_err() {
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
     }
 
-    Ok(Json(serde_json::json!({})))
+    Json(serde_json::json!({})).into_response()
 }
 
 fn parse_otlp_metrics(
@@ -179,6 +195,29 @@ mod tests {
             .json(&two_series_payload())
             .await;
         assert_eq!(resp.status_code(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn exceeding_rate_limit_returns_429() {
+        let app = build_router(AppState::with_stub_auth_and_rate_limit(TENANT, 1));
+        let server = TestServer::new(app).unwrap();
+
+        let first = server
+            .post("/v1/metrics")
+            .add_header(auth_header().0, auth_header().1)
+            .json(&two_series_payload())
+            .await;
+        assert_eq!(first.status_code(), StatusCode::OK);
+
+        let second = server
+            .post("/v1/metrics")
+            .add_header(auth_header().0, auth_header().1)
+            .json(&two_series_payload())
+            .await;
+        assert_eq!(second.status_code(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(second.headers()["retry-after"], "1");
+        let body: serde_json::Value = second.json();
+        assert_eq!(body["error"], "rate_limit_exceeded");
     }
 
     #[tokio::test]

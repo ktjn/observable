@@ -1,5 +1,6 @@
 mod auth;
 mod cardinality;
+mod grpc;
 mod queue;
 mod routes;
 
@@ -20,14 +21,16 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     pub producer: Option<Arc<QueueProducer>>,
     pub trace_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
+    pub log_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
+    pub metric_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
     pub metric_cardinality: Arc<cardinality::MetricCardinalityBudget>,
     #[cfg(test)]
     pub stub_tenant: Option<Uuid>,
 }
 
-fn build_trace_rate_limiter(per_second: u32) -> Arc<governor::DefaultKeyedRateLimiter<Uuid>> {
+fn build_rate_limiter(per_second: u32) -> Arc<governor::DefaultKeyedRateLimiter<Uuid>> {
     let quota = governor::Quota::per_second(
-        NonZeroU32::new(per_second).expect("TRACE_INGEST_RATE_LIMIT_PER_SECOND must be > 0"),
+        NonZeroU32::new(per_second).expect("rate limit per second must be > 0"),
     );
     Arc::new(governor::RateLimiter::keyed(quota))
 }
@@ -66,7 +69,9 @@ impl AppState {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
             producer: None,
-            trace_rate_limiter: build_trace_rate_limiter(1000),
+            trace_rate_limiter: build_rate_limiter(1000),
+            log_rate_limiter: build_rate_limiter(1000),
+            metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
             stub_tenant: None,
         }
@@ -78,7 +83,9 @@ impl AppState {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
             producer: None,
-            trace_rate_limiter: build_trace_rate_limiter(1000),
+            trace_rate_limiter: build_rate_limiter(1000),
+            log_rate_limiter: build_rate_limiter(1000),
+            metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
@@ -90,7 +97,9 @@ impl AppState {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
             producer: None,
-            trace_rate_limiter: build_trace_rate_limiter(per_second),
+            trace_rate_limiter: build_rate_limiter(per_second),
+            log_rate_limiter: build_rate_limiter(per_second),
+            metric_rate_limiter: build_rate_limiter(per_second),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
@@ -102,7 +111,9 @@ impl AppState {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
             producer: None,
-            trace_rate_limiter: build_trace_rate_limiter(1000),
+            trace_rate_limiter: build_rate_limiter(1000),
+            log_rate_limiter: build_rate_limiter(1000),
+            metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(budget),
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
@@ -126,9 +137,14 @@ pub fn build_router(state: AppState) -> Router {
 async fn main() -> anyhow::Result<()> {
     let otlp = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
     domain::telemetry::init_telemetry("ingest-gateway", otlp.as_deref())?;
-    let port: u16 = std::env::var("INGEST_GATEWAY_PORT")
+
+    let http_port: u16 = std::env::var("INGEST_GATEWAY_PORT")
+        .unwrap_or_else(|_| "4318".into())
+        .parse()?;
+    let grpc_port: u16 = std::env::var("INGEST_GATEWAY_GRPC_PORT")
         .unwrap_or_else(|_| "4317".into())
         .parse()?;
+
     let brokers = std::env::var("REDPANDA_BROKERS").unwrap_or_else(|_| "localhost:9092".into());
     let topic = std::env::var("INGEST_TOPIC").unwrap_or_else(|_| "telemetry.raw".into());
     let producer = Arc::new(QueueProducer::new(&brokers, &topic)?);
@@ -136,23 +152,44 @@ async fn main() -> anyhow::Result<()> {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(100);
+    let log_rate_limit: u32 = std::env::var("LOG_INGEST_RATE_LIMIT_PER_SECOND")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(100);
+    let metric_rate_limit: u32 = std::env::var("METRIC_INGEST_RATE_LIMIT_PER_SECOND")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(100);
     let metric_series_budget: u64 = std::env::var("METRIC_SERIES_BUDGET_PER_TENANT")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(10_000);
+
     let state = AppState {
         auth_service_url: std::env::var("AUTH_SERVICE_URL")
-            .unwrap_or_else(|_| "http://localhost:4318".into()),
+            .unwrap_or_else(|_| "http://localhost:4319".into()),
         http_client: reqwest::Client::new(),
         producer: Some(producer),
-        trace_rate_limiter: build_trace_rate_limiter(trace_rate_limit),
+        trace_rate_limiter: build_rate_limiter(trace_rate_limit),
+        log_rate_limiter: build_rate_limiter(log_rate_limit),
+        metric_rate_limiter: build_rate_limiter(metric_rate_limit),
         metric_cardinality: cardinality::MetricCardinalityBudget::new(metric_series_budget),
         #[cfg(test)]
         stub_tenant: None,
     };
-    let app = build_router(state);
-    let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
-    tracing::info!(port, "ingest-gateway listening");
-    axum::serve(listener, app).await?;
+
+    let app = build_router(state.clone());
+    let http_listener = tokio::net::TcpListener::bind(("0.0.0.0", http_port)).await?;
+    tracing::info!(port = http_port, "ingest-gateway HTTP listening");
+
+    let grpc_state = state.clone();
+    let grpc_future = grpc::start_grpc_server(grpc_state, grpc_port);
+    let http_future = axum::serve(http_listener, app);
+
+    tokio::select! {
+        res = grpc_future => res?,
+        res = http_future => res.map_err(anyhow::Error::from)?,
+    }
+
     Ok(())
 }

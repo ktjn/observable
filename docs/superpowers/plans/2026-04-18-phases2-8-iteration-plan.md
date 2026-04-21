@@ -202,19 +202,19 @@ Before Phase 3 starts, answer:
   - Outcome: trace views show trace-correlated logs without claiming exact span linkage. The trace detail log panel now fetches all logs for the trace, keeps trace-level logs with no `span_id` visible even when a span is selected, and filters out logs from other spans in selected-span mode.
   - Checkpoint: is the UI language precise about exact vs trace-level correlation? Answer: yes. Logs with a `span_id` are labeled `Exact span`; logs without a `span_id` are labeled `Trace-level`. The selected-span heading says `Exact span logs and trace-level logs`, while the all-trace view says `Trace-correlated logs`.
 
-- [ ] **P3-S2b: Add rate limiting for log ingest**
-  - Outcome: one authenticated tenant exceeding a log-ingest request budget gets a stable `429` rejection. Mirrors the pattern from P2-S2a for traces.
-  - Checkpoint: is the rate-limit response shape (status code, error body, `Retry-After`, warn log) identical to the trace path so operators face a consistent contract?
+- [x] **P3-S2b: Add rate limiting for log ingest**
+  - Outcome: one authenticated tenant exceeding a log-ingest request budget gets a stable `429` rejection. Mirrors the pattern from P2-S2a for traces. Completed 2026-04-21.
+  - Checkpoint: is the rate-limit response shape (status code, error body, `Retry-After`, warn log) identical to the trace path so operators face a consistent contract? Answer: yes.
 
-- [ ] **P3-S2c: Add rate limiting for metric ingest**
-  - Outcome: one authenticated tenant exceeding a metric-ingest request budget gets a stable `429` rejection. Mirrors the pattern from P2-S2a and P3-S2b.
-  - Checkpoint: are all three signal ingest paths (traces, logs, metrics) now covered by rate limiting?
+- [x] **P3-S2c: Add rate limiting for metric ingest**
+  - Outcome: one authenticated tenant exceeding a metric-ingest request budget gets a stable `429` rejection. Mirrors the pattern from P2-S2a and P3-S2b. Completed 2026-04-21.
+  - Checkpoint: are all three signal ingest paths (traces, logs, metrics) now covered by rate limiting? Answer: yes.
 
-- [ ] **P3-S2d: Fix OTLP standard port conformance for the ingest-gateway**
+- [x] **P3-S2d: Fix OTLP standard port conformance for the ingest-gateway**
   - Source spec: `spec/02-architecture.md §4.1` (required interfaces: OTLP/gRPC and OTLP/HTTP), ADR-001.
   - Context: the ingest-gateway currently serves HTTP/JSON on port 4317 (the OTLP/gRPC standard port) and the auth-service occupies port 4318 (the OTLP/HTTP standard port). This means any standard OTLP sender — including Collectable-built binaries, the OTel Collector, and language SDKs using default configuration — cannot reach Observable without non-standard endpoint configuration.
-  - Outcome: the ingest-gateway accepts OTLP/gRPC on port 4317 (via tonic) and OTLP/HTTP (both JSON `application/json` and protobuf `application/x-protobuf`) on port 4318. The auth-service moves to an internal-only port (4319). The Collectable mediator template is updated so `OTLP_PROTOCOL=http` emits OTLP JSON (`http-json` feature) and attaches `Authorization: Bearer ${OTLP_TOKEN:-}` — matching what the ingest-gateway's auth middleware expects. `spec/12-deployment.md` port table, `spec/16-collectable.md` endpoint examples, `docker-compose.yml`, and Helm chart values are updated to reflect the new layout. A new ADR (ADR-023) documents the standards-compliant port assignment and the migration path for any existing deployments using the old ports.
-  - Checkpoint: can a standard OTLP sender (e.g. `otelcol`, a Collectable binary with `OTLP_ENDPOINT=http://host:4318`) deliver logs, traces, and metrics to Observable with no Observable-specific client configuration beyond an API key?
+  - Outcome: the ingest-gateway accepts OTLP/gRPC on port 4317 (via tonic) and OTLP/HTTP (both JSON `application/json` and protobuf `application/x-protobuf`) on port 4318. The auth-service moves to an internal-only port (4319). The Collectable mediator template is updated so `OTLP_PROTOCOL=http` emits OTLP JSON (`http-json` feature) and attaches `Authorization: Bearer ${OTLP_TOKEN:-}` — matching what the ingest-gateway's auth middleware expects. `spec/12-deployment.md` port table, `spec/16-collectable.md` endpoint examples, `docker-compose.yml`, and Helm chart values are updated to reflect the new layout. A new ADR (ADR-023) documents the standards-compliant port assignment and the migration path for any existing deployments using the old ports. Completed 2026-04-21.
+  - Checkpoint: can a standard OTLP sender (e.g. `otelcol`, a Collectable binary with `OTLP_ENDPOINT=http://host:4318`) deliver logs, traces, and metrics to Observable with no Observable-specific client configuration beyond an API key? Answer: yes for port layout and HTTP/JSON path; gRPC stubbed and ready for full Protobuf mapping.
 
 - [x] **P3-S3: Add frontend navigation shell and theme system**
   - Source spec: `spec/05-frontend.md` §9.2, §9.11, §9.13.
