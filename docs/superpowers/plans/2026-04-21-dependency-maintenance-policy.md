@@ -15,11 +15,11 @@
 **Files:**
 - Modify: `spec/10-process.md` — append new section after `§16.9`
 
-- [ ] **Step 1: Open the file and locate the insertion point**
+- [x] **Step 1: Open the file and locate the insertion point**
 
 The file ends at `§16.9 Documentation and Spec Review`. The new section goes immediately after the closing `---` of §16.9 (before `## 17. Project Plan`).
 
-- [ ] **Step 2: Insert the new section**
+- [x] **Step 2: Insert the new section**
 
 Add the following block between the end of §16.9 and `## 17. Project Plan`:
 
@@ -56,11 +56,11 @@ Dependabot or Renovate is the preferred tool for surfacing routine update PRs. C
 
 ```
 
-- [ ] **Step 3: Verify the section renders correctly**
+- [x] **Step 3: Verify the section renders correctly**
 
 Read back the modified region of `spec/10-process.md` around the new section to confirm heading numbering, table alignment, and no broken Markdown.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add spec/10-process.md
@@ -74,7 +74,7 @@ git commit -m "spec(process): add §16.10 dependency maintenance policy"
 **Files:**
 - Modify: `CLAUDE.md` — add Docker image bullet to the "Before Starting Any Implementation Task" dependency block
 
-- [ ] **Step 1: Locate the insertion point**
+- [x] **Step 1: Locate the insertion point**
 
 In `CLAUDE.md`, find the block:
 
@@ -86,7 +86,7 @@ In `CLAUDE.md`, find the block:
    - Do not pin to an older version without a documented reason in the PR description.
 ```
 
-- [ ] **Step 2: Add the Docker image bullet**
+- [x] **Step 2: Add the Docker image bullet**
 
 Replace the block above with:
 
@@ -99,11 +99,11 @@ Replace the block above with:
    - Do not pin to an older version without a documented reason in the PR description.
 ```
 
-- [ ] **Step 3: Verify the change**
+- [x] **Step 3: Verify the change**
 
 Read back the modified block in `CLAUDE.md` to confirm the bullet is correctly indented and the surrounding text is intact.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add CLAUDE.md
@@ -114,13 +114,13 @@ git commit -m "docs(claude): add Docker image pinning guidance to dependency rul
 
 ### Task 3: Open PR
 
-- [ ] **Step 1: Push the branch**
+- [x] **Step 1: Push the branch**
 
 ```bash
 git push -u origin <branch-name>
 ```
 
-- [ ] **Step 2: Open PR**
+- [x] **Step 2: Open PR**
 
 Title: `spec(process): add dependency maintenance policy (§16.10)`
 
