@@ -69,7 +69,7 @@ watch_pods() {
     sleep "$interval"
     echo ""
     echo "    [$(date +%H:%M:%S)] pod status (ns: $ns):"
-    kubectl get pods --namespace "$ns" -o wide --no-headers 2>/dev/null \
+    kubectl get pods --namespace "$ns" --no-headers 2>/dev/null \
       | sed 's/^/      /' || true
     echo "    recent events:"
     kubectl get events --namespace "$ns" --sort-by='.lastTimestamp' 2>/dev/null \
@@ -285,21 +285,21 @@ done
 
 log "Running ingest-to-query smoke checks"
 
-# Port-forward ingest-gateway
-kubectl port-forward service/ingest-gateway 14317:4317 \
+# Port-forward ingest-gateway HTTP
+kubectl port-forward service/ingest-gateway 14318:4318 \
   --namespace "$NAMESPACE" &
-PF_INGEST=$!
+PF_INGEST_HTTP=$!
 # Port-forward query-api
 kubectl port-forward service/query-api 18090:8090 \
   --namespace "$NAMESPACE" &
 PF_QUERY=$!
-# Port-forward auth-service (for health only)
-kubectl port-forward service/auth-service 14318:4318 \
+# Port-forward auth-service
+kubectl port-forward service/auth-service 14319:4319 \
   --namespace "$NAMESPACE" &
 PF_AUTH=$!
 
 cleanup_pf() {
-  kill "$PF_INGEST" "$PF_QUERY" "$PF_AUTH" 2>/dev/null || true
+  kill "$PF_INGEST_HTTP" "$PF_QUERY" "$PF_AUTH" 2>/dev/null || true
 }
 trap 'cleanup_pf; cleanup' EXIT
 
@@ -310,14 +310,14 @@ TENANT_ID="00000000-0000-0000-0000-000000000001"
 
 # Health checks
 info "Checking /health endpoints"
-curl -sf http://localhost:14317/health | grep -q "ok" && info "ingest-gateway /health OK"
+curl -sf http://localhost:14318/health | grep -q "ok" && info "ingest-gateway /health OK"
 curl -sf http://localhost:18090/health | grep -q "ok" && info "query-api /health OK"
-curl -sf http://localhost:14318/health | grep -q "ok" && info "auth-service /health OK"
+curl -sf http://localhost:14319/health | grep -q "ok" && info "auth-service /health OK"
 
 # Send a trace
 info "Sending test trace to ingest-gateway"
 TRACE_ID="aabbccddeeff00112233445566778899"
-curl -sf -X POST http://localhost:14317/v1/traces \
+curl -sf -X POST http://localhost:14318/v1/traces \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $DEV_KEY" \
   -d "{

@@ -1,5 +1,6 @@
 mod auth;
 mod cardinality;
+mod grpc;
 mod queue;
 mod routes;
 
@@ -136,9 +137,14 @@ pub fn build_router(state: AppState) -> Router {
 async fn main() -> anyhow::Result<()> {
     let otlp = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
     domain::telemetry::init_telemetry("ingest-gateway", otlp.as_deref())?;
-    let port: u16 = std::env::var("INGEST_GATEWAY_PORT")
+
+    let http_port: u16 = std::env::var("INGEST_GATEWAY_PORT")
+        .unwrap_or_else(|_| "4318".into())
+        .parse()?;
+    let grpc_port: u16 = std::env::var("INGEST_GATEWAY_GRPC_PORT")
         .unwrap_or_else(|_| "4317".into())
         .parse()?;
+
     let brokers = std::env::var("REDPANDA_BROKERS").unwrap_or_else(|_| "localhost:9092".into());
     let topic = std::env::var("INGEST_TOPIC").unwrap_or_else(|_| "telemetry.raw".into());
     let producer = Arc::new(QueueProducer::new(&brokers, &topic)?);
@@ -158,9 +164,10 @@ async fn main() -> anyhow::Result<()> {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(10_000);
+
     let state = AppState {
         auth_service_url: std::env::var("AUTH_SERVICE_URL")
-            .unwrap_or_else(|_| "http://localhost:4318".into()),
+            .unwrap_or_else(|_| "http://localhost:4319".into()),
         http_client: reqwest::Client::new(),
         producer: Some(producer),
         trace_rate_limiter: build_rate_limiter(trace_rate_limit),
@@ -170,9 +177,19 @@ async fn main() -> anyhow::Result<()> {
         #[cfg(test)]
         stub_tenant: None,
     };
-    let app = build_router(state);
-    let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
-    tracing::info!(port, "ingest-gateway listening");
-    axum::serve(listener, app).await?;
+
+    let app = build_router(state.clone());
+    let http_listener = tokio::net::TcpListener::bind(("0.0.0.0", http_port)).await?;
+    tracing::info!(port = http_port, "ingest-gateway HTTP listening");
+
+    let grpc_state = state.clone();
+    let grpc_future = grpc::start_grpc_server(grpc_state, grpc_port);
+    let http_future = axum::serve(http_listener, app);
+
+    tokio::select! {
+        res = grpc_future => res?,
+        res = http_future => res.map_err(anyhow::Error::from)?,
+    }
+
     Ok(())
 }

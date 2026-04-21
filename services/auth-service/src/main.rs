@@ -89,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
     let db_url = std::env::var("DATABASE_URL")?;
     let db = PgPool::connect(&db_url).await?;
     let port: u16 = std::env::var("AUTH_SERVICE_PORT")
-        .unwrap_or_else(|_| "4318".into())
+        .unwrap_or_else(|_| "4319".into())
         .parse()?;
     let app = Router::new()
         .route("/health", get(|| async { StatusCode::OK }))

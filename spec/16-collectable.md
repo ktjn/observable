@@ -378,10 +378,10 @@ To point the same binary at different backends:
 
 ```bash
 # Test
-OTLP_ENDPOINT=http://localhost:4317 OTLP_INSECURE=true ./my-mediator
+OTLP_ENDPOINT=http://localhost:4318 OTLP_INSECURE=true ./my-mediator
 
 # Production
-OTLP_ENDPOINT=https://ingest.prod.example.com:4317 OTLP_TOKEN=sk-... ./my-mediator
+OTLP_ENDPOINT=https://ingest.prod.example.com:4318 OTLP_TOKEN=sk-... ./my-mediator
 ```
 
 Missing required variables (those with no default and no value) cause an

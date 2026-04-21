@@ -1,19 +1,89 @@
 {{- if .Values.services.ingestGateway.enabled -}}
 {{- $env := list
-    (dict "name" "INGEST_GATEWAY_PORT" "value" (toString .Values.services.ingestGateway.port))
-    (dict "name" "REDPANDA_BROKERS"    "value" .Values.redpanda.brokers)
-    (dict "name" "INGEST_TOPIC"        "value" .Values.redpanda.ingestTopic)
-    (dict "name" "AUTH_SERVICE_URL"    "value" (printf "http://auth-service:%d" (int .Values.services.authService.port))) -}}
-{{- $ctx := dict
-    "name"    "ingest-gateway"
-    "command" "ingest-gateway"
-    "port"    .Values.services.ingestGateway.port
-    "service" .Values.services.ingestGateway
-    "env"     $env
-    "Values"  .Values
-    "Chart"   .Chart
-    "Release" .Release -}}
-{{ include "observable-common.deployment" $ctx }}
+    (dict "name" "INGEST_GATEWAY_PORT"      "value" (toString .Values.services.ingestGateway.port))
+    (dict "name" "INGEST_GATEWAY_GRPC_PORT" "value" (toString .Values.services.ingestGateway.grpcPort))
+    (dict "name" "REDPANDA_BROKERS"         "value" .Values.redpanda.brokers)
+    (dict "name" "INGEST_TOPIC"             "value" .Values.redpanda.ingestTopic)
+    (dict "name" "AUTH_SERVICE_URL"         "value" (printf "http://auth-service:%d" (int .Values.services.authService.port))) -}}
+
+{{- /* We override the deployment and service to handle multiple ports since common library is single-port */ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingest-gateway
+  labels:
+    {{- include "observable-common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingest-gateway
+spec:
+  replicas: {{ .Values.services.ingestGateway.replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "observable-common.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ingest-gateway
+  template:
+    metadata:
+      labels:
+        {{- include "observable-common.labels" . | nindent 8 }}
+        {{- include "observable-common.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ingest-gateway
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+      containers:
+        - name: ingest-gateway
+          image: {{ include "observable-common.image" . }}
+          imagePullPolicy: {{ .Values.global.image.pullPolicy | default "IfNotPresent" }}
+          command: ["ingest-gateway"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.services.ingestGateway.port }}
+              protocol: TCP
+            - name: grpc
+              containerPort: {{ .Values.services.ingestGateway.grpcPort }}
+              protocol: TCP
+          env:
+            {{- range $env }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.services.ingestGateway.resources | nindent 12 }}
 ---
-{{ include "observable-common.service" $ctx }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingest-gateway
+  labels:
+    {{- include "observable-common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingest-gateway
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "observable-common.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ingest-gateway
+  ports:
+    - name: http
+      port: {{ .Values.services.ingestGateway.port }}
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: {{ .Values.services.ingestGateway.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
 {{- end }}
