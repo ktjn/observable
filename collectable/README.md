@@ -122,9 +122,9 @@ unzip journalctl-to-otlp-x86_64-unknown-linux-musl.zip
 chmod +x journalctl-to-otlp-x86_64-unknown-linux-musl/journalctl-to-otlp
 
 export OTLP_TOKEN=dev-api-key-0000
-# HTTP/JSON: override endpoint at runtime if needed
-export OTLP_ENDPOINT=http://localhost:4318/v1/logs
-# gRPC: no path, just host:port
+# http/json
+# export OTLP_ENDPOINT=http://localhost:4318/v1/logs
+# gRPC
 # export OTLP_ENDPOINT=http://localhost:4317
 sudo journalctl -o short-iso-precise -f | \
   journalctl-to-otlp-x86_64-unknown-linux-musl/journalctl-to-otlp
