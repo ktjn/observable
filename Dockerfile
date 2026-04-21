@@ -54,7 +54,7 @@ RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/regi
 # --- grpcurl downloader ---
 FROM debian:bookworm-slim AS grpcurl-downloader
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
-    && curl -fsSL https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_amd64.tar.gz \
+    && curl -fsSL https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz \
        | tar -xz -C /usr/local/bin grpcurl
 
 # --- Final Runtime Image ---
