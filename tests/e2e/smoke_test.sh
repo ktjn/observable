@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INGEST="${INGEST_URL:-http://localhost:4317}"
+INGEST="${INGEST_URL:-http://localhost:4318}"
+GRPC_INGEST="${GRPC_INGEST_URL:-http://localhost:4317}"
 QUERY="${QUERY_URL:-http://localhost:8090}"
 TOKEN="dev-api-key-0000"
 TENANT_ID="00000000-0000-0000-0000-000000000001"
@@ -51,6 +52,17 @@ curl -sf -X POST "$INGEST/v1/metrics" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"resourceMetrics\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"smoke-svc\"}}]},\"scopeMetrics\":[{\"metrics\":[{\"name\":\"smoke.counter\",\"sum\":{\"dataPoints\":[{\"asDouble\":1.0,\"timeUnixNano\":\"$(date +%s%N)\"}],\"aggregationTemporality\":2,\"isMonotonic\":true}}]}]}]}"
+echo " OK"
+
+echo "5b. Sending log via gRPC..."
+GRPC_HOST=$(echo "$GRPC_INGEST" | sed 's|http://||')
+grpcurl -plaintext \
+  -import-path /proto/otlp \
+  -proto opentelemetry/proto/collector/logs/v1/logs_service.proto \
+  -H "Authorization: Bearer $TOKEN" \
+  -d "{\"resourceLogs\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"smoke-svc\"}}]},\"scopeLogs\":[{\"logRecords\":[{\"timeUnixNano\":\"$(date +%s%N)\",\"severityNumber\":9,\"body\":{\"stringValue\":\"smoke grpc log\"}}]}]}]}" \
+  "$GRPC_HOST" \
+  opentelemetry.proto.collector.logs.v1.LogsService/Export
 echo " OK"
 
 echo "6. Checking discovery endpoints..."
