@@ -1,3 +1,4 @@
+use crate::queue::producer::build_envelope;
 use crate::AppState;
 use opentelemetry_proto::tonic::collector::logs::v1::{
     logs_service_server::LogsService, ExportLogsServiceRequest, ExportLogsServiceResponse,
@@ -41,7 +42,18 @@ impl LogsService for OltpLogService {
             return Err(Status::resource_exhausted("log ingest rate limit exceeded"));
         }
 
-        tracing::info!(tenant_id = %tenant_id, "received gRPC log export");
+        let inner = request.into_inner();
+        let logs = super::convert::proto_logs_to_domain(&inner.resource_logs, tenant_id);
+
+        tracing::info!(tenant_id = %tenant_id, log_count = logs.len(), "received gRPC log export");
+
+        if let Some(producer) = &self.state.producer {
+            let envelope = build_envelope(tenant_id, domain::EnvelopePayload::Logs(logs));
+            producer
+                .publish(&envelope)
+                .await
+                .map_err(|_| Status::internal("failed to publish log records"))?;
+        }
 
         Ok(Response::new(ExportLogsServiceResponse {
             partial_success: None,

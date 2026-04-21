@@ -1,3 +1,4 @@
+pub mod convert;
 pub mod log;
 pub mod metric;
 pub mod trace;
