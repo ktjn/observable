@@ -21,6 +21,7 @@ Refer to `spec/10-process.md` for the official development process and AI agent 
    - **Rust crates:** check [crates.io](https://crates.io) for the current stable version before adding or updating a dependency.
    - **npm packages:** check [npmjs.com](https://www.npmjs.com) for the current stable version before adding or updating a dependency.
    - **GitHub Actions:** use the latest release tag of every action (e.g. `actions/checkout@v4`); check the action's release page if uncertain.
+   - **Docker images (Compose/local):** pin to `image:major.minor` at minimum. For production Dockerfiles and base images, use `image:major.minor.patch`; SHA digest is strongly preferred.
    - Do not pin to an older version without a documented reason in the PR description.
 
 ## MANDATORY: Before Pushing ANY Code
