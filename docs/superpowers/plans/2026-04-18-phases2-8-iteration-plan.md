@@ -224,7 +224,7 @@ Before Phase 3 starts, answer:
   - Verification: frontend unit tests cover route rendering and theme preference behavior; frontend typecheck/lint/build pass.
   - Checkpoint: can operators switch major product areas and theme modes without losing project, environment, tenant, time range, or URL state? Answer: yes for the shell-level contract. Product-area routes keep the current project/environment/tenant/time-range context visible in the app shell, and theme changes persist independently of route state. Service-specific filter preservation remains part of P3-S4 through P3-S6.
 
-- [ ] **P3-S4: Build the Services catalog from resource attributes**
+- [x] **P3-S4: Build the Services catalog from resource attributes**
   - Source spec: `spec/05-frontend.md` §9.2.1 Services; `spec/09-api.md` Service Detail Summary.
   - Outcome: services appear as navigable entities with stable IDs, health/performance columns, search, filters, and sort controls.
   - Files or modules expected to change: query-api service discovery/summary endpoint, service catalog API client, Services route, catalog table/list component, tests.
