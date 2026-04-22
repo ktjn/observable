@@ -109,7 +109,7 @@ gRPC (port 4317):
 ```bash
 curl -X POST 'http://localhost:8091/build' \
   -H 'Content-Type: application/json' \
-  -d '{"definition":{"version":"1","name":"journalctl-to-otlp","transport":{"type":"stdin"},"parser":{"type":"grok","pattern":"%{TIMESTAMP_ISO8601:timestamp} %{GREEDYDATA:message}"},"mapping":{"time_field":{"field":"timestamp","format":"auto"},"body":{"field":"message"}},"output":{"endpoint":"http://localhost:4317","protocol":"grpc"}},"target":"x86_64-unknown-linux-musl"}' \
+  -d '{"definition":{"version":"1","name":"journalctl-to-otlp","transport":{"type":"stdin"},"parser":{"type":"grok","pattern":"%{TIMESTAMP_ISO8601:timestamp} %{WORD:host} %{NOTSPACE:logger}: %{GREEDYDATA:message}"},"output":{"endpoint":"http://localhost:4317","protocol":"grpc"},"mapping":{"body":{"field":"message"},"severity_text":{"literal":"INFO"},"time_field":{"field":"timestamp","format":"auto"},"resource_attributes":{"host.name":{"command":"hostname -a"}},"log_attributes":{"logger":{"field":"logger"}}}},"target":"x86_64-unknown-linux-musl"}' \
   --output journalctl-to-otlp-x86_64-unknown-linux-musl.zip
 ```
 
