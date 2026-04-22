@@ -3,6 +3,8 @@ import { useTheme, type ThemePreference } from "../lib/theme";
 
 const navItems = [
   { label: "Services", to: "/services" },
+  { label: "Traces", to: "/traces" },
+  { label: "Logs", to: "/logs" },
   { label: "Infrastructure", to: "/infrastructure" },
   { label: "Service Overview", to: "/service-overview" },
   { label: "Dashboards", to: "/dashboards" },
@@ -74,7 +76,10 @@ export function AppShell() {
             <span className="context-pill">UTC</span>
             <span className="context-pill">Last 1h</span>
             <Link to="/traces" className="secondary-link">
-              Trace Explorer
+              Traces
+            </Link>
+            <Link to="/logs" className="secondary-link">
+              Logs
             </Link>
           </div>
         </header>

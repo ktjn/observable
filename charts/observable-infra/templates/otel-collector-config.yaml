@@ -1,0 +1,113 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: observable-self-observability-gateway
+  labels:
+    app.kubernetes.io/part-of: observable
+    app.kubernetes.io/component: self-observability-gateway
+data:
+  collector.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+          http:
+    processors:
+      resource:
+        attributes:
+          - key: observable.self_observability.mode
+            action: upsert
+            value: {{ .Values.selfObservability.mode | quote }}
+          - key: observable.self_observability.tenant
+            action: upsert
+            value: {{ .Values.selfObservability.tenant | quote }}
+          - key: deployment.environment
+            action: upsert
+            value: {{ .Values.selfObservability.deploymentEnvironment | quote }}
+          - key: k8s.cluster.name
+            action: upsert
+            value: {{ .Values.selfObservability.cluster | quote }}
+          - key: service.version
+            action: upsert
+            value: {{ .Values.selfObservability.release | quote }}
+      batch: {}
+    exporters:
+      otlphttp/self_observability:
+        endpoint: {{ .Values.selfObservability.otlpEndpoint | quote }}
+        {{- if .Values.selfObservability.headersSecretRef }}
+        headers:
+          Authorization: "${OTEL_EXPORTER_OTLP_HEADERS}"
+        {{- end }}
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [resource, batch]
+          exporters: [otlphttp/self_observability]
+        metrics:
+          receivers: [otlp]
+          processors: [resource, batch]
+          exporters: [otlphttp/self_observability]
+        logs:
+          receivers: [otlp]
+          processors: [resource, batch]
+          exporters: [otlphttp/self_observability]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: observable-self-observability-node-agent
+  labels:
+    app.kubernetes.io/part-of: observable
+    app.kubernetes.io/component: self-observability-node-agent
+data:
+  collector.yaml: |
+    receivers:
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: infrastructure-dependencies
+              static_configs:
+                - targets:
+                    - clickhouse:8123
+                    - redpanda:9644
+      hostmetrics:
+        collection_interval: 30s
+        scrapers:
+          cpu: {}
+          memory: {}
+          disk: {}
+          filesystem: {}
+          network: {}
+    processors:
+      resource:
+        attributes:
+          - key: observable.self_observability.mode
+            action: upsert
+            value: {{ .Values.selfObservability.mode | quote }}
+          - key: observable.self_observability.tenant
+            action: upsert
+            value: {{ .Values.selfObservability.tenant | quote }}
+          - key: deployment.environment
+            action: upsert
+            value: {{ .Values.selfObservability.deploymentEnvironment | quote }}
+          - key: k8s.cluster.name
+            action: upsert
+            value: {{ .Values.selfObservability.cluster | quote }}
+          - key: service.version
+            action: upsert
+            value: {{ .Values.selfObservability.release | quote }}
+      batch: {}
+    exporters:
+      otlphttp/self_observability:
+        endpoint: {{ .Values.selfObservability.otlpEndpoint | quote }}
+        {{- if .Values.selfObservability.headersSecretRef }}
+        headers:
+          Authorization: "${OTEL_EXPORTER_OTLP_HEADERS}"
+        {{- end }}
+    service:
+      pipelines:
+        metrics:
+          receivers: [prometheus, hostmetrics]
+          processors: [resource, batch]
+          exporters: [otlphttp/self_observability]

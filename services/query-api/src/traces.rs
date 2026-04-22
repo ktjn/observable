@@ -7,7 +7,7 @@ use clickhouse::Client;
 use domain::{Span, SpanRow};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::middleware::auth::TenantContext;
 
@@ -24,15 +24,23 @@ pub struct TraceResponse {
 }
 
 #[derive(Serialize)]
+pub struct FacetValue {
+    pub value: String,
+    pub count: u64,
+}
+
+#[derive(Serialize)]
 pub struct TraceListResponse {
     pub traces: Vec<TraceResponse>,
     pub total: u64,
+    pub facets: HashMap<String, Vec<FacetValue>>,
 }
 
 #[derive(Deserialize)]
 pub struct SearchParams {
     pub service: Option<String>,
     pub limit: Option<u32>,
+    pub facets: Option<String>, // Comma-separated list of fields to facet
 }
 
 const SELECT_COLS: &str = "tenant_id, trace_id, span_id, parent_span_id, service_name, \
@@ -104,6 +112,53 @@ pub async fn search_traces(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
+    // Handle facets.
+    let mut facet_results = HashMap::new();
+    if let Some(facets_str) = params.facets {
+        let requested_facets: Vec<&str> = facets_str.split(',').map(|s| s.trim()).collect();
+
+        for field in requested_facets {
+            // Validate field name to prevent SQL injection.
+            let valid_fields = [
+                "service_name",
+                "status_code",
+                "span_kind",
+                "environment",
+                "host_id",
+            ];
+            if !valid_fields.contains(&field) {
+                continue;
+            }
+
+            let mut facet_sql = format!(
+                "SELECT {field} as value, count(DISTINCT trace_id) as count FROM spans WHERE tenant_id = ?"
+            );
+            if params.service.is_some() {
+                facet_sql.push_str(" AND service_name = ?");
+            }
+            facet_sql.push_str(&format!(" GROUP BY {field} ORDER BY count DESC LIMIT 10"));
+
+            let mut facet_query = state.ch.query(&facet_sql).bind(ctx.tenant_id);
+            if let Some(ref svc) = params.service {
+                facet_query = facet_query.bind(svc.as_str());
+            }
+
+            let mut cursor = facet_query.fetch::<(String, u64)>().map_err(|e| {
+                tracing::error!("ClickHouse facet query error: {:?}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+            let mut values = Vec::new();
+            while let Some((value, count)) = cursor.next().await.map_err(|e| {
+                tracing::error!("ClickHouse facet fetch error: {:?}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })? {
+                values.push(FacetValue { value, count });
+            }
+            facet_results.insert(field.to_string(), values);
+        }
+    }
+
     // Then, fetch the newest span for each of the newest N traces.
     let subquery = if params.service.is_some() {
         "(SELECT tenant_id, trace_id, max(start_time_unix_nano) FROM spans WHERE tenant_id = ? AND service_name = ? GROUP BY tenant_id, trace_id ORDER BY max(start_time_unix_nano) DESC LIMIT ?)"
@@ -153,7 +208,11 @@ pub async fn search_traces(
     )
     .await;
 
-    Ok(Json(TraceListResponse { traces, total }))
+    Ok(Json(TraceListResponse {
+        traces,
+        total,
+        facets: facet_results,
+    }))
 }
 
 fn validate_trace_rows_for_tenant(
