@@ -25,6 +25,21 @@ const serviceDetailRoute = createRoute({
   path: "/services/$serviceId",
   component: ServiceDetailPage,
 });
+const serviceLogsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/services/$serviceId/logs",
+  component: ServiceDetailPage,
+});
+const serviceMetricsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/services/$serviceId/metrics",
+  component: ServiceDetailPage,
+});
+const serviceTracesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/services/$serviceId/traces",
+  component: ServiceDetailPage,
+});
 const infrastructureRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/infrastructure",
@@ -65,6 +80,9 @@ export const router = createRouter({
     homeRoute,
     servicesRoute,
     serviceDetailRoute,
+    serviceLogsRoute,
+    serviceMetricsRoute,
+    serviceTracesRoute,
     infrastructureRoute,
     serviceOverviewRoute,
     dashboardsRoute,

@@ -244,13 +244,13 @@ Before Phase 3 starts, answer:
   - Verification: API tests cover one service summary; frontend tests cover overview rendering and links to Logs, Metrics, Traces, and Infrastructure. `bash scripts/local-ci.sh` passed.
   - Checkpoint: is the derived service summary contract good enough for alerting, dashboards, and later SLO reuse? Answer: yes for P3 scope. The summary contract now has stable RED metrics, health state, active alert count, and latest deployment marker fields; alert count and deployment marker are explicit placeholders until alert/deployment slices populate them.
 
-- [ ] **P3-S6: Add service-scoped Logs, Metrics, and Traces tabs**
+- [x] **P3-S6: Add service-scoped Logs, Metrics, and Traces tabs**
   - Source spec: `spec/05-frontend.md` §9.2.1 Services and §9.4.
-  - Outcome: service detail has Logs, Metrics, and Traces tabs. Each tab opens with service and time range filters applied, preserves URL state, and links back to the overview.
+  - Outcome: service detail has Logs, Metrics, and Traces tabs. Each tab opens with service and time range filters applied, preserves URL state, and links back to the overview. Completed with service detail subroutes (`/services/:serviceId/logs`, `/metrics`, `/traces`), frontend panels that reuse existing log/trace query helpers and a new metric-series helper, and a service filter on the metrics query endpoint.
   - Files or modules expected to change: frontend service detail route tree, existing trace/log/metric explorer filter wiring, API client query parameters, tests.
   - Out of scope: new query language features. Reuse existing explorer capabilities and backend filters.
   - Verification: frontend tests cover tab deep links, browser-back behavior, and service filter preservation; API tests cover service-scoped query filters where missing.
-  - Checkpoint: are URLs now the source of truth for service investigation context across traces, logs, and metrics?
+  - Checkpoint: are URLs now the source of truth for service investigation context across traces, logs, and metrics? Answer: yes. Service investigation tabs are addressable by path, keep the `lookback_minutes` query string, and each tab applies the route service as the query filter.
 
 - [ ] **P3-S7: Add field faceting and statistics to explorers**
   - Source spec: `spec/05-frontend.md` §9.5; `spec/09-api.md` Field Faceting.
@@ -497,7 +497,7 @@ After this planning reconciliation, the next implementation slice should be:
 - Cost controls without hand-waving: yes — P2-S2a (rate limiting), P2-S3a (cardinality budget observation), P2-S4a (hot retention) are all in place.
 - Roll back a bad deploy without manual heroics: yes — P2-S8a (Helm rollback skeleton) and P2-S8b (canary promotion path) cover both runtime and schema rollback.
 
-**Next recommended slice: P3-S6 - Add service-scoped Logs, Metrics, and Traces tabs.**
+**Next recommended slice: P3-S7 - Add field faceting and statistics to explorers.**
 
 ---
 

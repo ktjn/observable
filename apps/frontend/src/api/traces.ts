@@ -28,10 +28,14 @@ function tenantHeaders(): HeadersInit {
 
 export async function searchTraces(params: {
   service?: string;
+  lookback_minutes?: number;
   limit?: number;
 }): Promise<TraceListResponse> {
   const url = new URL("/v1/traces", window.location.origin);
   if (params.service) url.searchParams.set("service", params.service);
+  if (params.lookback_minutes) {
+    url.searchParams.set("lookback_minutes", String(params.lookback_minutes));
+  }
   if (params.limit) url.searchParams.set("limit", String(params.limit));
   const res = await fetch(url.toString(), { headers: tenantHeaders() });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
