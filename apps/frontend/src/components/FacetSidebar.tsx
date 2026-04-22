@@ -11,32 +11,22 @@ export function FacetSidebar({ facets, onFacetClick }: FacetSidebarProps) {
   }
 
   return (
-    <aside className="facet-sidebar" style={{ width: "250px", paddingRight: "1rem", borderRight: "1px solid var(--border-dim)" }}>
-      <div className="field-label" style={{ marginBottom: "1rem" }}>Facets</div>
+    <aside className="facet-sidebar">
+      <div className="field-label" style={{ marginBottom: "16px" }}>Facets</div>
       {Object.entries(facets).map(([field, values]) => (
-        <div key={field} style={{ marginBottom: "1.5rem" }}>
-          <h3 style={{ fontSize: "0.75rem", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "0.5rem" }}>
+        <div key={field} className="facet-group">
+          <h3 className="facet-title">
             {field.replace("_", " ")}
           </h3>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <ul className="facet-list">
             {values.map((v) => (
               <li 
                 key={v.value} 
                 onClick={() => onFacetClick(field, v.value)}
-                style={{ 
-                  display: "flex", 
-                  justifyContent: "space-between", 
-                  fontSize: "0.85rem", 
-                  cursor: "pointer",
-                  padding: "0.25rem 0",
-                  color: "var(--text-primary)"
-                }}
                 className="facet-item"
               >
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginRight: "0.5rem" }}>
-                  {v.value}
-                </span>
-                <span style={{ color: "var(--text-muted)", flexShrink: 0 }}>{v.count}</span>
+                <span className="facet-value">{v.value}</span>
+                <span className="facet-count">{v.count}</span>
               </li>
             ))}
           </ul>

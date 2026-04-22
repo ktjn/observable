@@ -527,6 +527,62 @@ th {
   text-align: center;
 }
 
+.facet-sidebar {
+  width: 250px;
+  flex-shrink: 0;
+  padding-right: 20px;
+  border-right: 1px solid var(--border);
+}
+
+.facet-group {
+  margin-bottom: 24px;
+}
+
+.facet-title {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.facet-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.facet-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text);
+  transition: background 0.1s;
+}
+
+.facet-item:hover {
+  background: var(--surface-subtle);
+}
+
+.facet-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 8px;
+}
+
+.facet-count {
+  color: var(--muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
 @media (max-width: 960px) {
   .detail-grid,
   .definition-grid {

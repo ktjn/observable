@@ -38,9 +38,18 @@ export default function LogSearch() {
           onChange={(e) => setService(e.target.value)}
           aria-label="Filter by service"
         />
+        {service && (
+          <button 
+            className="secondary-link" 
+            onClick={() => setService("")}
+            style={{ cursor: "pointer", background: "none" }}
+          >
+            Clear filters
+          </button>
+        )}
       </div>
 
-      <div style={{ display: "flex", gap: "2rem", alignItems: "flex-start" }}>
+      <div style={{ display: "flex", alignItems: "flex-start" }}>
         <FacetSidebar facets={data?.facets} onFacetClick={handleFacetClick} />
 
         <div className="table-panel" style={{ flex: 1 }}>
