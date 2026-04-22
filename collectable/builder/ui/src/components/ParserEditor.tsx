@@ -93,6 +93,7 @@ export function ParserEditor({ definition, onChange, onNext }: Props) {
 
   useEffect(() => {
     if (!parser.type || !sample.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRows([]); setParseError(null); return;
     }
 

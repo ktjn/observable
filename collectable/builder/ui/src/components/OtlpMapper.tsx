@@ -19,9 +19,17 @@ const OTEL_RESOURCE_KEYS = [
   'deployment.environment',
 ];
 
-const STANDARD_TARGETS = ['body', 'severity_text', 'time_field', 'trace_id', 'span_id', 'drop'];
+const STANDARD_TARGET_OPTS = ['body', 'severity_text', 'time_field', 'trace_id', 'span_id'];
 
 type ResourceSourceType = 'env' | 'command' | 'literal';
+type FieldSourceType = 'field' | 'literal';
+
+interface StandardFieldRow {
+  id: string;
+  otlpTarget: string;
+  sourceType: FieldSourceType;
+  value: string;
+}
 
 interface ResourceAttrRow {
   id: string;
@@ -49,6 +57,27 @@ function defaultTarget(field: string): string {
 
 function uid() {
   return Math.random().toString(36).slice(2);
+}
+
+function rowsToStandardFields(rows: StandardFieldRow[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const row of rows) {
+    if (!row.otlpTarget || !row.value.trim()) continue;
+    const src = row.sourceType === 'field' ? { field: row.value } : { literal: row.value };
+    out[row.otlpTarget] = row.otlpTarget === 'time_field' ? { ...src, format: 'auto' } : src;
+  }
+  return out;
+}
+
+function standardFieldsToRows(mapping: Record<string, unknown>): StandardFieldRow[] {
+  const rows: StandardFieldRow[] = [];
+  for (const target of STANDARD_TARGET_OPTS) {
+    const val = mapping[target] as Record<string, string> | undefined;
+    if (!val) continue;
+    if (val.field) rows.push({ id: uid(), otlpTarget: target, sourceType: 'field', value: val.field });
+    else if (val.literal) rows.push({ id: uid(), otlpTarget: target, sourceType: 'literal', value: val.literal });
+  }
+  return rows;
 }
 
 function rowsToResourceAttrs(rows: ResourceAttrRow[]): Record<string, unknown> {
@@ -94,9 +123,21 @@ export function OtlpMapper({ definition, onChange, onNext }: Props) {
   const currentFields = (definition.parsed_fields as string[]) ?? [];
   const mapping = (definition.mapping as Record<string, unknown>) ?? {};
 
-  const [fieldTargets, setFieldTargets] = useState<Record<string, string>>(() =>
-    Object.fromEntries(currentFields.map(f => [f, defaultTarget(f)])),
-  );
+  const [standardRows, setStandardRows] = useState<StandardFieldRow[]>(() => {
+    const existing = standardFieldsToRows(mapping);
+    const existingTargets = new Set(existing.map(r => r.otlpTarget));
+    const pre = currentFields
+      .filter(f => {
+        const t = defaultTarget(f);
+        return t !== 'log_attributes' && !existingTargets.has(t);
+      })
+      .map(f => {
+        const t = defaultTarget(f);
+        existingTargets.add(t);
+        return { id: uid(), otlpTarget: t, sourceType: 'field' as const, value: f };
+      });
+    return [...existing, ...pre];
+  });
 
   const [resourceRows, setResourceRows] = useState<ResourceAttrRow[]>(() =>
     attrsToResourceRows(mapping.resource_attributes as Record<string, unknown> | undefined),
@@ -104,7 +145,6 @@ export function OtlpMapper({ definition, onChange, onNext }: Props) {
 
   const [logRows, setLogRows] = useState<LogAttrRow[]>(() => {
     const existing = attrsToLogRows(mapping.log_attributes as Record<string, unknown> | undefined);
-    // Pre-populate from parser fields that default to log_attributes and aren't already mapped
     const existingFields = new Set(existing.map(r => r.field));
     const pre = currentFields
       .filter(f => defaultTarget(f) === 'log_attributes' && !existingFields.has(f))
@@ -112,15 +152,22 @@ export function OtlpMapper({ definition, onChange, onNext }: Props) {
     return [...existing, ...pre];
   });
 
-  // Sync new parser fields into log rows when user goes back and changes parser
+  // Sync new parser fields when user goes back and changes parser
   useEffect(() => {
-    setFieldTargets(prev => {
-      const next = { ...prev };
-      let changed = false;
-      currentFields.forEach(f => {
-        if (!(f in next)) { next[f] = defaultTarget(f); changed = true; }
-      });
-      return changed ? next : prev;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStandardRows(prev => {
+      const existingTargets = new Set(prev.map(r => r.otlpTarget));
+      const toAdd = currentFields
+        .filter(f => {
+          const t = defaultTarget(f);
+          return t !== 'log_attributes' && !existingTargets.has(t);
+        })
+        .map(f => {
+          const t = defaultTarget(f);
+          existingTargets.add(t);
+          return { id: uid(), otlpTarget: t, sourceType: 'field' as const, value: f };
+        });
+      return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
     });
 
     setLogRows(prev => {
@@ -145,21 +192,11 @@ export function OtlpMapper({ definition, onChange, onNext }: Props) {
 
   // Recompute and propagate mapping whenever any section changes
   const propagate = (
-    ft: Record<string, string>,
+    sr: StandardFieldRow[],
     rr: ResourceAttrRow[],
     lr: LogAttrRow[],
   ) => {
-    let m: Record<string, unknown> = {};
-
-    // Standard field mappings
-    for (const [field, target] of Object.entries(ft)) {
-      if (target === 'drop') continue;
-      if (target === 'body') { m.body = { field }; continue; }
-      if (target === 'severity_text') { m.severity_text = { field }; continue; }
-      if (target === 'time_field') { m.time_field = { field, format: 'auto' }; continue; }
-      if (target === 'trace_id') { m.trace_id = { field }; continue; }
-      if (target === 'span_id') { m.span_id = { field }; continue; }
-    }
+    const m: Record<string, unknown> = { ...rowsToStandardFields(sr) };
 
     const ra = rowsToResourceAttrs(rr);
     if (Object.keys(ra).length > 0) m.resource_attributes = ra;
@@ -170,26 +207,20 @@ export function OtlpMapper({ definition, onChange, onNext }: Props) {
     onChange({ ...definition, mapping: m });
   };
 
-  const handleFieldTarget = (field: string, target: string) => {
-    const next = { ...fieldTargets, [field]: target };
-    setFieldTargets(next);
-    propagate(next, resourceRows, logRows);
+  const handleStandardChange = (updated: StandardFieldRow[]) => {
+    setStandardRows(updated);
+    propagate(updated, resourceRows, logRows);
   };
 
   const handleResourceChange = (updated: ResourceAttrRow[]) => {
     setResourceRows(updated);
-    propagate(fieldTargets, updated, logRows);
+    propagate(standardRows, updated, logRows);
   };
 
   const handleLogChange = (updated: LogAttrRow[]) => {
     setLogRows(updated);
-    propagate(fieldTargets, resourceRows, updated);
+    propagate(standardRows, resourceRows, updated);
   };
-
-  const standardFields = currentFields.filter(f =>
-    STANDARD_TARGETS.includes(fieldTargets[f] ?? defaultTarget(f)) ||
-    (fieldTargets[f] ?? defaultTarget(f)) === 'drop',
-  );
 
   return (
     <div>
@@ -202,34 +233,67 @@ export function OtlpMapper({ definition, onChange, onNext }: Props) {
       )}
 
       {/* ── Standard field mappings ─────────────────────────────────────── */}
-      {standardFields.length > 0 && (
-        <section style={{ marginBottom: 24 }}>
-          <h3 style={{ fontSize: 14, marginBottom: 8 }}>Standard field mappings</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f4f4f4' }}>
-                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 13 }}>Extracted field</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 13 }}>OTLP target</th>
-              </tr>
-            </thead>
-            <tbody>
-              {standardFields.map(field => (
-                <tr key={field} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '6px 8px', fontFamily: 'monospace', fontSize: 13 }}>{field}</td>
-                  <td style={{ padding: '6px 8px' }}>
+      <section style={{ marginBottom: 24 }}>
+        <h3 style={{ fontSize: 14, marginBottom: 4 }}>Standard fields <span style={{ fontWeight: 'normal', color: '#666', fontSize: 12 }}>(body, timestamp, severity, trace/span IDs)</span></h3>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}>
+          <thead>
+            <tr style={{ background: '#f4f4f4' }}>
+              <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 13 }}>OTLP target</th>
+              <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 13 }}>Source</th>
+              <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 13 }}>Value</th>
+              <th style={{ padding: '6px 8px' }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {standardRows.map((row, i) => (
+              <tr key={row.id} style={{ borderBottom: '1px solid #eee' }}>
+                <td style={{ padding: '6px 8px' }}>
+                  <select
+                    value={row.otlpTarget}
+                    onChange={e => handleStandardChange(standardRows.map((r, j) => j === i ? { ...r, otlpTarget: e.target.value } : r))}
+                  >
+                    {STANDARD_TARGET_OPTS.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </td>
+                <td style={{ padding: '6px 8px' }}>
+                  <select
+                    value={row.sourceType}
+                    onChange={e => handleStandardChange(standardRows.map((r, j) => j === i ? { ...r, sourceType: e.target.value as FieldSourceType, value: '' } : r))}
+                  >
+                    <option value="field">field</option>
+                    <option value="literal">literal</option>
+                  </select>
+                </td>
+                <td style={{ padding: '6px 8px' }}>
+                  {row.sourceType === 'field' ? (
                     <select
-                      value={fieldTargets[field] ?? defaultTarget(field)}
-                      onChange={e => handleFieldTarget(field, e.target.value)}
+                      value={row.value}
+                      onChange={e => handleStandardChange(standardRows.map((r, j) => j === i ? { ...r, value: e.target.value } : r))}
                     >
-                      {STANDARD_TARGETS.map(t => <option key={t} value={t}>{t}</option>)}
+                      <option value="">— select field —</option>
+                      {currentFields.map(f => <option key={f} value={f}>{f}</option>)}
                     </select>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
+                  ) : (
+                    <input
+                      type="text"
+                      value={row.value}
+                      style={{ width: '100%', fontFamily: 'monospace', fontSize: 13 }}
+                      placeholder="static value"
+                      onChange={e => handleStandardChange(standardRows.map((r, j) => j === i ? { ...r, value: e.target.value } : r))}
+                    />
+                  )}
+                </td>
+                <td style={{ padding: '6px 8px' }}>
+                  <button onClick={() => handleStandardChange(standardRows.filter((_, j) => j !== i))}>✕</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <button onClick={() => handleStandardChange([...standardRows, { id: uid(), otlpTarget: 'body', sourceType: 'field', value: currentFields[0] ?? '' }])}>
+          + Add standard field
+        </button>
+      </section>
 
       {/* ── Log Attributes ──────────────────────────────────────────────── */}
       <section style={{ marginBottom: 24 }}>

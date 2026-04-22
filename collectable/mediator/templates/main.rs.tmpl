@@ -291,6 +291,7 @@ fn emit_record(fields: &Fields, provider: &SdkLoggerProvider) {
 
     // timestamp
     {% if mapping.time_field %}
+    {% if mapping.time_field.field %}
     if let Some(ts_str) = fields.get("{{ mapping.time_field.field }}") {
         let parsed = chrono::DateTime::parse_from_str(ts_str, "{{ mapping.time_field.format }}")
             .or_else(|_| chrono::DateTime::parse_from_rfc3339(ts_str))
@@ -302,6 +303,36 @@ fn emit_record(fields: &Fields, provider: &SdkLoggerProvider) {
             record.set_timestamp(SystemTime::from(dt));
         }
     }
+    {% elif mapping.time_field.literal %}
+    {
+        let ts_str = "{{ mapping.time_field.literal }}";
+        let parsed = chrono::DateTime::parse_from_rfc3339(ts_str)
+            .or_else(|_| chrono::DateTime::parse_from_str(ts_str, "%Y-%m-%d %H:%M:%S%.f %z"));
+        if let Ok(dt) = parsed {
+            record.set_timestamp(SystemTime::from(dt));
+        }
+    }
+    {% endif %}
+    {% endif %}
+
+    // trace / span IDs
+    {% if mapping.trace_id %}
+    {% if mapping.trace_id.field %}
+    if let Some(v) = fields.get("{{ mapping.trace_id.field }}") {
+        record.add_attribute("trace_id", AnyValue::String(v.clone().into()));
+    }
+    {% elif mapping.trace_id.literal %}
+    record.add_attribute("trace_id", AnyValue::String("{{ mapping.trace_id.literal }}".into()));
+    {% endif %}
+    {% endif %}
+    {% if mapping.span_id %}
+    {% if mapping.span_id.field %}
+    if let Some(v) = fields.get("{{ mapping.span_id.field }}") {
+        record.add_attribute("span_id", AnyValue::String(v.clone().into()));
+    }
+    {% elif mapping.span_id.literal %}
+    record.add_attribute("span_id", AnyValue::String("{{ mapping.span_id.literal }}".into()));
+    {% endif %}
     {% endif %}
 
     // log attributes
