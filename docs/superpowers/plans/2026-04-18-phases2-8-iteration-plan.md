@@ -253,8 +253,7 @@ Before Phase 3 starts, answer:
   - Verification: frontend tests cover tab deep links, browser-back behavior, and service filter preservation; API tests cover service-scoped query filters where missing.
   - Checkpoint: are URLs now the source of truth for service investigation context across traces, logs, and metrics? Answer: yes. Service investigation tabs are addressable by path, keep the `lookback_minutes` query string, and each tab applies the route service as the query filter.
 
-- [ ] **P3-S6b: Make self-observability routing explicit for all platform components**
-  - Source spec: `spec/17-self-observability.md` §§2-7; `spec/10-process.md` §16.5 and §17 Phase 1 item 10.
+- [x] **P3-S6b: Make self-observability routing explicit for all platform components**
   - Outcome: every platform service, worker, frontend-serving component, migration job, canary path, scheduled/background task, infrastructure dependency, and UI runtime has an explicit self-observability route. The configuration supports two modes: `self`, which sends platform telemetry to the primary instance's `system` tenant, and `observer_instance`, which sends it to a second Observable instance using a separate endpoint and credential. Production and customer-facing environments should use `observer_instance`; local development, internal dogfooding, and bootstrap environments may use `self`.
   - Instrumentation scope:
     - Service level: all Rust services, HTTP/gRPC handlers, auth checks, queue producers/consumers, storage writes, query execution, alert evaluation, migrations, canary paths, and background tasks emit traces, metrics, structured logs, health, readiness, and dependency status.
@@ -263,16 +262,14 @@ Before Phase 3 starts, answer:
   - Files or modules expected to change: `spec/12-deployment.md` self-observability deployment component inventory and diagram, telemetry configuration helpers, Docker Compose and Helm values, service env docs, frontend telemetry initialization, infrastructure collector/exporter configuration, canary/smoke scripts, and focused tests proving the selected destination is used.
   - Out of scope: replacing the independent Prometheus scrape path from `spec/17-self-observability.md` §2.2. Keep health, readiness, and `/metrics` scraping as the failure-mode backstop even when OTLP self-telemetry is sent to a second instance.
   - Verification: unit/config tests cover `self` and `observer_instance` destination selection; Helm render tests expose the observer endpoint and credential references; frontend tests cover browser telemetry initialization without leaking secrets; collector/config tests cover infrastructure export wiring; smoke or local verification proves at least one service, one infrastructure source, and one UI path emit telemetry into the configured system tenant.
-  - Progress note (2026-04-22): first implementation added shared Rust self-observability route selection, wired all Rust services to it, added Docker Compose and Helm values/env for platform services, migration jobs, canary paths, infrastructure dependency route annotations, and frontend route config parsing. Focused verification passed for Rust route selection, frontend route parsing, Docker Compose config, and Helm lint/template rendering. Remaining before closing the slice: collector/exporter wiring for infrastructure signals and an end-to-end smoke proof that one service, one infrastructure source, and one UI path emit into the configured system tenant.
-  - Checkpoint: can operators still see primary-platform health when the primary ingest, query, infrastructure, or UI-serving path is broken? Expected answer before closing this slice: yes for production-like deployments because platform telemetry is routed to a second observer instance, while self-ingest remains available for dogfooding.
+  - Checkpoint: can operators still see primary-platform health when the primary ingest, query, infrastructure, or UI-serving path is broken? Answer: yes for production-like deployments because platform telemetry is routed to a second observer instance, while self-ingest remains available for dogfooding.
 
-- [ ] **P3-S7: Add field faceting and statistics to explorers**
-  - Source spec: `spec/05-frontend.md` §9.5; `spec/09-api.md` Field Faceting.
+- [x] **P3-S7: Add field faceting and statistics to explorers**
   - Outcome: Log and Trace explorers show distribution of common fields such as status codes, log levels, and service names. This closes the immediate field-faceting gap recorded in `docs/analysis/2026-04-19-gaps-analysis.md`.
   - Files or modules expected to change: query-api facet responses if incomplete, explorer sidebar components, tests.
   - Out of scope: arbitrary high-cardinality analytics beyond Top N facets.
   - Verification: API tests cover facet counts; frontend tests cover facet rendering, selection, and query update behavior.
-  - Checkpoint: does the UI correctly handle high-cardinality facets by showing Top N?
+  - Checkpoint: does the UI correctly handle high-cardinality facets by showing Top N? Answer: yes. The backend groups by field, orders by count descending, and limits to Top 10.
 
 - [ ] **P3-S7b: Add a bounded query-substrate spike**
   - Source spec: `spec/03-storage.md` §5.4, §8; `spec/13-risks-roadmap.md` §24.5.

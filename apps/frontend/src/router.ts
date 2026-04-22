@@ -5,6 +5,7 @@ import { ProductAreaPage } from "./pages/ProductAreaPage";
 import ServiceDetailPage from "./pages/ServiceDetailPage";
 import TraceSearch from "./pages/TraceSearch";
 import TraceDetailPage from "./pages/TraceDetailPage";
+import LogSearch from "./pages/LogSearch";
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -75,6 +76,11 @@ const traceDetailRoute = createRoute({
   path: "/traces/$traceId",
   component: TraceDetailPage,
 });
+const logSearchRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/logs",
+  component: LogSearch,
+});
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     homeRoute,
@@ -90,5 +96,6 @@ export const router = createRouter({
     adminRoute,
     traceSearchRoute,
     traceDetailRoute,
+    logSearchRoute,
   ]),
 });

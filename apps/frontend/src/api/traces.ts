@@ -15,9 +15,19 @@ export interface TraceResponse {
   spans: Span[];
 }
 
+export interface FacetValue {
+  value: string;
+  count: number;
+}
+
+export interface Facets {
+  [field: string]: FacetValue[];
+}
+
 export interface TraceListResponse {
   traces: TraceResponse[];
   total: number;
+  facets: Facets;
 }
 
 const DEV_TENANT_ID = "00000000-0000-0000-0000-000000000001";
@@ -30,6 +40,7 @@ export async function searchTraces(params: {
   service?: string;
   lookback_minutes?: number;
   limit?: number;
+  facets?: string[];
 }): Promise<TraceListResponse> {
   const url = new URL("/v1/traces", window.location.origin);
   if (params.service) url.searchParams.set("service", params.service);
@@ -37,6 +48,8 @@ export async function searchTraces(params: {
     url.searchParams.set("lookback_minutes", String(params.lookback_minutes));
   }
   if (params.limit) url.searchParams.set("limit", String(params.limit));
+  if (params.facets) url.searchParams.set("facets", params.facets.join(","));
+
   const res = await fetch(url.toString(), { headers: tenantHeaders() });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();

@@ -5,15 +5,23 @@ use axum::{
 };
 use domain::{LogRecord, LogRow};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::middleware::auth::TenantContext;
 use crate::traces::AppState;
 
 #[derive(Serialize)]
+pub struct FacetValue {
+    pub value: String,
+    pub count: u64,
+}
+
+#[derive(Serialize)]
 pub struct LogListResponse {
     pub logs: Vec<LogRecord>,
     pub total: u64,
+    pub facets: HashMap<String, Vec<FacetValue>>,
 }
 
 #[derive(Deserialize)]
@@ -23,6 +31,7 @@ pub struct LogSearchParams {
     pub trace_id: Option<String>,
     pub span_id: Option<String>,
     pub limit: Option<u32>,
+    pub facets: Option<String>, // Comma-separated list of fields to facet
 }
 
 #[derive(Deserialize)]
@@ -38,23 +47,10 @@ pub async fn search_logs(
     Extension(ctx): Extension<TenantContext>,
     Query(params): Query<LogSearchParams>,
 ) -> Result<Json<LogListResponse>, StatusCode> {
-    let limit = params.limit.unwrap_or(50).min(500);
+    let plan = state.planner.plan_log_search(&params);
 
     // Count total matching logs.
-    let mut count_sql = "SELECT count() FROM logs WHERE tenant_id = ?".to_string();
-    if params.service.is_some() {
-        count_sql.push_str(" AND service_name = ?");
-    }
-    if params.severity.is_some() {
-        count_sql.push_str(" AND severity_number >= ?");
-    }
-    if params.trace_id.is_some() {
-        count_sql.push_str(" AND trace_id = ?");
-    }
-    if params.span_id.is_some() {
-        count_sql.push_str(" AND span_id = ?");
-    }
-    let mut count_query = state.ch.query(&count_sql).bind(ctx.tenant_id);
+    let mut count_query = state.ch.query(&plan.count_sql).bind(ctx.tenant_id);
     if let Some(service) = &params.service {
         count_query = count_query.bind(service);
     }
@@ -72,23 +68,40 @@ pub async fn search_logs(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // Fetch logs.
-    let mut query = "SELECT ?fields FROM logs WHERE tenant_id = ?".to_string();
-    if params.service.is_some() {
-        query.push_str(" AND service_name = ?");
-    }
-    if params.severity.is_some() {
-        query.push_str(" AND severity_number >= ?");
-    }
-    if params.trace_id.is_some() {
-        query.push_str(" AND trace_id = ?");
-    }
-    if params.span_id.is_some() {
-        query.push_str(" AND span_id = ?");
-    }
-    query.push_str(" ORDER BY timestamp_unix_nano DESC LIMIT ?");
+    // Handle facets.
+    let mut facet_results = HashMap::new();
+    for (field, facet_plan) in plan.facet_plans {
+        let mut facet_query = state.ch.query(&facet_plan.sql).bind(ctx.tenant_id);
+        if let Some(service) = &params.service {
+            facet_query = facet_query.bind(service);
+        }
+        if let Some(severity) = params.severity {
+            facet_query = facet_query.bind(severity);
+        }
+        if let Some(trace_id) = &params.trace_id {
+            facet_query = facet_query.bind(trace_id);
+        }
+        if let Some(span_id) = &params.span_id {
+            facet_query = facet_query.bind(span_id);
+        }
 
-    let mut ch_query = state.ch.query(&query).bind(ctx.tenant_id);
+        let mut cursor = facet_query.fetch::<(String, u64)>().map_err(|e| {
+            tracing::error!("ClickHouse facet query error: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+        let mut values = Vec::new();
+        while let Some((value, count)) = cursor.next().await.map_err(|e| {
+            tracing::error!("ClickHouse facet fetch error: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })? {
+            values.push(FacetValue { value, count });
+        }
+        facet_results.insert(field, values);
+    }
+
+    // Fetch logs.
+    let mut ch_query = state.ch.query(&plan.logs_sql).bind(ctx.tenant_id);
 
     if let Some(service) = &params.service {
         ch_query = ch_query.bind(service);
@@ -103,7 +116,7 @@ pub async fn search_logs(
         ch_query = ch_query.bind(span_id);
     }
 
-    let mut cursor = ch_query.bind(limit).fetch::<LogRow>().map_err(|e| {
+    let mut cursor = ch_query.bind(plan.limit).fetch::<LogRow>().map_err(|e| {
         tracing::error!("ClickHouse query error: {:?}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -131,7 +144,11 @@ pub async fn search_logs(
     )
     .await;
 
-    Ok(Json(LogListResponse { logs, total }))
+    Ok(Json(LogListResponse {
+        logs,
+        total,
+        facets: facet_results,
+    }))
 }
 
 pub async fn tail_logs(
@@ -196,6 +213,7 @@ pub async fn tail_logs(
     Ok(Json(LogListResponse {
         logs,
         total: result_count as u64,
+        facets: HashMap::new(),
     }))
 }
 
@@ -295,6 +313,7 @@ pub async fn get_log_context(
     Ok(Json(LogListResponse {
         logs,
         total: result_count as u64,
+        facets: HashMap::new(),
     }))
 }
 

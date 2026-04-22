@@ -16,9 +16,19 @@ export interface LogRecord {
   service_name: string;
 }
 
+export interface FacetValue {
+  value: string;
+  count: number;
+}
+
+export interface Facets {
+  [field: string]: FacetValue[];
+}
+
 export interface LogListResponse {
   logs: LogRecord[];
   total: number;
+  facets: Facets;
 }
 
 export async function searchLogs(params: {
@@ -27,6 +37,7 @@ export async function searchLogs(params: {
   span_id?: string;
   lookback_minutes?: number;
   limit?: number;
+  facets?: string[];
 }): Promise<LogListResponse> {
   const url = new URL("/v1/logs", window.location.origin);
   if (params.service) url.searchParams.set("service", params.service);
@@ -36,6 +47,7 @@ export async function searchLogs(params: {
     url.searchParams.set("lookback_minutes", String(params.lookback_minutes));
   }
   if (params.limit) url.searchParams.set("limit", String(params.limit));
+  if (params.facets) url.searchParams.set("facets", params.facets.join(","));
 
   const res = await fetch(url.toString(), { headers: tenantHeaders() });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);

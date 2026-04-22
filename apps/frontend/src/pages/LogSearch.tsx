@@ -1,18 +1,17 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { searchTraces } from "../api/traces";
+import { searchLogs } from "../api/logs";
 import { FacetSidebar } from "../components/FacetSidebar";
 
-export default function TraceSearch() {
+export default function LogSearch() {
   const [service, setService] = useState("");
   
   const { data, isLoading, error } = useQuery({
-    queryKey: ["traces", service],
-    queryFn: () => searchTraces({ 
+    queryKey: ["logs", service],
+    queryFn: () => searchLogs({ 
       service: service || undefined, 
       limit: 50,
-      facets: ["service_name", "status_code", "span_kind"]
+      facets: ["service_name", "severity_number", "environment", "host_id"]
     }),
   });
 
@@ -27,7 +26,7 @@ export default function TraceSearch() {
       <div className="page-header">
         <div>
           <div className="field-label">Explorer</div>
-          <h1>Traces</h1>
+          <h1>Logs</h1>
         </div>
       </div>
 
@@ -55,44 +54,34 @@ export default function TraceSearch() {
 
         <div className="table-panel" style={{ flex: 1 }}>
           {isLoading ? (
-            <div className="loading-state">Loading traces...</div>
+            <div className="loading-state">Loading logs...</div>
           ) : error ? (
-            <div className="signal-empty">Error loading traces: {String(error)}</div>
-          ) : data?.traces.length === 0 ? (
-            <div className="signal-empty">No traces found.</div>
+            <div className="signal-empty">Error loading logs: {String(error)}</div>
+          ) : data?.logs.length === 0 ? (
+            <div className="signal-empty">No logs found.</div>
           ) : (
             <table style={{ borderCollapse: "collapse", width: "100%" }}>
               <thead>
                 <tr>
-                  <th>Trace ID</th>
+                  <th>Timestamp</th>
                   <th>Service</th>
-                  <th>Operation</th>
-                  <th>Duration</th>
-                  <th>Status</th>
+                  <th>Level</th>
+                  <th>Message</th>
                 </tr>
               </thead>
               <tbody>
-                {data?.traces.map((t) => {
-                  const root = t.spans[0];
-                  if (!root) return null;
-                  return (
-                    <tr key={t.trace_id}>
-                      <td className="strong-cell">
-                        <Link to="/traces/$traceId" params={{ traceId: t.trace_id }}>
-                          {t.trace_id.substring(0, 16)}…
-                        </Link>
-                      </td>
-                      <td>{root.service_name}</td>
-                      <td>{root.operation_name}</td>
-                      <td>{(root.duration_ns / 1e6).toFixed(2)}ms</td>
-                      <td>
-                        <span className={`status ${root.status_code === "ERROR" ? "bad" : "good"}`}>
-                          {root.status_code}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {data?.logs.map((log) => (
+                  <tr key={log.log_id}>
+                    <td>{log.timestamp_unix_nano}</td>
+                    <td>{log.service_name}</td>
+                    <td>
+                      <span className={`status ${severityTone(log.severity_number)}`}>
+                        {log.severity_text || log.severity_number}
+                      </span>
+                    </td>
+                    <td>{String(log.body)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}
@@ -100,4 +89,11 @@ export default function TraceSearch() {
       </div>
     </section>
   );
+}
+
+function severityTone(severity: number) {
+  if (severity >= 17) return "bad"; // Error
+  if (severity >= 13) return "warn"; // Warn
+  if (severity >= 9) return "info"; // Info
+  return "good"; // Debug/Trace
 }
