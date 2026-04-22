@@ -51,7 +51,7 @@ services:
       retries: 20
 
   openfga:
-    image: openfga/openfga:v1.5
+    image: openfga/openfga:v1.14.2
     command: run
     ports: ["8080:8080", "8081:8081"]
     environment:

@@ -59,7 +59,7 @@ The Helm chart and Docker Compose share:
 - The same container image (`observable-services`, built from the repo-root `Dockerfile`).
 - The same environment variable names (`DATABASE_URL`, `CLICKHOUSE_URL`, `REDPANDA_BROKERS`, etc.).
 - The same infrastructure images (`clickhouse/clickhouse-server:24.3`, `postgres:16`,
-  `redpandadata/redpanda:v23.3.1`, `openfga/openfga:v1.5`).
+  `redpandadata/redpanda:v23.3.1`, `openfga/openfga:v1.14.2`).
 - The same `/health` endpoint contract for liveness and readiness probes.
 
 The Helm `values.yaml` keys (`clickhouse.url`, `postgres.url`, `redpanda.brokers`) mirror the
@@ -88,6 +88,13 @@ is not exercised by the current application smoke path, and using in-memory Open
 Helm hook race where the OpenFGA migration job can run before the CloudNativePG cluster has
 finished bootstrapping. PostgreSQL remains deployed through CloudNativePG for application
 database migrations and runtime connectivity.
+
+The OpenFGA chart choice was rechecked on 2026-04-22. The infrastructure chart uses the
+official OpenFGA-maintained repository (`https://openfga.github.io/helm-charts`) and is pinned
+to chart `openfga/openfga` `0.3.2`, whose app version is `v1.14.2` according to `helm search
+repo openfga/openfga --versions`. No Helm repository migration is required for OpenFGA; routine
+dependency sweeps should update this chart pin and the local Docker Compose
+`openfga/openfga` image together.
 
 ### Database Migrations in Kubernetes
 

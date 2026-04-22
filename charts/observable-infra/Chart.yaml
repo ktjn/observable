@@ -6,6 +6,8 @@ version: 0.1.0
 appVersion: "1.0.0"
 
 dependencies:
+  # Official OpenFGA-maintained Helm chart. Keep this aligned with
+  # docker-compose.yml's openfga/openfga image during dependency sweeps.
   - name: openfga
     version: "0.3.2"
     repository: "https://openfga.github.io/helm-charts"
