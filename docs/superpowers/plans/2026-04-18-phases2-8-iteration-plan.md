@@ -186,6 +186,10 @@ Before Phase 3 starts, answer:
 
 ### Priority slice order
 
+- [x] **P3-S0: Define deployment marker specification and ingestion contract**
+  - Outcome: The authoritative specification for deployment markers is established in `spec/18-deployment-markers.md`, covering ingestion schema, RBAC, and automatic `deployment_id` enrichment.
+  - Checkpoint: Is the ingestion contract stable enough to be used by CI/CD providers? Answer: Yes, the spec defines a stable OTLP-compatible JSON and Protobuf path.
+
 - [x] **P3-S1: Add trace-to-log correlation for logs with full trace context**
   - Outcome: a trace detail view can fetch exact correlated log lines. The `query-api` now supports `trace_id` and `span_id` filters for logs, and the frontend `TraceDetail` view displays these logs, allowing for span-level filtering.
   - Checkpoint: are joins based on canonical IDs only, with no fuzzy heuristics yet? Answer: yes. Joins use exact equality on `trace_id` and `span_id` in ClickHouse.
@@ -233,8 +237,8 @@ Before Phase 3 starts, answer:
   - Checkpoint: do we have a durable service identity model or are we still overfitting to labels?
 
 - [ ] **P3-S5: Add service detail overview with quick performance**
-  - Source spec: `spec/05-frontend.md` §9.2.1 Services; `spec/09-api.md` Service Detail Summary.
-  - Outcome: one service detail overview shows request rate, error rate, latency percentiles, SLO/health state, active alert count, latest deployment marker, and related signal entry points.
+  - Source spec: `spec/05-frontend.md` §9.2.1 Services; `spec/09-api.md` Service Detail Summary; `spec/18-deployment-markers.md`.
+  - Outcome: one service detail overview shows request rate, error rate, latency percentiles, SLO/health state, active alert count, latest deployment marker (using `spec/18-deployment-markers.md` logic), and related signal entry points.
   - Files or modules expected to change: query-api service summary path, RED metric derivation for one service, frontend service detail route, overview panels, tests.
   - Out of scope: editable dashboards and advanced SLO management.
   - Verification: API tests cover one service summary; frontend tests cover overview rendering and links to Logs, Metrics, Traces, and Infrastructure.
@@ -281,7 +285,8 @@ Before Phase 3 starts, answer:
   - Checkpoint: are links derived correctly from OTel resource attributes?
 
 - [ ] **P3-S11: Add deployment event ingestion and one timeline overlay**
-  - Outcome: traces or metrics can be viewed against deploy events
+  - Source spec: `spec/18-deployment-markers.md`.
+  - Outcome: traces or metrics can be viewed against deploy events using the schema and ingestion path defined in `spec/18-deployment-markers.md`.
   - Checkpoint: is deployment identity clean enough for rollback analysis later?
 
 - [ ] **P3-S12: Add "Promote to Dashboard" from explorers**

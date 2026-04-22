@@ -529,7 +529,7 @@ Observable uses a hybrid RBAC + ReBAC authorization model. Coarse-grained access
 |---|---|---|
 | TenantAdmin | Tenant | All operations within tenant; manage projects, billing contacts, SSO, API keys |
 | ProjectAdmin | Project | All operations within project; manage members, environments, integrations |
-| Member | Project | Read + write dashboards, alerts, SLO definitions; acknowledge incidents |
+| Member | Project | Read + write dashboards, alerts, SLO definitions, and deployment markers; acknowledge incidents |
 | Viewer | Project | Read only; cannot write dashboards or alerts; cannot acknowledge incidents |
 
 Role assignment is stored as `(user_id, role, scope_type, scope_id)` tuples.
