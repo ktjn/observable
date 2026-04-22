@@ -254,11 +254,19 @@ Before Phase 3 starts, answer:
 
 - [ ] **P3-S7: Add field faceting and statistics to explorers**
   - Source spec: `spec/05-frontend.md` §9.5; `spec/09-api.md` Field Faceting.
-  - Outcome: Log and Trace explorers show distribution of common fields such as status codes, log levels, and service names.
+  - Outcome: Log and Trace explorers show distribution of common fields such as status codes, log levels, and service names. This closes the immediate field-faceting gap recorded in `docs/analysis/2026-04-19-gaps-analysis.md`.
   - Files or modules expected to change: query-api facet responses if incomplete, explorer sidebar components, tests.
   - Out of scope: arbitrary high-cardinality analytics beyond Top N facets.
   - Verification: API tests cover facet counts; frontend tests cover facet rendering, selection, and query update behavior.
   - Checkpoint: does the UI correctly handle high-cardinality facets by showing Top N?
+
+- [ ] **P3-S7b: Add a bounded query-substrate spike**
+  - Source spec: `spec/03-storage.md` §5.4, §8; `spec/13-risks-roadmap.md` §24.5.
+  - Outcome: one query-api read path is routed through an internal planner interface that can later host Arrow/DataFusion execution. If P3-S7 proves direct ClickHouse SQL is sufficient for the next three planned slices, record that decision and defer implementation to Phase 4.
+  - Files or modules expected to change: query-api planner module, one read path or facet path, tests, Cargo dependencies only if the spike actually instantiates Arrow/DataFusion.
+  - Out of scope: rewriting all query endpoints or adding federated query behavior across every signal.
+  - Verification: existing endpoint behavior remains byte-compatible for the selected path; tests prove tenant context is still mandatory and cross-tenant rows still fail closed.
+  - Checkpoint: does a planner abstraction reduce complexity for topology, dashboard, SLO, or semantic-query work, or should the project keep direct SQL until a harder requirement appears?
 
 - [ ] **P3-S8: Add Service Overview map from trace-derived topology**
   - Source spec: `spec/05-frontend.md` §9.2.1 Service Overview and §9.6; `spec/09-api.md` Service Overview Topology.
@@ -287,6 +295,12 @@ Before Phase 3 starts, answer:
 - [ ] **P3-S11: Add deployment event ingestion and one timeline overlay**
   - Source spec: `spec/18-deployment-markers.md`.
   - Outcome: traces or metrics can be viewed against deploy events using the schema and ingestion path defined in `spec/18-deployment-markers.md`.
+  - Closure steps:
+    1. add the deployment marker storage model and tenant-scoped lifecycle API
+    2. add one CI/helper or ingest integration path that can create and finish markers
+    3. add the Query API list endpoint for marker retrieval
+    4. add one timeline overlay in an existing trace or metric view
+  - Verification: API tests cover create/update/list authorization and tenant isolation; frontend tests cover overlay rendering when markers exist and an empty overlay when they do not.
   - Checkpoint: is deployment identity clean enough for rollback analysis later?
 
 - [ ] **P3-S12: Add "Promote to Dashboard" from explorers**
@@ -330,11 +344,13 @@ Before Phase 4 starts, answer:
 ### Priority slice order
 
 - [ ] **P4-S1: Add one warm-retention movement path**
-  - Outcome: aged data moves from hot to warm storage without breaking queries
+  - Outcome: aged data moves from hot ClickHouse storage to one S3-compatible object-storage path without breaking queries for the selected dataset.
+  - Closure steps: add local MinIO or equivalent S3-compatible storage, define object key layout and retention metadata for one signal, add one writer/export movement path, and document rollback/disable behavior.
   - Checkpoint: do query semantics stay stable across tiers?
 
 - [ ] **P4-S2: Add backup and restore drill for one dataset**
-  - Outcome: one restore path is practiced and timed, not merely specified
+  - Outcome: one restore path is practiced and timed, not merely specified.
+  - Closure steps: include object-storage state in the backup boundary if P4-S1 has landed; otherwise explicitly record why the first drill is hot-store-only.
   - Checkpoint: are measured RPO/RTO values acceptable?
 
 - [ ] **P4-S3: Add SSO/OIDC for one customer-compatible flow**
@@ -346,7 +362,8 @@ Before Phase 4 starts, answer:
   - Checkpoint: is the ReBAC model additive to RBAC rather than conflicting with it?
 
 - [ ] **P4-S5: Add SLO definition and one burn-rate alert**
-  - Outcome: one service has a complete SLO workflow with alerting
+  - Outcome: one service has a complete SLO workflow with alerting.
+  - Closure steps: add the SLO definition model/API, reuse the Phase 2 threshold evaluator dispatch loop for an `slo_burn_rate` rule type, evaluate at least one multi-window burn-rate condition, and expose enough state for the frontend to show SLO health.
   - Checkpoint: are error budget semantics now reliable enough for customer use?
 
 - [ ] **P4-S6: Add production runbook set for one failure class**
@@ -406,10 +423,13 @@ Before Phase 5 starts, answer:
 ### Priority slice order
 
 - [ ] **P6-S1: Add continuous profiling ingestion and one query path**
+  - Prerequisite: object storage from P4-S1 exists, because `spec/03-storage.md` stores profile blobs in object storage.
 - [ ] **P6-S2: Add browser RUM for one web app**
+  - First slice guidance: start with standard OTel browser-compatible payloads plus explicit `session_id` attributes before introducing a custom RUM endpoint.
 - [ ] **P6-S3: Add mobile signal ingestion for one SDK path**
 - [ ] **P6-S4: Add one synthetic check workflow**
 - [ ] **P6-S5: Add eBPF-assisted enrichment for one justified use case**
+  - Prerequisite: complete a boundary-focused security review for privileged DaemonSet deployment, host access, tenant attribution, and rollback.
 - [ ] **P6-S6: Add session replay only after privacy review passes**
 
 **Checkpoint question:** does each new signal remain modular, governed, and optional?
@@ -499,6 +519,8 @@ After this planning reconciliation, the next implementation slice should be:
 
 **Next recommended slice: P3-S7 - Add field faceting and statistics to explorers.**
 
+The 2026-04-22 gap-analysis refresh confirms P3-S7 is still the right next slice. After P3-S7, answer the P3-S7b query-substrate checkpoint before broad topology, dashboard, SLO, or semantic-query work adds more direct SQL paths.
+
 ---
 
 ## 14. ADR/Spec Sync Note
@@ -508,3 +530,5 @@ No ADR update is included in this document. This plan decomposes the already-def
 P3-S5 added a concrete single-service summary endpoint for an existing Service Detail Summary capability. `spec/09-api.md` was updated with the route and current response fields. No ADR update is needed because the iteration does not change architecture, technology choice, deployment model, data model, security model, or roadmap scope.
 
 **ADR-021** (NL query layer, Proposed — added 2026-04-19 via PR #53) introduces the NL query layer as a new Phase 8 feature and the Schema Registry semantic annotations as a Phase 3 prerequisite. P3-S14 and P8-S6 above reflect this. ADR-021 operates within the advisory-only, provenance-required, read-only constraints established by ADR-014.
+
+The 2026-04-22 gap-analysis refresh updated planning sequence only. No ADR or spec update is required because the changes map already specified gaps to concrete slices without changing architecture, technology choice, deployment model, data model, security model, or roadmap scope.
