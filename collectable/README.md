@@ -93,14 +93,23 @@ for the architectural decision record.
 
 ## Sample invocation
 
-## Sample invocation
-
 Build & Download
+
+HTTP/JSON (port 4318):
 
 ```bash
 curl -X POST 'http://localhost:8091/build' \
   -H 'Content-Type: application/json' \
-  -d '{"definition":{"version":"1","name":"journalctl-to-otlp","transport":{"type":"stdin"},"parser":{"type":"grok","pattern":"%{TIMESTAMP_ISO8601:timestamp} %{GREEDYDATA:message}"},"mapping":{"time_field":{"field":"timestamp","format":"auto"},"body":{"field":"message"}},"output":{"endpoint":"http://localhost:4317/v1/logs","protocol":"http"}},"target":"x86_64-unknown-linux-musl"}' \
+  -d '{"definition":{"version":"1","name":"journalctl-to-otlp","transport":{"type":"stdin"},"parser":{"type":"grok","pattern":"%{TIMESTAMP_ISO8601:timestamp} %{GREEDYDATA:message}"},"mapping":{"time_field":{"field":"timestamp","format":"auto"},"body":{"field":"message"}},"output":{"endpoint":"http://localhost:4318/v1/logs","protocol":"http"}},"target":"x86_64-unknown-linux-musl"}' \
+  --output journalctl-to-otlp-x86_64-unknown-linux-musl.zip
+```
+
+gRPC (port 4317):
+
+```bash
+curl -X POST 'http://localhost:8091/build' \
+  -H 'Content-Type: application/json' \
+  -d '{"definition":{"version":"1","name":"journalctl-to-otlp","transport":{"type":"stdin"},"parser":{"type":"grok","pattern":"%{TIMESTAMP_ISO8601:timestamp} %{GREEDYDATA:message}"},"mapping":{"time_field":{"field":"timestamp","format":"auto"},"body":{"field":"message"}},"output":{"endpoint":"http://localhost:4317","protocol":"grpc"}},"target":"x86_64-unknown-linux-musl"}' \
   --output journalctl-to-otlp-x86_64-unknown-linux-musl.zip
 ```
 
@@ -112,8 +121,11 @@ Run
 unzip journalctl-to-otlp-x86_64-unknown-linux-musl.zip
 chmod +x journalctl-to-otlp-x86_64-unknown-linux-musl/journalctl-to-otlp
 
-export OTLP_TOKEN=<your-api-key>
-export OTLP_ENDPOINT=http://localhost:4317/v1/logs   # optional: overrides compiled-in endpoint
+export OTLP_TOKEN=dev-api-key-0000
+# http/json
+# export OTLP_ENDPOINT=http://localhost:4318/v1/logs
+# gRPC
+# export OTLP_ENDPOINT=http://localhost:4317
 sudo journalctl -o short-iso-precise -f | \
   journalctl-to-otlp-x86_64-unknown-linux-musl/journalctl-to-otlp
 ```
@@ -128,7 +140,7 @@ All variables are read at **runtime** by the compiled binary.
 
 | Variable | Default | Description |
 |---|---|---|
-| `OTLP_ENDPOINT` | compiled-in | Override the OTLP endpoint URL. For HTTP protocol include the full path, e.g. `http://host:4317/v1/logs`. |
+| `OTLP_ENDPOINT` | compiled-in | Override the OTLP endpoint URL. For HTTP protocol include the full path, e.g. `http://host:4318/v1/logs`. For gRPC use host and port only, e.g. `http://host:4317`. |
 | `OTLP_TOKEN` | — | Sent as `Authorization: Bearer <token>` on every export request. |
 | `OTLP_INSECURE` | `false` | Set to `true` to disable TLS certificate verification. |
 | `COLLECTABLE_LOG_LEVEL` | `info` | Log level: `trace`, `debug`, `info`, `warn`, `error`. |

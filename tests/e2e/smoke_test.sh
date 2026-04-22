@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INGEST="${INGEST_URL:-http://localhost:4317}"
+INGEST="${INGEST_URL:-http://localhost:4318}"
+GRPC_INGEST="${GRPC_INGEST_URL:-http://localhost:4317}"
 QUERY="${QUERY_URL:-http://localhost:8090}"
 TOKEN="dev-api-key-0000"
 TENANT_ID="00000000-0000-0000-0000-000000000001"
@@ -52,6 +53,30 @@ curl -sf -X POST "$INGEST/v1/metrics" \
   -H "Content-Type: application/json" \
   -d "{\"resourceMetrics\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"smoke-svc\"}}]},\"scopeMetrics\":[{\"metrics\":[{\"name\":\"smoke.counter\",\"sum\":{\"dataPoints\":[{\"asDouble\":1.0,\"timeUnixNano\":\"$(date +%s%N)\"}],\"aggregationTemporality\":2,\"isMonotonic\":true}}]}]}]}"
 echo " OK"
+
+echo "5b. Sending log via gRPC..."
+GRPC_HOST=$(echo "$GRPC_INGEST" | sed 's|http://||')
+GRPC_BODY="smoke-grpc-log-$(date +%s%N)"
+grpcurl -plaintext \
+  -import-path /proto/otlp \
+  -proto opentelemetry/proto/collector/logs/v1/logs_service.proto \
+  -H "Authorization: Bearer $TOKEN" \
+  -d "{\"resourceLogs\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"smoke-grpc-svc\"}}]},\"scopeLogs\":[{\"logRecords\":[{\"timeUnixNano\":\"$(date +%s%N)\",\"severityNumber\":9,\"body\":{\"stringValue\":\"$GRPC_BODY\"}}]}]}]}" \
+  "$GRPC_HOST" \
+  opentelemetry.proto.collector.logs.v1.LogsService/Export
+echo " OK (sent)"
+
+echo "5c. Verifying gRPC log landed in ClickHouse..."
+sleep 3
+GRPC_LOG_RESULT=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" "$QUERY/v1/logs?service=smoke-grpc-svc")
+GRPC_LOG_COUNT=$(echo "$GRPC_LOG_RESULT" | jq '.logs | length')
+if [ "$GRPC_LOG_COUNT" -gt 0 ]; then
+  echo " OK (verified) — $GRPC_LOG_COUNT log record(s) in ClickHouse"
+else
+  echo " FAIL: gRPC log not found in ClickHouse"
+  echo " Result: $GRPC_LOG_RESULT"
+  exit 1
+fi
 
 echo "6. Checking discovery endpoints..."
 SERVICES=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" "$QUERY/v1/services")

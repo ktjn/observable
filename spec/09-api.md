@@ -63,8 +63,12 @@ The Query API must support the following patterns required by the Frontend (see 
 
 #### Service Detail Summary
 - **Capability**: The UI needs a service summary query for the service detail overview and service catalog.
-- **Required Fields**: Request rate, error rate, latency percentiles, active alert count, current SLO state, latest deployment marker (as defined in `spec/18-deployment-markers.md`), and links or identifiers for related logs, metrics, traces, and infrastructure entities.
-- **Filtering**: Must support project, environment, tenant, service, and time range filters.
+- **Endpoints**:
+  - `GET /v1/services/summary` returns the tenant-scoped service catalog summary collection.
+  - `GET /v1/services/{service_name}/summary` returns the summary for one service or `404` when the service has no data in the selected lookback.
+- **Required Fields**: Request rate, error rate, latency percentiles, active alert count, current SLO state, latest deployment marker, and links or identifiers for related logs, metrics, traces, and infrastructure entities.
+- **Current Response Fields**: `service_name`, `request_rate`, `error_rate`, `p95_latency_ms`, `health_state`, `active_alert_count`, and `latest_deployment`.
+- **Filtering**: Must support project, environment, tenant, service, and time range filters. The current implementation supports tenant through `X-Tenant-ID`, `environment`, service path parameter for the single-service endpoint, and `lookback_minutes`.
 
 #### Infrastructure Views
 - **Capability**: Query endpoints must support infrastructure inventory and detail views for hosts, Kubernetes clusters, namespaces, pods, and containers when those resource attributes or catalog entities exist.
