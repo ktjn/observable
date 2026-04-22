@@ -3,6 +3,8 @@ name = "collectable-build-service"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+
 [[bin]]
 name = "build-service"
 path = "src/main.rs"
@@ -17,5 +19,5 @@ tracing    = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tera       = "1"
 regex      = "1"
-zip        = "2"
+zip = { version = "2", default-features = false, features = ["deflate", "bzip2"] }
 uuid       = { version = "1", features = ["v4"] }

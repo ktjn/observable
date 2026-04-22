@@ -13,7 +13,11 @@ pub fn parse_lines(
     params: &HashMap<String, serde_json::Value>,
     lines: &[String],
 ) -> Result<Vec<ParsedRow>, String> {
-    let lines: Vec<&str> = lines.iter().map(|l| l.trim()).filter(|l| !l.is_empty()).collect();
+    let lines: Vec<&str> = lines
+        .iter()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .collect();
     if lines.is_empty() {
         return Ok(vec![]);
     }
@@ -44,7 +48,12 @@ fn parse_json(lines: &[&str]) -> Result<Vec<ParsedRow>, String> {
         .iter()
         .map(|line| {
             serde_json::from_str::<serde_json::Value>(line)
-                .map_err(|e| format!("JSON parse error on line {:?}: {e}", &line[..line.len().min(60)]))
+                .map_err(|e| {
+                    format!(
+                        "JSON parse error on line {:?}: {e}",
+                        &line[..line.len().min(60)]
+                    )
+                })
                 .and_then(|v| match v {
                     serde_json::Value::Object(map) => Ok(map
                         .into_iter()
@@ -56,7 +65,10 @@ fn parse_json(lines: &[&str]) -> Result<Vec<ParsedRow>, String> {
                             (k, s)
                         })
                         .collect()),
-                    _ => Err(format!("Line is not a JSON object: {:?}", &line[..line.len().min(60)])),
+                    _ => Err(format!(
+                        "Line is not a JSON object: {:?}",
+                        &line[..line.len().min(60)]
+                    )),
                 })
         })
         .collect()
@@ -74,16 +86,25 @@ fn apply_regex(re: &Regex, lines: &[&str]) -> Vec<ParsedRow> {
                 .map(|name| {
                     (
                         name.to_string(),
-                        caps.name(name).map(|m| m.as_str().to_string()).unwrap_or_default(),
+                        caps.name(name)
+                            .map(|m| m.as_str().to_string())
+                            .unwrap_or_default(),
                     )
                 })
                 .collect(),
-            None => [("⚠".to_string(), format!("no match: {}", &line[..line.len().min(60)]))].into(),
+            None => [(
+                "⚠".to_string(),
+                format!("no match: {}", &line[..line.len().min(60)]),
+            )]
+            .into(),
         })
         .collect()
 }
 
-fn parse_regex(params: &HashMap<String, serde_json::Value>, lines: &[&str]) -> Result<Vec<ParsedRow>, String> {
+fn parse_regex(
+    params: &HashMap<String, serde_json::Value>,
+    lines: &[&str],
+) -> Result<Vec<ParsedRow>, String> {
     let pattern = params
         .get("pattern")
         .and_then(|v| v.as_str())
@@ -96,7 +117,9 @@ fn parse_regex(params: &HashMap<String, serde_json::Value>, lines: &[&str]) -> R
 
 fn grok_builtin(name: &str) -> Option<&'static str> {
     Some(match name {
-        "TIMESTAMP_ISO8601" => r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?",
+        "TIMESTAMP_ISO8601" => {
+            r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?"
+        }
         "DATESTAMP" => r"\d{1,2}/\w+/\d{4}:\d{2}:\d{2}:\d{2} [+-]\d{4}",
         "LOGLEVEL" | "LOGLEVEL_SYSLOG" => {
             r"(?:DEBUG|INFO|WARN(?:ING)?|ERROR|FATAL|TRACE|CRITICAL|EMERG|ALERT|CRIT|NOTICE)"
@@ -155,7 +178,10 @@ fn grok_to_regex(grok_pattern: &str) -> Result<String, String> {
     Ok(out)
 }
 
-fn parse_grok(params: &HashMap<String, serde_json::Value>, lines: &[&str]) -> Result<Vec<ParsedRow>, String> {
+fn parse_grok(
+    params: &HashMap<String, serde_json::Value>,
+    lines: &[&str],
+) -> Result<Vec<ParsedRow>, String> {
     let pattern = params
         .get("pattern")
         .and_then(|v| v.as_str())
@@ -167,8 +193,14 @@ fn parse_grok(params: &HashMap<String, serde_json::Value>, lines: &[&str]) -> Re
 
 // ── Key=Value ─────────────────────────────────────────────────────────────────
 
-fn parse_key_value(params: &HashMap<String, serde_json::Value>, lines: &[&str]) -> Result<Vec<ParsedRow>, String> {
-    let sep = params.get("separator").and_then(|v| v.as_str()).unwrap_or(" ");
+fn parse_key_value(
+    params: &HashMap<String, serde_json::Value>,
+    lines: &[&str],
+) -> Result<Vec<ParsedRow>, String> {
+    let sep = params
+        .get("separator")
+        .and_then(|v| v.as_str())
+        .unwrap_or(" ");
     Ok(lines
         .iter()
         .map(|line| {
@@ -192,7 +224,10 @@ fn parse_key_value(params: &HashMap<String, serde_json::Value>, lines: &[&str]) 
 
 // ── CSV ───────────────────────────────────────────────────────────────────────
 
-fn parse_csv(params: &HashMap<String, serde_json::Value>, lines: &[&str]) -> Result<Vec<ParsedRow>, String> {
+fn parse_csv(
+    params: &HashMap<String, serde_json::Value>,
+    lines: &[&str],
+) -> Result<Vec<ParsedRow>, String> {
     let delim = params
         .get("delimiter")
         .and_then(|v| v.as_str())
@@ -257,7 +292,11 @@ fn log4j2_pattern_to_regex(pattern: &str) -> Result<String, String> {
         }
 
         // Skip optional format modifier: [-]?[0-9]*(\.[0-9]+)?
-        while chars.peek().map(|c| c.is_ascii_digit() || *c == '-' || *c == '.').unwrap_or(false) {
+        while chars
+            .peek()
+            .map(|c| c.is_ascii_digit() || *c == '-' || *c == '.')
+            .unwrap_or(false)
+        {
             chars.next();
         }
 
@@ -317,6 +356,7 @@ fn parse_log4j2_pattern(
         .and_then(|v| v.as_str())
         .ok_or("Missing 'pattern' parameter")?;
     let regex_str = log4j2_pattern_to_regex(pattern)?;
-    let re = Regex::new(&regex_str).map_err(|e| format!("PatternLayout→Regex error: {e}\nGenerated: {regex_str}"))?;
+    let re = Regex::new(&regex_str)
+        .map_err(|e| format!("PatternLayout→Regex error: {e}\nGenerated: {regex_str}"))?;
     Ok(apply_regex(&re, lines))
 }

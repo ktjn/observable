@@ -209,7 +209,7 @@ export function ParserEditor({ definition, onChange, onNext }: Props) {
         </label>
       )}
 
-      {parser.type && parser.type !== 'passthrough' && (
+      {!!parser.type && parser.type !== 'passthrough' && (
         <label style={{ display: 'block', marginTop: 12, fontSize: 13, color: '#555' }}>
           <input type="checkbox" checked={includeRaw}
             onChange={e => setIncludeRaw(e.target.checked)} />
@@ -218,7 +218,7 @@ export function ParserEditor({ definition, onChange, onNext }: Props) {
       )}
 
       {/* Live parse preview */}
-      {parser.type && sample.trim() && (
+      {!!parser.type && sample.trim() && (
         <div style={{ marginTop: 20 }}>
           <strong style={{ fontSize: 13 }}>Parse preview{loading ? ' ⟳' : ''}</strong>
           {parseError && (

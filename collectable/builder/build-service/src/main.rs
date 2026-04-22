@@ -1,9 +1,10 @@
-mod definition;
+mod api;
 mod codegen;
 mod compiler;
+mod definition;
 mod packaging;
 mod parse;
-mod api;
+mod validate;
 
 use anyhow::Result;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
