@@ -127,7 +127,10 @@ Schema rules:
 - `version` is required and must be `"1"` for v1 definitions.
 - `transport.type` must be one of the supported transport identifiers (§4).
 - `parser.type` must be one of the supported parser identifiers (§5).
-- `mapping` fields support `literal`, `field`, `env`, and `map` value sources.
+- `mapping` fields support `literal`, `field`, `env`, `command`, and `map` value sources.
+- `resource_attributes` values support `literal`, `env`, and `command` sources only — not `field` (resources are set once at startup, before any log lines are parsed).
+- Standard fields (`body`, `severity_text`, `time_field`, `trace_id`, `span_id`) support `field` and `literal` sources.
+- `log_attributes` values support `field` source only.
 - `output.endpoint` and all string values support `${ENV_VAR}` interpolation,
   resolved at runtime in the compiled binary.
 
@@ -183,27 +186,38 @@ The mapping is defined in the `mapping` section of the pipeline definition.
 
 | Source | Description | Example |
 |---|---|---|
-| `{ "field": "name" }` | Value of a parsed field | `{ "field": "status" }` |
-| `{ "literal": "value" }` | Hardcoded string | `{ "literal": "nginx" }` |
-| `{ "env": "VAR" }` | Environment variable at runtime | `{ "env": "HOSTNAME" }` |
+| `{ "field": "name" }` | Value of a parsed field (per-record) | `{ "field": "status" }` |
+| `{ "literal": "value" }` | Hardcoded string constant | `{ "literal": "nginx" }` |
+| `{ "env": "VAR" }` | Environment variable resolved at binary startup | `{ "env": "HOSTNAME" }` |
+| `{ "command": "cmd" }` | Shell command run once at binary startup (`sh -c`) | `{ "command": "hostname -f" }` |
 | `{ "field": "name", "type": "int" }` | Parsed field coerced to integer | |
 | `{ "field": "name", "map": {...} }` | Value mapped through a lookup table | Severity mapping |
 
-### 6.2 Target Fields
+### 6.2 Source / target compatibility
+
+| Source    | `resource_attributes` | Standard fields (`body`, `severity_text`, `time_field`, `trace_id`, `span_id`) | `log_attributes` |
+|-----------|------------------------|---------------------------------------------------------------------------------|------------------|
+| `field`   | ❌ rejected (HTTP 400)  | ✅                                                                               | ✅ only option   |
+| `literal` | ✅                      | ✅                                                                               | ❌ rejected      |
+| `env`     | ✅                      | ❌ (constant at startup → use `resource_attributes`)                            | ❌ rejected      |
+| `command` | ✅                      | ❌ (constant at startup → use `resource_attributes`)                            | ❌ rejected      |
+
+`resource_attributes` are set once when the binary starts, before any log lines are parsed — they cannot reference per-record field values. Invalid combinations are rejected with HTTP 400 by the build service before any codegen runs.
+
+### 6.3 Target Fields
 
 | Target | OTel LogRecord field | Notes |
 |---|---|---|
-| `resource_attributes` | `Resource.attributes` | Applies to all records from this mediator |
-| `log_attributes` | `LogRecord.attributes` | Per-record attributes |
+| `resource_attributes` | `Resource.attributes` | Applies to all records from this mediator; static sources only |
+| `log_attributes` | `LogRecord.attributes` | Per-record attributes; `field` source only |
 | `body` | `LogRecord.body` | Use `{ "field": "$raw" }` for the full raw line |
 | `severity_text` | `LogRecord.severity_text` | Maps to `severity_number` automatically |
 | `severity_number` | `LogRecord.severity_number` | Direct integer assignment |
 | `trace_id` | `LogRecord.trace_id` | 32-char hex string |
 | `span_id` | `LogRecord.span_id` | 16-char hex string |
-| `time_field` | `LogRecord.time_unix_nano` | Parses timestamp from a field |
-| `drop` | — | Extracted field is discarded |
+| `time_field` | `LogRecord.time_unix_nano` | Parses timestamp; `field` or `literal` source |
 
-### 6.3 Severity Normalisation
+### 6.4 Severity Normalisation
 
 When `severity_text` is set via a `map`, the compiler generates a match arm that
 also sets `severity_number` according to the OTel severity number specification
@@ -241,9 +255,21 @@ Step 3: Parser
   Live preview: each sample line is parsed and fields are displayed
 
 Step 4: OTLP Mapping
-  For each extracted field: assign to resource_attributes / log_attributes /
-  body / severity / trace context / drop
-  Live preview: resulting OTel LogRecord JSON displayed per sample line
+  Three dynamic sections, all add/remove rows freely:
+  ┌─ Standard fields ──────────────────────────────────────────────────────────┐
+  │  OTLP target (body / severity_text / time_field / trace_id / span_id)      │
+  │  Source: field (select from parsed fields) or literal (static string)      │
+  └─────────────────────────────────────────────────────────────────────────────┘
+  ┌─ Log Attributes ───────────────────────────────────────────────────────────┐
+  │  OTLP attribute key (free text) → parsed field (dropdown)                  │
+  │  Per-record, appended to every LogRecord                                   │
+  └─────────────────────────────────────────────────────────────────────────────┘
+  ┌─ Resource Attributes ──────────────────────────────────────────────────────┐
+  │  OTLP attribute key (free text, OTel semantic convention autocomplete)      │
+  │  Source: env (${VAR}) / command ($(sh -c ...)) / literal ("string")        │
+  │  Set once at binary startup; constant across all records                   │
+  └─────────────────────────────────────────────────────────────────────────────┘
+  Live OTLP LogRecord preview always visible and always in sync
 
 Step 5: Output
   OTLP endpoint URL, protocol (gRPC / HTTP), auth header, batch size
