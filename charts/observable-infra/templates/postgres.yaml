@@ -12,6 +12,9 @@ apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
   name: postgres
+  annotations:
+    observable.com/self-observability-mode: {{ .Values.selfObservability.mode | quote }}
+    observable.com/self-observability-otlp-endpoint: {{ .Values.selfObservability.otlpEndpoint | quote }}
 spec:
   instances: 1
   # Use official CloudNativePG image (which is official Postgres + CNPG tools)
