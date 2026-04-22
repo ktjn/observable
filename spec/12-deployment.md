@@ -84,6 +84,112 @@ directories; runtime images must receive only compiled binaries or static fronte
 - restore drills quarterly
 - RPO/RTO defined per retention tier
 
+### 19.5.1 Self-Observability Deployment
+
+Self-observability is deployed as an OpenTelemetry-native telemetry path, not as a
+Prometheus-first monitoring stack. Every Observable workload emits OTLP traces, metrics,
+and logs with standard OpenTelemetry resource attributes. Health and readiness probes remain
+Kubernetes-native, and Prometheus-format scraping is allowed only as a compatibility receiver
+inside the OpenTelemetry Collector for infrastructure or third-party components that do not
+emit OTLP directly.
+
+This section extends `spec/17-self-observability.md` into the deployment model. The logical
+destination is always a `system` tenant. The physical destination is selected per environment:
+
+| Mode | Use | OTLP destination |
+|------|-----|------------------|
+| `self` | local development, bootstrap, internal dogfooding | the primary Observable instance's `ingest-gateway` |
+| `observer_instance` | production, customer-facing, regulated, and staging environments | a second Observable instance dedicated to observing the primary instance |
+
+Production-like environments SHOULD use `observer_instance` so operators can inspect primary
+platform health when the primary ingest, query, storage, UI-serving, or infrastructure path is
+degraded. The `self` mode is retained for dogfooding the full ingest pipeline and for local
+developer workflows where a second instance is unnecessary.
+
+**Deployment components**
+
+| Component | Deployment role | Native telemetry path |
+|-----------|-----------------|-----------------------|
+| Observable services | `ingest-gateway`, `auth-service`, `storage-writer`, `stream-processor`, `query-api`, alert evaluators, background workers, and migration jobs | OTLP traces, metrics, and logs exported through the workload OTel SDK or sidecarless collector endpoint |
+| Frontend runtime | React app served by nginx or equivalent frontend container | Browser OTel signals for route changes, API calls, Web Vitals, runtime errors, failed resource loads, and critical interaction latency |
+| OTel Collector gateway | Per-cluster collector Deployment receiving platform OTLP and infrastructure signals | OTLP receiver and exporter; processors add environment, cluster, namespace, workload, build, and deployment attributes |
+| OTel Collector node agent | DaemonSet for node, pod, container, filelog, and kubelet signals | OpenTelemetry host, Kubernetes, kubelet, and log receivers; Prometheus receiver only for dependencies without native OTLP |
+| Infrastructure dependencies | Kubernetes, ingress, service mesh if present, Redpanda, ClickHouse, PostgreSQL, object storage, and deployment controllers | Native OTel receivers where available; compatibility scraping converted to OTLP at the collector boundary |
+| Observer instance | Independent Observable deployment for production-like self-observability | Receives OTLP from the primary environment into its `system` tenant |
+
+**Required deployment configuration**
+
+Each environment MUST define:
+
+- `OBSERVABLE_SELF_OBSERVABILITY_MODE`: `self` or `observer_instance`.
+- `OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT`: OTLP gRPC or HTTP endpoint for the selected destination.
+- `OBSERVABLE_SELF_OBSERVABILITY_TENANT`: defaults to `system`.
+- `OBSERVABLE_SELF_OBSERVABILITY_HEADERS_SECRET_REF`: secret reference for OTLP auth headers or API key material.
+- `OBSERVABLE_DEPLOYMENT_ENVIRONMENT`, `OBSERVABLE_CLUSTER`, and `OBSERVABLE_RELEASE`: resource attributes applied by services, collectors, and frontend telemetry.
+
+Service charts MUST expose these values through Helm and render them into Deployments, Jobs,
+frontend runtime config, and collector configuration. Local Docker Compose MUST expose the same
+configuration names, defaulting to `self` mode.
+
+**Deployment diagram**
+
+```mermaid
+flowchart TB
+    subgraph primary[Primary Observable environment]
+        subgraph workloads[Observable workloads]
+            frontend[Frontend runtime]
+            services[Rust services and workers]
+            jobs[Migration jobs and canary paths]
+        end
+
+        subgraph infra[Infrastructure dependencies]
+            k8s[Kubernetes nodes, pods, ingress]
+            redpanda[Redpanda]
+            clickhouse[ClickHouse]
+            postgres[PostgreSQL]
+            objectstore[Object storage]
+        end
+
+        agent[OTel Collector node agent]
+        gateway[OTel Collector gateway]
+        ingest[Primary ingest-gateway]
+        system[(Primary system tenant)]
+    end
+
+    subgraph observer[Observer Observable instance]
+        observerIngest[Observer ingest-gateway]
+        observerSystem[(Observer system tenant)]
+        observerUi[Observer UI and query API]
+    end
+
+    frontend -- OTLP browser signals --> gateway
+    services -- OTLP traces metrics logs --> gateway
+    jobs -- OTLP traces metrics logs --> gateway
+
+    k8s -- OTel receivers --> agent
+    redpanda -- OTel or compatibility receiver --> agent
+    clickhouse -- OTel or compatibility receiver --> agent
+    postgres -- OTel or compatibility receiver --> agent
+    objectstore -- OTel or compatibility receiver --> agent
+    agent -- OTLP --> gateway
+
+    gateway -- self mode OTLP --> ingest
+    ingest --> system
+
+    gateway -- observer_instance mode OTLP --> observerIngest
+    observerIngest --> observerSystem
+    observerUi --> observerSystem
+```
+
+The OpenTelemetry Collector is the protocol boundary. Downstream of the collector, telemetry
+MUST be exported as OTLP to either the primary instance or the observer instance. Prometheus
+scraping, log tailing, kubelet stats, and vendor-specific infrastructure receivers are collector
+inputs only; they must not create a second primary monitoring data model.
+
+Independent health and readiness checks remain required even when OTLP self-observability is
+healthy. Kubernetes probes and external synthetic checks provide the failure-mode backstop for
+cases where the primary OTLP ingest path or observer instance is unavailable.
+
 ### 19.6 Local Development
 
 Local development uses Docker Compose for external dependencies, Rust services, and the React frontend. The frontend is served from an nginx container built from `apps/frontend/Dockerfile`.
@@ -306,7 +412,8 @@ analysis (spec §19.3), replacing this script when that tooling is provisioned.
 - Kubernetes
 - Argo CD + Argo Rollouts
 - OpenTelemetry everywhere
-- Prometheus-compatible internal scraping
+- OpenTelemetry-native self-observability pipeline
+- Prometheus-compatible scraping only as an OpenTelemetry Collector input for components without native OTLP
 - cert-manager
 - External Secrets or equivalent
 - policy engine
