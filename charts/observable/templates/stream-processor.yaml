@@ -2,7 +2,9 @@
 {{- $env := list
     (dict "name" "REDPANDA_BROKERS"    "value" .Values.redpanda.brokers)
     (dict "name" "INGEST_TOPIC"        "value" .Values.redpanda.ingestTopic)
-    (dict "name" "STORAGE_WRITER_URL"  "value" (printf "http://storage-writer:%d" (int .Values.services.storageWriter.port))) -}}
+    (dict "name" "STORAGE_WRITER_URL"  "value" (printf "http://storage-writer:%d" (int .Values.services.storageWriter.port)))
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT" "value" .Values.selfObservability.otlpEndpoint) -}}
 {{- $ctx := dict
     "name"    "stream-processor"
     "command" "stream-processor"

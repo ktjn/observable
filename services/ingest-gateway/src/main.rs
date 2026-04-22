@@ -135,8 +135,7 @@ pub fn build_router(state: AppState) -> Router {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let otlp = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
-    domain::telemetry::init_telemetry("ingest-gateway", otlp.as_deref())?;
+    domain::telemetry::init_self_observability_telemetry("ingest-gateway")?;
 
     let http_port: u16 = std::env::var("INGEST_GATEWAY_PORT")
         .unwrap_or_else(|_| "4318".into())

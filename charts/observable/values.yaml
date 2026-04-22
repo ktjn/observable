@@ -32,6 +32,14 @@ redpanda:
   brokers: "redpanda:9093"
   ingestTopic: "telemetry.raw"
 
+selfObservability:
+  # Supported modes:
+  # - self: emit platform telemetry to this release's system tenant.
+  # - observer_instance: emit platform telemetry to a second Observable instance.
+  mode: "self"
+  otlpEndpoint: "http://ingest-gateway:4318"
+  headersSecretRef: ""
+
 # Per-service configuration.
 # Each block maps directly to one Deployment + one Service (except
 # streamProcessor which is headless).

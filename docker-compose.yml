@@ -1,3 +1,7 @@
+x-platform-self-observability-env: &platform-self-observability-env
+  OBSERVABLE_SELF_OBSERVABILITY_MODE: ${OBSERVABLE_SELF_OBSERVABILITY_MODE:-self}
+  OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT: ${OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT:-http://ingest-gateway:4318}
+
 services:
   # --- INFRASTRUCTURE ---
   clickhouse:
@@ -104,6 +108,7 @@ services:
     build: { context: ., dockerfile: Dockerfile }
     command: ["auth-service"]
     environment:
+      <<: *platform-self-observability-env
       DATABASE_URL: postgres://observable:observable@postgres:5432/observable
       AUTH_SERVICE_PORT: "4319"
     ports: ["4319:4319"]
@@ -120,6 +125,7 @@ services:
     build: { context: ., dockerfile: Dockerfile }
     command: ["storage-writer"]
     environment:
+      <<: *platform-self-observability-env
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CH_USER:-default}
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
@@ -138,6 +144,7 @@ services:
     build: { context: ., dockerfile: Dockerfile }
     command: ["stream-processor"]
     environment:
+      <<: *platform-self-observability-env
       REDPANDA_BROKERS: redpanda:9092
       INGEST_TOPIC: telemetry.raw
       STORAGE_WRITER_URL: http://storage-writer:4320
@@ -150,6 +157,7 @@ services:
     build: { context: ., dockerfile: Dockerfile }
     command: ["ingest-gateway"]
     environment:
+      <<: *platform-self-observability-env
       INGEST_GATEWAY_PORT: "4318"
       INGEST_GATEWAY_GRPC_PORT: "4317"
       REDPANDA_BROKERS: redpanda:9092
@@ -170,6 +178,7 @@ services:
     build: { context: ., dockerfile: Dockerfile }
     command: ["query-api"]
     environment:
+      <<: *platform-self-observability-env
       QUERY_API_PORT: "8090"
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CH_USER:-default}
@@ -190,6 +199,7 @@ services:
     build: { context: ., dockerfile: Dockerfile }
     command: ["alert-evaluator"]
     environment:
+      <<: *platform-self-observability-env
       DATABASE_URL: postgres://observable:observable@postgres:5432/observable
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CH_USER:-default}
@@ -208,7 +218,15 @@ services:
 
   frontend:
     image: observable-frontend:local
-    build: { context: ., dockerfile: apps/frontend/Dockerfile }
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      args:
+        VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE: ${OBSERVABLE_SELF_OBSERVABILITY_MODE:-self}
+        VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT: ${OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT:-http://ingest-gateway:4318}
+    environment:
+      VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE: ${OBSERVABLE_SELF_OBSERVABILITY_MODE:-self}
+      VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT: ${OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT:-http://ingest-gateway:4318}
     ports: ["${FRONTEND_PORT:-5173}:80"]
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]

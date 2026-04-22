@@ -1,7 +1,9 @@
 {{- if .Values.services.authService.enabled -}}
 {{- $env := list
     (dict "name" "DATABASE_URL"      "value" .Values.postgres.url)
-    (dict "name" "AUTH_SERVICE_PORT" "value" (toString .Values.services.authService.port)) -}}
+    (dict "name" "AUTH_SERVICE_PORT" "value" (toString .Values.services.authService.port))
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT" "value" .Values.selfObservability.otlpEndpoint) -}}
 {{- $ctx := dict
     "name"    "auth-service"
     "command" "auth-service"

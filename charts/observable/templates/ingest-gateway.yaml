@@ -1,10 +1,13 @@
 {{- if .Values.services.ingestGateway.enabled -}}
+{{- $selectorCtx := dict "name" "ingest-gateway" "Release" .Release -}}
 {{- $env := list
     (dict "name" "INGEST_GATEWAY_PORT"      "value" (toString .Values.services.ingestGateway.port))
     (dict "name" "INGEST_GATEWAY_GRPC_PORT" "value" (toString .Values.services.ingestGateway.grpcPort))
     (dict "name" "REDPANDA_BROKERS"         "value" .Values.redpanda.brokers)
     (dict "name" "INGEST_TOPIC"             "value" .Values.redpanda.ingestTopic)
-    (dict "name" "AUTH_SERVICE_URL"         "value" (printf "http://auth-service:%d" (int .Values.services.authService.port))) -}}
+    (dict "name" "AUTH_SERVICE_URL"         "value" (printf "http://auth-service:%d" (int .Values.services.authService.port)))
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT" "value" .Values.selfObservability.otlpEndpoint) -}}
 
 {{- /* We override the deployment and service to handle multiple ports since common library is single-port */ -}}
 apiVersion: apps/v1
@@ -18,13 +21,13 @@ spec:
   replicas: {{ .Values.services.ingestGateway.replicas | default 1 }}
   selector:
     matchLabels:
-      {{- include "observable-common.selectorLabels" . | nindent 6 }}
+      {{- include "observable-common.selectorLabels" $selectorCtx | nindent 6 }}
       app.kubernetes.io/component: ingest-gateway
   template:
     metadata:
       labels:
         {{- include "observable-common.labels" . | nindent 8 }}
-        {{- include "observable-common.selectorLabels" . | nindent 8 }}
+        {{- include "observable-common.selectorLabels" $selectorCtx | nindent 8 }}
         app.kubernetes.io/component: ingest-gateway
     spec:
       securityContext:
@@ -75,7 +78,7 @@ metadata:
 spec:
   type: ClusterIP
   selector:
-    {{- include "observable-common.selectorLabels" . | nindent 4 }}
+    {{- include "observable-common.selectorLabels" $selectorCtx | nindent 4 }}
     app.kubernetes.io/component: ingest-gateway
   ports:
     - name: http

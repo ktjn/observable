@@ -5,7 +5,9 @@
     (dict "name" "CLICKHOUSE_USER"           "value" .Values.clickhouse.user)
     (dict "name" "CLICKHOUSE_PASSWORD"       "value" .Values.clickhouse.password)
     (dict "name" "ALERT_EVALUATOR_PORT"      "value" (toString .Values.services.alertEvaluator.port))
-    (dict "name" "ALERT_EVAL_INTERVAL_SECONDS" "value" .Values.services.alertEvaluator.evalIntervalSeconds) -}}
+    (dict "name" "ALERT_EVAL_INTERVAL_SECONDS" "value" .Values.services.alertEvaluator.evalIntervalSeconds)
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT" "value" .Values.selfObservability.otlpEndpoint) -}}
 {{- $ctx := dict
     "name"    "alert-evaluator"
     "command" "alert-evaluator"

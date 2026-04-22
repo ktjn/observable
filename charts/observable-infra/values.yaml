@@ -9,6 +9,10 @@ infraSetup:
     enabled: true
     topic: telemetry.raw
 
+selfObservability:
+  mode: "self"
+  otlpEndpoint: "http://ingest-gateway:4318"
+
 postgresql:
   enabled: true
   auth:

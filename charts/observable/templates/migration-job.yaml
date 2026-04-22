@@ -60,6 +60,10 @@ spec:
               value: {{ .Values.postgres.user | default "observable" | quote }}
             - name: PGPASSWORD
               value: {{ .Values.postgres.password | default "observable" | quote }}
+            - name: OBSERVABLE_SELF_OBSERVABILITY_MODE
+              value: {{ .Values.selfObservability.mode | quote }}
+            - name: OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT
+              value: {{ .Values.selfObservability.otlpEndpoint | quote }}
           volumeMounts:
             - name: postgres-migrations
               mountPath: /migrations/postgres
@@ -91,6 +95,10 @@ spec:
               value: {{ .Values.clickhouse.user | quote }}
             - name: CLICKHOUSE_PASSWORD
               value: {{ .Values.clickhouse.password | quote }}
+            - name: OBSERVABLE_SELF_OBSERVABILITY_MODE
+              value: {{ .Values.selfObservability.mode | quote }}
+            - name: OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT
+              value: {{ .Values.selfObservability.otlpEndpoint | quote }}
           volumeMounts:
             - name: clickhouse-migrations
               mountPath: /migrations/clickhouse

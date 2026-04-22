@@ -15,6 +15,9 @@ spec:
   replicas: 1
   template:
     metadata:
+      annotations:
+        observable.com/self-observability-mode: {{ .Values.selfObservability.mode | quote }}
+        observable.com/self-observability-otlp-endpoint: {{ .Values.selfObservability.otlpEndpoint | quote }}
       labels:
         app.kubernetes.io/name: redpanda
     spec:
