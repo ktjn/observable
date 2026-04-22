@@ -146,3 +146,16 @@ technology choice.
 **ADR/spec sync:** No ADR update required. This slice enforces the accepted tenant isolation strategy
 for an existing query surface and does not change architecture, data model, security model, or
 technology choice.
+
+### 14.2 Deployment Marker API
+
+The Query API and Ingest API must support the deployment marker schema and logic defined in `spec/18-deployment-markers.md`.
+
+#### Ingest Deployment Marker
+- **Endpoints**: `POST /v1/deployments`, `PATCH /v1/deployments/{id}`
+- **Behavior**: Enables lifecycle tracking of releases (start, finish, fail, rollback).
+- **Authentication**: Requires `Member` or higher project-level role.
+
+#### List Deployment Markers
+- **Endpoint**: `GET /v1/deployments`
+- **Behavior**: Returns deployment events for UI timeline overlays, filterable by service and environment.

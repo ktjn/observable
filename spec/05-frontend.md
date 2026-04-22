@@ -136,7 +136,7 @@ The Service Overview area is the topology view of the system.
 |---|---|
 | Onboarding / Setup | Agent install wizard, API key generation, first signal validation |
 | Service Catalog | List all services with health ring, error rate, P95 latency; entry point |
-| Service Detail Overview | Compact service dashboard with quick performance, logs, metrics, traces, SLO, deployment, and alert context |
+| Service Detail Overview | Compact service dashboard with quick performance, logs, metrics, traces, SLO, deployment marker (see `spec/18-deployment-markers.md`), and alert context |
 | Trace Explorer | Full-text + attribute search, waterfall, span detail, field faceting |
 | Log Explorer | Structured search, histogram, log detail, live tail, context (surrounding logs) |
 | Metric Explorer | Series browser, cardinality inspector, ad-hoc PromQL-style graph |
@@ -149,7 +149,7 @@ The Service Overview area is the topology view of the system.
 | Service Map | Interactive topology graph derived from trace data |
 | Infrastructure Views | Host, cluster, namespace, pod, and container inventory with linked logs, metrics, traces, and related services |
 | Trace Comparison | Compare two traces (e.g. fast vs slow) to identify bottlenecks or path diffs |
-| Deployment Timeline | Overlay deployments on metrics/traces; diff environment configs |
+| Deployment Timeline | Overlay deployments on metrics/traces; diff environment configs (see `spec/18-deployment-markers.md`) |
 | Query Workbench | Monaco-based multi-signal notebook, shareable query URLs |
 | Dashboard Builder | Drag-and-drop panel editor generating dashboard-as-code |
 | SLO Management | Create SLOs, view burn rate, error budget history |
@@ -183,7 +183,7 @@ Breadcrumbs are deep-linkable and survive page reload.
 #### Related Insights Panels
 Service detail and trace detail views render a **"Related"** sidebar showing:
 - Metrics anomalies within the trace's time window
-- Deployment events within ±5 minutes
+- Deployment events within ±5 minutes (see `spec/18-deployment-markers.md`)
 - Correlated SLO burn spikes
 - Linked incidents
 
