@@ -60,6 +60,35 @@ export interface DiscoveryResponse {
   items: string[];
 }
 
+export interface TopologyEdge {
+  caller: string;
+  callee: string;
+  request_count: number;
+  error_rate: number;
+  p95_latency_ms: number;
+}
+
+export interface TopologyResponse {
+  edges: TopologyEdge[];
+}
+
+export async function getTopology(params: {
+  environment?: string;
+  lookback_minutes?: number;
+  service?: string;
+} = {}): Promise<TopologyResponse> {
+  const url = new URL("/v1/topology", window.location.origin);
+  if (params.environment) url.searchParams.set("environment", params.environment);
+  if (params.lookback_minutes) {
+    url.searchParams.set("lookback_minutes", String(params.lookback_minutes));
+  }
+  if (params.service) url.searchParams.set("service", params.service);
+
+  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  if (!res.ok) throw new Error(`Query failed: ${res.status}`);
+  return res.json();
+}
+
 export async function listEnvironments(): Promise<DiscoveryResponse> {
   const url = new URL("/v1/environments", window.location.origin);
   const res = await fetch(url.toString(), { headers: tenantHeaders() });

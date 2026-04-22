@@ -18,6 +18,36 @@ pub struct SummaryParams {
     pub lookback_minutes: Option<u32>,
 }
 
+#[derive(Deserialize)]
+pub struct TopologyParams {
+    pub environment: Option<String>,
+    pub lookback_minutes: Option<u32>,
+    pub service: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, clickhouse::Row)]
+pub struct TopologyRow {
+    pub caller: String,
+    pub callee: String,
+    pub request_count: u64,
+    pub error_count: u64,
+    pub p95_latency_ns: f64,
+}
+
+#[derive(Serialize)]
+pub struct TopologyEdge {
+    pub caller: String,
+    pub callee: String,
+    pub request_count: u64,
+    pub error_rate: f64,
+    pub p95_latency_ms: f64,
+}
+
+#[derive(Serialize)]
+pub struct TopologyResponse {
+    pub edges: Vec<TopologyEdge>,
+}
+
 #[derive(Serialize, Deserialize, clickhouse::Row)]
 pub struct ServiceSummaryRow {
     pub service_name: String,
@@ -204,6 +234,62 @@ pub async fn get_service_summary(
     Ok(Json(ServiceDetailResponse {
         service: service_summary_from_row(row, duration_secs),
     }))
+}
+
+pub async fn get_topology(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Query(params): Query<TopologyParams>,
+) -> Result<Json<TopologyResponse>, StatusCode> {
+    let lookback_mins = params.lookback_minutes.unwrap_or(60);
+    let lookback_ns = (lookback_mins as u64) * 60 * 1_000_000_000;
+    let now_ns = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+    let start_ns = now_ns.saturating_sub(lookback_ns);
+
+    let plan = state.planner.plan_topology(&params);
+
+    let mut query = state
+        .ch
+        .query(&plan.sql)
+        .bind(ctx.tenant_id)
+        .bind(ctx.tenant_id)
+        .bind(start_ns);
+
+    if let Some(ref env) = params.environment {
+        query = query.bind(env).bind(env);
+    }
+
+    if let Some(ref service) = params.service {
+        query = query.bind(service).bind(service);
+    }
+
+    let rows: Vec<TopologyRow> = query.fetch_all().await.map_err(|e| {
+        tracing::error!(error = ?e, "ClickHouse topology error");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let edges = rows
+        .into_iter()
+        .map(|row| {
+            let error_rate = if row.request_count > 0 {
+                (row.error_count as f64) / (row.request_count as f64)
+            } else {
+                0.0
+            };
+            TopologyEdge {
+                caller: row.caller,
+                callee: row.callee,
+                request_count: row.request_count,
+                error_rate,
+                p95_latency_ms: row.p95_latency_ns / 1_000_000.0,
+            }
+        })
+        .collect();
+
+    Ok(Json(TopologyResponse { edges }))
 }
 
 fn service_summary_from_row(row: ServiceSummaryRow, duration_secs: f64) -> ServiceSummary {

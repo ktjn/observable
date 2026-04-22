@@ -79,7 +79,7 @@ export default function LogSearch() {
                         {log.severity_text || log.severity_number}
                       </span>
                     </td>
-                    <td>{String(log.body)}</td>
+                    <td>{typeof log.body === "string" ? log.body : JSON.stringify(log.body)}</td>
                   </tr>
                 ))}
               </tbody>

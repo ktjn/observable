@@ -236,7 +236,7 @@ function ServiceLogsTab({
             <tr key={log.log_id}>
               <td>{log.timestamp_unix_nano}</td>
               <td>{log.severity_text || log.severity_number}</td>
-              <td>{String(log.body)}</td>
+              <td>{typeof log.body === "string" ? log.body : JSON.stringify(log.body)}</td>
               <td>{log.trace_id ? log.trace_id.substring(0, 16) : "none"}</td>
             </tr>
           ))}

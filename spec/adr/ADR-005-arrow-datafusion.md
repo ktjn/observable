@@ -1,10 +1,10 @@
 # ADR-005: Arrow/DataFusion Query Layer
 
-**Date:** 2026-04-15  
-**Status:** Accepted  
+**Date:** 2026-04-15 (updated 2026-04-22)  
+**Status:** Accepted (Implementation Deferred)  
 **Authors:** Gemini CLI  
 **Deciders:** Project Stakeholders  
-**Review date:** 2026-04-15  
+**Review date:** 2026-04-22  
 
 ## Context
 
@@ -13,6 +13,10 @@ The platform requires a high-performance, extensible query layer capable of fede
 ## Decision
 
 The **query substrate will be built using Apache Arrow as the in-memory format and Apache DataFusion as the query engine**. DataFusion, a Rust-native, extensible query engine, provides a strong foundation for building a unified, multi-signal query API.
+
+### Implementation Status Update (2026-04-22)
+
+As of P3-S7b, the project has introduced a `QueryPlanner` abstraction in `query-api` to encapsulate SQL generation. While DataFusion remains the target for Phase 4 (v1 production readiness) and federated query support, the current implementation continues to use direct ClickHouse SQL to minimize immediate complexity during Phase 3. The `QueryPlanner` provides the injection point for DataFusion when needed.
 
 ## Consequences
 

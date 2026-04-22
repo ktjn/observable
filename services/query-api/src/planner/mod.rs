@@ -1,3 +1,4 @@
+use crate::discovery::TopologyParams;
 use crate::logs::LogSearchParams;
 use std::collections::HashMap;
 
@@ -9,6 +10,10 @@ pub struct LogQueryPlan {
 }
 
 pub struct FacetPlan {
+    pub sql: String,
+}
+
+pub struct TopologyPlan {
     pub sql: String,
 }
 
@@ -24,7 +29,7 @@ impl QueryPlanner {
         if let Some(facets_str) = &params.facets {
             for field in requested_log_facets(facets_str) {
                 let facet_sql = format!(
-                    "SELECT {field} as value, count() as count FROM logs {where_clause} GROUP BY {field} ORDER BY count DESC LIMIT 10"
+                    "SELECT toString({field}) as value, count() as count FROM logs {where_clause} GROUP BY {field} ORDER BY count DESC LIMIT 10"
                 );
                 facet_plans.insert(field.to_string(), FacetPlan { sql: facet_sql });
             }
@@ -40,6 +45,33 @@ impl QueryPlanner {
             logs_sql,
             limit: params.limit.unwrap_or(50).min(500),
         }
+    }
+
+    pub fn plan_topology(&self, params: &TopologyParams) -> TopologyPlan {
+        let mut sql = "SELECT \
+                parent.service_name AS caller, \
+                child.service_name AS callee, \
+                count() AS request_count, \
+                countIf(child.status_code = 'ERROR') AS error_count, \
+                quantile(0.95)(child.duration_ns) AS p95_latency_ns \
+            FROM spans AS child \
+            INNER JOIN spans AS parent ON child.parent_span_id = parent.span_id AND child.trace_id = parent.trace_id \
+            WHERE child.tenant_id = ? AND parent.tenant_id = ? \
+              AND child.service_name != parent.service_name \
+              AND child.start_time_unix_nano >= ?"
+            .to_string();
+
+        if params.environment.is_some() {
+            sql.push_str(" AND child.environment = ? AND parent.environment = ?");
+        }
+
+        if params.service.is_some() {
+            sql.push_str(" AND (child.service_name = ? OR parent.service_name = ?)");
+        }
+
+        sql.push_str(" GROUP BY caller, callee ORDER BY request_count DESC");
+
+        TopologyPlan { sql }
     }
 }
 
@@ -128,13 +160,54 @@ mod tests {
     fn log_search_plan_keeps_only_allowed_facets() {
         let planner = QueryPlanner;
         let mut params = params();
-        params.facets = Some("service_name, invalid_field, host_id".into());
+        params.facets = Some("service_name, invalid_field, host_id, severity_number".into());
 
         let plan = planner.plan_log_search(&params);
 
         assert!(plan.facet_plans.contains_key("service_name"));
         assert!(plan.facet_plans.contains_key("host_id"));
+        assert!(plan.facet_plans.contains_key("severity_number"));
         assert!(!plan.facet_plans.contains_key("invalid_field"));
-        assert_eq!(plan.facet_plans.len(), 2);
+        assert_eq!(plan.facet_plans.len(), 3);
+
+        // Verify toString conversion for type safety
+        let sev_plan = &plan.facet_plans["severity_number"];
+        assert!(sev_plan
+            .sql
+            .contains("SELECT toString(severity_number) as value"));
+    }
+
+    #[test]
+    fn topology_plan_includes_tenant_and_time_filters() {
+        let planner = QueryPlanner;
+        let params = TopologyParams {
+            environment: None,
+            lookback_minutes: None,
+            service: None,
+        };
+
+        let plan = planner.plan_topology(&params);
+
+        assert!(plan
+            .sql
+            .contains("WHERE child.tenant_id = ? AND parent.tenant_id = ?"));
+        assert!(plan.sql.contains("AND child.start_time_unix_nano >= ?"));
+        assert!(plan.sql.contains("GROUP BY caller, callee"));
+    }
+
+    #[test]
+    fn topology_plan_can_filter_by_service() {
+        let planner = QueryPlanner;
+        let params = TopologyParams {
+            environment: None,
+            lookback_minutes: None,
+            service: Some("checkout".into()),
+        };
+
+        let plan = planner.plan_topology(&params);
+
+        assert!(plan
+            .sql
+            .contains("AND (child.service_name = ? OR parent.service_name = ?)"));
     }
 }

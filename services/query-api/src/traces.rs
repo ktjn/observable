@@ -136,7 +136,7 @@ pub async fn search_traces(
             }
 
             let mut facet_sql = format!(
-                "SELECT {field} as value, count(DISTINCT trace_id) as count FROM spans WHERE tenant_id = ?"
+                "SELECT toString({field}) as value, count(DISTINCT trace_id) as count FROM spans WHERE tenant_id = ?"
             );
             if params.service.is_some() {
                 facet_sql.push_str(" AND service_name = ?");

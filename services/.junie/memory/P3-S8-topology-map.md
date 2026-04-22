@@ -1,0 +1,6 @@
+- Completed P3-S7b: Marked as completed in iteration plan and recorded decision to defer full Arrow/DataFusion implementation.
+- Completed P3-S8: Implemented trace-derived topology map.
+    - Added `GET /v1/topology` endpoint in `query-api`.
+    - Implemented topology query planning in `QueryPlanner`.
+    - Created `ServiceOverview` page with SVG-based topology map.
+    - Updated router to include Service Overview.

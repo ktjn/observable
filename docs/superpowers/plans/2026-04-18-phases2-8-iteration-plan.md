@@ -271,15 +271,15 @@ Before Phase 3 starts, answer:
   - Verification: API tests cover facet counts; frontend tests cover facet rendering, selection, and query update behavior.
   - Checkpoint: does the UI correctly handle high-cardinality facets by showing Top N? Answer: yes. The backend groups by field, orders by count descending, and limits to Top 10.
 
-- [ ] **P3-S7b: Add a bounded query-substrate spike**
+- [x] **P3-S7b: Add a bounded query-substrate spike**
   - Source spec: `spec/03-storage.md` §5.4, §8; `spec/13-risks-roadmap.md` §24.5.
   - Outcome: one query-api read path is routed through an internal planner interface that can later host Arrow/DataFusion execution. If P3-S7 proves direct ClickHouse SQL is sufficient for the next three planned slices, record that decision and defer implementation to Phase 4.
   - Files or modules expected to change: query-api planner module, one read path or facet path, tests, Cargo dependencies only if the spike actually instantiates Arrow/DataFusion.
   - Out of scope: rewriting all query endpoints or adding federated query behavior across every signal.
   - Verification: existing endpoint behavior remains byte-compatible for the selected path; tests prove tenant context is still mandatory and cross-tenant rows still fail closed.
-  - Checkpoint: does a planner abstraction reduce complexity for topology, dashboard, SLO, or semantic-query work, or should the project keep direct SQL until a harder requirement appears?
+  - Checkpoint: does a planner abstraction reduce complexity for topology, dashboard, SLO, or semantic-query work, or should the project keep direct SQL until a harder requirement appears? Answer: The planner abstraction already helps by centralizing SQL generation. However, instantiating Arrow/DataFusion right now would add unnecessary complexity. We will keep direct SQL for now and defer full Arrow/DataFusion implementation to Phase 4 or when federated queries are required.
 
-- [ ] **P3-S8: Add Service Overview map from trace-derived topology**
+- [*] **P3-S8: Add Service Overview map from trace-derived topology**
   - Source spec: `spec/05-frontend.md` §9.2.1 Service Overview and §9.6; `spec/09-api.md` Service Overview Topology.
   - Outcome: Service Overview renders a topology map from trace-derived service relationships. Operators can click a node to open service detail and an edge to open caller-callee filtered traces/logs.
   - Files or modules expected to change: topology rollup/query path, frontend Service Overview route, canvas graph component, route filters, tests.
@@ -529,9 +529,7 @@ After this planning reconciliation, the next implementation slice should be:
 - Roll back a bad deploy without manual heroics: yes — P2-S8a (Helm rollback skeleton) and P2-S8b (canary promotion path) cover both runtime and schema rollback.
 - Self-observability route choice: use a second observer instance for production and customer-facing environments; use recursive self-ingest for local development, dogfooding, and bootstrap. This follows `spec/17-self-observability.md` by preserving both recursive OTLP telemetry and independent health/Prometheus monitoring, and it requires service-level, infrastructure-level, and UI-level instrumentation before the slice is complete.
 
-**Next recommended slice: P3-S6b - Make self-observability routing explicit for all platform components.**
-
-After P3-S6b, resume P3-S7 - Add field faceting and statistics to explorers. Then answer the P3-S7b query-substrate checkpoint before broad topology, dashboard, SLO, or semantic-query work adds more direct SQL paths.
+**Next recommended slice: P3-S8 - Add Service Overview map from trace-derived topology.**
 
 ---
 

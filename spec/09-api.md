@@ -57,9 +57,11 @@ The Query API must support the following patterns required by the Frontend (see 
 - **Capability**: Every telemetry record must expose its resource attributes (e.g., `host.name`, `k8s.pod.name`) to enable the UI to link to infrastructure-specific views.
 
 #### Service Overview Topology
+- **Endpoint**: `GET /v1/topology`
 - **Capability**: Query endpoints must expose service relationship data derived from traces so the UI can render the Service Overview map without a manually maintained CMDB.
 - **Required Fields**: Caller service, callee service, request count, error count/error rate, P95 latency, and the time range used to compute the relationship.
-- **Filtering**: Must support project, environment, tenant, time range, service, and caller-callee pair filters.
+- **Filtering**: Must support environment, tenant, time range (as lookback), and service filters.
+- **Behavior**: The current implementation derives relationships by joining spans on `trace_id` and `parent_span_id` within the `QueryPlanner`.
 
 #### Service Detail Summary
 - **Capability**: The UI needs a service summary query for the service detail overview and service catalog.

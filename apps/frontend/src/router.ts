@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { AppShell } from "./components/AppShell";
 import { ProductAreaPage } from "./pages/ProductAreaPage";
 import ServiceDetailPage from "./pages/ServiceDetailPage";
+import ServiceOverview from "./pages/ServiceOverview";
 import TraceSearch from "./pages/TraceSearch";
 import TraceDetailPage from "./pages/TraceDetailPage";
 import LogSearch from "./pages/LogSearch";
@@ -49,7 +50,7 @@ const infrastructureRoute = createRoute({
 const serviceOverviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/service-overview",
-  component: () => createElement(ProductAreaPage, { area: "service-overview" }),
+  component: ServiceOverview,
 });
 const dashboardsRoute = createRoute({
   getParentRoute: () => rootRoute,
