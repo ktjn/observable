@@ -30,10 +30,7 @@ pub async fn compile(workspace: &PathBuf, target: &str, name: &str) -> Result<Pa
         // statically embeds musl libc. No extra link flags needed.
         cmd.env("RUSTFLAGS", "-C target-feature=+crt-static");
     }
-    let status = cmd
-        .status()
-        .await
-        .context("failed to invoke cargo")?;
+    let status = cmd.status().await.context("failed to invoke cargo")?;
 
     if !status.success() {
         anyhow::bail!("cargo build failed for target {target}");

@@ -1,5 +1,5 @@
 /// HTTP API routes for the build service.
-use crate::{codegen, compiler, definition::PipelineDefinition, packaging, parse};
+use crate::{codegen, compiler, definition::PipelineDefinition, packaging, parse, validate};
 use axum::{
     extract::Json,
     http::{header, StatusCode},
@@ -46,11 +46,18 @@ async fn parse_preview(Json(req): Json<ParseRequest>) -> Json<ParseResponse> {
     let capped: Vec<String> = req.lines.into_iter().take(20).collect();
     match parse::parse_lines(&req.parser.kind, &req.parser.params, &capped) {
         Ok(rows) => Json(ParseResponse { rows, error: None }),
-        Err(e) => Json(ParseResponse { rows: vec![], error: Some(e) }),
+        Err(e) => Json(ParseResponse {
+            rows: vec![],
+            error: Some(e),
+        }),
     }
 }
 
 async fn build(Json(req): Json<BuildRequest>) -> Response {
+    if let Err(e) = validate::validate(&req.definition) {
+        return (StatusCode::BAD_REQUEST, e.to_string()).into_response();
+    }
+
     let id = Uuid::new_v4().to_string();
     let work_dir = PathBuf::from(format!("/tmp/collectable-build-{id}"));
 

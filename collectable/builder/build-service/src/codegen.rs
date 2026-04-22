@@ -1,12 +1,11 @@
 /// Code generation: render a Rust source package from a pipeline definition.
 use crate::definition::PipelineDefinition;
 use anyhow::Result;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tera::{Context, Tera};
 
 fn templates_dir() -> String {
-    std::env::var("MEDIATOR_TEMPLATES_DIR")
-        .unwrap_or_else(|_| "../../mediator/templates".into())
+    std::env::var("MEDIATOR_TEMPLATES_DIR").unwrap_or_else(|_| "../../mediator/templates".into())
 }
 
 fn build_context(def: &PipelineDefinition) -> Context {
@@ -21,7 +20,7 @@ fn build_context(def: &PipelineDefinition) -> Context {
     ctx
 }
 
-pub fn generate(def: &PipelineDefinition, out_dir: &PathBuf) -> Result<()> {
+pub fn generate(def: &PipelineDefinition, out_dir: &Path) -> Result<()> {
     let ctx = build_context(def);
     let glob = format!("{}/**/*", templates_dir());
     let tera = Tera::new(&glob)?;
@@ -53,7 +52,7 @@ rustflags = ["-C", "target-feature=+crt-static"]
 
 /// Render deployment artefacts (systemd unit, init.d script, Dockerfile,
 /// docker-compose snippet) into `deploy_dir`.
-pub fn render_deploy(def: &PipelineDefinition, deploy_dir: &PathBuf) -> Result<()> {
+pub fn render_deploy(def: &PipelineDefinition, deploy_dir: &Path) -> Result<()> {
     let ctx = build_context(def);
     let glob = format!("{}/**/*", templates_dir());
     let tera = Tera::new(&glob)?;
