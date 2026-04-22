@@ -3,11 +3,13 @@ mod discovery;
 mod logs;
 mod metrics;
 mod middleware;
+mod planner;
 mod traces;
 
 use axum::{middleware as axum_middleware, routing::get, Router};
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -29,7 +31,11 @@ async fn main() -> anyhow::Result<()> {
     let port: u16 = std::env::var("QUERY_API_PORT")
         .unwrap_or_else(|_| "8090".into())
         .parse()?;
-    let state = traces::AppState { ch, db };
+    let state = traces::AppState {
+        ch,
+        db,
+        planner: Arc::new(planner::QueryPlanner),
+    };
     let app = Router::new()
         .route("/v1/traces", get(traces::search_traces))
         .route("/v1/traces/:trace_id", get(traces::get_trace))

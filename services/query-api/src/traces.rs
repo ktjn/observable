@@ -7,14 +7,19 @@ use clickhouse::Client;
 use domain::{Span, SpanRow};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use crate::middleware::auth::TenantContext;
+use crate::planner::QueryPlanner;
 
 #[derive(Clone)]
 pub struct AppState {
     pub ch: Client,
     pub db: PgPool,
+    pub planner: Arc<QueryPlanner>,
 }
 
 #[derive(Serialize)]
