@@ -84,6 +84,7 @@ Next smallest slice:
 3. Do not start **Phase 6** advanced signals until retention, auth, and release safety are proven under load.
 4. Treat **Phase 7** as customer-driven packaging and policy work; only do the parts required by target customers.
 5. Treat **Phase 8** as optional until data quality, retention, labeling, and auditability are stable.
+6. Preserve self-observability as a platform invariant: every platform component must emit logs, metrics, traces, health, readiness, and Prometheus-compatible metrics, and every deployment must route that telemetry either to the platform's own `system` tenant or to a second Observable instance. Self-observability covers three instrumentation levels: service level (Rust services, workers, jobs, APIs, queues, storage dependencies, and background tasks), infrastructure level (Kubernetes nodes, pods, containers, ingress, service mesh if present, Redpanda, ClickHouse, PostgreSQL, object storage, and resource saturation), and UI level (frontend route transitions, API calls, Web Vitals, render errors, user-visible failures, and critical interaction latency). The recommended production choice is a second observer instance, because it keeps visibility available when the primary ingest, queue, storage, query, or UI-serving path is degraded. Recursive self-ingest remains the default for local development, internal dogfooding, and single-instance bootstrap environments.
 
 ---
 
@@ -251,6 +252,18 @@ Before Phase 3 starts, answer:
   - Out of scope: new query language features. Reuse existing explorer capabilities and backend filters.
   - Verification: frontend tests cover tab deep links, browser-back behavior, and service filter preservation; API tests cover service-scoped query filters where missing.
   - Checkpoint: are URLs now the source of truth for service investigation context across traces, logs, and metrics? Answer: yes. Service investigation tabs are addressable by path, keep the `lookback_minutes` query string, and each tab applies the route service as the query filter.
+
+- [ ] **P3-S6b: Make self-observability routing explicit for all platform components**
+  - Source spec: `spec/17-self-observability.md` §§2-7; `spec/10-process.md` §16.5 and §17 Phase 1 item 10.
+  - Outcome: every platform service, worker, frontend-serving component, migration job, canary path, scheduled/background task, infrastructure dependency, and UI runtime has an explicit self-observability route. The configuration supports two modes: `self`, which sends platform telemetry to the primary instance's `system` tenant, and `observer_instance`, which sends it to a second Observable instance using a separate endpoint and credential. Production and customer-facing environments should use `observer_instance`; local development, internal dogfooding, and bootstrap environments may use `self`.
+  - Instrumentation scope:
+    - Service level: all Rust services, HTTP/gRPC handlers, auth checks, queue producers/consumers, storage writes, query execution, alert evaluation, migrations, canary paths, and background tasks emit traces, metrics, structured logs, health, readiness, and dependency status.
+    - Infrastructure level: Kubernetes nodes, pods, containers, ingress, optional service mesh, Redpanda, ClickHouse, PostgreSQL, object storage, and deployment controllers emit or expose CPU, memory, disk, network, restart, queue lag, storage saturation, and dependency health signals into the same system-observability route.
+    - UI level: the frontend emits route transition spans, query/API call spans, Web Vitals, render/runtime errors, failed resource loads, user-visible error states, and critical interaction latency with tenant, project, environment, route, and build-version attributes where safe.
+  - Files or modules expected to change: telemetry configuration helpers, Docker Compose and Helm values, service env docs, frontend telemetry initialization, infrastructure collector/exporter configuration, canary/smoke scripts, and focused tests proving the selected destination is used.
+  - Out of scope: replacing the independent Prometheus scrape path from `spec/17-self-observability.md` §2.2. Keep health, readiness, and `/metrics` scraping as the failure-mode backstop even when OTLP self-telemetry is sent to a second instance.
+  - Verification: unit/config tests cover `self` and `observer_instance` destination selection; Helm render tests expose the observer endpoint and credential references; frontend tests cover browser telemetry initialization without leaking secrets; collector/config tests cover infrastructure export wiring; smoke or local verification proves at least one service, one infrastructure source, and one UI path emit telemetry into the configured system tenant.
+  - Checkpoint: can operators still see primary-platform health when the primary ingest, query, infrastructure, or UI-serving path is broken? Expected answer before closing this slice: yes for production-like deployments because platform telemetry is routed to a second observer instance, while self-ingest remains available for dogfooding.
 
 - [ ] **P3-S7: Add field faceting and statistics to explorers**
   - Source spec: `spec/05-frontend.md` §9.5; `spec/09-api.md` Field Faceting.
@@ -516,10 +529,11 @@ After this planning reconciliation, the next implementation slice should be:
 - Tenant safety under test: yes — P2-S1a through P2-S1d enforce and test cross-tenant isolation for all signal types.
 - Cost controls without hand-waving: yes — P2-S2a (rate limiting), P2-S3a (cardinality budget observation), P2-S4a (hot retention) are all in place.
 - Roll back a bad deploy without manual heroics: yes — P2-S8a (Helm rollback skeleton) and P2-S8b (canary promotion path) cover both runtime and schema rollback.
+- Self-observability route choice: use a second observer instance for production and customer-facing environments; use recursive self-ingest for local development, dogfooding, and bootstrap. This follows `spec/17-self-observability.md` by preserving both recursive OTLP telemetry and independent health/Prometheus monitoring, and it requires service-level, infrastructure-level, and UI-level instrumentation before the slice is complete.
 
-**Next recommended slice: P3-S7 - Add field faceting and statistics to explorers.**
+**Next recommended slice: P3-S6b - Make self-observability routing explicit for all platform components.**
 
-The 2026-04-22 gap-analysis refresh confirms P3-S7 is still the right next slice. After P3-S7, answer the P3-S7b query-substrate checkpoint before broad topology, dashboard, SLO, or semantic-query work adds more direct SQL paths.
+After P3-S6b, resume P3-S7 - Add field faceting and statistics to explorers. Then answer the P3-S7b query-substrate checkpoint before broad topology, dashboard, SLO, or semantic-query work adds more direct SQL paths.
 
 ---
 
@@ -532,3 +546,5 @@ P3-S5 added a concrete single-service summary endpoint for an existing Service D
 **ADR-021** (NL query layer, Proposed — added 2026-04-19 via PR #53) introduces the NL query layer as a new Phase 8 feature and the Schema Registry semantic annotations as a Phase 3 prerequisite. P3-S14 and P8-S6 above reflect this. ADR-021 operates within the advisory-only, provenance-required, read-only constraints established by ADR-014.
 
 The 2026-04-22 gap-analysis refresh updated planning sequence only. No ADR or spec update is required because the changes map already specified gaps to concrete slices without changing architecture, technology choice, deployment model, data model, security model, or roadmap scope.
+
+The self-observability routing clarification also requires no ADR/spec update in this iteration because it restates the existing dual-path strategy in `spec/17-self-observability.md`: recursive in-band telemetry to a `system` tenant plus an independent out-of-band monitoring path. The plan recommendation is operational: use a second Observable instance for production-like environments and use self-ingest for local, dogfood, and bootstrap modes. The added instrumentation scope makes the implementation slice explicitly cover service, infrastructure, and UI levels without changing the underlying architecture.
