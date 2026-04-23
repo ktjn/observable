@@ -117,6 +117,14 @@ The standard is **no new errors introduced**. A PR may document pre-existing fai
 
 Every iteration must use a change-scoped test plan before implementation and report the actual result in the PR.
 
+**Current mandatory smoke coverage**
+
+`scripts/local-ci.sh` runs `docker compose up smoke-test --abort-on-container-exit`
+for code changes unless Docker or smoke tests are explicitly skipped. The smoke
+test must continue to prove at least one successful path for trace ingest, trace
+detail query, trace search, log ingest, metric ingest, OTLP gRPC ingest, and
+service discovery.
+
 **Required sequence**
 1. Identify touched surfaces: docs, API/schema, backend, frontend, ingest/storage, auth/tenancy, deployment, CI, data migration, or security.
 2. Select the minimum checks from `18.5` plus any existing repo-wide checks required for that surface.
