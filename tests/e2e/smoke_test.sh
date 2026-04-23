@@ -9,9 +9,11 @@ require_command() {
   fi
 }
 
-require_command curl
-require_command jq
-require_command grpcurl
+ensure_prereqs() {
+  require_command curl
+  require_command jq
+  require_command grpcurl
+}
 
 INGEST="${INGEST_URL:-http://localhost:4318}"
 GRPC_INGEST="${GRPC_INGEST_URL:-http://localhost:4317}"
@@ -50,29 +52,67 @@ wait_for_json_count() {
   return 1
 }
 
-main() {
-  echo "=== Phase 1 Smoke Test ==="
+assert_http_status() {
+  local label="$1"
+  local expected_status="$2"
+  shift 2
 
-  echo "1. Sending trace..."
-  curl -sf -X POST "$INGEST/v1/traces" \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "{\"resourceSpans\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"$SERVICE_NAME\"}}]},\"scopeSpans\":[{\"spans\":[{\"traceId\":\"$TRACE_ID\",\"spanId\":\"00f067aa0ba902b7\",\"name\":\"e2e-smoke\",\"startTimeUnixNano\":\"$(date +%s%N)\",\"endTimeUnixNano\":\"$(( $(date +%s%N) + 5000000 ))\",\"status\":{\"code\":1}}]}]}]}"
-  echo " OK"
-
-  echo "1b. Checking missing auth rejection..."
-  AUTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$INGEST/v1/traces" \
-    -H "Content-Type: application/json" \
-    -d "{\"resourceSpans\":[]}")
-  if [ "$AUTH_STATUS" = "401" ]; then
-    echo " OK (missing auth rejected)"
+  local actual_status
+  actual_status=$(curl -s -o /dev/null -w "%{http_code}" "$@")
+  if [ "$actual_status" = "$expected_status" ]; then
+    echo " OK ($label)"
   else
-    echo " FAIL: missing auth returned HTTP $AUTH_STATUS"
+    echo " FAIL: $label returned HTTP $actual_status"
     exit 1
   fi
+}
 
-  echo "2. Querying trace detail..."
-  wait_for_json_count "detail" "$QUERY/v1/traces/$TRACE_ID" '.spans | length'
+send_trace_until_queryable() {
+  local trace_payload="$1"
+  local max_attempts="${2:-2}"
+  local attempt=1
+
+  while [ "$attempt" -le "$max_attempts" ]; do
+    echo "1. Sending trace..."
+    curl -sf -X POST "$INGEST/v1/traces" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "$trace_payload"
+    echo " OK"
+
+    echo "2. Querying trace detail..."
+    if wait_for_json_count "detail" "$QUERY/v1/traces/$TRACE_ID" '.spans | length'; then
+      return 0
+    fi
+
+    if [ "$attempt" -lt "$max_attempts" ]; then
+      echo " WARN: trace detail not visible yet, retrying ingest ($attempt/$max_attempts)"
+    fi
+    attempt=$((attempt + 1))
+  done
+
+  echo " FAIL: trace detail did not become visible after $max_attempts ingest attempt(s)"
+  exit 1
+}
+
+main() {
+  ensure_prereqs
+
+  echo "=== Phase 1 Smoke Test ==="
+
+  TRACE_PAYLOAD="{\"resourceSpans\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"$SERVICE_NAME\"}}]},\"scopeSpans\":[{\"spans\":[{\"traceId\":\"$TRACE_ID\",\"spanId\":\"00f067aa0ba902b7\",\"name\":\"e2e-smoke\",\"startTimeUnixNano\":\"$(date +%s%N)\",\"endTimeUnixNano\":\"$(( $(date +%s%N) + 5000000 ))\",\"status\":{\"code\":1}}]}]}]}"
+  send_trace_until_queryable "$TRACE_PAYLOAD" 2
+
+  echo "1b. Checking missing auth rejection..."
+  assert_http_status "missing auth rejected" "401" -X POST "$INGEST/v1/traces" \
+    -H "Content-Type: application/json" \
+    -d "{\"resourceSpans\":[]}"
+
+  echo "1c. Checking viewer ingest rejection..."
+  assert_http_status "viewer ingest rejected" "403" -X POST "$INGEST/v1/traces" \
+    -H "Authorization: Bearer dev-viewer-key-0000" \
+    -H "Content-Type: application/json" \
+    -d "{\"resourceSpans\":[]}"
 
   echo "2b. Checking cross-tenant trace denial..."
   OTHER_TENANT_ID="00000000-0000-0000-0000-000000000002"

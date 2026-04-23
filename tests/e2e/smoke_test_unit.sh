@@ -84,7 +84,56 @@ test_wait_for_json_count_retries_until_rows_exist() {
   rm -f "$attempts_file"
 }
 
+test_assert_http_status_checks_expected_code() {
+  local output
+  output="$(
+    SMOKE_TEST_SOURCE_ONLY=1 bash -c '
+      source "$1"
+      curl() {
+        printf "%s" "403"
+      }
+      assert_http_status "viewer ingest rejected" "403" -X POST http://example.test/v1/traces
+    ' bash "$SMOKE_SCRIPT" 2>&1
+  )"
+
+  assert_eq " OK (viewer ingest rejected)" "$output" "assert_http_status should report success when the expected code matches"
+}
+
+test_send_trace_until_queryable_retries_ingest() {
+  local output
+  output="$(
+    SMOKE_TEST_SOURCE_ONLY=1 bash -c '
+      source "$1"
+      attempts_file="$(mktemp)"
+      : > "$attempts_file"
+      curl() {
+        printf "post\n" >> "$attempts_file"
+        printf "%s" "{\"partialSuccess\":{}}"
+      }
+      wait_for_json_count() {
+        wait_calls="${wait_calls:-0}"
+        wait_calls=$((wait_calls + 1))
+        if [[ "$wait_calls" -lt 2 ]]; then
+          return 1
+        fi
+        echo " OK (detail) - 1 record(s)"
+      }
+      INGEST=http://example.test
+      TRACE_ID=test-trace-id
+      SERVICE_NAME=test-service
+      TENANT_ID=test-tenant
+      send_trace_until_queryable "{\"resourceSpans\":[]}" 2 >/dev/null
+      wc -l < "$attempts_file"
+      rm -f "$attempts_file"
+    ' bash "$SMOKE_SCRIPT" 2>&1
+  )"
+
+  assert_eq "2" "$output" "send_trace_until_queryable should retry trace ingest when detail is not yet queryable"
+}
+
 run_test "loads helper definitions" test_exports_wait_for_json_count_without_running_main
 run_test "retries until rows exist" test_wait_for_json_count_retries_until_rows_exist
+run_test "checks expected HTTP status" test_assert_http_status_checks_expected_code
+run_test "retries trace ingest" test_send_trace_until_queryable_retries_ingest
 
 echo "PASS: smoke_test polling helper"
