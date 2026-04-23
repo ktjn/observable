@@ -1,6 +1,8 @@
 import { createRouter, createRoute, createRootRoute } from "@tanstack/react-router";
 import { createElement } from "react";
 import { AppShell } from "./components/AppShell";
+import InfrastructureDetailPage from "./pages/InfrastructureDetailPage";
+import InfrastructureInventoryPage from "./pages/InfrastructureInventoryPage";
 import { ProductAreaPage } from "./pages/ProductAreaPage";
 import ServiceDetailPage from "./pages/ServiceDetailPage";
 import ServiceOverview from "./pages/ServiceOverview";
@@ -45,7 +47,12 @@ const serviceTracesRoute = createRoute({
 const infrastructureRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/infrastructure",
-  component: () => createElement(ProductAreaPage, { area: "infrastructure" }),
+  component: InfrastructureInventoryPage,
+});
+const infrastructureDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/infrastructure/$entityType/$entityId",
+  component: InfrastructureDetailPage,
 });
 const serviceOverviewRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -91,6 +98,7 @@ export const router = createRouter({
     serviceMetricsRoute,
     serviceTracesRoute,
     infrastructureRoute,
+    infrastructureDetailRoute,
     serviceOverviewRoute,
     dashboardsRoute,
     alertsRoute,

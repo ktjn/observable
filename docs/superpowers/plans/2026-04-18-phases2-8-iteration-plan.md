@@ -287,7 +287,7 @@ Before Phase 3 starts, answer:
   - Verification: API tests cover caller/callee relationship data; frontend tests cover node/edge navigation; visual smoke verifies nonblank map rendering.
   - Checkpoint: do topology rollups stay performant before broad graph work starts?
 
-- [ ] **P3-S9: Add Infrastructure inventory and detail views**
+- [x] **P3-S9: Add Infrastructure inventory and detail views**
   - Source spec: `spec/05-frontend.md` §9.2.1 Infrastructure and §9.4 Infrastructure Correlation; `spec/09-api.md` Infrastructure Views.
   - Outcome: Infrastructure provides host, Kubernetes cluster, namespace, pod, and container inventory/detail views when resource attributes or catalog entities exist.
   - Files or modules expected to change: infrastructure inventory query path, frontend Infrastructure routes, inventory tables/detail panels, related service links, tests.
