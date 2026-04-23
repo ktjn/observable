@@ -45,6 +45,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/metrics", get(metrics::list_metrics))
         .route("/v1/metrics/:series_id", get(metrics::get_metric_points))
         .route("/v1/topology", get(discovery::get_topology))
+        .route(
+            "/v1/infrastructure",
+            get(discovery::list_infrastructure_inventory),
+        )
+        .route(
+            "/v1/infrastructure/:entity_type/:entity_id",
+            get(discovery::get_infrastructure_detail),
+        )
         .route("/v1/services", get(discovery::list_services))
         .route(
             "/v1/services/summary",

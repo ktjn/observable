@@ -6,6 +6,7 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Serialize)]
 pub struct DiscoveryResponse {
@@ -119,6 +120,66 @@ pub struct InfrastructureLinks {
     pub logs: String,
     pub traces: String,
     pub metrics: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct InfrastructureEntitySummary {
+    pub entity_type: InfrastructureEntityType,
+    pub entity_id: String,
+    pub display_name: String,
+    pub parent_id: Option<String>,
+    pub parent_display_name: Option<String>,
+    pub environment: Option<String>,
+    pub health_state: String,
+    pub last_seen_unix_nano: u64,
+    pub related_services: Vec<String>,
+    pub log_rate_per_minute: Option<f64>,
+    pub error_rate: Option<f64>,
+    pub restart_count: Option<u64>,
+    pub cpu_usage: Option<f64>,
+    pub memory_usage: Option<f64>,
+    pub disk_usage: Option<f64>,
+    pub network_io: Option<f64>,
+}
+
+#[derive(Serialize)]
+pub struct InfrastructureInventoryResponse {
+    pub items: Vec<InfrastructureEntitySummary>,
+}
+
+#[derive(Serialize)]
+pub struct InfrastructureDetailResponse {
+    pub entity: InfrastructureEntitySummary,
+    pub links: InfrastructureLinks,
+}
+
+#[derive(Deserialize)]
+pub struct InfrastructureInventoryParams {
+    pub entity_type: Option<String>,
+    pub environment: Option<String>,
+    pub service: Option<String>,
+    pub search: Option<String>,
+    pub lookback_minutes: Option<u32>,
+}
+
+#[derive(Deserialize)]
+pub struct InfrastructureDetailParams {
+    pub environment: Option<String>,
+    pub lookback_minutes: Option<u32>,
+}
+
+#[derive(Serialize, Deserialize, clickhouse::Row)]
+struct InfrastructureAggregateRow {
+    cluster_name: String,
+    namespace_name: String,
+    pod_name: String,
+    entity_name: String,
+    environment: String,
+    last_seen_unix_nano: u64,
+    related_services: Vec<String>,
+    log_events: u64,
+    span_events: u64,
+    error_events: u64,
 }
 
 pub async fn list_services(
@@ -336,6 +397,87 @@ pub async fn get_topology(
     Ok(Json(TopologyResponse { edges }))
 }
 
+pub async fn list_infrastructure_inventory(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Query(params): Query<InfrastructureInventoryParams>,
+) -> Result<Json<InfrastructureInventoryResponse>, StatusCode> {
+    let lookback_minutes = validated_infrastructure_lookback_minutes(params.lookback_minutes)?;
+    let filter_entity_type = params
+        .entity_type
+        .as_deref()
+        .map(InfrastructureEntityType::try_from)
+        .transpose()?;
+
+    let entity_types = if let Some(entity_type) = filter_entity_type {
+        vec![entity_type]
+    } else {
+        all_infrastructure_entity_types().to_vec()
+    };
+
+    let mut items = Vec::new();
+    for entity_type in entity_types {
+        let mut rows = fetch_infrastructure_summaries(
+            &state,
+            ctx.tenant_id,
+            entity_type,
+            params.environment.as_deref(),
+            params.service.as_deref(),
+            params.search.as_deref(),
+            lookback_minutes,
+        )
+        .await?;
+        items.append(&mut rows);
+    }
+
+    items.sort_by(|left, right| {
+        right
+            .last_seen_unix_nano
+            .cmp(&left.last_seen_unix_nano)
+            .then_with(|| left.display_name.cmp(&right.display_name))
+            .then_with(|| left.entity_id.cmp(&right.entity_id))
+    });
+
+    Ok(Json(InfrastructureInventoryResponse { items }))
+}
+
+pub async fn get_infrastructure_detail(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path((entity_type, entity_id)): Path<(String, String)>,
+    Query(params): Query<InfrastructureDetailParams>,
+) -> Result<Json<InfrastructureDetailResponse>, StatusCode> {
+    let entity_type = InfrastructureEntityType::try_from(entity_type.as_str())?;
+    let lookback_minutes = validated_infrastructure_lookback_minutes(params.lookback_minutes)?;
+
+    let mut matches = fetch_infrastructure_summaries(
+        &state,
+        ctx.tenant_id,
+        entity_type,
+        params.environment.as_deref(),
+        None,
+        None,
+        lookback_minutes,
+    )
+    .await?
+    .into_iter()
+    .filter(|entity| entity.entity_id == entity_id);
+
+    let entity = matches.next().ok_or(StatusCode::NOT_FOUND)?;
+    if matches.next().is_some() {
+        tracing::error!(
+            entity_type = ?entity_type,
+            entity_id = %entity_id,
+            "infrastructure detail lookup remained ambiguous after canonicalization"
+        );
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let links = infrastructure_detail_links(&entity);
+
+    Ok(Json(InfrastructureDetailResponse { entity, links }))
+}
+
 fn service_summary_from_row(row: ServiceSummaryRow, duration_secs: f64) -> ServiceSummary {
     let error_rate = if row.request_count > 0 {
         (row.error_count as f64) / (row.request_count as f64)
@@ -361,6 +503,306 @@ fn health_state(error_rate: f64) -> &'static str {
         "watch"
     } else {
         "healthy"
+    }
+}
+
+async fn fetch_infrastructure_summaries(
+    state: &AppState,
+    tenant_id: Uuid,
+    entity_type: InfrastructureEntityType,
+    environment: Option<&str>,
+    service: Option<&str>,
+    search: Option<&str>,
+    lookback_minutes: u32,
+) -> Result<Vec<InfrastructureEntitySummary>, StatusCode> {
+    let (start_ns, start_seconds) = infrastructure_lookback_window(lookback_minutes);
+    let entity_expr = format!(
+        "JSONExtractString(resource_attributes, '{}')",
+        entity_type.attribute_key()
+    );
+    let has_environment = environment.is_some();
+    let has_service = service.is_some();
+    let has_search = search.is_some();
+
+    let mut sql = format!(
+        "SELECT \
+            cluster_name, \
+            namespace_name, \
+            pod_name, \
+            entity_name, \
+            argMax(environment, event_time) AS environment, \
+            max(event_time) AS last_seen_unix_nano, \
+            arraySort(groupUniqArrayIf(service_name, service_name != '')) AS related_services, \
+            sum(log_events) AS log_events, \
+            sum(span_events) AS span_events, \
+            sum(error_events) AS error_events \
+        FROM ( \
+            SELECT \
+                JSONExtractString(resource_attributes, 'k8s.cluster.name') AS cluster_name, \
+                JSONExtractString(resource_attributes, 'k8s.namespace.name') AS namespace_name, \
+                JSONExtractString(resource_attributes, 'k8s.pod.name') AS pod_name, \
+                {entity_expr} AS entity_name, \
+                environment, \
+                service_name, \
+                start_time_unix_nano AS event_time, \
+                toUInt64(0) AS log_events, \
+                toUInt64(1) AS span_events, \
+                toUInt64(status_code = 'ERROR') AS error_events \
+            FROM spans \
+            WHERE tenant_id = ? AND start_time_unix_nano >= ? \
+            UNION ALL \
+            SELECT \
+                JSONExtractString(resource_attributes, 'k8s.cluster.name') AS cluster_name, \
+                JSONExtractString(resource_attributes, 'k8s.namespace.name') AS namespace_name, \
+                JSONExtractString(resource_attributes, 'k8s.pod.name') AS pod_name, \
+                {entity_expr} AS entity_name, \
+                environment, \
+                service_name, \
+                timestamp_unix_nano AS event_time, \
+                toUInt64(1) AS log_events, \
+                toUInt64(0) AS span_events, \
+                toUInt64(0) AS error_events \
+            FROM logs \
+            WHERE tenant_id = ? AND timestamp_unix_nano >= ? \
+            UNION ALL \
+            SELECT \
+                JSONExtractString(resource_attributes, 'k8s.cluster.name') AS cluster_name, \
+                JSONExtractString(resource_attributes, 'k8s.namespace.name') AS namespace_name, \
+                JSONExtractString(resource_attributes, 'k8s.pod.name') AS pod_name, \
+                {entity_expr} AS entity_name, \
+                environment, \
+                service_name, \
+                toUnixTimestamp64Nano(created_at) AS event_time, \
+                toUInt64(0) AS log_events, \
+                toUInt64(0) AS span_events, \
+                toUInt64(0) AS error_events \
+            FROM metric_series \
+            WHERE tenant_id = ? AND created_at >= fromUnixTimestamp(?) \
+        ) \
+        WHERE entity_name != ''"
+    );
+
+    if has_environment {
+        sql.push_str(" AND environment = ?");
+    }
+    if has_service {
+        sql.push_str(" AND service_name = ?");
+    }
+    if has_search {
+        sql.push_str(
+            " AND (positionCaseInsensitiveUTF8(entity_name, ?) > 0 \
+             OR positionCaseInsensitiveUTF8(cluster_name, ?) > 0 \
+             OR positionCaseInsensitiveUTF8(namespace_name, ?) > 0 \
+             OR positionCaseInsensitiveUTF8(pod_name, ?) > 0 \
+             OR positionCaseInsensitiveUTF8(service_name, ?) > 0)",
+        );
+    }
+    sql.push_str(
+        " GROUP BY cluster_name, namespace_name, pod_name, entity_name \
+         ORDER BY last_seen_unix_nano DESC, entity_name ASC",
+    );
+
+    let mut query = state
+        .ch
+        .query(&sql)
+        .bind(tenant_id)
+        .bind(start_ns)
+        .bind(tenant_id)
+        .bind(start_ns)
+        .bind(tenant_id)
+        .bind(start_seconds);
+
+    if let Some(environment) = environment {
+        query = query.bind(environment);
+    }
+    if let Some(service) = service {
+        query = query.bind(service);
+    }
+    if let Some(search) = search {
+        query = query
+            .bind(search)
+            .bind(search)
+            .bind(search)
+            .bind(search)
+            .bind(search);
+    }
+
+    let rows: Vec<InfrastructureAggregateRow> = query.fetch_all().await.map_err(|e| {
+        tracing::error!(
+            error = ?e,
+            entity_type = ?entity_type,
+            "ClickHouse infrastructure discovery query error"
+        );
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| infrastructure_entity_summary_from_row(entity_type, row, lookback_minutes))
+        .collect())
+}
+
+fn all_infrastructure_entity_types() -> [InfrastructureEntityType; 5] {
+    [
+        InfrastructureEntityType::Host,
+        InfrastructureEntityType::Cluster,
+        InfrastructureEntityType::Namespace,
+        InfrastructureEntityType::Pod,
+        InfrastructureEntityType::Container,
+    ]
+}
+
+fn infrastructure_parent_expression(entity_type: InfrastructureEntityType) -> &'static str {
+    match entity_type {
+        InfrastructureEntityType::Host => {
+            "JSONExtractString(resource_attributes, 'k8s.cluster.name')"
+        }
+        InfrastructureEntityType::Cluster => "''",
+        InfrastructureEntityType::Namespace => {
+            "JSONExtractString(resource_attributes, 'k8s.cluster.name')"
+        }
+        InfrastructureEntityType::Pod => {
+            "JSONExtractString(resource_attributes, 'k8s.namespace.name')"
+        }
+        InfrastructureEntityType::Container => {
+            "JSONExtractString(resource_attributes, 'k8s.pod.name')"
+        }
+    }
+}
+
+fn infrastructure_lookback_window(lookback_minutes: u32) -> (u64, u64) {
+    let lookback_ns = (lookback_minutes as u64) * 60 * 1_000_000_000;
+    let now_ns = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+    let start_ns = now_ns.saturating_sub(lookback_ns);
+    let start_seconds = start_ns / 1_000_000_000;
+    (start_ns, start_seconds)
+}
+
+fn validated_infrastructure_lookback_minutes(
+    lookback_minutes: Option<u32>,
+) -> Result<u32, StatusCode> {
+    match lookback_minutes.unwrap_or(60) {
+        0 => Err(StatusCode::BAD_REQUEST),
+        value => Ok(value),
+    }
+}
+
+fn infrastructure_entity_summary_from_row(
+    entity_type: InfrastructureEntityType,
+    row: InfrastructureAggregateRow,
+    lookback_minutes: u32,
+) -> InfrastructureEntitySummary {
+    let identity = infrastructure_identity(entity_type, &row);
+    let error_rate = if row.span_events > 0 {
+        Some((row.error_events as f64) / (row.span_events as f64))
+    } else {
+        None
+    };
+    let log_rate_per_minute = Some((row.log_events as f64) / (lookback_minutes as f64));
+    let health_state = health_state(error_rate.unwrap_or_default()).to_string();
+    let environment = normalize_infrastructure_string(row.environment);
+
+    InfrastructureEntitySummary {
+        entity_type,
+        display_name: identity.display_name,
+        entity_id: identity.entity_id,
+        parent_display_name: identity.parent_display_name,
+        parent_id: identity.parent_id,
+        environment,
+        health_state,
+        last_seen_unix_nano: row.last_seen_unix_nano,
+        related_services: row.related_services,
+        log_rate_per_minute,
+        error_rate,
+        restart_count: None,
+        cpu_usage: None,
+        memory_usage: None,
+        disk_usage: None,
+        network_io: None,
+    }
+}
+
+struct InfrastructureIdentity {
+    entity_id: String,
+    display_name: String,
+    parent_id: Option<String>,
+    parent_display_name: Option<String>,
+}
+
+fn infrastructure_identity(
+    entity_type: InfrastructureEntityType,
+    row: &InfrastructureAggregateRow,
+) -> InfrastructureIdentity {
+    let cluster = non_empty_infrastructure_str(&row.cluster_name);
+    let namespace = non_empty_infrastructure_str(&row.namespace_name);
+    let pod = non_empty_infrastructure_str(&row.pod_name);
+    let entity = row.entity_name.as_str();
+
+    match entity_type {
+        InfrastructureEntityType::Host => InfrastructureIdentity {
+            entity_id: join_infrastructure_segments([cluster, Some(entity)]),
+            display_name: entity.to_string(),
+            parent_id: cluster.map(str::to_string),
+            parent_display_name: cluster.map(str::to_string),
+        },
+        InfrastructureEntityType::Cluster => InfrastructureIdentity {
+            entity_id: entity.to_string(),
+            display_name: entity.to_string(),
+            parent_id: None,
+            parent_display_name: None,
+        },
+        InfrastructureEntityType::Namespace => InfrastructureIdentity {
+            entity_id: join_infrastructure_segments([cluster, Some(entity)]),
+            display_name: entity.to_string(),
+            parent_id: cluster.map(str::to_string),
+            parent_display_name: cluster.map(str::to_string),
+        },
+        InfrastructureEntityType::Pod => InfrastructureIdentity {
+            entity_id: join_infrastructure_segments([cluster, namespace, Some(entity)]),
+            display_name: entity.to_string(),
+            parent_id: join_optional_infrastructure_segments([cluster, namespace]),
+            parent_display_name: namespace.or(cluster).map(str::to_string),
+        },
+        InfrastructureEntityType::Container => InfrastructureIdentity {
+            entity_id: join_infrastructure_segments([cluster, namespace, pod, Some(entity)]),
+            display_name: entity.to_string(),
+            parent_id: join_optional_infrastructure_segments([cluster, namespace, pod]),
+            parent_display_name: pod.or(namespace).or(cluster).map(str::to_string),
+        },
+    }
+}
+
+fn non_empty_infrastructure_str(value: &str) -> Option<&str> {
+    if value.trim().is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+fn join_infrastructure_segments<const N: usize>(segments: [Option<&str>; N]) -> String {
+    join_optional_infrastructure_segments(segments).unwrap_or_default()
+}
+
+fn join_optional_infrastructure_segments<const N: usize>(
+    segments: [Option<&str>; N],
+) -> Option<String> {
+    let segments: Vec<&str> = segments.into_iter().flatten().collect();
+    if segments.is_empty() {
+        None
+    } else {
+        Some(segments.join("/"))
+    }
+}
+
+fn normalize_infrastructure_string(value: String) -> Option<String> {
+    if value.trim().is_empty() {
+        None
+    } else {
+        Some(value)
     }
 }
 
@@ -407,7 +849,10 @@ mod tests {
             InfrastructureEntityType::Namespace.attribute_key(),
             "k8s.namespace.name"
         );
-        assert_eq!(InfrastructureEntityType::Pod.attribute_key(), "k8s.pod.name");
+        assert_eq!(
+            InfrastructureEntityType::Pod.attribute_key(),
+            "k8s.pod.name"
+        );
         assert_eq!(
             InfrastructureEntityType::Container.attribute_key(),
             "container.name"
@@ -423,10 +868,31 @@ mod tests {
     }
 
     #[test]
-    fn infrastructure_error_rate_health_state_thresholds_are_stable() {
-        assert_eq!(infrastructure_error_rate_health_state(0.0), "healthy");
-        assert_eq!(infrastructure_error_rate_health_state(0.02), "watch");
-        assert_eq!(infrastructure_error_rate_health_state(0.08), "breach");
+    fn infrastructure_health_state_matches_shared_service_thresholds() {
+        assert_eq!(health_state(0.0), "healthy");
+        assert_eq!(health_state(0.02), "watch");
+        assert_eq!(health_state(0.05), "watch");
+        assert_eq!(health_state(0.06), "breach");
+
+        let summary = infrastructure_entity_summary_from_row(
+            InfrastructureEntityType::Pod,
+            InfrastructureAggregateRow {
+                cluster_name: String::new(),
+                namespace_name: String::new(),
+                pod_name: String::new(),
+                entity_name: "checkout-pod-1".into(),
+                environment: "prod".into(),
+                last_seen_unix_nano: 42,
+                related_services: vec!["checkout-api".into()],
+                log_events: 12,
+                span_events: 100,
+                error_events: 5,
+            },
+            10,
+        );
+
+        assert_eq!(summary.error_rate, Some(0.05));
+        assert_eq!(summary.health_state, "watch");
     }
 
     #[test]
@@ -472,15 +938,219 @@ mod tests {
             "/services/checkout%2Fapi%20beta/metrics?resource_attr=k8s.pod.name%3Acheckout%2Fpod%201"
         );
     }
-}
 
-fn infrastructure_error_rate_health_state(error_rate: f64) -> &'static str {
-    if error_rate >= 0.05 {
-        "breach"
-    } else if error_rate >= 0.01 {
-        "watch"
-    } else {
-        "healthy"
+    #[test]
+    fn infrastructure_inventory_response_serializes_entity_rows() {
+        let response = InfrastructureInventoryResponse {
+            items: vec![InfrastructureEntitySummary {
+                entity_type: InfrastructureEntityType::Pod,
+                entity_id: "checkout-pod-1".into(),
+                display_name: "checkout-pod-1".into(),
+                parent_id: Some("payments".into()),
+                parent_display_name: Some("payments".into()),
+                environment: Some("prod".into()),
+                health_state: "watch".into(),
+                last_seen_unix_nano: 42,
+                related_services: vec!["checkout-api".into()],
+                log_rate_per_minute: Some(8.5),
+                error_rate: Some(0.02),
+                restart_count: None,
+                cpu_usage: None,
+                memory_usage: None,
+                disk_usage: None,
+                network_io: None,
+            }],
+        };
+
+        let json = serde_json::to_value(response).unwrap();
+        assert_eq!(json["items"][0]["entity_type"], "pod");
+        assert_eq!(json["items"][0]["entity_id"], "checkout-pod-1");
+        assert_eq!(json["items"][0]["related_services"][0], "checkout-api");
+    }
+
+    #[test]
+    fn infrastructure_detail_response_embeds_links() {
+        let response = InfrastructureDetailResponse {
+            entity: InfrastructureEntitySummary {
+                entity_type: InfrastructureEntityType::Host,
+                entity_id: "ip-10-0-0-12".into(),
+                display_name: "ip-10-0-0-12".into(),
+                parent_id: None,
+                parent_display_name: None,
+                environment: Some("prod".into()),
+                health_state: "healthy".into(),
+                last_seen_unix_nano: 100,
+                related_services: vec!["checkout-api".into()],
+                log_rate_per_minute: Some(1.0),
+                error_rate: Some(0.0),
+                restart_count: None,
+                cpu_usage: None,
+                memory_usage: None,
+                disk_usage: None,
+                network_io: None,
+            },
+            links: infrastructure_links(
+                InfrastructureEntityType::Host,
+                "ip-10-0-0-12",
+                Some("checkout-api".into()),
+            ),
+        };
+
+        let json = serde_json::to_value(response).unwrap();
+        assert_eq!(
+            json["links"]["logs"],
+            "/logs?resource_attr=host.name%3Aip-10-0-0-12"
+        );
+    }
+
+    #[test]
+    fn infrastructure_parent_expression_matches_entity_hierarchy() {
+        assert_eq!(
+            infrastructure_parent_expression(InfrastructureEntityType::Host),
+            "JSONExtractString(resource_attributes, 'k8s.cluster.name')"
+        );
+        assert_eq!(
+            infrastructure_parent_expression(InfrastructureEntityType::Cluster),
+            "''"
+        );
+        assert_eq!(
+            infrastructure_parent_expression(InfrastructureEntityType::Namespace),
+            "JSONExtractString(resource_attributes, 'k8s.cluster.name')"
+        );
+        assert_eq!(
+            infrastructure_parent_expression(InfrastructureEntityType::Pod),
+            "JSONExtractString(resource_attributes, 'k8s.namespace.name')"
+        );
+        assert_eq!(
+            infrastructure_parent_expression(InfrastructureEntityType::Container),
+            "JSONExtractString(resource_attributes, 'k8s.pod.name')"
+        );
+    }
+
+    #[test]
+    fn infrastructure_summary_uses_canonical_hierarchical_entity_ids() {
+        let summary = infrastructure_entity_summary_from_row(
+            InfrastructureEntityType::Pod,
+            InfrastructureAggregateRow {
+                cluster_name: "prod-cluster".into(),
+                namespace_name: "payments".into(),
+                pod_name: "checkout-pod-1".into(),
+                entity_name: "checkout-pod-1".into(),
+                environment: "prod".into(),
+                last_seen_unix_nano: 42,
+                related_services: vec!["checkout-api".into()],
+                log_events: 30,
+                span_events: 100,
+                error_events: 2,
+            },
+            10,
+        );
+
+        assert_eq!(summary.entity_id, "prod-cluster/payments/checkout-pod-1");
+        assert_eq!(summary.display_name, "checkout-pod-1");
+        assert_eq!(summary.parent_id.as_deref(), Some("prod-cluster/payments"));
+        assert_eq!(summary.parent_display_name.as_deref(), Some("payments"));
+    }
+
+    #[test]
+    fn infrastructure_detail_links_use_leaf_resource_value_not_canonical_route_id() {
+        let entity = InfrastructureEntitySummary {
+            entity_type: InfrastructureEntityType::Pod,
+            entity_id: "prod-cluster/payments/checkout-pod-1".into(),
+            display_name: "checkout-pod-1".into(),
+            parent_id: Some("prod-cluster/payments".into()),
+            parent_display_name: Some("payments".into()),
+            environment: Some("prod".into()),
+            health_state: "watch".into(),
+            last_seen_unix_nano: 42,
+            related_services: vec!["checkout-api".into()],
+            log_rate_per_minute: Some(3.0),
+            error_rate: Some(0.02),
+            restart_count: None,
+            cpu_usage: None,
+            memory_usage: None,
+            disk_usage: None,
+            network_io: None,
+        };
+
+        let links = infrastructure_detail_links(&entity);
+
+        assert_eq!(
+            links.logs,
+            "/logs?resource_attr=k8s.pod.name%3Acheckout-pod-1"
+        );
+        assert_eq!(
+            links.metrics,
+            "/services/checkout-api/metrics?resource_attr=k8s.pod.name%3Acheckout-pod-1"
+        );
+    }
+
+    #[test]
+    fn infrastructure_lookback_validation_rejects_zero_minutes() {
+        assert_eq!(
+            validated_infrastructure_lookback_minutes(Some(0)),
+            Err(StatusCode::BAD_REQUEST)
+        );
+        assert_eq!(validated_infrastructure_lookback_minutes(None), Ok(60));
+        assert_eq!(validated_infrastructure_lookback_minutes(Some(15)), Ok(15));
+    }
+
+    #[test]
+    fn infrastructure_summary_from_row_derives_rates_and_normalizes_empty_fields() {
+        let summary = infrastructure_entity_summary_from_row(
+            InfrastructureEntityType::Pod,
+            InfrastructureAggregateRow {
+                cluster_name: String::new(),
+                namespace_name: String::new(),
+                pod_name: String::new(),
+                entity_name: "checkout-pod-1".into(),
+                environment: String::new(),
+                last_seen_unix_nano: 42,
+                related_services: vec!["checkout-api".into()],
+                log_events: 30,
+                span_events: 100,
+                error_events: 2,
+            },
+            10,
+        );
+
+        assert_eq!(summary.entity_type, InfrastructureEntityType::Pod);
+        assert_eq!(summary.entity_id, "checkout-pod-1");
+        assert_eq!(summary.display_name, "checkout-pod-1");
+        assert_eq!(summary.parent_id, None);
+        assert_eq!(summary.parent_display_name, None);
+        assert_eq!(summary.environment, None);
+        assert_eq!(summary.log_rate_per_minute, Some(3.0));
+        assert_eq!(summary.error_rate, Some(0.02));
+        assert_eq!(summary.health_state, "watch");
+        assert_eq!(summary.related_services, vec!["checkout-api".to_string()]);
+    }
+
+    #[test]
+    fn infrastructure_summary_from_row_omits_error_rate_without_spans() {
+        let summary = infrastructure_entity_summary_from_row(
+            InfrastructureEntityType::Host,
+            InfrastructureAggregateRow {
+                cluster_name: "prod-cluster".into(),
+                namespace_name: String::new(),
+                pod_name: String::new(),
+                entity_name: "ip-10-0-0-12".into(),
+                environment: "prod".into(),
+                last_seen_unix_nano: 99,
+                related_services: vec![],
+                log_events: 0,
+                span_events: 0,
+                error_events: 0,
+            },
+            15,
+        );
+
+        assert_eq!(summary.parent_id.as_deref(), Some("prod-cluster"));
+        assert_eq!(summary.parent_display_name.as_deref(), Some("prod-cluster"));
+        assert_eq!(summary.environment.as_deref(), Some("prod"));
+        assert_eq!(summary.log_rate_per_minute, Some(0.0));
+        assert_eq!(summary.error_rate, None);
+        assert_eq!(summary.health_state, "healthy");
     }
 }
 
@@ -500,6 +1170,14 @@ fn percent_encode_url_component(value: &str) -> String {
     }
 
     encoded
+}
+
+fn infrastructure_detail_links(entity: &InfrastructureEntitySummary) -> InfrastructureLinks {
+    infrastructure_links(
+        entity.entity_type,
+        &entity.display_name,
+        entity.related_services.first().cloned(),
+    )
 }
 
 fn infrastructure_links(
