@@ -1,5 +1,6 @@
 use crate::discovery::TopologyParams;
 use crate::logs::LogSearchParams;
+use crate::traces::{SearchParams as TraceSearchParams, SELECT_COLS};
 use std::collections::HashMap;
 
 pub struct LogQueryPlan {
@@ -17,10 +18,44 @@ pub struct TopologyPlan {
     pub sql: String,
 }
 
+pub struct TraceSearchPlan {
+    pub count_sql: String,
+    pub spans_sql: String,
+    pub limit: u64,
+}
+
 #[derive(Clone, Default)]
 pub struct QueryPlanner;
 
 impl QueryPlanner {
+    pub fn plan_trace_search(&self, params: &TraceSearchParams) -> TraceSearchPlan {
+        let count_sql = if params.service.is_some() {
+            "SELECT count(DISTINCT trace_id) FROM spans WHERE tenant_id = ? AND service_name = ?"
+        } else {
+            "SELECT count(DISTINCT trace_id) FROM spans WHERE tenant_id = ?"
+        }
+        .to_string();
+
+        let latest_trace_ids_sql = if params.service.is_some() {
+            "(SELECT tenant_id, trace_id, max(start_time_unix_nano) FROM spans WHERE tenant_id = ? AND service_name = ? GROUP BY tenant_id, trace_id ORDER BY max(start_time_unix_nano) DESC LIMIT ?)"
+        } else {
+            "(SELECT tenant_id, trace_id, max(start_time_unix_nano) FROM spans WHERE tenant_id = ? GROUP BY tenant_id, trace_id ORDER BY max(start_time_unix_nano) DESC LIMIT ?)"
+        }
+        .to_string();
+
+        let spans_sql = format!(
+            "SELECT {SELECT_COLS} FROM spans \
+             WHERE (tenant_id, trace_id, start_time_unix_nano) IN {latest_trace_ids_sql} \
+             ORDER BY start_time_unix_nano DESC"
+        );
+
+        TraceSearchPlan {
+            count_sql,
+            spans_sql,
+            limit: params.limit.unwrap_or(50).min(500) as u64,
+        }
+    }
+
     pub fn plan_log_search(&self, params: &LogSearchParams) -> LogQueryPlan {
         let where_clause = log_search_where_clause(params);
         let count_sql = format!("SELECT count() FROM logs {where_clause}");
@@ -209,5 +244,53 @@ mod tests {
         assert!(plan
             .sql
             .contains("AND (child.service_name = ? OR parent.service_name = ?)"));
+    }
+
+    #[test]
+    fn trace_search_plan_counts_total_without_limit() {
+        let planner = QueryPlanner;
+        let mut params = TraceSearchParams {
+            service: Some("checkout".into()),
+            limit: Some(10),
+            facets: None,
+        };
+
+        let plan = planner.plan_trace_search(&params);
+
+        assert_eq!(
+            plan.count_sql,
+            "SELECT count(DISTINCT trace_id) FROM spans WHERE tenant_id = ? AND service_name = ?"
+        );
+        assert!(!plan.count_sql.contains("LIMIT"));
+
+        params.service = None;
+        let plan = planner.plan_trace_search(&params);
+        assert_eq!(
+            plan.count_sql,
+            "SELECT count(DISTINCT trace_id) FROM spans WHERE tenant_id = ?"
+        );
+    }
+
+    #[test]
+    fn trace_search_plan_orders_by_latest_span_per_trace() {
+        let planner = QueryPlanner;
+        let params = TraceSearchParams {
+            service: None,
+            limit: Some(900),
+            facets: None,
+        };
+
+        let plan = planner.plan_trace_search(&params);
+
+        assert_eq!(plan.limit, 500);
+        assert!(plan.spans_sql.contains("max(start_time_unix_nano)"));
+        assert!(plan.spans_sql.contains("GROUP BY tenant_id, trace_id"));
+        assert!(plan
+            .spans_sql
+            .contains("ORDER BY max(start_time_unix_nano) DESC LIMIT ?"));
+        assert!(!plan.spans_sql.contains("SELECT DISTINCT trace_id"));
+        assert!(plan
+            .spans_sql
+            .contains("WHERE (tenant_id, trace_id, start_time_unix_nano) IN"));
     }
 }
