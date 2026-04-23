@@ -35,6 +35,9 @@ wait_for_json_count() {
   for _ in $(seq 1 "$attempts"); do
     result=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" "$url" || true)
     count=$(echo "$result" | jq -r "$jq_expr" 2>/dev/null || echo 0)
+    if [[ ! "$count" =~ ^[0-9]+$ ]]; then
+      count=0
+    fi
     if [ "$count" -gt 0 ]; then
       echo " OK ($label) - $count record(s)"
       return 0
@@ -75,6 +78,9 @@ main() {
   OTHER_TENANT_ID="00000000-0000-0000-0000-000000000002"
   CROSS_RESULT=$(curl -sf -H "X-Tenant-ID: $OTHER_TENANT_ID" "$QUERY/v1/traces/$TRACE_ID" || true)
   CROSS_SPAN_COUNT=$(echo "$CROSS_RESULT" | jq '.spans | length' 2>/dev/null || echo 0)
+  if [[ ! "$CROSS_SPAN_COUNT" =~ ^[0-9]+$ ]]; then
+    CROSS_SPAN_COUNT=0
+  fi
   if [ "$CROSS_SPAN_COUNT" -eq 0 ]; then
     echo " OK (cross-tenant trace hidden)"
   else

@@ -88,7 +88,12 @@ if [[ $SKIP_DOCKER -eq 0 ]]; then
   if [[ $SKIP_SMOKE -eq 0 ]]; then
     step "Smoke test"
     SMOKE_COMPOSE_STARTED=1
-    docker compose up smoke-test --abort-on-container-exit && ok "smoke-test" || fail "smoke-test"
+    if docker compose up smoke-test --abort-on-container-exit; then
+      ok "smoke-test"
+    else
+      docker compose logs --no-color --tail=120 ingest-gateway query-api stream-processor storage-writer || true
+      fail "smoke-test"
+    fi
   fi
 fi
 
