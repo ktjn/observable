@@ -117,13 +117,6 @@ The standard is **no new errors introduced**. A PR may document pre-existing fai
 | Auth or tenancy | positive and negative policy tests, tenant-cross-read denial test |
 | Frontend behavior | component/unit test or browser smoke for the changed route/state, typecheck |
 | Deployment or CI | render/dry-run check, policy validation, rollback note |
-**Current mandatory smoke coverage**
-
-`scripts/local-ci.sh` runs `docker compose up smoke-test --abort-on-container-exit`
-for code changes unless Docker or smoke tests are explicitly skipped. The smoke
-test must continue to prove at least one successful path for trace ingest, trace
-detail query, trace search, log ingest, metric ingest, OTLP gRPC ingest, and
-service discovery.
 
 ## 18.7 Per-Iteration No-Regression Rules
 
@@ -175,9 +168,7 @@ Agent PRs must report:
 - evidence that specs and ADRs are synchronized
 - the next smallest slice needed to continue toward the phase exit gate
 
----
-
-### 18.7 Kubernetes Test Strategy
+### 18.8 Kubernetes Test Strategy
 
 Kubernetes-specific testing follows the same layered model as other test categories, with
 additional gates at the manifest and cluster-level.
