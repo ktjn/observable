@@ -77,6 +77,50 @@ pub struct ServiceDetailResponse {
     pub service: ServiceSummary,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InfrastructureEntityType {
+    Host,
+    Cluster,
+    Namespace,
+    Pod,
+    Container,
+}
+
+impl InfrastructureEntityType {
+    pub fn attribute_key(self) -> &'static str {
+        match self {
+            Self::Host => "host.name",
+            Self::Cluster => "k8s.cluster.name",
+            Self::Namespace => "k8s.namespace.name",
+            Self::Pod => "k8s.pod.name",
+            Self::Container => "container.name",
+        }
+    }
+}
+
+impl TryFrom<&str> for InfrastructureEntityType {
+    type Error = StatusCode;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "host" => Ok(Self::Host),
+            "cluster" => Ok(Self::Cluster),
+            "namespace" => Ok(Self::Namespace),
+            "pod" => Ok(Self::Pod),
+            "container" => Ok(Self::Container),
+            _ => Err(StatusCode::BAD_REQUEST),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct InfrastructureLinks {
+    pub logs: String,
+    pub traces: String,
+    pub metrics: String,
+}
+
 pub async fn list_services(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
@@ -350,5 +394,131 @@ mod tests {
         assert_eq!(health_state(0.0), "healthy");
         assert_eq!(health_state(0.02), "watch");
         assert_eq!(health_state(0.06), "breach");
+    }
+
+    #[test]
+    fn infrastructure_entity_type_attribute_keys_are_stable() {
+        assert_eq!(InfrastructureEntityType::Host.attribute_key(), "host.name");
+        assert_eq!(
+            InfrastructureEntityType::Cluster.attribute_key(),
+            "k8s.cluster.name"
+        );
+        assert_eq!(
+            InfrastructureEntityType::Namespace.attribute_key(),
+            "k8s.namespace.name"
+        );
+        assert_eq!(InfrastructureEntityType::Pod.attribute_key(), "k8s.pod.name");
+        assert_eq!(
+            InfrastructureEntityType::Container.attribute_key(),
+            "container.name"
+        );
+    }
+
+    #[test]
+    fn infrastructure_entity_type_rejects_unknown_values() {
+        assert_eq!(
+            InfrastructureEntityType::try_from("rack"),
+            Err(StatusCode::BAD_REQUEST)
+        );
+    }
+
+    #[test]
+    fn infrastructure_error_rate_health_state_thresholds_are_stable() {
+        assert_eq!(infrastructure_error_rate_health_state(0.0), "healthy");
+        assert_eq!(infrastructure_error_rate_health_state(0.02), "watch");
+        assert_eq!(infrastructure_error_rate_health_state(0.08), "breach");
+    }
+
+    #[test]
+    fn infrastructure_detail_link_uses_canonical_resource_attribute() {
+        let links = infrastructure_links(
+            InfrastructureEntityType::Pod,
+            "checkout-pod-1",
+            Some("checkout-api".into()),
+        );
+
+        assert_eq!(
+            links.logs,
+            "/logs?resource_attr=k8s.pod.name%3Acheckout-pod-1"
+        );
+        assert_eq!(
+            links.traces,
+            "/traces?resource_attr=k8s.pod.name%3Acheckout-pod-1"
+        );
+        assert_eq!(
+            links.metrics,
+            "/services/checkout-api/metrics?resource_attr=k8s.pod.name%3Acheckout-pod-1"
+        );
+    }
+
+    #[test]
+    fn infrastructure_links_percent_encode_dynamic_url_parts() {
+        let links = infrastructure_links(
+            InfrastructureEntityType::Pod,
+            "checkout/pod 1",
+            Some("checkout/api beta".into()),
+        );
+
+        assert_eq!(
+            links.logs,
+            "/logs?resource_attr=k8s.pod.name%3Acheckout%2Fpod%201"
+        );
+        assert_eq!(
+            links.traces,
+            "/traces?resource_attr=k8s.pod.name%3Acheckout%2Fpod%201"
+        );
+        assert_eq!(
+            links.metrics,
+            "/services/checkout%2Fapi%20beta/metrics?resource_attr=k8s.pod.name%3Acheckout%2Fpod%201"
+        );
+    }
+}
+
+fn infrastructure_error_rate_health_state(error_rate: f64) -> &'static str {
+    if error_rate >= 0.05 {
+        "breach"
+    } else if error_rate >= 0.01 {
+        "watch"
+    } else {
+        "healthy"
+    }
+}
+
+fn percent_encode_url_component(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len());
+
+    for byte in value.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                encoded.push(byte as char);
+            }
+            _ => {
+                encoded.push('%');
+                encoded.push_str(&format!("{byte:02X}"));
+            }
+        }
+    }
+
+    encoded
+}
+
+fn infrastructure_links(
+    entity_type: InfrastructureEntityType,
+    entity_id: &str,
+    primary_service: Option<String>,
+) -> InfrastructureLinks {
+    let attr = entity_type.attribute_key();
+    let resource_attr = percent_encode_url_component(&format!("{attr}:{entity_id}"));
+    let metrics = primary_service
+        .map(|service| {
+            let service = percent_encode_url_component(&service);
+            format!("/services/{service}/metrics?resource_attr={resource_attr}")
+        })
+        .unwrap_or_else(|| format!("/metrics?resource_attr={resource_attr}"));
+
+    InfrastructureLinks {
+        logs: format!("/logs?resource_attr={resource_attr}"),
+        traces: format!("/traces?resource_attr={resource_attr}"),
+        metrics,
     }
 }
