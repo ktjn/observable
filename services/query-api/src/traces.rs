@@ -48,7 +48,7 @@ pub struct SearchParams {
     pub facets: Option<String>, // Comma-separated list of fields to facet
 }
 
-const SELECT_COLS: &str = "tenant_id, trace_id, span_id, parent_span_id, service_name, \
+pub(crate) const SELECT_COLS: &str = "tenant_id, trace_id, span_id, parent_span_id, service_name, \
     service_namespace, service_version, operation_name, span_kind, \
     start_time_unix_nano, end_time_unix_nano, duration_ns, \
     status_code, status_message, attributes, resource_attributes, \
@@ -100,15 +100,10 @@ pub async fn search_traces(
     Extension(ctx): Extension<TenantContext>,
     Query(params): Query<SearchParams>,
 ) -> Result<Json<TraceListResponse>, StatusCode> {
-    let limit = params.limit.unwrap_or(50).min(500) as u64;
+    let plan = state.planner.plan_trace_search(&params);
 
     // First, count total distinct traces.
-    let count_sql = if params.service.is_some() {
-        "SELECT count(DISTINCT trace_id) FROM spans WHERE tenant_id = ? AND service_name = ?"
-    } else {
-        "SELECT count(DISTINCT trace_id) FROM spans WHERE tenant_id = ?"
-    };
-    let mut count_query = state.ch.query(count_sql).bind(ctx.tenant_id);
+    let mut count_query = state.ch.query(&plan.count_sql).bind(ctx.tenant_id);
     if let Some(ref svc) = params.service {
         count_query = count_query.bind(svc.as_str());
     }
@@ -165,23 +160,11 @@ pub async fn search_traces(
     }
 
     // Then, fetch the newest span for each of the newest N traces.
-    let subquery = if params.service.is_some() {
-        "(SELECT tenant_id, trace_id, max(start_time_unix_nano) FROM spans WHERE tenant_id = ? AND service_name = ? GROUP BY tenant_id, trace_id ORDER BY max(start_time_unix_nano) DESC LIMIT ?)"
-    } else {
-        "(SELECT tenant_id, trace_id, max(start_time_unix_nano) FROM spans WHERE tenant_id = ? GROUP BY tenant_id, trace_id ORDER BY max(start_time_unix_nano) DESC LIMIT ?)"
-    };
-
-    let sql = format!(
-        "SELECT {SELECT_COLS} FROM spans \
-         WHERE (tenant_id, trace_id, start_time_unix_nano) IN {subquery} \
-         ORDER BY start_time_unix_nano DESC"
-    );
-
-    let mut query = state.ch.query(&sql).bind(ctx.tenant_id);
+    let mut query = state.ch.query(&plan.spans_sql).bind(ctx.tenant_id);
     if let Some(ref svc) = params.service {
         query = query.bind(svc.as_str());
     }
-    query = query.bind(limit);
+    query = query.bind(plan.limit);
 
     let rows: Vec<SpanRow> = query.fetch_all().await.map_err(|e| {
         tracing::error!(error = ?e, "ClickHouse search traces error");
