@@ -652,6 +652,7 @@ fn all_infrastructure_entity_types() -> [InfrastructureEntityType; 5] {
     ]
 }
 
+#[allow(dead_code)]
 fn infrastructure_parent_expression(entity_type: InfrastructureEntityType) -> &'static str {
     match entity_type {
         InfrastructureEntityType::Host => {
@@ -803,6 +804,53 @@ fn normalize_infrastructure_string(value: String) -> Option<String> {
         None
     } else {
         Some(value)
+    }
+}
+
+fn percent_encode_url_component(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len());
+
+    for byte in value.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                encoded.push(byte as char);
+            }
+            _ => {
+                encoded.push('%');
+                encoded.push_str(&format!("{byte:02X}"));
+            }
+        }
+    }
+
+    encoded
+}
+
+fn infrastructure_detail_links(entity: &InfrastructureEntitySummary) -> InfrastructureLinks {
+    infrastructure_links(
+        entity.entity_type,
+        &entity.display_name,
+        entity.related_services.first().cloned(),
+    )
+}
+
+fn infrastructure_links(
+    entity_type: InfrastructureEntityType,
+    entity_id: &str,
+    primary_service: Option<String>,
+) -> InfrastructureLinks {
+    let attr = entity_type.attribute_key();
+    let resource_attr = percent_encode_url_component(&format!("{attr}:{entity_id}"));
+    let metrics = primary_service
+        .map(|service| {
+            let service = percent_encode_url_component(&service);
+            format!("/services/{service}/metrics?resource_attr={resource_attr}")
+        })
+        .unwrap_or_else(|| format!("/metrics?resource_attr={resource_attr}"));
+
+    InfrastructureLinks {
+        logs: format!("/logs?resource_attr={resource_attr}"),
+        traces: format!("/traces?resource_attr={resource_attr}"),
+        metrics,
     }
 }
 
@@ -1151,52 +1199,5 @@ mod tests {
         assert_eq!(summary.log_rate_per_minute, Some(0.0));
         assert_eq!(summary.error_rate, None);
         assert_eq!(summary.health_state, "healthy");
-    }
-}
-
-fn percent_encode_url_component(value: &str) -> String {
-    let mut encoded = String::with_capacity(value.len());
-
-    for byte in value.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
-                encoded.push(byte as char);
-            }
-            _ => {
-                encoded.push('%');
-                encoded.push_str(&format!("{byte:02X}"));
-            }
-        }
-    }
-
-    encoded
-}
-
-fn infrastructure_detail_links(entity: &InfrastructureEntitySummary) -> InfrastructureLinks {
-    infrastructure_links(
-        entity.entity_type,
-        &entity.display_name,
-        entity.related_services.first().cloned(),
-    )
-}
-
-fn infrastructure_links(
-    entity_type: InfrastructureEntityType,
-    entity_id: &str,
-    primary_service: Option<String>,
-) -> InfrastructureLinks {
-    let attr = entity_type.attribute_key();
-    let resource_attr = percent_encode_url_component(&format!("{attr}:{entity_id}"));
-    let metrics = primary_service
-        .map(|service| {
-            let service = percent_encode_url_component(&service);
-            format!("/services/{service}/metrics?resource_attr={resource_attr}")
-        })
-        .unwrap_or_else(|| format!("/metrics?resource_attr={resource_attr}"));
-
-    InfrastructureLinks {
-        logs: format!("/logs?resource_attr={resource_attr}"),
-        traces: format!("/traces?resource_attr={resource_attr}"),
-        metrics,
     }
 }

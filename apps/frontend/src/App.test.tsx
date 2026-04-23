@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import App from "./App";
 import { THEME_STORAGE_KEY } from "./lib/theme";
 
-beforeEach(() => {
+let App: typeof import("./App").default;
+
+beforeEach(async () => {
   window.localStorage.clear();
   window.history.pushState({}, "", "/");
+  vi.resetModules();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
@@ -21,6 +23,7 @@ beforeEach(() => {
       return new Response(JSON.stringify({}), { status: 200 });
     }),
   );
+  ({ default: App } = await import("./App"));
 });
 
 afterEach(() => {
@@ -44,7 +47,8 @@ test("renders the product navigation shell", async () => {
 test("persists the selected theme preference", async () => {
   render(<App />);
 
-  fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
+  const darkTheme = await screen.findByRole("radio", { name: "Dark" });
+  fireEvent.click(darkTheme);
 
   expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
   expect(document.documentElement.dataset.themePreference).toBe("dark");
@@ -94,6 +98,184 @@ test("renders the service detail overview with performance entry points", async 
   expect(within(entryPoints).getByRole("link", { name: "Infrastructure" })).toHaveAttribute(
     "href",
     "/infrastructure?service=checkout",
+  );
+});
+
+test("renders infrastructure inventory rows from the infrastructure API", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes("/v1/infrastructure")) {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                entity_type: "pod",
+                entity_id: "prod-cluster/payments/checkout-pod-1",
+                display_name: "checkout-pod-1",
+                parent_id: "payments",
+                parent_display_name: "payments",
+                environment: "prod",
+                health_state: "watch",
+                last_seen_unix_nano: 42,
+                related_services: ["checkout-api"],
+                log_rate_per_minute: 8.5,
+                error_rate: 0.02,
+                restart_count: null,
+                cpu_usage: null,
+                memory_usage: null,
+                disk_usage: null,
+                network_io: null,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+
+      if (url.includes("/v1/environments")) {
+        return new Response(JSON.stringify({ items: ["prod"] }), { status: 200 });
+      }
+
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+
+  window.history.pushState({}, "", "/infrastructure");
+  render(<App />);
+
+  expect(await screen.findByRole("heading", { name: "Infrastructure" })).toBeInTheDocument();
+  expect(await screen.findByText("checkout-pod-1")).toBeInTheDocument();
+  expect(screen.getByText("checkout-api")).toBeInTheDocument();
+});
+
+test("filters the infrastructure inventory by entity type", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes("/v1/infrastructure")) {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                entity_type: "pod",
+                entity_id: "prod-cluster/payments/checkout-pod-1",
+                display_name: "checkout-pod-1",
+                parent_id: "payments",
+                parent_display_name: "payments",
+                environment: "prod",
+                health_state: "watch",
+                last_seen_unix_nano: 42,
+                related_services: ["checkout-api"],
+                log_rate_per_minute: 8.5,
+                error_rate: 0.02,
+                restart_count: null,
+                cpu_usage: null,
+                memory_usage: null,
+                disk_usage: null,
+                network_io: null,
+              },
+              {
+                entity_type: "host",
+                entity_id: "ip-10-0-0-12",
+                display_name: "ip-10-0-0-12",
+                parent_id: null,
+                parent_display_name: null,
+                environment: "prod",
+                health_state: "healthy",
+                last_seen_unix_nano: 43,
+                related_services: ["checkout-api"],
+                log_rate_per_minute: 1.5,
+                error_rate: null,
+                restart_count: null,
+                cpu_usage: 0.27,
+                memory_usage: 0.61,
+                disk_usage: null,
+                network_io: null,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+
+      if (url.includes("/v1/environments")) {
+        return new Response(JSON.stringify({ items: ["prod"] }), { status: 200 });
+      }
+
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+
+  window.history.pushState({}, "", "/infrastructure");
+  render(<App />);
+
+  await screen.findByText("checkout-pod-1");
+  fireEvent.change(screen.getByLabelText("Infrastructure type filter"), {
+    target: { value: "host" },
+  });
+
+  expect(screen.queryByText("checkout-pod-1")).not.toBeInTheDocument();
+  expect(screen.getByText("ip-10-0-0-12")).toBeInTheDocument();
+});
+
+test("renders infrastructure detail action links from a pod detail route", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes("/v1/infrastructure/pod/prod-cluster%2Fpayments%2Fcheckout-pod-1")) {
+        return new Response(
+          JSON.stringify({
+            entity: {
+              entity_type: "pod",
+              entity_id: "prod-cluster/payments/checkout-pod-1",
+              display_name: "checkout-pod-1",
+              parent_id: "payments",
+              parent_display_name: "payments",
+              environment: "prod",
+              health_state: "watch",
+              last_seen_unix_nano: 42,
+              related_services: ["checkout-api"],
+              log_rate_per_minute: 8.5,
+              error_rate: 0.02,
+              restart_count: null,
+              cpu_usage: null,
+              memory_usage: null,
+              disk_usage: null,
+              network_io: null,
+            },
+            links: {
+              logs: "/logs?resource_attr=k8s.pod.name:prod-cluster/payments/checkout-pod-1",
+              traces: "/traces?resource_attr=k8s.pod.name:prod-cluster/payments/checkout-pod-1",
+              metrics:
+                "/services/checkout-api/metrics?resource_attr=k8s.pod.name:prod-cluster/payments/checkout-pod-1",
+            },
+          }),
+          { status: 200 },
+        );
+      }
+
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+
+  window.history.pushState(
+    {},
+    "",
+    "/infrastructure/pod/prod-cluster%2Fpayments%2Fcheckout-pod-1",
+  );
+  render(<App />);
+
+  expect(await screen.findByRole("heading", { name: "checkout-pod-1" })).toBeInTheDocument();
+  expect(within(screen.getByLabelText("Infrastructure action links")).getByRole("link", { name: "Logs" })).toHaveAttribute(
+    "href",
+    "/logs?resource_attr=k8s.pod.name:prod-cluster/payments/checkout-pod-1",
   );
 });
 

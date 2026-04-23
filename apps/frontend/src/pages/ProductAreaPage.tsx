@@ -5,16 +5,12 @@ import { listServiceSummaries, listEnvironments, ServiceSummary } from "../api/s
 
 type ProductArea =
   | "services"
-  | "infrastructure"
-  | "service-overview"
   | "dashboards"
   | "alerts"
   | "admin";
 
 const pageCopy: Record<ProductArea, { title: string; kicker: string }> = {
   services: { title: "Services", kicker: "Catalog" },
-  infrastructure: { title: "Infrastructure", kicker: "Inventory" },
-  "service-overview": { title: "Service Overview", kicker: "Topology" },
   dashboards: { title: "Dashboards", kicker: "Saved Views" },
   alerts: { title: "Alerts & SLOs", kicker: "Reliability" },
   admin: { title: "Admin / Fleet / Billing", kicker: "Operations" },
