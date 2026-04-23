@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+require_command() {
+  local name="$1"
+  if ! command -v "$name" >/dev/null 2>&1; then
+    echo "FAIL: required command '$name' is not available"
+    exit 1
+  fi
+}
+
+require_command curl
+require_command jq
+require_command grpcurl
+
 INGEST="${INGEST_URL:-http://localhost:4318}"
 GRPC_INGEST="${GRPC_INGEST_URL:-http://localhost:4317}"
 QUERY="${QUERY_URL:-http://localhost:8090}"
@@ -23,6 +35,9 @@ wait_for_json_count() {
   for _ in $(seq 1 "$attempts"); do
     result=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" "$url" || true)
     count=$(echo "$result" | jq -r "$jq_expr" 2>/dev/null || echo 0)
+    if [[ ! "$count" =~ ^[0-9]+$ ]]; then
+      count=0
+    fi
     if [ "$count" -gt 0 ]; then
       echo " OK ($label) - $count record(s)"
       return 0
@@ -45,8 +60,34 @@ main() {
     -d "{\"resourceSpans\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"$SERVICE_NAME\"}}]},\"scopeSpans\":[{\"spans\":[{\"traceId\":\"$TRACE_ID\",\"spanId\":\"00f067aa0ba902b7\",\"name\":\"e2e-smoke\",\"startTimeUnixNano\":\"$(date +%s%N)\",\"endTimeUnixNano\":\"$(( $(date +%s%N) + 5000000 ))\",\"status\":{\"code\":1}}]}]}]}"
   echo " OK"
 
+  echo "1b. Checking missing auth rejection..."
+  AUTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$INGEST/v1/traces" \
+    -H "Content-Type: application/json" \
+    -d "{\"resourceSpans\":[]}")
+  if [ "$AUTH_STATUS" = "401" ]; then
+    echo " OK (missing auth rejected)"
+  else
+    echo " FAIL: missing auth returned HTTP $AUTH_STATUS"
+    exit 1
+  fi
+
   echo "2. Querying trace detail..."
   wait_for_json_count "detail" "$QUERY/v1/traces/$TRACE_ID" '.spans | length'
+
+  echo "2b. Checking cross-tenant trace denial..."
+  OTHER_TENANT_ID="00000000-0000-0000-0000-000000000002"
+  CROSS_RESULT=$(curl -sf -H "X-Tenant-ID: $OTHER_TENANT_ID" "$QUERY/v1/traces/$TRACE_ID" || true)
+  CROSS_SPAN_COUNT=$(echo "$CROSS_RESULT" | jq '.spans | length' 2>/dev/null || echo 0)
+  if [[ ! "$CROSS_SPAN_COUNT" =~ ^[0-9]+$ ]]; then
+    CROSS_SPAN_COUNT=0
+  fi
+  if [ "$CROSS_SPAN_COUNT" -eq 0 ]; then
+    echo " OK (cross-tenant trace hidden)"
+  else
+    echo " FAIL: cross-tenant query exposed $CROSS_SPAN_COUNT span(s)"
+    echo " Result: $CROSS_RESULT"
+    exit 1
+  fi
 
   echo "3. Searching traces..."
   wait_for_json_count "search" "$QUERY/v1/traces?service=$SERVICE_NAME" '.total'
