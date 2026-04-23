@@ -154,6 +154,15 @@ You **MUST** run the following checks before pushing **ANY** code changes to the
 
 If any check fails, you **MUST** fix it before pushing.
 
+**Regression gate stewardship**
+
+Agents must treat `scripts/local-ci.sh`, `tests/e2e/smoke_test.sh`, `scripts/perf-smoke.sh`, and Docker Compose verification services as protected regression gates.
+
+- Before changing a regression gate, state the current coverage it provides and the exact coverage that will exist after the change.
+- Never delete, weaken, skip, or quarantine a regression assertion unless the PR includes a replacement signal, linked issue, owner, expiry date, and explicit reviewer approval.
+- Regression-gate changes must preserve existing build and product functionality. Run the narrowest affected check first, then the required local gate for the touched surface.
+- Performance-sensitive changes must run `docker compose up perf-smoke --abort-on-container-exit` or explain why the performance gate is not relevant.
+
 ### 16.8 Tiny Agent Iteration Workflow
 
 Agents must move from specification to final product through small, reviewable vertical slices. An iteration should be small enough that a reviewer can understand the intent, diff, tests, and remaining risk in one sitting.
