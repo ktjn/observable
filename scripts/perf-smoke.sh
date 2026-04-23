@@ -7,6 +7,17 @@
 #   Query   P50 < 1000ms, P95 < 3000ms  (spec/11-testing.md §18.3)
 set -euo pipefail
 
+require_command() {
+  local name="$1"
+  if ! command -v "$name" >/dev/null 2>&1; then
+    echo "FAIL: required command '$name' is not available"
+    exit 1
+  fi
+}
+
+require_command curl
+require_command jq
+
 INGEST="${INGEST_URL:-http://localhost:4317}"
 QUERY="${QUERY_URL:-http://localhost:8090}"
 TOKEN="dev-api-key-0000"

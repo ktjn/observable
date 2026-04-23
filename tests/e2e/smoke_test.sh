@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+require_command() {
+  local name="$1"
+  if ! command -v "$name" >/dev/null 2>&1; then
+    echo "FAIL: required command '$name' is not available"
+    exit 1
+  fi
+}
+
+require_command curl
+require_command jq
+require_command grpcurl
+
 INGEST="${INGEST_URL:-http://localhost:4318}"
 GRPC_INGEST="${GRPC_INGEST_URL:-http://localhost:4317}"
 QUERY="${QUERY_URL:-http://localhost:8090}"
