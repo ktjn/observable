@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status:** Completed on `main` across PRs #102-#106. The checklist below is kept as the implementation record.
+
 **Goal:** Make the regression gate more deterministic, better scoped, and harder to weaken while preserving the existing build and end-to-end functionality.
 
 **Architecture:** Keep `scripts/local-ci.sh` as the mandatory pre-push gate and keep Docker Compose as the local integration environment. Improve the existing smoke and performance scripts incrementally with preflight checks, unique test data, bounded polling, diagnostics, and explicit no-regression reporting before adding broader coverage.
@@ -63,7 +65,7 @@
 - Modify: `spec/11-testing.md`
 - Test: documentation review
 
-- [ ] **Step 1: Add an explicit regression contract section**
+- [x] **Step 1: Add an explicit regression contract section**
 
 Add a short subsection under `18.6 Per-Iteration No-Regression Rules` that states the current mandatory smoke coverage:
 
@@ -77,7 +79,7 @@ detail query, trace search, log ingest, metric ingest, OTLP gRPC ingest, and
 service discovery.
 ```
 
-- [ ] **Step 2: Review the diff**
+- [x] **Step 2: Review the diff**
 
 Run:
 
@@ -87,7 +89,7 @@ git diff -- spec/11-testing.md
 
 Expected: the diff only documents the existing contract and does not change test behavior.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 Run:
 
@@ -106,7 +108,7 @@ Expected: commit succeeds on the feature branch.
 - Modify: `tests/e2e/smoke_test.sh`
 - Test: `docker compose up smoke-test --abort-on-container-exit`
 
-- [ ] **Step 1: Add per-run IDs and names**
+- [x] **Step 1: Add per-run IDs and names**
 
 Replace fixed smoke identifiers with a run suffix derived from nanoseconds:
 
@@ -119,7 +121,7 @@ TRACE_ID="$(printf '%032x' "$((RUN_ID % 4294967295))")"
 
 Use `SERVICE_NAME`, `GRPC_SERVICE_NAME`, and `TRACE_ID` in every ingest and query payload.
 
-- [ ] **Step 2: Run the smoke test**
+- [x] **Step 2: Run the smoke test**
 
 Run:
 
@@ -129,7 +131,7 @@ docker compose up smoke-test --abort-on-container-exit
 
 Expected: the smoke-test container exits 0 and every query observes only rows from the current run.
 
-- [ ] **Step 3: Run the mandatory gate**
+- [x] **Step 3: Run the mandatory gate**
 
 Run:
 
@@ -139,7 +141,7 @@ bash scripts/local-ci.sh
 
 Expected: all checks pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Run:
 
@@ -158,7 +160,7 @@ Expected: commit succeeds after verification passes.
 - Modify: `tests/e2e/smoke_test.sh`
 - Test: `docker compose up smoke-test --abort-on-container-exit`
 
-- [ ] **Step 1: Add a bounded polling helper**
+- [x] **Step 1: Add a bounded polling helper**
 
 Add:
 
@@ -187,11 +189,11 @@ wait_for_json_count() {
 }
 ```
 
-- [ ] **Step 2: Use the helper for trace, search, gRPC log, and discovery checks**
+- [x] **Step 2: Use the helper for trace, search, gRPC log, and discovery checks**
 
 Replace fixed `sleep 3` waits and one-shot query assertions with bounded polling. Keep the same positive coverage.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 Run:
 
@@ -202,7 +204,7 @@ bash scripts/local-ci.sh
 
 Expected: both commands pass. If the smoke test fails, it reports the last response body for the failed check.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Run:
 
@@ -222,7 +224,7 @@ Expected: commit succeeds after verification passes.
 - Modify: `scripts/perf-smoke.sh`
 - Test: direct script syntax and Compose smoke/perf services
 
-- [ ] **Step 1: Add a shared local preflight pattern to each script**
+- [x] **Step 1: Add a shared local preflight pattern to each script**
 
 Add near the top of each script:
 
@@ -241,7 +243,7 @@ require_command jq
 
 Add `require_command grpcurl` only to `tests/e2e/smoke_test.sh`.
 
-- [ ] **Step 2: Verify syntax**
+- [x] **Step 2: Verify syntax**
 
 Run:
 
@@ -252,7 +254,7 @@ bash -n scripts/perf-smoke.sh
 
 Expected: both commands exit 0.
 
-- [ ] **Step 3: Verify behavior**
+- [x] **Step 3: Verify behavior**
 
 Run:
 
@@ -263,7 +265,7 @@ docker compose up perf-smoke --abort-on-container-exit
 
 Expected: both services exit 0 in a healthy local stack.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Run:
 
@@ -282,7 +284,7 @@ Expected: commit succeeds after verification passes.
 - Modify: `tests/e2e/smoke_test.sh`
 - Test: `docker compose up smoke-test --abort-on-container-exit`
 
-- [ ] **Step 1: Add missing-auth rejection check**
+- [x] **Step 1: Add missing-auth rejection check**
 
 Add after the positive trace ingest:
 
@@ -299,7 +301,7 @@ else
 fi
 ```
 
-- [ ] **Step 2: Add cross-tenant trace denial check**
+- [x] **Step 2: Add cross-tenant trace denial check**
 
 Query the current run trace with a different tenant ID and assert the response does not expose spans:
 
@@ -316,7 +318,7 @@ else
 fi
 ```
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 Run:
 
@@ -327,7 +329,7 @@ bash scripts/local-ci.sh
 
 Expected: both commands pass, and the smoke output includes missing-auth and cross-tenant checks.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Run:
 
@@ -346,7 +348,7 @@ Expected: commit succeeds after verification passes.
 - Modify: `scripts/local-ci.sh`
 - Test: `bash scripts/local-ci.sh`
 
-- [ ] **Step 1: Add Compose log capture on smoke failure**
+- [x] **Step 1: Add Compose log capture on smoke failure**
 
 Change only the smoke-test failure branch so a failed smoke run prints recent logs for `ingest-gateway`, `query-api`, `stream-processor`, and `storage-writer` before exiting non-zero.
 
@@ -359,7 +361,7 @@ else
 fi
 ```
 
-- [ ] **Step 2: Verify**
+- [x] **Step 2: Verify**
 
 Run:
 
@@ -369,7 +371,7 @@ bash scripts/local-ci.sh
 
 Expected: all checks pass. On an intentionally broken local stack, the script must still exit non-zero and include recent service logs.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 Run:
 
@@ -392,7 +394,7 @@ Expected: commit succeeds after verification passes.
 - Modify: `spec/10-process.md`
 - Test: documentation review
 
-- [ ] **Step 1: Add regression-gate policy to all agent instruction files**
+- [x] **Step 1: Add regression-gate policy to all agent instruction files**
 
 Add a section requiring agents to:
 
@@ -406,11 +408,11 @@ Add a section requiring agents to:
 - Performance-sensitive changes must run `docker compose up perf-smoke --abort-on-container-exit` or explain why the performance gate is not relevant.
 ```
 
-- [ ] **Step 2: Mirror the policy in `spec/10-process.md`**
+- [x] **Step 2: Mirror the policy in `spec/10-process.md`**
 
 Add the same requirements under `16.7 AI Agent Guidance`, phrased as official process.
 
-- [ ] **Step 3: Review docs**
+- [x] **Step 3: Review docs**
 
 Run:
 
@@ -420,7 +422,7 @@ git diff -- AGENTS.md AGENT.md CLAUDE.md GEMINI.md spec/10-process.md
 
 Expected: all agent instruction files carry consistent regression-gate policy.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Run:
 
@@ -439,7 +441,7 @@ Expected: commit succeeds.
 - Modify: `spec/11-testing.md`
 - Test: documentation review
 
-- [ ] **Step 1: Clarify when to run `perf-smoke`**
+- [x] **Step 1: Clarify when to run `perf-smoke`**
 
 Add:
 
@@ -450,7 +452,7 @@ storage writes, stream processing, Docker resource limits, or service startup
 ordering. If skipped, the PR must explain why performance is not in scope.
 ```
 
-- [ ] **Step 2: Verify documentation consistency**
+- [x] **Step 2: Verify documentation consistency**
 
 Run:
 
@@ -460,7 +462,7 @@ git diff -- spec/11-testing.md
 
 Expected: the testing spec remains consistent with `scripts/perf-smoke.sh` thresholds.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 Run:
 
