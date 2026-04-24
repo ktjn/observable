@@ -126,7 +126,9 @@ export OTLP_TOKEN=dev-api-key-0000
 # export OTLP_ENDPOINT=http://localhost:4318/v1/logs
 # gRPC
 # export OTLP_ENDPOINT=http://localhost:4317
-sudo journalctl -o short-iso-precise -f | \
+# To see system logs, add your user to systemd-journal group:
+# sudo usermod -aG systemd-journal $USER
+journalctl -o short-iso-precise -f | \
   journalctl-to-otlp-x86_64-unknown-linux-musl/journalctl-to-otlp
 ```
 
