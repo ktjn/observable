@@ -390,10 +390,7 @@ pub async fn get_topology(
     }
 
     // Branch 2 binds: tenant_id, tenant_id, start_ns [, env, env] [, service, service]
-    query = query
-        .bind(ctx.tenant_id)
-        .bind(ctx.tenant_id)
-        .bind(start_ns);
+    query = query.bind(ctx.tenant_id).bind(ctx.tenant_id).bind(start_ns);
 
     if let Some(ref env) = params.environment {
         query = query.bind(env).bind(env);

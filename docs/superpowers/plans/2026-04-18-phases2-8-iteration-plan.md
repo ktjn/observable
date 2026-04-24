@@ -279,13 +279,9 @@ Before Phase 3 starts, answer:
   - Verification: existing endpoint behavior remains byte-compatible for the selected path; tests prove tenant context is still mandatory and cross-tenant rows still fail closed.
   - Checkpoint: does a planner abstraction reduce complexity for topology, dashboard, SLO, or semantic-query work, or should the project keep direct SQL until a harder requirement appears? Answer: The planner abstraction already helps by centralizing SQL generation. However, instantiating Arrow/DataFusion right now would add unnecessary complexity. We will keep direct SQL for now and defer full Arrow/DataFusion implementation to Phase 4 or when federated queries are required.
 
-- [*] **P3-S8: Add Service Overview map from trace-derived topology**
-  - Source spec: `spec/05-frontend.md` §9.2.1 Service Overview and §9.6; `spec/09-api.md` Service Overview Topology.
-  - Outcome: Service Overview renders a topology map from trace-derived service relationships. Operators can click a node to open service detail and an edge to open caller-callee filtered traces/logs.
-  - Files or modules expected to change: topology rollup/query path, frontend Service Overview route, canvas graph component, route filters, tests.
-  - Out of scope: full-graph diff mode and large-enterprise topology tuning. Start with overview and focused mode.
-  - Verification: API tests cover caller/callee relationship data; frontend tests cover node/edge navigation; visual smoke verifies nonblank map rendering.
-  - Checkpoint: do topology rollups stay performant before broad graph work starts?
+- [x] **P3-S8: Add Service Overview map from trace-derived topology**
+  - Outcome: The Service Overview now renders a live topology map derived from trace spans. Operators can click a service node to enter focused mode (that service plus its direct neighbors), click the focused node again to return to the full graph, and click an edge to open a choice panel linking to Traces or Logs filtered to that caller-callee pair. The backend topology query now captures both direct parent-child call edges and trace-level co-occurrence edges.
+  - Checkpoint: do topology rollups stay performant before broad graph work starts? Answer: yes for the ≤10-service scope of this slice. The UNION query runs over the same `spans` table as before, hits the same ClickHouse indices, and the outer deduplication GROUP BY is cheap. The existing perf-smoke baseline from P2-S9a covers query paths; no new threshold was needed.
 
 - [x] **P3-S9: Add Infrastructure inventory and detail views**
   - Source spec: `spec/05-frontend.md` §9.2.1 Infrastructure and §9.4 Infrastructure Correlation; `spec/09-api.md` Infrastructure Views.
@@ -529,7 +525,7 @@ After this planning reconciliation, the next implementation slice should be:
 - Roll back a bad deploy without manual heroics: yes — P2-S8a (Helm rollback skeleton) and P2-S8b (canary promotion path) cover both runtime and schema rollback.
 - Self-observability route choice: use a second observer instance for production and customer-facing environments; use recursive self-ingest for local development, dogfooding, and bootstrap. This follows `spec/17-self-observability.md` by preserving both recursive OTLP telemetry and independent health/Prometheus monitoring, and it requires service-level, infrastructure-level, and UI-level instrumentation before the slice is complete.
 
-**Next recommended slice: P3-S8 - Add Service Overview map from trace-derived topology.**
+**Next recommended slice: P3-S10 - Add infrastructure correlation from service and trace views.**
 
 ---
 

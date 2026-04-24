@@ -291,9 +291,13 @@ mod tests {
 
         let plan = planner.plan_topology(&params);
 
-        assert!(plan.sql.contains("UNION ALL"), "SQL should contain UNION ALL");
         assert!(
-            plan.sql.contains("s1.start_time_unix_nano <= s2.start_time_unix_nano"),
+            plan.sql.contains("UNION ALL"),
+            "SQL should contain UNION ALL"
+        );
+        assert!(
+            plan.sql
+                .contains("s1.start_time_unix_nano <= s2.start_time_unix_nano"),
             "SQL should contain co-occurrence time ordering"
         );
         assert!(
@@ -314,11 +318,13 @@ mod tests {
         let plan = planner.plan_topology(&params);
 
         assert!(
-            plan.sql.contains("AND child.environment = ? AND parent.environment = ?"),
+            plan.sql
+                .contains("AND child.environment = ? AND parent.environment = ?"),
             "Branch 1 should have env filter"
         );
         assert!(
-            plan.sql.contains("AND s1.environment = ? AND s2.environment = ?"),
+            plan.sql
+                .contains("AND s1.environment = ? AND s2.environment = ?"),
             "Branch 2 should have env filter"
         );
     }
