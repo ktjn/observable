@@ -83,7 +83,7 @@ impl QueryPlanner {
     }
 
     pub fn plan_topology(&self, params: &TopologyParams) -> TopologyPlan {
-        let mut sql = "SELECT \
+        let mut branch1 = "SELECT \
                 parent.service_name AS caller, \
                 child.service_name AS callee, \
                 count() AS request_count, \
@@ -97,14 +97,44 @@ impl QueryPlanner {
             .to_string();
 
         if params.environment.is_some() {
-            sql.push_str(" AND child.environment = ? AND parent.environment = ?");
+            branch1.push_str(" AND child.environment = ? AND parent.environment = ?");
         }
-
         if params.service.is_some() {
-            sql.push_str(" AND (child.service_name = ? OR parent.service_name = ?)");
+            branch1.push_str(" AND (child.service_name = ? OR parent.service_name = ?)");
         }
+        branch1.push_str(" GROUP BY caller, callee");
 
-        sql.push_str(" GROUP BY caller, callee ORDER BY request_count DESC");
+        let mut branch2 = "SELECT \
+                s1.service_name AS caller, \
+                s2.service_name AS callee, \
+                count() AS request_count, \
+                countIf(s2.status_code = 'ERROR') AS error_count, \
+                quantile(0.95)(s2.duration_ns) AS p95_latency_ns \
+            FROM spans AS s1 \
+            INNER JOIN spans AS s2 ON s1.trace_id = s2.trace_id \
+            WHERE s1.tenant_id = ? AND s2.tenant_id = ? \
+              AND s1.service_name != s2.service_name \
+              AND s1.start_time_unix_nano <= s2.start_time_unix_nano \
+              AND s1.start_time_unix_nano >= ?"
+            .to_string();
+
+        if params.environment.is_some() {
+            branch2.push_str(" AND s1.environment = ? AND s2.environment = ?");
+        }
+        if params.service.is_some() {
+            branch2.push_str(" AND (s1.service_name = ? OR s2.service_name = ?)");
+        }
+        branch2.push_str(" GROUP BY caller, callee");
+
+        let sql = format!(
+            "SELECT caller, callee, \
+                max(request_count) AS request_count, \
+                max(error_count) AS error_count, \
+                max(p95_latency_ns) AS p95_latency_ns \
+            FROM ({branch1} UNION ALL {branch2}) \
+            GROUP BY caller, callee \
+            ORDER BY request_count DESC"
+        );
 
         TopologyPlan { sql }
     }
@@ -244,6 +274,49 @@ mod tests {
         assert!(plan
             .sql
             .contains("AND (child.service_name = ? OR parent.service_name = ?)"));
+    }
+
+    #[test]
+    fn topology_plan_includes_union_and_cooccurrence_branch() {
+        let planner = QueryPlanner;
+        let params = TopologyParams {
+            environment: None,
+            lookback_minutes: None,
+            service: None,
+        };
+
+        let plan = planner.plan_topology(&params);
+
+        assert!(plan.sql.contains("UNION ALL"), "SQL should contain UNION ALL");
+        assert!(
+            plan.sql.contains("s1.start_time_unix_nano <= s2.start_time_unix_nano"),
+            "SQL should contain co-occurrence time ordering"
+        );
+        assert!(
+            plan.sql.contains("max(request_count) AS request_count"),
+            "SQL should contain outer dedup aggregation"
+        );
+    }
+
+    #[test]
+    fn topology_plan_with_environment_filter_applies_to_both_branches() {
+        let planner = QueryPlanner;
+        let params = TopologyParams {
+            environment: Some("prod".into()),
+            lookback_minutes: None,
+            service: None,
+        };
+
+        let plan = planner.plan_topology(&params);
+
+        assert!(
+            plan.sql.contains("AND child.environment = ? AND parent.environment = ?"),
+            "Branch 1 should have env filter"
+        );
+        assert!(
+            plan.sql.contains("AND s1.environment = ? AND s2.environment = ?"),
+            "Branch 2 should have env filter"
+        );
     }
 
     #[test]

@@ -374,6 +374,7 @@ pub async fn get_topology(
 
     let plan = state.planner.plan_topology(&params);
 
+    // Branch 1 binds: tenant_id, tenant_id, start_ns [, env, env] [, service, service]
     let mut query = state
         .ch
         .query(&plan.sql)
@@ -384,7 +385,19 @@ pub async fn get_topology(
     if let Some(ref env) = params.environment {
         query = query.bind(env).bind(env);
     }
+    if let Some(ref service) = params.service {
+        query = query.bind(service).bind(service);
+    }
 
+    // Branch 2 binds: tenant_id, tenant_id, start_ns [, env, env] [, service, service]
+    query = query
+        .bind(ctx.tenant_id)
+        .bind(ctx.tenant_id)
+        .bind(start_ns);
+
+    if let Some(ref env) = params.environment {
+        query = query.bind(env).bind(env);
+    }
     if let Some(ref service) = params.service {
         query = query.bind(service).bind(service);
     }
