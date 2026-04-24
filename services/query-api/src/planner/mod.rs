@@ -104,6 +104,9 @@ impl QueryPlanner {
         }
         branch1.push_str(" GROUP BY caller, callee");
 
+        // Branch 2: trace-level co-occurrence. Catches cross-service relationships
+        // that span parent_span_id gaps (e.g. async handoff). Counts ordered
+        // span-time pairs, not actual call events — intentional approximation.
         let mut branch2 = "SELECT \
                 s1.service_name AS caller, \
                 s2.service_name AS callee, \
@@ -258,6 +261,7 @@ mod tests {
             .contains("WHERE child.tenant_id = ? AND parent.tenant_id = ?"));
         assert!(plan.sql.contains("AND child.start_time_unix_nano >= ?"));
         assert!(plan.sql.contains("GROUP BY caller, callee"));
+        assert!(plan.sql.contains("ORDER BY request_count DESC"));
     }
 
     #[test]
