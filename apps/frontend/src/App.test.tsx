@@ -513,3 +513,229 @@ test("browser back restores the previous service signal tab", async () => {
 
   await waitFor(() => expect(screen.getByText("checkout.requests")).toBeInTheDocument());
 });
+
+test("renders service nodes from topology data", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v1/topology")) {
+        return new Response(
+          JSON.stringify({
+            edges: [
+              {
+                caller: "checkout-api",
+                callee: "payments-api",
+                request_count: 100,
+                error_rate: 0.01,
+                p95_latency_ms: 45.0,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/v1/environments")) {
+        return new Response(JSON.stringify({ items: ["prod"] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+
+  window.history.pushState({}, "", "/service-overview");
+  render(<App />);
+
+  expect(await screen.findByRole("heading", { name: "Service Overview" })).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "checkout-api" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "payments-api" })).toBeInTheDocument();
+});
+
+test("clicking a node enters focused mode", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v1/topology")) {
+        return new Response(
+          JSON.stringify({
+            edges: [
+              {
+                caller: "checkout-api",
+                callee: "payments-api",
+                request_count: 100,
+                error_rate: 0.01,
+                p95_latency_ms: 45.0,
+              },
+              {
+                caller: "gateway",
+                callee: "checkout-api",
+                request_count: 200,
+                error_rate: 0.0,
+                p95_latency_ms: 10.0,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/v1/environments")) {
+        return new Response(JSON.stringify({ items: ["prod"] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+
+  window.history.pushState({}, "", "/service-overview");
+  render(<App />);
+
+  const checkoutNode = await screen.findByRole("button", { name: "checkout-api" });
+  fireEvent.click(checkoutNode);
+
+  expect(screen.getByText("Viewing: checkout-api")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "→ Service detail" })).toBeInTheDocument();
+});
+
+test("clicking a focused node returns to full graph", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v1/topology")) {
+        return new Response(
+          JSON.stringify({
+            edges: [
+              {
+                caller: "checkout-api",
+                callee: "payments-api",
+                request_count: 100,
+                error_rate: 0.01,
+                p95_latency_ms: 45.0,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/v1/environments")) {
+        return new Response(JSON.stringify({ items: ["prod"] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+
+  window.history.pushState({}, "", "/service-overview");
+  render(<App />);
+
+  const checkoutNode = await screen.findByRole("button", { name: "checkout-api" });
+  fireEvent.click(checkoutNode);
+  expect(screen.getByText("Viewing: checkout-api")).toBeInTheDocument();
+
+  fireEvent.click(checkoutNode);
+  expect(screen.queryByText("Viewing: checkout-api")).not.toBeInTheDocument();
+});
+
+test("clicking an edge shows trace and log links", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v1/topology")) {
+        return new Response(
+          JSON.stringify({
+            edges: [
+              {
+                caller: "checkout-api",
+                callee: "payments-api",
+                request_count: 100,
+                error_rate: 0.01,
+                p95_latency_ms: 45.0,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/v1/environments")) {
+        return new Response(JSON.stringify({ items: ["prod"] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+
+  window.history.pushState({}, "", "/service-overview");
+  render(<App />);
+
+  await screen.findByRole("button", { name: "checkout-api" });
+  const edgeButton = screen.getByRole("button", { name: "checkout-api to payments-api" });
+  fireEvent.click(edgeButton);
+
+  const tracesLink = screen.getByRole("link", { name: "View Traces" });
+  expect(tracesLink).toHaveAttribute(
+    "href",
+    "/traces?caller=checkout-api&callee=payments-api&lookback_minutes=60",
+  );
+  const logsLink = screen.getByRole("link", { name: "View Logs" });
+  expect(logsLink).toHaveAttribute("href", "/logs?service=checkout-api&lookback_minutes=60");
+});
+
+test("clicking SVG background closes edge popover", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v1/topology")) {
+        return new Response(
+          JSON.stringify({
+            edges: [
+              {
+                caller: "checkout-api",
+                callee: "payments-api",
+                request_count: 100,
+                error_rate: 0.01,
+                p95_latency_ms: 45.0,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/v1/environments")) {
+        return new Response(JSON.stringify({ items: ["prod"] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+
+  window.history.pushState({}, "", "/service-overview");
+  render(<App />);
+
+  await screen.findByRole("button", { name: "checkout-api" });
+  fireEvent.click(screen.getByRole("button", { name: "checkout-api to payments-api" }));
+  expect(screen.getByRole("link", { name: "View Traces" })).toBeInTheDocument();
+
+  fireEvent.click(screen.getByTestId("topology-background"));
+  expect(screen.queryByRole("link", { name: "View Traces" })).not.toBeInTheDocument();
+});
+
+test("renders empty state when no edges returned", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v1/topology")) {
+        return new Response(JSON.stringify({ edges: [] }), { status: 200 });
+      }
+      if (url.includes("/v1/environments")) {
+        return new Response(JSON.stringify({ items: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+
+  window.history.pushState({}, "", "/service-overview");
+  render(<App />);
+
+  expect(
+    await screen.findByText("No service relationships found in the selected lookback."),
+  ).toBeInTheDocument();
+});
