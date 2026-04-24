@@ -37,7 +37,11 @@ export default function ServiceOverview() {
           className="select-input"
           aria-label="Environment filter"
           value={environment}
-          onChange={(e) => setEnvironment(e.target.value)}
+          onChange={(e) => {
+            setEnvironment(e.target.value);
+            setFocusedService(null);
+            setEdgePopover(null);
+          }}
         >
           <option value="all">All environments</option>
           {envsData?.items.map((env) => (
@@ -50,10 +54,9 @@ export default function ServiceOverview() {
 
       {focusedService && (
         <div
-          className="focused-mode-header"
           style={{ display: "flex", gap: "1rem", alignItems: "center", padding: "0.5rem 0" }}
         >
-          <button className="link-button" onClick={() => setFocusedService(null)}>
+          <button onClick={() => setFocusedService(null)}>
             ← All services
           </button>
           <span>Viewing: {focusedService}</span>
@@ -90,9 +93,10 @@ export default function ServiceOverview() {
               position: "relative",
             }}
           >
+            {/* Popover uses SVG midpoint coordinates. Works correctly when the SVG renders
+                at its natural 800×600 size; may be offset on narrow viewports. */}
             {edgePopover && (
               <div
-                className="edge-popover"
                 style={{
                   position: "absolute",
                   left: edgePopover.x,
@@ -217,7 +221,7 @@ function TopologyMap({
       />
 
       {/* Edges */}
-      {edges.map((edge, i) => {
+      {edges.map((edge) => {
         const start = positions[edge.caller];
         const end = positions[edge.callee];
         if (!start || !end) return null;
@@ -233,7 +237,7 @@ function TopologyMap({
 
         return (
           <g
-            key={i}
+            key={`${edge.caller}→${edge.callee}`}
             role="button"
             aria-label={`${edge.caller} to ${edge.callee}`}
             style={{ cursor: "pointer" }}
