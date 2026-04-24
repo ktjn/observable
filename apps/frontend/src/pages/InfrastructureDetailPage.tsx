@@ -10,16 +10,17 @@ import {
 export default function InfrastructureDetailPage() {
   const { entityType, entityId } = useParams({ strict: false });
 
-  if (!entityType || !entityId) {
-    return <div className="loading-state">Loading infrastructure detail...</div>;
-  }
-
-  const canonicalEntityId = decodeURIComponent(entityId);
+  const canonicalEntityId = entityId ? decodeURIComponent(entityId) : "";
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["infrastructure-detail", entityType, canonicalEntityId],
     queryFn: () => getInfrastructureDetail(entityType as InfrastructureEntityType, canonicalEntityId),
+    enabled: !!entityType && !!entityId,
   });
+
+  if (!entityType || !entityId) {
+    return <div className="loading-state">Loading infrastructure detail...</div>;
+  }
 
   if (isLoading) {
     return <div className="loading-state">Loading infrastructure detail...</div>;
@@ -95,7 +96,7 @@ export default function InfrastructureDetailPage() {
             </div>
             <div>
               <dt>Last seen</dt>
-              <dd>{String(entity.last_seen_unix_nano)}</dd>
+              <dd>{formatUnixNano(entity.last_seen_unix_nano)}</dd>
             </div>
           </dl>
         </section>
@@ -154,7 +155,7 @@ export default function InfrastructureDetailPage() {
             </div>
             <div>
               <dt>Network I/O</dt>
-              <dd>{formatNullablePercent(entity.network_io)}</dd>
+              <dd>{formatNullableBytes(entity.network_io)}</dd>
             </div>
           </dl>
         </section>
@@ -201,6 +202,17 @@ function formatNullablePerMinute(value: number | null) {
 
 function formatNullablePercent(value: number | null) {
   return value === null ? "Unavailable" : `${(value * 100).toFixed(2)}%`;
+}
+
+function formatNullableBytes(value: number | null) {
+  if (value === null) return "Unavailable";
+  if (value >= 1_048_576) return `${(value / 1_048_576).toFixed(1)} MB/s`;
+  if (value >= 1_024) return `${(value / 1_024).toFixed(1)} KB/s`;
+  return `${value.toFixed(0)} B/s`;
+}
+
+function formatUnixNano(nanos: number): string {
+  return new Date(nanos / 1_000_000).toLocaleString();
 }
 
 function healthTone(healthState: InfrastructureEntitySummary["health_state"]) {

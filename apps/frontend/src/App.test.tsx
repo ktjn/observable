@@ -279,6 +279,88 @@ test("renders infrastructure detail action links from a pod detail route", async
   );
 });
 
+test("renders empty state when infrastructure inventory has no items", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v1/infrastructure")) {
+        return new Response(JSON.stringify({ items: [] }), { status: 200 });
+      }
+      if (url.includes("/v1/environments")) {
+        return new Response(JSON.stringify({ items: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+
+  window.history.pushState({}, "", "/infrastructure");
+  render(<App />);
+
+  expect(await screen.findByRole("heading", { name: "Infrastructure" })).toBeInTheDocument();
+  expect(
+    await screen.findByText("No infrastructure entities matched the current filters."),
+  ).toBeInTheDocument();
+});
+
+test("navigates to infrastructure detail when clicking an inventory row entity", async () => {
+  const podItem = {
+    entity_type: "pod",
+    entity_id: "prod-cluster/payments/checkout-pod-1",
+    display_name: "checkout-pod-1",
+    parent_id: "prod-cluster/payments",
+    parent_display_name: "payments",
+    environment: "prod",
+    health_state: "watch",
+    last_seen_unix_nano: 42,
+    related_services: ["checkout-api"],
+    log_rate_per_minute: 8.5,
+    error_rate: 0.02,
+    restart_count: null,
+    cpu_usage: null,
+    memory_usage: null,
+    disk_usage: null,
+    network_io: null,
+  };
+
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v1/infrastructure/pod/")) {
+        return new Response(
+          JSON.stringify({
+            entity: podItem,
+            links: {
+              logs: "/logs?resource_attr=k8s.pod.name%3Acheckout-pod-1",
+              traces: "/traces?resource_attr=k8s.pod.name%3Acheckout-pod-1",
+              metrics:
+                "/services/checkout-api/metrics?resource_attr=k8s.pod.name%3Acheckout-pod-1",
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/v1/infrastructure")) {
+        return new Response(JSON.stringify({ items: [podItem] }), { status: 200 });
+      }
+      if (url.includes("/v1/environments")) {
+        return new Response(JSON.stringify({ items: ["prod"] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+
+  window.history.pushState({}, "", "/infrastructure");
+  render(<App />);
+
+  const entityLink = await screen.findByRole("link", { name: "checkout-pod-1" });
+  fireEvent.click(entityLink);
+
+  expect(await screen.findByLabelText("Infrastructure action links")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "checkout-pod-1" })).toBeInTheDocument();
+});
+
 test("renders service-scoped signal tabs with preserved URL state", async () => {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
