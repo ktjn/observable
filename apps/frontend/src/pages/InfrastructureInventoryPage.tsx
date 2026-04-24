@@ -121,6 +121,7 @@ export default function InfrastructureInventoryPage() {
                 <th>Related services</th>
                 <th>Log rate</th>
                 <th>Error rate</th>
+                <th>Last seen</th>
               </tr>
             </thead>
             <tbody>
@@ -151,10 +152,29 @@ function InfrastructureRow({ item }: { item: InfrastructureEntitySummary }) {
       <td>
         <HealthStatus healthState={item.health_state} />
       </td>
-      <td>{formatRelatedServices(item.related_services)}</td>
+      <td>
+        <RelatedServiceLinks services={item.related_services} />
+      </td>
       <td>{formatPerMinute(item.log_rate_per_minute)}</td>
       <td>{formatPercent(item.error_rate)}</td>
+      <td>{formatUnixNano(item.last_seen_unix_nano)}</td>
     </tr>
+  );
+}
+
+function RelatedServiceLinks({ services }: { services: string[] }) {
+  if (services.length === 0) return <>Unavailable</>;
+  return (
+    <>
+      {services.map((service, i) => (
+        <span key={service}>
+          {i > 0 && ", "}
+          <Link to="/services/$serviceId" params={{ serviceId: service }}>
+            {service}
+          </Link>
+        </span>
+      ))}
+    </>
   );
 }
 
@@ -170,16 +190,16 @@ function summarizeInfrastructure(items: InfrastructureEntitySummary[]) {
   );
 }
 
-function formatRelatedServices(relatedServices: string[]) {
-  return relatedServices.length > 0 ? relatedServices.join(", ") : "Unavailable";
-}
-
 function formatPerMinute(value: number | null) {
   return value === null ? "Unavailable" : `${value.toFixed(2)}/min`;
 }
 
 function formatPercent(value: number | null) {
   return value === null ? "Unavailable" : `${(value * 100).toFixed(2)}%`;
+}
+
+function formatUnixNano(nanos: number): string {
+  return new Date(nanos / 1_000_000).toLocaleString();
 }
 
 function HealthStatus({ healthState }: { healthState: InfrastructureEntitySummary["health_state"] }) {

@@ -98,6 +98,24 @@ impl InfrastructureEntityType {
             Self::Container => "container.name",
         }
     }
+
+    pub fn attribute_sql_expr(self) -> &'static str {
+        match self {
+            Self::Host => {
+                "if(JSONExtractString(resource_attributes, 'host.name') != '', \
+                JSONExtractString(resource_attributes, 'host.name'), \
+                JSONExtractString(resource_attributes, 'host.id'))"
+            }
+            Self::Cluster => "JSONExtractString(resource_attributes, 'k8s.cluster.name')",
+            Self::Namespace => "JSONExtractString(resource_attributes, 'k8s.namespace.name')",
+            Self::Pod => "JSONExtractString(resource_attributes, 'k8s.pod.name')",
+            Self::Container => {
+                "if(JSONExtractString(resource_attributes, 'container.name') != '', \
+                JSONExtractString(resource_attributes, 'container.name'), \
+                JSONExtractString(resource_attributes, 'container.id'))"
+            }
+        }
+    }
 }
 
 impl TryFrom<&str> for InfrastructureEntityType {
@@ -516,10 +534,7 @@ async fn fetch_infrastructure_summaries(
     lookback_minutes: u32,
 ) -> Result<Vec<InfrastructureEntitySummary>, StatusCode> {
     let (start_ns, start_seconds) = infrastructure_lookback_window(lookback_minutes);
-    let entity_expr = format!(
-        "JSONExtractString(resource_attributes, '{}')",
-        entity_type.attribute_key()
-    );
+    let entity_expr = entity_type.attribute_sql_expr();
     let has_environment = environment.is_some();
     let has_service = service.is_some();
     let has_search = search.is_some();
@@ -650,25 +665,6 @@ fn all_infrastructure_entity_types() -> [InfrastructureEntityType; 5] {
         InfrastructureEntityType::Pod,
         InfrastructureEntityType::Container,
     ]
-}
-
-#[allow(dead_code)]
-fn infrastructure_parent_expression(entity_type: InfrastructureEntityType) -> &'static str {
-    match entity_type {
-        InfrastructureEntityType::Host => {
-            "JSONExtractString(resource_attributes, 'k8s.cluster.name')"
-        }
-        InfrastructureEntityType::Cluster => "''",
-        InfrastructureEntityType::Namespace => {
-            "JSONExtractString(resource_attributes, 'k8s.cluster.name')"
-        }
-        InfrastructureEntityType::Pod => {
-            "JSONExtractString(resource_attributes, 'k8s.namespace.name')"
-        }
-        InfrastructureEntityType::Container => {
-            "JSONExtractString(resource_attributes, 'k8s.pod.name')"
-        }
-    }
 }
 
 fn infrastructure_lookback_window(lookback_minutes: u32) -> (u64, u64) {
@@ -1052,27 +1048,22 @@ mod tests {
     }
 
     #[test]
-    fn infrastructure_parent_expression_matches_entity_hierarchy() {
-        assert_eq!(
-            infrastructure_parent_expression(InfrastructureEntityType::Host),
-            "JSONExtractString(resource_attributes, 'k8s.cluster.name')"
-        );
-        assert_eq!(
-            infrastructure_parent_expression(InfrastructureEntityType::Cluster),
-            "''"
-        );
-        assert_eq!(
-            infrastructure_parent_expression(InfrastructureEntityType::Namespace),
-            "JSONExtractString(resource_attributes, 'k8s.cluster.name')"
-        );
-        assert_eq!(
-            infrastructure_parent_expression(InfrastructureEntityType::Pod),
-            "JSONExtractString(resource_attributes, 'k8s.namespace.name')"
-        );
-        assert_eq!(
-            infrastructure_parent_expression(InfrastructureEntityType::Container),
-            "JSONExtractString(resource_attributes, 'k8s.pod.name')"
-        );
+    fn attribute_sql_expr_includes_id_fallback_for_host_and_container() {
+        assert!(InfrastructureEntityType::Host
+            .attribute_sql_expr()
+            .contains("host.id"));
+        assert!(InfrastructureEntityType::Container
+            .attribute_sql_expr()
+            .contains("container.id"));
+        assert!(!InfrastructureEntityType::Pod
+            .attribute_sql_expr()
+            .contains("if("));
+        assert!(!InfrastructureEntityType::Cluster
+            .attribute_sql_expr()
+            .contains("if("));
+        assert!(!InfrastructureEntityType::Namespace
+            .attribute_sql_expr()
+            .contains("if("));
     }
 
     #[test]
