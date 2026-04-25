@@ -5,7 +5,6 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsServiceRequest;
 
 use crate::auth::TenantContext;
 use crate::queue::producer::build_envelope;
@@ -29,11 +28,8 @@ pub async fn export_metrics(
             .into_response();
     }
 
-    let (resource_count, series, points) = match super::decode_otlp_http_request::<
-        ExportMetricsServiceRequest,
-    >(&headers, body)
-    {
-        Ok(super::DecodedOtlpRequest::Json(body)) => {
+    let (resource_count, series, points) = match super::decode_json_otlp_request(&headers, body) {
+        Ok(body) => {
             let resource_metrics = match body.get("resourceMetrics").and_then(|v| v.as_array()) {
                 Some(s) => s,
                 None => return StatusCode::BAD_REQUEST.into_response(),
@@ -45,14 +41,6 @@ pub async fn export_metrics(
             };
 
             (resource_metrics.len(), series, points)
-        }
-        Ok(super::DecodedOtlpRequest::Protobuf(request)) => {
-            let resource_count = request.resource_metrics.len();
-            let (series, points) = crate::grpc::convert::proto_metrics_to_domain(
-                &request.resource_metrics,
-                ctx.tenant_id,
-            );
-            (resource_count, series, points)
         }
         Err(status) => return status.into_response(),
     };
@@ -85,13 +73,6 @@ pub async fn export_metrics(
 mod tests {
     use axum::http::StatusCode;
     use axum_test::TestServer;
-    use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsServiceRequest;
-    use opentelemetry_proto::tonic::common::v1::{any_value, AnyValue, KeyValue};
-    use opentelemetry_proto::tonic::metrics::v1::{
-        metric, Gauge, Metric, NumberDataPoint, ResourceMetrics, ScopeMetrics,
-    };
-    use opentelemetry_proto::tonic::resource::v1::Resource;
-    use prost013::Message;
 
     use crate::http_json::build_router;
     use crate::AppState;
@@ -119,41 +100,6 @@ mod tests {
         })
     }
 
-    fn protobuf_metric_payload() -> Vec<u8> {
-        ExportMetricsServiceRequest {
-            resource_metrics: vec![ResourceMetrics {
-                resource: Some(Resource {
-                    attributes: vec![KeyValue {
-                        key: "service.name".into(),
-                        value: Some(AnyValue {
-                            value: Some(any_value::Value::StringValue("svc-a".into())),
-                        }),
-                    }],
-                    dropped_attributes_count: 0,
-                }),
-                scope_metrics: vec![ScopeMetrics {
-                    scope: None,
-                    metrics: vec![Metric {
-                        name: "http.requests".into(),
-                        data: Some(metric::Data::Gauge(Gauge {
-                            data_points: vec![NumberDataPoint {
-                                time_unix_nano: 1_000,
-                                value: Some(
-                                    opentelemetry_proto::tonic::metrics::v1::number_data_point::Value::AsDouble(10.0),
-                                ),
-                                ..Default::default()
-                            }],
-                        })),
-                        ..Default::default()
-                    }],
-                    schema_url: String::new(),
-                }],
-                schema_url: String::new(),
-            }],
-        }
-        .encode_to_vec()
-    }
-
     #[tokio::test]
     async fn metrics_export_returns_200() {
         let app = build_router(AppState::with_stub_auth(TENANT));
@@ -167,7 +113,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn protobuf_metrics_export_returns_200() {
+    async fn protobuf_metrics_export_returns_415() {
         let app = build_router(AppState::with_stub_auth(TENANT));
         let server = TestServer::new(app).unwrap();
         let resp = server
@@ -177,9 +123,9 @@ mod tests {
                 axum::http::header::CONTENT_TYPE,
                 axum::http::HeaderValue::from_static("application/x-protobuf"),
             )
-            .bytes(protobuf_metric_payload().into())
+            .bytes(vec![0, 1, 2].into())
             .await;
-        assert_eq!(resp.status_code(), StatusCode::OK);
+        assert_eq!(resp.status_code(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
     }
 
     #[tokio::test]

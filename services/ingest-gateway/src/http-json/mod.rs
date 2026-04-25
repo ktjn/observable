@@ -10,40 +10,26 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use prost013::Message;
 use serde_json::Value;
 
 use crate::{auth, AppState};
 
-pub enum DecodedOtlpRequest<T> {
-    Json(Value),
-    Protobuf(T),
-}
-
-pub fn decode_otlp_http_request<T>(
-    headers: &HeaderMap,
-    body: Bytes,
-) -> Result<DecodedOtlpRequest<T>, StatusCode>
-where
-    T: Message + Default,
-{
-    let content_type = headers
-        .get(header::CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .map(str::trim)
-        .unwrap_or_default();
+pub fn decode_json_otlp_request(headers: &HeaderMap, body: Bytes) -> Result<Value, StatusCode> {
+    let content_type = get_content_type(headers);
 
     if matches_content_type(content_type, "application/json") {
-        let json = serde_json::from_slice(&body).map_err(|_| StatusCode::BAD_REQUEST)?;
-        return Ok(DecodedOtlpRequest::Json(json));
-    }
-
-    if matches_content_type(content_type, "application/x-protobuf") {
-        let request = T::decode(body).map_err(|_| StatusCode::BAD_REQUEST)?;
-        return Ok(DecodedOtlpRequest::Protobuf(request));
+        return serde_json::from_slice(&body).map_err(|_| StatusCode::BAD_REQUEST);
     }
 
     Err(StatusCode::UNSUPPORTED_MEDIA_TYPE)
+}
+
+fn get_content_type(headers: &HeaderMap) -> &str {
+    headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .unwrap_or_default()
 }
 
 fn matches_content_type(actual: &str, expected: &str) -> bool {

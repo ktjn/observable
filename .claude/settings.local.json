@@ -33,7 +33,8 @@
       "Bash(helm pull *)",
       "Read(//tmp/otelchart/opentelemetry-collector/**)",
       "Bash(helm dependency *)",
-      "Bash(awk '/ConfigMap/{p=1} p && /otel-collector-gateway/{p=2} p==2 && /relay:/{p=3} p==3{print; if\\(/^  [a-z]/ && !/relay:/\\){exit}}')"
+      "Bash(awk '/ConfigMap/{p=1} p && /otel-collector-gateway/{p=2} p==2 && /relay:/{p=3} p==3{print; if\\(/^  [a-z]/ && !/relay:/\\){exit}}')",
+      "Bash(grep -E \"\\\\.sh$\")"
     ]
   }
 }

@@ -18,7 +18,7 @@ require_command() {
 require_command curl
 require_command jq
 
-INGEST="${INGEST_URL:-http://localhost:4317}"
+INGEST="${INGEST_URL:-http://localhost:4318}"
 QUERY="${QUERY_URL:-http://localhost:8090}"
 TOKEN="dev-api-key-0000"
 TENANT_ID="00000000-0000-0000-0000-000000000001"

@@ -1790,7 +1790,7 @@ mod http_json;
   cargo run -p auth-service &
   REDPANDA_BROKERS=localhost:9092 INGEST_TOPIC=telemetry.raw cargo run -p ingest-gateway &
   sleep 2
-  curl -s -X POST http://localhost:4317/v1/traces \
+  curl -s -X POST http://localhost:4318/v1/traces \
     -H "Authorization: Bearer dev-api-key-0000" \
     -H "Content-Type: application/json" \
     -d '{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"test-svc"}}]},"scopeSpans":[{"spans":[{"traceId":"4bf92f3577b34da6a3ce929d0e0e4736","spanId":"00f067aa0ba902b7","name":"test-op","startTimeUnixNano":"1700000000000000000","endTimeUnixNano":"1700000000005000000","status":{"code":1}}]}]}]}'
