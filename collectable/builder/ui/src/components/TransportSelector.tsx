@@ -38,20 +38,11 @@ export function TransportSelector({ definition, onChange, onNext }: Props) {
     onChange({ ...definition, transport: { ...defaults, ...existing, type } });
   };
 
-  const canProceed = !!(definition.name as string)?.trim() && !!transport.type;
+  const canProceed = !!transport.type;
 
   return (
     <div>
       <h2>Step 1 — Transport</h2>
-
-      <label style={{ display: 'block', marginBottom: 16 }}>Pipeline name
-        <span style={{ color: '#c00', marginLeft: 2 }}>*</span><br />
-        <input type="text" style={{ width: '100%' }}
-          placeholder="e.g. syslog-to-otlp"
-          value={(definition.name as string) ?? ''}
-          onChange={e => onChange({ ...definition, name: e.target.value.replace(/\s+/g, '-').toLowerCase() })} />
-        <small style={{ color: '#888' }}>Used as the binary name. Only lowercase letters, digits, and hyphens.</small>
-      </label>
 
       <label>Transport type<br />
         <select value={(transport.type as string) ?? ''} onChange={e => handleTypeChange(e.target.value)}>
@@ -125,9 +116,11 @@ export function TransportSelector({ definition, onChange, onNext }: Props) {
         </div>
       )}
 
-      <button style={{ marginTop: 24 }} onClick={onNext} disabled={!canProceed}>
-        Next →
-      </button>
+      <div style={{ marginTop: 24 }}>
+        <button onClick={onNext} disabled={!canProceed}>
+          Next →
+        </button>
+      </div>
     </div>
   );
 }

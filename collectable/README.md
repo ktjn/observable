@@ -93,43 +93,51 @@ for the architectural decision record.
 
 ## Sample invocation
 
-Build & Download
+The [`samples/`](samples/) directory contains ready-to-use pipeline definitions.
+Pass the file contents as the `definition` field in the `/build` request, or load
+them directly in the builder UI.
 
-HTTP/JSON (port 4318):
+| File | Transport | Protocol |
+|---|---|---|
+| [`samples/journalctl-grpc-v1.json`](samples/journalctl-grpc-v1.json) | stdin | gRPC (port 4317) |
+| [`samples/journalctl-http-v1.json`](samples/journalctl-http-v1.json) | stdin | HTTP/JSON (port 4318) |
 
-```bash
-curl -X POST 'http://localhost:8091/build' \
-  -H 'Content-Type: application/json' \
-  -d '{"definition":{"version":"1","name":"journalctl-to-otlp","transport":{"type":"stdin"},"parser":{"type":"grok","pattern":"%{TIMESTAMP_ISO8601:timestamp} %{GREEDYDATA:message}"},"mapping":{"time_field":{"field":"timestamp","format":"auto"},"body":{"field":"message"}},"output":{"endpoint":"http://localhost:4318/v1/logs","protocol":"http"}},"target":"x86_64-unknown-linux-musl"}' \
-  --output journalctl-to-otlp-x86_64-unknown-linux-musl.zip
-```
+### Build & Download
 
 gRPC (port 4317):
 
 ```bash
 curl -X POST 'http://localhost:8091/build' \
   -H 'Content-Type: application/json' \
-  -d '{"definition":{"version":"1","name":"journalctl-to-otlp","transport":{"type":"stdin"},"parser":{"type":"grok","pattern":"%{TIMESTAMP_ISO8601:timestamp} %{WORD:host} %{NOTSPACE:logger}: %{GREEDYDATA:message}"},"output":{"endpoint":"http://localhost:4317","protocol":"grpc"},"mapping":{"body":{"field":"message"},"severity_text":{"literal":"INFO"},"time_field":{"field":"timestamp","format":"auto"},"resource_attributes":{"host.name":{"command":"hostname -a"}},"log_attributes":{"logger":{"field":"logger"}}}},"target":"x86_64-unknown-linux-musl"}' \
-  --output journalctl-to-otlp-x86_64-unknown-linux-musl.zip
+  -d '{"definition":{"version":"1","name":"journalctl-grpc-v1","transport":{"type":"stdin"},"parser":{"type":"grok","pattern":"%{TIMESTAMP_ISO8601:timestamp} %{WORD:host} %{NOTSPACE:logger}: %{GREEDYDATA:message}"},"output":{"endpoint":"http://localhost:4317","protocol":"grpc"},"mapping":{"body":{"field":"message"},"time_field":{"field":"timestamp","format":"auto"},"severity_text":{"literal":"INFO"},"resource_attributes":{"service.name":{"literal":"journalctl"},"host.name":{"command":"hostname -a"}},"log_attributes":{"logger":{"field":"logger"}}}},"target":"x86_64-unknown-linux-musl"}' \
+  --output journalctl-grpc-v1-x86_64-unknown-linux-musl.zip
 ```
 
-Unzip and add executable permission on journalctl-to-otlp-x86_64-unknown-linux-musl/journalctl-to-otlp
-
-Run
+HTTP/JSON (port 4318):
 
 ```bash
-unzip journalctl-to-otlp-x86_64-unknown-linux-musl.zip
-chmod +x journalctl-to-otlp-x86_64-unknown-linux-musl/journalctl-to-otlp
+curl -X POST 'http://localhost:8091/build' \
+  -H 'Content-Type: application/json' \
+  -d '{"definition":{"version":"1","name":"journalctl-http-v1","transport":{"type":"stdin"},"parser":{"type":"grok","pattern":"%{TIMESTAMP_ISO8601:timestamp} %{WORD:host} %{NOTSPACE:logger}: %{GREEDYDATA:message}"},"output":{"endpoint":"http://localhost:4318/v1/logs","protocol":"http"},"mapping":{"body":{"field":"message"},"time_field":{"field":"timestamp","format":"auto"},"severity_text":{"literal":"INFO"},"resource_attributes":{"service.name":{"literal":"journalctl"},"host.name":{"command":"hostname -a"}},"log_attributes":{"logger":{"field":"logger"}}}},"target":"x86_64-unknown-linux-musl"}' \
+  --output journalctl-http-v1-x86_64-unknown-linux-musl.zip
+```
+
+### Run
+
+```bash
+# gRPC example — substitute journalctl-http-v1 for the HTTP variant
+unzip journalctl-grpc-v1-x86_64-unknown-linux-musl.zip
+chmod +x journalctl-grpc-v1-x86_64-unknown-linux-musl/journalctl-grpc-v1
 
 export OTLP_TOKEN=dev-api-key-0000
-# http/json
-# export OTLP_ENDPOINT=http://localhost:4318/v1/logs
-# gRPC
-# export OTLP_ENDPOINT=http://localhost:4317
-# To see system logs, add your user to systemd-journal group:
-# sudo usermod -aG systemd-journal $USER
+# Override endpoint at runtime if needed:
+# export OTLP_ENDPOINT=http://localhost:4317          # gRPC
+# export OTLP_ENDPOINT=http://localhost:4318/v1/logs  # HTTP/JSON
+
+# To read system logs, add your user to the systemd-journal group first:
+# sudo usermod -aG systemd-journal $USER && newgrp systemd-journal
 journalctl -o short-iso-precise -f | \
-  journalctl-to-otlp-x86_64-unknown-linux-musl/journalctl-to-otlp
+  journalctl-grpc-v1-x86_64-unknown-linux-musl/journalctl-grpc-v1
 ```
 
 `OTLP_TOKEN` is sent as `Authorization: Bearer <your-api-key>` on every OTLP

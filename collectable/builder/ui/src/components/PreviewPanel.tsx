@@ -9,7 +9,7 @@ function formatSource(val: unknown): string {
   const v = val as Record<string, string>;
   if (v.command !== undefined) return `$(${v.command})`;
   if (v.env !== undefined) return `\${${v.env}}`;
-  if (v.literal !== undefined) return `"${v.literal}"`;
+  if (v.literal !== undefined) return v.literal;
   if (v.field !== undefined) return `← ${v.field}`;
   return JSON.stringify(val);
 }
@@ -32,18 +32,44 @@ export function PreviewPanel({ definition }: Props) {
     return JSON.stringify(tf);
   }
 
-  const preview: Record<string, unknown> = {
-    resource_attributes: Object.fromEntries(
-      Object.entries(resourceAttrs).map(([k, v]) => [k, formatSource(v)])
-    ),
+  function severityNumber(sv: unknown): number | string {
+    if (!sv || typeof sv !== 'object') return 9;
+    const v = sv as Record<string, string>;
+    const num: Record<string, number> = {
+      TRACE: 1, DEBUG: 5, INFO: 9, WARN: 13, WARNING: 13, ERROR: 17, FATAL: 21, CRITICAL: 21,
+    };
+    if (v.field) return `← ${v.field} (numeric)`;
+    if (v.literal) return num[v.literal.toUpperCase()] ?? 9;
+    return 9;
+  }
+
+  const pipelineName = (definition.name as string) ?? '';
+
+  const logRecord: Record<string, unknown> = {
     body: body ? formatSource(body) : '← message (default)',
     ...(severityText ? { severity_text: formatSource(severityText) } : {}),
+    severity_number: severityNumber(severityText),
     timestamp: formatTimeField(timeField),
+    observed_timestamp: '< set at processing time >',
     ...(traceId ? { trace_id: formatSource(traceId) } : {}),
     ...(spanId ? { span_id: formatSource(spanId) } : {}),
-    log_attributes: Object.fromEntries(
+    attributes: Object.fromEntries(
       Object.entries(logAttrs).map(([k, v]) => [k, formatSource(v)])
     ),
+  };
+
+  const preview = {
+    resourceLogs: [{
+      resource: {
+        attributes: Object.fromEntries(
+          Object.entries(resourceAttrs).map(([k, v]) => [k, formatSource(v)])
+        ),
+      },
+      scopeLogs: [{
+        scope: { name: pipelineName || '(set on Build page)' },
+        logRecords: [logRecord],
+      }],
+    }],
   };
 
   return (

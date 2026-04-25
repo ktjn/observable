@@ -117,7 +117,7 @@ export default function App() {
         <OtlpMapper definition={definition} onChange={setDefinition} onNext={() => setStep('download')} />
       )}
       {step === 'download' && (
-        <DownloadPanel definition={definition} />
+        <DownloadPanel definition={definition} onChange={setDefinition} />
       )}
 
       <details style={{ marginTop: 32 }}>

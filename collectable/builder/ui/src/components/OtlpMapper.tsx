@@ -139,9 +139,21 @@ export function OtlpMapper({ definition, onChange, onNext }: Props) {
     return [...existing, ...pre];
   });
 
-  const [resourceRows, setResourceRows] = useState<ResourceAttrRow[]>(() =>
-    attrsToResourceRows(mapping.resource_attributes as Record<string, unknown> | undefined),
-  );
+  const [resourceRows, setResourceRows] = useState<ResourceAttrRow[]>(() => {
+    const existing = attrsToResourceRows(mapping.resource_attributes as Record<string, unknown> | undefined);
+    // Pre-seed service.name if not already present in the saved mapping.
+    // service.name is the OTLP resource attribute that the Observable ingest gateway
+    // promotes to the service_name column — it is independent of the pipeline (binary) name.
+    const hasServiceName = existing.some(r => r.otlpKey === 'service.name');
+    if (!hasServiceName) {
+      const pipelineName = (definition.name as string) ?? '';
+      return [
+        { id: uid(), otlpKey: 'service.name', sourceType: 'literal' as const, value: pipelineName },
+        ...existing,
+      ];
+    }
+    return existing;
+  });
 
   const [logRows, setLogRows] = useState<LogAttrRow[]>(() => {
     const existing = attrsToLogRows(mapping.log_attributes as Record<string, unknown> | undefined);
