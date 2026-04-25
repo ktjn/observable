@@ -9,7 +9,7 @@ function formatSource(val: unknown): string {
   const v = val as Record<string, string>;
   if (v.command !== undefined) return `$(${v.command})`;
   if (v.env !== undefined) return `\${${v.env}}`;
-  if (v.literal !== undefined) return `"${v.literal}"`;
+  if (v.literal !== undefined) return v.literal;
   if (v.field !== undefined) return `← ${v.field}`;
   return JSON.stringify(val);
 }
@@ -47,7 +47,6 @@ export function PreviewPanel({ definition }: Props) {
   const pipelineName = (definition.name as string) ?? '';
 
   const preview: Record<string, unknown> = {
-    scope: { name: pipelineName || '(set on Build page)' },
     resource_attributes: Object.fromEntries(
       Object.entries(resourceAttrs).map(([k, v]) => [k, formatSource(v)])
     ),
@@ -65,7 +64,10 @@ export function PreviewPanel({ definition }: Props) {
 
   return (
     <div style={{ marginTop: 24, borderTop: '1px solid #ddd', paddingTop: 16 }}>
-      <h3 style={{ fontSize: 14, marginBottom: 8 }}>Live OTLP LogRecord preview</h3>
+      <h3 style={{ fontSize: 14, marginBottom: 4 }}>Live OTLP LogRecord preview</h3>
+      <p style={{ fontSize: 12, color: '#666', margin: '0 0 8px' }}>
+        Each record is sent inside <code>scopeLogs[].scope.name = &quot;{pipelineName || '(pipeline name)'}&quot;</code> within the OTLP envelope.
+      </p>
       <pre style={{ background: '#e8f4e8', padding: 16, overflow: 'auto', fontSize: 12, borderRadius: 4 }}>
         {JSON.stringify(preview, null, 2)}
       </pre>
