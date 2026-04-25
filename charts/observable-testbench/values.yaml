@@ -104,6 +104,11 @@ otelGateway:
             endpoint: ${env:MY_POD_IP}:4318
 
     processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 256
+        spike_limit_mib: 64
+      batch: {}
       resource:
         attributes:
           - { key: deployment.environment, value: testbench, action: upsert }
@@ -178,6 +183,7 @@ otelAgent:
         endpoint: ${env:MY_POD_IP}:13133
 
     processors:
+      batch: {}
       resource:
         attributes:
           - { key: deployment.environment, value: testbench, action: upsert }
@@ -198,10 +204,10 @@ otelAgent:
         # k8sattributes prepended to processors by kubernetesAttributes preset
         metrics:
           receivers: [kubeletstats]
-          processors: [resource, memory_limiter, batch]
+          processors: [resource, batch]
           exporters: [otlp/gateway]
         logs:
           receivers: [filelog]
-          processors: [resource, memory_limiter, batch]
+          processors: [resource, batch]
           exporters: [otlp/gateway]
       extensions: [health_check]

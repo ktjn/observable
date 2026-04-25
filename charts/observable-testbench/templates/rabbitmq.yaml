@@ -73,3 +73,18 @@ spec:
   ports:
     - { name: amqp, port: 5672, targetPort: 5672 }
     - { name: management, port: 15672, targetPort: 15672 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shop-queue-client
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: shop-queue
+    app.kubernetes.io/part-of: observable-testbench
+spec:
+  selector:
+    app.kubernetes.io/name: shop-queue
+  ports:
+    - { name: amqp, port: 5672, targetPort: 5672 }
+    - { name: management, port: 15672, targetPort: 15672 }

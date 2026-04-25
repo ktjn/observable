@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import random
@@ -54,8 +55,20 @@ async def startup():
             break
         except Exception:
             log.warning("DB not ready, retrying (%d/20)", attempt + 1)
-            time.sleep(3)
-    _amqp = await connect_robust(AMQP_URL)
+            await asyncio.sleep(3)
+    else:
+        raise RuntimeError("could not connect to database")
+
+    for attempt in range(30):
+        try:
+            _amqp = await connect_robust(AMQP_URL)
+            break
+        except Exception:
+            log.warning("RabbitMQ not ready, retrying (%d/30)", attempt + 1)
+            await asyncio.sleep(3)
+    else:
+        raise RuntimeError("could not connect to RabbitMQ")
+
     _channel = await _amqp.channel()
     await _channel.declare_queue("orders", durable=True)
     log.info("shop-api started")

@@ -25,7 +25,7 @@ spec:
             - name: DATABASE_URL
               value: "postgresql://{{ .Values.postgres.credentials.user }}:{{ .Values.postgres.credentials.password }}@shop-db:5432/{{ .Values.postgres.credentials.database }}"
             - name: AMQP_URL
-              value: "amqp://{{ .Values.rabbitmq.credentials.user }}:{{ .Values.rabbitmq.credentials.password }}@shop-queue:5672/"
+              value: "amqp://{{ .Values.rabbitmq.credentials.user }}:{{ .Values.rabbitmq.credentials.password }}@shop-queue-client:5672/"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://otel-collector-gateway.{{ .Release.Namespace }}.svc.cluster.local:4317"
             - name: SERVICE_VERSION

@@ -85,6 +85,20 @@ dump_pod_events() {
   kubectl get events --namespace "$ns" --sort-by='.lastTimestamp' 2>/dev/null | tail -20 || true
 }
 
+reset_stale_release() {
+  local release="$1"
+  local ns="$2"
+  local status
+
+  status="$(helm status "$release" --namespace "$ns" 2>/dev/null | awk '/^STATUS:/ {print $2}')"
+  case "$status" in
+    pending-install|pending-upgrade|pending-rollback|failed)
+      log "Removing stale Helm release '$release' in namespace '$ns' (status: $status)"
+      helm uninstall "$release" --namespace "$ns" || true
+      ;;
+  esac
+}
+
 wait_for_rollout() {
   local resource="$1"
   local ns="${2:-$TESTBENCH_NS}"
@@ -168,11 +182,11 @@ if [[ "$SKIP_OBSERVABLE" == "false" ]]; then
   # kind-test.sh uses --skip-build by default when called from here because
   # the observable-services image may already be built.  We always pass
   # --keep-cluster so it does not tear down our cluster on exit.
+  kind_test_args=(--keep-cluster --reuse-cluster --cluster-name "$CLUSTER_NAME")
   if [[ "$SKIP_BUILD" == "true" ]]; then
-    bash "$SCRIPT_DIR/kind-test.sh" --skip-build --keep-cluster
-  else
-    bash "$SCRIPT_DIR/kind-test.sh" --keep-cluster
+    kind_test_args=(--skip-build "${kind_test_args[@]}")
   fi
+  bash "$SCRIPT_DIR/kind-test.sh" "${kind_test_args[@]}"
 else
   log "Skipping Observable deployment (--skip-observable)"
 fi
@@ -194,6 +208,8 @@ done
 
 log "Creating testbench namespace"
 kubectl create namespace "$TESTBENCH_NS" --dry-run=client -o yaml | kubectl apply -f -
+
+reset_stale_release "$TESTBENCH_RELEASE" "$TESTBENCH_NS"
 
 log "Installing observable-testbench chart"
 helm upgrade --install "$TESTBENCH_RELEASE" "$TESTBENCH_CHART" \
