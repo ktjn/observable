@@ -1,10 +1,25 @@
 import { useState } from "react";
 import { Span } from "../api/traces";
 import { LogCorrelatedList } from "../components/LogCorrelatedList";
+import { infraLinks, InfraLink } from "../utils/infraLinks";
 
 interface Props {
   traceId: string;
   spans: Span[];
+}
+
+function mergedInfraLinks(spans: Span[]): InfraLink[] {
+  const seen = new Set<string>();
+  const result: InfraLink[] = [];
+  for (const span of spans) {
+    for (const link of infraLinks(span.resource_attributes ?? {})) {
+      if (!seen.has(link.href)) {
+        seen.add(link.href);
+        result.push(link);
+      }
+    }
+  }
+  return result;
 }
 
 export function TraceDetail({ traceId, spans }: Props) {
@@ -13,12 +28,40 @@ export function TraceDetail({ traceId, spans }: Props) {
   const maxEnd = Math.max(...spans.map((s) => Number(s.end_time_unix_nano)));
   const totalNs = maxEnd - minStart || 1;
 
+  const infraPills = mergedInfraLinks(spans);
+
   return (
     <div>
       <h2>Trace {traceId.substring(0, 16)}…</h2>
       <p>
         Total: {(totalNs / 1e6).toFixed(2)}ms — {spans.length} spans
       </p>
+
+      {infraPills.length > 0 && (
+        <div
+          aria-label="Infrastructure"
+          style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}
+        >
+          {infraPills.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              style={{
+                fontSize: 12,
+                padding: "2px 8px",
+                borderRadius: 12,
+                background: "var(--color-bg-subtle, #edf2f7)",
+                color: "var(--color-text, #2d3748)",
+                textDecoration: "none",
+                border: "1px solid var(--color-border, #e2e8f0)",
+              }}
+            >
+              {link.label}
+            </a>
+          ))}
+        </div>
+      )}
+
       <div style={{ overflowX: "auto" }}>
         {spans.map((span) => {
           const offset =
@@ -27,15 +70,20 @@ export function TraceDetail({ traceId, spans }: Props) {
           return (
             <div
               key={span.span_id}
-              onClick={() => setSelectedSpanId(span.span_id === selectedSpanId ? undefined : span.span_id)}
-              style={{ 
-                display: "flex", 
-                alignItems: "center", 
-                marginBottom: 4, 
+              onClick={() =>
+                setSelectedSpanId(
+                  span.span_id === selectedSpanId ? undefined : span.span_id
+                )
+              }
+              style={{
+                display: "flex",
+                alignItems: "center",
+                marginBottom: 4,
                 cursor: "pointer",
-                background: selectedSpanId === span.span_id ? "#edf2f7" : "transparent",
+                background:
+                  selectedSpanId === span.span_id ? "#edf2f7" : "transparent",
                 borderRadius: "4px",
-                padding: "2px 0"
+                padding: "2px 0",
               }}
             >
               <span

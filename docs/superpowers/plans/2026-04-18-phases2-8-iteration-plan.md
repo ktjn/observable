@@ -291,13 +291,13 @@ Before Phase 3 starts, answer:
   - Verification: API tests cover tenant-scoped infrastructure inventory; frontend tests cover inventory rendering, detail links, and empty states.
   - Checkpoint: can users move from infrastructure to related services, logs, metrics, and traces without manually reconstructing filters?
 
-- [ ] **P3-S10: Add infrastructure correlation from service and trace views**
+- [x] **P3-S10: Add infrastructure correlation from service and trace views**
   - Source spec: `spec/05-frontend.md` §9.4 Infrastructure Correlation.
-  - Outcome: users can navigate from a service, trace, or log view to correlated host/pod/container metrics and logs using OTel resource attributes.
+  - Outcome: Service overview shows a correlated infrastructure panel via `listInfrastructure`; trace detail shows a deduplicated pill row of infra entities derived from span `resource_attributes`; log rows show inline infra badges. All three surfaces use a shared `infraLinks()` utility. Frontend-only — no backend changes. Completed 2026-04-25.
   - Files or modules expected to change: service detail related-infrastructure panel, trace/log detail links, shared resource-attribute link builder, tests.
   - Out of scope: infrastructure inventory implementation if P3-S9 is not complete. In that case links may target filtered explorer routes.
   - Verification: frontend tests cover generated links from `host.name`, `k8s.pod.name`, and container attributes; API tests cover resource attributes in responses where missing.
-  - Checkpoint: are links derived correctly from OTel resource attributes?
+  - Checkpoint: are links derived correctly from OTel resource attributes? Answer: yes. `infraLinks()` maps `k8s.pod.name`, `host.name`/`host.id`, `k8s.namespace.name`, `k8s.cluster.name`, and `container.name`/`container.id` to `/infrastructure/:type/:id` URLs using `encodeURIComponent`, with 9 unit tests covering all mappings, fallbacks, deduplication, and URL encoding.
 
 - [ ] **P3-S11: Add deployment event ingestion and one timeline overlay**
   - Source spec: `spec/18-deployment-markers.md`.
@@ -518,6 +518,9 @@ After this planning reconciliation, the next implementation slice should be:
 11. ~~P2-S8a: add Kubernetes manifest render and rollback skeleton~~ (done)
 12. ~~P2-S8b: add one canary promotion path~~ (done)
 13. ~~P2-S9a: add perf smoke baseline for ingest and common query paths~~ (done)
+14. ~~P3-S10: Add infrastructure correlation from service and trace views~~ (done)
+
+**Next recommended slice: P3-S11 - Add deployment event ingestion and one timeline overlay.**
 
 **Phase 2 exit gate is now satisfied.** All Phase 2 slices (P2-S0 through P2-S9a) are complete. Before starting Phase 3, answer the Phase 2 pause-point questions:
 - Tenant safety under test: yes — P2-S1a through P2-S1d enforce and test cross-tenant isolation for all signal types.

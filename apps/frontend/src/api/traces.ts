@@ -8,6 +8,7 @@ export interface Span {
   end_time_unix_nano: number;
   duration_ns: number;
   status_code: string;
+  resource_attributes?: Record<string, unknown>;
 }
 
 export interface TraceResponse {

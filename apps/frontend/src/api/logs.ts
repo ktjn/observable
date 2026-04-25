@@ -14,6 +14,7 @@ export interface LogRecord {
   trace_id?: string;
   span_id?: string;
   service_name: string;
+  resource_attributes?: Record<string, unknown>;
 }
 
 export interface FacetValue {
