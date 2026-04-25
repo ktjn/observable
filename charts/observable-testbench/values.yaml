@@ -1,0 +1,213 @@
+# Target Observable ingest endpoint (reachable from within the kind cluster)
+observableEndpoint: "http://ingest-gateway.observable.svc.cluster.local:4318"
+observableApiKey: "dev-api-key-0000"
+
+# Cluster name injected into all telemetry via the resource processor
+clusterName: "observable-test"
+
+global:
+  testbench:
+    observableEndpoint: "http://ingest-gateway.observable.svc.cluster.local:4318"
+    observableApiKey: "dev-api-key-0000"
+    clusterName: "observable-test"
+
+image:
+  pullPolicy: Never   # testbench images are loaded via `kind load docker-image`
+
+frontend:
+  image: testbench-frontend:local
+  replicas: 1
+  resources:
+    requests: { cpu: "50m", memory: "64Mi" }
+    limits:   { cpu: "200m", memory: "128Mi" }
+
+api:
+  image: testbench-api:local
+  replicas: 1
+  resources:
+    requests: { cpu: "50m", memory: "128Mi" }
+    limits:   { cpu: "300m", memory: "256Mi" }
+
+worker:
+  image: testbench-worker:local
+  replicas: 1
+  resources:
+    requests: { cpu: "50m", memory: "64Mi" }
+    limits:   { cpu: "200m", memory: "128Mi" }
+
+loadgen:
+  image: testbench-loadgen:local
+  replicas: 1
+  resources:
+    requests: { cpu: "50m", memory: "64Mi" }
+    limits:   { cpu: "200m", memory: "128Mi" }
+
+postgres:
+  image: postgres:16
+  storageSize: 1Gi
+  credentials:
+    user: shop
+    password: shop
+    database: shop
+
+rabbitmq:
+  image: rabbitmq:3.13-management
+  storageSize: 1Gi
+  credentials:
+    user: shop
+    password: shop
+
+# ---------------------------------------------------------------------------
+# OTel Collector — Gateway (Deployment)
+# Receives OTLP from testbench services.
+# Presets add: k8s_cluster receiver (cluster metrics), k8sobjects receiver
+# (k8s Events as logs), k8sattributes processor (pod/node metadata enrichment).
+# ---------------------------------------------------------------------------
+otelGateway:
+  fullnameOverride: otel-collector-gateway
+  mode: deployment
+
+  image:
+    repository: otel/opentelemetry-collector-contrib
+    tag: "0.150.1"
+    pullPolicy: IfNotPresent
+
+  presets:
+    kubernetesAttributes:
+      enabled: true
+      extractAllPodLabels: false
+      extractAllPodAnnotations: false
+    clusterMetrics:
+      enabled: true
+    kubernetesEvents:
+      enabled: true
+
+  resources:
+    requests: { cpu: "100m", memory: "128Mi" }
+    limits:   { cpu: "500m", memory: "512Mi" }
+
+  # clusterRole is created by the chart when presets require it
+  clusterRole:
+    create: true
+
+  config:
+    receivers:
+      # Remove default receivers we don't need
+      jaeger: null
+      zipkin: null
+      prometheus: null
+      otlp:
+        protocols:
+          grpc:
+            endpoint: ${env:MY_POD_IP}:4317
+          http:
+            endpoint: ${env:MY_POD_IP}:4318
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 256
+        spike_limit_mib: 64
+      batch: {}
+      resource:
+        attributes:
+          - { key: deployment.environment, value: testbench, action: upsert }
+          - { key: k8s.cluster.name, value: "{{ .Values.global.testbench.clusterName }}", action: upsert }
+
+    exporters:
+      debug: null
+      otlphttp/observable:
+        endpoint: "{{ .Values.global.testbench.observableEndpoint }}"
+        headers:
+          Authorization: "Bearer {{ .Values.global.testbench.observableApiKey }}"
+
+    service:
+      pipelines:
+        # k8sattributes is prepended by the kubernetesAttributes preset
+        # k8s_cluster is appended to metrics receivers by the clusterMetrics preset
+        # k8sobjects  is appended to logs receivers by the kubernetesEvents preset
+        traces:
+          receivers: [otlp]
+          processors: [resource, memory_limiter, batch]
+          exporters: [otlphttp/observable]
+        metrics:
+          receivers: [otlp]
+          processors: [resource, memory_limiter, batch]
+          exporters: [otlphttp/observable]
+        logs:
+          receivers: [otlp]
+          processors: [resource, memory_limiter, batch]
+          exporters: [otlphttp/observable]
+
+# ---------------------------------------------------------------------------
+# OTel Collector — Agent (DaemonSet)
+# Runs on every node.
+# Presets add: kubeletstats receiver (per-node/pod CPU/mem/net),
+# filelog receiver (container stdout/stderr), k8sattributes processor.
+# ---------------------------------------------------------------------------
+otelAgent:
+  # chart appends "-agent" suffix in daemonset mode, so this yields "otel-collector-agent"
+  fullnameOverride: otel-collector
+  mode: daemonset
+
+  image:
+    repository: otel/opentelemetry-collector-contrib
+    tag: "0.150.1"
+    pullPolicy: IfNotPresent
+
+  presets:
+    logsCollection:
+      enabled: true
+      includeCollectorLogs: false
+      storeCheckpoints: false
+    kubeletMetrics:
+      enabled: true
+    kubernetesAttributes:
+      enabled: true
+
+  resources:
+    requests: { cpu: "100m", memory: "128Mi" }
+    limits:   { cpu: "300m", memory: "256Mi" }
+
+  clusterRole:
+    create: true
+
+  alternateConfig:
+    receivers:
+      # Agent only collects from node-local sources; remove OTLP + protocol defaults
+      kubeletstats: {}
+      filelog: {}
+
+    extensions:
+      health_check:
+        endpoint: ${env:MY_POD_IP}:13133
+
+    processors:
+      batch: {}
+      resource:
+        attributes:
+          - { key: deployment.environment, value: testbench, action: upsert }
+          - { key: k8s.cluster.name, value: "{{ .Values.global.testbench.clusterName }}", action: upsert }
+
+    exporters:
+      debug: null
+      # Forward all node-level telemetry to the gateway
+      otlp/gateway:
+        endpoint: "otel-collector-gateway.{{ .Release.Namespace }}.svc.cluster.local:4317"
+        tls:
+          insecure: true
+
+    service:
+      pipelines:
+        # kubeletstats appended to receivers by kubeletMetrics preset
+        # filelog      appended to receivers by logsCollection preset
+        # k8sattributes prepended to processors by kubernetesAttributes preset
+        metrics:
+          receivers: [kubeletstats]
+          processors: [resource, batch]
+          exporters: [otlp/gateway]
+        logs:
+          receivers: [filelog]
+          processors: [resource, batch]
+          exporters: [otlp/gateway]
+      extensions: [health_check]

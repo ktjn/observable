@@ -11,7 +11,29 @@
       "Bash(gh pr *)",
       "Bash(git -C /c/git/Observable show spec/dependency-maintenance-policy:spec/10-process.md)",
       "Bash(awk 'NR>=210 && NR<=340')",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(bash *)",
+      "Bash(cargo test *)",
+      "Bash(npm --workspace apps/frontend test -- --reporter=verbose)",
+      "Bash(npm --workspace apps/frontend test -- --reporter=verbose src/App.test.tsx)",
+      "Bash(npm --workspace apps/frontend run lint)",
+      "Bash(npx vitest *)",
+      "Bash(npm --workspace apps/frontend run typecheck)",
+      "Bash(npm --workspace apps/frontend test -- --run)",
+      "Bash(cargo fmt *)",
+      "Bash(npm --workspace apps/frontend test)",
+      "Bash(xargs grep *)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(helm lint *)",
+      "Bash(helm template *)",
+      "Bash(helm repo *)",
+      "Bash(helm search *)",
+      "Bash(helm show *)",
+      "Bash(helm pull *)",
+      "Read(//tmp/otelchart/opentelemetry-collector/**)",
+      "Bash(helm dependency *)",
+      "Bash(awk '/ConfigMap/{p=1} p && /otel-collector-gateway/{p=2} p==2 && /relay:/{p=3} p==3{print; if\\(/^  [a-z]/ && !/relay:/\\){exit}}')"
     ]
   }
 }

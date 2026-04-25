@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shop-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: shop-api
+    app.kubernetes.io/part-of: observable-testbench
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: shop-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: shop-api
+        app.kubernetes.io/part-of: observable-testbench
+    spec:
+      containers:
+        - name: shop-api
+          image: {{ .Values.api.image }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - { containerPort: 8000 }
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://{{ .Values.postgres.credentials.user }}:{{ .Values.postgres.credentials.password }}@shop-db:5432/{{ .Values.postgres.credentials.database }}"
+            - name: AMQP_URL
+              value: "amqp://{{ .Values.rabbitmq.credentials.user }}:{{ .Values.rabbitmq.credentials.password }}@shop-queue-client:5672/"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector-gateway.{{ .Release.Namespace }}.svc.cluster.local:4317"
+            - name: SERVICE_VERSION
+              value: {{ .Chart.AppVersion | quote }}
+            - name: MY_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: MY_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources: {{- toYaml .Values.api.resources | nindent 12 }}
+          readinessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 20
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shop-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: shop-api
+    app.kubernetes.io/part-of: observable-testbench
+spec:
+  selector:
+    app.kubernetes.io/name: shop-api
+  ports:
+    - { port: 8000, targetPort: 8000 }

@@ -23,10 +23,12 @@
 #   docker
 #
 # Usage:
-#   bash scripts/kind-test.sh [--skip-build] [--keep-cluster]
+#   bash scripts/kind-test.sh [--skip-build] [--keep-cluster] [--reuse-cluster] [--cluster-name <name>]
 #
-#   --skip-build   skip docker build (use existing observable-services:local image)
-#   --keep-cluster do not delete the kind cluster on exit (useful for debugging)
+#   --skip-build    skip docker build (use existing observable-services:local image)
+#   --keep-cluster  do not delete the kind cluster on exit (useful for debugging)
+#   --reuse-cluster use an existing kind cluster instead of recreating it
+#   --cluster-name  target kind cluster name (default: observable-test)
 
 set -euo pipefail
 
@@ -41,11 +43,34 @@ APP_CHART="$REPO_ROOT/charts/observable"
 
 SKIP_BUILD=false
 KEEP_CLUSTER=false
+REUSE_CLUSTER=false
 
-for arg in "$@"; do
-  case "$arg" in
-    --skip-build)   SKIP_BUILD=true ;;
-    --keep-cluster) KEEP_CLUSTER=true ;;
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skip-build)
+      SKIP_BUILD=true
+      shift
+      ;;
+    --keep-cluster)
+      KEEP_CLUSTER=true
+      shift
+      ;;
+    --reuse-cluster)
+      REUSE_CLUSTER=true
+      shift
+      ;;
+    --cluster-name)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: --cluster-name requires a value." >&2
+        exit 1
+      fi
+      CLUSTER_NAME="$2"
+      shift 2
+      ;;
+    *)
+      echo "ERROR: unknown argument: $1" >&2
+      exit 1
+      ;;
   esac
 done
 
@@ -55,6 +80,10 @@ done
 
 log()  { echo ""; echo "==> [$(date +%H:%M:%S)] $*"; }
 info() { echo "    $*"; }
+
+current_revision() {
+  helm history "$1" --namespace "$2" | awk 'NR > 1 { rev = $1 } END { print rev }'
+}
 
 show_pods() {
   local ns="${1:-$NAMESPACE}"
@@ -154,13 +183,20 @@ fi
 
 log "Creating kind cluster '$CLUSTER_NAME'"
 if kind get clusters 2>/dev/null | grep -q "^$CLUSTER_NAME$"; then
-  info "Cluster already exists — deleting and recreating"
-  kind delete cluster --name "$CLUSTER_NAME"
+  if [[ "$REUSE_CLUSTER" == "true" ]]; then
+    info "Cluster already exists — reusing it"
+  else
+    info "Cluster already exists — deleting and recreating"
+    kind delete cluster --name "$CLUSTER_NAME"
+    kind create cluster \
+      --name "$CLUSTER_NAME" \
+      --wait 60s
+  fi
+else
+  kind create cluster \
+    --name "$CLUSTER_NAME" \
+    --wait 60s
 fi
-
-kind create cluster \
-  --name "$CLUSTER_NAME" \
-  --wait 60s
 
 kubectl cluster-info --context "kind-$CLUSTER_NAME"
 
@@ -202,7 +238,7 @@ helm repo add openfga https://openfga.github.io/helm-charts
 helm repo update
 
 log "Installing CloudNativePG operator"
-helm install cnpg-operator cloudnative-pg/cloudnative-pg \
+helm upgrade --install cnpg-operator cloudnative-pg/cloudnative-pg \
   --namespace cnpg-system \
   --create-namespace \
   --wait
@@ -212,7 +248,7 @@ log "Installing infrastructure chart"
 helm dependency update "$REPO_ROOT/charts/observable-infra"
 watch_pods "$NAMESPACE" 20 &
 WATCH_INFRA=$!
-helm install observable-infra "$REPO_ROOT/charts/observable-infra" \
+helm upgrade --install observable-infra "$REPO_ROOT/charts/observable-infra" \
   --namespace "$NAMESPACE" \
   --wait \
   --timeout 10m
@@ -251,10 +287,10 @@ kubectl create configmap observable-migrations-clickhouse \
 log "Resolving Helm chart dependencies"
 helm dependency update "$APP_CHART"
 
-log "Installing Observable chart (revision 1)"
+log "Installing Observable chart"
 watch_pods "$NAMESPACE" 20 &
 WATCH_APP=$!
-helm install "$RELEASE_NAME" "$APP_CHART" \
+helm upgrade --install "$RELEASE_NAME" "$APP_CHART" \
   --namespace "$NAMESPACE" \
   --set global.image.repository=observable-services \
   --set global.image.tag=local \
@@ -267,6 +303,13 @@ kill "$WATCH_APP" 2>/dev/null || true
 log "Helm release status"
 helm status "$RELEASE_NAME" --namespace "$NAMESPACE"
 show_pods "$NAMESPACE"
+
+BASE_REVISION="$(current_revision "$RELEASE_NAME" "$NAMESPACE")"
+if [[ -z "$BASE_REVISION" ]]; then
+  echo "ERROR: could not determine current Helm revision for $RELEASE_NAME" >&2
+  exit 1
+fi
+info "Current Helm revision before rollback demo: $BASE_REVISION"
 
 # ---------------------------------------------------------------------------
 # Wait for all service Deployments
@@ -361,7 +404,7 @@ trap 'cleanup' EXIT
 
 log "Demonstrating helm rollback"
 
-info "Upgrading to revision 2 (adding an annotation to trigger a new release)"
+info "Upgrading release to create a new revision"
 helm upgrade "$RELEASE_NAME" "$APP_CHART" \
   --namespace "$NAMESPACE" \
   --set global.image.repository=observable-services \
@@ -371,16 +414,17 @@ helm upgrade "$RELEASE_NAME" "$APP_CHART" \
   --wait \
   --timeout 3m
 
-info "Revision 2 deployed — queryApi replicas=2"
+NEW_REVISION="$(current_revision "$RELEASE_NAME" "$NAMESPACE")"
+info "Revision $NEW_REVISION deployed — queryApi replicas=2"
 helm history "$RELEASE_NAME" --namespace "$NAMESPACE"
 
-info "Rolling back to revision 1"
-helm rollback "$RELEASE_NAME" 1 \
+info "Rolling back to revision $BASE_REVISION"
+helm rollback "$RELEASE_NAME" "$BASE_REVISION" \
   --namespace "$NAMESPACE" \
   --wait \
   --timeout 3m
 
-info "Rollback to revision 1 complete"
+info "Rollback to revision $BASE_REVISION complete"
 helm history "$RELEASE_NAME" --namespace "$NAMESPACE"
 
 # Verify rollback reverted replica count

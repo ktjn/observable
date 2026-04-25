@@ -1,0 +1,18 @@
+apiVersion: v2
+name: observable-testbench
+description: Synthetic workload for Observable end-to-end testing (kind cluster)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+dependencies:
+  # Gateway: Deployment — receives OTLP + runs cluster-level k8s receivers
+  - name: opentelemetry-collector
+    version: "0.152.0"
+    repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+    alias: otelGateway
+  # Agent: DaemonSet — kubeletstats + filelog per node
+  - name: opentelemetry-collector
+    version: "0.152.0"
+    repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+    alias: otelAgent

@@ -1,0 +1,120 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shop-db-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: shop-db
+    app.kubernetes.io/part-of: observable-testbench
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS products (
+      id    SERIAL PRIMARY KEY,
+      name  TEXT NOT NULL,
+      price NUMERIC(10,2) NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS users (
+      id    SERIAL PRIMARY KEY,
+      name  TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE
+    );
+    CREATE TABLE IF NOT EXISTS orders (
+      id         SERIAL PRIMARY KEY,
+      user_id    INTEGER NOT NULL REFERENCES users(id),
+      product_id INTEGER NOT NULL REFERENCES products(id),
+      total      NUMERIC(10,2) NOT NULL,
+      status     TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    INSERT INTO products (name, price) VALUES
+      ('Widget A', 9.99), ('Widget B', 14.99), ('Gadget X', 49.99),
+      ('Gadget Y', 79.99), ('Thingamajig', 4.99),
+      ('Doohickey', 24.99), ('Whatchamacallit', 39.99),
+      ('Gizmo Pro', 99.99), ('Contraption', 19.99), ('Doodad', 7.99)
+    ON CONFLICT DO NOTHING;
+    INSERT INTO users (name, email) VALUES
+      ('Alice', 'alice@testbench.local'),
+      ('Bob', 'bob@testbench.local'),
+      ('Carol', 'carol@testbench.local'),
+      ('Dave', 'dave@testbench.local'),
+      ('Eve', 'eve@testbench.local')
+    ON CONFLICT DO NOTHING;
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: shop-db-credentials
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: shop-db
+    app.kubernetes.io/part-of: observable-testbench
+type: Opaque
+stringData:
+  POSTGRES_USER: {{ .Values.postgres.credentials.user | quote }}
+  POSTGRES_PASSWORD: {{ .Values.postgres.credentials.password | quote }}
+  POSTGRES_DB: {{ .Values.postgres.credentials.database | quote }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: shop-db
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: shop-db
+    app.kubernetes.io/part-of: observable-testbench
+spec:
+  serviceName: shop-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: shop-db
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: shop-db
+        app.kubernetes.io/part-of: observable-testbench
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { containerPort: 5432 }
+          envFrom:
+            - secretRef:
+                name: shop-db-credentials
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+            - { name: init, mountPath: /docker-entrypoint-initdb.d, readOnly: true }
+          readinessProbe:
+            exec:
+              command: [pg_isready, -U, {{ .Values.postgres.credentials.user | quote }}]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: init
+          configMap:
+            name: shop-db-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: {{ .Values.postgres.storageSize }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shop-db
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: shop-db
+    app.kubernetes.io/part-of: observable-testbench
+spec:
+  selector:
+    app.kubernetes.io/name: shop-db
+  clusterIP: None   # headless for StatefulSet DNS
+  ports:
+    - { port: 5432, targetPort: 5432 }
