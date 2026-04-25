@@ -36,5 +36,7 @@
       }
     }
   },
-  "name": "journalctl-grpc-v1"
+  "name": "journalctl-grpc-v1",
+  "_sample": "2024-01-15T10:30:45+00:00 myhost com.example.MyApp: Application started successfully\n2024-01-15T10:30:46+00:00 myhost com.example.MyApp: Listening on port 8080\n2024-01-15T10:30:47+00:00 myhost systemd: Started application.service",
+  "parsed_fields": ["timestamp", "host", "logger", "message"]
 }
