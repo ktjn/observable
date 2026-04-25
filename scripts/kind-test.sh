@@ -125,10 +125,35 @@ dump_pod_events() {
   kubectl get pods --namespace "$ns" --field-selector='status.phase!=Running' -o wide 2>/dev/null || true
 }
 
+deployment_ready_now() {
+  local resource="$1"
+  local json
+  json="$(kubectl get "$resource" --namespace "$NAMESPACE" -o json 2>/dev/null)" || return 1
+
+  local generation observed replicas updated ready available unavailable
+  generation="$(jq -r '.metadata.generation // 0' <<<"$json")"
+  observed="$(jq -r '.status.observedGeneration // 0' <<<"$json")"
+  replicas="$(jq -r '.spec.replicas // 1' <<<"$json")"
+  updated="$(jq -r '.status.updatedReplicas // 0' <<<"$json")"
+  ready="$(jq -r '.status.readyReplicas // 0' <<<"$json")"
+  available="$(jq -r '.status.availableReplicas // 0' <<<"$json")"
+  unavailable="$(jq -r '.status.unavailableReplicas // 0' <<<"$json")"
+
+  [[ "$observed" == "$generation" ]] \
+    && [[ "$updated" == "$replicas" ]] \
+    && [[ "$ready" == "$replicas" ]] \
+    && [[ "$available" == "$replicas" ]] \
+    && [[ "$unavailable" == "0" ]]
+}
+
 wait_for_rollout() {
   local resource="$1"
   local timeout="${2:-180s}"
   local name="${resource##*/}"
+  if deployment_ready_now "$resource"; then
+    info "$resource already ready at current generation"
+    return 0
+  fi
   info "waiting for $resource (timeout: $timeout)"
   kubectl rollout status "$resource" \
     --namespace "$NAMESPACE" \

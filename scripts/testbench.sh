@@ -105,8 +105,33 @@ reset_stale_release() {
   esac
 }
 
+deployment_ready_now() {
+  local resource="$1" ns="${2:-$TESTBENCH_NS}"
+  local json
+  json="$(kubectl get "$resource" --namespace "$ns" -o json 2>/dev/null)" || return 1
+
+  local generation observed replicas updated ready available unavailable
+  generation="$(jq -r '.metadata.generation // 0' <<<"$json")"
+  observed="$(jq -r '.status.observedGeneration // 0' <<<"$json")"
+  replicas="$(jq -r '.spec.replicas // 1' <<<"$json")"
+  updated="$(jq -r '.status.updatedReplicas // 0' <<<"$json")"
+  ready="$(jq -r '.status.readyReplicas // 0' <<<"$json")"
+  available="$(jq -r '.status.availableReplicas // 0' <<<"$json")"
+  unavailable="$(jq -r '.status.unavailableReplicas // 0' <<<"$json")"
+
+  [[ "$observed" == "$generation" ]] \
+    && [[ "$updated" == "$replicas" ]] \
+    && [[ "$ready" == "$replicas" ]] \
+    && [[ "$available" == "$replicas" ]] \
+    && [[ "$unavailable" == "0" ]]
+}
+
 wait_for_rollout() {
   local resource="$1" ns="${2:-$TESTBENCH_NS}" timeout="${3:-180s}"
+  if deployment_ready_now "$resource" "$ns"; then
+    info "$resource already ready at current generation"
+    return 0
+  fi
   info "waiting for $resource in ns=$ns (timeout: $timeout)"
   kubectl rollout status "$resource" --namespace "$ns" --timeout "$timeout" \
     || { info "FAILED: $resource did not become ready"; dump_pod_events "$ns"; exit 1; }
