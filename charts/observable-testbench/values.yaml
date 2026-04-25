@@ -175,7 +175,8 @@ otelAgent:
   alternateConfig:
     receivers:
       # Agent only collects from node-local sources; remove OTLP + protocol defaults
-      kubeletstats: {}
+      kubeletstats:
+        insecure_skip_verify: true
       filelog: {}
 
     extensions:
