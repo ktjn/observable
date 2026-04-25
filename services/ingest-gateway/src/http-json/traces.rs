@@ -32,7 +32,7 @@ pub async fn export_traces(
         None => return StatusCode::BAD_REQUEST.into_response(),
     };
 
-    let spans = match parse_otlp_traces(&body, ctx.tenant_id) {
+    let spans = match super::convert::parse_otlp_traces(&body, ctx.tenant_id) {
         Ok(s) => s,
         Err(status) => return status.into_response(),
     };
@@ -59,76 +59,12 @@ pub async fn export_traces(
     Json(serde_json::json!({ "partialSuccess": {} })).into_response()
 }
 
-fn parse_otlp_traces(body: &Value, tenant_id: uuid::Uuid) -> Result<Vec<domain::Span>, StatusCode> {
-    let resource_spans = body
-        .get("resourceSpans")
-        .and_then(|v| v.as_array())
-        .ok_or(StatusCode::BAD_REQUEST)?;
-
-    let mut spans = Vec::new();
-    for rs in resource_spans {
-        let resource_attrs = rs
-            .get("resource")
-            .and_then(|r| r.get("attributes"))
-            .cloned()
-            .unwrap_or_default();
-        let service_name = super::convert::extract_string_attr(&resource_attrs, "service.name")
-            .unwrap_or_default();
-        for scope_spans in rs
-            .get("scopeSpans")
-            .and_then(|v| v.as_array())
-            .unwrap_or(&vec![])
-        {
-            for s in scope_spans
-                .get("spans")
-                .and_then(|v| v.as_array())
-                .unwrap_or(&vec![])
-            {
-                let start: u64 = s
-                    .get("startTimeUnixNano")
-                    .and_then(|v| v.as_str())
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(0);
-                let end: u64 = s
-                    .get("endTimeUnixNano")
-                    .and_then(|v| v.as_str())
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(0);
-                spans.push(domain::Span {
-                    tenant_id,
-                    trace_id: s
-                        .get("traceId")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or_default()
-                        .into(),
-                    span_id: s
-                        .get("spanId")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or_default()
-                        .into(),
-                    service_name: service_name.clone(),
-                    operation_name: s
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or_default()
-                        .into(),
-                    start_time_unix_nano: start,
-                    end_time_unix_nano: end,
-                    duration_ns: end.saturating_sub(start),
-                    ..Default::default()
-                });
-            }
-        }
-    }
-    Ok(spans)
-}
-
 #[cfg(test)]
 mod tests {
     use axum::http::StatusCode;
     use axum_test::TestServer;
 
-    use crate::build_router;
+    use crate::http_json::build_router;
     use crate::AppState;
 
     fn auth_header() -> (axum::http::HeaderName, axum::http::HeaderValue) {
