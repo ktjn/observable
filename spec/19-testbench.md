@@ -175,7 +175,7 @@ Both gateway and agent share a single `ServiceAccount` (`otel-collector`) bound 
 
 The test bench is deployed as a Helm chart (`charts/observable-testbench`) into the `testbench` namespace of the `observable-test` kind cluster. The Observable platform must already be deployed in the `observable` namespace (handled by `scripts/kind-test.sh` or assumed pre-existing).
 
-**Entry point:** `bash scripts/testbench.sh [--skip-build] [--keep-cluster] [--observable-ns <ns>]`
+**Entry point:** `bash scripts/testbench.sh [--skip-build] [--keep-cluster] [--recreate] [--observable-ns <ns>]`
 
 The script:
 1. Checks prerequisites (kind, kubectl, helm, docker)
@@ -185,12 +185,23 @@ The script:
 5. Loads testbench images into kind
 6. `helm install observable-testbench charts/observable-testbench -n testbench --create-namespace`
 7. Waits for all Deployments and the DaemonSet to become ready
-8. Runs a smoke check (POST /orders → wait 15 s → query Observable)
-9. Prints port-forward commands for interactive exploration
+8. Installs Kubernetes Gateway API CRDs and nginx-gateway-fabric
+9. Applies a two-listener `Gateway` and two `HTTPRoute` resources
+10. Patches the nginx-gateway-fabric Service to pin the shop NodePort
+11. Runs a non-fatal smoke check against both gateway URLs
+12. Blocks indefinitely — prints access URLs and waits for Ctrl+C
 
 ---
 
 ## 19.7 Verification
+
+After `bash scripts/testbench.sh` exits 0 and the idle loop is running:
+
+```bash
+# Both UIs reachable via Gateway API
+curl -s http://localhost:8080/ | grep -i "<!doctype html"   # Observable frontend
+curl -s http://localhost:3000/ | grep -i "<!doctype html"   # Testbench shop
+```
 
 After `bash scripts/testbench.sh --keep-cluster` exits 0:
 

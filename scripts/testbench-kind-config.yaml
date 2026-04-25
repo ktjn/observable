@@ -1,0 +1,18 @@
+# Kind cluster configuration for the Observable test bench.
+#
+# extraPortMappings forward host ports to the nginx-gateway-fabric NodePorts so
+# both UIs are reachable from the host without kubectl port-forward:
+#
+#   http://localhost:8080/  → Observable frontend   (NodePort 30080)
+#   http://localhost:3000/  → Testbench shop         (NodePort 30300)
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 30300
+        hostPort: 3000
+        protocol: TCP
