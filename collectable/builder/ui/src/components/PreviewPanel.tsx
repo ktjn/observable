@@ -32,16 +32,15 @@ export function PreviewPanel({ definition }: Props) {
     return JSON.stringify(tf);
   }
 
-  function severityNumber(sv: unknown): string {
-    if (!sv || typeof sv !== 'object') return '9 (INFO default)';
+  function severityNumber(sv: unknown): number | string {
+    if (!sv || typeof sv !== 'object') return 9;
     const v = sv as Record<string, string>;
-    const text = v.literal?.toUpperCase() ?? '';
     const num: Record<string, number> = {
       TRACE: 1, DEBUG: 5, INFO: 9, WARN: 13, WARNING: 13, ERROR: 17, FATAL: 21, CRITICAL: 21,
     };
     if (v.field) return `← ${v.field} (numeric)`;
-    if (v.literal && num[text] !== undefined) return `${num[text]} (${text})`;
-    return '9 (INFO default)';
+    if (v.literal) return num[v.literal.toUpperCase()] ?? 9;
+    return 9;
   }
 
   const pipelineName = (definition.name as string) ?? '';
