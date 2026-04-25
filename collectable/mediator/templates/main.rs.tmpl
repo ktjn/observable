@@ -668,9 +668,20 @@ async fn main() -> Result<()> {
         "OTLP exporter configured"
     );
 
-    // Resource attributes
+    // Resource attributes.
+    // service.name is taken from the user-defined resource_attributes when present;
+    // the pipeline name is used only as a fallback for definitions that predate this
+    // change or were built without the UI.
+    {% set ns = namespace(has_service_name=false) %}
+    {% if mapping.resource_attributes %}
+    {% for key, _v in mapping.resource_attributes %}
+    {% if key == "service.name" %}{% set ns.has_service_name = true %}{% endif %}
+    {% endfor %}
+    {% endif %}
     let mut kv_list: Vec<opentelemetry::KeyValue> = vec![
+        {% if not ns.has_service_name %}
         opentelemetry::KeyValue::new("service.name", "{{ name }}"),
+        {% endif %}
     ];
     {% if mapping.resource_attributes %}
     {% for key, val in mapping.resource_attributes %}
