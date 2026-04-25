@@ -93,6 +93,15 @@ for the architectural decision record.
 
 ## Sample invocation
 
+The [`samples/`](samples/) directory contains ready-to-use pipeline definitions.
+Pass the file contents as the `definition` field in the `/build` request, or load
+them directly in the builder UI.
+
+| File | Transport | Protocol |
+|---|---|---|
+| [`samples/journalctl-grpc-v1.json`](samples/journalctl-grpc-v1.json) | stdin | gRPC (port 4317) |
+| [`samples/journalctl-http-v1.json`](samples/journalctl-http-v1.json) | stdin | HTTP/JSON (port 4318) |
+
 ### Build & Download
 
 gRPC (port 4317):
