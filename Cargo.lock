@@ -1382,8 +1382,6 @@ dependencies = [
  "hex",
  "opentelemetry-proto",
  "prost 0.12.6",
- "prost 0.13.5",
- "prost-types",
  "rdkafka",
  "reqwest",
  "serde",
@@ -2144,15 +2142,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "prost-types"
-version = "0.13.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52c2c1bf36ddb1a1c396b3601a3cec27c2462e45f07c386894ec3ccf5332bd16"
-dependencies = [
- "prost 0.13.5",
 ]
 
 [[package]]

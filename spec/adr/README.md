@@ -8,7 +8,7 @@ Architecture Decision Records (ADRs) capture significant technology and design c
 
 | ADR | Title | Status | Decision (one line) |
 |-----|-------|--------|---------------------|
-| [ADR-001](ADR-001-otel-external-contract.md) | OTel as External Contract | Accepted | OpenTelemetry Protocol is the only supported ingest format; no proprietary wire protocol |
+| [ADR-001](ADR-001-otel-external-contract.md) | OTel as External Contract | Accepted | OTLP is the only ingest format; spec floor 1.0.0, target latest stable; quarterly crate update cadence |
 | [ADR-002](ADR-002-polyglot-storage.md) | Polyglot Storage vs Single Engine | Accepted | ClickHouse for telemetry, PostgreSQL for control-plane metadata; no single unified store |
 | [ADR-003](ADR-003-clickhouse-boundary.md) | ClickHouse Adoption Boundary | Accepted | ClickHouse is used only for append-only telemetry reads/writes; no OLTP or auth data |
 | [ADR-004](ADR-004-rust-data-plane.md) | Rust for Data Plane Services | Accepted | All ingest, processing, storage, and query services are written in Rust |
@@ -30,3 +30,4 @@ Architecture Decision Records (ADRs) capture significant technology and design c
 | [ADR-020](ADR-020-helm-chart-strategy.md) | Helm Chart Strategy | Accepted | Helm v3 with library + umbrella chart pattern; kind for local k8s integration testing |
 | [ADR-021](ADR-021-nl-query-layer.md) | LLM Natural Language Query Layer | Proposed | LLM advisory query layer on top of existing query substrate; cross-signal triangulation; provenance required |
 | [ADR-022](ADR-022-collectable-mediator.md) | Collectable — Compiled-Mediator Tool | Accepted | Build Collectable as an independent compiled-mediator tool; Observable ingest gateway remains OTLP-only |
+| [ADR-023](ADR-023-standard-otlp-ports.md) | Standard OTLP Port Conformance | Proposed | Align ingest-gateway to OTLP standard ports: 4317 gRPC, 4318 HTTP/JSON |

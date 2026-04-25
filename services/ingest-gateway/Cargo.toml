@@ -20,8 +20,6 @@ tracing-subscriber = { workspace = true }
 bytes              = { workspace = true }
 flate2             = "1"
 prost              = { workspace = true }
-prost013           = { package = "prost", version = "0.13" }
-prost-types        = "0.13"
 tonic              = { workspace = true }
 opentelemetry-proto = { version = "0.7", features = ["gen-tonic", "trace", "logs", "metrics"] }
 rdkafka            = { workspace = true }
