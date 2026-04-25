@@ -1,5 +1,6 @@
 use axum::http::StatusCode;
-use serde_json::Value;
+use serde_json::{Map, Value};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 pub fn extract_string_attr(attrs: &Value, key: &str) -> Option<String> {
@@ -13,6 +14,90 @@ pub fn extract_string_attr(attrs: &Value, key: &str) -> Option<String> {
         .map(String::from)
 }
 
+/// Parse a uint64 nanosecond timestamp from an OTLP JSON value.
+///
+/// The proto3 JSON encoding spec requires uint64 to be serialised as a decimal
+/// string, but some SDK versions (including opentelemetry-otlp 0.26 with
+/// `Protocol::HttpJson`) emit a bare JSON number instead.  Both forms are
+/// accepted here so the parser is resilient to either representation.
+fn parse_nano_timestamp(v: &Value) -> u64 {
+    // Preferred: string form ("1745606400000000000")
+    if let Some(s) = v.as_str() {
+        if let Ok(n) = s.parse::<u64>() {
+            return n;
+        }
+    }
+    // Fallback: bare JSON number (emitted by opentelemetry-otlp ≤0.26)
+    v.as_u64().unwrap_or(0)
+}
+
+/// Convert an OTLP AnyValue JSON object to a plain `serde_json::Value`.
+///
+/// OTLP JSON encodes AnyValue as `{"stringValue":"..."}`, `{"intValue":"123"}`,
+/// etc.  This mirrors the gRPC `any_value_to_json` conversion so that stored
+/// body / attribute values are consistent across transports.
+fn extract_otlp_any_value(v: &Value) -> Value {
+    if let Some(s) = v.get("stringValue").and_then(|x| x.as_str()) {
+        return Value::String(s.to_owned());
+    }
+    if let Some(i) = v.get("intValue") {
+        // intValue may be a string in proto3 JSON (uint64 overflow safety)
+        if let Some(n) = i
+            .as_str()
+            .and_then(|s| s.parse::<i64>().ok())
+            .or_else(|| i.as_i64())
+        {
+            return Value::Number(n.into());
+        }
+    }
+    if let Some(d) = v.get("doubleValue").and_then(|x| x.as_f64()) {
+        if let Some(n) = serde_json::Number::from_f64(d) {
+            return Value::Number(n);
+        }
+    }
+    if let Some(b) = v.get("boolValue").and_then(|x| x.as_bool()) {
+        return Value::Bool(b);
+    }
+    if let Some(arr) = v
+        .get("arrayValue")
+        .and_then(|x| x.get("values"))
+        .and_then(|x| x.as_array())
+    {
+        return Value::Array(arr.iter().map(extract_otlp_any_value).collect());
+    }
+    if let Some(kvlist) = v
+        .get("kvlistValue")
+        .and_then(|x| x.get("values"))
+        .and_then(|x| x.as_array())
+    {
+        let mut map = Map::new();
+        for kv in kvlist {
+            if let (Some(k), Some(val)) = (kv.get("key").and_then(|x| x.as_str()), kv.get("value"))
+            {
+                map.insert(k.to_owned(), extract_otlp_any_value(val));
+            }
+        }
+        return Value::Object(map);
+    }
+    // Unknown / null
+    Value::Null
+}
+
+/// Convert an OTLP attributes array `[{"key":"k","value":{…}}, …]` to a
+/// `HashMap` for storage in `LogRecord`, `Span`, etc.
+fn otlp_attrs_to_map(attrs: &Value) -> HashMap<String, Value> {
+    let mut map = HashMap::new();
+    if let Some(arr) = attrs.as_array() {
+        for kv in arr {
+            if let (Some(k), Some(val)) = (kv.get("key").and_then(|x| x.as_str()), kv.get("value"))
+            {
+                map.insert(k.to_owned(), extract_otlp_any_value(val));
+            }
+        }
+    }
+    map
+}
+
 pub fn parse_otlp_logs(
     body: &Value,
     tenant_id: Uuid,
@@ -24,12 +109,14 @@ pub fn parse_otlp_logs(
 
     let mut logs = Vec::new();
     for rl in resource_logs {
-        let resource_attrs = rl
+        let raw_resource_attrs = rl
             .get("resource")
             .and_then(|r| r.get("attributes"))
             .cloned()
             .unwrap_or_default();
-        let service_name = extract_string_attr(&resource_attrs, "service.name").unwrap_or_default();
+        let service_name =
+            extract_string_attr(&raw_resource_attrs, "service.name").unwrap_or_default();
+        let resource_attributes = otlp_attrs_to_map(&raw_resource_attrs);
         for scope_logs in rl
             .get("scopeLogs")
             .and_then(|v| v.as_array())
@@ -40,15 +127,19 @@ pub fn parse_otlp_logs(
                 .and_then(|v| v.as_array())
                 .unwrap_or(&vec![])
             {
+                let timestamp_unix_nano = lr
+                    .get("timeUnixNano")
+                    .map(parse_nano_timestamp)
+                    .unwrap_or(0);
+                let observed_timestamp_unix_nano = lr
+                    .get("observedTimeUnixNano")
+                    .map(parse_nano_timestamp)
+                    .unwrap_or(timestamp_unix_nano);
                 logs.push(domain::LogRecord {
                     tenant_id,
                     log_id: Uuid::new_v4(),
-                    timestamp_unix_nano: lr
-                        .get("timeUnixNano")
-                        .and_then(|v| v.as_str())
-                        .and_then(|s| s.parse().ok())
-                        .unwrap_or(0),
-                    observed_timestamp_unix_nano: 0,
+                    timestamp_unix_nano,
+                    observed_timestamp_unix_nano,
                     severity_number: lr
                         .get("severityNumber")
                         .and_then(|v| v.as_i64())
@@ -58,8 +149,16 @@ pub fn parse_otlp_logs(
                         .and_then(|v| v.as_str())
                         .unwrap_or("")
                         .into(),
-                    body: lr.get("body").cloned().unwrap_or(Value::Null),
+                    body: lr
+                        .get("body")
+                        .map(extract_otlp_any_value)
+                        .unwrap_or(Value::Null),
                     service_name: service_name.clone(),
+                    attributes: lr
+                        .get("attributes")
+                        .map(otlp_attrs_to_map)
+                        .unwrap_or_default(),
+                    resource_attributes: resource_attributes.clone(),
                     ..Default::default()
                 });
             }
@@ -126,8 +225,7 @@ pub fn parse_otlp_metrics(
                     for dp in dps {
                         let time: u64 = dp
                             .get("timeUnixNano")
-                            .and_then(|v| v.as_str())
-                            .and_then(|s| s.parse().ok())
+                            .map(parse_nano_timestamp)
                             .unwrap_or(0);
                         let value_double = dp.get("asDouble").and_then(|v| v.as_f64());
                         let value_int = dp.get("asInt").and_then(|v| v.as_i64());
@@ -175,13 +273,11 @@ pub fn parse_otlp_traces(body: &Value, tenant_id: Uuid) -> Result<Vec<domain::Sp
             {
                 let start: u64 = s
                     .get("startTimeUnixNano")
-                    .and_then(|v| v.as_str())
-                    .and_then(|s| s.parse().ok())
+                    .map(parse_nano_timestamp)
                     .unwrap_or(0);
                 let end: u64 = s
                     .get("endTimeUnixNano")
-                    .and_then(|v| v.as_str())
-                    .and_then(|s| s.parse().ok())
+                    .map(parse_nano_timestamp)
                     .unwrap_or(0);
                 spans.push(domain::Span {
                     tenant_id,
@@ -210,4 +306,97 @@ pub fn parse_otlp_traces(body: &Value, tenant_id: Uuid) -> Result<Vec<domain::Sp
         }
     }
     Ok(spans)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn parse_nano_timestamp_string_form() {
+        assert_eq!(
+            parse_nano_timestamp(&json!("1745606400000000000")),
+            1_745_606_400_000_000_000u64
+        );
+    }
+
+    #[test]
+    fn parse_nano_timestamp_number_form() {
+        // opentelemetry-otlp ≤0.26 emits a bare JSON number for timeUnixNano
+        assert_eq!(
+            parse_nano_timestamp(&json!(1_745_606_400_000_000_000u64)),
+            1_745_606_400_000_000_000u64
+        );
+    }
+
+    #[test]
+    fn parse_nano_timestamp_null_returns_zero() {
+        assert_eq!(parse_nano_timestamp(&json!(null)), 0);
+    }
+
+    #[test]
+    fn extract_otlp_any_value_string() {
+        assert_eq!(
+            extract_otlp_any_value(&json!({"stringValue": "hello"})),
+            json!("hello")
+        );
+    }
+
+    #[test]
+    fn extract_otlp_any_value_bool() {
+        assert_eq!(
+            extract_otlp_any_value(&json!({"boolValue": true})),
+            json!(true)
+        );
+    }
+
+    #[test]
+    fn parse_otlp_logs_numeric_timestamp() {
+        use uuid::Uuid;
+        let tenant = Uuid::nil();
+        let body = json!({
+            "resourceLogs": [{
+                "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "svc"}}]},
+                "scopeLogs": [{
+                    "logRecords": [{
+                        "timeUnixNano": 1_745_606_400_000_000_000u64,
+                        "severityText": "INFO",
+                        "body": {"stringValue": "test"}
+                    }]
+                }]
+            }]
+        });
+        let logs = parse_otlp_logs(&body, tenant).unwrap();
+        assert_eq!(logs.len(), 1);
+        assert_eq!(
+            logs[0].timestamp_unix_nano, 1_745_606_400_000_000_000u64,
+            "timestamp must not be zero"
+        );
+        assert_eq!(
+            logs[0].body,
+            json!("test"),
+            "body should be extracted string, not OTLP wrapper"
+        );
+        assert_eq!(logs[0].service_name, "svc");
+    }
+
+    #[test]
+    fn parse_otlp_logs_string_timestamp() {
+        use uuid::Uuid;
+        let tenant = Uuid::nil();
+        let body = json!({
+            "resourceLogs": [{
+                "resource": {"attributes": []},
+                "scopeLogs": [{
+                    "logRecords": [{
+                        "timeUnixNano": "1745606400000000000",
+                        "body": {"stringValue": "msg"}
+                    }]
+                }]
+            }]
+        });
+        let logs = parse_otlp_logs(&body, tenant).unwrap();
+        assert_eq!(logs[0].timestamp_unix_nano, 1_745_606_400_000_000_000u64);
+    }
 }
