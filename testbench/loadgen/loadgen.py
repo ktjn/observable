@@ -2,9 +2,11 @@ import logging
 import os
 import random
 import time
+from typing import Iterable
 
 import httpx
 from opentelemetry import metrics, trace
+from opentelemetry.metrics import CallbackOptions, Observation
 from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
@@ -46,8 +48,30 @@ meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader]
 metrics.set_meter_provider(meter_provider)
 meter = metrics.get_meter("shop-loadgen")
 
-cart_gauge = meter.create_gauge("shop.cart.active_count", unit="1", description="Active shopping carts")
-pending_gauge = meter.create_gauge("shop.orders.pending_count", unit="1", description="Pending orders")
+_cart_count = 0
+_pending_count = 0
+
+
+def observe_cart_count(_options: CallbackOptions) -> Iterable[Observation]:
+    yield Observation(_cart_count)
+
+
+def observe_pending_count(_options: CallbackOptions) -> Iterable[Observation]:
+    yield Observation(_pending_count)
+
+
+meter.create_observable_gauge(
+    "shop.cart.active_count",
+    callbacks=[observe_cart_count],
+    unit="1",
+    description="Active shopping carts",
+)
+meter.create_observable_gauge(
+    "shop.orders.pending_count",
+    callbacks=[observe_pending_count],
+    unit="1",
+    description="Pending orders",
+)
 request_counter = meter.create_counter("shop.requests.total", unit="1", description="Total loadgen requests")
 
 # Logs
@@ -129,8 +153,9 @@ RUNNERS = {
 
 
 def emit_gauge_metrics():
-    cart_gauge.set(random.randint(0, 200))
-    pending_gauge.set(random.randint(0, 50))
+    global _cart_count, _pending_count
+    _cart_count = random.randint(0, 200)
+    _pending_count = random.randint(0, 50)
 
 
 def wait_for_api(client: httpx.Client):

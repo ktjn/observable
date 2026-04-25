@@ -35,12 +35,32 @@ SKIP_BUILD=false
 KEEP_CLUSTER=false
 SKIP_OBSERVABLE=false
 
-for arg in "$@"; do
-  case "$arg" in
-    --skip-build)       SKIP_BUILD=true ;;
-    --keep-cluster)     KEEP_CLUSTER=true ;;
-    --skip-observable)  SKIP_OBSERVABLE=true ;;
-    --observable-ns)    shift; OBSERVABLE_NS="$1" ;;
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skip-build)
+      SKIP_BUILD=true
+      shift
+      ;;
+    --keep-cluster)
+      KEEP_CLUSTER=true
+      shift
+      ;;
+    --skip-observable)
+      SKIP_OBSERVABLE=true
+      shift
+      ;;
+    --observable-ns)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: --observable-ns requires a namespace value." >&2
+        exit 1
+      fi
+      OBSERVABLE_NS="$2"
+      shift 2
+      ;;
+    *)
+      echo "ERROR: unknown argument: $1" >&2
+      exit 1
+      ;;
   esac
 done
 
@@ -163,18 +183,9 @@ fi
 
 log "Loading testbench images into kind cluster"
 for entry in "${TESTBENCH_IMAGES[@]}"; do
-  img="${entry%:*}"   # strip context path
-  img="${img%:*}:local"
-  # Re-extract properly
-  tag="${entry%%:*}"
-  img="${tag}:local"
+  img="${entry%%:*:*}:local"
   info "Loading $img"
   kind load docker-image "$img" --name "$CLUSTER_NAME"
-done
-
-# Simpler explicit list (in case the loop above is confusing)
-for img in testbench-frontend:local testbench-api:local testbench-worker:local testbench-loadgen:local; do
-  kind load docker-image "$img" --name "$CLUSTER_NAME" 2>/dev/null || true
 done
 
 # ---------------------------------------------------------------------------

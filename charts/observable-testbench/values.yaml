@@ -5,6 +5,12 @@ observableApiKey: "dev-api-key-0000"
 # Cluster name injected into all telemetry via the resource processor
 clusterName: "observable-test"
 
+global:
+  testbench:
+    observableEndpoint: "http://ingest-gateway.observable.svc.cluster.local:4318"
+    observableApiKey: "dev-api-key-0000"
+    clusterName: "observable-test"
+
 image:
   pullPolicy: Never   # testbench images are loaded via `kind load docker-image`
 
@@ -61,12 +67,6 @@ otelGateway:
   fullnameOverride: otel-collector-gateway
   mode: deployment
 
-  # These are passed into the subchart's .Values scope so the config template
-  # can reference them via {{ .Values.X }} (the chart renders config through tpl).
-  clusterName: "observable-test"
-  observableEndpoint: "http://ingest-gateway.observable.svc.cluster.local:4318"
-  observableApiKey: "dev-api-key-0000"
-
   image:
     repository: otel/opentelemetry-collector-contrib
     tag: "0.150.1"
@@ -107,15 +107,14 @@ otelGateway:
       resource:
         attributes:
           - { key: deployment.environment, value: testbench, action: upsert }
-          # tpl is applied to this config, so .Values.clusterName resolves to "observable-test"
-          - { key: k8s.cluster.name, value: "{{ .Values.clusterName }}", action: upsert }
+          - { key: k8s.cluster.name, value: "{{ .Values.global.testbench.clusterName }}", action: upsert }
 
     exporters:
       debug: null
       otlphttp/observable:
-        endpoint: "{{ .Values.observableEndpoint }}"
+        endpoint: "{{ .Values.global.testbench.observableEndpoint }}"
         headers:
-          Authorization: "Bearer {{ .Values.observableApiKey }}"
+          Authorization: "Bearer {{ .Values.global.testbench.observableApiKey }}"
 
     service:
       pipelines:
@@ -145,9 +144,6 @@ otelAgent:
   # chart appends "-agent" suffix in daemonset mode, so this yields "otel-collector-agent"
   fullnameOverride: otel-collector
   mode: daemonset
-
-  # Passed into subchart .Values scope for config template rendering
-  clusterName: "observable-test"
 
   image:
     repository: otel/opentelemetry-collector-contrib
@@ -183,7 +179,7 @@ otelAgent:
       resource:
         attributes:
           - { key: deployment.environment, value: testbench, action: upsert }
-          - { key: k8s.cluster.name, value: "{{ .Values.clusterName }}", action: upsert }
+          - { key: k8s.cluster.name, value: "{{ .Values.global.testbench.clusterName }}", action: upsert }
 
     exporters:
       debug: null
