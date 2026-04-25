@@ -30,10 +30,14 @@ data:
           - key: service.version
             action: upsert
             value: {{ .Values.selfObservability.release | quote }}
+          - key: service.name
+            action: upsert
+            value: observable-self-observability-gateway
       batch: {}
     exporters:
       otlphttp/self_observability:
         endpoint: {{ .Values.selfObservability.otlpEndpoint | quote }}
+        encoding: json
         {{- if .Values.selfObservability.headersSecretRef }}
         headers:
           Authorization: "${OTEL_EXPORTER_OTLP_HEADERS}"
@@ -97,10 +101,14 @@ data:
           - key: service.version
             action: upsert
             value: {{ .Values.selfObservability.release | quote }}
+          - key: service.name
+            action: upsert
+            value: observable-self-observability-node-agent
       batch: {}
     exporters:
       otlphttp/self_observability:
         endpoint: {{ .Values.selfObservability.otlpEndpoint | quote }}
+        encoding: json
         {{- if .Values.selfObservability.headersSecretRef }}
         headers:
           Authorization: "${OTEL_EXPORTER_OTLP_HEADERS}"

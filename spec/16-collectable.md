@@ -404,11 +404,13 @@ To point the same binary at different backends:
 
 ```bash
 # Test
-OTLP_ENDPOINT=http://localhost:4318 OTLP_INSECURE=true ./my-mediator
+OTLP_ENDPOINT=http://localhost:4318 OTLP_PROTOCOL=http OTLP_INSECURE=true ./my-mediator
 
 # Production
-OTLP_ENDPOINT=https://ingest.prod.example.com:4318 OTLP_TOKEN=sk-... ./my-mediator
+OTLP_ENDPOINT=https://ingest.prod.example.com:4318 OTLP_PROTOCOL=http OTLP_TOKEN=sk-... ./my-mediator
 ```
+
+When targeting port `4318`, Collectable must use the HTTP/JSON exporter path. `4318` does not accept OTLP/HTTP protobuf payloads.
 
 Missing required variables (those with no default and no value) cause an
 immediate startup failure with a descriptive error message listing the missing
