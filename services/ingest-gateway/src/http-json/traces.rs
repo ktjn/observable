@@ -72,7 +72,8 @@ fn parse_otlp_traces(body: &Value, tenant_id: uuid::Uuid) -> Result<Vec<domain::
             .and_then(|r| r.get("attributes"))
             .cloned()
             .unwrap_or_default();
-        let service_name = extract_string_attr(&resource_attrs, "service.name").unwrap_or_default();
+        let service_name = super::convert::extract_string_attr(&resource_attrs, "service.name")
+            .unwrap_or_default();
         for scope_spans in rs
             .get("scopeSpans")
             .and_then(|v| v.as_array())
@@ -120,17 +121,6 @@ fn parse_otlp_traces(body: &Value, tenant_id: uuid::Uuid) -> Result<Vec<domain::
         }
     }
     Ok(spans)
-}
-
-fn extract_string_attr(attrs: &Value, key: &str) -> Option<String> {
-    attrs
-        .as_array()?
-        .iter()
-        .find(|a| a.get("key").and_then(|k| k.as_str()) == Some(key))?
-        .get("value")?
-        .get("stringValue")?
-        .as_str()
-        .map(String::from)
 }
 
 #[cfg(test)]
