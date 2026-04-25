@@ -4,6 +4,7 @@ import { searchLogs } from "../api/logs";
 import { listMetrics } from "../api/metrics";
 import { getServiceSummary, ServiceSummary } from "../api/services";
 import { searchTraces } from "../api/traces";
+import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
 
 export default function ServiceDetailPage() {
   const { serviceId } = useParams({ strict: false });
@@ -126,6 +127,7 @@ function ServiceOverview({
         </section>
       </div>
 
+      <ServiceInfraPanel serviceName={service.service_name} />
       <ServiceSignalTabs
         serviceName={service.service_name}
         activeTab={activeTab}
