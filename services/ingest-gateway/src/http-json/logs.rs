@@ -47,7 +47,8 @@ pub async fn export_logs(
 
     tracing::info!(
         tenant_id = %ctx.tenant_id,
-        log_count = resource_count,
+        resource_count,
+        log_count = logs.len(),
         "received log export request"
     );
 
@@ -173,5 +174,33 @@ mod tests {
         assert_eq!(second.headers()["retry-after"], "1");
         let body: serde_json::Value = second.json();
         assert_eq!(body["error"], "rate_limit_exceeded");
+    }
+
+    /// Regression test: opentelemetry-otlp ≤0.26 with Protocol::HttpJson emits
+    /// `timeUnixNano` as a bare JSON number, not a string.  Previous code used
+    /// `as_str()` which silently fell back to 0 → 1970-01-01 partition → instant
+    /// TTL expiry.  This test ensures numeric timestamps are accepted and parsed.
+    #[tokio::test]
+    async fn numeric_time_unix_nano_returns_200() {
+        let app = build_router(AppState::with_stub_auth(TENANT));
+        let server = TestServer::new(app).unwrap();
+        let payload = serde_json::json!({
+            "resourceLogs": [{
+                "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "test-svc"}}]},
+                "scopeLogs": [{
+                    "logRecords": [{
+                        "timeUnixNano": 1_745_606_400_000_000_000u64,
+                        "severityText": "INFO",
+                        "body": {"stringValue": "hello numeric"}
+                    }]
+                }]
+            }]
+        });
+        let resp = server
+            .post("/v1/logs")
+            .add_header(auth_header().0, auth_header().1)
+            .json(&payload)
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::OK);
     }
 }
