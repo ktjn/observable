@@ -45,9 +45,7 @@ export default function App() {
   };
 
   const exportDefinition = () => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { parsed_fields: _pf, _sample, _includeRaw, ...cleanDef } = definition;
-    const json = JSON.stringify(cleanDef, null, 2);
+    const json = JSON.stringify(definition, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
