@@ -1,0 +1,10 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+asyncpg==0.30.0
+aio-pika==9.4.3
+opentelemetry-sdk==1.27.0
+opentelemetry-exporter-otlp-proto-grpc==1.27.0
+opentelemetry-instrumentation-fastapi==0.48b0
+opentelemetry-instrumentation-asyncpg==0.48b0
+opentelemetry-instrumentation-aio-pika==0.48b0
+opentelemetry-instrumentation-logging==0.48b0

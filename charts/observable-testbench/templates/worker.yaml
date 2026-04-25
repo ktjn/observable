@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shop-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: shop-worker
+    app.kubernetes.io/part-of: observable-testbench
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: shop-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: shop-worker
+        app.kubernetes.io/part-of: observable-testbench
+    spec:
+      containers:
+        - name: shop-worker
+          image: {{ .Values.worker.image }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://{{ .Values.postgres.credentials.user }}:{{ .Values.postgres.credentials.password }}@shop-db:5432/{{ .Values.postgres.credentials.database }}"
+            - name: AMQP_URL
+              value: "amqp://{{ .Values.rabbitmq.credentials.user }}:{{ .Values.rabbitmq.credentials.password }}@shop-queue:5672/"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "otel-collector-gateway.{{ .Release.Namespace }}.svc.cluster.local:4317"
+            - name: SERVICE_VERSION
+              value: {{ .Chart.AppVersion | quote }}
+            - name: MY_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: MY_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources: {{- toYaml .Values.worker.resources | nindent 12 }}

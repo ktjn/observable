@@ -25,6 +25,7 @@ Full-stack observability platform specification — Dynatrace / New Relic class,
 | [16-collectable.md](16-collectable.md) | Multi-tenant OTel collector mediator (Collectable) |
 | [17-self-observability.md](17-self-observability.md) | Platform self-observability, monitoring, and health checks |
 | [18-deployment-markers.md](18-deployment-markers.md) | Deployment markers and release correlation |
+| [19-testbench.md](19-testbench.md) | Test bench: kind-based synthetic workload with full OTel + k8s cluster monitoring |
 | [81-product-lifecycle.md](81-product-lifecycle.md) | Product cost structure (CAPEX/OPEX), lifecycle management, support tiers, versioning and EOL policy |
 | [91-customer-tco.md](91-customer-tco.md) | Customer total cost of ownership, acquisition planning, deployment, upgrade strategy, and decommission guide |
 

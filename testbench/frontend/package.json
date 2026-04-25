@@ -1,0 +1,19 @@
+{
+  "name": "testbench-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node -r ./tracing.js server.js"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.52.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.52.0",
+    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.52.0",
+    "@opentelemetry/exporter-logs-otlp-grpc": "^0.52.0",
+    "@opentelemetry/sdk-node": "^0.52.0",
+    "@opentelemetry/resources": "^1.27.0",
+    "@opentelemetry/semantic-conventions": "^1.27.0",
+    "express": "^4.21.1"
+  }
+}

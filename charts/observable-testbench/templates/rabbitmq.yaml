@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: shop-queue-credentials
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: shop-queue
+    app.kubernetes.io/part-of: observable-testbench
+type: Opaque
+stringData:
+  RABBITMQ_DEFAULT_USER: {{ .Values.rabbitmq.credentials.user | quote }}
+  RABBITMQ_DEFAULT_PASS: {{ .Values.rabbitmq.credentials.password | quote }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: shop-queue
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: shop-queue
+    app.kubernetes.io/part-of: observable-testbench
+spec:
+  serviceName: shop-queue
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: shop-queue
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: shop-queue
+        app.kubernetes.io/part-of: observable-testbench
+    spec:
+      containers:
+        - name: rabbitmq
+          image: {{ .Values.rabbitmq.image }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: amqp, containerPort: 5672 }
+            - { name: management, containerPort: 15672 }
+          envFrom:
+            - secretRef:
+                name: shop-queue-credentials
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/rabbitmq }
+          readinessProbe:
+            exec:
+              command: [rabbitmq-diagnostics, -q, ping]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: {{ .Values.rabbitmq.storageSize }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shop-queue
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: shop-queue
+    app.kubernetes.io/part-of: observable-testbench
+spec:
+  selector:
+    app.kubernetes.io/name: shop-queue
+  clusterIP: None
+  ports:
+    - { name: amqp, port: 5672, targetPort: 5672 }
+    - { name: management, port: 15672, targetPort: 15672 }

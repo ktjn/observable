@@ -1,0 +1,63 @@
+# Target Observable ingest endpoint (must be reachable from within the kind cluster)
+observableEndpoint: "http://ingest-gateway.observable.svc.cluster.local:4318"
+observableApiKey: "dev-api-key-0000"
+
+# Cluster name injected into all telemetry
+clusterName: "observable-test"
+
+image:
+  pullPolicy: Never   # images are loaded via `kind load docker-image`
+
+frontend:
+  image: testbench-frontend:local
+  replicas: 1
+  resources:
+    requests: { cpu: "50m", memory: "64Mi" }
+    limits:   { cpu: "200m", memory: "128Mi" }
+
+api:
+  image: testbench-api:local
+  replicas: 1
+  resources:
+    requests: { cpu: "50m", memory: "128Mi" }
+    limits:   { cpu: "300m", memory: "256Mi" }
+
+worker:
+  image: testbench-worker:local
+  replicas: 1
+  resources:
+    requests: { cpu: "50m", memory: "64Mi" }
+    limits:   { cpu: "200m", memory: "128Mi" }
+
+loadgen:
+  image: testbench-loadgen:local
+  replicas: 1
+  resources:
+    requests: { cpu: "50m", memory: "64Mi" }
+    limits:   { cpu: "200m", memory: "128Mi" }
+
+postgres:
+  image: postgres:16
+  storageSize: 1Gi
+  credentials:
+    user: shop
+    password: shop
+    database: shop
+
+rabbitmq:
+  image: rabbitmq:3.13-management
+  storageSize: 1Gi
+  credentials:
+    user: shop
+    password: shop
+
+otelCollector:
+  image: otel/opentelemetry-collector-contrib:0.106.1
+  gateway:
+    resources:
+      requests: { cpu: "100m", memory: "128Mi" }
+      limits:   { cpu: "500m", memory: "512Mi" }
+  agent:
+    resources:
+      requests: { cpu: "100m", memory: "128Mi" }
+      limits:   { cpu: "300m", memory: "256Mi" }
