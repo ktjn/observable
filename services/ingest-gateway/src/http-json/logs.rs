@@ -176,10 +176,10 @@ mod tests {
         assert_eq!(body["error"], "rate_limit_exceeded");
     }
 
-    /// Regression test: opentelemetry-otlp ≤0.26 with Protocol::HttpJson emits
-    /// `timeUnixNano` as a bare JSON number, not a string.  Previous code used
-    /// `as_str()` which silently fell back to 0 → 1970-01-01 partition → instant
-    /// TTL expiry.  This test ensures numeric timestamps are accepted and parsed.
+    /// Regression test: the OTLP/HTTP JSON spec permits `timeUnixNano` as a bare
+    /// JSON number in addition to the string form.  Previous code used `as_str()`
+    /// which silently fell back to 0 → 1970-01-01 partition → instant TTL expiry.
+    /// This test ensures numeric timestamps are accepted and parsed.
     #[tokio::test]
     async fn numeric_time_unix_nano_returns_200() {
         let app = build_router(AppState::with_stub_auth(TENANT));

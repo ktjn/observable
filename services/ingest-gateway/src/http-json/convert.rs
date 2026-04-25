@@ -14,20 +14,18 @@ pub fn extract_string_attr(attrs: &Value, key: &str) -> Option<String> {
         .map(String::from)
 }
 
-/// Parse a uint64 nanosecond timestamp from an OTLP JSON value.
+/// Parse a uint64 nanosecond timestamp from an OTLP/HTTP JSON value.
 ///
-/// The proto3 JSON encoding spec requires uint64 to be serialised as a decimal
-/// string, but some SDK versions (including opentelemetry-otlp 0.26 with
-/// `Protocol::HttpJson`) emit a bare JSON number instead.  Both forms are
-/// accepted here so the parser is resilient to either representation.
+/// The OTLP/HTTP JSON spec allows uint64 fields such as `timeUnixNano` to be
+/// encoded as either a decimal string or a bare JSON number.  Both are accepted.
 fn parse_nano_timestamp(v: &Value) -> u64 {
-    // Preferred: string form ("1745606400000000000")
+    // String form: "1745606400000000000"
     if let Some(s) = v.as_str() {
         if let Ok(n) = s.parse::<u64>() {
             return n;
         }
     }
-    // Fallback: bare JSON number (emitted by opentelemetry-otlp ≤0.26)
+    // Number form: 1745606400000000000
     v.as_u64().unwrap_or(0)
 }
 
