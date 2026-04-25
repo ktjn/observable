@@ -42,7 +42,7 @@ export function TransportSelector({ definition, onChange, onNext }: Props) {
 
   return (
     <div>
-      <h2>Step 1 — Transport</h2>
+      <h2>Step 1 — Collector</h2>
 
       <label>Transport type<br />
         <select value={(transport.type as string) ?? ''} onChange={e => handleTypeChange(e.target.value)}>

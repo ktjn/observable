@@ -95,7 +95,7 @@ mod tests {
                 protocol: "grpc".into(),
                 headers: None,
                 batch_size: None,
-                flush_interval_ms: None,
+                flush_interval_secs: None,
             },
         }
     }

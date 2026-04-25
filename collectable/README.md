@@ -12,7 +12,7 @@ OTLP field mapping — is notoriously difficult and hard to debug.
 
 Collectable takes a different approach:
 
-1. You define your pipeline (transport → parser → OTLP mapping) in a **web UI**
+1. You define your pipeline (collector → parser → OTLP mapping → publisher) in a **web UI**
    with live preview against your own sample log lines.
 2. The builder **generates and compiles a Rust binary** from your definition.
 3. You download a **deployment package** containing the binary, its source code,
@@ -50,6 +50,16 @@ collectable/
       signals.rs              # SIGTERM/SIGINT graceful shutdown
     templates/                # Code generation templates (systemd, init.d, Dockerfile, etc.)
 ```
+
+## Builder steps
+
+The builder UI walks you through five steps:
+
+1. **Collector** — select the transport that receives log records (syslog, webhook, MQTT, Kafka, file tail, stdin).
+2. **Parser** — choose how raw lines are parsed into structured fields (JSON, Grok, regex, etc.).
+3. **Mapping** — map parsed fields to OTLP log record fields (body, severity, timestamp, resource and log attributes).
+4. **Publisher** — configure the send delay (**N seconds**) and send count (**M messages**). The binary buffers records and flushes a batch to the OTLP endpoint when *either* limit is reached — whichever comes first.
+5. **Download** — name the pipeline, choose a target ABI, and download the compiled binary + deployment package.
 
 ## Supported transports
 
@@ -109,7 +119,7 @@ gRPC (port 4317):
 ```bash
 curl -X POST 'http://localhost:8091/build' \
   -H 'Content-Type: application/json' \
-  -d '{"definition":{"version":"1","name":"journalctl-grpc-v1","transport":{"type":"stdin"},"parser":{"type":"grok","pattern":"%{TIMESTAMP_ISO8601:timestamp} %{WORD:host} %{NOTSPACE:logger}: %{GREEDYDATA:message}"},"output":{"endpoint":"http://localhost:4317","protocol":"grpc"},"mapping":{"body":{"field":"message"},"time_field":{"field":"timestamp","format":"auto"},"severity_text":{"literal":"INFO"},"resource_attributes":{"service.name":{"literal":"journalctl"},"host.name":{"command":"hostname -a"}},"log_attributes":{"logger":{"field":"logger"}}}},"target":"x86_64-unknown-linux-musl"}' \
+  -d '{"definition":{"version":"1","name":"journalctl-grpc-v1","transport":{"type":"stdin"},"parser":{"type":"grok","pattern":"%{TIMESTAMP_ISO8601:timestamp} %{WORD:host} %{NOTSPACE:logger}: %{GREEDYDATA:message}"},"output":{"endpoint":"http://localhost:4317","protocol":"grpc","batch_size":100,"flush_interval_secs":5},"mapping":{"body":{"field":"message"},"time_field":{"field":"timestamp","format":"auto"},"severity_text":{"literal":"INFO"},"resource_attributes":{"service.name":{"literal":"journalctl"},"host.name":{"command":"hostname -a"}},"log_attributes":{"logger":{"field":"logger"}}}},"target":"x86_64-unknown-linux-musl"}' \
   --output journalctl-grpc-v1-x86_64-unknown-linux-musl.zip
 ```
 
@@ -118,7 +128,7 @@ HTTP/JSON (port 4318):
 ```bash
 curl -X POST 'http://localhost:8091/build' \
   -H 'Content-Type: application/json' \
-  -d '{"definition":{"version":"1","name":"journalctl-http-v1","transport":{"type":"stdin"},"parser":{"type":"grok","pattern":"%{TIMESTAMP_ISO8601:timestamp} %{WORD:host} %{NOTSPACE:logger}: %{GREEDYDATA:message}"},"output":{"endpoint":"http://localhost:4318/v1/logs","protocol":"http"},"mapping":{"body":{"field":"message"},"time_field":{"field":"timestamp","format":"auto"},"severity_text":{"literal":"INFO"},"resource_attributes":{"service.name":{"literal":"journalctl"},"host.name":{"command":"hostname -a"}},"log_attributes":{"logger":{"field":"logger"}}}},"target":"x86_64-unknown-linux-musl"}' \
+  -d '{"definition":{"version":"1","name":"journalctl-http-v1","transport":{"type":"stdin"},"parser":{"type":"grok","pattern":"%{TIMESTAMP_ISO8601:timestamp} %{WORD:host} %{NOTSPACE:logger}: %{GREEDYDATA:message}"},"output":{"endpoint":"http://localhost:4318/v1/logs","protocol":"http","batch_size":100,"flush_interval_secs":5},"mapping":{"body":{"field":"message"},"time_field":{"field":"timestamp","format":"auto"},"severity_text":{"literal":"INFO"},"resource_attributes":{"service.name":{"literal":"journalctl"},"host.name":{"command":"hostname -a"}},"log_attributes":{"logger":{"field":"logger"}}}},"target":"x86_64-unknown-linux-musl"}' \
   --output journalctl-http-v1-x86_64-unknown-linux-musl.zip
 ```
 
