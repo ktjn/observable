@@ -1356,6 +1356,7 @@ dependencies = [
  "hex",
  "opentelemetry-proto",
  "prost 0.12.6",
+ "prost 0.13.5",
  "prost-types",
  "rdkafka",
  "reqwest",
