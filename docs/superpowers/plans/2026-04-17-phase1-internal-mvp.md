@@ -1285,12 +1285,12 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 **Files:**
 - Create: `services/ingest-gateway/src/main.rs`
 - Create: `services/ingest-gateway/src/config.rs`
-- Create: `services/ingest-gateway/src/routes/traces.rs`
+- Create: `services/ingest-gateway/src/http-json/traces.rs`
 - Create: `services/ingest-gateway/src/auth.rs`
 
 - [ ] **Step 1: Write failing contract test**
 
-  Create `services/ingest-gateway/src/routes/traces.rs`:
+  Create `services/ingest-gateway/src/http-json/traces.rs`:
   ```rust
   #[cfg(test)]
   mod tests {
@@ -1363,7 +1363,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
   }
   ```
 
-- [ ] **Step 4: Implement routes/traces.rs**
+- [ ] **Step 4: Implement http-json/traces.rs**
 
   ```rust
   use axum::{extract::Extension, http::StatusCode, response::Json};
@@ -1397,7 +1397,8 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
   use axum::{middleware, routing::post, Router};
 
   mod auth;
-  mod routes;
+  #[path = "http-json/mod.rs"]
+mod http_json;
 
   #[derive(Clone)]
   pub struct AppState {
@@ -1427,9 +1428,9 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 
   pub fn build_router(state: AppState) -> Router {
       Router::new()
-          .route("/v1/traces", post(routes::traces::export_traces))
-          .route("/v1/logs",   post(routes::logs::export_logs))
-          .route("/v1/metrics",post(routes::metrics::export_metrics))
+          .route("/v1/traces", post(http_json::traces::export_traces))
+          .route("/v1/logs",   post(http_json::logs::export_logs))
+          .route("/v1/metrics",post(http_json::metrics::export_metrics))
           .layer(middleware::from_fn_with_state(state.clone(), auth::auth_middleware))
           .with_state(state)
   }
@@ -1642,7 +1643,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 **Files:**
 - Create: `services/ingest-gateway/src/queue/mod.rs`
 - Create: `services/ingest-gateway/src/queue/producer.rs`
-- Modify: `services/ingest-gateway/src/routes/traces.rs`
+- Modify: `services/ingest-gateway/src/http-json/traces.rs`
 
 - [ ] **Step 1: Write failing test**
 
@@ -1719,7 +1720,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
   }
   ```
 
-- [ ] **Step 4: Update routes/traces.rs to publish to queue**
+- [ ] **Step 4: Update http-json/traces.rs to publish to queue**
 
   In the `export_traces` handler, after parsing, call:
   ```rust
@@ -1732,7 +1733,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
       .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
   ```
 
-  Add `parse_otlp_traces` helper in `routes/traces.rs`:
+  Add `parse_otlp_traces` helper in `http-json/traces.rs`:
   ```rust
   fn parse_otlp_traces(body: &serde_json::Value, tenant_id: uuid::Uuid) -> Result<Vec<domain::Span>, axum::http::StatusCode> {
       let resource_spans = body.get("resourceSpans")
@@ -1801,7 +1802,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 - [ ] **Step 7: Commit**
 
   ```bash
-  git add services/ingest-gateway/src/queue/ services/ingest-gateway/src/routes/
+  git add services/ingest-gateway/src/queue/ services/ingest-gateway/src/http-json/
   git commit -m "feat(ingest): publish OTLP trace envelopes to Redpanda topic
 
   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
@@ -2490,7 +2491,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 > **Sequential after Task 12.**
 
 **Files:**
-- Modify: `services/ingest-gateway/src/routes/logs.rs` (already stubbed, now implement)
+- Modify: `services/ingest-gateway/src/http-json/logs.rs` (already stubbed, now implement)
 - Create: `services/storage-writer/src/logs.rs`
 - Modify: `services/stream-processor/src/main.rs`
 
@@ -2589,7 +2590,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
   // add to router: .route("/internal/logs", post(write_logs))
   ```
 
-- [ ] **Step 4: Implement routes/logs.rs in ingest-gateway**
+- [ ] **Step 4: Implement http-json/logs.rs in ingest-gateway**
 
   Same pattern as traces: parse OTLP logs JSON body → build `LogRecord`s → publish `EnvelopePayload::Logs` to queue.
 
@@ -2619,7 +2620,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
 > **Sequential after Task 15.**
 
 **Files:**
-- Modify: `services/ingest-gateway/src/routes/metrics.rs`
+- Modify: `services/ingest-gateway/src/http-json/metrics.rs`
 - Create: `services/storage-writer/src/metrics.rs`
 - Modify: `services/stream-processor/src/main.rs`
 
@@ -2690,7 +2691,7 @@ Requires: `sqlx-cli` installed (`cargo install sqlx-cli --features postgres`).
   }
   ```
 
-- [ ] **Step 4: Implement routes/metrics.rs in ingest-gateway**
+- [ ] **Step 4: Implement http-json/metrics.rs in ingest-gateway**
 
   Parse OTLP metrics JSON → derive `MetricSeries` + `MetricPoint` structs → publish `EnvelopePayload::Metrics`.
 
