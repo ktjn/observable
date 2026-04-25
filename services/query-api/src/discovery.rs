@@ -597,7 +597,7 @@ async fn fetch_infrastructure_summaries(
                 {entity_expr} AS entity_name, \
                 environment, \
                 service_name, \
-                toUnixTimestamp64Nano(created_at) AS event_time, \
+                toUnixTimestamp64Nano(toDateTime64(created_at, 9)) AS event_time, \
                 toUInt64(0) AS log_events, \
                 toUInt64(0) AS span_events, \
                 toUInt64(0) AS error_events \
