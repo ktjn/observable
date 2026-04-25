@@ -91,6 +91,16 @@ mod tests {
 
     const TENANT: &str = "00000000-0000-0000-0000-000000000001";
 
+    fn gzip_json(value: serde_json::Value) -> Vec<u8> {
+        let expected = serde_json::json!({"resourceSpans": []});
+        assert_eq!(value, expected);
+        vec![
+            31, 139, 8, 0, 0, 0, 0, 0, 0, 10, 170, 86, 42, 74, 45, 206, 47, 45, 74, 78, 13, 46, 72,
+            204, 43, 86, 178, 138, 142, 173, 5, 0, 0, 0, 255, 255, 3, 0, 149, 227, 176, 76, 20, 0,
+            0, 0,
+        ]
+    }
+
     #[tokio::test]
     async fn missing_auth_returns_401() {
         let app = build_router(AppState::test_stub());
@@ -128,6 +138,26 @@ mod tests {
             .bytes(vec![0, 1, 2].into())
             .await;
         assert_eq!(resp.status_code(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    }
+
+    #[tokio::test]
+    async fn gzip_compressed_trace_payload_returns_200() {
+        let app = build_router(AppState::with_stub_auth(TENANT));
+        let server = TestServer::new(app).unwrap();
+        let resp = server
+            .post("/v1/traces")
+            .add_header(auth_header().0, auth_header().1)
+            .add_header(
+                axum::http::header::CONTENT_TYPE,
+                axum::http::HeaderValue::from_static("application/json"),
+            )
+            .add_header(
+                axum::http::header::CONTENT_ENCODING,
+                axum::http::HeaderValue::from_static("gzip"),
+            )
+            .bytes(gzip_json(serde_json::json!({"resourceSpans": []})).into())
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::OK);
     }
 
     #[tokio::test]

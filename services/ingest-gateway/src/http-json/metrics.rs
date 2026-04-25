@@ -86,6 +86,22 @@ mod tests {
         )
     }
 
+    fn gzip_json(value: serde_json::Value) -> Vec<u8> {
+        assert_eq!(value, two_series_payload());
+        vec![
+            31, 139, 8, 0, 0, 0, 0, 0, 0, 10, 156, 205, 61, 11, 2, 49, 12, 6, 224, 255, 242, 206,
+            245, 168, 142, 157, 93, 21, 23, 93, 228, 134, 90, 131, 22, 189, 86, 147, 244, 80, 142,
+            254, 119, 241, 14, 68, 87, 201, 146, 143, 151, 39, 3, 152, 36, 23, 14, 180, 34, 229,
+            24, 4, 110, 63, 124, 118, 112, 3, 188, 42, 199, 67, 81, 154, 78, 23, 122, 194, 65, 136,
+            251, 24, 168, 73, 190, 35, 24, 244, 254, 90, 198, 176, 40, 199, 116, 218, 77, 35, 164,
+            15, 51, 143, 90, 219, 106, 32, 33, 223, 126, 126, 116, 95, 253, 200, 56, 156, 85, 111,
+            13, 211, 189, 144, 168, 192, 64, 74, 247, 70, 143, 94, 253, 38, 199, 164, 83, 88, 99,
+            71, 219, 20, 31, 107, 159, 50, 28, 230, 214, 90, 24, 120, 89, 230, 114, 184, 18, 220,
+            220, 54, 182, 182, 181, 154, 95, 151, 152, 51, 255, 175, 46, 38, 180, 29, 235, 5, 0, 0,
+            255, 255, 3, 0, 100, 152, 194, 41, 54, 1, 0, 0,
+        ]
+    }
+
     fn two_series_payload() -> serde_json::Value {
         serde_json::json!({
             "resourceMetrics": [{
@@ -126,6 +142,26 @@ mod tests {
             .bytes(vec![0, 1, 2].into())
             .await;
         assert_eq!(resp.status_code(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    }
+
+    #[tokio::test]
+    async fn gzip_compressed_metrics_payload_returns_200() {
+        let app = build_router(AppState::with_stub_auth(TENANT));
+        let server = TestServer::new(app).unwrap();
+        let resp = server
+            .post("/v1/metrics")
+            .add_header(auth_header().0, auth_header().1)
+            .add_header(
+                axum::http::header::CONTENT_TYPE,
+                axum::http::HeaderValue::from_static("application/json"),
+            )
+            .add_header(
+                axum::http::header::CONTENT_ENCODING,
+                axum::http::HeaderValue::from_static("gzip"),
+            )
+            .bytes(gzip_json(two_series_payload()).into())
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::OK);
     }
 
     #[tokio::test]
