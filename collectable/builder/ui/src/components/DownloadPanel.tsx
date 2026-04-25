@@ -12,6 +12,7 @@ const TARGETS = [
 
 interface Props {
   definition: Record<string, unknown>;
+  onChange: (d: Record<string, unknown>) => void;
 }
 
 function buildPayload(definition: Record<string, unknown>, target: string): string {
@@ -28,13 +29,14 @@ function makeCurlCommand(definition: Record<string, unknown>, target: string): s
   return `curl -X POST '${url}' \\\n  -H 'Content-Type: application/json' \\\n  -d '${payload.replace(/'/g, "'\\''")}' \\\n  --output ${name}-${target}.zip`;
 }
 
-export function DownloadPanel({ definition }: Props) {
+export function DownloadPanel({ definition, onChange }: Props) {
   const [target, setTarget] = useState('x86_64-unknown-linux-musl');
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const curlCmd = makeCurlCommand(definition, target);
+  const canBuild = !!(definition.name as string)?.trim();
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(curlCmd).then(() => {
@@ -73,7 +75,17 @@ export function DownloadPanel({ definition }: Props) {
 
   return (
     <div>
-      <h2>Step 4 — Download</h2>
+      <h2>Step 4 — Build &amp; Download</h2>
+
+      <label style={{ display: 'block', marginBottom: 16 }}>Pipeline name
+        <span style={{ color: '#c00', marginLeft: 2 }}>*</span><br />
+        <input type="text" style={{ width: '100%' }}
+          placeholder="e.g. journalctl-to-otlp"
+          value={(definition.name as string) ?? ''}
+          onChange={e => onChange({ ...definition, name: e.target.value.replace(/\s+/g, '-').toLowerCase() })} />
+        <small style={{ color: '#888' }}>Used as the binary filename, Rust crate name, systemd unit, and Dockerfile. Only lowercase letters, digits, and hyphens.</small>
+      </label>
+
       <label>Target ABI<br />
         <select value={target} onChange={e => setTarget(e.target.value)}>
           {TARGETS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -127,7 +139,7 @@ COLLECTABLE_LOG_FORMAT=json # json or text`}
         </pre>
       </details>
 
-      <button style={{ marginTop: 16 }} onClick={build} disabled={building}>
+        <button style={{ marginTop: 16 }} onClick={build} disabled={building || !canBuild}>
         {building ? 'Building…' : 'Build & Download'}
       </button>
 
