@@ -118,7 +118,7 @@ info "Canary Deployment ready"
 # Resolve the Service port from the running cluster (avoids hardcoding).
 SERVICE_PORT=$(kubectl get service ingest-gateway-canary \
   --namespace "$NAMESPACE" \
-  -o jsonpath='{.spec.ports[0].port}' 2>/dev/null || echo "4317")
+  -o jsonpath='{.spec.ports[0].port}' 2>/dev/null || echo "4318")
 
 log "Port-forwarding ingest-gateway-canary → localhost:$CANARY_LOCAL_PORT (svc port $SERVICE_PORT)"
 kubectl port-forward "service/ingest-gateway-canary" \
