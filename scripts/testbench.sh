@@ -90,7 +90,9 @@ reset_stale_release() {
   local ns="$2"
   local status
 
-  status="$(helm status "$release" --namespace "$ns" 2>/dev/null | awk '/^STATUS:/ {print $2}')"
+  if ! status="$(helm status "$release" --namespace "$ns" 2>/dev/null | awk '/^STATUS:/ {print $2}')"; then
+    status=""
+  fi
   case "$status" in
     pending-install|pending-upgrade|pending-rollback|failed)
       log "Removing stale Helm release '$release' in namespace '$ns' (status: $status)"
@@ -242,6 +244,7 @@ log "Running smoke check"
 
 PF_API_PORT=18001
 PF_QUERY_PORT=18090
+PF_FRONTEND_PORT=15173
 
 kubectl port-forward service/shop-api "$PF_API_PORT:8000" \
   --namespace "$TESTBENCH_NS" &
@@ -251,8 +254,12 @@ kubectl port-forward service/query-api "$PF_QUERY_PORT:8090" \
   --namespace "$OBSERVABLE_NS" &
 PF_QUERY=$!
 
+kubectl port-forward service/frontend "$PF_FRONTEND_PORT:80" \
+  --namespace "$OBSERVABLE_NS" &
+PF_FRONTEND=$!
+
 cleanup_pf() {
-  kill "$PF_API" "$PF_QUERY" 2>/dev/null || true
+  kill "$PF_API" "$PF_QUERY" "$PF_FRONTEND" 2>/dev/null || true
 }
 trap 'cleanup_pf; cleanup' EXIT
 
@@ -287,6 +294,21 @@ elif echo "$TRACE_RESULT" | grep -q "query_failed"; then
   info "WARN: query-api returned no response (pipeline may still be warming up)"
 else
   info "WARN: shop-api traces not found yet — pipeline may need more time"
+fi
+
+info "Checking Observable UI"
+curl -sf "http://localhost:$PF_FRONTEND_PORT/" | grep -q "<!doctype html" \
+  && info "frontend / OK" \
+  || info "WARN: frontend root did not respond with HTML"
+
+info "Checking Observable UI same-origin API proxy"
+FRONTEND_RESULT=$(curl -sf "http://localhost:$PF_FRONTEND_PORT/v1/environments" \
+  -H "X-Tenant-ID: $TENANT_ID" 2>/dev/null || echo "frontend_query_failed")
+
+if echo "$FRONTEND_RESULT" | grep -q "frontend_query_failed"; then
+  info "WARN: frontend /v1 proxy did not respond"
+else
+  info "PASS: frontend /v1 proxy reached query-api"
 fi
 
 cleanup_pf

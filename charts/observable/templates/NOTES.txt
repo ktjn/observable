@@ -35,6 +35,9 @@ SERVICE ENDPOINTS (ClusterIP — use kubectl port-forward or an Ingress):
 {{- if .Values.services.queryApi.enabled }}
   query-api       :{{ .Values.services.queryApi.port }}       (HTTP query facade)
 {{- end }}
+{{- if .Values.services.frontend.enabled }}
+  frontend        :{{ .Values.services.frontend.port }}       (UI + same-origin /v1 proxy)
+{{- end }}
 {{- if .Values.services.authService.enabled }}
   auth-service    :{{ .Values.services.authService.port }}    (internal auth)
 {{- end }}

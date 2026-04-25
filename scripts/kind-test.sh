@@ -39,6 +39,7 @@ CLUSTER_NAME="observable-test"
 NAMESPACE="observable"
 RELEASE_NAME="observable"
 IMAGE_NAME="observable-services:local"
+FRONTEND_IMAGE="observable-frontend:local"
 APP_CHART="$REPO_ROOT/charts/observable"
 
 SKIP_BUILD=false
@@ -173,6 +174,11 @@ info "docker:  $(docker version --format '{{.Client.Version}}')"
 if [[ "$SKIP_BUILD" == "false" ]]; then
   log "Building observable-services image"
   docker build --tag "$IMAGE_NAME" "$REPO_ROOT"
+  log "Building observable-frontend image"
+  docker build \
+    --tag "$FRONTEND_IMAGE" \
+    --file "$REPO_ROOT/apps/frontend/Dockerfile" \
+    "$REPO_ROOT"
 else
   log "Skipping Docker build (--skip-build)"
 fi
@@ -210,6 +216,8 @@ kubectl describe nodes | grep -A8 "Allocatable:"
 
 log "Loading '$IMAGE_NAME' into kind cluster"
 kind load docker-image "$IMAGE_NAME" --name "$CLUSTER_NAME"
+log "Loading '$FRONTEND_IMAGE' into kind cluster"
+kind load docker-image "$FRONTEND_IMAGE" --name "$CLUSTER_NAME"
 
 # ---------------------------------------------------------------------------
 # Pre-pull infra images into kind to avoid slow pulls during Helm install
@@ -295,6 +303,9 @@ helm upgrade --install "$RELEASE_NAME" "$APP_CHART" \
   --set global.image.repository=observable-services \
   --set global.image.tag=local \
   --set global.image.pullPolicy=Never \
+  --set global.frontendImage.repository=observable-frontend \
+  --set global.frontendImage.tag=local \
+  --set global.frontendImage.pullPolicy=Never \
   --wait \
   --timeout 5m \
   || { kill "$WATCH_APP" 2>/dev/null || true; dump_pod_events "$NAMESPACE"; exit 1; }
@@ -316,7 +327,7 @@ info "Current Helm revision before rollback demo: $BASE_REVISION"
 # ---------------------------------------------------------------------------
 
 log "Verifying all service Deployments are ready"
-for svc in auth-service ingest-gateway stream-processor storage-writer query-api alert-evaluator; do
+for svc in auth-service ingest-gateway stream-processor storage-writer query-api alert-evaluator frontend; do
   wait_for_rollout "deployment/$svc" \
     || { info "FAILED: $svc did not become ready"; dump_pod_events "$NAMESPACE"; exit 1; }
   info "$svc: ready"
@@ -336,13 +347,17 @@ PF_INGEST_HTTP=$!
 kubectl port-forward service/query-api 18090:8090 \
   --namespace "$NAMESPACE" &
 PF_QUERY=$!
+# Port-forward frontend
+kubectl port-forward service/frontend 15173:80 \
+  --namespace "$NAMESPACE" &
+PF_FRONTEND=$!
 # Port-forward auth-service
 kubectl port-forward service/auth-service 14319:4319 \
   --namespace "$NAMESPACE" &
 PF_AUTH=$!
 
 cleanup_pf() {
-  kill "$PF_INGEST_HTTP" "$PF_QUERY" "$PF_AUTH" 2>/dev/null || true
+  kill "$PF_INGEST_HTTP" "$PF_QUERY" "$PF_FRONTEND" "$PF_AUTH" 2>/dev/null || true
 }
 trap 'cleanup_pf; cleanup' EXIT
 
@@ -355,6 +370,7 @@ TENANT_ID="00000000-0000-0000-0000-000000000001"
 info "Checking /health endpoints"
 curl -sf http://localhost:14318/health | grep -q "ok" && info "ingest-gateway /health OK"
 curl -sf http://localhost:18090/health | grep -q "ok" && info "query-api /health OK"
+curl -sf http://localhost:15173/ | grep -q "<!doctype html" && info "frontend / OK"
 curl -sf http://localhost:14319/health | grep -q "ok" && info "auth-service /health OK"
 
 # Send a trace
@@ -395,6 +411,16 @@ else
   info "WARN: trace not found in results (check stream-processor logs)"
 fi
 
+info "Checking frontend same-origin API proxy"
+FRONTEND_RESULT=$(curl -sf "http://localhost:15173/v1/environments" \
+  -H "X-Tenant-ID: $TENANT_ID" || echo "frontend_query_failed")
+
+if echo "$FRONTEND_RESULT" | grep -q "frontend_query_failed"; then
+  info "WARN: frontend /v1 proxy did not respond"
+else
+  info "PASS: frontend /v1 proxy reached query-api"
+fi
+
 cleanup_pf
 trap 'cleanup' EXIT
 
@@ -410,6 +436,9 @@ helm upgrade "$RELEASE_NAME" "$APP_CHART" \
   --set global.image.repository=observable-services \
   --set global.image.tag=local \
   --set global.image.pullPolicy=Never \
+  --set global.frontendImage.repository=observable-frontend \
+  --set global.frontendImage.tag=local \
+  --set global.frontendImage.pullPolicy=Never \
   --set services.queryApi.replicas=2 \
   --wait \
   --timeout 3m
