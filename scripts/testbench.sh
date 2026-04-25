@@ -1,24 +1,30 @@
 #!/usr/bin/env bash
-# Deploy the Observable test bench into a kind cluster.
+# Deploy the Observable test bench into a kind cluster and keep it running
+# for manual testing.
 #
-# The test bench is a synthetic "shop" application (frontend, API, worker,
-# queue, database) plus an OTel Collector (gateway Deployment + agent DaemonSet
-# with native k8s monitoring receivers) that continuously ships traces, metrics,
-# and logs into the Observable platform.
+# Both the Observable frontend and the testbench shop-frontend are exposed
+# through the Kubernetes Gateway API (nginx-gateway-fabric):
+#
+#   http://localhost:8080/   Observable frontend
+#   http://localhost:3000/   Testbench shop (shop-frontend BFF)
+#
+# The script blocks until you press Ctrl+C, which tears down the cluster.
 #
 # Prerequisites:
 #   kind   >= 0.20
 #   kubectl >= 1.28
 #   helm   >= 3.12
 #   docker
+#   jq
 #
 # Usage:
-#   bash scripts/testbench.sh [--skip-build] [--keep-cluster] [--observable-ns <ns>]
+#   bash scripts/testbench.sh [options]
 #
 #   --skip-build        Skip docker builds (use pre-existing testbench-*:local images)
 #   --keep-cluster      Do not delete the kind cluster on exit
-#   --observable-ns     Namespace where Observable is deployed (default: observable)
+#   --recreate          Delete and recreate the kind cluster even if it already exists
 #   --skip-observable   Skip deploying Observable (assume it is already running)
+#   --observable-ns     Namespace where Observable is deployed (default: observable)
 
 set -euo pipefail
 
@@ -30,37 +36,38 @@ OBSERVABLE_NS="observable"
 TESTBENCH_NS="testbench"
 TESTBENCH_CHART="$REPO_ROOT/charts/observable-testbench"
 TESTBENCH_RELEASE="observable-testbench"
+KIND_CONFIG="$SCRIPT_DIR/testbench-kind-config.yaml"
+
+# Gateway API — update versions when newer stable releases are available:
+#   https://github.com/kubernetes-sigs/gateway-api/releases
+#   https://github.com/nginx/nginx-gateway-fabric/releases
+GATEWAY_API_VERSION="v1.2.1"
+NGF_CHART_VERSION="1.5.1"
+NGF_NAMESPACE="nginx-gateway"
+NGF_RELEASE="ngf"
+GATEWAY_NODEPORT_OBSERVABLE=30080
+GATEWAY_NODEPORT_SHOP=30300
+GATEWAY_HOST_PORT_OBSERVABLE=8080
+GATEWAY_HOST_PORT_SHOP=3000
 
 SKIP_BUILD=false
 KEEP_CLUSTER=false
+RECREATE_CLUSTER=false
 SKIP_OBSERVABLE=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --skip-build)
-      SKIP_BUILD=true
-      shift
-      ;;
-    --keep-cluster)
-      KEEP_CLUSTER=true
-      shift
-      ;;
-    --skip-observable)
-      SKIP_OBSERVABLE=true
-      shift
-      ;;
+    --skip-build)      SKIP_BUILD=true;       shift ;;
+    --keep-cluster)    KEEP_CLUSTER=true;     shift ;;
+    --recreate)        RECREATE_CLUSTER=true; shift ;;
+    --skip-observable) SKIP_OBSERVABLE=true;  shift ;;
     --observable-ns)
       if [[ $# -lt 2 ]]; then
-        echo "ERROR: --observable-ns requires a namespace value." >&2
-        exit 1
+        echo "ERROR: --observable-ns requires a namespace value." >&2; exit 1
       fi
-      OBSERVABLE_NS="$2"
-      shift 2
-      ;;
+      OBSERVABLE_NS="$2"; shift 2 ;;
     *)
-      echo "ERROR: unknown argument: $1" >&2
-      exit 1
-      ;;
+      echo "ERROR: unknown argument: $1" >&2; exit 1 ;;
   esac
 done
 
@@ -86,10 +93,7 @@ dump_pod_events() {
 }
 
 reset_stale_release() {
-  local release="$1"
-  local ns="$2"
-  local status
-
+  local release="$1" ns="$2" status
   if ! status="$(helm status "$release" --namespace "$ns" 2>/dev/null | awk '/^STATUS:/ {print $2}')"; then
     status=""
   fi
@@ -102,14 +106,10 @@ reset_stale_release() {
 }
 
 wait_for_rollout() {
-  local resource="$1"
-  local ns="${2:-$TESTBENCH_NS}"
-  local timeout="${3:-180s}"
-  local name="${resource##*/}"
+  local resource="$1" ns="${2:-$TESTBENCH_NS}" timeout="${3:-180s}"
   info "waiting for $resource in ns=$ns (timeout: $timeout)"
   kubectl rollout status "$resource" --namespace "$ns" --timeout "$timeout" \
     || { info "FAILED: $resource did not become ready"; dump_pod_events "$ns"; exit 1; }
-  info "$name: ready"
 }
 
 cleanup() {
@@ -128,16 +128,16 @@ trap cleanup EXIT
 # ---------------------------------------------------------------------------
 
 log "Checking prerequisites"
-for cmd in kind kubectl helm docker; do
+for cmd in kind kubectl helm docker jq; do
   if ! command -v "$cmd" &>/dev/null; then
-    echo "ERROR: '$cmd' is not on PATH." >&2
-    exit 1
+    echo "ERROR: '$cmd' is not on PATH." >&2; exit 1
   fi
 done
 info "kind:    $(kind version)"
 info "kubectl: $(kubectl version --client --short 2>/dev/null || kubectl version --client)"
 info "helm:    $(helm version --short)"
 info "docker:  $(docker version --format '{{.Client.Version}}')"
+info "jq:      $(jq --version)"
 
 # ---------------------------------------------------------------------------
 # Build testbench Docker images
@@ -153,7 +153,6 @@ TESTBENCH_IMAGES=(
 if [[ "$SKIP_BUILD" == "false" ]]; then
   log "Building testbench Docker images"
   for entry in "${TESTBENCH_IMAGES[@]}"; do
-    tag="${entry%%:*:*}"
     tag="${entry%:*}"
     context="${entry##*:}"
     info "Building $tag from $context"
@@ -164,14 +163,28 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Create kind cluster
+# Create or reuse kind cluster
 # ---------------------------------------------------------------------------
 
-log "Creating kind cluster '$CLUSTER_NAME'"
+log "Setting up kind cluster '$CLUSTER_NAME'"
 if kind get clusters 2>/dev/null | grep -q "^$CLUSTER_NAME$"; then
-  info "Cluster already exists — reusing it"
+  if [[ "$RECREATE_CLUSTER" == "true" ]]; then
+    info "Deleting existing cluster for fresh start (--recreate)"
+    kind delete cluster --name "$CLUSTER_NAME"
+    kind create cluster \
+      --name "$CLUSTER_NAME" \
+      --config "$KIND_CONFIG" \
+      --wait 60s
+  else
+    info "Cluster already exists — reusing it"
+    info "NOTE: host ports 8080 and 3000 must have been mapped at cluster creation."
+    info "      Run with --recreate if the cluster was not created by this script."
+  fi
 else
-  kind create cluster --name "$CLUSTER_NAME" --wait 60s
+  kind create cluster \
+    --name "$CLUSTER_NAME" \
+    --config "$KIND_CONFIG" \
+    --wait 60s
 fi
 kubectl cluster-info --context "kind-$CLUSTER_NAME"
 
@@ -181,32 +194,28 @@ kubectl cluster-info --context "kind-$CLUSTER_NAME"
 
 if [[ "$SKIP_OBSERVABLE" == "false" ]]; then
   log "Deploying Observable platform via kind-test.sh"
-  # kind-test.sh uses --skip-build by default when called from here because
-  # the observable-services image may already be built.  We always pass
-  # --keep-cluster so it does not tear down our cluster on exit.
-  kind_test_args=(--keep-cluster --reuse-cluster --cluster-name "$CLUSTER_NAME")
-  if [[ "$SKIP_BUILD" == "true" ]]; then
-    kind_test_args=(--skip-build "${kind_test_args[@]}")
-  fi
+  kind_test_args=(
+    --keep-cluster
+    --reuse-cluster
+    --cluster-name "$CLUSTER_NAME"
+    --deploy-only
+  )
+  [[ "$SKIP_BUILD" == "true" ]] && kind_test_args=(--skip-build "${kind_test_args[@]}")
   bash "$SCRIPT_DIR/kind-test.sh" "${kind_test_args[@]}"
 else
   log "Skipping Observable deployment (--skip-observable)"
 fi
 
 # ---------------------------------------------------------------------------
-# Load testbench images into kind
+# Load testbench images + install testbench Helm chart
 # ---------------------------------------------------------------------------
 
 log "Loading testbench images into kind cluster"
 for entry in "${TESTBENCH_IMAGES[@]}"; do
-  img="${entry%%:*:*}:local"
+  img="${entry%:*}"
   info "Loading $img"
   kind load docker-image "$img" --name "$CLUSTER_NAME"
 done
-
-# ---------------------------------------------------------------------------
-# Deploy testbench Helm chart
-# ---------------------------------------------------------------------------
 
 log "Creating testbench namespace"
 kubectl create namespace "$TESTBENCH_NS" --dry-run=client -o yaml | kubectl apply -f -
@@ -222,10 +231,6 @@ helm upgrade --install "$TESTBENCH_RELEASE" "$TESTBENCH_CHART" \
 
 show_pods "$TESTBENCH_NS"
 
-# ---------------------------------------------------------------------------
-# Wait for Deployments and DaemonSet
-# ---------------------------------------------------------------------------
-
 log "Waiting for testbench Deployments"
 for svc in otel-collector-gateway shop-api shop-frontend shop-loadgen shop-worker; do
   wait_for_rollout "deployment/$svc" "$TESTBENCH_NS"
@@ -234,93 +239,181 @@ done
 log "Waiting for otel-collector-agent DaemonSet"
 kubectl rollout status daemonset/otel-collector-agent \
   --namespace "$TESTBENCH_NS" --timeout 120s \
-  || { info "WARN: agent DaemonSet not fully ready"; dump_pod_events "$TESTBENCH_NS"; }
+  || info "WARN: agent DaemonSet not fully ready"
 
 # ---------------------------------------------------------------------------
-# Smoke check: place an order, wait, verify traces in Observable
+# Install Kubernetes Gateway API CRDs
 # ---------------------------------------------------------------------------
 
-log "Running smoke check"
+log "Installing Kubernetes Gateway API CRDs (${GATEWAY_API_VERSION})"
+kubectl apply -f \
+  "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/standard-install.yaml"
 
-PF_API_PORT=18001
-PF_QUERY_PORT=18090
-PF_FRONTEND_PORT=15173
+kubectl wait --for=condition=Established \
+  crd/gateways.gateway.networking.k8s.io \
+  crd/httproutes.gateway.networking.k8s.io \
+  --timeout=60s
 
-kubectl port-forward service/shop-api "$PF_API_PORT:8000" \
-  --namespace "$TESTBENCH_NS" &
-PF_API=$!
+# ---------------------------------------------------------------------------
+# Install nginx-gateway-fabric
+# ---------------------------------------------------------------------------
 
-kubectl port-forward service/query-api "$PF_QUERY_PORT:8090" \
-  --namespace "$OBSERVABLE_NS" &
-PF_QUERY=$!
+log "Installing nginx-gateway-fabric chart (${NGF_CHART_VERSION})"
+helm upgrade --install "$NGF_RELEASE" \
+  oci://ghcr.io/nginx/charts/nginx-gateway-fabric \
+  --create-namespace \
+  --namespace "$NGF_NAMESPACE" \
+  --version "$NGF_CHART_VERSION" \
+  --set service.type=NodePort \
+  --set "service.nodePorts.http=${GATEWAY_NODEPORT_OBSERVABLE}" \
+  --wait --timeout 5m
 
-kubectl port-forward service/frontend "$PF_FRONTEND_PORT:80" \
-  --namespace "$OBSERVABLE_NS" &
-PF_FRONTEND=$!
+# ---------------------------------------------------------------------------
+# Apply Gateway and HTTPRoutes
+# ---------------------------------------------------------------------------
 
-cleanup_pf() {
-  kill "$PF_API" "$PF_QUERY" "$PF_FRONTEND" 2>/dev/null || true
-}
-trap 'cleanup_pf; cleanup' EXIT
+log "Applying Gateway and HTTPRoutes"
+kubectl apply -f - <<GATEWAY_MANIFEST
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: testbench-gateway
+  namespace: ${OBSERVABLE_NS}
+spec:
+  gatewayClassName: nginx
+  listeners:
+    - name: observable
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: shop
+      protocol: HTTP
+      port: 3000
+      allowedRoutes:
+        namespaces:
+          from: All
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: observable-frontend
+  namespace: ${OBSERVABLE_NS}
+spec:
+  parentRefs:
+    - name: testbench-gateway
+      namespace: ${OBSERVABLE_NS}
+      sectionName: observable
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: frontend
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: testbench-shop
+  namespace: ${TESTBENCH_NS}
+spec:
+  parentRefs:
+    - name: testbench-gateway
+      namespace: ${OBSERVABLE_NS}
+      sectionName: shop
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: shop-frontend
+          port: 3000
+GATEWAY_MANIFEST
 
-sleep 3
+# ---------------------------------------------------------------------------
+# Patch nginx-gateway-fabric Service — pin shop NodePort to GATEWAY_NODEPORT_SHOP
+# ---------------------------------------------------------------------------
 
-DEV_KEY="dev-api-key-0000"
-TENANT_ID="00000000-0000-0000-0000-000000000001"
+log "Waiting for nginx-gateway-fabric Service to expose shop port (3000)"
+NGF_SVC="${NGF_RELEASE}-nginx-gateway-fabric"
+for i in $(seq 1 24); do
+  PORT_COUNT=$(kubectl get service "$NGF_SVC" -n "$NGF_NAMESPACE" -o json \
+    | jq '[.spec.ports[] | select(.port == 3000)] | length')
+  if [[ "$PORT_COUNT" -ge 1 ]]; then
+    info "port 3000 found on Service after ${i}x5s"
+    break
+  fi
+  info "  [${i}/24] waiting for port 3000 on Service..."
+  sleep 5
+done
 
-info "Checking shop-api health"
-curl -sf "http://localhost:$PF_API_PORT/health" | grep -q "ok" \
-  && info "shop-api /health OK" \
-  || info "WARN: shop-api /health check failed"
-
-info "Placing a test order via shop-api"
-curl -sf -X POST "http://localhost:$PF_API_PORT/orders" \
-  -H "Content-Type: application/json" \
-  -d '{"product_id": 1, "user_id": 1}' \
-  && info "Order placed" \
-  || info "WARN: order placement failed (shop-db may still be initialising)"
-
-info "Waiting 20s for telemetry to flow through the pipeline..."
-sleep 20
-
-info "Querying Observable for testbench traces"
-TRACE_RESULT=$(curl -sf \
-  "http://localhost:$PF_QUERY_PORT/v1/traces?tenant_id=$TENANT_ID" \
-  -H "Authorization: Bearer $DEV_KEY" 2>/dev/null || echo "query_failed")
-
-if echo "$TRACE_RESULT" | grep -q "shop-api"; then
-  info "PASS: traces from shop-api found in Observable"
-elif echo "$TRACE_RESULT" | grep -q "query_failed"; then
-  info "WARN: query-api returned no response (pipeline may still be warming up)"
-else
-  info "WARN: shop-api traces not found yet — pipeline may need more time"
+PORT_COUNT=$(kubectl get service "$NGF_SVC" -n "$NGF_NAMESPACE" -o json \
+  | jq '[.spec.ports[] | select(.port == 3000)] | length')
+if [[ "$PORT_COUNT" -lt 1 ]]; then
+  echo "ERROR: port 3000 never appeared on Service $NGF_SVC — check nginx-gateway-fabric logs" >&2
+  kubectl logs -n "$NGF_NAMESPACE" deploy/"${NGF_RELEASE}-nginx-gateway-fabric" 2>/dev/null | tail -30 || true
+  exit 1
 fi
 
-info "Checking Observable UI"
-curl -sf "http://localhost:$PF_FRONTEND_PORT/" | grep -q "<!doctype html" \
-  && info "frontend / OK" \
-  || info "WARN: frontend root did not respond with HTML"
+log "Patching shop NodePort to ${GATEWAY_NODEPORT_SHOP}"
+PATCH=$(kubectl get service "$NGF_SVC" -n "$NGF_NAMESPACE" -o json \
+  | jq --argjson np "${GATEWAY_NODEPORT_SHOP}" \
+       '[.spec.ports | to_entries[]
+        | select(.value.port == 3000)
+        | {"op": "replace",
+           "path": "/spec/ports/\(.key)/nodePort",
+           "value": $np}]')
+kubectl patch service "$NGF_SVC" -n "$NGF_NAMESPACE" --type=json -p="$PATCH"
+info "NodePort ${GATEWAY_NODEPORT_SHOP} set for port 3000"
 
-info "Checking Observable UI same-origin API proxy"
-FRONTEND_RESULT=$(curl -sf "http://localhost:$PF_FRONTEND_PORT/v1/environments" \
-  -H "X-Tenant-ID: $TENANT_ID" 2>/dev/null || echo "frontend_query_failed")
+# ---------------------------------------------------------------------------
+# Wait for Gateway to be Programmed
+# ---------------------------------------------------------------------------
 
-if echo "$FRONTEND_RESULT" | grep -q "frontend_query_failed"; then
-  info "WARN: frontend /v1 proxy did not respond"
+log "Waiting for Gateway to be Programmed"
+kubectl wait gateway/testbench-gateway \
+  --namespace "$OBSERVABLE_NS" \
+  --for=condition=Programmed \
+  --timeout=120s \
+  || info "WARN: Gateway not yet Programmed — routes may need a few more seconds"
+
+# ---------------------------------------------------------------------------
+# Smoke check — non-fatal, warns if services are still starting
+# ---------------------------------------------------------------------------
+
+log "Running smoke check via Gateway"
+sleep 5
+
+info "Checking Observable frontend (http://localhost:${GATEWAY_HOST_PORT_OBSERVABLE}/)"
+if curl -sf --max-time 10 "http://localhost:${GATEWAY_HOST_PORT_OBSERVABLE}/" \
+    | grep -qi "<!doctype html"; then
+  info "PASS: Observable frontend reachable"
 else
-  info "PASS: frontend /v1 proxy reached query-api"
+  info "WARN: Observable frontend not yet reachable — may still be starting up"
 fi
 
-cleanup_pf
-trap 'cleanup' EXIT
+info "Checking testbench shop (http://localhost:${GATEWAY_HOST_PORT_SHOP}/)"
+if curl -sf --max-time 10 "http://localhost:${GATEWAY_HOST_PORT_SHOP}/" \
+    | grep -qi "<!doctype html"; then
+  info "PASS: Testbench shop reachable"
+else
+  info "WARN: Testbench shop not yet reachable — may still be starting up"
+fi
 
 # ---------------------------------------------------------------------------
-# Done — print access instructions
+# Ready — print access information and block until Ctrl+C
 # ---------------------------------------------------------------------------
 
-log "Test bench deployed successfully"
+log "Test bench is running"
 info ""
-info "Useful commands (while cluster is running):"
+info "  Observable frontend:  http://localhost:${GATEWAY_HOST_PORT_OBSERVABLE}/"
+info "  Testbench shop:       http://localhost:${GATEWAY_HOST_PORT_SHOP}/"
+info ""
+info "Useful commands:"
 info ""
 info "  # Watch loadgen traffic:"
 info "  kubectl logs -f -n $TESTBENCH_NS deploy/shop-loadgen"
@@ -331,20 +424,18 @@ info ""
 info "  # Watch OTel agent (kubeletstats + filelog):"
 info "  kubectl logs -f -n $TESTBENCH_NS daemonset/otel-collector-agent"
 info ""
-info "  # Access shop-api:"
-info "  kubectl port-forward svc/shop-api 8000:8000 -n $TESTBENCH_NS"
-info "  curl http://localhost:8000/products"
+info "  # Query Observable directly (bypasses UI):"
+info "  kubectl port-forward svc/query-api 8090:8090 -n $OBSERVABLE_NS &"
+info "  DEV_KEY=dev-api-key-0000"
+info "  TENANT=00000000-0000-0000-0000-000000000001"
+info "  curl -s \"http://localhost:8090/v1/traces?tenant_id=\$TENANT\" \\"
+info "    -H \"Authorization: Bearer \$DEV_KEY\" | jq '[.[].service_name] | unique'"
 info ""
-info "  # Access shop-frontend:"
-info "  kubectl port-forward svc/shop-frontend 3000:3000 -n $TESTBENCH_NS"
-info "  open http://localhost:3000"
+info "Press Ctrl+C to tear down the cluster."
 info ""
-info "  # Query Observable:"
-info "  kubectl port-forward svc/query-api 8090:8090 -n $OBSERVABLE_NS"
-info "  curl -s 'http://localhost:8090/v1/traces?tenant_id=$TENANT_ID' \\"
-info "    -H 'Authorization: Bearer $DEV_KEY' | jq '[.[].service_name] | unique'"
-info ""
-info "  # RabbitMQ management UI:"
-info "  kubectl port-forward svc/shop-queue 15672:15672 -n $TESTBENCH_NS"
-info "  open http://localhost:15672  (user: shop / pass: shop)"
-info ""
+
+log "Cluster running — press Ctrl+C to stop"
+while true; do
+  sleep 60
+  echo "    [$(date +%H:%M:%S)] cluster running — Ctrl+C to stop"
+done
