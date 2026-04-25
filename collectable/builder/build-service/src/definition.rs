@@ -71,5 +71,5 @@ pub struct OutputConfig {
     pub protocol: String,
     pub headers: Option<HashMap<String, String>>,
     pub batch_size: Option<usize>,
-    pub flush_interval_ms: Option<u64>,
+    pub flush_interval_secs: Option<u64>,
 }

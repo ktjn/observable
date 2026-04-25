@@ -9,7 +9,9 @@
   },
   "output": {
     "endpoint": "http://localhost:4318/v1/logs",
-    "protocol": "http"
+    "protocol": "http",
+    "batch_size": 100,
+    "flush_interval_secs": 5
   },
   "mapping": {
     "body": {

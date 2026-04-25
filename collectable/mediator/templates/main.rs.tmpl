@@ -719,7 +719,13 @@ async fn main() -> Result<()> {
                 .with_endpoint(&endpoint)
                 .with_headers(http_headers),
         )
-        .install_simple()
+        .with_batch_config(
+            opentelemetry_sdk::logs::BatchConfigBuilder::default()
+                .with_max_export_batch_size({{ output.batch_size | default(value=100) }})
+                .with_scheduled_delay(std::time::Duration::from_secs({{ output.flush_interval_secs | default(value=5) }}))
+                .build(),
+        )
+        .install_batch(opentelemetry_sdk::runtime::Tokio)
         .context("build OTLP HTTP exporter")?;
     {% else %}
     // Default: gRPC (tonic) — used for protocol "grpc" or if protocol is unset.
@@ -743,7 +749,13 @@ async fn main() -> Result<()> {
                 .with_endpoint(&endpoint)
                 .with_metadata(grpc_metadata),
         )
-        .install_simple()
+        .with_batch_config(
+            opentelemetry_sdk::logs::BatchConfigBuilder::default()
+                .with_max_export_batch_size({{ output.batch_size | default(value=100) }})
+                .with_scheduled_delay(std::time::Duration::from_secs({{ output.flush_interval_secs | default(value=5) }}))
+                .build(),
+        )
+        .install_batch(opentelemetry_sdk::runtime::Tokio)
         .context("build OTLP gRPC exporter")?;
     {% endif %}
     let provider = Arc::new(provider);

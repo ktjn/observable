@@ -2,16 +2,18 @@ import React, { useRef, useState } from 'react';
 import { TransportSelector } from './components/TransportSelector';
 import { ParserEditor } from './components/ParserEditor';
 import { OtlpMapper } from './components/OtlpMapper';
+import { PublisherPanel } from './components/PublisherPanel';
 import { PreviewPanel } from './components/PreviewPanel';
 import { DownloadPanel } from './components/DownloadPanel';
 
-export type Step = 'transport' | 'parser' | 'mapping' | 'download';
+export type Step = 'transport' | 'parser' | 'mapping' | 'publisher' | 'download';
 
 const STEP_LABELS: Record<Step, string> = {
-  transport: '1 Transport',
+  transport: '1 Collector',
   parser: '2 Parser',
   mapping: '3 Mapping',
-  download: '4 Download',
+  publisher: '4 Publisher',
+  download: '5 Download',
 };
 
 export default function App() {
@@ -112,7 +114,10 @@ export default function App() {
         <ParserEditor definition={definition} onChange={setDefinition} onNext={() => setStep('mapping')} />
       )}
       {step === 'mapping' && (
-        <OtlpMapper definition={definition} onChange={setDefinition} onNext={() => setStep('download')} />
+        <OtlpMapper definition={definition} onChange={setDefinition} onNext={() => setStep('publisher')} />
+      )}
+      {step === 'publisher' && (
+        <PublisherPanel definition={definition} onChange={setDefinition} onNext={() => setStep('download')} />
       )}
       {step === 'download' && (
         <DownloadPanel definition={definition} onChange={setDefinition} />
