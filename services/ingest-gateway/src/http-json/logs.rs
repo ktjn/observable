@@ -58,7 +58,7 @@ mod tests {
     use axum::http::StatusCode;
     use axum_test::TestServer;
 
-    use crate::build_router;
+    use crate::http_json::build_router;
     use crate::AppState;
 
     const TENANT: &str = "00000000-0000-0000-0000-000000000001";

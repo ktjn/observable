@@ -5,11 +5,6 @@ mod grpc;
 mod http_json;
 mod queue;
 
-use axum::{
-    middleware,
-    routing::{get, post},
-    Router,
-};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -121,19 +116,6 @@ impl AppState {
     }
 }
 
-pub fn build_router(state: AppState) -> Router {
-    Router::new()
-        .route("/v1/traces", post(http_json::traces::export_traces))
-        .route("/v1/logs", post(http_json::logs::export_logs))
-        .route("/v1/metrics", post(http_json::metrics::export_metrics))
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            auth::auth_middleware,
-        ))
-        .route("/health", get(|| async { axum::http::StatusCode::OK }))
-        .with_state(state)
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     domain::telemetry::init_self_observability_telemetry("ingest-gateway")?;
@@ -178,17 +160,13 @@ async fn main() -> anyhow::Result<()> {
         stub_tenant: None,
     };
 
-    let app = build_router(state.clone());
-    let http_listener = tokio::net::TcpListener::bind(("0.0.0.0", http_port)).await?;
-    tracing::info!(port = http_port, "ingest-gateway HTTP listening");
-
     let grpc_state = state.clone();
     let grpc_future = grpc::start_grpc_server(grpc_state, grpc_port);
-    let http_future = axum::serve(http_listener, app);
+    let http_future = http_json::start_http_server(state, http_port);
 
     tokio::select! {
         res = grpc_future => res?,
-        res = http_future => res.map_err(anyhow::Error::from)?,
+        res = http_future => res?,
     }
 
     Ok(())
