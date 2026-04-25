@@ -1,18 +1,20 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { searchLogs } from "../api/logs";
+import { searchLogs, LogRecord } from "../api/logs";
 import { FacetSidebar } from "../components/FacetSidebar";
+import { infraLinks } from "../utils/infraLinks";
 
 export default function LogSearch() {
   const [service, setService] = useState("");
-  
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["logs", service],
-    queryFn: () => searchLogs({ 
-      service: service || undefined, 
-      limit: 50,
-      facets: ["service_name", "severity_number", "environment", "host_id"]
-    }),
+    queryFn: () =>
+      searchLogs({
+        service: service || undefined,
+        limit: 50,
+        facets: ["service_name", "severity_number", "environment", "host_id"],
+      }),
   });
 
   const handleFacetClick = (field: string, value: string) => {
@@ -39,8 +41,8 @@ export default function LogSearch() {
           aria-label="Filter by service"
         />
         {service && (
-          <button 
-            className="secondary-link" 
+          <button
+            className="secondary-link"
             onClick={() => setService("")}
             style={{ cursor: "pointer", background: "none" }}
           >
@@ -71,16 +73,7 @@ export default function LogSearch() {
               </thead>
               <tbody>
                 {data?.logs.map((log) => (
-                  <tr key={log.log_id}>
-                    <td>{log.timestamp_unix_nano}</td>
-                    <td>{log.service_name}</td>
-                    <td>
-                      <span className={`status ${severityTone(log.severity_number)}`}>
-                        {log.severity_text || log.severity_number}
-                      </span>
-                    </td>
-                    <td>{typeof log.body === "string" ? log.body : JSON.stringify(log.body)}</td>
-                  </tr>
+                  <LogRow key={log.log_id} log={log} />
                 ))}
               </tbody>
             </table>
@@ -91,9 +84,49 @@ export default function LogSearch() {
   );
 }
 
+function LogRow({ log }: { log: LogRecord }) {
+  const badges = infraLinks(log.resource_attributes ?? {});
+  return (
+    <tr>
+      <td>{log.timestamp_unix_nano}</td>
+      <td>
+        {log.service_name}
+        {badges.length > 0 && (
+          <span style={{ display: "inline-flex", gap: 4, marginLeft: 6 }}>
+            {badges.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                style={{
+                  fontSize: 11,
+                  padding: "1px 6px",
+                  borderRadius: 10,
+                  background: "var(--color-bg-subtle, #edf2f7)",
+                  color: "var(--color-text, #2d3748)",
+                  textDecoration: "none",
+                  border: "1px solid var(--color-border, #e2e8f0)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {link.label}
+              </a>
+            ))}
+          </span>
+        )}
+      </td>
+      <td>
+        <span className={`status ${severityTone(log.severity_number)}`}>
+          {log.severity_text || log.severity_number}
+        </span>
+      </td>
+      <td>{typeof log.body === "string" ? log.body : JSON.stringify(log.body)}</td>
+    </tr>
+  );
+}
+
 function severityTone(severity: number) {
-  if (severity >= 17) return "bad"; // Error
-  if (severity >= 13) return "warn"; // Warn
-  if (severity >= 9) return "info"; // Info
-  return "good"; // Debug/Trace
+  if (severity >= 17) return "bad";
+  if (severity >= 13) return "warn";
+  if (severity >= 9) return "info";
+  return "good";
 }
