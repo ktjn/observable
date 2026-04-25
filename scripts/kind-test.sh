@@ -320,13 +320,6 @@ log "Helm release status"
 helm status "$RELEASE_NAME" --namespace "$NAMESPACE"
 show_pods "$NAMESPACE"
 
-BASE_REVISION="$(current_revision "$RELEASE_NAME" "$NAMESPACE")"
-if [[ -z "$BASE_REVISION" ]]; then
-  echo "ERROR: could not determine current Helm revision for $RELEASE_NAME" >&2
-  exit 1
-fi
-info "Current Helm revision before rollback demo: $BASE_REVISION"
-
 # ---------------------------------------------------------------------------
 # Wait for all service Deployments
 # ---------------------------------------------------------------------------
@@ -436,6 +429,13 @@ fi
 # ---------------------------------------------------------------------------
 
 if [[ "$DEPLOY_ONLY" == "false" ]]; then
+  BASE_REVISION="$(current_revision "$RELEASE_NAME" "$NAMESPACE")"
+  if [[ -z "$BASE_REVISION" ]]; then
+    echo "ERROR: could not determine current Helm revision for $RELEASE_NAME" >&2
+    exit 1
+  fi
+  info "Current Helm revision before rollback demo: $BASE_REVISION"
+
   log "Demonstrating helm rollback"
 
   info "Upgrading release to create a new revision"

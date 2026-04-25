@@ -265,7 +265,6 @@ helm upgrade --install "$NGF_RELEASE" \
   --namespace "$NGF_NAMESPACE" \
   --version "$NGF_CHART_VERSION" \
   --set service.type=NodePort \
-  --set "service.nodePorts.http=${GATEWAY_NODEPORT_OBSERVABLE}" \
   --wait --timeout 5m
 
 # ---------------------------------------------------------------------------
@@ -335,40 +334,45 @@ spec:
 GATEWAY_MANIFEST
 
 # ---------------------------------------------------------------------------
-# Patch nginx-gateway-fabric Service — pin shop NodePort to GATEWAY_NODEPORT_SHOP
+# Patch nginx-gateway-fabric Service — pin both NodePorts to fixed values
+# Port 80  → NodePort 30080 (kind maps host:8080 → node:30080)
+# Port 3000 → NodePort 30300 (kind maps host:3000 → node:30300)
 # ---------------------------------------------------------------------------
 
-log "Waiting for nginx-gateway-fabric Service to expose shop port (3000)"
+log "Waiting for nginx-gateway-fabric Service to expose both ports (80 and 3000)"
 NGF_SVC="${NGF_RELEASE}-nginx-gateway-fabric"
 for i in $(seq 1 24); do
   PORT_COUNT=$(kubectl get service "$NGF_SVC" -n "$NGF_NAMESPACE" -o json \
-    | jq '[.spec.ports[] | select(.port == 3000)] | length')
-  if [[ "$PORT_COUNT" -ge 1 ]]; then
-    info "port 3000 found on Service after ${i}x5s"
+    | jq '[.spec.ports[] | select(.port == 80 or .port == 3000)] | length')
+  if [[ "$PORT_COUNT" -ge 2 ]]; then
+    info "both ports found on Service after ${i}x5s"
     break
   fi
-  info "  [${i}/24] waiting for port 3000 on Service..."
+  info "  [${i}/24] waiting for ports 80 and 3000 on Service..."
   sleep 5
 done
 
 PORT_COUNT=$(kubectl get service "$NGF_SVC" -n "$NGF_NAMESPACE" -o json \
-  | jq '[.spec.ports[] | select(.port == 3000)] | length')
-if [[ "$PORT_COUNT" -lt 1 ]]; then
-  echo "ERROR: port 3000 never appeared on Service $NGF_SVC — check nginx-gateway-fabric logs" >&2
+  | jq '[.spec.ports[] | select(.port == 80 or .port == 3000)] | length')
+if [[ "$PORT_COUNT" -lt 2 ]]; then
+  echo "ERROR: ports 80 and/or 3000 never appeared on Service $NGF_SVC — check nginx-gateway-fabric logs" >&2
   kubectl logs -n "$NGF_NAMESPACE" deploy/"${NGF_RELEASE}-nginx-gateway-fabric" 2>/dev/null | tail -30 || true
   exit 1
 fi
 
-log "Patching shop NodePort to ${GATEWAY_NODEPORT_SHOP}"
+log "Patching NodePorts: port 80 → ${GATEWAY_NODEPORT_OBSERVABLE}, port 3000 → ${GATEWAY_NODEPORT_SHOP}"
 PATCH=$(kubectl get service "$NGF_SVC" -n "$NGF_NAMESPACE" -o json \
-  | jq --argjson np "${GATEWAY_NODEPORT_SHOP}" \
+  | jq --argjson np80 "${GATEWAY_NODEPORT_OBSERVABLE}" \
+       --argjson np3000 "${GATEWAY_NODEPORT_SHOP}" \
        '[.spec.ports | to_entries[]
-        | select(.value.port == 3000)
-        | {"op": "replace",
-           "path": "/spec/ports/\(.key)/nodePort",
-           "value": $np}]')
+        | if .value.port == 80 then
+            {"op": "replace", "path": "/spec/ports/\(.key)/nodePort", "value": $np80}
+          elif .value.port == 3000 then
+            {"op": "replace", "path": "/spec/ports/\(.key)/nodePort", "value": $np3000}
+          else empty
+          end]')
 kubectl patch service "$NGF_SVC" -n "$NGF_NAMESPACE" --type=json -p="$PATCH"
-info "NodePort ${GATEWAY_NODEPORT_SHOP} set for port 3000"
+info "NodePorts pinned: 80 → ${GATEWAY_NODEPORT_OBSERVABLE}, 3000 → ${GATEWAY_NODEPORT_SHOP}"
 
 # ---------------------------------------------------------------------------
 # Wait for Gateway to be Programmed
