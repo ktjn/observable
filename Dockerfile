@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # --- Rust Build ---
-FROM lukemathwalker/cargo-chef:latest-rust-1.89-bookworm AS chef
+FROM lukemathwalker/cargo-chef:0.1.77-rust-1.95.0-bookworm AS chef
 WORKDIR /app
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \

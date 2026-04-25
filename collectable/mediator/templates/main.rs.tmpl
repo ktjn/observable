@@ -5,8 +5,8 @@
 
 use anyhow::{Context, Result};
 use opentelemetry::logs::{AnyValue, LogRecord as _, Logger as _, LoggerProvider as _, Severity};
-use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::logs::LoggerProvider as SdkLoggerProvider;
+use opentelemetry_otlp::{WithExportConfig, WithHttpConfig, WithTonicConfig};
+use opentelemetry_sdk::logs::{BatchLogProcessor, SdkLoggerProvider};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use std::time::SystemTime;
@@ -656,7 +656,7 @@ async fn main() -> Result<()> {
     })
     .expect("failed to install OTel error handler");
 
-    // OTLP exporter via pipeline API (opentelemetry-otlp 0.26)
+    // OTLP exporter — opentelemetry-otlp 0.31 builder API.
     // OTLP_ENDPOINT env var overrides the compiled-in endpoint at runtime.
     let endpoint = match std::env::var("OTLP_ENDPOINT").ok().filter(|s| !s.is_empty()) {
         Some(ep) => ep,
@@ -699,7 +699,14 @@ async fn main() -> Result<()> {
     {% endif %}
     {% endfor %}
     {% endif %}
-    let resource = opentelemetry_sdk::Resource::new(kv_list);
+    let resource = opentelemetry_sdk::Resource::builder_empty()
+        .with_attributes(kv_list)
+        .build();
+
+    let batch_config = opentelemetry_sdk::logs::BatchConfigBuilder::default()
+        .with_max_export_batch_size({{ output.batch_size | default(value=100) }})
+        .with_scheduled_delay(std::time::Duration::from_secs({{ output.flush_interval_secs | default(value=5) }}))
+        .build();
 
     {% if output.protocol == "http" %}
     // Attach Authorization header if OTLP_TOKEN is set.
@@ -709,24 +716,20 @@ async fn main() -> Result<()> {
             http_headers.insert("Authorization".to_string(), format!("Bearer {}", token));
         }
     }
-    let provider = opentelemetry_otlp::new_pipeline()
-        .logging()
+    let exporter = opentelemetry_otlp::LogExporter::builder()
+        .with_http()
+        .with_protocol(opentelemetry_otlp::Protocol::HttpJson)
+        .with_endpoint(format!("{}/v1/logs", endpoint.trim_end_matches('/')))
+        .with_headers(http_headers)
+        .build()
+        .context("build OTLP HTTP log exporter")?;
+    let processor = BatchLogProcessor::builder(exporter)
+        .with_batch_config(batch_config)
+        .build();
+    let provider = SdkLoggerProvider::builder()
+        .with_log_processor(processor)
         .with_resource(resource)
-        .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                .http()
-                .with_protocol(opentelemetry_otlp::Protocol::HttpJson)
-                .with_endpoint(&endpoint)
-                .with_headers(http_headers),
-        )
-        .with_batch_config(
-            opentelemetry_sdk::logs::BatchConfigBuilder::default()
-                .with_max_export_batch_size({{ output.batch_size | default(value=100) }})
-                .with_scheduled_delay(std::time::Duration::from_secs({{ output.flush_interval_secs | default(value=5) }}))
-                .build(),
-        )
-        .install_batch(opentelemetry_sdk::runtime::Tokio)
-        .context("build OTLP HTTP exporter")?;
+        .build();
     {% else %}
     // Default: gRPC (tonic) — used for protocol "grpc" or if protocol is unset.
     // Attach Authorization metadata if OTLP_TOKEN is set.
@@ -740,23 +743,19 @@ async fn main() -> Result<()> {
             }
         }
     }
-    let provider = opentelemetry_otlp::new_pipeline()
-        .logging()
+    let exporter = opentelemetry_otlp::LogExporter::builder()
+        .with_tonic()
+        .with_endpoint(&endpoint)
+        .with_metadata(grpc_metadata)
+        .build()
+        .context("build OTLP gRPC log exporter")?;
+    let processor = BatchLogProcessor::builder(exporter)
+        .with_batch_config(batch_config)
+        .build();
+    let provider = SdkLoggerProvider::builder()
+        .with_log_processor(processor)
         .with_resource(resource)
-        .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                .tonic()
-                .with_endpoint(&endpoint)
-                .with_metadata(grpc_metadata),
-        )
-        .with_batch_config(
-            opentelemetry_sdk::logs::BatchConfigBuilder::default()
-                .with_max_export_batch_size({{ output.batch_size | default(value=100) }})
-                .with_scheduled_delay(std::time::Duration::from_secs({{ output.flush_interval_secs | default(value=5) }}))
-                .build(),
-        )
-        .install_batch(opentelemetry_sdk::runtime::Tokio)
-        .context("build OTLP gRPC exporter")?;
+        .build();
     {% endif %}
     let provider = Arc::new(provider);
 

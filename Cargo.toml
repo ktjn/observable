@@ -20,8 +20,8 @@ anyhow             = "1"
 tracing            = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 bytes              = "1"
-prost              = "0.12"
-tonic              = "0.12"
+prost              = "0.14"
+tonic              = "0.14"
 sqlx               = { version = "0.7", features = ["postgres", "runtime-tokio", "uuid", "chrono", "json"] }
 clickhouse         = { version = "0.15", features = ["uuid"] }
 rdkafka            = { version = "0.36", features = ["tokio", "cmake-build"] }

@@ -17,14 +17,14 @@ tracing      = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 chrono       = { version = "0.4", features = ["serde"] }
 regex        = "1"
-opentelemetry       = { version = "0.26", features = ["logs"] }
-opentelemetry_sdk   = { version = "0.26", features = ["rt-tokio", "logs"] }
+opentelemetry       = { version = "0.31", features = ["logs"] }
+opentelemetry_sdk   = { version = "0.31", features = ["logs"] }
 {% if output.protocol == "http" %}
-opentelemetry-otlp  = { version = "0.26", features = ["logs", "http-proto", "http-json", "reqwest-client", "tls-roots"] }
+opentelemetry-otlp  = { version = "0.31", features = ["logs", "http-proto", "http-json", "reqwest-client", "tls-roots"] }
 reqwest             = { version = "0.12", features = ["rustls-tls"], default-features = false }
 {% else %}
-opentelemetry-otlp  = { version = "0.26", features = ["logs", "grpc-tonic", "tls-roots"] }
-tonic        = { version = "0.12", features = ["tls", "tls-roots"] }
+opentelemetry-otlp  = { version = "0.31", features = ["logs", "grpc-tonic", "tls-roots"] }
+tonic        = { version = "0.14", features = ["tls", "tls-roots"] }
 {% endif %}
 {% if transport_kind == "tcp_syslog" or transport_kind == "udp_syslog" %}syslog_loose = "0.23"
 {% endif %}{% if transport_kind == "http_webhook" %}axum = { version = "0.7", features = ["json"] }
