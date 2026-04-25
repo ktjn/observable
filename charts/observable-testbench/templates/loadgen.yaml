@@ -25,7 +25,7 @@ spec:
             - name: SHOP_API_URL
               value: "http://shop-api.{{ .Release.Namespace }}.svc.cluster.local:8000"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "otel-collector-gateway.{{ .Release.Namespace }}.svc.cluster.local:4317"
+              value: "http://otel-collector-gateway.{{ .Release.Namespace }}.svc.cluster.local:4317"
             - name: SERVICE_VERSION
               value: {{ .Chart.AppVersion | quote }}
             - name: MY_POD_NAME

@@ -29,7 +29,7 @@ spec:
             - name: AMQP_URL
               value: "amqp://{{ .Values.rabbitmq.credentials.user }}:{{ .Values.rabbitmq.credentials.password }}@shop-queue:5672/"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "otel-collector-gateway.{{ .Release.Namespace }}.svc.cluster.local:4317"
+              value: "http://otel-collector-gateway.{{ .Release.Namespace }}.svc.cluster.local:4317"
             - name: SERVICE_VERSION
               value: {{ .Chart.AppVersion | quote }}
             - name: MY_POD_NAME
