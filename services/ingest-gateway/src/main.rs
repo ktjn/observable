@@ -1,8 +1,9 @@
 mod auth;
 mod cardinality;
 mod grpc;
+#[path = "http-json/mod.rs"]
+mod http_json;
 mod queue;
-mod routes;
 
 use axum::{
     middleware,
@@ -122,9 +123,9 @@ impl AppState {
 
 pub fn build_router(state: AppState) -> Router {
     Router::new()
-        .route("/v1/traces", post(routes::traces::export_traces))
-        .route("/v1/logs", post(routes::logs::export_logs))
-        .route("/v1/metrics", post(routes::metrics::export_metrics))
+        .route("/v1/traces", post(http_json::traces::export_traces))
+        .route("/v1/logs", post(http_json::logs::export_logs))
+        .route("/v1/metrics", post(http_json::metrics::export_metrics))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::auth_middleware,

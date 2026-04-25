@@ -80,7 +80,8 @@ fn parse_otlp_metrics(
             .and_then(|r| r.get("attributes"))
             .cloned()
             .unwrap_or_default();
-        let service_name = extract_string_attr(&resource_attrs, "service.name").unwrap_or_default();
+        let service_name = super::convert::extract_string_attr(&resource_attrs, "service.name")
+            .unwrap_or_default();
 
         for scope_metrics in rm
             .get("scopeMetrics")
@@ -141,17 +142,6 @@ fn parse_otlp_metrics(
         }
     }
     Ok((all_series, all_points))
-}
-
-fn extract_string_attr(attrs: &Value, key: &str) -> Option<String> {
-    attrs
-        .as_array()?
-        .iter()
-        .find(|a| a.get("key").and_then(|k| k.as_str()) == Some(key))?
-        .get("value")?
-        .get("stringValue")?
-        .as_str()
-        .map(String::from)
 }
 
 #[cfg(test)]
