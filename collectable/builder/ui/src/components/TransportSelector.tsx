@@ -116,9 +116,11 @@ export function TransportSelector({ definition, onChange, onNext }: Props) {
         </div>
       )}
 
-      <button style={{ marginTop: 24 }} onClick={onNext} disabled={!canProceed}>
-        Next →
-      </button>
+      <div style={{ marginTop: 24 }}>
+        <button onClick={onNext} disabled={!canProceed}>
+          Next →
+        </button>
+      </div>
     </div>
   );
 }
