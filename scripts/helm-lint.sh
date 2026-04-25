@@ -43,11 +43,20 @@ helm lint "$APP_CHART"
 
 echo ""
 echo "==> Template rendering (dry-run) — full manifest dump"
-helm template observable-dev "$APP_CHART" \
+FULL_RENDER="$(helm template observable-dev "$APP_CHART" \
   --namespace observable \
   --debug \
-  --dry-run \
-  > /dev/null  # render succeeds; suppress output for CI brevity
+  --dry-run)"
+
+if ! grep -q "kind: Deployment" <<<"$FULL_RENDER" || ! grep -q "name: frontend" <<<"$FULL_RENDER"; then
+  echo "ERROR: observable chart must render a frontend Deployment" >&2
+  exit 1
+fi
+
+if ! grep -q "kind: Service" <<<"$FULL_RENDER" || ! grep -q "name: frontend" <<<"$FULL_RENDER"; then
+  echo "ERROR: observable chart must render a frontend Service" >&2
+  exit 1
+fi
 
 echo ""
 echo "==> Template rendering with example override"

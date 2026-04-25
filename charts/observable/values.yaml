@@ -11,6 +11,10 @@ global:
     repository: observable-services
     tag: "latest"
     pullPolicy: IfNotPresent
+  frontendImage:
+    repository: observable-frontend
+    tag: "latest"
+    pullPolicy: IfNotPresent
 
 # Infrastructure connection strings.
 # These are consumed by multiple services and centralised here to avoid
@@ -125,6 +129,18 @@ services:
       limits:
         cpu: 500m
         memory: 256Mi
+
+  frontend:
+    enabled: true
+    port: 80
+    replicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
 
 # Migration job settings (pre-install / pre-upgrade Helm hook).
 migrations:
