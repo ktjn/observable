@@ -78,6 +78,21 @@ mod tests {
         )
     }
 
+    fn gzip_json(value: serde_json::Value) -> Vec<u8> {
+        assert_eq!(value, simple_log_payload());
+        vec![
+            31, 139, 8, 0, 0, 0, 0, 0, 0, 10, 100, 141, 65, 10, 194, 48, 20, 68, 239, 50, 235, 40,
+            117, 155, 3, 8, 130, 84, 16, 117, 35, 93, 164, 233, 167, 6, 99, 190, 36, 191, 161, 165,
+            228, 238, 66, 11, 186, 112, 249, 102, 30, 188, 25, 145, 18, 15, 209, 210, 145, 251, 4,
+            125, 159, 191, 3, 244, 12, 35, 18, 93, 59, 8, 173, 215, 147, 38, 104, 36, 138, 217, 89,
+            218, 6, 243, 34, 40, 100, 227, 135, 69, 78, 18, 93, 232, 111, 43, 66, 40, 201, 38, 101,
+            139, 82, 154, 162, 144, 44, 191, 127, 13, 207, 253, 153, 44, 199, 110, 69, 113, 47,
+            186, 6, 55, 214, 38, 48, 52, 118, 85, 85, 65, 33, 81, 166, 232, 100, 186, 208, 40, 208,
+            56, 212, 251, 19, 20, 90, 238, 166, 255, 218, 131, 188, 231, 37, 213, 148, 166, 124, 0,
+            0, 0, 255, 255, 3, 0, 150, 124, 99, 123, 214, 0, 0, 0,
+        ]
+    }
+
     fn simple_log_payload() -> serde_json::Value {
         serde_json::json!({
             "resourceLogs": [{
@@ -115,6 +130,26 @@ mod tests {
             .bytes(vec![0, 1, 2].into())
             .await;
         assert_eq!(resp.status_code(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    }
+
+    #[tokio::test]
+    async fn gzip_compressed_logs_payload_returns_200() {
+        let app = build_router(AppState::with_stub_auth(TENANT));
+        let server = TestServer::new(app).unwrap();
+        let resp = server
+            .post("/v1/logs")
+            .add_header(auth_header().0, auth_header().1)
+            .add_header(
+                axum::http::header::CONTENT_TYPE,
+                axum::http::HeaderValue::from_static("application/json"),
+            )
+            .add_header(
+                axum::http::header::CONTENT_ENCODING,
+                axum::http::HeaderValue::from_static("gzip"),
+            )
+            .bytes(gzip_json(simple_log_payload()).into())
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::OK);
     }
 
     #[tokio::test]
