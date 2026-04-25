@@ -1,7 +1,7 @@
 /// Code generation: render a Rust source package from a pipeline definition.
 use crate::definition::PipelineDefinition;
 use anyhow::Result;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tera::{Context, Tera};
 
 fn templates_dir() -> String {
