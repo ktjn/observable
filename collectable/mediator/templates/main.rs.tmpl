@@ -5,7 +5,12 @@
 
 use anyhow::{Context, Result};
 use opentelemetry::logs::{AnyValue, LogRecord as _, Logger as _, LoggerProvider as _, Severity};
-use opentelemetry_otlp::{WithExportConfig, WithHttpConfig, WithTonicConfig};
+use opentelemetry_otlp::WithExportConfig;
+{% if output.protocol == "http" %}
+use opentelemetry_otlp::WithHttpConfig;
+{% else %}
+use opentelemetry_otlp::WithTonicConfig;
+{% endif %}
 use opentelemetry_sdk::logs::{BatchLogProcessor, SdkLoggerProvider};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -649,13 +654,8 @@ async fn main() -> Result<()> {
             .init();
     }
 
-    // Route OpenTelemetry SDK internal errors (export failures, connection refused,
-    // auth rejections) through the tracing subscriber so they appear in console output.
-    opentelemetry::global::set_error_handler(|e| {
-        tracing::error!(error = %e, "OTLP export error");
-    })
-    .expect("failed to install OTel error handler");
-
+    // OpenTelemetry SDK 0.27+ routes internal errors (export failures, auth rejections)
+    // through the tracing subscriber automatically — no explicit error handler needed.
     // OTLP exporter — opentelemetry-otlp 0.31 builder API.
     // OTLP_ENDPOINT env var overrides the compiled-in endpoint at runtime.
     let endpoint = match std::env::var("OTLP_ENDPOINT").ok().filter(|s| !s.is_empty()) {
