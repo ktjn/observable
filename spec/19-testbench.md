@@ -138,12 +138,16 @@ Receives OTLP from services and the agent DaemonSet. Runs cluster-level k8s rece
 - `resource` — upserts `deployment.environment` and `k8s.cluster.name`
 - `batch` — 256 items / 5 s timeout
 
-**Exporter:** `otlphttp/observable` → `http://ingest-gateway.observable.svc.cluster.local:4318` with `Authorization: Bearer dev-api-key-0000`
+**Exporter:** `otlphttp/observable` → `http://ingest-gateway.observable.svc.cluster.local:4318` with `encoding: json` and `Authorization: Bearer dev-api-key-0000`
 
 **Pipelines:**
 - traces: `otlp` → `k8sattributes, resource, batch` → `otlphttp/observable`
 - metrics: `otlp, k8s_cluster` → `k8sattributes, resource, batch` → `otlphttp/observable`
 - logs: `otlp, k8sobjects` → `resource, batch` → `otlphttp/observable`
+
+The testbench uses two OTLP hops:
+- workloads and agent components send OTLP/gRPC to the gateway collector on `4317`
+- the gateway collector exports OTLP/HTTP JSON to Observable on `4318`
 
 ### 19.5.2 Agent (DaemonSet)
 

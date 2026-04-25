@@ -118,6 +118,7 @@ otelGateway:
       debug: null
       otlphttp/observable:
         endpoint: "{{ .Values.global.testbench.observableEndpoint }}"
+        encoding: json
         headers:
           Authorization: "Bearer {{ .Values.global.testbench.observableApiKey }}"
 

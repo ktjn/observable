@@ -367,6 +367,10 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
   kubectl port-forward service/ingest-gateway 14318:4318 \
     --namespace "$NAMESPACE" &
   PF_INGEST_HTTP=$!
+  # Port-forward ingest-gateway gRPC
+  kubectl port-forward service/ingest-gateway 14317:4317 \
+    --namespace "$NAMESPACE" &
+  PF_INGEST_GRPC=$!
   # Port-forward query-api
   kubectl port-forward service/query-api 18090:8090 \
     --namespace "$NAMESPACE" &
@@ -381,7 +385,7 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
   PF_AUTH=$!
 
   cleanup_pf() {
-    kill "$PF_INGEST_HTTP" "$PF_QUERY" "$PF_FRONTEND" "$PF_AUTH" 2>/dev/null || true
+    kill "$PF_INGEST_HTTP" "$PF_INGEST_GRPC" "$PF_QUERY" "$PF_FRONTEND" "$PF_AUTH" 2>/dev/null || true
   }
   trap 'cleanup_pf; cleanup' EXIT
 

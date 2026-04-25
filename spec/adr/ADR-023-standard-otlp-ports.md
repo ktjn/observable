@@ -21,13 +21,14 @@ This layout prevented standard OTel components (collectors, SDKs, edge tools) fr
 We will align the Observable platform with the OTLP standard port assignments:
 
 1.  **Ingest Gateway** will now serve:
-    - **OTLP/gRPC** on port **4317** (using `tonic`).
-    - **OTLP/HTTP** on port **4318** (using `axum`).
+    - **OTLP/gRPC** on port **4317** (using `tonic`). Port 4317 does not serve OTLP/HTTP.
+    - **OTLP/HTTP JSON** on port **4318** (using `axum`). Port 4318 accepts `application/json` and does not accept `application/x-protobuf`.
 2.  **Auth Service** will move to an internal-only port: **4319**.
 
 ## Consequences
 
-- **Standard Compliance**: Standard OTel components can now send data to Observable using default settings (e.g., `OTLP_ENDPOINT=http://observable:4318`).
+- **Standard Port Alignment**: OTel components use port **4317** for gRPC and port **4318** for OTLP/HTTP JSON (for example, `OTLP_ENDPOINT=http://observable:4318` with an HTTP/JSON exporter).
+- **Compatibility Note**: OTLP/HTTP protobuf (`application/x-protobuf`) is not supported on port **4318**. HTTP clients must send JSON.
 - **Service Reconfiguration**:
     - `ingest-gateway` now runs two concurrent server listeners (HTTP and gRPC).
     - `auth-service` internal validation endpoint is now at `http://auth-service:4319/internal/validate`.
@@ -35,7 +36,7 @@ We will align the Observable platform with the OTLP standard port assignments:
     - `docker-compose.yml` updated to reflect new port mappings.
     - Helm charts (`charts/observable`) updated for multi-port support in `ingest-gateway`.
     - Local dev environment and documentation (`spec/12-deployment.md`) updated.
-- **Migration Path**: Existing deployments must update their `AUTH_SERVICE_URL` and `INGEST_GATEWAY_PORT` environment variables. Standard OTLP senders should point to 4317 (gRPC) or 4318 (HTTP).
+- **Migration Path**: Existing deployments must update their `AUTH_SERVICE_URL` and `INGEST_GATEWAY_PORT` environment variables. OTLP senders should point to 4317 for gRPC and 4318 for HTTP JSON.
 
 ## Verification
 
