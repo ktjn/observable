@@ -167,13 +167,15 @@ otelAgent:
   clusterRole:
     create: true
 
-  config:
+  alternateConfig:
     receivers:
       # Agent only collects from node-local sources; remove OTLP + protocol defaults
-      jaeger: null
-      zipkin: null
-      prometheus: null
-      otlp: null
+      kubeletstats: {}
+      filelog: {}
+
+    extensions:
+      health_check:
+        endpoint: ${env:MY_POD_IP}:13133
 
     processors:
       resource:
@@ -195,10 +197,11 @@ otelAgent:
         # filelog      appended to receivers by logsCollection preset
         # k8sattributes prepended to processors by kubernetesAttributes preset
         metrics:
-          receivers: []
+          receivers: [kubeletstats]
           processors: [resource, memory_limiter, batch]
           exporters: [otlp/gateway]
         logs:
-          receivers: []
+          receivers: [filelog]
           processors: [resource, memory_limiter, batch]
           exporters: [otlp/gateway]
+      extensions: [health_check]
