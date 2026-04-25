@@ -17,6 +17,7 @@ services:
     volumes:
       - build-cache:/usr/local/cargo/registry
       - target-cache:/root/.cache/collectable-builds
+      - /etc/localtime:/etc/localtime:ro
     environment:
       - RUST_LOG=info
       - MEDIATOR_TEMPLATES_DIR=/mediator/templates
