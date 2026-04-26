@@ -143,6 +143,13 @@ The Service Overview area is the topology view of the system.
 | Basic Dashboards | Fixed-layout panels, time range picker, promote-to-dashboard from explorers |
 | Threshold Alerts | Create / edit / silence rules; active incidents list |
 
+These modules define the minimum operator-facing UI bar for the internal MVP. If implementation is
+staged, the explorer shell may land first, but Onboarding / Setup, Service Catalog, Service Detail
+Overview, service-scoped Logs / Metrics / Traces, one dashboard workflow, and one threshold-alert
+workflow must be completed before broader Phase 2–3 UI expansions such as Service Map,
+Deployment Timeline, Dashboard Builder, Alert Routing, or Incident Timeline are treated as the
+next frontend priority.
+
 #### Phase 2–3
 | Module | Purpose |
 |---|---|
