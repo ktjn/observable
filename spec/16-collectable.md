@@ -1,6 +1,6 @@
 # Collectable — Edge Pipeline Tool
 
-> **Status:** Specced, not yet implemented.
+> **Status:** Implemented.
 
 ---
 
@@ -118,7 +118,7 @@ not in Observable's control plane.
       "Authorization": "Bearer ${OTLP_TOKEN}"
     },
     "batch_size": 512,
-    "flush_interval_ms": 1000
+    "flush_interval_secs": 5
   }
 }
 ```
@@ -133,6 +133,11 @@ Schema rules:
 - `log_attributes` values support `field` source only.
 - `output.endpoint` and all string values support `${ENV_VAR}` interpolation,
   resolved at runtime in the compiled binary.
+
+**UI-only fields:** Pipeline definitions saved or exported from the builder UI may
+contain `_sample` (sample log lines for the preview) and `parsed_fields` (field list
+derived by the preview). The build service strips these before code generation. Do not
+include them in handcrafted definitions sent directly to `/build`.
 
 ---
 
@@ -161,7 +166,7 @@ Schema rules:
 | ID | Format | Crate | Notes |
 |---|---|---|---|
 | `json` | JSON objects (one per line or framed) | `serde_json` | Nested field access via dot notation |
-| `grok` | Grok patterns (Elastic-compatible) | `grok-rs` | Supports built-in and user-defined patterns |
+| `grok` | Grok patterns (Elastic-compatible) | `grok` crate (mediator); built-in converter (preview) | Supports built-in and user-defined patterns |
 | `regex` | Named capture groups | `regex` | User-defined pattern; UI derives from sample |
 | `key_value` | `key=value` pairs | `regex` | Configurable separator and delimiter |
 | `multiline` | Multiline assembler | state machine | Start pattern triggers new record assembly |
@@ -244,17 +249,14 @@ toolchain and `cross` for all supported targets.
 ### 7.2 UI Workflow
 
 ```
-Step 1: Transport
+Step 1: Collector
   Select transport type → configure port / topic / file path / TLS → validate
 
-Step 2: Sample Data
-  Paste sample log lines (5–50 lines recommended)
-
-Step 3: Parser
+Step 2: Parser
   Select parser type → define pattern / grok expression / field separator
-  Live preview: each sample line is parsed and fields are displayed
+  Paste sample log lines — parsed fields displayed in a live preview table
 
-Step 4: OTLP Mapping
+Step 3: Mapping
   Three dynamic sections, all add/remove rows freely:
   ┌─ Standard fields ──────────────────────────────────────────────────────────┐
   │  OTLP target (body / severity_text / time_field / trace_id / span_id)      │
@@ -271,13 +273,18 @@ Step 4: OTLP Mapping
   └─────────────────────────────────────────────────────────────────────────────┘
   Live OTLP LogRecord preview always visible and always in sync
 
-Step 5: Output
-  OTLP endpoint URL, protocol (gRPC / HTTP), auth header, batch size
+Step 4: Publisher
+  Send delay — flush buffered records every N seconds
+  Send count — flush immediately when M records are buffered
+  A batch is emitted when either limit is reached first
 
-Step 6: Download
+Step 5: Build & Download
+  Pipeline name (used as binary filename, crate name, systemd unit, Dockerfile)
+  OTLP endpoint URL, protocol (gRPC / HTTP), auth header (configured via env vars)
   Select target ABI from dropdown
-  Click "Build" → build service compiles and packages
+  Click "Build & Download" → build service compiles and packages
   Download ZIP containing all artifacts
+  curl command shown for headless / CI builds
 ```
 
 ### 7.3 Build Service
@@ -286,9 +293,13 @@ The build service is a Rust HTTP service that:
 1. Receives a pipeline definition (JSON) via POST `/build`
 2. Validates the definition against the schema
 3. Generates a Rust source package from templates
-4. Invokes `cross build --release --target <abi>` in an isolated workspace
+4. Invokes `cargo build --release --target <abi>` in an isolated workspace
+   (musl targets receive `RUSTFLAGS=-C target-feature=+crt-static` for a fully static binary)
 5. Assembles the download package (see §8)
 6. Returns the package as a ZIP download
+
+A parser preview endpoint (`POST /api/parse`) is also exposed and used by the
+UI to render the live parse table. It accepts up to 20 sample lines.
 
 Compilation is isolated per request. Build artifacts are not persisted after download.
 
@@ -311,23 +322,25 @@ Compilation is isolated per request. Build artifacts are not persisted after dow
 The build service produces a ZIP archive with the following structure:
 
 ```
-<name>-<version>-<target>/
+<name>-<target>/
   <name>                          # Compiled binary (or .exe on Windows)
   src/
-    Cargo.toml                    # Pinned dependency versions; self-contained
-    src/
-      main.rs                     # Generated source — readable, auditable
+    main.rs                       # Generated source — readable, auditable
   deploy/
     <name>.service                # systemd unit file, pre-configured
-    init.d/<name>                 # SysV init script, pre-configured
+    <name>-initd.sh               # SysV init script, pre-configured
     Dockerfile                    # FROM scratch (musl) or FROM alpine, COPY binary
-    docker-compose.yml            # Drop-in snippet for existing Compose files
+    docker-compose-snippet.yml    # Drop-in snippet for existing Compose files
   pipeline.json                   # The pipeline definition used to generate this package
-  README.txt                      # How to compile from source, deploy, configure
 ```
 
-The generated source must produce an **identical binary** when built with
-`cargo build --release --target <target>` using the pinned `Cargo.toml`.
+To build from source, obtain the pinned `Cargo.toml` from the generated `main.rs`
+header (or the `Cargo.toml.tmpl` in the mediator templates) and run:
+
+```bash
+cargo build --release --target <target>
+```
+
 No hidden build flags, no patches, no private registries.
 
 ---
@@ -436,7 +449,9 @@ Records received after the shutdown signal is received are dropped with a warnin
 
 ### 9.4 PID File
 
-PID file writing is disabled by default. Enable with `--pid-file /var/run/collectable.pid`.
+PID file writing is disabled by default. Enable by setting `COLLECTABLE_PID_FILE` to
+the desired path (e.g. `/var/run/collectable.pid`). This can also be set in
+`collectable.toml` as `pid_file = "/var/run/collectable.pid"`.
 Required for SysV init script compatibility.
 
 ### 9.5 Health and Metrics
@@ -461,6 +476,7 @@ collectable/
   README.md
   docker-compose.yml
   .gitignore
+  samples/              # Ready-to-use pipeline definitions
   builder/
     ui/                   # React + Vite + TypeScript
     build-service/        # Rust HTTP service
