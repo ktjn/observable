@@ -10,10 +10,11 @@
  *               (e.g. "2026-04-26T11:35:09.123456789")
  */
 export function formatTimestamp(nanos: string, utc: boolean): string {
-  const ms = Math.floor(Number(nanos) / 1_000_000);
+  const nanosStr = String(nanos);
+  const ms = Math.floor(Number(nanosStr) / 1_000_000);
   const date = new Date(ms);
   // Last 6 digits of the nanos string carry microseconds + nanoseconds.
-  const subMs = nanos.slice(-6).padStart(6, "0");
+  const subMs = nanosStr.slice(-6).padStart(6, "0");
 
   if (utc) {
     // toISOString() → "YYYY-MM-DDTHH:mm:ss.mmmZ"; insert the 6 sub-ms digits before the trailing Z.
