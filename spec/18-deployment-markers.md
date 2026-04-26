@@ -44,6 +44,9 @@ To maximize the utility of deployment markers, the following properties are reco
 #### Ingestion API
 
 The platform MUST provide endpoints for lifecycle management of deployments.
+These endpoints are served on the **Platform API port (4321)** of the ingest-gateway,
+separate from the OTLP ports (4317/4318). CI/CD pipelines and tooling MUST target
+port 4321 (env var `OBSERVABLE_URL=http://<host>:4321`).
 
 1.  **Start Deployment**: `POST /v1/deployments`
     *   Creates a new marker with status `in_progress`.

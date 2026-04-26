@@ -1,5 +1,6 @@
 mod auth;
 mod cardinality;
+mod deployments;
 mod grpc;
 #[path = "http-json/mod.rs"]
 mod http_json;
@@ -132,11 +133,15 @@ fn test_pool() -> Arc<sqlx::PgPool> {
 async fn main() -> anyhow::Result<()> {
     domain::telemetry::init_self_observability_telemetry("ingest-gateway")?;
 
-    let http_port: u16 = std::env::var("INGEST_GATEWAY_PORT")
+    let http_port: u16 = std::env::var("INGEST_GATEWAY_HTTP_JSON_PORT")
+        .or_else(|_| std::env::var("INGEST_GATEWAY_PORT"))
         .unwrap_or_else(|_| "4318".into())
         .parse()?;
     let grpc_port: u16 = std::env::var("INGEST_GATEWAY_GRPC_PORT")
         .unwrap_or_else(|_| "4317".into())
+        .parse()?;
+    let platform_port: u16 = std::env::var("INGEST_GATEWAY_PLATFORM_PORT")
+        .unwrap_or_else(|_| "4321".into())
         .parse()?;
 
     let brokers = std::env::var("REDPANDA_BROKERS").unwrap_or_else(|_| "localhost:9092".into());
@@ -183,12 +188,15 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let grpc_state = state.clone();
+    let platform_state = state.clone();
     let grpc_future = grpc::start_grpc_server(grpc_state, grpc_port);
     let http_future = http_json::start_http_server(state, http_port);
+    let platform_future = http_json::start_platform_server(platform_state, platform_port);
 
     tokio::select! {
         res = grpc_future => res?,
         res = http_future => res?,
+        res = platform_future => res?,
     }
 
     Ok(())

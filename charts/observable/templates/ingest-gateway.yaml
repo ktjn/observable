@@ -1,8 +1,9 @@
 {{- if .Values.services.ingestGateway.enabled -}}
 {{- $selectorCtx := dict "name" "ingest-gateway" "Release" .Release -}}
 {{- $env := list
-    (dict "name" "INGEST_GATEWAY_PORT"      "value" (toString .Values.services.ingestGateway.port))
-    (dict "name" "INGEST_GATEWAY_GRPC_PORT" "value" (toString .Values.services.ingestGateway.grpcPort))
+    (dict "name" "INGEST_GATEWAY_HTTP_JSON_PORT" "value" (toString .Values.services.ingestGateway.port))
+    (dict "name" "INGEST_GATEWAY_GRPC_PORT"     "value" (toString .Values.services.ingestGateway.grpcPort))
+    (dict "name" "INGEST_GATEWAY_PLATFORM_PORT" "value" (toString .Values.services.ingestGateway.platformPort))
     (dict "name" "REDPANDA_BROKERS"         "value" .Values.redpanda.brokers)
     (dict "name" "INGEST_TOPIC"             "value" .Values.redpanda.ingestTopic)
     (dict "name" "AUTH_SERVICE_URL"         "value" (printf "http://auth-service:%d" (int .Values.services.authService.port)))
@@ -46,6 +47,9 @@ spec:
             - name: grpc
               containerPort: {{ .Values.services.ingestGateway.grpcPort }}
               protocol: TCP
+            - name: platform
+              containerPort: {{ .Values.services.ingestGateway.platformPort }}
+              protocol: TCP
           env:
             {{- range $env }}
             - name: {{ .name }}
@@ -88,5 +92,9 @@ spec:
     - name: grpc
       port: {{ .Values.services.ingestGateway.grpcPort }}
       targetPort: grpc
+      protocol: TCP
+    - name: platform
+      port: {{ .Values.services.ingestGateway.platformPort }}
+      targetPort: platform
       protocol: TCP
 {{- end }}

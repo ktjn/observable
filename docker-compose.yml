@@ -158,12 +158,14 @@ services:
     command: ["ingest-gateway"]
     environment:
       <<: *platform-self-observability-env
-      INGEST_GATEWAY_PORT: "4318"
+      INGEST_GATEWAY_HTTP_JSON_PORT: "4318"
       INGEST_GATEWAY_GRPC_PORT: "4317"
+      INGEST_GATEWAY_PLATFORM_PORT: "4321"
+      DATABASE_URL: postgres://observable:observable@postgres:5432/observable
       REDPANDA_BROKERS: redpanda:9092
       INGEST_TOPIC: telemetry.raw
       AUTH_SERVICE_URL: http://auth-service:4319
-    ports: ["4317:4317", "4318:4318"]
+    ports: ["4317:4317", "4318:4318", "4321:4321"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4318/health"]
       interval: 2s
@@ -172,6 +174,7 @@ services:
     depends_on:
       auth-service: { condition: service_healthy }
       redpanda-setup: { condition: service_completed_successfully }
+      postgres-setup: { condition: service_completed_successfully }
 
   query-api:
     image: observable-services:local
@@ -204,11 +207,11 @@ services:
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CH_USER:-default}
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
-      ALERT_EVALUATOR_PORT: "4321"
+      ALERT_EVALUATOR_PORT: "4322"
       ALERT_EVAL_INTERVAL_SECONDS: "60"
-    ports: ["4321:4321"]
+    ports: ["4322:4322"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4321/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:4322/health"]
       interval: 2s
       timeout: 1s
       retries: 10

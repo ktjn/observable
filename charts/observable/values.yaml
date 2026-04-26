@@ -64,6 +64,7 @@ services:
     enabled: true
     port: 4318
     grpcPort: 4317
+    platformPort: 4321
     replicas: 1
     # Canary deployment settings.  Set canary.enabled=true and canary.tag to
     # a new image tag to deploy a second ingest-gateway alongside stable for
@@ -118,7 +119,7 @@ services:
 
   alertEvaluator:
     enabled: true
-    port: 4321
+    port: 4322
     replicas: 1
     # Interval at which the evaluator polls for alert conditions (seconds).
     evalIntervalSeconds: "60"

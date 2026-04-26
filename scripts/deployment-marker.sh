@@ -12,13 +12,15 @@
 #     --id "$DEPLOYMENT_ID" --status success
 #
 # Environment variables:
-#   OBSERVABLE_URL        Base URL of the Observable ingest-gateway (default: http://localhost:4318)
-#   OBSERVABLE_TENANT_ID  X-Tenant-ID header value (default: dev tenant UUID)
+#   OBSERVABLE_URL        Base URL of the Observable ingest-gateway Platform API
+#                         (default: http://localhost:4321)
+#   OBSERVABLE_API_KEY    Bearer token for the Authorization header
+#                         (default: dev-api-key-0000 for local dev)
 
 set -euo pipefail
 
-BASE_URL="${OBSERVABLE_URL:-http://localhost:4318}"
-TENANT_ID="${OBSERVABLE_TENANT_ID:-00000000-0000-0000-0000-000000000001}"
+BASE_URL="${OBSERVABLE_URL:-http://localhost:4321}"
+API_KEY="${OBSERVABLE_API_KEY:-dev-api-key-0000}"
 SUBCOMMAND="${1:-}"
 shift || true
 
@@ -51,7 +53,7 @@ case "$SUBCOMMAND" in
 
     RESPONSE=$(curl -sf -X POST "$BASE_URL/v1/deployments" \
       -H "Content-Type: application/json" \
-      -H "X-Tenant-ID: $TENANT_ID" \
+      -H "Authorization: Bearer $API_KEY" \
       -d "$PAYLOAD")
 
     echo "$RESPONSE" | grep -o '"deployment_id":"[^"]*"' | cut -d'"' -f4
@@ -82,7 +84,7 @@ case "$SUBCOMMAND" in
 
     curl -sf -X PATCH "$BASE_URL/v1/deployments/$DEPLOYMENT_ID" \
       -H "Content-Type: application/json" \
-      -H "X-Tenant-ID: $TENANT_ID" \
+      -H "Authorization: Bearer $API_KEY" \
       -d "{\"status\":\"$STATUS\"}"
 
     echo "Deployment $DEPLOYMENT_ID marked $STATUS"

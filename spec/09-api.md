@@ -155,6 +155,7 @@ The Query API and Ingest API must support the deployment marker schema and logic
 
 #### Ingest Deployment Marker
 - **Endpoints**: `POST /v1/deployments`, `PATCH /v1/deployments/{id}`
+- **Port**: Platform API port (4321) — separate from OTLP ports (4317/4318). See ADR-023.
 - **Behavior**: Enables lifecycle tracking of releases (start, finish, fail, rollback).
 - **Authentication**: Requires `Member` or higher project-level role.
 
