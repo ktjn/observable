@@ -3,9 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { searchLogs, LogRecord } from "../api/logs";
 import { FacetSidebar } from "../components/FacetSidebar";
 import { infraLinks } from "../utils/infraLinks";
+import { formatTimestamp } from "../utils/formatTimestamp";
 
 export default function LogSearch() {
   const [service, setService] = useState("");
+  const [utc, setUtc] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["logs", service],
@@ -65,7 +67,27 @@ export default function LogSearch() {
             <table style={{ borderCollapse: "collapse", width: "100%" }}>
               <thead>
                 <tr>
-                  <th>Timestamp</th>
+                  <th>
+                    Timestamp{" "}
+                    <button
+                      type="button"
+                      onClick={() => setUtc((v) => !v)}
+                      aria-pressed={utc}
+                      style={{
+                        marginLeft: 6,
+                        fontSize: 11,
+                        padding: "1px 6px",
+                        borderRadius: 10,
+                        border: "1px solid currentColor",
+                        background: utc ? "var(--color-accent, #3182ce)" : "transparent",
+                        color: utc ? "#fff" : "inherit",
+                        cursor: "pointer",
+                        verticalAlign: "middle",
+                      }}
+                    >
+                      UTC
+                    </button>
+                  </th>
                   <th>Service</th>
                   <th>Level</th>
                   <th>Message</th>
@@ -73,7 +95,7 @@ export default function LogSearch() {
               </thead>
               <tbody>
                 {data?.logs.map((log) => (
-                  <LogRow key={log.log_id} log={log} />
+                  <LogRow key={log.log_id} log={log} utc={utc} />
                 ))}
               </tbody>
             </table>
@@ -84,11 +106,11 @@ export default function LogSearch() {
   );
 }
 
-function LogRow({ log }: { log: LogRecord }) {
+function LogRow({ log, utc }: { log: LogRecord; utc: boolean }) {
   const badges = infraLinks(log.resource_attributes ?? {});
   return (
     <tr>
-      <td>{log.timestamp_unix_nano}</td>
+      <td style={{ whiteSpace: "nowrap" }}>{formatTimestamp(log.timestamp_unix_nano, utc)}</td>
       <td>
         {log.service_name}
         {badges.length > 0 && (
