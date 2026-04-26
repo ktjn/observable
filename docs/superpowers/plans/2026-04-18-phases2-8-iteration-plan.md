@@ -280,13 +280,13 @@ Before Phase 3 starts, answer:
   - Verification target: `npm run typecheck --workspace=apps/frontend`, `npm run lint --workspace=apps/frontend`, `npm run test --workspace=apps/frontend`, `npm run build --workspace=apps/frontend`, and `bash scripts/local-ci.sh`.
   - Checkpoint: can future screen migrations adopt the new primitive layer without reopening dependency and token setup? Answer: yes. The Vite/Tailwind pipeline, theme tokens, and owned primitive wrappers are now in place, so later UI slices can adopt them incrementally.
 
-- [ ] **P3-S6c: Add onboarding/setup flow for first-signal success**
+- [x] **P3-S6c: Add onboarding/setup flow for first-signal success**
   - Source spec: `spec/05-frontend.md` §9.3 Phase 1.
-  - Outcome: a new operator can generate or copy an API key, see the expected ingest endpoint, and validate first-signal arrival from the UI without leaving the product shell.
+  - Outcome: a new operator can open `/setup` from the product shell, see the local OTLP HTTP trace ingest endpoint, copy the seeded local dev API key while only a redacted value is displayed, and validate first-signal arrival through existing trace/log/metric query APIs without leaving the UI. Completed 2026-04-26 as a frontend-only slice because the local dev tenant/API key seed and first-signal read contracts already existed.
   - Files or modules expected to change: onboarding route, setup panels, API key/config API if missing, first-signal validation API/client, tests.
   - Out of scope: fleet-wide agent management, remote config, or upgrade campaigns.
-  - Verification: frontend tests cover setup route rendering, API key display/redaction behavior, and first-signal success/empty/error states; API tests cover any new setup/status endpoint.
-  - Checkpoint: can a new tenant reach first-signal confirmation without reading internal docs or hand-assembling curl commands?
+  - Verification: frontend tests cover setup route rendering, API key display/redaction behavior, copy behavior, and first-signal success/empty states. `tests/e2e/smoke_test_unit.sh` also asserts that the local CI smoke token and tenant ID match the Postgres migration seed for `dev-api-key-0000` and `00000000-0000-0000-0000-000000000001`. No new setup/status endpoint was added, so no API test was required for this slice.
+  - Checkpoint: can a new tenant reach first-signal confirmation without reading internal docs or hand-assembling curl commands? Answer: yes for local development. The setup route exposes the seeded tenant ID, ingest endpoint, copyable local dev key, and first-signal status in the product shell; production tenant key creation remains a later admin/RBAC workflow.
 
 - [ ] **P3-S6d: Add a minimal threshold-alert UI workflow**
   - Source spec: `spec/05-frontend.md` §9.3 Phase 1.

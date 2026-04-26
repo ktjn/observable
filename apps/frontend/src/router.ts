@@ -6,6 +6,7 @@ import InfrastructureInventoryPage from "./pages/InfrastructureInventoryPage";
 import { ProductAreaPage } from "./pages/ProductAreaPage";
 import ServiceDetailPage from "./pages/ServiceDetailPage";
 import ServiceOverview from "./pages/ServiceOverview";
+import SetupPage from "./pages/SetupPage";
 import TraceSearch from "./pages/TraceSearch";
 import TraceDetailPage from "./pages/TraceDetailPage";
 import LogSearch from "./pages/LogSearch";
@@ -23,6 +24,11 @@ const servicesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/services",
   component: () => createElement(ProductAreaPage, { area: "services" }),
+});
+const setupRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/setup",
+  component: SetupPage,
 });
 const serviceDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -92,6 +98,7 @@ const logSearchRoute = createRoute({
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     homeRoute,
+    setupRoute,
     servicesRoute,
     serviceDetailRoute,
     serviceLogsRoute,
