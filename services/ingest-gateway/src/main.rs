@@ -5,10 +5,10 @@ mod grpc;
 mod http_json;
 mod queue;
 
+use sqlx::postgres::PgPoolOptions;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use uuid::Uuid;
-use sqlx::postgres::PgPoolOptions;
 
 use queue::producer::QueueProducer;
 
@@ -159,8 +159,8 @@ async fn main() -> anyhow::Result<()> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(10_000);
 
-    let database_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://observable:observable@localhost:5432/observable".into());
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://observable:observable@localhost:5432/observable".into());
     let db = Arc::new(
         PgPoolOptions::new()
             .max_connections(5)
