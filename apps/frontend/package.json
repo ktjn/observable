@@ -11,12 +11,14 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@base-ui/react": "^1.4.1",
     "@tanstack/react-query": "^5.0.0",
     "@tanstack/react-router": "^1.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.14",
     "@eslint/js": "^10.0.1",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^16.0.0",
@@ -28,6 +30,7 @@
     "@vitest/ui": "^4.1.4",
     "eslint": "^10.2.1",
     "jsdom": "^29.0.2",
+    "tailwindcss": "^4.1.14",
     "typescript": "^6.0.3",
     "vite": "^8.0.8",
     "vitest": "^4.1.4"
