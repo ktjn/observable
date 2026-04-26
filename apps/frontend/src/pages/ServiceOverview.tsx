@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { getTopology, listEnvironments, type TopologyEdge } from "../api/services";
+import { Button } from "../components/ui/button";
+import { Select, SelectOption } from "../components/ui/select";
 
 export default function ServiceOverview() {
   const [environment, setEnvironment] = useState<string>("all");
@@ -33,8 +35,7 @@ export default function ServiceOverview() {
       </div>
 
       <div className="toolbar-row">
-        <select
-          className="select-input"
+        <Select
           aria-label="Environment filter"
           value={environment}
           onChange={(e) => {
@@ -43,22 +44,22 @@ export default function ServiceOverview() {
             setEdgePopover(null);
           }}
         >
-          <option value="all">All environments</option>
+          <SelectOption value="all">All environments</SelectOption>
           {envsData?.items.map((env) => (
-            <option key={env} value={env}>
+            <SelectOption key={env} value={env}>
               {env}
-            </option>
+            </SelectOption>
           ))}
-        </select>
+        </Select>
       </div>
 
       {focusedService && (
         <div
           style={{ display: "flex", gap: "1rem", alignItems: "center", padding: "0.5rem 0" }}
         >
-          <button onClick={() => setFocusedService(null)}>
+          <Button variant="secondary" onClick={() => setFocusedService(null)}>
             ← All services
-          </button>
+          </Button>
           <span>Viewing: {focusedService}</span>
           <Link to="/services/$serviceId" params={{ serviceId: focusedService }}>
             → Service detail
