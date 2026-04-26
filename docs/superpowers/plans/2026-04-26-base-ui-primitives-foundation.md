@@ -721,7 +721,7 @@ Expected:
 full local gate passes; no frontend, Docker, Rust, or smoke regressions remain
 ```
 
-- Status: `bash scripts/local-ci.sh` failed in the smoke-test stage. Rust fmt, clippy, tests, frontend typecheck/lint/build/test, Docker image build, and frontend image build all passed first. The failure occurred when `observable-ingest-gateway-1` became unhealthy during `docker compose up smoke-test --abort-on-container-exit`, so the repository gate remains red for reasons outside this docs-only task.
+- Status: this step is intentionally left as a pre-push gate, not a final branch verdict. Earlier in-branch smoke-test failure notes were transient and are not the authoritative final status for `ui-base-ui-primitives-foundation`; use fresh verification at the branch tip before any push.
 
 - [x] **Step 4: Review the final diff**
 
