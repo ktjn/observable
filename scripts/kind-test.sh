@@ -198,17 +198,22 @@ info "helm:    $(helm version --short)"
 info "docker:  $(docker version --format '{{.Client.Version}}')"
 
 # ---------------------------------------------------------------------------
-# Build Docker image
+# Build Docker images (parallel)
 # ---------------------------------------------------------------------------
 
 if [[ "$SKIP_BUILD" == "false" ]]; then
-  log "Building observable-services image"
-  docker build --tag "$IMAGE_NAME" "$REPO_ROOT"
-  log "Building observable-frontend image"
+  log "Building Docker images in parallel"
+  docker build --tag "$IMAGE_NAME" "$REPO_ROOT" &
+  BUILD_SERVICES=$!
   docker build \
     --tag "$FRONTEND_IMAGE" \
     --file "$REPO_ROOT/apps/frontend/Dockerfile" \
-    "$REPO_ROOT"
+    "$REPO_ROOT" &
+  BUILD_FRONTEND=$!
+  wait "$BUILD_SERVICES" || { echo "ERROR: observable-services build failed" >&2; exit 1; }
+  info "observable-services image built"
+  wait "$BUILD_FRONTEND"  || { echo "ERROR: observable-frontend build failed" >&2; exit 1; }
+  info "observable-frontend image built"
 else
   log "Skipping Docker build (--skip-build)"
 fi
@@ -241,27 +246,22 @@ kubectl get nodes -o wide
 kubectl describe nodes | grep -A8 "Allocatable:"
 
 # ---------------------------------------------------------------------------
-# Load image into kind (avoids needing a registry)
+# Load images into kind (parallel) and resolve app chart deps
 # ---------------------------------------------------------------------------
 
-log "Loading '$IMAGE_NAME' into kind cluster"
-kind load docker-image "$IMAGE_NAME" --name "$CLUSTER_NAME"
-log "Loading '$FRONTEND_IMAGE' into kind cluster"
-kind load docker-image "$FRONTEND_IMAGE" --name "$CLUSTER_NAME"
-
-# ---------------------------------------------------------------------------
-# Pre-pull infra images into kind to avoid slow pulls during Helm install
-# ---------------------------------------------------------------------------
-
-#log "Pre-pulling infrastructure images into kind node"
-#for img in \
-#  "redpandadata/redpanda:v26.1.1" \
-#  "clickhouse/clickhouse-server:24.3" \
-#  "ghcr.io/cloudnative-pg/postgresql:16"; do
-#  docker pull "$img"
-#  kind load docker-image "$img" --name "$CLUSTER_NAME"
-#  info "loaded $img"
-#done
+log "Loading images into kind cluster and resolving app chart dependencies"
+kind load docker-image "$IMAGE_NAME" --name "$CLUSTER_NAME" &
+LOAD_SERVICES=$!
+kind load docker-image "$FRONTEND_IMAGE" --name "$CLUSTER_NAME" &
+LOAD_FRONTEND=$!
+helm dependency update "$APP_CHART" &
+DEP_UPDATE=$!
+wait "$LOAD_SERVICES"  || { echo "ERROR: failed to load $IMAGE_NAME" >&2; exit 1; }
+info "$IMAGE_NAME loaded"
+wait "$LOAD_FRONTEND"  || { echo "ERROR: failed to load $FRONTEND_IMAGE" >&2; exit 1; }
+info "$FRONTEND_IMAGE loaded"
+wait "$DEP_UPDATE"     || { echo "ERROR: helm dependency update failed for observable" >&2; exit 1; }
+info "observable chart dependencies resolved"
 
 # ---------------------------------------------------------------------------
 # Deploy infrastructure
@@ -274,6 +274,19 @@ log "Installing infrastructure dependencies"
 helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
 helm repo add openfga https://openfga.github.io/helm-charts
 helm repo update
+
+# Create migration ConfigMaps now — namespace exists and files are local,
+# no need to wait for postgres/redpanda to be ready first.
+log "Creating migration ConfigMaps"
+kubectl create configmap observable-migrations-postgres \
+  --from-file="$REPO_ROOT/migrations/postgres/" \
+  --namespace "$NAMESPACE" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create configmap observable-migrations-clickhouse \
+  --from-file="$REPO_ROOT/migrations/clickhouse/" \
+  --namespace "$NAMESPACE" \
+  --dry-run=client -o yaml | kubectl apply -f -
 
 log "Installing CloudNativePG operator"
 helm upgrade --install cnpg-operator cloudnative-pg/cloudnative-pg \
@@ -304,26 +317,8 @@ kubectl wait job/redpanda-setup \
   || { dump_pod_events "$NAMESPACE"; exit 1; }
 
 # ---------------------------------------------------------------------------
-# Create migration ConfigMaps (mirrors the volumes in docker-compose.yml)
-# ---------------------------------------------------------------------------
-
-log "Creating migration ConfigMaps"
-kubectl create configmap observable-migrations-postgres \
-  --from-file="$REPO_ROOT/migrations/postgres/" \
-  --namespace "$NAMESPACE" \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-kubectl create configmap observable-migrations-clickhouse \
-  --from-file="$REPO_ROOT/migrations/clickhouse/" \
-  --namespace "$NAMESPACE" \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-# ---------------------------------------------------------------------------
 # Install the Observable chart
 # ---------------------------------------------------------------------------
-
-log "Resolving Helm chart dependencies"
-helm dependency update "$APP_CHART"
 
 log "Installing Observable chart"
 watch_pods "$NAMESPACE" 20 &
