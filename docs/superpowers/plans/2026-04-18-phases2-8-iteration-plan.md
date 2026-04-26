@@ -19,7 +19,14 @@ Every iteration in the remaining phases must:
 3. include verification, rollback, and next-slice notes
 4. stop at a checkpoint before crossing a new trust boundary
 5. avoid bundling backend, frontend, infrastructure, and docs unless the slice requires all of them
-6. update this plan document as part of the PR's definition of done:
+6. **Mandatory UI Standards**: Every frontend slice MUST:
+   - Use the **feature-based directory structure** (`src/features/<domain>`)
+   - Use **Base UI** primitives for new interactive components (Shadcn pattern)
+   - Implement **Tailwind CSS v4** for styling
+   - Include **MSW handlers** for the new API endpoints
+   - Include **Accessibility tests** (`playwright-axe`) for major new views
+   - Follow the **Testing Trophy** (prioritize integration tests with RTL/MSW)
+7. update this plan document as part of the PR's definition of done:
    - mark the finished slice state
    - add any new checkpoint answer or discovered dependency
    - adjust the next recommended slice if priorities changed

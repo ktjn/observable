@@ -12,14 +12,55 @@
 | Routing | TanStack Router (typed routes) | URL = full application state; enables deep links and compare mode |
 | Visualization | `@grafana/ui` + `@grafana/scenes` (Apache-2.0) | Production-grade observability charts; no AGPL obligation (see ADR-016) |
 | Query editor | Monaco Editor | Syntax highlighting, autocomplete, schema hints for query workbench |
-| Design system | Custom tokens + Radix UI primitives | Accessibility baseline, dark mode, consistent component contracts |
+| Design system | Base UI + Tailwind CSS v4 | Accessibility baseline, "render prop" primitives, high-performance styling |
 
-See ADR-006 for the React/Vite decision rationale and ADR-016 for the visualization library choice.
+### 9.2 Directory Architecture (Feature-Based)
 
-For local development setup, Vite dev server configuration, environment variables, mock strategy,
-production build output, hosting model, and Playwright E2E setup see `spec/15-frontend-local-dev.md`.
+To ensure scalability and clean component separation, we follow a feature-based organization. Logic is grouped by domain rather than by technical role.
 
-### 9.2 Navigation Model: Entity-Centric, Not Signal-Centric
+```text
+apps/frontend/src/
+├── assets/          # Global static assets (images, fonts)
+├── components/      # Shared components
+│   ├── ui/          # "Owned" primitive components (Button, Input, Popover) - Shadcn pattern
+│   └── shared/      # Shared, domain-agnostic UI components (Layout, Sidebar)
+├── features/        # Domain-specific modules
+│   ├── tracing/     # Everything related to Trace Explorer
+│   │   ├── api/     # Hooks for fetching trace data
+│   │   ├── components/ # Components specific to tracing (Waterfall, SpanDetail)
+│   │   ├── types/   # TypeScript interfaces for traces
+│   │   └── utils/   # Helper functions (duration formatting, etc)
+│   ├── logs/        # Everything related to Log Explorer
+│   └── metrics/     # Everything related to Dashboards
+├── hooks/           # Shared, domain-agnostic custom hooks (useAuth, useLocalStorage)
+├── lib/             # Configuration for external libraries (QueryClient, OTel SDK)
+├── routes/          # TanStack Router route definitions
+├── stores/          # Global state management (Zustand)
+├── styles/          # Global styles and Tailwind configuration
+├── types/           # Global TypeScript interfaces
+└── utils/           # Shared utility functions
+```
+
+### 9.3 Design System & Styling
+
+Consistency in an observability UI is critical for reducing cognitive load.
+
+- **Component Primitives**: We use **Base UI** for accessible, unstyled primitives (Dialogs, Dropdowns, Tabs). Base UI's render-prop pattern ensures better predictability than traditional `asChild` models.
+- **Styling Method**: **Tailwind CSS v4** is used for all styling. Its Rust-based compiler provides the performance required for extremely dense data visualizations without the management overhead of CSS Modules.
+- **Design Tokens**: Defined within Tailwind's theme and custom CSS variables in `src/styles/globals.css`.
+- **Ownership Model**: We follow the **Shadcn pattern**—component code for primitives (Button, Popover, etc.) is copied into `src/components/ui/` and styled locally. This allows for deep performance optimizations without library lock-in.
+- **Visuals**: **Grafana Scenes** are used specifically for data-heavy dashboarding and complex chart interactions.
+
+### 9.4 Testing Strategy
+
+We follow the "Testing Trophy" approach, prioritizing integration tests that simulate user behavior.
+
+- **Unit Tests (Vitest)**: For pure utility functions and isolated business logic.
+- **Component Tests (Vitest + RTL)**: For shared UI components and domain-specific logic. These use **MSW** (Mock Service Worker) to simulate API responses.
+- **E2E Tests (Playwright)**: For critical user journeys (e.g., "Ingest trace -> Search for trace -> View waterfall"). Covers browser compatibility and full-stack integration.
+- **Visual Regression**: Use Playwright snapshots for sensitive UI components (e.g., charts) to prevent styling regressions.
+
+### 9.5 Navigation Model: Entity-Centric, Not Signal-Centric
 
 Navigation is organized around **business entities** (services, deployments, environments) rather than signal types (metrics tab, logs tab). This reflects how operators investigate incidents—they start with a service, not with a metric.
 
@@ -381,7 +422,43 @@ Apply the **inverted pyramid**: show the minimum information needed to assess he
 | User preferences (theme, timezone, default project) | Server-persisted profile | Consistent across devices; theme values are `light`, `dark`, or `system` |
 | Dashboard configuration | Platform config API | Version-controlled, CI/CD deployable |
 
-#### 9.14 Live Tail and Streaming
+### 9.15 Error Handling & Resilience
+
+A production-grade UI must remain functional even when parts of the backend are failing or the user's connection is unstable.
+
+#### Error Boundaries
+- **Global Error Boundary**: Catch-all for unexpected crashes, rendering a "Something went wrong" page with a reload action and a link to report the issue.
+- **Feature-Level Boundaries**: Use `react-error-boundary` to wrap major modules (e.g., Service Catalog, Trace Explorer). If one feature crashes, the rest of the app remains usable.
+- **Component-Level Boundaries**: Wrap risky components like Monaco Editor or complex Canvas charts.
+
+#### Resilience Patterns
+- **TanStack Query Retries**: Default to 3 retries with exponential backoff for network errors.
+- **Stale-While-Revalidate**: Show cached data while fetching updates to reduce perceived latency.
+- **Offline Mode**: Detect offline status and show a banner. Prevent destructive actions (Create/Edit) while offline, but allow read-only exploration of cached data.
+- **Partial Content**: If a dashboard panel fails, show an error state for that panel only, not the entire dashboard.
+
+### 9.16 Client-Side Observability
+
+We "eat our own dogfood" by instrumenting the frontend with OpenTelemetry.
+
+- **Tracing**: Capture user interactions (navigation, searches, dashboard loads) as traces. Link these to backend traces via `traceparent` headers to provide end-to-end visibility.
+- **Exceptions**: Automatically report unhandled exceptions and React error boundary catches to the platform's own log/trace ingest.
+- **Performance Vitals**: Track Core Web Vitals (LCP, FID, CLS) and custom metrics like "Time to First Chart" using the OTel Web SDK.
+- **User Context**: Attach project, tenant, and anonymized user IDs to all client-side telemetry.
+
+### 9.17 Production Readiness Checklist
+
+Before any UI module is considered "Production Grade," it must satisfy:
+
+- [ ] **Accessibility**: Passes `playwright-axe` automated scans with 0 critical violations.
+- [ ] **Performance**: Initial load < 2s; query response < 1s; no layout shifts during data load.
+- [ ] **Observability**: Error boundaries implemented; OTel instrumentation active; meaningful logs emitted.
+- [ ] **Resilience**: Retries configured; loading/error/empty states for every query.
+- [ ] **Security**: No secrets in bundle; no `dangerouslySetInnerHTML` without sanitization; valid CSP.
+- [ ] **UX**: Deep links work; browser back/forward supported; responsive across common screen sizes.
+- [ ] **Documentation**: Module-specific README in `features/` explaining state and API usage.
+
+#### 9.18 Live Tail and Streaming
 
 Real-time visibility is critical for verifying deployments and debugging active incidents.
 
