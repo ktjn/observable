@@ -6,7 +6,92 @@
 use anyhow::{Context, Result};
 use opentelemetry::logs::{AnyValue, LogRecord as _, Logger as _, LoggerProvider as _, Severity};
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::logs::LoggerProvider as SdkLoggerProvider;
+{% if output.protocol == "http" %}
+use opentelemetry_otlp::WithHttpConfig;
+use opentelemetry_sdk::logs::{BatchLogProcessor, SdkLoggerProvider};
+
+// MainRuntimeReqwest drives all HTTP export calls on the main Tokio runtime.
+// The BatchLogProcessor runs on a dedicated OS thread with no Tokio I/O reactor.
+// We capture the main runtime Handle in main() and spawn each reqwest request
+// onto it via handle.spawn(), then await the JoinHandle — which works across
+// executor boundaries because JoinHandle's waker is executor-agnostic.
+#[derive(Debug)]
+struct MainRuntimeReqwest {
+    client: std::sync::OnceLock<reqwest::Client>,
+    handle: tokio::runtime::Handle,
+}
+
+impl MainRuntimeReqwest {
+    fn new(handle: tokio::runtime::Handle) -> Self {
+        Self { client: std::sync::OnceLock::new(), handle }
+    }
+    fn client(&self) -> reqwest::Client {
+        self.client.get_or_init(reqwest::Client::new).clone()
+    }
+}
+
+#[async_trait::async_trait]
+impl opentelemetry_http::HttpClient for MainRuntimeReqwest {
+    async fn send(
+        &self,
+        request: http::Request<Vec<u8>>,
+    ) -> Result<http::Response<bytes::Bytes>, opentelemetry_http::HttpError> {
+        let client = self.client();
+        let (parts, body) = request.into_parts();
+        let method = reqwest::Method::from_bytes(parts.method.as_str().as_bytes())
+            .unwrap_or(reqwest::Method::POST);
+        let url = parts.uri.to_string();
+        let headers = parts.headers.clone();
+        self.handle
+            .spawn(async move {
+                let mut rb = client.request(method, url);
+                for (k, v) in &headers { rb = rb.header(k, v); }
+                let resp = rb.body(body).send().await
+                    .map_err(|e| Box::new(e) as opentelemetry_http::HttpError)?;
+                let status = resp.status();
+                let resp_hdrs = resp.headers().clone();
+                let body = resp.bytes().await
+                    .map_err(|e| Box::new(e) as opentelemetry_http::HttpError)?;
+                let mut rb = http::Response::builder().status(status);
+                for (k, v) in &resp_hdrs { rb = rb.header(k, v); }
+                rb.body(body).map_err(|e| Box::new(e) as opentelemetry_http::HttpError)
+            })
+            .await
+            .map_err(|e| Box::new(e) as opentelemetry_http::HttpError)?
+    }
+
+    async fn send_bytes(
+        &self,
+        request: http::Request<bytes::Bytes>,
+    ) -> Result<http::Response<bytes::Bytes>, opentelemetry_http::HttpError> {
+        let client = self.client();
+        let (parts, body) = request.into_parts();
+        let method = reqwest::Method::from_bytes(parts.method.as_str().as_bytes())
+            .unwrap_or(reqwest::Method::POST);
+        let url = parts.uri.to_string();
+        let headers = parts.headers.clone();
+        self.handle
+            .spawn(async move {
+                let mut rb = client.request(method, url);
+                for (k, v) in &headers { rb = rb.header(k, v); }
+                let resp = rb.body(body).send().await
+                    .map_err(|e| Box::new(e) as opentelemetry_http::HttpError)?;
+                let status = resp.status();
+                let resp_hdrs = resp.headers().clone();
+                let body = resp.bytes().await
+                    .map_err(|e| Box::new(e) as opentelemetry_http::HttpError)?;
+                let mut rb = http::Response::builder().status(status);
+                for (k, v) in &resp_hdrs { rb = rb.header(k, v); }
+                rb.body(body).map_err(|e| Box::new(e) as opentelemetry_http::HttpError)
+            })
+            .await
+            .map_err(|e| Box::new(e) as opentelemetry_http::HttpError)?
+    }
+}
+{% else %}
+use opentelemetry_otlp::WithTonicConfig;
+use opentelemetry_sdk::logs::{BatchLogProcessor, SdkLoggerProvider};
+{% endif %}
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use std::time::SystemTime;
@@ -649,14 +734,9 @@ async fn main() -> Result<()> {
             .init();
     }
 
-    // Route OpenTelemetry SDK internal errors (export failures, connection refused,
-    // auth rejections) through the tracing subscriber so they appear in console output.
-    opentelemetry::global::set_error_handler(|e| {
-        tracing::error!(error = %e, "OTLP export error");
-    })
-    .expect("failed to install OTel error handler");
-
-    // OTLP exporter via pipeline API (opentelemetry-otlp 0.26)
+    // OpenTelemetry SDK 0.27+ routes internal errors (export failures, auth rejections)
+    // through the tracing subscriber automatically — no explicit error handler needed.
+    // OTLP exporter — opentelemetry-otlp 0.31 builder API.
     // OTLP_ENDPOINT env var overrides the compiled-in endpoint at runtime.
     let endpoint = match std::env::var("OTLP_ENDPOINT").ok().filter(|s| !s.is_empty()) {
         Some(ep) => ep,
@@ -699,7 +779,14 @@ async fn main() -> Result<()> {
     {% endif %}
     {% endfor %}
     {% endif %}
-    let resource = opentelemetry_sdk::Resource::new(kv_list);
+    let resource = opentelemetry_sdk::Resource::builder_empty()
+        .with_attributes(kv_list)
+        .build();
+
+    let batch_config = opentelemetry_sdk::logs::BatchConfigBuilder::default()
+        .with_max_export_batch_size({{ output.batch_size | default(value=100) }})
+        .with_scheduled_delay(std::time::Duration::from_secs({{ output.flush_interval_secs | default(value=5) }}))
+        .build();
 
     {% if output.protocol == "http" %}
     // Attach Authorization header if OTLP_TOKEN is set.
@@ -709,24 +796,21 @@ async fn main() -> Result<()> {
             http_headers.insert("Authorization".to_string(), format!("Bearer {}", token));
         }
     }
-    let provider = opentelemetry_otlp::new_pipeline()
-        .logging()
+    let exporter = opentelemetry_otlp::LogExporter::builder()
+        .with_http()
+        .with_protocol(opentelemetry_otlp::Protocol::HttpJson)
+        .with_endpoint(&endpoint)
+        .with_headers(http_headers)
+        .with_http_client(MainRuntimeReqwest::new(tokio::runtime::Handle::current()))
+        .build()
+        .context("build OTLP HTTP log exporter")?;
+    let processor = BatchLogProcessor::builder(exporter)
+        .with_batch_config(batch_config)
+        .build();
+    let provider = SdkLoggerProvider::builder()
+        .with_log_processor(processor)
         .with_resource(resource)
-        .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                .http()
-                .with_protocol(opentelemetry_otlp::Protocol::HttpJson)
-                .with_endpoint(&endpoint)
-                .with_headers(http_headers),
-        )
-        .with_batch_config(
-            opentelemetry_sdk::logs::BatchConfigBuilder::default()
-                .with_max_export_batch_size({{ output.batch_size | default(value=100) }})
-                .with_scheduled_delay(std::time::Duration::from_secs({{ output.flush_interval_secs | default(value=5) }}))
-                .build(),
-        )
-        .install_batch(opentelemetry_sdk::runtime::Tokio)
-        .context("build OTLP HTTP exporter")?;
+        .build();
     {% else %}
     // Default: gRPC (tonic) — used for protocol "grpc" or if protocol is unset.
     // Attach Authorization metadata if OTLP_TOKEN is set.
@@ -740,23 +824,19 @@ async fn main() -> Result<()> {
             }
         }
     }
-    let provider = opentelemetry_otlp::new_pipeline()
-        .logging()
+    let exporter = opentelemetry_otlp::LogExporter::builder()
+        .with_tonic()
+        .with_endpoint(&endpoint)
+        .with_metadata(grpc_metadata)
+        .build()
+        .context("build OTLP gRPC log exporter")?;
+    let processor = BatchLogProcessor::builder(exporter)
+        .with_batch_config(batch_config)
+        .build();
+    let provider = SdkLoggerProvider::builder()
+        .with_log_processor(processor)
         .with_resource(resource)
-        .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                .tonic()
-                .with_endpoint(&endpoint)
-                .with_metadata(grpc_metadata),
-        )
-        .with_batch_config(
-            opentelemetry_sdk::logs::BatchConfigBuilder::default()
-                .with_max_export_batch_size({{ output.batch_size | default(value=100) }})
-                .with_scheduled_delay(std::time::Duration::from_secs({{ output.flush_interval_secs | default(value=5) }}))
-                .build(),
-        )
-        .install_batch(opentelemetry_sdk::runtime::Tokio)
-        .context("build OTLP gRPC exporter")?;
+        .build();
     {% endif %}
     let provider = Arc::new(provider);
 
