@@ -8,10 +8,90 @@ use opentelemetry::logs::{AnyValue, LogRecord as _, Logger as _, LoggerProvider 
 use opentelemetry_otlp::WithExportConfig;
 {% if output.protocol == "http" %}
 use opentelemetry_otlp::WithHttpConfig;
+use opentelemetry_sdk::logs::{BatchLogProcessor, SdkLoggerProvider};
+
+// MainRuntimeReqwest drives all HTTP export calls on the main Tokio runtime.
+// The BatchLogProcessor runs on a dedicated OS thread with no Tokio I/O reactor.
+// We capture the main runtime Handle in main() and spawn each reqwest request
+// onto it via handle.spawn(), then await the JoinHandle — which works across
+// executor boundaries because JoinHandle's waker is executor-agnostic.
+#[derive(Debug)]
+struct MainRuntimeReqwest {
+    client: std::sync::OnceLock<reqwest::Client>,
+    handle: tokio::runtime::Handle,
+}
+
+impl MainRuntimeReqwest {
+    fn new(handle: tokio::runtime::Handle) -> Self {
+        Self { client: std::sync::OnceLock::new(), handle }
+    }
+    fn client(&self) -> reqwest::Client {
+        self.client.get_or_init(reqwest::Client::new).clone()
+    }
+}
+
+#[async_trait::async_trait]
+impl opentelemetry_http::HttpClient for MainRuntimeReqwest {
+    async fn send(
+        &self,
+        request: http::Request<Vec<u8>>,
+    ) -> Result<http::Response<bytes::Bytes>, opentelemetry_http::HttpError> {
+        let client = self.client();
+        let (parts, body) = request.into_parts();
+        let method = reqwest::Method::from_bytes(parts.method.as_str().as_bytes())
+            .unwrap_or(reqwest::Method::POST);
+        let url = parts.uri.to_string();
+        let headers = parts.headers.clone();
+        self.handle
+            .spawn(async move {
+                let mut rb = client.request(method, url);
+                for (k, v) in &headers { rb = rb.header(k, v); }
+                let resp = rb.body(body).send().await
+                    .map_err(|e| Box::new(e) as opentelemetry_http::HttpError)?;
+                let status = resp.status();
+                let resp_hdrs = resp.headers().clone();
+                let body = resp.bytes().await
+                    .map_err(|e| Box::new(e) as opentelemetry_http::HttpError)?;
+                let mut rb = http::Response::builder().status(status);
+                for (k, v) in &resp_hdrs { rb = rb.header(k, v); }
+                rb.body(body).map_err(|e| Box::new(e) as opentelemetry_http::HttpError)
+            })
+            .await
+            .map_err(|e| Box::new(e) as opentelemetry_http::HttpError)?
+    }
+
+    async fn send_bytes(
+        &self,
+        request: http::Request<bytes::Bytes>,
+    ) -> Result<http::Response<bytes::Bytes>, opentelemetry_http::HttpError> {
+        let client = self.client();
+        let (parts, body) = request.into_parts();
+        let method = reqwest::Method::from_bytes(parts.method.as_str().as_bytes())
+            .unwrap_or(reqwest::Method::POST);
+        let url = parts.uri.to_string();
+        let headers = parts.headers.clone();
+        self.handle
+            .spawn(async move {
+                let mut rb = client.request(method, url);
+                for (k, v) in &headers { rb = rb.header(k, v); }
+                let resp = rb.body(body).send().await
+                    .map_err(|e| Box::new(e) as opentelemetry_http::HttpError)?;
+                let status = resp.status();
+                let resp_hdrs = resp.headers().clone();
+                let body = resp.bytes().await
+                    .map_err(|e| Box::new(e) as opentelemetry_http::HttpError)?;
+                let mut rb = http::Response::builder().status(status);
+                for (k, v) in &resp_hdrs { rb = rb.header(k, v); }
+                rb.body(body).map_err(|e| Box::new(e) as opentelemetry_http::HttpError)
+            })
+            .await
+            .map_err(|e| Box::new(e) as opentelemetry_http::HttpError)?
+    }
+}
 {% else %}
 use opentelemetry_otlp::WithTonicConfig;
-{% endif %}
 use opentelemetry_sdk::logs::{BatchLogProcessor, SdkLoggerProvider};
+{% endif %}
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use std::time::SystemTime;
@@ -721,7 +801,7 @@ async fn main() -> Result<()> {
         .with_protocol(opentelemetry_otlp::Protocol::HttpJson)
         .with_endpoint(format!("{}/v1/logs", endpoint.trim_end_matches('/')))
         .with_headers(http_headers)
-        .with_http_client(reqwest::Client::new())
+        .with_http_client(MainRuntimeReqwest::new(tokio::runtime::Handle::current()))
         .build()
         .context("build OTLP HTTP log exporter")?;
     let processor = BatchLogProcessor::builder(exporter)
