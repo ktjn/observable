@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { listServiceSummaries, listEnvironments, ServiceSummary } from "../api/services";
+import { Input } from "../components/ui/input";
+import { Select, SelectOption } from "../components/ui/select";
 
 type ProductArea =
   | "services"
@@ -92,35 +94,33 @@ export function ProductAreaPage({ area }: { area: ProductArea }) {
       <section className="page-stack">
         <PageHeader kicker={copy.kicker} title={copy.title} />
         <div className="toolbar-row">
-          <input 
-            className="search-input" 
-            placeholder="Search services" 
-            aria-label="Search services" 
+          <Input
+            className="max-w-[360px]"
+            placeholder="Search services"
+            aria-label="Search services"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <select 
-            className="select-input" 
-            aria-label="Environment filter" 
+          <Select
+            aria-label="Environment filter"
             value={environment}
             onChange={(e) => setEnvironment(e.target.value)}
           >
-            <option value="all">All environments</option>
+            <SelectOption value="all">All environments</SelectOption>
             {envsData?.items.map(env => (
-              <option key={env} value={env}>{env}</option>
+              <SelectOption key={env} value={env}>{env}</SelectOption>
             ))}
-          </select>
-          <select 
-            className="select-input" 
-            aria-label="Health filter" 
+          </Select>
+          <Select
+            aria-label="Health filter"
             value={healthFilter}
             onChange={(e) => setHealthFilter(e.target.value)}
           >
-            <option value="all">All health</option>
-            <option value="healthy">Healthy</option>
-            <option value="watch">Watch</option>
-            <option value="breach">Breach</option>
-          </select>
+            <SelectOption value="all">All health</SelectOption>
+            <SelectOption value="healthy">Healthy</SelectOption>
+            <SelectOption value="watch">Watch</SelectOption>
+            <SelectOption value="breach">Breach</SelectOption>
+          </Select>
         </div>
         
         <div className="metric-grid" aria-label="Service summary">

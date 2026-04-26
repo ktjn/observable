@@ -4,6 +4,8 @@ import { searchLogs, LogRecord } from "../api/logs";
 import { FacetSidebar } from "../components/FacetSidebar";
 import { infraLinks } from "../utils/infraLinks";
 import { formatTimestamp } from "../utils/formatTimestamp";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 
 export default function LogSearch() {
   const [service, setService] = useState("");
@@ -35,21 +37,17 @@ export default function LogSearch() {
       </div>
 
       <div className="toolbar-row">
-        <input
-          className="search-input"
+        <Input
+          className="max-w-[360px]"
           placeholder="Filter by service"
           value={service}
           onChange={(e) => setService(e.target.value)}
           aria-label="Filter by service"
         />
         {service && (
-          <button
-            className="secondary-link"
-            onClick={() => setService("")}
-            style={{ cursor: "pointer", background: "none" }}
-          >
+          <Button variant="secondary" onClick={() => setService("")}>
             Clear filters
-          </button>
+          </Button>
         )}
       </div>
 
@@ -69,24 +67,15 @@ export default function LogSearch() {
                 <tr>
                   <th>
                     Timestamp{" "}
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setUtc((v) => !v)}
                       aria-pressed={utc}
-                      style={{
-                        marginLeft: 6,
-                        fontSize: 11,
-                        padding: "1px 6px",
-                        borderRadius: 10,
-                        border: "1px solid currentColor",
-                        background: utc ? "var(--color-accent, #3182ce)" : "transparent",
-                        color: utc ? "#fff" : "inherit",
-                        cursor: "pointer",
-                        verticalAlign: "middle",
-                      }}
+                      variant="secondary"
+                      className={`ml-1.5 min-h-0 px-1.5 py-0 text-[11px] rounded-full align-middle ${utc ? "bg-[var(--brand)] text-white border-[var(--brand)]" : ""}`}
                     >
                       UTC
-                    </button>
+                    </Button>
                   </th>
                   <th>Service</th>
                   <th>Level</th>

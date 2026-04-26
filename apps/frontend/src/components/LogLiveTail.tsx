@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { tailLogs } from "../api/logs";
 import type { LogRecord } from "../api/logs";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 
 const POLL_INTERVAL_MS = 1000;
 const MAX_LOGS = 200;
@@ -42,19 +44,19 @@ export function LogLiveTail() {
     <section style={{ marginTop: "2rem" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
         <h2 style={{ margin: 0 }}>Live Logs</h2>
-        <button
+        <Button
           type="button"
+          variant="secondary"
           onClick={() => setEnabled((value) => !value)}
-          style={{ borderRadius: 4, padding: "0.4rem 0.6rem" }}
         >
           {enabled ? "Pause" : "Resume"}
-        </button>
-        <input
+        </Button>
+        <Input
           aria-label="Live log service filter"
           placeholder="Filter by service"
           value={service}
           onChange={(event) => setService(event.target.value)}
-          style={{ padding: "0.5rem", width: "260px" }}
+          className="w-[260px]"
         />
         <span aria-live="polite">{enabled ? "Tailing every 1s" : "Paused"}</span>
       </div>

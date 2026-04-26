@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getLogContext, LogRecord } from "../api/logs";
+import { Button } from "./ui/button";
 
 interface Props {
   logId: string;
@@ -18,7 +19,7 @@ export function LogContextView({ logId, onClose }: Props) {
     <div style={containerStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
         <h4 style={{ margin: 0 }}>Surrounding Logs</h4>
-        <button onClick={onClose} style={{ cursor: "pointer" }}>Close</button>
+        <Button variant="secondary" onClick={onClose}>Close</Button>
       </div>
       <div style={{ 
         fontFamily: "monospace", 

@@ -7,6 +7,8 @@ import {
   type InfrastructureEntitySummary,
   type InfrastructureEntityType,
 } from "../api/infrastructure";
+import { Input } from "../components/ui/input";
+import { Select, SelectOption } from "../components/ui/select";
 
 type InfrastructureTypeFilter = "all" | InfrastructureEntityType;
 
@@ -62,38 +64,36 @@ export default function InfrastructureInventoryPage() {
       </div>
 
       <div className="toolbar-row">
-        <input
-          className="search-input"
+        <Input
+          className="max-w-[360px]"
           aria-label="Search infrastructure"
           placeholder="Search infrastructure"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
-        <select
-          className="select-input"
+        <Select
           aria-label="Infrastructure type filter"
           value={entityType}
           onChange={(event) => setEntityType(event.target.value as InfrastructureTypeFilter)}
         >
           {infrastructureTypeOptions.map((option) => (
-            <option key={option} value={option}>
+            <SelectOption key={option} value={option}>
               {option === "all" ? "All types" : option}
-            </option>
+            </SelectOption>
           ))}
-        </select>
-        <select
-          className="select-input"
+        </Select>
+        <Select
           aria-label="Environment filter"
           value={environment}
           onChange={(event) => setEnvironment(event.target.value)}
         >
-          <option value="all">All environments</option>
+          <SelectOption value="all">All environments</SelectOption>
           {environments?.items.map((env) => (
-            <option key={env} value={env}>
+            <SelectOption key={env} value={env}>
               {env}
-            </option>
+            </SelectOption>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="metric-grid" aria-label="Infrastructure summary">
