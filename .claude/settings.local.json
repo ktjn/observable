@@ -38,7 +38,12 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('\\\\n'.join\\(sorted\\(d.get\\('dependencies',{}\\).keys\\(\\)\\)\\)\\)\")",
       "Bash(cargo check *)",
       "Bash(cargo build *)",
-      "Bash(cargo clippy *)"
+      "Bash(cargo clippy *)",
+      "Skill(code-review:code-review)",
+      "Bash(python3 -c ' *)",
+      "Bash(node *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('REVIEWS:', json.dumps\\(d.get\\('reviews',[]\\), indent=2\\)\\); print\\('COMMENTS:', json.dumps\\(d.get\\('comments',[]\\), indent=2\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")"
     ]
   }
 }
