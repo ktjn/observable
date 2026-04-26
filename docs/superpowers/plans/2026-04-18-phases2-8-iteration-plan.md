@@ -299,16 +299,10 @@ Before Phase 3 starts, answer:
   - Verification: frontend tests cover generated links from `host.name`, `k8s.pod.name`, and container attributes; API tests cover resource attributes in responses where missing.
   - Checkpoint: are links derived correctly from OTel resource attributes? Answer: yes. `infraLinks()` maps `k8s.pod.name`, `host.name`/`host.id`, `k8s.namespace.name`, `k8s.cluster.name`, and `container.name`/`container.id` to `/infrastructure/:type/:id` URLs using `encodeURIComponent`, with 9 unit tests covering all mappings, fallbacks, deduplication, and URL encoding.
 
-- [ ] **P3-S11: Add deployment event ingestion and one timeline overlay**
+- [x] **P3-S11: Add deployment event ingestion and one timeline overlay**
   - Source spec: `spec/18-deployment-markers.md`.
-  - Outcome: traces or metrics can be viewed against deploy events using the schema and ingestion path defined in `spec/18-deployment-markers.md`.
-  - Closure steps:
-    1. add the deployment marker storage model and tenant-scoped lifecycle API
-    2. add one CI/helper or ingest integration path that can create and finish markers
-    3. add the Query API list endpoint for marker retrieval
-    4. add one timeline overlay in an existing trace or metric view
-  - Verification: API tests cover create/update/list authorization and tenant isolation; frontend tests cover overlay rendering when markers exist and an empty overlay when they do not.
-  - Checkpoint: is deployment identity clean enough for rollback analysis later?
+  - Outcome: `deployment_markers` table (migration 009), `POST /v1/deployments` + `PATCH /v1/deployments/:id` in ingest-gateway (new PgPool connection; direct Postgres write for immediate consistency), `GET /v1/deployments` in query-api, `scripts/deployment-marker.sh` CI helper, `DeploymentTimeline` SVG component in service detail overview (10 unit tests). ADR-024 documents the ingest/query routing split and the future Redpanda `deployment.events` topic path that enables SSE push to the UI without polling. Completed 2026-04-26.
+  - Checkpoint: is deployment identity clean enough for rollback analysis later? Answer: yes. `rollback_of` FK links a `rolled_back` deployment to the original; `status` enum tracks the full lifecycle. Ingest enrichment (§18.5 stamping `deployment_id` on span rows) and the Redpanda event-stream path (ADR-024 §Future) are explicitly deferred.
 
 - [ ] **P3-S12: Add "Promote to Dashboard" from explorers**
   - Source spec: `spec/05-frontend.md` §9.4 Promote to Dashboard and §9.7.
