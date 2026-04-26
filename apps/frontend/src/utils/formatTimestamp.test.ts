@@ -57,7 +57,8 @@ describe("formatTimestamp", () => {
 
   it("accepts a numeric value coerced to string (runtime API may return number)", () => {
     // Simulate the API returning a JS number instead of a string
-    const result = formatTimestamp(1745659909123456789 as unknown as string, true);
+    const numericNanos = Number(NANOS);
+    const result = formatTimestamp(numericNanos as unknown as string, true);
     expect(result).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{9}Z$/);
   });
 });
