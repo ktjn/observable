@@ -1,5 +1,4 @@
 pub mod convert;
-pub mod deployments;
 pub mod logs;
 pub mod metrics;
 pub mod traces;
@@ -15,7 +14,7 @@ use flate2::read::GzDecoder;
 use serde_json::Value;
 use std::io::Read;
 
-use crate::{auth, AppState};
+use crate::{auth, deployments, AppState};
 
 pub fn decode_json_otlp_request(headers: &HeaderMap, body: Bytes) -> Result<Value, StatusCode> {
     let content_type = get_content_type(headers);
