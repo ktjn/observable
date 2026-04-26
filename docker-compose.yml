@@ -205,11 +205,11 @@ services:
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CH_USER:-default}
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
-      ALERT_EVALUATOR_PORT: "4321"
+      ALERT_EVALUATOR_PORT: "4322"
       ALERT_EVAL_INTERVAL_SECONDS: "60"
-    ports: ["4321:4321"]
+    ports: ["4322:4322"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4321/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:4322/health"]
       interval: 2s
       timeout: 1s
       retries: 10
