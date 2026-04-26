@@ -133,7 +133,8 @@ fn test_pool() -> Arc<sqlx::PgPool> {
 async fn main() -> anyhow::Result<()> {
     domain::telemetry::init_self_observability_telemetry("ingest-gateway")?;
 
-    let http_port: u16 = std::env::var("INGEST_GATEWAY_PORT")
+    let http_port: u16 = std::env::var("INGEST_GATEWAY_HTTP_JSON_PORT")
+        .or_else(|_| std::env::var("INGEST_GATEWAY_PORT"))
         .unwrap_or_else(|_| "4318".into())
         .parse()?;
     let grpc_port: u16 = std::env::var("INGEST_GATEWAY_GRPC_PORT")

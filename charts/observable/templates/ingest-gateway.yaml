@@ -1,7 +1,7 @@
 {{- if .Values.services.ingestGateway.enabled -}}
 {{- $selectorCtx := dict "name" "ingest-gateway" "Release" .Release -}}
 {{- $env := list
-    (dict "name" "INGEST_GATEWAY_PORT"          "value" (toString .Values.services.ingestGateway.port))
+    (dict "name" "INGEST_GATEWAY_HTTP_JSON_PORT" "value" (toString .Values.services.ingestGateway.port))
     (dict "name" "INGEST_GATEWAY_GRPC_PORT"     "value" (toString .Values.services.ingestGateway.grpcPort))
     (dict "name" "INGEST_GATEWAY_PLATFORM_PORT" "value" (toString .Values.services.ingestGateway.platformPort))
     (dict "name" "REDPANDA_BROKERS"         "value" .Values.redpanda.brokers)

@@ -1,7 +1,7 @@
 {{- if .Values.services.ingestGateway.canary.enabled -}}
 {{- $canaryTag := .Values.services.ingestGateway.canary.tag | default .Values.global.image.tag -}}
 {{- $env := list
-    (dict "name" "INGEST_GATEWAY_PORT" "value" (toString .Values.services.ingestGateway.port))
+    (dict "name" "INGEST_GATEWAY_HTTP_JSON_PORT" "value" (toString .Values.services.ingestGateway.port))
     (dict "name" "REDPANDA_BROKERS"    "value" .Values.redpanda.brokers)
     (dict "name" "INGEST_TOPIC"        "value" .Values.redpanda.ingestTopic)
     (dict "name" "AUTH_SERVICE_URL"    "value" (printf "http://auth-service:%d" (int .Values.services.authService.port)))

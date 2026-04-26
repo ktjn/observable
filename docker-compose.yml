@@ -158,7 +158,7 @@ services:
     command: ["ingest-gateway"]
     environment:
       <<: *platform-self-observability-env
-      INGEST_GATEWAY_PORT: "4318"
+      INGEST_GATEWAY_HTTP_JSON_PORT: "4318"
       INGEST_GATEWAY_GRPC_PORT: "4317"
       INGEST_GATEWAY_PLATFORM_PORT: "4321"
       DATABASE_URL: postgres://observable:observable@postgres:5432/observable

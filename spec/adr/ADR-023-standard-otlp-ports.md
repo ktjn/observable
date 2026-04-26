@@ -42,7 +42,7 @@ The Observable platform port assignments are:
     - `docker-compose.yml` updated to reflect new port mappings.
     - Helm charts (`charts/observable`) updated for multi-port support in `ingest-gateway`.
     - Local dev environment and documentation (`spec/12-deployment.md`) updated.
-- **Migration Path**: Existing deployments must update their `AUTH_SERVICE_URL` and `INGEST_GATEWAY_PORT` environment variables. OTLP senders should point to 4317 for gRPC and 4318 for HTTP JSON. Deployment marker tooling should point to port 4321.
+- **Migration Path**: Existing deployments must update their `AUTH_SERVICE_URL` and `INGEST_GATEWAY_HTTP_JSON_PORT` environment variables (the old `INGEST_GATEWAY_PORT` name is still accepted as a fallback). OTLP senders should point to 4317 for gRPC and 4318 for HTTP JSON. Deployment marker tooling should point to port 4321.
 
 ## Verification
 
