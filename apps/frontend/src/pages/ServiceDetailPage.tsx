@@ -5,6 +5,8 @@ import { listMetrics } from "../api/metrics";
 import { getServiceSummary, ServiceSummary } from "../api/services";
 import { searchTraces } from "../api/traces";
 import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
+import { listDeployments } from "../api/deployments";
+import { DeploymentTimeline } from "../components/DeploymentTimeline";
 
 export default function ServiceDetailPage() {
   const { serviceId } = useParams({ strict: false });
@@ -77,6 +79,11 @@ function ServiceOverview({
         <MetricTile label="P95 Latency" value={`${Math.round(service.p95_latency_ms)}ms`} tone="good" />
         <MetricTile label="Active Alerts" value={String(service.active_alert_count)} tone={service.active_alert_count > 0 ? "warn" : "good"} />
       </div>
+
+      <DeploymentTimelineSection
+        serviceName={service.service_name}
+        lookbackMinutes={lookbackMinutes}
+      />
 
       <div className="detail-grid">
         <section className="detail-panel">
@@ -363,5 +370,37 @@ function MetricTile({
       <div className="metric-label">{label}</div>
       <div className="metric-value">{value}</div>
     </div>
+  );
+}
+
+function DeploymentTimelineSection({
+  serviceName,
+  lookbackMinutes,
+}: {
+  serviceName: string;
+  lookbackMinutes: number;
+}) {
+  const nowMs = Date.now();
+  const startMs = nowMs - lookbackMinutes * 60 * 1000;
+
+  const { data } = useQuery({
+    queryKey: ["deployments", serviceName, lookbackMinutes],
+    queryFn: () =>
+      listDeployments({
+        service_name: serviceName,
+        start_time: new Date(startMs).toISOString(),
+        end_time: new Date(nowMs).toISOString(),
+        limit: 20,
+      }),
+  });
+
+  if (!data?.items.length) return null;
+
+  return (
+    <DeploymentTimeline
+      markers={data.items}
+      rangeStartMs={startMs}
+      rangeEndMs={nowMs}
+    />
   );
 }

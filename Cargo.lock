@@ -1386,6 +1386,7 @@ dependencies = [
  "axum 0.7.9",
  "axum-test",
  "bytes",
+ "chrono",
  "config",
  "domain",
  "flate2",
@@ -1397,6 +1398,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sqlx",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -2173,6 +2175,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum 0.7.9",
+ "chrono",
  "clickhouse",
  "domain",
  "serde",

@@ -31,3 +31,4 @@ Architecture Decision Records (ADRs) capture significant technology and design c
 | [ADR-021](ADR-021-nl-query-layer.md) | LLM Natural Language Query Layer | Proposed | LLM advisory query layer on top of existing query substrate; cross-signal triangulation; provenance required |
 | [ADR-022](ADR-022-collectable-mediator.md) | Collectable — Compiled-Mediator Tool | Accepted | Build Collectable as an independent compiled-mediator tool; Observable ingest gateway remains OTLP-only |
 | [ADR-023](ADR-023-standard-otlp-ports.md) | Standard OTLP Port Conformance | Proposed | Align ingest-gateway to OTLP standard ports: 4317 gRPC, 4318 HTTP/JSON |
+| [ADR-024](ADR-024-deployment-marker-routing.md) | Deployment Marker Write Path in Ingest Gateway | Accepted | POST/PATCH /v1/deployments in ingest-gateway; GET in query-api; future Redpanda stream enables SSE push |

@@ -1,4 +1,5 @@
 mod audit;
+mod deployments;
 mod discovery;
 mod logs;
 mod metrics;
@@ -63,6 +64,7 @@ async fn main() -> anyhow::Result<()> {
             get(discovery::get_service_summary),
         )
         .route("/v1/environments", get(discovery::list_environments))
+        .route("/v1/deployments", get(deployments::list_deployments))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
         .with_state(state);

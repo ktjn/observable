@@ -5,6 +5,7 @@ mod grpc;
 mod http_json;
 mod queue;
 
+use sqlx::postgres::PgPoolOptions;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -20,6 +21,7 @@ pub struct AppState {
     pub log_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
     pub metric_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
     pub metric_cardinality: Arc<cardinality::MetricCardinalityBudget>,
+    pub db: Arc<sqlx::PgPool>,
     #[cfg(test)]
     pub stub_tenant: Option<Uuid>,
 }
@@ -69,6 +71,7 @@ impl AppState {
             log_rate_limiter: build_rate_limiter(1000),
             metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
+            db: test_pool(),
             stub_tenant: None,
         }
     }
@@ -83,6 +86,7 @@ impl AppState {
             log_rate_limiter: build_rate_limiter(1000),
             metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
+            db: test_pool(),
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
     }
@@ -97,6 +101,7 @@ impl AppState {
             log_rate_limiter: build_rate_limiter(per_second),
             metric_rate_limiter: build_rate_limiter(per_second),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
+            db: test_pool(),
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
     }
@@ -111,9 +116,16 @@ impl AppState {
             log_rate_limiter: build_rate_limiter(1000),
             metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(budget),
+            db: test_pool(),
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
     }
+}
+
+#[cfg(test)]
+fn test_pool() -> Arc<sqlx::PgPool> {
+    // Disconnected pool — unit tests that don't touch the DB can use this.
+    Arc::new(sqlx::PgPool::connect_lazy("postgres://localhost/test").unwrap())
 }
 
 #[tokio::main]
@@ -147,6 +159,15 @@ async fn main() -> anyhow::Result<()> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(10_000);
 
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://observable:observable@localhost:5432/observable".into());
+    let db = Arc::new(
+        PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&database_url)
+            .await?,
+    );
+
     let state = AppState {
         auth_service_url: std::env::var("AUTH_SERVICE_URL")
             .unwrap_or_else(|_| "http://localhost:4319".into()),
@@ -156,6 +177,7 @@ async fn main() -> anyhow::Result<()> {
         log_rate_limiter: build_rate_limiter(log_rate_limit),
         metric_rate_limiter: build_rate_limiter(metric_rate_limit),
         metric_cardinality: cardinality::MetricCardinalityBudget::new(metric_series_budget),
+        db: db.clone(),
         #[cfg(test)]
         stub_tenant: None,
     };
