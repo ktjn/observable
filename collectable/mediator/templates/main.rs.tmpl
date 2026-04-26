@@ -799,7 +799,7 @@ async fn main() -> Result<()> {
     let exporter = opentelemetry_otlp::LogExporter::builder()
         .with_http()
         .with_protocol(opentelemetry_otlp::Protocol::HttpJson)
-        .with_endpoint(format!("{}/v1/logs", endpoint.trim_end_matches('/')))
+        .with_endpoint(&endpoint)
         .with_headers(http_headers)
         .with_http_client(MainRuntimeReqwest::new(tokio::runtime::Handle::current()))
         .build()
