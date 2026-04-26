@@ -721,6 +721,7 @@ async fn main() -> Result<()> {
         .with_protocol(opentelemetry_otlp::Protocol::HttpJson)
         .with_endpoint(format!("{}/v1/logs", endpoint.trim_end_matches('/')))
         .with_headers(http_headers)
+        .with_http_client(reqwest::Client::new())
         .build()
         .context("build OTLP HTTP log exporter")?;
     let processor = BatchLogProcessor::builder(exporter)

@@ -20,7 +20,7 @@ regex        = "1"
 opentelemetry       = { version = "0.31", features = ["logs"] }
 opentelemetry_sdk   = { version = "0.31", features = ["logs"] }
 {% if output.protocol == "http" %}
-opentelemetry-otlp  = { version = "0.31", features = ["logs", "http-proto", "http-json", "reqwest-client", "tls-roots"] }
+opentelemetry-otlp  = { version = "0.31", features = ["logs", "http-proto", "http-json", "reqwest-rustls-webpki-roots"] }
 reqwest             = { version = "0.12", features = ["rustls-tls"], default-features = false }
 {% else %}
 opentelemetry-otlp  = { version = "0.31", features = ["logs", "grpc-tonic", "tls-roots"] }
