@@ -2,18 +2,18 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add deployment marker lifecycle endpoints to the query-api and a timeline overlay component on the service detail page so operators can correlate performance shifts with deployments.
+**Goal:** Add deployment marker lifecycle endpoints and a timeline overlay so operators can correlate performance shifts with deployments.
 
-**Architecture:** All three endpoints (`POST /v1/deployments`, `PATCH /v1/deployments/:id`, `GET /v1/deployments`) live in the query-api, which already has a `PgPool`. A new PostgreSQL table `deployment_markers` stores the records. A small bash helper script lets CI/CD pipelines create and finish markers with `curl`. The frontend gains a `DeploymentTimeline` SVG component embedded in the service detail overview above the signal tabs, queried via a new `api/deployments.ts` client.
+**Architecture:** `POST /v1/deployments` and `PATCH /v1/deployments/:id` live in the **ingest-gateway** (which gains a PostgreSQL connection and writes directly to Postgres for immediate consistency). `GET /v1/deployments` lives in the **query-api** (already has PgPool). A bash helper lets CI/CD pipelines call both write endpoints. The frontend gains a `DeploymentTimeline` SVG component in the service detail overview. See ADR-024 for the routing decision and the future Redpanda SSE path.
 
-**Tech Stack:** Rust (axum, sqlx 0.7 with `json`+`chrono`+`uuid` features, chrono 0.4), PostgreSQL, Bash, TypeScript + React (SVG, TanStack Query)
+**Tech Stack:** Rust (axum, sqlx 0.7 with `postgres`+`chrono`+`uuid`+`json` features, chrono 0.4), PostgreSQL, Bash, TypeScript + React (SVG, TanStack Query)
 
 ---
 
-## Scope boundaries for this slice
+## Scope boundaries
 
-- **In scope:** `deployment_markers` table, POST/PATCH/GET endpoints, bash script helper, frontend API client, `DeploymentTimeline` component in service detail, phases plan update.
-- **Out of scope:** ingest enrichment (§18.5 — stamping `deployment_id` on spans/logs/metrics), RBAC role checks on write endpoints (query-api uses tenant-only auth), canary-promote integration, signal retention of `deployment_id` (already in `spans` schema column, just not populated).
+- **In scope:** `deployment_markers` table, POST/PATCH in ingest-gateway, GET in query-api, bash CI helper, frontend API client, `DeploymentTimeline` SVG component, ADR-024.
+- **Out of scope:** Publishing to Redpanda (future SSE path per ADR-024 §Future streaming path), ingest enrichment (§18.5), canary-promote integration.
 
 ---
 
@@ -21,160 +21,169 @@
 
 | File | Action | Responsibility |
 |---|---|---|
-| `migrations/postgres/009_create_deployment_markers.sql` | Create | Table schema + dev seed row |
+| `migrations/postgres/009_create_deployment_markers.sql` | ✅ Done | Table schema + dev seed row |
+| `spec/adr/ADR-024-deployment-marker-routing.md` | ✅ Done | Routing decision + future Redpanda path |
+| `spec/adr/README.md` | ✅ Done | ADR index entry |
+| `services/ingest-gateway/Cargo.toml` | Modify | Add `sqlx` and `chrono` workspace deps |
+| `services/ingest-gateway/src/main.rs` | Modify | Add `DATABASE_URL` env var + `PgPool` to `AppState` startup |
+| `services/ingest-gateway/src/http-json/deployments.rs` | Create | POST/PATCH handlers + unit tests |
+| `services/ingest-gateway/src/http-json/mod.rs` | Modify | Register `POST /v1/deployments` and `PATCH /v1/deployments/:id` routes |
 | `services/query-api/Cargo.toml` | Modify | Add `chrono = { workspace = true }` |
-| `services/query-api/src/deployments.rs` | Create | POST/PATCH/GET handlers + unit tests |
-| `services/query-api/src/main.rs` | Modify | Register three new routes |
+| `services/query-api/src/deployments.rs` | Create | GET /v1/deployments handler + unit tests |
+| `services/query-api/src/main.rs` | Modify | Register `GET /v1/deployments` and `POST /v1/deployments` routes |
 | `scripts/deployment-marker.sh` | Create | Bash helper for CI/CD pipelines |
 | `apps/frontend/src/api/deployments.ts` | Create | Fetch wrapper for `GET /v1/deployments` |
 | `apps/frontend/src/components/DeploymentTimeline.tsx` | Create | SVG timeline with colored vertical markers |
-| `apps/frontend/src/components/DeploymentTimeline.test.tsx` | Create | Component unit tests |
-| `apps/frontend/src/pages/ServiceDetailPage.tsx` | Modify | Add `DeploymentTimeline` to overview section |
+| `apps/frontend/src/components/DeploymentTimeline.test.tsx` | Create | 9 unit tests for pure functions |
+| `apps/frontend/src/pages/ServiceDetailPage.tsx` | Modify | Add `DeploymentTimelineSection` above signal tabs |
 | `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md` | Modify | Mark P3-S11 done |
 
 ---
 
-## Task 1: PostgreSQL migration — deployment_markers table
+## Task 1: PostgreSQL migration — deployment_markers table ✅ DONE
 
-**Files:**
-- Create: `migrations/postgres/009_create_deployment_markers.sql`
-
-- [ ] **Create the migration file**
-
-```sql
-CREATE TABLE IF NOT EXISTS deployment_markers (
-    deployment_id   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id       UUID        NOT NULL,
-    project_id      UUID        REFERENCES projects(id) ON DELETE SET NULL,
-    service_name    TEXT        NOT NULL,
-    environment     TEXT        NOT NULL,
-    service_version TEXT        NOT NULL,
-    status          TEXT        NOT NULL CHECK (status IN ('in_progress', 'success', 'failed', 'rolled_back')),
-    started_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    finished_at     TIMESTAMPTZ,
-    deployed_by     TEXT,
-    commit_sha      TEXT,
-    rollback_of     UUID        REFERENCES deployment_markers(deployment_id) ON DELETE SET NULL,
-    metadata        JSONB,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS deployment_markers_tenant_idx     ON deployment_markers (tenant_id);
-CREATE INDEX IF NOT EXISTS deployment_markers_service_idx    ON deployment_markers (tenant_id, service_name);
-CREATE INDEX IF NOT EXISTS deployment_markers_started_at_idx ON deployment_markers (started_at);
-
--- Dev seed: one successful deployment for the dev tenant / shop-api
-INSERT INTO deployment_markers (
-    deployment_id,
-    tenant_id,
-    project_id,
-    service_name,
-    environment,
-    service_version,
-    status,
-    started_at,
-    finished_at,
-    deployed_by,
-    commit_sha
-) VALUES (
-    '20000000-0000-0000-0000-000000000001',
-    '00000000-0000-0000-0000-000000000001',
-    (SELECT id FROM projects
-     WHERE tenant_id = '00000000-0000-0000-0000-000000000001'
-       AND name = 'default'
-     LIMIT 1),
-    'shop-api',
-    'staging',
-    'v1.2.0',
-    'success',
-    NOW() - INTERVAL '2 hours',
-    NOW() - INTERVAL '1 hour 45 minutes',
-    'ci-bot',
-    'abc123def456'
-) ON CONFLICT DO NOTHING;
-```
-
-- [ ] **Verify SQL syntax with psql (or docker compose)**
-
-```bash
-docker compose exec postgres psql -U observable -c "\d deployment_markers" 2>/dev/null || echo "Run docker compose up -d first, then re-run"
-```
-
-Expected after `docker compose up -d`: table description lists all columns.
-
-- [ ] **Commit**
-
-```bash
-git add migrations/postgres/009_create_deployment_markers.sql
-git commit -m "feat(deployments): add deployment_markers PostgreSQL table and dev seed"
-```
+Committed in `f1a9f18`. No further action needed.
 
 ---
 
-## Task 2: Add chrono dependency to query-api
+## Task 2: ADR-024 and README update ✅ DONE
+
+`spec/adr/ADR-024-deployment-marker-routing.md` and `spec/adr/README.md` updated. No further action needed.
+
+---
+
+## Task 3: Add PostgreSQL support to ingest-gateway
 
 **Files:**
-- Modify: `services/query-api/Cargo.toml`
+- Modify: `services/ingest-gateway/Cargo.toml`
+- Modify: `services/ingest-gateway/src/main.rs`
 
-- [ ] **Add chrono to query-api dependencies**
+The ingest-gateway currently has no database connection. This task adds `sqlx` and `chrono` workspace dependencies and wires a `PgPool` into `AppState`.
 
-Open `services/query-api/Cargo.toml`. Find the `[dependencies]` section. It currently contains:
+- [ ] **Add deps to Cargo.toml**
 
-```toml
-serde              = { workspace = true }
-serde_json         = { workspace = true }
-```
-
-Add one line immediately after `serde_json`:
+In `services/ingest-gateway/Cargo.toml`, find the `[dependencies]` section (it currently ends with `uuid = { workspace = true }`). Add after it:
 
 ```toml
+sqlx               = { workspace = true }
 chrono             = { workspace = true }
 ```
 
-- [ ] **Verify the workspace crate compiles**
+- [ ] **Add `db` field to `AppState` in main.rs**
+
+In `services/ingest-gateway/src/main.rs`, find the `AppState` struct definition. Add one field:
+
+```rust
+pub db: Arc<sqlx::PgPool>,
+```
+
+The updated struct looks like:
+
+```rust
+#[derive(Clone)]
+pub struct AppState {
+    pub auth_service_url: String,
+    pub http_client: reqwest::Client,
+    pub producer: Option<Arc<QueueProducer>>,
+    pub trace_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
+    pub log_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
+    pub metric_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
+    pub metric_cardinality: Arc<cardinality::MetricCardinalityBudget>,
+    pub db: Arc<sqlx::PgPool>,
+    #[cfg(test)]
+    pub stub_tenant: Option<Uuid>,
+}
+```
+
+- [ ] **Add `use std::sync::Arc;` if not already present**
+
+Check the top of `main.rs` — `Arc` is already imported via `use std::sync::Arc;`. If not present, add it.
+
+- [ ] **Initialize PgPool in `main()` in main.rs**
+
+In the `main()` function, find the block where `AppState` is constructed (it starts with `let state = AppState {`). Before that block, add:
+
+```rust
+let database_url =
+    std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://observable:observable@localhost:5432/observable".into());
+let db = Arc::new(
+    sqlx::postgres::PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
+        .await?,
+);
+```
+
+Then add `db: db.clone()` to the `AppState { ... }` construction.
+
+- [ ] **Add `use sqlx::postgres::PgPoolOptions;` import**
+
+At the top of `main.rs`, in the use block add:
+
+```rust
+use sqlx::postgres::PgPoolOptions;
+```
+
+- [ ] **Update test stubs in main.rs**
+
+Every `#[cfg(test)]` constructor method (`test_stub`, `with_stub_auth`, `with_stub_auth_and_rate_limit`, `with_stub_auth_and_metric_budget`) needs `db` filled. Use a shared helper:
+
+```rust
+#[cfg(test)]
+fn test_pool() -> Arc<sqlx::PgPool> {
+    // Disconnected pool used only in unit tests that don't touch the DB.
+    Arc::new(sqlx::PgPool::connect_lazy("postgres://localhost/test").unwrap())
+}
+```
+
+Add `db: test_pool()` to every test stub constructor.
+
+- [ ] **Verify compilation**
 
 ```bash
-cargo check -p query-api 2>&1 | tail -5
+cargo check -p ingest-gateway 2>&1 | tail -10
 ```
 
 Expected: `Finished` with no errors.
 
+- [ ] **Run tests**
+
+```bash
+cargo test -p ingest-gateway 2>&1 | tail -10
+```
+
+Expected: all existing tests pass.
+
 - [ ] **Commit**
 
 ```bash
-git add services/query-api/Cargo.toml
-git commit -m "chore(query-api): add chrono workspace dependency"
+git add services/ingest-gateway/Cargo.toml services/ingest-gateway/src/main.rs
+git commit -m "feat(ingest-gateway): add PostgreSQL PgPool to AppState for deployment markers"
 ```
 
 ---
 
-## Task 3: Implement deployment marker handlers
+## Task 4: Implement POST/PATCH deployment handlers in ingest-gateway
 
 **Files:**
-- Create: `services/query-api/src/deployments.rs`
-
-This module provides three handlers:
-- `create_deployment` — `POST /v1/deployments`
-- `finish_deployment` — `PATCH /v1/deployments/:id`
-- `list_deployments` — `GET /v1/deployments`
+- Create: `services/ingest-gateway/src/http-json/deployments.rs`
+- Modify: `services/ingest-gateway/src/http-json/mod.rs`
 
 - [ ] **Write the failing unit tests first**
 
-Create `services/query-api/src/deployments.rs` with only the test module and imports:
+Create `services/ingest-gateway/src/http-json/deployments.rs` with only types and tests (handlers are stubs):
 
 ```rust
-use crate::middleware::auth::TenantContext;
-use crate::traces::AppState;
+use crate::AppState;
 use axum::{
-    extract::{Extension, Path, Query, State},
+    extract::{Extension, Json, Path, State},
     http::StatusCode,
-    Json,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-// ---- Request / Response types ----
+use super::super::auth::TenantContext;
 
 #[derive(Deserialize)]
 pub struct CreateDeploymentRequest {
@@ -198,6 +207,249 @@ pub struct FinishDeploymentRequest {
     pub finished_at: Option<DateTime<Utc>>,
     pub rollback_of: Option<Uuid>,
 }
+
+pub async fn create_deployment(
+    State(_state): State<AppState>,
+    Extension(_ctx): Extension<TenantContext>,
+    Json(_req): Json<CreateDeploymentRequest>,
+) -> Result<(StatusCode, Json<CreateDeploymentResponse>), StatusCode> {
+    todo!()
+}
+
+pub async fn finish_deployment(
+    State(_state): State<AppState>,
+    Extension(_ctx): Extension<TenantContext>,
+    Path(_deployment_id): Path<Uuid>,
+    Json(_req): Json<FinishDeploymentRequest>,
+) -> Result<StatusCode, StatusCode> {
+    todo!()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finish_allows_success() {
+        let req = FinishDeploymentRequest {
+            status: "success".to_string(),
+            finished_at: None,
+            rollback_of: None,
+        };
+        let allowed = ["success", "failed", "rolled_back"];
+        assert!(allowed.contains(&req.status.as_str()));
+    }
+
+    #[test]
+    fn finish_rejects_in_progress() {
+        let req = FinishDeploymentRequest {
+            status: "in_progress".to_string(),
+            finished_at: None,
+            rollback_of: None,
+        };
+        let allowed = ["success", "failed", "rolled_back"];
+        assert!(!allowed.contains(&req.status.as_str()));
+    }
+
+    #[test]
+    fn finish_rejects_unknown_status() {
+        let req = FinishDeploymentRequest {
+            status: "garbage".to_string(),
+            finished_at: None,
+            rollback_of: None,
+        };
+        let allowed = ["success", "failed", "rolled_back"];
+        assert!(!allowed.contains(&req.status.as_str()));
+    }
+
+    #[test]
+    fn create_response_serializes_deployment_id() {
+        let id = Uuid::new_v4();
+        let resp = CreateDeploymentResponse { deployment_id: id };
+        let v = serde_json::to_value(&resp).unwrap();
+        assert_eq!(v["deployment_id"].as_str().unwrap(), id.to_string());
+    }
+}
+```
+
+- [ ] **Run tests to confirm they pass (stubs don't affect unit tests)**
+
+```bash
+cargo test -p ingest-gateway deployments 2>&1 | tail -10
+```
+
+Expected: `4 passed`
+
+- [ ] **Check how `TenantContext` is imported in other ingest-gateway http-json handlers**
+
+Look at `services/ingest-gateway/src/http-json/traces.rs` top — the import for `TenantContext` comes from `crate::auth`. Confirm the import path: `use crate::auth::TenantContext;`. Update the import in `deployments.rs` accordingly (remove the `super::super::auth` path, use `crate::auth::TenantContext`).
+
+The correct import is:
+```rust
+use crate::auth::TenantContext;
+```
+
+- [ ] **Implement `create_deployment`**
+
+Replace the `create_deployment` stub:
+
+```rust
+pub async fn create_deployment(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Json(req): Json<CreateDeploymentRequest>,
+) -> Result<(StatusCode, Json<CreateDeploymentResponse>), StatusCode> {
+    if req.service_name.trim().is_empty()
+        || req.environment.trim().is_empty()
+        || req.service_version.trim().is_empty()
+    {
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    let deployment_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO deployment_markers \
+         (tenant_id, project_id, service_name, environment, service_version, \
+          status, deployed_by, commit_sha, metadata) \
+         VALUES ($1, $2, $3, $4, $5, 'in_progress', $6, $7, $8) \
+         RETURNING deployment_id",
+    )
+    .bind(ctx.tenant_id)
+    .bind(req.project_id)
+    .bind(&req.service_name)
+    .bind(&req.environment)
+    .bind(&req.service_version)
+    .bind(&req.deployed_by)
+    .bind(&req.commit_sha)
+    .bind(&req.metadata)
+    .fetch_one(state.db.as_ref())
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to create deployment marker");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateDeploymentResponse { deployment_id }),
+    ))
+}
+```
+
+- [ ] **Implement `finish_deployment`**
+
+Replace the `finish_deployment` stub:
+
+```rust
+pub async fn finish_deployment(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(deployment_id): Path<Uuid>,
+    Json(req): Json<FinishDeploymentRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let allowed = ["success", "failed", "rolled_back"];
+    if !allowed.contains(&req.status.as_str()) {
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    let finished_at = req.finished_at.unwrap_or_else(Utc::now);
+
+    let result = sqlx::query(
+        "UPDATE deployment_markers \
+         SET status = $1, finished_at = $2, rollback_of = $3 \
+         WHERE deployment_id = $4 AND tenant_id = $5",
+    )
+    .bind(&req.status)
+    .bind(finished_at)
+    .bind(req.rollback_of)
+    .bind(deployment_id)
+    .bind(ctx.tenant_id)
+    .execute(state.db.as_ref())
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to finish deployment marker");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if result.rows_affected() == 0 {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}
+```
+
+- [ ] **Run all ingest-gateway tests**
+
+```bash
+cargo test -p ingest-gateway 2>&1 | tail -10
+```
+
+Expected: all existing tests pass plus the 4 new deployment unit tests.
+
+- [ ] **Register routes in `services/ingest-gateway/src/http-json/mod.rs`**
+
+Add `pub mod deployments;` at the top of the module declarations (after `pub mod traces;` etc.).
+
+In `build_router`, add two routes inside the auth-middleware layer alongside the existing OTLP routes:
+
+```rust
+.route("/v1/deployments", post(deployments::create_deployment))
+.route(
+    "/v1/deployments/:deployment_id",
+    axum::routing::patch(deployments::finish_deployment),
+)
+```
+
+The `post` function is already imported via `use axum::{..., routing::{get, post}, ...}`.
+
+- [ ] **Verify compilation**
+
+```bash
+cargo build -p ingest-gateway 2>&1 | tail -10
+```
+
+Expected: `Finished` with no errors.
+
+- [ ] **Commit**
+
+```bash
+git add services/ingest-gateway/src/http-json/deployments.rs \
+        services/ingest-gateway/src/http-json/mod.rs
+git commit -m "feat(ingest-gateway): add POST/PATCH /v1/deployments handlers"
+```
+
+---
+
+## Task 5: Add chrono to query-api and implement GET /v1/deployments
+
+**Files:**
+- Modify: `services/query-api/Cargo.toml`
+- Create: `services/query-api/src/deployments.rs`
+- Modify: `services/query-api/src/main.rs`
+
+- [ ] **Add chrono to query-api/Cargo.toml**
+
+In `services/query-api/Cargo.toml`, find the `[dependencies]` section. After `serde_json = { workspace = true }` add:
+
+```toml
+chrono             = { workspace = true }
+```
+
+- [ ] **Write the failing unit tests first**
+
+Create `services/query-api/src/deployments.rs` with types and the test module. The handler is a stub:
+
+```rust
+use crate::middleware::auth::TenantContext;
+use crate::traces::AppState;
+use axum::{
+    extract::{Extension, Query, State},
+    http::StatusCode,
+    Json,
+};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Deserialize)]
 pub struct ListDeploymentsParams {
@@ -230,25 +482,6 @@ pub struct ListDeploymentsResponse {
     pub items: Vec<DeploymentMarker>,
 }
 
-// ---- Handlers ----
-
-pub async fn create_deployment(
-    State(_state): State<AppState>,
-    Extension(_ctx): Extension<TenantContext>,
-    Json(_req): Json<CreateDeploymentRequest>,
-) -> Result<(StatusCode, Json<CreateDeploymentResponse>), StatusCode> {
-    todo!()
-}
-
-pub async fn finish_deployment(
-    State(_state): State<AppState>,
-    Extension(_ctx): Extension<TenantContext>,
-    Path(_deployment_id): Path<Uuid>,
-    Json(_req): Json<FinishDeploymentRequest>,
-) -> Result<StatusCode, StatusCode> {
-    todo!()
-}
-
 pub async fn list_deployments(
     State(_state): State<AppState>,
     Extension(_ctx): Extension<TenantContext>,
@@ -257,71 +490,12 @@ pub async fn list_deployments(
     todo!()
 }
 
-// ---- Unit tests ----
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn finish_request_allows_success_status() {
-        let req = FinishDeploymentRequest {
-            status: "success".to_string(),
-            finished_at: None,
-            rollback_of: None,
-        };
-        let allowed = ["success", "failed", "rolled_back"];
-        assert!(allowed.contains(&req.status.as_str()));
-    }
-
-    #[test]
-    fn finish_request_rejects_in_progress_status() {
-        let req = FinishDeploymentRequest {
-            status: "in_progress".to_string(),
-            finished_at: None,
-            rollback_of: None,
-        };
-        let allowed = ["success", "failed", "rolled_back"];
-        assert!(!allowed.contains(&req.status.as_str()));
-    }
-
-    #[test]
-    fn finish_request_rejects_unknown_status() {
-        let req = FinishDeploymentRequest {
-            status: "unknown".to_string(),
-            finished_at: None,
-            rollback_of: None,
-        };
-        let allowed = ["success", "failed", "rolled_back"];
-        assert!(!allowed.contains(&req.status.as_str()));
-    }
-
-    #[test]
-    fn deployment_marker_serialize_shape() {
-        let marker = DeploymentMarker {
-            deployment_id: Uuid::new_v4(),
-            tenant_id: Uuid::new_v4(),
-            project_id: None,
-            service_name: "shop-api".to_string(),
-            environment: "staging".to_string(),
-            service_version: "v1.0.0".to_string(),
-            status: "success".to_string(),
-            started_at: Utc::now(),
-            finished_at: None,
-            deployed_by: Some("ci-bot".to_string()),
-            commit_sha: Some("abc123".to_string()),
-            rollback_of: None,
-            metadata: None,
-        };
-        let v = serde_json::to_value(&marker).unwrap();
-        assert_eq!(v["service_name"], "shop-api");
-        assert_eq!(v["status"], "success");
-        assert_eq!(v["deployed_by"], "ci-bot");
-        assert!(v["finished_at"].is_null());
-    }
-
-    #[test]
-    fn list_params_default_limit_is_none() {
+    fn default_limit_is_50() {
         let params = ListDeploymentsParams {
             service_name: None,
             environment: None,
@@ -329,125 +503,58 @@ mod tests {
             end_time: None,
             limit: None,
         };
-        let effective_limit = params.limit.unwrap_or(50).min(200);
-        assert_eq!(effective_limit, 50);
+        assert_eq!(params.limit.unwrap_or(50).min(200), 50);
     }
 
     #[test]
-    fn list_params_limit_is_capped_at_200() {
+    fn limit_is_capped_at_200() {
         let params = ListDeploymentsParams {
-            service_name: Some("svc".to_string()),
+            service_name: Some("svc".into()),
             environment: None,
             start_time: None,
             end_time: None,
             limit: Some(999),
         };
-        let effective_limit = params.limit.unwrap_or(50).min(200);
-        assert_eq!(effective_limit, 200);
+        assert_eq!(params.limit.unwrap_or(50).min(200), 200);
+    }
+
+    #[test]
+    fn marker_serializes_all_fields() {
+        let id = Uuid::new_v4();
+        let m = DeploymentMarker {
+            deployment_id: id,
+            tenant_id: Uuid::new_v4(),
+            project_id: None,
+            service_name: "shop-api".into(),
+            environment: "staging".into(),
+            service_version: "v1.2.0".into(),
+            status: "success".into(),
+            started_at: Utc::now(),
+            finished_at: None,
+            deployed_by: Some("ci-bot".into()),
+            commit_sha: Some("abc123".into()),
+            rollback_of: None,
+            metadata: None,
+        };
+        let v = serde_json::to_value(&m).unwrap();
+        assert_eq!(v["service_name"], "shop-api");
+        assert_eq!(v["status"], "success");
+        assert!(v["finished_at"].is_null());
     }
 }
 ```
 
-- [ ] **Run the tests — expect FAIL (todo! panics are compile-time stubs not test failures)**
+- [ ] **Run tests — 3 must pass**
 
 ```bash
-cargo test -p query-api deployments 2>&1 | tail -20
+cargo test -p query-api deployments 2>&1 | tail -10
 ```
 
-Expected: `4 passed` for the four unit tests (they don't call the `todo!()` handlers).
+Expected: `3 passed`
 
-- [ ] **Implement create_deployment**
+- [ ] **Implement `list_deployments`**
 
-Replace the `create_deployment` stub:
-
-```rust
-pub async fn create_deployment(
-    State(state): State<AppState>,
-    Extension(ctx): Extension<TenantContext>,
-    Json(req): Json<CreateDeploymentRequest>,
-) -> Result<(StatusCode, Json<CreateDeploymentResponse>), StatusCode> {
-    if req.service_name.trim().is_empty()
-        || req.environment.trim().is_empty()
-        || req.service_version.trim().is_empty()
-    {
-        return Err(StatusCode::UNPROCESSABLE_ENTITY);
-    }
-
-    let deployment_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO deployment_markers \
-         (tenant_id, project_id, service_name, environment, service_version, \
-          status, deployed_by, commit_sha, metadata) \
-         VALUES ($1, $2, $3, $4, $5, 'in_progress', $6, $7, $8) \
-         RETURNING deployment_id",
-    )
-    .bind(ctx.tenant_id)
-    .bind(req.project_id)
-    .bind(&req.service_name)
-    .bind(&req.environment)
-    .bind(&req.service_version)
-    .bind(&req.deployed_by)
-    .bind(&req.commit_sha)
-    .bind(&req.metadata)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "failed to create deployment marker");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-
-    Ok((
-        StatusCode::CREATED,
-        Json(CreateDeploymentResponse { deployment_id }),
-    ))
-}
-```
-
-- [ ] **Implement finish_deployment**
-
-Replace the `finish_deployment` stub:
-
-```rust
-pub async fn finish_deployment(
-    State(state): State<AppState>,
-    Extension(ctx): Extension<TenantContext>,
-    Path(deployment_id): Path<Uuid>,
-    Json(req): Json<FinishDeploymentRequest>,
-) -> Result<StatusCode, StatusCode> {
-    let allowed = ["success", "failed", "rolled_back"];
-    if !allowed.contains(&req.status.as_str()) {
-        return Err(StatusCode::UNPROCESSABLE_ENTITY);
-    }
-
-    let finished_at = req.finished_at.unwrap_or_else(Utc::now);
-
-    let result = sqlx::query(
-        "UPDATE deployment_markers \
-         SET status = $1, finished_at = $2, rollback_of = $3 \
-         WHERE deployment_id = $4 AND tenant_id = $5",
-    )
-    .bind(&req.status)
-    .bind(finished_at)
-    .bind(req.rollback_of)
-    .bind(deployment_id)
-    .bind(ctx.tenant_id)
-    .execute(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "failed to update deployment marker");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-
-    if result.rows_affected() == 0 {
-        return Err(StatusCode::NOT_FOUND);
-    }
-
-    Ok(StatusCode::NO_CONTENT)
-}
-```
-
-- [ ] **Implement list_deployments**
-
-Replace the `list_deployments` stub:
+Replace the stub:
 
 ```rust
 pub async fn list_deployments(
@@ -487,80 +594,40 @@ pub async fn list_deployments(
 }
 ```
 
-- [ ] **Run tests — all must pass**
+- [ ] **Register the route in `services/query-api/src/main.rs`**
 
-```bash
-cargo test -p query-api deployments 2>&1 | tail -10
-```
+Add `mod deployments;` after the existing `mod discovery;` line.
 
-Expected: `5 passed, 0 failed`
-
-- [ ] **Commit**
-
-```bash
-git add services/query-api/src/deployments.rs
-git commit -m "feat(query-api): add deployment marker create/finish/list handlers"
-```
-
----
-
-## Task 4: Register routes in query-api main.rs
-
-**Files:**
-- Modify: `services/query-api/src/main.rs`
-
-- [ ] **Add module declaration and three routes**
-
-In `services/query-api/src/main.rs`, add `mod deployments;` after the existing `mod discovery;` line:
+Add one route to the `Router::new()` chain (after the `/v1/environments` route):
 
 ```rust
-mod deployments;
-```
-
-Add three routes to the `Router::new()` chain (place them after the existing `/v1/environments` route):
-
-```rust
-.route("/v1/deployments", axum::routing::post(deployments::create_deployment))
 .route("/v1/deployments", get(deployments::list_deployments))
-.route(
-    "/v1/deployments/:deployment_id",
-    axum::routing::patch(deployments::finish_deployment),
-)
 ```
 
-The two `/v1/deployments` routes use different HTTP methods so axum will route them correctly.
-
-- [ ] **Verify the service compiles**
+- [ ] **Verify the service compiles and tests pass**
 
 ```bash
-cargo build -p query-api 2>&1 | tail -10
-```
-
-Expected: `Finished` with no errors.
-
-- [ ] **Run the full query-api test suite**
-
-```bash
+cargo build -p query-api 2>&1 | tail -5
 cargo test -p query-api 2>&1 | tail -10
 ```
 
-Expected: all existing tests still pass plus the 5 new deployment tests.
+Expected: `Finished` and all tests pass.
 
 - [ ] **Commit**
 
 ```bash
-git add services/query-api/src/main.rs
-git commit -m "feat(query-api): register deployment marker routes"
+git add services/query-api/Cargo.toml \
+        services/query-api/src/deployments.rs \
+        services/query-api/src/main.rs
+git commit -m "feat(query-api): add GET /v1/deployments list endpoint"
 ```
 
 ---
 
-## Task 5: Bash script helper for CI/CD
+## Task 6: Bash script helper for CI/CD
 
 **Files:**
 - Create: `scripts/deployment-marker.sh`
-
-This script lets a CI pipeline create a deployment marker when a deploy starts and finish it when it completes or fails.
 
 - [ ] **Create the script**
 
@@ -569,7 +636,7 @@ This script lets a CI pipeline create a deployment marker when a deploy starts a
 # CI/CD helper for Observable deployment markers.
 #
 # Usage:
-#   # Start a deployment (prints deployment_id):
+#   # Start a deployment (prints deployment_id to stdout):
 #   DEPLOYMENT_ID=$(bash scripts/deployment-marker.sh start \
 #     --service shop-api --env staging --version v1.3.0 \
 #     --deployed-by ci-bot --commit abc123)
@@ -579,12 +646,12 @@ This script lets a CI pipeline create a deployment marker when a deploy starts a
 #     --id "$DEPLOYMENT_ID" --status success
 #
 # Environment variables:
-#   OBSERVABLE_URL   Base URL of the Observable query-api (default: http://localhost:8090)
-#   OBSERVABLE_TENANT_ID   X-Tenant-ID header value (required)
+#   OBSERVABLE_URL        Base URL of the Observable ingest-gateway (default: http://localhost:4318)
+#   OBSERVABLE_TENANT_ID  X-Tenant-ID header value (default: dev tenant UUID)
 
 set -euo pipefail
 
-BASE_URL="${OBSERVABLE_URL:-http://localhost:8090}"
+BASE_URL="${OBSERVABLE_URL:-http://localhost:4318}"
 TENANT_ID="${OBSERVABLE_TENANT_ID:-00000000-0000-0000-0000-000000000001}"
 SUBCOMMAND="${1:-}"
 shift || true
@@ -599,11 +666,11 @@ case "$SUBCOMMAND" in
 
     while [[ $# -gt 0 ]]; do
       case "$1" in
-        --service)   SERVICE_NAME="$2";    shift 2 ;;
-        --env)       ENVIRONMENT="$2";     shift 2 ;;
-        --version)   SERVICE_VERSION="$2"; shift 2 ;;
-        --deployed-by) DEPLOYED_BY="$2";   shift 2 ;;
-        --commit)    COMMIT_SHA="$2";      shift 2 ;;
+        --service)     SERVICE_NAME="$2";    shift 2 ;;
+        --env)         ENVIRONMENT="$2";     shift 2 ;;
+        --version)     SERVICE_VERSION="$2"; shift 2 ;;
+        --deployed-by) DEPLOYED_BY="$2";     shift 2 ;;
+        --commit)      COMMIT_SHA="$2";      shift 2 ;;
         *) echo "Unknown argument: $1" >&2; exit 1 ;;
       esac
     done
@@ -662,6 +729,8 @@ case "$SUBCOMMAND" in
 esac
 ```
 
+Note: `BASE_URL` defaults to `http://localhost:4318` (the ingest-gateway HTTP port), not the query-api.
+
 - [ ] **Verify syntax**
 
 ```bash
@@ -675,15 +744,17 @@ Expected: `syntax OK`
 ```bash
 chmod +x scripts/deployment-marker.sh
 git add scripts/deployment-marker.sh
-git commit -m "feat(scripts): add deployment-marker.sh CI/CD helper"
+git commit -m "feat(scripts): add deployment-marker.sh CI/CD helper pointing at ingest-gateway"
 ```
 
 ---
 
-## Task 6: Frontend API client
+## Task 7: Frontend API client
 
 **Files:**
 - Create: `apps/frontend/src/api/deployments.ts`
+
+The `GET /v1/deployments` endpoint is served by the query-api on the same origin as the frontend proxy. The write endpoints (on the ingest-gateway) are not called from the browser in this slice.
 
 - [ ] **Write the API client**
 
@@ -738,10 +809,10 @@ export async function listDeployments(
 }
 ```
 
-- [ ] **Verify TypeScript compiles**
+- [ ] **Typecheck**
 
 ```bash
-cd apps/frontend && npx tsc --noEmit 2>&1 | tail -10
+cd apps/frontend && npx tsc --noEmit 2>&1 | tail -5
 ```
 
 Expected: no errors.
@@ -750,18 +821,18 @@ Expected: no errors.
 
 ```bash
 git add apps/frontend/src/api/deployments.ts
-git commit -m "feat(frontend): add deployments API client"
+git commit -m "feat(frontend): add deployments API client for GET /v1/deployments"
 ```
 
 ---
 
-## Task 7: DeploymentTimeline component
+## Task 8: DeploymentTimeline component
 
 **Files:**
 - Create: `apps/frontend/src/components/DeploymentTimeline.tsx`
 - Create: `apps/frontend/src/components/DeploymentTimeline.test.tsx`
 
-The component renders a horizontal SVG bar showing deployment markers as colored vertical lines. The time axis spans from `rangeStart` to `rangeEnd`. Each marker is positioned proportionally along the bar. Colors: `success` = green (`#22c55e`), `in_progress` = blue (`#3b82f6`), `failed` = red (`#ef4444`), `rolled_back` = orange (`#f97316`). A hover tooltip shows version, deployed_by, and commit_sha.
+The component renders a horizontal SVG bar showing deployment events as colored vertical tick marks. Colors: `success`=#22c55e, `in_progress`=#3b82f6, `failed`=#ef4444, `rolled_back`=#f97316. A hover tooltip shows version, deployer, and short commit SHA.
 
 - [ ] **Write the failing tests first**
 
@@ -773,68 +844,47 @@ import { markerPosition, markerColor } from "./DeploymentTimeline";
 
 describe("markerPosition", () => {
   const rangeStart = new Date("2024-01-01T00:00:00Z").getTime();
-  const rangeEnd = new Date("2024-01-01T01:00:00Z").getTime();
+  const rangeEnd   = new Date("2024-01-01T01:00:00Z").getTime();
   const width = 400;
 
   it("places marker at left edge when at rangeStart", () => {
-    const pos = markerPosition(rangeStart, rangeStart, rangeEnd, width);
-    expect(pos).toBe(0);
+    expect(markerPosition(rangeStart, rangeStart, rangeEnd, width)).toBe(0);
   });
 
   it("places marker at right edge when at rangeEnd", () => {
-    const pos = markerPosition(rangeEnd, rangeStart, rangeEnd, width);
-    expect(pos).toBe(400);
+    expect(markerPosition(rangeEnd, rangeStart, rangeEnd, width)).toBe(400);
   });
 
   it("places marker at midpoint when halfway", () => {
     const mid = (rangeStart + rangeEnd) / 2;
-    const pos = markerPosition(mid, rangeStart, rangeEnd, width);
-    expect(pos).toBe(200);
+    expect(markerPosition(mid, rangeStart, rangeEnd, width)).toBe(200);
   });
 
   it("clamps to 0 when marker is before range", () => {
-    const before = rangeStart - 1000;
-    const pos = markerPosition(before, rangeStart, rangeEnd, width);
-    expect(pos).toBe(0);
+    expect(markerPosition(rangeStart - 1000, rangeStart, rangeEnd, width)).toBe(0);
   });
 
   it("clamps to width when marker is after range", () => {
-    const after = rangeEnd + 1000;
-    const pos = markerPosition(after, rangeStart, rangeEnd, width);
-    expect(pos).toBe(400);
+    expect(markerPosition(rangeEnd + 1000, rangeStart, rangeEnd, width)).toBe(400);
   });
 });
 
 describe("markerColor", () => {
-  it("returns green for success", () => {
-    expect(markerColor("success")).toBe("#22c55e");
-  });
-
-  it("returns blue for in_progress", () => {
-    expect(markerColor("in_progress")).toBe("#3b82f6");
-  });
-
-  it("returns red for failed", () => {
-    expect(markerColor("failed")).toBe("#ef4444");
-  });
-
-  it("returns orange for rolled_back", () => {
-    expect(markerColor("rolled_back")).toBe("#f97316");
-  });
-
-  it("returns grey for unknown status", () => {
-    expect(markerColor("unknown")).toBe("#9ca3af");
-  });
+  it("returns green for success",          () => expect(markerColor("success")).toBe("#22c55e"));
+  it("returns blue for in_progress",       () => expect(markerColor("in_progress")).toBe("#3b82f6"));
+  it("returns red for failed",             () => expect(markerColor("failed")).toBe("#ef4444"));
+  it("returns orange for rolled_back",     () => expect(markerColor("rolled_back")).toBe("#f97316"));
+  it("returns grey for unknown status",    () => expect(markerColor("unknown")).toBe("#9ca3af"));
 });
 ```
 
-- [ ] **Run tests to confirm they fail (functions not defined yet)**
+- [ ] **Run tests — confirm they FAIL**
 
 ```bash
 cd apps/frontend && npx vitest run src/components/DeploymentTimeline.test.tsx 2>&1 | tail -10
 ```
 
-Expected: test failures — `markerPosition` and `markerColor` are not exported yet.
+Expected: failures — `markerPosition` and `markerColor` are not exported yet.
 
 - [ ] **Implement the component**
 
@@ -896,14 +946,10 @@ export function DeploymentTimeline({ markers, rangeStartMs, rangeEndMs }: Props)
         aria-label="Deployment timeline"
         style={{ display: "block" }}
       >
-        {/* baseline */}
         <line
-          x1={0}
-          y1={lineY + lineHeight / 2}
-          x2={width}
-          y2={lineY + lineHeight / 2}
-          stroke="#374151"
-          strokeWidth={1}
+          x1={0} y1={lineY + lineHeight / 2}
+          x2={width} y2={lineY + lineHeight / 2}
+          stroke="#374151" strokeWidth={1}
         />
         {markers.map((m) => {
           const x = markerPosition(
@@ -916,27 +962,17 @@ export function DeploymentTimeline({ markers, rangeStartMs, rangeEndMs }: Props)
           return (
             <g key={m.deployment_id}>
               <line
-                x1={x}
-                y1={lineY}
-                x2={x}
-                y2={lineY + lineHeight}
-                stroke={color}
-                strokeWidth={2}
+                x1={x} y1={lineY} x2={x} y2={lineY + lineHeight}
+                stroke={color} strokeWidth={2}
               />
               <circle
-                cx={x}
-                cy={lineY + lineHeight / 2}
-                r={5}
+                cx={x} cy={lineY + lineHeight / 2} r={5}
                 fill={color}
                 style={{ cursor: "pointer" }}
                 onMouseEnter={(e) => {
                   const svgRect = (e.currentTarget.closest("svg") as SVGElement)
                     .getBoundingClientRect();
-                  setTooltip({
-                    marker: m,
-                    x: e.clientX - svgRect.left,
-                    y: e.clientY - svgRect.top,
-                  });
+                  setTooltip({ marker: m, x: e.clientX - svgRect.left, y: e.clientY - svgRect.top });
                 }}
                 onMouseLeave={() => setTooltip(null)}
                 aria-label={`Deployment ${m.service_version} — ${m.status}`}
@@ -977,13 +1013,13 @@ export function DeploymentTimeline({ markers, rangeStartMs, rangeEndMs }: Props)
 }
 ```
 
-- [ ] **Run tests — all must pass**
+- [ ] **Run tests — 10 must pass**
 
 ```bash
 cd apps/frontend && npx vitest run src/components/DeploymentTimeline.test.tsx 2>&1 | tail -10
 ```
 
-Expected: `9 passed, 0 failed`
+Expected: `10 passed, 0 failed`
 
 - [ ] **Typecheck**
 
@@ -998,33 +1034,30 @@ Expected: no errors.
 ```bash
 git add apps/frontend/src/components/DeploymentTimeline.tsx \
         apps/frontend/src/components/DeploymentTimeline.test.tsx
-git commit -m "feat(frontend): add DeploymentTimeline SVG component with unit tests"
+git commit -m "feat(frontend): add DeploymentTimeline SVG component with 10 unit tests"
 ```
 
 ---
 
-## Task 8: Integrate DeploymentTimeline into ServiceDetailPage
+## Task 9: Integrate DeploymentTimeline into ServiceDetailPage
 
 **Files:**
 - Modify: `apps/frontend/src/pages/ServiceDetailPage.tsx`
 
-The timeline is added inside the `ServiceOverview` sub-component, between the metric grid and the signal tabs. It queries `GET /v1/deployments?service_name=<name>` using TanStack Query and passes the results to `DeploymentTimeline`. The time range matches `lookbackMinutes`.
+- [ ] **Add imports**
 
-- [ ] **Add imports to ServiceDetailPage.tsx**
-
-At the top of the file, after the existing imports, add:
+At the top of `apps/frontend/src/pages/ServiceDetailPage.tsx`, add two imports alongside the existing ones:
 
 ```typescript
-import { useQuery } from "@tanstack/react-query";
 import { listDeployments } from "../api/deployments";
 import { DeploymentTimeline } from "../components/DeploymentTimeline";
 ```
 
-Note: `useQuery` is already imported once — if there is already a `useQuery` import at the top of the file, do not add a duplicate. Just add the two new lines for `listDeployments` and `DeploymentTimeline`.
+`useQuery` is already imported — do not add a duplicate.
 
-- [ ] **Add DeploymentTimelineSection sub-component**
+- [ ] **Add `DeploymentTimelineSection` sub-component**
 
-Add this component immediately before the closing `}` of the file (after the `MetricTile` component):
+Add this function before the final closing `}` of the file (after the `MetricTile` component):
 
 ```typescript
 function DeploymentTimelineSection({
@@ -1060,9 +1093,9 @@ function DeploymentTimelineSection({
 }
 ```
 
-- [ ] **Add DeploymentTimelineSection to the ServiceOverview component**
+- [ ] **Add `DeploymentTimelineSection` inside `ServiceOverview`**
 
-In `ServiceOverview`, locate the `<div className="metric-grid"` block. The line after it ends with `</div>`. After that closing `</div>` (the one closing the metric-grid), add:
+In the `ServiceOverview` function, locate the closing `</div>` of `<div className="metric-grid" ...>`. Immediately after it, add:
 
 ```tsx
 <DeploymentTimelineSection
@@ -1077,7 +1110,7 @@ In `ServiceOverview`, locate the `<div className="metric-grid"` block. The line 
 cd apps/frontend && npx vitest run 2>&1 | tail -15
 ```
 
-Expected: all tests pass, including existing service detail tests and the new timeline tests.
+Expected: all tests pass.
 
 - [ ] **Typecheck**
 
@@ -1091,12 +1124,12 @@ Expected: no errors.
 
 ```bash
 git add apps/frontend/src/pages/ServiceDetailPage.tsx
-git commit -m "feat(frontend): add deployment timeline overlay to service detail overview"
+git commit -m "feat(frontend): show deployment timeline overlay in service detail overview"
 ```
 
 ---
 
-## Task 9: Run local-ci and open PR
+## Task 10: Run local-ci, update phases plan, open PR
 
 - [ ] **Run local CI gate**
 
@@ -1104,9 +1137,7 @@ git commit -m "feat(frontend): add deployment timeline overlay to service detail
 bash scripts/local-ci.sh --skip-smoke 2>&1 | tail -30
 ```
 
-Expected: all stages pass (Rust fmt, clippy, tests; frontend typecheck/lint/build/test; Docker build).
-
-If any stage fails, fix before proceeding.
+Expected: all stages pass. Fix any failure before continuing.
 
 - [ ] **Update phases plan to mark P3-S11 done**
 
@@ -1120,8 +1151,8 @@ Replace with:
 
 ```
 - [x] **P3-S11: Add deployment event ingestion and one timeline overlay**
-  - Outcome: `deployment_markers` table in PostgreSQL, `POST /v1/deployments` + `PATCH /v1/deployments/:id` + `GET /v1/deployments` in query-api, `scripts/deployment-marker.sh` CI helper, `DeploymentTimeline` SVG component in service detail overview. Completed 2026-04-26.
-  - Checkpoint: is deployment identity clean enough for rollback analysis later? Answer: yes. The `rollback_of` foreign key links a `rolled_back` deployment to the original, and the `status` enum tracks the full lifecycle. Enrichment of span/log/metric rows with `deployment_id` (§18.5) is deferred to the next ingest-enrichment slice.
+  - Outcome: `deployment_markers` table (migration 009), `POST /v1/deployments` + `PATCH /v1/deployments/:id` in ingest-gateway (new PgPool connection), `GET /v1/deployments` in query-api, `scripts/deployment-marker.sh` CI helper, `DeploymentTimeline` SVG component in service detail overview, ADR-024 documents routing split and future Redpanda SSE path. Completed 2026-04-26.
+  - Checkpoint: is deployment identity clean enough for rollback analysis later? Answer: yes. `rollback_of` FK links a `rolled_back` deployment to the original. Ingest enrichment (§18.5 stamping `deployment_id` on span rows) and the Redpanda event-stream path (ADR-024 §Future) are explicitly deferred.
 ```
 
 - [ ] **Commit the plan update**
@@ -1140,28 +1171,32 @@ gh pr create \
   --body "$(cat <<'EOF'
 ## Summary
 
-- Adds `deployment_markers` PostgreSQL table (migration 009) with lifecycle fields from spec/18-deployment-markers.md
-- Adds `POST /v1/deployments`, `PATCH /v1/deployments/:id`, `GET /v1/deployments` to the query-api
-- Adds `scripts/deployment-marker.sh` for CI/CD pipelines to create and finish markers via curl
-- Adds `DeploymentTimeline` SVG component to the service detail overview — shows colored vertical markers (green=success, blue=in_progress, red=failed, orange=rolled_back) with a hover tooltip
+- Adds `deployment_markers` PostgreSQL table (migration 009) covering full spec/18-deployment-markers.md schema
+- `POST /v1/deployments` and `PATCH /v1/deployments/:id` in **ingest-gateway** (new PgPool connection; direct Postgres write for immediate consistency)
+- `GET /v1/deployments` in **query-api** with service/environment/time filters
+- ADR-024 documents the ingest/query routing split and the future Redpanda `deployment.events` topic that enables SSE push to the UI without polling
+- `scripts/deployment-marker.sh` bash helper for CI/CD pipelines (points at ingest-gateway port 4318)
+- `DeploymentTimeline` SVG component (10 unit tests) in service detail overview — green=success, blue=in_progress, red=failed, orange=rolled_back, hover tooltip with version/deployer/commit
 
 ## Out of scope
 
-- Ingest enrichment (§18.5 — stamping deployment_id on spans/logs/metrics) — deferred
-- RBAC role checks on write endpoints at the query-api layer — query-api uses tenant-only auth (X-Tenant-ID); role enforcement is a Phase 4 concern
-- Canary-promote integration
+- Redpanda event publication (ADR-024 future path)
+- Ingest enrichment — stamping `deployment_id` on span/log/metric rows (spec §18.5)
+- RBAC role checks on write endpoints at the ingest-gateway layer beyond current tenant auth
 
 ## Test plan
 
-- [ ] `cargo test -p query-api` — 5 new deployment unit tests pass
-- [ ] `npx vitest run` in `apps/frontend` — 9 new timeline tests pass, all existing tests pass
+- [ ] `cargo test -p ingest-gateway` — 4 new deployment unit tests pass
+- [ ] `cargo test -p query-api` — 3 new deployment unit tests pass
+- [ ] `npx vitest run` in `apps/frontend` — 10 new timeline tests pass, all existing pass
 - [ ] `bash scripts/local-ci.sh --skip-smoke` — all stages green
-- [ ] Manual: `docker compose up -d`, seed migration runs, `GET /v1/deployments` returns dev seed row
-- [ ] Manual: open service detail page for `shop-api`, deployment timeline appears above signal tabs
+- [ ] Manual: `docker compose up -d`, `GET http://localhost:8090/v1/deployments` returns dev seed row
+- [ ] Manual: service detail for `shop-api` shows deployment timeline
 
 ## ADR/spec sync
 
-No architecture, technology, or data-model decisions changed beyond what spec/18-deployment-markers.md already specifies. No ADR update needed.
+- ADR-024 created — documents write-path routing decision and future Redpanda SSE path
+- `spec/adr/README.md` updated with ADR-024 index entry
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
@@ -1172,24 +1207,18 @@ EOF
 
 ## Self-Review
 
-**Spec coverage check (spec/18-deployment-markers.md):**
+**Spec coverage (spec/18-deployment-markers.md):**
 
 | Requirement | Covered |
 |---|---|
-| §18.1 `deployment_markers` table with all fields | ✅ Task 1 |
-| §18.3 `POST /v1/deployments` — create in_progress | ✅ Task 3 |
-| §18.3 `PATCH /v1/deployments/:id` — finish lifecycle | ✅ Task 3 |
-| §18.3 `GET /v1/deployments` — list with filters | ✅ Task 3 |
-| §18.4 Timeline overlay with status colors | ✅ Tasks 7–8 |
-| §18.4 Hover tooltip with version/committer | ✅ Task 7 |
-| §18.5 Ingest enrichment (stamp deployment_id) | ❌ Deferred — explicitly out of scope |
-| §18.6 RBAC (Member to write, Viewer to read) | ⚠️ Partial — tenant auth only at query-api; role gate deferred |
-| §18.8 CI/CD helper script | ✅ Task 5 |
+| §18.1 all table fields | ✅ Task 1 |
+| §18.3 POST /v1/deployments (ingest-gateway) | ✅ Task 4 |
+| §18.3 PATCH /v1/deployments/:id (ingest-gateway) | ✅ Task 4 |
+| §18.3 GET /v1/deployments (query-api) | ✅ Task 5 |
+| §18.4 Timeline overlay with status colors + tooltip | ✅ Tasks 8–9 |
+| §18.5 Ingest enrichment | ❌ Deferred — out of scope |
+| §18.6 RBAC write-role gate | ⚠️ Partial — tenant auth only; role gate deferred |
+| §18.8 CI/CD helper script | ✅ Task 6 |
+| ADR-024 routing + Redpanda future path | ✅ Task 2 (done) |
 
-**Placeholder scan:** No TBD, TODO, or "similar to" placeholders present.
-
-**Type consistency check:**
-- `DeploymentMarker.status` type: `"in_progress" | "success" | "failed" | "rolled_back"` in `api/deployments.ts` — matches SQL CHECK constraint in Task 1
-- `markerColor(status: string)` accepts string — consistent with `DeploymentMarker.status` passed from component in Task 7
-- `listDeployments` in `api/deployments.ts` returns `ListDeploymentsResponse` — consumed correctly in `DeploymentTimelineSection` in Task 8
-- Route handler param `Path(deployment_id): Path<Uuid>` in `finish_deployment` — matches route pattern `/v1/deployments/:deployment_id` in Task 4
+**Type consistency:** `DeploymentMarker.status` union in `api/deployments.ts` matches SQL CHECK constraint in migration. `markerColor(status: string)` receives `status` from `DeploymentMarker.status` which is always one of the four union members at runtime. `list_deployments` in `api/deployments.ts` returns `ListDeploymentsResponse` which is consumed correctly in `DeploymentTimelineSection`.
