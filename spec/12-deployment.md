@@ -223,7 +223,7 @@ The Rust service containers are built from the repo-root `Dockerfile`. The front
 
 | Service          | Host port | Internal dependencies                    |
 |------------------|-----------|------------------------------------------|
-| ingest-gateway   | 4317, 4318| auth-service, redpanda                   |
+| ingest-gateway   | 4317, 4318, 4321 | auth-service, redpanda                   |
 | auth-service     | 4319      | postgres                                 |
 | storage-writer   | 4320      | clickhouse                               |
 | stream-processor | none      | redpanda, storage-writer                 |
@@ -246,7 +246,7 @@ The Rust service containers are built from the repo-root `Dockerfile`. The front
 
 - `docker compose up` must start cleanly from scratch with no manual seed steps. Setup and migrations are automated via `clickhouse-setup`, `postgres-setup`, and `redpanda-setup` containers.
 - Do not bake credentials into `docker-compose.yml`; read all values from environment variables or `.env.local`.
-- Local ports must not conflict across services: ClickHouse 8123/9000, Redpanda 9092/9644, Postgres 5432, OpenFGA 8080, ingest-gateway 4317 (gRPC) & 4318 (HTTP JSON), auth-service 4319, storage-writer 4320, query-api 8090, frontend 5173.
+- Local ports must not conflict across services: ClickHouse 8123/9000, Redpanda 9092/9644, Postgres 5432, OpenFGA 8080, ingest-gateway 4317 (gRPC), 4318 (HTTP/OTLP), 4321 (Platform API), auth-service 4319, storage-writer 4320, query-api 8090, frontend 5173.
 - `make dev` must be documented in the repo root README as the single starting point for new contributors.
 
 ### 19.7 Helm Chart Layout and Rollback

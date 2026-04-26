@@ -23,6 +23,8 @@ The deciding factor is the future real-time update path. If deployment writes en
 
 `GET /v1/deployments` is handled by the **query API**, consistent with all other read endpoints.
 
+**Port:** The deployment write endpoints are served on the **Platform API port (4321)**, not the OTLP ports (4317/4318). The OTLP ports accept only standard OTLP telemetry signals (ADR-001, ADR-023). Port 4321 is the integration surface for Observable-specific authenticated write operations; deployment markers are the first such operation. CI/CD pipelines and tooling target `http://<host>:4321` (env var `OBSERVABLE_URL`).
+
 **Future streaming path (not implemented in this slice):** The ingest gateway should additionally publish a `deployment.events` topic to Redpanda on `POST` and `PATCH`. The query API (or a dedicated notification service) subscribes to that topic and can push real-time deployment state changes to the UI via SSE or WebSocket, eliminating the need for the frontend to poll the `GET /v1/deployments` endpoint.
 
 ## Consequences

@@ -160,10 +160,11 @@ services:
       <<: *platform-self-observability-env
       INGEST_GATEWAY_PORT: "4318"
       INGEST_GATEWAY_GRPC_PORT: "4317"
+      INGEST_GATEWAY_PLATFORM_PORT: "4321"
       REDPANDA_BROKERS: redpanda:9092
       INGEST_TOPIC: telemetry.raw
       AUTH_SERVICE_URL: http://auth-service:4319
-    ports: ["4317:4317", "4318:4318"]
+    ports: ["4317:4317", "4318:4318", "4321:4321"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4318/health"]
       interval: 2s

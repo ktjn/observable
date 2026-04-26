@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -16,27 +16,33 @@ Prior to this ADR, the Observable platform used a non-standard port layout:
 
 This layout prevented standard OTel components (collectors, SDKs, edge tools) from reaching Observable without custom endpoint configuration.
 
+The ingest-gateway also hosts non-OTLP platform write operations (e.g. deployment
+markers). These must not share the OTLP ports — port 4318 must remain strictly OTLP
+to preserve the OTLP contract (ADR-001) and allow independent network-level routing.
+
 ## Decision
 
-We will align the Observable platform with the OTLP standard port assignments:
+The Observable platform port assignments are:
 
-1.  **Ingest Gateway** will now serve:
-    - **OTLP/gRPC** on port **4317** (using `tonic`). Port 4317 does not serve OTLP/HTTP.
-    - **OTLP/HTTP JSON** on port **4318** (using `axum`). Port 4318 accepts `application/json` and does not accept `application/x-protobuf`.
-2.  **Auth Service** will move to an internal-only port: **4319**.
+1. **Ingest Gateway** serves three listeners:
+   - **OTLP/gRPC** on port **4317** (using `tonic`). Port 4317 does not serve OTLP/HTTP.
+   - **OTLP/HTTP JSON** on port **4318** (using `axum`). Port 4318 accepts `application/json` only; no non-OTLP routes are registered on this port.
+   - **Platform API** on port **4321** (using `axum`). Non-OTLP, Observable-specific authenticated write operations (e.g. deployment markers). Configured via `INGEST_GATEWAY_PLATFORM_PORT` (default `4321`).
+2. **Auth Service** uses an internal-only port: **4319**.
 
 ## Consequences
 
 - **Standard Port Alignment**: OTel components use port **4317** for gRPC and port **4318** for OTLP/HTTP JSON (for example, `OTLP_ENDPOINT=http://observable:4318` with an HTTP/JSON exporter).
 - **Compatibility Note**: OTLP/HTTP protobuf (`application/x-protobuf`) is not supported on port **4318**. HTTP clients must send JSON.
+- **Platform API**: Non-OTLP Observable platform writes (deployment markers, and future additions) target port **4321**. CI/CD pipelines and tooling must use `OBSERVABLE_URL=http://<host>:4321`.
 - **Service Reconfiguration**:
-    - `ingest-gateway` now runs two concurrent server listeners (HTTP and gRPC).
-    - `auth-service` internal validation endpoint is now at `http://auth-service:4319/internal/validate`.
+    - `ingest-gateway` runs three concurrent server listeners (gRPC, HTTP/OTLP, Platform API).
+    - `auth-service` internal validation endpoint is at `http://auth-service:4319/internal/validate`.
 - **Infrastructure Impact**:
     - `docker-compose.yml` updated to reflect new port mappings.
     - Helm charts (`charts/observable`) updated for multi-port support in `ingest-gateway`.
     - Local dev environment and documentation (`spec/12-deployment.md`) updated.
-- **Migration Path**: Existing deployments must update their `AUTH_SERVICE_URL` and `INGEST_GATEWAY_PORT` environment variables. OTLP senders should point to 4317 for gRPC and 4318 for HTTP JSON.
+- **Migration Path**: Existing deployments must update their `AUTH_SERVICE_URL` and `INGEST_GATEWAY_PORT` environment variables. OTLP senders should point to 4317 for gRPC and 4318 for HTTP JSON. Deployment marker tooling should point to port 4321.
 
 ## Verification
 

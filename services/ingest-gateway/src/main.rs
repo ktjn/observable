@@ -138,6 +138,9 @@ async fn main() -> anyhow::Result<()> {
     let grpc_port: u16 = std::env::var("INGEST_GATEWAY_GRPC_PORT")
         .unwrap_or_else(|_| "4317".into())
         .parse()?;
+    let platform_port: u16 = std::env::var("INGEST_GATEWAY_PLATFORM_PORT")
+        .unwrap_or_else(|_| "4321".into())
+        .parse()?;
 
     let brokers = std::env::var("REDPANDA_BROKERS").unwrap_or_else(|_| "localhost:9092".into());
     let topic = std::env::var("INGEST_TOPIC").unwrap_or_else(|_| "telemetry.raw".into());
@@ -183,12 +186,15 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let grpc_state = state.clone();
+    let platform_state = state.clone();
     let grpc_future = grpc::start_grpc_server(grpc_state, grpc_port);
     let http_future = http_json::start_http_server(state, http_port);
+    let platform_future = http_json::start_platform_server(platform_state, platform_port);
 
     tokio::select! {
         res = grpc_future => res?,
         res = http_future => res?,
+        res = platform_future => res?,
     }
 
     Ok(())
