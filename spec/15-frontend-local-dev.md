@@ -17,32 +17,28 @@ both the frontend and other tooling live under `packages/`.
 Observable/                         ← repo root
 ├── apps/
 │   └── frontend/                   ← React SPA
-│       ├── public/                 ← static assets copied verbatim to dist/
 │       ├── src/
 │       │   ├── main.tsx            ← React entry point
-│       │   ├── router.tsx          ← TanStack Router root definition
-│       │   ├── api/                ← TanStack Query hooks, typed API clients
-│       │   ├── components/         ← shared, domain-agnostic UI primitives
-│       │   ├── features/           ← one directory per product module (see §9.3)
-│       │   │   ├── service-catalog/
-│       │   │   ├── trace-explorer/
-│       │   │   ├── log-explorer/
-│       │   │   ├── metric-explorer/
-│       │   │   └── dashboards/
-│       │   ├── lib/                ← design tokens, Radix wrappers, theme config
+│       │   ├── App.tsx             ← Root component
+│       │   ├── router.ts           ← TanStack Router instance
+│       │   ├── components/         ← shared components
+│       │   │   ├── ui/             ← "owned" primitives (Base UI + Tailwind v4)
+│       │   │   └── shared/         ← domain-agnostic UI components
+│       │   ├── features/           ← domain-specific feature modules
+│       │   │   ├── tracing/
+│       │   │   ├── logs/
+│       │   │   └── metrics/
+│       │   ├── hooks/              ← shared custom hooks
+│       │   ├── lib/                ← third-party SDK config (OTel, etc.)
+│       │   ├── routes/             ← TanStack Router route definitions
+│       │   ├── stores/             ← global state (Zustand)
+│       │   ├── styles/             ← Tailwind v4 globals
 │       │   └── mocks/              ← MSW handlers for offline development
 │       ├── e2e/                    ← Playwright tests
 │       ├── index.html              ← Vite HTML entry
 │       ├── vite.config.ts
 │       ├── tsconfig.json
-│       ├── tsconfig.node.json      ← for vite.config.ts
 │       └── package.json
-├── packages/
-│   └── api-types/                  ← generated TypeScript types from OpenAPI contracts
-├── .env.local.example              ← committed template; copy to .env.local
-├── .env.local                      ← gitignored; local overrides
-├── docker-compose.yml
-└── Makefile
 ```
 
 ### 22.2 Prerequisites
@@ -90,9 +86,11 @@ VITE_FEATURE_FLAGS=
 
 ### 22.4 Vite Dev Server Configuration
 
-The dev server runs at `http://localhost:5173` by default. Vite's proxy rewrites
-`/v1/*` requests to the backend control-plane service, avoiding CORS issues and matching the
-production routing model where both the SPA and the API share one origin.
+The dev server runs at `http://localhost:5173` by default.
+
+- **Styling**: **Tailwind CSS v4** (Rust-based engine). Utility-first approach for high-density layouts.
+- **Primitives**: **Base UI** (using the Shadcn/ownership pattern). Code for primitives is copied into `src/components/ui`.
+- **API Proxy**: Vite's proxy rewrites `/v1/*` requests to the backend control-plane service, avoiding CORS issues and matching the production routing model.
 
 `apps/frontend/vite.config.ts` (authoritative reference):
 
@@ -433,7 +431,54 @@ In CI, E2E runs nightly against the ephemeral environment (not on every PR). See
 
 ---
 
-## 26. Spec and ADR Cross-References
+## 27. Dependency Maintenance & Security
+
+Managing npm dependencies is a critical security and stability concern for a production-grade UI.
+
+### 27.1 Vulnerability Scanning
+- **`npm audit`**: Run automatically in CI on every PR. Any "High" or "Critical" vulnerability blocks the PR.
+- **Snyk/GitHub Advanced Security**: Used for continuous monitoring of vulnerabilities in the dependency tree.
+
+### 27.2 Automated Updates
+- **Renovate/Dependabot**: Configured to open PRs for dependency updates.
+- **Grouping**: Patch and minor updates are grouped to reduce PR noise. Major updates are opened individually.
+- **Human Review Mandate**: Every dependency update PR requires manual review and approval by a human maintainer. Auto-merge is disabled to ensure project security and stability, complying with the core mandates in `GEMINI.md`.
+
+### 27.3 License Compliance
+- **Allowed Licenses**: MIT, Apache-2.0, BSD-3-Clause, ISC.
+- **Restricted Licenses**: AGPL, GPL, LGPL (requires manual review).
+- **Tooling**: `license-checker` runs in CI to ensure no restricted licenses are introduced via new dependencies.
+
+### 27.4 Package Pinning
+- Always use `npm ci` in CI and Docker builds to ensure exact versions from `package-lock.json` are used.
+- Commit `package-lock.json` after every dependency change.
+
+---
+
+## 28. Accessibility Verification
+
+Accessibility is not a one-time task but a continuous requirement.
+
+### 28.1 Automated Testing
+- **`playwright-axe`**: Integrated into the Playwright E2E suite.
+- Every major page (Service Catalog, Explorers, Dashboards) must have an accessibility test case:
+  ```typescript
+  test('should have no automatically detectable accessibility violations', async ({ page }) => {
+    await page.goto('/services');
+    const accessibilityScanResults = await new AxeBuilder({ page }).analyze();
+    expect(accessibilityScanResults.violations).toEqual([]);
+  });
+  ```
+
+### 28.2 Manual Review Checklist
+- **Keyboard Navigation**: Can all interactive elements be reached and activated using only the keyboard?
+- **Focus Indicators**: Are focus rings clearly visible?
+- **Color Contrast**: Do all text and icons meet WCAG AA contrast ratios? (Verified via browser devtools).
+- **Screen Readers**: Do complex components (charts, Monaco) have appropriate ARIA labels and descriptions?
+
+---
+
+## 29. Spec and ADR Cross-References
 
 | Topic | Reference |
 |-------|-----------|

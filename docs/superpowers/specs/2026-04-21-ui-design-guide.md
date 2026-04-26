@@ -2,27 +2,26 @@
 
 This guide documents the Observable platform's design system: tokens, layout components,
 typography, color semantics, interactive controls, and patterns for building new UI.
-All values derive from `apps/frontend/src/styles.css` and the requirements in `spec/05-frontend.md`.
+All values derive from **Tailwind CSS v4** configuration and the requirements in `spec/05-frontend.md`.
 
 ---
 
 ## 1. Design Tokens
 
-Tokens are CSS custom properties declared on `:root`. All components consume these variables;
-never hard-code hex values in component CSS.
+Tokens are managed via Tailwind CSS v4 variables. All components consume these variables using Tailwind classes; avoid raw CSS where possible.
 
 ### 1.1 Color Tokens
 
-| Token | Light | Dark | Purpose |
-|---|---|---|---|
-| `--bg` | `#f6f7f9` | `#111318` | Page / app background |
-| `--surface` | `#ffffff` | `#191d24` | Card, panel, sidebar, topbar |
-| `--surface-subtle` | `#eef1f5` | `#232935` | Hover state, zebra rows, muted fills |
-| `--border` | `#d8dee7` | `#333b49` | All borders and dividers |
-| `--text` | `#17202a` | `#edf1f7` | Primary body text |
-| `--muted` | `#5f6b7a` | `#a7b0bd` | Secondary / supporting text, icon tint |
-| `--brand` | `#2563eb` | `#60a5fa` | Interactive accent (links, focus rings, active states) |
-| `--brand-strong` | `#1d4ed8` | `#93c5fd` | Hover on brand-colored elements |
+| Token | Tailwind Class | Purpose |
+|---|---|---|
+| Background | `bg-background` | Page / app background |
+| Surface | `bg-surface` | Card, panel, sidebar, topbar |
+| Surface Subtle | `bg-surface-subtle` | Hover state, zebra rows, muted fills |
+| Border | `border-border` | All borders and dividers |
+| Text | `text-foreground` | Primary body text |
+| Muted | `text-muted` | Secondary / supporting text, icon tint |
+| Brand | `text-brand` / `bg-brand` | Interactive accent |
+
 
 ### 1.2 Semantic Status Tokens
 
@@ -405,11 +404,11 @@ These interaction patterns must be consistent across all explorer and detail vie
 
 Target: WCAG 2.1 AA (spec/05-frontend.md §9.11).
 
-- All interactive elements must be keyboard-reachable and show a visible focus ring.
-- Custom components (segmented control, status badge, nav links) must carry ARIA roles where the semantic HTML element is absent.
+- All interactive elements must be keyboard-reachable and show a visible focus ring (`focus-visible:ring-2`).
+- Custom components must carry ARIA roles where the semantic HTML element is absent.
 - Color is never the **sole** indicator of status — pair color with a text label or icon.
-- Sufficient contrast: `--text` on `--bg` and `--text` on `--surface` must meet 4.5:1 in both themes.
-- Use Radix UI primitives (as specified in the stack) for complex components (dialogs, dropdowns, tooltips) to inherit accessibility behavior.
+- Sufficient contrast: `text-foreground` on `bg-background` must meet 4.5:1 in both themes.
+- Use **Base UI** primitives (as specified in the stack) for complex components (dialogs, dropdowns, tooltips) to inherit accessibility behavior. We follow the **Shadcn pattern** of owning the component code in `src/components/ui`.
 
 ---
 
@@ -417,13 +416,10 @@ Target: WCAG 2.1 AA (spec/05-frontend.md §9.11).
 
 | Do not | Instead |
 |---|---|
-| Hard-code hex values in component CSS | Use the token variables (`var(--brand)`, `var(--bad)`, etc.) |
+| Hard-code hex values in component code | Use Tailwind classes or token variables |
 | Read `localStorage` for theme directly | Use `useTheme()` from `lib/theme.tsx` |
-| Couple color to meaning without a token | Introduce a new semantic token if needed |
+| Build custom complex interactive logic | Use **Base UI** primitives |
 | Show all signal types on one page simultaneously | Use tabs, drill-down, or side panels |
-| Mix light-mode and dark-mode values in one rule | Put overrides under `[data-theme="dark"]` only |
-| Use SVG rendering for graphs with > ~100 nodes | Use canvas-based rendering (service map, flame graphs) |
-| Build separate state machines for time range | Use the single global time range context; per-panel overrides only |
 
 ---
 
@@ -431,10 +427,9 @@ Target: WCAG 2.1 AA (spec/05-frontend.md §9.11).
 
 Checklist when adding a component to `apps/frontend/src/components/`:
 
-1. Use only token variables for color, never literals.
+1. Use Tailwind CSS v4 classes for all styling.
 2. Test the component in both light and dark themes.
 3. Verify at 860px and 560px breakpoints.
 4. Add ARIA roles / labels if not using a native HTML element.
-5. Ensure keyboard focus is visible (browser default outline or a `var(--brand)` outline).
+5. Use **Base UI** for complex interactive logic.
 6. Co-locate a `.test.tsx` file using `@testing-library/react`.
-7. If the component adds a new CSS class, add it to `styles.css` following the existing pattern.

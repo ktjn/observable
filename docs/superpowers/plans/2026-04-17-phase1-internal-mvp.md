@@ -204,13 +204,19 @@ Task 1 (scaffold)
       "dev": "vite",
       "build": "tsc && vite build",
       "typecheck": "tsc --noEmit",
-      "lint": "eslint src --ext ts,tsx --report-unused-disable-directives"
+      "lint": "eslint src --ext ts,tsx --report-unused-disable-directives",
+      "test": "vitest"
     },
     "dependencies": {
       "react": "^19.0.0",
       "react-dom": "^19.0.0",
       "@tanstack/react-query": "^5.0.0",
-      "@tanstack/react-router": "^1.0.0"
+      "@tanstack/react-router": "^1.0.0",
+      "@base-ui-components/react": "^1.0.0",
+      "react-error-boundary": "^5.0.0",
+      "zustand": "^5.0.0",
+      "clsx": "^2.1.1",
+      "tailwind-merge": "^3.0.0"
     },
     "devDependencies": {
       "@types/react": "^19.0.0",
@@ -218,11 +224,46 @@ Task 1 (scaffold)
       "@vitejs/plugin-react": "^4.0.0",
       "typescript": "^5.0.0",
       "vite": "^8.0.0",
+      "tailwindcss": "^4.0.0",
+      "@tailwindcss/vite": "^4.0.0",
       "eslint": "^9.0.0",
-      "@typescript-eslint/eslint-plugin": "^8.0.0"
+      "@typescript-eslint/eslint-plugin": "^8.0.0",
+      "vitest": "^2.0.0",
+      "@testing-library/react": "^16.0.0",
+      "msw": "^2.0.0",
+      "@playwright/test": "^1.40.0"
     }
   }
   ```
+
+...
+
+- [ ] **Step 4: Create feature-based directory structure**
+
+  ```bash
+  mkdir -p apps/frontend/src/{components/{ui,shared},features/tracing/{api,components,types,utils},hooks,lib,routes,styles,types,utils}
+  ```
+
+- [ ] **Step 5: Initialize Tailwind CSS v4**
+
+  Create `src/styles/globals.css`:
+  ```css
+  @import "tailwindcss";
+  ```
+
+  Update `vite.config.ts`:
+  ```ts
+  import tailwindcss from '@tailwindcss/vite';
+  import { defineConfig } from 'vite';
+
+  export default defineConfig({
+    plugins: [tailwindcss()],
+  });
+  ```
+
+- [ ] **Step 6: Create initial UI components (Shadcn pattern)**
+
+  Implement `src/components/ui/Button.tsx` and `src/components/ui/Popover.tsx` using **Base UI** primitives and **Tailwind CSS v4** classes.
 
 - [ ] **Step 7: Verify workspace compiles**
 
@@ -2447,20 +2488,44 @@ mod http_json;
   ```tsx
   import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
   import { RouterProvider } from "@tanstack/react-router";
+  import { ErrorBoundary } from "react-error-boundary";
   import { router } from "./router";
 
-  const queryClient = new QueryClient();
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: 3,
+        retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      },
+    },
+  });
+
+  function GlobalErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
+    return (
+      <div role="alert" style={{ padding: "2rem", textAlign: "center" }}>
+        <h2>Something went wrong</h2>
+        <pre style={{ color: "red" }}>{error.message}</pre>
+        <button onClick={resetErrorBoundary}>Try again</button>
+      </div>
+    );
+  }
 
   export default function App() {
     return (
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>
+      <ErrorBoundary FallbackComponent={GlobalErrorFallback}>
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      </ErrorBoundary>
     );
   }
   ```
 
-- [ ] **Step 8: Run tests — verify pass**
+- [ ] **Step 8: Set up MSW for backend-less development**
+
+  Follow the strategy in `spec/15-frontend-local-dev.md §22.6`. Create `src/mocks/` and implement basic handlers for traces and services.
+
+- [ ] **Step 9: Run tests — verify pass**
 
   ```bash
   npm run test --workspace=apps/frontend
@@ -2468,7 +2533,7 @@ mod http_json;
   npm run build --workspace=apps/frontend
   ```
 
-- [ ] **Step 9: Verify dev server**
+- [ ] **Step 10: Verify dev server**
 
   ```bash
   npm run dev --workspace=apps/frontend
@@ -2859,82 +2924,22 @@ mod http_json;
   npm run test --workspace=apps/frontend
   ```
 
-- [ ] **Step 3: Implement TraceDetail.tsx**
+- [ ] **Step 3: Implement apps/frontend/src/features/tracing/components/TraceDetail.tsx**
+
+  (Waterfall logic using **Base UI** primitives and **Tailwind CSS v4** classes)
+
+- [ ] **Step 4: Add trace detail route in apps/frontend/src/routes/traces.$traceId.tsx**
 
   ```tsx
-  import { Span } from "../api/traces";
+  import { createRoute } from "@tanstack/react-router";
+  import { rootRoute } from "./__root";
+  import TraceDetailPage from "../pages/TraceDetailPage";
 
-  interface Props { traceId: string; spans: Span[] }
-
-  export function TraceDetail({ traceId, spans }: Props) {
-    const minStart = Math.min(...spans.map(s => Number(s.start_time_unix_nano)));
-    const maxEnd   = Math.max(...spans.map(s => Number(s.end_time_unix_nano)));
-    const totalNs  = maxEnd - minStart || 1;
-
-    return (
-      <div>
-        <h2>Trace {traceId.substring(0, 16)}…</h2>
-        <p>Total: {(totalNs / 1e6).toFixed(2)}ms — {spans.length} spans</p>
-        <div style={{ overflowX: "auto" }}>
-          {spans.map((span) => {
-            const offset = ((Number(span.start_time_unix_nano) - minStart) / totalNs) * 100;
-            const width  = (span.duration_ns / totalNs) * 100;
-            return (
-              <div key={span.span_id} style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
-                <span style={{ width: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>
-                  {span.service_name}: {span.operation_name}
-                </span>
-                <div style={{ flex: 1, position: "relative", height: 16, background: "#f0f0f0" }}>
-                  <div style={{
-                    position: "absolute",
-                    left: `${offset}%`,
-                    width: `${Math.max(width, 0.5)}%`,
-                    height: "100%",
-                    background: span.status_code === "ERROR" ? "#e53e3e" : "#4299e1",
-                  }} title={`${(span.duration_ns / 1e6).toFixed(2)}ms`} />
-                </div>
-                <span style={{ width: 60, textAlign: "right", fontSize: 12 }}>
-                  {(span.duration_ns / 1e6).toFixed(2)}ms
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-  ```
-
-- [ ] **Step 4: Add trace detail route**
-
-  Add to `router.ts`:
-  ```ts
-  import TraceDetailPage from "./pages/TraceDetailPage";
-  const traceDetailRoute = createRoute({
+  export const traceDetailRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/traces/$traceId",
     component: TraceDetailPage,
   });
-  // add traceDetailRoute to routeTree
-  ```
-
-  Create `TraceDetailPage.tsx`:
-  ```tsx
-  import { useParams } from "@tanstack/react-router";
-  import { useQuery } from "@tanstack/react-query";
-  import { getTrace } from "../api/traces";
-  import { TraceDetail } from "./TraceDetail";
-
-  export default function TraceDetailPage() {
-    const { traceId } = useParams({ from: "/traces/$traceId" });
-    const { data, isLoading } = useQuery({
-      queryKey: ["trace", traceId],
-      queryFn: () => getTrace(traceId),
-    });
-    if (isLoading) return <p>Loading…</p>;
-    if (!data) return <p>Not found</p>;
-    return <TraceDetail traceId={data.trace_id} spans={data.spans} />;
-  }
   ```
 
 - [ ] **Step 5: Run tests — verify pass**
@@ -2948,7 +2953,15 @@ mod http_json;
 
   Send a trace with Task 10's smoke test, then visit `http://localhost:5173/traces/<trace_id>`. Should show waterfall.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 7: Add Accessibility tests for the waterfall view**
+
+  Use `playwright-axe` in `tests/e2e/accessibility.spec.ts` to verify the waterfall view has no accessibility violations.
+
+- [ ] **Step 8: Implement Frontend OTel instrumentation**
+
+  Initialize the OpenTelemetry Web SDK in `main.tsx` to track navigation and fetch calls. Link client-side traces to backend traces.
+
+- [ ] **Step 9: Commit**
 
   ```bash
   git add apps/frontend/src/pages/

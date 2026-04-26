@@ -12,7 +12,24 @@ The platform's frontend must support complex, data-heavy UIs for exploring trace
 
 ## Decision
 
-The **frontend will be built using React (v19+), TypeScript, and Vite (v8+)**. We will use TanStack Query for server-state management.
+The **frontend will be built using React (v19+), TypeScript, and Vite (v8+)**.
+
+| Layer | Choice | Rationale |
+|---|---|---|
+| Styling | **Tailwind CSS v4** | Rust-based engine for high-performance data density; zero runtime overhead |
+| Primitives | **Base UI (MUI team)** | Modern, actively maintained, render-prop pattern replaces Radix UI |
+| Workflow | **Shadcn Pattern** | Local component ownership; no library lock-in |
+
+We will use **TanStack Query** for server-state management and **TanStack Router** for URL-driven navigation.
+
+### Styling Choice: Tailwind CSS v4 over CSS Modules
+Initially, CSS Modules were considered for their scoping and performance. However, **Tailwind CSS v4** provides a superior developer experience for building high-density observability UIs. Its new Rust-based compiler handles the thousands of utility classes required for complex dashboards with zero runtime overhead and significantly faster build times.
+
+### Primitive Choice: Base UI over Radix UI
+While Radix UI was the initial choice, the industry momentum in 2025–2026 has shifted toward **Base UI**. 
+1. **Maintenance:** Base UI is backed by the MUI team and is more actively evolved than Radix.
+2. **Architecture:** Base UI's **render prop** pattern is easier to debug and more flexible for complex customizations than Radix's `asChild` pattern.
+3. **Engine:** Base UI utilizes **Floating UI** for popovers and tooltips, which is essential for stable positioning in data-heavy layouts.
 
 ## Consequences
 
@@ -26,9 +43,11 @@ The **frontend will be built using React (v19+), TypeScript, and Vite (v8+)**. W
 **Harder:** 
 - Managing complex client-side state for data-heavy visualizations.
 - Ensuring high performance with large datasets in the browser.
+- Maintaining a large dependency tree (npm) with regular security audits and updates.
 
 **Constrained:** 
 - The project is committed to the React ecosystem, making it more difficult to switch to other frameworks (e.g., Vue, Svelte) later.
+- Production-grade requirements (Accessibility, Observability, Resilience) add implementation overhead to every new feature.
 
 ## Alternatives Considered
 
