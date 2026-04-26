@@ -161,6 +161,7 @@ services:
       INGEST_GATEWAY_PORT: "4318"
       INGEST_GATEWAY_GRPC_PORT: "4317"
       INGEST_GATEWAY_PLATFORM_PORT: "4321"
+      DATABASE_URL: postgres://observable:observable@postgres:5432/observable
       REDPANDA_BROKERS: redpanda:9092
       INGEST_TOPIC: telemetry.raw
       AUTH_SERVICE_URL: http://auth-service:4319
@@ -173,6 +174,7 @@ services:
     depends_on:
       auth-service: { condition: service_healthy }
       redpanda-setup: { condition: service_completed_successfully }
+      postgres-setup: { condition: service_completed_successfully }
 
   query-api:
     image: observable-services:local
