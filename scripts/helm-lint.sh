@@ -14,6 +14,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMMON_CHART="$REPO_ROOT/charts/observable-common"
 INFRA_CHART="$REPO_ROOT/charts/observable-infra"
 APP_CHART="$REPO_ROOT/charts/observable"
+TESTBENCH_CHART="$REPO_ROOT/charts/observable-testbench"
 
 echo "==> Checking helm version"
 helm version --short
@@ -23,10 +24,14 @@ echo "==> Linting observable-common (library chart)"
 helm lint "$COMMON_CHART"
 
 echo ""
-echo "==> Resolving dependencies for observable-infra"
+echo "==> Adding Helm repositories"
 helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
 helm repo add openfga https://openfga.github.io/helm-charts
+helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 helm repo update
+
+echo ""
+echo "==> Resolving dependencies for observable-infra"
 helm dependency update "$INFRA_CHART"
 
 echo ""
@@ -66,6 +71,14 @@ helm template observable-dev "$APP_CHART" \
   --set services.authService.replicas=2 \
   --dry-run \
   > /dev/null
+
+echo ""
+echo "==> Resolving dependencies for observable-testbench"
+helm dependency update "$TESTBENCH_CHART"
+
+echo ""
+echo "==> Linting observable-testbench"
+helm lint "$TESTBENCH_CHART"
 
 echo ""
 echo "All Helm lint and template checks passed."
