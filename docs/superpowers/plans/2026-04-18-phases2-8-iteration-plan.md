@@ -275,6 +275,11 @@ Before Phase 3 starts, answer:
   - Verification: unit/config tests cover `self` and `observer_instance` destination selection; Helm render tests expose the observer endpoint and credential references; frontend tests cover browser telemetry initialization without leaking secrets; collector/config tests cover infrastructure export wiring; smoke or local verification proves at least one service, one infrastructure source, and one UI path emit telemetry into the configured system tenant.
   - Checkpoint: can operators still see primary-platform health when the primary ingest, query, infrastructure, or UI-serving path is broken? Answer: yes for production-like deployments because platform telemetry is routed to a second observer instance, while self-ingest remains available for dogfooding.
 
+- [x] **UI-Followup: Base UI primitive foundation**
+  - Outcome: `apps/frontend` now includes Tailwind CSS v4 and an owned `src/components/ui` layer with shared `Button`, `Input`, `Select`, and `Tabs` primitives plus focused primitive tests. Existing theme preference behavior remains unchanged because the primitive styles read the current CSS variable contract.
+  - Verification target: `npm run typecheck --workspace=apps/frontend`, `npm run lint --workspace=apps/frontend`, `npm run test --workspace=apps/frontend`, `npm run build --workspace=apps/frontend`, and `bash scripts/local-ci.sh`.
+  - Checkpoint: can future screen migrations adopt the new primitive layer without reopening dependency and token setup? Answer: yes. The Vite/Tailwind pipeline, theme tokens, and owned primitive wrappers are now in place, so later UI slices can adopt them incrementally.
+
 - [ ] **P3-S6c: Add onboarding/setup flow for first-signal success**
   - Source spec: `spec/05-frontend.md` §9.3 Phase 1.
   - Outcome: a new operator can generate or copy an API key, see the expected ingest endpoint, and validate first-signal arrival from the UI without leaving the product shell.
