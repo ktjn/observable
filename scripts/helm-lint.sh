@@ -25,7 +25,6 @@ helm lint "$COMMON_CHART"
 
 echo ""
 echo "==> Adding Helm repositories"
-helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
 helm repo add openfga https://openfga.github.io/helm-charts
 helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 helm repo update
