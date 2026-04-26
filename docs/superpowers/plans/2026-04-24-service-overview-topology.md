@@ -6,7 +6,7 @@
 
 **Architecture:** Extend the existing `GET /v1/topology` planner to emit a UNION of a direct parent-child join (existing) and a trace-level co-occurrence join (new), then update the handler bind sequence. On the frontend, replace the `<foreignObject>` node rendering with SVG `<text>`, add `focusedService` state (node-click toggle), and add `edgePopover` state (edge-click choice panel linking to Traces/Logs).
 
-**Tech Stack:** Rust (`axum`, `clickhouse`, `serde`), React 19, TanStack Router, TanStack Query, Vitest, Testing Library, SVG
+**Tech Stack:** Rust (`axum`, `clickhouse`, `serde`), React 19, TanStack Router, TanStack Query, Vitest, Testing Library, canvas-based service-map rendering as the target architecture. This plan documents a bounded interaction slice; any SVG prototype remains acceptable only for the small-graph scope called out in the Phase 3 plan and does not replace the canvas requirement in `spec/05-frontend.md` §9.6 and ADR-016.
 
 ---
 

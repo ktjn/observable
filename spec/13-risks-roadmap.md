@@ -43,10 +43,11 @@ Internal MVP is for dogfooding and validating the core architecture. It is not t
 - durable queue before transform/storage
 - ClickHouse-backed traces/logs and initial metrics storage
 - trace, log, metric, and configuration query APIs
-- React UI for trace search, log search, metric exploration, and one dashboard workflow
+- React UI with a service-centric entry point: onboarding/setup, service catalog, service detail,
+  trace search, log search, metric exploration, and one dashboard workflow
 - internal platform telemetry, health dashboards, and synthetic test telemetry
 - hot retention policy prototype
-- basic threshold alerts
+- basic threshold alerts, including one minimal operator-facing UI path
 - internal dogfooding
 
 ### 24.2 External v1 Scope

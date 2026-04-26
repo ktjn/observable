@@ -3080,7 +3080,13 @@ mod http_json;
 
 ## Phase Roadmap Summary
 
-The plan above covers **Phase 1** completely. For Phases 2–8, each phase produces its own plan document before implementation starts (per `spec/10-process.md §16.8`).
+The plan above establishes the **Phase 1 ingest-to-query platform foundation** and an
+explorer-first frontend shell. It does **not** by itself close the full service-centric UI bar from
+`spec/05-frontend.md` §9.3. Service Catalog, Service Detail Overview, service-scoped
+Logs / Metrics / Traces, onboarding/setup, one dashboard workflow, and one threshold-alert UI
+workflow must be treated as immediate follow-on slices before broader UI expansion is considered
+complete. For Phases 2–8, each phase produces its own plan document before implementation starts
+(per `spec/10-process.md §16.8`).
 
 | Phase | Focus | Entry condition |
 |-------|-------|----------------|
@@ -3099,14 +3105,15 @@ Each phase plan follows the same format as this document: parallel execution map
 ## Self-Review
 
 **Spec coverage check:**
-- Phase 1 §24.1 MVP items → Tasks 1–19 ✓
+- Phase 1 §24.1 platform foundation items → Tasks 1–19 ✓
 - OTLP ingest traces/logs → Tasks 8, 10, 15 ✓
 - Basic metrics ingest → Task 16 ✓
 - Tenant auth with API keys → Task 7 ✓
 - Durable queue → Task 10 ✓
 - ClickHouse traces/logs/metrics → Tasks 12, 15, 16 ✓
 - Query APIs → Task 9 ✓
-- React UI trace search → Tasks 14, 18 ✓
+- React UI explorer shell and trace detail → Tasks 14, 18 ✓
+- Remaining service-centric MVP UI modules (service catalog/detail, onboarding/setup, dashboard workflow, threshold-alert UI) are explicitly carried into the follow-on plan in `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`
 - Platform telemetry → Task 17 ✓
 - Internal dogfood smoke test → Task 19 ✓
 

@@ -34,7 +34,11 @@
       "Read(//tmp/otelchart/opentelemetry-collector/**)",
       "Bash(helm dependency *)",
       "Bash(awk '/ConfigMap/{p=1} p && /otel-collector-gateway/{p=2} p==2 && /relay:/{p=3} p==3{print; if\\(/^  [a-z]/ && !/relay:/\\){exit}}')",
-      "Bash(grep -E \"\\\\.sh$\")"
+      "Bash(grep -E \"\\\\.sh$\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('\\\\n'.join\\(sorted\\(d.get\\('dependencies',{}\\).keys\\(\\)\\)\\)\\)\")",
+      "Bash(cargo check *)",
+      "Bash(cargo build *)",
+      "Bash(cargo clippy *)"
     ]
   }
 }

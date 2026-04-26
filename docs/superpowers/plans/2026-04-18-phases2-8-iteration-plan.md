@@ -104,6 +104,10 @@ Next smallest slice:
 
 ### Priority slice order
 
+The frontend sequence for this phase starts by closing the service-centric MVP UI defined in
+`spec/05-frontend.md` §9.3 before adding broader topology, deployment, dashboard-builder, or
+incident-management surface area. Explorer-only UI is treated as foundation, not closure.
+
 - [x] **P2-S0: Reconcile plan and spec state before Phase 2 implementation**
   - Outcome: Phase 1 closure, resolved query API bug state, and Phase 2 next-slice guidance agree across the plan and API spec. Standardized on a unified Docker Compose workflow and updated ADR-019 and referencing specs to reflect the simplified setup.
   - Checkpoint: can an agent start Phase 2 without resolving contradictory planning state first? Answer: yes, after the initial reconciliation and subsequent synchronization of deployment scripts and specs.
@@ -264,6 +268,22 @@ Before Phase 3 starts, answer:
   - Verification: unit/config tests cover `self` and `observer_instance` destination selection; Helm render tests expose the observer endpoint and credential references; frontend tests cover browser telemetry initialization without leaking secrets; collector/config tests cover infrastructure export wiring; smoke or local verification proves at least one service, one infrastructure source, and one UI path emit telemetry into the configured system tenant.
   - Checkpoint: can operators still see primary-platform health when the primary ingest, query, infrastructure, or UI-serving path is broken? Answer: yes for production-like deployments because platform telemetry is routed to a second observer instance, while self-ingest remains available for dogfooding.
 
+- [ ] **P3-S6c: Add onboarding/setup flow for first-signal success**
+  - Source spec: `spec/05-frontend.md` §9.3 Phase 1.
+  - Outcome: a new operator can generate or copy an API key, see the expected ingest endpoint, and validate first-signal arrival from the UI without leaving the product shell.
+  - Files or modules expected to change: onboarding route, setup panels, API key/config API if missing, first-signal validation API/client, tests.
+  - Out of scope: fleet-wide agent management, remote config, or upgrade campaigns.
+  - Verification: frontend tests cover setup route rendering, API key display/redaction behavior, and first-signal success/empty/error states; API tests cover any new setup/status endpoint.
+  - Checkpoint: can a new tenant reach first-signal confirmation without reading internal docs or hand-assembling curl commands?
+
+- [ ] **P3-S6d: Add a minimal threshold-alert UI workflow**
+  - Source spec: `spec/05-frontend.md` §9.3 Phase 1.
+  - Outcome: operators can list active threshold alerts, create one threshold rule for an existing metric, and silence or unsilence a rule from the UI.
+  - Files or modules expected to change: alert API/client if missing, Alerts & SLOs route, rule list/form components, silence action, tests.
+  - Out of scope: escalation routing, burn-rate/SLO authoring, incident post-mortem workflow, or composite alerts.
+  - Verification: frontend tests cover rule create/list/silence flows; API tests cover threshold-rule CRUD or mutation shape and tenant/RBAC enforcement.
+  - Checkpoint: does the UI expose one complete alert loop for threshold rules, not just backend evaluator state?
+
 - [x] **P3-S7: Add field faceting and statistics to explorers**
   - Outcome: Log and Trace explorers show distribution of common fields such as status codes, log levels, and service names. This closes the immediate field-faceting gap recorded in `docs/analysis/2026-04-19-gaps-analysis.md`.
   - Files or modules expected to change: query-api facet responses if incomplete, explorer sidebar components, tests.
@@ -281,7 +301,7 @@ Before Phase 3 starts, answer:
 
 - [x] **P3-S8: Add Service Overview map from trace-derived topology**
   - Outcome: The Service Overview now renders a live topology map derived from trace spans. Operators can click a service node to enter focused mode (that service plus its direct neighbors), click the focused node again to return to the full graph, and click an edge to open a choice panel linking to Traces or Logs filtered to that caller-callee pair. The backend topology query now captures both direct parent-child call edges and trace-level co-occurrence edges.
-  - Checkpoint: do topology rollups stay performant before broad graph work starts? Answer: yes for the ≤10-service scope of this slice. The UNION query runs over the same `spans` table as before, hits the same ClickHouse indices, and the outer deduplication GROUP BY is cheap. The existing perf-smoke baseline from P2-S9a covers query paths; no new threshold was needed.
+  - Checkpoint: do topology rollups stay performant before broad graph work starts? Answer: yes for the ≤10-service scope of this slice. The UNION query runs over the same `spans` table as before, hits the same ClickHouse indices, and the outer deduplication GROUP BY is cheap. The existing perf-smoke baseline from P2-S9a covers query paths; no new threshold was needed. Spec alignment note: this slice closes the interaction contract, but `spec/05-frontend.md` §9.6 and ADR-016 still require a canvas-based rendering path before the service map can claim full scale alignment for larger graphs.
 
 - [x] **P3-S9: Add Infrastructure inventory and detail views**
   - Source spec: `spec/05-frontend.md` §9.2.1 Infrastructure and §9.4 Infrastructure Correlation; `spec/09-api.md` Infrastructure Views.
@@ -306,10 +326,10 @@ Before Phase 3 starts, answer:
 
 - [ ] **P3-S12: Add "Promote to Dashboard" from explorers**
   - Source spec: `spec/05-frontend.md` §9.4 Promote to Dashboard and §9.7.
-  - Outcome: ad-hoc queries can be saved directly as new dashboard panels.
+  - Outcome: ad-hoc queries can be saved directly as new dashboard panels and viewed in one fixed-layout dashboard route with the selected time range and filters preserved.
   - Files or modules expected to change: dashboard config API if missing, explorer actions, dashboard serialization path, tests.
   - Out of scope: full drag-and-drop dashboard builder.
-  - Verification: frontend tests cover promoted query payload; API tests cover dashboard create/update shape.
+  - Verification: frontend tests cover promoted query payload, dashboard-route rendering, and preserved time range/filter state; API tests cover dashboard create/update shape.
   - Checkpoint: does the promoted panel preserve all filters and time range settings?
 
 - [ ] **P3-S13: Add dashboard-as-code import/export for one dashboard shape**
@@ -513,8 +533,12 @@ After this planning reconciliation, the next implementation slice should be:
 12. ~~P2-S8b: add one canary promotion path~~ (done)
 13. ~~P2-S9a: add perf smoke baseline for ingest and common query paths~~ (done)
 14. ~~P3-S10: Add infrastructure correlation from service and trace views~~ (done)
+15. P3-S6c: add onboarding/setup flow for first-signal success
+16. P3-S6d: add a minimal threshold-alert UI workflow
+17. P3-S12: add "Promote to Dashboard" from explorers and a fixed-layout dashboard route
+18. P3-S13: add dashboard-as-code import/export for one dashboard shape
 
-**Next recommended slice: P3-S11 - Add deployment event ingestion and one timeline overlay.**
+**Next recommended slice: P3-S6c - Add onboarding/setup flow for first-signal success.**
 
 **Phase 2 exit gate is now satisfied.** All Phase 2 slices (P2-S0 through P2-S9a) are complete. Before starting Phase 3, answer the Phase 2 pause-point questions:
 - Tenant safety under test: yes — P2-S1a through P2-S1d enforce and test cross-tenant isolation for all signal types.
@@ -522,7 +546,12 @@ After this planning reconciliation, the next implementation slice should be:
 - Roll back a bad deploy without manual heroics: yes — P2-S8a (Helm rollback skeleton) and P2-S8b (canary promotion path) cover both runtime and schema rollback.
 - Self-observability route choice: use a second observer instance for production and customer-facing environments; use recursive self-ingest for local development, dogfooding, and bootstrap. This follows `spec/17-self-observability.md` by preserving both recursive OTLP telemetry and independent health/Prometheus monitoring, and it requires service-level, infrastructure-level, and UI-level instrumentation before the slice is complete.
 
-**Next recommended slice: P3-S10 - Add infrastructure correlation from service and trace views.**
+The next recommended UI slices should close the remaining service-centric MVP bar before any
+further broad UI expansion:
+- `P3-S6c` onboarding/setup
+- `P3-S6d` threshold-alert UI
+- `P3-S12` dashboard workflow
+- `P3-S13` dashboard-as-code round-trip
 
 ---
 
