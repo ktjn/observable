@@ -492,6 +492,14 @@ th {
   color: var(--brand-strong);
 }
 
+.setup-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+
 .signal-panel {
   background: var(--surface);
   border: 1px solid var(--border);

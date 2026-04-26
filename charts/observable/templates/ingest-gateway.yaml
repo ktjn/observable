@@ -7,6 +7,7 @@
     (dict "name" "REDPANDA_BROKERS"         "value" .Values.redpanda.brokers)
     (dict "name" "INGEST_TOPIC"             "value" .Values.redpanda.ingestTopic)
     (dict "name" "AUTH_SERVICE_URL"         "value" (printf "http://auth-service:%d" (int .Values.services.authService.port)))
+    (dict "name" "DATABASE_URL"             "value" .Values.postgres.url)
     (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)
     (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT" "value" .Values.selfObservability.otlpEndpoint) -}}
 

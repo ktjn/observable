@@ -34,6 +34,7 @@ test("renders the product navigation shell", async () => {
   render(<App />);
 
   const navigation = await screen.findByLabelText("Primary navigation");
+  expect(within(navigation).getByRole("link", { name: "Setup" })).toBeInTheDocument();
   expect(within(navigation).getByRole("link", { name: "Services" })).toBeInTheDocument();
   expect(within(navigation).getByRole("link", { name: "Infrastructure" })).toBeInTheDocument();
   expect(within(navigation).getByRole("link", { name: "Service Overview" })).toBeInTheDocument();
@@ -42,6 +43,57 @@ test("renders the product navigation shell", async () => {
   expect(within(navigation).getByRole("link", { name: "Admin / Fleet / Billing" })).toBeInTheDocument();
 
   await screen.findByRole("heading", { name: "Services" });
+});
+
+test("renders onboarding setup with endpoint, redacted key, and first signal success", async () => {
+  const writeText = vi.fn(async () => undefined);
+  Object.assign(navigator, { clipboard: { writeText } });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes("/v1/traces")) {
+        return new Response(JSON.stringify({ traces: [{ trace_id: "abc", spans: [] }], total: 1 }), {
+          status: 200,
+        });
+      }
+
+      if (url.includes("/v1/logs")) {
+        return new Response(JSON.stringify({ logs: [], total: 0 }), { status: 200 });
+      }
+
+      if (url.includes("/v1/metrics")) {
+        return new Response(JSON.stringify({ series: [] }), { status: 200 });
+      }
+
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+  window.history.pushState({}, "", "/setup");
+
+  render(<App />);
+
+  expect(await screen.findByRole("heading", { name: "Setup" })).toBeInTheDocument();
+  expect(screen.getByText("http://localhost:4318/v1/traces")).toBeInTheDocument();
+  expect(screen.getByText("00000000-0000-0000-0000-000000000001")).toBeInTheDocument();
+  expect(screen.getByText("dev-api-key-...-0000")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Copy API key" }));
+  expect(writeText).toHaveBeenCalledWith("dev-api-key-0000");
+  expect(await screen.findByText("First signal detected")).toBeInTheDocument();
+});
+
+test("renders first signal empty state when no telemetry is queryable yet", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(JSON.stringify({ traces: [], logs: [], series: [], total: 0 }), { status: 200 })),
+  );
+  window.history.pushState({}, "", "/setup");
+
+  render(<App />);
+
+  expect(await screen.findByRole("heading", { name: "Setup" })).toBeInTheDocument();
+  expect(await screen.findByText("Waiting for first signal")).toBeInTheDocument();
 });
 
 test("persists the selected theme preference", async () => {

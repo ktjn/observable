@@ -2,6 +2,7 @@ import { Link, Outlet } from "@tanstack/react-router";
 import { useTheme, type ThemePreference } from "../lib/theme";
 
 const navItems = [
+  { label: "Setup", to: "/setup" },
   { label: "Services", to: "/services" },
   { label: "Traces", to: "/traces" },
   { label: "Logs", to: "/logs" },
