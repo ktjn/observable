@@ -1,4 +1,5 @@
 pub mod convert;
+pub mod deployments;
 pub mod logs;
 pub mod metrics;
 pub mod traces;
@@ -72,6 +73,11 @@ pub fn build_router(state: AppState) -> Router {
         .route("/v1/traces", post(traces::export_traces))
         .route("/v1/logs", post(logs::export_logs))
         .route("/v1/metrics", post(metrics::export_metrics))
+        .route("/v1/deployments", post(deployments::create_deployment))
+        .route(
+            "/v1/deployments/:deployment_id",
+            axum::routing::patch(deployments::finish_deployment),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::auth_middleware,
