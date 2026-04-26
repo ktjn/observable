@@ -30,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(60);
 
     let port: u16 = std::env::var("ALERT_EVALUATOR_PORT")
-        .unwrap_or_else(|_| "4321".into())
+        .unwrap_or_else(|_| "4322".into())
         .parse()?;
 
     tokio::spawn(evaluator::start_eval_worker(

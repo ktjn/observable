@@ -1,5 +1,4 @@
 pub mod convert;
-pub mod deployments;
 pub mod logs;
 pub mod metrics;
 pub mod traces;
@@ -15,7 +14,7 @@ use flate2::read::GzDecoder;
 use serde_json::Value;
 use std::io::Read;
 
-use crate::{auth, AppState};
+use crate::{auth, deployments, AppState};
 
 pub fn decode_json_otlp_request(headers: &HeaderMap, body: Bytes) -> Result<Value, StatusCode> {
     let content_type = get_content_type(headers);
@@ -68,11 +67,25 @@ fn matches_content_type(actual: &str, expected: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// OTLP/HTTP router — strictly OTLP signals only (ADR-001, ADR-023).
+/// Non-OTLP platform writes (e.g. deployment markers) belong on the platform port.
 pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/v1/traces", post(traces::export_traces))
         .route("/v1/logs", post(logs::export_logs))
         .route("/v1/metrics", post(metrics::export_metrics))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth::auth_middleware,
+        ))
+        .route("/health", get(|| async { axum::http::StatusCode::OK }))
+        .with_state(state)
+}
+
+/// Platform API router — Observable-specific authenticated write operations.
+/// Hosted on a separate port so the OTLP port (4318) remains strictly OTLP.
+pub fn build_platform_router(state: AppState) -> Router {
+    Router::new()
         .route("/v1/deployments", post(deployments::create_deployment))
         .route(
             "/v1/deployments/:deployment_id",
@@ -89,7 +102,16 @@ pub fn build_router(state: AppState) -> Router {
 pub async fn start_http_server(state: AppState, port: u16) -> anyhow::Result<()> {
     let app = build_router(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
-    tracing::info!(port, "ingest-gateway HTTP listening");
+    tracing::info!(port, "ingest-gateway HTTP/OTLP listening");
+    axum::serve(listener, app)
+        .await
+        .map_err(anyhow::Error::from)
+}
+
+pub async fn start_platform_server(state: AppState, port: u16) -> anyhow::Result<()> {
+    let app = build_platform_router(state);
+    let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
+    tracing::info!(port, "ingest-gateway Platform API listening");
     axum::serve(listener, app)
         .await
         .map_err(anyhow::Error::from)
