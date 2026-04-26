@@ -22,3 +22,9 @@ test("renders under the dark theme contract", () => {
   render(<Button>Dark action</Button>);
   expect(screen.getByRole("button", { name: "Dark action" })).toBeInTheDocument();
 });
+
+test("renders under the light theme contract", () => {
+  document.documentElement.dataset.theme = "light";
+  render(<Button>Light action</Button>);
+  expect(screen.getByRole("button", { name: "Light action" })).toBeInTheDocument();
+});
