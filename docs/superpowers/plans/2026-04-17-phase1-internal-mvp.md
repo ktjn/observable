@@ -2788,6 +2788,12 @@ mod http_json;
 **Files:**
 - Modify: each service `main.rs` to add OpenTelemetry SDK initialisation
 
+> **Status reconciliation (2026-04-26):** The core telemetry helper and service instrumentation landed in
+> Phase 1. The remaining closure items from this task were carried into the follow-on plan and are tracked
+> there as `P3-S6b` in
+> `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`: explicit self-observability routing,
+> `GET /health`, `GET /ready`, Prometheus `/metrics`, `system`-tenant routing, and end-to-end verification.
+
 - [ ] **Step 1: Add OTel deps to workspace Cargo.toml**
 
   ```toml
@@ -2898,6 +2904,12 @@ mod http_json;
 - Modify: `apps/frontend/src/router.ts`
 - Modify: `apps/frontend/src/pages/TraceSearch.tsx` (add click → navigate)
 
+> **Status reconciliation (2026-04-26):** The trace-detail waterfall shipped in Phase 1. The unfinished
+> follow-up work from this task was split into later slices in
+> `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`: frontend self-observability
+> instrumentation moved to `P3-S6b`, and explicit accessibility regression coverage for the waterfall moved
+> to `P3-S6e`.
+
 - [ ] **Step 1: Write failing test**
 
   ```tsx
@@ -2978,6 +2990,10 @@ mod http_json;
 
 **Files:**
 - Create: `tests/e2e/smoke_test.sh`
+
+> **Status reconciliation (2026-04-26):** The Phase 1 smoke path landed, but the extended regression-gate
+> follow-through originally listed here was completed later. Nightly smoke and perf coverage are tracked in
+> the follow-on plan as `P2-S9a` and reflected in the current CI workflow.
 
 - [ ] **Step 1: Write smoke test script**
 
@@ -3088,6 +3104,28 @@ mod http_json;
   EOF
   )"
   ```
+
+---
+
+## Carry-Forward Reconciliation (2026-04-26)
+
+The original Phase 1 task text still contained some unfinished sub-steps under Tasks 17–19 even though the
+main slices had already shipped. Those open items now map to the follow-on plan as follows:
+
+- Task 17 Steps 7–10: carried to `P3-S6b` for explicit self-observability routing, health/readiness,
+  Prometheus metrics, `system`-tenant behavior, and verification.
+- Task 18 Step 8: carried to `P3-S6b` for frontend self-observability instrumentation.
+- Task 18 Step 7: carried to `P3-S6e` for explicit accessibility regression coverage of the trace-detail
+  waterfall.
+- Task 19 Step 4: completed later via `P2-S9a`, which added nightly smoke and perf-smoke coverage in the
+  current CI workflow.
+- Remaining service-centric MVP UI work from the Phase 1 roadmap summary is carried to `P3-S6c`
+  (onboarding/setup), `P3-S6d` (threshold-alert UI), `P3-S12` (dashboard workflow), and `P3-S13`
+  (dashboard-as-code round-trip).
+
+With this reconciliation, this document remains the historical Phase 1 implementation plan, while the active
+backlog for unfinished follow-up work lives in
+`docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`.
 
 ---
 

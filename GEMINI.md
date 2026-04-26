@@ -14,6 +14,12 @@ These instructions are foundational mandates for any AI agent interacting with t
 
 Refer to `spec/10-process.md` for the official development process and AI agent guidance.
 
+## Phase Plan Status
+
+- **Phase 1 is closed:** treat `docs/superpowers/plans/2026-04-17-phase1-internal-mvp.md` as a historical implementation record, not as an active backlog to reopen or continue.
+- **Active roadmap work starts after Phase 1:** use `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md` for current and follow-on slices unless the user explicitly asks to revise the historical Phase 1 document.
+- If a Phase 1 item appears unfinished in the old plan text, check the reconciliation notes in that document and the follow-on slices in the Phases 2–8 plan before proposing or making changes.
+
 ## MANDATORY: Before Pushing ANY Code
 
 You **MUST** run `bash scripts/local-ci.sh` before pushing **ANY** code changes. No exceptions. GitHub CI is disabled — do not push and rely on it to catch errors.

@@ -172,7 +172,7 @@ incident-management surface area. Explorer-only UI is treated as foundation, not
   - Checkpoint: do automated analysis gates have enough telemetry to make rollback decisions? Answer: yes at this stage. Gate 1 (health) and Gate 2 (smoke ingest) provide binary liveness and acceptance signal; Gate 3 (5xx count in pod logs) provides an error-rate signal sufficient to catch regression during soak. The gates are conservative (zero-5xx tolerance, HTTP 200 required) and can be refined without changing the promotion contract. Full metric-based SLO burn-rate gates (using the alert-evaluator path from P2-S7a) are the next evolution when Argo Rollouts is provisioned.
 
 - [x] **P2-S9a: Add perf smoke baseline for ingest and common query paths**
-  - Outcome: Phase 2 has measurable performance baselines instead of assumptions. `scripts/perf-smoke.sh` seeds one trace/log/metric, waits for the pipeline, then samples each ingest and query endpoint 20 times. It reports P50 and P95 per path and exits non-zero if any path exceeds its threshold (ingest P50 < 500 ms / P95 < 1000 ms; query P50 < 1000 ms / P95 < 3000 ms per spec/11-testing.md §18.3). A `perf-smoke` Docker Compose service runs the script against the live stack. The nightly CI workflow (`.github/workflows/nightly.yml`) runs `perf-smoke` after the existing smoke-test step. Thresholds are overridable via env vars.
+  - Outcome: Phase 2 has measurable performance baselines instead of assumptions. `scripts/perf-smoke.sh` seeds one trace/log/metric, waits for the pipeline, then samples each ingest and query endpoint 20 times. It reports P50 and P95 per path and exits non-zero if any path exceeds its threshold (ingest P50 < 500 ms / P95 < 1000 ms; query P50 < 1000 ms / P95 < 3000 ms per spec/11-testing.md §18.3). A `perf-smoke` Docker Compose service runs the script against the live stack. The nightly CI workflow (`.github/workflows/nightly.yml`) runs `perf-smoke` after the existing smoke-test step. Thresholds are overridable via env vars. This slice also closes the old Phase 1 Task 19 carry-forward for CI-level smoke/nightly follow-through.
   - Checkpoint: are the numbers good enough to proceed to correlation features? Answer: yes. In a local Docker Compose environment with minimal synthetic data, all ingest paths complete well under 500 ms P50 (auth + Redpanda publish on a single machine) and all query paths complete well under 1000 ms P50 (ClickHouse hot cache with minimal data). The baseline script is the regression gate — any future change that pushes P50 or P95 over threshold will fail the nightly extended gate before reaching Phase 3 work.
 
 ### Phase 2 pause point
@@ -265,7 +265,7 @@ Before Phase 3 starts, answer:
   - Checkpoint: are URLs now the source of truth for service investigation context across traces, logs, and metrics? Answer: yes. Service investigation tabs are addressable by path, keep the `lookback_minutes` query string, and each tab applies the route service as the query filter.
 
 - [x] **P3-S6b: Make self-observability routing explicit for all platform components**
-  - Outcome: every platform service, worker, frontend-serving component, migration job, canary path, scheduled/background task, infrastructure dependency, and UI runtime has an explicit self-observability route. The configuration supports two modes: `self`, which sends platform telemetry to the primary instance's `system` tenant, and `observer_instance`, which sends it to a second Observable instance using a separate endpoint and credential. Production and customer-facing environments should use `observer_instance`; local development, internal dogfooding, and bootstrap environments may use `self`.
+  - Outcome: every platform service, worker, frontend-serving component, migration job, canary path, scheduled/background task, infrastructure dependency, and UI runtime has an explicit self-observability route. The configuration supports two modes: `self`, which sends platform telemetry to the primary instance's `system` tenant, and `observer_instance`, which sends it to a second Observable instance using a separate endpoint and credential. Production and customer-facing environments should use `observer_instance`; local development, internal dogfooding, and bootstrap environments may use `self`. This slice absorbs the old Phase 1 Task 17 carry-forward (health/readiness, Prometheus metrics, `system`-tenant routing, verification) and the Phase 1 Task 18 frontend-instrumentation carry-forward.
   - Instrumentation scope:
     - Service level: all Rust services, HTTP/gRPC handlers, auth checks, queue producers/consumers, storage writes, query execution, alert evaluation, migrations, canary paths, and background tasks emit traces, metrics, structured logs, health, readiness, and dependency status.
     - Infrastructure level: Kubernetes nodes, pods, containers, ingress, optional service mesh, Redpanda, ClickHouse, PostgreSQL, object storage, and deployment controllers emit or expose CPU, memory, disk, network, restart, queue lag, storage saturation, and dependency health signals into the same system-observability route.
@@ -290,6 +290,14 @@ Before Phase 3 starts, answer:
   - Out of scope: escalation routing, burn-rate/SLO authoring, incident post-mortem workflow, or composite alerts.
   - Verification: frontend tests cover rule create/list/silence flows; API tests cover threshold-rule CRUD or mutation shape and tenant/RBAC enforcement.
   - Checkpoint: does the UI expose one complete alert loop for threshold rules, not just backend evaluator state?
+
+- [ ] **P3-S6e: Add explicit accessibility regression coverage for the trace waterfall and other major new views**
+  - Source spec: `spec/05-frontend.md` §9.3 Phase 1 and the frontend slice standards in this plan's Operating Rules.
+  - Outcome: the trace-detail waterfall has automated `playwright-axe` coverage, and the same harness is reusable for subsequent major views.
+  - Files or modules expected to change: `tests/e2e/accessibility.spec.ts` or equivalent Playwright accessibility coverage, trace-detail test fixtures, and any minimal frontend semantics needed to remove violations.
+  - Out of scope: a full visual-regression suite or exhaustive accessibility coverage for every placeholder route.
+  - Verification: Playwright accessibility tests fail on a known violation and pass on the intended trace-detail and one additional major view.
+  - Checkpoint: does the accessibility harness catch regressions on the Phase 1 waterfall without forcing every future slice to invent its own a11y test shape?
 
 - [x] **P3-S7: Add field faceting and statistics to explorers**
   - Outcome: Log and Trace explorers show distribution of common fields such as status codes, log levels, and service names. This closes the immediate field-faceting gap recorded in `docs/analysis/2026-04-19-gaps-analysis.md`.
@@ -542,8 +550,9 @@ After this planning reconciliation, the next implementation slice should be:
 14. ~~P3-S10: Add infrastructure correlation from service and trace views~~ (done)
 15. P3-S6c: add onboarding/setup flow for first-signal success
 16. P3-S6d: add a minimal threshold-alert UI workflow
-17. P3-S12: add "Promote to Dashboard" from explorers and a fixed-layout dashboard route
-18. P3-S13: add dashboard-as-code import/export for one dashboard shape
+17. P3-S6e: add explicit accessibility regression coverage for the trace waterfall and other major new views
+18. P3-S12: add "Promote to Dashboard" from explorers and a fixed-layout dashboard route
+19. P3-S13: add dashboard-as-code import/export for one dashboard shape
 
 **Next recommended slice: P3-S6c - Add onboarding/setup flow for first-signal success.**
 
@@ -557,6 +566,7 @@ The next recommended UI slices should close the remaining service-centric MVP ba
 further broad UI expansion:
 - `P3-S6c` onboarding/setup
 - `P3-S6d` threshold-alert UI
+- `P3-S6e` accessibility regression coverage for the Phase 1 waterfall and other major views
 - `P3-S12` dashboard workflow
 - `P3-S13` dashboard-as-code round-trip
 
