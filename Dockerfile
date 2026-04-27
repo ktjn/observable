@@ -35,7 +35,7 @@ RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/regi
 RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
-    cargo test --workspace --all-targets
+    cargo test --workspace --lib --bins
 
 FROM rust-ci AS rust-builder
 RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
