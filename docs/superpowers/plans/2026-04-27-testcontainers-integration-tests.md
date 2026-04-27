@@ -43,7 +43,7 @@ Target coverage after this plan:
 - Create: `services/auth-service/tests/postgres_integration.rs`
 - Test: `cargo test -p auth-service --test postgres_integration -- --nocapture`
 
-- [ ] **Step 1: Check dependency versions**
+- [x] **Step 1: Check dependency versions**
 
 Run:
 
@@ -54,11 +54,11 @@ cargo search testcontainers-modules
 
 Expected: record the latest stable Rust Testcontainers crate versions in the PR body before editing `Cargo.toml`.
 
-- [ ] **Step 2: Add dev-dependencies**
+- [x] **Step 2: Add dev-dependencies**
 
 Add dev-dependencies to `services/auth-service/Cargo.toml` for the Testcontainers crates and any required async/runtime support, using the current stable versions from Step 1.
 
-- [ ] **Step 3: Write the failing integration test**
+- [x] **Step 3: Write the failing integration test**
 
 Create `services/auth-service/tests/postgres_integration.rs` with tests that:
 
@@ -75,7 +75,7 @@ async fn postgres_container_applies_api_key_migrations_and_validates_seed_key() 
 
 The first version may fail to compile if repository functions are not exported cleanly. That failure identifies the minimum service seam required by the next step.
 
-- [ ] **Step 4: Run the test and capture the expected failure**
+- [x] **Step 4: Run the test and capture the expected failure**
 
 Run:
 
@@ -85,11 +85,11 @@ cargo test -p auth-service --test postgres_integration -- --nocapture
 
 Expected: FAIL because either the helper seam is missing or migrations are not yet wired into the Testcontainers fixture.
 
-- [ ] **Step 5: Add the minimum auth-service test seam**
+- [x] **Step 5: Add the minimum auth-service test seam**
 
 Expose only the repository or migration helper needed by the test. Do not move HTTP handlers or unrelated auth code.
 
-- [ ] **Step 6: Re-run the focused test**
+- [x] **Step 6: Re-run the focused test**
 
 Run:
 
@@ -99,7 +99,7 @@ cargo test -p auth-service --test postgres_integration -- --nocapture
 
 Expected: PASS, proving PostgreSQL migrations and API-key validation work against a real database container.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 Run:
 
@@ -119,11 +119,11 @@ Expected: commit succeeds on the feature branch after the focused test passes.
 - Create: `services/query-api/tests/clickhouse_integration.rs`
 - Test: `cargo test -p query-api --test clickhouse_integration -- --nocapture`
 
-- [ ] **Step 1: Add ClickHouse container fixture**
+- [x] **Step 1: Add ClickHouse container fixture**
 
 Create a Testcontainers fixture that starts ClickHouse, applies `migrations/clickhouse/*.sql`, and returns a `clickhouse::Client` pointed at the mapped HTTP port.
 
-- [ ] **Step 2: Write the tenant-filter failing test**
+- [x] **Step 2: Write the tenant-filter failing test**
 
 Create a test that inserts two traces with the same shape but different `tenant_id` values, then calls the query-api repository path for tenant A.
 
@@ -134,7 +134,7 @@ assert!(result.spans.iter().all(|span| span.tenant_id == tenant_a));
 assert!(!result.spans.iter().any(|span| span.tenant_id == tenant_b));
 ```
 
-- [ ] **Step 3: Run the test and capture the expected failure**
+- [x] **Step 3: Run the test and capture the expected failure**
 
 Run:
 
@@ -144,11 +144,11 @@ cargo test -p query-api --test clickhouse_integration -- --nocapture
 
 Expected: FAIL until the repository test seam and ClickHouse fixture are complete.
 
-- [ ] **Step 4: Add the minimum query-api test seam**
+- [x] **Step 4: Add the minimum query-api test seam**
 
 Expose a repository-level function or module path that executes the same ClickHouse query used by the HTTP handler. Do not duplicate query SQL in the test.
 
-- [ ] **Step 5: Re-run the focused test**
+- [x] **Step 5: Re-run the focused test**
 
 Run:
 
@@ -158,7 +158,7 @@ cargo test -p query-api --test clickhouse_integration -- --nocapture
 
 Expected: PASS, proving tenant-filtered ClickHouse reads against a real ClickHouse container.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 

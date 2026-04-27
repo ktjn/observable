@@ -203,6 +203,28 @@ pub async fn search_traces(
     }))
 }
 
+/// Repository-level fetch used by integration tests to verify tenant-filter correctness.
+#[allow(dead_code)]
+pub async fn fetch_trace_spans(
+    ch: &Client,
+    tenant_id: uuid::Uuid,
+    trace_id: &str,
+) -> anyhow::Result<Vec<SpanRow>> {
+    let sql = format!(
+        "SELECT {SELECT_COLS} FROM observable.spans \
+         WHERE tenant_id = ? AND trace_id = ? \
+         ORDER BY start_time_unix_nano \
+         LIMIT 1000"
+    );
+    let rows: Vec<SpanRow> = ch
+        .query(&sql)
+        .bind(tenant_id)
+        .bind(trace_id)
+        .fetch_all()
+        .await?;
+    Ok(rows)
+}
+
 fn validate_trace_rows_for_tenant(
     rows: &[SpanRow],
     tenant_id: uuid::Uuid,
