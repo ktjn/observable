@@ -111,8 +111,6 @@ async fn redpanda_container_preserves_tenant_id_and_payload_across_queue_boundar
         .await
         .expect("message delivered");
 
-    println!("Produced envelope to topic={topic}, broker={brokers}");
-
     // --- Consume using the same ClientConfig as QueueConsumer::new ---
     let consumer: StreamConsumer = ClientConfig::new()
         .set("bootstrap.servers", &brokers)
@@ -144,12 +142,5 @@ async fn redpanda_container_preserves_tenant_id_and_payload_across_queue_boundar
         received_bytes.len(),
         payload_bytes.len(),
         "serialised payload length must be identical"
-    );
-
-    println!("PASS: tenant_id={tenant_id}");
-    println!("PASS: envelope_id={envelope_id}");
-    println!(
-        "PASS: payload bytes={} round-tripped intact",
-        payload_bytes.len()
     );
 }
