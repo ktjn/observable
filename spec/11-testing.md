@@ -87,7 +87,7 @@ CI gates map the test strategy to merge and release decisions.
 | Gate | Trigger | Required scope |
 |------|---------|----------------|
 | PR fast path | pull request | formatting, linting, unit tests, contract linting, changed-package builds, docs checks |
-| PR integration smoke | pull request | changed service integration tests, tenant isolation policy tests, migration dry-runs |
+| PR integration smoke | pull request | changed service integration tests, applicable Testcontainers suites, tenant isolation policy tests, migration dry-runs |
 | Main integration | merge to `main` | full unit suite, contract suite, integration suite, generated client drift checks |
 | Nightly extended | scheduled | E2E workflows, performance smoke baseline (`scripts/perf-smoke.sh`), high-cardinality datasets, malformed payload corpus, chaos/resilience, dependency scans |
 | Release candidate | release tag or promotion branch | full E2E, performance, security, backup/restore, rollback, upgrade, and migration tests |
@@ -113,7 +113,7 @@ The standard is **no new errors introduced**. A PR may document pre-existing fai
 | Spec or ADR only | diff review, Markdown/link or diagram check when available, ADR/spec synchronization note |
 | API or schema contract | contract test, generated-code drift check, backward-compatibility check |
 | Backend behavior | focused unit test, service contract test, relevant lint/format checks |
-| Ingest or storage path | parser/normalization test, persistence or queue integration smoke, tenant partition assertion |
+| Ingest or storage path | parser/normalization test, applicable Testcontainers persistence or queue integration test, tenant partition assertion |
 | Auth or tenancy | positive and negative policy tests, tenant-cross-read denial test |
 | Frontend behavior | component/unit test or browser smoke for the changed route/state, typecheck |
 | Deployment or CI | render/dry-run check, policy validation, rollback note |
@@ -168,7 +168,54 @@ Agent PRs must report:
 - evidence that specs and ADRs are synchronized
 - the next smallest slice needed to continue toward the phase exit gate
 
-### 18.8 Kubernetes Test Strategy
+### 18.8 Testcontainers Integration Test Policy
+
+Testcontainers is the standard service-level integration harness for code that
+requires real containerized dependencies without the full Docker Compose or
+Kubernetes topology. See [ADR-025](adr/ADR-025-testcontainers-integration-tests.md).
+
+Use Testcontainers when a changed backend service path depends on one or more of:
+
+- PostgreSQL migrations, SQL queries, transaction semantics, or row-level fixtures
+- ClickHouse schema, query semantics, inserts, TTL behavior, or tenant filtering
+- Redpanda/Kafka-compatible topic creation, producer/consumer behavior, offsets, or retry handling
+- S3-compatible object storage behavior for retention tiers, backup, restore, or profile blobs
+- OpenFGA or another containerized policy engine where mock-only tests would miss wire or schema behavior
+
+Do not use Testcontainers when the changed behavior is pure logic, frontend-only
+RTL/MSW coverage, a full-stack smoke path, Kubernetes rendering/rollback, or a
+browser workflow. Those remain covered by unit tests, frontend integration tests,
+Docker Compose smoke tests, kind tests, or browser tests as appropriate.
+
+**Mandatory agent rule:** if an agent changes backend code that touches a real
+dependency boundary listed above, the iteration must add or update the narrowest
+applicable Testcontainers test and run it before opening the PR. If the test is
+not applicable, the PR must state why and identify the replacement verification
+signal. Skipping applicable Testcontainers coverage requires the same issue,
+owner, expiry date, and reviewer approval expected for other regression-gate
+exceptions.
+
+**Fixture rules**
+
+- Each Testcontainers suite must create isolated test data and must not depend on
+  a developer's long-running local database, broker, or object store.
+- Container images must follow the dependency pinning rules in
+  `spec/10-process.md §16.10`.
+- Startup readiness must be explicit: wait for the service protocol or health
+  endpoint used by the test, not only for a process to start.
+- Tests must clean up resources or use randomized names so repeated and parallel
+  runs do not observe stale rows, topics, buckets, or tenants.
+- The test helper API should live near the owning service crate first. Promote a
+  shared helper only after at least two services need the same fixture shape.
+
+**Initial coverage targets**
+
+1. PostgreSQL migration and repository tests for auth-service and query-api audit paths.
+2. ClickHouse repository tests for storage-writer inserts and query-api tenant-filtered reads.
+3. Redpanda producer/consumer tests for ingest-gateway and stream-processor queue boundaries.
+4. Object-storage tests when warm retention, backup/restore, profiling, or cold-tier work begins.
+
+### 18.9 Kubernetes Test Strategy
 
 Kubernetes-specific testing follows the same layered model as other test categories, with
 additional gates at the manifest and cluster-level.
