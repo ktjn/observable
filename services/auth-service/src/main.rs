@@ -1,6 +1,6 @@
 mod audit;
-mod validate;
 
+use auth_service::{lookup_api_key, validate};
 use axum::{
     extract::State,
     http::StatusCode,
@@ -8,7 +8,7 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, Row};
+use sqlx::PgPool;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -33,50 +33,26 @@ async fn validate_handler(
 ) -> Result<Json<ValidateResponse>, StatusCode> {
     let hash = validate::sha256_hex(&req.api_key);
 
-    let row = sqlx::query(
-        "SELECT tenant_id, key_hash, revoked_at, role FROM api_keys WHERE key_hash = $1",
-    )
-    .bind(&hash)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let Some(row) = row else {
-        audit::write(&state.db, &audit::AuditEntry::deny_not_found(hash)).await;
-        return Err(StatusCode::UNAUTHORIZED);
-    };
-
-    let tenant_id: Uuid = row
-        .try_get("tenant_id")
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let revoked_at: Option<chrono::DateTime<chrono::Utc>> =
-        row.try_get("revoked_at").unwrap_or(None);
-    let role: String = row
-        .try_get("role")
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let entry = validate::ApiKeyEntry {
-        tenant_id,
-        key_hash: hash.clone(),
-        revoked_at,
-        role,
-    };
-
-    match validate::validate_key_against_entry(&req.api_key, &entry) {
-        Ok((tid, role)) => {
-            audit::write(&state.db, &audit::AuditEntry::allow(hash, tid)).await;
-            Ok(Json(ValidateResponse {
-                tenant_id: tid,
-                role,
-            }))
+    match lookup_api_key(&state.db, &req.api_key).await {
+        Ok((tenant_id, role)) => {
+            audit::write(&state.db, &audit::AuditEntry::allow(hash, tenant_id)).await;
+            Ok(Json(ValidateResponse { tenant_id, role }))
         }
-        Err(_) => {
-            let reason = if entry.revoked_at.is_some() {
+        Err(e) => {
+            let reason = if e.to_string().contains("revoked") {
                 "revoked"
+            } else if e.to_string().contains("not found") {
+                audit::write(&state.db, &audit::AuditEntry::deny_not_found(hash)).await;
+                return Err(StatusCode::UNAUTHORIZED);
             } else {
                 "hash_mismatch"
             };
-            audit::write(&state.db, &audit::AuditEntry::deny(hash, tenant_id, reason)).await;
+            // Tenant ID is unknown at this point for hash mismatches; use nil UUID for audit.
+            audit::write(
+                &state.db,
+                &audit::AuditEntry::deny(hash, Uuid::nil(), reason),
+            )
+            .await;
             Err(StatusCode::UNAUTHORIZED)
         }
     }
