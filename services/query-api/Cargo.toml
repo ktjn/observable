@@ -3,6 +3,10 @@ name    = "query-api"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "query_api"
+path = "src/lib.rs"
+
 [[bin]]
 name = "query-api"
 path = "src/main.rs"
@@ -20,3 +24,9 @@ tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 clickhouse         = { workspace = true }
 sqlx               = { workspace = true }
+
+[dev-dependencies]
+testcontainers         = "0.27.3"
+testcontainers-modules = { version = "0.15.0", features = ["clickhouse"] }
+tokio                  = { version = "1", features = ["full"] }
+uuid                   = { version = "1", features = ["v4"] }
