@@ -8,7 +8,8 @@
     "build": "tsc && vite build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "vitest"
+    "test": "vitest",
+    "test:a11y": "playwright test"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -18,6 +19,8 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.2",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.1.14",
     "@eslint/js": "^10.0.1",
     "@testing-library/jest-dom": "^6.0.0",

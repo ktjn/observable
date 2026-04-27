@@ -70,6 +70,17 @@ if [[ $SKIP_FRONTEND -eq 0 ]]; then
 
   step "Frontend tests"
   npm run test --workspace=apps/frontend -- --run && ok "tests" || fail "tests"
+
+  step "Frontend accessibility tests"
+  if node -e "
+    const { chromium } = require('./apps/frontend/node_modules/playwright-core');
+    const fs = require('fs');
+    process.exit(fs.existsSync(chromium.executablePath()) ? 0 : 1);
+  " 2>/dev/null; then
+    npm run test:a11y --workspace=apps/frontend && ok "a11y" || fail "a11y"
+  else
+    echo "SKIP  a11y (Chromium not installed — run: cd apps/frontend && npx playwright install chromium)"
+  fi
 fi
 
 if [[ $SKIP_DOCKER -eq 0 ]]; then

@@ -15,21 +15,29 @@ export function FacetSidebar({ facets, onFacetClick }: FacetSidebarProps) {
       <div className="field-label" style={{ marginBottom: "16px" }}>Facets</div>
       {Object.entries(facets).map(([field, values]) => (
         <div key={field} className="facet-group">
-          <h3 className="facet-title">
+          <h2 className="facet-title">
             {field.replace("_", " ")}
-          </h3>
-          <ul className="facet-list">
+          </h2>
+          <div className="facet-list">
             {values.map((v) => (
-              <li 
-                key={v.value} 
+              <div
+                key={v.value}
+                role="button"
+                tabIndex={0}
                 onClick={() => onFacetClick(field, v.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onFacetClick(field, v.value);
+                  }
+                }}
                 className="facet-item"
               >
                 <span className="facet-value">{v.value}</span>
                 <span className="facet-count">{v.count}</span>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       ))}
     </aside>

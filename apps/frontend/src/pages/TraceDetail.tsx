@@ -32,7 +32,7 @@ export function TraceDetail({ traceId, spans }: Props) {
 
   return (
     <div>
-      <h2>Trace {traceId.substring(0, 16)}…</h2>
+      <h1>Trace {traceId.substring(0, 16)}…</h1>
       <p>
         Total: {(totalNs / 1e6).toFixed(2)}ms — {spans.length} spans
       </p>
@@ -70,11 +70,21 @@ export function TraceDetail({ traceId, spans }: Props) {
           return (
             <div
               key={span.span_id}
+              role="button"
+              tabIndex={0}
               onClick={() =>
                 setSelectedSpanId(
                   span.span_id === selectedSpanId ? undefined : span.span_id
                 )
               }
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setSelectedSpanId(
+                    span.span_id === selectedSpanId ? undefined : span.span_id
+                  );
+                }
+              }}
               style={{
                 display: "flex",
                 alignItems: "center",
