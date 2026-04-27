@@ -2,7 +2,7 @@ use domain::{EnvelopePayload, TelemetryEnvelope};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,
-    consumer::{Consumer, StreamConsumer},
+    consumer::{BaseConsumer, Consumer, StreamConsumer},
     producer::{FutureProducer, FutureRecord},
     ClientConfig, Message,
 };
@@ -21,6 +21,24 @@ fn pick_free_port() -> u16 {
     listener.local_addr().unwrap().port()
 }
 
+/// Poll the Kafka metadata API until the broker is accepting connections (up to 15 s).
+async fn wait_for_kafka_ready(brokers: &str) {
+    let checker: BaseConsumer = ClientConfig::new()
+        .set("bootstrap.servers", brokers)
+        .create()
+        .expect("readiness checker created");
+    for _ in 0..30 {
+        if checker
+            .fetch_metadata(None, Duration::from_millis(1_000))
+            .is_ok()
+        {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+    panic!("Redpanda Kafka API did not become ready within 15 s");
+}
+
 /// Create a topic via the Kafka admin API.
 async fn create_topic(brokers: &str, topic: &str) {
     let admin: AdminClient<DefaultClientContext> = ClientConfig::new()
@@ -33,9 +51,6 @@ async fn create_topic(brokers: &str, topic: &str) {
         .create_topics(&[new_topic], &AdminOptions::default())
         .await
         .expect("topic creation request sent");
-
-    // Give Redpanda a moment to propagate the new topic metadata.
-    tokio::time::sleep(Duration::from_millis(500)).await;
 }
 
 #[tokio::test]
@@ -64,6 +79,8 @@ async fn redpanda_container_preserves_tenant_id_and_payload_across_queue_boundar
             .start()
             .await
             .expect("redpanda container started");
+
+    wait_for_kafka_ready(&brokers).await;
 
     let topic = format!("test-{}", Uuid::new_v4());
     create_topic(&brokers, &topic).await;
