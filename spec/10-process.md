@@ -88,7 +88,7 @@ CI must make every change reproducible, reviewable, and releasable before merge.
 **Required PR checks**
 1. repository hygiene: formatting, linting, dependency policy, secret scan, and generated-code drift
 2. contract checks: protobuf/OpenAPI linting, breaking-change detection, and SDK/client generation
-3. backend checks: Rust format, clippy, unit tests, and service-level contract tests
+3. backend checks: Rust format, clippy, unit tests, service-level contract tests, and applicable Testcontainers integration tests for real dependency boundaries
 4. frontend checks: TypeScript typecheck, lint, unit tests, production build, and component/smoke tests
 5. infrastructure checks: Kubernetes manifest render, policy validation, IaC linting, and migration dry-run where relevant
 6. security checks: dependency audit, container scan for changed images, SBOM generation, and license policy
@@ -134,6 +134,7 @@ When utilizing AI agents for development, the following mandates apply:
 - **No Unreviewed Merges:** Nothing can be merged or committed to the main branch without a human review.
 - **Branch and PR Every Iteration:** Before changing files, the agent must create or switch to a dedicated short-lived branch for the current task. The agent must commit only to that branch, push it to GitHub, and open a pull request for every iteration.
 - **Verification & Testing:** Every change must be thoroughly tested and verified before being considered complete. An iteration is not complete if it introduces any new error, warning, regression, flaky test, type error, lint finding, generated-code drift, policy violation, or documentation check failure.
+- **Testcontainers for Real Dependencies:** Backend changes that touch PostgreSQL, ClickHouse, Redpanda/Kafka-compatible brokers, object storage, OpenFGA, or another real containerized dependency boundary must add or update the narrowest applicable Testcontainers integration test unless the slice explicitly requires Docker Compose, kind, browser, or external-provider verification instead. If Testcontainers is not applicable, the PR must state why and name the replacement signal.
 - **Clarity Above All:** Nothing can be left unclear. If instructions, requirements, or code changes are ambiguous, the agent must seek clarification before proceeding.
 - **Specification Alignment:** All changes must align with the core architectural principles and specifications defined in the `spec/` directory.
 - **Implementation Plan Adherence:** All tasks must follow the latest implementation plans and iteration documents located in `docs/superpowers/plans/`.
@@ -161,6 +162,7 @@ Agents must treat `scripts/local-ci.sh`, `tests/e2e/smoke_test.sh`, `scripts/per
 - Before changing a regression gate, state the current coverage it provides and the exact coverage that will exist after the change.
 - Never delete, weaken, skip, or quarantine a regression assertion unless the PR includes a replacement signal, linked issue, owner, expiry date, and explicit reviewer approval.
 - Regression-gate changes must preserve existing build and product functionality. Run the narrowest affected check first, then the required local gate for the touched surface.
+- Testcontainers tests are protected regression signals once introduced. Do not replace them with mocks, shared local databases, or broad smoke tests unless the PR explains the lost coverage and includes a reviewer-approved replacement.
 - Performance-sensitive changes must run `docker compose up perf-smoke --abort-on-container-exit` or explain why the performance gate is not relevant.
 
 ### 16.8 Tiny Agent Iteration Workflow

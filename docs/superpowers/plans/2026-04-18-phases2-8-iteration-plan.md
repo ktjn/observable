@@ -26,7 +26,8 @@ Every iteration in the remaining phases must:
    - Include **MSW handlers** for the new API endpoints
    - Include **Accessibility tests** (`playwright-axe`) for major new views
    - Follow the **Testing Trophy** (prioritize integration tests with RTL/MSW)
-7. update this plan document as part of the PR's definition of done:
+7. **Mandatory backend integration harness**: Every backend slice that touches PostgreSQL, ClickHouse, Redpanda/Kafka-compatible brokers, object storage, OpenFGA, or another real containerized dependency boundary MUST add or update the narrowest applicable Testcontainers integration test unless the slice explicitly requires Docker Compose, kind, browser, or external-provider verification instead. If Testcontainers is not applicable, the PR must state why and name the replacement signal.
+8. update this plan document as part of the PR's definition of done:
    - mark the finished slice state
    - add any new checkpoint answer or discovered dependency
    - adjust the next recommended slice if priorities changed
@@ -362,6 +363,14 @@ Before Phase 3 starts, answer:
   - Outcome: one signal type's fields have business-meaning annotations queryable via API; sets the grounding foundation required by the NL query layer (ADR-021). See `spec/03-storage.md §5.4.1`.
   - Checkpoint: are annotations stored structurally separate from schema shape so they can evolve independently of structural metadata?
 
+- [ ] **P3-S15: Establish Testcontainers integration harness for real dependencies**
+  - Source spec: `spec/11-testing.md §18.8`; ADR-025; implementation plan `docs/superpowers/plans/2026-04-27-testcontainers-integration-tests.md`.
+  - Outcome: auth-service, query-api, and stream-processor have isolated Testcontainers tests for PostgreSQL, ClickHouse, and Redpanda boundaries, giving backend slices a narrow real-dependency regression path before Compose smoke.
+  - Files or modules expected to change: service crate dev-dependencies, service-local `tests/*_integration.rs` files, narrowly exported repository or queue seams, and `scripts/local-ci.sh` only if a dedicated Testcontainers stage is required.
+  - Out of scope: replacing Docker Compose smoke tests, replacing kind tests, adding object-storage tests before warm/cold retention work needs them, or adding broad shared fixtures before at least two services need the same helper.
+  - Verification: focused `cargo test -p <service> --test <name> -- --nocapture` for each new suite, then `bash scripts/local-ci.sh` before push because this is a code-change slice.
+  - Checkpoint: can backend agents verify real dependency behavior without starting the entire platform stack?
+
 ### Phase 3 pause point
 
 Before Phase 4 starts, answer:
@@ -560,6 +569,7 @@ After this planning reconciliation, the next implementation slice should be:
 17. P3-S6e: add explicit accessibility regression coverage for the trace waterfall and other major new views
 18. P3-S12: add "Promote to Dashboard" from explorers and a fixed-layout dashboard route
 19. P3-S13: add dashboard-as-code import/export for one dashboard shape
+20. P3-S15: establish Testcontainers integration harness for real dependencies before the next backend slice touches PostgreSQL, ClickHouse, Redpanda, object storage, or OpenFGA
 
 **Next recommended slice: P3-S6c - Add onboarding/setup flow for first-signal success.**
 
@@ -590,3 +600,5 @@ P3-S5 added a concrete single-service summary endpoint for an existing Service D
 The 2026-04-22 gap-analysis refresh updated planning sequence only. No ADR or spec update is required because the changes map already specified gaps to concrete slices without changing architecture, technology choice, deployment model, data model, security model, or roadmap scope.
 
 The self-observability routing clarification also requires no ADR/spec update in this iteration because it restates the existing dual-path strategy in `spec/17-self-observability.md`: recursive in-band telemetry to a `system` tenant plus an independent out-of-band monitoring path. The plan recommendation is operational: use a second Observable instance for production-like environments and use self-ingest for local, dogfood, and bootstrap modes. The added instrumentation scope makes the implementation slice explicitly cover service, infrastructure, and UI levels without changing the underlying architecture.
+
+**ADR-025** (Testcontainers for service integration tests, Proposed — added 2026-04-27) establishes Testcontainers as the mandatory narrow integration harness for backend slices that touch real containerized dependencies. This plan now includes P3-S15 as the implementation slice, while preserving Docker Compose smoke tests and kind tests as full-stack gates.
