@@ -178,15 +178,15 @@ Expected: commit succeeds after the focused test passes.
 - Create: `services/stream-processor/tests/redpanda_integration.rs`
 - Test: `cargo test -p stream-processor --test redpanda_integration -- --nocapture`
 
-- [ ] **Step 1: Add Redpanda container fixture**
+- [x] **Step 1: Add Redpanda container fixture**
 
 Create a fixture that starts Redpanda, waits for the Kafka API to accept metadata requests, creates a randomized topic name, and returns broker connection details.
 
-- [ ] **Step 2: Write the failing producer/consumer test**
+- [x] **Step 2: Write the failing producer/consumer test**
 
 Create a test that publishes one telemetry envelope to the randomized topic, consumes it through the same consumer setup used by stream-processor code, and asserts the tenant ID and payload bytes are preserved.
 
-- [ ] **Step 3: Run the focused test and capture the expected failure**
+- [x] **Step 3: Run the focused test and capture the expected failure**
 
 Run:
 
@@ -196,11 +196,11 @@ cargo test -p stream-processor --test redpanda_integration -- --nocapture
 
 Expected: FAIL until the queue fixture and consumer seam are complete.
 
-- [ ] **Step 4: Add the minimum stream-processor test seam**
+- [x] **Step 4: Add the minimum stream-processor test seam**
 
 Expose only the producer/consumer boundary code required by the test. Keep normalization and storage writing covered by their existing unit or integration tests.
 
-- [ ] **Step 5: Re-run the focused test**
+- [x] **Step 5: Re-run the focused test**
 
 Run:
 
@@ -210,7 +210,7 @@ cargo test -p stream-processor --test redpanda_integration -- --nocapture
 
 Expected: PASS, proving the service queue boundary works against a real Redpanda container.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 
