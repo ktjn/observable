@@ -296,13 +296,15 @@ Before Phase 3 starts, answer:
   - Verification: frontend tests cover rule create/list/silence flows; API tests cover threshold-rule CRUD or mutation shape and tenant/RBAC enforcement.
   - Checkpoint: does the UI expose one complete alert loop for threshold rules, not just backend evaluator state?
 
-- [ ] **P3-S6e: Add explicit accessibility regression coverage for the trace waterfall and other major new views**
+- [x] **P3-S6e: Add explicit accessibility regression coverage for the trace waterfall and other major new views**
   - Source spec: `spec/05-frontend.md` §9.3 Phase 1 and the frontend slice standards in this plan's Operating Rules.
   - Outcome: the trace-detail waterfall has automated `playwright-axe` coverage, and the same harness is reusable for subsequent major views.
   - Files or modules expected to change: `tests/e2e/accessibility.spec.ts` or equivalent Playwright accessibility coverage, trace-detail test fixtures, and any minimal frontend semantics needed to remove violations.
   - Out of scope: a full visual-regression suite or exhaustive accessibility coverage for every placeholder route.
   - Verification: Playwright accessibility tests fail on a known violation and pass on the intended trace-detail and one additional major view.
   - Checkpoint: does the accessibility harness catch regressions on the Phase 1 waterfall without forcing every future slice to invent its own a11y test shape?
+  - Outcome: `apps/frontend` now has a Playwright + axe-core harness under `e2e/accessibility.spec.ts`. The trace detail waterfall and log search views each have an axe scan; heading hierarchy and landmark structure were fixed in `TraceDetail.tsx`, `FacetSidebar.tsx`, and `LogSearch.tsx`. A negative proof test injects an `image-alt` violation and asserts it is caught. `local-ci.sh` runs the suite when Chromium is installed and skips gracefully otherwise.
+  - Checkpoint answer: yes. Future slices can call `new AxeBuilder({ page }).analyze()` after navigating to a new route, using `page.route()` to supply fixture data — no new harness setup needed.
 
 - [x] **P3-S7: Add field faceting and statistics to explorers**
   - Outcome: Log and Trace explorers show distribution of common fields such as status codes, log levels, and service names. This closes the immediate field-faceting gap recorded in `docs/analysis/2026-04-19-gaps-analysis.md`.
