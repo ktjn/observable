@@ -301,4 +301,41 @@ mod tests {
             deployment_id: "".into(),
         }
     }
+
+    // SELECT_COLS must name exactly the same columns that SpanRow deserializes.  A mismatch
+    // means the query-api reads different fields than the storage-writer inserts, producing
+    // runtime deserialization failures (500s) that are invisible at compile time.
+    #[test]
+    fn select_cols_names_match_span_row_field_count() {
+        let col_count = SELECT_COLS.split(',').count();
+        // SpanRow has 20 fields: tenant_id trace_id span_id parent_span_id service_name
+        // service_namespace service_version operation_name span_kind start_time_unix_nano
+        // end_time_unix_nano duration_ns status_code status_message attributes
+        // resource_attributes environment host_id workload deployment_id
+        assert_eq!(
+            col_count, 20,
+            "SELECT_COLS has {col_count} columns but SpanRow has 20 fields; keep them in sync"
+        );
+    }
+
+    // The count query used by search_traces must not include LIMIT so that it returns a
+    // true total, not just the count within the current page.
+    #[test]
+    fn trace_count_sql_has_no_limit_clause() {
+        use crate::planner::QueryPlanner;
+        let planner = QueryPlanner;
+        for service in [None, Some("checkout".to_string())] {
+            let params = SearchParams {
+                service,
+                limit: Some(10),
+                facets: None,
+            };
+            let plan = planner.plan_trace_search(&params);
+            assert!(
+                !plan.count_sql.to_uppercase().contains("LIMIT"),
+                "count_sql must not contain LIMIT: {}",
+                plan.count_sql
+            );
+        }
+    }
 }
