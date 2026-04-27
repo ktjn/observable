@@ -15,9 +15,9 @@ export function FacetSidebar({ facets, onFacetClick }: FacetSidebarProps) {
       <div className="field-label" style={{ marginBottom: "16px" }}>Facets</div>
       {Object.entries(facets).map(([field, values]) => (
         <div key={field} className="facet-group">
-          <h3 className="facet-title">
+          <h2 className="facet-title">
             {field.replace("_", " ")}
-          </h3>
+          </h2>
           <ul className="facet-list">
             {values.map((v) => (
               <li 

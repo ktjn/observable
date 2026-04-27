@@ -32,7 +32,7 @@ export function TraceDetail({ traceId, spans }: Props) {
 
   return (
     <div>
-      <h2>Trace {traceId.substring(0, 16)}…</h2>
+      <h1>Trace {traceId.substring(0, 16)}…</h1>
       <p>
         Total: {(totalNs / 1e6).toFixed(2)}ms — {spans.length} spans
       </p>

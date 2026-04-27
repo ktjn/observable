@@ -28,7 +28,7 @@ export default function LogSearch() {
   };
 
   return (
-    <section className="page-stack">
+    <div className="page-stack">
       <div className="page-header">
         <div>
           <div className="field-label">Explorer</div>
@@ -91,7 +91,7 @@ export default function LogSearch() {
           )}
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 
