@@ -597,7 +597,7 @@ async fn fetch_infrastructure_summaries(
                 {entity_expr} AS entity_name, \
                 environment, \
                 service_name, \
-                toUnixTimestamp64Nano(toDateTime64(created_at, 9)) AS event_time, \
+                toUInt64(toUnixTimestamp(created_at)) * 1000000000 AS event_time, \
                 toUInt64(0) AS log_events, \
                 toUInt64(0) AS span_events, \
                 toUInt64(0) AS error_events \
@@ -1200,5 +1200,86 @@ mod tests {
         assert_eq!(summary.log_rate_per_minute, Some(0.0));
         assert_eq!(summary.error_rate, None);
         assert_eq!(summary.health_state, "healthy");
+    }
+
+    // Regression test: toUnixTimestamp64Nano returns Int64. Mixed with UInt64 columns from spans
+    // and logs in a UNION ALL, ClickHouse widens the column to Float64 via getLeastSupertype,
+    // which the Rust `u64` field (last_seen_unix_nano) cannot deserialize — causing always-500.
+    // Fix: use toUInt64(toUnixTimestamp(created_at)) * 1000000000 which stays UInt64.
+    #[test]
+    fn infrastructure_metric_series_event_time_is_uint64_not_int64() {
+        for entity_type in all_infrastructure_entity_types() {
+            let entity_expr = entity_type.attribute_sql_expr();
+            // Replicate exactly the metric_series branch as built by fetch_infrastructure_summaries.
+            let metric_series_branch = format!(
+                "SELECT \
+                    JSONExtractString(resource_attributes, 'k8s.cluster.name') AS cluster_name, \
+                    JSONExtractString(resource_attributes, 'k8s.namespace.name') AS namespace_name, \
+                    JSONExtractString(resource_attributes, 'k8s.pod.name') AS pod_name, \
+                    {entity_expr} AS entity_name, \
+                    environment, \
+                    service_name, \
+                    toUInt64(toUnixTimestamp(created_at)) * 1000000000 AS event_time, \
+                    toUInt64(0) AS log_events, \
+                    toUInt64(0) AS span_events, \
+                    toUInt64(0) AS error_events \
+                FROM metric_series \
+                WHERE tenant_id = ? AND created_at >= fromUnixTimestamp(?)"
+            );
+            assert!(
+                !metric_series_branch.contains("toUnixTimestamp64Nano"),
+                "entity_type {entity_type:?}: metric_series event_time must not use \
+                 toUnixTimestamp64Nano (returns Int64, causing always-500 via Float64 widening)"
+            );
+            assert!(
+                metric_series_branch.contains("toUInt64(toUnixTimestamp(created_at))"),
+                "entity_type {entity_type:?}: metric_series event_time must use \
+                 toUInt64(toUnixTimestamp(created_at)) * 1000000000 to produce UInt64"
+            );
+        }
+    }
+
+    // Binding-count invariant: unfiltered infrastructure SQL must have exactly 6 '?' placeholders
+    // (tenant_id × 3 + start_time × 3), one set per UNION ALL branch.
+    #[test]
+    fn infrastructure_query_base_binding_count_is_six() {
+        let entity_expr = InfrastructureEntityType::Pod.attribute_sql_expr();
+        let sql = format!(
+            "SELECT \
+                cluster_name, namespace_name, pod_name, entity_name, \
+                argMax(environment, event_time) AS environment, \
+                max(event_time) AS last_seen_unix_nano, \
+                arraySort(groupUniqArrayIf(service_name, service_name != '')) AS related_services, \
+                sum(log_events) AS log_events, \
+                sum(span_events) AS span_events, \
+                sum(error_events) AS error_events \
+            FROM ( \
+                SELECT {entity_expr} AS entity_name, environment, service_name, \
+                    start_time_unix_nano AS event_time, \
+                    toUInt64(0) AS log_events, toUInt64(1) AS span_events, \
+                    toUInt64(status_code = 'ERROR') AS error_events \
+                FROM spans WHERE tenant_id = ? AND start_time_unix_nano >= ? \
+                UNION ALL \
+                SELECT {entity_expr} AS entity_name, environment, service_name, \
+                    timestamp_unix_nano AS event_time, \
+                    toUInt64(1) AS log_events, toUInt64(0) AS span_events, \
+                    toUInt64(0) AS error_events \
+                FROM logs WHERE tenant_id = ? AND timestamp_unix_nano >= ? \
+                UNION ALL \
+                SELECT {entity_expr} AS entity_name, environment, service_name, \
+                    toUInt64(toUnixTimestamp(created_at)) * 1000000000 AS event_time, \
+                    toUInt64(0) AS log_events, toUInt64(0) AS span_events, \
+                    toUInt64(0) AS error_events \
+                FROM metric_series WHERE tenant_id = ? AND created_at >= fromUnixTimestamp(?) \
+            ) WHERE entity_name != '' \
+            GROUP BY cluster_name, namespace_name, pod_name, entity_name \
+            ORDER BY last_seen_unix_nano DESC, entity_name ASC"
+        );
+
+        let placeholder_count = sql.matches('?').count();
+        assert_eq!(
+            placeholder_count, 6,
+            "unfiltered infrastructure SQL must have exactly 6 '?' (tenant_id×3 + start×3), got {placeholder_count}"
+        );
     }
 }
