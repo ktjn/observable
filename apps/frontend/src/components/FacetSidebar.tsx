@@ -18,18 +18,26 @@ export function FacetSidebar({ facets, onFacetClick }: FacetSidebarProps) {
           <h2 className="facet-title">
             {field.replace("_", " ")}
           </h2>
-          <ul className="facet-list">
+          <div className="facet-list">
             {values.map((v) => (
-              <li 
-                key={v.value} 
+              <div
+                key={v.value}
+                role="button"
+                tabIndex={0}
                 onClick={() => onFacetClick(field, v.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onFacetClick(field, v.value);
+                  }
+                }}
                 className="facet-item"
               >
                 <span className="facet-value">{v.value}</span>
                 <span className="facet-count">{v.count}</span>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       ))}
     </aside>
