@@ -1,9 +1,14 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { listServiceSummaries, listEnvironments, ServiceSummary } from "../api/services";
+import { listServiceSummaries, listEnvironments, type ServiceSummary } from "../api/services";
+import { Badge } from "../components/ui/badge";
+import { EmptyState } from "../components/ui/empty-state";
 import { Input } from "../components/ui/input";
+import { MetricCard } from "../components/ui/metric-card";
+import { Panel } from "../components/ui/panel";
 import { Select, SelectOption } from "../components/ui/select";
+import { Toolbar } from "../components/ui/toolbar";
 
 type ProductArea =
   | "services"
@@ -93,7 +98,7 @@ export function ProductAreaPage({ area }: { area: ProductArea }) {
     return (
       <section className="page-stack">
         <PageHeader kicker={copy.kicker} title={copy.title} />
-        <div className="toolbar-row">
+        <Toolbar aria-label="Service filters">
           <Input
             className="max-w-[360px]"
             placeholder="Search services"
@@ -121,20 +126,24 @@ export function ProductAreaPage({ area }: { area: ProductArea }) {
             <SelectOption value="watch">Watch</SelectOption>
             <SelectOption value="breach">Breach</SelectOption>
           </Select>
-        </div>
+        </Toolbar>
         
         <div className="metric-grid" aria-label="Service summary">
-          <MetricTile label="Services" value={String(stats.count)} tone="info" />
-          <MetricTile
+          <MetricCard label="Services" value={String(stats.count)} tone="info" />
+          <MetricCard
             label="Active Alerts"
             value={String(servicesData?.items.reduce((acc, s) => acc + s.active_alert_count, 0) ?? 0)}
             tone="warn"
           />
-          <MetricTile label="Avg P95" value={`${Math.round(stats.avgP95)}ms`} tone="good" />
-          <MetricTile label="Avg Error Rate" value={(stats.avgError * 100).toFixed(2) + "%"} tone={stats.avgError > 0.01 ? "warn" : "good"} />
+          <MetricCard label="Avg P95" value={`${Math.round(stats.avgP95)}ms`} tone="good" />
+          <MetricCard
+            label="Avg Error Rate"
+            value={(stats.avgError * 100).toFixed(2) + "%"}
+            tone={stats.avgError > 0.01 ? "warn" : "good"}
+          />
         </div>
 
-        <div className="table-panel">
+        <Panel title="Service catalog" eyebrow="Health and performance">
           {isLoading ? (
             <div className="loading-state">Loading services...</div>
           ) : (
@@ -151,7 +160,7 @@ export function ProductAreaPage({ area }: { area: ProductArea }) {
               </thead>
               <tbody>
                 {filteredAndSortedServices.map((row) => (
-                  <tr key={row.service_name}>
+                  <tr key={row.service_name} className="modern-table-row">
                     <td className="strong-cell">
                       <Link to="/services/$serviceId" params={{ serviceId: row.service_name }}>
                         {row.service_name}
@@ -169,7 +178,7 @@ export function ProductAreaPage({ area }: { area: ProductArea }) {
               </tbody>
             </table>
           )}
-        </div>
+        </Panel>
       </section>
     );
   }
@@ -187,27 +196,24 @@ export function ProductAreaPage({ area }: { area: ProductArea }) {
     <section className="page-stack">
       <PageHeader kicker={copy.kicker} title={copy.title} />
       <div className="metric-grid" aria-label={`${copy.title} summary`}>
-        <MetricTile label="Entities" value={area === "admin" ? "12" : "48"} tone="info" />
-        <MetricTile label="Healthy" value="94%" tone="good" />
-        <MetricTile label="Watch" value="5" tone="warn" />
-        <MetricTile label="Breach" value="1" tone="bad" />
+        <MetricCard label="Entities" value={area === "admin" ? "12" : "48"} tone="info" />
+        <MetricCard label="Healthy" value="94%" tone="good" />
+        <MetricCard label="Watch" value="5" tone="warn" />
+        <MetricCard label="Breach" value="1" tone="bad" />
       </div>
-      <div className="empty-panel">
-        <div className="empty-title">{copy.title}</div>
-        <div className="empty-metrics">
-          <span>Tenant: local-dev</span>
-          <span>Environment: {environment}</span>
-          <span>Range: Last 1h</span>
-        </div>
-      </div>
+      <EmptyState
+        title={copy.title}
+        description="This workspace will use the same dense operational layout as the service catalog."
+        metadata={["Tenant: local-dev", `Environment: ${environment}`, "Range: Last 1h"]}
+      />
     </section>
   );
 }
 
 function HealthStatus({ healthState }: { healthState: ServiceSummary["health_state"] }) {
-  if (healthState === "breach") return <span className="status bad">Breach</span>;
-  if (healthState === "watch") return <span className="status warn">Watch</span>;
-  return <span className="status good">Healthy</span>;
+  if (healthState === "breach") return <Badge tone="bad">Breach</Badge>;
+  if (healthState === "watch") return <Badge tone="warn">Watch</Badge>;
+  return <Badge tone="good">Healthy</Badge>;
 }
 
 function PageHeader({ kicker, title }: { kicker: string; title: string }) {
@@ -217,23 +223,6 @@ function PageHeader({ kicker, title }: { kicker: string; title: string }) {
         <div className="field-label">{kicker}</div>
         <h1>{title}</h1>
       </div>
-    </div>
-  );
-}
-
-function MetricTile({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "good" | "warn" | "bad" | "info";
-}) {
-  return (
-    <div className={`metric-tile ${tone}`}>
-      <div className="metric-label">{label}</div>
-      <div className="metric-value">{value}</div>
     </div>
   );
 }
