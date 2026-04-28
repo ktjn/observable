@@ -8,7 +8,11 @@ mod middleware;
 mod planner;
 mod traces;
 
-use axum::{middleware as axum_middleware, routing::{get, patch, post}, Router};
+use axum::{
+    middleware as axum_middleware,
+    routing::{get, patch, post},
+    Router,
+};
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;

@@ -238,11 +238,11 @@ mod tests {
         // The silenced-rule SQL filter (AND silenced = false) is enforced at the
         // query level in eval_threshold_rules; verified by the postgres integration test.
         for (op, value, threshold, expected) in [
-            (ThresholdOperator::Gt,  1.1, 1.0, EvalResult::Firing),
+            (ThresholdOperator::Gt, 1.1, 1.0, EvalResult::Firing),
             (ThresholdOperator::Gte, 1.0, 1.0, EvalResult::Firing),
-            (ThresholdOperator::Lt,  0.9, 1.0, EvalResult::Firing),
+            (ThresholdOperator::Lt, 0.9, 1.0, EvalResult::Firing),
             (ThresholdOperator::Lte, 1.0, 1.0, EvalResult::Firing),
-            (ThresholdOperator::Eq,  5.0, 5.0, EvalResult::Firing),
+            (ThresholdOperator::Eq, 5.0, 5.0, EvalResult::Firing),
         ] {
             assert_eq!(evaluate_threshold(value, &cond(op, threshold)), expected);
         }

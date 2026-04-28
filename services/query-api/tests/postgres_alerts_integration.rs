@@ -1,4 +1,6 @@
-use query_api::alerts::{create_alert_rule, list_alert_rules, silence_alert_rule, CreateRuleRequest};
+use query_api::alerts::{
+    create_alert_rule, list_alert_rules, silence_alert_rule, CreateRuleRequest,
+};
 use sqlx::PgPool;
 use std::path::Path;
 use testcontainers::{runners::AsyncRunner, ImageExt};
@@ -52,7 +54,10 @@ async fn list_rules_returns_seeded_dev_rule() {
 
     let rules = list_alert_rules(&pool, dev_tenant).await.unwrap();
 
-    assert!(!rules.is_empty(), "dev tenant must have at least one seeded rule");
+    assert!(
+        !rules.is_empty(),
+        "dev tenant must have at least one seeded rule"
+    );
     assert!(
         rules.iter().any(|r| r.name == "High error rate"),
         "seeded 'High error rate' rule must be present"
@@ -143,7 +148,10 @@ async fn silence_returns_none_for_cross_tenant_rule() {
 
     let rules = list_alert_rules(&pool, tenant_a).await.unwrap();
     let rule = rules.iter().find(|r| r.rule_id == created.rule_id).unwrap();
-    assert!(!rule.silenced, "rule must remain unsilenced after cross-tenant attempt");
+    assert!(
+        !rule.silenced,
+        "rule must remain unsilenced after cross-tenant attempt"
+    );
 }
 
 #[tokio::test]

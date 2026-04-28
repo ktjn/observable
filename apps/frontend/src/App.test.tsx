@@ -791,3 +791,219 @@ test("renders empty state when no edges returned", async () => {
     await screen.findByText("No service relationships found in the selected lookback."),
   ).toBeInTheDocument();
 });
+
+test("alerts page renders rule list with firing badge", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v1/alerts/rules") && !url.includes("silence")) {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                rule_id: "10000000-0000-0000-0000-000000000001",
+                name: "High error rate",
+                metric_name: "error_rate",
+                operator: "gt",
+                threshold: 0.05,
+                severity: "warning",
+                silenced: false,
+                firing: true,
+                last_fired_at: "2026-04-28T10:00:00Z",
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+  window.history.pushState({}, "", "/alerts");
+  render(<App />);
+
+  expect(await screen.findByRole("heading", { name: "Alerts & SLOs" })).toBeInTheDocument();
+  expect(await screen.findByText("High error rate")).toBeInTheDocument();
+  expect(screen.getAllByText("Firing").length).toBeGreaterThan(0);
+  expect(screen.getByRole("button", { name: "Silence" })).toBeInTheDocument();
+});
+
+test("alerts page shows OK status when rule is not firing", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v1/alerts/rules")) {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                rule_id: "10000000-0000-0000-0000-000000000002",
+                name: "Low traffic",
+                metric_name: "requests",
+                operator: "lt",
+                threshold: 1.0,
+                severity: "warning",
+                silenced: false,
+                firing: false,
+                last_fired_at: null,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+  window.history.pushState({}, "", "/alerts");
+  render(<App />);
+
+  expect(await screen.findByText("OK")).toBeInTheDocument();
+});
+
+test("alerts page silence button calls PATCH and refreshes list", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+
+    if (url.includes("/v1/alerts/rules") && url.includes("silence") && method === "PATCH") {
+      return new Response(
+        JSON.stringify({
+          rule_id: "10000000-0000-0000-0000-000000000001",
+          name: "High error rate",
+          metric_name: "error_rate",
+          operator: "gt",
+          threshold: 0.05,
+          severity: "warning",
+          silenced: true,
+          firing: false,
+          last_fired_at: null,
+        }),
+        { status: 200 },
+      );
+    }
+    if (url.includes("/v1/alerts/rules")) {
+      return new Response(
+        JSON.stringify({
+          items: [
+            {
+              rule_id: "10000000-0000-0000-0000-000000000001",
+              name: "High error rate",
+              metric_name: "error_rate",
+              operator: "gt",
+              threshold: 0.05,
+              severity: "warning",
+              silenced: false,
+              firing: true,
+              last_fired_at: null,
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    }
+    return new Response(JSON.stringify({ items: [] }), { status: 200 });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  window.history.pushState({}, "", "/alerts");
+  render(<App />);
+
+  const silenceBtn = await screen.findByRole("button", { name: "Silence" });
+  fireEvent.click(silenceBtn);
+
+  await waitFor(() => {
+    const patchCall = fetchMock.mock.calls.find(
+      ([url, init]) =>
+        String(url).includes("silence") && (init as RequestInit)?.method === "PATCH",
+    );
+    expect(patchCall).toBeDefined();
+    const body = JSON.parse((patchCall![1] as RequestInit).body as string);
+    expect(body.silenced).toBe(true);
+  });
+});
+
+test("alerts page create form submits POST and closes panel", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+
+    if (url.includes("/v1/alerts/rules") && method === "POST") {
+      return new Response(
+        JSON.stringify({
+          rule_id: "20000000-0000-0000-0000-000000000001",
+          name: "High latency",
+          metric_name: "p95_latency_ms",
+          operator: "gt",
+          threshold: 500,
+          severity: "warning",
+          silenced: false,
+          firing: false,
+          last_fired_at: null,
+        }),
+        { status: 201 },
+      );
+    }
+    if (url.includes("/v1/alerts/rules")) {
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ items: [] }), { status: 200 });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  window.history.pushState({}, "", "/alerts");
+  render(<App />);
+
+  await screen.findByRole("heading", { name: "Alerts & SLOs" });
+
+  fireEvent.click(screen.getByRole("button", { name: "New Rule" }));
+  expect(screen.getByLabelText("Create alert rule")).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText("Rule name"), {
+    target: { value: "High latency" },
+  });
+  fireEvent.change(screen.getByLabelText("Metric name"), {
+    target: { value: "p95_latency_ms" },
+  });
+  fireEvent.change(screen.getByLabelText("Threshold value"), {
+    target: { value: "500" },
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Create Rule" }));
+
+  await waitFor(() => {
+    const postCall = fetchMock.mock.calls.find(
+      ([url, init]) =>
+        String(url).includes("/v1/alerts/rules") && (init as RequestInit)?.method === "POST",
+    );
+    expect(postCall).toBeDefined();
+    const body = JSON.parse((postCall![1] as RequestInit).body as string);
+    expect(body.name).toBe("High latency");
+    expect(body.metric_name).toBe("p95_latency_ms");
+    expect(body.threshold).toBe(500);
+  });
+
+  // Panel should close after success
+  await waitFor(() =>
+    expect(screen.queryByLabelText("Create alert rule")).not.toBeInTheDocument(),
+  );
+});
+
+test("alerts page renders empty state when no rules exist", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/v1/alerts/rules")) {
+        return new Response(JSON.stringify({ items: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+  window.history.pushState({}, "", "/alerts");
+  render(<App />);
+
+  expect(await screen.findByText("No alert rules")).toBeInTheDocument();
+  expect(
+    screen.getByText("Create a threshold rule to start monitoring metrics."),
+  ).toBeInTheDocument();
+});
