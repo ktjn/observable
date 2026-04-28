@@ -6,7 +6,7 @@
 
 **Architecture:** Keep the current React/Vite/TanStack Router app and the existing light/dark/system theme contract. Add small owned UI primitives under `apps/frontend/src/components/ui/`, then migrate `ProductAreaPage` to consume those primitives as the first proof point. Preserve the existing service-centric information architecture and dense observability UI model from `spec/05-frontend.md`.
 
-**Tech Stack:** React 19, TypeScript, Vite 8, TanStack Query, TanStack Router, Base UI-owned primitive pattern, Tailwind CSS v4 utilities, Vitest + React Testing Library, Playwright + axe.
+**Tech Stack:** React 19, TypeScript, Vite 8, TanStack Query, TanStack Router, Base UI-owned primitive pattern, Tailwind CSS v4 utilities, `tailwind-merge` + `clsx` for class management, Vitest + React Testing Library, Playwright + axe.
 
 ---
 
@@ -16,6 +16,7 @@ This plan is the first modern-UI slice. It is intentionally not a full redesign.
 
 In scope:
 
+- installation of `tailwind-merge` and `clsx` for robust class merging
 - richer shared visual tokens in `apps/frontend/src/styles.css`
 - modernized `AppShell` navigation and topbar treatment
 - shared `Panel`, `Badge`, `Toolbar`, `MetricCard`, and `EmptyState` components
@@ -29,11 +30,13 @@ Out of scope:
 - dashboard builder work
 - charting library changes
 - full feature-directory migration
-- broad rewrite of trace, log, infrastructure, or alert pages
+- broad rewrite of trace, log, infrastructure, or alert pages (AlertsPage modernization will follow as a separate slice)
 - ADR changes unless implementation changes the approved design-system stack
 
 ## File Structure
 
+- Modify `apps/frontend/package.json`: add `tailwind-merge` and `clsx`.
+- Modify `apps/frontend/src/components/ui/cn.ts`: update to use `twMerge` and `clsx`.
 - Modify `apps/frontend/src/styles.css`: add modern neutral/elevation tokens and shell/table utility classes while preserving current tokens.
 - Modify `apps/frontend/src/components/AppShell.tsx`: add icon-based nav metadata, stronger active state, and richer global context controls.
 - Create `apps/frontend/src/components/ui/badge.tsx`: owned semantic status badge with `good`, `warn`, `bad`, and `info` tones.
@@ -49,6 +52,51 @@ Out of scope:
 - Modify `apps/frontend/src/pages/ProductAreaPage.tsx`: consume the new primitives for Services and existing placeholder product areas.
 - Modify `apps/frontend/e2e/accessibility.spec.ts`: add a Services page axe check with mocked service and environment responses.
 - Modify `docs/superpowers/specs/2026-04-21-ui-design-guide.md`: document the modernized shell and new primitives.
+
+---
+
+### Task 0: Class Management Utilities
+
+**Files:**
+
+- Modify: `apps/frontend/package.json`
+- Modify: `apps/frontend/src/components/ui/cn.ts`
+
+- [ ] **Step 1: Install `tailwind-merge` and `clsx`**
+
+Run:
+
+```bash
+npm install --workspace=apps/frontend tailwind-merge clsx
+```
+
+- [ ] **Step 2: Update `cn.ts`**
+
+Update `apps/frontend/src/components/ui/cn.ts`:
+
+```ts
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+```
+
+- [ ] **Step 3: Verify existing primitives still compile**
+
+Run:
+
+```bash
+npm --prefix apps/frontend run typecheck
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add apps/frontend/package.json apps/frontend/package-lock.json apps/frontend/src/components/ui/cn.ts
+git commit -m "feat: add tailwind-merge and clsx utilities"
+```
 
 ---
 
