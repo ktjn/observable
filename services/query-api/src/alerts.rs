@@ -48,6 +48,24 @@ pub enum CreateRuleError {
     Db(sqlx::Error),
 }
 
+impl std::fmt::Display for CreateRuleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CreateRuleError::InvalidInput(msg) => write!(f, "invalid input: {msg}"),
+            CreateRuleError::Db(e) => write!(f, "database error: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for CreateRuleError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            CreateRuleError::Db(e) => Some(e),
+            CreateRuleError::InvalidInput(_) => None,
+        }
+    }
+}
+
 #[derive(sqlx::FromRow)]
 struct AlertRuleRow {
     rule_id: Uuid,
@@ -89,18 +107,23 @@ pub async fn list_alert_rules(
     Ok(rows
         .into_iter()
         .filter_map(|row| {
-            let (metric_name, operator, threshold) = condition_fields(&row.condition)?;
-            Some(AlertRuleItem {
-                rule_id: row.rule_id,
-                name: row.name,
-                metric_name,
-                operator,
-                threshold,
-                severity: row.severity,
-                silenced: row.silenced,
-                firing: row.firing,
-                last_fired_at: row.last_fired_at,
-            })
+            match condition_fields(&row.condition) {
+                Some((metric_name, operator, threshold)) => Some(AlertRuleItem {
+                    rule_id: row.rule_id,
+                    name: row.name,
+                    metric_name,
+                    operator,
+                    threshold,
+                    severity: row.severity,
+                    silenced: row.silenced,
+                    firing: row.firing,
+                    last_fired_at: row.last_fired_at,
+                }),
+                None => {
+                    tracing::warn!(rule_id = %row.rule_id, "skipping alert rule with malformed condition JSONB");
+                    None
+                }
+            }
         })
         .collect())
 }
