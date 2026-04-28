@@ -26,8 +26,9 @@ Every iteration in the remaining phases must:
    - Include **MSW handlers** for the new API endpoints
    - Include **Accessibility tests** (`playwright-axe`) for major new views
    - Follow the **Testing Trophy** (prioritize integration tests with RTL/MSW)
-7. **Mandatory backend integration harness**: Every backend slice that touches PostgreSQL, ClickHouse, Redpanda/Kafka-compatible brokers, object storage, OpenFGA, or another real containerized dependency boundary MUST add or update the narrowest applicable Testcontainers integration test unless the slice explicitly requires Docker Compose, kind, browser, or external-provider verification instead. If Testcontainers is not applicable, the PR must state why and name the replacement signal.
-8. update this plan document as part of the PR's definition of done:
+7. **UI renovation gate before new product UI**: before starting additional product UI workflows such as threshold alerts, dashboards, or dashboard-as-code, complete the dedicated UI renovation lane below. The goal is to finish converting existing high-traffic views to the modern primitive/token system so new product slices do not extend the legacy mixed-style surface area. Backend-only and infrastructure-only slices may proceed when they do not add or change frontend surface area.
+8. **Mandatory backend integration harness**: Every backend slice that touches PostgreSQL, ClickHouse, Redpanda/Kafka-compatible brokers, object storage, OpenFGA, or another real containerized dependency boundary MUST add or update the narrowest applicable Testcontainers integration test unless the slice explicitly requires Docker Compose, kind, browser, or external-provider verification instead. If Testcontainers is not applicable, the PR must state why and name the replacement signal.
+9. update this plan document as part of the PR's definition of done:
    - mark the finished slice state
    - add any new checkpoint answer or discovered dependency
    - adjust the next recommended slice if priorities changed
@@ -313,6 +314,34 @@ Before Phase 3 starts, answer:
   - Verification: frontend primitive tests, app integration tests, Services accessibility coverage, frontend typecheck/lint/test/build, and `bash scripts/local-ci.sh` passed before PR #156 was merged.
   - Checkpoint: do new primitives follow the "inverted pyramid" density model while preserving the theme contract? Answer: yes. The shared primitives expose compact KPI, status, toolbar, panel, and empty-state patterns that keep service health scannable first while reading only the existing CSS variable theme contract.
 
+### UI renovation gate
+
+Before starting any new product UI workflow, complete these pure renovation slices. These slices should not add new backend contracts or product capabilities; they exist to finish the modernization started by P3-S6f and reduce the cost and inconsistency of all later UI work.
+
+- [ ] **UI-R1: Renovate service and infrastructure detail surfaces**
+  - Source spec: `spec/05-frontend.md` §9.2 and §9.4; `docs/superpowers/specs/2026-04-21-ui-design-guide.md`.
+  - Outcome: service detail, infrastructure detail, service infrastructure panel, deployment timeline container, and shared summary/status widgets use the modern `components/ui` primitives and token system instead of local metric/status/detail-panel variants and broad inline styles.
+  - Files or modules expected to change: `apps/frontend/src/pages/ServiceDetailPage.tsx`, `apps/frontend/src/pages/InfrastructureDetailPage.tsx`, `apps/frontend/src/components/ServiceInfraPanel.tsx`, `apps/frontend/src/components/DeploymentTimeline.tsx`, focused component tests, and accessibility coverage where the route already exists.
+  - Out of scope: new service capabilities, topology behavior changes, alert authoring, dashboard creation, or backend API changes.
+  - Verification: frontend tests cover renovated service and infrastructure states; accessibility coverage remains green for the touched views; frontend typecheck/lint/test/build pass.
+  - Checkpoint: can operators move through service and infrastructure details without encountering legacy panel, status, or metric tile patterns?
+
+- [ ] **UI-R2: Renovate explorer detail and log support surfaces**
+  - Source spec: `spec/05-frontend.md` §9.2 and §9.4; `docs/superpowers/specs/2026-04-21-ui-design-guide.md`.
+  - Outcome: trace detail waterfall, facet sidebar, log context/correlation/live-tail support components, and explorer result panels use modern primitives/tokens with minimal inline styles and consistent empty/loading/error states.
+  - Files or modules expected to change: `apps/frontend/src/pages/TraceDetail.tsx`, `apps/frontend/src/components/FacetSidebar.tsx`, `apps/frontend/src/components/LogContextView.tsx`, `apps/frontend/src/components/LogCorrelatedList.tsx`, `apps/frontend/src/components/LogLiveTail.tsx`, `apps/frontend/src/pages/TraceSearch.tsx`, `apps/frontend/src/pages/LogSearch.tsx`, and related tests.
+  - Out of scope: new query semantics, new facets, live-tail transport changes, or trace waterfall behavior redesign beyond preserving current interactions.
+  - Verification: RTL tests cover selected/focused waterfall rows, facet interactions, and log support component states; accessibility scans remain green for trace detail and log search; frontend typecheck/lint/test/build pass.
+  - Checkpoint: do trace and log investigation paths use the same modern primitives and state language as the service catalog?
+
+- [ ] **UI-R3: Remove remaining legacy style drift and document the frontend migration rule**
+  - Source spec: `spec/05-frontend.md` §9.2; `spec/15-frontend-local-dev.md`; `docs/superpowers/specs/2026-04-21-ui-design-guide.md`.
+  - Outcome: remaining broad legacy CSS classes and inline style patterns are either migrated, intentionally quarantined for canvas/SVG-specific rendering, or documented as exceptions. Future frontend slices have an explicit rule: reuse `components/ui` primitives first, add missing primitives in the same slice only when needed, and avoid page-local interactive styling.
+  - Files or modules expected to change: `apps/frontend/src/styles.css`, `apps/frontend/src/components/ui/*` if small missing primitives are needed, frontend tests for any new primitive, and this plan/spec note if the migration rule changes.
+  - Out of scope: wholesale feature-directory reshuffle unless a touched surface can move without expanding review scope.
+  - Verification: `rg` checks show no unreviewed inline-style-heavy product surfaces outside approved rendering exceptions; frontend typecheck/lint/test/build pass; accessibility suite remains green.
+  - Checkpoint: is the frontend modernized enough that new product UI work can start without copying legacy local styles?
+
 - [x] **P3-S7: Add field faceting and statistics to explorers**
   - Outcome: Log and Trace explorers show distribution of common fields such as status codes, log levels, and service names. This closes the immediate field-faceting gap recorded in `docs/analysis/2026-04-19-gaps-analysis.md`.
   - Files or modules expected to change: query-api facet responses if incomplete, explorer sidebar components, tests.
@@ -572,13 +601,16 @@ After this planning reconciliation, the next implementation slice should be:
 14. ~~P3-S10: Add infrastructure correlation from service and trace views~~ (done)
 15. ~~P3-S6f: add modern UI foundation tokens and layout primitives~~ (done)
 16. ~~P3-S6c: add onboarding/setup flow for first-signal success~~ (done)
-17. P3-S6d: add a minimal threshold-alert UI workflow
-18. ~~P3-S6e: add explicit accessibility regression coverage for the trace waterfall and other major new views~~ (done)
-19. P3-S12: add "Promote to Dashboard" from explorers and a fixed-layout dashboard route
-20. P3-S13: add dashboard-as-code import/export for one dashboard shape
-21. P3-S15: establish Testcontainers integration harness for real dependencies before the next backend slice touches PostgreSQL, ClickHouse, Redpanda, object storage, or OpenFGA
+17. ~~P3-S6e: add explicit accessibility regression coverage for the trace waterfall and other major new views~~ (done)
+18. UI-R1: renovate service and infrastructure detail surfaces
+19. UI-R2: renovate explorer detail and log support surfaces
+20. UI-R3: remove remaining legacy style drift and document the frontend migration rule
+21. P3-S6d: add a minimal threshold-alert UI workflow
+22. P3-S12: add "Promote to Dashboard" from explorers and a fixed-layout dashboard route
+23. P3-S13: add dashboard-as-code import/export for one dashboard shape
+24. P3-S15: establish Testcontainers integration harness for real dependencies before the next backend slice touches PostgreSQL, ClickHouse, Redpanda, object storage, or OpenFGA
 
-**Next recommended slice: P3-S6d - Add a minimal threshold-alert UI workflow.**
+**Next recommended slice: UI-R1 - Renovate service and infrastructure detail surfaces.**
 
 **Phase 2 exit gate is now satisfied.** All Phase 2 slices (P2-S0 through P2-S9a) are complete. Before starting Phase 3, answer the Phase 2 pause-point questions:
 - Tenant safety under test: yes — P2-S1a through P2-S1d enforce and test cross-tenant isolation for all signal types.
@@ -586,8 +618,14 @@ After this planning reconciliation, the next implementation slice should be:
 - Roll back a bad deploy without manual heroics: yes — P2-S8a (Helm rollback skeleton) and P2-S8b (canary promotion path) cover both runtime and schema rollback.
 - Self-observability route choice: use a second observer instance for production and customer-facing environments; use recursive self-ingest for local development, dogfooding, and bootstrap. This follows `spec/17-self-observability.md` by preserving both recursive OTLP telemetry and independent health/Prometheus monitoring, and it requires service-level, infrastructure-level, and UI-level instrumentation before the slice is complete.
 
-The next recommended UI slices should close the remaining service-centric MVP bar before any
-further broad UI expansion:
+The next recommended UI slices should complete the pure renovation gate before adding any
+new product UI workflows:
+- `UI-R1` service and infrastructure detail renovation
+- `UI-R2` explorer detail and log support renovation
+- `UI-R3` remaining style drift cleanup and migration rule documentation
+
+After the renovation gate is complete, the product UI sequence should close the remaining
+service-centric MVP bar before any further broad UI expansion:
 - `P3-S6d` threshold-alert UI
 - `P3-S12` dashboard workflow
 - `P3-S13` dashboard-as-code round-trip
