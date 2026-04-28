@@ -229,7 +229,7 @@ Expected: commit succeeds after the focused test passes.
 - Modify: `scripts/local-ci.sh`
 - Test: `bash scripts/local-ci.sh --skip-frontend --skip-docker --skip-smoke`
 
-- [ ] **Step 1: Inspect existing local-ci behavior**
+- [x] **Step 1: Inspect existing local-ci behavior**
 
 Run:
 
@@ -240,11 +240,13 @@ git diff -- scripts/local-ci.sh
 
 Expected: syntax is valid and there are no unrelated script edits.
 
-- [ ] **Step 2: Decide whether a new stage is needed**
+- [x] **Step 2: Decide whether a new stage is needed**
 
 If `cargo test --workspace --all-targets` already runs the new integration tests reliably, document that no script change is needed. If the tests require a named stage for Docker availability checks or diagnostics, add the smallest stage that runs only the Testcontainers tests and preserves existing skip semantics.
 
-- [ ] **Step 3: Verify the gate path**
+**Decision:** No script change needed. `cargo test --workspace --all-targets` in the existing "Rust tests" stage already runs all three Testcontainers integration tests (postgres_integration, clickhouse_integration, redpanda_integration). They pass reliably and fail loudly if Docker is unavailable — no silent skipping occurs.
+
+- [x] **Step 3: Verify the gate path**
 
 Run:
 
@@ -254,7 +256,9 @@ bash scripts/local-ci.sh --skip-frontend --skip-docker --skip-smoke
 
 Expected: PASS when Docker is available for Testcontainers, or a clear documented skip/failure mode if Docker is unavailable. Do not silently skip applicable Testcontainers tests.
 
-- [ ] **Step 4: Commit if the script changed**
+**Result:** PASS. All three Testcontainers tests ran and passed within the existing "Rust tests" stage.
+
+- [x] **Step 4: Commit if the script changed**
 
 Run:
 
@@ -264,6 +268,8 @@ git commit -m "Wire Testcontainers tests into local CI"
 ```
 
 Expected: commit is needed only if `scripts/local-ci.sh` changed.
+
+**Result:** No commit needed — `scripts/local-ci.sh` was not modified.
 
 ---
 
