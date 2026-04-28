@@ -4,6 +4,7 @@ import { AppShell } from "./components/AppShell";
 import InfrastructureDetailPage from "./pages/InfrastructureDetailPage";
 import InfrastructureInventoryPage from "./pages/InfrastructureInventoryPage";
 import { ProductAreaPage } from "./pages/ProductAreaPage";
+import { AlertsPage } from "./features/alerts/AlertsPage";
 import ServiceDetailPage from "./pages/ServiceDetailPage";
 import ServiceOverview from "./pages/ServiceOverview";
 import SetupPage from "./pages/SetupPage";
@@ -73,7 +74,7 @@ const dashboardsRoute = createRoute({
 const alertsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/alerts",
-  component: () => createElement(ProductAreaPage, { area: "alerts" }),
+  component: AlertsPage,
 });
 const adminRoute = createRoute({
   getParentRoute: () => rootRoute,

@@ -2,7 +2,7 @@ import { forwardRef } from "react";
 import type { ButtonHTMLAttributes } from "react";
 import { cn } from "./cn";
 
-type ButtonVariant = "primary" | "secondary" | "destructive";
+type ButtonVariant = "primary" | "secondary" | "destructive" | "ghost";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -15,6 +15,8 @@ const variantClasses: Record<ButtonVariant, string> = {
     "border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--surface-subtle)] disabled:text-[var(--muted)]",
   destructive:
     "bg-[var(--bad)] text-white hover:opacity-90 disabled:bg-[var(--surface-subtle)] disabled:text-[var(--muted)]",
+  ghost:
+    "bg-transparent text-[var(--muted)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text)] disabled:text-[var(--muted)]",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(

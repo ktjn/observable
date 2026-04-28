@@ -1,3 +1,4 @@
+mod alerts;
 mod audit;
 mod deployments;
 mod discovery;
@@ -7,7 +8,11 @@ mod middleware;
 mod planner;
 mod traces;
 
-use axum::{middleware as axum_middleware, routing::get, Router};
+use axum::{
+    middleware as axum_middleware,
+    routing::{get, patch, post},
+    Router,
+};
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
@@ -65,6 +70,12 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/v1/environments", get(discovery::list_environments))
         .route("/v1/deployments", get(deployments::list_deployments))
+        .route("/v1/alerts/rules", get(alerts::handle_list_rules))
+        .route("/v1/alerts/rules", post(alerts::handle_create_rule))
+        .route(
+            "/v1/alerts/rules/:rule_id/silence",
+            patch(alerts::handle_silence_rule),
+        )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
         .with_state(state);
