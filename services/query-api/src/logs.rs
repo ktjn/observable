@@ -317,6 +317,25 @@ pub async fn get_log_context(
     }))
 }
 
+/// Repository-level fetch used by integration tests to verify tenant-filter correctness.
+#[allow(dead_code)]
+pub async fn fetch_log_rows(
+    ch: &clickhouse::Client,
+    tenant_id: Uuid,
+) -> anyhow::Result<Vec<LogRow>> {
+    let rows: Vec<LogRow> = ch
+        .query(
+            "SELECT ?fields FROM observable.logs \
+             WHERE tenant_id = ? \
+             ORDER BY timestamp_unix_nano \
+             LIMIT 1000",
+        )
+        .bind(tenant_id)
+        .fetch_all()
+        .await?;
+    Ok(rows)
+}
+
 fn validate_log_rows_for_tenant(rows: &[LogRow], tenant_id: Uuid) -> Result<(), StatusCode> {
     if rows.iter().all(|row| row.tenant_id == tenant_id) {
         return Ok(());
