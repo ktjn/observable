@@ -307,10 +307,11 @@ Before Phase 3 starts, answer:
   - Outcome: `apps/frontend` now has a Playwright + axe-core harness under `e2e/accessibility.spec.ts`. The trace detail waterfall and log search views each have an axe scan; heading hierarchy (`<h2>`→`<h1>` in `TraceDetail.tsx`, `<h3>`→`<h2>` in `FacetSidebar.tsx`), landmark structure (`<section>`→`<div>` in `LogSearch.tsx`), and keyboard accessibility (`role="button"` + `tabIndex` + `onKeyDown` on span rows in `TraceDetail.tsx` and facet items in `FacetSidebar.tsx`) were fixed. A negative proof test injects an `image-alt` violation and asserts it is caught. `local-ci.sh` runs the suite when Chromium is installed and skips gracefully otherwise.
   - Checkpoint answer: yes. Future slices can call `new AxeBuilder({ page }).analyze()` after navigating to a new route, using `page.route()` to supply fixture data — no new harness setup needed.
 
-- [ ] **P3-S6f: Add modern UI foundation tokens and layout primitives**
+- [x] **P3-S6f: Add modern UI foundation tokens and layout primitives**
   - Source spec: `spec/05-frontend.md` §9.2; `docs/superpowers/specs/2026-04-21-ui-design-guide.md`.
   - Outcome: `apps/frontend` includes modern surface/elevation tokens, an improved `cn` utility with `tailwind-merge`, and shared `Badge`, `Panel`, `Toolbar`, `MetricCard`, and `EmptyState` primitives. The app shell is modernized and the Services page is migrated to use the new primitives.
-  - Checkpoint: do new primitives follow the "inverted pyramid" density model while preserving the theme contract?
+  - Verification: frontend primitive tests, app integration tests, Services accessibility coverage, frontend typecheck/lint/test/build, and `bash scripts/local-ci.sh` passed before PR #156 was merged.
+  - Checkpoint: do new primitives follow the "inverted pyramid" density model while preserving the theme contract? Answer: yes. The shared primitives expose compact KPI, status, toolbar, panel, and empty-state patterns that keep service health scannable first while reading only the existing CSS variable theme contract.
 
 - [x] **P3-S7: Add field faceting and statistics to explorers**
   - Outcome: Log and Trace explorers show distribution of common fields such as status codes, log levels, and service names. This closes the immediate field-faceting gap recorded in `docs/analysis/2026-04-19-gaps-analysis.md`.
@@ -569,15 +570,15 @@ After this planning reconciliation, the next implementation slice should be:
 12. ~~P2-S8b: add one canary promotion path~~ (done)
 13. ~~P2-S9a: add perf smoke baseline for ingest and common query paths~~ (done)
 14. ~~P3-S10: Add infrastructure correlation from service and trace views~~ (done)
-15. P3-S6f: add modern UI foundation tokens and layout primitives
-16. P3-S6c: add onboarding/setup flow for first-signal success
+15. ~~P3-S6f: add modern UI foundation tokens and layout primitives~~ (done)
+16. ~~P3-S6c: add onboarding/setup flow for first-signal success~~ (done)
 17. P3-S6d: add a minimal threshold-alert UI workflow
-18. P3-S6e: add explicit accessibility regression coverage for the trace waterfall and other major new views
+18. ~~P3-S6e: add explicit accessibility regression coverage for the trace waterfall and other major new views~~ (done)
 19. P3-S12: add "Promote to Dashboard" from explorers and a fixed-layout dashboard route
 20. P3-S13: add dashboard-as-code import/export for one dashboard shape
 21. P3-S15: establish Testcontainers integration harness for real dependencies before the next backend slice touches PostgreSQL, ClickHouse, Redpanda, object storage, or OpenFGA
 
-**Next recommended slice: P3-S6f - Add modern UI foundation tokens and layout primitives.**
+**Next recommended slice: P3-S6d - Add a minimal threshold-alert UI workflow.**
 
 **Phase 2 exit gate is now satisfied.** All Phase 2 slices (P2-S0 through P2-S9a) are complete. Before starting Phase 3, answer the Phase 2 pause-point questions:
 - Tenant safety under test: yes — P2-S1a through P2-S1d enforce and test cross-tenant isolation for all signal types.
@@ -587,10 +588,7 @@ After this planning reconciliation, the next implementation slice should be:
 
 The next recommended UI slices should close the remaining service-centric MVP bar before any
 further broad UI expansion:
-- `P3-S6f` modern UI foundation
-- `P3-S6c` onboarding/setup
 - `P3-S6d` threshold-alert UI
-- `P3-S6e` accessibility regression coverage for the Phase 1 waterfall and other major views
 - `P3-S12` dashboard workflow
 - `P3-S13` dashboard-as-code round-trip
 
