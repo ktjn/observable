@@ -54,6 +54,35 @@ const FIXTURE_LOGS = {
   },
 };
 
+const FIXTURE_ENVIRONMENTS = {
+  items: ["local-dev", "prod"],
+};
+
+const FIXTURE_SERVICES = {
+  items: [
+    {
+      service_name: "checkout",
+      environment: "local-dev",
+      request_rate: 12.4,
+      error_rate: 0.004,
+      p95_latency_ms: 184,
+      health_state: "healthy",
+      active_alert_count: 0,
+      last_deployment_at: null,
+    },
+    {
+      service_name: "payments",
+      environment: "local-dev",
+      request_rate: 4.9,
+      error_rate: 0.021,
+      p95_latency_ms: 312,
+      health_state: "watch",
+      active_alert_count: 1,
+      last_deployment_at: null,
+    },
+  ],
+};
+
 // ── Trace detail waterfall ────────────────────────────────────────────────────
 
 test.describe("trace detail waterfall", () => {
@@ -86,6 +115,26 @@ test.describe("log search", () => {
   test("has no axe violations", async ({ page }) => {
     await page.goto("/logs");
     await page.waitForSelector("text=order received");
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  });
+});
+
+// ── Services catalog ──────────────────────────────────────────────────────────
+
+test.describe("services catalog", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route("**/v1/environments**", (route) =>
+      route.fulfill({ json: FIXTURE_ENVIRONMENTS })
+    );
+    await page.route("**/v1/services**", (route) =>
+      route.fulfill({ json: FIXTURE_SERVICES })
+    );
+  });
+
+  test("has no axe violations", async ({ page }) => {
+    await page.goto("/services");
+    await page.waitForSelector("text=checkout");
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
   });
