@@ -1,5 +1,6 @@
 use clickhouse::Client;
-use domain::SpanRow;
+use domain::{LogRow, SpanRow};
+use query_api::logs::fetch_log_rows;
 use query_api::traces::fetch_trace_spans;
 use std::path::Path;
 use testcontainers::{runners::AsyncRunner, ImageExt};
@@ -125,5 +126,73 @@ async fn clickhouse_container_applies_migrations_and_enforces_tenant_filter() {
     assert!(
         !result.iter().any(|span| span.tenant_id == tenant_b),
         "no spans from tenant_b must leak into tenant_a results"
+    );
+}
+
+fn make_log_row(tenant_id: Uuid, service: &str) -> LogRow {
+    let now_ns = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+    LogRow {
+        tenant_id,
+        log_id: Uuid::new_v4(),
+        timestamp_unix_nano: now_ns,
+        observed_timestamp_unix_nano: now_ns,
+        severity_number: 9,
+        severity_text: "INFO".into(),
+        body: "{}".into(),
+        trace_id: None,
+        span_id: None,
+        attributes: "{}".into(),
+        resource_attributes: "{}".into(),
+        service_name: service.into(),
+        environment: "test".into(),
+        host_id: "host-1".into(),
+        fingerprint: None,
+    }
+}
+
+async fn insert_log(ch: &Client, row: LogRow) {
+    let mut ins = ch
+        .insert::<LogRow>("logs")
+        .await
+        .expect("log insert handle created");
+    ins.write(&row).await.expect("log row written");
+    ins.end().await.expect("log insert committed");
+}
+
+#[tokio::test]
+async fn clickhouse_container_enforces_tenant_filter_on_logs() {
+    let container = ClickHouse::default()
+        .with_tag("24.3")
+        .with_env_var("CLICKHOUSE_USER", "default")
+        .with_env_var("CLICKHOUSE_PASSWORD", "test")
+        .start()
+        .await
+        .expect("clickhouse container started");
+
+    let port = container.get_host_port_ipv4(8123).await.unwrap();
+    let base_url = format!("http://127.0.0.1:{port}");
+    let ch = apply_migrations(&base_url, "default", "test").await;
+
+    let tenant_a = Uuid::new_v4();
+    let tenant_b = Uuid::new_v4();
+
+    insert_log(&ch, make_log_row(tenant_a, "svc-a")).await;
+    insert_log(&ch, make_log_row(tenant_b, "svc-b")).await;
+
+    let result = fetch_log_rows(&ch, tenant_a)
+        .await
+        .expect("log query succeeded");
+
+    assert!(!result.is_empty(), "tenant_a must see their own log");
+    assert!(
+        result.iter().all(|row| row.tenant_id == tenant_a),
+        "all returned log rows must belong to tenant_a"
+    );
+    assert!(
+        !result.iter().any(|row| row.tenant_id == tenant_b),
+        "no log rows from tenant_b must leak into tenant_a results"
     );
 }
