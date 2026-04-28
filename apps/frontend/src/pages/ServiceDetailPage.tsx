@@ -7,6 +7,10 @@ import { searchTraces } from "../api/traces";
 import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
 import { listDeployments } from "../api/deployments";
 import { DeploymentTimeline } from "../components/DeploymentTimeline";
+import { Badge } from "../components/ui/badge";
+import { EmptyState } from "../components/ui/empty-state";
+import { MetricCard } from "../components/ui/metric-card";
+import { Panel } from "../components/ui/panel";
 
 export default function ServiceDetailPage() {
   const { serviceId } = useParams({ strict: false });
@@ -31,12 +35,7 @@ export default function ServiceDetailPage() {
     return (
       <section className="page-stack">
         <Link to="/services" className="secondary-link">Back to services</Link>
-        <div className="empty-panel">
-          <div className="empty-title">Service not found</div>
-          <div className="empty-metrics">
-            <span>{serviceName}</span>
-          </div>
-        </div>
+        <EmptyState title="Service not found" metadata={[serviceName]} />
       </section>
     );
   }
@@ -70,14 +69,14 @@ function ServiceOverview({
       </div>
 
       <div className="metric-grid" aria-label="Service performance summary">
-        <MetricTile label="Request Rate" value={`${service.request_rate.toFixed(2)} rps`} tone="info" />
-        <MetricTile
+        <MetricCard label="Request Rate" value={`${service.request_rate.toFixed(2)} rps`} tone="info" />
+        <MetricCard
           label="Error Rate"
           value={`${(service.error_rate * 100).toFixed(2)}%`}
           tone={service.health_state === "breach" ? "bad" : service.health_state === "watch" ? "warn" : "good"}
         />
-        <MetricTile label="P95 Latency" value={`${Math.round(service.p95_latency_ms)}ms`} tone="good" />
-        <MetricTile label="Active Alerts" value={String(service.active_alert_count)} tone={service.active_alert_count > 0 ? "warn" : "good"} />
+        <MetricCard label="P95 Latency" value={`${Math.round(service.p95_latency_ms)}ms`} tone="good" />
+        <MetricCard label="Active Alerts" value={String(service.active_alert_count)} tone={service.active_alert_count > 0 ? "warn" : "good"} />
       </div>
 
       <DeploymentTimelineSection
@@ -86,14 +85,11 @@ function ServiceOverview({
       />
 
       <div className="detail-grid">
-        <section className="detail-panel">
-          <div className="detail-panel-header">
-            <div>
-              <div className="field-label">Health</div>
-              <h2>Current State</h2>
-            </div>
-            <HealthStatus healthState={service.health_state} />
-          </div>
+        <Panel
+          eyebrow="Health"
+          title="Current State"
+          actions={<HealthStatus healthState={service.health_state} />}
+        >
           <dl className="definition-grid">
             <div>
               <dt>SLO / health state</dt>
@@ -108,15 +104,9 @@ function ServiceOverview({
               <dd>Last 1h</dd>
             </div>
           </dl>
-        </section>
+        </Panel>
 
-        <section className="detail-panel">
-          <div className="detail-panel-header">
-            <div>
-              <div className="field-label">Investigate</div>
-              <h2>Signal Entry Points</h2>
-            </div>
-          </div>
+        <Panel eyebrow="Investigate" title="Signal Entry Points">
           <div className="entry-link-grid" aria-label="Signal entry points">
             <a href={`/traces?service=${encodeURIComponent(service.service_name)}`} className="entry-link">
               Traces
@@ -131,7 +121,7 @@ function ServiceOverview({
               Infrastructure
             </a>
           </div>
-        </section>
+        </Panel>
       </div>
 
       <ServiceInfraPanel serviceName={service.service_name} />
@@ -182,15 +172,15 @@ function ServiceSignalTabs({
   const preservedSearch = { lookback_minutes: lookbackMinutes };
 
   return (
-    <section className="signal-panel">
-      <nav className="tab-list" aria-label="Service signals">
+    <Panel className="overflow-hidden">
+      <nav className="modern-tab-list" aria-label="Service signals">
         {tabLinks.map((link) => (
           <Link
             key={link.tab}
             to={link.to}
             params={{ serviceId: encodedService }}
             search={preservedSearch}
-            className={activeTab === link.tab ? "tab-link active" : "tab-link"}
+            className={activeTab === link.tab ? "modern-tab-link active" : "modern-tab-link"}
             aria-current={activeTab === link.tab ? "page" : undefined}
           >
             {link.label}
@@ -209,7 +199,7 @@ function ServiceSignalTabs({
       {activeTab === "traces" && (
         <ServiceTracesTab serviceName={serviceName} lookbackMinutes={lookbackMinutes} />
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -345,32 +335,15 @@ function ServiceTracesTab({
 }
 
 function HealthStatus({ healthState }: { healthState: ServiceSummary["health_state"] }) {
-  if (healthState === "breach") return <span className="status bad">Breach</span>;
-  if (healthState === "watch") return <span className="status warn">Watch</span>;
-  return <span className="status good">Healthy</span>;
+  if (healthState === "breach") return <Badge tone="bad">Breach</Badge>;
+  if (healthState === "watch") return <Badge tone="warn">Watch</Badge>;
+  return <Badge tone="good">Healthy</Badge>;
 }
 
 function healthLabel(healthState: ServiceSummary["health_state"]) {
   if (healthState === "breach") return "Breach";
   if (healthState === "watch") return "Watch";
   return "Healthy";
-}
-
-function MetricTile({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "good" | "warn" | "bad" | "info";
-}) {
-  return (
-    <div className={`metric-tile ${tone}`}>
-      <div className="metric-label">{label}</div>
-      <div className="metric-value">{value}</div>
-    </div>
-  );
 }
 
 function DeploymentTimelineSection({

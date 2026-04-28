@@ -29,14 +29,8 @@ interface Props {
   rangeEndMs: number;
 }
 
-interface TooltipState {
-  marker: DeploymentMarker;
-  x: number;
-  y: number;
-}
-
 export function DeploymentTimeline({ markers, rangeStartMs, rangeEndMs }: Props) {
-  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const [tooltip, setTooltip] = useState<DeploymentMarker | null>(null);
   const width = 600;
   const height = 32;
   const lineHeight = 24;
@@ -45,13 +39,13 @@ export function DeploymentTimeline({ markers, rangeStartMs, rangeEndMs }: Props)
   if (markers.length === 0) return null;
 
   return (
-    <div className="deployment-timeline" style={{ position: "relative" }}>
-      <div className="field-label" style={{ marginBottom: "4px" }}>Deployments</div>
+    <div className="deployment-timeline">
+      <div className="field-label mb-1">Deployments</div>
       <svg
         width="100%"
         viewBox={`0 0 ${width} ${height}`}
         aria-label="Deployment timeline"
-        style={{ display: "block" }}
+        className="deployment-timeline-svg"
       >
         <line
           x1={0} y1={lineY + lineHeight / 2}
@@ -75,12 +69,8 @@ export function DeploymentTimeline({ markers, rangeStartMs, rangeEndMs }: Props)
               <circle
                 cx={x} cy={lineY + lineHeight / 2} r={5}
                 fill={color}
-                style={{ cursor: "pointer" }}
-                onMouseEnter={(e) => {
-                  const svgRect = (e.currentTarget.closest("svg") as SVGElement)
-                    .getBoundingClientRect();
-                  setTooltip({ marker: m, x: e.clientX - svgRect.left, y: e.clientY - svgRect.top });
-                }}
+                className="deployment-timeline-marker"
+                onMouseEnter={() => setTooltip(m)}
                 onMouseLeave={() => setTooltip(null)}
                 aria-label={`Deployment ${m.service_version} — ${m.status}`}
               />
@@ -90,28 +80,12 @@ export function DeploymentTimeline({ markers, rangeStartMs, rangeEndMs }: Props)
       </svg>
 
       {tooltip && (
-        <div
-          role="tooltip"
-          style={{
-            position: "absolute",
-            left: tooltip.x + 8,
-            top: tooltip.y - 8,
-            background: "#1f2937",
-            border: "1px solid #374151",
-            borderRadius: "4px",
-            padding: "6px 10px",
-            fontSize: "12px",
-            color: "#f3f4f6",
-            pointerEvents: "none",
-            zIndex: 10,
-            whiteSpace: "nowrap",
-          }}
-        >
-          <div><strong>{tooltip.marker.service_version}</strong></div>
-          <div style={{ color: markerColor(tooltip.marker.status) }}>{tooltip.marker.status}</div>
-          {tooltip.marker.deployed_by && <div>by {tooltip.marker.deployed_by}</div>}
-          {tooltip.marker.commit_sha && (
-            <div style={{ fontFamily: "monospace" }}>{tooltip.marker.commit_sha.slice(0, 8)}</div>
+        <div role="tooltip" className="deployment-timeline-tooltip">
+          <div><strong>{tooltip.service_version}</strong></div>
+          <div>{tooltip.status}</div>
+          {tooltip.deployed_by && <div>by {tooltip.deployed_by}</div>}
+          {tooltip.commit_sha && (
+            <div className="deployment-timeline-commit">{tooltip.commit_sha.slice(0, 8)}</div>
           )}
         </div>
       )}

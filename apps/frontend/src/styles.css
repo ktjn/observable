@@ -329,6 +329,32 @@ h1 {
   gap: 10px;
 }
 
+.modern-tab-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-subtle);
+}
+
+.modern-tab-link {
+  min-height: 36px;
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.modern-tab-link:hover,
+.modern-tab-link.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-control);
+}
+
 .modern-table-row:hover td {
   background: var(--surface-subtle);
 }
@@ -557,6 +583,93 @@ th {
 .entry-link:hover {
   border-color: var(--brand);
   color: var(--brand-strong);
+}
+
+.entity-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.entity-card-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.entity-card-row:last-child {
+  border-bottom: 0;
+}
+
+.entity-card-link {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.entity-card-link:hover {
+  color: var(--brand-strong);
+}
+
+.entity-card-metric {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.entity-health-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.entity-health-dot.good {
+  background: var(--good);
+}
+
+.entity-health-dot.warn {
+  background: var(--warn);
+}
+
+.entity-health-dot.bad {
+  background: var(--bad);
+}
+
+.deployment-timeline {
+  position: relative;
+}
+
+.deployment-timeline-svg {
+  display: block;
+}
+
+.deployment-timeline-marker {
+  cursor: pointer;
+}
+
+.deployment-timeline-tooltip {
+  position: absolute;
+  top: 100%;
+  left: 16px;
+  z-index: 10;
+  pointer-events: none;
+  white-space: nowrap;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 12px;
+  box-shadow: var(--shadow-panel);
+}
+
+.deployment-timeline-commit {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
 }
 
 .setup-actions {
