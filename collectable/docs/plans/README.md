@@ -20,7 +20,9 @@ Examples:
 
 ## Index
 
-*(No plans yet. Add entries here as plan files are created.)*
+| Plan | Summary |
+|---|---|
+| [2026-04-28-testing-transport-buffering.md](2026-04-28-testing-transport-buffering.md) | Playwright UI tests, transport config completeness, output buffering, end-to-end pipeline tests |
 
 ## What to put in a plan file
 
