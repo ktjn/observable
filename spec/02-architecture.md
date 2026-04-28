@@ -233,6 +233,15 @@ flowchart TB
 
 ### 4.3 Query
 
+**Query language principle:** Observable does not have and will not introduce a proprietary query
+DSL. SQL/DataFusion is the canonical query IR. All query surfaces — NLQ, UI filter panels, faceted
+search, trace/log/metric explorers — compile to SQL. See [ADR-026](adr/ADR-026-no-proprietary-query-dsl.md).
+
+**NLQ/MCP translation layer:** Natural language queries go through a three-stage pipeline:
+`NLQ → LLM → NLQ IR → MCP Server → SQL/DataFusion`. The MCP server encodes time-series semantics
+(rate, windowing, downsampling) in code and returns a typed VisualizationFrame for auto-graphing.
+See [ADR-021](adr/ADR-021-nl-query-layer.md) and [spec/08 §13.1](08-ai-ml.md).
+
 Expose separate logical APIs:
 - trace query API
 - metric query API

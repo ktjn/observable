@@ -33,3 +33,4 @@ Architecture Decision Records (ADRs) capture significant technology and design c
 | [ADR-023](ADR-023-standard-otlp-ports.md) | Standard OTLP Port Conformance | Proposed | Align ingest-gateway to OTLP standard ports: 4317 gRPC, 4318 HTTP/JSON |
 | [ADR-024](ADR-024-deployment-marker-routing.md) | Deployment Marker Write Path in Ingest Gateway | Accepted | POST/PATCH /v1/deployments in ingest-gateway; GET in query-api; future Redpanda stream enables SSE push |
 | [ADR-025](ADR-025-testcontainers-integration-tests.md) | Testcontainers for Service Integration Tests | Proposed | Use Testcontainers for isolated real-dependency service integration tests; Compose/kind remain full-stack gates |
+| [ADR-026](ADR-026-no-proprietary-query-dsl.md) | No Proprietary Query DSL | Accepted | Observable will never introduce a proprietary DSL; SQL is the canonical IR; NLQ is the operator UX; PromQL is an optional metrics-only façade |

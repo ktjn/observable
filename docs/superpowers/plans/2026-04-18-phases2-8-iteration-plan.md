@@ -561,8 +561,26 @@ Before Phase 5 starts, answer:
 - [ ] **P8-S4: Add capacity forecasting for one storage or ingest dimension**
 - [ ] **P8-S5: Add remediation hooks with explicit approval controls**
 - [ ] **P8-S6: Add NL query layer for one explorer view using semantic annotations**
-  - Outcome: operators can ask natural-language questions against one signal type and receive an explained, sourced answer grounded in semantic annotations from the Schema Registry (P3-S14). Governed by ADR-021 and within ADR-014 advisory-only, provenance-required, read-only constraints.
-  - Checkpoint: does every response carry provenance (source queries, time range, signal type) and can it be ignored without affecting platform correctness?
+  - Outcome: operators can ask natural-language questions against one signal type and receive an
+    explained, sourced answer grounded in semantic annotations from the Schema Registry (P3-S14).
+    The implementation follows the three-stage pipeline in ADR-021: LLM emits a structured NLQ IR;
+    an MCP server translates the IR to SQL using the time-series SQL template library (rate, windowing,
+    downsampling); the MCP server returns a VisualizationFrame that the `@grafana/ui`-based UI
+    auto-renders without panel-type selection. Governed by ADR-021 and within ADR-014 advisory-only,
+    provenance-required, read-only constraints. Every response must include the NLQ IR, raw SQL,
+    signals consulted, and an approximation statement.
+  - Checkpoint: does every response carry provenance (NLQ IR, source SQL, time range, signal type,
+    sample rate) and can it be ignored without affecting platform correctness?
+
+- [ ] **P8-S7: Add PromQL compatibility façade for metrics (optional)**
+  - Outcome: operators can submit PromQL expressions against metric series and receive the same
+    VisualizationFrame output as NLQ. A PromQL parser inside the MCP server translates PromQL
+    expressions into the NLQ IR; execution, auto-graphing, and provenance are identical to P8-S6.
+    Scope: metrics-only; no log, trace, or cross-signal PromQL semantics are introduced. No new
+    query engine — this is a front-end parser that emits the existing NLQ IR.
+  - Out of scope: PromQL alerting rules, recording rules, or remote-read protocol.
+  - Checkpoint: does the PromQL façade use the same MCP server execution path as NLQ (no parallel
+    execution engine)?
 
 **Checkpoint question:** can every AI output be explained, audited, and ignored without harming correctness?
 
@@ -650,3 +668,7 @@ The 2026-04-22 gap-analysis refresh updated planning sequence only. No ADR or sp
 The self-observability routing clarification also requires no ADR/spec update in this iteration because it restates the existing dual-path strategy in `spec/17-self-observability.md`: recursive in-band telemetry to a `system` tenant plus an independent out-of-band monitoring path. The plan recommendation is operational: use a second Observable instance for production-like environments and use self-ingest for local, dogfood, and bootstrap modes. The added instrumentation scope makes the implementation slice explicitly cover service, infrastructure, and UI levels without changing the underlying architecture.
 
 **ADR-025** (Testcontainers for service integration tests, Proposed — added 2026-04-27) establishes Testcontainers as the mandatory narrow integration harness for backend slices that touch real containerized dependencies. This plan now includes P3-S15 as the implementation slice, while preserving Docker Compose smoke tests and kind tests as full-stack gates.
+
+**ADR-026** (No proprietary query DSL, Accepted — added 2026-04-28) records the permanent strategic decision that Observable will never introduce a proprietary DSL; SQL/DataFusion is the canonical IR; NLQ is the operator UX. This resolves `spec/13-risks-roadmap.md` Risk 5. No plan slice is required; this is an architecture constraint, not a feature.
+
+**ADR-021 update** (2026-04-28) refines the NL query layer architecture to the confirmed three-stage pipeline: LLM → NLQ IR → MCP Server → SQL/DataFusion → VisualizationFrame. P8-S6 is updated to reference this pipeline. P8-S7 is added for the optional PromQL compatibility façade (metrics-only). `spec/08-ai-ml.md §13.1` and `§13.3`, `spec/03-storage.md §5.4.1`, `spec/02-architecture.md §4.3`, and `spec/05-frontend.md` are updated in the same iteration.

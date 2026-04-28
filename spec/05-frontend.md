@@ -180,7 +180,7 @@ The Service Overview area is the topology view of the system.
 | Service Detail Overview | Compact service dashboard with quick performance, logs, metrics, traces, SLO, deployment marker (see `spec/18-deployment-markers.md`), and alert context |
 | Trace Explorer | Full-text + attribute search, waterfall, span detail, field faceting |
 | Log Explorer | Structured search, histogram, log detail, live tail, context (surrounding logs) |
-| Metric Explorer | Series browser, cardinality inspector, ad-hoc PromQL-style graph |
+| Metric Explorer | Series browser, cardinality inspector, ad-hoc time-series graph with NLQ auto-graphing |
 | Basic Dashboards | Fixed-layout panels, time range picker, promote-to-dashboard from explorers |
 | Threshold Alerts | Create / edit / silence rules; active incidents list |
 
@@ -210,7 +210,7 @@ next frontend priority.
 | Profiling Explorer | Flame graph viewer, differential profiling, service filter |
 | Fleet / Agent Management | Agent health, remote config, upgrade campaigns |
 | Admin Console | Tenant config, RBAC, data scopes, quota management |
-| AI Insights Panel | Smart grouping, anomaly surface, query suggestions (advisory only) |
+| AI Insights Panel | NLQ entry point: natural language query box, auto-graphing via VisualizationFrame, smart grouping, anomaly surface, query suggestions (advisory only, provenance required) |
 
 ### 9.4 Cross-Signal Correlation Patterns
 

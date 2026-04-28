@@ -171,6 +171,19 @@ by the NL query layer to ground generated queries.
 | `known_derivations` | string[] | Named derived metrics or views computed from this field (e.g. `["p99_latency", "error_rate"]`) |
 | `not_for_billing` | bool | Explicit marker that this field is approximate and must not be used for billing or contractual SLA evidence |
 
+**Metric-type extensions (required by MCP server for time-series SQL generation):**
+
+These additional fields are required when the signal is a metric, so the MCP translation layer
+(see [spec/08 §13.1](08-ai-ml.md) and [ADR-021](adr/ADR-021-nl-query-layer.md)) can select
+the correct SQL pattern:
+
+| Field | Type | Description |
+|---|---|---|
+| `metric_type` | enum | `counter`, `gauge`, `histogram`, `summary` — determines whether counter-reset detection and `rate`/`irate` patterns apply |
+| `timestamp_column` | string | Name of the timestamp column for this metric's table (e.g. `"timestamp_unix_nano"`) |
+| `unit` | string | Canonical unit of measurement (e.g. `"ms"`, `"bytes"`, `"req"`, `"1"`) used in VisualizationFrame output |
+| `recommended_downsampling` | string | Default time-bucket resolution for dashboards and NLQ (e.g. `"1m"`, `"5m"`, `"1h"`) |
+
 **API additions for semantic annotations:**
 - `GET /schemas/{signal_type}/attributes/{key}/annotations` — get semantic annotations for a field
 - `PUT /schemas/{signal_type}/attributes/{key}/annotations` — create or replace annotations (operator role required)
