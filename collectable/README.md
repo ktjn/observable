@@ -95,11 +95,20 @@ Any transport can be combined with any parser.
 `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,
 `x86_64-pc-windows-gnu`, `x86_64-apple-darwin`, `aarch64-apple-darwin`
 
-## Specification
+## Documentation
 
-See [spec/16-collectable.md](../spec/16-collectable.md) for the full specification.
-See [spec/adr/ADR-022-collectable-mediator.md](../spec/adr/ADR-022-collectable-mediator.md)
-for the architectural decision record.
+Collectable keeps its own decision log and development plans independent of the
+Observable repository docs.
+
+| Folder | Contents |
+|---|---|
+| [`docs/adr/`](docs/adr/) | Architectural Decision Records — design and technology choices |
+| [`docs/plans/`](docs/plans/) | Development / iteration plans |
+
+> **Historical references (Observable repo):** The original specification and ADR
+> that bootstrapped Collectable live at `spec/16-collectable.md` and
+> `spec/adr/ADR-022-collectable-mediator.md` in the Observable repository. New
+> decisions and plans go into `docs/` here.
 
 ## Sample invocation
 
