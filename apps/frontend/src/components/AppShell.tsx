@@ -2,15 +2,15 @@ import { Link, Outlet } from "@tanstack/react-router";
 import { useTheme, type ThemePreference } from "../lib/theme";
 
 const navItems = [
-  { label: "Setup", to: "/setup" },
-  { label: "Services", to: "/services" },
-  { label: "Traces", to: "/traces" },
-  { label: "Logs", to: "/logs" },
-  { label: "Infrastructure", to: "/infrastructure" },
-  { label: "Service Overview", to: "/service-overview" },
-  { label: "Dashboards", to: "/dashboards" },
-  { label: "Alerts & SLOs", to: "/alerts" },
-  { label: "Admin / Fleet / Billing", to: "/admin" },
+  { label: "Setup", to: "/setup", icon: "S" },
+  { label: "Services", to: "/services", icon: "Sv" },
+  { label: "Traces", to: "/traces", icon: "Tr" },
+  { label: "Logs", to: "/logs", icon: "Lg" },
+  { label: "Infrastructure", to: "/infrastructure", icon: "In" },
+  { label: "Service Overview", to: "/service-overview", icon: "Map" },
+  { label: "Dashboards", to: "/dashboards", icon: "Db" },
+  { label: "Alerts & SLOs", to: "/alerts", icon: "Al" },
+  { label: "Admin / Fleet / Billing", to: "/admin", icon: "Ad" },
 ] as const;
 
 const themeOptions: { label: string; value: ThemePreference }[] = [
@@ -43,7 +43,10 @@ export function AppShell() {
               className="nav-link"
               activeProps={{ className: "nav-link active" }}
             >
-              {item.label}
+              <span className="nav-icon" aria-hidden="true">
+                {item.icon}
+              </span>
+              <span>{item.label}</span>
             </Link>
           ))}
         </nav>
