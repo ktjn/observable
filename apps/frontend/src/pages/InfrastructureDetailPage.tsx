@@ -1,11 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import {
   getInfrastructureDetail,
   type InfrastructureEntitySummary,
   type InfrastructureEntityType,
 } from "../api/infrastructure";
+import { Badge } from "../components/ui/badge";
+import { EmptyState } from "../components/ui/empty-state";
+import { MetricCard } from "../components/ui/metric-card";
+import { Panel } from "../components/ui/panel";
 
 export default function InfrastructureDetailPage() {
   const { entityType, entityId } = useParams({ strict: false });
@@ -38,12 +41,7 @@ export default function InfrastructureDetailPage() {
             Back to inventory
           </Link>
         </div>
-        <div className="empty-panel">
-          <div className="empty-title">Infrastructure entity not found</div>
-          <div className="empty-metrics">
-            <span>{canonicalEntityId}</span>
-          </div>
-        </div>
+        <EmptyState title="Infrastructure entity not found" metadata={[canonicalEntityId]} />
       </section>
     );
   }
@@ -63,14 +61,14 @@ export default function InfrastructureDetailPage() {
       </div>
 
       <div className="metric-grid" aria-label="Infrastructure summary">
-        <MetricTile label="Type" value={entity.entity_type} tone="info" />
-        <MetricTile label="Environment" value={formatNullableText(entity.environment)} tone="info" />
-        <MetricTile
+        <MetricCard label="Type" value={entity.entity_type} tone="info" />
+        <MetricCard label="Environment" value={formatNullableText(entity.environment)} tone="info" />
+        <MetricCard
           label="Health"
           value={<HealthStatus healthState={entity.health_state} />}
           tone={healthTone(entity.health_state)}
         />
-        <MetricTile
+        <MetricCard
           label="Related services"
           value={entity.related_services.length > 0 ? String(entity.related_services.length) : "Unavailable"}
           tone="info"
@@ -78,13 +76,7 @@ export default function InfrastructureDetailPage() {
       </div>
 
       <div className="detail-grid">
-        <section className="detail-panel">
-          <div className="detail-panel-header">
-            <div>
-              <div className="field-label">Relationship</div>
-              <h2>Hierarchy</h2>
-            </div>
-          </div>
+        <Panel eyebrow="Relationship" title="Hierarchy">
           <dl className="definition-grid">
             <div>
               <dt>Parent relationship</dt>
@@ -99,15 +91,9 @@ export default function InfrastructureDetailPage() {
               <dd>{formatUnixNano(entity.last_seen_unix_nano)}</dd>
             </div>
           </dl>
-        </section>
+        </Panel>
 
-        <section className="detail-panel">
-          <div className="detail-panel-header">
-            <div>
-              <div className="field-label">Related</div>
-              <h2>Services</h2>
-            </div>
-          </div>
+        <Panel eyebrow="Related" title="Services">
           {entity.related_services.length > 0 ? (
             <div className="entry-link-grid" aria-label="Related services">
               {entity.related_services.map((service) => (
@@ -119,15 +105,9 @@ export default function InfrastructureDetailPage() {
           ) : (
             <div className="signal-empty">Unavailable</div>
           )}
-        </section>
+        </Panel>
 
-        <section className="detail-panel">
-          <div className="detail-panel-header">
-            <div>
-              <div className="field-label">Investigate</div>
-              <h2>Resource signals</h2>
-            </div>
-          </div>
+        <Panel eyebrow="Investigate" title="Resource signals">
           <dl className="definition-grid">
             <div>
               <dt>Log rate</dt>
@@ -158,15 +138,9 @@ export default function InfrastructureDetailPage() {
               <dd>{formatNullableBytes(entity.network_io)}</dd>
             </div>
           </dl>
-        </section>
+        </Panel>
 
-        <section className="detail-panel">
-          <div className="detail-panel-header">
-            <div>
-              <div className="field-label">Actions</div>
-              <h2>Entry points</h2>
-            </div>
-          </div>
+        <Panel eyebrow="Actions" title="Entry points">
           <div className="entry-link-grid" aria-label="Infrastructure action links">
             <a href={links.logs} className="entry-link">
               Logs
@@ -178,7 +152,7 @@ export default function InfrastructureDetailPage() {
               Metrics
             </a>
           </div>
-        </section>
+        </Panel>
       </div>
     </section>
   );
@@ -222,24 +196,7 @@ function healthTone(healthState: InfrastructureEntitySummary["health_state"]) {
 }
 
 function HealthStatus({ healthState }: { healthState: InfrastructureEntitySummary["health_state"] }) {
-  if (healthState === "breach") return <span className="status bad">Breach</span>;
-  if (healthState === "watch") return <span className="status warn">Watch</span>;
-  return <span className="status good">Healthy</span>;
-}
-
-function MetricTile({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: ReactNode;
-  tone: "good" | "warn" | "bad" | "info";
-}) {
-  return (
-    <div className={`metric-tile ${tone}`}>
-      <div className="metric-label">{label}</div>
-      <div className="metric-value">{value}</div>
-    </div>
-  );
+  if (healthState === "breach") return <Badge tone="bad">Breach</Badge>;
+  if (healthState === "watch") return <Badge tone="warn">Watch</Badge>;
+  return <Badge tone="good">Healthy</Badge>;
 }

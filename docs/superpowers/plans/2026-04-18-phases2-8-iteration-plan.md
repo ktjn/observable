@@ -318,13 +318,13 @@ Before Phase 3 starts, answer:
 
 Before starting any new product UI workflow, complete these pure renovation slices. These slices should not add new backend contracts or product capabilities; they exist to finish the modernization started by P3-S6f and reduce the cost and inconsistency of all later UI work.
 
-- [ ] **UI-R1: Renovate service and infrastructure detail surfaces**
+- [x] **UI-R1: Renovate service and infrastructure detail surfaces**
   - Source spec: `spec/05-frontend.md` §9.2 and §9.4; `docs/superpowers/specs/2026-04-21-ui-design-guide.md`.
-  - Outcome: service detail, infrastructure detail, service infrastructure panel, deployment timeline container, and shared summary/status widgets use the modern `components/ui` primitives and token system instead of local metric/status/detail-panel variants and broad inline styles.
+  - Outcome: service detail, infrastructure detail, service infrastructure panel, deployment timeline container, and shared summary/status widgets use the modern `components/ui` primitives and token system instead of local metric/status/detail-panel variants and broad inline styles. Completed 2026-04-28.
   - Files or modules expected to change: `apps/frontend/src/pages/ServiceDetailPage.tsx`, `apps/frontend/src/pages/InfrastructureDetailPage.tsx`, `apps/frontend/src/components/ServiceInfraPanel.tsx`, `apps/frontend/src/components/DeploymentTimeline.tsx`, focused component tests, and accessibility coverage where the route already exists.
   - Out of scope: new service capabilities, topology behavior changes, alert authoring, dashboard creation, or backend API changes.
   - Verification: frontend tests cover renovated service and infrastructure states; accessibility coverage remains green for the touched views; frontend typecheck/lint/test/build pass.
-  - Checkpoint: can operators move through service and infrastructure details without encountering legacy panel, status, or metric tile patterns?
+  - Checkpoint: can operators move through service and infrastructure details without encountering legacy panel, status, or metric tile patterns? Answer: yes. UI-R1 target files now use `Panel`, `MetricCard`, `Badge`, and modern class tokens instead of legacy `detail-panel`, `metric-tile`, `signal-panel`, inline style, or old status patterns, with a focused regression test enforcing that contract.
 
 - [ ] **UI-R2: Renovate explorer detail and log support surfaces**
   - Source spec: `spec/05-frontend.md` §9.2 and §9.4; `docs/superpowers/specs/2026-04-21-ui-design-guide.md`.
@@ -607,7 +607,7 @@ After this planning reconciliation, the next implementation slice should be:
 20. P3-S13: add dashboard-as-code import/export for one dashboard shape
 21. P3-S15: establish Testcontainers integration harness for real dependencies before the next backend slice touches PostgreSQL, ClickHouse, Redpanda, object storage, or OpenFGA
 17. ~~P3-S6e: add explicit accessibility regression coverage for the trace waterfall and other major new views~~ (done)
-18. UI-R1: renovate service and infrastructure detail surfaces
+18. ~~UI-R1: renovate service and infrastructure detail surfaces~~ (done)
 19. UI-R2: renovate explorer detail and log support surfaces
 20. UI-R3: remove remaining legacy style drift and document the frontend migration rule
 21. P3-S6d: add a minimal threshold-alert UI workflow
@@ -615,7 +615,7 @@ After this planning reconciliation, the next implementation slice should be:
 23. P3-S13: add dashboard-as-code import/export for one dashboard shape
 24. P3-S15: establish Testcontainers integration harness for real dependencies before the next backend slice touches PostgreSQL, ClickHouse, Redpanda, object storage, or OpenFGA
 
-**Next recommended slice: UI-R1 - Renovate service and infrastructure detail surfaces.**
+**Next recommended slice: UI-R2 - Renovate explorer detail and log support surfaces.**
 
 **Phase 2 exit gate is now satisfied.** All Phase 2 slices (P2-S0 through P2-S9a) are complete. Before starting Phase 3, answer the Phase 2 pause-point questions:
 - Tenant safety under test: yes — P2-S1a through P2-S1d enforce and test cross-tenant isolation for all signal types.

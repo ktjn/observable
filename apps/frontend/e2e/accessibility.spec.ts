@@ -83,6 +83,37 @@ const FIXTURE_SERVICES = {
   ],
 };
 
+const FIXTURE_SERVICE_SUMMARY = {
+  service: {
+    service_name: "checkout",
+    request_rate: 12.5,
+    error_rate: 0.025,
+    p95_latency_ms: 245,
+    health_state: "watch",
+    active_alert_count: 2,
+    latest_deployment: "checkout@2026.04.21",
+  },
+};
+
+const FIXTURE_INFRASTRUCTURE_ENTITY = {
+  entity_type: "pod",
+  entity_id: "prod-cluster/payments/checkout-pod-1",
+  display_name: "checkout-pod-1",
+  parent_id: "payments",
+  parent_display_name: "payments",
+  environment: "prod",
+  health_state: "watch",
+  last_seen_unix_nano: 42,
+  related_services: ["checkout"],
+  log_rate_per_minute: 8.5,
+  error_rate: 0.02,
+  restart_count: null,
+  cpu_usage: 0.42,
+  memory_usage: 0.31,
+  disk_usage: null,
+  network_io: null,
+};
+
 // ── Trace detail waterfall ────────────────────────────────────────────────────
 
 test.describe("trace detail waterfall", () => {
@@ -135,6 +166,48 @@ test.describe("services catalog", () => {
   test("has no axe violations", async ({ page }) => {
     await page.goto("/services");
     await page.waitForSelector("text=checkout");
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  });
+});
+
+// ── Service and infrastructure detail ────────────────────────────────────────
+
+test.describe("service and infrastructure detail", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route("**/v1/services/checkout/summary**", (route) =>
+      route.fulfill({ json: FIXTURE_SERVICE_SUMMARY })
+    );
+    await page.route("**/v1/deployments**", (route) =>
+      route.fulfill({ json: { items: [] } })
+    );
+    await page.route("**/v1/infrastructure**", (route) =>
+      route.fulfill({ json: { items: [FIXTURE_INFRASTRUCTURE_ENTITY] } })
+    );
+    await page.route("**/v1/infrastructure/pod/**", (route) =>
+      route.fulfill({
+        json: {
+          entity: FIXTURE_INFRASTRUCTURE_ENTITY,
+          links: {
+            logs: "/logs?resource_attr=k8s.pod.name:checkout-pod-1",
+            traces: "/traces?resource_attr=k8s.pod.name:checkout-pod-1",
+            metrics: "/services/checkout/metrics?resource_attr=k8s.pod.name:checkout-pod-1",
+          },
+        },
+      })
+    );
+  });
+
+  test("service detail has no axe violations", async ({ page }) => {
+    await page.goto("/services/checkout");
+    await page.waitForSelector("text=checkout@2026.04.21");
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test("infrastructure detail has no axe violations", async ({ page }) => {
+    await page.goto("/infrastructure/pod/prod-cluster%2Fpayments%2Fcheckout-pod-1");
+    await page.waitForSelector("text=checkout-pod-1");
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
   });
