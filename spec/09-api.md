@@ -162,3 +162,12 @@ The Query API and Ingest API must support the deployment marker schema and logic
 #### List Deployment Markers
 - **Endpoint**: `GET /v1/deployments`
 - **Behavior**: Returns deployment events for UI timeline overlays, filterable by service and environment.
+
+#### Alert Rule Management
+- **Endpoints**:
+  - `GET /v1/alerts/rules`
+  - `POST /v1/alerts/rules`
+  - `PATCH /v1/alerts/rules/{rule_id}/silence`
+- **Behavior**: Enables management of threshold-based alert rules.
+- **Filtering**: `GET` returns rules for the authenticated tenant.
+- **Auth**: Requires `Member` role for create/silence.

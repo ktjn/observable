@@ -289,13 +289,13 @@ Before Phase 3 starts, answer:
   - Verification: frontend tests cover setup route rendering, API key display/redaction behavior, copy behavior, and first-signal success/empty states. `tests/e2e/smoke_test_unit.sh` also asserts that the local CI smoke token and tenant ID match the Postgres migration seed for `dev-api-key-0000` and `00000000-0000-0000-0000-000000000001`. No new setup/status endpoint was added, so no API test was required for this slice.
   - Checkpoint: can a new tenant reach first-signal confirmation without reading internal docs or hand-assembling curl commands? Answer: yes for local development. The setup route exposes the seeded tenant ID, ingest endpoint, copyable local dev key, and first-signal status in the product shell; production tenant key creation remains a later admin/RBAC workflow.
 
-- [ ] **P3-S6d: Add a minimal threshold-alert UI workflow**
+- [x] **P3-S6d: Add a minimal threshold-alert UI workflow**
   - Source spec: `spec/05-frontend.md` §9.3 Phase 1.
   - Outcome: operators can list active threshold alerts, create one threshold rule for an existing metric, and silence or unsilence a rule from the UI.
   - Files or modules expected to change: alert API/client if missing, Alerts & SLOs route, rule list/form components, silence action, tests.
   - Out of scope: escalation routing, burn-rate/SLO authoring, incident post-mortem workflow, or composite alerts.
   - Verification: frontend tests cover rule create/list/silence flows; API tests cover threshold-rule CRUD or mutation shape and tenant/RBAC enforcement.
-  - Checkpoint: does the UI expose one complete alert loop for threshold rules, not just backend evaluator state?
+  - Checkpoint: does the UI expose one complete alert loop for threshold rules, not just backend evaluator state? Answer: yes. The `/alerts` page lists all threshold rules with live firing state, a create form submits POST /v1/alerts/rules, and per-row Silence/Unsilence buttons call PATCH .../silence. All three interactions are covered by frontend tests using fetch stubs and backend behavior is covered by Postgres Testcontainers integration tests.
 
 - [x] **P3-S6e: Add explicit accessibility regression coverage for the trace waterfall and other major new views**
   - Source spec: `spec/05-frontend.md` §9.3 Phase 1 and the frontend slice standards in this plan's Operating Rules.
@@ -572,7 +572,7 @@ After this planning reconciliation, the next implementation slice should be:
 14. ~~P3-S10: Add infrastructure correlation from service and trace views~~ (done)
 15. ~~P3-S6f: add modern UI foundation tokens and layout primitives~~ (done)
 16. ~~P3-S6c: add onboarding/setup flow for first-signal success~~ (done)
-17. P3-S6d: add a minimal threshold-alert UI workflow
+17. ~~P3-S6d: add a minimal threshold-alert UI workflow~~ (done)
 18. ~~P3-S6e: add explicit accessibility regression coverage for the trace waterfall and other major new views~~ (done)
 19. P3-S12: add "Promote to Dashboard" from explorers and a fixed-layout dashboard route
 20. P3-S13: add dashboard-as-code import/export for one dashboard shape
