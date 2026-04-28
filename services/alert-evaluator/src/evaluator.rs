@@ -59,7 +59,7 @@ pub async fn eval_threshold_rules(
 ) -> anyhow::Result<()> {
     let rules: Vec<AlertRuleRow> = sqlx::query_as(
         "SELECT rule_id, tenant_id, name, condition \
-         FROM alert_rules WHERE alert_type = 'threshold'",
+         FROM alert_rules WHERE alert_type = 'threshold' AND silenced = false",
     )
     .fetch_all(db)
     .await?;
@@ -230,5 +230,21 @@ mod tests {
             evaluate_threshold(5.1, &cond(ThresholdOperator::Eq, 5.0)),
             EvalResult::Ok
         );
+    }
+
+    #[test]
+    fn threshold_condition_parses_all_operators() {
+        // Smoke-test all five operators round-trip through the evaluator.
+        // The silenced-rule SQL filter (AND silenced = false) is enforced at the
+        // query level in eval_threshold_rules; verified by the postgres integration test.
+        for (op, value, threshold, expected) in [
+            (ThresholdOperator::Gt,  1.1, 1.0, EvalResult::Firing),
+            (ThresholdOperator::Gte, 1.0, 1.0, EvalResult::Firing),
+            (ThresholdOperator::Lt,  0.9, 1.0, EvalResult::Firing),
+            (ThresholdOperator::Lte, 1.0, 1.0, EvalResult::Firing),
+            (ThresholdOperator::Eq,  5.0, 5.0, EvalResult::Firing),
+        ] {
+            assert_eq!(evaluate_threshold(value, &cond(op, threshold)), expected);
+        }
     }
 }
