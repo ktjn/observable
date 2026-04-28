@@ -47,6 +47,18 @@ Tokens are managed via Tailwind CSS v4 variables. All components consume these v
 Apply health color to text, badges, and the top border of metric tiles.
 Never use raw color values; always use the semantic token.
 
+### 1.3 Modern Surface Tokens
+
+| Token | Purpose |
+|---|---|
+| `--surface-raised` | Panels and elevated work surfaces |
+| `--surface-inset` | Recessed code, logs, and dense detail regions |
+| `--border-strong` | Strong separators and selected boundaries |
+| `--text-strong` | Highest-emphasis headings and identifiers |
+| `--shadow-panel` | Floating panels and future popovers |
+| `--shadow-control` | Subtle depth for persistent shell and panels |
+| `--brand-bg` | Informational selected states and icon backgrounds |
+
 ---
 
 ## 2. Typography
@@ -337,6 +349,20 @@ Full-bleed bordered panel used for the trace search view and other explorer page
 
 Use this pattern for any full-width explorer surface (log explorer, metric explorer, etc.).
 
+### 5.9 Modern Shared Primitives
+
+The modern UI foundation owns these reusable primitives under `apps/frontend/src/components/ui/`:
+
+| Primitive | Responsibility |
+|---|---|
+| `Badge` | Semantic status and neutral metadata labels |
+| `Panel` | Bordered work surfaces with optional eyebrow, title, and action area |
+| `Toolbar` | Responsive filter/action rows with toolbar semantics |
+| `MetricCard` | Compact KPI tiles using the existing health color semantics |
+| `EmptyState` | Consistent no-data and not-yet-built states with metadata and actions |
+
+New product pages should consume these primitives before adding page-local equivalents.
+
 ---
 
 ## 6. Theming
@@ -433,3 +459,5 @@ Checklist when adding a component to `apps/frontend/src/components/`:
 4. Add ARIA roles / labels if not using a native HTML element.
 5. Use **Base UI** for complex interactive logic.
 6. Co-locate a `.test.tsx` file using `@testing-library/react`.
+
+No ADR update is required for the modern UI foundation slice because it preserves the approved frontend stack, theme model, and service-centric navigation architecture.
