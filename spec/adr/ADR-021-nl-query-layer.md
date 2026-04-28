@@ -1,10 +1,10 @@
 # ADR-021: LLM Natural Language Query Layer
 
-**Date:** 2026-04-19
+**Date:** 2026-04-19 (updated 2026-04-28)
 **Status:** Proposed
 **Authors:** ktjn
 **Deciders:** Project Stakeholders
-**Review date:** 2026-04-19
+**Review date:** 2026-10-28
 
 ## Context
 
@@ -33,28 +33,131 @@ Observable, and to define the architectural approach and constraints.
 
 ## Decision
 
-Observable will provide a natural language query interface as a Phase 2 AI capability, built as
-an LLM reasoning layer on top of the existing query API and schema infrastructure.
+Observable will provide a natural language query interface as a Phase 8 AI capability, built as a
+three-stage pipeline:
 
-**The approach:**
-1. The LLM classifies the question into signal types and time ranges.
-2. It generates SQL/DataFusion expressions grounded by Schema Registry semantic annotations
-   (`display_name`, `business_description`, `interpretation_rule`, `effective_sample_rate`).
-3. Queries execute through the existing query API under the caller's tenant context and RBAC
-   permissions — the LLM does not bypass authorization.
-4. Where the question admits multiple signal types, the LLM applies **cross-signal triangulation**:
-   parallel sub-queries per signal, results compared for convergence or divergence, confidence
-   reported accordingly.
-5. Every response includes a provenance payload: raw queries issued, signals consulted, effective
-   sample rate per signal, and an explicit approximation statement.
+```
+NLQ (user) → LLM → NLQ IR → MCP Server → SQL/DataFusion → VisualizationFrame → UI
+```
 
-**Boundary:** This capability targets operational and tactical questions. It explicitly does not
-target regulatory compliance, financial reconciliation, or contractual SLA evidence. The LLM must
+No proprietary query DSL will be introduced at any stage. SQL/DataFusion is the canonical query
+IR. See [ADR-026](ADR-026-no-proprietary-query-dsl.md).
+
+### Stage 1 — NLQ → LLM → NLQ IR
+
+The LLM receives the user's natural language question together with Schema Registry context
+(field names, types, semantic annotations, metric types) and produces a structured
+**NLQ IR** (intermediate representation):
+
+```json
+{
+  "operation": "timeseries | histogram | rate | topk | table | ...",
+  "signals": ["metrics", "traces", "logs"],
+  "metric": "<metric_name>",
+  "window": "5m",
+  "filters": [{"field": "method", "op": "=", "value": "GET"}],
+  "group_by": ["pod"],
+  "resolution": "1m",
+  "time_range": {"from": "now-1h", "to": "now"},
+  "visualization_hint": "timeseries | histogram | heatmap | table | topk | flamegraph"
+}
+```
+
+The LLM does not generate SQL directly. It generates the IR. This separation means the IR is
+stable and testable independent of the LLM, and the SQL generation logic lives in code, not in
+LLM inference.
+
+The LLM is grounded by Schema Registry semantic annotations
+(`display_name`, `business_description`, `interpretation_rule`, `effective_sample_rate`,
+`metric_type`). See [spec/03 §5.4.1](../03-storage.md).
+
+### Stage 2 — MCP Server (IR → SQL/DataFusion)
+
+An **MCP server** (Model Context Protocol server) receives the NLQ IR and translates it to
+SQL/DataFusion plans. The MCP server:
+
+- Encodes all time-series semantics in code, not in LLM prompts or SQL templates passed to the LLM
+- Knows metric types (counter, gauge, histogram, summary) from the Schema Registry
+- Selects the correct SQL pattern for each operation type (see §Time-Series Semantics below)
+- Generates tenant-scoped SQL with the caller's tenant context — it does not bypass authorization
+- Returns a typed **VisualizationFrame** (see §VisualizationFrame Contract below)
+- Can cache intermediate results and push down filters for cardinality reduction
+
+The MCP server is the abstraction boundary between the LLM reasoning layer and the execution
+substrate. If the execution substrate changes (ClickHouse SQL → DataFusion SQL → Arrow compute
+kernels), the NLQ IR and the MCP server API remain stable.
+
+The MCP server also exposes schema lookup tools that the LLM calls during IR generation:
+`get_metric_schema`, `list_signal_fields`, `resolve_label_to_column`, etc.
+
+### Stage 3 — VisualizationFrame → UI
+
+The MCP server returns a typed, self-describing **VisualizationFrame** alongside the query result:
+
+```json
+{
+  "type": "histogram | timeseries | table | heatmap | topk | flamegraph | distribution",
+  "x_field": "<field_name>",
+  "y_field": "<field_name>",
+  "series_field": "<field_name>",
+  "unit": "ms | req/s | bytes | ...",
+  "suggested_visualization": "<panel_type>",
+  "field_roles": [
+    {"name": "le", "role": "bucket"},
+    {"name": "count", "role": "value"}
+  ],
+  "data": [...]
+}
+```
+
+The VisualizationFrame maps directly to Grafana's `DataFrame` + `PanelData` model used by
+`@grafana/ui` (see [ADR-016](ADR-016-grafana-visualization-strategy.md)). The UI auto-selects
+the correct Grafana panel type based on `type`/`suggested_visualization` without guessing.
+This is the **auto-graphing** contract.
+
+### Cross-signal triangulation
+
+Where the question admits multiple independent signals, the LLM generates one NLQ IR per signal.
+The MCP server executes them in parallel and the LLM compares results for convergence or
+divergence. See [spec/08 §13.2](../08-ai-ml.md).
+
+### Time-Series Semantics
+
+PromQL-level time-series power is implemented as SQL patterns inside the MCP server, not as a
+new language:
+
+| PromQL concept | MCP server SQL pattern |
+|---|---|
+| `metric[5m]` range vector | `RANGE BETWEEN INTERVAL '5 minutes' PRECEDING AND CURRENT ROW` window frame |
+| `rate(counter[5m])` | `(value - lag(value) OVER w) / epoch_diff` with counter-reset handling |
+| `irate(counter[1m])` | Same as `rate` but over the two most-recent samples in the window |
+| `increase(counter[1h])` | `SUM(delta) OVER w` with reset detection |
+| `label_selector{k=v}` | `WHERE k = 'v'` or `WHERE k ~ 'pattern'` |
+| `sum by (label)` | `GROUP BY label` |
+| Downsampling / resolution | `time_bucket('1m', timestamp)` or equivalent `GROUP BY` time bucket |
+| Histogram bucket expansion | `width_bucket()` / explicit `le` column expansion |
+| Vector matching / join | SQL `JOIN` on timestamp + label columns |
+
+### PromQL Compatibility Façade (optional, metrics-only)
+
+If implemented, a PromQL parser inside the MCP server translates PromQL expressions into the
+same NLQ IR. This is a thin front-end, not a new query engine. It is:
+
+- Metrics-only (PromQL cannot express log, trace, or cross-signal queries)
+- Optional (not required for NLQ or any other platform feature)
+- Contained within the MCP server; no other component is aware of PromQL syntax
+
+### Boundary
+
+This capability targets operational and tactical questions. It explicitly does not target
+regulatory compliance, financial reconciliation, or contractual SLA evidence. The LLM must
 decline to answer questions in these categories and explain why.
 
-**Prerequisite:** The Schema Registry semantic annotations layer (see [spec/03 §5.4.1](../03-storage.md))
-must be available before the NL query layer can produce reliable results. Without business-meaning
-annotations, the LLM must guess at field semantics, producing unreliable query generation.
+### Prerequisite
+
+The Schema Registry semantic annotations layer (see [spec/03 §5.4.1](../03-storage.md)) must be
+available, including the metric-type extensions (`metric_type`, `timestamp_column`,
+`recommended_downsampling`), before the MCP server can generate correct time-series SQL.
 
 ## Consequences
 
@@ -62,27 +165,47 @@ annotations, the LLM must guess at field semantics, producing unreliable query g
 - Non-engineers (product managers, finance, support) can query operational data without SQL
   knowledge or analyst intermediation.
 - Questions that would never be answered in a BI pipeline get answered in seconds.
-- The platform differentiates against traditional observability tools that offer only
-  structured query UIs.
+- The platform differentiates against traditional observability tools that offer only structured
+  query UIs.
+- Auto-graphing eliminates panel type selection from operator cognitive load.
+- PromQL-level time-series semantics are available without adopting PromQL as a language.
+- The IR is stable and versioned independently of the LLM and of the SQL dialect.
+- The MCP server can be tested deterministically — given an IR, assert the SQL output.
 
 **Harder:**
 - Users must be educated about the approximation bounds of answers — sample rates, dropped
   events, clock skew — to avoid misusing approximate results in inappropriate contexts.
-- The Schema Registry semantic annotations layer requires ongoing operator maintenance to stay
-  accurate as instrumentation evolves.
-- LLM query generation quality depends on schema annotation completeness; ungrannotated fields
-  produce lower-quality queries.
+- The Schema Registry semantic annotations require ongoing operator maintenance to stay accurate
+  as instrumentation evolves.
+- LLM query generation quality depends on annotation completeness; unannotated fields produce
+  lower-quality IR.
+- The MCP server must maintain a library of correct SQL templates for each time-series operation.
 
 **Constrained:**
 - The NL query layer must not be used as a path to bypass RBAC or tenant isolation.
+- All SQL executed by the MCP server must carry the caller's tenant context.
 - Answers must always carry a provenance payload and an approximation statement — this is not
   optional.
 - Natural language query is advisory output. It must not feed automated alert evaluation,
   billing, or SLA enforcement.
+- The LLM must decline questions requiring BI-grade correctness and explain why.
 
 ## Alternatives Considered
 
-### Option A: Build a traditional BI / data warehouse integration
+### Option A: Direct LLM → SQL generation (no IR, no MCP server)
+
+The LLM generates SQL strings directly from natural language. Simpler to prototype.
+
+Rejected because:
+- SQL generation is brittle — small schema or dialect changes break the LLM's output.
+- Time-series semantics (rate, irate, counter resets, histogram buckets) are extremely hard to
+  encode reliably in LLM prompts. The MCP server's code-based templates are deterministic.
+- No stable IR means the generated SQL cannot be tested, versioned, or audited independently.
+- Auto-graphing is impossible without a structured output contract.
+- Optimization, caching, and pushdown cannot happen without an IR.
+
+### Option B: Build a traditional BI / data warehouse integration
+
 Export observability data to a data warehouse (e.g., BigQuery, Snowflake) and build semantic
 layers and BI dashboards there.
 
@@ -91,27 +214,28 @@ ETL pipelines, semantic layer modeling, and BI governance take months per questi
 observability store already holds the data; duplicating it into a warehouse adds cost and latency
 with no benefit for operational questions.
 
-### Option B: AI-only query layer (replace structured query UI)
+### Option C: AI-only query layer (replace structured query UI)
+
 Replace the structured query API and UI with LLM-only interaction.
 
 Rejected per ADR-014: "human-readable and deterministic query results are essential for production
 observability." The NL query layer is additive — it sits alongside the structured query surfaces,
-not in place of them. Engineers and reliability engineers will continue to use structured queries
-for alerting, dashboards, and investigation workflows.
+not in place of them.
 
-### Option C: Defer until Phase 8 (Intelligence)
-Follow the "ship AI late" strategy strictly and defer NL query to Phase 8.
+### Option D: Adopt PromQL as the primary query language
 
-Reconsidered: NL query on an existing, stable query substrate is architecturally simpler than
-autonomous AI agents or auto-remediation. It is advisory-only, read-only, and bounded to the
-existing query API contract. Phase 2 is appropriate given that the query API (Phase 1) and
-Schema Registry semantic annotations are prerequisites, not Phase 8 features.
+Use PromQL as the unified operator query UX, with a translation layer to SQL.
+
+Rejected: PromQL is time-series and metrics-only; it cannot express log search, trace filtering,
+or cross-signal joins. See [ADR-026](ADR-026-no-proprietary-query-dsl.md).
 
 ## Related
 
-- [spec/08-ai-ml.md §13.1](../08-ai-ml.md) — NL query spec and cross-signal triangulation
+- [spec/08-ai-ml.md §13.1](../08-ai-ml.md) — NL query spec, MCP architecture, time-series semantics
 - [spec/03-storage.md §5.4.1](../03-storage.md) — Schema Registry semantic annotations (prerequisite)
-- [ADR-014](ADR-014-ai-feature-boundaries.md) — AI Feature Boundaries (still active; this ADR adds a use case within its constraints)
+- [ADR-026](ADR-026-no-proprietary-query-dsl.md) — No proprietary query DSL
+- [ADR-016](ADR-016-grafana-visualization-strategy.md) — Grafana visualization; VisualizationFrame maps to `@grafana/ui` PanelData
+- [ADR-014](ADR-014-ai-feature-boundaries.md) — AI Feature Boundaries (advisory-only, read-only, provenance required)
 - [ADR-013](ADR-013-schema-governance.md) — Schema Governance (Schema Registry)
-- [ADR-005](ADR-005-arrow-datafusion.md) — Arrow/DataFusion Query Layer
+- [ADR-005](ADR-005-arrow-datafusion.md) — Arrow/DataFusion Query Layer; SQL as IR
 - [spec/00-market-analysis.md §2.2 Gap 6](../00-market-analysis.md) — Market positioning rationale
