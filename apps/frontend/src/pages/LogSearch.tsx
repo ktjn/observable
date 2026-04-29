@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createDashboard } from "../api/dashboards";
-import { searchLogs, LogRecord } from "../api/logs";
+import { searchLogs, fetchLogHistogram, LogRecord, LogHistogramBucket as ApiHistogramBucket } from "../api/logs";
 import { infraLinks } from "../utils/infraLinks";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { Badge } from "../components/ui/badge";
@@ -76,11 +76,22 @@ export default function LogSearch() {
       }),
   });
 
+  const { data: histogramData } = useQuery({
+    queryKey: ["logs-histogram", service, from, to],
+    queryFn: () =>
+      fetchLogHistogram({
+        service: service || undefined,
+        from,
+        to: new Date(histogramToMs).toISOString(),
+        buckets: 30,
+      }),
+  });
+
   const logs = data?.logs ?? [];
   const selectedLog = logs.find((log) => log.log_id === selectedLogId);
   const histogram = useMemo(
-    () => buildLogHistogram(logs, histogramFromMs, histogramToMs),
-    [logs, histogramFromMs, histogramToMs],
+    () => histogramData ? histogramFromApi(histogramData.buckets) : buildLogHistogram([], histogramFromMs, histogramToMs),
+    [histogramData, histogramFromMs, histogramToMs],
   );
 
   function handleHistogramRangeSelect(fromMs: number, toMs: number) {
@@ -469,6 +480,19 @@ export function formatLogMessage(body: unknown): string {
   return Object.entries(record)
     .map(([key, value]) => `${key}=${formatContextValue(value)}`)
     .join(" ");
+}
+
+function histogramFromApi(buckets: ApiHistogramBucket[]): HistogramBucket[] {
+  return buckets.map((b) => {
+    const levels = emptyLevels();
+    let total = 0;
+    for (const [sev, count] of Object.entries(b.counts)) {
+      const level = otelSeverity(Number(sev)).label;
+      levels[level] += count;
+      total += count;
+    }
+    return { startMs: b.start_ms, endMs: b.end_ms, total, levels };
+  });
 }
 
 export function buildLogHistogram(logs: LogRecord[], fromMs: number, toMs: number): HistogramBucket[] {
