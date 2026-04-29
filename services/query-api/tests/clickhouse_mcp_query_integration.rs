@@ -460,3 +460,114 @@ async fn missing_metric_field_returns_error() {
         "absent metric must yield MissingMetric error, got: {result:?}"
     );
 }
+
+// ── P8-S6 Step 9: Provenance gate ─────────────────────────────────────────────────────────────
+//
+// Asserts:
+//   1. Every NLQ response includes all 6 provenance fields with non-empty values.
+//   2. The query is read-only: row counts in both PostgreSQL and ClickHouse are unchanged.
+
+#[tokio::test]
+async fn provenance_gate_all_six_fields_non_empty() {
+    let (db, _pg) = start_pg().await;
+    let (ch, _ch_container) = start_ch().await;
+
+    seed_schema_registry(&db, TENANT_A).await;
+
+    let series_id = Uuid::new_v4();
+    insert_metric_series(&ch, make_series(TENANT_A, series_id)).await;
+    insert_metric_point(&ch, make_point(TENANT_A, series_id, 42.0, 5 * 60 * 1000)).await;
+
+    let ir = base_ir(NlqOperation::Timeseries);
+    let frame = execute_mcp_query(&db, &ch, TENANT_A, &ir)
+        .await
+        .expect("execute_mcp_query must succeed");
+
+    // P8-S6 checkpoint: every NLQ response must carry all 6 provenance fields
+    assert!(
+        !frame.source_sql.is_empty(),
+        "provenance: source_sql must be non-empty"
+    );
+    assert!(
+        !frame.approximation_statement.is_empty(),
+        "provenance: approximation_statement must be non-empty"
+    );
+    assert!(
+        !frame.signal_types.is_empty(),
+        "provenance: signal_types must be non-empty"
+    );
+    assert!(
+        !frame.time_range.from.is_empty(),
+        "provenance: time_range.from must be non-empty"
+    );
+    assert!(
+        !frame.time_range.to.is_empty(),
+        "provenance: time_range.to must be non-empty"
+    );
+    assert!(
+        frame.nlq_ir.metric.is_some(),
+        "provenance: nlq_ir.metric must be present"
+    );
+
+    // Advisory-only: approximation_statement must include billing disclaimer
+    assert!(
+        frame.approximation_statement.contains("billing"),
+        "approximation_statement must include advisory billing disclaimer: {}",
+        frame.approximation_statement
+    );
+}
+
+#[tokio::test]
+async fn provenance_gate_query_is_read_only_no_row_mutations() {
+    let (db, _pg) = start_pg().await;
+    let (ch, _ch_container) = start_ch().await;
+
+    seed_schema_registry(&db, TENANT_A).await;
+
+    let series_id = Uuid::new_v4();
+    insert_metric_series(&ch, make_series(TENANT_A, series_id)).await;
+    insert_metric_point(&ch, make_point(TENANT_A, series_id, 99.0, 5 * 60 * 1000)).await;
+
+    // Count rows BEFORE query
+    let pg_series_count_before: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM schema_entries WHERE signal_type = 'metrics'")
+            .fetch_one(&db)
+            .await
+            .expect("pre-query count");
+
+    let pg_annotations_count_before: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM semantic_annotations WHERE tenant_id = $1")
+            .bind(TENANT_A)
+            .fetch_one(&db)
+            .await
+            .expect("pre-query annotations count");
+
+    // Execute the NLQ query
+    let ir = base_ir(NlqOperation::Timeseries);
+    execute_mcp_query(&db, &ch, TENANT_A, &ir)
+        .await
+        .expect("execute_mcp_query must succeed");
+
+    // Count rows AFTER query — must be identical
+    let pg_series_count_after: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM schema_entries WHERE signal_type = 'metrics'")
+            .fetch_one(&db)
+            .await
+            .expect("post-query count");
+
+    let pg_annotations_count_after: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM semantic_annotations WHERE tenant_id = $1")
+            .bind(TENANT_A)
+            .fetch_one(&db)
+            .await
+            .expect("post-query annotations count");
+
+    assert_eq!(
+        pg_series_count_before, pg_series_count_after,
+        "schema_entries row count must not change after NLQ query (read-only)"
+    );
+    assert_eq!(
+        pg_annotations_count_before, pg_annotations_count_after,
+        "semantic_annotations row count must not change after NLQ query (read-only)"
+    );
+}

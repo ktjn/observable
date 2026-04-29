@@ -3,6 +3,7 @@ mod audit;
 mod dashboards;
 mod deployments;
 mod discovery;
+mod llm_adapter;
 mod logs;
 mod mcp_query;
 mod mcp_tools;
@@ -42,10 +43,16 @@ async fn main() -> anyhow::Result<()> {
     let port: u16 = std::env::var("QUERY_API_PORT")
         .unwrap_or_else(|_| "8090".into())
         .parse()?;
+    let llm: Option<Arc<dyn llm_adapter::LlmCaller>> = llm_adapter::OpenAiLlmCaller::from_env()
+        .map(|c| Arc::new(c) as Arc<dyn llm_adapter::LlmCaller>);
+    if llm.is_none() {
+        tracing::warn!("OPENAI_API_KEY not set — NLQ endpoint will return 503");
+    }
     let state = traces::AppState {
         ch,
         db,
         planner: Arc::new(planner::QueryPlanner),
+        llm,
     };
     let app = Router::new()
         .route("/v1/traces", get(traces::search_traces))
@@ -107,6 +114,7 @@ async fn main() -> anyhow::Result<()> {
             get(mcp_tools::handle_resolve_label),
         )
         .route("/v1/mcp/query", post(mcp_query::handle_mcp_query))
+        .route("/v1/nlq", post(llm_adapter::handle_nlq_query))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
         .with_state(state);

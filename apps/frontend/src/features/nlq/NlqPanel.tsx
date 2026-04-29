@@ -1,0 +1,180 @@
+/**
+ * NlqPanel — NLQ input bar + results panel (P8-S6 Step 7).
+ *
+ * Additive: sits alongside existing signal panels. Does not replace structured query UI.
+ *
+ * Advisory display contract (ADR-021):
+ *   - approximation_statement always visible alongside results.
+ *   - raw source_sql and full nlq_ir are behind a "Show details" disclosure.
+ *   - Decline reasons are displayed directly (no error state, declines are expected control flow).
+ */
+import { useState } from "react";
+import type { NlqResponse } from "../../api/nlq";
+import { submitNlqQuery } from "../../api/nlq";
+import { VisualizationPanel } from "./VisualizationPanel";
+
+interface Props {
+  /** Optional service context. Passed to the backend to scope the NLQ query. */
+  serviceName?: string;
+  /** Placeholder text for the query input. */
+  placeholder?: string;
+}
+
+type QueryState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "result"; response: NlqResponse };
+
+export function NlqPanel({ serviceName, placeholder }: Props) {
+  const [question, setQuestion] = useState("");
+  const [state, setState] = useState<QueryState>({ status: "idle" });
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const q = question.trim();
+    if (!q) return;
+    setState({ status: "loading" });
+    try {
+      const response = await submitNlqQuery({ question: q, service_name: serviceName });
+      setState({ status: "result", response });
+    } catch (err) {
+      setState({
+        status: "error",
+        message: err instanceof Error ? err.message : "Query failed",
+      });
+    }
+  }
+
+  return (
+    <section className="nlq-panel" aria-label="Natural language query">
+      {/* Input bar */}
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <input
+          type="text"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder={
+            placeholder ??
+            "Ask a question about your metrics\u2026 e.g. \u201cp99 latency last hour\u201d"
+          }
+          aria-label="Natural language query"
+          disabled={state.status === "loading"}
+          className="flex-1 rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] disabled:opacity-50"
+          data-testid="nlq-input"
+        />
+        <button
+          type="submit"
+          disabled={state.status === "loading" || !question.trim()}
+          className="rounded bg-[var(--brand-primary)] px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          data-testid="nlq-submit"
+        >
+          {state.status === "loading" ? "Querying…" : "Ask"}
+        </button>
+      </form>
+
+      {/* Results */}
+      {state.status === "error" && (
+        <div
+          className="mt-3 rounded border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-text)]"
+          role="alert"
+          data-testid="nlq-error"
+        >
+          {state.message}
+        </div>
+      )}
+
+      {state.status === "result" && (
+        <div className="mt-4 space-y-3" data-testid="nlq-result">
+          {state.response.type === "decline" ? (
+            <DeclineMessage reason={state.response.reason} />
+          ) : (
+            <FrameResult response={state.response} />
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── Decline ───────────────────────────────────────────────────────────────────
+
+function DeclineMessage({ reason }: { reason: string }) {
+  return (
+    <div
+      className="rounded border border-[var(--border)] bg-[var(--bg-subtle)] px-4 py-3 text-sm"
+      data-testid="nlq-decline"
+    >
+      <p className="font-medium">This question is outside the NLQ scope</p>
+      <p className="mt-1 text-[var(--text-muted)]">{reason}</p>
+    </div>
+  );
+}
+
+// ── Frame result ──────────────────────────────────────────────────────────────
+
+function FrameResult({
+  response,
+}: {
+  response: Extract<NlqResponse, { type: "frame" }>;
+}) {
+  const { frame } = response;
+  const [showDetails, setShowDetails] = useState(false);
+
+  return (
+    <>
+      {/* Visualization auto-graphing (Step 8) */}
+      <VisualizationPanel frame={frame} />
+
+      {/* Approximation statement — always visible (ADR-021 advisory requirement) */}
+      <p
+        className="text-xs text-[var(--text-muted)] italic"
+        data-testid="nlq-approximation"
+      >
+        {frame.approximation_statement}
+      </p>
+
+      {/* Provenance disclosure — raw SQL + full IR hidden by default */}
+      <details
+        open={showDetails}
+        onToggle={(e) => setShowDetails((e.target as HTMLDetailsElement).open)}
+        className="text-xs"
+      >
+        <summary
+          className="cursor-pointer select-none text-[var(--text-muted)] hover:text-[var(--text-strong)]"
+          data-testid="nlq-show-details"
+        >
+          {showDetails ? "Hide details" : "Show query details"}
+        </summary>
+        <div className="mt-2 space-y-2" data-testid="nlq-provenance">
+          <div>
+            <span className="font-medium">Time range: </span>
+            {frame.time_range.from} → {frame.time_range.to}
+          </div>
+          <div>
+            <span className="font-medium">Signals: </span>
+            {frame.signal_types.join(", ")}
+          </div>
+          {frame.sample_rate !== null && frame.sample_rate !== undefined && (
+            <div>
+              <span className="font-medium">Sample rate: </span>
+              {(frame.sample_rate * 100).toFixed(0)}%
+            </div>
+          )}
+          <div>
+            <span className="font-medium">Generated SQL:</span>
+            <pre className="mt-1 overflow-x-auto rounded bg-[var(--bg-code)] p-2 text-[0.7rem]">
+              {frame.source_sql}
+            </pre>
+          </div>
+          <div>
+            <span className="font-medium">NLQ IR:</span>
+            <pre className="mt-1 overflow-x-auto rounded bg-[var(--bg-code)] p-2 text-[0.7rem]">
+              {JSON.stringify(frame.nlq_ir, null, 2)}
+            </pre>
+          </div>
+        </div>
+      </details>
+    </>
+  );
+}

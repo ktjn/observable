@@ -12,6 +12,7 @@ use std::{
     sync::Arc,
 };
 
+use crate::llm_adapter::LlmCaller;
 use crate::middleware::auth::TenantContext;
 use crate::planner::QueryPlanner;
 
@@ -20,6 +21,8 @@ pub struct AppState {
     pub ch: Client,
     pub db: PgPool,
     pub planner: Arc<QueryPlanner>,
+    /// Optional LLM caller. None when OPENAI_API_KEY is not set.
+    pub llm: Option<Arc<dyn LlmCaller>>,
 }
 
 #[derive(Serialize)]
