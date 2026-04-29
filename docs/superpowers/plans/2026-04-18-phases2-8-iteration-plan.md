@@ -394,9 +394,9 @@ Before starting any new product UI workflow, complete these pure renovation slic
   - Outcome: one dashboard can round-trip through API, storage, and UI
   - Checkpoint: is the serialized contract stable enough to support CI validation later?
 
-- [ ] **P3-S14: Add Schema Registry with semantic annotations for one signal type**
-  - Outcome: one signal type's fields have business-meaning annotations queryable via API; sets the grounding foundation required by the NL query layer (ADR-021). See `spec/03-storage.md §5.4.1`.
-  - Checkpoint: are annotations stored structurally separate from schema shape so they can evolve independently of structural metadata?
+- [x] **P3-S14: Add Schema Registry with semantic annotations for one signal type**
+  - Outcome: one signal type's fields have business-meaning annotations queryable via API; sets the grounding foundation required by the NL query layer (ADR-021). See `spec/03-storage.md §5.4.1`. Migration `011_create_schema_registry.sql` adds `schema_entries` (global structural catalog) and `semantic_annotations` (tenant-scoped, includes `metric_type`, `timestamp_column`, `unit`, `recommended_downsampling` for MCP server time-series SQL generation). query-api exposes `GET /v1/schemas/:signal_type/attributes` and full CRUD for `/v1/schemas/:signal_type/attributes/:key/annotations`. 11 Testcontainers integration tests cover CRUD, tenant isolation, seeded dev data, and upsert vs. patch semantics. Completed 2026-04-29.
+  - Checkpoint: are annotations stored structurally separate from schema shape so they can evolve independently of structural metadata? Answer: yes. `schema_entries` and `semantic_annotations` are separate tables with no FK dependency; annotations evolve independently. Annotations are tenant-scoped so different tenants can describe the same field name differently without interference.
 
 - [ ] **P3-S15: Establish Testcontainers integration harness for real dependencies**
   - Source spec: `spec/11-testing.md §18.8`; ADR-025; implementation plan `docs/superpowers/plans/2026-04-27-testcontainers-integration-tests.md`.

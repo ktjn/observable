@@ -6,4 +6,5 @@ pub mod logs;
 pub mod metrics;
 pub mod middleware;
 pub mod planner;
+pub mod schemas;
 pub mod traces;
