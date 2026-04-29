@@ -45,6 +45,187 @@ test("renders the product navigation shell", async () => {
   await screen.findByRole("heading", { name: "Services" });
 });
 
+test("promotes the current log search filter to a dashboard panel", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+
+    if (url.includes("/v1/logs")) {
+      return new Response(
+        JSON.stringify({
+          logs: [
+            {
+              tenant_id: "00000000-0000-0000-0000-000000000001",
+              log_id: "log-1",
+              timestamp_unix_nano: "1700000000000000000",
+              severity_number: 9,
+              severity_text: "INFO",
+              body: "checkout complete",
+              service_name: "checkout",
+              resource_attributes: {},
+            },
+          ],
+          total: 1,
+          facets: {},
+        }),
+        { status: 200 },
+      );
+    }
+
+    if (url.includes("/v1/dashboards") && init?.method === "POST") {
+      const body = JSON.parse(String(init.body));
+      expect(body.panels[0]).toMatchObject({
+        query_kind: "logs",
+        service: "checkout",
+        lookback_minutes: 60,
+      });
+      return new Response(
+        JSON.stringify({
+          dashboard_id: "dash-1",
+          name: "Promoted log query",
+          panels: body.panels.map((panel: object, index: number) => ({
+            panel_id: `panel-${index + 1}`,
+            ...panel,
+          })),
+          created_at: "2026-04-29T00:00:00Z",
+        }),
+        { status: 201 },
+      );
+    }
+
+    if (url.includes("/v1/dashboards")) {
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }
+
+    return new Response(JSON.stringify({ items: [] }), { status: 200 });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  window.history.pushState({}, "", "/logs?service=checkout");
+
+  render(<App />);
+
+  expect(await screen.findByRole("heading", { name: "Logs" })).toBeInTheDocument();
+  expect(await screen.findByText("checkout complete")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Promote to dashboard" }));
+
+  expect(await screen.findByText("Saved to dashboard")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith(
+    expect.stringContaining("/v1/dashboards"),
+    expect.objectContaining({ method: "POST" }),
+  );
+});
+
+test("promotes the current trace search filter to a dashboard panel", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+
+    if (url.includes("/v1/traces")) {
+      return new Response(
+        JSON.stringify({
+          traces: [
+            {
+              trace_id: "trace-1",
+              spans: [
+                {
+                  tenant_id: "00000000-0000-0000-0000-000000000001",
+                  trace_id: "trace-1",
+                  span_id: "span-1",
+                  service_name: "checkout",
+                  operation_name: "GET /checkout",
+                  start_time_unix_nano: 1,
+                  end_time_unix_nano: 2,
+                  duration_ns: 1000000,
+                  status_code: "OK",
+                  resource_attributes: {},
+                },
+              ],
+            },
+          ],
+          total: 1,
+          facets: {},
+        }),
+        { status: 200 },
+      );
+    }
+
+    if (url.includes("/v1/dashboards") && init?.method === "POST") {
+      const body = JSON.parse(String(init.body));
+      expect(body.panels[0]).toMatchObject({
+        query_kind: "traces",
+        service: "checkout",
+        lookback_minutes: 60,
+      });
+      return new Response(
+        JSON.stringify({
+          dashboard_id: "dash-1",
+          name: "Promoted trace query",
+          panels: body.panels.map((panel: object, index: number) => ({
+            panel_id: `panel-${index + 1}`,
+            ...panel,
+          })),
+          created_at: "2026-04-29T00:00:00Z",
+        }),
+        { status: 201 },
+      );
+    }
+
+    return new Response(JSON.stringify({ items: [] }), { status: 200 });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  window.history.pushState({}, "", "/traces?service=checkout");
+
+  render(<App />);
+
+  expect(await screen.findByRole("heading", { name: "Traces" })).toBeInTheDocument();
+  expect(await screen.findByText("GET /checkout")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Promote to dashboard" }));
+
+  expect(await screen.findByText("Saved to dashboard")).toBeInTheDocument();
+});
+
+test("renders saved dashboard panels with preserved query context", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes("/v1/dashboards")) {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                dashboard_id: "dash-1",
+                name: "Promoted log query",
+                panels: [
+                  {
+                    panel_id: "panel-1",
+                    title: "Logs for checkout",
+                    query_kind: "logs",
+                    service: "checkout",
+                    lookback_minutes: 60,
+                    filters: { facets: ["service_name", "severity_number"] },
+                  },
+                ],
+                created_at: "2026-04-29T00:00:00Z",
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+  window.history.pushState({}, "", "/dashboards");
+
+  render(<App />);
+
+  expect(await screen.findByRole("heading", { name: "Dashboards" })).toBeInTheDocument();
+  expect(await screen.findByText("Promoted log query")).toBeInTheDocument();
+  expect(screen.getByText("Logs for checkout")).toBeInTheDocument();
+  expect(screen.getByText("logs · checkout · Last 60m")).toBeInTheDocument();
+});
+
 test("renders onboarding setup with endpoint, redacted key, and first signal success", async () => {
   const writeText = vi.fn(async () => undefined);
   Object.assign(navigator, { clipboard: { writeText } });

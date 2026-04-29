@@ -18,6 +18,11 @@ The platform will adopt a **layered multi-tenancy isolation strategy**:
 3.  **Compute Isolation:** Per-tenant quotas and rate limits enforced at the ingest and query layers.
 4.  **Security Isolation:** OIDC/SAML for identity, with fine-grained authorization (ReBAC) for resource access.
 
+The same logical isolation rule applies to configuration resources such as promoted dashboards:
+dashboard rows carry `tenant_id`, dashboard panels are reached only through tenant-scoped
+dashboard ownership, and API list/create paths must use the verified tenant context rather than
+browser-supplied tenant identifiers.
+
 ## Consequences
 
 **Easier:** 

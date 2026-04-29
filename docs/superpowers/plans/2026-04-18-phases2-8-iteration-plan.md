@@ -382,13 +382,13 @@ Before starting any new product UI workflow, complete these pure renovation slic
   - Outcome: `deployment_markers` table (migration 009), `POST /v1/deployments` + `PATCH /v1/deployments/:id` in ingest-gateway (new PgPool connection; direct Postgres write for immediate consistency), `GET /v1/deployments` in query-api, `scripts/deployment-marker.sh` CI helper, `DeploymentTimeline` SVG component in service detail overview (10 unit tests). ADR-024 documents the ingest/query routing split and the future Redpanda `deployment.events` topic path that enables SSE push to the UI without polling. Completed 2026-04-26.
   - Checkpoint: is deployment identity clean enough for rollback analysis later? Answer: yes. `rollback_of` FK links a `rolled_back` deployment to the original; `status` enum tracks the full lifecycle. Ingest enrichment (§18.5 stamping `deployment_id` on span rows) and the Redpanda event-stream path (ADR-024 §Future) are explicitly deferred.
 
-- [ ] **P3-S12: Add "Promote to Dashboard" from explorers**
+- [x] **P3-S12: Add "Promote to Dashboard" from explorers**
   - Source spec: `spec/05-frontend.md` §9.4 Promote to Dashboard and §9.7.
-  - Outcome: ad-hoc queries can be saved directly as new dashboard panels and viewed in one fixed-layout dashboard route with the selected time range and filters preserved.
+  - Outcome: Logs and Traces explorer queries can be saved directly as new dashboard panels and viewed in one fixed-layout dashboard route with the selected service filter, 60-minute lookback, and facet metadata preserved. The Query API now exposes tenant-scoped `GET /v1/dashboards` and `POST /v1/dashboards` backed by Postgres dashboard tables.
   - Files or modules expected to change: dashboard config API if missing, explorer actions, dashboard serialization path, tests.
   - Out of scope: full drag-and-drop dashboard builder.
-  - Verification: frontend tests cover promoted query payload, dashboard-route rendering, and preserved time range/filter state; API tests cover dashboard create/update shape.
-  - Checkpoint: does the promoted panel preserve all filters and time range settings?
+  - Verification: frontend tests cover promoted query payload, dashboard-route rendering, and preserved time range/filter state; Postgres Testcontainers tests cover dashboard create/list behavior and tenant isolation.
+  - Checkpoint: does the promoted panel preserve all filters and time range settings? Answer: yes for the P3-S12 fixed-layout scope. Promoted panels persist query kind, service filter, 60-minute lookback, and facet metadata. Full dashboard-as-code import/export and layout editing remain in P3-S13 and later builder slices.
 
 - [ ] **P3-S13: Add dashboard-as-code import/export for one dashboard shape**
   - Outcome: one dashboard can round-trip through API, storage, and UI
