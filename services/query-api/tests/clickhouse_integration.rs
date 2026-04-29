@@ -1,6 +1,6 @@
 use clickhouse::Client;
 use domain::{LogRow, SpanRow};
-use query_api::logs::fetch_log_rows;
+use query_api::logs::{fetch_log_rows, fetch_log_rows_since};
 use query_api::traces::fetch_trace_spans;
 use std::path::Path;
 use testcontainers::{runners::AsyncRunner, ImageExt};
@@ -153,6 +153,13 @@ fn make_log_row(tenant_id: Uuid, service: &str) -> LogRow {
     }
 }
 
+fn make_log_row_at(tenant_id: Uuid, service: &str, timestamp_unix_nano: u64) -> LogRow {
+    let mut row = make_log_row(tenant_id, service);
+    row.timestamp_unix_nano = timestamp_unix_nano;
+    row.observed_timestamp_unix_nano = timestamp_unix_nano;
+    row
+}
+
 async fn insert_log(ch: &Client, row: LogRow) {
     let mut ins = ch
         .insert::<LogRow>("logs")
@@ -195,4 +202,31 @@ async fn clickhouse_container_enforces_tenant_filter_on_logs() {
         !result.iter().any(|row| row.tenant_id == tenant_b),
         "no log rows from tenant_b must leak into tenant_a results"
     );
+}
+
+#[tokio::test]
+async fn clickhouse_container_filters_logs_by_timestamp_cutoff() {
+    let container = ClickHouse::default()
+        .with_tag("24.3")
+        .with_env_var("CLICKHOUSE_USER", "default")
+        .with_env_var("CLICKHOUSE_PASSWORD", "test")
+        .start()
+        .await
+        .expect("clickhouse container started");
+
+    let port = container.get_host_port_ipv4(8123).await.unwrap();
+    let base_url = format!("http://127.0.0.1:{port}");
+    let ch = apply_migrations(&base_url, "default", "test").await;
+
+    let tenant = Uuid::new_v4();
+
+    insert_log(&ch, make_log_row_at(tenant, "old-svc", 1_000)).await;
+    insert_log(&ch, make_log_row_at(tenant, "new-svc", 10_000)).await;
+
+    let result = fetch_log_rows_since(&ch, tenant, 5_000)
+        .await
+        .expect("log query succeeded");
+
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].service_name, "new-svc");
 }

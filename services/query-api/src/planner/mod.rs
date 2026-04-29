@@ -145,6 +145,9 @@ impl QueryPlanner {
 
 fn log_search_where_clause(params: &LogSearchParams) -> String {
     let mut where_clause = "WHERE tenant_id = ?".to_string();
+    if params.lookback_minutes.is_some() {
+        where_clause.push_str(" AND timestamp_unix_nano >= ?");
+    }
     if params.service.is_some() {
         where_clause.push_str(" AND service_name = ?");
     }
@@ -181,6 +184,7 @@ mod tests {
             span_id: None,
             limit: None,
             facets: None,
+            lookback_minutes: None,
         }
     }
 
@@ -209,17 +213,18 @@ mod tests {
         params.severity = Some(13);
         params.trace_id = Some("trace-1".into());
         params.span_id = Some("span-1".into());
+        params.lookback_minutes = Some(60);
         params.limit = Some(900);
 
         let plan = planner.plan_log_search(&params);
 
         assert_eq!(
             plan.count_sql,
-            "SELECT count() FROM logs WHERE tenant_id = ? AND service_name = ? AND severity_number >= ? AND trace_id = ? AND span_id = ?"
+            "SELECT count() FROM logs WHERE tenant_id = ? AND timestamp_unix_nano >= ? AND service_name = ? AND severity_number >= ? AND trace_id = ? AND span_id = ?"
         );
         assert_eq!(
             plan.logs_sql,
-            "SELECT ?fields FROM logs WHERE tenant_id = ? AND service_name = ? AND severity_number >= ? AND trace_id = ? AND span_id = ? ORDER BY timestamp_unix_nano DESC LIMIT ?"
+            "SELECT ?fields FROM logs WHERE tenant_id = ? AND timestamp_unix_nano >= ? AND service_name = ? AND severity_number >= ? AND trace_id = ? AND span_id = ? ORDER BY timestamp_unix_nano DESC LIMIT ?"
         );
         assert_eq!(plan.limit, 500);
     }

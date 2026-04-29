@@ -40,6 +40,14 @@ The Query API must support the following patterns required by the Frontend (see 
 - **Behavior**: Returns logs surrounding the specified log line by timestamp, filtered to the same `service_name` and `host.name`.
 - **Default Window**: ±1 minute.
 
+#### Log Search
+- **Endpoint**: `GET /v1/logs`
+- **Parameters**: Supports `service`, `severity`, `trace_id`, `span_id`, `limit`, `facets`, and
+  `lookback_minutes`.
+- **Time Range**: When `lookback_minutes` is present, results, totals, and facets are filtered to
+  `timestamp_unix_nano >= now - lookback_minutes`.
+- **Ordering**: Results are ordered by `timestamp_unix_nano DESC`.
+
 #### Field Faceting (Statistics)
 - **Capability**: Search endpoints (`GET /v1/logs`, `GET /v1/traces`) must support a `facets` parameter (e.g., `?facets=service_name,log_level,http.status_code`).
 - **Response**: The response must include a `facets` object containing the top N (default 10) values and counts for each requested field within the search result set.

@@ -6,6 +6,7 @@ use axum::{
 use domain::{LogRecord, LogRow};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 use crate::middleware::auth::TenantContext;
@@ -32,6 +33,7 @@ pub struct LogSearchParams {
     pub span_id: Option<String>,
     pub limit: Option<u32>,
     pub facets: Option<String>, // Comma-separated list of fields to facet
+    pub lookback_minutes: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -48,9 +50,13 @@ pub async fn search_logs(
     Query(params): Query<LogSearchParams>,
 ) -> Result<Json<LogListResponse>, StatusCode> {
     let plan = state.planner.plan_log_search(&params);
+    let cutoff_unix_nano = params.lookback_minutes.map(log_lookback_cutoff_unix_nano);
 
     // Count total matching logs.
     let mut count_query = state.ch.query(&plan.count_sql).bind(ctx.tenant_id);
+    if let Some(cutoff) = cutoff_unix_nano {
+        count_query = count_query.bind(cutoff);
+    }
     if let Some(service) = &params.service {
         count_query = count_query.bind(service);
     }
@@ -72,6 +78,9 @@ pub async fn search_logs(
     let mut facet_results = HashMap::new();
     for (field, facet_plan) in plan.facet_plans {
         let mut facet_query = state.ch.query(&facet_plan.sql).bind(ctx.tenant_id);
+        if let Some(cutoff) = cutoff_unix_nano {
+            facet_query = facet_query.bind(cutoff);
+        }
         if let Some(service) = &params.service {
             facet_query = facet_query.bind(service);
         }
@@ -103,6 +112,9 @@ pub async fn search_logs(
     // Fetch logs.
     let mut ch_query = state.ch.query(&plan.logs_sql).bind(ctx.tenant_id);
 
+    if let Some(cutoff) = cutoff_unix_nano {
+        ch_query = ch_query.bind(cutoff);
+    }
     if let Some(service) = &params.service {
         ch_query = ch_query.bind(service);
     }
@@ -336,6 +348,27 @@ pub async fn fetch_log_rows(
     Ok(rows)
 }
 
+/// Repository-level fetch used by integration tests to verify log time-window filtering.
+#[allow(dead_code)]
+pub async fn fetch_log_rows_since(
+    ch: &clickhouse::Client,
+    tenant_id: Uuid,
+    cutoff_unix_nano: u64,
+) -> anyhow::Result<Vec<LogRow>> {
+    let rows: Vec<LogRow> = ch
+        .query(
+            "SELECT ?fields FROM observable.logs \
+             WHERE tenant_id = ? AND timestamp_unix_nano >= ? \
+             ORDER BY timestamp_unix_nano \
+             LIMIT 1000",
+        )
+        .bind(tenant_id)
+        .bind(cutoff_unix_nano)
+        .fetch_all()
+        .await?;
+    Ok(rows)
+}
+
 fn validate_log_rows_for_tenant(rows: &[LogRow], tenant_id: Uuid) -> Result<(), StatusCode> {
     if rows.iter().all(|row| row.tenant_id == tenant_id) {
         return Ok(());
@@ -346,6 +379,14 @@ fn validate_log_rows_for_tenant(rows: &[LogRow], tenant_id: Uuid) -> Result<(), 
         "log query returned rows outside tenant context"
     );
     Err(StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+fn log_lookback_cutoff_unix_nano(lookback_minutes: u32) -> u64 {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos() as u64;
+    now.saturating_sub((lookback_minutes as u64) * 60 * 1_000_000_000)
 }
 
 #[cfg(test)]
