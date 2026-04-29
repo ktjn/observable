@@ -38,3 +38,29 @@ export async function getFirstSignalStatus(): Promise<FirstSignalStatus> {
     metrics: metricCount,
   };
 }
+
+// ── LLM / AI config ───────────────────────────────────────────────────────────
+
+export interface PlatformConfig {
+  llm_key_configured: boolean;
+}
+
+export async function getConfig(): Promise<PlatformConfig> {
+  const res = await fetch("/v1/config", {
+    headers: { "x-api-key": LOCAL_DEV_API_KEY },
+  });
+  if (!res.ok) throw new Error(`getConfig failed: ${res.status}`);
+  return res.json() as Promise<PlatformConfig>;
+}
+
+export async function saveLlmKey(key: string): Promise<void> {
+  const res = await fetch("/v1/config/llm-key", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": LOCAL_DEV_API_KEY,
+    },
+    body: JSON.stringify({ key }),
+  });
+  if (!res.ok) throw new Error(`saveLlmKey failed: ${res.status}`);
+}

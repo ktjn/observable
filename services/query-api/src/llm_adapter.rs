@@ -57,16 +57,21 @@ impl OpenAiLlmCaller {
         if api_key.is_empty() {
             return None;
         }
-        let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-4o-mini".into());
+        Some(Self::from_key(api_key))
+    }
 
+    /// Creates a caller from an explicit API key string.
+    /// Reads `OPENAI_BASE_URL` and `OPENAI_MODEL` from env for additional config.
+    pub fn from_key(api_key: String) -> Self {
+        let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-4o-mini".into());
         let mut config = OpenAIConfig::new().with_api_key(api_key);
         if let Ok(base_url) = std::env::var("OPENAI_BASE_URL") {
             config = config.with_api_base(base_url);
         }
-        Some(Self {
+        Self {
             client: OpenAiClient::with_config(config),
             model,
-        })
+        }
     }
 }
 
@@ -486,20 +491,33 @@ pub async fn run_nlq_pipeline(
 /// Accepts a natural language question, calls the LLM adapter, and returns a discriminated
 /// `NlqQueryResponse` (frame or decline).
 ///
-/// Returns 503 if the LLM caller is not configured (LLM_API_KEY not set).
+/// Returns 503 if the LLM caller is not configured (LLM_API_KEY not set and not in DB).
 pub async fn handle_nlq_query(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
     Json(req): Json<NlqQueryRequest>,
 ) -> Result<Json<NlqQueryResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let llm = state.llm.as_deref().ok_or_else(|| {
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(serde_json::json!({
-                "error": "LLM adapter not configured (LLM_API_KEY not set)"
-            })),
-        )
-    })?;
+    // Resolve the LLM caller: prefer pre-built caller in AppState (from env var at startup),
+    // fall back to constructing one from the DB-stored key at call time.
+    let db_caller: Option<OpenAiLlmCaller>;
+    let llm: &dyn LlmCaller = if let Some(ref arc) = state.llm {
+        arc.as_ref()
+    } else {
+        match crate::config::fetch_db_key(&state.db).await {
+            Ok(Some(key)) => {
+                db_caller = Some(OpenAiLlmCaller::from_key(key));
+                db_caller.as_ref().unwrap()
+            }
+            _ => {
+                return Err((
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(serde_json::json!({
+                        "error": "LLM adapter not configured — set LLM_API_KEY on the Setup page"
+                    })),
+                ));
+            }
+        }
+    };
 
     if req.question.trim().is_empty() {
         return Err((

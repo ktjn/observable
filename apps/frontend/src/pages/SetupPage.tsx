@@ -4,12 +4,14 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Panel } from "../components/ui/panel";
 import {
+  getConfig,
   getFirstSignalStatus,
   LOCAL_DEV_API_KEY,
   LOCAL_DEV_TENANT,
   LOCAL_DEV_TENANT_ID,
   OTLP_HTTP_TRACE_ENDPOINT,
   REDACTED_LOCAL_API_KEY,
+  saveLlmKey,
 } from "../api/setup";
 
 export default function SetupPage() {
@@ -107,6 +109,87 @@ export default function SetupPage() {
           </dl>
         </Panel>
       </div>
+
+      <LlmKeyPanel />
     </section>
+  );
+}
+
+// ── LLM key panel ─────────────────────────────────────────────────────────────
+
+function LlmKeyPanel() {
+  const { data: config, refetch: refetchConfig } = useQuery({
+    queryKey: ["setup", "config"],
+    queryFn: getConfig,
+  });
+
+  const [keyInput, setKeyInput] = useState("");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!keyInput.trim()) return;
+    setSaveState("saving");
+    try {
+      await saveLlmKey(keyInput.trim());
+      setKeyInput("");
+      setSaveState("saved");
+      void refetchConfig();
+    } catch {
+      setSaveState("error");
+    }
+  }
+
+  const configured = config?.llm_key_configured ?? false;
+
+  return (
+    <Panel
+      eyebrow="AI / NLQ"
+      title="LLM API key"
+      actions={
+        <Badge tone={configured ? "good" : "warn"}>
+          {configured ? "Configured" : "Not configured"}
+        </Badge>
+      }
+    >
+      <p className="text-sm text-[var(--text-muted)] mb-3">
+        Required for the Natural Language Query panel on service pages.
+        Compatible with any OpenAI-format provider (OpenAI, Azure OpenAI, Ollama, etc.).
+        Use <code className="font-mono">OPENAI_BASE_URL</code> and{" "}
+        <code className="font-mono">OPENAI_MODEL</code> env vars to customise the endpoint and model.
+      </p>
+      <form onSubmit={handleSave} className="flex gap-2 items-center">
+        <input
+          type="password"
+          value={keyInput}
+          onChange={(e) => setKeyInput(e.target.value)}
+          placeholder={configured ? "Enter new key to replace…" : "sk-…"}
+          aria-label="LLM API key"
+          className="flex-1 rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
+          data-testid="llm-key-input"
+        />
+        <Button
+          variant="secondary"
+          type="submit"
+          disabled={saveState === "saving" || !keyInput.trim()}
+          data-testid="llm-key-save"
+        >
+          {saveState === "saving" ? "Saving…" : "Save"}
+        </Button>
+      </form>
+      {saveState === "saved" && (
+        <p className="mt-2 text-xs text-[var(--text-muted)]" role="status" data-testid="llm-key-saved">
+          Key saved. The NLQ panel will use it on the next request.
+        </p>
+      )}
+      {saveState === "error" && (
+        <p className="mt-2 text-xs text-[var(--danger-text)]" role="alert" data-testid="llm-key-error">
+          Failed to save key. Check the console for details.
+        </p>
+      )}
+      <p className="mt-3 text-xs text-[var(--text-muted)]">
+        ⚠ Stored in plaintext in PostgreSQL. Suitable for local development only.
+      </p>
+    </Panel>
   );
 }

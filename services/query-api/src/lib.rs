@@ -1,5 +1,6 @@
 pub mod alerts;
 pub mod audit;
+pub mod config;
 pub mod dashboards;
 pub mod deployments;
 pub mod discovery;
