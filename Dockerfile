@@ -9,6 +9,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get install -y --no-install-recommends \
         build-essential \
         cmake \
+        libcurl4-openssl-dev \
         libssl-dev \
         pkg-config \
         zlib1g-dev

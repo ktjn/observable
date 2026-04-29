@@ -56,7 +56,10 @@ step "Rust clippy"
 cargo clippy --workspace --all-targets -- -D warnings && ok "cargo clippy" || fail "cargo clippy"
 
 step "Rust tests"
-cargo test --workspace --all-targets && ok "cargo test" || fail "cargo test"
+# Integration tests (Testcontainers-based) require Docker and run inside the
+# Docker build (Dockerfile uses the same --lib --bins flags). Skip them here
+# so local-ci.sh passes in environments without a Docker socket.
+cargo test --workspace --lib --bins && ok "cargo test" || fail "cargo test"
 
 if [[ $SKIP_FRONTEND -eq 0 ]]; then
   step "Frontend typecheck"
