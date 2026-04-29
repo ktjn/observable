@@ -73,7 +73,7 @@ export function AlertsPage() {
     <section className="page-stack">
       <div className="page-header">
         <div>
-          <div className="field-label">Reliability</div>
+          <div className="text-xs font-bold uppercase text-[var(--muted)]">Reliability</div>
           <h1>Alerts &amp; SLOs</h1>
         </div>
       </div>
@@ -99,7 +99,7 @@ export function AlertsPage() {
           >
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <label className="field-label" htmlFor="rule-name">Rule name</label>
+                <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="rule-name">Rule name</label>
                 <Input
                   id="rule-name"
                   placeholder="e.g. High Error Rate"
@@ -109,7 +109,7 @@ export function AlertsPage() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="field-label" htmlFor="metric-name">Metric name</label>
+                <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="metric-name">Metric name</label>
                 <Input
                   id="metric-name"
                   placeholder="e.g. error_rate"
@@ -122,7 +122,7 @@ export function AlertsPage() {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <label className="field-label" htmlFor="operator">Operator</label>
+                <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="operator">Operator</label>
                 <Select
                   id="operator"
                   value={formOperator}
@@ -136,7 +136,7 @@ export function AlertsPage() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <label className="field-label" htmlFor="threshold">Threshold value</label>
+                <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="threshold">Threshold value</label>
                 <Input
                   id="threshold"
                   type="number"
