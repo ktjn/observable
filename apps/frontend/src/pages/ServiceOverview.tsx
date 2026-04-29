@@ -3,7 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { getTopology, listEnvironments, type TopologyEdge } from "../api/services";
 import { Button } from "../components/ui/button";
+import { LoadingState } from "../components/ui/loading-state";
 import { Select, SelectOption } from "../components/ui/select";
+import { TablePanel } from "../components/ui/table-panel";
 
 export default function ServiceOverview() {
   const [environment, setEnvironment] = useState<string>("all");
@@ -29,7 +31,7 @@ export default function ServiceOverview() {
     <section className="page-stack">
       <div className="page-header">
         <div>
-          <div className="field-label">Topology</div>
+          <div className="text-xs font-bold uppercase text-[var(--muted)]">Topology</div>
           <h1>Service Overview</h1>
         </div>
       </div>
@@ -54,9 +56,7 @@ export default function ServiceOverview() {
       </div>
 
       {focusedService && (
-        <div
-          style={{ display: "flex", gap: "1rem", alignItems: "center", padding: "0.5rem 0" }}
-        >
+        <div className="flex gap-4 items-center py-2">
           <Button variant="secondary" onClick={() => setFocusedService(null)}>
             ← All services
           </Button>
@@ -67,17 +67,9 @@ export default function ServiceOverview() {
         </div>
       )}
 
-      <div
-        className="table-panel"
-        style={{
-          padding: "2rem",
-          overflow: "auto",
-          background: "var(--bg-deep)",
-          position: "relative",
-        }}
-      >
+      <TablePanel className="p-8 overflow-auto relative bg-[var(--surface-inset)]">
         {isLoading ? (
-          <div className="loading-state">Loading topology...</div>
+          <LoadingState>Loading topology…</LoadingState>
         ) : error ? (
           <div className="signal-empty">Error loading topology: {String(error)}</div>
         ) : !data || data.edges.length === 0 ? (
@@ -85,15 +77,7 @@ export default function ServiceOverview() {
             No service relationships found in the selected lookback.
           </div>
         ) : (
-          <div
-            className="topology-map-container"
-            style={{
-              minHeight: "600px",
-              display: "flex",
-              justifyContent: "center",
-              position: "relative",
-            }}
-          >
+          <div className="min-h-[600px] flex justify-center relative">
             {/* Popover uses SVG midpoint coordinates. Works correctly when the SVG renders
                 at its natural 800×600 size; may be offset on narrow viewports. */}
             {edgePopover && (
@@ -136,7 +120,7 @@ export default function ServiceOverview() {
             />
           </div>
         )}
-      </div>
+      </TablePanel>
     </section>
   );
 }
