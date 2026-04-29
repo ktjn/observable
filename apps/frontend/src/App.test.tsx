@@ -654,7 +654,7 @@ test("renders service-scoped signal tabs with preserved URL state", async () => 
   );
   expect(await screen.findByText("cart accepted")).toBeInTheDocument();
   expect(fetchMock).toHaveBeenCalledWith(
-    expect.stringContaining("/v1/logs?service=checkout&lookback_minutes=60&limit=50"),
+    expect.stringContaining("/v1/logs?service=checkout&from="),
     expect.anything(),
   );
 });
