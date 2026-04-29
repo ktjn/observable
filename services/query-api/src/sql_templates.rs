@@ -11,9 +11,6 @@
 // formatting.
 //
 // Table references: observable.metric_series (ms) + observable.metric_points (mp).
-//
-// Step 3 of P8-S6: public API is intentionally unused until Step 5 wires the end-to-end handler.
-#![allow(dead_code)]
 use domain::{NlqFilter, NlqFilterOp, NlqIr, NlqOperation};
 use uuid::Uuid;
 
@@ -49,7 +46,8 @@ pub struct SqlContext<'a> {
     pub tenant_id: Uuid,
     /// Metric name as stored in `metric_series.metric_name`.
     pub metric_name: &'a str,
-    /// Metric type from the Schema Registry (used to select correct SQL pattern).
+    /// Metric type from the Schema Registry (reserved for metric-type-aware dispatch in Step 6).
+    #[allow(dead_code)]
     pub metric_type: SchemaMetricType,
     /// The NLQ IR emitted by the LLM.
     pub ir: &'a NlqIr,
@@ -60,7 +58,11 @@ pub struct SqlContext<'a> {
 #[derive(Debug, PartialEq)]
 pub enum SqlTemplateError {
     MissingMetricName,
+    /// Reserved for time-range validation (may be surfaced in future steps).
+    #[allow(dead_code)]
     MissingTimeRange,
+    /// Reserved for unsupported operation validation.
+    #[allow(dead_code)]
     UnsupportedOperation(String),
     InvalidResolution(String),
     InvalidTimeExpression(String),

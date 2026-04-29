@@ -4,6 +4,7 @@ mod dashboards;
 mod deployments;
 mod discovery;
 mod logs;
+mod mcp_query;
 mod mcp_tools;
 mod metrics;
 mod middleware;
@@ -105,6 +106,7 @@ async fn main() -> anyhow::Result<()> {
             "/v1/mcp/tools/resolve-label/:signal_type",
             get(mcp_tools::handle_resolve_label),
         )
+        .route("/v1/mcp/query", post(mcp_query::handle_mcp_query))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
         .with_state(state);

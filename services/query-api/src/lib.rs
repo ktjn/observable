@@ -4,6 +4,7 @@ pub mod dashboards;
 pub mod deployments;
 pub mod discovery;
 pub mod logs;
+pub mod mcp_query;
 pub mod mcp_tools;
 pub mod metrics;
 pub mod middleware;
