@@ -22,7 +22,7 @@ spec-steward when the task surface calls for them.
 
 1. **Read the task.** Identify which surfaces it touches:
    `spec/` · `docs/superpowers/` · `spec/adr/` · `docs/superpowers/plans/` ·
-   `services/` · `apps/` · `libs/` · `migrations/` · `tests/`.
+   `services/` · `apps/` · `libs/` · `migrations/` · `tests/` · `.github/agents/`.
 2. **Apply routing rules** from `.github/agents/README.md`:
    - Architecture-affecting change → invoke architecture-steward first.
    - Spec/doc change → invoke spec-steward before committing.

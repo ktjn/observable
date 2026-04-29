@@ -26,7 +26,7 @@ Before marking any change complete:
 3. **`cargo test`** — all unit tests pass.
 4. **Testcontainers** — if the change touches PostgreSQL, ClickHouse, Redpanda/Kafka-compatible
    brokers, object storage, or OpenFGA, add or update a Testcontainers integration test.
-   If Testcontainers is not applicable, note why in the commit message.
+   If Testcontainers is not applicable, state why in the PR and name the replacement signal.
 5. **Frontend checks** (if `apps/frontend/` is touched): `npm run typecheck`, `npm run lint`,
    `npm run build`, `npm test`.
 6. **`bash scripts/local-ci.sh`** — run the full local CI gate before pushing. Use

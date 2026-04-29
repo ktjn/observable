@@ -29,6 +29,7 @@ The coordinator decides which specialist(s) to invoke based on what surfaces the
 | Task touches… | Invoke |
 |---------------|--------|
 | `spec/`, `docs/superpowers/`, AGENTS.md, CLAUDE.md | spec-steward |
+| `.github/agents/` (role charters, routing rules, escalation triggers) | spec-steward |
 | `spec/adr/`, architecture/deployment/data-model/security decisions | architecture-steward |
 | `docs/superpowers/plans/` or phase/sequencing questions | planning-steward |
 | `services/`, `apps/`, `libs/`, `migrations/`, `tests/` | implementation-steward |
