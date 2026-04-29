@@ -5,6 +5,7 @@ import { listServiceSummaries, listEnvironments, type ServiceSummary } from "../
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { Input } from "../components/ui/input";
+import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
 import { Select, SelectOption } from "../components/ui/select";
@@ -128,7 +129,10 @@ export function ProductAreaPage({ area }: { area: ProductArea }) {
           </Select>
         </Toolbar>
         
-        <div className="metric-grid" aria-label="Service summary">
+        <div
+          className="grid grid-cols-[repeat(4,minmax(140px,1fr))] gap-3 max-[860px]:grid-cols-2 max-[560px]:grid-cols-1"
+          aria-label="Service summary"
+        >
           <MetricCard label="Services" value={String(stats.count)} tone="info" />
           <MetricCard
             label="Active Alerts"
@@ -145,7 +149,7 @@ export function ProductAreaPage({ area }: { area: ProductArea }) {
 
         <Panel title="Service catalog" eyebrow="Health and performance">
           {isLoading ? (
-            <div className="loading-state">Loading services...</div>
+            <LoadingState>Loading services…</LoadingState>
           ) : (
             <table>
               <thead>
@@ -195,7 +199,10 @@ export function ProductAreaPage({ area }: { area: ProductArea }) {
   return (
     <section className="page-stack">
       <PageHeader kicker={copy.kicker} title={copy.title} />
-      <div className="metric-grid" aria-label={`${copy.title} summary`}>
+      <div
+        className="grid grid-cols-[repeat(4,minmax(140px,1fr))] gap-3 max-[860px]:grid-cols-2 max-[560px]:grid-cols-1"
+        aria-label={`${copy.title} summary`}
+      >
         <MetricCard label="Entities" value={area === "admin" ? "12" : "48"} tone="info" />
         <MetricCard label="Healthy" value="94%" tone="good" />
         <MetricCard label="Watch" value="5" tone="warn" />
@@ -220,7 +227,7 @@ function PageHeader({ kicker, title }: { kicker: string; title: string }) {
   return (
     <div className="page-header">
       <div>
-        <div className="field-label">{kicker}</div>
+        <div className="text-xs font-bold uppercase text-[var(--muted)]">{kicker}</div>
         <h1>{title}</h1>
       </div>
     </div>

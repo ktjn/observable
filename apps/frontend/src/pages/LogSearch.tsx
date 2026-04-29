@@ -4,8 +4,11 @@ import { searchLogs, LogRecord } from "../api/logs";
 import { FacetSidebar } from "../components/FacetSidebar";
 import { infraLinks } from "../utils/infraLinks";
 import { formatTimestamp } from "../utils/formatTimestamp";
+import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { LoadingState } from "../components/ui/loading-state";
+import { TablePanel } from "../components/ui/table-panel";
 
 export default function LogSearch() {
   const [service, setService] = useState("");
@@ -31,7 +34,7 @@ export default function LogSearch() {
     <div className="page-stack">
       <div className="page-header">
         <div>
-          <div className="field-label">Explorer</div>
+          <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
           <h1>Logs</h1>
         </div>
       </div>
@@ -54,13 +57,13 @@ export default function LogSearch() {
       <div className="flex items-start gap-3">
         <FacetSidebar facets={data?.facets} onFacetClick={handleFacetClick} />
 
-        <div className="table-panel flex-1">
+        <TablePanel className="flex-1">
           {isLoading ? (
-            <div className="loading-state">Loading logs...</div>
+            <LoadingState>Loading logs…</LoadingState>
           ) : error ? (
-            <div className="loading-state text-[var(--bad)]">Error loading logs: {String(error)}</div>
+            <LoadingState className="text-[var(--bad)]">Error loading logs: {String(error)}</LoadingState>
           ) : data?.logs.length === 0 ? (
-            <div className="loading-state">No logs found.</div>
+            <LoadingState>No logs found.</LoadingState>
           ) : (
             <table>
               <thead>
@@ -89,7 +92,7 @@ export default function LogSearch() {
               </tbody>
             </table>
           )}
-        </div>
+        </TablePanel>
       </div>
     </div>
   );
@@ -117,9 +120,9 @@ function LogRow({ log, utc }: { log: LogRecord; utc: boolean }) {
         )}
       </td>
       <td>
-        <span className={`status ${severityTone(log.severity_number)}`}>
-          {log.severity_text || log.severity_number}
-        </span>
+        <Badge tone={severityTone(log.severity_number)}>
+          {log.severity_text || String(log.severity_number)}
+        </Badge>
       </td>
       <td>{typeof log.body === "string" ? log.body : JSON.stringify(log.body)}</td>
     </tr>

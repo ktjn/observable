@@ -112,6 +112,8 @@ select {
   font-weight: 750;
 }
 
+/* primitive-internal — used by Panel and MetricCard primitives only.
+   Do not use these classes in product pages; use Tailwind token classes instead. */
 .brand-context,
 .field-label,
 .metric-label {
@@ -288,20 +290,6 @@ h1 {
   width: min(360px, 100%);
 }
 
-.metric-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(140px, 1fr));
-  gap: 12px;
-}
-
-.metric-tile,
-.table-panel,
-.empty-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
 .modern-panel {
   background: var(--surface-raised);
   border: 1px solid var(--border);
@@ -329,7 +317,7 @@ h1 {
   gap: 10px;
 }
 
-.modern-tab-list {
+.modern-signal-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -338,7 +326,7 @@ h1 {
   background: var(--surface-subtle);
 }
 
-.modern-tab-link {
+.modern-signal-tab {
   min-height: 36px;
   border-radius: 6px;
   padding: 8px 12px;
@@ -348,8 +336,8 @@ h1 {
   font-weight: 750;
 }
 
-.modern-tab-link:hover,
-.modern-tab-link.active {
+.modern-signal-tab:hover,
+.modern-signal-tab.active {
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow-control);
@@ -357,33 +345,6 @@ h1 {
 
 .modern-table-row:hover td {
   background: var(--surface-subtle);
-}
-
-.metric-tile {
-  padding: 14px;
-  border-top: 3px solid var(--brand);
-}
-
-.metric-tile.good {
-  border-top-color: var(--good);
-}
-
-.metric-tile.warn {
-  border-top-color: var(--warn);
-}
-
-.metric-tile.bad {
-  border-top-color: var(--bad);
-}
-
-.metric-value {
-  margin-top: 6px;
-  font-size: 24px;
-  font-weight: 800;
-}
-
-.table-panel {
-  overflow-x: auto;
 }
 
 table {
@@ -408,52 +369,6 @@ th {
 
 .strong-cell {
   font-weight: 750;
-}
-
-.status {
-  border-radius: 999px;
-  padding: 3px 8px;
-  font-size: 12px;
-  font-weight: 750;
-}
-
-.status.good {
-  color: var(--good);
-  background: var(--good-bg);
-}
-
-.status.warn {
-  color: var(--warn);
-  background: var(--warn-bg);
-}
-
-.empty-panel {
-  min-height: 280px;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 14px;
-  padding: 28px;
-}
-
-.empty-title {
-  font-size: 22px;
-  font-weight: 800;
-}
-
-.empty-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.empty-metrics span {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 8px;
 }
 
 .trace-explorer-page {
@@ -482,9 +397,6 @@ th {
     flex-direction: column;
   }
 
-  .metric-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 560px) {
@@ -492,50 +404,23 @@ th {
     padding: 16px;
   }
 
-  .nav-list,
-  .metric-grid {
+  .nav-list {
     grid-template-columns: 1fr;
   }
 }
 
-.table-panel table th.sortable {
+th.sortable {
   cursor: pointer;
 }
 
-.table-panel table th.sortable:hover {
+th.sortable:hover {
   background: var(--surface-subtle);
-}
-
-.loading-state {
-  padding: 48px;
-  text-align: center;
-  color: var(--muted);
 }
 
 .detail-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
   gap: 12px;
-}
-
-.detail-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 16px;
-}
-
-.detail-panel-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.detail-panel h2 {
-  margin: 4px 0 0;
-  font-size: 18px;
 }
 
 .definition-grid {
@@ -561,83 +446,6 @@ th {
 .definition-grid dd {
   margin: 6px 0 0;
   font-weight: 750;
-}
-
-.entry-link-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.entry-link {
-  min-height: 54px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  display: grid;
-  place-items: center;
-  color: var(--text);
-  text-decoration: none;
-  font-weight: 750;
-}
-
-.entry-link:hover {
-  border-color: var(--brand);
-  color: var(--brand-strong);
-}
-
-.entity-card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.entity-card-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.entity-card-row:last-child {
-  border-bottom: 0;
-}
-
-.entity-card-link {
-  flex: 1;
-  min-width: 0;
-  color: var(--text);
-  font-weight: 650;
-  text-decoration: none;
-}
-
-.entity-card-link:hover {
-  color: var(--brand-strong);
-}
-
-.entity-card-metric {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.entity-health-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  flex-shrink: 0;
-}
-
-.entity-health-dot.good {
-  background: var(--good);
-}
-
-.entity-health-dot.warn {
-  background: var(--warn);
-}
-
-.entity-health-dot.bad {
-  background: var(--bad);
 }
 
 .deployment-timeline {
@@ -678,39 +486,6 @@ th {
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 16px;
-}
-
-.signal-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.tab-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.tab-link {
-  min-height: 44px;
-  padding: 12px 16px;
-  border-right: 1px solid var(--border);
-  color: var(--muted);
-  text-decoration: none;
-  font-weight: 750;
-}
-
-.tab-link:hover,
-.tab-link.active {
-  color: var(--text);
-  background: var(--surface-subtle);
-}
-
-.tab-link.active {
-  box-shadow: inset 0 -3px 0 var(--brand);
 }
 
 .signal-empty {

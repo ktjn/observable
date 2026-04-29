@@ -31,3 +31,22 @@ export function Badge({ tone = "neutral", className, children, ...props }: Badge
     </span>
   );
 }
+
+type HealthState = "healthy" | "watch" | "breach" | "unknown";
+
+const dotClasses: Record<HealthState, string> = {
+  healthy: "bg-[var(--good)]",
+  watch: "bg-[var(--warn)]",
+  breach: "bg-[var(--bad)]",
+  unknown: "bg-[var(--muted)]",
+};
+
+export function HealthDot({ state }: { state: HealthState }) {
+  return (
+    <span
+      role="img"
+      aria-label={state}
+      className={cn("inline-block h-2 w-2 flex-shrink-0 rounded-full", dotClasses[state])}
+    />
+  );
+}

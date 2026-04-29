@@ -9,13 +9,15 @@ import { listDeployments } from "../api/deployments";
 import { DeploymentTimeline } from "../components/DeploymentTimeline";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
+import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
+import { TablePanel } from "../components/ui/table-panel";
 
 export default function ServiceDetailPage() {
   const { serviceId } = useParams({ strict: false });
   if (!serviceId) {
-    return <div className="loading-state">Loading service overview...</div>;
+    return <LoadingState>Loading service overview…</LoadingState>;
   }
   const serviceName = decodeURIComponent(serviceId);
   const location = useLocation();
@@ -28,7 +30,7 @@ export default function ServiceDetailPage() {
   });
 
   if (isLoading) {
-    return <div className="loading-state">Loading service overview...</div>;
+    return <LoadingState>Loading service overview…</LoadingState>;
   }
 
   if (isError || !data) {
@@ -62,13 +64,16 @@ function ServiceOverview({
     <section className="page-stack">
       <div className="page-header">
         <div>
-          <div className="field-label">Service Overview</div>
+          <div className="text-xs font-bold uppercase text-[var(--muted)]">Service Overview</div>
           <h1>{service.service_name}</h1>
         </div>
         <Link to="/services" className="secondary-link">Back to services</Link>
       </div>
 
-      <div className="metric-grid" aria-label="Service performance summary">
+      <div
+        className="grid grid-cols-[repeat(4,minmax(140px,1fr))] gap-3 max-[860px]:grid-cols-2 max-[560px]:grid-cols-1"
+        aria-label="Service performance summary"
+      >
         <MetricCard label="Request Rate" value={`${service.request_rate.toFixed(2)} rps`} tone="info" />
         <MetricCard
           label="Error Rate"
@@ -107,17 +112,29 @@ function ServiceOverview({
         </Panel>
 
         <Panel eyebrow="Investigate" title="Signal Entry Points">
-          <div className="entry-link-grid" aria-label="Signal entry points">
-            <a href={`/traces?service=${encodeURIComponent(service.service_name)}`} className="entry-link">
+          <div className="grid grid-cols-2 gap-2.5" aria-label="Signal entry points">
+            <a
+              href={`/traces?service=${encodeURIComponent(service.service_name)}`}
+              className="min-h-[54px] border border-[var(--border)] rounded-md grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+            >
               Traces
             </a>
-            <a href={`/logs?service=${encodeURIComponent(service.service_name)}`} className="entry-link">
+            <a
+              href={`/logs?service=${encodeURIComponent(service.service_name)}`}
+              className="min-h-[54px] border border-[var(--border)] rounded-md grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+            >
               Logs
             </a>
-            <a href={`/metrics?service=${encodeURIComponent(service.service_name)}`} className="entry-link">
+            <a
+              href={`/metrics?service=${encodeURIComponent(service.service_name)}`}
+              className="min-h-[54px] border border-[var(--border)] rounded-md grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+            >
               Metrics
             </a>
-            <a href={`/infrastructure?service=${encodeURIComponent(service.service_name)}`} className="entry-link">
+            <a
+              href={`/infrastructure?service=${encodeURIComponent(service.service_name)}`}
+              className="min-h-[54px] border border-[var(--border)] rounded-md grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+            >
               Infrastructure
             </a>
           </div>
@@ -173,14 +190,14 @@ function ServiceSignalTabs({
 
   return (
     <Panel className="overflow-hidden">
-      <nav className="modern-tab-list" aria-label="Service signals">
+      <nav className="modern-signal-tabs" aria-label="Service signals">
         {tabLinks.map((link) => (
           <Link
             key={link.tab}
             to={link.to}
             params={{ serviceId: encodedService }}
             search={preservedSearch}
-            className={activeTab === link.tab ? "modern-tab-link active" : "modern-tab-link"}
+            className={activeTab === link.tab ? "modern-signal-tab active" : "modern-signal-tab"}
             aria-current={activeTab === link.tab ? "page" : undefined}
           >
             {link.label}
@@ -215,12 +232,12 @@ function ServiceLogsTab({
     queryFn: () => searchLogs({ service: serviceName, lookback_minutes: lookbackMinutes, limit: 50 }),
   });
 
-  if (isLoading) return <div className="loading-state">Loading service logs...</div>;
+  if (isLoading) return <LoadingState>Loading service logs…</LoadingState>;
   if (error) return <div className="signal-empty">Logs could not be loaded.</div>;
   if (!data?.logs.length) return <div className="signal-empty">No logs found for {serviceName}.</div>;
 
   return (
-    <div className="table-panel">
+    <TablePanel>
       <table aria-label="Service logs">
         <thead>
           <tr>
@@ -241,7 +258,7 @@ function ServiceLogsTab({
           ))}
         </tbody>
       </table>
-    </div>
+    </TablePanel>
   );
 }
 
@@ -251,14 +268,14 @@ function ServiceMetricsTab({ serviceName }: { serviceName: string }) {
     queryFn: () => listMetrics({ service: serviceName }),
   });
 
-  if (isLoading) return <div className="loading-state">Loading service metrics...</div>;
+  if (isLoading) return <LoadingState>Loading service metrics…</LoadingState>;
   if (error) return <div className="signal-empty">Metrics could not be loaded.</div>;
   if (!data?.series.length) {
     return <div className="signal-empty">No metric series found for {serviceName}.</div>;
   }
 
   return (
-    <div className="table-panel">
+    <TablePanel>
       <table aria-label="Service metrics">
         <thead>
           <tr>
@@ -279,7 +296,7 @@ function ServiceMetricsTab({ serviceName }: { serviceName: string }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </TablePanel>
   );
 }
 
@@ -296,12 +313,12 @@ function ServiceTracesTab({
       searchTraces({ service: serviceName, lookback_minutes: lookbackMinutes, limit: 50 }),
   });
 
-  if (isLoading) return <div className="loading-state">Loading service traces...</div>;
+  if (isLoading) return <LoadingState>Loading service traces…</LoadingState>;
   if (error) return <div className="signal-empty">Traces could not be loaded.</div>;
   if (!data?.traces.length) return <div className="signal-empty">No traces found for {serviceName}.</div>;
 
   return (
-    <div className="table-panel">
+    <TablePanel>
       <table aria-label="Service traces">
         <thead>
           <tr>
@@ -330,7 +347,7 @@ function ServiceTracesTab({
           })}
         </tbody>
       </table>
-    </div>
+    </TablePanel>
   );
 }
 

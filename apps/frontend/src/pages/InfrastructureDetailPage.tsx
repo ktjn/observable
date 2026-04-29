@@ -7,6 +7,7 @@ import {
 } from "../api/infrastructure";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
+import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
 
@@ -22,11 +23,11 @@ export default function InfrastructureDetailPage() {
   });
 
   if (!entityType || !entityId) {
-    return <div className="loading-state">Loading infrastructure detail...</div>;
+    return <LoadingState>Loading infrastructure detail…</LoadingState>;
   }
 
   if (isLoading) {
-    return <div className="loading-state">Loading infrastructure detail...</div>;
+    return <LoadingState>Loading infrastructure detail…</LoadingState>;
   }
 
   if (isError || !data) {
@@ -34,7 +35,7 @@ export default function InfrastructureDetailPage() {
       <section className="page-stack">
         <div className="page-header">
           <div>
-            <div className="field-label">Infrastructure</div>
+            <div className="text-xs font-bold uppercase text-[var(--muted)]">Infrastructure</div>
             <h1>Infrastructure entity not found</h1>
           </div>
           <Link to="/infrastructure" className="secondary-link">
@@ -52,7 +53,7 @@ export default function InfrastructureDetailPage() {
     <section className="page-stack">
       <div className="page-header">
         <div>
-          <div className="field-label">Infrastructure</div>
+          <div className="text-xs font-bold uppercase text-[var(--muted)]">Infrastructure</div>
           <h1>{entity.display_name}</h1>
         </div>
         <Link to="/infrastructure" className="secondary-link">
@@ -60,7 +61,10 @@ export default function InfrastructureDetailPage() {
         </Link>
       </div>
 
-      <div className="metric-grid" aria-label="Infrastructure summary">
+      <div
+        className="grid grid-cols-4 gap-3 max-[860px]:grid-cols-2 max-[560px]:grid-cols-1"
+        aria-label="Infrastructure summary"
+      >
         <MetricCard label="Type" value={entity.entity_type} tone="info" />
         <MetricCard label="Environment" value={formatNullableText(entity.environment)} tone="info" />
         <MetricCard
@@ -95,9 +99,14 @@ export default function InfrastructureDetailPage() {
 
         <Panel eyebrow="Related" title="Services">
           {entity.related_services.length > 0 ? (
-            <div className="entry-link-grid" aria-label="Related services">
+            <div className="grid grid-cols-2 gap-2.5" aria-label="Related services">
               {entity.related_services.map((service) => (
-                <Link key={service} to="/services/$serviceId" params={{ serviceId: service }} className="entry-link">
+                <Link
+                  key={service}
+                  to="/services/$serviceId"
+                  params={{ serviceId: service }}
+                  className="min-h-[54px] border border-[var(--border)] rounded-md grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+                >
                   {service}
                 </Link>
               ))}
@@ -141,14 +150,23 @@ export default function InfrastructureDetailPage() {
         </Panel>
 
         <Panel eyebrow="Actions" title="Entry points">
-          <div className="entry-link-grid" aria-label="Infrastructure action links">
-            <a href={links.logs} className="entry-link">
+          <div className="grid grid-cols-2 gap-2.5" aria-label="Infrastructure action links">
+            <a
+              href={links.logs}
+              className="min-h-[54px] border border-[var(--border)] rounded-md grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+            >
               Logs
             </a>
-            <a href={links.traces} className="entry-link">
+            <a
+              href={links.traces}
+              className="min-h-[54px] border border-[var(--border)] rounded-md grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+            >
               Traces
             </a>
-            <a href={links.metrics} className="entry-link">
+            <a
+              href={links.metrics}
+              className="min-h-[54px] border border-[var(--border)] rounded-md grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+            >
               Metrics
             </a>
           </div>

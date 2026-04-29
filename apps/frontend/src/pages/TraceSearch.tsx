@@ -3,8 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { searchTraces } from "../api/traces";
 import { FacetSidebar } from "../components/FacetSidebar";
+import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { LoadingState } from "../components/ui/loading-state";
+import { TablePanel } from "../components/ui/table-panel";
 
 export default function TraceSearch() {
   const [service, setService] = useState("");
@@ -28,7 +31,7 @@ export default function TraceSearch() {
     <section className="page-stack">
       <div className="page-header">
         <div>
-          <div className="field-label">Explorer</div>
+          <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
           <h1>Traces</h1>
         </div>
       </div>
@@ -51,13 +54,13 @@ export default function TraceSearch() {
       <div className="flex items-start gap-3">
         <FacetSidebar facets={data?.facets} onFacetClick={handleFacetClick} />
 
-        <div className="table-panel flex-1">
+        <TablePanel className="flex-1">
           {isLoading ? (
-            <div className="loading-state">Loading traces...</div>
+            <LoadingState>Loading traces…</LoadingState>
           ) : error ? (
-            <div className="loading-state text-[var(--bad)]">Error loading traces: {String(error)}</div>
+            <LoadingState className="text-[var(--bad)]">Error loading traces: {String(error)}</LoadingState>
           ) : data?.traces.length === 0 ? (
-            <div className="loading-state">No traces found.</div>
+            <LoadingState>No traces found.</LoadingState>
           ) : (
             <table>
               <thead>
@@ -84,9 +87,9 @@ export default function TraceSearch() {
                       <td>{root.operation_name}</td>
                       <td>{(root.duration_ns / 1e6).toFixed(2)}ms</td>
                       <td>
-                        <span className={`status ${root.status_code === "ERROR" ? "bad" : "good"}`}>
+                        <Badge tone={root.status_code === "ERROR" ? "bad" : "good"}>
                           {root.status_code}
-                        </span>
+                        </Badge>
                       </td>
                     </tr>
                   );
@@ -94,7 +97,7 @@ export default function TraceSearch() {
               </tbody>
             </table>
           )}
-        </div>
+        </TablePanel>
       </div>
     </section>
   );

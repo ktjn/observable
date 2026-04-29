@@ -24,12 +24,14 @@ export function EmptyState({
       )}
       {...props}
     >
-      <h2 className="empty-title">{title}</h2>
+      <h2 className="text-[22px] font-extrabold">{title}</h2>
       {description && <p className="m-0 max-w-xl text-sm text-[var(--muted)]">{description}</p>}
       {metadata.length > 0 && (
-        <div className="empty-metrics">
+        <div className="flex flex-wrap justify-center gap-2 text-[13px] text-[var(--muted)]">
           {metadata.map((item) => (
-            <span key={item}>{item}</span>
+            <span key={item} className="rounded-md border border-[var(--border)] px-2 py-1.5">
+              {item}
+            </span>
           ))}
         </div>
       )}

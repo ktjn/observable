@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import { Panel } from "../components/ui/panel";
 import {
   getFirstSignalStatus,
   LOCAL_DEV_API_KEY,
@@ -38,7 +40,7 @@ export default function SetupPage() {
     <section className="page-stack" aria-labelledby="setup-heading">
       <div className="page-header">
         <div>
-          <div className="field-label">Onboarding</div>
+          <div className="text-xs font-bold uppercase text-[var(--muted)]">Onboarding</div>
           <h1 id="setup-heading">Setup</h1>
         </div>
         <Button variant="secondary" onClick={() => void refetch()}>
@@ -47,13 +49,7 @@ export default function SetupPage() {
       </div>
 
       <div className="detail-grid">
-        <section className="detail-panel" aria-labelledby="ingest-config-heading">
-          <div className="detail-panel-header">
-            <div>
-              <div className="field-label">Local ingest</div>
-              <h2 id="ingest-config-heading">Collector endpoint</h2>
-            </div>
-          </div>
+        <Panel eyebrow="Local ingest" title="Collector endpoint">
           <dl className="definition-grid">
             <div>
               <dt>Tenant</dt>
@@ -76,26 +72,25 @@ export default function SetupPage() {
             <Button variant="secondary" onClick={() => void copyApiKey()}>
               Copy API key
             </Button>
-            <span className="field-label" role="status">
+            <span className="text-xs font-bold uppercase text-[var(--muted)]" role="status">
               {copyState === "copied"
                 ? "Copied"
                 : copyState === "failed"
                   ? "Copy unavailable"
-                  : "Redacted in the UI"}
+                : "Redacted in the UI"}
             </span>
           </div>
-        </section>
+        </Panel>
 
-        <section className="detail-panel" aria-labelledby="first-signal-heading">
-          <div className="detail-panel-header">
-            <div>
-              <div className="field-label">Validation</div>
-              <h2 id="first-signal-heading">First signal</h2>
-            </div>
-            <span className={`status ${data?.state === "detected" ? "good" : "warn"}`}>
+        <Panel
+          eyebrow="Validation"
+          title="First signal"
+          actions={
+            <Badge tone={data?.state === "detected" ? "good" : "warn"}>
               {statusText}
-            </span>
-          </div>
+            </Badge>
+          }
+        >
           <dl className="definition-grid">
             <div>
               <dt>Traces</dt>
@@ -110,7 +105,7 @@ export default function SetupPage() {
               <dd>{data?.metrics ?? 0}</dd>
             </div>
           </dl>
-        </section>
+        </Panel>
       </div>
     </section>
   );

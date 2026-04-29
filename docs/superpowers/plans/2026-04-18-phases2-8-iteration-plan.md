@@ -334,13 +334,13 @@ Before starting any new product UI workflow, complete these pure renovation slic
   - Verification: RTL tests cover selected/focused waterfall rows, facet interactions, and log support component states; accessibility scans remain green for trace detail and log search; frontend typecheck/lint/test/build pass.
   - Checkpoint: do trace and log investigation paths use the same modern primitives and state language as the service catalog? Answer: yes. All seven explorer surfaces now use CSS variable tokens and Tailwind classes instead of hardcoded hex values and inline style objects. The span bar's position/width remain as `style` props because percentage-based offsets require inline positioning for accurate canvas layout — this is the intentional rendering exception documented in UI-R3's scope.
 
-- [ ] **UI-R3: Remove remaining legacy style drift and document the frontend migration rule**
+- [x] **UI-R3: Remove remaining legacy style drift and document the frontend migration rule**
   - Source spec: `spec/05-frontend.md` §9.2; `spec/15-frontend-local-dev.md`; `docs/superpowers/specs/2026-04-21-ui-design-guide.md`.
   - Outcome: remaining broad legacy CSS classes and inline style patterns are either migrated, intentionally quarantined for canvas/SVG-specific rendering, or documented as exceptions. Future frontend slices have an explicit rule: reuse `components/ui` primitives first, add missing primitives in the same slice only when needed, and avoid page-local interactive styling.
   - Files or modules expected to change: `apps/frontend/src/styles.css`, `apps/frontend/src/components/ui/*` if small missing primitives are needed, frontend tests for any new primitive, and this plan/spec note if the migration rule changes.
   - Out of scope: wholesale feature-directory reshuffle unless a touched surface can move without expanding review scope.
   - Verification: `rg` checks show no unreviewed inline-style-heavy product surfaces outside approved rendering exceptions; frontend typecheck/lint/test/build pass; accessibility suite remains green.
-  - Checkpoint: is the frontend modernized enough that new product UI work can start without copying legacy local styles?
+  - Checkpoint: is the frontend modernized enough that new product UI work can start without copying legacy local styles? Answer: yes. All legacy CSS classes (`metric-tile`, `table-panel`, `detail-panel`, `entry-link*`, `entity-card-*`, `signal-panel`, `tab-link`/`tab-list`, `loading-state`, `status`) have been removed from product pages. Three new primitives (`LoadingState`, `TablePanel`, `HealthDot`) cover the high-frequency patterns. The migration rule is documented in `spec/15-frontend-local-dev.md §30`. Rendering exceptions (span bar offsets, topology SVG, severity colors, `minmax()` grid) are documented and approved.
 
 - [x] **P3-S7: Add field faceting and statistics to explorers**
   - Outcome: Log and Trace explorers show distribution of common fields such as status codes, log levels, and service names. This closes the immediate field-faceting gap recorded in `docs/analysis/2026-04-19-gaps-analysis.md`.
