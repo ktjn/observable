@@ -28,7 +28,6 @@ pub struct LogHistogramPlan {
     pub sql: String,
     pub from_ns: u64,
     pub interval_ns: u64,
-    pub bucket_count: u32,
 }
 
 #[derive(Clone, Default)]
@@ -159,11 +158,10 @@ impl QueryPlanner {
         let range_ns = to_ns.saturating_sub(from_ns).max(1);
         let interval_ns = (range_ns / bucket_count as u64).max(1);
 
-        let mut where_clause = format!(
-            "WHERE tenant_id = ? \
+        let mut where_clause = "WHERE tenant_id = ? \
              AND timestamp_unix_nano >= ? \
              AND timestamp_unix_nano <= ?"
-        );
+            .to_string();
         if service.is_some() {
             where_clause.push_str(" AND service_name = ?");
         }
@@ -182,7 +180,6 @@ impl QueryPlanner {
             sql,
             from_ns,
             interval_ns,
-            bucket_count,
         }
     }
 }
