@@ -233,6 +233,7 @@ or cross-signal joins. See [ADR-026](ADR-026-no-proprietary-query-dsl.md).
 
 - [spec/08-ai-ml.md §13.1](../08-ai-ml.md) — NL query spec, MCP architecture, time-series semantics
 - [spec/03-storage.md §5.4.1](../03-storage.md) — Schema Registry semantic annotations (prerequisite)
+- [ADR-027](ADR-027-local-llm-backend.md) — Local LLM backend (vLLM); extends the `LlmCaller` trait with a vLLM caller
 - [ADR-026](ADR-026-no-proprietary-query-dsl.md) — No proprietary query DSL
 - [ADR-016](ADR-016-grafana-visualization-strategy.md) — Grafana visualization; VisualizationFrame maps to `@grafana/ui` PanelData
 - [ADR-014](ADR-014-ai-feature-boundaries.md) — AI Feature Boundaries (advisory-only, read-only, provenance required)
