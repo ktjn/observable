@@ -4,6 +4,7 @@ pub mod metric;
 pub mod nlq;
 pub mod span;
 pub mod telemetry;
+pub mod visualization;
 
 pub use envelope::{EnvelopePayload, TelemetryEnvelope};
 pub use log::LogRecord;
@@ -18,3 +19,4 @@ pub use nlq::{
 #[cfg(feature = "storage")]
 pub use span::SpanRow;
 pub use span::{Span, SpanKind, StatusCode};
+pub use visualization::{FieldRole, FieldRoleKind, VisualizationFrame, VisualizationFrameType};
