@@ -29,7 +29,7 @@ export function MetricCard({
       {...props}
     >
       <div className="metric-label">{label}</div>
-      <div className="metric-value">{value}</div>
+      <div className="mt-1.5 text-2xl font-extrabold">{value}</div>
     </div>
   );
 }

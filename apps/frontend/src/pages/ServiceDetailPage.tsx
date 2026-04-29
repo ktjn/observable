@@ -190,14 +190,14 @@ function ServiceSignalTabs({
 
   return (
     <Panel className="overflow-hidden">
-      <nav className="modern-tab-list" aria-label="Service signals">
+      <nav className="modern-signal-tabs" aria-label="Service signals">
         {tabLinks.map((link) => (
           <Link
             key={link.tab}
             to={link.to}
             params={{ serviceId: encodedService }}
             search={preservedSearch}
-            className={activeTab === link.tab ? "modern-tab-link active" : "modern-tab-link"}
+            className={activeTab === link.tab ? "modern-signal-tab active" : "modern-signal-tab"}
             aria-current={activeTab === link.tab ? "page" : undefined}
           >
             {link.label}
