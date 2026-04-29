@@ -490,3 +490,20 @@ Accessibility is not a one-time task but a continuous requirement.
 | Kubernetes deployment model | `spec/12-deployment.md §19.1–19.3` |
 | CI frontend checks | `spec/10-process.md §16.6` |
 | Phase 1 UI scope | `spec/10-process.md §17`, `spec/05-frontend.md §9.3` |
+
+---
+
+## 30. Frontend Styling Migration Rule
+
+All frontend slices after UI-R3 must follow this rule:
+
+1. **Primitives first:** Reuse `src/components/ui/` primitives for interactive elements, loading states, table wrappers, status indicators, metric cards, panels, and buttons. Do not duplicate their styling in product pages.
+2. **Add missing primitives in the same slice:** If a needed primitive does not exist, add it to `src/components/ui/` with a focused RTL test in the same PR. Do not defer primitive additions to a follow-up.
+3. **Token classes over hardcoded values:** Use Tailwind token classes (`text-[var(--muted)]`, `bg-[var(--surface)]`, `border-[var(--border)]`, etc.) instead of hardcoded hex values or non-standard CSS custom properties.
+4. **Avoid page-local interactive styling:** Do not define new interactive CSS rules (hover, focus, active states) in `styles.css` or in `<style>` blocks. Express them via Tailwind utilities.
+5. **Approved rendering exceptions** — inline `style` props are permitted only for:
+   - **Span bar position/width in `TraceDetail.tsx`:** percentage-based `left`/`width` for canvas-accurate waterfall rendering.
+   - **Topology SVG/canvas in `ServiceOverview.tsx`:** dynamic `x`/`y`/`fill`/`stroke` values for force-directed graph node and edge positioning.
+   - **Severity colors in `LogContextView.tsx`, `LogCorrelatedList.tsx`, `LogLiveTail.tsx`:** runtime-computed numeric severity to color mapping.
+   - **`minmax()` grid columns:** `style={{ gridTemplateColumns: "repeat(4, minmax(140px, 1fr))" }}` where Tailwind has no direct equivalent.
+   - Any new exception must be noted with a comment in the file and approved by the reviewer.
