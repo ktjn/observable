@@ -60,13 +60,13 @@ export function NlqPanel({ serviceName, placeholder }: Props) {
           }
           aria-label="Natural language query"
           disabled={state.status === "loading"}
-          className="flex-1 rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] disabled:opacity-50"
+          className="flex-1 rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:opacity-50"
           data-testid="nlq-input"
         />
         <button
           type="submit"
           disabled={state.status === "loading" || !question.trim()}
-          className="rounded bg-[var(--brand-primary)] px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded bg-[var(--brand)] px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
           data-testid="nlq-submit"
         >
           {state.status === "loading" ? "Querying…" : "Ask"}

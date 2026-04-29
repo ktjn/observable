@@ -544,7 +544,7 @@ pub async fn handle_nlq_query(
             tracing::error!(error = %e, tenant_id = %ctx.tenant_id, "LLM call failed");
             Err((
                 StatusCode::BAD_GATEWAY,
-                Json(serde_json::json!({"error": "LLM service unavailable"})),
+                Json(serde_json::json!({"error": format!("LLM call failed: {e}")})),
             ))
         }
         Err(LlmAdapterError::InvalidResponse(e)) => {
