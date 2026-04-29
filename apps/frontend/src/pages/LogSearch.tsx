@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createDashboard } from "../api/dashboards";
 import { searchLogs, LogRecord } from "../api/logs";
@@ -43,19 +43,34 @@ export default function LogSearch() {
   const [lookbackMinutes, setLookbackMinutes] = useState(60);
   const [selectedLogId, setSelectedLogId] = useState<string | undefined>();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [customRangeMs, setCustomRangeMs] = useState<{ fromMs: number; toMs: number } | null>(null);
 
-  const from = useMemo(() => {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() - lookbackMinutes);
-    return d.toISOString();
-  }, [lookbackMinutes]);
+  const { from, to, histogramFromMs, histogramToMs } = useMemo(() => {
+    if (customRangeMs) {
+      return {
+        from: new Date(customRangeMs.fromMs).toISOString(),
+        to: new Date(customRangeMs.toMs).toISOString(),
+        histogramFromMs: customRangeMs.fromMs,
+        histogramToMs: customRangeMs.toMs,
+      };
+    }
+    const toMs = Date.now();
+    const fromMs = toMs - lookbackMinutes * 60 * 1000;
+    return {
+      from: new Date(fromMs).toISOString(),
+      to: undefined as string | undefined,
+      histogramFromMs: fromMs,
+      histogramToMs: toMs,
+    };
+  }, [customRangeMs, lookbackMinutes]);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["logs", service, from],
+    queryKey: ["logs", service, from, to],
     queryFn: () =>
       searchLogs({
         service: service || undefined,
         from,
+        to,
         limit: 50,
         facets: ["service_name", "severity_number", "environment", "host_id"],
       }),
@@ -63,7 +78,20 @@ export default function LogSearch() {
 
   const logs = data?.logs ?? [];
   const selectedLog = logs.find((log) => log.log_id === selectedLogId);
-  const histogram = useMemo(() => buildLogHistogram(logs, lookbackMinutes), [logs, lookbackMinutes]);
+  const histogram = useMemo(
+    () => buildLogHistogram(logs, histogramFromMs, histogramToMs),
+    [logs, histogramFromMs, histogramToMs],
+  );
+
+  function handleHistogramRangeSelect(fromMs: number, toMs: number) {
+    setCustomRangeMs({ fromMs, toMs });
+    setSelectedLogId(undefined);
+  }
+
+  function handleClearRange() {
+    setCustomRangeMs(null);
+    setSelectedLogId(undefined);
+  }
 
   const handlePromote = async () => {
     setSaveStatus("saving");
@@ -104,21 +132,32 @@ export default function LogSearch() {
           onChange={(e) => setService(e.target.value)}
           aria-label="Filter by service"
         />
-        <Select
-          aria-label="Log time range"
-          className="max-w-[120px]"
-          value={String(lookbackMinutes)}
-          onChange={(event) => {
-            setLookbackMinutes(Number(event.target.value));
-            setSelectedLogId(undefined);
-          }}
-        >
-          {timeRangeOptions.map((option) => (
-            <SelectOption key={option.value} value={option.value}>
-              {option.label}
-            </SelectOption>
-          ))}
-        </Select>
+        {customRangeMs ? (
+          <>
+            <span className="text-xs whitespace-nowrap font-mono text-[var(--text-strong)]">
+              {formatBucketLabel(customRangeMs.fromMs, utc)} – {formatBucketLabel(customRangeMs.toMs, utc)}
+            </span>
+            <Button variant="secondary" onClick={handleClearRange}>
+              Reset range
+            </Button>
+          </>
+        ) : (
+          <Select
+            aria-label="Log time range"
+            className="max-w-[120px]"
+            value={String(lookbackMinutes)}
+            onChange={(event) => {
+              setLookbackMinutes(Number(event.target.value));
+              setSelectedLogId(undefined);
+            }}
+          >
+            {timeRangeOptions.map((option) => (
+              <SelectOption key={option.value} value={option.value}>
+                {option.label}
+              </SelectOption>
+            ))}
+          </Select>
+        )}
         {service && (
           <Button variant="secondary" onClick={() => setService("")}>
             Clear filters
@@ -136,7 +175,7 @@ export default function LogSearch() {
       </div>
 
       {!isLoading && !error && logs.length > 0 && (
-        <LogHistogram buckets={histogram} utc={utc} />
+        <LogHistogram buckets={histogram} utc={utc} onRangeSelect={handleHistogramRangeSelect} />
       )}
 
       <div className="flex items-start gap-3 max-[900px]:flex-col">
@@ -225,8 +264,58 @@ function LogRow({
   );
 }
 
-function LogHistogram({ buckets, utc }: { buckets: HistogramBucket[]; utc: boolean }) {
+function LogHistogram({
+  buckets,
+  utc,
+  onRangeSelect,
+}: {
+  buckets: HistogramBucket[];
+  utc: boolean;
+  onRangeSelect?: (fromMs: number, toMs: number) => void;
+}) {
   const max = Math.max(1, ...buckets.map((bucket) => bucket.total));
+  const gridRef = useRef<HTMLDivElement>(null);
+  // ref holds current drag coords for synchronous reads in event handlers
+  const dragRef = useRef<{ start: number; end: number } | null>(null);
+  // state drives the visual highlight (re-renders on move)
+  const [dragDisplay, setDragDisplay] = useState<{ start: number; end: number } | null>(null);
+
+  const selStart = dragDisplay ? Math.min(dragDisplay.start, dragDisplay.end) : -1;
+  const selEnd = dragDisplay ? Math.max(dragDisplay.start, dragDisplay.end) : -1;
+
+  function getBucketIndex(clientX: number): number {
+    const el = gridRef.current;
+    if (!el) return 0;
+    const rect = el.getBoundingClientRect();
+    const ratio = (clientX - rect.left) / rect.width;
+    return Math.min(buckets.length - 1, Math.max(0, Math.floor(ratio * buckets.length)));
+  }
+
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (!onRangeSelect) return;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* jsdom */ }
+    const idx = getBucketIndex(e.clientX);
+    dragRef.current = { start: idx, end: idx };
+    setDragDisplay({ start: idx, end: idx });
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragRef.current) return;
+    const idx = getBucketIndex(e.clientX);
+    dragRef.current = { ...dragRef.current, end: idx };
+    setDragDisplay({ ...dragRef.current });
+  }
+
+  function handlePointerUp() {
+    const drag = dragRef.current;
+    if (drag && onRangeSelect) {
+      const start = Math.min(drag.start, drag.end);
+      const end = Math.max(drag.start, drag.end);
+      onRangeSelect(buckets[start].startMs, buckets[end].endMs);
+    }
+    dragRef.current = null;
+    setDragDisplay(null);
+  }
 
   return (
     <section
@@ -248,23 +337,38 @@ function LogHistogram({ buckets, utc }: { buckets: HistogramBucket[]; utc: boole
           ))}
         </div>
       </div>
-      <div className="grid h-28 grid-cols-12 items-end gap-1" aria-hidden="true">
-        {buckets.map((bucket) => (
-          <div key={bucket.startMs} className="flex h-full flex-col justify-end gap-px rounded-sm bg-[var(--surface-inset)]">
-            {levelOrder.map((level) => {
-              const count = bucket.levels[level];
-              if (count === 0) return null;
-              return (
-                <div
-                  key={level}
-                  className={levelBarClasses[level]}
-                  title={`${formatBucketLabel(bucket.startMs, utc)} ${level}: ${count}`}
-                  style={{ height: `${Math.max(8, (count / max) * 100)}%` }}
-                />
-              );
-            })}
-          </div>
-        ))}
+      <p className="sr-only">Drag over bars to zoom into a time range.</p>
+      <div
+        ref={gridRef}
+        className="grid h-28 grid-cols-12 items-end gap-1 select-none cursor-crosshair"
+        aria-hidden="true"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={() => { dragRef.current = null; setDragDisplay(null); }}
+      >
+        {buckets.map((bucket, i) => {
+          const isSelected = dragDisplay !== null && i >= selStart && i <= selEnd;
+          return (
+            <div
+              key={bucket.startMs}
+              className={`flex h-full flex-col justify-end gap-px rounded-sm ${isSelected ? "bg-[var(--surface-subtle)]" : "bg-[var(--surface-inset)]"}`}
+            >
+              {levelOrder.map((level) => {
+                const count = bucket.levels[level];
+                if (count === 0) return null;
+                return (
+                  <div
+                    key={level}
+                    className={levelBarClasses[level]}
+                    title={`${formatBucketLabel(bucket.startMs, utc)} ${level}: ${count}`}
+                    style={{ height: `${Math.max(8, (count / max) * 100)}%` }}
+                  />
+                );
+              })}
+            </div>
+          );
+        })}
       </div>
     </section>
   );
@@ -304,7 +408,26 @@ function LogContextSidebar({
         {entries.map(([key, value]) => (
           <div key={key} className="contents">
             <dt className="break-all font-bold text-[var(--muted)]">{key}</dt>
-            <dd className="m-0 min-w-0 break-all text-[var(--text)]">{value}</dd>
+            <dd className="m-0 min-w-0 break-all text-[var(--text)]">
+              {key === "trace_id" && log.trace_id ? (
+                <a
+                  href={`/traces/${log.trace_id}`}
+                  className="text-[var(--brand)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+                >
+                  {value}
+                </a>
+              ) : key === "span_id" && log.trace_id ? (
+                <a
+                  href={`/traces/${log.trace_id}`}
+                  title="View parent trace"
+                  className="text-[var(--brand)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+                >
+                  {value}
+                </a>
+              ) : (
+                value
+              )}
+            </dd>
           </div>
         ))}
       </dl>
@@ -348,15 +471,13 @@ export function formatLogMessage(body: unknown): string {
     .join(" ");
 }
 
-export function buildLogHistogram(logs: LogRecord[], lookbackMinutes: number): HistogramBucket[] {
+export function buildLogHistogram(logs: LogRecord[], fromMs: number, toMs: number): HistogramBucket[] {
   const bucketCount = 12;
-  const latestMs = Math.max(Date.now(), ...logs.map((log) => Number(log.timestamp_unix_nano) / 1_000_000));
-  const rangeMs = lookbackMinutes * 60 * 1000;
-  const startMs = latestMs - rangeMs;
+  const rangeMs = toMs - fromMs;
   const bucketMs = rangeMs / bucketCount;
   const buckets = Array.from({ length: bucketCount }, (_, index) => ({
-    startMs: startMs + index * bucketMs,
-    endMs: startMs + (index + 1) * bucketMs,
+    startMs: fromMs + index * bucketMs,
+    endMs: fromMs + (index + 1) * bucketMs,
     total: 0,
     levels: emptyLevels(),
   }));
@@ -364,7 +485,7 @@ export function buildLogHistogram(logs: LogRecord[], lookbackMinutes: number): H
   for (const log of logs) {
     const timestampMs = Number(log.timestamp_unix_nano) / 1_000_000;
     if (!Number.isFinite(timestampMs)) continue;
-    const rawIndex = Math.floor((timestampMs - startMs) / bucketMs);
+    const rawIndex = Math.floor((timestampMs - fromMs) / bucketMs);
     const index = Math.min(bucketCount - 1, Math.max(0, rawIndex));
     const level = otelSeverity(log.severity_number).label;
     buckets[index].total += 1;

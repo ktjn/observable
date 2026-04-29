@@ -133,10 +133,87 @@ test("formats structured log bodies as a message instead of raw JSON", () => {
 });
 
 test("builds histogram buckets across the selected time range", () => {
-  const buckets = buildLogHistogram(logs, 60);
+  const toMs = Date.now();
+  const fromMs = toMs - 60 * 60 * 1000;
+  const buckets = buildLogHistogram(logs, fromMs, toMs);
 
   expect(buckets).toHaveLength(12);
   expect(buckets.reduce((sum, bucket) => sum + bucket.total, 0)).toBe(2);
   expect(buckets.some((bucket) => bucket.levels.INFO === 1)).toBe(true);
   expect(buckets.some((bucket) => bucket.levels.ERROR === 1)).toBe(true);
+});
+
+test("histogram drag selection zooms the log query to the selected bucket range", async () => {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+    left: 0, top: 0, right: 600, bottom: 112, width: 600, height: 112, x: 0, y: 0,
+    toJSON: () => ({}),
+  });
+
+  renderLogSearch();
+  await screen.findByRole("img", { name: "Log volume histogram" });
+
+  const histogram = screen.getByRole("img", { name: "Log volume histogram" });
+  const grid = histogram.querySelector("[aria-hidden='true']") as HTMLElement;
+
+  // Drag across the first 6 buckets (left half)
+  fireEvent.pointerDown(grid, { clientX: 0, pointerId: 1 });
+  fireEvent.pointerMove(grid, { clientX: 300, pointerId: 1 });
+  fireEvent.pointerUp(grid, { pointerId: 1 });
+
+  await waitFor(() => {
+    const calls = vi.mocked(searchLogs).mock.calls;
+    expect(calls.some(([p]) => p.to !== undefined)).toBe(true);
+  });
+
+  vi.restoreAllMocks();
+});
+
+test("histogram reset range button restores lookback query", async () => {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+    left: 0, top: 0, right: 600, bottom: 112, width: 600, height: 112, x: 0, y: 0,
+    toJSON: () => ({}),
+  });
+
+  renderLogSearch();
+  await screen.findByRole("img", { name: "Log volume histogram" });
+
+  const histogram = screen.getByRole("img", { name: "Log volume histogram" });
+  const grid = histogram.querySelector("[aria-hidden='true']") as HTMLElement;
+
+  fireEvent.pointerDown(grid, { clientX: 0, pointerId: 1 });
+  fireEvent.pointerMove(grid, { clientX: 300, pointerId: 1 });
+  fireEvent.pointerUp(grid, { pointerId: 1 });
+
+  // "Reset range" button should appear after selection
+  const resetBtn = await screen.findByRole("button", { name: "Reset range" });
+  fireEvent.click(resetBtn);
+
+  // Dropdown restored, "Reset range" gone
+  await waitFor(() => {
+    expect(screen.getByLabelText("Log time range")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reset range" })).not.toBeInTheDocument();
+  });
+
+  vi.restoreAllMocks();
+});
+
+test("trace_id in log context sidebar is a link to the trace detail page", async () => {
+  renderLogSearch();
+
+  fireEvent.click(await screen.findByRole("button", { name: "Open log context for checkout completed" }));
+
+  const sidebar = screen.getByRole("complementary", { name: "Selected log context" });
+  const traceLink = within(sidebar).getByRole("link", { name: "trace-1" });
+  expect(traceLink).toHaveAttribute("href", "/traces/trace-1");
+});
+
+test("span_id in log context sidebar links to the parent trace", async () => {
+  renderLogSearch();
+
+  fireEvent.click(await screen.findByRole("button", { name: "Open log context for checkout completed" }));
+
+  const sidebar = screen.getByRole("complementary", { name: "Selected log context" });
+  const spanLink = within(sidebar).getByRole("link", { name: "span-1" });
+  expect(spanLink).toHaveAttribute("href", "/traces/trace-1");
+  expect(spanLink).toHaveAttribute("title", "View parent trace");
 });
