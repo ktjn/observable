@@ -71,3 +71,9 @@ After the pilot, reassess routing rules and optionally move to soft enforcement.
 Changes to this directory (role charters, routing rules, escalation triggers) touch the governance
 process. They must be reviewed by a human maintainer and updated in the same iteration as any
 related changes to AGENTS.md, CLAUDE.md, or `spec/10-process.md`.
+
+**Maintenance note — mandate duplication:** Specialist agent files intentionally repeat key mandates
+from AGENTS.md (e.g. local-ci.sh, Testcontainers) so each file is a self-contained context pack.
+This means **changes to those mandates in AGENTS.md must also be reflected in any affected specialist
+files** in the same iteration. Check `implementation-steward.agent.md` for CI/Testcontainers rules
+and the other steward files for any overlapping governance text whenever AGENTS.md is updated.
