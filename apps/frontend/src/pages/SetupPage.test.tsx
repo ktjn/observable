@@ -18,12 +18,14 @@ vi.mock("../api/setup", async (importOriginal) => {
     getConfig: vi.fn(),
     saveLlmConfig: vi.fn(),
     saveLlmKey: vi.fn(),
+    testLlmConfig: vi.fn(),
   };
 });
 
-import { getConfig, saveLlmConfig } from "../api/setup";
+import { getConfig, saveLlmConfig, testLlmConfig } from "../api/setup";
 const mockGetConfig = vi.mocked(getConfig);
 const mockSaveLlmConfig = vi.mocked(saveLlmConfig);
+const mockTestLlmConfig = vi.mocked(testLlmConfig);
 
 const BASE_CONFIG = {
   llm_key_configured: false,
@@ -59,14 +61,15 @@ describe("SetupPage — AI/NLQ panel", () => {
     expect(await screen.findByText("Configured")).toBeInTheDocument();
   });
 
-  test("Save button is enabled even with empty API key (url/model may be saved)", async () => {
+  test("Save button is enabled with empty API key (url/model may be saved)", async () => {
     mockGetConfig.mockResolvedValue({ ...BASE_CONFIG });
+    mockTestLlmConfig.mockResolvedValue({ ok: true, model: "gpt-4o-mini" });
     renderPage();
     await screen.findByTestId("llm-key-input");
     expect(screen.getByTestId("llm-config-save")).not.toBeDisabled();
   });
 
-  test("url and model inputs pre-fill from server config", async () => {
+  test("url and model inputs pre-fill from server config on load", async () => {
     mockGetConfig.mockResolvedValue({
       ...BASE_CONFIG,
       llm_key_configured: true,
@@ -81,9 +84,26 @@ describe("SetupPage — AI/NLQ panel", () => {
     });
   });
 
+  test("pre-filled url can be cleared by the user", async () => {
+    mockGetConfig.mockResolvedValue({
+      ...BASE_CONFIG,
+      llm_url: "http://gpu-host:8000",
+      llm_model: null,
+    });
+    renderPage();
+    const urlInput = await screen.findByTestId("llm-url-input");
+    await waitFor(() => {
+      expect((urlInput as HTMLInputElement).value).toBe("http://gpu-host:8000");
+    });
+    // User clears the field — it should stay empty, not revert to config value.
+    fireEvent.change(urlInput, { target: { value: "" } });
+    expect((urlInput as HTMLInputElement).value).toBe("");
+  });
+
   test("calls saveLlmConfig with apiKey when key is entered", async () => {
     mockGetConfig.mockResolvedValue({ ...BASE_CONFIG });
     mockSaveLlmConfig.mockResolvedValue(undefined);
+    mockTestLlmConfig.mockResolvedValue({ ok: true, model: "gpt-4o-mini" });
     renderPage();
     await screen.findByTestId("llm-key-input");
     fireEvent.change(screen.getByTestId("llm-key-input"), {
@@ -100,6 +120,7 @@ describe("SetupPage — AI/NLQ panel", () => {
   test("calls saveLlmConfig with url and model when provided", async () => {
     mockGetConfig.mockResolvedValue({ ...BASE_CONFIG });
     mockSaveLlmConfig.mockResolvedValue(undefined);
+    mockTestLlmConfig.mockResolvedValue({ ok: true, model: "gpt-4o" });
     renderPage();
     await screen.findByTestId("llm-url-input");
     fireEvent.change(screen.getByTestId("llm-url-input"), {
@@ -116,15 +137,36 @@ describe("SetupPage — AI/NLQ panel", () => {
     );
   });
 
-  test("shows success message after save", async () => {
+  test("shows connected badge after save + successful test", async () => {
     mockGetConfig.mockResolvedValue({ ...BASE_CONFIG });
     mockSaveLlmConfig.mockResolvedValue(undefined);
+    mockTestLlmConfig.mockResolvedValue({ ok: true, model: "gpt-4o-mini" });
     renderPage();
     await screen.findByTestId("llm-key-input");
     fireEvent.submit(screen.getByTestId("llm-key-input").closest("form")!);
     await waitFor(() =>
-      expect(screen.getByTestId("llm-config-saved")).toBeInTheDocument()
+      expect(screen.getByTestId("llm-config-test-ok")).toBeInTheDocument()
     );
+    expect(screen.getByTestId("llm-config-test-ok").textContent).toContain("Connected");
+    expect(screen.getByTestId("llm-config-test-ok").textContent).toContain("gpt-4o-mini");
+  });
+
+  test("shows connection failed message after save + failed test", async () => {
+    mockGetConfig.mockResolvedValue({ ...BASE_CONFIG });
+    mockSaveLlmConfig.mockResolvedValue(undefined);
+    mockTestLlmConfig.mockResolvedValue({
+      ok: false,
+      error: "insufficient_quota: You exceeded your current quota",
+      model: "gpt-4o-mini",
+    });
+    renderPage();
+    await screen.findByTestId("llm-key-input");
+    fireEvent.submit(screen.getByTestId("llm-key-input").closest("form")!);
+    await waitFor(() =>
+      expect(screen.getByTestId("llm-config-test-failed")).toBeInTheDocument()
+    );
+    expect(screen.getByTestId("llm-config-test-failed").textContent).toContain("Connection failed");
+    expect(screen.getByTestId("llm-config-test-failed").textContent).toContain("insufficient_quota");
   });
 
   test("shows error message when saveLlmConfig fails", async () => {
@@ -141,12 +183,29 @@ describe("SetupPage — AI/NLQ panel", () => {
   test("does not include apiKey in saveLlmConfig when key input is empty", async () => {
     mockGetConfig.mockResolvedValue({ ...BASE_CONFIG });
     mockSaveLlmConfig.mockResolvedValue(undefined);
+    mockTestLlmConfig.mockResolvedValue({ ok: true, model: "gpt-4o-mini" });
     renderPage();
     await screen.findByTestId("llm-key-input");
-    // Ensure key input is empty, then submit.
     fireEvent.submit(screen.getByTestId("llm-key-input").closest("form")!);
     await waitFor(() => expect(mockSaveLlmConfig).toHaveBeenCalled());
     const callArg = mockSaveLlmConfig.mock.calls[0][0];
     expect(callArg).not.toHaveProperty("apiKey");
+  });
+
+  test("shows Test connection button when configured and idle", async () => {
+    mockGetConfig.mockResolvedValue({ ...BASE_CONFIG, llm_key_configured: true });
+    renderPage();
+    expect(await screen.findByTestId("llm-config-test")).toBeInTheDocument();
+  });
+
+  test("Test connection button runs probe and shows result", async () => {
+    mockGetConfig.mockResolvedValue({ ...BASE_CONFIG, llm_key_configured: true });
+    mockTestLlmConfig.mockResolvedValue({ ok: true, model: "gpt-4o-mini" });
+    renderPage();
+    const testBtn = await screen.findByTestId("llm-config-test");
+    fireEvent.click(testBtn);
+    await waitFor(() =>
+      expect(screen.getByTestId("llm-config-test-ok")).toBeInTheDocument()
+    );
   });
 });

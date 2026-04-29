@@ -89,3 +89,30 @@ export async function saveLlmConfig(params: SaveLlmConfigParams): Promise<void> 
 export async function saveLlmKey(key: string): Promise<void> {
   return saveLlmConfig({ apiKey: key });
 }
+
+// ── LLM connectivity test ─────────────────────────────────────────────────────
+
+export interface LlmTestResult {
+  ok: boolean;
+  /** Present when ok is false. */
+  error?: string;
+  /** The model that was probed. */
+  model: string;
+}
+
+/**
+ * GET /v1/config/llm/test — fires a 1-token probe completion against the
+ * currently-configured LLM and returns whether it succeeded.
+ * Always resolves (never rejects) — callers inspect `ok`.
+ * Throws only if the server is unreachable or LLM is not configured (503).
+ */
+export async function testLlmConfig(): Promise<LlmTestResult> {
+  const res = await fetch("/v1/config/llm/test", {
+    headers: {
+      "x-api-key": LOCAL_DEV_API_KEY,
+      "X-Tenant-ID": LOCAL_DEV_TENANT_ID,
+    },
+  });
+  if (!res.ok) throw new Error(`testLlmConfig failed: ${res.status}`);
+  return res.json() as Promise<LlmTestResult>;
+}

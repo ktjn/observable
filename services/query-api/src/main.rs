@@ -119,6 +119,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/nlq", post(llm_adapter::handle_nlq_query))
         .route("/v1/config", get(config::get_config))
         .route("/v1/config/llm", axum::routing::put(config::put_llm_config))
+        .route("/v1/config/llm/test", get(config::test_llm_connection))
         .route(
             "/v1/config/llm-key",
             axum::routing::put(config::put_llm_key),

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Panel } from "../components/ui/panel";
@@ -12,6 +12,7 @@ import {
   OTLP_HTTP_TRACE_ENDPOINT,
   REDACTED_LOCAL_API_KEY,
   saveLlmConfig,
+  testLlmConfig,
 } from "../api/setup";
 
 export default function SetupPage() {
@@ -133,20 +134,50 @@ function LlmConfigPanel() {
   });
 
   const [apiKey, setApiKey] = useState("");
-  const [url, setUrl] = useState<string>("");
-  const [model, setModel] = useState<string>("");
+  // null = not yet initialised from config; "" = user explicitly cleared the field.
+  const [url, setUrl] = useState<string | null>(null);
+  const [model, setModel] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [testState, setTestState] = useState<"idle" | "testing" | "ok" | "failed">("idle");
+  const [testError, setTestError] = useState("");
+  const [testModel, setTestModel] = useState("");
 
   // Pre-fill url and model from server config on first load.
-  // (API key is never echoed back — only the placeholder reflects configured status.)
-  const urlValue = url !== "" ? url : (config?.llm_url ?? "");
-  const modelValue = model !== "" ? model : (config?.llm_model ?? "");
+  // API key is never echoed back — only the placeholder reflects configured status.
+  useEffect(() => {
+    if (config) {
+      if (url === null) setUrl(config.llm_url ?? "");
+      if (model === null) setModel(config.llm_model ?? "");
+    }
+  }, [config, url, model]);
 
   const configured = config?.llm_key_configured ?? false;
+  const urlValue = url ?? "";
+  const modelValue = model ?? "";
+
+  async function runTest() {
+    setTestState("testing");
+    try {
+      const result = await testLlmConfig();
+      if (result.ok) {
+        setTestState("ok");
+        setTestModel(result.model);
+      } else {
+        setTestState("failed");
+        setTestError(result.error ?? "Connection test failed");
+        setTestModel(result.model);
+      }
+    } catch (err) {
+      setTestState("failed");
+      setTestError(err instanceof Error ? err.message : "Connection test failed");
+      setTestModel("");
+    }
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaveState("saving");
+    setTestState("idle");
     try {
       await saveLlmConfig({
         ...(apiKey.trim() && { apiKey: apiKey.trim() }),
@@ -156,6 +187,8 @@ function LlmConfigPanel() {
       setApiKey("");
       setSaveState("saved");
       void refetchConfig();
+      // Auto-test connectivity immediately after saving.
+      await runTest();
     } catch {
       setSaveState("error");
     }
@@ -218,25 +251,35 @@ function LlmConfigPanel() {
             ))}
           </datalist>
         </label>
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center">
           <Button
             variant="secondary"
             type="submit"
-            disabled={saveState === "saving"}
+            disabled={saveState === "saving" || testState === "testing"}
             data-testid="llm-config-save"
           >
-            {saveState === "saving" ? "Saving…" : "Save"}
+            {saveState === "saving"
+              ? "Saving…"
+              : testState === "testing"
+                ? "Testing…"
+                : "Save"}
           </Button>
-          {saveState === "saved" && (
-            <span className="text-xs text-[var(--text-muted)]" role="status" data-testid="llm-config-saved">
-              Saved. The NLQ panel will use it on the next request.
-            </span>
+          {configured && saveState === "idle" && testState === "idle" && (
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => void runTest()}
+              data-testid="llm-config-test"
+            >
+              Test connection
+            </Button>
           )}
-          {saveState === "error" && (
-            <span className="text-xs text-[var(--danger-text)]" role="alert" data-testid="llm-config-error">
-              Failed to save. Check the console for details.
-            </span>
-          )}
+          <ConnectivityBadge
+            saveState={saveState}
+            testState={testState}
+            testError={testError}
+            testModel={testModel}
+          />
         </div>
       </form>
       <p className="mt-3 text-xs text-[var(--text-muted)]">
@@ -244,4 +287,46 @@ function LlmConfigPanel() {
       </p>
     </Panel>
   );
+}
+
+// ── ConnectivityBadge ─────────────────────────────────────────────────────────
+
+interface ConnectivityBadgeProps {
+  saveState: "idle" | "saving" | "saved" | "error";
+  testState: "idle" | "testing" | "ok" | "failed";
+  testError: string;
+  testModel: string;
+}
+
+function ConnectivityBadge({ saveState, testState, testError, testModel }: ConnectivityBadgeProps) {
+  if (saveState === "error") {
+    return (
+      <span className="text-xs text-[var(--danger-text)]" role="alert" data-testid="llm-config-error">
+        Failed to save. Check the console for details.
+      </span>
+    );
+  }
+  if (testState === "ok") {
+    return (
+      <span className="text-xs text-[var(--success-text,#22c55e)]" role="status" data-testid="llm-config-test-ok">
+        {saveState === "saved" ? "Saved. " : ""}✓ Connected
+        {testModel ? ` (${testModel})` : ""}
+      </span>
+    );
+  }
+  if (testState === "failed") {
+    return (
+      <span className="text-xs text-[var(--danger-text)]" role="alert" data-testid="llm-config-test-failed">
+        {saveState === "saved" ? "Saved. " : ""}⚠ Connection failed: {testError}
+      </span>
+    );
+  }
+  if (saveState === "saved" && testState === "idle") {
+    return (
+      <span className="text-xs text-[var(--text-muted)]" role="status" data-testid="llm-config-saved">
+        Saved.
+      </span>
+    );
+  }
+  return null;
 }

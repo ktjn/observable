@@ -3,9 +3,10 @@
 // Provides a runtime way to set LLM connection parameters without requiring a container
 // restart. Values are stored in the `platform_config` PostgreSQL table.
 //
-// GET  /v1/config        — returns {llm_key_configured, llm_url, llm_model}; never echoes the key.
-// PUT  /v1/config/llm    — upserts api_key (XOR-obfuscated), url, model from JSON body.
-// PUT  /v1/config/llm-key — legacy alias; accepts {key: "..."} for backwards compat.
+// GET  /v1/config            — returns {llm_key_configured, llm_url, llm_model}; never echoes the key.
+// PUT  /v1/config/llm        — upserts api_key (XOR-obfuscated), url, model from JSON body.
+// PUT  /v1/config/llm-key    — legacy alias; accepts {key: "..."} for backwards compat.
+// GET  /v1/config/llm/test   — verifies LLM connectivity with a 1-token probe completion.
 //
 // Env vars take priority over DB values (LLM_API_KEY, LLM_URL / OPENAI_BASE_URL,
 // LLM_MODEL / OPENAI_MODEL).
@@ -147,6 +148,71 @@ pub async fn put_llm_key(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ── Connectivity test ─────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct LlmTestResult {
+    pub ok: bool,
+    /// Present when `ok` is false; contains the provider error message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// The model name that was probed (from DB or default).
+    pub model: String,
+}
+
+/// GET /v1/config/llm/test
+///
+/// Resolves the LLM configuration (env → DB) and fires a single 1-token
+/// probe completion to verify that the key, URL, and model are all valid.
+/// Always returns HTTP 200; callers inspect the `ok` field.
+///
+/// Returns 503 if no LLM configuration is present at all.
+pub async fn test_llm_connection(
+    State(state): State<AppState>,
+) -> Result<Json<LlmTestResult>, StatusCode> {
+    use crate::llm_adapter::OpenAiLlmCaller;
+
+    // Resolve the key (env first, then DB).
+    let api_key: Option<String> = if crate::config::env_key_present() {
+        std::env::var("LLM_API_KEY").ok().filter(|v| !v.is_empty())
+    } else {
+        fetch_db_key(&state.db)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    };
+
+    // Resolve URL and model (env → DB → defaults).
+    let url = env_llm_url().or(fetch_db_value(&state.db, "llm_url")
+        .await
+        .unwrap_or(None)
+        .filter(|v| !v.is_empty()));
+    let model = env_llm_model()
+        .or(fetch_db_value(&state.db, "llm_model")
+            .await
+            .unwrap_or(None)
+            .filter(|v| !v.is_empty()))
+        .unwrap_or_else(|| "gpt-4o-mini".into());
+
+    // For providers that don't require an API key (e.g. local vLLM with no auth),
+    // treat an empty / absent key as an empty string (async-openai accepts it).
+    let effective_key = api_key.unwrap_or_default();
+
+    let caller = OpenAiLlmCaller::from_key(effective_key, url, Some(model.clone()));
+
+    match caller.probe().await {
+        Ok(()) => Ok(Json(LlmTestResult {
+            ok: true,
+            error: None,
+            model,
+        })),
+        Err(e) => Ok(Json(LlmTestResult {
+            ok: false,
+            error: Some(e),
+            model,
+        })),
+    }
 }
 
 // ── Internal helpers (pub(crate) for llm_adapter) ────────────────────────────
