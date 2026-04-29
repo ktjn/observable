@@ -11,7 +11,7 @@ import {
   LOCAL_DEV_TENANT_ID,
   OTLP_HTTP_TRACE_ENDPOINT,
   REDACTED_LOCAL_API_KEY,
-  saveLlmKey,
+  saveLlmConfig,
 } from "../api/setup";
 
 export default function SetupPage() {
@@ -110,29 +110,50 @@ export default function SetupPage() {
         </Panel>
       </div>
 
-      <LlmKeyPanel />
+      <LlmConfigPanel />
     </section>
   );
 }
 
-// ── LLM key panel ─────────────────────────────────────────────────────────────
+// ── LLM config panel ───────────────────────────────────────────────────────────
 
-function LlmKeyPanel() {
+/** Known model identifiers shown in the datalist suggestion list. */
+const KNOWN_MODELS = [
+  "gpt-4o-mini",
+  "gpt-4o",
+  "gpt-4.1",
+  "microsoft/Phi-3-mini-4k-instruct",
+  "meta-llama/Meta-Llama-3-8B-Instruct",
+];
+
+function LlmConfigPanel() {
   const { data: config, refetch: refetchConfig } = useQuery({
     queryKey: ["setup", "config"],
     queryFn: getConfig,
   });
 
-  const [keyInput, setKeyInput] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [url, setUrl] = useState<string>("");
+  const [model, setModel] = useState<string>("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  // Pre-fill url and model from server config on first load.
+  // (API key is never echoed back — only the placeholder reflects configured status.)
+  const urlValue = url !== "" ? url : (config?.llm_url ?? "");
+  const modelValue = model !== "" ? model : (config?.llm_model ?? "");
+
+  const configured = config?.llm_key_configured ?? false;
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!keyInput.trim()) return;
     setSaveState("saving");
     try {
-      await saveLlmKey(keyInput.trim());
-      setKeyInput("");
+      await saveLlmConfig({
+        ...(apiKey.trim() && { apiKey: apiKey.trim() }),
+        url: urlValue.trim(),
+        model: modelValue.trim(),
+      });
+      setApiKey("");
       setSaveState("saved");
       void refetchConfig();
     } catch {
@@ -140,12 +161,10 @@ function LlmKeyPanel() {
     }
   }
 
-  const configured = config?.llm_key_configured ?? false;
-
   return (
     <Panel
       eyebrow="AI / NLQ"
-      title="LLM API key"
+      title="LLM configuration"
       actions={
         <Badge tone={configured ? "good" : "warn"}>
           {configured ? "Configured" : "Not configured"}
@@ -153,42 +172,75 @@ function LlmKeyPanel() {
       }
     >
       <p className="text-sm text-[var(--text-muted)] mb-3">
-        Required for the Natural Language Query panel on service pages.
-        Compatible with any OpenAI-format provider (OpenAI, Azure OpenAI, Ollama, etc.).
-        Use <code className="font-mono">OPENAI_BASE_URL</code> and{" "}
-        <code className="font-mono">OPENAI_MODEL</code> env vars to customise the endpoint and model.
+        Required for the Natural Language Query panel. Compatible with any OpenAI-format provider
+        — OpenAI, Azure OpenAI, vLLM, Ollama, and others.
       </p>
-      <form onSubmit={handleSave} className="flex gap-2 items-center">
-        <input
-          type="password"
-          value={keyInput}
-          onChange={(e) => setKeyInput(e.target.value)}
-          placeholder={configured ? "Enter new key to replace…" : "sk-…"}
-          aria-label="LLM API key"
-          className="flex-1 rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
-          data-testid="llm-key-input"
-        />
-        <Button
-          variant="secondary"
-          type="submit"
-          disabled={saveState === "saving" || !keyInput.trim()}
-          data-testid="llm-key-save"
-        >
-          {saveState === "saving" ? "Saving…" : "Save"}
-        </Button>
+      <form onSubmit={handleSave} className="flex flex-col gap-3">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-semibold uppercase text-[var(--muted)]">API Key</span>
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder={configured ? "Enter new key to replace…" : "sk-… (leave blank for vLLM / no-auth endpoints)"}
+            aria-label="LLM API key"
+            className="rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
+            data-testid="llm-key-input"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-semibold uppercase text-[var(--muted)]">Endpoint URL</span>
+          <input
+            type="url"
+            value={urlValue}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://api.openai.com/v1 (blank = OpenAI default)"
+            aria-label="LLM endpoint URL"
+            className="rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
+            data-testid="llm-url-input"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-semibold uppercase text-[var(--muted)]">Model</span>
+          <input
+            type="text"
+            list="llm-model-suggestions"
+            value={modelValue}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder="gpt-4o-mini"
+            aria-label="LLM model"
+            className="rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
+            data-testid="llm-model-input"
+          />
+          <datalist id="llm-model-suggestions">
+            {KNOWN_MODELS.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
+        </label>
+        <div className="flex gap-2 items-center">
+          <Button
+            variant="secondary"
+            type="submit"
+            disabled={saveState === "saving"}
+            data-testid="llm-config-save"
+          >
+            {saveState === "saving" ? "Saving…" : "Save"}
+          </Button>
+          {saveState === "saved" && (
+            <span className="text-xs text-[var(--text-muted)]" role="status" data-testid="llm-config-saved">
+              Saved. The NLQ panel will use it on the next request.
+            </span>
+          )}
+          {saveState === "error" && (
+            <span className="text-xs text-[var(--danger-text)]" role="alert" data-testid="llm-config-error">
+              Failed to save. Check the console for details.
+            </span>
+          )}
+        </div>
       </form>
-      {saveState === "saved" && (
-        <p className="mt-2 text-xs text-[var(--text-muted)]" role="status" data-testid="llm-key-saved">
-          Key saved. The NLQ panel will use it on the next request.
-        </p>
-      )}
-      {saveState === "error" && (
-        <p className="mt-2 text-xs text-[var(--danger-text)]" role="alert" data-testid="llm-key-error">
-          Failed to save key. Check the console for details.
-        </p>
-      )}
       <p className="mt-3 text-xs text-[var(--text-muted)]">
-        ⚠ Stored in plaintext in PostgreSQL. Suitable for local development only.
+        API key is obfuscated in PostgreSQL. Suitable for local development only.
       </p>
     </Panel>
   );

@@ -50,22 +50,24 @@ pub struct OpenAiLlmCaller {
 }
 
 impl OpenAiLlmCaller {
-    /// Creates a caller using `LLM_API_KEY` and optionally `OPENAI_BASE_URL` and
-    /// `OPENAI_MODEL` environment variables.
+    /// Creates a caller using `LLM_API_KEY` env var. Returns None if not set.
     pub fn from_env() -> Option<Self> {
         let api_key = std::env::var("LLM_API_KEY").ok()?;
         if api_key.is_empty() {
             return None;
         }
-        Some(Self::from_key(api_key))
+        Some(Self::from_key(api_key, None, None))
     }
 
-    /// Creates a caller from an explicit API key string.
-    /// Reads `OPENAI_BASE_URL` and `OPENAI_MODEL` from env for additional config.
-    pub fn from_key(api_key: String) -> Self {
-        let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-4o-mini".into());
+    /// Creates a caller from an explicit API key string and optional url/model overrides.
+    /// If `url` or `model` are None, falls back to env vars then hardcoded defaults.
+    pub fn from_key(api_key: String, url: Option<String>, model: Option<String>) -> Self {
+        let model = model
+            .or_else(crate::config::env_llm_model)
+            .unwrap_or_else(|| "gpt-4o-mini".into());
         let mut config = OpenAIConfig::new().with_api_key(api_key);
-        if let Ok(base_url) = std::env::var("OPENAI_BASE_URL") {
+        let base_url = url.or_else(crate::config::env_llm_url);
+        if let Some(base_url) = base_url {
             config = config.with_api_base(base_url);
         }
         Self {
@@ -498,14 +500,24 @@ pub async fn handle_nlq_query(
     Json(req): Json<NlqQueryRequest>,
 ) -> Result<Json<NlqQueryResponse>, (StatusCode, Json<serde_json::Value>)> {
     // Resolve the LLM caller: prefer pre-built caller in AppState (from env var at startup),
-    // fall back to constructing one from the DB-stored key at call time.
+    // fall back to constructing one from the DB-stored key (and url/model) at call time.
     let db_caller: Option<OpenAiLlmCaller>;
     let llm: &dyn LlmCaller = if let Some(ref arc) = state.llm {
         arc.as_ref()
     } else {
         match crate::config::fetch_db_key(&state.db).await {
             Ok(Some(key)) => {
-                db_caller = Some(OpenAiLlmCaller::from_key(key));
+                let url = crate::config::fetch_db_value(&state.db, "llm_url")
+                    .await
+                    .ok()
+                    .flatten()
+                    .filter(|v| !v.is_empty());
+                let model = crate::config::fetch_db_value(&state.db, "llm_model")
+                    .await
+                    .ok()
+                    .flatten()
+                    .filter(|v| !v.is_empty());
+                db_caller = Some(OpenAiLlmCaller::from_key(key, url, model));
                 db_caller.as_ref().unwrap()
             }
             _ => {
