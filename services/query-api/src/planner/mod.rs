@@ -166,9 +166,12 @@ impl QueryPlanner {
             where_clause.push_str(" AND service_name = ?");
         }
 
+        // Cast literals to UInt64 explicitly: ClickHouse infers bare integer
+        // literals as Int64, which makes intDiv return Int64 — incompatible
+        // with the u64 tuple expected by the Rust deserializer.
         let sql = format!(
             "SELECT \
-               intDiv(timestamp_unix_nano - {from_ns}, {interval_ns}) AS bucket_idx, \
+               intDiv(timestamp_unix_nano - toUInt64({from_ns}), toUInt64({interval_ns})) AS bucket_idx, \
                severity_number, \
                count() AS cnt \
              FROM observable.logs {where_clause} \
@@ -378,6 +381,33 @@ mod tests {
             plan.sql
                 .contains("AND s1.environment = ? AND s2.environment = ?"),
             "Branch 2 should have env filter"
+        );
+    }
+
+    #[test]
+    fn log_histogram_sql_uses_uint64_casts_to_avoid_int64_schema_mismatch() {
+        // ClickHouse infers bare integer literals as Int64. Without explicit
+        // toUInt64() casts, intDiv returns Int64, which is incompatible with
+        // the u64 tuple field expected by the Rust clickhouse-rs deserializer.
+        let planner = QueryPlanner;
+        let plan = planner.plan_log_histogram(1_000_000u64, 2_000_000u64, None, 30);
+
+        assert!(
+            plan.sql.contains("toUInt64(1000000)"),
+            "from_ns must be cast to UInt64 to avoid Int64 schema mismatch; sql: {}",
+            plan.sql
+        );
+        let interval_ns = (2_000_000u64 - 1_000_000u64) / 30;
+        assert!(
+            plan.sql.contains(&format!("toUInt64({interval_ns})")),
+            "interval_ns must be cast to UInt64; sql: {}",
+            plan.sql
+        );
+        // bucket_idx must be the first SELECT expression.
+        assert!(
+            plan.sql.contains("intDiv(timestamp_unix_nano - toUInt64("),
+            "intDiv must subtract toUInt64-cast literal; sql: {}",
+            plan.sql
         );
     }
 
