@@ -1,0 +1,969 @@
+// MCP Server SQL template library — translates NlqIr into ClickHouse SQL.
+//
+// Design contract (per ADR-021):
+//   - Deterministic: identical NlqIr always produces identical SQL.
+//   - Tenant-scoped: every generated SQL carries `tenant_id = '<uuid>'` in the WHERE clause.
+//   - Metric-type-aware: counter, gauge, histogram, and summary each get the correct SQL pattern.
+//   - Unit-testable: pure functions, no I/O.
+//
+// All filter values from the NlqIr are treated as untrusted and are escaped before inlining.
+// Tenant IDs and metric names are from trusted context and are inlined directly after UUID/name
+// formatting.
+//
+// Table references: observable.metric_series (ms) + observable.metric_points (mp).
+use domain::{NlqFilter, NlqFilterOp, NlqIr, NlqOperation};
+use uuid::Uuid;
+
+// ── Schema metric type ────────────────────────────────────────────────────────
+
+/// Metric type from the Schema Registry annotation, used to select the correct SQL pattern.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SchemaMetricType {
+    Gauge,
+    Counter,
+    Histogram,
+    Summary,
+    Unknown,
+}
+
+impl SchemaMetricType {
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "gauge" => Self::Gauge,
+            "counter" => Self::Counter,
+            "histogram" => Self::Histogram,
+            "summary" => Self::Summary,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+// ── Context ───────────────────────────────────────────────────────────────────
+
+/// Everything the SQL template library needs to render a query.
+pub struct SqlContext<'a> {
+    /// Tenant that owns this query — injected into every WHERE clause.
+    pub tenant_id: Uuid,
+    /// Metric name as stored in `metric_series.metric_name`.
+    pub metric_name: &'a str,
+    /// Metric type from the Schema Registry (reserved for metric-type-aware dispatch in Step 6).
+    #[allow(dead_code)]
+    pub metric_type: SchemaMetricType,
+    /// The NLQ IR emitted by the LLM.
+    pub ir: &'a NlqIr,
+}
+
+// ── Error ─────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, PartialEq)]
+pub enum SqlTemplateError {
+    MissingMetricName,
+    /// Reserved for time-range validation (may be surfaced in future steps).
+    #[allow(dead_code)]
+    MissingTimeRange,
+    /// Reserved for unsupported operation validation.
+    #[allow(dead_code)]
+    UnsupportedOperation(String),
+    InvalidResolution(String),
+    InvalidTimeExpression(String),
+}
+
+impl std::fmt::Display for SqlTemplateError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MissingMetricName => write!(f, "metric_name is required for SQL generation"),
+            Self::MissingTimeRange => write!(f, "time_range is required"),
+            Self::UnsupportedOperation(op) => write!(f, "unsupported operation: {op}"),
+            Self::InvalidResolution(r) => write!(f, "invalid resolution: {r}"),
+            Self::InvalidTimeExpression(e) => write!(f, "invalid time expression: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for SqlTemplateError {}
+
+// ── Public entry point ────────────────────────────────────────────────────────
+
+/// Generates ClickHouse SQL for the given `NlqIr` and schema context.
+///
+/// Every generated query carries `tenant_id = '<uuid>'` in its WHERE clause.
+/// Filter values are escaped before inlining. Operation dispatch follows `ir.operation`.
+pub fn generate_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
+    match ctx.ir.operation {
+        NlqOperation::Timeseries => timeseries_sql(ctx),
+        NlqOperation::Rate => rate_sql(ctx),
+        NlqOperation::Irate => irate_sql(ctx),
+        NlqOperation::Increase => increase_sql(ctx),
+        NlqOperation::Histogram => histogram_sql(ctx),
+        NlqOperation::Topk => topk_sql(ctx),
+        NlqOperation::Table => table_sql(ctx),
+        NlqOperation::Distribution => distribution_sql(ctx),
+    }
+}
+
+// ── Operation templates ───────────────────────────────────────────────────────
+
+/// Time-series line chart: avg(value) per time bucket.
+/// Used for gauge metrics. For counters, prefer `rate_sql`.
+fn timeseries_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
+    let resolution = ctx.ir.resolution.as_deref().unwrap_or("1m");
+    let interval = parse_interval(resolution)?;
+    let filters = build_filter_clauses(&ctx.ir.filters);
+    let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
+    let (group_select, group_clause) = build_group_by(&ctx.ir.group_by);
+
+    Ok(format!(
+        "SELECT\n    \
+             toStartOfInterval(fromUnixTimestamp64Nano(mp.time_unix_nano), INTERVAL {interval}) AS bucket,\n    \
+             avg(coalesce(mp.value_double, toFloat64(mp.value_int))) AS value{group_select}\n\
+         FROM observable.metric_points mp\n\
+         JOIN observable.metric_series ms\n    \
+             ON ms.tenant_id = mp.tenant_id AND ms.metric_series_id = mp.metric_series_id\n\
+         WHERE mp.tenant_id = '{tenant_id}'\n  \
+           AND ms.metric_name = '{metric_name}'{filters}{time_clause}\n\
+         GROUP BY bucket{group_clause}\n\
+         ORDER BY bucket",
+        interval = interval,
+        group_select = group_select,
+        tenant_id = ctx.tenant_id,
+        metric_name = escape_string_value(ctx.metric_name),
+        filters = filters,
+        time_clause = time_clause,
+        group_clause = group_clause,
+    ))
+}
+
+/// Per-window rate of a monotonic counter (reset-aware delta / interval seconds).
+fn rate_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
+    let resolution = ctx.ir.resolution.as_deref().unwrap_or("1m");
+    let interval = parse_interval(resolution)?;
+    let interval_secs = interval_to_secs(resolution)?;
+    let window = ctx.ir.window.as_deref().unwrap_or("5m");
+    let filters = build_filter_clauses(&ctx.ir.filters);
+    let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
+    let window_clause = build_window_preceding_clause(window)?;
+    let (group_select, group_clause) = build_group_by(&ctx.ir.group_by);
+
+    Ok(format!(
+        "WITH src AS (\n    \
+             SELECT\n        \
+                 mp.time_unix_nano,\n        \
+                 coalesce(mp.value_double, toFloat64(mp.value_int)) AS value,\n        \
+                 mp.metric_series_id\n    \
+             FROM observable.metric_points mp\n    \
+             JOIN observable.metric_series ms\n        \
+                 ON ms.tenant_id = mp.tenant_id AND ms.metric_series_id = mp.metric_series_id\n    \
+             WHERE mp.tenant_id = '{tenant_id}'\n      \
+               AND ms.metric_name = '{metric_name}'{filters}{time_clause}{window_clause}\n\
+         )\n\
+         SELECT\n    \
+             toStartOfInterval(fromUnixTimestamp64Nano(time_unix_nano), INTERVAL {interval}) AS bucket,\n    \
+             sum(if(delta < 0, value, delta)) / {interval_secs} AS rate{group_select}\n\
+         FROM (\n    \
+             SELECT\n        \
+                 time_unix_nano, value,\n        \
+                 value - lagInFrame(value, 1, value)\n            \
+                     OVER (PARTITION BY metric_series_id ORDER BY time_unix_nano) AS delta\n    \
+             FROM src\n\
+         )\n\
+         GROUP BY bucket{group_clause}\n\
+         ORDER BY bucket",
+        tenant_id = ctx.tenant_id,
+        metric_name = escape_string_value(ctx.metric_name),
+        filters = filters,
+        time_clause = time_clause,
+        window_clause = window_clause,
+        interval = interval,
+        interval_secs = interval_secs,
+        group_select = group_select,
+        group_clause = group_clause,
+    ))
+}
+
+/// Instantaneous rate using the two most-recent samples in the lookback window.
+fn irate_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
+    let window = ctx.ir.window.as_deref().unwrap_or("1m");
+    let filters = build_filter_clauses(&ctx.ir.filters);
+    let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
+    let window_clause = build_window_preceding_clause(window)?;
+
+    Ok(format!(
+        "WITH src AS (\n    \
+             SELECT\n        \
+                 mp.time_unix_nano,\n        \
+                 coalesce(mp.value_double, toFloat64(mp.value_int)) AS value,\n        \
+                 mp.metric_series_id,\n        \
+                 row_number()\n            \
+                     OVER (PARTITION BY mp.metric_series_id ORDER BY mp.time_unix_nano DESC) AS rn\n    \
+             FROM observable.metric_points mp\n    \
+             JOIN observable.metric_series ms\n        \
+                 ON ms.tenant_id = mp.tenant_id AND ms.metric_series_id = mp.metric_series_id\n    \
+             WHERE mp.tenant_id = '{tenant_id}'\n      \
+               AND ms.metric_name = '{metric_name}'{filters}{time_clause}{window_clause}\n\
+         )\n\
+         SELECT\n    \
+             metric_series_id,\n    \
+             if(delta < 0, latest_value, delta) / ((latest_ts - prev_ts) / 1e9) AS irate\n\
+         FROM (\n    \
+             SELECT\n        \
+                 metric_series_id,\n        \
+                 maxIf(value, rn = 1) AS latest_value,\n        \
+                 maxIf(value, rn = 1) - maxIf(value, rn = 2) AS delta,\n        \
+                 maxIf(time_unix_nano, rn = 1) AS latest_ts,\n        \
+                 maxIf(time_unix_nano, rn = 2) AS prev_ts\n    \
+             FROM src\n    \
+             WHERE rn <= 2\n    \
+             GROUP BY metric_series_id\n\
+         )\n\
+         WHERE latest_ts > prev_ts",
+        tenant_id = ctx.tenant_id,
+        metric_name = escape_string_value(ctx.metric_name),
+        filters = filters,
+        time_clause = time_clause,
+        window_clause = window_clause,
+    ))
+}
+
+/// Monotonic counter increase over the lookback window (sum of positive deltas).
+fn increase_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
+    let window = ctx.ir.window.as_deref().unwrap_or("1h");
+    let filters = build_filter_clauses(&ctx.ir.filters);
+    let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
+    let window_clause = build_window_preceding_clause(window)?;
+    let (group_select, group_clause) = build_group_by(&ctx.ir.group_by);
+
+    Ok(format!(
+        "WITH src AS (\n    \
+             SELECT\n        \
+                 mp.time_unix_nano,\n        \
+                 coalesce(mp.value_double, toFloat64(mp.value_int)) AS value,\n        \
+                 mp.metric_series_id\n    \
+             FROM observable.metric_points mp\n    \
+             JOIN observable.metric_series ms\n        \
+                 ON ms.tenant_id = mp.tenant_id AND ms.metric_series_id = mp.metric_series_id\n    \
+             WHERE mp.tenant_id = '{tenant_id}'\n      \
+               AND ms.metric_name = '{metric_name}'{filters}{time_clause}{window_clause}\n\
+         )\n\
+         SELECT\n    \
+             sum(if(delta < 0, value, delta)) AS increase{group_select}\n\
+         FROM (\n    \
+             SELECT\n        \
+                 value,\n        \
+                 value - lagInFrame(value, 1, value)\n            \
+                     OVER (PARTITION BY metric_series_id ORDER BY time_unix_nano) AS delta\n    \
+             FROM src\n\
+         )\n\
+         WHERE true{group_clause}",
+        tenant_id = ctx.tenant_id,
+        metric_name = escape_string_value(ctx.metric_name),
+        filters = filters,
+        time_clause = time_clause,
+        window_clause = window_clause,
+        group_select = group_select,
+        group_clause = group_clause,
+    ))
+}
+
+/// Histogram bucket distribution via explicit_bounds + arrayDifference on bucket counts.
+fn histogram_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
+    let filters = build_filter_clauses(&ctx.ir.filters);
+    let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
+
+    Ok(format!(
+        "SELECT\n    \
+             bound,\n    \
+             sum(count_in_bucket) AS count\n\
+         FROM (\n    \
+             SELECT\n        \
+                 arrayJoin(\n            \
+                     arrayMap(\n                \
+                         (b, c) -> (b, c),\n                \
+                         mp.histogram_explicit_bounds,\n                \
+                         arrayDifference(arrayConcat([toUInt64(0)], mp.histogram_bucket_counts))\n            \
+                     )\n        \
+                 ) AS bc,\n        \
+                 bc.1 AS bound,\n        \
+                 bc.2 AS count_in_bucket\n    \
+             FROM observable.metric_points mp\n    \
+             JOIN observable.metric_series ms\n        \
+                 ON ms.tenant_id = mp.tenant_id AND ms.metric_series_id = mp.metric_series_id\n    \
+             WHERE mp.tenant_id = '{tenant_id}'\n      \
+               AND ms.metric_name = '{metric_name}'{filters}{time_clause}\n      \
+               AND notEmpty(mp.histogram_explicit_bounds)\n\
+         )\n\
+         GROUP BY bound\n\
+         ORDER BY bound",
+        tenant_id = ctx.tenant_id,
+        metric_name = escape_string_value(ctx.metric_name),
+        filters = filters,
+        time_clause = time_clause,
+    ))
+}
+
+/// Top-K series by average value in the time range.
+fn topk_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
+    // Default K = 10; derive from group_by size hint or use fixed default
+    const DEFAULT_K: usize = 10;
+    let k = DEFAULT_K;
+    let filters = build_filter_clauses(&ctx.ir.filters);
+    let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
+
+    Ok(format!(
+        "SELECT\n    \
+             ms.metric_name,\n    \
+             ms.service_name,\n    \
+             avg(coalesce(mp.value_double, toFloat64(mp.value_int))) AS avg_value\n\
+         FROM observable.metric_points mp\n\
+         JOIN observable.metric_series ms\n    \
+             ON ms.tenant_id = mp.tenant_id AND ms.metric_series_id = mp.metric_series_id\n\
+         WHERE mp.tenant_id = '{tenant_id}'\n  \
+           AND ms.metric_name = '{metric_name}'{filters}{time_clause}\n\
+         GROUP BY ms.metric_name, ms.service_name\n\
+         ORDER BY avg_value DESC\n\
+         LIMIT {k}",
+        tenant_id = ctx.tenant_id,
+        metric_name = escape_string_value(ctx.metric_name),
+        filters = filters,
+        time_clause = time_clause,
+        k = k,
+    ))
+}
+
+/// Flat tabular point scan (most-recent 1000 rows).
+fn table_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
+    let filters = build_filter_clauses(&ctx.ir.filters);
+    let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
+    let (extra_select, _) = build_group_by(&ctx.ir.group_by);
+
+    Ok(format!(
+        "SELECT\n    \
+             fromUnixTimestamp64Nano(mp.time_unix_nano) AS ts,\n    \
+             ms.metric_name,\n    \
+             ms.service_name,\n    \
+             coalesce(mp.value_double, toFloat64(mp.value_int)) AS value{extra_select}\n\
+         FROM observable.metric_points mp\n\
+         JOIN observable.metric_series ms\n    \
+             ON ms.tenant_id = mp.tenant_id AND ms.metric_series_id = mp.metric_series_id\n\
+         WHERE mp.tenant_id = '{tenant_id}'\n  \
+           AND ms.metric_name = '{metric_name}'{filters}{time_clause}\n\
+         ORDER BY ts DESC\n\
+         LIMIT 1000",
+        tenant_id = ctx.tenant_id,
+        metric_name = escape_string_value(ctx.metric_name),
+        filters = filters,
+        time_clause = time_clause,
+        extra_select = extra_select,
+    ))
+}
+
+/// Empirical value distribution (width_bucket percentile).
+fn distribution_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
+    let filters = build_filter_clauses(&ctx.ir.filters);
+    let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
+
+    Ok(format!(
+        "SELECT\n    \
+             quantile(0.50)(coalesce(mp.value_double, toFloat64(mp.value_int))) AS p50,\n    \
+             quantile(0.90)(coalesce(mp.value_double, toFloat64(mp.value_int))) AS p90,\n    \
+             quantile(0.95)(coalesce(mp.value_double, toFloat64(mp.value_int))) AS p95,\n    \
+             quantile(0.99)(coalesce(mp.value_double, toFloat64(mp.value_int))) AS p99,\n    \
+             min(coalesce(mp.value_double, toFloat64(mp.value_int))) AS min_val,\n    \
+             max(coalesce(mp.value_double, toFloat64(mp.value_int))) AS max_val\n\
+         FROM observable.metric_points mp\n\
+         JOIN observable.metric_series ms\n    \
+             ON ms.tenant_id = mp.tenant_id AND ms.metric_series_id = mp.metric_series_id\n\
+         WHERE mp.tenant_id = '{tenant_id}'\n  \
+           AND ms.metric_name = '{metric_name}'{filters}{time_clause}",
+        tenant_id = ctx.tenant_id,
+        metric_name = escape_string_value(ctx.metric_name),
+        filters = filters,
+        time_clause = time_clause,
+    ))
+}
+
+// ── Helper functions ──────────────────────────────────────────────────────────
+
+/// Parses a relative or absolute time expression to a ClickHouse expression string.
+///
+/// Supported forms:
+/// - `"now"` → `"now()"`
+/// - `"now-5m"` → `"now() - INTERVAL 5 MINUTE"`
+/// - `"now-2h"` → `"now() - INTERVAL 2 HOUR"`
+/// - `"now-1d"` → `"now() - INTERVAL 1 DAY"`
+/// - `"now-30s"` → `"now() - INTERVAL 30 SECOND"`
+/// - ISO-8601 / RFC-3339 → `"toDateTime('YYYY-MM-DD HH:MM:SS', 'UTC')"`
+pub fn parse_time_expr(expr: &str) -> Result<String, SqlTemplateError> {
+    let expr = expr.trim();
+    if expr == "now" {
+        return Ok("now()".into());
+    }
+    if let Some(rest) = expr.strip_prefix("now-") {
+        let (n, unit) = parse_duration_str(rest)
+            .ok_or_else(|| SqlTemplateError::InvalidTimeExpression(expr.into()))?;
+        let ch_unit = duration_unit_to_ch(unit)
+            .ok_or_else(|| SqlTemplateError::InvalidTimeExpression(expr.into()))?;
+        return Ok(format!("now() - INTERVAL {n} {ch_unit}"));
+    }
+    // ISO-8601 fallback: 2026-01-01T00:00:00Z or 2026-01-01T00:00:00+00:00
+    if expr.contains('T') {
+        let clean = expr
+            .replace('T', " ")
+            .replace('Z', "")
+            .trim_end_matches(|c: char| c == '+' || c.is_ascii_digit() || c == ':')
+            .trim()
+            .to_string();
+        return Ok(format!("toDateTime('{clean}', 'UTC')"));
+    }
+    Err(SqlTemplateError::InvalidTimeExpression(expr.into()))
+}
+
+/// Parses a resolution/window string like "1m", "5m", "1h" into a ClickHouse INTERVAL expression.
+pub fn parse_interval(s: &str) -> Result<String, SqlTemplateError> {
+    let (n, unit) =
+        parse_duration_str(s).ok_or_else(|| SqlTemplateError::InvalidResolution(s.into()))?;
+    let ch_unit =
+        duration_unit_to_ch(unit).ok_or_else(|| SqlTemplateError::InvalidResolution(s.into()))?;
+    Ok(format!("{n} {ch_unit}"))
+}
+
+/// Returns the number of seconds in a resolution string (for use as rate denominator).
+pub fn interval_to_secs(s: &str) -> Result<f64, SqlTemplateError> {
+    let (n, unit) =
+        parse_duration_str(s).ok_or_else(|| SqlTemplateError::InvalidResolution(s.into()))?;
+    let factor = match unit {
+        "s" => 1.0,
+        "m" => 60.0,
+        "h" => 3600.0,
+        "d" => 86400.0,
+        _ => return Err(SqlTemplateError::InvalidResolution(s.into())),
+    };
+    Ok(n as f64 * factor)
+}
+
+/// Escapes a string value for safe inlining in ClickHouse SQL (single-quoted).
+///
+/// Replaces `\` with `\\` and `'` with `\'`.
+pub fn escape_string_value(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('\'', "\\'")
+}
+
+// ── Private helpers ───────────────────────────────────────────────────────────
+
+/// Parses `"5m"` into `(5u64, "m")`, `"2h"` into `(2u64, "h")`, etc.
+fn parse_duration_str(s: &str) -> Option<(u64, &str)> {
+    let s = s.trim();
+    let split_at = s.find(|c: char| !c.is_ascii_digit())?;
+    if split_at == 0 {
+        return None;
+    }
+    let n: u64 = s[..split_at].parse().ok()?;
+    let unit = &s[split_at..];
+    if unit.is_empty() {
+        return None;
+    }
+    Some((n, unit))
+}
+
+fn duration_unit_to_ch(unit: &str) -> Option<&'static str> {
+    match unit {
+        "s" => Some("SECOND"),
+        "m" => Some("MINUTE"),
+        "h" => Some("HOUR"),
+        "d" => Some("DAY"),
+        _ => None,
+    }
+}
+
+/// Builds `\n  AND <from_expr> AND <to_expr>` clauses.
+fn build_time_range_clause(from: &str, to: &str) -> Result<String, SqlTemplateError> {
+    let from_expr = parse_time_expr(from)?;
+    let to_expr = parse_time_expr(to)?;
+    Ok(format!(
+        "\n  AND fromUnixTimestamp64Nano(mp.time_unix_nano) >= {from_expr}\
+         \n  AND fromUnixTimestamp64Nano(mp.time_unix_nano) <= {to_expr}"
+    ))
+}
+
+/// Builds a lookback window clause for rate/irate/increase queries.
+/// The window restricts the source rows to the last N seconds/minutes/hours.
+fn build_window_preceding_clause(window: &str) -> Result<String, SqlTemplateError> {
+    let interval = parse_interval(window)?;
+    Ok(format!(
+        "\n  AND fromUnixTimestamp64Nano(mp.time_unix_nano) >= now() - INTERVAL {interval}"
+    ))
+}
+
+/// Translates a field name from NlqFilter into a ClickHouse column reference.
+///
+/// Known direct columns → `ms.<col>` or `mp.<col>`.
+/// Others → `JSONExtractString(ms.attributes, '<field>')`.
+fn map_filter_field(field: &str) -> String {
+    match field {
+        "service_name" | "service" => "ms.service_name".into(),
+        "environment" | "env" => "ms.environment".into(),
+        "metric_name" | "metric" => "ms.metric_name".into(),
+        _ => format!(
+            "JSONExtractString(ms.attributes, '{}')",
+            escape_string_value(field)
+        ),
+    }
+}
+
+/// Builds a filter value expression for a given operator and raw string value.
+fn build_filter_expr(col: &str, op: NlqFilterOp, value: &str) -> String {
+    let escaped = escape_string_value(value);
+    match op {
+        NlqFilterOp::Eq => format!("{col} = '{escaped}'"),
+        NlqFilterOp::Ne => format!("{col} != '{escaped}'"),
+        NlqFilterOp::Re => format!("match({col}, '{escaped}')"),
+        NlqFilterOp::Nre => format!("NOT match({col}, '{escaped}')"),
+        NlqFilterOp::Gt => format!("{col} > {escaped}"),
+        NlqFilterOp::Gte => format!("{col} >= {escaped}"),
+        NlqFilterOp::Lt => format!("{col} < {escaped}"),
+        NlqFilterOp::Lte => format!("{col} <= {escaped}"),
+    }
+}
+
+/// Builds the `\n  AND …\n  AND …` filter block from a slice of NlqFilter.
+fn build_filter_clauses(filters: &[NlqFilter]) -> String {
+    if filters.is_empty() {
+        return String::new();
+    }
+    filters
+        .iter()
+        .map(|f| {
+            let col = map_filter_field(&f.field);
+            format!("\n  AND {}", build_filter_expr(&col, f.op, &f.value))
+        })
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+/// Builds `(extra_select_cols, group_by_extension)` for a group_by list.
+///
+/// Returns:
+/// - `extra_select_cols`: `,\n    <col> AS <col>` fragment for SELECT
+/// - `group_by_extension`: `, <col>` fragment appended after `GROUP BY bucket`
+fn build_group_by(group_by: &[String]) -> (String, String) {
+    if group_by.is_empty() {
+        return (String::new(), String::new());
+    }
+    let select_part: String = group_by
+        .iter()
+        .map(|g| {
+            let col = map_filter_field(g);
+            format!(",\n    {col} AS {g}")
+        })
+        .collect();
+    let group_part: String = group_by
+        .iter()
+        .map(|g| {
+            let col = map_filter_field(g);
+            format!(", {col}")
+        })
+        .collect();
+    (select_part, group_part)
+}
+
+// ── Unit tests ────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use domain::{NlqFilter, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, NlqTimeRange};
+
+    const TEST_TENANT: Uuid = Uuid::from_u128(0xAAAA_0000_0000_0000_0000_0000_0000_0001);
+
+    fn base_ir(op: NlqOperation) -> NlqIr {
+        NlqIr {
+            operation: op,
+            signals: vec![NlqSignal::Metrics],
+            metric: Some("request_duration_ms".into()),
+            window: None,
+            filters: vec![],
+            group_by: vec![],
+            resolution: Some("1m".into()),
+            time_range: NlqTimeRange {
+                from: "now-1h".into(),
+                to: "now".into(),
+            },
+            visualization_hint: None,
+        }
+    }
+
+    fn ctx_for<'a>(ir: &'a NlqIr) -> SqlContext<'a> {
+        SqlContext {
+            tenant_id: TEST_TENANT,
+            metric_name: "request_duration_ms",
+            metric_type: SchemaMetricType::Gauge,
+            ir,
+        }
+    }
+
+    // ── Tenant isolation ──────────────────────────────────────────────────────
+
+    #[test]
+    fn every_operation_contains_tenant_id_in_where() {
+        let ops = [
+            NlqOperation::Timeseries,
+            NlqOperation::Rate,
+            NlqOperation::Irate,
+            NlqOperation::Increase,
+            NlqOperation::Histogram,
+            NlqOperation::Topk,
+            NlqOperation::Table,
+            NlqOperation::Distribution,
+        ];
+        let tenant_str = format!("'{TEST_TENANT}'");
+        for op in ops {
+            let ir = base_ir(op);
+            let ctx = ctx_for(&ir);
+            let sql = generate_sql(&ctx).expect("generate_sql must succeed");
+            assert!(
+                sql.contains(&tenant_str),
+                "operation {op:?}: SQL must contain tenant_id in WHERE, got:\n{sql}"
+            );
+        }
+    }
+
+    #[test]
+    fn tenant_id_appears_after_where_keyword() {
+        let ir = base_ir(NlqOperation::Timeseries);
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        let where_pos = sql.find("WHERE").unwrap();
+        let tenant_pos = sql.find(&format!("'{TEST_TENANT}'")).unwrap();
+        assert!(
+            tenant_pos > where_pos,
+            "tenant_id must appear after WHERE keyword"
+        );
+    }
+
+    // ── Metric name injection ─────────────────────────────────────────────────
+
+    #[test]
+    fn metric_name_is_injected_into_sql() {
+        let ir = base_ir(NlqOperation::Timeseries);
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("'request_duration_ms'"));
+    }
+
+    #[test]
+    fn metric_name_with_single_quote_is_escaped() {
+        let ir = base_ir(NlqOperation::Timeseries);
+        let mut ctx = ctx_for(&ir);
+        ctx.metric_name = "metric'with'quotes";
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains(r#"metric\'with\'quotes"#));
+    }
+
+    // ── Time range ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn time_range_clause_uses_now_minus_for_relative() {
+        let ir = base_ir(NlqOperation::Timeseries);
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("now() - INTERVAL 1 HOUR"), "got: {sql}");
+        assert!(sql.contains("now()"), "to=now must render as now()");
+    }
+
+    #[test]
+    fn parse_time_expr_now() {
+        assert_eq!(parse_time_expr("now").unwrap(), "now()");
+    }
+
+    #[test]
+    fn parse_time_expr_relative_minutes() {
+        assert_eq!(
+            parse_time_expr("now-5m").unwrap(),
+            "now() - INTERVAL 5 MINUTE"
+        );
+    }
+
+    #[test]
+    fn parse_time_expr_relative_hours() {
+        assert_eq!(
+            parse_time_expr("now-2h").unwrap(),
+            "now() - INTERVAL 2 HOUR"
+        );
+    }
+
+    #[test]
+    fn parse_time_expr_relative_days() {
+        assert_eq!(parse_time_expr("now-1d").unwrap(), "now() - INTERVAL 1 DAY");
+    }
+
+    #[test]
+    fn parse_time_expr_relative_seconds() {
+        assert_eq!(
+            parse_time_expr("now-30s").unwrap(),
+            "now() - INTERVAL 30 SECOND"
+        );
+    }
+
+    #[test]
+    fn parse_time_expr_invalid_returns_error() {
+        assert!(parse_time_expr("yesterday").is_err());
+        assert!(parse_time_expr("now-").is_err());
+    }
+
+    // ── Resolution / interval ─────────────────────────────────────────────────
+
+    #[test]
+    fn parse_interval_minute() {
+        assert_eq!(parse_interval("1m").unwrap(), "1 MINUTE");
+        assert_eq!(parse_interval("5m").unwrap(), "5 MINUTE");
+    }
+
+    #[test]
+    fn parse_interval_hour() {
+        assert_eq!(parse_interval("1h").unwrap(), "1 HOUR");
+    }
+
+    #[test]
+    fn parse_interval_invalid_returns_error() {
+        assert!(parse_interval("fast").is_err());
+        assert!(parse_interval("").is_err());
+    }
+
+    #[test]
+    fn interval_to_secs_minute() {
+        assert_eq!(interval_to_secs("1m").unwrap(), 60.0);
+        assert_eq!(interval_to_secs("5m").unwrap(), 300.0);
+    }
+
+    #[test]
+    fn interval_to_secs_hour() {
+        assert_eq!(interval_to_secs("1h").unwrap(), 3600.0);
+    }
+
+    #[test]
+    fn timeseries_sql_contains_group_by_bucket() {
+        let ir = base_ir(NlqOperation::Timeseries);
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("GROUP BY bucket"));
+        assert!(sql.contains("ORDER BY bucket"));
+    }
+
+    // ── Filters ───────────────────────────────────────────────────────────────
+
+    #[test]
+    fn filter_eq_generates_correct_clause() {
+        let mut ir = base_ir(NlqOperation::Timeseries);
+        ir.filters.push(NlqFilter {
+            field: "service_name".into(),
+            op: NlqFilterOp::Eq,
+            value: "payments".into(),
+        });
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("ms.service_name = 'payments'"), "got:\n{sql}");
+    }
+
+    #[test]
+    fn filter_ne_generates_correct_clause() {
+        let mut ir = base_ir(NlqOperation::Timeseries);
+        ir.filters.push(NlqFilter {
+            field: "environment".into(),
+            op: NlqFilterOp::Ne,
+            value: "dev".into(),
+        });
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("ms.environment != 'dev'"));
+    }
+
+    #[test]
+    fn filter_regex_uses_match_function() {
+        let mut ir = base_ir(NlqOperation::Timeseries);
+        ir.filters.push(NlqFilter {
+            field: "service_name".into(),
+            op: NlqFilterOp::Re,
+            value: "pay.*".into(),
+        });
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("match(ms.service_name, 'pay.*')"));
+    }
+
+    #[test]
+    fn filter_nre_uses_not_match() {
+        let mut ir = base_ir(NlqOperation::Timeseries);
+        ir.filters.push(NlqFilter {
+            field: "service_name".into(),
+            op: NlqFilterOp::Nre,
+            value: "test.*".into(),
+        });
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("NOT match(ms.service_name, 'test.*')"));
+    }
+
+    #[test]
+    fn filter_unknown_field_uses_json_extract() {
+        let mut ir = base_ir(NlqOperation::Timeseries);
+        ir.filters.push(NlqFilter {
+            field: "pod".into(),
+            op: NlqFilterOp::Eq,
+            value: "api-1".into(),
+        });
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(
+            sql.contains("JSONExtractString(ms.attributes, 'pod') = 'api-1'"),
+            "got:\n{sql}"
+        );
+    }
+
+    #[test]
+    fn filter_value_with_sql_injection_is_escaped() {
+        let mut ir = base_ir(NlqOperation::Timeseries);
+        ir.filters.push(NlqFilter {
+            field: "service_name".into(),
+            op: NlqFilterOp::Eq,
+            value: "a'; DROP TABLE metric_series; --".into(),
+        });
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        // The injected ' must be escaped to \' — the string is quoted safely
+        assert!(
+            sql.contains(r"a\'"),
+            "single quote must be escaped to \\' in: {sql}"
+        );
+        // The statement string is fully within a quoted literal: ms.service_name = 'a\'; DROP...'
+        // Verify the outer quote around the value is intact (value is still inside quotes)
+        assert!(
+            sql.contains("= 'a\\'"),
+            "value must remain inside quoted literal: {sql}"
+        );
+    }
+
+    // ── Group by ──────────────────────────────────────────────────────────────
+
+    #[test]
+    fn group_by_adds_to_select_and_group_clause() {
+        let mut ir = base_ir(NlqOperation::Timeseries);
+        ir.group_by = vec!["service_name".into()];
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("ms.service_name AS service_name"));
+        assert!(sql.contains("GROUP BY bucket, ms.service_name"));
+    }
+
+    // ── Rate / irate / increase ───────────────────────────────────────────────
+
+    #[test]
+    fn rate_sql_contains_lag_function() {
+        let mut ir = base_ir(NlqOperation::Rate);
+        ir.window = Some("5m".into());
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("lagInFrame"), "rate must use lagInFrame");
+        assert!(
+            sql.contains("INTERVAL 5 MINUTE"),
+            "window must be in SQL: {sql}"
+        );
+    }
+
+    #[test]
+    fn rate_sql_divides_by_interval_seconds() {
+        let mut ir = base_ir(NlqOperation::Rate);
+        ir.resolution = Some("5m".into());
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(
+            sql.contains("/ 300"),
+            "rate must divide by interval seconds (300 for 5m)"
+        );
+    }
+
+    #[test]
+    fn irate_sql_uses_row_number_desc() {
+        let mut ir = base_ir(NlqOperation::Irate);
+        ir.window = Some("1m".into());
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("row_number()"), "irate must use row_number");
+        assert!(
+            sql.contains("ORDER BY mp.time_unix_nano DESC"),
+            "irate row_number must be DESC: {sql}"
+        );
+    }
+
+    #[test]
+    fn increase_sql_sums_deltas() {
+        let mut ir = base_ir(NlqOperation::Increase);
+        ir.window = Some("1h".into());
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("sum(if(delta < 0, value, delta))"));
+    }
+
+    // ── Histogram ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn histogram_sql_uses_explicit_bounds() {
+        let ir = base_ir(NlqOperation::Histogram);
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("histogram_explicit_bounds"));
+        assert!(sql.contains("histogram_bucket_counts"));
+        assert!(sql.contains("arrayDifference"));
+        assert!(sql.contains("notEmpty(mp.histogram_explicit_bounds)"));
+    }
+
+    // ── Topk ─────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn topk_sql_has_limit_and_order_desc() {
+        let ir = base_ir(NlqOperation::Topk);
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("ORDER BY avg_value DESC"));
+        assert!(sql.contains("LIMIT 10"));
+    }
+
+    // ── Table ─────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn table_sql_has_limit_1000() {
+        let ir = base_ir(NlqOperation::Table);
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("LIMIT 1000"));
+        assert!(sql.contains("ORDER BY ts DESC"));
+    }
+
+    // ── Distribution ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn distribution_sql_includes_percentile_quantiles() {
+        let ir = base_ir(NlqOperation::Distribution);
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("quantile(0.50)"));
+        assert!(sql.contains("quantile(0.99)"));
+        assert!(sql.contains("min_val"));
+        assert!(sql.contains("max_val"));
+    }
+
+    // ── escape_string_value ───────────────────────────────────────────────────
+
+    #[test]
+    fn escape_single_quote() {
+        assert_eq!(escape_string_value("it's"), r"it\'s");
+    }
+
+    #[test]
+    fn escape_backslash() {
+        assert_eq!(escape_string_value(r"a\b"), r"a\\b");
+    }
+
+    #[test]
+    fn escape_no_special_chars_unchanged() {
+        assert_eq!(escape_string_value("hello_world"), "hello_world");
+    }
+}

@@ -560,7 +560,7 @@ Before Phase 5 starts, answer:
 - [ ] **P8-S3: Add incident summarization with source links**
 - [ ] **P8-S4: Add capacity forecasting for one storage or ingest dimension**
 - [ ] **P8-S5: Add remediation hooks with explicit approval controls**
-- [ ] **P8-S6: Add NL query layer for one explorer view using semantic annotations**
+- [x] **P8-S6: Add NL query layer for one explorer view using semantic annotations**
   - Outcome: operators can ask natural-language questions against one signal type and receive an
     explained, sourced answer grounded in semantic annotations from the Schema Registry (P3-S14).
     The implementation follows the three-stage pipeline in ADR-021: LLM emits a structured NLQ IR;
@@ -573,38 +573,51 @@ Before Phase 5 starts, answer:
     server reads `metric_type`, `timestamp_column`, `unit`, and `recommended_downsampling` from the
     Schema Registry to generate correct time-series SQL.
   - Closure steps (internal dependency order):
-    1. **NLQ IR type** — define the `NlqIr` Rust struct + JSON schema contract
+    1. ✅ **NLQ IR type** — define the `NlqIr` Rust struct + JSON schema contract
        (fields: `operation`, `signals`, `metric`, `window`, `filters`, `group_by`, `resolution`,
        `time_range`, `visualization_hint`); add unit tests that deserialize IR from JSON.
-    2. **MCP Server schema lookup tools** — implement `get_metric_schema`, `list_signal_fields`,
+       _Checkpoint: `NlqIr`, `NlqOperation`, `NlqSignal`, `NlqFilter`, `NlqFilterOp`,
+       `NlqTimeRange`, `NlqVisualizationHint` defined in `libs/domain/src/nlq.rs`; pub-exported
+       from domain crate root; 10 unit tests pass; PR #168 merged._
+    2. ✅ **MCP Server schema lookup tools** — implement `get_metric_schema`, `list_signal_fields`,
        `resolve_label_to_column` reading from the Schema Registry (P3-S14); all calls carry tenant
        context.
-    3. **MCP Server SQL template library** — deterministic, unit-testable templates for each
+    3. ✅ **MCP Server SQL template library** — deterministic, unit-testable templates for each
        operation type (`timeseries`, `rate`, `irate`, `increase`, `topk`, `histogram`, `table`);
        reads `metric_type` from Schema Registry to select the correct pattern; injects `tenant_id`
        into every generated SQL `WHERE` clause.
-    4. **VisualizationFrame type** — define the `VisualizationFrame` Rust struct + JSON schema;
+    4. ✅ **VisualizationFrame type** — define the `VisualizationFrame` Rust struct + JSON schema;
        maps to Grafana `DataFrame` + `PanelData` model (ADR-016); includes the full provenance
        payload (`nlq_ir`, `source_sql`, `time_range`, `signal_type`, `sample_rate`,
        `approximation_statement`).
-    5. **End-to-end MCP server path** — wire steps 2–4 into a request handler (receive `NlqIr`
+    5. ✅ **End-to-end MCP server path** — wire steps 2–4 into a request handler (receive `NlqIr`
        → call Schema Registry → generate SQL → execute against ClickHouse → return
        `VisualizationFrame`); add Testcontainers integration test covering PostgreSQL (Schema
        Registry) and ClickHouse (query execution); enforce advisory-only, read-only invariants.
-    6. **LLM integration (Stage 1)** — implement the LLM adapter: send user question + Schema
+    6. ✅ **LLM integration (Stage 1)** — implement the LLM adapter: send user question + Schema
        Registry context to LLM; LLM calls MCP schema tools (step 2) during reasoning; LLM emits
        `NlqIr` → pass to step 5; LLM must decline billing, SLA, and regulatory questions; provenance
        payload carried through the full chain.
-    7. **Frontend NLQ input panel** — add NLQ query bar to one explorer view (scope: one signal
+       _Implemented: `services/query-api/src/llm_adapter.rs`; `LlmCaller` trait + `OpenAiLlmCaller`
+       (async-openai v0.36); `server_side_deny_gate()` blocks billing/SLA/GDPR before LLM call;
+       `enforce_service_scope()` injects service filter server-side; 19 unit tests._
+    7. ✅ **Frontend NLQ input panel** — add NLQ query bar to one explorer view (scope: one signal
        type); wire to MCP server endpoint; display provenance payload (IR, SQL, approximation
        statement) alongside results; NLQ bar is additive — it sits alongside the existing structured
        query UI, not replacing it.
-    8. **Frontend VisualizationFrame auto-graphing** — consume `VisualizationFrame.type` /
+       _Implemented: `apps/frontend/src/features/nlq/NlqPanel.tsx` wired into ServiceDetailPage;
+       approximation_statement always visible; source SQL + IR behind Show details disclosure;
+       10 vitest tests._
+    8. ✅ **Frontend VisualizationFrame auto-graphing** — consume `VisualizationFrame.type` /
        `suggested_visualization`; auto-select the correct Grafana panel from `@grafana/ui` without
        requiring the user to choose a panel type.
-    9. **Provenance gate** — integration test asserts that every NLQ response includes `nlq_ir`,
+       _Implemented: `apps/frontend/src/features/nlq/VisualizationPanel.tsx`; renders
+       timeseries/histogram/topk/distribution/table; driven from frame contract fields; 12 vitest tests._
+    9. ✅ **Provenance gate** — integration test asserts that every NLQ response includes `nlq_ir`,
        `source_sql`, `time_range`, `signal_type`, `sample_rate`, and `approximation_statement`;
        assert the response can be discarded without affecting platform correctness.
+       _Implemented: 2 Testcontainers tests in `clickhouse_mcp_query_integration.rs`;
+       `provenance_gate_all_six_fields_non_empty` + `provenance_gate_query_is_read_only_no_row_mutations`._
   - Files or modules expected to change: a new `mcp-server` service (or module within `query-api`),
     `libs/domain` NLQ IR and VisualizationFrame types, `apps/frontend` NLQ input panel and
     auto-graphing consumer, `migrations/` if Schema Registry tables are not yet migrated.

@@ -13,6 +13,7 @@ import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
 import { TablePanel } from "../components/ui/table-panel";
+import { NlqPanel } from "../features/nlq/NlqPanel";
 
 export default function ServiceDetailPage() {
   const { serviceId } = useParams({ strict: false });
@@ -142,6 +143,14 @@ function ServiceOverview({
       </div>
 
       <ServiceInfraPanel serviceName={service.service_name} />
+
+      <Panel eyebrow="Ask" title="Natural Language Query">
+        <NlqPanel
+          serviceName={service.service_name}
+          placeholder={`Ask about ${service.service_name}… e.g. "p99 latency over the last hour"`}
+        />
+      </Panel>
+
       <ServiceSignalTabs
         serviceName={service.service_name}
         activeTab={activeTab}
