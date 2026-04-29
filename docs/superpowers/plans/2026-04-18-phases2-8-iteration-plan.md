@@ -573,9 +573,12 @@ Before Phase 5 starts, answer:
     server reads `metric_type`, `timestamp_column`, `unit`, and `recommended_downsampling` from the
     Schema Registry to generate correct time-series SQL.
   - Closure steps (internal dependency order):
-    1. **NLQ IR type** — define the `NlqIr` Rust struct + JSON schema contract
+    1. ✅ **NLQ IR type** — define the `NlqIr` Rust struct + JSON schema contract
        (fields: `operation`, `signals`, `metric`, `window`, `filters`, `group_by`, `resolution`,
        `time_range`, `visualization_hint`); add unit tests that deserialize IR from JSON.
+       _Checkpoint: `NlqIr`, `NlqOperation`, `NlqSignal`, `NlqFilter`, `NlqFilterOp`,
+       `NlqTimeRange`, `NlqVisualizationHint` defined in `libs/domain/src/nlq.rs`; pub-exported
+       from domain crate root; 10 unit tests pass; PR #168 merged._
     2. **MCP Server schema lookup tools** — implement `get_metric_schema`, `list_signal_fields`,
        `resolve_label_to_column` reading from the Schema Registry (P3-S14); all calls carry tenant
        context.
