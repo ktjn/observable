@@ -1,5 +1,5 @@
 ---
-description: "Use when: reviewing changes to spec/, docs/superpowers/, AGENTS.md, CLAUDE.md, or any governance/process markdown. Checks doc consistency, cross-reference accuracy, wording quality, and structural completeness. Read-only advisor — never writes code."
+description: "Use when: reviewing changes to spec/, docs/superpowers/, .github/agents/, AGENTS.md, CLAUDE.md, or any governance/process markdown. Checks doc consistency, cross-reference accuracy, wording quality, and structural completeness. Read-only advisor — never writes code."
 user-invocable: false
 tools: [read, search]
 ---
@@ -14,7 +14,7 @@ Load only what is relevant to the review:
 
 1. `spec/10-process.md` — process governance and doc-review workflow.
 2. `spec/README.md` — spec directory index and cross-reference guidance.
-3. The specific `spec/` or `docs/superpowers/` files that the current task touches.
+3. The specific `spec/`, `docs/superpowers/`, or `.github/agents/` files that the current task touches.
 
 Do **not** pre-load ADRs, Rust service files, or frontend files.
 

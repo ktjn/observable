@@ -15,6 +15,13 @@ These instructions are foundational mandates for any AI agent interacting with t
 
 Refer to `spec/10-process.md` for the official development process and AI agent guidance.
 
+## Agent Role Model
+
+This repository uses a coordinator-plus-specialists advisory role model to reduce context noise.
+See `.github/agents/README.md` for routing rules, escalation triggers, and role definitions.
+When starting a new task or orchestrating work across multiple surfaces, use the **Coordinator** agent
+defined in `.github/agents/coordinator.agent.md`.
+
 ## Phase Plan Status
 
 - **Phase 1 is closed:** treat `docs/superpowers/plans/2026-04-17-phase1-internal-mvp.md` as a historical implementation record, not as an active backlog to reopen or continue.

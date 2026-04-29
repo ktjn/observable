@@ -51,16 +51,16 @@ export default function TraceSearch() {
         )}
       </div>
 
-      <div className="flex items-start">
+      <div className="flex items-start gap-3">
         <FacetSidebar facets={data?.facets} onFacetClick={handleFacetClick} />
 
         <TablePanel className="flex-1">
           {isLoading ? (
             <LoadingState>Loading traces…</LoadingState>
           ) : error ? (
-            <div className="signal-empty">Error loading traces: {String(error)}</div>
+            <LoadingState className="text-[var(--bad)]">Error loading traces: {String(error)}</LoadingState>
           ) : data?.traces.length === 0 ? (
-            <div className="signal-empty">No traces found.</div>
+            <LoadingState>No traces found.</LoadingState>
           ) : (
             <table>
               <thead>
@@ -77,7 +77,7 @@ export default function TraceSearch() {
                   const root = t.spans[0];
                   if (!root) return null;
                   return (
-                    <tr key={t.trace_id}>
+                    <tr key={t.trace_id} className="modern-table-row">
                       <td className="strong-cell">
                         <Link to="/traces/$traceId" params={{ traceId: t.trace_id }}>
                           {t.trace_id.substring(0, 16)}…

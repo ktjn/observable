@@ -54,16 +54,16 @@ export default function LogSearch() {
         )}
       </div>
 
-      <div className="flex items-start">
+      <div className="flex items-start gap-3">
         <FacetSidebar facets={data?.facets} onFacetClick={handleFacetClick} />
 
         <TablePanel className="flex-1">
           {isLoading ? (
             <LoadingState>Loading logs…</LoadingState>
           ) : error ? (
-            <div className="signal-empty">Error loading logs: {String(error)}</div>
+            <LoadingState className="text-[var(--bad)]">Error loading logs: {String(error)}</LoadingState>
           ) : data?.logs.length === 0 ? (
-            <div className="signal-empty">No logs found.</div>
+            <LoadingState>No logs found.</LoadingState>
           ) : (
             <table>
               <thead>
@@ -101,7 +101,7 @@ export default function LogSearch() {
 function LogRow({ log, utc }: { log: LogRecord; utc: boolean }) {
   const badges = infraLinks(log.resource_attributes ?? {});
   return (
-    <tr>
+    <tr className="modern-table-row">
       <td className="whitespace-nowrap">{formatTimestamp(log.timestamp_unix_nano, utc)}</td>
       <td>
         {log.service_name}
@@ -111,7 +111,7 @@ function LogRow({ log, utc }: { log: LogRecord; utc: boolean }) {
               <a
                 key={link.href}
                 href={link.href}
-                className="text-[11px] px-1.5 rounded-full bg-[var(--surface-subtle)] text-[var(--text)] no-underline border border-[var(--border)] whitespace-nowrap"
+                className="text-[11px] px-1.5 py-0.5 rounded-full bg-[var(--surface-subtle)] text-[var(--text)] border border-[var(--border)] no-underline whitespace-nowrap hover:border-[var(--brand)] hover:text-[var(--brand)]"
               >
                 {link.label}
               </a>

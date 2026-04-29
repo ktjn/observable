@@ -326,13 +326,13 @@ Before starting any new product UI workflow, complete these pure renovation slic
   - Verification: frontend tests cover renovated service and infrastructure states; accessibility coverage remains green for the touched views; frontend typecheck/lint/test/build pass.
   - Checkpoint: can operators move through service and infrastructure details without encountering legacy panel, status, or metric tile patterns? Answer: yes. UI-R1 target files now use `Panel`, `MetricCard`, `Badge`, and modern class tokens instead of legacy `detail-panel`, `metric-tile`, `signal-panel`, inline style, or old status patterns, with a focused regression test enforcing that contract.
 
-- [ ] **UI-R2: Renovate explorer detail and log support surfaces**
+- [x] **UI-R2: Renovate explorer detail and log support surfaces**
   - Source spec: `spec/05-frontend.md` §9.2 and §9.4; `docs/superpowers/specs/2026-04-21-ui-design-guide.md`.
-  - Outcome: trace detail waterfall, facet sidebar, log context/correlation/live-tail support components, and explorer result panels use modern primitives/tokens with minimal inline styles and consistent empty/loading/error states.
+  - Outcome: trace detail waterfall, facet sidebar, log context/correlation/live-tail support components, and explorer result panels use modern primitives/tokens with minimal inline styles and consistent empty/loading/error states. All seven target files (`TraceDetail.tsx`, `TraceSearch.tsx`, `FacetSidebar.tsx`, `LogSearch.tsx`, `LogContextView.tsx`, `LogCorrelatedList.tsx`, `LogLiveTail.tsx`) replaced hardcoded hex colors and legacy inline style objects with Tailwind token classes (`var(--bad)`, `var(--warn)`, `var(--brand)`, `var(--surface-subtle)`, `var(--border)`, etc.). Waterfall span bar colors remain as `style` props because percentage-based position/width offsets require inline positioning for canvas-accurate rendering. Twenty new RTL tests were added covering selected/focused waterfall rows, FacetSidebar render/click/keyboard interactions, LogContextView loading/pivot/close states, and LogCorrelatedList heading/focus/correlation-label states. Completed 2026-04-29.
   - Files or modules expected to change: `apps/frontend/src/pages/TraceDetail.tsx`, `apps/frontend/src/components/FacetSidebar.tsx`, `apps/frontend/src/components/LogContextView.tsx`, `apps/frontend/src/components/LogCorrelatedList.tsx`, `apps/frontend/src/components/LogLiveTail.tsx`, `apps/frontend/src/pages/TraceSearch.tsx`, `apps/frontend/src/pages/LogSearch.tsx`, and related tests.
   - Out of scope: new query semantics, new facets, live-tail transport changes, or trace waterfall behavior redesign beyond preserving current interactions.
   - Verification: RTL tests cover selected/focused waterfall rows, facet interactions, and log support component states; accessibility scans remain green for trace detail and log search; frontend typecheck/lint/test/build pass.
-  - Checkpoint: do trace and log investigation paths use the same modern primitives and state language as the service catalog?
+  - Checkpoint: do trace and log investigation paths use the same modern primitives and state language as the service catalog? Answer: yes. All seven explorer surfaces now use CSS variable tokens and Tailwind classes instead of hardcoded hex values and inline style objects. The span bar's position/width remain as `style` props because percentage-based offsets require inline positioning for accurate canvas layout — this is the intentional rendering exception documented in UI-R3's scope.
 
 - [x] **UI-R3: Remove remaining legacy style drift and document the frontend migration rule**
   - Source spec: `spec/05-frontend.md` §9.2; `spec/15-frontend-local-dev.md`; `docs/superpowers/specs/2026-04-21-ui-design-guide.md`.
@@ -569,6 +569,51 @@ Before Phase 5 starts, answer:
     auto-renders without panel-type selection. Governed by ADR-021 and within ADR-014 advisory-only,
     provenance-required, read-only constraints. Every response must include the NLQ IR, raw SQL,
     signals consulted, and an approximation statement.
+  - Prerequisite: P3-S14 (Schema Registry with semantic annotations) must be complete. The MCP
+    server reads `metric_type`, `timestamp_column`, `unit`, and `recommended_downsampling` from the
+    Schema Registry to generate correct time-series SQL.
+  - Closure steps (internal dependency order):
+    1. **NLQ IR type** — define the `NlqIr` Rust struct + JSON schema contract
+       (fields: `operation`, `signals`, `metric`, `window`, `filters`, `group_by`, `resolution`,
+       `time_range`, `visualization_hint`); add unit tests that deserialize IR from JSON.
+    2. **MCP Server schema lookup tools** — implement `get_metric_schema`, `list_signal_fields`,
+       `resolve_label_to_column` reading from the Schema Registry (P3-S14); all calls carry tenant
+       context.
+    3. **MCP Server SQL template library** — deterministic, unit-testable templates for each
+       operation type (`timeseries`, `rate`, `irate`, `increase`, `topk`, `histogram`, `table`);
+       reads `metric_type` from Schema Registry to select the correct pattern; injects `tenant_id`
+       into every generated SQL `WHERE` clause.
+    4. **VisualizationFrame type** — define the `VisualizationFrame` Rust struct + JSON schema;
+       maps to Grafana `DataFrame` + `PanelData` model (ADR-016); includes the full provenance
+       payload (`nlq_ir`, `source_sql`, `time_range`, `signal_type`, `sample_rate`,
+       `approximation_statement`).
+    5. **End-to-end MCP server path** — wire steps 2–4 into a request handler (receive `NlqIr`
+       → call Schema Registry → generate SQL → execute against ClickHouse → return
+       `VisualizationFrame`); add Testcontainers integration test covering PostgreSQL (Schema
+       Registry) and ClickHouse (query execution); enforce advisory-only, read-only invariants.
+    6. **LLM integration (Stage 1)** — implement the LLM adapter: send user question + Schema
+       Registry context to LLM; LLM calls MCP schema tools (step 2) during reasoning; LLM emits
+       `NlqIr` → pass to step 5; LLM must decline billing, SLA, and regulatory questions; provenance
+       payload carried through the full chain.
+    7. **Frontend NLQ input panel** — add NLQ query bar to one explorer view (scope: one signal
+       type); wire to MCP server endpoint; display provenance payload (IR, SQL, approximation
+       statement) alongside results; NLQ bar is additive — it sits alongside the existing structured
+       query UI, not replacing it.
+    8. **Frontend VisualizationFrame auto-graphing** — consume `VisualizationFrame.type` /
+       `suggested_visualization`; auto-select the correct Grafana panel from `@grafana/ui` without
+       requiring the user to choose a panel type.
+    9. **Provenance gate** — integration test asserts that every NLQ response includes `nlq_ir`,
+       `source_sql`, `time_range`, `signal_type`, `sample_rate`, and `approximation_statement`;
+       assert the response can be discarded without affecting platform correctness.
+  - Files or modules expected to change: a new `mcp-server` service (or module within `query-api`),
+    `libs/domain` NLQ IR and VisualizationFrame types, `apps/frontend` NLQ input panel and
+    auto-graphing consumer, `migrations/` if Schema Registry tables are not yet migrated.
+  - Out of scope: multi-signal cross-triangulation queries, PromQL facade (P8-S7), autonomous
+    alert evaluation driven by NLQ output, billing or SLA evidence from NLQ answers.
+  - Verification: MCP server unit tests assert SQL template output per operation type; integration
+    tests cover end-to-end IR → VisualizationFrame with real ClickHouse and PostgreSQL via
+    Testcontainers; frontend tests cover NLQ bar submission, provenance display, and auto-graph
+    panel selection; accessibility scan covers the NLQ input panel.
   - Checkpoint: does every response carry provenance (NLQ IR, source SQL, time range, signal type,
     sample rate) and can it be ignored without affecting platform correctness?
 
@@ -578,7 +623,22 @@ Before Phase 5 starts, answer:
     expressions into the NLQ IR; execution, auto-graphing, and provenance are identical to P8-S6.
     Scope: metrics-only; no log, trace, or cross-signal PromQL semantics are introduced. No new
     query engine — this is a front-end parser that emits the existing NLQ IR.
-  - Out of scope: PromQL alerting rules, recording rules, or remote-read protocol.
+  - Prerequisite: P8-S6 complete (the MCP server NLQ IR → VisualizationFrame path must exist).
+  - Closure steps:
+    1. Integrate a PromQL parser crate (or implement a minimal subset parser) inside the MCP server.
+    2. Map parsed PromQL AST nodes to `NlqIr` fields: metric selector → `metric`, range vector →
+       `window`, function (`rate`, `irate`, `sum by`) → `operation` + `group_by`, label matchers →
+       `filters`.
+    3. Feed the resulting `NlqIr` through the existing P8-S6 execution path unchanged (steps 2–9
+       of P8-S6 closure steps).
+    4. Add a PromQL input surface in the frontend metrics explorer.
+    5. Verify that unit tests assert: a given PromQL expression produces the same `NlqIr` as the
+       equivalent NLQ input.
+  - Out of scope: PromQL alerting rules, recording rules, remote-read protocol, log or trace PromQL
+    semantics.
+  - Verification: unit tests assert PromQL → NlqIr mapping for rate, irate, sum by, and label
+    selector cases; integration test confirms end-to-end PromQL → VisualizationFrame uses the same
+    Testcontainers path as P8-S6; no parallel execution engine is introduced.
   - Checkpoint: does the PromQL façade use the same MCP server execution path as NLQ (no parallel
     execution engine)?
 
@@ -672,3 +732,5 @@ The self-observability routing clarification also requires no ADR/spec update in
 **ADR-026** (No proprietary query DSL, Accepted — added 2026-04-28) records the permanent strategic decision that Observable will never introduce a proprietary DSL; SQL/DataFusion is the canonical IR; NLQ is the operator UX. This resolves `spec/13-risks-roadmap.md` Risk 5. No plan slice is required; this is an architecture constraint, not a feature.
 
 **ADR-021 update** (2026-04-28) refines the NL query layer architecture to the confirmed three-stage pipeline: LLM → NLQ IR → MCP Server → SQL/DataFusion → VisualizationFrame. P8-S6 is updated to reference this pipeline. P8-S7 is added for the optional PromQL compatibility façade (metrics-only). `spec/08-ai-ml.md §13.1` and `§13.3`, `spec/03-storage.md §5.4.1`, `spec/02-architecture.md §4.3`, and `spec/05-frontend.md` are updated in the same iteration.
+
+**P8-S6 closure steps added** (2026-04-28) — P8-S6 and P8-S7 are expanded with ordered closure steps derived from the three-stage pipeline in ADR-021. The nine closure steps for P8-S6 run in strict internal dependency order: NLQ IR type → MCP schema tools → SQL template library → VisualizationFrame type → end-to-end MCP path (Testcontainers) → LLM integration → frontend NLQ panel → auto-graphing → provenance gate. P8-S7 closure steps follow the same pattern for the PromQL-to-NlqIr mapping. No ADR or spec update is required; these steps decompose the already-specified P8-S6 scope without changing architecture, technology choice, deployment model, data model, security model, or roadmap scope.
