@@ -119,7 +119,7 @@ function HistogramTable({ frame }: Props) {
               <td className="py-1 text-right font-mono">{count}</td>
               <td className="py-1 pl-4">
                 <div
-                  className="h-3 rounded-sm bg-[var(--brand-primary)]"
+                  className="h-3 rounded-sm bg-[var(--brand)]"
                   style={{ width: `${barWidth}%`, minWidth: count > 0 ? "2px" : "0" }}
                   aria-label={`${barWidth}% of max`}
                 />

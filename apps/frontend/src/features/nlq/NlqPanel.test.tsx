@@ -48,6 +48,11 @@ afterEach(() => {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("NlqPanel", () => {
+  test("submit button shows 'Ask' label in idle state", () => {
+    render(<NlqPanel />);
+    expect(screen.getByTestId("nlq-submit")).toHaveTextContent("Ask");
+  });
+
   test("renders query input and submit button", () => {
     render(<NlqPanel />);
     expect(screen.getByTestId("nlq-input")).toBeInTheDocument();

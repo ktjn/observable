@@ -184,7 +184,7 @@ function LlmConfigPanel() {
             onChange={(e) => setApiKey(e.target.value)}
             placeholder={configured ? "Enter new key to replace…" : "sk-… (leave blank for vLLM / no-auth endpoints)"}
             aria-label="LLM API key"
-            className="rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
+            className="rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
             data-testid="llm-key-input"
           />
         </label>
@@ -196,7 +196,7 @@ function LlmConfigPanel() {
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://api.openai.com/v1 (blank = OpenAI default)"
             aria-label="LLM endpoint URL"
-            className="rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
+            className="rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
             data-testid="llm-url-input"
           />
         </label>
@@ -209,7 +209,7 @@ function LlmConfigPanel() {
             onChange={(e) => setModel(e.target.value)}
             placeholder="gpt-4o-mini"
             aria-label="LLM model"
-            className="rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
+            className="rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
             data-testid="llm-model-input"
           />
           <datalist id="llm-model-suggestions">
