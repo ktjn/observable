@@ -384,9 +384,17 @@ GATEWAY_MANIFEST
 # ---------------------------------------------------------------------------
 
 log "Adding shop listener to NGF Service (port 3000 → NodePort ${GATEWAY_NODEPORT_SHOP})"
-kubectl patch service "$NGF_SVC" -n "$NGF_NAMESPACE" \
-  --type=json \
-  -p="[{\"op\":\"add\",\"path\":\"/spec/ports/-\",\"value\":{\"name\":\"shop\",\"port\":3000,\"targetPort\":3000,\"protocol\":\"TCP\",\"nodePort\":${GATEWAY_NODEPORT_SHOP}}}]"
+# Use "replace" when port 3000 already exists (idempotent re-runs / --keep-cluster),
+# "add" only when it is absent.
+SHOP_PORT_IDX=$(kubectl get service "$NGF_SVC" -n "$NGF_NAMESPACE" -o json \
+  | jq '[.spec.ports | to_entries[] | select(.value.port == 3000) | .key] | first // empty')
+if [[ -n "$SHOP_PORT_IDX" ]]; then
+  kubectl patch service "$NGF_SVC" -n "$NGF_NAMESPACE" --type=json \
+    -p="[{\"op\":\"replace\",\"path\":\"/spec/ports/${SHOP_PORT_IDX}/nodePort\",\"value\":${GATEWAY_NODEPORT_SHOP}}]"
+else
+  kubectl patch service "$NGF_SVC" -n "$NGF_NAMESPACE" --type=json \
+    -p="[{\"op\":\"add\",\"path\":\"/spec/ports/-\",\"value\":{\"name\":\"shop\",\"port\":3000,\"targetPort\":3000,\"protocol\":\"TCP\",\"nodePort\":${GATEWAY_NODEPORT_SHOP}}}]"
+fi
 info "port 3000 → NodePort ${GATEWAY_NODEPORT_SHOP}"
 
 # ---------------------------------------------------------------------------
