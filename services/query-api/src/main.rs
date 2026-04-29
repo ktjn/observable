@@ -7,6 +7,7 @@ mod logs;
 mod metrics;
 mod middleware;
 mod planner;
+mod schemas;
 mod traces;
 
 use axum::{
@@ -78,6 +79,17 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/alerts/rules/:rule_id/silence",
             patch(alerts::handle_silence_rule),
+        )
+        .route(
+            "/v1/schemas/:signal_type/attributes",
+            get(schemas::handle_list_attributes),
+        )
+        .route(
+            "/v1/schemas/:signal_type/attributes/:key/annotations",
+            get(schemas::handle_get_annotation)
+                .put(schemas::handle_upsert_annotation)
+                .patch(schemas::handle_patch_annotation)
+                .delete(schemas::handle_delete_annotation),
         )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
