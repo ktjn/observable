@@ -41,9 +41,9 @@ export function LogLiveTail() {
   }, [logs]);
 
   return (
-    <section style={{ marginTop: "2rem" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0 }}>Live Logs</h2>
+    <section className="mt-8">
+      <div className="flex items-center gap-3 flex-wrap">
+        <h2 className="m-0 text-lg font-bold text-[var(--text-strong)]">Live Logs</h2>
         <Button
           type="button"
           variant="secondary"
@@ -58,36 +58,31 @@ export function LogLiveTail() {
           onChange={(event) => setService(event.target.value)}
           className="w-[260px]"
         />
-        <span aria-live="polite">{enabled ? "Tailing every 1s" : "Paused"}</span>
+        <span aria-live="polite" className="text-sm text-[var(--muted)]">
+          {enabled ? "Tailing every 1s" : "Paused"}
+        </span>
       </div>
-      {error && <p>Error: {String(error)}</p>}
+      {error && (
+        <p className="mt-2 text-sm text-[var(--bad)]">Error: {String(error)}</p>
+      )}
       <div
         aria-label="Live log stream"
-        style={{
-          border: "1px solid #cbd5e1",
-          borderRadius: 4,
-          fontFamily: "monospace",
-          fontSize: 12,
-          height: 320,
-          marginTop: "0.75rem",
-          overflowY: "auto",
-          padding: 8,
-        }}
+        className="border border-[var(--border)] rounded font-mono text-xs h-80 mt-3 overflow-y-auto p-2 bg-[var(--surface)]"
       >
-        {logs.length === 0 && <p>No live logs yet.</p>}
+        {logs.length === 0 && (
+          <p className="m-0 text-[var(--muted)]">No live logs yet.</p>
+        )}
         {logs.map((log) => (
           <div
             key={log.log_id}
-            style={{
-              borderBottom: "1px solid #e2e8f0",
-              display: "grid",
-              gap: 8,
-              gridTemplateColumns: "100px 80px minmax(120px, 180px) 1fr",
-              padding: "4px 0",
-            }}
+            className="border-b border-[var(--border)] grid gap-2 py-1 last:border-b-0"
+            style={{ gridTemplateColumns: "100px 80px minmax(120px, 180px) 1fr" }}
           >
-            <span style={{ color: "#475569" }}>{formatTime(log.timestamp_unix_nano)}</span>
-            <span style={{ color: severityColor(log.severity_number), fontWeight: 700 }}>
+            <span className="text-[var(--muted)]">{formatTime(log.timestamp_unix_nano)}</span>
+            <span
+              className="font-bold"
+              style={{ color: severityColor(log.severity_number) }}
+            >
               {log.severity_text || `L${log.severity_number}`}
             </span>
             <span>{log.service_name || "unknown"}</span>
@@ -123,8 +118,8 @@ function formatTime(timestampUnixNano: string): string {
 }
 
 function severityColor(severity: number): string {
-  if (severity >= 13) return "#dc2626";
-  if (severity >= 9) return "#ca8a04";
-  if (severity >= 5) return "#2563eb";
-  return "#475569";
+  if (severity >= 13) return "var(--bad)";
+  if (severity >= 9) return "var(--warn)";
+  if (severity >= 5) return "var(--brand)";
+  return "var(--muted)";
 }

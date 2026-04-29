@@ -13,48 +13,48 @@ export function LogContextView({ logId, onClose }: Props) {
     queryFn: () => getLogContext(logId),
   });
 
-  if (isLoading) return <div style={containerStyle}><p>Loading context…</p></div>;
+  if (isLoading) {
+    return (
+      <div className="mt-3 p-3 bg-[var(--surface-inset)] border border-[var(--border)] rounded-lg">
+        <p className="m-0 text-sm text-[var(--muted)]">Loading context…</p>
+      </div>
+    );
+  }
 
   return (
-    <div style={containerStyle}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
-        <h4 style={{ margin: 0 }}>Surrounding Logs</h4>
+    <div className="mt-3 p-3 bg-[var(--surface-inset)] border border-[var(--border)] rounded-lg">
+      <div className="flex justify-between items-center mb-3">
+        <h4 className="m-0 text-sm font-bold text-[var(--text-strong)]">Surrounding Logs</h4>
         <Button variant="secondary" onClick={onClose}>Close</Button>
       </div>
-      <div style={{ 
-        fontFamily: "monospace", 
-        fontSize: "12px", 
-        maxHeight: "400px", 
-        overflowY: "auto",
-        border: "1px solid #cbd5e0",
-        borderRadius: "4px",
-        padding: "8px",
-        background: "#fff"
-      }}>
+      <div className="font-mono text-xs max-h-[400px] overflow-y-auto border border-[var(--border)] rounded bg-[var(--surface)] p-2">
         {data?.logs.map((log: LogRecord) => {
           const isPivot = log.log_id === logId;
           return (
-            <div key={log.log_id} style={{ 
-              display: "flex", 
-              gap: "12px", 
-              padding: "4px 0",
-              borderBottom: "1px solid #f7fafc",
-              background: isPivot ? "#fffaf0" : "transparent",
-              fontWeight: isPivot ? "bold" : "normal"
-            }}>
-              <span style={{ color: "#718096" }}>
-                {new Date(Number(log.timestamp_unix_nano) / 1e6).toISOString().split('T')[1].replace('Z', '')}
+            <div
+              key={log.log_id}
+              className={`flex gap-3 py-1 border-b border-[var(--border)] last:border-b-0 ${
+                isPivot ? "bg-[var(--warn-bg)] font-bold" : ""
+              }`}
+            >
+              <span className="text-[var(--muted)] shrink-0">
+                {new Date(Number(log.timestamp_unix_nano) / 1e6)
+                  .toISOString()
+                  .split("T")[1]
+                  .replace("Z", "")}
               </span>
-              <span style={{ 
-                width: "50px",
-                color: getSeverityColor(log.severity_number)
-              }}>
+              <span
+                className="w-[50px] shrink-0"
+                style={{ color: getSeverityColor(log.severity_number) }}
+              >
                 {log.severity_text || `LVL ${log.severity_number}`}
               </span>
-              <span style={{ flex: 1 }}>
-                {typeof log.body === 'string' ? log.body : JSON.stringify(log.body)}
+              <span className="flex-1 min-w-0 break-all">
+                {typeof log.body === "string" ? log.body : JSON.stringify(log.body)}
               </span>
-              {isPivot && <span style={{ color: "#dd6b20", fontSize: "10px" }}>[PIVOT]</span>}
+              {isPivot && (
+                <span className="text-[var(--warn)] text-[10px] shrink-0">[PIVOT]</span>
+              )}
             </div>
           );
         })}
@@ -63,18 +63,9 @@ export function LogContextView({ logId, onClose }: Props) {
   );
 }
 
-const containerStyle: React.CSSProperties = {
-  marginTop: "12px",
-  padding: "12px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: "8px"
-};
-
 function getSeverityColor(severity: number): string {
-  if (severity >= 17) return "#e53e3e";
-  if (severity >= 13) return "#e53e3e";
-  if (severity >= 9) return "#dd6b20";
-  if (severity >= 5) return "#3182ce";
-  return "#718096";
+  if (severity >= 13) return "var(--bad)";
+  if (severity >= 9) return "var(--warn)";
+  if (severity >= 5) return "var(--brand)";
+  return "var(--muted)";
 }

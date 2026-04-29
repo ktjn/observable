@@ -51,18 +51,18 @@ export default function LogSearch() {
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "flex-start" }}>
+      <div className="flex items-start gap-3">
         <FacetSidebar facets={data?.facets} onFacetClick={handleFacetClick} />
 
-        <div className="table-panel" style={{ flex: 1 }}>
+        <div className="table-panel flex-1">
           {isLoading ? (
             <div className="loading-state">Loading logs...</div>
           ) : error ? (
-            <div className="signal-empty">Error loading logs: {String(error)}</div>
+            <div className="loading-state text-[var(--bad)]">Error loading logs: {String(error)}</div>
           ) : data?.logs.length === 0 ? (
-            <div className="signal-empty">No logs found.</div>
+            <div className="loading-state">No logs found.</div>
           ) : (
-            <table style={{ borderCollapse: "collapse", width: "100%" }}>
+            <table>
               <thead>
                 <tr>
                   <th>
@@ -98,26 +98,17 @@ export default function LogSearch() {
 function LogRow({ log, utc }: { log: LogRecord; utc: boolean }) {
   const badges = infraLinks(log.resource_attributes ?? {});
   return (
-    <tr>
-      <td style={{ whiteSpace: "nowrap" }}>{formatTimestamp(log.timestamp_unix_nano, utc)}</td>
+    <tr className="modern-table-row">
+      <td className="whitespace-nowrap">{formatTimestamp(log.timestamp_unix_nano, utc)}</td>
       <td>
         {log.service_name}
         {badges.length > 0 && (
-          <span style={{ display: "inline-flex", gap: 4, marginLeft: 6 }}>
+          <span className="inline-flex gap-1 ml-1.5">
             {badges.map((link) => (
               <a
                 key={link.href}
                 href={link.href}
-                style={{
-                  fontSize: 11,
-                  padding: "1px 6px",
-                  borderRadius: 10,
-                  background: "var(--color-bg-subtle, #edf2f7)",
-                  color: "var(--color-text, #2d3748)",
-                  textDecoration: "none",
-                  border: "1px solid var(--color-border, #e2e8f0)",
-                  whiteSpace: "nowrap",
-                }}
+                className="text-[11px] px-1.5 py-0.5 rounded-full bg-[var(--surface-subtle)] text-[var(--text)] border border-[var(--border)] no-underline whitespace-nowrap hover:border-[var(--brand)] hover:text-[var(--brand)]"
               >
                 {link.label}
               </a>

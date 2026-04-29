@@ -31,30 +31,23 @@ export function TraceDetail({ traceId, spans }: Props) {
   const infraPills = mergedInfraLinks(spans);
 
   return (
-    <div>
-      <h1>Trace {traceId.substring(0, 16)}…</h1>
-      <p>
-        Total: {(totalNs / 1e6).toFixed(2)}ms — {spans.length} spans
-      </p>
+    <div className="grid gap-4">
+      <div>
+        <h1 className="text-2xl font-bold text-[var(--text-strong)] mt-0">
+          Trace {traceId.substring(0, 16)}…
+        </h1>
+        <p className="m-0 text-sm text-[var(--muted)]">
+          Total: {(totalNs / 1e6).toFixed(2)}ms — {spans.length} spans
+        </p>
+      </div>
 
       {infraPills.length > 0 && (
-        <div
-          aria-label="Infrastructure"
-          style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}
-        >
+        <div aria-label="Infrastructure" className="flex flex-wrap gap-2">
           {infraPills.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              style={{
-                fontSize: 12,
-                padding: "2px 8px",
-                borderRadius: 12,
-                background: "var(--color-bg-subtle, #edf2f7)",
-                color: "var(--color-text, #2d3748)",
-                textDecoration: "none",
-                border: "1px solid var(--color-border, #e2e8f0)",
-              }}
+              className="text-xs px-2 py-0.5 rounded-full bg-[var(--surface-subtle)] text-[var(--text)] border border-[var(--border)] no-underline hover:border-[var(--brand)] hover:text-[var(--brand)]"
             >
               {link.label}
             </a>
@@ -62,72 +55,48 @@ export function TraceDetail({ traceId, spans }: Props) {
         </div>
       )}
 
-      <div style={{ overflowX: "auto" }}>
+      <div className="overflow-x-auto">
         {spans.map((span) => {
           const offset =
             ((Number(span.start_time_unix_nano) - minStart) / totalNs) * 100;
           const width = (span.duration_ns / totalNs) * 100;
+          const isSelected = selectedSpanId === span.span_id;
           return (
             <div
               key={span.span_id}
               role="button"
               tabIndex={0}
               onClick={() =>
-                setSelectedSpanId(
-                  span.span_id === selectedSpanId ? undefined : span.span_id
-                )
+                setSelectedSpanId(isSelected ? undefined : span.span_id)
               }
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  setSelectedSpanId(
-                    span.span_id === selectedSpanId ? undefined : span.span_id
-                  );
+                  setSelectedSpanId(isSelected ? undefined : span.span_id);
                 }
               }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                marginBottom: 4,
-                cursor: "pointer",
-                background:
-                  selectedSpanId === span.span_id ? "#edf2f7" : "transparent",
-                borderRadius: "4px",
-                padding: "2px 0",
-              }}
+              className={`flex items-center mb-1 cursor-pointer rounded px-0 py-0.5 ${
+                isSelected ? "bg-[var(--surface-subtle)]" : "bg-transparent"
+              }`}
             >
-              <span
-                style={{
-                  width: 200,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  fontSize: 12,
-                }}
-              >
+              <span className="w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-xs shrink-0">
                 {span.service_name}: {span.operation_name}
               </span>
-              <div
-                style={{
-                  flex: 1,
-                  position: "relative",
-                  height: 16,
-                  background: "#f0f0f0",
-                }}
-              >
+              <div className="flex-1 relative h-4 bg-[var(--surface-inset)]">
                 <div
+                  className="absolute h-full"
                   style={{
-                    position: "absolute",
                     left: `${offset}%`,
                     width: `${Math.max(width, 0.5)}%`,
-                    height: "100%",
                     background:
-                      span.status_code === "ERROR" ? "#e53e3e" : "#4299e1",
+                      span.status_code === "ERROR"
+                        ? "var(--bad)"
+                        : "var(--brand)",
                   }}
                   title={`${(span.duration_ns / 1e6).toFixed(2)}ms`}
                 />
               </div>
-              <span style={{ width: 60, textAlign: "right", fontSize: 12 }}>
+              <span className="w-[60px] text-right text-xs shrink-0">
                 {(span.duration_ns / 1e6).toFixed(2)}ms
               </span>
             </div>

@@ -12,7 +12,7 @@ export function FacetSidebar({ facets, onFacetClick }: FacetSidebarProps) {
 
   return (
     <aside className="facet-sidebar">
-      <div className="field-label" style={{ marginBottom: "16px" }}>Facets</div>
+      <div className="field-label mb-4">Facets</div>
       {Object.entries(facets).map(([field, values]) => (
         <div key={field} className="facet-group">
           <h2 className="facet-title">
