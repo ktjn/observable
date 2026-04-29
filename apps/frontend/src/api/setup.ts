@@ -18,7 +18,7 @@ export interface FirstSignalStatus {
 export async function getFirstSignalStatus(): Promise<FirstSignalStatus> {
   const [traces, logs, metrics] = await Promise.allSettled([
     searchTraces({ lookback_minutes: 60, limit: 1 }),
-    searchLogs({ lookback_minutes: 60, limit: 1 }),
+    searchLogs({ from: new Date(Date.now() - 60 * 60 * 1000).toISOString(), limit: 1 }),
     listMetrics(),
   ]);
 

@@ -238,7 +238,7 @@ function ServiceLogsTab({
 }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["service", serviceName, "logs", lookbackMinutes],
-    queryFn: () => searchLogs({ service: serviceName, lookback_minutes: lookbackMinutes, limit: 50 }),
+    queryFn: () => searchLogs({ service: serviceName, from: new Date(Date.now() - lookbackMinutes * 60 * 1000).toISOString(), limit: 50 }),
   });
 
   if (isLoading) return <LoadingState>Loading service logs…</LoadingState>;

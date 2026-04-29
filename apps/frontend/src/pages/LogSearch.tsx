@@ -75,7 +75,7 @@ export default function LogSearch() {
             title: service ? `Logs for ${service}` : "Log search",
             query_kind: "logs",
             service: service || undefined,
-            from,
+            lookback_minutes: lookbackMinutes,
             filters: { facets: ["service_name", "severity_number", "environment", "host_id"] },
           },
         ],
