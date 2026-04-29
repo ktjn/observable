@@ -1,3 +1,4 @@
+apps/frontend/test-results/*
 .worktrees/
 .env.local
 target/

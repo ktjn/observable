@@ -43,7 +43,20 @@
       "Bash(python3 -c ' *)",
       "Bash(node *)",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('REVIEWS:', json.dumps\\(d.get\\('reviews',[]\\), indent=2\\)\\); print\\('COMMENTS:', json.dumps\\(d.get\\('comments',[]\\), indent=2\\)\\)\")",
-      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")"
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
+      "Bash(npm run *)",
+      "Bash(python3 -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\(p.get\\('version',''\\)\\); [print\\(k\\) for k in p.get\\('exports',{}\\).keys\\(\\)]\")",
+      "Bash(python3 *)",
+      "Bash(npm view *)",
+      "Bash(python -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\(p.get\\('scripts',{}\\).get\\('test:a11y','NOT FOUND'\\)\\)\")",
+      "Bash(cargo search *)",
+      "Bash(cargo metadata *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(grep -n \"//\\\\|///\" /c/git/Observable/services/stream-processor/tests/redpanda_integration.rs)",
+      "Bash(grep -v \"^.*://\\\\|:///\")",
+      "Bash(npm test *)",
+      "Bash(cat)",
+      "Read(//tmp/**)"
     ]
   }
 }
