@@ -655,6 +655,46 @@ Before Phase 5 starts, answer:
   - Checkpoint: does the PromQL façade use the same MCP server execution path as NLQ (no parallel
     execution engine)?
 
+- [ ] **P8-S6b: Add local LLM backend (vLLM) with Phi-3 Mini / Llama-3 8B model selection**
+  - Outcome: operators can use natural language query without a cloud API key by pointing
+    Observable at a locally running vLLM server. The Setup page gains a backend mode selector:
+    "OpenAI API" (existing) or "vLLM (local)". vLLM mode exposes a model dropdown (Phi-3 Mini
+    3.8B default; Llama-3 8B Instruct alternative) and an endpoint URL field (default
+    `http://localhost:8000`). Observable does not run or manage the vLLM process.
+  - Prerequisite: P8-S6 complete.
+  - Architecture: vLLM exposes an OpenAI-compatible HTTP API. `VllmCaller` reuses the existing
+    `async-openai` crate with no auth key and a configurable base URL — no new HTTP client
+    dependency. Config stored in the existing `platform_config` key-value table; no schema
+    migration required. Backend selection follows the established env-var-or-DB precedence
+    pattern. See [ADR-027](../../spec/adr/ADR-027-local-llm-backend.md).
+  - Closure steps (strictly ordered):
+    1. **`VllmCaller` + `LlmBackendConfig`** — add to `llm_adapter.rs`; implement `LlmCaller`
+       trait; add `build_caller_from_config` factory; update `handle_nlq_query` to resolve
+       backend from env (`LLM_BACKEND`, `LLM_MODEL`, `VLLM_BASE_URL`) or DB.
+    2. **Config endpoint extension** — extend `ConfigStatus` with `llm_backend`/`llm_model`;
+       add `PUT /v1/config/llm-backend` handler; `fetch_llm_backend_config` DB helper; register
+       route in `main.rs`.
+    3. **Testcontainers integration test** — `put_llm_backend` stores vLLM config; `get_config`
+       reflects it.
+    4. **Frontend API** — extend `PlatformConfig`; add `saveLlmBackend()` in `setup.ts`.
+    5. **Setup page UI** — replace `LlmKeyPanel` with `LlmConfigPanel`: backend selector,
+       OpenAI mode (unchanged), vLLM mode (model dropdown + endpoint URL + informational note).
+    6. **Frontend tests** — update mocks; add tests for backend selector, vLLM model dropdown,
+       endpoint URL field, and `saveLlmBackend` call.
+  - Files expected to change: `services/query-api/src/llm_adapter.rs`,
+    `services/query-api/src/config.rs`, `services/query-api/src/main.rs`,
+    `services/query-api/tests/config_integration.rs` (create or modify),
+    `apps/frontend/src/api/setup.ts`, `apps/frontend/src/pages/SetupPage.tsx`,
+    `apps/frontend/src/pages/SetupPage.test.tsx`.
+  - Out of scope: vLLM authentication, Ollama support, streaming NLQ responses.
+  - Verification: `cargo test -p query-api` passes; `npm test` in `apps/frontend` passes;
+    `GET /v1/config` includes `llm_backend`/`llm_model`; `PUT /v1/config/llm-backend` returns
+    204; Setup page shows backend selector and vLLM mode UI; manual smoke against local vLLM;
+    provenance payload present for both backends; 422 returned for unknown backend/model values.
+  - Checkpoint: does the vLLM path use the same `LlmCaller` trait contract and provenance
+    requirements as the OpenAI path (no shortcuts)?
+  - Detail: [2026-04-29-p8-s6b-local-llm-vllm.md](2026-04-29-p8-s6b-local-llm-vllm.md)
+
 **Checkpoint question:** can every AI output be explained, audited, and ignored without harming correctness?
 
 ---
@@ -747,3 +787,5 @@ The self-observability routing clarification also requires no ADR/spec update in
 **ADR-021 update** (2026-04-28) refines the NL query layer architecture to the confirmed three-stage pipeline: LLM → NLQ IR → MCP Server → SQL/DataFusion → VisualizationFrame. P8-S6 is updated to reference this pipeline. P8-S7 is added for the optional PromQL compatibility façade (metrics-only). `spec/08-ai-ml.md §13.1` and `§13.3`, `spec/03-storage.md §5.4.1`, `spec/02-architecture.md §4.3`, and `spec/05-frontend.md` are updated in the same iteration.
 
 **P8-S6 closure steps added** (2026-04-28) — P8-S6 and P8-S7 are expanded with ordered closure steps derived from the three-stage pipeline in ADR-021. The nine closure steps for P8-S6 run in strict internal dependency order: NLQ IR type → MCP schema tools → SQL template library → VisualizationFrame type → end-to-end MCP path (Testcontainers) → LLM integration → frontend NLQ panel → auto-graphing → provenance gate. P8-S7 closure steps follow the same pattern for the PromQL-to-NlqIr mapping. No ADR or spec update is required; these steps decompose the already-specified P8-S6 scope without changing architecture, technology choice, deployment model, data model, security model, or roadmap scope.
+
+**ADR-027 + P8-S6b added** (2026-04-29) — ADR-027 records the decision to add vLLM as an opt-in local LLM backend for the NLQ pipeline. P8-S6b (added above after P8-S7) is the implementation slice: `VllmCaller` reusing `async-openai` with no auth key, new `PUT /v1/config/llm-backend` endpoint, and a Setup page backend mode selector with Phi-3 Mini (default) and Llama-3 8B Instruct model options. `spec/08-ai-ml.md §13.1` and `spec/adr/ADR-021-nl-query-layer.md` are updated in the same iteration to cross-reference ADR-027.
