@@ -16,62 +16,68 @@ export function LogCorrelatedList({ traceId, spanId }: Props) {
     queryFn: () => searchLogs({ trace_id: traceId }),
   });
 
-  if (isLoading) return <p>Loading logs…</p>;
+  if (isLoading) {
+    return <p className="text-sm text-[var(--muted)]">Loading logs…</p>;
+  }
   const logs = filterCorrelatedLogs(data?.logs ?? [], spanId);
-  if (!logs.length) return <p>No correlated logs found.</p>;
+  if (!logs.length) {
+    return <p className="text-sm text-[var(--muted)]">No correlated logs found.</p>;
+  }
 
   return (
-    <div style={{ marginTop: 20 }}>
-      <h3>
+    <div className="mt-5">
+      <h3 className="text-sm font-bold text-[var(--text-strong)] mb-2">
         {spanId
           ? `Exact span logs and trace-level logs (${spanId.substring(0, 8)})`
           : "Trace-correlated logs"}
       </h3>
-      <div style={{ 
-        fontFamily: "monospace", 
-        fontSize: "12px", 
-        maxHeight: "300px", 
-        overflowY: "auto",
-        border: "1px solid #e2e8f0",
-        borderRadius: "4px",
-        padding: "8px"
-      }}>
+      <div className="font-mono text-xs max-h-[300px] overflow-y-auto border border-[var(--border)] rounded bg-[var(--surface)] p-2">
         {logs.map((log) => (
-          <div 
-            key={log.log_id} 
+          <div
+            key={log.log_id}
+            role="button"
+            tabIndex={0}
             onClick={() => setFocusedLogId(log.log_id)}
-            style={{ 
-              display: "flex", 
-              gap: "12px", 
-              padding: "4px 0",
-              borderBottom: "1px solid #f7fafc",
-              cursor: "pointer",
-              background: focusedLogId === log.log_id ? "#edf2f7" : "transparent"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setFocusedLogId(log.log_id);
+              }
             }}
+            className={`flex gap-3 py-1 border-b border-[var(--border)] last:border-b-0 cursor-pointer ${
+              focusedLogId === log.log_id ? "bg-[var(--surface-subtle)]" : ""
+            }`}
           >
-            <span style={{ color: "#718096" }}>
-              {new Date(Number(log.timestamp_unix_nano) / 1e6).toISOString().split('T')[1].replace('Z', '')}
+            <span className="text-[var(--muted)] shrink-0">
+              {new Date(Number(log.timestamp_unix_nano) / 1e6)
+                .toISOString()
+                .split("T")[1]
+                .replace("Z", "")}
             </span>
-            <span style={{ 
-              fontWeight: "bold",
-              width: "50px",
-              color: getSeverityColor(log.severity_number)
-            }}>
+            <span
+              className="font-bold w-[50px] shrink-0"
+              style={{ color: getSeverityColor(log.severity_number) }}
+            >
               {log.severity_text || `LVL ${log.severity_number}`}
             </span>
-            <span style={{ width: "90px", color: log.span_id ? "#2b6cb0" : "#805ad5" }}>
+            <span
+              className="w-[90px] shrink-0"
+              style={{
+                color: log.span_id ? "var(--brand)" : "var(--brand-strong)",
+              }}
+            >
               {correlationLabel(log)}
             </span>
-            <span style={{ flex: 1 }}>
-              {typeof log.body === 'string' ? log.body : JSON.stringify(log.body)}
+            <span className="flex-1 min-w-0 break-all">
+              {typeof log.body === "string" ? log.body : JSON.stringify(log.body)}
             </span>
           </div>
         ))}
       </div>
       {focusedLogId && (
-        <LogContextView 
-          logId={focusedLogId} 
-          onClose={() => setFocusedLogId(undefined)} 
+        <LogContextView
+          logId={focusedLogId}
+          onClose={() => setFocusedLogId(undefined)}
         />
       )}
     </div>
@@ -91,9 +97,8 @@ export function correlationLabel(log: LogRecord): "Exact span" | "Trace-level" {
 }
 
 function getSeverityColor(severity: number): string {
-  if (severity >= 17) return "#e53e3e"; // Critical/Fatal/Error
-  if (severity >= 13) return "#e53e3e"; // Error
-  if (severity >= 9) return "#dd6b20";  // Warn
-  if (severity >= 5) return "#3182ce";  // Info
-  return "#718096";                    // Debug/Trace
+  if (severity >= 13) return "var(--bad)";
+  if (severity >= 9) return "var(--warn)";
+  if (severity >= 5) return "var(--brand)";
+  return "var(--muted)";
 }
