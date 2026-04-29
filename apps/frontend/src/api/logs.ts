@@ -41,7 +41,8 @@ export async function searchLogs(params: {
   service?: string;
   trace_id?: string;
   span_id?: string;
-  lookback_minutes?: number;
+  from?: string;
+  to?: string;
   limit?: number;
   facets?: string[];
 }): Promise<LogListResponse> {
@@ -49,9 +50,8 @@ export async function searchLogs(params: {
   if (params.service) url.searchParams.set("service", params.service);
   if (params.trace_id) url.searchParams.set("trace_id", params.trace_id);
   if (params.span_id) url.searchParams.set("span_id", params.span_id);
-  if (params.lookback_minutes) {
-    url.searchParams.set("lookback_minutes", String(params.lookback_minutes));
-  }
+  if (params.from) url.searchParams.set("from", params.from);
+  if (params.to) url.searchParams.set("to", params.to);
   if (params.limit) url.searchParams.set("limit", String(params.limit));
   if (params.facets) url.searchParams.set("facets", params.facets.join(","));
 

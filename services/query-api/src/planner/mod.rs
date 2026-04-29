@@ -145,8 +145,11 @@ impl QueryPlanner {
 
 fn log_search_where_clause(params: &LogSearchParams) -> String {
     let mut where_clause = "WHERE tenant_id = ?".to_string();
-    if params.lookback_minutes.is_some() {
+    if params.from.is_some() {
         where_clause.push_str(" AND timestamp_unix_nano >= ?");
+    }
+    if params.to.is_some() {
+        where_clause.push_str(" AND timestamp_unix_nano <= ?");
     }
     if params.service.is_some() {
         where_clause.push_str(" AND service_name = ?");
@@ -175,6 +178,8 @@ fn requested_log_facets(facets_str: &str) -> impl Iterator<Item = &str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+    use chrono::Utc;
 
     fn params() -> LogSearchParams {
         LogSearchParams {
@@ -184,7 +189,8 @@ mod tests {
             span_id: None,
             limit: None,
             facets: None,
-            lookback_minutes: None,
+            from: None,
+            to: None,
         }
     }
 
@@ -213,7 +219,7 @@ mod tests {
         params.severity = Some(13);
         params.trace_id = Some("trace-1".into());
         params.span_id = Some("span-1".into());
-        params.lookback_minutes = Some(60);
+        params.from = Some(Utc.with_ymd_and_hms(2026, 4, 29, 12, 0, 0).unwrap());
         params.limit = Some(900);
 
         let plan = planner.plan_log_search(&params);

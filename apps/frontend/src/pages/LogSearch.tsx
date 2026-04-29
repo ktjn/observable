@@ -44,12 +44,18 @@ export default function LogSearch() {
   const [selectedLogId, setSelectedLogId] = useState<string | undefined>();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
+  const from = useMemo(() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - lookbackMinutes);
+    return d.toISOString();
+  }, [lookbackMinutes]);
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ["logs", service, lookbackMinutes],
+    queryKey: ["logs", service, from],
     queryFn: () =>
       searchLogs({
         service: service || undefined,
-        lookback_minutes: lookbackMinutes,
+        from,
         limit: 50,
         facets: ["service_name", "severity_number", "environment", "host_id"],
       }),

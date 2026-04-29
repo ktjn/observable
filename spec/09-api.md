@@ -42,10 +42,11 @@ The Query API must support the following patterns required by the Frontend (see 
 
 #### Log Search
 - **Endpoint**: `GET /v1/logs`
-- **Parameters**: Supports `service`, `severity`, `trace_id`, `span_id`, `limit`, `facets`, and
-  `lookback_minutes`.
-- **Time Range**: When `lookback_minutes` is present, results, totals, and facets are filtered to
-  `timestamp_unix_nano >= now - lookback_minutes`.
+- **Parameters**: Supports `service`, `severity`, `trace_id`, `span_id`, `limit`, `facets`,
+  `from` (ISO8601), and `to` (ISO8601).
+- **Time Range**: Results, totals, and facets are filtered by `timestamp_unix_nano`.
+  - If `from` is present: `timestamp_unix_nano >= from`.
+  - If `to` is present: `timestamp_unix_nano <= to`.
 - **Ordering**: Results are ordered by `timestamp_unix_nano DESC`.
 
 #### Field Faceting (Statistics)

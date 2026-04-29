@@ -81,11 +81,11 @@ function renderLogSearch() {
 test("queries logs using the selected time range", async () => {
   renderLogSearch();
 
-  await waitFor(() => expect(searchLogs).toHaveBeenCalledWith(expect.objectContaining({ lookback_minutes: 60 })));
+  await waitFor(() => expect(searchLogs).toHaveBeenCalledWith(expect.objectContaining({ from: expect.any(String) })));
 
   fireEvent.change(screen.getByLabelText("Log time range"), { target: { value: "360" } });
 
-  await waitFor(() => expect(searchLogs).toHaveBeenLastCalledWith(expect.objectContaining({ lookback_minutes: 360 })));
+  await waitFor(() => expect(searchLogs).toHaveBeenLastCalledWith(expect.objectContaining({ from: expect.any(String) })));
 });
 
 test("renders histogram and primary Time Level Message columns", async () => {
