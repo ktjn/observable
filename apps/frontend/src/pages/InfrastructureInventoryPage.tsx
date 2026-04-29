@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { listEnvironments } from "../api/services";
@@ -7,8 +7,12 @@ import {
   type InfrastructureEntitySummary,
   type InfrastructureEntityType,
 } from "../api/infrastructure";
+import { Badge } from "../components/ui/badge";
 import { Input } from "../components/ui/input";
+import { LoadingState } from "../components/ui/loading-state";
+import { MetricCard } from "../components/ui/metric-card";
 import { Select, SelectOption } from "../components/ui/select";
+import { TablePanel } from "../components/ui/table-panel";
 
 type InfrastructureTypeFilter = "all" | InfrastructureEntityType;
 
@@ -58,7 +62,7 @@ export default function InfrastructureInventoryPage() {
     <section className="page-stack">
       <div className="page-header">
         <div>
-          <div className="field-label">Inventory</div>
+          <div className="text-xs font-bold uppercase text-[var(--muted)]">Inventory</div>
           <h1>Infrastructure</h1>
         </div>
       </div>
@@ -96,16 +100,20 @@ export default function InfrastructureInventoryPage() {
         </Select>
       </div>
 
-      <div className="metric-grid" aria-label="Infrastructure summary">
-        <MetricTile label="Entities" value={String(filteredItems.length)} tone="info" />
-        <MetricTile label="Healthy" value={String(summary.healthy)} tone="good" />
-        <MetricTile label="Watch" value={String(summary.watch)} tone="warn" />
-        <MetricTile label="Breach" value={String(summary.breach)} tone="bad" />
+      <div
+        className="grid gap-3 max-[860px]:grid-cols-2 max-[560px]:grid-cols-1"
+        style={{ gridTemplateColumns: "repeat(4, minmax(140px, 1fr))" }}
+        aria-label="Infrastructure summary"
+      >
+        <MetricCard label="Entities" value={String(filteredItems.length)} tone="info" />
+        <MetricCard label="Healthy" value={String(summary.healthy)} tone="good" />
+        <MetricCard label="Watch" value={String(summary.watch)} tone="warn" />
+        <MetricCard label="Breach" value={String(summary.breach)} tone="bad" />
       </div>
 
-      <div className="table-panel">
+      <TablePanel>
         {isLoading ? (
-          <div className="loading-state">Loading infrastructure...</div>
+          <LoadingState>Loading infrastructure…</LoadingState>
         ) : isError ? (
           <div className="signal-empty">Infrastructure inventory could not be loaded.</div>
         ) : filteredItems.length === 0 ? (
@@ -131,7 +139,7 @@ export default function InfrastructureInventoryPage() {
             </tbody>
           </table>
         )}
-      </div>
+      </TablePanel>
     </section>
   );
 }
@@ -203,24 +211,7 @@ function formatUnixNano(nanos: number): string {
 }
 
 function HealthStatus({ healthState }: { healthState: InfrastructureEntitySummary["health_state"] }) {
-  if (healthState === "breach") return <span className="status bad">Breach</span>;
-  if (healthState === "watch") return <span className="status warn">Watch</span>;
-  return <span className="status good">Healthy</span>;
-}
-
-function MetricTile({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: ReactNode;
-  tone: "good" | "warn" | "bad" | "info";
-}) {
-  return (
-    <div className={`metric-tile ${tone}`}>
-      <div className="metric-label">{label}</div>
-      <div className="metric-value">{value}</div>
-    </div>
-  );
+  const tone = healthState === "breach" ? "bad" : healthState === "watch" ? "warn" : "good";
+  const label = healthState === "breach" ? "Breach" : healthState === "watch" ? "Watch" : "Healthy";
+  return <Badge tone={tone}>{label}</Badge>;
 }
