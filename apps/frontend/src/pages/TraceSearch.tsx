@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { createDashboard } from "../api/dashboards";
 import { searchTraces } from "../api/traces";
 import { FacetSidebar } from "../components/FacetSidebar";
 import { Badge } from "../components/ui/badge";
@@ -10,7 +11,8 @@ import { LoadingState } from "../components/ui/loading-state";
 import { TablePanel } from "../components/ui/table-panel";
 
 export default function TraceSearch() {
-  const [service, setService] = useState("");
+  const [service, setService] = useState(() => new URLSearchParams(window.location.search).get("service") ?? "");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   
   const { data, isLoading, error } = useQuery({
     queryKey: ["traces", service],
@@ -24,6 +26,28 @@ export default function TraceSearch() {
   const handleFacetClick = (field: string, value: string) => {
     if (field === "service_name") {
       setService(value);
+    }
+  };
+
+  const handlePromote = async () => {
+    setSaveStatus("saving");
+    try {
+      await createDashboard({
+        name: service ? `Traces for ${service}` : "Promoted trace query",
+        panels: [
+          {
+            title: service ? `Traces for ${service}` : "Trace search",
+            query_kind: "traces",
+            service: service || undefined,
+            lookback_minutes: 60,
+            filters: { facets: ["service_name", "status_code", "span_kind"] },
+          },
+        ],
+      });
+      setSaveStatus("saved");
+    } catch (error) {
+      console.error(error);
+      setSaveStatus("error");
     }
   };
 
@@ -48,6 +72,15 @@ export default function TraceSearch() {
           <Button variant="secondary" onClick={() => setService("")}>
             Clear filters
           </Button>
+        )}
+        <Button onClick={handlePromote} disabled={saveStatus === "saving"}>
+          Promote to dashboard
+        </Button>
+        {saveStatus === "saved" && (
+          <span className="text-sm font-semibold text-[var(--good)]">Saved to dashboard</span>
+        )}
+        {saveStatus === "error" && (
+          <span className="text-sm font-semibold text-[var(--bad)]">Dashboard save failed</span>
         )}
       </div>
 

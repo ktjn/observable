@@ -11,6 +11,7 @@ import SetupPage from "./pages/SetupPage";
 import TraceSearch from "./pages/TraceSearch";
 import TraceDetailPage from "./pages/TraceDetailPage";
 import LogSearch from "./pages/LogSearch";
+import DashboardsPage from "./pages/DashboardsPage";
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -69,7 +70,7 @@ const serviceOverviewRoute = createRoute({
 const dashboardsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/dashboards",
-  component: () => createElement(ProductAreaPage, { area: "dashboards" }),
+  component: DashboardsPage,
 });
 const alertsRoute = createRoute({
   getParentRoute: () => rootRoute,

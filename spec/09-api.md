@@ -77,6 +77,15 @@ The Query API must support the following patterns required by the Frontend (see 
 - **Required Fields**: Entity identity, entity type, health state, CPU, memory, disk, network, restart count where applicable, recent log/error rate, related service names, and last-seen timestamp.
 - **Filtering**: Must support project, environment, tenant, entity type, entity ID/name, related service, and time range filters.
 
+#### Dashboard Promotion
+- **Endpoints**:
+  - `GET /v1/dashboards` returns tenant-scoped fixed-layout dashboards.
+  - `POST /v1/dashboards` creates one dashboard with one or more promoted panels.
+- **Behavior**: Explorer promotion persists the selected query kind, service filter, lookback window, and structured filter metadata so the dashboard route can render the saved panel context without reconstructing it from browser-local state.
+- **Current Response Fields**: `dashboard_id`, `name`, `created_at`, and `panels[]` with `panel_id`, `title`, `query_kind`, `service`, `lookback_minutes`, and `filters`.
+- **Current Panel Types**: `logs`, `traces`, and `metrics` are valid `query_kind` values. P3-S12 wires Logs and Traces promotion first; metrics promotion can reuse the same contract when the metric explorer exposes an ad-hoc query surface.
+- **Out of Scope**: Drag-and-drop layout editing, dashboard-as-code import/export, and CI validation are handled by later dashboard slices.
+
 ### Resolved Query API Bugs
 
 #### Bug Report: Query API MVP response correctness regressions
