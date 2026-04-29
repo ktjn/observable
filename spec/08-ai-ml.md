@@ -151,28 +151,21 @@ same NLQ IR. This is a thin front-end, not a new query engine:
 
 #### LLM Backend Configuration
 
-The NLQ pipeline supports two LLM backends, selectable on the Setup page or via env vars:
+The NLQ pipeline connects to any OpenAI-compatible LLM endpoint. All three settings are
+configurable on the Setup page or via env vars:
 
-**OpenAI API (default)**
-- Requires `LLM_API_KEY` (env var or set on Setup page)
-- Endpoint overridable via `OPENAI_BASE_URL` (compatible with Azure OpenAI, Ollama, etc.)
-- Model overridable via `OPENAI_MODEL` (default: `gpt-4o-mini`)
+| Setting | `platform_config` key | Env var | Fallback env var | Default |
+|---|---|---|---|---|
+| API Key | `llm_api_key` | `LLM_API_KEY` | — | _(none)_ |
+| Endpoint URL | `llm_url` | `LLM_URL` | `OPENAI_BASE_URL` | `https://api.openai.com/v1` |
+| Model | `llm_model` | `LLM_MODEL` | `OPENAI_MODEL` | `gpt-4o-mini` |
 
-**vLLM (local)**
-- No API key required. Observable connects to a user-run vLLM server exposing the
-  OpenAI-compatible API (default endpoint: `http://localhost:8000`).
-- Observable does not start or manage the vLLM process.
-- Two models are selectable in the UI:
-  - **Phi-3 Mini 3.8B** (`microsoft/Phi-3-mini-4k-instruct`) — default; ~2.5 GB VRAM,
-    MIT-licensed, suitable for most NLQ IR generation tasks.
-  - **Llama-3 8B Instruct** (`meta-llama/Meta-Llama-3-8B-Instruct`) — higher accuracy for
-    complex multi-signal questions; requires ~6 GB VRAM.
-- Endpoint overridable via `VLLM_BASE_URL` env var.
-- Model overridable via `LLM_MODEL` env var (for custom model strings).
+Env vars take priority over Setup page values. Leaving API Key blank is valid for vLLM and
+other unauthenticated OpenAI-compatible endpoints (point Endpoint URL at your vLLM server).
 
-Config is stored in the `platform_config` PostgreSQL table (key-value). Env vars take
-precedence over database values. See [ADR-027](adr/ADR-027-local-llm-backend.md) for the
-full decision record.
+The API key is XOR-obfuscated before storage in the `platform_config` PostgreSQL table.
+Config is stored in the `platform_config` key-value table; no schema migration is required
+for new config keys. See [ADR-027](adr/ADR-027-local-llm-backend.md) for the full decision record.
 
 #### Prerequisite
 

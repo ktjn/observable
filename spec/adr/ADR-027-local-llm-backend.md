@@ -1,144 +1,93 @@
-# ADR-027: Local LLM Backend (vLLM)
+# ADR-027: LLM Backend Configuration (Unified Three-Field Setup UI)
 
 **Date:** 2026-04-29
-**Status:** Proposed
+**Revised:** 2026-04-29
+**Status:** Accepted
 **Authors:** ktjn
 **Deciders:** Project Stakeholders
 **Review date:** 2026-10-29
 
 ## Context
 
-P8-S6 delivered the NLQ pipeline (ADR-021) with a single LLM backend: the OpenAI API (or any
-OpenAI-compatible provider reachable via `OPENAI_BASE_URL`). To use natural language query, a
-user must supply an `LLM_API_KEY`, which requires a cloud API account and incurs ongoing cost.
+P8-S6 delivered the NLQ pipeline (ADR-021) with a single LLM backend: the OpenAI API,
+configurable via `LLM_API_KEY` env var. To use NLQ, a user must supply an API key. The
+Setup page only exposed a single API key input and pointed users at `OPENAI_BASE_URL` /
+`OPENAI_MODEL` env vars that could not be changed without a container restart.
 
-This creates a barrier for:
-- Local development and evaluation without cloud credentials
-- Air-gapped or security-sensitive environments
-- Cost-sensitive operators who prefer a one-time GPU investment over per-token pricing
+An initial draft of this ADR (2026-04-29, now superseded) proposed adding a separate "vLLM"
+backend mode with a dedicated backend selector in the Setup UI. This was revised because:
 
-[vLLM](https://github.com/vllm-project/vllm) is an open-source LLM inference server that
-exposes an **OpenAI-compatible HTTP API**. It can serve open-weight models locally (CPU or GPU).
-Connecting Observable to a local vLLM instance requires no new HTTP client library — the
-existing `async-openai` crate is reused with no auth key and a configurable base URL.
-
-Two models are offered:
-- **Phi-3 Mini 3.8B** (`microsoft/Phi-3-mini-4k-instruct`) — default; low resource requirement
-  (~2.5 GB VRAM or fast CPU inference), strong instruction following for its size, MIT-licensed.
-- **Llama-3 8B Instruct** (`meta-llama/Meta-Llama-3-8B-Instruct`) — selectable alternative;
-  higher accuracy for complex NLQ IR generation, requires ~6 GB VRAM, Meta Llama 3 Community
-  License.
-
-Observable does not run vLLM itself. The user is responsible for starting a vLLM server and
-pointing Observable at its endpoint. Observable stores only the connection configuration.
+1. vLLM exposes an **OpenAI-compatible HTTP API** — the same `async-openai` client and the
+   same three config fields work for every OpenAI-compatible provider (OpenAI, Azure, vLLM,
+   Ollama, etc.). A backend mode selector adds UI complexity without adding capability.
+2. Users simply need to configure **API key, endpoint URL, and model** — the combination
+   naturally covers all cases without mode distinction.
+3. Connecting to vLLM on a remote machine requires only a custom endpoint URL; no API key
+   is needed unless the vLLM server has auth enabled.
 
 ## Decision
 
-Observable will support **vLLM as an opt-in local LLM backend** for the NLQ pipeline alongside
-the existing OpenAI API backend. The OpenAI API remains the default.
+Observable exposes **three configurable fields** for the LLM connection on the Setup page:
 
-### Backend selection
+| Setting | `platform_config` key | Env var | Fallback env var | Default |
+|---|---|---|---|---|
+| API Key | `llm_api_key` | `LLM_API_KEY` | — | _(none)_ |
+| Endpoint URL | `llm_url` | `LLM_URL` | `OPENAI_BASE_URL` | `https://api.openai.com/v1` |
+| Model | `llm_model` | `LLM_MODEL` | `OPENAI_MODEL` | `gpt-4o-mini` |
 
-The active LLM backend is determined by the `llm_backend` configuration key, following the same
-precedence pattern as the existing `LLM_API_KEY`:
+Env vars take priority over database values. No backend selector or mode concept exists —
+`OpenAiLlmCaller` handles all OpenAI-compatible endpoints via the configurable URL.
 
-1. Env var `LLM_BACKEND` (`openai` | `vllm`) — highest priority; set at container start.
-2. `platform_config` database row (key = `llm_backend`) — runtime-configurable via Setup UI.
-3. Default: `openai`.
+### API changes
 
-Additional config keys for the vLLM path:
+- `GET /v1/config` response extended with `llm_url: string | null` and `llm_model: string | null`.
+  API key is still write-only (`llm_key_configured: bool` only).
+- `PUT /v1/config/llm` — new endpoint accepting `{ api_key?, url?, model? }`. Upserts
+  whichever fields are present. Returns 204.
+- `PUT /v1/config/llm-key` — retained as a backwards-compatible alias.
 
-| Key | Env var override | Default | Description |
-|---|---|---|---|
-| `llm_backend` | `LLM_BACKEND` | `openai` | Active backend: `openai` or `vllm` |
-| `llm_model` | `LLM_MODEL` | `phi3-mini` | Model selection: `phi3-mini` or `llama3-8b` |
-| `vllm_base_url` | `VLLM_BASE_URL` | `http://localhost:8000` | vLLM server endpoint |
+### XOR obfuscation for the API key
 
-All keys live in the existing `platform_config` PostgreSQL table (key-value store). No schema
-migration is required; new keys are upserted on first write.
+The API key is XOR-obfuscated (hex-encoded) before storage in the `platform_config` table.
+This prevents the key from appearing in plaintext in database dumps or log output. The XOR
+key is a fixed 32-byte constant embedded in source code — this is **obfuscation, not
+encryption**. Real encryption (AES with operator-managed secret) is out of scope for this
+local-development-targeted feature; the Setup page now states "API key is obfuscated in
+PostgreSQL" rather than "stored in plaintext."
 
-### VllmCaller implementation
+### Setup UI
 
-`VllmCaller` implements the `LlmCaller` trait using `async-openai` configured with:
-- `api_base` → `vllm_base_url` (from env or DB)
-- `api_key` → empty string (vLLM does not require authentication by default)
-- `model` → resolved model string from `llm_model` config key
-
-Model strings used with vLLM:
-
-| Config value | Model string passed to vLLM |
-|---|---|
-| `phi3-mini` | `microsoft/Phi-3-mini-4k-instruct` |
-| `llama3-8b` | `meta-llama/Meta-Llama-3-8B-Instruct` |
-
-### Setup UI changes (P8-S6b)
-
-The Setup page `LlmKeyPanel` is replaced with a `LlmConfigPanel` offering a backend mode
-selector:
-
-- **OpenAI API** — existing API key input, unchanged.
-- **vLLM (local)** — model dropdown (Phi-3 Mini selected by default, Llama-3 8B as
-  alternative) + endpoint URL input pre-filled with `http://localhost:8000`.
-
-The badge on the panel reflects the currently configured backend.
+The `LlmKeyPanel` component is replaced with `LlmConfigPanel` containing three labelled inputs:
+- **API Key** (password) — placeholder notes blank is valid for no-auth endpoints
+- **Endpoint URL** (url input) — placeholder shows OpenAI default
+- **Model** (text input with `<datalist>`) — suggestions include OpenAI and local model names
+- Single Save button submits all three fields at once
+- Inputs for url and model pre-fill from the server-returned `llm_url` / `llm_model` values
 
 ### Invariants (unchanged from ADR-021 and ADR-014)
 
-- All advisory-only, provenance-required, read-only constraints remain in force for both backends.
-- `VllmCaller` is injected via the `LlmCaller` trait; no direct call sites outside `llm_adapter`.
-- The `GET /v1/config` endpoint returns `llm_backend` and `llm_model` alongside
-  `llm_key_configured` so the UI can reflect the active configuration.
-- A new `PUT /v1/config/llm-backend` endpoint accepts `{ backend, model, vllm_base_url? }`.
+- All advisory-only, provenance-required, read-only constraints remain in force.
+- `OpenAiLlmCaller` is injected via the `LlmCaller` trait; no direct call sites outside `llm_adapter`.
 
 ## Consequences
 
 **Easier:**
-- Local evaluation and development of NLQ without any cloud API account.
-- Air-gapped deployments can use NLQ with self-hosted models.
-- No new HTTP client dependency — `async-openai` already handles OpenAI-compat endpoints.
-- Configuration follows the existing env-var-or-DB precedence pattern; no new patterns introduced.
+- Any OpenAI-compatible endpoint (OpenAI, Azure, vLLM local or remote, Ollama) is
+  configurable entirely from the Setup page without a container restart.
+- No backend mode state to manage in UI or backend; single code path for all providers.
+- Legacy `PUT /v1/config/llm-key` callers continue to work unchanged.
 
 **Harder:**
-- NLQ output quality depends on the chosen model. Phi-3 Mini is smaller and may produce less
-  accurate NLQ IR for complex multi-signal questions. Users must be informed of this trade-off.
-- vLLM server availability and health are outside Observable's control. The NLQ endpoint must
-  surface a clear error when vLLM is unreachable (503 with actionable message).
-- The operator must pre-download model weights to the vLLM server. Observable does not manage this.
+- The operator must know the correct model identifier string for non-OpenAI providers
+  (e.g., `microsoft/Phi-3-mini-4k-instruct` for vLLM serving Phi-3). The model `<datalist>`
+  in the UI provides common suggestions.
 
 **Constrained:**
-- Observable does not bundle, start, or manage the vLLM process. This is intentional — vLLM
-  resource requirements (CPU/GPU, RAM) are highly environment-specific.
-- Only the two enumerated models are selectable via the UI. Arbitrary model strings require env
-  var override (`LLM_MODEL`) for advanced use — this prevents typo-driven misconfiguration.
-- vLLM authentication (API key / bearer token) is not supported in this slice. If a vLLM server
-  requires auth, the operator must use `OPENAI_BASE_URL` + `LLM_API_KEY` env vars with the
-  OpenAI backend (vLLM accepts this combination).
-
-## Alternatives Considered
-
-### Option A: Ollama backend
-
-Ollama is popular for local LLM serving. Its HTTP API differs from the OpenAI format, which would
-require a new HTTP client or a thin adapter. vLLM's native OpenAI-compat API requires no such
-adapter. Rejected in favour of vLLM for this slice; Ollama support can be added as a follow-on
-using the same `LlmCaller` trait extension point.
-
-### Option B: OPENAI_BASE_URL env var only (no UI)
-
-Users can already point `OPENAI_BASE_URL` at any OpenAI-compatible server, including vLLM. This
-works but requires a container restart and offers no Setup UI feedback. Rejected because the
-stated requirement is a Setup UI toggle — env-var-only is an advanced escape hatch, not an
-operator-friendly UX.
-
-### Option C: Embed a local inference runtime
-
-Embedding llama.cpp or similar via FFI would remove the external vLLM dependency. Rejected
-because it adds significant build complexity, OS/GPU-specific binary dependencies, and increased
-binary size. The vLLM HTTP bridge adds negligible overhead relative to LLM inference latency.
+- XOR obfuscation is not a substitute for proper secrets management. For production
+  deployments, prefer env var injection (`LLM_API_KEY`) from a secrets manager.
 
 ## Related
 
 - [ADR-021](ADR-021-nl-query-layer.md) — NL query layer architecture; `LlmCaller` trait
 - [ADR-014](ADR-014-ai-feature-boundaries.md) — AI feature boundaries (advisory-only, provenance required)
 - [spec/08-ai-ml.md §13.1](../08-ai-ml.md) — NLQ spec, LLM backend configuration
-- [P8-S6b iteration slice](../../docs/superpowers/plans/2026-04-29-p8-s6b-local-llm-vllm.md)

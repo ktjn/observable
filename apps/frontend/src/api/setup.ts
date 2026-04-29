@@ -43,24 +43,49 @@ export async function getFirstSignalStatus(): Promise<FirstSignalStatus> {
 
 export interface PlatformConfig {
   llm_key_configured: boolean;
+  /** LLM endpoint URL stored in DB; null if not set. */
+  llm_url: string | null;
+  /** LLM model identifier stored in DB; null if not set. */
+  llm_model: string | null;
 }
 
 export async function getConfig(): Promise<PlatformConfig> {
   const res = await fetch("/v1/config", {
-    headers: { "x-api-key": LOCAL_DEV_API_KEY },
+    headers: {
+      "x-api-key": LOCAL_DEV_API_KEY,
+      "X-Tenant-ID": LOCAL_DEV_TENANT_ID,
+    },
   });
   if (!res.ok) throw new Error(`getConfig failed: ${res.status}`);
   return res.json() as Promise<PlatformConfig>;
 }
 
-export async function saveLlmKey(key: string): Promise<void> {
-  const res = await fetch("/v1/config/llm-key", {
+export interface SaveLlmConfigParams {
+  apiKey?: string;
+  url?: string;
+  model?: string;
+}
+
+/** PUT /v1/config/llm — upserts whichever of apiKey, url, model are provided. */
+export async function saveLlmConfig(params: SaveLlmConfigParams): Promise<void> {
+  const body: Record<string, string> = {};
+  if (params.apiKey !== undefined) body.api_key = params.apiKey;
+  if (params.url !== undefined) body.url = params.url;
+  if (params.model !== undefined) body.model = params.model;
+
+  const res = await fetch("/v1/config/llm", {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
       "x-api-key": LOCAL_DEV_API_KEY,
+      "X-Tenant-ID": LOCAL_DEV_TENANT_ID,
     },
-    body: JSON.stringify({ key }),
+    body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`saveLlmKey failed: ${res.status}`);
+  if (!res.ok) throw new Error(`saveLlmConfig failed: ${res.status}`);
+}
+
+/** Legacy alias — kept for backwards compatibility. */
+export async function saveLlmKey(key: string): Promise<void> {
+  return saveLlmConfig({ apiKey: key });
 }
