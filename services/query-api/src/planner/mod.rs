@@ -24,27 +24,34 @@ pub struct TraceSearchPlan {
     pub limit: u64,
 }
 
+pub struct LogHistogramPlan {
+    pub sql: String,
+    pub from_ns: u64,
+    pub interval_ns: u64,
+    pub bucket_count: u32,
+}
+
 #[derive(Clone, Default)]
 pub struct QueryPlanner;
 
 impl QueryPlanner {
     pub fn plan_trace_search(&self, params: &TraceSearchParams) -> TraceSearchPlan {
         let count_sql = if params.service.is_some() {
-            "SELECT count(DISTINCT trace_id) FROM spans WHERE tenant_id = ? AND service_name = ?"
+            "SELECT count(DISTINCT trace_id) FROM observable.spans WHERE tenant_id = ? AND service_name = ?"
         } else {
-            "SELECT count(DISTINCT trace_id) FROM spans WHERE tenant_id = ?"
+            "SELECT count(DISTINCT trace_id) FROM observable.spans WHERE tenant_id = ?"
         }
         .to_string();
 
         let latest_trace_ids_sql = if params.service.is_some() {
-            "(SELECT tenant_id, trace_id, max(start_time_unix_nano) FROM spans WHERE tenant_id = ? AND service_name = ? GROUP BY tenant_id, trace_id ORDER BY max(start_time_unix_nano) DESC LIMIT ?)"
+            "(SELECT tenant_id, trace_id, max(start_time_unix_nano) FROM observable.spans WHERE tenant_id = ? AND service_name = ? GROUP BY tenant_id, trace_id ORDER BY max(start_time_unix_nano) DESC LIMIT ?)"
         } else {
-            "(SELECT tenant_id, trace_id, max(start_time_unix_nano) FROM spans WHERE tenant_id = ? GROUP BY tenant_id, trace_id ORDER BY max(start_time_unix_nano) DESC LIMIT ?)"
+            "(SELECT tenant_id, trace_id, max(start_time_unix_nano) FROM observable.spans WHERE tenant_id = ? GROUP BY tenant_id, trace_id ORDER BY max(start_time_unix_nano) DESC LIMIT ?)"
         }
         .to_string();
 
         let spans_sql = format!(
-            "SELECT {SELECT_COLS} FROM spans \
+            "SELECT {SELECT_COLS} FROM observable.spans \
              WHERE (tenant_id, trace_id, start_time_unix_nano) IN {latest_trace_ids_sql} \
              ORDER BY start_time_unix_nano DESC"
         );
@@ -58,20 +65,20 @@ impl QueryPlanner {
 
     pub fn plan_log_search(&self, params: &LogSearchParams) -> LogQueryPlan {
         let where_clause = log_search_where_clause(params);
-        let count_sql = format!("SELECT count() FROM logs {where_clause}");
+        let count_sql = format!("SELECT count() FROM observable.logs {where_clause}");
 
         let mut facet_plans = HashMap::new();
         if let Some(facets_str) = &params.facets {
             for field in requested_log_facets(facets_str) {
                 let facet_sql = format!(
-                    "SELECT toString({field}) as value, count() as count FROM logs {where_clause} GROUP BY {field} ORDER BY count DESC LIMIT 10"
+                    "SELECT toString({field}) as value, count() as count FROM observable.logs {where_clause} GROUP BY {field} ORDER BY count DESC LIMIT 10"
                 );
                 facet_plans.insert(field.to_string(), FacetPlan { sql: facet_sql });
             }
         }
 
         let logs_sql = format!(
-            "SELECT ?fields FROM logs {where_clause} ORDER BY timestamp_unix_nano DESC LIMIT ?"
+            "SELECT ?fields FROM observable.logs {where_clause} ORDER BY timestamp_unix_nano DESC LIMIT ?"
         );
 
         LogQueryPlan {
@@ -89,7 +96,7 @@ impl QueryPlanner {
                 count() AS request_count, \
                 countIf(child.status_code = 'ERROR') AS error_count, \
                 quantile(0.95)(child.duration_ns) AS p95_latency_ns \
-            FROM spans AS child \
+            FROM observable.spans AS child \
             INNER JOIN spans AS parent ON child.parent_span_id = parent.span_id AND child.trace_id = parent.trace_id \
             WHERE child.tenant_id = ? AND parent.tenant_id = ? \
               AND child.service_name != parent.service_name \
@@ -113,7 +120,7 @@ impl QueryPlanner {
                 count() AS request_count, \
                 countIf(s2.status_code = 'ERROR') AS error_count, \
                 quantile(0.95)(s2.duration_ns) AS p95_latency_ns \
-            FROM spans AS s1 \
+            FROM observable.spans AS s1 \
             INNER JOIN spans AS s2 ON s1.trace_id = s2.trace_id \
             WHERE s1.tenant_id = ? AND s2.tenant_id = ? \
               AND s1.service_name != s2.service_name \
@@ -140,6 +147,43 @@ impl QueryPlanner {
         );
 
         TopologyPlan { sql }
+    }
+
+    pub fn plan_log_histogram(
+        &self,
+        from_ns: u64,
+        to_ns: u64,
+        service: Option<&str>,
+        bucket_count: u32,
+    ) -> LogHistogramPlan {
+        let range_ns = to_ns.saturating_sub(from_ns).max(1);
+        let interval_ns = (range_ns / bucket_count as u64).max(1);
+
+        let mut where_clause = format!(
+            "WHERE tenant_id = ? \
+             AND timestamp_unix_nano >= ? \
+             AND timestamp_unix_nano <= ?"
+        );
+        if service.is_some() {
+            where_clause.push_str(" AND service_name = ?");
+        }
+
+        let sql = format!(
+            "SELECT \
+               intDiv(timestamp_unix_nano - {from_ns}, {interval_ns}) AS bucket_idx, \
+               severity_number, \
+               count() AS cnt \
+             FROM observable.logs {where_clause} \
+             GROUP BY bucket_idx, severity_number \
+             ORDER BY bucket_idx ASC"
+        );
+
+        LogHistogramPlan {
+            sql,
+            from_ns,
+            interval_ns,
+            bucket_count,
+        }
     }
 }
 
@@ -201,11 +245,11 @@ mod tests {
 
         assert_eq!(
             plan.count_sql,
-            "SELECT count() FROM logs WHERE tenant_id = ?"
+            "SELECT count() FROM observable.logs WHERE tenant_id = ?"
         );
         assert_eq!(
             plan.logs_sql,
-            "SELECT ?fields FROM logs WHERE tenant_id = ? ORDER BY timestamp_unix_nano DESC LIMIT ?"
+            "SELECT ?fields FROM observable.logs WHERE tenant_id = ? ORDER BY timestamp_unix_nano DESC LIMIT ?"
         );
         assert_eq!(plan.limit, 50);
         assert!(plan.facet_plans.is_empty());
@@ -226,11 +270,11 @@ mod tests {
 
         assert_eq!(
             plan.count_sql,
-            "SELECT count() FROM logs WHERE tenant_id = ? AND timestamp_unix_nano >= ? AND service_name = ? AND severity_number >= ? AND trace_id = ? AND span_id = ?"
+            "SELECT count() FROM observable.logs WHERE tenant_id = ? AND timestamp_unix_nano >= ? AND service_name = ? AND severity_number >= ? AND trace_id = ? AND span_id = ?"
         );
         assert_eq!(
             plan.logs_sql,
-            "SELECT ?fields FROM logs WHERE tenant_id = ? AND timestamp_unix_nano >= ? AND service_name = ? AND severity_number >= ? AND trace_id = ? AND span_id = ? ORDER BY timestamp_unix_nano DESC LIMIT ?"
+            "SELECT ?fields FROM observable.logs WHERE tenant_id = ? AND timestamp_unix_nano >= ? AND service_name = ? AND severity_number >= ? AND trace_id = ? AND span_id = ? ORDER BY timestamp_unix_nano DESC LIMIT ?"
         );
         assert_eq!(plan.limit, 500);
     }
@@ -353,7 +397,7 @@ mod tests {
 
         assert_eq!(
             plan.count_sql,
-            "SELECT count(DISTINCT trace_id) FROM spans WHERE tenant_id = ? AND service_name = ?"
+            "SELECT count(DISTINCT trace_id) FROM observable.spans WHERE tenant_id = ? AND service_name = ?"
         );
         assert!(!plan.count_sql.contains("LIMIT"));
 
@@ -361,7 +405,7 @@ mod tests {
         let plan = planner.plan_trace_search(&params);
         assert_eq!(
             plan.count_sql,
-            "SELECT count(DISTINCT trace_id) FROM spans WHERE tenant_id = ?"
+            "SELECT count(DISTINCT trace_id) FROM observable.spans WHERE tenant_id = ?"
         );
     }
 

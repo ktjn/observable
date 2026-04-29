@@ -63,7 +63,7 @@ pub async fn get_trace(
     Path(trace_id): Path<String>,
 ) -> Result<Json<TraceResponse>, StatusCode> {
     let sql = format!(
-        "SELECT {SELECT_COLS} FROM spans \
+        "SELECT {SELECT_COLS} FROM observable.spans \
          WHERE tenant_id = ? AND trace_id = ? \
          ORDER BY start_time_unix_nano \
          LIMIT 1000"
@@ -134,7 +134,7 @@ pub async fn search_traces(
             }
 
             let mut facet_sql = format!(
-                "SELECT toString({field}) as value, count(DISTINCT trace_id) as count FROM spans WHERE tenant_id = ?"
+                "SELECT toString({field}) as value, count(DISTINCT trace_id) as count FROM observable.spans WHERE tenant_id = ?"
             );
             if params.service.is_some() {
                 facet_sql.push_str(" AND service_name = ?");

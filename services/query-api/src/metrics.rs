@@ -31,9 +31,9 @@ pub async fn list_metrics(
     Query(params): Query<MetricListParams>,
 ) -> Result<Json<MetricSeriesListResponse>, StatusCode> {
     let sql = if params.service.is_some() {
-        "SELECT ?fields FROM metric_series WHERE tenant_id = ? AND service_name = ?"
+        "SELECT ?fields FROM observable.metric_series WHERE tenant_id = ? AND service_name = ?"
     } else {
-        "SELECT ?fields FROM metric_series WHERE tenant_id = ?"
+        "SELECT ?fields FROM observable.metric_series WHERE tenant_id = ?"
     };
     let mut query = state.ch.query(sql).bind(ctx.tenant_id);
     if let Some(service) = &params.service {

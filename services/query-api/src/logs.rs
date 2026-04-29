@@ -181,7 +181,7 @@ pub async fn tail_logs(
 ) -> Result<Json<LogListResponse>, StatusCode> {
     let limit = params.limit.unwrap_or(100).min(500);
 
-    let mut query = "SELECT ?fields FROM logs WHERE tenant_id = ?".to_string();
+    let mut query = "SELECT ?fields FROM observable.logs WHERE tenant_id = ?".to_string();
     if params.service.is_some() {
         query.push_str(" AND service_name = ?");
     }
@@ -256,7 +256,7 @@ pub async fn get_log_context(
     // 1. Fetch the pivot log
     let pivot_row: LogRow = state
         .ch
-        .query("SELECT ?fields FROM logs WHERE tenant_id = ? AND log_id = ?")
+        .query("SELECT ?fields FROM observable.logs WHERE tenant_id = ? AND log_id = ?")
         .bind(ctx.tenant_id)
         .bind(log_id)
         .fetch_optional::<LogRow>()
@@ -270,7 +270,7 @@ pub async fn get_log_context(
     // 2. Fetch logs BEFORE
     let mut before_cursor = state
         .ch
-        .query("SELECT ?fields FROM logs WHERE tenant_id = ? AND service_name = ? AND host_id = ? AND timestamp_unix_nano < ? ORDER BY timestamp_unix_nano DESC LIMIT ?")
+        .query("SELECT ?fields FROM observable.logs WHERE tenant_id = ? AND service_name = ? AND host_id = ? AND timestamp_unix_nano < ? ORDER BY timestamp_unix_nano DESC LIMIT ?")
         .bind(ctx.tenant_id)
         .bind(&pivot_row.service_name)
         .bind(&pivot_row.host_id)
@@ -294,7 +294,7 @@ pub async fn get_log_context(
     // 3. Fetch logs AFTER
     let mut after_cursor = state
         .ch
-        .query("SELECT ?fields FROM logs WHERE tenant_id = ? AND service_name = ? AND host_id = ? AND timestamp_unix_nano > ? ORDER BY timestamp_unix_nano ASC LIMIT ?")
+        .query("SELECT ?fields FROM observable.logs WHERE tenant_id = ? AND service_name = ? AND host_id = ? AND timestamp_unix_nano > ? ORDER BY timestamp_unix_nano ASC LIMIT ?")
         .bind(ctx.tenant_id)
         .bind(&pivot_row.service_name)
         .bind(&pivot_row.host_id)
@@ -382,6 +382,84 @@ pub async fn fetch_log_rows_since(
 
 fn to_unix_nano(dt: DateTime<Utc>) -> u64 {
     dt.timestamp_nanos_opt().unwrap_or(0) as u64
+}
+
+#[derive(Deserialize)]
+pub struct LogHistogramParams {
+    pub service: Option<String>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
+    pub buckets: Option<u32>,
+}
+
+#[derive(Serialize)]
+pub struct LogHistogramBucket {
+    pub start_ms: u64,
+    pub end_ms: u64,
+    pub counts: HashMap<i32, u64>,
+}
+
+#[derive(Serialize)]
+pub struct LogHistogramResponse {
+    pub buckets: Vec<LogHistogramBucket>,
+}
+
+pub async fn log_histogram(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Query(params): Query<LogHistogramParams>,
+) -> Result<Json<LogHistogramResponse>, StatusCode> {
+    let now_ns = Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64;
+    let from_ns = params
+        .from
+        .map(to_unix_nano)
+        .unwrap_or_else(|| now_ns.saturating_sub(3_600_000_000_000));
+    let to_ns = params.to.map(to_unix_nano).unwrap_or(now_ns);
+    let bucket_count = params.buckets.unwrap_or(30).clamp(1, 200);
+
+    let plan =
+        state
+            .planner
+            .plan_log_histogram(from_ns, to_ns, params.service.as_deref(), bucket_count);
+
+    let mut query = state
+        .ch
+        .query(&plan.sql)
+        .bind(ctx.tenant_id)
+        .bind(from_ns)
+        .bind(to_ns);
+    if let Some(service) = &params.service {
+        query = query.bind(service);
+    }
+
+    let mut cursor = query.fetch::<(u64, i32, u64)>().map_err(|e| {
+        tracing::error!("ClickHouse histogram query error: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let mut raw: HashMap<u64, HashMap<i32, u64>> = HashMap::new();
+    while let Some((bucket_idx, severity, count)) = cursor.next().await.map_err(|e| {
+        tracing::error!("ClickHouse histogram fetch error: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })? {
+        if bucket_idx < bucket_count as u64 {
+            raw.entry(bucket_idx).or_default().insert(severity, count);
+        }
+    }
+
+    let buckets = (0..bucket_count)
+        .map(|i| {
+            let start_ns = plan.from_ns + i as u64 * plan.interval_ns;
+            let end_ns = start_ns + plan.interval_ns;
+            LogHistogramBucket {
+                start_ms: start_ns / 1_000_000,
+                end_ms: end_ns / 1_000_000,
+                counts: raw.remove(&(i as u64)).unwrap_or_default(),
+            }
+        })
+        .collect();
+
+    Ok(Json(LogHistogramResponse { buckets }))
 }
 
 fn validate_log_rows_for_tenant(rows: &[LogRow], tenant_id: Uuid) -> Result<(), StatusCode> {

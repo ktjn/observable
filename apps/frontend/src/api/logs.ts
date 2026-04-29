@@ -60,6 +60,33 @@ export async function searchLogs(params: {
   return res.json();
 }
 
+export interface LogHistogramBucket {
+  start_ms: number;
+  end_ms: number;
+  counts: Record<string, number>;
+}
+
+export interface LogHistogramResponse {
+  buckets: LogHistogramBucket[];
+}
+
+export async function fetchLogHistogram(params: {
+  service?: string;
+  from: string;
+  to: string;
+  buckets?: number;
+}): Promise<LogHistogramResponse> {
+  const url = new URL("/v1/logs/histogram", window.location.origin);
+  if (params.service) url.searchParams.set("service", params.service);
+  url.searchParams.set("from", params.from);
+  url.searchParams.set("to", params.to);
+  if (params.buckets) url.searchParams.set("buckets", String(params.buckets));
+
+  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  if (!res.ok) throw new Error(`Histogram query failed: ${res.status}`);
+  return res.json();
+}
+
 export async function tailLogs(params: {
   service?: string;
   severity?: number;

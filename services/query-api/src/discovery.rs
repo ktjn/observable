@@ -205,11 +205,11 @@ pub async fn list_services(
     Extension(ctx): Extension<TenantContext>,
 ) -> Result<Json<DiscoveryResponse>, StatusCode> {
     let sql = "SELECT DISTINCT service_name FROM ( \
-        SELECT DISTINCT service_name FROM spans WHERE tenant_id = ? \
+        SELECT DISTINCT service_name FROM observable.spans WHERE tenant_id = ? \
         UNION DISTINCT \
-        SELECT DISTINCT service_name FROM logs WHERE tenant_id = ? \
+        SELECT DISTINCT service_name FROM observable.logs WHERE tenant_id = ? \
         UNION DISTINCT \
-        SELECT DISTINCT service_name FROM metric_series WHERE tenant_id = ? \
+        SELECT DISTINCT service_name FROM observable.metric_series WHERE tenant_id = ? \
     ) ORDER BY service_name";
 
     let rows: Vec<String> = state
@@ -233,11 +233,11 @@ pub async fn list_environments(
     Extension(ctx): Extension<TenantContext>,
 ) -> Result<Json<DiscoveryResponse>, StatusCode> {
     let sql = "SELECT DISTINCT environment FROM ( \
-        SELECT DISTINCT environment FROM spans WHERE tenant_id = ? \
+        SELECT DISTINCT environment FROM observable.spans WHERE tenant_id = ? \
         UNION DISTINCT \
-        SELECT DISTINCT environment FROM logs WHERE tenant_id = ? \
+        SELECT DISTINCT environment FROM observable.logs WHERE tenant_id = ? \
         UNION DISTINCT \
-        SELECT DISTINCT environment FROM metric_series WHERE tenant_id = ? \
+        SELECT DISTINCT environment FROM observable.metric_series WHERE tenant_id = ? \
     ) WHERE environment != '' ORDER BY environment";
 
     let rows: Vec<String> = state
@@ -274,7 +274,7 @@ pub async fn list_service_summaries(
             count() as request_count, \
             countIf(status_code = 'ERROR') as error_count, \
             quantile(0.95)(duration_ns) as p95_latency_ns \
-        FROM spans \
+        FROM observable.spans \
         WHERE tenant_id = ? AND start_time_unix_nano >= ?"
         .to_string();
 
@@ -323,7 +323,7 @@ pub async fn get_service_summary(
             count() as request_count, \
             countIf(status_code = 'ERROR') as error_count, \
             quantile(0.95)(duration_ns) as p95_latency_ns \
-        FROM spans \
+        FROM observable.spans \
         WHERE tenant_id = ? AND service_name = ? AND start_time_unix_nano >= ?"
         .to_string();
 
@@ -573,7 +573,7 @@ async fn fetch_infrastructure_summaries(
                 toUInt64(0) AS log_events, \
                 toUInt64(1) AS span_events, \
                 toUInt64(status_code = 'ERROR') AS error_events \
-            FROM spans \
+            FROM observable.spans \
             WHERE tenant_id = ? AND start_time_unix_nano >= ? \
             UNION ALL \
             SELECT \
@@ -587,7 +587,7 @@ async fn fetch_infrastructure_summaries(
                 toUInt64(1) AS log_events, \
                 toUInt64(0) AS span_events, \
                 toUInt64(0) AS error_events \
-            FROM logs \
+            FROM observable.logs \
             WHERE tenant_id = ? AND timestamp_unix_nano >= ? \
             UNION ALL \
             SELECT \
@@ -601,7 +601,7 @@ async fn fetch_infrastructure_summaries(
                 toUInt64(0) AS log_events, \
                 toUInt64(0) AS span_events, \
                 toUInt64(0) AS error_events \
-            FROM metric_series \
+            FROM observable.metric_series \
             WHERE tenant_id = ? AND created_at >= fromUnixTimestamp(?) \
         ) \
         WHERE entity_name != ''"
@@ -1223,7 +1223,7 @@ mod tests {
                     toUInt64(0) AS log_events, \
                     toUInt64(0) AS span_events, \
                     toUInt64(0) AS error_events \
-                FROM metric_series \
+                FROM observable.metric_series \
                 WHERE tenant_id = ? AND created_at >= fromUnixTimestamp(?)"
             );
             assert!(
@@ -1258,19 +1258,19 @@ mod tests {
                     start_time_unix_nano AS event_time, \
                     toUInt64(0) AS log_events, toUInt64(1) AS span_events, \
                     toUInt64(status_code = 'ERROR') AS error_events \
-                FROM spans WHERE tenant_id = ? AND start_time_unix_nano >= ? \
+                FROM observable.spans WHERE tenant_id = ? AND start_time_unix_nano >= ? \
                 UNION ALL \
                 SELECT {entity_expr} AS entity_name, environment, service_name, \
                     timestamp_unix_nano AS event_time, \
                     toUInt64(1) AS log_events, toUInt64(0) AS span_events, \
                     toUInt64(0) AS error_events \
-                FROM logs WHERE tenant_id = ? AND timestamp_unix_nano >= ? \
+                FROM observable.logs WHERE tenant_id = ? AND timestamp_unix_nano >= ? \
                 UNION ALL \
                 SELECT {entity_expr} AS entity_name, environment, service_name, \
                     toUInt64(toUnixTimestamp(created_at)) * 1000000000 AS event_time, \
                     toUInt64(0) AS log_events, toUInt64(0) AS span_events, \
                     toUInt64(0) AS error_events \
-                FROM metric_series WHERE tenant_id = ? AND created_at >= fromUnixTimestamp(?) \
+                FROM observable.metric_series WHERE tenant_id = ? AND created_at >= fromUnixTimestamp(?) \
             ) WHERE entity_name != '' \
             GROUP BY cluster_name, namespace_name, pod_name, entity_name \
             ORDER BY last_seen_unix_nano DESC, entity_name ASC"

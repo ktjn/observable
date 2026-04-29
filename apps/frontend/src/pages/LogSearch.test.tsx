@@ -47,6 +47,18 @@ vi.mock("../api/logs", async () => {
   return {
     ...actual,
     searchLogs: vi.fn(async () => ({ logs, total: logs.length, facets: {} })),
+    fetchLogHistogram: vi.fn(async (params: { from: string; to: string; buckets?: number }) => {
+      const fromMs = new Date(params.from).getTime();
+      const toMs = new Date(params.to).getTime();
+      const count = params.buckets ?? 30;
+      const intervalMs = (toMs - fromMs) / count;
+      const buckets = Array.from({ length: count }, (_, i) => ({
+        start_ms: fromMs + i * intervalMs,
+        end_ms: fromMs + (i + 1) * intervalMs,
+        counts: {},
+      }));
+      return { buckets };
+    }),
   };
 });
 
