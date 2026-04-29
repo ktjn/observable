@@ -4,6 +4,7 @@ mod dashboards;
 mod deployments;
 mod discovery;
 mod logs;
+mod mcp_tools;
 mod metrics;
 mod middleware;
 mod planner;
@@ -90,6 +91,18 @@ async fn main() -> anyhow::Result<()> {
                 .put(schemas::handle_upsert_annotation)
                 .patch(schemas::handle_patch_annotation)
                 .delete(schemas::handle_delete_annotation),
+        )
+        .route(
+            "/v1/mcp/tools/metric-schema/:metric_name",
+            get(mcp_tools::handle_get_metric_schema),
+        )
+        .route(
+            "/v1/mcp/tools/signal-fields/:signal_type",
+            get(mcp_tools::handle_list_signal_fields),
+        )
+        .route(
+            "/v1/mcp/tools/resolve-label/:signal_type",
+            get(mcp_tools::handle_resolve_label),
         )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
