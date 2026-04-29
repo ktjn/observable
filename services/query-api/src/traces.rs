@@ -21,7 +21,7 @@ pub struct AppState {
     pub ch: Client,
     pub db: PgPool,
     pub planner: Arc<QueryPlanner>,
-    /// Optional LLM caller. None when OPENAI_API_KEY is not set.
+    /// Optional LLM caller. None when LLM_API_KEY is not set.
     pub llm: Option<Arc<dyn LlmCaller>>,
 }
 

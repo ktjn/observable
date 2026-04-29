@@ -46,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
     let llm: Option<Arc<dyn llm_adapter::LlmCaller>> = llm_adapter::OpenAiLlmCaller::from_env()
         .map(|c| Arc::new(c) as Arc<dyn llm_adapter::LlmCaller>);
     if llm.is_none() {
-        tracing::warn!("OPENAI_API_KEY not set — NLQ endpoint will return 503");
+        tracing::warn!("LLM_API_KEY not set — NLQ endpoint will return 503");
     }
     let state = traces::AppState {
         ch,

@@ -50,10 +50,10 @@ pub struct OpenAiLlmCaller {
 }
 
 impl OpenAiLlmCaller {
-    /// Creates a caller using `OPENAI_API_KEY` and optionally `OPENAI_BASE_URL` and
+    /// Creates a caller using `LLM_API_KEY` and optionally `OPENAI_BASE_URL` and
     /// `OPENAI_MODEL` environment variables.
     pub fn from_env() -> Option<Self> {
-        let api_key = std::env::var("OPENAI_API_KEY").ok()?;
+        let api_key = std::env::var("LLM_API_KEY").ok()?;
         if api_key.is_empty() {
             return None;
         }
@@ -486,7 +486,7 @@ pub async fn run_nlq_pipeline(
 /// Accepts a natural language question, calls the LLM adapter, and returns a discriminated
 /// `NlqQueryResponse` (frame or decline).
 ///
-/// Returns 503 if the LLM caller is not configured (OPENAI_API_KEY not set).
+/// Returns 503 if the LLM caller is not configured (LLM_API_KEY not set).
 pub async fn handle_nlq_query(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
@@ -496,7 +496,7 @@ pub async fn handle_nlq_query(
         (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(serde_json::json!({
-                "error": "LLM adapter not configured (OPENAI_API_KEY not set)"
+                "error": "LLM adapter not configured (LLM_API_KEY not set)"
             })),
         )
     })?;

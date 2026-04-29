@@ -187,6 +187,9 @@ services:
       CLICKHOUSE_USER: ${CH_USER:-default}
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
       DATABASE_URL: postgres://observable:observable@postgres:5432/observable
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
     ports: ["8090:8090"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
