@@ -75,6 +75,28 @@ impl OpenAiLlmCaller {
             model,
         }
     }
+    /// Fires a minimal 1-token probe completion to verify connectivity and auth.
+    /// Returns `Ok(())` on success, `Err(error_message)` on failure.
+    /// Costs effectively zero tokens.
+    pub async fn probe(&self) -> Result<(), String> {
+        let request = CreateChatCompletionRequestArgs::default()
+            .model(&self.model)
+            .max_tokens(1u16)
+            .messages([ChatCompletionRequestUserMessageArgs::default()
+                .content("hi")
+                .build()
+                .map_err(|e| e.to_string())?
+                .into()])
+            .build()
+            .map_err(|e| e.to_string())?;
+
+        self.client
+            .chat()
+            .create(request)
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
 }
 
 #[async_trait]
