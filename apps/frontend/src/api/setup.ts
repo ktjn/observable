@@ -51,7 +51,10 @@ export interface PlatformConfig {
 
 export async function getConfig(): Promise<PlatformConfig> {
   const res = await fetch("/v1/config", {
-    headers: { "x-api-key": LOCAL_DEV_API_KEY },
+    headers: {
+      "x-api-key": LOCAL_DEV_API_KEY,
+      "X-Tenant-ID": LOCAL_DEV_TENANT_ID,
+    },
   });
   if (!res.ok) throw new Error(`getConfig failed: ${res.status}`);
   return res.json() as Promise<PlatformConfig>;
@@ -75,6 +78,7 @@ export async function saveLlmConfig(params: SaveLlmConfigParams): Promise<void> 
     headers: {
       "Content-Type": "application/json",
       "x-api-key": LOCAL_DEV_API_KEY,
+      "X-Tenant-ID": LOCAL_DEV_TENANT_ID,
     },
     body: JSON.stringify(body),
   });
