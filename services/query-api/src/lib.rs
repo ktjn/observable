@@ -9,4 +9,5 @@ pub mod metrics;
 pub mod middleware;
 pub mod planner;
 pub mod schemas;
+pub mod sql_templates;
 pub mod traces;

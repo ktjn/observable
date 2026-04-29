@@ -9,6 +9,7 @@ mod metrics;
 mod middleware;
 mod planner;
 mod schemas;
+mod sql_templates;
 mod traces;
 
 use axum::{
