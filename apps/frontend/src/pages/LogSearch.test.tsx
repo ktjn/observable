@@ -47,6 +47,13 @@ vi.mock("../api/logs", async () => {
   return {
     ...actual,
     searchLogs: vi.fn(async () => ({ logs, total: logs.length, facets: {} })),
+    getLogHistogram: vi.fn(async () => ({
+      bucket_count: 12,
+      entries: [
+        { bucket_index: 0, severity_number: 9, count: 1 },
+        { bucket_index: 11, severity_number: 17, count: 1 },
+      ],
+    })),
   };
 });
 
@@ -81,11 +88,19 @@ function renderLogSearch() {
 test("queries logs using the selected time range", async () => {
   renderLogSearch();
 
-  await waitFor(() => expect(searchLogs).toHaveBeenCalledWith(expect.objectContaining({ from: expect.any(String) })));
+  await waitFor(() =>
+    expect(searchLogs).toHaveBeenCalledWith(
+      expect.objectContaining({ from: expect.any(String), to: expect.any(String) }),
+    ),
+  );
 
   fireEvent.change(screen.getByLabelText("Log time range"), { target: { value: "360" } });
 
-  await waitFor(() => expect(searchLogs).toHaveBeenLastCalledWith(expect.objectContaining({ from: expect.any(String) })));
+  await waitFor(() =>
+    expect(searchLogs).toHaveBeenLastCalledWith(
+      expect.objectContaining({ from: expect.any(String), to: expect.any(String) }),
+    ),
+  );
 });
 
 test("renders histogram and primary Time Level Message columns", async () => {

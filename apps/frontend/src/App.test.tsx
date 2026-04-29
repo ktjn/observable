@@ -49,6 +49,10 @@ test("promotes the current log search filter to a dashboard panel", async () => 
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
 
+    if (url.includes("/v1/logs/histogram")) {
+      return new Response(JSON.stringify({ bucket_count: 12, entries: [] }), { status: 200 });
+    }
+
     if (url.includes("/v1/logs")) {
       return new Response(
         JSON.stringify({
@@ -238,6 +242,10 @@ test("renders onboarding setup with endpoint, redacted key, and first signal suc
         return new Response(JSON.stringify({ traces: [{ trace_id: "abc", spans: [] }], total: 1 }), {
           status: 200,
         });
+      }
+
+      if (url.includes("/v1/logs/histogram")) {
+        return new Response(JSON.stringify({ bucket_count: 12, entries: [] }), { status: 200 });
       }
 
       if (url.includes("/v1/logs")) {
@@ -613,6 +621,10 @@ test("renders service-scoped signal tabs with preserved URL state", async () => 
         }),
         { status: 200 },
       );
+    }
+
+    if (url.includes("/v1/logs/histogram")) {
+      return new Response(JSON.stringify({ bucket_count: 12, entries: [] }), { status: 200 });
     }
 
     if (url.includes("/v1/logs")) {

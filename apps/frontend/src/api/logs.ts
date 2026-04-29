@@ -81,6 +81,36 @@ export async function tailLogs(params: {
   return res.json();
 }
 
+export interface LogHistogramEntry {
+  bucket_index: number;
+  severity_number: number;
+  count: number;
+}
+
+export interface LogHistogramResponse {
+  bucket_count: number;
+  entries: LogHistogramEntry[];
+}
+
+export async function getLogHistogram(params: {
+  from: string;
+  to: string;
+  buckets?: number;
+  service?: string;
+  severity?: number;
+}): Promise<LogHistogramResponse> {
+  const url = new URL("/v1/logs/histogram", window.location.origin);
+  url.searchParams.set("from", params.from);
+  url.searchParams.set("to", params.to);
+  if (params.buckets) url.searchParams.set("buckets", String(params.buckets));
+  if (params.service) url.searchParams.set("service", params.service);
+  if (params.severity !== undefined) url.searchParams.set("severity", String(params.severity));
+
+  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  if (!res.ok) throw new Error(`Histogram query failed: ${res.status}`);
+  return res.json();
+}
+
 export async function getLogContext(
   logId: string,
   params: { window?: number } = {}

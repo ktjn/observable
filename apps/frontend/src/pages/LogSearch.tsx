@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createDashboard } from "../api/dashboards";
-import { searchLogs, LogRecord } from "../api/logs";
+import { searchLogs, getLogHistogram, LogRecord, LogHistogramResponse } from "../api/logs";
 import { infraLinks } from "../utils/infraLinks";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { Badge } from "../components/ui/badge";
@@ -44,26 +44,37 @@ export default function LogSearch() {
   const [selectedLogId, setSelectedLogId] = useState<string | undefined>();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
-  const from = useMemo(() => {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() - lookbackMinutes);
-    return d.toISOString();
+  const { from, to } = useMemo(() => {
+    const now = new Date();
+    const past = new Date(now.getTime() - lookbackMinutes * 60 * 1000);
+    return { from: past.toISOString(), to: now.toISOString() };
   }, [lookbackMinutes]);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["logs", service, from],
+    queryKey: ["logs", service, from, to],
     queryFn: () =>
       searchLogs({
         service: service || undefined,
         from,
+        to,
         limit: 50,
         facets: ["service_name", "severity_number", "environment", "host_id"],
       }),
   });
 
+  const { data: histogramData } = useQuery({
+    queryKey: ["logs-histogram", service, from, to],
+    queryFn: () => getLogHistogram({ from, to, service: service || undefined }),
+  });
+
   const logs = data?.logs ?? [];
   const selectedLog = logs.find((log) => log.log_id === selectedLogId);
-  const histogram = useMemo(() => buildLogHistogram(logs, lookbackMinutes), [logs, lookbackMinutes]);
+  const histogram = useMemo(
+    () => histogramData
+      ? serverHistogramToBuckets(histogramData, from, to)
+      : buildLogHistogram(logs, lookbackMinutes),
+    [histogramData, logs, from, to, lookbackMinutes],
+  );
 
   const handlePromote = async () => {
     setSaveStatus("saving");
@@ -135,7 +146,7 @@ export default function LogSearch() {
         )}
       </div>
 
-      {!isLoading && !error && logs.length > 0 && (
+      {(histogramData || (!isLoading && !error && logs.length > 0)) && (
         <LogHistogram buckets={histogram} utc={utc} />
       )}
 
@@ -369,6 +380,33 @@ export function buildLogHistogram(logs: LogRecord[], lookbackMinutes: number): H
     const level = otelSeverity(log.severity_number).label;
     buckets[index].total += 1;
     buckets[index].levels[level] += 1;
+  }
+
+  return buckets;
+}
+
+function serverHistogramToBuckets(
+  response: LogHistogramResponse,
+  from: string,
+  to: string,
+): HistogramBucket[] {
+  const fromMs = new Date(from).getTime();
+  const toMs = new Date(to).getTime();
+  const count = response.bucket_count || 12;
+  const bucketMs = (toMs - fromMs) / count;
+
+  const buckets: HistogramBucket[] = Array.from({ length: count }, (_, i) => ({
+    startMs: fromMs + i * bucketMs,
+    endMs: fromMs + (i + 1) * bucketMs,
+    total: 0,
+    levels: emptyLevels(),
+  }));
+
+  for (const entry of response.entries) {
+    const idx = Math.min(count - 1, Math.max(0, entry.bucket_index));
+    const level = otelSeverity(entry.severity_number).label;
+    buckets[idx].total += entry.count;
+    buckets[idx].levels[level] += entry.count;
   }
 
   return buckets;

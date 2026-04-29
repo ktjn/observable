@@ -340,6 +340,102 @@ pub async fn get_log_context(
     }))
 }
 
+#[derive(Deserialize)]
+pub struct LogHistogramParams {
+    pub from: DateTime<Utc>,
+    pub to: DateTime<Utc>,
+    pub buckets: Option<u32>,
+    pub service: Option<String>,
+    pub severity: Option<i32>,
+}
+
+#[derive(Serialize)]
+pub struct LogHistogramEntry {
+    pub bucket_index: u64,
+    pub severity_number: i32,
+    pub count: u64,
+}
+
+#[derive(Serialize)]
+pub struct LogHistogramResponse {
+    pub bucket_count: u32,
+    pub entries: Vec<LogHistogramEntry>,
+}
+
+pub async fn log_histogram(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Query(params): Query<LogHistogramParams>,
+) -> Result<Json<LogHistogramResponse>, StatusCode> {
+    let from_ns = to_unix_nano(params.from);
+    let to_ns = to_unix_nano(params.to);
+
+    if from_ns >= to_ns {
+        return Ok(Json(LogHistogramResponse {
+            bucket_count: 0,
+            entries: vec![],
+        }));
+    }
+
+    let bucket_count = params.buckets.unwrap_or(12).clamp(1, 60) as u64;
+    let bucket_size_ns = (to_ns - from_ns) / bucket_count;
+
+    let mut sql = "SELECT \
+        intDiv(timestamp_unix_nano - ?, ?) AS bucket_idx, \
+        severity_number, \
+        count() AS cnt \
+        FROM observable.logs \
+        WHERE tenant_id = ? \
+        AND timestamp_unix_nano >= ? \
+        AND timestamp_unix_nano < ?"
+        .to_string();
+    if params.service.is_some() {
+        sql.push_str(" AND service_name = ?");
+    }
+    if params.severity.is_some() {
+        sql.push_str(" AND severity_number >= ?");
+    }
+    sql.push_str(" GROUP BY bucket_idx, severity_number ORDER BY bucket_idx ASC");
+
+    let mut query = state
+        .ch
+        .query(&sql)
+        .bind(from_ns)
+        .bind(bucket_size_ns)
+        .bind(ctx.tenant_id)
+        .bind(from_ns)
+        .bind(to_ns);
+    if let Some(ref service) = params.service {
+        query = query.bind(service);
+    }
+    if let Some(severity) = params.severity {
+        query = query.bind(severity);
+    }
+
+    let mut cursor = query.fetch::<(u64, i32, u64)>().map_err(|e| {
+        tracing::error!("ClickHouse histogram query error: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let mut entries = Vec::new();
+    while let Some((bucket_index, severity_number, count)) = cursor.next().await.map_err(|e| {
+        tracing::error!("ClickHouse histogram fetch error: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })? {
+        let clamped = bucket_index.min(bucket_count - 1);
+        entries.push(LogHistogramEntry {
+            bucket_index: clamped,
+            severity_number,
+            count,
+        });
+    }
+
+    Ok(Json(LogHistogramResponse {
+        bucket_count: bucket_count as u32,
+        entries,
+    }))
+}
+
 /// Repository-level fetch used by integration tests to verify tenant-filter correctness.
 #[allow(dead_code)]
 pub async fn fetch_log_rows(
