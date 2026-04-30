@@ -224,83 +224,36 @@ pub fn server_side_deny_gate(question: &str) -> Option<String> {
 
 // ── Schema context ────────────────────────────────────────────────────────────
 
-#[derive(Debug)]
-pub(crate) struct SchemaContextEntry {
-    field_name: String,
-    metric_type: Option<String>,
-    unit: Option<String>,
-    display_name: Option<String>,
-    business_description: Option<String>,
-    interpretation_rule: Option<String>,
-    effective_sample_rate: Option<f64>,
-}
-
-#[derive(sqlx::FromRow)]
-struct SchemaContextRow {
-    field_name: String,
-    metric_type: Option<String>,
-    unit: Option<String>,
-    display_name: Option<String>,
-    business_description: Option<String>,
-    interpretation_rule: Option<String>,
-    effective_sample_rate: Option<f64>,
-}
-
 /// Fetches up to `limit` schema-complete metrics for the tenant, ordered by annotation richness.
+///
+/// Delegates to `mcp_tools::list_signal_fields` — the canonical home for schema lookups —
+/// and filters for `schema_complete = true` (metric_type + timestamp_column both present),
+/// which is the minimum annotation required for correct MCP SQL generation.
 async fn fetch_schema_context(
     db: &PgPool,
     tenant_id: Uuid,
-    limit: i64,
-) -> Result<Vec<SchemaContextEntry>, LlmAdapterError> {
-    let rows = sqlx::query_as::<_, SchemaContextRow>(
-        r#"
-        SELECT
-            se.field_name,
-            sa.metric_type,
-            sa.unit,
-            sa.display_name,
-            sa.business_description,
-            sa.interpretation_rule,
-            sa.effective_sample_rate
-        FROM schema_entries se
-        LEFT JOIN semantic_annotations sa
-            ON sa.signal_type = se.signal_type
-           AND sa.field_name  = se.field_name
-           AND sa.tenant_id   = $1
-        WHERE se.signal_type = 'metrics'
-          AND sa.metric_type IS NOT NULL
-          AND sa.timestamp_column IS NOT NULL
-        ORDER BY
-            (sa.business_description IS NOT NULL)::int DESC,
-            (sa.display_name IS NOT NULL)::int DESC,
-            se.field_name
-        LIMIT $2
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(limit)
-    .fetch_all(db)
-    .await
-    .map_err(|e| LlmAdapterError::SchemaLookup(e.to_string()))?;
+    limit: usize,
+) -> Result<Vec<crate::mcp_tools::SignalField>, LlmAdapterError> {
+    let mut fields = crate::mcp_tools::list_signal_fields(db, tenant_id, "metrics")
+        .await
+        .map_err(|e| LlmAdapterError::SchemaLookup(e.to_string()))?;
 
-    Ok(rows
-        .into_iter()
-        .map(|r| SchemaContextEntry {
-            field_name: r.field_name,
-            metric_type: r.metric_type,
-            unit: r.unit,
-            display_name: r.display_name,
-            business_description: r.business_description,
-            interpretation_rule: r.interpretation_rule,
-            effective_sample_rate: r.effective_sample_rate,
-        })
-        .collect())
+    // Retain only schema-complete entries and order by annotation richness so the most
+    // informative metrics appear first in the LLM prompt (token budget awareness).
+    fields.retain(|f| f.schema_complete);
+    fields.sort_by_key(|f| {
+        // Negate to sort richest first.
+        let score = f.business_description.is_some() as i32 + f.display_name.is_some() as i32;
+        -score
+    });
+    fields.truncate(limit);
+    Ok(fields)
 }
 
 // ── System prompt builder ─────────────────────────────────────────────────────
 
 pub(crate) fn build_system_prompt(
-    metrics: &[SchemaContextEntry],
+    metrics: &[crate::mcp_tools::SignalField],
     service_scope: Option<&str>,
 ) -> String {
     let mut prompt = String::from(
@@ -332,6 +285,10 @@ reconciliation) or you cannot produce a valid IR:
   "time_range": {"from": "now-1h", "to": "now"},
   "visualization_hint": "timeseries" | "histogram" | "heatmap" | "table" | "topk" | "flamegraph" | "distribution" | null
 }
+
+IMPORTANT — the `signals` field is a signal CATEGORY, not the metric name.
+It MUST be one of: "metrics", "traces", or "logs". For metric questions always use ["metrics"].
+The metric name goes in the `metric` field, never in `signals`.
 
 ## Operation guide
 
@@ -398,16 +355,44 @@ You MUST emit {"type": "decline", ...} for questions involving:
 
 // ── Parse LLM response ────────────────────────────────────────────────────────
 
+/// Normalises the `signals` array in the raw LLM JSON before serde deserialization.
+///
+/// Small LLMs frequently confuse the `signals` field (a signal category: "metrics",
+/// "traces", or "logs") with the metric name they found in the schema context.  This
+/// function replaces any unrecognised signal value with "metrics" and defaults an
+/// empty or missing array to `["metrics"]`.  This makes the pipeline robust to the
+/// most common LLM schema-compliance failure without changing the domain type.
+fn normalize_nlq_signals(ir_val: &mut serde_json::Value) {
+    const VALID: &[&str] = &["metrics", "traces", "logs"];
+
+    let signals = ir_val.get_mut("signals");
+    match signals {
+        Some(serde_json::Value::Array(arr)) if !arr.is_empty() => {
+            for s in arr.iter_mut() {
+                if s.as_str().map(|v| !VALID.contains(&v)).unwrap_or(true) {
+                    *s = serde_json::Value::String("metrics".into());
+                }
+            }
+        }
+        // Missing or empty array → default to ["metrics"]
+        _ => {
+            ir_val["signals"] = serde_json::json!(["metrics"]);
+        }
+    }
+}
+
 pub(crate) fn parse_llm_response(json: &str) -> Result<NlqIrOrDecline, LlmAdapterError> {
     let v: serde_json::Value = serde_json::from_str(json)
         .map_err(|e| LlmAdapterError::InvalidResponse(format!("JSON parse failed: {e}")))?;
 
     match v.get("type").and_then(|t| t.as_str()) {
         Some("ir") => {
-            let ir_val = v
+            let mut ir_val = v
                 .get("ir")
-                .ok_or_else(|| LlmAdapterError::InvalidResponse("missing 'ir' field".into()))?;
-            let ir: NlqIr = serde_json::from_value(ir_val.clone()).map_err(|e| {
+                .ok_or_else(|| LlmAdapterError::InvalidResponse("missing 'ir' field".into()))?
+                .clone();
+            normalize_nlq_signals(&mut ir_val);
+            let ir: NlqIr = serde_json::from_value(ir_val).map_err(|e| {
                 LlmAdapterError::InvalidResponse(format!("NlqIr deserialize failed: {e}"))
             })?;
             Ok(NlqIrOrDecline::Ir(ir))
@@ -765,7 +750,87 @@ mod tests {
         );
     }
 
-    // ── enforce_service_scope ─────────────────────────────────────────────────
+    // ── normalize_nlq_signals ─────────────────────────────────────────────────
+
+    fn make_ir_json_with_signals(signals: serde_json::Value) -> serde_json::Value {
+        serde_json::json!({
+            "type": "ir",
+            "ir": {
+                "operation": "timeseries",
+                "signals": signals,
+                "metric": "latency_ms",
+                "window": null,
+                "filters": [],
+                "group_by": [],
+                "resolution": "1m",
+                "time_range": {"from": "now-1h", "to": "now"},
+                "visualization_hint": null
+            }
+        })
+    }
+
+    #[test]
+    fn parse_signal_with_metric_name_normalized_to_metrics() {
+        // phi3 and other small LLMs put the metric name in signals; must be normalised.
+        let json = make_ir_json_with_signals(serde_json::json!(["request_duration_ms"]));
+        match parse_llm_response(&json.to_string()).unwrap() {
+            NlqIrOrDecline::Ir(ir) => {
+                assert_eq!(ir.signals, vec![NlqSignal::Metrics]);
+            }
+            NlqIrOrDecline::Decline { .. } => panic!("expected Ir, got Decline"),
+        }
+    }
+
+    #[test]
+    fn parse_signal_empty_array_defaults_to_metrics() {
+        let json = make_ir_json_with_signals(serde_json::json!([]));
+        match parse_llm_response(&json.to_string()).unwrap() {
+            NlqIrOrDecline::Ir(ir) => {
+                assert_eq!(ir.signals, vec![NlqSignal::Metrics]);
+            }
+            NlqIrOrDecline::Decline { .. } => panic!("expected Ir, got Decline"),
+        }
+    }
+
+    #[test]
+    fn parse_signal_missing_field_defaults_to_metrics() {
+        let json = serde_json::json!({
+            "type": "ir",
+            "ir": {
+                "operation": "timeseries",
+                // no "signals" field
+                "metric": "latency_ms",
+                "window": null,
+                "filters": [],
+                "group_by": [],
+                "resolution": "1m",
+                "time_range": {"from": "now-1h", "to": "now"},
+                "visualization_hint": null
+            }
+        });
+        match parse_llm_response(&json.to_string()).unwrap() {
+            NlqIrOrDecline::Ir(ir) => {
+                assert_eq!(ir.signals, vec![NlqSignal::Metrics]);
+            }
+            NlqIrOrDecline::Decline { .. } => panic!("expected Ir, got Decline"),
+        }
+    }
+
+    #[test]
+    fn parse_mixed_signals_unknown_values_normalized() {
+        // Valid + invalid mixture: unknown values replaced, valid ones kept.
+        let json =
+            make_ir_json_with_signals(serde_json::json!(["metrics", "bad_metric_name", "logs"]));
+        match parse_llm_response(&json.to_string()).unwrap() {
+            NlqIrOrDecline::Ir(ir) => {
+                assert!(ir.signals.contains(&NlqSignal::Metrics));
+                assert!(ir.signals.contains(&NlqSignal::Logs));
+                // The unknown value should have been replaced with "metrics"
+                assert_eq!(ir.signals.len(), 3);
+            }
+            NlqIrOrDecline::Decline { .. } => panic!("expected Ir, got Decline"),
+        }
+    }
 
     #[test]
     fn service_scope_filter_injected_when_absent() {
@@ -800,14 +865,19 @@ mod tests {
 
     #[test]
     fn system_prompt_includes_metric_names() {
-        let metrics = vec![SchemaContextEntry {
+        let metrics = vec![crate::mcp_tools::SignalField {
             field_name: "latency_ms".into(),
-            metric_type: Some("gauge".into()),
-            unit: Some("ms".into()),
+            field_type: "float64".into(),
+            otel_spec_version: None,
             display_name: Some("Request Latency".into()),
             business_description: Some("End-to-end request latency".into()),
             interpretation_rule: None,
             effective_sample_rate: None,
+            metric_type: Some("gauge".into()),
+            timestamp_column: Some("timestamp_unix_nano".into()),
+            unit: Some("ms".into()),
+            recommended_downsampling: None,
+            schema_complete: true,
         }];
         let prompt = build_system_prompt(&metrics, None);
         assert!(
