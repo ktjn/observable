@@ -66,7 +66,10 @@ describe("SetupPage — AI/NLQ panel", () => {
     mockTestLlmConfig.mockResolvedValue({ ok: true, model: "gpt-4o-mini" });
     renderPage();
     await screen.findByTestId("llm-key-input");
-    expect(screen.getByTestId("llm-config-save")).not.toBeDisabled();
+    // Wait for config to load — button is disabled until the query resolves.
+    await waitFor(() =>
+      expect(screen.getByTestId("llm-config-save")).not.toBeDisabled()
+    );
   });
 
   test("url and model inputs pre-fill from server config on load", async () => {

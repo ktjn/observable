@@ -52,7 +52,7 @@ function TimeseriesTable({ frame }: Props) {
   const xField = frame.x_field ?? "bucket";
   const yField = frame.y_field ?? "value";
   const seriesField = frame.series_field ?? null;
-  const unit = frame.unit ? ` (${frame.unit})` : "";
+  const unit = frame.unit ? ` [${frame.unit}]` : "";
 
   return (
     <table
@@ -137,7 +137,7 @@ function HistogramTable({ frame }: Props) {
 function TopkTable({ frame }: Props) {
   const labelField = frame.x_field ?? "service_name";
   const valueField = frame.y_field ?? "avg_value";
-  const unit = frame.unit ? ` (${frame.unit})` : "";
+  const unit = frame.unit ? ` [${frame.unit}]` : "";
 
   return (
     <table className="w-full text-sm border-collapse" data-testid="topk-table">
@@ -168,7 +168,7 @@ function TopkTable({ frame }: Props) {
 // ── Distribution ──────────────────────────────────────────────────────────────
 
 function DistributionTable({ frame }: Props) {
-  const unit = frame.unit ? ` ${frame.unit}` : "";
+  const unit = frame.unit ? ` [${frame.unit}]` : "";
   // Data-driven: show exactly the columns the backend returned, in their order.
   const stats = frame.data.length > 0 ? Object.keys(frame.data[0]) : [];
 

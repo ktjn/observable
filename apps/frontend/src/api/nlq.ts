@@ -46,7 +46,13 @@ export interface NlqDeclineResponse {
   reason: string;
 }
 
-export type NlqResponse = NlqFrameResponse | NlqDeclineResponse;
+export interface NlqInvalidResponse {
+  type: "invalid_response";
+  reason: string;
+  raw_llm_response: string;
+}
+
+export type NlqResponse = NlqFrameResponse | NlqDeclineResponse | NlqInvalidResponse;
 
 // ── API function ──────────────────────────────────────────────────────────────
 

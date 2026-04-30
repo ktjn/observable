@@ -174,8 +174,19 @@ pub struct NlqQueryRequest {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[allow(clippy::large_enum_variant)]
 pub enum NlqQueryResponse {
-    Frame { frame: VisualizationFrame },
-    Decline { reason: String },
+    Frame {
+        frame: VisualizationFrame,
+    },
+    Decline {
+        reason: String,
+    },
+    /// The LLM returned a response that could not be parsed into a valid NlqIr.
+    /// Returned as HTTP 200 (not 502) so clients can display the raw output for
+    /// debugging.  Treated as expected control flow, not an error.
+    InvalidResponse {
+        reason: String,
+        raw_llm_response: String,
+    },
 }
 
 // ── LLM response discriminated union ─────────────────────────────────────────
@@ -456,8 +467,24 @@ pub async fn run_nlq_pipeline(
     tenant_id: Uuid,
     req: &NlqQueryRequest,
 ) -> Result<NlqQueryResponse, LlmAdapterError> {
+    let pipeline_start = std::time::Instant::now();
+    let question_preview = req.question.chars().take(256).collect::<String>();
+
+    tracing::info!(
+        tenant_id = %tenant_id,
+        question = %question_preview,
+        service_scope = ?req.service_name,
+        "NLQ pipeline started"
+    );
+
     // 1. Server-side deny gate (belt and suspenders — LLM prompt also instructs decline)
     if let Some(reason) = server_side_deny_gate(&req.question) {
+        tracing::info!(
+            tenant_id = %tenant_id,
+            question = %question_preview,
+            reason = %reason,
+            "NLQ declined by server-side deny gate"
+        );
         return Ok(NlqQueryResponse::Decline { reason });
     }
 
@@ -467,22 +494,65 @@ pub async fn run_nlq_pipeline(
     // 3. Build system prompt
     let system_prompt = build_system_prompt(&metrics, req.service_name.as_deref());
 
+    tracing::debug!(
+        tenant_id = %tenant_id,
+        prompt_metric_count = metrics.len(),
+        "NLQ calling LLM"
+    );
+
     // 4. Call LLM
+    let llm_start = std::time::Instant::now();
     let raw_response = llm.call(&system_prompt, &req.question).await?;
+    let llm_elapsed_ms = llm_start.elapsed().as_millis();
 
     tracing::debug!(
         tenant_id = %tenant_id,
-        question = %req.question,
-        raw_response = %raw_response,
-        "LLM response received"
+        llm_elapsed_ms,
+        raw_response_len = raw_response.len(),
+        "NLQ LLM call complete"
     );
 
     // 5. Parse LLM response
-    let parsed = parse_llm_response(&raw_response)?;
+    let parsed = match parse_llm_response(&raw_response) {
+        Ok(p) => {
+            tracing::debug!(
+                tenant_id = %tenant_id,
+                parsed_type = match &p {
+                    NlqIrOrDecline::Ir(_) => "ir",
+                    NlqIrOrDecline::Decline { .. } => "decline",
+                },
+                "NLQ LLM response parsed"
+            );
+            p
+        }
+        Err(LlmAdapterError::InvalidResponse(ref reason)) => {
+            let truncated = raw_response.chars().take(512).collect::<String>();
+            tracing::warn!(
+                tenant_id = %tenant_id,
+                question = %question_preview,
+                error = %reason,
+                raw_response = %truncated,
+                llm_elapsed_ms,
+                "NLQ LLM returned unparseable response"
+            );
+            return Ok(NlqQueryResponse::InvalidResponse {
+                reason: reason.clone(),
+                raw_llm_response: raw_response,
+            });
+        }
+        Err(e) => return Err(e),
+    };
 
     // 6. Handle decline from LLM
     let mut ir = match parsed {
         NlqIrOrDecline::Decline { reason } => {
+            tracing::info!(
+                tenant_id = %tenant_id,
+                question = %question_preview,
+                reason = %reason,
+                source = "llm",
+                "NLQ declined by LLM"
+            );
             return Ok(NlqQueryResponse::Decline { reason });
         }
         NlqIrOrDecline::Ir(ir) => ir,
@@ -495,6 +565,12 @@ pub async fn run_nlq_pipeline(
 
     // 8. Validate: only metrics signals are supported in Step 6
     if ir.metric.is_none() {
+        tracing::info!(
+            tenant_id = %tenant_id,
+            question = %question_preview,
+            source = "no_metric",
+            "NLQ declined — no metric identified"
+        );
         return Ok(NlqQueryResponse::Decline {
             reason: "Could not identify a metric for this question. \
                      Please rephrase or specify a metric name."
@@ -502,10 +578,34 @@ pub async fn run_nlq_pipeline(
         });
     }
 
+    tracing::debug!(
+        tenant_id = %tenant_id,
+        operation = ?ir.operation,
+        metric = ?ir.metric,
+        "NLQ executing MCP query"
+    );
+
     // 9. Execute MCP query
+    let mcp_start = std::time::Instant::now();
     let frame = execute_mcp_query(db, ch, tenant_id, &ir)
         .await
         .map_err(LlmAdapterError::QueryExecution)?;
+    let mcp_elapsed_ms = mcp_start.elapsed().as_millis();
+    let pipeline_elapsed_ms = pipeline_start.elapsed().as_millis();
+
+    tracing::debug!(
+        tenant_id = %tenant_id,
+        mcp_elapsed_ms,
+        row_count = frame.data.len(),
+        "NLQ MCP query complete"
+    );
+
+    tracing::info!(
+        tenant_id = %tenant_id,
+        pipeline_elapsed_ms,
+        result = "frame",
+        "NLQ pipeline complete"
+    );
 
     Ok(NlqQueryResponse::Frame { frame })
 }
@@ -582,13 +682,6 @@ pub async fn handle_nlq_query(
             Err((
                 StatusCode::BAD_GATEWAY,
                 Json(serde_json::json!({"error": format!("LLM call failed: {e}")})),
-            ))
-        }
-        Err(LlmAdapterError::InvalidResponse(e)) => {
-            tracing::warn!(error = %e, "LLM returned invalid response");
-            Err((
-                StatusCode::BAD_GATEWAY,
-                Json(serde_json::json!({"error": format!("invalid LLM response: {e}")})),
             ))
         }
         Err(e) => {
