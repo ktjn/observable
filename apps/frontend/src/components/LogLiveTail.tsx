@@ -5,6 +5,8 @@ import type { LogRecord } from "../api/logs";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { formatLogMessage, getSeverityColor } from "../utils/logFormatting";
+import { formatTimestamp } from "../utils/formatTimestamp";
+import { useTimeDisplay } from "../lib/timeDisplay";
 
 const POLL_INTERVAL_MS = 1000;
 const MAX_LOGS = 200;
@@ -14,6 +16,7 @@ export function LogLiveTail() {
   const [enabled, setEnabled] = useState(true);
   const [logs, setLogs] = useState<LogRecord[]>([]);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const { format } = useTimeDisplay();
 
   const cursor = useMemo(() => latestTimestamp(logs), [logs]);
   const { error } = useQuery({
@@ -79,7 +82,7 @@ export function LogLiveTail() {
             className="border-b border-[var(--border)] grid gap-2 py-1 last:border-b-0"
             style={{ gridTemplateColumns: "100px 80px minmax(120px, 180px) 1fr" }}
           >
-            <span className="text-[var(--muted)]">{formatTime(log.timestamp_unix_nano)}</span>
+            <span className="text-[var(--muted)]">{formatTimestamp(log.timestamp_unix_nano, format)}</span>
             <span
               className="font-bold"
               style={{ color: getSeverityColor(log.severity_number) }}
@@ -112,9 +115,5 @@ export function mergeLogs(current: LogRecord[], incoming: LogRecord[]): LogRecor
 
 function latestTimestamp(logs: LogRecord[]): string | undefined {
   return logs[logs.length - 1]?.timestamp_unix_nano;
-}
-
-function formatTime(timestampUnixNano: string): string {
-  return new Date(Number(timestampUnixNano) / 1e6).toISOString().split("T")[1].replace("Z", "");
 }
 

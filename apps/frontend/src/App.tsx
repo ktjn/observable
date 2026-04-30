@@ -3,6 +3,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { router } from "./router";
 import { ThemeProvider } from "./lib/theme";
+import { TimeDisplayProvider } from "./lib/timeDisplay";
 import {
   selfObservabilityRoute,
 } from "./lib/selfObservability";
@@ -27,7 +28,9 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <RouterProvider router={router} />
+        <TimeDisplayProvider>
+          <RouterProvider router={router} />
+        </TimeDisplayProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

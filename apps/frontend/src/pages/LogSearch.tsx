@@ -5,6 +5,7 @@ import { searchLogs, fetchLogHistogram, LogRecord, LogHistogramBucket as ApiHist
 import { infraLinks } from "../utils/infraLinks";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { OTelLevel, otelSeverity, formatLogMessage, formatContextValue } from "../utils/logFormatting";
+import { useTimeDisplay } from "../lib/timeDisplay";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -38,7 +39,7 @@ const levelBarClasses: Record<OTelLevel, string> = {
 
 export default function LogSearch() {
   const [service, setService] = useState(() => new URLSearchParams(window.location.search).get("service") ?? "");
-  const [utc, setUtc] = useState(false);
+  const { format } = useTimeDisplay();
   const [lookbackMinutes, setLookbackMinutes] = useState(60);
   const [selectedLogId, setSelectedLogId] = useState<string | undefined>();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -146,7 +147,7 @@ export default function LogSearch() {
         {customRangeMs ? (
           <>
             <span className="text-xs whitespace-nowrap font-mono text-[var(--text-strong)]">
-              {formatBucketLabel(customRangeMs.fromMs, utc)} – {formatBucketLabel(customRangeMs.toMs, utc)}
+              {formatBucketLabel(customRangeMs.fromMs, format)} – {formatBucketLabel(customRangeMs.toMs, format)}
             </span>
             <Button variant="secondary" onClick={handleClearRange}>
               Reset range
@@ -188,7 +189,7 @@ export default function LogSearch() {
       {histogramData ? (
         <LogHistogram
           buckets={histogram}
-          utc={utc}
+          format={format}
           onRangeSelect={handleHistogramRangeSelect}
           onBucketCountChange={setBucketCount}
         />
@@ -214,18 +215,7 @@ export default function LogSearch() {
             <table aria-label="Log results">
               <thead>
                 <tr>
-                  <th aria-label="Time">
-                    Time{" "}
-                    <Button
-                      type="button"
-                      onClick={() => setUtc((v) => !v)}
-                      aria-pressed={utc}
-                      variant="secondary"
-                      className={`ml-1.5 min-h-0 px-1.5 py-0 text-[11px] align-middle ${utc ? "bg-[var(--brand)] text-white border-[var(--brand)]" : ""}`}
-                    >
-                      UTC
-                    </Button>
-                  </th>
+                  <th aria-label="Time">Time</th>
                   <th>Level</th>
                   <th>Message</th>
                 </tr>
@@ -235,7 +225,7 @@ export default function LogSearch() {
                   <LogRow
                     key={log.log_id}
                     log={log}
-                    utc={utc}
+                    format={format}
                     selected={selectedLogId === log.log_id}
                     onSelect={() => setSelectedLogId(log.log_id)}
                   />
@@ -246,7 +236,7 @@ export default function LogSearch() {
         </TablePanel>
 
         {selectedLog && (
-          <LogContextSidebar log={selectedLog} utc={utc} onClose={() => setSelectedLogId(undefined)} />
+          <LogContextSidebar log={selectedLog} format={format} onClose={() => setSelectedLogId(undefined)} />
         )}
       </div>
     </div>
@@ -255,12 +245,12 @@ export default function LogSearch() {
 
 function LogRow({
   log,
-  utc,
+  format,
   selected,
   onSelect,
 }: {
   log: LogRecord;
-  utc: boolean;
+  format: import("../lib/timeDisplay").TimeFormat;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -268,7 +258,7 @@ function LogRow({
   const message = formatLogMessage(log.body);
   return (
     <tr className={`modern-table-row ${selected ? "bg-[var(--surface-subtle)]" : ""}`}>
-      <td className="whitespace-nowrap">{formatTimestamp(log.timestamp_unix_nano, utc)}</td>
+      <td className="whitespace-nowrap">{formatTimestamp(log.timestamp_unix_nano, format)}</td>
       <td>
         <Badge tone={severity.tone}>
           {severity.label}
@@ -290,12 +280,12 @@ function LogRow({
 
 function LogHistogram({
   buckets,
-  utc,
+  format,
   onRangeSelect,
   onBucketCountChange,
 }: {
   buckets: HistogramBucket[];
-  utc: boolean;
+  format: import("../lib/timeDisplay").TimeFormat;
   onRangeSelect?: (fromMs: number, toMs: number) => void;
   onBucketCountChange?: (count: number) => void;
 }) {
@@ -406,7 +396,7 @@ function LogHistogram({
                   <div
                     key={level}
                     className={levelBarClasses[level]}
-                    title={`${formatBucketLabel(bucket.startMs, utc)} ${level}: ${count}`}
+                    title={`${formatBucketLabel(bucket.startMs, format)} ${level}: ${count}`}
                     style={{ height: `${Math.max(8, (count / max) * 100)}%` }}
                   />
                 );
@@ -421,15 +411,15 @@ function LogHistogram({
 
 function LogContextSidebar({
   log,
-  utc,
+  format,
   onClose,
 }: {
   log: LogRecord;
-  utc: boolean;
+  format: import("../lib/timeDisplay").TimeFormat;
   onClose: () => void;
 }) {
   const severity = otelSeverity(log.severity_number);
-  const entries = logContextEntries(log, utc);
+  const entries = logContextEntries(log, format);
   const badges = infraLinks(log.resource_attributes ?? {});
 
   return (
@@ -541,16 +531,16 @@ function emptyLevels(): Record<OTelLevel, number> {
   };
 }
 
-function logContextEntries(log: LogRecord, utc: boolean): [string, string][] {
+function logContextEntries(log: LogRecord, format: import("../lib/timeDisplay").TimeFormat): [string, string][] {
   const entries: [string, string][] = [
-    ["time", formatTimestamp(log.timestamp_unix_nano, utc)],
+    ["time", formatTimestamp(log.timestamp_unix_nano, format)],
     ["service.name", log.service_name],
     ["severity_number", String(log.severity_number)],
     ["message", formatLogMessage(log.body)],
   ];
 
   if (log.observed_timestamp_unix_nano) {
-    entries.push(["observed_time", formatTimestamp(log.observed_timestamp_unix_nano, utc)]);
+    entries.push(["observed_time", formatTimestamp(log.observed_timestamp_unix_nano, format)]);
   }
   if (log.environment) entries.push(["environment", log.environment]);
   if (log.host_id) entries.push(["host_id", log.host_id]);
@@ -571,7 +561,8 @@ function logContextEntries(log: LogRecord, utc: boolean): [string, string][] {
   return entries;
 }
 
-function formatBucketLabel(ms: number, utc: boolean): string {
+function formatBucketLabel(ms: number, format: import("../lib/timeDisplay").TimeFormat): string {
+  const utc = format === "iso-utc-ms" || format === "iso-utc-ns" || format === "unix-ms" || format === "unix-ns";
   return utc ? new Date(ms).toISOString() : new Date(ms).toLocaleTimeString();
 }
 

@@ -7,6 +7,8 @@ import { searchTraces } from "../api/traces";
 import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
 import { listDeployments } from "../api/deployments";
 import { DeploymentTimeline } from "../components/DeploymentTimeline";
+import { formatTimestamp } from "../utils/formatTimestamp";
+import { useTimeDisplay } from "../lib/timeDisplay";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
@@ -236,6 +238,7 @@ function ServiceLogsTab({
   serviceName: string;
   lookbackMinutes: number;
 }) {
+  const { format } = useTimeDisplay();
   const { data, isLoading, error } = useQuery({
     queryKey: ["service", serviceName, "logs", lookbackMinutes],
     queryFn: () => searchLogs({ service: serviceName, from: new Date(Date.now() - lookbackMinutes * 60 * 1000).toISOString(), limit: 50 }),
@@ -259,7 +262,7 @@ function ServiceLogsTab({
         <tbody>
           {data.logs.map((log) => (
             <tr key={log.log_id}>
-              <td>{log.timestamp_unix_nano}</td>
+              <td className="whitespace-nowrap">{formatTimestamp(log.timestamp_unix_nano, format)}</td>
               <td>{log.severity_text || log.severity_number}</td>
               <td>{typeof log.body === "string" ? log.body : JSON.stringify(log.body)}</td>
               <td>{log.trace_id ? log.trace_id.substring(0, 16) : "none"}</td>

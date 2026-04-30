@@ -1,5 +1,6 @@
 import { Link, Outlet } from "@tanstack/react-router";
 import { useTheme, type ThemePreference } from "../lib/theme";
+import { useTimeDisplay, TIME_FORMAT_OPTIONS } from "../lib/timeDisplay";
 
 const navItems = [
   { label: "Setup", to: "/setup" },
@@ -21,6 +22,7 @@ const themeOptions: { label: string; value: ThemePreference }[] = [
 
 export function AppShell() {
   const { preference, setPreference } = useTheme();
+  const { format, setFormat } = useTimeDisplay();
 
   return (
     <div className="app-shell">
@@ -65,7 +67,17 @@ export function AppShell() {
         <header className="topbar">
           <div className="topbar-title">Platform — dev</div>
           <div className="topbar-controls" aria-label="Global context">
-            <span className="context-pill">UTC</span>
+            <select
+              aria-label="Time display format"
+              className="context-pill"
+              value={format}
+              onChange={(e) => setFormat(e.target.value as typeof format)}
+              style={{ cursor: "pointer", background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "var(--radius, 4px)", padding: "2px 6px", fontSize: "inherit" }}
+            >
+              {TIME_FORMAT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
             <span className="context-pill">Last 1h</span>
             <Link to="/traces" className="secondary-link">Traces</Link>
             <Link to="/logs" className="secondary-link">Logs</Link>

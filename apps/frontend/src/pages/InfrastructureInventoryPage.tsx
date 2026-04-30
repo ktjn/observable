@@ -7,6 +7,8 @@ import {
   type InfrastructureEntitySummary,
   type InfrastructureEntityType,
 } from "../api/infrastructure";
+import { formatTimestamp } from "../utils/formatTimestamp";
+import { useTimeDisplay } from "../lib/timeDisplay";
 import { Badge } from "../components/ui/badge";
 import { Input } from "../components/ui/input";
 import { LoadingState } from "../components/ui/loading-state";
@@ -29,6 +31,7 @@ export default function InfrastructureInventoryPage() {
   const [environment, setEnvironment] = useState("all");
   const [entityType, setEntityType] = useState<InfrastructureTypeFilter>("all");
   const [search, setSearch] = useState("");
+  const { format } = useTimeDisplay();
 
   const { data: environments } = useQuery({
     queryKey: ["environments"],
@@ -134,7 +137,7 @@ export default function InfrastructureInventoryPage() {
             </thead>
             <tbody>
               {filteredItems.map((item) => (
-                <InfrastructureRow key={`${item.entity_type}:${item.entity_id}`} item={item} />
+                <InfrastructureRow key={`${item.entity_type}:${item.entity_id}`} item={item} format={format} />
               ))}
             </tbody>
           </table>
@@ -144,7 +147,7 @@ export default function InfrastructureInventoryPage() {
   );
 }
 
-function InfrastructureRow({ item }: { item: InfrastructureEntitySummary }) {
+function InfrastructureRow({ item, format }: { item: InfrastructureEntitySummary; format: import("../lib/timeDisplay").TimeFormat }) {
   return (
     <tr>
       <td className="strong-cell">
@@ -165,7 +168,7 @@ function InfrastructureRow({ item }: { item: InfrastructureEntitySummary }) {
       </td>
       <td>{formatPerMinute(item.log_rate_per_minute)}</td>
       <td>{formatPercent(item.error_rate)}</td>
-      <td>{formatUnixNano(item.last_seen_unix_nano)}</td>
+      <td>{formatTimestamp(item.last_seen_unix_nano, format)}</td>
     </tr>
   );
 }
@@ -204,10 +207,6 @@ function formatPerMinute(value: number | null) {
 
 function formatPercent(value: number | null) {
   return value === null ? "Unavailable" : `${(value * 100).toFixed(2)}%`;
-}
-
-function formatUnixNano(nanos: number): string {
-  return new Date(nanos / 1_000_000).toLocaleString();
 }
 
 function HealthStatus({ healthState }: { healthState: InfrastructureEntitySummary["health_state"] }) {

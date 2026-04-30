@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { getLogContext, LogRecord } from "../api/logs";
 import { Button } from "./ui/button";
 import { formatLogMessage, getSeverityColor } from "../utils/logFormatting";
+import { formatTimestamp } from "../utils/formatTimestamp";
+import { useTimeDisplay } from "../lib/timeDisplay";
 
 interface Props {
   logId: string;
@@ -13,6 +15,7 @@ export function LogContextView({ logId, onClose }: Props) {
     queryKey: ["logs", "context", logId],
     queryFn: () => getLogContext(logId),
   });
+  const { format } = useTimeDisplay();
 
   if (isLoading) {
     return (
@@ -39,10 +42,7 @@ export function LogContextView({ logId, onClose }: Props) {
               }`}
             >
               <span className="text-[var(--muted)] shrink-0">
-                {new Date(Number(log.timestamp_unix_nano) / 1e6)
-                  .toISOString()
-                  .split("T")[1]
-                  .replace("Z", "")}
+                {formatTimestamp(log.timestamp_unix_nano, format)}
               </span>
               <span
                 className="w-[50px] shrink-0"
