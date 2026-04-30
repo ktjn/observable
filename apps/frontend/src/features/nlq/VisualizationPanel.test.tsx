@@ -182,4 +182,29 @@ describe("VisualizationPanel", () => {
     const dashes = screen.getAllByText("—");
     expect(dashes.length).toBeGreaterThanOrEqual(2);
   });
+
+  test("distribution table shows p95 + median + average (regression: all three stats)", () => {
+    const frame = baseFrame({
+      frame_type: "distribution",
+      data: [{ p95: 4.237, median: 3.1, average: 3.5 }],
+    });
+    render(<VisualizationPanel frame={frame} />);
+    expect(screen.getByTestId("distribution-table")).toBeInTheDocument();
+    expect(screen.getByText("p95")).toBeInTheDocument();
+    expect(screen.getByText("median")).toBeInTheDocument();
+    expect(screen.getByText("average")).toBeInTheDocument();
+    expect(screen.getByText("4.237")).toBeInTheDocument();
+    expect(screen.getByText("3.100")).toBeInTheDocument();
+    expect(screen.getByText("3.500")).toBeInTheDocument();
+  });
+
+  test("formatValue renders em-dash for NaN number", () => {
+    const frame = baseFrame({
+      frame_type: "distribution",
+      data: [{ p95: NaN }],
+    });
+    render(<VisualizationPanel frame={frame} />);
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.queryByText("NaN")).not.toBeInTheDocument();
+  });
 });

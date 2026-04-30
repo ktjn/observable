@@ -235,6 +235,7 @@ function GenericTable({ frame }: Props) {
 function formatValue(v: unknown): string {
   if (v === null || v === undefined) return "—";
   if (typeof v === "number") {
+    if (isNaN(v)) return "—";
     return v % 1 === 0 ? v.toString() : v.toFixed(3);
   }
   return String(v);
