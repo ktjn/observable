@@ -113,7 +113,7 @@ test("renders histogram and primary Time Level Message columns", async () => {
   expect(within(table).getByText("checkout completed")).toBeInTheDocument();
 });
 
-test("selecting a log opens context properties in the left sidebar", async () => {
+test("selecting a log opens context properties in the right sidebar", async () => {
   renderLogSearch();
 
   fireEvent.click(await screen.findByRole("button", { name: "Open log context for checkout completed" }));
