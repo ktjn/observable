@@ -71,7 +71,7 @@ vi.mock("../api/dashboards", () => ({
   })),
 }));
 
-const { searchLogs } = await import("../api/logs");
+const { searchLogs, fetchLogHistogram } = await import("../api/logs");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -149,7 +149,7 @@ test("builds histogram buckets across the selected time range", () => {
   const fromMs = toMs - 60 * 60 * 1000;
   const buckets = buildLogHistogram(logs, fromMs, toMs);
 
-  expect(buckets).toHaveLength(12);
+  expect(buckets).toHaveLength(30);
   expect(buckets.reduce((sum, bucket) => sum + bucket.total, 0)).toBe(2);
   expect(buckets.some((bucket) => bucket.levels.INFO === 1)).toBe(true);
   expect(buckets.some((bucket) => bucket.levels.ERROR === 1)).toBe(true);
@@ -228,4 +228,14 @@ test("span_id in log context sidebar links to the parent trace", async () => {
   const spanLink = within(sidebar).getByRole("link", { name: "span-1" });
   expect(spanLink).toHaveAttribute("href", "/traces/trace-1");
   expect(spanLink).toHaveAttribute("title", "View parent trace");
+});
+
+test("shows 'Histogram unavailable' when histogram query fails", async () => {
+  vi.mocked(fetchLogHistogram).mockRejectedValueOnce(new Error("histogram backend error"));
+
+  renderLogSearch();
+
+  await waitFor(() => {
+    expect(screen.getByText("Histogram unavailable")).toBeInTheDocument();
+  });
 });

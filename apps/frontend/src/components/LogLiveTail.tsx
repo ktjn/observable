@@ -4,6 +4,7 @@ import { tailLogs } from "../api/logs";
 import type { LogRecord } from "../api/logs";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { formatLogMessage, getSeverityColor } from "../utils/logFormatting";
 
 const POLL_INTERVAL_MS = 1000;
 const MAX_LOGS = 200;
@@ -81,12 +82,12 @@ export function LogLiveTail() {
             <span className="text-[var(--muted)]">{formatTime(log.timestamp_unix_nano)}</span>
             <span
               className="font-bold"
-              style={{ color: severityColor(log.severity_number) }}
+              style={{ color: getSeverityColor(log.severity_number) }}
             >
               {log.severity_text || `L${log.severity_number}`}
             </span>
             <span>{log.service_name || "unknown"}</span>
-            <span>{typeof log.body === "string" ? log.body : JSON.stringify(log.body)}</span>
+            <span>{formatLogMessage(log.body)}</span>
           </div>
         ))}
         <div ref={bottomRef} />
@@ -117,9 +118,3 @@ function formatTime(timestampUnixNano: string): string {
   return new Date(Number(timestampUnixNano) / 1e6).toISOString().split("T")[1].replace("Z", "");
 }
 
-function severityColor(severity: number): string {
-  if (severity >= 13) return "var(--bad)";
-  if (severity >= 9) return "var(--warn)";
-  if (severity >= 5) return "var(--brand)";
-  return "var(--muted)";
-}

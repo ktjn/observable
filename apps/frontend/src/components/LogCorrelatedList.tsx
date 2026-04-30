@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { LogRecord } from "../api/logs";
 import { searchLogs } from "../api/logs";
 import { LogContextView } from "./LogContextView";
+import { formatLogMessage, getSeverityColor } from "../utils/logFormatting";
 
 interface Props {
   traceId: string;
@@ -60,16 +61,23 @@ export function LogCorrelatedList({ traceId, spanId }: Props) {
             >
               {log.severity_text || `LVL ${log.severity_number}`}
             </span>
-            <span
-              className="w-[90px] shrink-0"
-              style={{
-                color: log.span_id ? "var(--brand)" : "var(--brand-strong)",
-              }}
-            >
-              {correlationLabel(log)}
+            <span className="w-[90px] shrink-0">
+              {log.trace_id ? (
+                <a
+                  href={`/traces/${log.trace_id}`}
+                  className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+                  style={{ color: log.span_id ? "var(--brand)" : "var(--brand-strong)" }}
+                >
+                  {correlationLabel(log)}
+                </a>
+              ) : (
+                <span style={{ color: log.span_id ? "var(--brand)" : "var(--brand-strong)" }}>
+                  {correlationLabel(log)}
+                </span>
+              )}
             </span>
             <span className="flex-1 min-w-0 break-all">
-              {typeof log.body === "string" ? log.body : JSON.stringify(log.body)}
+              {formatLogMessage(log.body)}
             </span>
           </div>
         ))}
@@ -96,9 +104,3 @@ export function correlationLabel(log: LogRecord): "Exact span" | "Trace-level" {
   return log.span_id ? "Exact span" : "Trace-level";
 }
 
-function getSeverityColor(severity: number): string {
-  if (severity >= 13) return "var(--bad)";
-  if (severity >= 9) return "var(--warn)";
-  if (severity >= 5) return "var(--brand)";
-  return "var(--muted)";
-}

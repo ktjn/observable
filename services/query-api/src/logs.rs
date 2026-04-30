@@ -425,24 +425,27 @@ pub async fn log_histogram(
     let mut query = state
         .ch
         .query(&plan.sql)
-        .bind(ctx.tenant_id)
-        .bind(from_ns)
-        .bind(to_ns);
+        .bind(plan.from_ns)      // intDiv arithmetic: timestamp_unix_nano - ?
+        .bind(plan.interval_ns)  // intDiv arithmetic: / ?
+        .bind(ctx.tenant_id)     // WHERE tenant_id = ?
+        .bind(from_ns)           // AND timestamp_unix_nano >= ?
+        .bind(to_ns);            // AND timestamp_unix_nano <= ?
     if let Some(service) = &params.service {
-        query = query.bind(service);
+        query = query.bind(service); // AND service_name = ?
     }
 
-    let mut cursor = query.fetch::<(u64, i32, u64)>().map_err(|e| {
+    // intDiv(UInt64, UInt64) returns Int64 in ClickHouse, so bucket_idx must be i64.
+    let mut cursor = query.fetch::<(i64, i32, u64)>().map_err(|e| {
         tracing::error!("ClickHouse histogram query error: {:?}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    let mut raw: HashMap<u64, HashMap<i32, u64>> = HashMap::new();
+    let mut raw: HashMap<i64, HashMap<i32, u64>> = HashMap::new();
     while let Some((bucket_idx, severity, count)) = cursor.next().await.map_err(|e| {
         tracing::error!("ClickHouse histogram fetch error: {:?}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })? {
-        if bucket_idx < bucket_count as u64 {
+        if bucket_idx >= 0 && bucket_idx < bucket_count as i64 {
             raw.entry(bucket_idx).or_default().insert(severity, count);
         }
     }
@@ -454,7 +457,7 @@ pub async fn log_histogram(
             LogHistogramBucket {
                 start_ms: start_ns / 1_000_000,
                 end_ms: end_ns / 1_000_000,
-                counts: raw.remove(&(i as u64)).unwrap_or_default(),
+                counts: raw.remove(&(i as i64)).unwrap_or_default(),
             }
         })
         .collect();

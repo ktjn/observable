@@ -1,9 +1,10 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createDashboard } from "../api/dashboards";
-import { searchLogs, fetchLogHistogram, LogRecord, LogHistogramBucket as ApiHistogramBucket } from "../api/logs";
+import { searchLogs, fetchLogHistogram, LogRecord, LogHistogramBucket as ApiHistogramBucket, LogHistogramResponse } from "../api/logs";
 import { infraLinks } from "../utils/infraLinks";
 import { formatTimestamp } from "../utils/formatTimestamp";
+import { OTelLevel, otelSeverity, formatLogMessage, formatContextValue } from "../utils/logFormatting";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -17,8 +18,6 @@ const timeRangeOptions = [
   { label: "6h", value: 360 },
   { label: "24h", value: 1440 },
 ];
-
-type OTelLevel = "TRACE" | "DEBUG" | "INFO" | "WARN" | "ERROR" | "FATAL";
 
 type HistogramBucket = {
   startMs: number;
@@ -44,6 +43,7 @@ export default function LogSearch() {
   const [selectedLogId, setSelectedLogId] = useState<string | undefined>();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [customRangeMs, setCustomRangeMs] = useState<{ fromMs: number; toMs: number } | null>(null);
+  const [bucketCount, setBucketCount] = useState(60);
 
   const { from, to, histogramFromMs, histogramToMs } = useMemo(() => {
     if (customRangeMs) {
@@ -76,15 +76,16 @@ export default function LogSearch() {
       }),
   });
 
-  const { data: histogramData } = useQuery({
-    queryKey: ["logs-histogram", service, from, to],
+  const { data: histogramData, isError: isHistogramError } = useQuery({
+    queryKey: ["logs-histogram", service, from, to, bucketCount],
     queryFn: () =>
       fetchLogHistogram({
         service: service || undefined,
         from,
         to: new Date(histogramToMs).toISOString(),
-        buckets: 30,
+        buckets: bucketCount,
       }),
+    placeholderData: (prev: LogHistogramResponse | undefined) => prev,
   });
 
   const logs = data?.logs ?? [];
@@ -185,8 +186,21 @@ export default function LogSearch() {
         )}
       </div>
 
-      {!isLoading && !error && logs.length > 0 && (
-        <LogHistogram buckets={histogram} utc={utc} onRangeSelect={handleHistogramRangeSelect} />
+      {histogramData ? (
+        <LogHistogram
+          buckets={histogram}
+          utc={utc}
+          onRangeSelect={handleHistogramRangeSelect}
+          onBucketCountChange={setBucketCount}
+        />
+      ) : !isHistogramError && (
+        <div
+          aria-hidden="true"
+          className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 h-[168px] animate-pulse"
+        />
+      )}
+      {isHistogramError && (
+        <p className="text-xs text-[var(--muted)]">Histogram unavailable</p>
       )}
 
       <div className="flex items-start gap-3 max-[900px]:flex-col">
@@ -279,13 +293,32 @@ function LogHistogram({
   buckets,
   utc,
   onRangeSelect,
+  onBucketCountChange,
 }: {
   buckets: HistogramBucket[];
   utc: boolean;
   onRangeSelect?: (fromMs: number, toMs: number) => void;
+  onBucketCountChange?: (count: number) => void;
 }) {
   const max = Math.max(1, ...buckets.map((bucket) => bucket.total));
   const gridRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+
+  const onBucketCountChangeRef = useRef(onBucketCountChange);
+  useEffect(() => { onBucketCountChangeRef.current = onBucketCountChange; });
+
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const w = entry.contentRect.width;
+      // Steps of 5 to avoid burst API calls on continuous resize
+      const count = Math.round(Math.floor(w / 10) / 5) * 5;
+      onBucketCountChangeRef.current?.(Math.max(12, Math.min(100, count)));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []); // stable: uses ref to read latest callback
   // ref holds current drag coords for synchronous reads in event handlers
   const dragRef = useRef<{ start: number; end: number } | null>(null);
   // state drives the visual highlight (re-renders on move)
@@ -330,6 +363,7 @@ function LogHistogram({
 
   return (
     <section
+      ref={sectionRef}
       role="img"
       aria-label="Log volume histogram"
       className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3"
@@ -351,7 +385,8 @@ function LogHistogram({
       <p className="sr-only">Drag over bars to zoom into a time range.</p>
       <div
         ref={gridRef}
-        className="grid h-28 grid-cols-12 items-end gap-1 select-none cursor-crosshair"
+        className="grid h-28 items-end gap-1 select-none cursor-crosshair"
+        style={{ gridTemplateColumns: `repeat(${buckets.length}, 1fr)` }}
         aria-hidden="true"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -459,29 +494,6 @@ function LogContextSidebar({
   );
 }
 
-export function otelSeverity(severity: number): { label: OTelLevel; tone: "good" | "warn" | "bad" | "info" | "neutral" } {
-  if (severity >= 21) return { label: "FATAL", tone: "bad" };
-  if (severity >= 17) return { label: "ERROR", tone: "bad" };
-  if (severity >= 13) return { label: "WARN", tone: "warn" };
-  if (severity >= 9) return { label: "INFO", tone: "good" };
-  if (severity >= 5) return { label: "DEBUG", tone: "info" };
-  return { label: "TRACE", tone: "neutral" };
-}
-
-export function formatLogMessage(body: unknown): string {
-  if (typeof body === "string") return body;
-  if (typeof body === "number" || typeof body === "boolean") return String(body);
-  if (!body || typeof body !== "object" || Array.isArray(body)) return String(body ?? "");
-
-  const record = body as Record<string, unknown>;
-  const message = record.message ?? record.msg ?? record.body;
-  if (typeof message === "string") return message;
-
-  return Object.entries(record)
-    .map(([key, value]) => `${key}=${formatContextValue(value)}`)
-    .join(" ");
-}
-
 function histogramFromApi(buckets: ApiHistogramBucket[]): HistogramBucket[] {
   return buckets.map((b) => {
     const levels = emptyLevels();
@@ -496,7 +508,7 @@ function histogramFromApi(buckets: ApiHistogramBucket[]): HistogramBucket[] {
 }
 
 export function buildLogHistogram(logs: LogRecord[], fromMs: number, toMs: number): HistogramBucket[] {
-  const bucketCount = 12;
+  const bucketCount = 30;
   const rangeMs = toMs - fromMs;
   const bucketMs = rangeMs / bucketCount;
   const buckets = Array.from({ length: bucketCount }, (_, index) => ({
@@ -560,13 +572,8 @@ function logContextEntries(log: LogRecord, utc: boolean): [string, string][] {
   return entries;
 }
 
-function formatContextValue(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  if (value === null || value === undefined) return "";
-  return JSON.stringify(value);
-}
-
 function formatBucketLabel(ms: number, utc: boolean): string {
   return utc ? new Date(ms).toISOString() : new Date(ms).toLocaleTimeString();
 }
+
+export { otelSeverity, formatLogMessage } from "../utils/logFormatting";
