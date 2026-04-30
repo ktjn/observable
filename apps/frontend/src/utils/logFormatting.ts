@@ -22,7 +22,22 @@ export function formatContextValue(value: unknown): string {
 }
 
 export function formatLogMessage(body: unknown): string {
-  if (typeof body === "string") return body;
+  if (typeof body === "string") {
+    try {
+      const parsed: unknown = JSON.parse(body);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const record = parsed as Record<string, unknown>;
+        const message = record.message ?? record.msg ?? record.body;
+        if (typeof message === "string") return message;
+        return Object.entries(record)
+          .map(([key, value]) => `${key}=${formatContextValue(value)}`)
+          .join(" ");
+      }
+    } catch {
+      // Not JSON — return raw string
+    }
+    return body;
+  }
   if (typeof body === "number" || typeof body === "boolean") return String(body);
   if (!body || typeof body !== "object") return String(body ?? "");
   if (Array.isArray(body)) return JSON.stringify(body);
