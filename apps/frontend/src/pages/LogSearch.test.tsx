@@ -113,7 +113,7 @@ test("renders histogram and primary Time Level Message columns", async () => {
   expect(within(table).getByText("checkout completed")).toBeInTheDocument();
 });
 
-test("selecting a log opens context properties in the left sidebar", async () => {
+test("selecting a log opens context properties in the right sidebar", async () => {
   renderLogSearch();
 
   fireEvent.click(await screen.findByRole("button", { name: "Open log context for checkout completed" }));
@@ -238,4 +238,23 @@ test("shows 'Histogram unavailable' when histogram query fails", async () => {
   await waitFor(() => {
     expect(screen.getByText("Histogram unavailable")).toBeInTheDocument();
   });
+});
+
+test("histogram renders visible bars when API returns non-zero severity counts", async () => {
+  vi.mocked(fetchLogHistogram).mockResolvedValueOnce({
+    buckets: [
+      { start_ms: 1700000000000, end_ms: 1700001000000, counts: { 9: 5, 17: 2 } },
+      { start_ms: 1700001000000, end_ms: 1700002000000, counts: {} },
+    ],
+  });
+
+  renderLogSearch();
+  await screen.findByRole("img", { name: "Log volume histogram" });
+
+  const histogram = screen.getByRole("img", { name: "Log volume histogram" });
+  // bars have title="<timestamp> <LEVEL>: <count>" — only rendered for count > 0
+  const infoBar = histogram.querySelector("[title*='INFO: 5']");
+  const errorBar = histogram.querySelector("[title*='ERROR: 2']");
+  expect(infoBar).toBeInTheDocument();
+  expect(errorBar).toBeInTheDocument();
 });

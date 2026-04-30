@@ -80,6 +80,19 @@ describe("formatLogMessage", () => {
     expect(formatLogMessage(["error", "stacktrace"])).toBe('["error","stacktrace"]');
     expect(formatLogMessage([1, 2, 3])).toBe("[1,2,3]");
   });
+
+  it("extracts message field from JSON-encoded string body", () => {
+    expect(formatLogMessage('{"message":"checkout completed","level":"INFO"}')).toBe("checkout completed");
+    expect(formatLogMessage('{"msg":"request received","path":"/api"}')).toBe("request received");
+  });
+
+  it("formats JSON-encoded body with no message field as key=value pairs", () => {
+    expect(formatLogMessage('{"event":"cache_miss","cache":"catalog"}')).toBe("event=cache_miss cache=catalog");
+  });
+
+  it("returns plain (non-JSON) string body unchanged", () => {
+    expect(formatLogMessage("plain log line")).toBe("plain log line");
+  });
 });
 
 describe("formatContextValue", () => {

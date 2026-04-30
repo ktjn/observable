@@ -204,10 +204,6 @@ export default function LogSearch() {
       )}
 
       <div className="flex items-start gap-3 max-[900px]:flex-col">
-        {selectedLog && (
-          <LogContextSidebar log={selectedLog} utc={utc} onClose={() => setSelectedLogId(undefined)} />
-        )}
-
         <TablePanel className="flex-1">
           {isLoading ? (
             <LoadingState>Loading logs…</LoadingState>
@@ -249,6 +245,10 @@ export default function LogSearch() {
             </table>
           )}
         </TablePanel>
+
+        {selectedLog && (
+          <LogContextSidebar log={selectedLog} utc={utc} onClose={() => setSelectedLogId(undefined)} />
+        )}
       </div>
     </div>
   );
