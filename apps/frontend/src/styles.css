@@ -5,58 +5,58 @@
 
 :root {
   color-scheme: light;
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --surface-subtle: #eef1f5;
-  --border: #d8dee7;
-  --border-strong: #b8c2d0;
-  --text: #17202a;
-  --text-strong: #0f1720;
-  --muted: #5f6b7a;
-  --brand: #2563eb;
-  --brand-strong: #1d4ed8;
-  --brand-bg: #e8f1ff;
-  --focus-ring: color-mix(in srgb, var(--brand) 70%, white);
+  --bg: #f2f2f2;
+  --surface: #e8e8e8;
+  --surface-subtle: #e4e4e4;
+  --border: #cccccc;
+  --border-strong: #999999;
+  --text: #111111;
+  --text-strong: #000000;
+  --muted: #666666;
+  --brand: #111111;
+  --brand-strong: #000000;
+  --brand-bg: #d8d8d8;
+  --focus-ring: #555555;
   --surface-raised: #ffffff;
-  --surface-inset: #f0f3f7;
-  --good: #15803d;
-  --good-bg: #e8f7ee;
-  --warn: #b45309;
-  --warn-bg: #fff4df;
-  --bad: #b91c1c;
-  --bad-bg: #fdeaea;
-  --info-bg: #e8f1ff;
-  --shadow-panel: 0 1px 2px rgb(15 23 42 / 0.08), 0 8px 24px rgb(15 23 42 / 0.06);
-  --shadow-control: 0 1px 1px rgb(15 23 42 / 0.06);
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --surface-inset: #ebebeb;
+  --good: #007700;
+  --good-bg: #f0f7f0;
+  --warn: #a05000;
+  --warn-bg: #f7f0e8;
+  --bad: #bb0000;
+  --bad-bg: #f7f0f0;
+  --info-bg: #f0f0f7;
+  --shadow-panel: none;
+  --shadow-control: none;
+  font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: 11px;
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #111318;
-  --surface: #191d24;
-  --surface-subtle: #232935;
-  --border: #333b49;
-  --border-strong: #465163;
-  --text: #edf1f7;
-  --text-strong: #ffffff;
-  --muted: #a7b0bd;
-  --brand: #60a5fa;
-  --brand-strong: #93c5fd;
-  --brand-bg: #12233f;
-  --focus-ring: color-mix(in srgb, var(--brand) 70%, black);
-  --surface-raised: #202631;
-  --surface-inset: #12161d;
-  --good: #4ade80;
-  --good-bg: #123420;
-  --warn: #fbbf24;
-  --warn-bg: #3a2a0a;
-  --bad: #f87171;
-  --bad-bg: #3a1414;
-  --info-bg: #12233f;
-  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.35), 0 12px 32px rgb(0 0 0 / 0.28);
-  --shadow-control: 0 1px 1px rgb(0 0 0 / 0.3);
+  --bg: #050f05;
+  --surface: #070f07;
+  --surface-subtle: #0a1f0a;
+  --border: #0d2a0d;
+  --border-strong: #1a5a1a;
+  --text: #33ff33;
+  --text-strong: #33ff33;
+  --muted: #1a9a1a;
+  --brand: #33ff33;
+  --brand-strong: #33ff33;
+  --brand-bg: #0a1f0a;
+  --focus-ring: #33ff33;
+  --surface-raised: #020a02;
+  --surface-inset: #030a03;
+  --good: #1a9a1a;
+  --good-bg: #0a1f0a;
+  --warn: #ffaa00;
+  --warn-bg: #2a1a00;
+  --bad: #ff5555;
+  --bad-bg: #2a0a0a;
+  --info-bg: #0a1f0a;
+  --shadow-panel: none;
+  --shadow-control: none;
 }
 
 * {
