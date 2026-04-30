@@ -18,3 +18,9 @@ Object.defineProperty(window, "scrollTo", {
   writable: true,
   value: vi.fn(),
 });
+
+window.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};

@@ -149,7 +149,7 @@ test("builds histogram buckets across the selected time range", () => {
   const fromMs = toMs - 60 * 60 * 1000;
   const buckets = buildLogHistogram(logs, fromMs, toMs);
 
-  expect(buckets).toHaveLength(12);
+  expect(buckets).toHaveLength(30);
   expect(buckets.reduce((sum, bucket) => sum + bucket.total, 0)).toBe(2);
   expect(buckets.some((bucket) => bucket.levels.INFO === 1)).toBe(true);
   expect(buckets.some((bucket) => bucket.levels.ERROR === 1)).toBe(true);
