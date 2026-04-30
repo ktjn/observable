@@ -249,6 +249,8 @@ async fn run_histogram(
     let plan = planner.plan_log_histogram(from_ns, to_ns, service, bucket_count);
     let mut query = ch
         .query(&plan.sql)
+        .bind(plan.from_ns)
+        .bind(plan.interval_ns)
         .bind(tenant_id)
         .bind(from_ns)
         .bind(to_ns);
@@ -678,10 +680,16 @@ async fn log_context_returns_surrounding_logs() {
         .as_nanos() as u64;
     let ts: Vec<u64> = (0..5).map(|i| now_ns - 5_000_000_000 + i * 1_000_000_000).collect();
     // ts[0] = now-5s, ts[1] = now-4s, ts[2] = now-3s (pivot), ts[3] = now-2s, ts[4] = now-1s
-    for &t in &ts {
+    // Insert non-pivot rows first
+    for &t in ts.iter().filter(|&&t| t != ts[2]) {
         insert_log(&ch, make_log_row_at(tenant, "svc", t)).await;
     }
     let pivot_ts = ts[2];
+
+    // Insert pivot row separately so we can capture its log_id
+    let pivot_row_data = make_log_row_at(tenant, "svc", pivot_ts);
+    let pivot_log_id = pivot_row_data.log_id;
+    insert_log(&ch, pivot_row_data).await;
 
     // We need service and host from the actual inserted row; use make_log_row defaults.
     let svc = "svc".to_string();
@@ -731,4 +739,31 @@ async fn log_context_returns_surrounding_logs() {
     // after is ASC — ts[3] then ts[4]
     assert_eq!(after_rows[0].timestamp_unix_nano, ts[3]);
     assert_eq!(after_rows[1].timestamp_unix_nano, ts[4]);
+
+    // Fetch pivot row by log_id and assemble full context
+    let fetched_pivot: LogRow = ch
+        .query("SELECT ?fields FROM observable.logs WHERE tenant_id = ? AND log_id = ?")
+        .bind(tenant)
+        .bind(pivot_log_id)
+        .fetch_optional::<LogRow>()
+        .await
+        .expect("pivot fetch succeeded")
+        .expect("pivot row found");
+
+    let mut reversed_before = before_rows.clone();
+    reversed_before.reverse();
+    let mut all = reversed_before;
+    all.push(fetched_pivot.clone());
+    all.extend(after_rows.clone());
+
+    assert_eq!(all.len(), 5, "full context should be 5 rows");
+    assert_eq!(all[2].timestamp_unix_nano, pivot_ts, "pivot is in the middle");
+    assert!(
+        all[0].timestamp_unix_nano < all[1].timestamp_unix_nano,
+        "before rows in ascending order after reverse"
+    );
+    assert!(
+        all[3].timestamp_unix_nano < all[4].timestamp_unix_nano,
+        "after rows in ascending order"
+    );
 }

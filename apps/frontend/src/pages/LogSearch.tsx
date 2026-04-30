@@ -186,12 +186,17 @@ export default function LogSearch() {
         )}
       </div>
 
-      {histogramData && (
+      {histogramData ? (
         <LogHistogram
           buckets={histogram}
           utc={utc}
           onRangeSelect={handleHistogramRangeSelect}
           onBucketCountChange={setBucketCount}
+        />
+      ) : !isHistogramError && (
+        <div
+          aria-hidden="true"
+          className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 h-[168px] animate-pulse"
         />
       )}
       {isHistogramError && (

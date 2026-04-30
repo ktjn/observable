@@ -166,12 +166,9 @@ impl QueryPlanner {
             where_clause.push_str(" AND service_name = ?");
         }
 
-        // Cast literals to UInt64 explicitly: ClickHouse infers bare integer
-        // literals as Int64, which makes intDiv return Int64 — incompatible
-        // with the u64 tuple expected by the Rust deserializer.
         let sql = format!(
             "SELECT \
-               intDiv(timestamp_unix_nano - toUInt64({from_ns}), toUInt64({interval_ns})) AS bucket_idx, \
+               intDiv(timestamp_unix_nano - ?, ?) AS bucket_idx, \
                severity_number, \
                count() AS cnt \
              FROM observable.logs {where_clause} \
@@ -465,7 +462,7 @@ mod tests {
         let plan = planner.plan_log_histogram(0, 3_000_000_000, None, 30);
 
         assert!(plan.sql.contains("FROM observable.logs"));
-        assert!(plan.sql.contains("intDiv(timestamp_unix_nano -"));
+        assert!(plan.sql.contains("intDiv(timestamp_unix_nano - ?, ?)"));
         assert!(plan.sql.contains("GROUP BY bucket_idx, severity_number"));
         assert!(plan.sql.contains("ORDER BY bucket_idx ASC"));
         assert!(plan.sql.contains("WHERE tenant_id = ?"));
