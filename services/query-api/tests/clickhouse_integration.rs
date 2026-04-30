@@ -361,7 +361,10 @@ async fn log_histogram_empty_range_returns_no_rows() {
         .as_nanos() as u64;
     let rows = run_histogram(&ch, tenant, now_ns - 3_600_000_000_000, now_ns, None, 30).await;
 
-    assert!(rows.is_empty(), "no logs inserted — histogram must be empty");
+    assert!(
+        rows.is_empty(),
+        "no logs inserted — histogram must be empty"
+    );
 }
 
 #[tokio::test]
@@ -414,8 +417,16 @@ async fn log_histogram_service_filter_excludes_other_services() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos() as u64;
-    insert_log(&ch, make_log_row_at(tenant, "svc-a", now_ns - 2_000_000_000)).await;
-    insert_log(&ch, make_log_row_at(tenant, "svc-b", now_ns - 1_000_000_000)).await;
+    insert_log(
+        &ch,
+        make_log_row_at(tenant, "svc-a", now_ns - 2_000_000_000),
+    )
+    .await;
+    insert_log(
+        &ch,
+        make_log_row_at(tenant, "svc-b", now_ns - 1_000_000_000),
+    )
+    .await;
 
     let from_ns = now_ns - 3_000_000_000;
     let to_ns = now_ns + 1_000_000_000;
@@ -444,9 +455,21 @@ async fn log_histogram_tenant_isolation() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos() as u64;
-    insert_log(&ch, make_log_row_at(tenant_a, "svc", now_ns - 2_000_000_000)).await;
-    insert_log(&ch, make_log_row_at(tenant_a, "svc", now_ns - 1_000_000_000)).await;
-    insert_log(&ch, make_log_row_at(tenant_b, "svc", now_ns - 1_500_000_000)).await;
+    insert_log(
+        &ch,
+        make_log_row_at(tenant_a, "svc", now_ns - 2_000_000_000),
+    )
+    .await;
+    insert_log(
+        &ch,
+        make_log_row_at(tenant_a, "svc", now_ns - 1_000_000_000),
+    )
+    .await;
+    insert_log(
+        &ch,
+        make_log_row_at(tenant_b, "svc", now_ns - 1_500_000_000),
+    )
+    .await;
 
     let from_ns = now_ns - 3_000_000_000;
     let to_ns = now_ns + 1_000_000_000;
@@ -477,7 +500,11 @@ async fn log_histogram_bucket_count_param_changes_granularity() {
         .as_nanos() as u64;
     let base = now_ns - 7_000_000_000;
     for i in 1u64..=6 {
-        insert_log(&ch, make_log_row_at(tenant, "svc", base + i * 1_000_000_000)).await;
+        insert_log(
+            &ch,
+            make_log_row_at(tenant, "svc", base + i * 1_000_000_000),
+        )
+        .await;
     }
 
     let from_ns = base;
@@ -485,7 +512,11 @@ async fn log_histogram_bucket_count_param_changes_granularity() {
 
     let rows6 = run_histogram(&ch, tenant, from_ns, to_ns, None, 6).await;
     let distinct6: HashSet<i64> = rows6.iter().map(|(idx, _, _)| *idx).collect();
-    assert_eq!(distinct6.len(), 6, "6 buckets should produce 6 distinct bucket indices");
+    assert_eq!(
+        distinct6.len(),
+        6,
+        "6 buckets should produce 6 distinct bucket indices"
+    );
 
     let rows3 = run_histogram(&ch, tenant, from_ns, to_ns, None, 3).await;
     let distinct3: HashSet<i64> = rows3.iter().map(|(idx, _, _)| *idx).collect();
@@ -571,8 +602,16 @@ async fn log_search_service_filter() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos() as u64;
-    insert_log(&ch, make_log_row_at(tenant, "svc-a", now_ns - 2_000_000_000)).await;
-    insert_log(&ch, make_log_row_at(tenant, "svc-a", now_ns - 1_000_000_000)).await;
+    insert_log(
+        &ch,
+        make_log_row_at(tenant, "svc-a", now_ns - 2_000_000_000),
+    )
+    .await;
+    insert_log(
+        &ch,
+        make_log_row_at(tenant, "svc-a", now_ns - 1_000_000_000),
+    )
+    .await;
     insert_log(&ch, make_log_row_at(tenant, "svc-b", now_ns)).await;
 
     let planner = QueryPlanner;
@@ -678,7 +717,9 @@ async fn log_context_returns_surrounding_logs() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos() as u64;
-    let ts: Vec<u64> = (0..5).map(|i| now_ns - 5_000_000_000 + i * 1_000_000_000).collect();
+    let ts: Vec<u64> = (0..5)
+        .map(|i| now_ns - 5_000_000_000 + i * 1_000_000_000)
+        .collect();
     // ts[0] = now-5s, ts[1] = now-4s, ts[2] = now-3s (pivot), ts[3] = now-2s, ts[4] = now-1s
     // Insert non-pivot rows first
     for &t in ts.iter().filter(|&&t| t != ts[2]) {
@@ -729,7 +770,11 @@ async fn log_context_returns_surrounding_logs() {
         .await
         .expect("after query succeeded");
 
-    assert_eq!(before_rows.len(), 2, "2 logs before pivot (ts[0] and ts[1])");
+    assert_eq!(
+        before_rows.len(),
+        2,
+        "2 logs before pivot (ts[0] and ts[1])"
+    );
     assert_eq!(after_rows.len(), 2, "2 logs after pivot (ts[3] and ts[4])");
 
     // before is DESC — first element is ts[1], second is ts[0]
@@ -757,7 +802,10 @@ async fn log_context_returns_surrounding_logs() {
     all.extend(after_rows.clone());
 
     assert_eq!(all.len(), 5, "full context should be 5 rows");
-    assert_eq!(all[2].timestamp_unix_nano, pivot_ts, "pivot is in the middle");
+    assert_eq!(
+        all[2].timestamp_unix_nano, pivot_ts,
+        "pivot is in the middle"
+    );
     assert!(
         all[0].timestamp_unix_nano < all[1].timestamp_unix_nano,
         "before rows in ascending order after reverse"

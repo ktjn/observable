@@ -56,7 +56,13 @@
       "Bash(grep -v \"^.*://\\\\|:///\")",
       "Bash(npm test *)",
       "Bash(cat)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Skill(update-config)",
+      "Bash(gh api *)",
+      "Bash(grep -E \"\\\\.tsx$|\\\\.ts$|\\\\.json$\")",
+      "Bash(awk -F: '{sum += $2} END {print \"Total test cases:\", sum}')",
+      "Bash(awk -F: '{sum += $2} END {print \"Total \\(incl nested\\):\", sum}')",
+      "Bash(awk -F: '{sum += $2} END {print \"Total:\", sum}')"
     ]
   }
 }
