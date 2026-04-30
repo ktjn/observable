@@ -40,7 +40,7 @@ test("renders the product navigation shell", async () => {
   expect(within(navigation).getByRole("link", { name: "Service Overview" })).toBeInTheDocument();
   expect(within(navigation).getByRole("link", { name: "Dashboards" })).toBeInTheDocument();
   expect(within(navigation).getByRole("link", { name: "Alerts & SLOs" })).toBeInTheDocument();
-  expect(within(navigation).getByRole("link", { name: "Admin / Fleet / Billing" })).toBeInTheDocument();
+  expect(within(navigation).getByRole("link", { name: "Admin" })).toBeInTheDocument();
 
   await screen.findByRole("heading", { name: "Services" });
 });
