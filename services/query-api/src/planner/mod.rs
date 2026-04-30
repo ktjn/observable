@@ -382,28 +382,23 @@ mod tests {
     }
 
     #[test]
-    fn log_histogram_sql_uses_uint64_casts_to_avoid_int64_schema_mismatch() {
-        // ClickHouse infers bare integer literals as Int64. Without explicit
-        // toUInt64() casts, intDiv returns Int64, which is incompatible with
-        // the u64 tuple field expected by the Rust clickhouse-rs deserializer.
+    fn log_histogram_sql_uses_bind_params_to_avoid_int64_schema_mismatch() {
+        // from_ns and interval_ns are passed as bind parameters (?) rather than
+        // interpolated literals. This is architecturally consistent with every
+        // other planner query and avoids the Int64 schema mismatch without needing
+        // toUInt64() casts — the handler fetches as (i64, i32, u64) to match the
+        // actual ClickHouse return type.
         let planner = QueryPlanner;
         let plan = planner.plan_log_histogram(1_000_000u64, 2_000_000u64, None, 30);
 
         assert!(
-            plan.sql.contains("toUInt64(1000000)"),
-            "from_ns must be cast to UInt64 to avoid Int64 schema mismatch; sql: {}",
+            plan.sql.contains("intDiv(timestamp_unix_nano - ?, ?)"),
+            "intDiv must use bind parameters for from_ns and interval_ns; sql: {}",
             plan.sql
         );
-        let interval_ns = (2_000_000u64 - 1_000_000u64) / 30;
         assert!(
-            plan.sql.contains(&format!("toUInt64({interval_ns})")),
-            "interval_ns must be cast to UInt64; sql: {}",
-            plan.sql
-        );
-        // bucket_idx must be the first SELECT expression.
-        assert!(
-            plan.sql.contains("intDiv(timestamp_unix_nano - toUInt64("),
-            "intDiv must subtract toUInt64-cast literal; sql: {}",
+            !plan.sql.contains("toUInt64"),
+            "SQL must not contain toUInt64 casts — bind params are used instead; sql: {}",
             plan.sql
         );
     }
