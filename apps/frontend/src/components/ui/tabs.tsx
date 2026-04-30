@@ -26,7 +26,7 @@ export const TabsList = forwardRef<
     <BaseTabs.List
       ref={ref}
       className={mergeClassName(
-        "relative inline-flex min-h-10 items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-1",
+        "relative inline-flex min-h-8 items-end gap-0 border-b border-[var(--border-strong)] bg-transparent",
         className
       )}
       {...props}
@@ -43,9 +43,10 @@ export const TabsTab = forwardRef<
       ref={ref}
       className={mergeClassName(
         cn(
-          "inline-flex min-h-8 items-center justify-center rounded-md px-3 text-sm font-medium text-[var(--muted)] outline-none transition-colors",
-          "data-[selected]:bg-[var(--surface)] data-[selected]:text-[var(--text)]",
-          "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
+          "inline-flex min-h-7 items-center justify-center border-b-2 border-transparent px-3 text-[11px] font-medium text-[var(--muted)] outline-none transition-colors",
+          "data-[selected]:border-[var(--brand)] data-[selected]:text-[var(--text)] data-[selected]:font-semibold",
+          "hover:text-[var(--text)]",
+          "focus-visible:ring-1 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--bg)]"
         ),
         className
       )}
