@@ -7,6 +7,7 @@
  *   - approximation_statement always visible alongside results.
  *   - raw source_sql and full nlq_ir are behind a "Show details" disclosure.
  *   - Decline reasons are displayed directly (no error state, declines are expected control flow).
+ *   - InvalidResponse (unparseable LLM output) shows reason + raw LLM text for debugging.
  */
 import { useState } from "react";
 import type { NlqResponse } from "../../api/nlq";
@@ -24,7 +25,7 @@ type QueryState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "result"; response: NlqResponse };
+  | { status: "result"; response: NlqResponse; question: string };
 
 export function NlqPanel({ serviceName, placeholder }: Props) {
   const [question, setQuestion] = useState("");
@@ -37,7 +38,7 @@ export function NlqPanel({ serviceName, placeholder }: Props) {
     setState({ status: "loading" });
     try {
       const response = await submitNlqQuery({ question: q, service_name: serviceName });
-      setState({ status: "result", response });
+      setState({ status: "result", response, question: q });
     } catch (err) {
       setState({
         status: "error",
@@ -88,8 +89,13 @@ export function NlqPanel({ serviceName, placeholder }: Props) {
         <div className="mt-4 space-y-3" data-testid="nlq-result">
           {state.response.type === "decline" ? (
             <DeclineMessage reason={state.response.reason} />
+          ) : state.response.type === "invalid_response" ? (
+            <InvalidResponsePanel
+              reason={state.response.reason}
+              rawLlmResponse={state.response.raw_llm_response}
+            />
           ) : (
-            <FrameResult response={state.response} />
+            <FrameResult response={state.response} question={state.question} />
           )}
         </div>
       )}
@@ -111,12 +117,45 @@ function DeclineMessage({ reason }: { reason: string }) {
   );
 }
 
+// ── Invalid LLM response ──────────────────────────────────────────────────────
+
+function InvalidResponsePanel({
+  reason,
+  rawLlmResponse,
+}: {
+  reason: string;
+  rawLlmResponse: string;
+}) {
+  return (
+    <div
+      className="rounded border border-[var(--warn-border,var(--border))] bg-[var(--warn-bg,var(--bg-subtle))] px-4 py-3 text-sm"
+      data-testid="nlq-invalid-response"
+    >
+      <p className="font-medium">Could not interpret the LLM response</p>
+      <p className="mt-1 text-[var(--text-muted)]">{reason}</p>
+      <details className="mt-2">
+        <summary className="cursor-pointer select-none text-[var(--text-muted)] hover:text-[var(--text-strong)]">
+          Show raw LLM response
+        </summary>
+        <pre
+          className="mt-1 overflow-x-auto rounded bg-[var(--bg-code)] p-2 text-[0.7rem]"
+          data-testid="nlq-raw-llm-response"
+        >
+          {rawLlmResponse}
+        </pre>
+      </details>
+    </div>
+  );
+}
+
 // ── Frame result ──────────────────────────────────────────────────────────────
 
 function FrameResult({
   response,
+  question,
 }: {
   response: Extract<NlqResponse, { type: "frame" }>;
+  question: string;
 }) {
   const { frame } = response;
   const [showDetails, setShowDetails] = useState(false);
@@ -148,6 +187,22 @@ function FrameResult({
         </summary>
         <div className="mt-2 space-y-2" data-testid="nlq-provenance">
           <div>
+            <span className="font-medium">NLQ: </span>
+            <span data-testid="nlq-question">{question}</span>
+          </div>
+          <div>
+            <span className="font-medium">NLQ IR:</span>
+            <pre className="mt-1 overflow-x-auto rounded bg-[var(--bg-code)] p-2 text-[0.7rem]">
+              {JSON.stringify(frame.nlq_ir, null, 2)}
+            </pre>
+          </div>
+          <div>
+            <span className="font-medium">SQL:</span>
+            <pre className="mt-1 overflow-x-auto rounded bg-[var(--bg-code)] p-2 text-[0.7rem]">
+              {frame.source_sql}
+            </pre>
+          </div>
+          <div>
             <span className="font-medium">Time range: </span>
             {frame.time_range.from} → {frame.time_range.to}
           </div>
@@ -161,18 +216,6 @@ function FrameResult({
               {(frame.sample_rate * 100).toFixed(0)}%
             </div>
           )}
-          <div>
-            <span className="font-medium">Generated SQL:</span>
-            <pre className="mt-1 overflow-x-auto rounded bg-[var(--bg-code)] p-2 text-[0.7rem]">
-              {frame.source_sql}
-            </pre>
-          </div>
-          <div>
-            <span className="font-medium">NLQ IR:</span>
-            <pre className="mt-1 overflow-x-auto rounded bg-[var(--bg-code)] p-2 text-[0.7rem]">
-              {JSON.stringify(frame.nlq_ir, null, 2)}
-            </pre>
-          </div>
         </div>
       </details>
     </>

@@ -4,6 +4,7 @@ import { useTimeDisplay, TIME_FORMAT_OPTIONS } from "../lib/timeDisplay";
 
 const navItems = [
   { label: "Setup", to: "/setup" },
+  { label: "Ask (NLQ)", to: "/nlq" },
   { label: "Services", to: "/services" },
   { label: "Traces", to: "/traces" },
   { label: "Logs", to: "/logs" },

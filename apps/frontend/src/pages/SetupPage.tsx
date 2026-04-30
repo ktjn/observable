@@ -181,8 +181,10 @@ function LlmConfigPanel() {
     try {
       await saveLlmConfig({
         ...(apiKey.trim() && { apiKey: apiKey.trim() }),
-        url: urlValue.trim(),
-        model: modelValue.trim(),
+        // Only include url/model once the server config has been loaded to avoid
+        // overwriting persisted values with empty strings on a save-before-load race.
+        ...(url !== null && { url: urlValue.trim() }),
+        ...(model !== null && { model: modelValue.trim() }),
       });
       setApiKey("");
       setSaveState("saved");
@@ -255,7 +257,7 @@ function LlmConfigPanel() {
           <Button
             variant="secondary"
             type="submit"
-            disabled={saveState === "saving" || testState === "testing"}
+            disabled={saveState === "saving" || testState === "testing" || config === undefined}
             data-testid="llm-config-save"
           >
             {saveState === "saving"

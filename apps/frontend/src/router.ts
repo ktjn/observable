@@ -12,6 +12,7 @@ import TraceSearch from "./pages/TraceSearch";
 import TraceDetailPage from "./pages/TraceDetailPage";
 import LogSearch from "./pages/LogSearch";
 import DashboardsPage from "./pages/DashboardsPage";
+import NlqQueryPage from "./pages/NlqQueryPage";
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -97,6 +98,11 @@ const logSearchRoute = createRoute({
   path: "/logs",
   component: LogSearch,
 });
+const nlqRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/nlq",
+  component: NlqQueryPage,
+});
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     homeRoute,
@@ -115,5 +121,6 @@ export const router = createRouter({
     traceSearchRoute,
     traceDetailRoute,
     logSearchRoute,
+    nlqRoute,
   ]),
 });

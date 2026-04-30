@@ -41,6 +41,12 @@ const DECLINE_RESPONSE: NlqResponse = {
   reason: "This question involves billing and financial reconciliation.",
 };
 
+const INVALID_RESPONSE: NlqResponse = {
+  type: "invalid_response",
+  reason: "LLM response could not be parsed as NlqIr",
+  raw_llm_response: '{"type": "unknown", "data": {}}',
+};
+
 afterEach(() => {
   vi.clearAllMocks();
 });
@@ -145,6 +151,54 @@ describe("NlqPanel", () => {
     );
   });
 
+  test("provenance shows NLQ question first", async () => {
+    mockSubmit.mockResolvedValue(FRAME_RESPONSE);
+    render(<NlqPanel />);
+    fireEvent.change(screen.getByTestId("nlq-input"), {
+      target: { value: "p99 latency last hour" },
+    });
+    fireEvent.submit(screen.getByTestId("nlq-input").closest("form")!);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("nlq-show-details")).toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByTestId("nlq-show-details"));
+    await waitFor(() =>
+      expect(screen.getByTestId("nlq-provenance")).toBeVisible()
+    );
+
+    expect(screen.getByTestId("nlq-question")).toHaveTextContent(
+      "p99 latency last hour"
+    );
+  });
+
+  test("provenance order: NLQ question, NLQ IR, SQL, time range, signals", async () => {
+    mockSubmit.mockResolvedValue(FRAME_RESPONSE);
+    render(<NlqPanel />);
+    fireEvent.change(screen.getByTestId("nlq-input"), {
+      target: { value: "p99 latency" },
+    });
+    fireEvent.submit(screen.getByTestId("nlq-input").closest("form")!);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("nlq-show-details")).toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByTestId("nlq-show-details"));
+    await waitFor(() =>
+      expect(screen.getByTestId("nlq-provenance")).toBeVisible()
+    );
+
+    const provenance = screen.getByTestId("nlq-provenance");
+    const text = provenance.textContent ?? "";
+    const nlqIdx = text.indexOf("NLQ:");
+    const irIdx = text.indexOf("NLQ IR:");
+    const sqlIdx = text.indexOf("SQL:");
+    const timeIdx = text.indexOf("Time range:");
+    expect(nlqIdx).toBeLessThan(irIdx);
+    expect(irIdx).toBeLessThan(sqlIdx);
+    expect(sqlIdx).toBeLessThan(timeIdx);
+  });
+
   test("renders decline message with reason", async () => {
     mockSubmit.mockResolvedValue(DECLINE_RESPONSE);
     render(<NlqPanel />);
@@ -188,5 +242,41 @@ describe("NlqPanel", () => {
       question: "latency",
       service_name: "checkout",
     });
+  });
+
+  test("renders invalid response panel with reason and raw LLM response", async () => {
+    mockSubmit.mockResolvedValue(INVALID_RESPONSE);
+    render(<NlqPanel />);
+    fireEvent.change(screen.getByTestId("nlq-input"), {
+      target: { value: "something confusing" },
+    });
+    fireEvent.submit(screen.getByTestId("nlq-input").closest("form")!);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("nlq-invalid-response")).toBeInTheDocument()
+    );
+    expect(screen.getByTestId("nlq-invalid-response")).toHaveTextContent(
+      "Could not interpret the LLM response"
+    );
+    expect(screen.getByTestId("nlq-invalid-response")).toHaveTextContent(
+      "LLM response could not be parsed"
+    );
+  });
+
+  test("invalid response panel shows raw LLM text in expandable details", async () => {
+    mockSubmit.mockResolvedValue(INVALID_RESPONSE);
+    render(<NlqPanel />);
+    fireEvent.change(screen.getByTestId("nlq-input"), {
+      target: { value: "something confusing" },
+    });
+    fireEvent.submit(screen.getByTestId("nlq-input").closest("form")!);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("nlq-invalid-response")).toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByText("Show raw LLM response"));
+    expect(screen.getByTestId("nlq-raw-llm-response")).toHaveTextContent(
+      '"type": "unknown"'
+    );
   });
 });
