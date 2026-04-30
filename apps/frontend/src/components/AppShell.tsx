@@ -10,7 +10,7 @@ const navItems = [
   { label: "Service Overview", to: "/service-overview" },
   { label: "Dashboards", to: "/dashboards" },
   { label: "Alerts & SLOs", to: "/alerts" },
-  { label: "Admin", to: "/admin" },
+  { label: "Admin / Fleet / Billing", to: "/admin" },
 ] as const;
 
 const themeOptions: { label: string; value: ThemePreference }[] = [

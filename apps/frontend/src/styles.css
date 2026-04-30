@@ -29,7 +29,6 @@
   --shadow-panel: none;
   --shadow-control: none;
   font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', Arial, sans-serif;
-  font-size: 11px;
 }
 
 :root[data-theme="dark"] {
@@ -67,6 +66,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  font-size: 11px;
 }
 
 button,
@@ -394,14 +394,18 @@ tbody tr:nth-child(even) td {
   }
 
   .nav-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .nav-link {
+    flex: 0 0 50%;
   }
 
   .topbar {
     align-items: flex-start;
     flex-direction: column;
   }
-
 }
 
 @media (max-width: 560px) {
@@ -410,7 +414,11 @@ tbody tr:nth-child(even) td {
   }
 
   .nav-list {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .nav-link {
+    flex: none;
   }
 }
 
