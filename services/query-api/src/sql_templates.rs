@@ -357,28 +357,85 @@ fn table_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
 }
 
 /// Empirical value distribution (width_bucket percentile).
+///
+/// When `ir.percentiles` is set, generates exactly those stat expressions (in order).
+/// When absent or empty, falls back to the default set: p50/p90/p95/p99/min/max.
+///
+/// Supported entries (case-sensitive):
+/// - `p{N}` where N is 1–999  → `quantile(N/1000.0)(value) AS p{N}`
+/// - `"median"`                → `quantile(0.50)(value) AS median`
+/// - `"average"` / `"mean"`   → `avg(value) AS <key>`
+/// - `"min"`                  → `min(value) AS min`
+/// - `"max"`                  → `max(value) AS max`
+///
+/// Unrecognised entries are silently skipped.
 fn distribution_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
     let filters = build_filter_clauses(&ctx.ir.filters);
     let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
+    let val = "coalesce(mp.value_double, toFloat64(mp.value_int))";
+
+    let default_stats: &[&str] = &["p50", "p90", "p95", "p99", "min", "max"];
+    let requested: Vec<&str> = match ctx.ir.percentiles.as_deref() {
+        Some(v) if !v.is_empty() => v.iter().map(|s| s.as_str()).collect(),
+        _ => default_stats.to_vec(),
+    };
+
+    let mut expressions: Vec<String> = requested
+        .iter()
+        .filter_map(|stat| stat_to_sql_expr(stat, val))
+        .collect();
+
+    if expressions.is_empty() {
+        expressions.push(format!("quantile(0.99)({val}) AS p99"));
+    }
+
+    let select_list = expressions
+        .iter()
+        .map(|e| format!("    {e}"))
+        .collect::<Vec<_>>()
+        .join(",\n");
 
     Ok(format!(
-        "SELECT\n    \
-             quantile(0.50)(coalesce(mp.value_double, toFloat64(mp.value_int))) AS p50,\n    \
-             quantile(0.90)(coalesce(mp.value_double, toFloat64(mp.value_int))) AS p90,\n    \
-             quantile(0.95)(coalesce(mp.value_double, toFloat64(mp.value_int))) AS p95,\n    \
-             quantile(0.99)(coalesce(mp.value_double, toFloat64(mp.value_int))) AS p99,\n    \
-             min(coalesce(mp.value_double, toFloat64(mp.value_int))) AS min_val,\n    \
-             max(coalesce(mp.value_double, toFloat64(mp.value_int))) AS max_val\n\
-         FROM observable.metric_points mp\n\
+        "SELECT\n{select_list}\nFROM observable.metric_points mp\n\
          JOIN observable.metric_series ms\n    \
              ON ms.tenant_id = mp.tenant_id AND ms.metric_series_id = mp.metric_series_id\n\
          WHERE mp.tenant_id = '{tenant_id}'\n  \
            AND ms.metric_name = '{metric_name}'{filters}{time_clause}",
+        select_list = select_list,
         tenant_id = ctx.tenant_id,
         metric_name = escape_string_value(ctx.metric_name),
         filters = filters,
         time_clause = time_clause,
     ))
+}
+
+/// Translates a single percentile/stat name to a ClickHouse SELECT expression.
+/// Returns `None` for unrecognised entries (safe — caller silently skips).
+fn stat_to_sql_expr(stat: &str, val: &str) -> Option<String> {
+    match stat {
+        "median" => Some(format!("quantile(0.50)({val}) AS median")),
+        "average" => Some(format!("avg({val}) AS average")),
+        "mean" => Some(format!("avg({val}) AS mean")),
+        "min" => Some(format!("min({val}) AS min")),
+        "max" => Some(format!("max({val}) AS max")),
+        // Legacy aliases retained for backward compatibility.
+        "min_val" => Some(format!("min({val}) AS min_val")),
+        "max_val" => Some(format!("max({val}) AS max_val")),
+        other => {
+            let digits = other.strip_prefix('p')?;
+            let n: u32 = digits.parse().ok()?;
+            if n == 0 || n > 999 {
+                return None;
+            }
+            // p1–p99: divide by 100 (p99 → 0.990); p100–p999: divide by 1000 (p999 → 0.999).
+            let q = if n <= 99 {
+                n as f64 / 100.0
+            } else {
+                n as f64 / 1000.0
+            };
+            Some(format!("quantile({q:.3})({val}) AS {other}"))
+        }
+    }
 }
 
 // ── Helper functions ──────────────────────────────────────────────────────────
@@ -588,6 +645,7 @@ mod tests {
                 to: "now".into(),
             },
             visualization_hint: None,
+            percentiles: None,
         }
     }
 
@@ -940,14 +998,88 @@ mod tests {
     // ── Distribution ─────────────────────────────────────────────────────────
 
     #[test]
-    fn distribution_sql_includes_percentile_quantiles() {
+    fn distribution_sql_defaults_include_all_six_stats() {
         let ir = base_ir(NlqOperation::Distribution);
         let ctx = ctx_for(&ir);
         let sql = generate_sql(&ctx).unwrap();
-        assert!(sql.contains("quantile(0.50)"));
-        assert!(sql.contains("quantile(0.99)"));
-        assert!(sql.contains("min_val"));
-        assert!(sql.contains("max_val"));
+        assert!(
+            sql.contains("quantile(0.500)") || sql.contains("quantile(0.50)"),
+            "p50 missing: {sql}"
+        );
+        assert!(
+            sql.contains("quantile(0.990)") || sql.contains("quantile(0.99)"),
+            "p99 missing: {sql}"
+        );
+        assert!(sql.contains("min("), "min missing: {sql}");
+        assert!(sql.contains("max("), "max missing: {sql}");
+    }
+
+    #[test]
+    fn distribution_sql_single_percentile_p99_only() {
+        let mut ir = base_ir(NlqOperation::Distribution);
+        ir.percentiles = Some(vec!["p99".into()]);
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("AS p99"), "p99 missing: {sql}");
+        assert!(!sql.contains("AS p50"), "p50 must not appear: {sql}");
+        assert!(!sql.contains("AS p90"), "p90 must not appear: {sql}");
+        assert!(!sql.contains(" min("), "min must not appear: {sql}");
+        assert!(!sql.contains(" max("), "max must not appear: {sql}");
+    }
+
+    #[test]
+    fn distribution_sql_multi_stat_selection() {
+        let mut ir = base_ir(NlqOperation::Distribution);
+        ir.percentiles = Some(vec![
+            "p75".into(),
+            "p95".into(),
+            "p99".into(),
+            "average".into(),
+            "median".into(),
+        ]);
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(sql.contains("AS p75"), "p75 missing: {sql}");
+        assert!(sql.contains("AS p95"), "p95 missing: {sql}");
+        assert!(sql.contains("AS p99"), "p99 missing: {sql}");
+        assert!(sql.contains("AS average"), "average missing: {sql}");
+        assert!(sql.contains("AS median"), "median missing: {sql}");
+        // Unasked stats must not appear.
+        assert!(!sql.contains("AS p50"), "p50 must not appear: {sql}");
+        assert!(!sql.contains("AS p90"), "p90 must not appear: {sql}");
+    }
+
+    #[test]
+    fn distribution_sql_named_stats_median_average_min_max() {
+        let mut ir = base_ir(NlqOperation::Distribution);
+        ir.percentiles = Some(vec![
+            "median".into(),
+            "average".into(),
+            "min".into(),
+            "max".into(),
+        ]);
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(
+            sql.contains("quantile(0.50)") && sql.contains("AS median"),
+            "median: {sql}"
+        );
+        assert!(
+            sql.contains("avg(") && sql.contains("AS average"),
+            "average: {sql}"
+        );
+        assert!(sql.contains("min(") && sql.contains("AS min"), "min: {sql}");
+        assert!(sql.contains("max(") && sql.contains("AS max"), "max: {sql}");
+    }
+
+    #[test]
+    fn distribution_sql_unknown_stats_silently_skipped_falls_back_to_p99() {
+        let mut ir = base_ir(NlqOperation::Distribution);
+        ir.percentiles = Some(vec!["not_a_stat".into(), "p0".into()]);
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        // All unrecognised → fallback to p99.
+        assert!(sql.contains("AS p99"), "fallback p99 missing: {sql}");
     }
 
     // ── escape_string_value ───────────────────────────────────────────────────

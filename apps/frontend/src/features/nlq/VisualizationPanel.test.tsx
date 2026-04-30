@@ -100,7 +100,7 @@ describe("VisualizationPanel", () => {
     expect(screen.getByText("#2")).toBeInTheDocument();
   });
 
-  test("renders distribution table with percentile labels", () => {
+  test("renders distribution table with all returned stats", () => {
     const frame = baseFrame({
       frame_type: "distribution",
       data: [{ p50: 10, p90: 50, p95: 80, p99: 200, min_val: 1, max_val: 500 }],
@@ -109,8 +109,24 @@ describe("VisualizationPanel", () => {
     expect(screen.getByTestId("distribution-table")).toBeInTheDocument();
     expect(screen.getByText("p50 (median)")).toBeInTheDocument();
     expect(screen.getByText("p99")).toBeInTheDocument();
-    expect(screen.getByText("min")).toBeInTheDocument();
-    expect(screen.getByText("max")).toBeInTheDocument();
+    // Legacy aliases mapped to "min" / "max".
+    expect(screen.getAllByText("min").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("max").length).toBeGreaterThan(0);
+  });
+
+  test("renders distribution table with only requested stats (data-driven)", () => {
+    const frame = baseFrame({
+      frame_type: "distribution",
+      data: [{ p99: 200, average: 45, median: 30 }],
+    });
+    render(<VisualizationPanel frame={frame} />);
+    expect(screen.getByTestId("distribution-table")).toBeInTheDocument();
+    expect(screen.getByText("p99")).toBeInTheDocument();
+    expect(screen.getByText("average")).toBeInTheDocument();
+    expect(screen.getByText("median")).toBeInTheDocument();
+    // Stats not in data must not appear.
+    expect(screen.queryByText("p50 (median)")).not.toBeInTheDocument();
+    expect(screen.queryByText("p90")).not.toBeInTheDocument();
   });
 
   test("renders generic table for table frame type", () => {

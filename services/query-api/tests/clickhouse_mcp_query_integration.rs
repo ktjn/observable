@@ -220,6 +220,7 @@ fn base_ir(op: NlqOperation) -> NlqIr {
             to: "now".into(),
         },
         visualization_hint: None,
+        percentiles: None,
     }
 }
 
