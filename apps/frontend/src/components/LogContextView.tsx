@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getLogContext, LogRecord } from "../api/logs";
 import { Button } from "./ui/button";
+import { formatLogMessage, getSeverityColor } from "../utils/logFormatting";
 
 interface Props {
   logId: string;
@@ -50,8 +51,17 @@ export function LogContextView({ logId, onClose }: Props) {
                 {log.severity_text || `LVL ${log.severity_number}`}
               </span>
               <span className="flex-1 min-w-0 break-all">
-                {typeof log.body === "string" ? log.body : JSON.stringify(log.body)}
+                {formatLogMessage(log.body)}
               </span>
+              {log.trace_id && (
+                <a
+                  href={`/traces/${log.trace_id}${log.span_id ? `#${log.span_id}` : ""}`}
+                  className="shrink-0 text-[var(--brand)] hover:underline"
+                  title={log.span_id ? `Span ${log.span_id}` : `Trace ${log.trace_id}`}
+                >
+                  {log.span_id ? "span" : "trace"}
+                </a>
+              )}
               {isPivot && (
                 <span className="text-[var(--warn)] text-[10px] shrink-0">[PIVOT]</span>
               )}
@@ -63,9 +73,3 @@ export function LogContextView({ logId, onClose }: Props) {
   );
 }
 
-function getSeverityColor(severity: number): string {
-  if (severity >= 13) return "var(--bad)";
-  if (severity >= 9) return "var(--warn)";
-  if (severity >= 5) return "var(--brand)";
-  return "var(--muted)";
-}
