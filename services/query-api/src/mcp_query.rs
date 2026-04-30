@@ -157,11 +157,75 @@ pub async fn execute_query_as_json(
         if line.is_empty() {
             continue;
         }
+        let normalised = normalise_ch_denormals(line);
         let value: serde_json::Value =
-            serde_json::from_slice(line).map_err(McpQueryError::InvalidRow)?;
+            serde_json::from_slice(&normalised).map_err(McpQueryError::InvalidRow)?;
         rows.push(value);
     }
     Ok(rows)
+}
+
+/// Replaces bare ClickHouse NaN/Inf float literals with JSON `null`.
+///
+/// ClickHouse's default `output_format_json_quote_denormals = 0` emits `nan`,
+/// `-nan`, `inf`, and `-inf` as bare tokens inside JSON objects.  These are
+/// not valid JSON and cause `serde_json::from_slice` to fail.  We substitute
+/// them with `null` so callers receive a well-formed document and the frontend
+/// can render "—" for missing values.
+///
+/// The scanner tracks string context to avoid corrupting field names or string
+/// values that happen to contain the substrings "nan" or "inf".
+fn normalise_ch_denormals(src: &[u8]) -> std::borrow::Cow<'_, [u8]> {
+    // Fast-path: skip allocation when no denormal tokens are present.
+    let lower = src.to_ascii_lowercase();
+    if !lower.windows(3).any(|w| w == b"nan" || w == b"inf") {
+        return std::borrow::Cow::Borrowed(src);
+    }
+
+    let mut out: Vec<u8> = Vec::with_capacity(src.len() + 16);
+    let mut i = 0;
+    let mut in_string = false;
+
+    while i < src.len() {
+        let b = src[i];
+
+        if in_string {
+            out.push(b);
+            if b == b'\\' {
+                // Consume escaped character verbatim.
+                i += 1;
+                if i < src.len() {
+                    out.push(src[i]);
+                }
+            } else if b == b'"' {
+                in_string = false;
+            }
+            i += 1;
+            continue;
+        }
+
+        if b == b'"' {
+            in_string = true;
+            out.push(b);
+            i += 1;
+            continue;
+        }
+
+        // Outside strings: check for -nan, nan, -inf, inf (case-insensitive).
+        let rest = &lower[i..];
+        if rest.starts_with(b"-nan") || rest.starts_with(b"-inf") {
+            out.extend_from_slice(b"null");
+            i += 4;
+        } else if rest.starts_with(b"nan") || rest.starts_with(b"inf") {
+            out.extend_from_slice(b"null");
+            i += 3;
+        } else {
+            out.push(b);
+            i += 1;
+        }
+    }
+
+    std::borrow::Cow::Owned(out)
 }
 
 // ── HTTP handler ──────────────────────────────────────────────────────────────
@@ -290,21 +354,31 @@ fn derive_field_layout(
                 },
             ],
         ),
-        VisualizationFrameType::Distribution => (
-            None,
-            Some("p99".into()),
-            None,
-            vec![
-                FieldRole {
-                    name: "p50".into(),
+        VisualizationFrameType::Distribution => {
+            // Use the requested percentiles from the IR when available; fall
+            // back to a sensible default set otherwise.
+            let default_stats: Vec<String> = vec![
+                "p50".into(),
+                "p90".into(),
+                "p95".into(),
+                "p99".into(),
+                "min".into(),
+                "max".into(),
+            ];
+            let stats = match &ir.percentiles {
+                Some(p) if !p.is_empty() => p,
+                _ => &default_stats,
+            };
+            let y_field = stats.first().cloned().unwrap_or_else(|| "p95".into());
+            let field_roles = stats
+                .iter()
+                .map(|s| FieldRole {
+                    name: s.clone(),
                     role: FieldRoleKind::Value,
-                },
-                FieldRole {
-                    name: "p99".into(),
-                    role: FieldRoleKind::Value,
-                },
-            ],
-        ),
+                })
+                .collect();
+            (None, Some(y_field), None, field_roles)
+        }
         _ => (Some("ts".into()), Some("value".into()), None, vec![]),
     }
 }
@@ -514,5 +588,88 @@ mod tests {
         ir.group_by = vec!["service_name".into()];
         let (_, _, series, _) = derive_field_layout(&ir, &VisualizationFrameType::Timeseries);
         assert_eq!(series.as_deref(), Some("service_name"));
+    }
+
+    // ── Distribution field layout ─────────────────────────────────────────────
+
+    #[test]
+    fn distribution_layout_uses_first_requested_percentile_as_y_field() {
+        let mut ir = base_ir(NlqOperation::Distribution);
+        ir.percentiles = Some(vec!["p95".into(), "median".into(), "average".into()]);
+        let (x, y, series, _) = derive_field_layout(&ir, &VisualizationFrameType::Distribution);
+        assert_eq!(x, None);
+        assert_eq!(y.as_deref(), Some("p95"));
+        assert_eq!(series, None);
+    }
+
+    #[test]
+    fn distribution_layout_generates_one_role_per_requested_stat() {
+        let mut ir = base_ir(NlqOperation::Distribution);
+        ir.percentiles = Some(vec!["p95".into(), "median".into(), "average".into()]);
+        let (_, _, _, roles) = derive_field_layout(&ir, &VisualizationFrameType::Distribution);
+        assert_eq!(roles.len(), 3);
+        assert_eq!(roles[0].name, "p95");
+        assert_eq!(roles[1].name, "median");
+        assert_eq!(roles[2].name, "average");
+        assert!(roles.iter().all(|r| r.role == FieldRoleKind::Value));
+    }
+
+    #[test]
+    fn distribution_layout_defaults_when_percentiles_absent() {
+        let ir = base_ir(NlqOperation::Distribution);
+        let (_, y, _, roles) = derive_field_layout(&ir, &VisualizationFrameType::Distribution);
+        // Defaults must include p50/p95/p99 in roles.
+        assert!(roles.iter().any(|r| r.name == "p50"));
+        assert!(roles.iter().any(|r| r.name == "p99"));
+        // y_field must be the first default stat.
+        assert_eq!(y.as_deref(), Some("p50"));
+    }
+
+    // ── normalise_ch_denormals ────────────────────────────────────────────────
+
+    #[test]
+    fn nan_literal_is_replaced_with_null() {
+        let input = br#"{"p95":nan,"median":4.5}"#;
+        let out = normalise_ch_denormals(input);
+        let v: serde_json::Value = serde_json::from_slice(&out).expect("must parse");
+        assert!(v["p95"].is_null(), "nan must become null");
+        assert_eq!(v["median"], serde_json::json!(4.5));
+    }
+
+    #[test]
+    fn negative_nan_is_replaced_with_null() {
+        let input = br#"{"p95":-nan}"#;
+        let out = normalise_ch_denormals(input);
+        let v: serde_json::Value = serde_json::from_slice(&out).expect("must parse");
+        assert!(v["p95"].is_null());
+    }
+
+    #[test]
+    fn inf_literal_is_replaced_with_null() {
+        let input = br#"{"p99":inf,"p50":-inf,"avg":2.1}"#;
+        let out = normalise_ch_denormals(input);
+        let v: serde_json::Value = serde_json::from_slice(&out).expect("must parse");
+        assert!(v["p99"].is_null());
+        assert!(v["p50"].is_null());
+        assert_eq!(v["avg"], serde_json::json!(2.1));
+    }
+
+    #[test]
+    fn nan_inside_string_value_is_preserved() {
+        let input = br#"{"metric":"latency_nan_ms","p95":nan}"#;
+        let out = normalise_ch_denormals(input);
+        let v: serde_json::Value = serde_json::from_slice(&out).expect("must parse");
+        assert_eq!(v["metric"], serde_json::json!("latency_nan_ms"));
+        assert!(v["p95"].is_null());
+    }
+
+    #[test]
+    fn clean_row_is_borrowed_without_allocation() {
+        let input = br#"{"p95":4.237,"median":3.1,"average":3.5}"#;
+        let result = normalise_ch_denormals(input);
+        assert!(
+            matches!(result, std::borrow::Cow::Borrowed(_)),
+            "clean row must not allocate"
+        );
     }
 }
