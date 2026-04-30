@@ -72,7 +72,6 @@ export default function LogSearch() {
         from,
         to,
         limit: 50,
-        facets: ["service_name", "severity_number", "environment", "host_id"],
       }),
   });
 

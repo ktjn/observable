@@ -161,6 +161,20 @@ main() {
   echo "5c. Verifying gRPC log landed in ClickHouse..."
   wait_for_json_count "grpc logs" "$QUERY/v1/logs?service=$GRPC_SERVICE_NAME" '.logs | length'
 
+  echo "5d. Verifying log histogram endpoint returns buckets..."
+  FROM_ISO=$(date -u -d "1 hour ago" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -v-1H +"%Y-%m-%dT%H:%M:%SZ")
+  TO_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  HIST_RESULT=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" \
+    "$QUERY/v1/logs/histogram?service=$SERVICE_NAME&from=${FROM_ISO}&to=${TO_ISO}&buckets=30" || true)
+  BUCKET_COUNT=$(echo "$HIST_RESULT" | jq '.buckets | length' 2>/dev/null || echo 0)
+  if [ "$BUCKET_COUNT" -eq 30 ]; then
+    echo " OK (histogram) - 30 buckets"
+  else
+    echo " FAIL: histogram returned $BUCKET_COUNT buckets instead of 30"
+    echo " Result: ${HIST_RESULT:-<empty>}"
+    exit 1
+  fi
+
   echo "6. Checking discovery endpoints..."
   wait_for_json_count \
     "discovery" \
