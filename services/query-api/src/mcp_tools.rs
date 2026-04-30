@@ -63,9 +63,16 @@ pub struct SignalField {
     pub display_name: Option<String>,
     pub business_description: Option<String>,
     pub interpretation_rule: Option<String>,
+    pub effective_sample_rate: Option<f64>,
     pub metric_type: Option<String>,
+    /// The time-series timestamp column for this metric (e.g. `timestamp_unix_nano`).
+    /// Required for `schema_complete = true`.
+    pub timestamp_column: Option<String>,
     pub unit: Option<String>,
     pub recommended_downsampling: Option<String>,
+    /// True when both `metric_type` and `timestamp_column` are non-null — the minimum
+    /// annotation required for the MCP server to generate correct time-series SQL.
+    pub schema_complete: bool,
 }
 
 /// Outcome of `resolve_label_to_column`.
@@ -139,13 +146,16 @@ struct SignalFieldRow {
     display_name: Option<String>,
     business_description: Option<String>,
     interpretation_rule: Option<String>,
+    effective_sample_rate: Option<f64>,
     metric_type: Option<String>,
+    timestamp_column: Option<String>,
     unit: Option<String>,
     recommended_downsampling: Option<String>,
 }
 
 impl From<SignalFieldRow> for SignalField {
     fn from(row: SignalFieldRow) -> Self {
+        let schema_complete = row.metric_type.is_some() && row.timestamp_column.is_some();
         Self {
             field_name: row.field_name,
             field_type: row.field_type,
@@ -153,9 +163,12 @@ impl From<SignalFieldRow> for SignalField {
             display_name: row.display_name,
             business_description: row.business_description,
             interpretation_rule: row.interpretation_rule,
+            effective_sample_rate: row.effective_sample_rate,
             metric_type: row.metric_type,
+            timestamp_column: row.timestamp_column,
             unit: row.unit,
             recommended_downsampling: row.recommended_downsampling,
+            schema_complete,
         }
     }
 }
@@ -197,6 +210,8 @@ pub async fn get_metric_schema(
 /// Returns all fields in the structural catalog for a signal type, with the tenant's
 /// annotation overlay merged in (LEFT JOIN — annotated fields have annotation data,
 /// unannotated fields have None annotation columns).
+/// `schema_complete` is set to true on fields where both `metric_type` and `timestamp_column`
+/// are present — the minimum required for MCP SQL generation.
 pub async fn list_signal_fields(
     db: &sqlx::PgPool,
     tenant_id: Uuid,
@@ -206,7 +221,8 @@ pub async fn list_signal_fields(
         "SELECT \
              se.field_name, se.field_type, se.otel_spec_version, \
              sa.display_name, sa.business_description, sa.interpretation_rule, \
-             sa.metric_type, sa.unit, sa.recommended_downsampling \
+             sa.effective_sample_rate, sa.metric_type, sa.timestamp_column, \
+             sa.unit, sa.recommended_downsampling \
          FROM schema_entries se \
          LEFT JOIN semantic_annotations sa \
              ON  sa.signal_type = se.signal_type \
@@ -478,7 +494,9 @@ mod tests {
             display_name: None,
             business_description: None,
             interpretation_rule: None,
+            effective_sample_rate: None,
             metric_type: None,
+            timestamp_column: None,
             unit: None,
             recommended_downsampling: None,
         };
@@ -486,6 +504,10 @@ mod tests {
         assert_eq!(field.field_name, "trace_id");
         assert!(field.display_name.is_none());
         assert!(field.metric_type.is_none());
+        assert!(
+            !field.schema_complete,
+            "no metric_type/timestamp_column → not complete"
+        );
     }
 
     #[test]
@@ -497,7 +519,9 @@ mod tests {
             display_name: Some("Request Latency".into()),
             business_description: Some("P99 latency".into()),
             interpretation_rule: Some("higher_is_worse".into()),
+            effective_sample_rate: Some(1.0),
             metric_type: Some("gauge".into()),
+            timestamp_column: Some("timestamp_unix_nano".into()),
             unit: Some("ms".into()),
             recommended_downsampling: Some("1m".into()),
         };
@@ -505,6 +529,10 @@ mod tests {
         assert_eq!(field.display_name.as_deref(), Some("Request Latency"));
         assert_eq!(field.metric_type.as_deref(), Some("gauge"));
         assert_eq!(field.unit.as_deref(), Some("ms"));
+        assert!(
+            field.schema_complete,
+            "metric_type + timestamp_column → complete"
+        );
     }
 
     // ── ResolveLabelResponse serialisation ───────────────────────────────────
