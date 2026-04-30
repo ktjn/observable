@@ -24,7 +24,8 @@ export function formatContextValue(value: unknown): string {
 export function formatLogMessage(body: unknown): string {
   if (typeof body === "string") return body;
   if (typeof body === "number" || typeof body === "boolean") return String(body);
-  if (!body || typeof body !== "object" || Array.isArray(body)) return String(body ?? "");
+  if (!body || typeof body !== "object") return String(body ?? "");
+  if (Array.isArray(body)) return JSON.stringify(body);
 
   const record = body as Record<string, unknown>;
   const message = record.message ?? record.msg ?? record.body;

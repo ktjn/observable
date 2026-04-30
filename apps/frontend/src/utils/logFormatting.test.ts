@@ -75,6 +75,11 @@ describe("formatLogMessage", () => {
   it("converts a boolean body to string", () => {
     expect(formatLogMessage(true)).toBe("true");
   });
+
+  it("JSON-serialises an array body (OTLP arrayValue)", () => {
+    expect(formatLogMessage(["error", "stacktrace"])).toBe('["error","stacktrace"]');
+    expect(formatLogMessage([1, 2, 3])).toBe("[1,2,3]");
+  });
 });
 
 describe("formatContextValue", () => {
