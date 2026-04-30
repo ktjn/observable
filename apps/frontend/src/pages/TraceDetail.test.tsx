@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TimeDisplayProvider } from "../lib/timeDisplay";
 import { TraceDetail } from "./TraceDetail";
 
 const queryClient = new QueryClient({
@@ -7,7 +8,7 @@ const queryClient = new QueryClient({
 });
 
 function wrapper({ children }: { children: React.ReactNode }) {
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><TimeDisplayProvider>{children}</TimeDisplayProvider></QueryClientProvider>;
 }
 
 const baseSpan = {
@@ -25,7 +26,9 @@ const baseSpan = {
 test("renders waterfall with spans", () => {
   render(
     <QueryClientProvider client={queryClient}>
-      <TraceDetail traceId="abc" spans={[baseSpan]} />
+      <TimeDisplayProvider>
+        <TraceDetail traceId="abc" spans={[baseSpan]} />
+      </TimeDisplayProvider>
     </QueryClientProvider>
   );
   expect(screen.getByText(/POST \/order/)).toBeInTheDocument();
@@ -67,7 +70,9 @@ test("renders infra pill links when spans have resource_attributes", () => {
 test("omits infra section entirely when no span has resource_attributes", () => {
   render(
     <QueryClientProvider client={queryClient}>
-      <TraceDetail traceId="abc" spans={[baseSpan]} />
+      <TimeDisplayProvider>
+        <TraceDetail traceId="abc" spans={[baseSpan]} />
+      </TimeDisplayProvider>
     </QueryClientProvider>
   );
   expect(screen.queryByText(/Infrastructure/)).not.toBeInTheDocument();

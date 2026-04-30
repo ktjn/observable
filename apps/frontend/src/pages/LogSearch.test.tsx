@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 import type { LogRecord } from "../api/logs";
+import { TimeDisplayProvider } from "../lib/timeDisplay";
 import LogSearch, {
   buildLogHistogram,
   formatLogMessage,
@@ -85,7 +86,9 @@ function renderLogSearch() {
 
   return render(
     <QueryClientProvider client={client}>
-      <LogSearch />
+      <TimeDisplayProvider>
+        <LogSearch />
+      </TimeDisplayProvider>
     </QueryClientProvider>,
   );
 }

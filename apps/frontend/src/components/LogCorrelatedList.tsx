@@ -4,6 +4,8 @@ import type { LogRecord } from "../api/logs";
 import { searchLogs } from "../api/logs";
 import { LogContextView } from "./LogContextView";
 import { formatLogMessage, getSeverityColor } from "../utils/logFormatting";
+import { formatTimestamp } from "../utils/formatTimestamp";
+import { useTimeDisplay } from "../lib/timeDisplay";
 
 interface Props {
   traceId: string;
@@ -12,6 +14,7 @@ interface Props {
 
 export function LogCorrelatedList({ traceId, spanId }: Props) {
   const [focusedLogId, setFocusedLogId] = useState<string | undefined>();
+  const { format } = useTimeDisplay();
   const { data, isLoading } = useQuery({
     queryKey: ["logs", traceId],
     queryFn: () => searchLogs({ trace_id: traceId }),
@@ -50,10 +53,7 @@ export function LogCorrelatedList({ traceId, spanId }: Props) {
             }`}
           >
             <span className="text-[var(--muted)] shrink-0">
-              {new Date(Number(log.timestamp_unix_nano) / 1e6)
-                .toISOString()
-                .split("T")[1]
-                .replace("Z", "")}
+              {formatTimestamp(log.timestamp_unix_nano, format)}
             </span>
             <span
               className="font-bold w-[50px] shrink-0"

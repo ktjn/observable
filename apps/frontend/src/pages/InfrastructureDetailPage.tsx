@@ -5,6 +5,8 @@ import {
   type InfrastructureEntitySummary,
   type InfrastructureEntityType,
 } from "../api/infrastructure";
+import { formatTimestamp } from "../utils/formatTimestamp";
+import { useTimeDisplay } from "../lib/timeDisplay";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
@@ -13,6 +15,7 @@ import { Panel } from "../components/ui/panel";
 
 export default function InfrastructureDetailPage() {
   const { entityType, entityId } = useParams({ strict: false });
+  const { format } = useTimeDisplay();
 
   const canonicalEntityId = entityId ? decodeURIComponent(entityId) : "";
 
@@ -92,7 +95,7 @@ export default function InfrastructureDetailPage() {
             </div>
             <div>
               <dt>Last seen</dt>
-              <dd>{formatUnixNano(entity.last_seen_unix_nano)}</dd>
+              <dd>{formatTimestamp(entity.last_seen_unix_nano, format)}</dd>
             </div>
           </dl>
         </Panel>
@@ -201,10 +204,6 @@ function formatNullableBytes(value: number | null) {
   if (value >= 1_048_576) return `${(value / 1_048_576).toFixed(1)} MB/s`;
   if (value >= 1_024) return `${(value / 1_024).toFixed(1)} KB/s`;
   return `${value.toFixed(0)} B/s`;
-}
-
-function formatUnixNano(nanos: number): string {
-  return new Date(nanos / 1_000_000).toLocaleString();
 }
 
 function healthTone(healthState: InfrastructureEntitySummary["health_state"]) {
