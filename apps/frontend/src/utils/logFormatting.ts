@@ -1,10 +1,6 @@
 /**
- * Shared log formatting utilities for OTel severity levels, log message
- * formatting, and severity colour helpers.
- *
- * These functions are extracted from LogSearch.tsx so they can be reused by
- * other components (e.g. LogView, histogram overlays) without importing the
- * full page module.
+ * Shared utilities for OTel severity classification, log body rendering, and
+ * severity colour mapping.
  */
 
 export type OTelLevel = "TRACE" | "DEBUG" | "INFO" | "WARN" | "ERROR" | "FATAL";
@@ -43,8 +39,14 @@ export function formatLogMessage(body: unknown): string {
  * Returns the CSS variable string for the colour that corresponds to the given
  * OTel severity number.  Consolidates three identical duplicate implementations
  * that previously existed across the codebase.
+ *
+ * Colour scale matches the three consolidated components: WARN+ → --bad, INFO → --warn, DEBUG → --brand, TRACE → --muted
+ * Note: this threshold mapping differs from otelSeverity — getSeverityColor faithfully
+ * preserves the existing colour scale (WARN+ all map to --bad), while otelSeverity
+ * maps tone for badges/labels separately.
  */
 export function getSeverityColor(severity: number): string {
+  // Colour scale matches the three consolidated components: WARN+ → --bad, INFO → --warn, DEBUG → --brand, TRACE → --muted
   if (severity >= 13) return "var(--bad)";
   if (severity >= 9) return "var(--warn)";
   if (severity >= 5) return "var(--brand)";
