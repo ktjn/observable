@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createDashboard } from "../api/dashboards";
-import { searchLogs, fetchLogHistogram, LogRecord, LogHistogramBucket as ApiHistogramBucket } from "../api/logs";
+import { searchLogs, fetchLogHistogram, LogRecord, LogHistogramBucket as ApiHistogramBucket, LogHistogramResponse } from "../api/logs";
 import { infraLinks } from "../utils/infraLinks";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { OTelLevel, otelSeverity, formatLogMessage, formatContextValue } from "../utils/logFormatting";
@@ -85,6 +85,7 @@ export default function LogSearch() {
         to: new Date(histogramToMs).toISOString(),
         buckets: bucketCount,
       }),
+    placeholderData: (prev: LogHistogramResponse | undefined) => prev,
   });
 
   const logs = data?.logs ?? [];
@@ -298,16 +299,21 @@ function LogHistogram({
   const gridRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
 
+  const onBucketCountChangeRef = useRef(onBucketCountChange);
+  useEffect(() => { onBucketCountChangeRef.current = onBucketCountChange; });
+
   useEffect(() => {
     const el = sectionRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
       const w = entry.contentRect.width;
-      onBucketCountChange?.(Math.max(12, Math.min(100, Math.floor(w / 10))));
+      // Steps of 5 to avoid burst API calls on continuous resize
+      const count = Math.round(Math.floor(w / 10) / 5) * 5;
+      onBucketCountChangeRef.current?.(Math.max(12, Math.min(100, count)));
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [onBucketCountChange]);
+  }, []); // stable: uses ref to read latest callback
   // ref holds current drag coords for synchronous reads in event handlers
   const dragRef = useRef<{ start: number; end: number } | null>(null);
   // state drives the visual highlight (re-renders on move)

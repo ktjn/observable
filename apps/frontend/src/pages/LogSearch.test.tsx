@@ -71,7 +71,7 @@ vi.mock("../api/dashboards", () => ({
   })),
 }));
 
-const { searchLogs } = await import("../api/logs");
+const { searchLogs, fetchLogHistogram } = await import("../api/logs");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -228,4 +228,14 @@ test("span_id in log context sidebar links to the parent trace", async () => {
   const spanLink = within(sidebar).getByRole("link", { name: "span-1" });
   expect(spanLink).toHaveAttribute("href", "/traces/trace-1");
   expect(spanLink).toHaveAttribute("title", "View parent trace");
+});
+
+test("shows 'Histogram unavailable' when histogram query fails", async () => {
+  vi.mocked(fetchLogHistogram).mockRejectedValueOnce(new Error("histogram backend error"));
+
+  renderLogSearch();
+
+  await waitFor(() => {
+    expect(screen.getByText("Histogram unavailable")).toBeInTheDocument();
+  });
 });
