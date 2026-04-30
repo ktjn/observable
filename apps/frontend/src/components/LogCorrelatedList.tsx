@@ -61,18 +61,19 @@ export function LogCorrelatedList({ traceId, spanId }: Props) {
             >
               {log.severity_text || `LVL ${log.severity_number}`}
             </span>
-            <span
-              className="w-[90px] shrink-0"
-              style={{
-                color: log.span_id ? "var(--brand)" : "var(--brand-strong)",
-              }}
-            >
+            <span className="w-[90px] shrink-0">
               {log.trace_id ? (
-                <a href={`/traces/${log.trace_id}`} className="hover:underline">
+                <a
+                  href={`/traces/${log.trace_id}`}
+                  className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+                  style={{ color: log.span_id ? "var(--brand)" : "var(--brand-strong)" }}
+                >
                   {correlationLabel(log)}
                 </a>
               ) : (
-                correlationLabel(log)
+                <span style={{ color: log.span_id ? "var(--brand)" : "var(--brand-strong)" }}>
+                  {correlationLabel(log)}
+                </span>
               )}
             </span>
             <span className="flex-1 min-w-0 break-all">

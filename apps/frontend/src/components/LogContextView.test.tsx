@@ -29,6 +29,18 @@ const beforeLog = {
   service_name: "checkout",
 };
 
+const traceLinkedLog = {
+  tenant_id: "t1",
+  log_id: "trace-linked-id",
+  timestamp_unix_nano: "1500000000",
+  severity_number: 5,
+  severity_text: "INFO",
+  body: "trace linked message",
+  trace_id: "trace-abc",
+  span_id: "span-xyz",
+  service_name: "checkout",
+};
+
 beforeEach(() => {
   vi.restoreAllMocks();
 });
@@ -55,6 +67,20 @@ test("renders log lines with pivot highlighted", async () => {
 
   const pivotRow = screen.getByText("pivot message").closest("div")!;
   expect(pivotRow.className).toMatch(/warn-bg/);
+});
+
+test("trace-linked log renders a link with correct href and aria-label", async () => {
+  vi.spyOn(logsApi, "getLogContext").mockResolvedValue({
+    logs: [traceLinkedLog],
+    total: 1,
+    facets: {},
+  });
+
+  render(<LogContextView logId="trace-linked-id" onClose={vi.fn()} />, { wrapper });
+  await waitFor(() => expect(screen.getByText("trace linked message")).toBeInTheDocument());
+
+  const link = screen.getByRole("link", { name: "View span span-xyz" });
+  expect(link).toHaveAttribute("href", "/traces/trace-abc");
 });
 
 test("calls onClose when Close button is clicked", async () => {

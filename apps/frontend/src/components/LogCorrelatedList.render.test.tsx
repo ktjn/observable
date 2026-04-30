@@ -124,3 +124,16 @@ test("Trace-level correlation label appears for logs without span_id", async () 
   render(<LogCorrelatedList traceId="trace-abc" />, { wrapper });
   await waitFor(() => expect(screen.getByText("Trace-level")).toBeInTheDocument());
 });
+
+test("span-linked log renders a link with correct href", async () => {
+  vi.spyOn(logsApi, "searchLogs").mockResolvedValue({
+    logs: [spanLog],
+    total: 1,
+    facets: {},
+  });
+
+  render(<LogCorrelatedList traceId="trace-abc" />, { wrapper });
+  await waitFor(() => expect(screen.getByRole("link", { name: "Exact span" })).toBeInTheDocument());
+  const link = screen.getByRole("link", { name: "Exact span" });
+  expect(link).toHaveAttribute("href", "/traces/trace-abc");
+});

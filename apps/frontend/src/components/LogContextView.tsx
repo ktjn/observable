@@ -55,11 +55,11 @@ export function LogContextView({ logId, onClose }: Props) {
               </span>
               {log.trace_id && (
                 <a
-                  href={`/traces/${log.trace_id}${log.span_id ? `#${log.span_id}` : ""}`}
-                  className="shrink-0 text-[var(--brand)] hover:underline"
-                  title={log.span_id ? `Span ${log.span_id}` : `Trace ${log.trace_id}`}
+                  href={`/traces/${log.trace_id}`}
+                  className="shrink-0 text-[var(--brand)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+                  aria-label={log.span_id ? `View span ${log.span_id}` : `View trace ${log.trace_id}`}
                 >
-                  {log.span_id ? "span" : "trace"}
+                  trace
                 </a>
               )}
               {isPivot && (
