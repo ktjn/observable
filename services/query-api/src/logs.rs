@@ -425,11 +425,11 @@ pub async fn log_histogram(
     let mut query = state
         .ch
         .query(&plan.sql)
-        .bind(plan.from_ns)      // intDiv arithmetic: timestamp_unix_nano - ?
-        .bind(plan.interval_ns)  // intDiv arithmetic: / ?
-        .bind(ctx.tenant_id)     // WHERE tenant_id = ?
-        .bind(from_ns)           // AND timestamp_unix_nano >= ?
-        .bind(to_ns);            // AND timestamp_unix_nano <= ?
+        .bind(plan.from_ns) // intDiv arithmetic: timestamp_unix_nano - ?
+        .bind(plan.interval_ns) // intDiv arithmetic: / ?
+        .bind(ctx.tenant_id) // WHERE tenant_id = ?
+        .bind(from_ns) // AND timestamp_unix_nano >= ?
+        .bind(to_ns); // AND timestamp_unix_nano <= ?
     if let Some(service) = &params.service {
         query = query.bind(service); // AND service_name = ?
     }
