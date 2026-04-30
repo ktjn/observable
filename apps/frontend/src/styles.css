@@ -419,7 +419,7 @@ th.sortable {
 }
 
 th.sortable:hover {
-  background: var(--surface-subtle);
+  background: color-mix(in srgb, var(--brand) 80%, var(--bg));
 }
 
 .detail-grid {

@@ -46,7 +46,7 @@ export default function DashboardsPage() {
 function DashboardPanelCard({ panel }: { panel: DashboardPanel }) {
   const service = panel.service || "all services";
   return (
-    <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
+    <div className="border border-[var(--border)] bg-[var(--surface)] p-4">
       <div className="text-xs font-bold uppercase text-[var(--muted)]">
         {panel.query_kind} · {service} · Last {panel.lookback_minutes}m
       </div>

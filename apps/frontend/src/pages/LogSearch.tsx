@@ -196,7 +196,7 @@ export default function LogSearch() {
       ) : !isHistogramError && (
         <div
           aria-hidden="true"
-          className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 h-[168px] animate-pulse"
+          className="border border-[var(--border)] bg-[var(--surface)] p-3 h-[168px] animate-pulse"
         />
       )}
       {isHistogramError && (
@@ -226,7 +226,7 @@ export default function LogSearch() {
                       onClick={() => setUtc((v) => !v)}
                       aria-pressed={utc}
                       variant="secondary"
-                      className={`ml-1.5 min-h-0 px-1.5 py-0 text-[11px] rounded-full align-middle ${utc ? "bg-[var(--brand)] text-white border-[var(--brand)]" : ""}`}
+                      className={`ml-1.5 min-h-0 px-1.5 py-0 text-[11px] align-middle ${utc ? "bg-[var(--brand)] text-white border-[var(--brand)]" : ""}`}
                     >
                       UTC
                     </Button>
@@ -366,7 +366,7 @@ function LogHistogram({
       ref={sectionRef}
       role="img"
       aria-label="Log volume histogram"
-      className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3"
+      className="border border-[var(--border)] bg-[var(--surface)] p-3"
     >
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
@@ -376,7 +376,7 @@ function LogHistogram({
         <div className="flex flex-wrap gap-2 text-xs text-[var(--muted)]">
           {levelOrder.map((level) => (
             <span key={level} className="inline-flex items-center gap-1">
-              <span className={`h-2 w-2 rounded-full ${levelBarClasses[level]}`} />
+              <span className={`h-2 w-2 ${levelBarClasses[level]}`} />
               {level}
             </span>
           ))}
@@ -398,7 +398,7 @@ function LogHistogram({
           return (
             <div
               key={bucket.startMs}
-              className={`flex h-full flex-col justify-end gap-px rounded-sm ${isSelected ? "bg-[var(--surface-subtle)]" : "bg-[var(--surface-inset)]"}`}
+              className={`flex h-full flex-col justify-end gap-px ${isSelected ? "bg-[var(--surface-subtle)]" : "bg-[var(--surface-inset)]"}`}
             >
               {levelOrder.map((level) => {
                 const count = bucket.levels[level];
@@ -436,7 +436,7 @@ function LogContextSidebar({
   return (
     <aside
       aria-label="Selected log context"
-      className="w-[320px] shrink-0 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 max-[900px]:w-full"
+      className="w-[320px] shrink-0 border border-[var(--border)] bg-[var(--surface)] p-4 max-[900px]:w-full"
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
@@ -483,7 +483,7 @@ function LogContextSidebar({
             <a
               key={link.href}
               href={link.href}
-              className="text-[11px] px-1.5 py-0.5 rounded-full bg-[var(--surface-subtle)] text-[var(--text)] border border-[var(--border)] no-underline whitespace-nowrap hover:border-[var(--brand)] hover:text-[var(--brand)]"
+              className="text-[11px] px-1.5 py-0.5 bg-[var(--surface-subtle)] text-[var(--text)] border border-[var(--border)] no-underline whitespace-nowrap hover:border-[var(--brand)] hover:text-[var(--brand)]"
             >
               {link.label}
             </a>

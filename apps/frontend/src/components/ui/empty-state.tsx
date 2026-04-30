@@ -29,7 +29,7 @@ export function EmptyState({
       {metadata.length > 0 && (
         <div className="flex flex-wrap justify-center gap-2 text-[13px] text-[var(--muted)]">
           {metadata.map((item) => (
-            <span key={item} className="rounded-md border border-[var(--border)] px-2 py-1.5">
+            <span key={item} className="border border-[var(--border)] px-2 py-1.5">
               {item}
             </span>
           ))}
