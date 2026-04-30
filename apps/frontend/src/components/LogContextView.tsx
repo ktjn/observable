@@ -16,19 +16,19 @@ export function LogContextView({ logId, onClose }: Props) {
 
   if (isLoading) {
     return (
-      <div className="mt-3 p-3 bg-[var(--surface-inset)] border border-[var(--border)] rounded-lg">
+      <div className="mt-3 p-3 bg-[var(--surface-inset)] border border-[var(--border)]">
         <p className="m-0 text-sm text-[var(--muted)]">Loading context…</p>
       </div>
     );
   }
 
   return (
-    <div className="mt-3 p-3 bg-[var(--surface-inset)] border border-[var(--border)] rounded-lg">
+    <div className="mt-3 p-3 bg-[var(--surface-inset)] border border-[var(--border)]">
       <div className="flex justify-between items-center mb-3">
         <h4 className="m-0 text-sm font-bold text-[var(--text-strong)]">Surrounding Logs</h4>
         <Button variant="secondary" onClick={onClose}>Close</Button>
       </div>
-      <div className="font-mono text-xs max-h-[400px] overflow-y-auto border border-[var(--border)] rounded bg-[var(--surface)] p-2">
+      <div className="font-mono text-xs max-h-[400px] overflow-y-auto border border-[var(--border)] bg-[var(--surface)] p-2">
         {data?.logs.map((log: LogRecord) => {
           const isPivot = log.log_id === logId;
           return (

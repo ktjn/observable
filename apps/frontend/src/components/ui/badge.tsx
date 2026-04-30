@@ -9,11 +9,11 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const toneClasses: Record<BadgeTone, string> = {
-  good: "bg-[var(--good-bg)] text-[var(--good)]",
-  warn: "bg-[var(--warn-bg)] text-[var(--warn)]",
-  bad: "bg-[var(--bad-bg)] text-[var(--bad)]",
-  info: "bg-[var(--info-bg)] text-[var(--brand-strong)]",
-  neutral: "bg-[var(--surface-subtle)] text-[var(--muted)]",
+  good: "border border-[var(--good)] text-[var(--good)]",
+  warn: "border border-[var(--warn)] text-[var(--warn)]",
+  bad: "border border-[var(--bad)] text-[var(--bad)]",
+  info: "border border-[var(--brand)] text-[var(--brand)]",
+  neutral: "border border-[var(--border-strong)] text-[var(--muted)]",
 };
 
 export function Badge({ tone = "neutral", className, children, ...props }: BadgeProps) {
@@ -21,7 +21,7 @@ export function Badge({ tone = "neutral", className, children, ...props }: Badge
     <span
       role="status"
       className={cn(
-        "inline-flex min-h-6 items-center rounded-full px-2 text-xs font-bold",
+        "inline-flex min-h-5 items-center px-1.5 text-[9px] font-bold uppercase tracking-wide",
         toneClasses[tone],
         className
       )}
@@ -46,7 +46,7 @@ export function HealthDot({ state }: { state: HealthState }) {
     <span
       role="img"
       aria-label={state}
-      className={cn("inline-block h-2 w-2 flex-shrink-0 rounded-full", dotClasses[state])}
+      className={cn("inline-block h-2 w-2 flex-shrink-0", dotClasses[state])}
     />
   );
 }

@@ -47,7 +47,7 @@ export function TraceDetail({ traceId, spans }: Props) {
             <a
               key={link.href}
               href={link.href}
-              className="text-xs px-2 py-0.5 rounded-full bg-[var(--surface-subtle)] text-[var(--text)] border border-[var(--border)] no-underline hover:border-[var(--brand)] hover:text-[var(--brand)]"
+              className="text-xs px-2 py-0.5 bg-[var(--surface-subtle)] text-[var(--text)] border border-[var(--border)] no-underline hover:border-[var(--brand)] hover:text-[var(--brand)]"
             >
               {link.label}
             </a>
@@ -75,7 +75,7 @@ export function TraceDetail({ traceId, spans }: Props) {
                   setSelectedSpanId(isSelected ? undefined : span.span_id);
                 }
               }}
-              className={`flex items-center mb-1 cursor-pointer rounded px-0 py-0.5 ${
+              className={`flex items-center mb-1 cursor-pointer px-0 py-0.5 ${
                 isSelected ? "bg-[var(--surface-subtle)]" : "bg-transparent"
               }`}
             >

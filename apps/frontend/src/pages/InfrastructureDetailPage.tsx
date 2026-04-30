@@ -105,7 +105,7 @@ export default function InfrastructureDetailPage() {
                   key={service}
                   to="/services/$serviceId"
                   params={{ serviceId: service }}
-                  className="min-h-[54px] border border-[var(--border)] rounded-md grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+                  className="min-h-[54px] border border-[var(--border)] grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
                 >
                   {service}
                 </Link>
@@ -153,19 +153,19 @@ export default function InfrastructureDetailPage() {
           <div className="grid grid-cols-2 gap-2.5" aria-label="Infrastructure action links">
             <a
               href={links.logs}
-              className="min-h-[54px] border border-[var(--border)] rounded-md grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+              className="min-h-[54px] border border-[var(--border)] grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
             >
               Logs
             </a>
             <a
               href={links.traces}
-              className="min-h-[54px] border border-[var(--border)] rounded-md grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+              className="min-h-[54px] border border-[var(--border)] grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
             >
               Traces
             </a>
             <a
               href={links.metrics}
-              className="min-h-[54px] border border-[var(--border)] rounded-md grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+              className="min-h-[54px] border border-[var(--border)] grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
             >
               Metrics
             </a>

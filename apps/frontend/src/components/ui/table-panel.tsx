@@ -9,7 +9,7 @@ export function TablePanel({ children, className, ...props }: TablePanelProps) {
   return (
     <div
       className={cn(
-        "bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-x-auto",
+        "bg-[var(--surface)] border border-[var(--border)] overflow-x-auto",
         className,
       )}
       {...props}

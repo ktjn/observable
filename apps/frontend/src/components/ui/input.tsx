@@ -13,9 +13,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       ref={ref}
       type={type}
       className={cn(
-        "flex min-h-9 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--text)] outline-none transition-colors",
+        "flex min-h-7 w-full border border-[var(--border-strong)] bg-[var(--surface-raised)] px-2 font-[family-name:'IBM_Plex_Mono',monospace] text-[11px] text-[var(--text)] outline-none transition-colors",
         "placeholder:text-[var(--muted)]",
-        "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]",
+        "focus-visible:ring-1 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--bg)]",
         "disabled:cursor-not-allowed disabled:opacity-60",
         className
       )}

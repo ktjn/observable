@@ -116,25 +116,25 @@ function ServiceOverview({
           <div className="grid grid-cols-2 gap-2.5" aria-label="Signal entry points">
             <a
               href={`/traces?service=${encodeURIComponent(service.service_name)}`}
-              className="min-h-[54px] border border-[var(--border)] rounded-md grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+              className="min-h-[54px] border border-[var(--border)] grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
             >
               Traces
             </a>
             <a
               href={`/logs?service=${encodeURIComponent(service.service_name)}`}
-              className="min-h-[54px] border border-[var(--border)] rounded-md grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+              className="min-h-[54px] border border-[var(--border)] grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
             >
               Logs
             </a>
             <a
               href={`/metrics?service=${encodeURIComponent(service.service_name)}`}
-              className="min-h-[54px] border border-[var(--border)] rounded-md grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+              className="min-h-[54px] border border-[var(--border)] grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
             >
               Metrics
             </a>
             <a
               href={`/infrastructure?service=${encodeURIComponent(service.service_name)}`}
-              className="min-h-[54px] border border-[var(--border)] rounded-md grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+              className="min-h-[54px] border border-[var(--border)] grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
             >
               Infrastructure
             </a>
