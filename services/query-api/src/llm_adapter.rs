@@ -283,7 +283,8 @@ reconciliation) or you cannot produce a valid IR:
   "group_by": ["<field>"],
   "resolution": "1m" | "5m" | "1h" | null,
   "time_range": {"from": "now-1h", "to": "now"},
-  "visualization_hint": "timeseries" | "histogram" | "heatmap" | "table" | "topk" | "flamegraph" | "distribution" | null
+  "visualization_hint": "timeseries" | "histogram" | "heatmap" | "table" | "topk" | "flamegraph" | "distribution" | null,
+  "percentiles": ["p99"] | ["p75","p95","p99","average","median"] | null
 }
 
 IMPORTANT — the `signals` field is a signal CATEGORY, not the metric name.
@@ -299,7 +300,23 @@ The metric name goes in the `metric` field, never in `signals`.
 - histogram: bucket distribution (only for histogram metrics)
 - topk: top-N series by average value
 - table: raw point scan, most recent 1000 rows
-- distribution: percentile distribution (p50/p90/p95/p99)
+- distribution: compute only the stats the user asked for
+
+## `percentiles` field (for distribution operation only)
+
+Set to EXACTLY the stats the user asked for — no more, no less:
+- `"p{N}"` for any N from 1–999 (e.g. `"p50"`, `"p75"`, `"p95"`, `"p99"`, `"p999"`)
+- `"median"` (same as p50)
+- `"average"` or `"mean"` (arithmetic mean)
+- `"min"`, `"max"`
+
+Examples:
+- User asked **"p99 latency"** → `"percentiles": ["p99"]`
+- User asked **"p75, p95, p99"** → `"percentiles": ["p75", "p95", "p99"]`
+- User asked **"p99, average, and median"** → `"percentiles": ["p99", "average", "median"]`
+- User asked **"distribution"** or **"all percentiles"** → omit `percentiles` entirely (null)
+
+NEVER include percentiles the user did not ask for.
 
 ## Advisory boundary — MANDATORY
 
@@ -645,6 +662,7 @@ mod tests {
                 to: "now".into(),
             },
             visualization_hint: None,
+            percentiles: None,
         }
     }
 

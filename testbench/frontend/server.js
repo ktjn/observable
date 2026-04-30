@@ -2,10 +2,34 @@
 
 const express = require('express');
 const http = require('http');
+const { metrics } = require('@opentelemetry/api');
 
 const app = express();
 const API_URL = process.env.SHOP_API_URL || 'http://shop-api:8000';
 const PORT = parseInt(process.env.PORT || '3000', 10);
+
+const meter = metrics.getMeter('shop-frontend');
+const requestDurationGauge = meter.createObservableGauge('request_duration_ms', {
+  unit: 'ms',
+  description: 'HTTP request duration in milliseconds',
+});
+
+// Record timing for each request via middleware.
+app.use((req, res, next) => {
+  const t0 = Date.now();
+  res.on('finish', () => {
+    const durationMs = Date.now() - t0;
+    requestDurationGauge.addCallback((observableResult) => {
+      observableResult.observe(durationMs, {
+        'http.route': req.path,
+        'http.method': req.method,
+        'http.status_code': String(res.statusCode),
+        'service.name': 'shop-frontend',
+      });
+    });
+  });
+  next();
+});
 
 function apiGet(path) {
   return new Promise((resolve, reject) => {

@@ -145,6 +145,7 @@ mod tests {
                 to: "now".into(),
             },
             visualization_hint: Some(NlqVisualizationHint::Timeseries),
+            percentiles: None,
         }
     }
 

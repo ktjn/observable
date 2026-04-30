@@ -6,18 +6,23 @@ import time
 
 import asyncpg
 from aio_pika import connect_robust, Message
-from fastapi import FastAPI, HTTPException, Response
-from opentelemetry import trace
+from fastapi import FastAPI, HTTPException, Request, Response
+from opentelemetry import metrics, trace
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("shop-api")
+
+OTLP_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
 
 # OTel setup
 resource = Resource.create({
@@ -27,16 +32,47 @@ resource = Resource.create({
     "k8s.namespace.name": os.getenv("MY_POD_NAMESPACE", "local"),
 })
 provider = TracerProvider(resource=resource)
-exporter = OTLPSpanExporter(endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317"), insecure=True)
+exporter = OTLPSpanExporter(endpoint=OTLP_ENDPOINT, insecure=True)
 provider.add_span_processor(BatchSpanProcessor(exporter))
 trace.set_tracer_provider(provider)
 tracer = trace.get_tracer("shop-api")
+
+metric_reader = PeriodicExportingMetricReader(
+    OTLPMetricExporter(endpoint=OTLP_ENDPOINT, insecure=True),
+    export_interval_millis=15_000,
+)
+meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
+metrics.set_meter_provider(meter_provider)
+meter = metrics.get_meter("shop-api")
+request_duration_gauge = meter.create_gauge(
+    "request_duration_ms",
+    unit="ms",
+    description="HTTP request duration in milliseconds",
+)
 
 LoggingInstrumentor().instrument(set_logging_format=True)
 AsyncPGInstrumentor().instrument()
 
 app = FastAPI(title="shop-api")
 FastAPIInstrumentor.instrument_app(app)
+
+
+@app.middleware("http")
+async def record_request_duration(request: Request, call_next):
+    t0 = time.monotonic()
+    response = await call_next(request)
+    duration_ms = (time.monotonic() - t0) * 1000.0
+    request_duration_gauge.set(
+        duration_ms,
+        attributes={
+            "http.route": request.url.path,
+            "http.method": request.method,
+            "http.status_code": str(response.status_code),
+            "service.name": "shop-api",
+        },
+    )
+    return response
+
 
 DB_DSN = os.getenv("DATABASE_URL", "postgresql://shop:shop@shop-db:5432/shop")
 AMQP_URL = os.getenv("AMQP_URL", "amqp://shop:shop@shop-queue:5672/")

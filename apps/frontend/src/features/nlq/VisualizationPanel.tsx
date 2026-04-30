@@ -168,14 +168,15 @@ function TopkTable({ frame }: Props) {
 // ── Distribution ──────────────────────────────────────────────────────────────
 
 function DistributionTable({ frame }: Props) {
-  const percentiles = ["p50", "p90", "p95", "p99", "min_val", "max_val"];
   const unit = frame.unit ? ` ${frame.unit}` : "";
+  // Data-driven: show exactly the columns the backend returned, in their order.
+  const stats = frame.data.length > 0 ? Object.keys(frame.data[0]) : [];
 
   return (
     <table className="w-full text-sm border-collapse" data-testid="distribution-table">
       <thead>
         <tr className="border-b border-[var(--border)]">
-          <th className="py-1 pr-8 text-left font-medium">Percentile</th>
+          <th className="py-1 pr-8 text-left font-medium">Stat</th>
           <th className="py-1 text-right font-medium">
             Value{unit}
           </th>
@@ -183,14 +184,12 @@ function DistributionTable({ frame }: Props) {
       </thead>
       <tbody>
         {frame.data.flatMap((row, i) =>
-          percentiles.map((pct) =>
-            row[pct] !== undefined ? (
-              <tr key={`${i}-${pct}`} className="border-b border-[var(--border-subtle)]">
-                <td className="py-1 pr-8 font-medium">{formatPercentileLabel(pct)}</td>
-                <td className="py-1 text-right font-mono">{formatValue(row[pct])}</td>
-              </tr>
-            ) : null
-          )
+          stats.map((stat) => (
+            <tr key={`${i}-${stat}`} className="border-b border-[var(--border-subtle)]">
+              <td className="py-1 pr-8 font-medium">{formatPercentileLabel(stat)}</td>
+              <td className="py-1 text-right font-mono">{formatValue(row[stat])}</td>
+            </tr>
+          ))
         )}
       </tbody>
     </table>
@@ -242,13 +241,20 @@ function formatValue(v: unknown): string {
 }
 
 function formatPercentileLabel(key: string): string {
-  const labels: Record<string, string> = {
-    p50: "p50 (median)",
-    p90: "p90",
-    p95: "p95",
-    p99: "p99",
+  // Named aliases.
+  const named: Record<string, string> = {
+    median: "median",
+    average: "average",
+    mean: "mean",
+    min: "min",
+    max: "max",
+    // Legacy aliases from old SQL templates.
     min_val: "min",
     max_val: "max",
+    p50: "p50 (median)",
   };
-  return labels[key] ?? key;
+  if (named[key]) return named[key];
+  // p{N} — display as-is.
+  if (/^p\d+$/.test(key)) return key;
+  return key;
 }

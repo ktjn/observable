@@ -32,6 +32,16 @@ pub struct NlqIr {
     pub time_range: NlqTimeRange,
     /// Preferred visualization type; the UI selects the panel type from this.
     pub visualization_hint: Option<NlqVisualizationHint>,
+    /// For distribution operations: which stats to compute. Each entry is one of:
+    /// - `"p{N}"` where N is 1–999 (e.g. `"p50"`, `"p75"`, `"p99"`, `"p999"`)
+    /// - `"median"` (alias for p50)
+    /// - `"average"` or `"mean"` (arithmetic mean)
+    /// - `"min"`, `"max"`
+    ///
+    /// When absent or empty the SQL template defaults to p50/p90/p95/p99/min/max.
+    /// Unrecognised entries are silently ignored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub percentiles: Option<Vec<String>>,
 }
 
 /// Supported query operation types.
@@ -334,5 +344,64 @@ mod tests {
         let ir: NlqIr = serde_json::from_str(json).unwrap();
         assert!(ir.filters.is_empty());
         assert!(ir.group_by.is_empty());
+    }
+
+    #[test]
+    fn percentiles_absent_deserializes_to_none() {
+        let json = r#"{
+            "operation": "distribution",
+            "signals": ["metrics"],
+            "metric": "request_duration_ms",
+            "time_range": {"from": "now-1h", "to": "now"}
+        }"#;
+        let ir: NlqIr = serde_json::from_str(json).unwrap();
+        assert!(ir.percentiles.is_none());
+    }
+
+    #[test]
+    fn percentiles_single_value_roundtrips() {
+        let json = r#"{
+            "operation": "distribution",
+            "signals": ["metrics"],
+            "metric": "request_duration_ms",
+            "time_range": {"from": "now-1h", "to": "now"},
+            "percentiles": ["p99"]
+        }"#;
+        let ir: NlqIr = serde_json::from_str(json).unwrap();
+        assert_eq!(ir.percentiles, Some(vec!["p99".to_string()]));
+        let out = serde_json::to_string(&ir).unwrap();
+        assert!(out.contains(r#""percentiles":["p99"]"#));
+    }
+
+    #[test]
+    fn percentiles_multi_value_roundtrips() {
+        let json = r#"{
+            "operation": "distribution",
+            "signals": ["metrics"],
+            "metric": "request_duration_ms",
+            "time_range": {"from": "now-1h", "to": "now"},
+            "percentiles": ["p75", "p95", "p99", "average", "median"]
+        }"#;
+        let ir: NlqIr = serde_json::from_str(json).unwrap();
+        let pcts = ir.percentiles.as_ref().unwrap();
+        assert_eq!(pcts.len(), 5);
+        assert!(pcts.contains(&"p75".to_string()));
+        assert!(pcts.contains(&"median".to_string()));
+    }
+
+    #[test]
+    fn percentiles_none_does_not_serialize() {
+        let json = r#"{
+            "operation": "distribution",
+            "signals": ["metrics"],
+            "metric": "request_duration_ms",
+            "time_range": {"from": "now-1h", "to": "now"}
+        }"#;
+        let ir: NlqIr = serde_json::from_str(json).unwrap();
+        let out = serde_json::to_string(&ir).unwrap();
+        assert!(
+            !out.contains("percentiles"),
+            "field must be absent when None: {out}"
+        );
     }
 }

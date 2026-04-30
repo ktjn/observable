@@ -6,16 +6,21 @@ import time
 
 import pika
 import psycopg2
-from opentelemetry import trace
+from opentelemetry import metrics, trace
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
 from opentelemetry.instrumentation.pika import PikaInstrumentor
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("shop-worker")
+
+OTLP_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
 
 resource = Resource.create({
     "service.name": "shop-worker",
@@ -24,10 +29,23 @@ resource = Resource.create({
     "k8s.namespace.name": os.getenv("MY_POD_NAMESPACE", "local"),
 })
 provider = TracerProvider(resource=resource)
-exporter = OTLPSpanExporter(endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317"), insecure=True)
+exporter = OTLPSpanExporter(endpoint=OTLP_ENDPOINT, insecure=True)
 provider.add_span_processor(BatchSpanProcessor(exporter))
 trace.set_tracer_provider(provider)
 tracer = trace.get_tracer("shop-worker")
+
+metric_reader = PeriodicExportingMetricReader(
+    OTLPMetricExporter(endpoint=OTLP_ENDPOINT, insecure=True),
+    export_interval_millis=15_000,
+)
+meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
+metrics.set_meter_provider(meter_provider)
+meter = metrics.get_meter("shop-worker")
+order_duration_gauge = meter.create_gauge(
+    "order_processing_duration_ms",
+    unit="ms",
+    description="Order processing duration in milliseconds",
+)
 
 LoggingInstrumentor().instrument(set_logging_format=True)
 PikaInstrumentor().instrument()
@@ -48,6 +66,7 @@ def get_db():
 
 def process_order(ch, method, properties, body):
     with tracer.start_as_current_span("worker.process_order") as span:
+        t0 = time.monotonic()
         try:
             payload = json.loads(body)
             order_id = payload["order_id"]
@@ -63,11 +82,21 @@ def process_order(ch, method, properties, body):
             cur.close()
             db.close()
 
+            duration_ms = (time.monotonic() - t0) * 1000.0
+            order_duration_gauge.set(
+                duration_ms,
+                attributes={"service.name": "shop-worker", "order.status": "processed"},
+            )
             ch.basic_ack(delivery_tag=method.delivery_tag)
             log.info("order processed order_id=%d delay=%.2fs", order_id, delay)
         except Exception as exc:
             span.record_exception(exc)
             span.set_attribute("error", True)
+            duration_ms = (time.monotonic() - t0) * 1000.0
+            order_duration_gauge.set(
+                duration_ms,
+                attributes={"service.name": "shop-worker", "order.status": "failed"},
+            )
             log.error("failed to process order: %s", exc)
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
