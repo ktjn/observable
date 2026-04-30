@@ -47,7 +47,10 @@ async fn main() -> anyhow::Result<()> {
     let llm: Option<Arc<dyn llm_adapter::LlmCaller>> = llm_adapter::OpenAiLlmCaller::from_env()
         .map(|c| Arc::new(c) as Arc<dyn llm_adapter::LlmCaller>);
     if llm.is_none() {
-        tracing::warn!("LLM_API_KEY not set — NLQ endpoint will return 503");
+        tracing::info!(
+            "LLM_API_KEY env var not set — NLQ will resolve config from DB at call time \
+             (supports Ollama and other no-auth providers)"
+        );
     }
     let state = traces::AppState {
         ch,
