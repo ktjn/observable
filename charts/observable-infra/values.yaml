@@ -26,6 +26,10 @@ clickhouse:
     database: observable
     username: default
     password: observable
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: ""
   resources:
     requests:
       cpu: 200m

@@ -1,4 +1,19 @@
 {{- if .Values.clickhouse.enabled }}
+{{- if .Values.clickhouse.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: clickhouse-data
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- if .Values.clickhouse.persistence.storageClass }}
+  storageClassName: {{ .Values.clickhouse.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.clickhouse.persistence.size }}
+---
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -35,6 +50,17 @@ spec:
               value: "1"
           resources:
             {{- toYaml .Values.clickhouse.resources | nindent 12 }}
+          {{- if .Values.clickhouse.persistence.enabled }}
+          volumeMounts:
+            - name: clickhouse-data
+              mountPath: /var/lib/clickhouse
+          {{- end }}
+      {{- if .Values.clickhouse.persistence.enabled }}
+      volumes:
+        - name: clickhouse-data
+          persistentVolumeClaim:
+            claimName: clickhouse-data
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service
