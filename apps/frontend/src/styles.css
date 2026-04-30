@@ -78,38 +78,32 @@ select {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: 160px minmax(0, 1fr);
 }
 
 .sidebar {
-  background: var(--surface);
-  border-right: 1px solid var(--border);
+  background: var(--surface-subtle);
+  border-right: 1px solid var(--border-strong);
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: 20px;
-  box-shadow: var(--shadow-control);
+  padding: 10px 0;
 }
 
 .brand-lockup {
-  display: flex;
-  gap: 12px;
-  align-items: center;
+  padding: 0 8px 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
 }
 
 .brand-mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: var(--brand);
-  color: white;
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-}
-
-.brand-name {
-  font-weight: 750;
+  display: inline-block;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 2px 6px;
 }
 
 /* primitive-internal — used by Panel and MetricCard primitives only.
@@ -128,8 +122,10 @@ select {
 }
 
 .nav-list {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 1;
 }
 
 .nav-link,
@@ -139,64 +135,60 @@ select {
 }
 
 .nav-link {
-  border-radius: 6px;
-  padding: 9px 10px;
+  display: block;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 400;
   color: var(--muted);
-  font-weight: 650;
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
+  border-left: 2px solid transparent;
 }
 
 .nav-icon {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  background: var(--surface-subtle);
-  color: var(--muted);
-  display: grid;
-  place-items: center;
-  font-size: 11px;
-  font-weight: 800;
+  display: none;
 }
 
-.nav-link:hover,
-.nav-link.active {
-  background: var(--surface-subtle);
+.nav-link:hover {
+  background: var(--surface);
   color: var(--text);
+  border-left-color: var(--border-strong);
+}
+
+.nav-link.active {
+  background: var(--brand-bg);
+  color: var(--text-strong);
+  font-weight: 600;
+  border-left-color: var(--brand);
+  box-shadow: none;
 }
 
 .nav-link.active .nav-icon {
-  background: var(--brand-bg);
-  color: var(--brand-strong);
-}
-
-.nav-link.active {
-  box-shadow: inset 3px 0 0 var(--brand);
+  background: transparent;
+  color: inherit;
 }
 
 .sidebar-footer {
   margin-top: auto;
+  padding: 8px 8px 0;
+  border-top: 1px solid var(--border);
   display: grid;
-  gap: 8px;
+  gap: 4px;
 }
 
 .segmented-control {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid var(--border-strong);
   overflow: hidden;
 }
 
 .segment {
   border: 0;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--border-strong);
   background: var(--surface);
   color: var(--muted);
-  min-height: 34px;
+  min-height: 28px;
   cursor: pointer;
+  font-size: 10px;
 }
 
 .segment:last-child {
@@ -205,7 +197,7 @@ select {
 
 .segment.active {
   background: var(--brand);
-  color: white;
+  color: var(--bg);
 }
 
 .workspace {
@@ -215,19 +207,21 @@ select {
 }
 
 .topbar {
-  min-height: 72px;
-  background: color-mix(in srgb, var(--surface) 92%, var(--bg));
-  border-bottom: 1px solid var(--border);
+  min-height: 36px;
+  background: var(--surface);
+  border-bottom: 2px solid var(--text);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 24px;
+  padding: 4px 16px;
 }
 
 .topbar-title {
-  font-size: 18px;
-  font-weight: 750;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 .topbar-controls,
@@ -235,33 +229,32 @@ select {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 6px;
 }
 
 .context-pill,
 .secondary-link {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 7px 10px;
-  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  padding: 1px 6px;
+  background: var(--surface-raised);
   color: var(--muted);
-  font-size: 13px;
-  font-weight: 650;
+  font-size: 10px;
+  font-weight: 400;
 }
 
 .secondary-link:hover {
   color: var(--text);
-  border-color: var(--brand);
+  border-color: var(--text);
 }
 
 .content-shell {
   min-width: 0;
-  padding: 24px;
+  padding: 16px;
 }
 
 .page-stack {
   display: grid;
-  gap: 18px;
+  gap: 12px;
 }
 
 .page-header {
