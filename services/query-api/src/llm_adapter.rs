@@ -515,42 +515,55 @@ pub async fn run_nlq_pipeline(
 /// Accepts a natural language question, calls the LLM adapter, and returns a discriminated
 /// `NlqQueryResponse` (frame or decline).
 ///
-/// Returns 503 if the LLM caller is not configured (LLM_API_KEY not set and not in DB).
+/// Returns 503 if no LLM configuration exists at all (neither key nor endpoint URL in env or DB).
 pub async fn handle_nlq_query(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
     Json(req): Json<NlqQueryRequest>,
 ) -> Result<Json<NlqQueryResponse>, (StatusCode, Json<serde_json::Value>)> {
     // Resolve the LLM caller: prefer pre-built caller in AppState (from env var at startup),
-    // fall back to constructing one from the DB-stored key (and url/model) at call time.
+    // fall back to constructing one from the DB-stored config at call time.
+    //
+    // No-auth providers (Ollama, local vLLM) may have only a URL + model configured and no API
+    // key. An absent key is treated as an empty string so those providers work out of the box,
+    // mirroring what `test_llm_connection` does.  503 is only returned when neither key nor URL
+    // is configured in env or DB — i.e., the user has not done any LLM setup at all.
     let db_caller: Option<OpenAiLlmCaller>;
     let llm: &dyn LlmCaller = if let Some(ref arc) = state.llm {
         arc.as_ref()
     } else {
-        match crate::config::fetch_db_key(&state.db).await {
-            Ok(Some(key)) => {
-                let url = crate::config::fetch_db_value(&state.db, "llm_url")
-                    .await
-                    .ok()
-                    .flatten()
-                    .filter(|v| !v.is_empty());
-                let model = crate::config::fetch_db_value(&state.db, "llm_model")
-                    .await
-                    .ok()
-                    .flatten()
-                    .filter(|v| !v.is_empty());
-                db_caller = Some(OpenAiLlmCaller::from_key(key, url, model));
-                db_caller.as_ref().unwrap()
-            }
-            _ => {
-                return Err((
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    Json(serde_json::json!({
-                        "error": "LLM adapter not configured — set LLM_API_KEY on the Setup page"
-                    })),
-                ));
-            }
+        let api_key = crate::config::fetch_db_key(&state.db).await.map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "database error resolving LLM config"})),
+            )
+        })?;
+        let url = crate::config::fetch_db_value(&state.db, "llm_url")
+            .await
+            .ok()
+            .flatten()
+            .filter(|v| !v.is_empty());
+        let model = crate::config::fetch_db_value(&state.db, "llm_model")
+            .await
+            .ok()
+            .flatten()
+            .filter(|v| !v.is_empty());
+
+        if api_key.is_none() && url.is_none() {
+            return Err((
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(serde_json::json!({
+                    "error": "LLM adapter not configured — set an API key or endpoint URL on the Setup page"
+                })),
+            ));
         }
+
+        db_caller = Some(OpenAiLlmCaller::from_key(
+            api_key.unwrap_or_default(),
+            url,
+            model,
+        ));
+        db_caller.as_ref().unwrap()
     };
 
     if req.question.trim().is_empty() {

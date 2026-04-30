@@ -82,8 +82,6 @@ pub struct SetLlmKeyRequest {
 /// GET /v1/config
 /// Returns LLM configuration status. Never echoes the API key value itself.
 pub async fn get_config(State(state): State<AppState>) -> Result<Json<ConfigStatus>, StatusCode> {
-    let key_configured = env_key_present() || db_key_present(&state.db).await.unwrap_or(false);
-
     // Env vars take priority over DB values.
     let llm_url = env_llm_url().or(fetch_db_value(&state.db, "llm_url")
         .await
@@ -93,6 +91,12 @@ pub async fn get_config(State(state): State<AppState>) -> Result<Json<ConfigStat
         .await
         .unwrap_or(None)
         .filter(|v| !v.is_empty()));
+
+    // `llm_key_configured` is true when any LLM configuration is present: a key, a custom URL,
+    // or both.  No-auth providers (Ollama, local vLLM) only set a URL; they must still show as
+    // "Configured" so the UI badge and the Test button are rendered correctly.
+    let key_configured =
+        env_key_present() || db_key_present(&state.db).await.unwrap_or(false) || llm_url.is_some();
 
     Ok(Json(ConfigStatus {
         llm_key_configured: key_configured,
