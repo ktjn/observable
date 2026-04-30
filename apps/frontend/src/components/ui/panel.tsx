@@ -22,7 +22,7 @@ export function Panel({
         <div className="modern-panel-header">
           <div>
             {eyebrow && <div className="field-label">{eyebrow}</div>}
-            {title && <h2 className="m-0 text-lg font-bold text-[var(--text-strong)]">{title}</h2>}
+            {title && <h2 className="m-0 text-[13px] font-semibold text-[var(--text-strong)]">{title}</h2>}
           </div>
           {actions && <div className="modern-toolbar">{actions}</div>}
         </div>
