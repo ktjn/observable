@@ -458,4 +458,54 @@ mod tests {
             .spans_sql
             .contains("WHERE (tenant_id, trace_id, start_time_unix_nano) IN"));
     }
+
+    #[test]
+    fn log_histogram_plan_sql_shape() {
+        let planner = QueryPlanner;
+        let plan = planner.plan_log_histogram(0, 3_000_000_000, None, 30);
+
+        assert!(plan.sql.contains("FROM observable.logs"));
+        assert!(plan.sql.contains("intDiv(timestamp_unix_nano -"));
+        assert!(plan.sql.contains("GROUP BY bucket_idx, severity_number"));
+        assert!(plan.sql.contains("ORDER BY bucket_idx ASC"));
+        assert!(plan.sql.contains("WHERE tenant_id = ?"));
+        assert!(plan.sql.contains("AND timestamp_unix_nano >= ?"));
+        assert!(plan.sql.contains("AND timestamp_unix_nano <= ?"));
+    }
+
+    #[test]
+    fn log_histogram_interval_calculated_from_range() {
+        let planner = QueryPlanner;
+        let plan = planner.plan_log_histogram(0, 3_000_000_000, None, 30);
+
+        assert_eq!(plan.interval_ns, 100_000_000);
+        assert_eq!(plan.from_ns, 0);
+    }
+
+    #[test]
+    fn log_histogram_interval_clamps_to_one() {
+        let planner = QueryPlanner;
+        let plan = planner.plan_log_histogram(1_000_000, 1_000_000, None, 30);
+
+        assert_eq!(plan.interval_ns, 1);
+    }
+
+    #[test]
+    fn log_histogram_with_service_filter() {
+        let planner = QueryPlanner;
+        let plan = planner.plan_log_histogram(0, 3_000_000_000, Some("checkout"), 30);
+
+        assert!(plan.sql.contains("AND service_name = ?"));
+    }
+
+    #[test]
+    fn log_histogram_bucket_count_respected() {
+        let planner = QueryPlanner;
+        let plan_a = planner.plan_log_histogram(0, 60_000_000_000, None, 60);
+        let plan_b = planner.plan_log_histogram(0, 60_000_000_000, None, 30);
+
+        assert_eq!(plan_a.interval_ns, 1_000_000_000);
+        assert_eq!(plan_b.interval_ns, 2_000_000_000);
+        assert_eq!(plan_b.interval_ns, plan_a.interval_ns * 2);
+    }
 }
