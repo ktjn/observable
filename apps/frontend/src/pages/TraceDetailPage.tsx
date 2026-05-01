@@ -11,5 +11,5 @@ export default function TraceDetailPage() {
   });
   if (isLoading) return <p>Loading…</p>;
   if (!data) return <p>Not found</p>;
-  return <TraceDetail traceId={data.trace_id} spans={data.spans} />;
+  return <TraceDetail traceId={data.trace_id} spans={data.spans} events={data.events} />;
 }

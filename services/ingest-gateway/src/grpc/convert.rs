@@ -176,6 +176,23 @@ pub fn proto_spans_to_domain(
                     resource_attributes: resource_attributes.clone(),
                     ..Default::default()
                 });
+                let span_events: Vec<domain::SpanEvent> = s
+                    .events
+                    .iter()
+                    .enumerate()
+                    .map(|(i, e)| domain::SpanEvent {
+                        tenant_id,
+                        trace_id: hex::encode(&s.trace_id),
+                        span_id: hex::encode(&s.span_id),
+                        event_index: i as u32,
+                        name: e.name.clone(),
+                        timestamp_unix_nano: e.time_unix_nano,
+                        attributes: kv_list_to_map(&e.attributes),
+                    })
+                    .collect();
+                if let Some(span) = spans.last_mut() {
+                    span.events = span_events;
+                }
             }
         }
     }

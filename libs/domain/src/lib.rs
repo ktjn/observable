@@ -16,7 +16,7 @@ pub use metric::{MetricPointRow, MetricSeriesRow};
 pub use nlq::{
     NlqFilter, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, NlqTimeRange, NlqVisualizationHint,
 };
+pub use span::{Span, SpanEvent, SpanKind, StatusCode};
 #[cfg(feature = "storage")]
-pub use span::SpanRow;
-pub use span::{Span, SpanKind, StatusCode};
+pub use span::{SpanEventRow, SpanRow};
 pub use visualization::{FieldRole, FieldRoleKind, VisualizationFrame, VisualizationFrameType};

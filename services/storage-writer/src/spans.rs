@@ -1,12 +1,26 @@
 use clickhouse::Client;
-use domain::{Span, SpanRow};
+use domain::{Span, SpanEvent, SpanEventRow, SpanRow};
 
 pub async fn insert_spans(ch: &Client, spans: Vec<Span>) -> anyhow::Result<()> {
+    // Collect events before consuming spans
+    let all_events: Vec<SpanEvent> = spans
+        .iter()
+        .flat_map(|s| s.events.iter().cloned())
+        .collect();
+
     let mut insert = ch.insert::<SpanRow>("spans").await?;
     for span in spans {
         insert.write(&SpanRow::from(span)).await?;
     }
     insert.end().await?;
+
+    if !all_events.is_empty() {
+        let mut ev_insert = ch.insert::<SpanEventRow>("span_events").await?;
+        for ev in all_events {
+            ev_insert.write(&SpanEventRow::from(ev)).await?;
+        }
+        ev_insert.end().await?;
+    }
     Ok(())
 }
 
@@ -42,6 +56,7 @@ mod tests {
             host_id: "web-1".into(),
             workload: "checkout-deploy".into(),
             deployment_id: "deploy-42".into(),
+            events: vec![],
         }
     }
 
@@ -157,5 +172,126 @@ mod tests {
             let recovered = Span::from(row);
             assert_eq!(recovered.span_kind, kind);
         }
+    }
+
+    // NOTE: requires Docker to be running; skip if Docker unavailable
+    #[tokio::test]
+    #[ignore = "requires Docker"]
+    async fn insert_spans_writes_events_to_clickhouse() {
+        use std::path::Path;
+        use testcontainers::{runners::AsyncRunner, ImageExt};
+        use testcontainers_modules::clickhouse::ClickHouse;
+
+        let container = ClickHouse::default()
+            .with_tag("24.3")
+            .with_env_var("CLICKHOUSE_USER", "default")
+            .with_env_var("CLICKHOUSE_PASSWORD", "test")
+            .start()
+            .await
+            .expect("clickhouse container started");
+        let port = container.get_host_port_ipv4(8123).await.unwrap();
+        let base_url = format!("http://127.0.0.1:{port}");
+
+        // Apply migrations
+        let root = clickhouse::Client::default()
+            .with_url(&base_url)
+            .with_user("default")
+            .with_password("test");
+        root.query("CREATE DATABASE IF NOT EXISTS observable")
+            .execute()
+            .await
+            .unwrap();
+
+        let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("migrations/clickhouse");
+        let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
+            .expect("migrations/clickhouse must exist")
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
+            .collect();
+        entries.sort_by_key(|e| e.file_name());
+        for entry in entries {
+            let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
+            for stmt in sql.split(';') {
+                let stmt = stmt.trim();
+                if !stmt.is_empty() {
+                    root.query(stmt).execute().await.unwrap();
+                }
+            }
+        }
+
+        let ch = clickhouse::Client::default()
+            .with_url(&base_url)
+            .with_user("default")
+            .with_password("test")
+            .with_database("observable");
+
+        let tenant_id = Uuid::new_v4();
+        let now_ns = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as u64;
+
+        let span = domain::Span {
+            tenant_id,
+            trace_id: "test-trace-events".into(),
+            span_id: "span-with-events".into(),
+            start_time_unix_nano: now_ns,
+            end_time_unix_nano: now_ns + 1_000_000,
+            duration_ns: 1_000_000,
+            events: vec![
+                domain::SpanEvent {
+                    tenant_id,
+                    trace_id: "test-trace-events".into(),
+                    span_id: "span-with-events".into(),
+                    event_index: 0,
+                    name: "exception".into(),
+                    timestamp_unix_nano: now_ns + 500_000,
+                    attributes: std::collections::HashMap::new(),
+                },
+                domain::SpanEvent {
+                    tenant_id,
+                    trace_id: "test-trace-events".into(),
+                    span_id: "span-with-events".into(),
+                    event_index: 1,
+                    name: "retry".into(),
+                    timestamp_unix_nano: now_ns + 750_000,
+                    attributes: std::collections::HashMap::new(),
+                },
+            ],
+            ..Default::default()
+        };
+
+        insert_spans(&ch, vec![span])
+            .await
+            .expect("insert succeeded");
+
+        // Query span_events to verify 2 rows
+        let count: u64 = ch
+            .query(
+                "SELECT count() FROM span_events WHERE tenant_id = ? AND trace_id = 'test-trace-events'",
+            )
+            .bind(tenant_id)
+            .fetch_one()
+            .await
+            .expect("count query");
+
+        assert_eq!(count, 2, "expected 2 span events to be written");
+
+        // Verify event names
+        let names: Vec<String> = ch
+            .query(
+                "SELECT name FROM span_events WHERE tenant_id = ? AND trace_id = 'test-trace-events' ORDER BY event_index",
+            )
+            .bind(tenant_id)
+            .fetch_all()
+            .await
+            .expect("names query");
+
+        assert_eq!(names, vec!["exception".to_string(), "retry".to_string()]);
     }
 }

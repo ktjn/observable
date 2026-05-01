@@ -4,7 +4,7 @@ use axum::{
     Json,
 };
 use clickhouse::Client;
-use domain::{Span, SpanRow};
+use domain::{Span, SpanEvent, SpanEventRow, SpanRow};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::{
@@ -29,6 +29,7 @@ pub struct AppState {
 pub struct TraceResponse {
     pub trace_id: String,
     pub spans: Vec<Span>,
+    pub events: Vec<SpanEvent>,
 }
 
 #[derive(Serialize)]
@@ -86,6 +87,29 @@ pub async fn get_trace(
     }
     let span_count = rows.len() as i64;
     let spans: Vec<Span> = rows.into_iter().map(Span::from).collect();
+
+    // Fetch span events for this trace
+    let events_sql = "SELECT tenant_id, trace_id, span_id, event_index, name, \
+        timestamp_unix_nano, attributes \
+        FROM observable.span_events \
+        WHERE tenant_id = ? AND trace_id = ? \
+        ORDER BY span_id, event_index \
+        LIMIT 10000";
+
+    let event_rows: Vec<SpanEventRow> = state
+        .ch
+        .query(events_sql)
+        .bind(ctx.tenant_id)
+        .bind(trace_id.as_str())
+        .fetch_all()
+        .await
+        .map_err(|e| {
+            tracing::error!(error = ?e, "span_events query error");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let events: Vec<SpanEvent> = event_rows.into_iter().map(SpanEvent::from).collect();
+
     crate::audit::write(
         &state.db,
         &crate::audit::QueryAuditEntry {
@@ -95,7 +119,11 @@ pub async fn get_trace(
         },
     )
     .await;
-    Ok(Json(TraceResponse { trace_id, spans }))
+    Ok(Json(TraceResponse {
+        trace_id,
+        spans,
+        events,
+    }))
 }
 
 pub async fn search_traces(
@@ -185,6 +213,7 @@ pub async fn search_traces(
             traces.push(TraceResponse {
                 trace_id,
                 spans: vec![Span::from(row)],
+                events: vec![],
             });
         }
     }
@@ -269,9 +298,11 @@ mod tests {
         let resp = TraceResponse {
             trace_id: "abc123".into(),
             spans: vec![],
+            events: vec![],
         };
         let json = serde_json::to_string(&resp).unwrap();
         assert!(json.contains("abc123"));
+        assert!(json.contains("events"));
     }
 
     #[test]
@@ -341,6 +372,26 @@ mod tests {
             col_count, 20,
             "SELECT_COLS has {col_count} columns but SpanRow has 20 fields; keep them in sync"
         );
+    }
+
+    #[test]
+    fn trace_response_includes_events_field() {
+        let resp = TraceResponse {
+            trace_id: "abc".into(),
+            spans: vec![],
+            events: vec![SpanEvent {
+                tenant_id: Uuid::new_v4(),
+                trace_id: "abc".into(),
+                span_id: "def".into(),
+                event_index: 0,
+                name: "exception".into(),
+                timestamp_unix_nano: 1_700_000_000_000_000_000,
+                attributes: std::collections::HashMap::new(),
+            }],
+        };
+        let json = serde_json::to_string(&resp).unwrap();
+        assert!(json.contains("\"events\""));
+        assert!(json.contains("exception"));
     }
 
     // The count query used by search_traces must not include LIMIT so that it returns a

@@ -3939,6 +3939,8 @@ dependencies = [
  "domain",
  "serde",
  "serde_json",
+ "testcontainers",
+ "testcontainers-modules",
  "tokio",
  "tracing",
  "tracing-subscriber",
