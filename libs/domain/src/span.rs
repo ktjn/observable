@@ -216,6 +216,37 @@ impl From<SpanEventRow> for SpanEvent {
 mod tests {
     use super::*;
 
+    #[cfg(feature = "storage")]
+    #[test]
+    fn span_event_row_roundtrip_preserves_all_fields() {
+        let ev = SpanEvent {
+            tenant_id: Uuid::new_v4(),
+            trace_id: "abc".into(),
+            span_id: "def".into(),
+            event_index: 2,
+            name: "exception".into(),
+            timestamp_unix_nano: 1_700_000_000_000_000_001,
+            attributes: [("exception.type".to_string(), serde_json::json!("NullPointerException"))]
+                .into_iter()
+                .collect(),
+        };
+        let row = SpanEventRow::from(ev.clone());
+        let recovered = SpanEvent::from(row);
+        assert_eq!(recovered.tenant_id, ev.tenant_id);
+        assert_eq!(recovered.trace_id, ev.trace_id);
+        assert_eq!(recovered.span_id, ev.span_id);
+        assert_eq!(recovered.event_index, ev.event_index);
+        assert_eq!(recovered.name, ev.name);
+        assert_eq!(recovered.timestamp_unix_nano, ev.timestamp_unix_nano);
+        assert_eq!(recovered.attributes, ev.attributes);
+    }
+
+    #[test]
+    fn span_events_default_to_empty_in_span() {
+        let span = Span::default();
+        assert!(span.events.is_empty());
+    }
+
     #[test]
     fn span_roundtrips_json() {
         let span = Span {

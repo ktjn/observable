@@ -370,6 +370,26 @@ mod tests {
         );
     }
 
+    #[test]
+    fn trace_response_includes_events_field() {
+        let resp = TraceResponse {
+            trace_id: "abc".into(),
+            spans: vec![],
+            events: vec![SpanEvent {
+                tenant_id: Uuid::new_v4(),
+                trace_id: "abc".into(),
+                span_id: "def".into(),
+                event_index: 0,
+                name: "exception".into(),
+                timestamp_unix_nano: 1_700_000_000_000_000_000,
+                attributes: std::collections::HashMap::new(),
+            }],
+        };
+        let json = serde_json::to_string(&resp).unwrap();
+        assert!(json.contains("\"events\""));
+        assert!(json.contains("exception"));
+    }
+
     // The count query used by search_traces must not include LIMIT so that it returns a
     // true total, not just the count within the current page.
     #[test]
