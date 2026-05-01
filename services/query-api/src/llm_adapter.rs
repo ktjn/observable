@@ -343,7 +343,7 @@ The metric name goes in the `metric` field, never in `signals`.
 - rate: per-second rate of a counter (resets-aware)
 - irate: instantaneous rate from two most recent samples
 - increase: total increase of a counter over the window
-- histogram: bucket distribution (only for histogram metrics)
+- histogram: bucket distribution (only for OTel Histogram metrics that have explicit bucket bounds). Do NOT use for gauge or counter metrics — use `distribution` instead. If unsure, prefer `distribution`.
 - topk: top-N series by average value
 - table: raw point scan, most recent 1000 rows
 - distribution: compute only the stats the user asked for
@@ -443,7 +443,7 @@ fn build_capabilities_hint() -> String {
 - rate        — per-second rate of a counter (reset-aware)
 - irate       — instantaneous rate from two most recent samples
 - increase    — total counter increase over a window
-- histogram   — bucket distribution (for histogram metrics)
+- histogram   — bucket distribution (only for OTel Histogram metrics with explicit bucket bounds; use `distribution` for gauge/counter metrics)
 - topk        — top-N series by average value
 - table       — raw point scan (most recent 1000 rows)
 - distribution — compute specific percentiles (p50, p75, p95, p99, median, average, min, max)
