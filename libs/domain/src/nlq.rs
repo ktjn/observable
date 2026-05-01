@@ -42,6 +42,9 @@ pub struct NlqIr {
     /// Unrecognised entries are silently ignored.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub percentiles: Option<Vec<String>>,
+    /// For catalog operations: the dimension to enumerate, e.g. "service_name", "pod", "metric_name".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog_field: Option<String>,
 }
 
 /// Supported query operation types.
@@ -64,6 +67,8 @@ pub enum NlqOperation {
     Table,
     /// Empirical value distribution (width_bucket / percentile).
     Distribution,
+    /// Catalog of observable entities (distinct-values query on series metadata).
+    Catalog,
 }
 
 /// Signal types Observable can query.
@@ -402,6 +407,57 @@ mod tests {
         assert!(
             !out.contains("percentiles"),
             "field must be absent when None: {out}"
+        );
+    }
+
+    // ── catalog_field ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn catalog_operation_with_field_roundtrips() {
+        let json = r#"{
+            "operation": "catalog",
+            "signals": ["metrics"],
+            "time_range": {"from": "now-24h", "to": "now"},
+            "catalog_field": "service_name"
+        }"#;
+        let ir: NlqIr = serde_json::from_str(json).expect("deserialization failed");
+        assert_eq!(ir.operation, NlqOperation::Catalog);
+        assert_eq!(ir.catalog_field.as_deref(), Some("service_name"));
+        let out = serde_json::to_string(&ir).unwrap();
+        assert!(
+            out.contains(r#""catalog_field":"service_name""#),
+            "catalog_field must be present in serialized JSON: {out}"
+        );
+    }
+
+    #[test]
+    fn catalog_operation_without_field_defaults_to_none() {
+        let json = r#"{
+            "operation": "catalog",
+            "signals": ["metrics"],
+            "time_range": {"from": "now-24h", "to": "now"}
+        }"#;
+        let ir: NlqIr = serde_json::from_str(json).expect("deserialization failed");
+        assert_eq!(ir.operation, NlqOperation::Catalog);
+        assert!(
+            ir.catalog_field.is_none(),
+            "catalog_field must default to None when omitted"
+        );
+    }
+
+    #[test]
+    fn catalog_field_absent_does_not_serialize() {
+        let json = r#"{
+            "operation": "catalog",
+            "signals": ["metrics"],
+            "time_range": {"from": "now-24h", "to": "now"}
+        }"#;
+        let ir: NlqIr = serde_json::from_str(json).unwrap();
+        assert!(ir.catalog_field.is_none());
+        let out = serde_json::to_string(&ir).unwrap();
+        assert!(
+            !out.contains("catalog_field"),
+            "catalog_field must be absent when None: {out}"
         );
     }
 }

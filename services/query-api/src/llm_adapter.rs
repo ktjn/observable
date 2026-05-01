@@ -26,7 +26,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use domain::{NlqFilter, NlqFilterOp, NlqIr, VisualizationFrame};
+use domain::{NlqFilter, NlqFilterOp, NlqIr, NlqOperation, VisualizationFrame};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -187,15 +187,22 @@ pub enum NlqQueryResponse {
         reason: String,
         raw_llm_response: String,
     },
+    /// Self-description response: the assistant describes its own capabilities.
+    /// No MCP call is needed — the hint is assembled server-side.
+    Capabilities {
+        hint: String,
+    },
 }
 
 // ── LLM response discriminated union ─────────────────────────────────────────
 
 /// Intermediate parsed form of the raw LLM JSON string.
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum NlqIrOrDecline {
     Ir(NlqIr),
     Decline { reason: String },
+    Capabilities,
 }
 
 // ── Server-side deny gate ─────────────────────────────────────────────────────
@@ -274,7 +281,7 @@ observability platform uses to query time-series data.
 
 ## Output format
 
-Respond with JSON only. Use EXACTLY one of these two schemas:
+Respond with JSON only. Use EXACTLY one of these three schemas:
 
 If you can answer the question:
 {"type": "ir", "ir": <NlqIr object>}
@@ -283,10 +290,15 @@ If the question is outside scope (billing, SLA evidence, regulatory compliance, 
 reconciliation) or you cannot produce a valid IR:
 {"type": "decline", "reason": "<brief explanation>"}
 
+If the user asks about your own capabilities ("what can you query", "what operations",
+"describe yourself", "what can I ask", "what metrics are available", "how do I use you"):
+{"type": "capabilities"}
+Do not attempt to generate an IR for these meta-questions.
+
 ## NlqIr schema
 
 {
-  "operation": "timeseries" | "rate" | "irate" | "increase" | "histogram" | "topk" | "table" | "distribution",
+  "operation": "timeseries" | "rate" | "irate" | "increase" | "histogram" | "topk" | "table" | "distribution" | "catalog",
   "signals": ["metrics"],
   "metric": "<metric_name_from_schema_below>",
   "window": "5m" | null,
@@ -295,7 +307,8 @@ reconciliation) or you cannot produce a valid IR:
   "resolution": "1m" | "5m" | "1h" | null,
   "time_range": {"from": "now-1h", "to": "now"},
   "visualization_hint": "timeseries" | "histogram" | "heatmap" | "table" | "topk" | "flamegraph" | "distribution" | null,
-  "percentiles": ["p99"] | ["p75","p95","p99","average","median"] | null
+  "percentiles": ["p99"] | ["p75","p95","p99","average","median"] | null,
+  "catalog_field": "service_name" | "environment" | "metric_name" | "<any_label_key>" | null
 }
 
 IMPORTANT — the `signals` field is a signal CATEGORY, not the metric name.
@@ -312,6 +325,10 @@ The metric name goes in the `metric` field, never in `signals`.
 - topk: top-N series by average value
 - table: raw point scan, most recent 1000 rows
 - distribution: compute only the stats the user asked for
+- **catalog**: Enumerate distinct observable entities (metadata). Use when the user asks "list X", "what X exist?", "how many X?", "which X does Y have?". Set `catalog_field` to the dimension name: "service_name", "environment", "metric_name", or any label key like "pod", "region", "namespace". Does NOT require a `metric` field.
+  Example: "list all services" → {"operation":"catalog","signals":["metrics"],"catalog_field":"service_name","filters":[],"time_range":{"from":"now-24h","to":"now"}}
+  Example: "what pods does checkout use?" → {"operation":"catalog","signals":["metrics"],"catalog_field":"pod","filters":[{"field":"service_name","op":"=","value":"checkout"}],"time_range":{"from":"now-24h","to":"now"}}
+  Example: "what metrics does payments emit?" → {"operation":"catalog","signals":["metrics"],"catalog_field":"metric_name","filters":[{"field":"service_name","op":"=","value":"payments"}],"time_range":{"from":"now-24h","to":"now"}}
 
 ## `percentiles` field (for distribution operation only)
 
@@ -381,6 +398,37 @@ You MUST emit {"type": "decline", ...} for questions involving:
     prompt
 }
 
+// ── Capabilities hint ─────────────────────────────────────────────────────────
+
+/// Builds a static capabilities description. Assembled server-side — no LLM or DB call needed.
+fn build_capabilities_hint() -> String {
+    r#"Observable NLQ supports the following operations:
+
+**Operations:**
+- timeseries  — gauge average over time buckets
+- rate        — per-second rate of a counter (reset-aware)
+- irate       — instantaneous rate from two most recent samples
+- increase    — total counter increase over a window
+- histogram   — bucket distribution (for histogram metrics)
+- topk        — top-N series by average value
+- table       — raw point scan (most recent 1000 rows)
+- distribution — compute specific percentiles (p50, p75, p95, p99, median, average, min, max)
+- catalog     — list distinct values of a dimension (service_name, environment, metric_name, or any label)
+
+**Filters:** =  !=  >  >=  <  <=  =~  !~
+**Time range syntax:** relative (now-1h, now-30m, now-7d) or ISO-8601 timestamps
+
+**Example questions:**
+- "p99 latency for checkout over the last hour"
+- "request rate for payments, grouped by pod"
+- "list all services"
+- "what metrics does checkout emit?"
+- "top 10 services by CPU usage"
+- "error rate for all services in production over last 24 hours"
+
+Advisory only: results are approximate and must not be used for billing, SLA enforcement, or regulatory compliance."#.into()
+}
+
 // ── Parse LLM response ────────────────────────────────────────────────────────
 
 /// Normalises the `signals` array in the raw LLM JSON before serde deserialization.
@@ -433,6 +481,7 @@ pub(crate) fn parse_llm_response(json: &str) -> Result<NlqIrOrDecline, LlmAdapte
                 .to_string();
             Ok(NlqIrOrDecline::Decline { reason })
         }
+        Some("capabilities") => Ok(NlqIrOrDecline::Capabilities),
         other => Err(LlmAdapterError::InvalidResponse(format!(
             "unexpected type field: {other:?}"
         ))),
@@ -520,6 +569,7 @@ pub async fn run_nlq_pipeline(
                 parsed_type = match &p {
                     NlqIrOrDecline::Ir(_) => "ir",
                     NlqIrOrDecline::Decline { .. } => "decline",
+                    NlqIrOrDecline::Capabilities => "capabilities",
                 },
                 "NLQ LLM response parsed"
             );
@@ -543,7 +593,7 @@ pub async fn run_nlq_pipeline(
         Err(e) => return Err(e),
     };
 
-    // 6. Handle decline from LLM
+    // 6. Handle decline or capabilities from LLM
     let mut ir = match parsed {
         NlqIrOrDecline::Decline { reason } => {
             tracing::info!(
@@ -555,6 +605,16 @@ pub async fn run_nlq_pipeline(
             );
             return Ok(NlqQueryResponse::Decline { reason });
         }
+        NlqIrOrDecline::Capabilities => {
+            tracing::info!(
+                tenant_id = %tenant_id,
+                question = %question_preview,
+                "NLQ capabilities short-circuit"
+            );
+            return Ok(NlqQueryResponse::Capabilities {
+                hint: build_capabilities_hint(),
+            });
+        }
         NlqIrOrDecline::Ir(ir) => ir,
     };
 
@@ -563,8 +623,8 @@ pub async fn run_nlq_pipeline(
         enforce_service_scope(&mut ir, svc);
     }
 
-    // 8. Validate: only metrics signals are supported in Step 6
-    if ir.metric.is_none() {
+    // 8. Validate: metric is required for non-catalog operations
+    if ir.metric.is_none() && ir.operation != NlqOperation::Catalog {
         tracing::info!(
             tenant_id = %tenant_id,
             question = %question_preview,
@@ -756,6 +816,7 @@ mod tests {
             },
             visualization_hint: None,
             percentiles: None,
+            catalog_field: None,
         }
     }
 
@@ -807,6 +868,7 @@ mod tests {
                 assert_eq!(parsed_ir.metric.as_deref(), Some("latency_ms"));
             }
             NlqIrOrDecline::Decline { .. } => panic!("expected Ir, got Decline"),
+            NlqIrOrDecline::Capabilities => panic!("expected Ir, got Capabilities"),
         }
     }
 
@@ -818,6 +880,7 @@ mod tests {
                 assert!(reason.contains("billing"));
             }
             NlqIrOrDecline::Ir(_) => panic!("expected Decline, got Ir"),
+            NlqIrOrDecline::Capabilities => panic!("expected Decline, got Capabilities"),
         }
     }
 
@@ -889,6 +952,7 @@ mod tests {
                 assert_eq!(ir.signals, vec![NlqSignal::Metrics]);
             }
             NlqIrOrDecline::Decline { .. } => panic!("expected Ir, got Decline"),
+            NlqIrOrDecline::Capabilities => panic!("expected Ir, got Capabilities"),
         }
     }
 
@@ -900,6 +964,7 @@ mod tests {
                 assert_eq!(ir.signals, vec![NlqSignal::Metrics]);
             }
             NlqIrOrDecline::Decline { .. } => panic!("expected Ir, got Decline"),
+            NlqIrOrDecline::Capabilities => panic!("expected Ir, got Capabilities"),
         }
     }
 
@@ -924,6 +989,7 @@ mod tests {
                 assert_eq!(ir.signals, vec![NlqSignal::Metrics]);
             }
             NlqIrOrDecline::Decline { .. } => panic!("expected Ir, got Decline"),
+            NlqIrOrDecline::Capabilities => panic!("expected Ir, got Capabilities"),
         }
     }
 
@@ -940,6 +1006,7 @@ mod tests {
                 assert_eq!(ir.signals.len(), 3);
             }
             NlqIrOrDecline::Decline { .. } => panic!("expected Ir, got Decline"),
+            NlqIrOrDecline::Capabilities => panic!("expected Ir, got Capabilities"),
         }
     }
 
@@ -1049,5 +1116,34 @@ mod tests {
         let caller = MockLlmCaller::with_raw("not json");
         let raw = caller.call("system", "question").await.unwrap();
         assert!(parse_llm_response(&raw).is_err());
+    }
+
+    // ── capabilities ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_capabilities_response_returns_capabilities_variant() {
+        let json = r#"{"type": "capabilities"}"#;
+        match parse_llm_response(json).unwrap() {
+            NlqIrOrDecline::Capabilities => {}
+            other => panic!("expected Capabilities, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn build_capabilities_hint_contains_operations() {
+        let hint = build_capabilities_hint();
+        assert!(hint.contains("timeseries"), "hint must list timeseries");
+        assert!(hint.contains("catalog"), "hint must list catalog");
+        assert!(hint.contains("distribution"), "hint must list distribution");
+        assert!(hint.contains("billing"), "hint must include advisory note");
+    }
+
+    #[test]
+    fn system_prompt_includes_capabilities_instruction() {
+        let prompt = build_system_prompt(&[], None);
+        assert!(
+            prompt.contains("capabilities"),
+            "system prompt must reference capabilities type"
+        );
     }
 }

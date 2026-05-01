@@ -52,7 +52,16 @@ export interface NlqInvalidResponse {
   raw_llm_response: string;
 }
 
-export type NlqResponse = NlqFrameResponse | NlqDeclineResponse | NlqInvalidResponse;
+export interface NlqCapabilitiesResponse {
+  type: "capabilities";
+  hint: string;
+}
+
+export type NlqResponse =
+  | NlqFrameResponse
+  | NlqDeclineResponse
+  | NlqInvalidResponse
+  | NlqCapabilitiesResponse;
 
 // ── API function ──────────────────────────────────────────────────────────────
 
