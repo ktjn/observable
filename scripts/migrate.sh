@@ -1,4 +1,6 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 # Apply ClickHouse, PostgreSQL, and Redpanda migrations/setup
-docker compose up clickhouse-setup postgres-setup redpanda-setup
+docker compose run --rm clickhouse-setup
+docker compose run --rm postgres-setup
+docker compose run --rm redpanda-setup

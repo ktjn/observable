@@ -1,5 +1,5 @@
 ALTER TABLE api_keys
-    ADD COLUMN role TEXT NOT NULL DEFAULT 'member'
+    ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'member'
         CHECK (role IN ('viewer', 'member', 'admin'));
 
 -- Seed a viewer-role dev key: value = "dev-viewer-key-0000"

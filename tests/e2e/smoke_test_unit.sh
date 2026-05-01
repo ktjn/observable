@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SMOKE_SCRIPT="$SCRIPT_DIR/smoke_test.sh"
 POSTGRES_MIGRATIONS_DIR="$SCRIPT_DIR/../../migrations/postgres"
+CLICKHOUSE_MIGRATIONS_DIR="$SCRIPT_DIR/../../migrations/clickhouse"
+MIGRATE_SCRIPT="$SCRIPT_DIR/../../scripts/migrate.sh"
 
 assert_eq() {
   local expected="$1"
@@ -138,6 +140,46 @@ test_postgres_migrations_seed_local_setup() {
   fi
 }
 
+test_postgres_role_migration_is_rerunnable() {
+  local role_migration="$POSTGRES_MIGRATIONS_DIR/006_add_role_to_api_keys.sql"
+
+  if ! grep -q "ADD COLUMN IF NOT EXISTS role" "$role_migration"; then
+    echo "FAIL: api_keys role migration must be rerunnable for local setup volumes"
+    exit 1
+  fi
+}
+
+test_clickhouse_nanosecond_ttl_uses_datetime_cast() {
+  local migration="$CLICKHOUSE_MIGRATIONS_DIR/004_create_span_events.sql"
+
+  if grep -q "TTL fromUnixTimestamp64Nano" "$migration"; then
+    echo "FAIL: span_events TTL must cast DateTime64 to DateTime for ClickHouse 24.3"
+    exit 1
+  fi
+
+  if ! grep -q "TTL toDateTime(fromUnixTimestamp64Nano(timestamp_unix_nano)) + INTERVAL 14 DAY" "$migration"; then
+    echo "FAIL: span_events TTL DateTime cast is missing"
+    exit 1
+  fi
+}
+
+test_migrate_script_propagates_setup_failures() {
+  if grep -q "docker compose up clickhouse-setup postgres-setup redpanda-setup" "$MIGRATE_SCRIPT"; then
+    echo "FAIL: migrate.sh must not use plain docker compose up because setup container failures can be masked"
+    exit 1
+  fi
+
+  if ! grep -q "docker compose run --rm clickhouse-setup" "$MIGRATE_SCRIPT"; then
+    echo "FAIL: migrate.sh must run clickhouse-setup with an exit code checked by set -e"
+    exit 1
+  fi
+
+  if ! grep -q "docker compose run --rm postgres-setup" "$MIGRATE_SCRIPT"; then
+    echo "FAIL: migrate.sh must run postgres-setup with an exit code checked by set -e"
+    exit 1
+  fi
+}
+
 test_send_trace_until_queryable_retries_ingest() {
   local output
   output="$(
@@ -175,6 +217,9 @@ run_test "retries until rows exist" test_wait_for_json_count_retries_until_rows_
 run_test "checks expected HTTP status" test_assert_http_status_checks_expected_code
 run_test "local defaults match seeded setup" test_local_smoke_defaults_match_seeded_setup
 run_test "postgres migrations seed local setup" test_postgres_migrations_seed_local_setup
+run_test "postgres role migration is rerunnable" test_postgres_role_migration_is_rerunnable
+run_test "clickhouse nanosecond TTL uses DateTime cast" test_clickhouse_nanosecond_ttl_uses_datetime_cast
+run_test "migrate script propagates setup failures" test_migrate_script_propagates_setup_failures
 run_test "retries trace ingest" test_send_trace_until_queryable_retries_ingest
 
 echo "PASS: smoke_test polling helper"

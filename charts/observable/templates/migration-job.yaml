@@ -46,7 +46,7 @@ spec:
               set -euo pipefail
               for f in /migrations/postgres/*.sql; do
                 echo "Applying PostgreSQL migration: $f"
-                psql -f "$f"
+                psql -v ON_ERROR_STOP=1 -f "$f"
               done
               echo "PostgreSQL migrations complete."
           env:
