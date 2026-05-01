@@ -445,6 +445,9 @@ mod tests {
             service: Some("checkout".into()),
             limit: Some(10),
             facets: None,
+            from: None,
+            to: None,
+            lookback_minutes: None,
         };
 
         let plan = planner.plan_trace_search(&params);
@@ -470,6 +473,9 @@ mod tests {
             service: None,
             limit: Some(900),
             facets: None,
+            from: None,
+            to: None,
+            lookback_minutes: None,
         };
 
         let plan = planner.plan_trace_search(&params);

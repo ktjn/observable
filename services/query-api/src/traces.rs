@@ -493,6 +493,9 @@ mod tests {
                 service,
                 limit: Some(10),
                 facets: None,
+                from: None,
+                to: None,
+                lookback_minutes: None,
             };
             let plan = planner.plan_trace_search(&params);
             assert!(
