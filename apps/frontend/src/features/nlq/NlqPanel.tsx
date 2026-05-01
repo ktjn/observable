@@ -91,6 +91,7 @@ export function NlqPanel({ serviceName, placeholder }: Props) {
             <DeclineMessage reason={state.response.reason} />
           ) : state.response.type === "invalid_response" ? (
             <InvalidResponsePanel
+              question={state.question}
               reason={state.response.reason}
               rawLlmResponse={state.response.raw_llm_response}
             />
@@ -122,9 +123,11 @@ function DeclineMessage({ reason }: { reason: string }) {
 // ── Invalid LLM response ──────────────────────────────────────────────────────
 
 function InvalidResponsePanel({
+  question,
   reason,
   rawLlmResponse,
 }: {
+  question: string;
   reason: string;
   rawLlmResponse: string;
 }) {
@@ -134,6 +137,9 @@ function InvalidResponsePanel({
       data-testid="nlq-invalid-response"
     >
       <p className="font-medium">Could not interpret the LLM response</p>
+      <p className="mt-1 text-[var(--text-muted)]">
+        Query: <span className="italic">{question}</span>
+      </p>
       <p className="mt-1 text-[var(--text-muted)]">{reason}</p>
       <details className="mt-2">
         <summary className="cursor-pointer select-none text-[var(--text-muted)] hover:text-[var(--text-strong)]">
