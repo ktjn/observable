@@ -148,6 +148,7 @@ mod tests {
             percentiles: None,
             catalog_field: None,
             limit: None,
+            query: None,
         }
     }
 

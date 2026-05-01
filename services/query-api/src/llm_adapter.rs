@@ -28,7 +28,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use domain::{NlqFilter, NlqFilterOp, NlqIr, NlqOperation, VisualizationFrame};
+use domain::{NlqFilter, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, VisualizationFrame};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -330,8 +330,9 @@ Do not attempt to generate an IR for these meta-questions.
 
 {
   "operation": "timeseries" | "rate" | "irate" | "increase" | "histogram" | "topk" | "table" | "distribution" | "catalog",
-  "signals": ["metrics"],
-  "metric": "<metric_name_from_schema_below>",
+  "signals": ["metrics"] | ["logs"],
+  "metric": "<metric_name_from_schema_below>" | null,
+  "query": "<free_text_search_term>" | null,
   "window": "5m" | null,
   "filters": [{"field": "<field>", "op": "=" | "!=" | ">" | ">=" | "<" | "<=" | "=~" | "!~", "value": "<val>"}],
   "group_by": ["<field>"],
@@ -345,6 +346,7 @@ Do not attempt to generate an IR for these meta-questions.
 
 IMPORTANT — the `signals` field is a signal CATEGORY, not the metric name.
 It MUST be one of: "metrics", "traces", or "logs". For metric questions always use ["metrics"].
+For log search questions always use ["logs"].
 The metric name goes in the `metric` field, never in `signals`.
 
 ## Operation guide
@@ -388,6 +390,24 @@ The metric name goes in the `metric` field, never in `signals`.
 - "request latency over the last hour" → timeseries (no specific stat named, wants a chart)
 - "latency over time" / "show me a graph of latency" / "latency trend" → timeseries
 - "how has latency changed" / "request duration" (no stat) → timeseries
+
+## Log search (signals: ["logs"])
+
+When the user asks about logs, log entries, or searching log content, use `signals: ["logs"]` with `operation: "table"`.
+- Set `metric` to null (logs have no metric name)
+- Set `query` to the text the user wants to find in log bodies (case-insensitive substring match)
+- Use `filters` for structured fields: `service_name`, `severity_text` (INFO/WARN/ERROR), `environment`, `trace_id`, `span_id`
+- Set appropriate `time_range`
+
+**Log search examples:**
+- "search logs for 'HTTP Request' last 3 hours" → {"operation":"table","signals":["logs"],"metric":null,"query":"HTTP Request","filters":[],"time_range":{"from":"now-3h","to":"now"},"visualization_hint":"table"}
+- "show error logs from checkout service" → {"operation":"table","signals":["logs"],"metric":null,"query":null,"filters":[{"field":"service_name","op":"=","value":"checkout"},{"field":"severity_text","op":"=","value":"ERROR"}],"time_range":{"from":"now-1h","to":"now"},"visualization_hint":"table"}
+- "logs containing 'timeout' in the last 30 minutes" → {"operation":"table","signals":["logs"],"metric":null,"query":"timeout","filters":[],"time_range":{"from":"now-30m","to":"now"},"visualization_hint":"table"}
+
+**Log query rules:**
+- ALWAYS use `signals: ["logs"]` and `operation: "table"` for log queries
+- `query` is the free-text body search term; omit or set null if no text search is needed
+- `metric`, `window`, `resolution`, `group_by`, `percentiles`, `catalog_field`, `limit` must all be null for log queries
 
 **Filter rules — CRITICAL:**
 - NEVER add a filter with an empty string value (e.g. service_name = ""). If you don't know the value, OMIT the filter entirely.
@@ -448,7 +468,8 @@ You MUST emit {"type": "decline", ...} for questions that **explicitly** involve
 **NEVER decline operational or observability questions.** The following are always safe to answer:
 - "list all services", "what metrics does X emit?", "what environments exist?" → catalog
 - "show latency", "p95 request duration", "average CPU usage" → distribution/timeseries
-- "top services by error rate", "show recent logs" → topk/table
+- "top services by error rate" → topk
+- "show recent logs", "search logs for X" → table with signals:["logs"]
 When in doubt, produce an IR. Only decline when the question **explicitly** mentions billing, SLA, or regulatory compliance.
 
 ## Available metrics (schema_complete only)
@@ -1055,8 +1076,9 @@ pub async fn run_nlq_pipeline(
         enforce_service_scope(&mut ir, svc);
     }
 
-    // 8. Validate: metric is required for non-catalog operations
-    if ir.metric.is_none() && ir.operation != NlqOperation::Catalog {
+    // 8. Validate: metric is required for non-catalog, non-log operations
+    let is_log_query = ir.signals == vec![NlqSignal::Logs];
+    if ir.metric.is_none() && ir.operation != NlqOperation::Catalog && !is_log_query {
         tracing::info!(
             tenant_id = %tenant_id,
             question = %question_preview,
@@ -1070,28 +1092,23 @@ pub async fn run_nlq_pipeline(
         });
     }
 
-    // 8b. Fuzzy metric resolution — when the LLM hallucinates a metric name not in the
-    // schema, try to match it to a known metric before failing with "not found in
-    // schema_entries". This is cheaper than a repair loop round-trip and covers the most
-    // common small-LLM failure mode (e.g. "latency" → "request_duration_ms").
-    //
-    // Note: `metrics` only contains schema_complete entries (for the prompt), but
-    // execute_mcp_query resolves against ALL schema_entries. We fetch the full
-    // field_name list here to ensure fuzzy resolution covers all registered metrics.
-    if let Some(ref llm_metric) = ir.metric {
-        let all_fields = crate::mcp_tools::list_signal_fields(db, tenant_id, "metrics")
-            .await
-            .unwrap_or_default();
-        let known_names: Vec<&str> = all_fields.iter().map(|m| m.field_name.as_str()).collect();
-        if !known_names.iter().any(|k| k == &llm_metric.as_str()) {
-            if let Some(resolved) = fuzzy_resolve_metric(llm_metric, &known_names) {
-                tracing::info!(
-                    tenant_id = %tenant_id,
-                    original = %llm_metric,
-                    resolved = %resolved,
-                    "NLQ fuzzy metric resolution applied"
-                );
-                ir.metric = Some(resolved.to_string());
+    // 8b. Fuzzy metric resolution — skip for log queries (no metric to resolve).
+    if !is_log_query {
+        if let Some(ref llm_metric) = ir.metric {
+            let all_fields = crate::mcp_tools::list_signal_fields(db, tenant_id, "metrics")
+                .await
+                .unwrap_or_default();
+            let known_names: Vec<&str> = all_fields.iter().map(|m| m.field_name.as_str()).collect();
+            if !known_names.iter().any(|k| k == &llm_metric.as_str()) {
+                if let Some(resolved) = fuzzy_resolve_metric(llm_metric, &known_names) {
+                    tracing::info!(
+                        tenant_id = %tenant_id,
+                        original = %llm_metric,
+                        resolved = %resolved,
+                        "NLQ fuzzy metric resolution applied"
+                    );
+                    ir.metric = Some(resolved.to_string());
+                }
             }
         }
     }
@@ -1334,6 +1351,7 @@ mod tests {
             percentiles: None,
             catalog_field: None,
             limit: None,
+            query: None,
         }
     }
 

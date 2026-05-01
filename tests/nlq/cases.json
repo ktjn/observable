@@ -518,5 +518,39 @@
       "catalog"
     ],
     "notes": "Tests catalog with catalog_field=metric_name and no service scope. Avoids \"tenant\" wording which confuses LLM into a billing decline."
+  },
+  {
+    "id": "log-search-http",
+    "description": "Search logs for rows containing HTTP Request in the last 3 hours",
+    "query": "search logs for rows containing \"HTTP Request\" the last three hours",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "table",
+      "data_non_empty": true,
+      "fields": [
+        "ts",
+        "body",
+        "service_name"
+      ],
+      "value_checks": [],
+      "ir_field_checks": [
+        {
+          "field": "signals",
+          "op": "contains",
+          "value": "logs"
+        },
+        {
+          "field": "query",
+          "op": "not_empty",
+          "value": null
+        }
+      ]
+    },
+    "tags": [
+      "logs",
+      "search"
+    ],
+    "notes": "First log search test case \u2014 verifies end-to-end NLQ log query path"
   }
 ]

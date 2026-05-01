@@ -547,6 +547,92 @@ pub fn escape_string_value(s: &str) -> String {
     s.replace('\\', "\\\\").replace('\'', "\\'")
 }
 
+// ── Log query support ─────────────────────────────────────────────────────────
+
+/// Context for generating log search SQL.
+pub struct LogSqlContext<'a> {
+    pub tenant_id: Uuid,
+    pub ir: &'a NlqIr,
+}
+
+/// Generates a ClickHouse SQL query for log search.
+///
+/// Uses `positionCaseInsensitive(body, '<term>') > 0` for substring matching
+/// (avoids `LIKE` wildcard pitfalls with `%` and `_` in user input).
+/// Filters map to direct log columns or JSON attribute extraction.
+pub fn generate_log_sql(ctx: &LogSqlContext) -> Result<String, SqlTemplateError> {
+    let time_clause = build_log_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
+    let filter_clause = build_log_filter_clauses(&ctx.ir.filters);
+    let query_clause = match &ctx.ir.query {
+        Some(q) if !q.is_empty() => {
+            format!(
+                "\n  AND positionCaseInsensitive(body, '{}') > 0",
+                escape_string_value(q)
+            )
+        }
+        _ => String::new(),
+    };
+
+    Ok(format!(
+        "SELECT\n    \
+             fromUnixTimestamp64Nano(timestamp_unix_nano) AS ts,\n    \
+             body,\n    \
+             service_name,\n    \
+             severity_text,\n    \
+             trace_id,\n    \
+             span_id\n\
+         FROM observable.logs\n\
+         WHERE tenant_id = '{tenant_id}'{query_clause}{filter_clause}{time_clause}\n\
+         ORDER BY timestamp_unix_nano DESC\n\
+         LIMIT 200",
+        tenant_id = ctx.tenant_id,
+        query_clause = query_clause,
+        filter_clause = filter_clause,
+        time_clause = time_clause,
+    ))
+}
+
+/// Builds time-range clause for log queries (uses `timestamp_unix_nano` column).
+fn build_log_time_range_clause(from: &str, to: &str) -> Result<String, SqlTemplateError> {
+    let from_expr = parse_time_expr(from)?;
+    let to_expr = parse_time_expr(to)?;
+    Ok(format!(
+        "\n  AND fromUnixTimestamp64Nano(timestamp_unix_nano) >= {from_expr}\
+         \n  AND fromUnixTimestamp64Nano(timestamp_unix_nano) <= {to_expr}"
+    ))
+}
+
+/// Translates a filter field name into a ClickHouse column reference for the logs table.
+fn map_log_filter_field(field: &str) -> String {
+    match field {
+        "service_name" | "service" => "service_name".into(),
+        "severity_text" | "severity" | "level" => "severity_text".into(),
+        "environment" | "env" => "environment".into(),
+        "trace_id" => "trace_id".into(),
+        "span_id" => "span_id".into(),
+        "body" => "body".into(),
+        _ => format!(
+            "JSONExtractString(attributes, '{}')",
+            escape_string_value(field)
+        ),
+    }
+}
+
+/// Builds filter clauses for log queries.
+fn build_log_filter_clauses(filters: &[NlqFilter]) -> String {
+    if filters.is_empty() {
+        return String::new();
+    }
+    filters
+        .iter()
+        .map(|f| {
+            let col = map_log_filter_field(&f.field);
+            format!("\n  AND {}", build_filter_expr(&col, f.op, &f.value))
+        })
+        .collect::<Vec<_>>()
+        .join("")
+}
+
 // ── Private helpers ───────────────────────────────────────────────────────────
 
 /// Parses `"5m"` into `(5u64, "m")`, `"2h"` into `(2u64, "h")`, etc.
@@ -691,6 +777,7 @@ mod tests {
             percentiles: None,
             catalog_field: None,
             limit: None,
+            query: None,
         }
     }
 
@@ -1163,6 +1250,7 @@ mod tests {
             percentiles: None,
             catalog_field: None,
             limit: None,
+            query: None,
         }
     }
 
@@ -1246,6 +1334,126 @@ mod tests {
         assert!(
             sql.contains(&tenant_str),
             "catalog SQL must contain tenant_id: {sql}"
+        );
+    }
+
+    // ── Log SQL tests ─────────────────────────────────────────────────────────
+
+    fn log_ir(query: Option<&str>) -> NlqIr {
+        NlqIr {
+            operation: NlqOperation::Table,
+            signals: vec![NlqSignal::Logs],
+            metric: None,
+            window: None,
+            filters: vec![],
+            group_by: vec![],
+            resolution: None,
+            time_range: NlqTimeRange {
+                from: "now-3h".into(),
+                to: "now".into(),
+            },
+            visualization_hint: None,
+            percentiles: None,
+            catalog_field: None,
+            limit: None,
+            query: query.map(|s| s.into()),
+        }
+    }
+
+    #[test]
+    fn log_sql_basic_query() {
+        let ir = log_ir(Some("HTTP Request"));
+        let ctx = LogSqlContext {
+            tenant_id: TEST_TENANT,
+            ir: &ir,
+        };
+        let sql = generate_log_sql(&ctx).unwrap();
+        assert!(
+            sql.contains("observable.logs"),
+            "must query logs table: {sql}"
+        );
+        assert!(
+            sql.contains("positionCaseInsensitive(body, 'HTTP Request') > 0"),
+            "must use positionCaseInsensitive for body search: {sql}"
+        );
+        assert!(
+            sql.contains(&format!("'{TEST_TENANT}'")),
+            "must scope to tenant: {sql}"
+        );
+        assert!(sql.contains("LIMIT 200"), "must have limit: {sql}");
+        assert!(
+            sql.contains("ORDER BY timestamp_unix_nano DESC"),
+            "must order by time: {sql}"
+        );
+    }
+
+    #[test]
+    fn log_sql_no_query_term() {
+        let ir = log_ir(None);
+        let ctx = LogSqlContext {
+            tenant_id: TEST_TENANT,
+            ir: &ir,
+        };
+        let sql = generate_log_sql(&ctx).unwrap();
+        assert!(
+            !sql.contains("positionCaseInsensitive"),
+            "no body search when query is None: {sql}"
+        );
+        assert!(
+            sql.contains("observable.logs"),
+            "must query logs table: {sql}"
+        );
+    }
+
+    #[test]
+    fn log_sql_with_service_filter() {
+        let mut ir = log_ir(Some("timeout"));
+        ir.filters = vec![NlqFilter {
+            field: "service_name".into(),
+            op: NlqFilterOp::Eq,
+            value: "checkout".into(),
+        }];
+        let ctx = LogSqlContext {
+            tenant_id: TEST_TENANT,
+            ir: &ir,
+        };
+        let sql = generate_log_sql(&ctx).unwrap();
+        assert!(
+            sql.contains("service_name = 'checkout'"),
+            "must filter by service_name: {sql}"
+        );
+    }
+
+    #[test]
+    fn log_sql_escapes_single_quotes_in_query() {
+        let ir = log_ir(Some("it's a test"));
+        let ctx = LogSqlContext {
+            tenant_id: TEST_TENANT,
+            ir: &ir,
+        };
+        let sql = generate_log_sql(&ctx).unwrap();
+        assert!(
+            sql.contains("it\\'s a test"),
+            "must escape single quotes: {sql}"
+        );
+    }
+
+    #[test]
+    fn log_sql_severity_filter_maps_correctly() {
+        let mut ir = log_ir(None);
+        ir.filters = vec![NlqFilter {
+            field: "severity_text".into(),
+            op: NlqFilterOp::Eq,
+            value: "ERROR".into(),
+        }];
+        let ctx = LogSqlContext {
+            tenant_id: TEST_TENANT,
+            ir: &ir,
+        };
+        let sql = generate_log_sql(&ctx).unwrap();
+        assert!(
+            sql.contains("severity_text = 'ERROR'"),
+            "severity filter must map directly: {sql}"
         );
     }
 }
