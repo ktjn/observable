@@ -55,7 +55,7 @@ export default function TraceSearch() {
   };
 
   return (
-    <section className="page-stack">
+    <section className="page-stack trace-explorer-page">
       <div className="page-header">
         <div>
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
@@ -104,8 +104,12 @@ export default function TraceSearch() {
         )}
       </div>
 
-      <div className="flex items-start gap-3">
-        <FacetSidebar facets={data?.facets} onFacetClick={handleFacetClick} />
+      <div className="flex items-start gap-3 max-[760px]:flex-col">
+        <FacetSidebar
+          facets={data?.facets}
+          onFacetClick={handleFacetClick}
+          ariaLabel="Trace facets"
+        />
 
         <TablePanel className="flex-1">
           {isLoading ? (
@@ -115,7 +119,7 @@ export default function TraceSearch() {
           ) : data?.traces.length === 0 ? (
             <LoadingState>No traces found.</LoadingState>
           ) : (
-            <table>
+            <table aria-label="Trace results">
               <thead>
                 <tr>
                   <th>Trace ID</th>
