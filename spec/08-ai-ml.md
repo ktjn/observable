@@ -51,13 +51,50 @@ NLQ (user) → LLM → NLQ IR → MCP Server → SQL/DataFusion → Visualizatio
 
 **Stage 1 — LLM → NLQ IR**
 
-1. **Intent classification** — the LLM classifies the question into one or more signal types
-   (traces, metrics, logs, events, topology) and time ranges.
-2. **Schema grounding** — the LLM calls MCP server tools (`get_metric_schema`, `list_signal_fields`,
-   `resolve_label_to_column`) to resolve field names and types from the Schema Registry.
-3. **IR generation** — the LLM emits a structured **NLQ IR** (not SQL), capturing operation,
-   metric, filters, grouping, time window, resolution, and visualization hint. The IR is stable
-   and testable independent of the LLM.
+The LLM and the MCP server never communicate directly. The **backend mediates everything**:
+it fetches metadata, builds the prompt, calls the LLM, validates the response, and — when
+necessary — retries with a targeted repair prompt before forwarding the IR to the MCP server.
+
+**Stage 1a — Backend builds the prompt (two layers)**
+
+The system prompt has two layers assembled fresh for every request:
+
+1. **Static instruction layer** (same for every request): the NlqIr JSON schema, the full
+   operation guide with examples of valid and invalid IR, time-range parsing rules, metric
+   selection rules, filter construction rules, visualization hint rules, advisory boundary
+   instructions, and repair-loop instructions.
+
+2. **Dynamic metadata layer** (per-tenant, per-request): the backend fetches live metadata
+   from the MCP server's metadata boundary (`GET /v1/nlq/metadata`) and injects it:
+   - Available metrics (schema-complete entries: name, type, unit, description, sample rate)
+   - Available label keys (top-N distinct keys from the series catalog: `service_name`,
+     `environment`, `pod`, `region`, etc.)
+   - Service scope, if the question is scoped to a specific service
+
+Without this injection the LLM would hallucinate metric names and guess label keys.
+**Metadata injection = LLM's current reality.**
+
+**Stage 1b — LLM generates IR**
+
+The LLM receives the rendered prompt and the user's question. It emits one of:
+- `{"type": "ir", "ir": <NlqIr>}` — a valid NLQ IR
+- `{"type": "decline", "reason": "..."}` — question is out of scope or unanswerable
+- `{"type": "capabilities"}` — user asked a meta-question about the system
+
+The LLM emits IR, never SQL. The IR is stable and testable independent of the LLM.
+
+**Stage 1c — Validation and repair loop**
+
+The backend validates the returned IR structurally. If invalid, it attempts one repair:
+
+1. Backend parses and validates the IR.
+2. If parsing fails or the IR references an unknown metric, **and** the repair budget is not
+   exhausted (`MAX_REPAIR_ATTEMPTS = 1`): backend sends a repair prompt to the LLM containing
+   the original question, the faulty response, and the specific error message.
+3. LLM emits a corrected IR, or declines if it cannot recover.
+4. If the repair also fails, the pipeline returns `InvalidResponse` or `Decline` as appropriate.
+
+This loop is invisible to the user; only the final result is returned.
 
 Example NLQ IR:
 
