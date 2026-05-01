@@ -94,6 +94,8 @@ export function NlqPanel({ serviceName, placeholder }: Props) {
               reason={state.response.reason}
               rawLlmResponse={state.response.raw_llm_response}
             />
+          ) : state.response.type === "capabilities" ? (
+            <CapabilitiesPanel hint={state.response.hint} />
           ) : (
             <FrameResult response={state.response} question={state.question} />
           )}
@@ -144,6 +146,22 @@ function InvalidResponsePanel({
           {rawLlmResponse}
         </pre>
       </details>
+    </div>
+  );
+}
+
+// ── Capabilities ──────────────────────────────────────────────────────────────
+
+function CapabilitiesPanel({ hint }: { hint: string }) {
+  return (
+    <div
+      className="rounded border border-[var(--border)] bg-[var(--bg-subtle)] px-4 py-3 text-sm"
+      data-testid="nlq-capabilities"
+    >
+      <p className="font-medium mb-2">Observable NLQ Capabilities</p>
+      <pre className="whitespace-pre-wrap text-[var(--text-muted)] text-xs font-mono leading-relaxed">
+        {hint}
+      </pre>
     </div>
   );
 }

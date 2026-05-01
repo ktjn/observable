@@ -66,6 +66,7 @@ pub enum SqlTemplateError {
     UnsupportedOperation(String),
     InvalidResolution(String),
     InvalidTimeExpression(String),
+    MissingCatalogField,
 }
 
 impl std::fmt::Display for SqlTemplateError {
@@ -76,6 +77,9 @@ impl std::fmt::Display for SqlTemplateError {
             Self::UnsupportedOperation(op) => write!(f, "unsupported operation: {op}"),
             Self::InvalidResolution(r) => write!(f, "invalid resolution: {r}"),
             Self::InvalidTimeExpression(e) => write!(f, "invalid time expression: {e}"),
+            Self::MissingCatalogField => {
+                write!(f, "catalog_field is required for catalog operations")
+            }
         }
     }
 }
@@ -98,6 +102,7 @@ pub fn generate_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
         NlqOperation::Topk => topk_sql(ctx),
         NlqOperation::Table => table_sql(ctx),
         NlqOperation::Distribution => distribution_sql(ctx),
+        NlqOperation::Catalog => catalog_sql(ctx),
     }
 }
 
@@ -409,6 +414,40 @@ fn distribution_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
     ))
 }
 
+/// Catalog query: enumerate distinct values of a dimension in `observable.metric_series`.
+///
+/// The `metric_series` table is a dimension table (no time column), so no time-range
+/// clause is applied. The column mapping follows `map_filter_field()` — known direct
+/// columns resolve to `ms.<col>`; anything else is extracted from `ms.attributes` via
+/// `JSONExtractString`.
+///
+/// Returns: `value` (the dimension value) + `series_count` (how many series share it),
+/// ordered by `series_count DESC`, limited to 100 rows.
+fn catalog_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
+    let field = ctx
+        .ir
+        .catalog_field
+        .as_deref()
+        .ok_or(SqlTemplateError::MissingCatalogField)?;
+
+    let col_expr = map_filter_field(field);
+    let filters = build_filter_clauses(&ctx.ir.filters);
+
+    Ok(format!(
+        "SELECT\n    \
+             {col_expr} AS value,\n    \
+             count() AS series_count\n\
+         FROM observable.metric_series ms\n\
+         WHERE ms.tenant_id = '{tenant_id}'{filters}\n\
+         GROUP BY value\n\
+         ORDER BY series_count DESC\n\
+         LIMIT 100",
+        col_expr = col_expr,
+        tenant_id = ctx.tenant_id,
+        filters = filters,
+    ))
+}
+
 /// Translates a single percentile/stat name to a ClickHouse SELECT expression.
 /// Returns `None` for unrecognised entries (safe — caller silently skips).
 fn stat_to_sql_expr(stat: &str, val: &str) -> Option<String> {
@@ -646,6 +685,7 @@ mod tests {
             },
             visualization_hint: None,
             percentiles: None,
+            catalog_field: None,
         }
     }
 
@@ -1097,5 +1137,109 @@ mod tests {
     #[test]
     fn escape_no_special_chars_unchanged() {
         assert_eq!(escape_string_value("hello_world"), "hello_world");
+    }
+
+    // ── Catalog ───────────────────────────────────────────────────────────────
+
+    fn catalog_ir() -> NlqIr {
+        NlqIr {
+            operation: NlqOperation::Catalog,
+            signals: vec![NlqSignal::Metrics],
+            metric: None,
+            window: None,
+            filters: vec![],
+            group_by: vec![],
+            resolution: None,
+            time_range: NlqTimeRange {
+                from: "now-24h".into(),
+                to: "now".into(),
+            },
+            visualization_hint: None,
+            percentiles: None,
+            catalog_field: None,
+        }
+    }
+
+    fn catalog_ctx_for<'a>(ir: &'a NlqIr) -> SqlContext<'a> {
+        SqlContext {
+            tenant_id: TEST_TENANT,
+            metric_name: "",
+            metric_type: SchemaMetricType::Unknown,
+            ir,
+        }
+    }
+
+    #[test]
+    fn catalog_sql_service_name() {
+        let mut ir = catalog_ir();
+        ir.catalog_field = Some("service_name".into());
+        let ctx = catalog_ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(
+            sql.contains("ms.service_name AS value"),
+            "service_name column: {sql}"
+        );
+        assert!(
+            sql.contains("FROM observable.metric_series ms"),
+            "must query metric_series: {sql}"
+        );
+        assert!(
+            sql.contains("series_count"),
+            "series_count must be in SELECT: {sql}"
+        );
+    }
+
+    #[test]
+    fn catalog_sql_attribute_field() {
+        let mut ir = catalog_ir();
+        ir.catalog_field = Some("pod".into());
+        let ctx = catalog_ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(
+            sql.contains("JSONExtractString(ms.attributes, 'pod') AS value"),
+            "attribute field must use JSONExtractString: {sql}"
+        );
+    }
+
+    #[test]
+    fn catalog_sql_missing_field() {
+        let ir = catalog_ir(); // catalog_field is None
+        let ctx = catalog_ctx_for(&ir);
+        let result = generate_sql(&ctx);
+        assert_eq!(result, Err(SqlTemplateError::MissingCatalogField));
+    }
+
+    #[test]
+    fn catalog_sql_with_filter() {
+        let mut ir = catalog_ir();
+        ir.catalog_field = Some("metric_name".into());
+        ir.filters.push(NlqFilter {
+            field: "service_name".into(),
+            op: NlqFilterOp::Eq,
+            value: "checkout".into(),
+        });
+        let ctx = catalog_ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        assert!(
+            sql.contains("ms.service_name = 'checkout'"),
+            "filter must appear in SQL: {sql}"
+        );
+        assert!(
+            sql.contains("ms.metric_name AS value"),
+            "metric_name col: {sql}"
+        );
+    }
+
+    #[test]
+    fn catalog_sql_contains_tenant_id() {
+        let mut ir = catalog_ir();
+        ir.catalog_field = Some("environment".into());
+        let ctx = catalog_ctx_for(&ir);
+        let sql = generate_sql(&ctx).unwrap();
+        let tenant_str = format!("'{TEST_TENANT}'");
+        assert!(
+            sql.contains(&tenant_str),
+            "catalog SQL must contain tenant_id: {sql}"
+        );
     }
 }

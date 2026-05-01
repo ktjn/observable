@@ -73,6 +73,11 @@ pub async fn execute_mcp_query(
     tenant_id: Uuid,
     ir: &NlqIr,
 ) -> Result<VisualizationFrame, McpQueryError> {
+    // Catalog operation: query series metadata; no metric or schema lookup needed.
+    if ir.operation == NlqOperation::Catalog {
+        return execute_catalog_query(ch, tenant_id, ir).await;
+    }
+
     // Step 1: Resolve metric name and schema
     let metric_name = ir.metric.as_deref().ok_or(McpQueryError::MissingMetric)?;
 
@@ -132,6 +137,66 @@ pub async fn execute_mcp_query(
         signal_types: ir.signals.clone(),
         sample_rate,
         approximation_statement,
+    })
+}
+
+// ── Catalog query ─────────────────────────────────────────────────────────────
+
+/// Executes a catalog (distinct-values) query against `observable.metric_series`.
+///
+/// No metric schema lookup is required — catalog operations query dimension metadata
+/// directly, not metric time-series points.
+async fn execute_catalog_query(
+    ch: &clickhouse::Client,
+    tenant_id: Uuid,
+    ir: &NlqIr,
+) -> Result<VisualizationFrame, McpQueryError> {
+    let ctx = SqlContext {
+        tenant_id,
+        metric_name: "",
+        metric_type: SchemaMetricType::Unknown,
+        ir,
+    };
+    let sql = generate_sql(&ctx)?;
+
+    tracing::debug!(
+        tenant_id = %tenant_id,
+        catalog_field = ?ir.catalog_field,
+        "MCP executing catalog SQL"
+    );
+
+    let data = execute_query_as_json(ch, &sql).await?;
+
+    let frame_type = VisualizationFrameType::Table;
+    let field_roles = vec![
+        FieldRole {
+            name: "value".into(),
+            role: FieldRoleKind::Label,
+        },
+        FieldRole {
+            name: "series_count".into(),
+            role: FieldRoleKind::Value,
+        },
+    ];
+
+    Ok(VisualizationFrame {
+        frame_type,
+        x_field: Some("value".into()),
+        y_field: Some("series_count".into()),
+        series_field: None,
+        unit: None,
+        suggested_visualization: suggested_panel(&frame_type),
+        field_roles,
+        data,
+        nlq_ir: ir.clone(),
+        source_sql: sql,
+        time_range: ir.time_range.clone(),
+        signal_types: ir.signals.clone(),
+        sample_rate: None,
+        approximation_statement: "Advisory result. Data is not sampled. \
+            This result is approximate and must not be used for billing, \
+            SLA enforcement, or regulatory compliance."
+            .into(),
     })
 }
 
@@ -283,6 +348,7 @@ fn derive_frame_type(ir: &NlqIr) -> VisualizationFrameType {
         NlqOperation::Topk => VisualizationFrameType::Topk,
         NlqOperation::Table => VisualizationFrameType::Table,
         NlqOperation::Distribution => VisualizationFrameType::Distribution,
+        NlqOperation::Catalog => VisualizationFrameType::Table,
     }
 }
 
@@ -435,6 +501,7 @@ mod tests {
             },
             visualization_hint: None,
             percentiles: None,
+            catalog_field: None,
         }
     }
 
