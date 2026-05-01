@@ -305,6 +305,40 @@ def evaluate_case(
                 "detail": detail,
             })
 
+    # Check 6: IR field checks (validate fields in the raw IR, e.g. group_by)
+    # Format: [{"field": "group_by", "op": "contains", "value": "service_name"}]
+    if resp_type == "frame":
+        raw_ir = result_record.get("raw_ir") or {}
+        for ifc in expect.get("ir_field_checks", []):
+            ir_field = ifc.get("field")
+            op = ifc.get("op")
+            expected_val = ifc.get("value")
+            actual_val = raw_ir.get(ir_field)
+            if op == "contains":
+                if isinstance(actual_val, list):
+                    ok = expected_val in actual_val
+                    detail = f"ir.{ir_field} {op} '{expected_val}': actual={actual_val}"
+                elif isinstance(actual_val, str):
+                    ok = expected_val in actual_val
+                    detail = f"ir.{ir_field} contains '{expected_val}': actual='{actual_val}'"
+                else:
+                    ok = False
+                    detail = f"ir.{ir_field} is {type(actual_val).__name__}, expected list/str"
+            elif op == "=":
+                ok = actual_val == expected_val
+                detail = f"ir.{ir_field}={expected_val}: actual={actual_val}"
+            elif op == "not_empty":
+                ok = bool(actual_val)
+                detail = f"ir.{ir_field} not_empty: actual={actual_val}"
+            else:
+                ok = False
+                detail = f"unknown ir_field_check op '{op}'"
+            checks.append({
+                "name": f"ir_field:{ir_field}_{op}_{expected_val}",
+                "passed": ok,
+                "detail": detail,
+            })
+
     result_record["checks"] = checks
     all_passed = all(c["passed"] for c in checks)
     result_record["result"] = "pass" if all_passed else "fail"

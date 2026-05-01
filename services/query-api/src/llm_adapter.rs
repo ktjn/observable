@@ -356,8 +356,10 @@ The metric name goes in the `metric` field, never in `signals`.
     - "list services" → catalog_field: "service_name"
     - "list environments" → catalog_field: "environment"
     - "what metrics does X emit?" → catalog_field: "metric_name" (with filter service_name=X)
+    - "list all metric names" / "list all available metrics" → catalog_field: "metric_name" (no filter)
     - "list pods for X" → catalog_field: "pod" (with filter service_name=X)
   Example: "list all services" → {"type":"ir","ir":{"operation":"catalog","signals":["metrics"],"catalog_field":"service_name","filters":[],"time_range":{"from":"now-24h","to":"now"}}}
+  Example: "list all metric names" → {"type":"ir","ir":{"operation":"catalog","signals":["metrics"],"catalog_field":"metric_name","filters":[],"time_range":{"from":"now-24h","to":"now"}}}
   Example: "what pods does checkout use?" → {"type":"ir","ir":{"operation":"catalog","signals":["metrics"],"catalog_field":"pod","filters":[{"field":"service_name","op":"=","value":"checkout"}],"time_range":{"from":"now-24h","to":"now"}}}
   Example: "what metrics does payments emit?" → {"type":"ir","ir":{"operation":"catalog","signals":["metrics"],"catalog_field":"metric_name","filters":[{"field":"service_name","op":"=","value":"payments"}],"time_range":{"from":"now-24h","to":"now"}}}
 
