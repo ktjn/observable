@@ -1,0 +1,323 @@
+[
+  {
+    "id": "list-services",
+    "description": "Basic catalog query listing all services",
+    "query": "list all services",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "catalog",
+      "data_non_empty": true,
+      "fields": ["service_name"],
+      "value_checks": []
+    },
+    "tags": ["catalog", "regression"],
+    "notes": "Regression from PR #197: previously failed with 'unexpected type field: catalog'"
+  },
+  {
+    "id": "list-metrics-shop-api",
+    "description": "Catalog query for metrics emitted by a specific service",
+    "query": "what metrics does shop-api emit?",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "catalog",
+      "data_non_empty": true,
+      "fields": ["metric_name"],
+      "value_checks": []
+    },
+    "tags": ["catalog"],
+    "notes": null
+  },
+  {
+    "id": "list-environments",
+    "description": "Catalog query for available environments",
+    "query": "what environments exist?",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "catalog",
+      "data_non_empty": false,
+      "fields": [],
+      "value_checks": []
+    },
+    "tags": ["catalog"],
+    "notes": "environment label may or may not be populated in testbench"
+  },
+  {
+    "id": "list-pods-shop-api",
+    "description": "Catalog query for pods used by a service",
+    "query": "what pods does shop-api use?",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "catalog",
+      "data_non_empty": false,
+      "fields": [],
+      "value_checks": []
+    },
+    "tags": ["catalog"],
+    "notes": "pod label availability depends on OTel attributes emitted by testbench"
+  },
+  {
+    "id": "p95-latency-1h",
+    "description": "Single percentile distribution query over 1 hour",
+    "query": "p95 latency for the last hour",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "distribution",
+      "data_non_empty": true,
+      "fields": ["p95"],
+      "value_checks": [
+        {"field": "p95", "op": ">", "value": 0}
+      ]
+    },
+    "tags": ["distribution"],
+    "notes": null
+  },
+  {
+    "id": "p50-p99-latency-shop-api",
+    "description": "Multiple percentiles for a scoped service",
+    "query": "p50 and p99 latency for shop-api",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "distribution",
+      "data_non_empty": true,
+      "fields": ["p50", "p99"],
+      "value_checks": []
+    },
+    "tags": ["distribution"],
+    "notes": null
+  },
+  {
+    "id": "avg-latency-30m",
+    "description": "Average latency over 30 minutes",
+    "query": "average request latency last 30 minutes",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "distribution",
+      "data_non_empty": true,
+      "fields": ["average"],
+      "value_checks": [
+        {"field": "average", "op": ">", "value": 0}
+      ]
+    },
+    "tags": ["distribution"],
+    "notes": null
+  },
+  {
+    "id": "multi-stat-latency",
+    "description": "Multiple stats including percentile and average",
+    "query": "p95, p99 and average latency for shop-api over the last hour",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "distribution",
+      "data_non_empty": true,
+      "fields": ["p95", "p99", "average"],
+      "value_checks": []
+    },
+    "tags": ["distribution"],
+    "notes": null
+  },
+  {
+    "id": "median-and-avg",
+    "description": "Median and average together",
+    "query": "median and average latency last hour",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "distribution",
+      "data_non_empty": true,
+      "fields": ["median", "average"],
+      "value_checks": []
+    },
+    "tags": ["distribution"],
+    "notes": null
+  },
+  {
+    "id": "timeseries-latency",
+    "description": "Latency over time (timeseries)",
+    "query": "request latency over the last hour",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "timeseries",
+      "data_non_empty": true,
+      "fields": [],
+      "value_checks": []
+    },
+    "tags": ["timeseries"],
+    "notes": null
+  },
+  {
+    "id": "timeseries-shop-frontend",
+    "description": "Latency trend for a specific service",
+    "query": "show me shop-frontend latency trend over the last 30 minutes",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "timeseries",
+      "data_non_empty": false,
+      "fields": [],
+      "value_checks": []
+    },
+    "tags": ["timeseries"],
+    "notes": "shop-frontend may have sparse data depending on testbench load"
+  },
+  {
+    "id": "request-rate-1h",
+    "description": "Request rate over 1 hour",
+    "query": "request rate for shop-api last hour",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "rate",
+      "data_non_empty": false,
+      "fields": [],
+      "value_checks": []
+    },
+    "tags": ["rate"],
+    "notes": "rate requires a monotonic counter metric; request_duration_ms is a histogram so this may route to timeseries instead"
+  },
+  {
+    "id": "topk-latency",
+    "description": "Top services by latency",
+    "query": "top 5 services by request duration",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "topk",
+      "data_non_empty": true,
+      "fields": [],
+      "value_checks": []
+    },
+    "tags": ["topk"],
+    "notes": null
+  },
+  {
+    "id": "topk-top3",
+    "description": "Top 3 phrasing",
+    "query": "which 3 services have the highest latency?",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "topk",
+      "data_non_empty": true,
+      "fields": [],
+      "value_checks": []
+    },
+    "tags": ["topk"],
+    "notes": null
+  },
+  {
+    "id": "histogram-latency",
+    "description": "Histogram bucket distribution",
+    "query": "histogram of request_duration_ms",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "histogram",
+      "data_non_empty": true,
+      "fields": ["bound", "count"],
+      "value_checks": []
+    },
+    "tags": ["histogram", "regression"],
+    "notes": "Regression from PR #196: testbench was emitting gauge instead of histogram instrument"
+  },
+  {
+    "id": "table-recent",
+    "description": "Raw table of recent metric points",
+    "query": "show recent metric points for shop-api",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "table",
+      "data_non_empty": true,
+      "fields": [],
+      "value_checks": []
+    },
+    "tags": ["table"],
+    "notes": null
+  },
+  {
+    "id": "capabilities-what-can-you-do",
+    "description": "Capabilities self-description",
+    "query": "what can you query?",
+    "service_name": null,
+    "expect": {
+      "type": "capabilities",
+      "operation": null,
+      "data_non_empty": false,
+      "fields": [],
+      "value_checks": []
+    },
+    "tags": ["capabilities"],
+    "notes": null
+  },
+  {
+    "id": "capabilities-describe",
+    "description": "Another phrasing of capabilities query",
+    "query": "what operations do you support?",
+    "service_name": null,
+    "expect": {
+      "type": "capabilities",
+      "operation": null,
+      "data_non_empty": false,
+      "fields": [],
+      "value_checks": []
+    },
+    "tags": ["capabilities"],
+    "notes": null
+  },
+  {
+    "id": "decline-sla",
+    "description": "SLA evidence query should be declined",
+    "query": "show SLA compliance for shop-api over the last month",
+    "service_name": null,
+    "expect": {
+      "type": "decline",
+      "operation": null,
+      "data_non_empty": false,
+      "fields": [],
+      "value_checks": []
+    },
+    "tags": ["advisory-boundary", "decline"],
+    "notes": "NLQ must decline queries that could be used for SLA enforcement"
+  },
+  {
+    "id": "decline-billing",
+    "description": "Billing query should be declined",
+    "query": "billing data and invoicing for the last quarter",
+    "service_name": null,
+    "expect": {
+      "type": "decline",
+      "operation": null,
+      "data_non_empty": false,
+      "fields": [],
+      "value_checks": []
+    },
+    "tags": ["advisory-boundary", "decline"],
+    "notes": null
+  },
+  {
+    "id": "scoped-p99-via-service-name",
+    "description": "Distribution query with service_name passed as API parameter",
+    "query": "p99 latency for the last 15 minutes",
+    "service_name": "shop-api",
+    "expect": {
+      "type": "frame",
+      "operation": "distribution",
+      "data_non_empty": true,
+      "fields": ["p99"],
+      "value_checks": [
+        {"field": "p99", "op": ">", "value": 0}
+      ]
+    },
+    "tags": ["distribution", "scoped"],
+    "notes": "service_name passed as API-level scope (enforce_service_scope injects filter)"
+  }
+]
