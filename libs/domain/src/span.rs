@@ -24,6 +24,8 @@ pub struct Span {
     pub host_id: String,
     pub workload: String,
     pub deployment_id: String,
+    #[serde(default)]
+    pub events: Vec<SpanEvent>,
 }
 
 #[cfg(feature = "storage")]
@@ -130,6 +132,7 @@ impl From<SpanRow> for Span {
             host_id: row.host_id,
             workload: row.workload,
             deployment_id: row.deployment_id,
+            events: vec![],
         }
     }
 }
@@ -152,6 +155,61 @@ pub enum StatusCode {
     Unset,
     Ok,
     Error,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SpanEvent {
+    pub tenant_id: Uuid,
+    pub trace_id: String,
+    pub span_id: String,
+    pub event_index: u32,
+    pub name: String,
+    pub timestamp_unix_nano: u64,
+    pub attributes: HashMap<String, serde_json::Value>,
+}
+
+#[cfg(feature = "storage")]
+#[derive(Debug, Clone, Serialize, Deserialize, clickhouse::Row)]
+pub struct SpanEventRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub tenant_id: Uuid,
+    pub trace_id: String,
+    pub span_id: String,
+    pub event_index: u32,
+    pub name: String,
+    pub timestamp_unix_nano: u64,
+    pub attributes: String, // JSON-serialized
+}
+
+#[cfg(feature = "storage")]
+impl From<SpanEvent> for SpanEventRow {
+    fn from(e: SpanEvent) -> Self {
+        Self {
+            tenant_id: e.tenant_id,
+            trace_id: e.trace_id,
+            span_id: e.span_id,
+            event_index: e.event_index,
+            name: e.name,
+            timestamp_unix_nano: e.timestamp_unix_nano,
+            attributes: serde_json::to_string(&e.attributes).unwrap_or_else(|_| "{}".to_string()),
+        }
+    }
+}
+
+#[cfg(feature = "storage")]
+impl From<SpanEventRow> for SpanEvent {
+    fn from(r: SpanEventRow) -> Self {
+        let attributes = serde_json::from_str(&r.attributes).unwrap_or_default();
+        Self {
+            tenant_id: r.tenant_id,
+            trace_id: r.trace_id,
+            span_id: r.span_id,
+            event_index: r.event_index,
+            name: r.name,
+            timestamp_unix_nano: r.timestamp_unix_nano,
+            attributes,
+        }
+    }
 }
 
 #[cfg(test)]
