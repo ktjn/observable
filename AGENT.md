@@ -44,3 +44,17 @@ If any check fails, you **MUST** fix it before pushing.
 - Regression-gate changes must preserve existing build and product functionality. Run the narrowest affected check first, then the required local gate for the touched surface.
 - Testcontainers tests are protected regression signals once introduced. Do not replace them with mocks, shared local databases, or broad smoke tests unless the PR explains the lost coverage and includes a reviewer-approved replacement.
 - Performance-sensitive changes must run `docker compose up perf-smoke --abort-on-container-exit` or explain why the performance gate is not relevant.
+
+## NLQ Quality Gate
+
+Any change that affects the NLQ→IR→SQL pipeline — the system prompt, IR schema (`NlqIr`),
+SQL templates, metadata injection, IR parser, repair loop, or eval test cases — must:
+
+1. Include or update cases in `tests/nlq/cases.json` covering the changed behavior.
+2. Run `python3 scripts/nlq-eval.py` against a running cluster and record the pass/fail
+   summary in the PR description.
+3. Show that the changed behavior now passes and no previously-passing case has regressed.
+
+The eval harness is a protected regression gate. Do not weaken assertions without a
+replacement signal and reviewer approval. See `spec/08-ai-ml.md §13.4` for the full
+operation reference, design rationale, and feedback loop.

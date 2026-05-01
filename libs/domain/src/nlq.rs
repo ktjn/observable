@@ -45,6 +45,9 @@ pub struct NlqIr {
     /// For catalog operations: the dimension to enumerate, e.g. "service_name", "pod", "metric_name".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catalog_field: Option<String>,
+    /// For topk operations: how many top results to return. Defaults to 10 if absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
 }
 
 /// Supported query operation types.

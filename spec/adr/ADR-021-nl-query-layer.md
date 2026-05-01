@@ -225,6 +225,12 @@ available, including the metric-type extensions (`metric_type`, `timestamp_colum
 - Natural language query is advisory output. It must not feed automated alert evaluation,
   billing, or SLA enforcement.
 - The LLM must decline questions requiring BI-grade correctness and explain why.
+- The NLQ eval harness (`scripts/nlq-eval.py` + `tests/nlq/cases.json`) is a protected
+  regression gate for the NLQ pipeline. Any change to the system prompt, IR schema, SQL
+  templates, metadata injection, or repair loop must include updated test cases and a recorded
+  eval run showing no regressions. See [spec/10-process.md §16.7](../10-process.md) for the
+  mandatory NLQ Quality Gate rule and [spec/08-ai-ml.md §13.4](../08-ai-ml.md) for the full
+  operation reference, design rationale, and feedback loop.
 
 ## Alternatives Considered
 

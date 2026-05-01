@@ -307,9 +307,8 @@ fn histogram_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
 
 /// Top-K series by average value in the time range.
 fn topk_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
-    // Default K = 10; derive from group_by size hint or use fixed default
-    const DEFAULT_K: usize = 10;
-    let k = DEFAULT_K;
+    const DEFAULT_K: u32 = 10;
+    let k = ctx.ir.limit.unwrap_or(DEFAULT_K);
     let filters = build_filter_clauses(&ctx.ir.filters);
     let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
 
@@ -433,16 +432,21 @@ fn catalog_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
     let col_expr = map_filter_field(field);
     let filters = build_filter_clauses(&ctx.ir.filters);
 
+    // Use the catalog_field name as the column alias so the frontend and eval
+    // harness can identify rows by meaningful names (e.g. "service_name", "metric_name").
+    // Only ASCII-safe identifiers are allowed here; map_filter_field already
+    // returns a safe ClickHouse column expression.
     Ok(format!(
         "SELECT\n    \
-             {col_expr} AS value,\n    \
+             {col_expr} AS {field},\n    \
              count() AS series_count\n\
          FROM observable.metric_series ms\n\
          WHERE ms.tenant_id = '{tenant_id}'{filters}\n\
-         GROUP BY value\n\
+         GROUP BY {field}\n\
          ORDER BY series_count DESC\n\
          LIMIT 100",
         col_expr = col_expr,
+        field = field,
         tenant_id = ctx.tenant_id,
         filters = filters,
     ))
@@ -686,6 +690,7 @@ mod tests {
             visualization_hint: None,
             percentiles: None,
             catalog_field: None,
+            limit: None,
         }
     }
 
@@ -1157,6 +1162,7 @@ mod tests {
             visualization_hint: None,
             percentiles: None,
             catalog_field: None,
+            limit: None,
         }
     }
 
@@ -1176,7 +1182,7 @@ mod tests {
         let ctx = catalog_ctx_for(&ir);
         let sql = generate_sql(&ctx).unwrap();
         assert!(
-            sql.contains("ms.service_name AS value"),
+            sql.contains("ms.service_name AS service_name"),
             "service_name column: {sql}"
         );
         assert!(
@@ -1196,7 +1202,7 @@ mod tests {
         let ctx = catalog_ctx_for(&ir);
         let sql = generate_sql(&ctx).unwrap();
         assert!(
-            sql.contains("JSONExtractString(ms.attributes, 'pod') AS value"),
+            sql.contains("JSONExtractString(ms.attributes, 'pod') AS pod"),
             "attribute field must use JSONExtractString: {sql}"
         );
     }
@@ -1225,7 +1231,7 @@ mod tests {
             "filter must appear in SQL: {sql}"
         );
         assert!(
-            sql.contains("ms.metric_name AS value"),
+            sql.contains("ms.metric_name AS metric_name"),
             "metric_name col: {sql}"
         );
     }

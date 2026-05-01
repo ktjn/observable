@@ -140,6 +140,19 @@ When utilizing AI agents for development, the following mandates apply:
 - **Implementation Plan Adherence:** All tasks must follow the latest implementation plans and iteration documents located in `docs/superpowers/plans/`.
 - **ADR and Spec Synchronization:** Architecture, technology, deployment, data model, security, and roadmap changes must update both the relevant ADRs and affected specs in the same iteration. If an ADR change is not required, the PR must explain why.
 
+- **NLQ Quality Gate:** Any change that affects the NLQ→IR→SQL pipeline — including the system
+  prompt (`build_system_prompt()` in `llm_adapter.rs`), the IR schema (`NlqIr` struct or field
+  semantics), SQL templates (`sql_templates.rs`), the metadata injection logic, the IR parser or
+  repair loop, or the eval test cases (`tests/nlq/cases.json`) — must:
+  1. Include or update cases in `tests/nlq/cases.json` covering the changed or added behavior.
+  2. Run `python3 scripts/nlq-eval.py` against a running cluster and record the pass/fail summary
+     in the PR description.
+  3. Show that the changed behavior now passes and that no previously-passing case has regressed.
+  The eval harness is a protected regression gate equivalent to `local-ci.sh`. Do not weaken,
+  skip, or remove assertions without a replacement signal and explicit reviewer approval.
+  See [spec/08-ai-ml.md §13.4](08-ai-ml.md) for the full operation reference and
+  feedback loop.
+
 **MANDATORY: Before Pushing ANY Code**
 
 You **MUST** run the following checks before pushing **ANY** code changes to the repository. No exceptions. Do not push and rely on CI to catch errors.
