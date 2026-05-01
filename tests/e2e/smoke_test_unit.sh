@@ -212,6 +212,18 @@ test_send_trace_until_queryable_retries_ingest() {
   assert_eq "2" "$output" "send_trace_until_queryable should retry trace ingest when detail is not yet queryable"
 }
 
+test_smoke_verifies_metric_points_after_ingest() {
+  if ! grep -q "Verifying metric series is queryable" "$SMOKE_SCRIPT"; then
+    echo "FAIL: smoke_test.sh must query metric series after sending a metric"
+    exit 1
+  fi
+
+  if ! grep -q "Verifying metric points are queryable" "$SMOKE_SCRIPT"; then
+    echo "FAIL: smoke_test.sh must query metric points after finding the metric series"
+    exit 1
+  fi
+}
+
 run_test "loads helper definitions" test_exports_wait_for_json_count_without_running_main
 run_test "retries until rows exist" test_wait_for_json_count_retries_until_rows_exist
 run_test "checks expected HTTP status" test_assert_http_status_checks_expected_code
@@ -221,5 +233,6 @@ run_test "postgres role migration is rerunnable" test_postgres_role_migration_is
 run_test "clickhouse nanosecond TTL uses DateTime cast" test_clickhouse_nanosecond_ttl_uses_datetime_cast
 run_test "migrate script propagates setup failures" test_migrate_script_propagates_setup_failures
 run_test "retries trace ingest" test_send_trace_until_queryable_retries_ingest
+run_test "verifies metric point readback" test_smoke_verifies_metric_points_after_ingest
 
 echo "PASS: smoke_test polling helper"

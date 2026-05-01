@@ -1,6 +1,6 @@
 use axum::http::StatusCode;
 use serde_json::{Map, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 pub fn extract_string_attr(attrs: &Value, key: &str) -> Option<String> {
@@ -27,6 +27,11 @@ fn parse_nano_timestamp(v: &Value) -> u64 {
     }
     // Number form: 1745606400000000000
     v.as_u64().unwrap_or(0)
+}
+
+fn parse_i64_value(v: &Value) -> Option<i64> {
+    v.as_i64()
+        .or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok()))
 }
 
 /// Convert an OTLP AnyValue JSON object to a plain `serde_json::Value`.
@@ -176,6 +181,7 @@ pub fn parse_otlp_metrics(
 
     let mut all_series = Vec::new();
     let mut all_points = Vec::new();
+    let mut seen_series = HashSet::new();
 
     for rm in resource_metrics {
         let resource_attrs = rm
@@ -184,6 +190,9 @@ pub fn parse_otlp_metrics(
             .cloned()
             .unwrap_or_default();
         let service_name = extract_string_attr(&resource_attrs, "service.name").unwrap_or_default();
+        let environment =
+            extract_string_attr(&resource_attrs, "deployment.environment").unwrap_or_default();
+        let resource_attributes = otlp_attrs_to_map(&resource_attrs);
 
         for scope_metrics in rm
             .get("scopeMetrics")
@@ -200,49 +209,161 @@ pub fn parse_otlp_metrics(
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
-                let series_id = Uuid::new_v4();
 
-                let series = domain::MetricSeries {
-                    tenant_id,
-                    metric_series_id: series_id,
-                    metric_name: metric_name.clone(),
-                    service_name: service_name.clone(),
-                    ..Default::default()
+                let (metric_data, metric_type, is_monotonic, aggregation_temporality) =
+                    if let Some(sum) = metric.get("sum") {
+                        (
+                            sum,
+                            domain::MetricType::Sum,
+                            sum.get("isMonotonic").and_then(|v| v.as_bool()),
+                            sum.get("aggregationTemporality")
+                                .and_then(parse_aggregation_temporality),
+                        )
+                    } else if let Some(gauge) = metric.get("gauge") {
+                        (gauge, domain::MetricType::Gauge, None, None)
+                    } else if let Some(histogram) = metric.get("histogram") {
+                        (
+                            histogram,
+                            domain::MetricType::Histogram,
+                            None,
+                            histogram
+                                .get("aggregationTemporality")
+                                .and_then(parse_aggregation_temporality),
+                        )
+                    } else {
+                        continue;
+                    };
+
+                let Some(data_points) = metric_data.get("dataPoints").and_then(|v| v.as_array())
+                else {
+                    continue;
                 };
-                all_series.push(series);
 
-                // Extract data points from sum/gauge/histogram
-                let data_points = metric
-                    .get("sum")
-                    .or_else(|| metric.get("gauge"))
-                    .or_else(|| metric.get("histogram"))
-                    .and_then(|m| m.get("dataPoints"))
-                    .and_then(|v| v.as_array());
-
-                if let Some(dps) = data_points {
-                    for dp in dps {
-                        let time: u64 = dp
-                            .get("timeUnixNano")
-                            .map(parse_nano_timestamp)
-                            .unwrap_or(0);
-                        let value_double = dp.get("asDouble").and_then(|v| v.as_f64());
-                        let value_int = dp.get("asInt").and_then(|v| v.as_i64());
-                        all_points.push(domain::MetricPoint {
-                            tenant_id,
-                            metric_series_id: series_id,
-                            metric_name: metric_name.clone(),
-                            service_name: service_name.clone(),
-                            time_unix_nano: time,
-                            value_double,
-                            value_int,
-                            ..Default::default()
-                        });
+                for dp in data_points {
+                    let attributes = dp
+                        .get("attributes")
+                        .map(otlp_attrs_to_string_map)
+                        .unwrap_or_default();
+                    let mut series = domain::MetricSeries {
+                        tenant_id,
+                        metric_name: metric_name.clone(),
+                        description: metric
+                            .get("description")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                            .to_string(),
+                        unit: metric
+                            .get("unit")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                            .to_string(),
+                        metric_type: metric_type.clone(),
+                        is_monotonic,
+                        aggregation_temporality: aggregation_temporality.clone(),
+                        attributes,
+                        resource_attributes: resource_attributes.clone(),
+                        service_name: service_name.clone(),
+                        environment: environment.clone(),
+                        ..Default::default()
+                    };
+                    series.metric_series_id = domain::deterministic_metric_series_id(&series);
+                    if seen_series.insert(series.metric_series_id) {
+                        all_series.push(series.clone());
                     }
+
+                    let time = dp
+                        .get("timeUnixNano")
+                        .map(parse_nano_timestamp)
+                        .unwrap_or(0);
+                    let start_time_unix_nano =
+                        dp.get("startTimeUnixNano").map(parse_nano_timestamp);
+                    let mut point = domain::MetricPoint {
+                        tenant_id,
+                        metric_series_id: series.metric_series_id,
+                        metric_name: metric_name.clone(),
+                        service_name: service_name.clone(),
+                        time_unix_nano: time,
+                        start_time_unix_nano,
+                        value_double: dp.get("asDouble").and_then(|v| v.as_f64()),
+                        value_int: dp.get("asInt").and_then(parse_i64_value),
+                        ..Default::default()
+                    };
+                    if metric_type == domain::MetricType::Histogram {
+                        point.histogram_count = dp.get("count").and_then(|v| {
+                            v.as_u64()
+                                .or_else(|| v.as_str().and_then(|s| s.parse::<u64>().ok()))
+                        });
+                        point.histogram_sum = dp.get("sum").and_then(|v| v.as_f64());
+                        point.histogram_bucket_counts = dp
+                            .get("bucketCounts")
+                            .and_then(|v| v.as_array())
+                            .map(|values| {
+                                values
+                                    .iter()
+                                    .filter_map(|v| {
+                                        v.as_u64().or_else(|| {
+                                            v.as_str().and_then(|s| s.parse::<u64>().ok())
+                                        })
+                                    })
+                                    .collect::<Vec<_>>()
+                            })
+                            .filter(|values| !values.is_empty());
+                        point.histogram_explicit_bounds = dp
+                            .get("explicitBounds")
+                            .and_then(|v| v.as_array())
+                            .map(|values| {
+                                values.iter().filter_map(|v| v.as_f64()).collect::<Vec<_>>()
+                            })
+                            .filter(|values| !values.is_empty());
+                    }
+                    all_points.push(point);
                 }
             }
         }
     }
     Ok((all_series, all_points))
+}
+
+fn parse_aggregation_temporality(v: &Value) -> Option<domain::AggregationTemporality> {
+    match v {
+        Value::Number(n) if n.as_i64() == Some(1) => Some(domain::AggregationTemporality::Delta),
+        Value::Number(n) if n.as_i64() == Some(2) => {
+            Some(domain::AggregationTemporality::Cumulative)
+        }
+        Value::String(s)
+            if s == "AGGREGATION_TEMPORALITY_DELTA" || s.eq_ignore_ascii_case("delta") =>
+        {
+            Some(domain::AggregationTemporality::Delta)
+        }
+        Value::String(s)
+            if s == "AGGREGATION_TEMPORALITY_CUMULATIVE"
+                || s.eq_ignore_ascii_case("cumulative") =>
+        {
+            Some(domain::AggregationTemporality::Cumulative)
+        }
+        _ => None,
+    }
+}
+
+fn otlp_attrs_to_string_map(attrs: &Value) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    if let Some(arr) = attrs.as_array() {
+        for kv in arr {
+            if let (Some(k), Some(val)) = (kv.get("key").and_then(|x| x.as_str()), kv.get("value"))
+            {
+                let value = extract_otlp_any_value(val);
+                let value = match value {
+                    Value::String(s) => s,
+                    Value::Number(n) => n.to_string(),
+                    Value::Bool(b) => b.to_string(),
+                    Value::Null => String::new(),
+                    other => other.to_string(),
+                };
+                map.insert(k.to_owned(), value);
+            }
+        }
+    }
+    map
 }
 
 pub fn parse_otlp_traces(body: &Value, tenant_id: Uuid) -> Result<Vec<domain::Span>, StatusCode> {
@@ -430,5 +551,110 @@ mod tests {
         });
         let logs = parse_otlp_logs(&body, tenant).unwrap();
         assert_eq!(logs[0].timestamp_unix_nano, 1_745_606_400_000_000_000u64);
+    }
+
+    #[test]
+    fn parse_otlp_metrics_preserves_sum_metadata_and_labels() {
+        let tenant = Uuid::nil();
+        let body = json!({
+            "resourceMetrics": [{
+                "resource": {
+                    "attributes": [
+                        {"key": "service.name", "value": {"stringValue": "checkout"}},
+                        {"key": "deployment.environment", "value": {"stringValue": "prod"}},
+                        {"key": "host.name", "value": {"stringValue": "node-a"}}
+                    ]
+                },
+                "scopeMetrics": [{
+                    "metrics": [{
+                        "name": "http.server.requests",
+                        "description": "HTTP server requests",
+                        "unit": "1",
+                        "sum": {
+                            "aggregationTemporality": 2,
+                            "isMonotonic": true,
+                            "dataPoints": [{
+                                "attributes": [
+                                    {"key": "http.route", "value": {"stringValue": "/checkout"}},
+                                    {"key": "http.status_code", "value": {"intValue": "200"}}
+                                ],
+                                "startTimeUnixNano": "100",
+                                "timeUnixNano": "200",
+                                "asInt": "7"
+                            }]
+                        }
+                    }]
+                }]
+            }]
+        });
+
+        let (series, points) = parse_otlp_metrics(&body, tenant).unwrap();
+
+        assert_eq!(series.len(), 1);
+        assert_eq!(points.len(), 1);
+        assert_eq!(series[0].metric_name, "http.server.requests");
+        assert_eq!(series[0].description, "HTTP server requests");
+        assert_eq!(series[0].unit, "1");
+        assert_eq!(series[0].metric_type, domain::MetricType::Sum);
+        assert_eq!(series[0].is_monotonic, Some(true));
+        assert_eq!(
+            series[0].aggregation_temporality,
+            Some(domain::AggregationTemporality::Cumulative)
+        );
+        assert_eq!(series[0].service_name, "checkout");
+        assert_eq!(series[0].environment, "prod");
+        assert_eq!(
+            series[0].attributes.get("http.route").map(String::as_str),
+            Some("/checkout")
+        );
+        assert_eq!(
+            series[0]
+                .attributes
+                .get("http.status_code")
+                .map(String::as_str),
+            Some("200")
+        );
+        assert_eq!(
+            series[0].resource_attributes.get("host.name"),
+            Some(&json!("node-a"))
+        );
+        assert_eq!(points[0].metric_series_id, series[0].metric_series_id);
+        assert_eq!(points[0].start_time_unix_nano, Some(100));
+        assert_eq!(points[0].time_unix_nano, 200);
+        assert_eq!(points[0].value_int, Some(7));
+    }
+
+    #[test]
+    fn parse_otlp_metrics_uses_stable_series_id_for_same_series() {
+        let tenant = Uuid::nil();
+        let body = json!({
+            "resourceMetrics": [{
+                "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "checkout"}}]},
+                "scopeMetrics": [{
+                    "metrics": [{
+                        "name": "cpu.usage",
+                        "gauge": {
+                            "dataPoints": [{
+                                "attributes": [{"key": "core", "value": {"stringValue": "0"}}],
+                                "timeUnixNano": "200",
+                                "asDouble": 0.7
+                            }]
+                        }
+                    }]
+                }]
+            }]
+        });
+
+        let (first_series, first_points) = parse_otlp_metrics(&body, tenant).unwrap();
+        let (second_series, second_points) = parse_otlp_metrics(&body, tenant).unwrap();
+
+        assert_eq!(
+            first_series[0].metric_series_id,
+            second_series[0].metric_series_id
+        );
+        assert_eq!(
+            first_points[0].metric_series_id,
+            second_points[0].metric_series_id
+        );
     }
 }

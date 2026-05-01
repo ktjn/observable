@@ -10,7 +10,9 @@ pub use envelope::{EnvelopePayload, TelemetryEnvelope};
 pub use log::LogRecord;
 #[cfg(feature = "storage")]
 pub use log::LogRow;
-pub use metric::{AggregationTemporality, MetricPoint, MetricSeries, MetricType};
+pub use metric::{
+    deterministic_metric_series_id, AggregationTemporality, MetricPoint, MetricSeries, MetricType,
+};
 #[cfg(feature = "storage")]
 pub use metric::{MetricPointRow, MetricSeriesRow};
 pub use nlq::{

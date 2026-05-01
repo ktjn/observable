@@ -55,6 +55,11 @@ paths:
     post:
       summary: Export OTLP metrics
       operationId: exportMetrics
+      description: >
+        Accepts OTLP/HTTP JSON metric exports for gauges, sums, and explicit histograms.
+        Metric series identity is deterministic across repeated points with the same
+        tenant, metric name, resource attributes, point attributes, type, monotonicity,
+        temporality, service, and environment.
       requestBody:
         required: true
         content:
@@ -62,7 +67,27 @@ paths:
             schema: { type: object }
       responses:
         "200": { description: Accepted }
+        "400": { description: Bad request }
         "401": { description: Unauthorized }
+        "403": { description: Viewer role cannot ingest metrics }
+        "415": { description: Unsupported media type }
+        "429":
+          description: Rate limited
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: rate_limit_exceeded
+                  message:
+                    type: string
+                    example: Metric ingest rate limit exceeded
 components:
   securitySchemes:
     BearerAuth:

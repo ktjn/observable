@@ -95,6 +95,15 @@ The Query API must support the following patterns required by the Frontend (see 
 - **Current Panel Types**: `logs`, `traces`, and `metrics` are valid `query_kind` values. P3-S12 wires Logs and Traces promotion first; metrics promotion can reuse the same contract when the metric explorer exposes an ad-hoc query surface.
 - **Out of Scope**: Drag-and-drop layout editing, dashboard-as-code import/export, and CI validation are handled by later dashboard slices.
 
+#### Metric Query Readback
+- **Endpoints**:
+  - `GET /v1/metrics` returns tenant-scoped metric series. Supports optional `service`.
+  - `GET /v1/metrics/{series_id}` returns tenant-scoped points for one metric series, ordered by `time_unix_nano ASC`.
+- **Ingest compatibility**: `POST /v1/metrics` accepts OTLP/HTTP JSON gauges, sums, and explicit histograms. The gRPC MetricsService maps the same supported metric families into the same internal model.
+- **Series identity**: Metric series IDs are deterministic for a stable tenant, metric name, metric type, point attributes, resource attributes, monotonicity, temporality, service, and environment. Repeated exports for the same series must append points to the same series ID rather than creating a new random series per point.
+- **Current unsupported families**: Exponential histograms and summaries remain out of scope for the current customer OTLP metrics path. They must be ignored safely until implemented, not misclassified as gauges or sums.
+- **Verification**: The smoke test must prove readback by posting `smoke.counter`, waiting for the series through `GET /v1/metrics?service=...`, and then waiting for points through `GET /v1/metrics/{series_id}`.
+
 ### Resolved Query API Bugs
 
 #### Bug Report: Query API MVP response correctness regressions
@@ -137,13 +146,15 @@ technology choice.
 
 ### Query Tenant Context Contract
 
-**Status:** Active for trace and log query endpoints as of Phase 2 slices P2-S1a and P2-S1b
+**Status:** Active for trace, log, and metric query endpoints as of Phase 2 slices P2-S1a through P2-S1c
 (`docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`).
 
 **Affected endpoints:**
 - `GET /v1/traces`
 - `GET /v1/traces/{trace_id}`
 - `GET /v1/logs`
+- `GET /v1/metrics`
+- `GET /v1/metrics/{series_id}`
 
 **Required behavior:**
 - Query API requests must carry an explicit tenant context before handlers execute.
@@ -158,10 +169,11 @@ technology choice.
 - Unit tests cover missing, malformed, and valid tenant context extraction.
 - Unit tests cover same-tenant trace rows and cross-tenant trace-row rejection (P2-S1a).
 - Unit tests cover same-tenant log rows, cross-tenant log-row rejection, and empty result (P2-S1b).
+- Unit tests cover same-tenant metric series/point rows, cross-tenant metric row rejection, and empty metric results (P2-S1c).
 - The Phase 1 smoke test now sends an explicit `X-Tenant-ID` header for query API calls.
 
 **Required follow-up:**
-- Apply the same tenant context and fail-closed validation pattern to metric query in P2-S1c.
+- Keep tenant fail-closed validation in place as metric query filters expand beyond service and series ID.
 
 **ADR/spec sync:** No ADR update required. This slice enforces the accepted tenant isolation strategy
 for an existing query surface and does not change architecture, data model, security model, or
