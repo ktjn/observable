@@ -277,18 +277,20 @@ pub fn parse_otlp_traces(body: &Value, tenant_id: Uuid) -> Result<Vec<domain::Sp
                     .get("endTimeUnixNano")
                     .map(parse_nano_timestamp)
                     .unwrap_or(0);
+                let trace_id: String = s
+                    .get("traceId")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .into();
+                let span_id: String = s
+                    .get("spanId")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .into();
                 spans.push(domain::Span {
                     tenant_id,
-                    trace_id: s
-                        .get("traceId")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or_default()
-                        .into(),
-                    span_id: s
-                        .get("spanId")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or_default()
-                        .into(),
+                    trace_id: trace_id.clone(),
+                    span_id: span_id.clone(),
                     service_name: service_name.clone(),
                     operation_name: s
                         .get("name")
@@ -300,6 +302,38 @@ pub fn parse_otlp_traces(body: &Value, tenant_id: Uuid) -> Result<Vec<domain::Sp
                     duration_ns: end.saturating_sub(start),
                     ..Default::default()
                 });
+                let span_events: Vec<domain::SpanEvent> = s
+                    .get("events")
+                    .and_then(|v| v.as_array())
+                    .map(|events| {
+                        events
+                            .iter()
+                            .enumerate()
+                            .map(|(i, e)| domain::SpanEvent {
+                                tenant_id,
+                                trace_id: trace_id.clone(),
+                                span_id: span_id.clone(),
+                                event_index: i as u32,
+                                name: e
+                                    .get("name")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or_default()
+                                    .into(),
+                                timestamp_unix_nano: e
+                                    .get("timeUnixNano")
+                                    .map(parse_nano_timestamp)
+                                    .unwrap_or(0),
+                                attributes: e
+                                    .get("attributes")
+                                    .map(otlp_attrs_to_map)
+                                    .unwrap_or_default(),
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if let Some(span) = spans.last_mut() {
+                    span.events = span_events;
+                }
             }
         }
     }
