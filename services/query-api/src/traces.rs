@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use chrono::{DateTime, Utc};
 use clickhouse::Client;
 use domain::{Span, SpanEvent, SpanEventRow, SpanRow};
 use serde::{Deserialize, Serialize};
@@ -50,6 +51,29 @@ pub struct SearchParams {
     pub service: Option<String>,
     pub limit: Option<u32>,
     pub facets: Option<String>, // Comma-separated list of fields to facet
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
+    pub lookback_minutes: Option<u32>,
+}
+
+#[derive(Deserialize)]
+pub struct TraceHistogramParams {
+    pub service: Option<String>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
+    pub buckets: Option<u32>,
+}
+
+#[derive(Serialize)]
+pub struct TraceHistogramBucket {
+    pub start_ms: u64,
+    pub end_ms: u64,
+    pub count: u64,
+}
+
+#[derive(Serialize)]
+pub struct TraceHistogramResponse {
+    pub buckets: Vec<TraceHistogramBucket>,
 }
 
 pub(crate) const SELECT_COLS: &str = "tenant_id, trace_id, span_id, parent_span_id, service_name, \
@@ -233,6 +257,70 @@ pub async fn search_traces(
         total,
         facets: facet_results,
     }))
+}
+
+pub async fn trace_histogram(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Query(params): Query<TraceHistogramParams>,
+) -> Result<Json<TraceHistogramResponse>, StatusCode> {
+    use chrono::Utc;
+    let now_ns = Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64;
+    let from_ns = params
+        .from
+        .map(|dt| dt.timestamp_nanos_opt().unwrap_or(0) as u64)
+        .unwrap_or_else(|| now_ns.saturating_sub(3_600_000_000_000));
+    let to_ns = params
+        .to
+        .map(|dt| dt.timestamp_nanos_opt().unwrap_or(0) as u64)
+        .unwrap_or(now_ns);
+    let bucket_count = params.buckets.unwrap_or(30).clamp(1, 200);
+
+    let plan =
+        state
+            .planner
+            .plan_trace_histogram(from_ns, to_ns, params.service.as_deref(), bucket_count);
+
+    let mut query = state
+        .ch
+        .query(&plan.sql)
+        .bind(plan.from_ns)
+        .bind(plan.interval_ns)
+        .bind(ctx.tenant_id)
+        .bind(from_ns)
+        .bind(to_ns);
+    if let Some(service) = &params.service {
+        query = query.bind(service);
+    }
+
+    let mut cursor = query.fetch::<(i64, i32, u64)>().map_err(|e| {
+        tracing::error!("ClickHouse trace histogram query error: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let mut raw: HashMap<i64, u64> = HashMap::new();
+    while let Some((bucket_idx, _dummy, count)) = cursor.next().await.map_err(|e| {
+        tracing::error!("ClickHouse trace histogram fetch error: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })? {
+        if bucket_idx >= 0 && bucket_idx < bucket_count as i64 {
+            *raw.entry(bucket_idx).or_default() += count;
+        }
+    }
+
+    let buckets = (0..bucket_count)
+        .map(|i| {
+            let start_ns = plan.from_ns + i as u64 * plan.interval_ns;
+            let end_ns = start_ns + plan.interval_ns;
+            TraceHistogramBucket {
+                start_ms: start_ns / 1_000_000,
+                end_ms: end_ns / 1_000_000,
+                count: raw.remove(&(i as i64)).unwrap_or_default(),
+            }
+        })
+        .collect();
+
+    Ok(Json(TraceHistogramResponse { buckets }))
 }
 
 /// Repository-level fetch used by integration tests to verify tenant-filter correctness.

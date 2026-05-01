@@ -182,6 +182,41 @@ impl QueryPlanner {
             interval_ns,
         }
     }
+
+    pub fn plan_trace_histogram(
+        &self,
+        from_ns: u64,
+        to_ns: u64,
+        service: Option<&str>,
+        bucket_count: u32,
+    ) -> LogHistogramPlan {
+        let range_ns = to_ns.saturating_sub(from_ns).max(1);
+        let interval_ns = (range_ns / bucket_count as u64).max(1);
+
+        let mut where_clause = "WHERE tenant_id = ? \
+             AND start_time_unix_nano >= ? \
+             AND start_time_unix_nano <= ?"
+            .to_string();
+        if service.is_some() {
+            where_clause.push_str(" AND service_name = ?");
+        }
+
+        let sql = format!(
+            "SELECT \
+               intDiv(start_time_unix_nano - ?, ?) AS bucket_idx, \
+               1 as dummy_severity, \
+               count(DISTINCT trace_id) AS cnt \
+             FROM observable.spans {where_clause} \
+             GROUP BY bucket_idx \
+             ORDER BY bucket_idx ASC"
+        );
+
+        LogHistogramPlan {
+            sql,
+            from_ns,
+            interval_ns,
+        }
+    }
 }
 
 fn log_search_where_clause(params: &LogSearchParams) -> String {

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
+import { TimeDisplayProvider } from "../lib/timeDisplay";
 import TraceSearch from "./TraceSearch";
 
 const traceResponse = {
@@ -43,6 +44,7 @@ const traceResponse = {
 
 vi.mock("../api/traces", () => ({
   searchTraces: vi.fn(async () => traceResponse),
+  fetchTraceHistogram: vi.fn(async () => ({ buckets: [] })),
 }));
 
 vi.mock("../api/dashboards", () => ({
@@ -64,9 +66,12 @@ vi.mock("@tanstack/react-router", () => ({
     params?: Record<string, string>;
     children: ReactNode;
   }) => {
-    const href = params?.traceId
-      ? to.replace("$traceId", params.traceId)
-      : to;
+    let href = to;
+    if (params) {
+        for (const [k, v] of Object.entries(params)) {
+            href = href.replace(`$${k}`, v);
+        }
+    }
     return <a href={href}>{children}</a>;
   },
 }));
@@ -85,25 +90,28 @@ function renderTraceSearch() {
 
   return render(
     <QueryClientProvider client={client}>
-      <TraceSearch />
+      <TimeDisplayProvider>
+        <TraceSearch />
+      </TimeDisplayProvider>
     </QueryClientProvider>,
   );
 }
 
 test("renders the trace explorer shell with facets and named results table", async () => {
-  const { container } = renderTraceSearch();
+  renderTraceSearch();
 
   await waitFor(() =>
     expect(searchTraces).toHaveBeenCalledWith(
       expect.objectContaining({
         service: "checkout",
-        lookback_minutes: 60,
+        limit: 50,
         facets: ["service_name", "status_code", "span_kind"],
       }),
     ),
   );
 
-  expect(container.querySelector(".trace-explorer-page")).toBeInTheDocument();
+  expect(screen.getByText("Explorer")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Traces" })).toBeInTheDocument();
 
   const facets = await screen.findByRole("complementary", {
     name: "Trace facets",
@@ -115,8 +123,7 @@ test("renders the trace explorer shell with facets and named results table", asy
   expect(within(table).getByRole("columnheader", { name: "Trace ID" })).toBeInTheDocument();
   expect(within(table).getByRole("columnheader", { name: "Duration" })).toBeInTheDocument();
   expect(within(table).getByText("GET /checkout")).toBeInTheDocument();
-  expect(within(table).getByRole("link", { name: "trace-abc-123456…" })).toHaveAttribute(
-    "href",
-    "/traces/trace-abc-1234567890",
-  );
+  
+  // Trace ID is now a button for selection in the main view
+  expect(within(table).getByRole("button", { name: "trace-abc-123456…" })).toBeInTheDocument();
 });

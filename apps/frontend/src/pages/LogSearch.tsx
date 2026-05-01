@@ -12,6 +12,7 @@ import { Input } from "../components/ui/input";
 import { LoadingState } from "../components/ui/loading-state";
 import { Select, SelectOption } from "../components/ui/select";
 import { TablePanel } from "../components/ui/table-panel";
+import { Histogram, HistogramBucket } from "../components/ui/histogram";
 
 const timeRangeOptions = [
   { label: "15m", value: 15 },
@@ -19,13 +20,6 @@ const timeRangeOptions = [
   { label: "6h", value: 360 },
   { label: "24h", value: 1440 },
 ];
-
-type HistogramBucket = {
-  startMs: number;
-  endMs: number;
-  total: number;
-  levels: Record<OTelLevel, number>;
-};
 
 const levelOrder: OTelLevel[] = ["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"];
 const levelBarClasses: Record<OTelLevel, string> = {
@@ -187,11 +181,16 @@ export default function LogSearch() {
       </div>
 
       {histogramData ? (
-        <LogHistogram
+        <Histogram
           buckets={histogram}
-          format={format}
+          categoryOrder={levelOrder}
+          categoryColors={levelBarClasses}
+          format={(ms) => formatBucketLabel(ms, format)}
           onRangeSelect={handleHistogramRangeSelect}
           onBucketCountChange={setBucketCount}
+          ariaLabel="Log volume histogram"
+          title="Logs over time"
+          subtitle="Volume"
         />
       ) : !isHistogramError && (
         <div
@@ -278,137 +277,6 @@ function LogRow({
   );
 }
 
-function LogHistogram({
-  buckets,
-  format,
-  onRangeSelect,
-  onBucketCountChange,
-}: {
-  buckets: HistogramBucket[];
-  format: import("../lib/timeDisplay").TimeFormat;
-  onRangeSelect?: (fromMs: number, toMs: number) => void;
-  onBucketCountChange?: (count: number) => void;
-}) {
-  const max = Math.max(1, ...buckets.map((bucket) => bucket.total));
-  const gridRef = useRef<HTMLDivElement>(null);
-  const sectionRef = useRef<HTMLElement>(null);
-
-  const onBucketCountChangeRef = useRef(onBucketCountChange);
-  useEffect(() => { onBucketCountChangeRef.current = onBucketCountChange; });
-
-  useEffect(() => {
-    const el = sectionRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      const w = entry.contentRect.width;
-      // Steps of 5 to avoid burst API calls on continuous resize
-      const count = Math.round(Math.floor(w / 10) / 5) * 5;
-      onBucketCountChangeRef.current?.(Math.max(12, Math.min(100, count)));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []); // stable: uses ref to read latest callback
-  // ref holds current drag coords for synchronous reads in event handlers
-  const dragRef = useRef<{ start: number; end: number } | null>(null);
-  // state drives the visual highlight (re-renders on move)
-  const [dragDisplay, setDragDisplay] = useState<{ start: number; end: number } | null>(null);
-
-  const selStart = dragDisplay ? Math.min(dragDisplay.start, dragDisplay.end) : -1;
-  const selEnd = dragDisplay ? Math.max(dragDisplay.start, dragDisplay.end) : -1;
-
-  function getBucketIndex(clientX: number): number {
-    const el = gridRef.current;
-    if (!el) return 0;
-    const rect = el.getBoundingClientRect();
-    const ratio = (clientX - rect.left) / rect.width;
-    return Math.min(buckets.length - 1, Math.max(0, Math.floor(ratio * buckets.length)));
-  }
-
-  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    if (!onRangeSelect) return;
-    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* jsdom */ }
-    const idx = getBucketIndex(e.clientX);
-    dragRef.current = { start: idx, end: idx };
-    setDragDisplay({ start: idx, end: idx });
-  }
-
-  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!dragRef.current) return;
-    const idx = getBucketIndex(e.clientX);
-    dragRef.current = { ...dragRef.current, end: idx };
-    setDragDisplay({ ...dragRef.current });
-  }
-
-  function handlePointerUp() {
-    const drag = dragRef.current;
-    if (drag && onRangeSelect) {
-      const start = Math.min(drag.start, drag.end);
-      const end = Math.max(drag.start, drag.end);
-      onRangeSelect(buckets[start].startMs, buckets[end].endMs);
-    }
-    dragRef.current = null;
-    setDragDisplay(null);
-  }
-
-  return (
-    <section
-      ref={sectionRef}
-      role="img"
-      aria-label="Log volume histogram"
-      className="border border-[var(--border)] bg-[var(--surface)] p-3"
-    >
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <div className="text-xs font-bold uppercase text-[var(--muted)]">Volume</div>
-          <h2 className="m-0 text-sm font-bold text-[var(--text-strong)]">Logs over time</h2>
-        </div>
-        <div className="flex flex-wrap gap-2 text-xs text-[var(--muted)]">
-          {levelOrder.map((level) => (
-            <span key={level} className="inline-flex items-center gap-1">
-              <span className={`h-2 w-2 ${levelBarClasses[level]}`} />
-              {level}
-            </span>
-          ))}
-        </div>
-      </div>
-      <p className="sr-only">Drag over bars to zoom into a time range.</p>
-      <div
-        ref={gridRef}
-        className="grid h-28 items-end gap-1 select-none cursor-crosshair"
-        style={{ gridTemplateColumns: `repeat(${buckets.length}, 1fr)` }}
-        aria-hidden="true"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={() => { dragRef.current = null; setDragDisplay(null); }}
-      >
-        {buckets.map((bucket, i) => {
-          const isSelected = dragDisplay !== null && i >= selStart && i <= selEnd;
-          return (
-            <div
-              key={bucket.startMs}
-              className={`flex h-full flex-col justify-end gap-px ${isSelected ? "bg-[var(--surface-subtle)]" : "bg-[var(--surface-inset)]"}`}
-            >
-              {levelOrder.map((level) => {
-                const count = bucket.levels[level];
-                if (count === 0) return null;
-                return (
-                  <div
-                    key={level}
-                    className={levelBarClasses[level]}
-                    title={`${formatBucketLabel(bucket.startMs, format)} ${level}: ${count}`}
-                    style={{ height: `${Math.max(8, (count / max) * 100)}%` }}
-                  />
-                );
-              })}
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 function LogContextSidebar({
   log,
   format,
@@ -483,20 +351,20 @@ function LogContextSidebar({
   );
 }
 
-function histogramFromApi(buckets: ApiHistogramBucket[]): HistogramBucket[] {
+function histogramFromApi(buckets: ApiHistogramBucket[]): HistogramBucket<OTelLevel>[] {
   return buckets.map((b) => {
-    const levels = emptyLevels();
+    const categories = emptyLevels();
     let total = 0;
     for (const [sev, count] of Object.entries(b.counts)) {
       const level = otelSeverity(Number(sev)).label;
-      levels[level] += count;
+      categories[level] += count;
       total += count;
     }
-    return { startMs: b.start_ms, endMs: b.end_ms, total, levels };
+    return { startMs: b.start_ms, endMs: b.end_ms, total, categories };
   });
 }
 
-export function buildLogHistogram(logs: LogRecord[], fromMs: number, toMs: number): HistogramBucket[] {
+export function buildLogHistogram(logs: LogRecord[], fromMs: number, toMs: number): HistogramBucket<OTelLevel>[] {
   const bucketCount = 30;
   const rangeMs = toMs - fromMs;
   const bucketMs = rangeMs / bucketCount;
@@ -504,7 +372,7 @@ export function buildLogHistogram(logs: LogRecord[], fromMs: number, toMs: numbe
     startMs: fromMs + index * bucketMs,
     endMs: fromMs + (index + 1) * bucketMs,
     total: 0,
-    levels: emptyLevels(),
+    categories: emptyLevels(),
   }));
 
   for (const log of logs) {
@@ -514,7 +382,7 @@ export function buildLogHistogram(logs: LogRecord[], fromMs: number, toMs: numbe
     const index = Math.min(bucketCount - 1, Math.max(0, rawIndex));
     const level = otelSeverity(log.severity_number).label;
     buckets[index].total += 1;
-    buckets[index].levels[level] += 1;
+    buckets[index].categories[level] += 1;
   }
 
   return buckets;
