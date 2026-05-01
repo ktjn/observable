@@ -9,5 +9,5 @@ CREATE TABLE IF NOT EXISTS observable.span_events (
 ) ENGINE = MergeTree()
 PARTITION BY (tenant_id, toYYYYMM(fromUnixTimestamp64Nano(timestamp_unix_nano)))
 ORDER BY (tenant_id, trace_id, span_id, event_index)
-TTL fromUnixTimestamp64Nano(timestamp_unix_nano) + INTERVAL 14 DAY
+TTL toDateTime(fromUnixTimestamp64Nano(timestamp_unix_nano)) + INTERVAL 14 DAY
 SETTINGS index_granularity = 8192;

@@ -67,6 +67,7 @@ services:
       - /bin/bash
       - -c
       - |
+        set -euo pipefail
         clickhouse-client --host clickhouse --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} --query "CREATE DATABASE IF NOT EXISTS observable"
         for f in /migrations/clickhouse/*.sql; do
           echo "Applying ClickHouse migration: $$f"
@@ -82,9 +83,10 @@ services:
       - /bin/bash
       - -c
       - |
+        set -euo pipefail
         for f in /migrations/postgres/*.sql; do
           echo "Applying PostgreSQL migration: $$f"
-          psql -U ${PG_USER:-observable} -d ${PG_DB:-observable} -h postgres -f "$$f"
+          psql -v ON_ERROR_STOP=1 -U ${PG_USER:-observable} -d ${PG_DB:-observable} -h postgres -f "$$f"
         done
     environment:
       PGPASSWORD: ${PG_PASSWORD:-observable}
