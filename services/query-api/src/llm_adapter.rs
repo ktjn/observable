@@ -348,9 +348,9 @@ The metric name goes in the `metric` field, never in `signals`.
 - table: raw point scan, most recent 1000 rows
 - distribution: compute only the stats the user asked for
 - **catalog**: Enumerate distinct observable entities (metadata). Use when the user asks "list X", "what X exist?", "how many X?", "which X does Y have?". Set `catalog_field` to the dimension name: "service_name", "environment", "metric_name", or any label key like "pod", "region", "namespace". Does NOT require a `metric` field.
-  Example: "list all services" → {"operation":"catalog","signals":["metrics"],"catalog_field":"service_name","filters":[],"time_range":{"from":"now-24h","to":"now"}}
-  Example: "what pods does checkout use?" → {"operation":"catalog","signals":["metrics"],"catalog_field":"pod","filters":[{"field":"service_name","op":"=","value":"checkout"}],"time_range":{"from":"now-24h","to":"now"}}
-  Example: "what metrics does payments emit?" → {"operation":"catalog","signals":["metrics"],"catalog_field":"metric_name","filters":[{"field":"service_name","op":"=","value":"payments"}],"time_range":{"from":"now-24h","to":"now"}}
+  Example: "list all services" → {"type":"ir","ir":{"operation":"catalog","signals":["metrics"],"catalog_field":"service_name","filters":[],"time_range":{"from":"now-24h","to":"now"}}}
+  Example: "what pods does checkout use?" → {"type":"ir","ir":{"operation":"catalog","signals":["metrics"],"catalog_field":"pod","filters":[{"field":"service_name","op":"=","value":"checkout"}],"time_range":{"from":"now-24h","to":"now"}}}
+  Example: "what metrics does payments emit?" → {"type":"ir","ir":{"operation":"catalog","signals":["metrics"],"catalog_field":"metric_name","filters":[{"field":"service_name","op":"=","value":"payments"}],"time_range":{"from":"now-24h","to":"now"}}}
 
 ## `percentiles` field (for distribution operation only)
 
@@ -535,9 +535,39 @@ pub(crate) fn parse_llm_response(json: &str) -> Result<NlqIrOrDecline, LlmAdapte
             Ok(NlqIrOrDecline::Decline { reason })
         }
         Some("capabilities") => Ok(NlqIrOrDecline::Capabilities),
-        other => Err(LlmAdapterError::InvalidResponse(format!(
-            "unexpected type field: {other:?}"
-        ))),
+        other => {
+            // Fallback: the LLM may have emitted a bare NlqIr without the
+            // {"type":"ir","ir":{...}} envelope, or used "type" where "operation"
+            // is expected (e.g. {"type":"catalog",...} instead of
+            // {"type":"ir","ir":{"operation":"catalog",...}}).
+            let mut ir_val = v.clone();
+
+            if ir_val.get("operation").is_none() {
+                // Promote "type" → "operation" if it carries an operation name value.
+                if let Some(type_val) = ir_val.get("type").cloned() {
+                    ir_val["operation"] = type_val;
+                    ir_val.as_object_mut().map(|o| o.remove("type"));
+                }
+            }
+
+            if ir_val.get("operation").is_some() {
+                tracing::warn!(
+                    raw_type = ?other,
+                    "NLQ bare-IR fallback: LLM omitted response envelope; attempting direct parse"
+                );
+                normalize_nlq_signals(&mut ir_val);
+                let ir: NlqIr = serde_json::from_value(ir_val).map_err(|e| {
+                    LlmAdapterError::InvalidResponse(format!(
+                        "NlqIr deserialize failed (bare IR): {e}"
+                    ))
+                })?;
+                return Ok(NlqIrOrDecline::Ir(ir));
+            }
+
+            Err(LlmAdapterError::InvalidResponse(format!(
+                "unexpected type field: {other:?}"
+            )))
+        }
     }
 }
 
@@ -1041,7 +1071,57 @@ mod tests {
         );
     }
 
-    // ── normalize_nlq_signals ─────────────────────────────────────────────────
+    // ── bare-IR fallback ──────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_bare_ir_without_envelope_succeeds() {
+        // LLM emitted plain NlqIr object without {"type":"ir","ir":{...}} wrapper.
+        let json = r#"{
+            "operation": "timeseries",
+            "signals": ["metrics"],
+            "metric": "request_duration_ms",
+            "filters": [],
+            "group_by": [],
+            "time_range": {"from": "now-1h", "to": "now"}
+        }"#;
+        match parse_llm_response(json).expect("should parse bare IR") {
+            NlqIrOrDecline::Ir(ir) => assert_eq!(ir.operation, NlqOperation::Timeseries),
+            other => panic!("expected Ir, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_bare_ir_with_type_as_operation_succeeds() {
+        // LLM used "type":"catalog" instead of wrapping in envelope + using "operation".
+        // This is the exact pattern that caused the "list all services" regression.
+        let json = r#"{
+            "type": "catalog",
+            "signals": ["metrics"],
+            "catalog_field": "service_name",
+            "filters": [],
+            "time_range": {"from": "now-24h", "to": "now"}
+        }"#;
+        match parse_llm_response(json).expect("should parse catalog via fallback") {
+            NlqIrOrDecline::Ir(ir) => {
+                assert_eq!(ir.operation, NlqOperation::Catalog);
+                assert_eq!(ir.catalog_field.as_deref(), Some("service_name"));
+            }
+            other => panic!("expected Ir, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_bare_ir_with_unknown_operation_still_errors() {
+        // "type":"unknown" is not a valid NlqOperation — fallback parse must fail.
+        let json = r#"{"type": "unknown", "data": {}}"#;
+        assert!(
+            matches!(
+                parse_llm_response(json),
+                Err(LlmAdapterError::InvalidResponse(_))
+            ),
+            "unrecognised operation name must still yield InvalidResponse"
+        );
+    }
 
     fn make_ir_json_with_signals(signals: serde_json::Value) -> serde_json::Value {
         serde_json::json!({
