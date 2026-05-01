@@ -145,7 +145,6 @@ impl LlmCaller for OpenAiLlmCaller {
 pub enum LlmAdapterError {
     LlmCall(String),
     InvalidResponse(String),
-    SchemaLookup(String),
     QueryExecution(crate::mcp_query::McpQueryError),
 }
 
@@ -154,7 +153,6 @@ impl std::fmt::Display for LlmAdapterError {
         match self {
             Self::LlmCall(e) => write!(f, "LLM call failed: {e}"),
             Self::InvalidResponse(e) => write!(f, "invalid LLM response: {e}"),
-            Self::SchemaLookup(e) => write!(f, "schema lookup failed: {e}"),
             Self::QueryExecution(e) => write!(f, "query execution failed: {e}"),
         }
     }
@@ -259,9 +257,19 @@ async fn fetch_schema_context(
     tenant_id: Uuid,
     limit: usize,
 ) -> Result<(Vec<crate::mcp_tools::SignalField>, Vec<String>), LlmAdapterError> {
-    let mut fields = crate::mcp_tools::list_signal_fields(db, tenant_id, "metrics")
-        .await
-        .map_err(|e| LlmAdapterError::SchemaLookup(e.to_string()))?;
+    // Non-fatal on error: if the schema registry is temporarily unreachable the
+    // prompt will have no metric metadata but the pipeline can still proceed.
+    let mut fields = match crate::mcp_tools::list_signal_fields(db, tenant_id, "metrics").await {
+        Ok(f) => f,
+        Err(e) => {
+            tracing::warn!(
+                tenant_id = %tenant_id,
+                error = %e,
+                "fetch_schema_context: list_signal_fields failed — continuing with empty metric list"
+            );
+            vec![]
+        }
+    };
 
     // Retain only schema-complete entries and order by annotation richness so the most
     // informative metrics appear first in the LLM prompt (token budget awareness).
@@ -651,16 +659,35 @@ pub(crate) fn parse_llm_response(json: &str) -> Result<NlqIrOrDecline, LlmAdapte
             //
             // Also handles hybrid format: {"type":"catalog","ir":{<valid NlqIr>}}
             // where the LLM mixed old type-as-operation with the IR nesting.
+            //
+            // Also handles phi3.5-style wrapper: {"type":"response","ir":{...}}
+            // or {"type":"response","content":{...}} — the model wraps its JSON
+            // in a chat-style envelope rather than returning the IR directly.
 
-            // Case 1: type is an operation name AND there's an "ir" key — extract the inner IR.
-            if let Some(type_val) = v.get("type").and_then(|t| t.as_str()) {
+            // Case 1: there is a "type" field with any value AND an "ir" key — try to
+            // parse it as NlqIr. Handles both operation-name types ("catalog", ...) and
+            // chat-wrapper types like phi3.5's {"type":"response","ir":{...}}.
+            if let Some(type_val) = other {
                 if v.get("ir").is_some() {
-                    // Try to parse the "ir" sub-object with operation injected from "type".
                     let mut ir_val = v["ir"].clone();
                     if ir_val.get("operation").is_none() {
-                        ir_val["operation"] = serde_json::Value::String(type_val.to_string());
+                        // Only inject type as operation when it looks like a valid op name.
+                        const VALID_OPS: &[&str] = &[
+                            "timeseries",
+                            "rate",
+                            "irate",
+                            "increase",
+                            "histogram",
+                            "topk",
+                            "table",
+                            "distribution",
+                            "catalog",
+                        ];
+                        if VALID_OPS.contains(&type_val) {
+                            ir_val["operation"] =
+                                serde_json::Value::String((*type_val).to_string());
+                        }
                     }
-                    // Patch null time_range fields to sensible defaults.
                     patch_null_time_range(&mut ir_val);
                     normalize_nlq_ir(&mut ir_val);
                     if ir_val.get("operation").is_some() {
@@ -668,23 +695,85 @@ pub(crate) fn parse_llm_response(json: &str) -> Result<NlqIrOrDecline, LlmAdapte
                             raw_type = ?other,
                             "NLQ hybrid-envelope fallback: LLM mixed type-as-operation with ir nesting"
                         );
-                        let ir: NlqIr = serde_json::from_value(ir_val).map_err(|e| {
-                            LlmAdapterError::InvalidResponse(format!(
-                                "NlqIr deserialize failed (hybrid envelope): {e}"
-                            ))
-                        })?;
-                        return Ok(NlqIrOrDecline::Ir(ir));
+                        match serde_json::from_value::<NlqIr>(ir_val) {
+                            Ok(ir) => return Ok(NlqIrOrDecline::Ir(ir)),
+                            Err(e) => tracing::warn!(
+                                error = %e,
+                                "NlqIr deserialize failed (hybrid envelope); trying other fallbacks"
+                            ),
+                        }
                     }
                 }
             }
 
+            // Case 2: phi3.5 / chat-wrapper models put IR in a "content" or
+            // "result" field when the top-level type is "response" or similar.
+            if matches!(
+                other,
+                Some("response") | Some("chat") | Some("message") | Some("result")
+            ) {
+                for key in &["content", "result", "data", "output"] {
+                    if let Some(inner) = v.get(*key) {
+                        // Inner may be an object or a JSON string.
+                        let candidate = if inner.is_object() {
+                            inner.clone()
+                        } else if let Some(s) = inner.as_str() {
+                            serde_json::from_str(s).unwrap_or(serde_json::Value::Null)
+                        } else {
+                            serde_json::Value::Null
+                        };
+                        if candidate.is_object() {
+                            let mut ir_val = candidate;
+                            patch_null_time_range(&mut ir_val);
+                            normalize_nlq_ir(&mut ir_val);
+                            if ir_val.get("operation").is_some() {
+                                tracing::warn!(
+                                    raw_type = ?other,
+                                    nested_key = *key,
+                                    "NLQ chat-wrapper fallback: IR found in nested field"
+                                );
+                                match serde_json::from_value::<NlqIr>(ir_val) {
+                                    Ok(ir) => return Ok(NlqIrOrDecline::Ir(ir)),
+                                    Err(e) => tracing::warn!(
+                                        error = %e,
+                                        "NlqIr deserialize failed (chat-wrapper {}); continuing",
+                                        key
+                                    ),
+                                }
+                            }
+                        }
+                    }
+                }
+                // No nested IR found — phi3.5 returned a wrapper with no usable IR.
+                // Treat as InvalidResponse so the repair loop can try to recover.
+                return Err(LlmAdapterError::InvalidResponse(format!(
+                    "LLM returned chat wrapper (type={other:?}) with no parseable IR"
+                )));
+            }
+
+            // Case 3: bare IR — the LLM omitted the envelope entirely, or used
+            // "type" to carry an operation name directly at the top level.
             let mut ir_val = v.clone();
 
             if ir_val.get("operation").is_none() {
-                // Promote "type" → "operation" if it carries an operation name value.
+                // Promote "type" → "operation" only when the value looks like a
+                // valid operation name (not a generic chat-style word like "response").
+                const VALID_OPS: &[&str] = &[
+                    "timeseries",
+                    "rate",
+                    "irate",
+                    "increase",
+                    "histogram",
+                    "topk",
+                    "table",
+                    "distribution",
+                    "catalog",
+                ];
                 if let Some(type_val) = ir_val.get("type").cloned() {
-                    ir_val["operation"] = type_val;
-                    ir_val.as_object_mut().map(|o| o.remove("type"));
+                    if type_val.as_str().is_some_and(|s| VALID_OPS.contains(&s)) {
+                        ir_val["operation"] = type_val;
+                        ir_val.as_object_mut().map(|o| o.remove("type"));
+                    }
                 }
             }
 
@@ -999,6 +1088,20 @@ pub async fn handle_nlq_query(
                 Json(serde_json::json!({"error": format!("LLM call failed: {e}")})),
             ))
         }
+        // Infrastructure unavailability (ClickHouse or PostgreSQL not reachable) returns 503
+        // rather than 500 so callers can distinguish a transient dependency failure from a
+        // permanent server error.
+        Err(LlmAdapterError::QueryExecution(ref e))
+            if e.to_string().contains("Connect") || e.to_string().contains("network") =>
+        {
+            tracing::error!(error = %e, tenant_id = %ctx.tenant_id, "NLQ pipeline failed — data store unreachable");
+            Err((
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(
+                    serde_json::json!({"error": "data store temporarily unavailable, please retry"}),
+                ),
+            ))
+        }
         Err(e) => {
             tracing::error!(error = %e, tenant_id = %ctx.tenant_id, "NLQ pipeline failed");
             Err((
@@ -1273,6 +1376,41 @@ mod tests {
                 Err(LlmAdapterError::InvalidResponse(_))
             ),
             "unrecognised operation name must still yield InvalidResponse"
+        );
+    }
+
+    #[test]
+    fn parse_phi35_response_wrapper_with_ir_field_succeeds() {
+        // phi3.5 sometimes wraps output as {"type":"response","ir":{...}} instead
+        // of the expected {"type":"ir","ir":{...}} envelope.
+        let json = r#"{
+            "type": "response",
+            "ir": {
+                "operation": "timeseries",
+                "signals": ["metrics"],
+                "metric": "request_duration_ms",
+                "filters": [],
+                "group_by": [],
+                "time_range": {"from": "now-1h", "to": "now"}
+            }
+        }"#;
+        match parse_llm_response(json).expect("phi3.5 response wrapper with ir should parse") {
+            NlqIrOrDecline::Ir(ir) => assert_eq!(ir.operation, NlqOperation::Timeseries),
+            other => panic!("expected Ir, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_phi35_response_wrapper_no_ir_returns_invalid() {
+        // phi3.5 {"type":"response"} with no parseable nested IR → InvalidResponse
+        // so the repair loop can attempt to recover.
+        let json = r#"{"type": "response", "content": "I can help with observability queries."}"#;
+        assert!(
+            matches!(
+                parse_llm_response(json),
+                Err(LlmAdapterError::InvalidResponse(_))
+            ),
+            "chat-wrapper with no nested IR must yield InvalidResponse"
         );
     }
 
