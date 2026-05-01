@@ -1,6 +1,6 @@
 # ADR-021: LLM Natural Language Query Layer
 
-**Date:** 2026-04-19 (updated 2026-04-28)
+**Date:** 2026-04-19 (updated 2026-05-01)
 **Status:** Proposed
 **Authors:** ktjn
 **Deciders:** Project Stakeholders
@@ -45,31 +45,59 @@ IR. See [ADR-026](ADR-026-no-proprietary-query-dsl.md).
 
 ### Stage 1 — NLQ → LLM → NLQ IR
 
-The LLM receives the user's natural language question together with Schema Registry context
-(field names, types, semantic annotations, metric types) and produces a structured
-**NLQ IR** (intermediate representation):
+The LLM and the MCP server never communicate directly. The **backend mediates all
+communication**: it fetches metadata, builds the prompt, calls the LLM, validates the
+response, and — when necessary — retries with a targeted repair prompt.
 
-```json
-{
-  "operation": "timeseries | histogram | rate | topk | table | ...",
-  "signals": ["metrics", "traces", "logs"],
-  "metric": "<metric_name>",
-  "window": "5m",
-  "filters": [{"field": "method", "op": "=", "value": "GET"}],
-  "group_by": ["pod"],
-  "resolution": "1m",
-  "time_range": {"from": "now-1h", "to": "now"},
-  "visualization_hint": "timeseries | histogram | heatmap | table | topk | flamegraph"
-}
-```
+#### Two-layer prompt construction
 
-The LLM does not generate SQL directly. It generates the IR. This separation means the IR is
-stable and testable independent of the LLM, and the SQL generation logic lives in code, not in
-LLM inference.
+Every NLQ request produces a fresh prompt with two layers:
 
-The LLM is grounded by Schema Registry semantic annotations
-(`display_name`, `business_description`, `interpretation_rule`, `effective_sample_rate`,
-`metric_type`). See [spec/03 §5.4.1](../03-storage.md).
+**Static instruction layer** (constant across requests):
+- NlqIr JSON schema with all fields, valid values, and constraints
+- Operation guide with examples of valid IR for each operation type
+- Examples of invalid IR (hallucinated metrics, wrong signals field, etc.)
+- Time-range parsing rules and aggregation rules
+- Advisory boundary instructions (when to emit `decline`)
+- Repair-loop instructions (what to do when asked to correct an error)
+
+**Dynamic metadata layer** (per-tenant, per-request, fetched via `GET /v1/nlq/metadata`):
+- Available metrics: schema-complete entries (name, type, unit, business description,
+  sample rate). Capped at 20 entries sorted by annotation richness to respect token budget.
+- Available label keys: top-N distinct keys present in the series catalog for this tenant
+  (e.g. `service_name`, `environment`, `pod`, `region`, `namespace`). Prevents hallucination
+  of label names.
+- Service scope: if the question is scoped to a service, injected as a constraint.
+
+Without the dynamic layer the LLM would hallucinate metric names and guess label keys.
+
+#### LLM response types
+
+The LLM emits exactly one of three JSON shapes:
+- `{"type": "ir", "ir": <NlqIr>}` — a valid NLQ IR
+- `{"type": "decline", "reason": "..."}` — question is out of scope or unanswerable
+- `{"type": "capabilities"}` — user asked a meta-question about system capabilities
+
+#### Validation and repair loop
+
+After the LLM responds, the backend validates and optionally repairs:
+
+1. Parse and structurally validate the response.
+2. If invalid and repair budget > 0 (`MAX_REPAIR_ATTEMPTS = 1`): send a **repair prompt**
+   to the LLM containing the original question, the faulty response, and the specific error.
+   The LLM is asked to correct only the failing field, keeping valid parts unchanged.
+3. If repair succeeds: proceed with the corrected IR.
+4. If repair also fails: return `InvalidResponse` or `Decline` to the caller.
+
+The repair loop is invisible to the user; only the final result is returned.
+Repair attempts are logged at `warn!` level for quality tracking.
+
+#### MCP metadata boundary
+
+`GET /v1/nlq/metadata` is the stable interface through which the backend fetches tenant
+metadata for prompt construction. It returns metrics, label keys, supported aggregations,
+and common time range presets. This boundary enables future MCP server separation: if the
+MCP server moves to a separate process, only this call crosses the boundary.
 
 ### Stage 2 — MCP Server (IR → SQL/DataFusion)
 
@@ -87,8 +115,12 @@ The MCP server is the abstraction boundary between the LLM reasoning layer and t
 substrate. If the execution substrate changes (ClickHouse SQL → DataFusion SQL → Arrow compute
 kernels), the NLQ IR and the MCP server API remain stable.
 
-The MCP server also exposes schema lookup tools that the LLM calls during IR generation:
-`get_metric_schema`, `list_signal_fields`, `resolve_label_to_column`, etc.
+The MCP server exposes two external boundaries used by the backend:
+- `GET /v1/nlq/metadata` — fetches tenant metadata for prompt construction (metrics, label keys)
+- `POST /v1/mcp/query` — executes a validated NlqIr and returns a VisualizationFrame
+
+The MCP server does NOT expose tools that the LLM calls directly. All LLM interaction is
+mediated through the backend.
 
 ### Stage 3 — VisualizationFrame → UI
 
@@ -186,6 +218,10 @@ available, including the metric-type extensions (`metric_type`, `timestamp_colum
 - All SQL executed by the MCP server must carry the caller's tenant context.
 - Answers must always carry a provenance payload and an approximation statement — this is not
   optional.
+- The LLM must never communicate with the MCP server directly. The backend mediates all
+  communication: metadata fetch, prompt construction, IR validation, and repair.
+- The repair loop is capped at `MAX_REPAIR_ATTEMPTS = 1` to bound LLM call latency.
+- Repair attempts must be logged (at `warn!` level) for quality tracking and future improvement.
 - Natural language query is advisory output. It must not feed automated alert evaluation,
   billing, or SLA enforcement.
 - The LLM must decline questions requiring BI-grade correctness and explain why.
