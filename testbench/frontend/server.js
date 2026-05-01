@@ -9,7 +9,7 @@ const API_URL = process.env.SHOP_API_URL || 'http://shop-api:8000';
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
 const meter = metrics.getMeter('shop-frontend');
-const requestDurationGauge = meter.createObservableGauge('request_duration_ms', {
+const requestDurationHistogram = meter.createHistogram('request_duration_ms', {
   unit: 'ms',
   description: 'HTTP request duration in milliseconds',
 });
@@ -19,13 +19,11 @@ app.use((req, res, next) => {
   const t0 = Date.now();
   res.on('finish', () => {
     const durationMs = Date.now() - t0;
-    requestDurationGauge.addCallback((observableResult) => {
-      observableResult.observe(durationMs, {
-        'http.route': req.path,
-        'http.method': req.method,
-        'http.status_code': String(res.statusCode),
-        'service.name': 'shop-frontend',
-      });
+    requestDurationHistogram.record(durationMs, {
+      'http.route': req.path,
+      'http.method': req.method,
+      'http.status_code': String(res.statusCode),
+      'service.name': 'shop-frontend',
     });
   });
   next();

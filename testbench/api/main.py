@@ -44,7 +44,7 @@ metric_reader = PeriodicExportingMetricReader(
 meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
 metrics.set_meter_provider(meter_provider)
 meter = metrics.get_meter("shop-api")
-request_duration_gauge = meter.create_gauge(
+request_duration_histogram = meter.create_histogram(
     "request_duration_ms",
     unit="ms",
     description="HTTP request duration in milliseconds",
@@ -62,7 +62,7 @@ async def record_request_duration(request: Request, call_next):
     t0 = time.monotonic()
     response = await call_next(request)
     duration_ms = (time.monotonic() - t0) * 1000.0
-    request_duration_gauge.set(
+    request_duration_histogram.record(
         duration_ms,
         attributes={
             "http.route": request.url.path,
