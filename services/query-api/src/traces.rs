@@ -170,17 +170,24 @@ pub async fn search_traces(
         .map(|dt| dt.timestamp_nanos_opt().unwrap_or(0) as u64)
         .unwrap_or(now_ns);
 
+    // Bind the common parameters in the correct order as defined by trace_search_where_clause:
+    // tenant_id, from_ns (if any), to_ns (if any), service_name (if any)
+    let bind_common = |mut q: clickhouse::query::Query| {
+        q = q.bind(ctx.tenant_id);
+        if params.from.is_some() || params.lookback_minutes.is_some() {
+            q = q.bind(from_ns);
+        }
+        if params.to.is_some() {
+            q = q.bind(to_ns);
+        }
+        if let Some(ref svc) = params.service {
+            q = q.bind(svc.as_str());
+        }
+        q
+    };
+
     // First, count total distinct traces.
-    let mut count_query = state.ch.query(&plan.count_sql).bind(ctx.tenant_id);
-    if params.from.is_some() || params.lookback_minutes.is_some() {
-        count_query = count_query.bind(from_ns);
-    }
-    if params.to.is_some() {
-        count_query = count_query.bind(to_ns);
-    }
-    if let Some(ref svc) = params.service {
-        count_query = count_query.bind(svc.as_str());
-    }
+    let count_query = bind_common(state.ch.query(&plan.count_sql));
     let total: u64 = count_query.fetch_one().await.map_err(|e| {
         tracing::error!(error = ?e, "ClickHouse total count error");
         StatusCode::INTERNAL_SERVER_ERROR
@@ -188,7 +195,7 @@ pub async fn search_traces(
 
     // Handle facets.
     let mut facet_results = HashMap::new();
-    if let Some(facets_str) = params.facets {
+    if let Some(ref facets_str) = params.facets {
         let requested_facets: Vec<&str> = facets_str.split(',').map(|s| s.trim()).collect();
 
         for field in requested_facets {
@@ -218,16 +225,7 @@ pub async fn search_traces(
             }
             facet_sql.push_str(&format!(" GROUP BY {field} ORDER BY count DESC LIMIT 10"));
 
-            let mut facet_query = state.ch.query(&facet_sql).bind(ctx.tenant_id);
-            if params.from.is_some() || params.lookback_minutes.is_some() {
-                facet_query = facet_query.bind(from_ns);
-            }
-            if params.to.is_some() {
-                facet_query = facet_query.bind(to_ns);
-            }
-            if let Some(ref svc) = params.service {
-                facet_query = facet_query.bind(svc.as_str());
-            }
+            let facet_query = bind_common(state.ch.query(&facet_sql));
 
             let mut cursor = facet_query.fetch::<(String, u64)>().map_err(|e| {
                 tracing::error!("ClickHouse facet query error: {:?}", e);
@@ -246,16 +244,12 @@ pub async fn search_traces(
     }
 
     // Then, fetch the newest span for each of the newest N traces.
-    let mut query = state.ch.query(&plan.spans_sql).bind(ctx.tenant_id);
-    if params.from.is_some() || params.lookback_minutes.is_some() {
-        query = query.bind(from_ns);
-    }
-    if params.to.is_some() {
-        query = query.bind(to_ns);
-    }
-    if let Some(ref svc) = params.service {
-        query = query.bind(svc.as_str());
-    }
+    debug_assert_eq!(
+        trace_search_common_bind_count(&params) + 1,
+        plan.spans_sql.matches('?').count()
+    );
+    let mut query = state.ch.query(&plan.spans_sql);
+    query = bind_common(query);
     query = query.bind(plan.limit);
 
     let rows: Vec<SpanRow> = query.fetch_all().await.map_err(|e| {
@@ -395,6 +389,20 @@ fn validate_trace_rows_for_tenant(
         "trace query returned rows outside tenant context"
     );
     Err(StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+fn trace_search_common_bind_count(params: &SearchParams) -> usize {
+    let mut count = 1;
+    if params.from.is_some() || params.lookback_minutes.is_some() {
+        count += 1;
+    }
+    if params.to.is_some() {
+        count += 1;
+    }
+    if params.service.is_some() {
+        count += 1;
+    }
+    count
 }
 
 #[cfg(test)]
@@ -541,5 +549,27 @@ mod tests {
                 plan.count_sql
             );
         }
+    }
+
+    #[test]
+    fn trace_search_spans_bind_count_matches_generated_sql() {
+        use crate::planner::QueryPlanner;
+        let planner = QueryPlanner;
+        let params = SearchParams {
+            service: Some("checkout".to_string()),
+            limit: Some(10),
+            facets: None,
+            from: Some(Utc::now()),
+            to: Some(Utc::now()),
+            lookback_minutes: None,
+        };
+        let plan = planner.plan_trace_search(&params);
+
+        assert_eq!(
+            trace_search_common_bind_count(&params) + 1,
+            plan.spans_sql.matches('?').count(),
+            "spans_sql must bind one common filter group plus the subquery LIMIT: {}",
+            plan.spans_sql
+        );
     }
 }

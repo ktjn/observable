@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createDashboard } from "../api/dashboards";
 import { searchLogs, fetchLogHistogram, LogRecord, LogHistogramBucket as ApiHistogramBucket, LogHistogramResponse } from "../api/logs";

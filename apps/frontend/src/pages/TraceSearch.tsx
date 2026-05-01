@@ -373,7 +373,7 @@ function histogramFromApi(buckets: ApiHistogramBucket[]): HistogramBucket<"Trace
   }));
 }
 
-export function buildTraceHistogram(traces: any[], fromMs: number, toMs: number): HistogramBucket<"Traces">[] {
+export function buildTraceHistogram(_traces: TraceResponse[], fromMs: number, toMs: number): HistogramBucket<"Traces">[] {
   const bucketCount = 30;
   const rangeMs = toMs - fromMs;
   const bucketMs = rangeMs / bucketCount;
