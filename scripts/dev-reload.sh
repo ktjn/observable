@@ -122,7 +122,10 @@ ok "cluster '$CLUSTER_NAME' is running"
 # Resolve which images/deployments to reload
 # ---------------------------------------------------------------------------
 
-# Each entry: "docker_tag:image_context:namespace:deployment[,deployment,...]"
+# Each entry: "img|context|ns|deployments[|dockerfile]"
+# The optional 5th field overrides the Dockerfile path (passed as --file to docker build).
+# Required when the Dockerfile uses repo-root-relative COPY paths but lives in a sub-directory
+# (e.g. apps/frontend/Dockerfile copies from the repo root).
 RELOAD_TARGETS=()
 
 rust_backend_target() {
@@ -138,7 +141,7 @@ case "$SERVICE" in
   all)
     RELOAD_TARGETS=(
       "$(rust_backend_target)"
-      "observable-frontend:local|${REPO_ROOT}/apps/frontend|${OBSERVABLE_NS}|frontend"
+      "observable-frontend:local|${REPO_ROOT}|${OBSERVABLE_NS}|frontend|${REPO_ROOT}/apps/frontend/Dockerfile"
       "testbench-api:local|${REPO_ROOT}/testbench/api|${TESTBENCH_NS}|shop-api"
       "testbench-frontend:local|${REPO_ROOT}/testbench/frontend|${TESTBENCH_NS}|shop-frontend"
       "testbench-worker:local|${REPO_ROOT}/testbench/worker|${TESTBENCH_NS}|shop-worker"
@@ -149,7 +152,7 @@ case "$SERVICE" in
   query-api|stream-processor|ingest-gateway|storage-writer|auth-service|alert-evaluator)
     RELOAD_TARGETS=("$(rust_single_target "$SERVICE")") ;;
   frontend)
-    RELOAD_TARGETS=("observable-frontend:local|${REPO_ROOT}/apps/frontend|${OBSERVABLE_NS}|frontend") ;;
+    RELOAD_TARGETS=("observable-frontend:local|${REPO_ROOT}|${OBSERVABLE_NS}|frontend|${REPO_ROOT}/apps/frontend/Dockerfile") ;;
   testbench)
     RELOAD_TARGETS=(
       "testbench-api:local|${REPO_ROOT}/testbench/api|${TESTBENCH_NS}|shop-api"
@@ -185,13 +188,17 @@ NEED_FRONTEND_TESTS=false
 declare -A LOADED_IMAGES=()
 
 for target in "${RELOAD_TARGETS[@]}"; do
-  IFS='|' read -r img img_context ns deployments_csv <<< "$target"
+  IFS='|' read -r img img_context ns deployments_csv dockerfile_path <<< "$target"
 
   # Build
   if [[ "$SKIP_BUILD" == "false" && -z "${LOADED_IMAGES[$img]:-}" ]]; then
     log "Building $img"
     info "context: $img_context"
-    docker build --tag "$img" "$img_context"
+    if [[ -n "${dockerfile_path:-}" ]]; then
+      docker build --tag "$img" --file "$dockerfile_path" "$img_context"
+    else
+      docker build --tag "$img" "$img_context"
+    fi
     ok "$img built"
   elif [[ "$SKIP_BUILD" == "true" ]]; then
     info "Skipping build for $img (--skip-build)"
