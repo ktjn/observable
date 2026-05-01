@@ -76,7 +76,7 @@ vi.mock("@tanstack/react-router", () => ({
   },
 }));
 
-const { searchTraces } = await import("../api/traces");
+const { searchTraces, fetchTraceHistogram } = await import("../api/traces");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -126,4 +126,24 @@ test("renders the trace explorer shell with facets and named results table", asy
   
   // Trace ID is now a button for selection in the main view
   expect(within(table).getByRole("button", { name: "trace-abc-123456…" })).toBeInTheDocument();
+});
+
+test("renders a visible trace histogram from search results when histogram buckets are empty", async () => {
+  renderTraceSearch();
+
+  const histogram = await screen.findByRole("img", { name: "Trace volume histogram" });
+  const traceBar = histogram.querySelector("[title*='Traces: 1']");
+
+  expect(traceBar).toBeInTheDocument();
+});
+
+test("keeps a visible trace histogram when the histogram query fails", async () => {
+  vi.mocked(fetchTraceHistogram).mockRejectedValueOnce(new Error("histogram backend error"));
+
+  renderTraceSearch();
+
+  const histogram = await screen.findByRole("img", { name: "Trace volume histogram" });
+  const traceBar = histogram.querySelector("[title*='Traces: 1']");
+
+  expect(traceBar).toBeInTheDocument();
 });
