@@ -152,6 +152,9 @@ The VisualizationFrame maps to Grafana's `DataFrame` + `PanelData` model consume
 `@grafana/ui`. The UI auto-selects the correct Grafana panel without guessing.
 This is the **auto-graphing** contract (see [ADR-016](adr/ADR-016-grafana-visualization-strategy.md)).
 
+For the full list of supported operations, their SQL patterns, disambiguation rules, and the eval
+harness feedback loop, see **§13.4** below.
+
 **Provenance payload**
 
 Every response includes:
@@ -333,6 +336,147 @@ JOIN (
 
 ---
 
+### 13.4 NLQ Query Path: Supported Operations, Design Choices, and Capabilities
+
+This section documents the nine NLQ operations, their intended use cases, key SQL design choices,
+and the disambiguation rules that guide both the LLM and the SQL template library. It is the
+canonical reference for any change to the system prompt, IR schema, or SQL templates.
+
+#### Operation Reference
+
+| Operation | Use case | Metric requirement | Output shape |
+|---|---|---|---|
+| `timeseries` | Trend chart over time | Any gauge or histogram | Many rows (bucket, value) |
+| `rate` | Per-second rate of a counter | Monotonic counter only | Many rows (bucket, rate) |
+| `irate` | Instantaneous rate from last two samples | Monotonic counter only | Many rows (bucket, rate) |
+| `increase` | Total counter increase over window | Monotonic counter only | One or many rows |
+| `histogram` | OTel Histogram bucket distribution | `metric_type = histogram` only | Many rows (bound, count) |
+| `topk` | Rank entities by computed metric value | Any | N rows (label, value) |
+| `table` | Raw point scan — most recent rows | Any | Up to 1000 rows |
+| `distribution` | Scalar stats for a single time window | Any gauge or histogram | One row (p95, avg, …) |
+| `catalog` | Enumerate distinct values of a dimension | None (series metadata) | Many rows (field, count) |
+
+#### Operation Design Choices
+
+**`timeseries` vs `distribution`**
+
+The primary disambiguation: does the user want a chart or a single number?
+
+- `timeseries` groups rows by `time_bucket(resolution, timestamp)` and emits one row per bucket.
+  The SQL pattern is `GROUP BY bucket ORDER BY bucket`.
+- `distribution` aggregates the entire time range into a single row using `quantile()`, `avg()`,
+  `min()`, `max()`. No `GROUP BY` on time.
+
+Rule: if the user names a specific stat (`p95`, `average`, `median`, `p99`, `min`, `max`) → `distribution`.
+If the user asks for a metric by name with a time range but no specific stat → `timeseries`.
+
+**`histogram` vs `distribution`**
+
+Both operate on latency data but from different OTel instruments:
+
+- `histogram` consumes OTel Histogram bucket columns (`histogram_explicit_bounds`,
+  `histogram_bucket_counts`). It uses `arrayDifference` to reconstruct per-bucket counts and
+  `arrayJoin` to expand them into rows. Only valid when `metric_type = 'histogram'`.
+- `distribution` uses `value_double` / `value_int` scalar values via `quantile()`. Valid for
+  gauge and counter metrics. It also works for summary metrics that record pre-computed percentiles.
+
+Rule: use `histogram` only when the metric type is histogram AND the user explicitly asks for
+"histogram", "bucket distribution", or "buckets". Use `distribution` for all other percentile/stat
+queries.
+
+**`rate` / `irate` / `increase` — counter semantics**
+
+All three require `metric_type = 'counter'` in the Schema Registry:
+
+- `rate` — `(value - lag(value)) / elapsed_seconds` per window, with counter-reset detection.
+  When `value < lag(value)`, the counter has reset and the delta is taken as `value` (not negative).
+- `irate` — same formula but over only the two most recent samples in the window (instantaneous).
+- `increase` — `SUM(delta)` over the window, with the same reset detection logic as `rate`.
+
+None of these functions make sense for gauge metrics. The SQL template selects the correct pattern
+based on `metric_type` from the Schema Registry; the LLM only needs to choose the right operation.
+
+**`topk` — ranking by value**
+
+`topk` aggregates all samples in the time range with `avg(value)` per label combination, then
+takes the top-N rows with `ORDER BY avg_value DESC LIMIT N`. The `limit` IR field controls N.
+
+Disambiguation from `catalog`: `topk` ranks by a **computed metric value** (requires `metric`
+field). `catalog` enumerates **what entities exist** (no metric, no aggregation).
+
+**`catalog` — series metadata enumeration**
+
+`catalog` queries the `metric_series` metadata table, not the `metric_points` data table.
+This means it is very fast, contains no time-range logic, and returns results even for
+metrics that have not received data recently.
+
+The `catalog_field` field controls which dimension is enumerated:
+
+| User question | `catalog_field` | SQL expression |
+|---|---|---|
+| "list all services" | `service_name` | `ms.service_name` |
+| "what environments exist?" | `environment` | `ms.environment` |
+| "what metrics does X emit?" | `metric_name` | `ms.metric_name` |
+| "what pods does X use?" | `pod` | `JSONExtractString(ms.attributes, 'pod')` |
+
+First-class columns (`service_name`, `environment`, `metric_name`) are mapped directly. All other
+field names fall back to `JSONExtractString(ms.attributes, '<field>')`. If the attributes JSON
+does not contain the field, the query returns empty (not an error). This is intentional: the user
+can ask for any dimension; the system will truthfully return nothing if the data does not exist.
+
+**`table` — raw point scan**
+
+`table` is a `LIMIT 1000 ORDER BY time_unix_nano DESC` point scan with no aggregation. It is the
+escape hatch for users who want to inspect raw data. The `metric` field narrows the scan to a
+specific metric; without it the scan is across all series for the tenant.
+
+#### Eval Harness and Regression Gate
+
+The NLQ eval harness (`scripts/nlq-eval.py` + `tests/nlq/cases.json`) is the primary quality
+gate for this pipeline. Every test case exercises the full end-to-end path:
+
+```
+user question → LLM → NLQ IR → SQL template → ClickHouse → VisualizationFrame → assertions
+```
+
+**When the harness must be run and updated:**
+
+Any change to one of these surfaces requires running the eval harness and showing no regressions:
+
+| Surface | Where defined |
+|---|---|
+| System prompt (static instruction layer) | `services/query-api/src/llm_adapter.rs` `build_system_prompt()` |
+| IR schema (`NlqIr` struct or field semantics) | `libs/domain/src/nlq.rs` |
+| SQL templates (operation → SQL mapping) | `services/query-api/src/sql_templates.rs` |
+| Metadata injection (dynamic layer) | `services/query-api/src/llm_adapter.rs` `fetch_schema_context()` |
+| IR parser / repair loop | `services/query-api/src/llm_adapter.rs` `parse_llm_response()` |
+| Eval test cases themselves | `tests/nlq/cases.json` |
+
+**Feedback loop:**
+
+```
+Run eval
+  │
+  ├─ All pass → done ✓
+  │
+  └─ Failures → diagnose via last-run.json
+                  │
+                  ├─ wrong operation → add/fix disambiguation rule in static instruction layer
+                  ├─ invalid_response → add to repair loop examples or fix IR normalization
+                  ├─ empty data → fix SQL template or filter logic in sql_templates.rs
+                  └─ new test case → add regression case to tests/nlq/cases.json
+```
+
+Run the eval with:
+
+```bash
+python3 scripts/nlq-eval.py --url http://localhost:8080
+```
+
+See `tests/nlq/last-run.json` for the structured per-case results including raw IR and SQL.
+
+---
+
 ### Hard Rules
 
 - every model decision needs provenance — expose the raw queries, signals consulted, and sample rates
@@ -341,3 +485,4 @@ JOIN (
 - every NL query response must include an explicit approximation statement
 - the LLM must not bypass tenant isolation or RBAC — all queries execute under the caller's context
 - the LLM must decline to answer questions requiring BI-grade correctness and explain why
+- any change to the NLQ→IR→SQL pipeline must be covered by the eval harness — see §13.4

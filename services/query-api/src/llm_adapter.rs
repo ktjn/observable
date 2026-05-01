@@ -308,9 +308,10 @@ Respond with JSON only. Use EXACTLY one of these three schemas:
 If you can answer the question:
 {"type": "ir", "ir": <NlqIr object>}
 
-If the question is outside scope (billing, SLA evidence, regulatory compliance, financial
-reconciliation) or you cannot produce a valid IR:
+If the question is outside scope (explicitly billing, SLA evidence, regulatory compliance, or
+financial reconciliation):
 {"type": "decline", "reason": "<brief explanation>"}
+Do NOT decline operational, observability, or metadata questions — always try to produce an IR.
 
 If the user asks about your own capabilities ("what can you query", "what operations",
 "describe yourself", "what can I ask", "what metrics are available", "how do I use you"):
@@ -330,7 +331,8 @@ Do not attempt to generate an IR for these meta-questions.
   "time_range": {"from": "now-1h", "to": "now"},
   "visualization_hint": "timeseries" | "histogram" | "heatmap" | "table" | "topk" | "flamegraph" | "distribution" | null,
   "percentiles": ["p99"] | ["p75","p95","p99","average","median"] | null,
-  "catalog_field": "service_name" | "environment" | "metric_name" | "<any_label_key>" | null
+  "catalog_field": "service_name" | "environment" | "metric_name" | "<any_label_key>" | null,
+  "limit": 10 | null
 }
 
 IMPORTANT — the `signals` field is a signal CATEGORY, not the metric name.
@@ -339,18 +341,49 @@ The metric name goes in the `metric` field, never in `signals`.
 
 ## Operation guide
 
-- timeseries: gauge average over time buckets (use for most questions about "over time")
+- timeseries: gauge average over time buckets — use when the user wants a chart of values changing over time
 - rate: per-second rate of a counter (resets-aware)
 - irate: instantaneous rate from two most recent samples
 - increase: total increase of a counter over the window
-- histogram: bucket distribution (only for OTel Histogram metrics that have explicit bucket bounds). Do NOT use for gauge or counter metrics — use `distribution` instead. If unsure, prefer `distribution`.
-- topk: top-N series by average value
-- table: raw point scan, most recent 1000 rows
-- distribution: compute only the stats the user asked for
-- **catalog**: Enumerate distinct observable entities (metadata). Use when the user asks "list X", "what X exist?", "how many X?", "which X does Y have?". Set `catalog_field` to the dimension name: "service_name", "environment", "metric_name", or any label key like "pod", "region", "namespace". Does NOT require a `metric` field.
+- histogram: display raw OTel Histogram bucket data — use ONLY when the metric type is "histogram" AND the user explicitly says "histogram", "bucket distribution", or "buckets". Requires OTel Histogram metrics with explicit bucket bounds. Do NOT use for gauge or counter metrics.
+- topk: rank services/pods/labels by a computed metric value — use when user asks "top N by X", "highest X", "which service has the most/highest X". REQUIRES a `metric` field. This is NOT the same as `catalog`.
+- table: raw point scan, most recent 1000 rows — use when user asks "show me raw data", "list recent metric points", "show the last N rows", "raw data for X". Always set `metric`.
+  Example: "show me recent data for request_duration_ms" → {"type":"ir","ir":{"operation":"table","signals":["metrics"],"metric":"request_duration_ms","filters":[],"time_range":{"from":"now-1h","to":"now"}}}
+- distribution: compute scalar stats (percentiles, average, min, max) for a single time window — use when user asks for "p95", "average", "median", "p99 latency", or any single-number summary. Produces one row, NOT a chart.
+- **catalog**: Enumerate distinct observable entities (no metric computation). Use ONLY when the user asks "list X", "what X exist?", "show me all X", "which X does Y have?". Does NOT rank by value. Does NOT require a `metric` field.
+  Set `catalog_field` to the dimension name: "service_name", "environment", "metric_name", or any label key like "pod", "region", "namespace".
+  CRITICAL: Set `catalog_field` to exactly what the user is asking to list:
+    - "list services" → catalog_field: "service_name"
+    - "list environments" → catalog_field: "environment"
+    - "what metrics does X emit?" → catalog_field: "metric_name" (with filter service_name=X)
+    - "list pods for X" → catalog_field: "pod" (with filter service_name=X)
   Example: "list all services" → {"type":"ir","ir":{"operation":"catalog","signals":["metrics"],"catalog_field":"service_name","filters":[],"time_range":{"from":"now-24h","to":"now"}}}
   Example: "what pods does checkout use?" → {"type":"ir","ir":{"operation":"catalog","signals":["metrics"],"catalog_field":"pod","filters":[{"field":"service_name","op":"=","value":"checkout"}],"time_range":{"from":"now-24h","to":"now"}}}
   Example: "what metrics does payments emit?" → {"type":"ir","ir":{"operation":"catalog","signals":["metrics"],"catalog_field":"metric_name","filters":[{"field":"service_name","op":"=","value":"payments"}],"time_range":{"from":"now-24h","to":"now"}}}
+
+**NEVER confuse `topk` and `catalog`:**
+- catalog = "list what exists" (no aggregation, no ranking by value)
+- topk = "which entities have the highest/lowest metric value" (requires metric aggregation)
+- "top 5 services by latency" → topk (NOT catalog)
+- "which 3 services have the most errors?" → topk (NOT catalog)
+- "list all services" → catalog (NOT topk)
+
+**NEVER confuse `distribution` and `timeseries`:**
+- distribution = single scalar answer (one row: "p95 is 42 ms") — use ONLY when the user names a SPECIFIC stat
+- timeseries = chart over time (many rows: one per time bucket) — use when no specific stat is named
+- **Rule: If the user names a specific stat (p50, p75, p95, p99, average, median, min, max) → distribution**
+- **Rule: If the user mentions a metric without naming a specific stat → timeseries**
+- "p95 latency for the last hour" → distribution (user named "p95")
+- "average latency" / "mean request duration" → distribution (user named "average" / "mean")
+- "request latency over the last hour" → timeseries (no specific stat named, wants a chart)
+- "latency over time" / "show me a graph of latency" / "latency trend" → timeseries
+- "how has latency changed" / "request duration" (no stat) → timeseries
+
+**Filter rules — CRITICAL:**
+- NEVER add a filter with an empty string value (e.g. service_name = ""). If you don't know the value, OMIT the filter entirely.
+- Only add filters for values you are confident about from the user's query.
+- If the user did not mention a specific service, pod, or label value, do NOT add a filter for it.
+- NEVER put time constraints in the filters array. ALL temporal bounds go in the `time_range` field ONLY. Valid filter ops are: `=`, `!=`, `=~`, `!~`, `>`, `>=`, `<`, `<=`. The op `range` does not exist.
 
 ## `percentiles` field (for distribution operation only)
 
@@ -360,21 +393,53 @@ Set to EXACTLY the stats the user asked for — no more, no less:
 - `"average"` or `"mean"` (arithmetic mean)
 - `"min"`, `"max"`
 
+**CRITICAL: Include ALL percentiles the user mentioned. Do not drop any.**
+**CRITICAL: When the user uses the word "average" or "mean" → set `"percentiles": ["average"]`.**
+**CRITICAL: When the user uses the word "median" → include `"median"` in percentiles.**
+**These are specific stat names. You MUST include them in the percentiles array.**
+
 Examples:
 - User asked **"p99 latency"** → `"percentiles": ["p99"]`
 - User asked **"p75, p95, p99"** → `"percentiles": ["p75", "p95", "p99"]`
+- User asked **"p95 p99 and average"** → `"percentiles": ["p95", "p99", "average"]` ← include ALL THREE
 - User asked **"p99, average, and median"** → `"percentiles": ["p99", "average", "median"]`
+- User asked **"average latency"** → operation=distribution, `"percentiles": ["average"]`
+- User asked **"median latency"** → operation=distribution, `"percentiles": ["median"]`
+- User asked **"median and average latency"** → operation=distribution, `"percentiles": ["median", "average"]`
 - User asked **"distribution"** or **"all percentiles"** → omit `percentiles` entirely (null)
 
 NEVER include percentiles the user did not ask for.
+NEVER leave percentiles=null when the user asked for specific stats like "average" or "median".
+NEVER drop a percentile the user mentioned — if user said "p95 p99 and average", all three must appear.
+
+## `limit` field
+
+`limit` is ONLY for `topk` operations. For all other operations, leave `limit` as null.
+- `topk` with "top 5" → `"limit": 5`
+- `topk` with "top 3" → `"limit": 3`
+- distribution, timeseries, catalog, table → `"limit": null` (ALWAYS)
+
+## `topk` usage
+
+Use `topk` when the user wants to RANK entities by a computed metric value. Always set `metric`.
+- `limit`: how many top results (default 10 if not specified)
+- Example: "top 5 services by request_duration_ms" → {"operation":"topk","metric":"request_duration_ms","limit":5,...}
+- Example: "which 3 services have the highest latency?" → {"operation":"topk","metric":"request_duration_ms","limit":3,...}
+- Example: "top 10 by error count" → {"operation":"topk","metric":"<error_metric>","limit":10,...}
 
 ## Advisory boundary — MANDATORY
 
-You MUST emit {"type": "decline", ...} for questions involving:
+You MUST emit {"type": "decline", ...} for questions that **explicitly** involve:
 - Billing, invoicing, or financial reconciliation
 - SLA evidence, contractual compliance, or service level objectives used as contracts
 - Regulatory compliance (GDPR, HIPAA, SOX, audit trails)
 - Any use case requiring BI-grade correctness guarantees
+
+**NEVER decline operational or observability questions.** The following are always safe to answer:
+- "list all services", "what metrics does X emit?", "what environments exist?" → catalog
+- "show latency", "p95 request duration", "average CPU usage" → distribution/timeseries
+- "top services by error rate", "show recent logs" → topk/table
+When in doubt, produce an IR. Only decline when the question **explicitly** mentions billing, SLA, or regulatory compliance.
 
 ## Available metrics (schema_complete only)
 
@@ -419,7 +484,10 @@ You MUST emit {"type": "decline", ...} for questions involving:
         prompt.push('\n');
     }
     prompt.push_str(
-        "Use these keys in filters and group_by. Do not invent label keys not listed above.\n",
+        "Use these keys in filters and group_by. Do not invent label keys not listed above.\n\
+         Exception: for `catalog` operations the user is explicitly asking to list a dimension — \
+         you may use any label name the user mentions as `catalog_field` even if not listed above; \
+         the SQL will return empty results if the field does not exist.\n",
     );
 
     if let Some(svc) = service_scope {
@@ -510,6 +578,44 @@ fn normalize_nlq_signals(ir_val: &mut serde_json::Value) {
     }
 }
 
+/// Normalises an IR JSON value in-place before deserialisation:
+/// - Array fields emitted as `null` are replaced with `[]` (serde `default` only handles missing, not null).
+/// - Missing or null `time_range` is filled with sensible defaults.
+fn normalize_nlq_ir(ir_val: &mut serde_json::Value) {
+    normalize_nlq_signals(ir_val);
+
+    // null array → empty array for all Vec fields.
+    for field in &["filters", "group_by", "percentiles"] {
+        if let Some(v) = ir_val.get_mut(*field) {
+            if v.is_null() {
+                *v = serde_json::json!([]);
+            }
+        }
+    }
+
+    // Strip filters with unknown ops (e.g. "range") — the LLM sometimes puts time constraints
+    // in the filters array instead of `time_range`. These would fail serde deserialization and
+    // the repair loop cannot reliably fix them. Removing them is safe: the `time_range` field
+    // already carries temporal bounds, so discarding a time-based filter loses nothing.
+    const VALID_OPS: &[&str] = &["=", "!=", "=~", "!~", ">", ">=", "<", "<="];
+    if let Some(serde_json::Value::Array(filters)) = ir_val.get_mut("filters") {
+        filters.retain(|f| {
+            f.get("op")
+                .and_then(|op| op.as_str())
+                .map(|op| VALID_OPS.contains(&op))
+                .unwrap_or(false)
+        });
+    }
+
+    // Missing or null time_range → sensible defaults.
+    match ir_val.get("time_range") {
+        None | Some(serde_json::Value::Null) => {
+            ir_val["time_range"] = serde_json::json!({"from": "now-24h", "to": "now"});
+        }
+        _ => patch_null_time_range(ir_val),
+    }
+}
+
 pub(crate) fn parse_llm_response(json: &str) -> Result<NlqIrOrDecline, LlmAdapterError> {
     let v: serde_json::Value = serde_json::from_str(json)
         .map_err(|e| LlmAdapterError::InvalidResponse(format!("JSON parse failed: {e}")))?;
@@ -520,7 +626,7 @@ pub(crate) fn parse_llm_response(json: &str) -> Result<NlqIrOrDecline, LlmAdapte
                 .get("ir")
                 .ok_or_else(|| LlmAdapterError::InvalidResponse("missing 'ir' field".into()))?
                 .clone();
-            normalize_nlq_signals(&mut ir_val);
+            normalize_nlq_ir(&mut ir_val);
             let ir: NlqIr = serde_json::from_value(ir_val).map_err(|e| {
                 LlmAdapterError::InvalidResponse(format!("NlqIr deserialize failed: {e}"))
             })?;
@@ -540,6 +646,36 @@ pub(crate) fn parse_llm_response(json: &str) -> Result<NlqIrOrDecline, LlmAdapte
             // {"type":"ir","ir":{...}} envelope, or used "type" where "operation"
             // is expected (e.g. {"type":"catalog",...} instead of
             // {"type":"ir","ir":{"operation":"catalog",...}}).
+            //
+            // Also handles hybrid format: {"type":"catalog","ir":{<valid NlqIr>}}
+            // where the LLM mixed old type-as-operation with the IR nesting.
+
+            // Case 1: type is an operation name AND there's an "ir" key — extract the inner IR.
+            if let Some(type_val) = v.get("type").and_then(|t| t.as_str()) {
+                if v.get("ir").is_some() {
+                    // Try to parse the "ir" sub-object with operation injected from "type".
+                    let mut ir_val = v["ir"].clone();
+                    if ir_val.get("operation").is_none() {
+                        ir_val["operation"] = serde_json::Value::String(type_val.to_string());
+                    }
+                    // Patch null time_range fields to sensible defaults.
+                    patch_null_time_range(&mut ir_val);
+                    normalize_nlq_ir(&mut ir_val);
+                    if ir_val.get("operation").is_some() {
+                        tracing::warn!(
+                            raw_type = ?other,
+                            "NLQ hybrid-envelope fallback: LLM mixed type-as-operation with ir nesting"
+                        );
+                        let ir: NlqIr = serde_json::from_value(ir_val).map_err(|e| {
+                            LlmAdapterError::InvalidResponse(format!(
+                                "NlqIr deserialize failed (hybrid envelope): {e}"
+                            ))
+                        })?;
+                        return Ok(NlqIrOrDecline::Ir(ir));
+                    }
+                }
+            }
+
             let mut ir_val = v.clone();
 
             if ir_val.get("operation").is_none() {
@@ -551,11 +687,12 @@ pub(crate) fn parse_llm_response(json: &str) -> Result<NlqIrOrDecline, LlmAdapte
             }
 
             if ir_val.get("operation").is_some() {
+                patch_null_time_range(&mut ir_val);
                 tracing::warn!(
                     raw_type = ?other,
                     "NLQ bare-IR fallback: LLM omitted response envelope; attempting direct parse"
                 );
-                normalize_nlq_signals(&mut ir_val);
+                normalize_nlq_ir(&mut ir_val);
                 let ir: NlqIr = serde_json::from_value(ir_val).map_err(|e| {
                     LlmAdapterError::InvalidResponse(format!(
                         "NlqIr deserialize failed (bare IR): {e}"
@@ -572,6 +709,19 @@ pub(crate) fn parse_llm_response(json: &str) -> Result<NlqIrOrDecline, LlmAdapte
 }
 
 // ── Service scope enforcement ─────────────────────────────────────────────────
+
+/// Patches a JSON IR value in-place to replace null `time_range.from` / `time_range.to`
+/// with sensible defaults (now-24h / now) so the LLM emitting null values doesn't break parsing.
+fn patch_null_time_range(ir_val: &mut serde_json::Value) {
+    if let Some(tr) = ir_val.get_mut("time_range") {
+        if tr.get("from").is_some_and(|v| v.is_null()) {
+            tr["from"] = serde_json::Value::String("now-24h".into());
+        }
+        if tr.get("to").is_some_and(|v| v.is_null()) {
+            tr["to"] = serde_json::Value::String("now".into());
+        }
+    }
+}
 
 /// Injects a `service_name = <value>` filter if `service_name` is specified and not already
 /// present in the IR. This is enforced server-side, not LLM-instructed.
@@ -964,6 +1114,7 @@ mod tests {
             visualization_hint: None,
             percentiles: None,
             catalog_field: None,
+            limit: None,
         }
     }
 

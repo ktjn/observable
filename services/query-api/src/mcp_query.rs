@@ -159,6 +159,10 @@ async fn execute_catalog_query(
     };
     let sql = generate_sql(&ctx)?;
 
+    // The SQL now aliases the dimension column by its actual name (e.g. "service_name",
+    // "metric_name") so frontends and eval tooling can identify columns semantically.
+    let label_col = ir.catalog_field.as_deref().unwrap_or("value").to_string();
+
     tracing::debug!(
         tenant_id = %tenant_id,
         catalog_field = ?ir.catalog_field,
@@ -170,7 +174,7 @@ async fn execute_catalog_query(
     let frame_type = VisualizationFrameType::Table;
     let field_roles = vec![
         FieldRole {
-            name: "value".into(),
+            name: label_col.clone(),
             role: FieldRoleKind::Label,
         },
         FieldRole {
@@ -181,7 +185,7 @@ async fn execute_catalog_query(
 
     Ok(VisualizationFrame {
         frame_type,
-        x_field: Some("value".into()),
+        x_field: Some(label_col),
         y_field: Some("series_count".into()),
         series_field: None,
         unit: None,
@@ -502,6 +506,7 @@ mod tests {
             visualization_hint: None,
             percentiles: None,
             catalog_field: None,
+            limit: None,
         }
     }
 

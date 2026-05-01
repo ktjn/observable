@@ -147,6 +147,7 @@ mod tests {
             visualization_hint: Some(NlqVisualizationHint::Timeseries),
             percentiles: None,
             catalog_field: None,
+            limit: None,
         }
     }
 

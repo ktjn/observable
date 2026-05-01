@@ -244,21 +244,29 @@ def evaluate_case(
     })
 
     # Check 2: IR operation (only for frame responses)
+    # Supports both "operation": "catalog" (exact) and "operation_any_of": ["histogram","distribution"] (set)
     expected_op = expect.get("operation")
-    if resp_type == "frame" and expected_op is not None:
+    expected_op_any = expect.get("operation_any_of")
+    if resp_type == "frame" and (expected_op is not None or expected_op_any is not None):
         actual_op = result_record["actual_operation"]
-        op_ok = actual_op == expected_op
+        if expected_op_any is not None:
+            op_ok = actual_op in expected_op_any
+            detail = f"expected one of {expected_op_any} actual={actual_op}"
+        else:
+            op_ok = actual_op == expected_op
+            detail = f"expected={expected_op} actual={actual_op}"
         checks.append({
             "name": "ir_operation",
             "passed": op_ok,
-            "detail": f"expected={expected_op} actual={actual_op}",
+            "detail": detail,
         })
-    elif expected_op is not None and resp_type != "frame":
+    elif (expected_op is not None or expected_op_any is not None) and resp_type != "frame":
         # Can't check operation if not a frame
+        label = expected_op or f"one of {expected_op_any}"
         checks.append({
             "name": "ir_operation",
             "passed": False,
-            "detail": f"expected operation={expected_op} but response type={resp_type} (not frame)",
+            "detail": f"expected operation={label} but response type={resp_type} (not frame)",
         })
 
     # Check 3: data non-empty

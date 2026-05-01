@@ -222,6 +222,7 @@ fn base_ir(op: NlqOperation) -> NlqIr {
         visualization_hint: None,
         percentiles: None,
         catalog_field: None,
+        limit: None,
     }
 }
 
