@@ -36,7 +36,8 @@ pub struct QueryPlanner;
 impl QueryPlanner {
     pub fn plan_trace_search(&self, params: &TraceSearchParams) -> TraceSearchPlan {
         let where_clause = trace_search_where_clause(params);
-        let count_sql = format!("SELECT count(DISTINCT trace_id) FROM observable.spans {where_clause}");
+        let count_sql =
+            format!("SELECT count(DISTINCT trace_id) FROM observable.spans {where_clause}");
 
         let latest_trace_ids_sql = format!(
             "(SELECT tenant_id, trace_id, max(start_time_unix_nano) FROM observable.spans {where_clause} GROUP BY tenant_id, trace_id ORDER BY max(start_time_unix_nano) DESC LIMIT ?)"
