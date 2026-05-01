@@ -295,6 +295,52 @@ pub async fn resolve_label_to_column(
     }
 }
 
+/// Fetches the top-N distinct attribute keys present in metric_series for this tenant.
+/// Combines native columns (service_name, environment, metric_name) with the most-frequent
+/// JSON attribute keys extracted from the attributes column.
+///
+/// The ClickHouse dialect (`JSONExtractKeys`, `arrayJoin`) is encapsulated here and never
+/// leaks to callers.
+pub async fn fetch_label_keys(
+    ch: &clickhouse::Client,
+    tenant_id: uuid::Uuid,
+    limit: usize,
+) -> Result<Vec<String>, clickhouse::error::Error> {
+    const NATIVE_COLS: &[&str] = &["service_name", "environment", "metric_name"];
+
+    #[derive(clickhouse::Row, serde::Deserialize)]
+    struct LabelKeyRow {
+        label_key: String,
+        #[allow(dead_code)]
+        cnt: u64,
+    }
+
+    let sql = format!(
+        "SELECT \
+             arrayJoin(JSONExtractKeys(attributes)) AS label_key, \
+             count() AS cnt \
+         FROM observable.metric_series \
+         WHERE tenant_id = '{tenant_id}' \
+           AND attributes != '{{}}' \
+         GROUP BY label_key \
+         ORDER BY cnt DESC \
+         LIMIT {limit}"
+    );
+
+    let rows: Vec<LabelKeyRow> = ch.query(&sql).fetch_all().await?;
+
+    let mut keys: Vec<String> = NATIVE_COLS.iter().map(|s| s.to_string()).collect();
+    let native_set: std::collections::HashSet<&str> = NATIVE_COLS.iter().copied().collect();
+
+    for row in rows {
+        if !native_set.contains(row.label_key.as_str()) && keys.len() < limit {
+            keys.push(row.label_key);
+        }
+    }
+
+    Ok(keys)
+}
+
 // ── HTTP handlers ─────────────────────────────────────────────────────────────
 
 /// GET /v1/mcp/tools/metric-schema/:metric_name

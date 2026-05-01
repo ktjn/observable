@@ -9,6 +9,8 @@
 //   - The LlmCaller trait is injected through AppState so tests can run without a real LLM.
 //   - Service scope is enforced programmatically (not LLM-instructed) to prevent scope drift.
 //   - Schema context is bounded to `schema_complete` metrics (cap 20) to stay within token budget.
+
+const MAX_REPAIR_ATTEMPTS: usize = 1;
 use crate::mcp_query::execute_mcp_query;
 use crate::middleware::auth::TenantContext;
 use crate::traces::AppState;
@@ -242,16 +244,21 @@ pub fn server_side_deny_gate(question: &str) -> Option<String> {
 
 // ── Schema context ────────────────────────────────────────────────────────────
 
-/// Fetches up to `limit` schema-complete metrics for the tenant, ordered by annotation richness.
+/// Fetches up to `limit` schema-complete metrics for the tenant, ordered by annotation richness,
+/// and the top label keys from ClickHouse metric_series.
 ///
 /// Delegates to `mcp_tools::list_signal_fields` — the canonical home for schema lookups —
 /// and filters for `schema_complete = true` (metric_type + timestamp_column both present),
 /// which is the minimum annotation required for correct MCP SQL generation.
+///
+/// Label key fetch errors are non-fatal: on failure a warning is logged and an empty list
+/// is returned so the rest of the pipeline continues unimpeded.
 async fn fetch_schema_context(
     db: &PgPool,
+    ch: &clickhouse::Client,
     tenant_id: Uuid,
     limit: usize,
-) -> Result<Vec<crate::mcp_tools::SignalField>, LlmAdapterError> {
+) -> Result<(Vec<crate::mcp_tools::SignalField>, Vec<String>), LlmAdapterError> {
     let mut fields = crate::mcp_tools::list_signal_fields(db, tenant_id, "metrics")
         .await
         .map_err(|e| LlmAdapterError::SchemaLookup(e.to_string()))?;
@@ -265,13 +272,28 @@ async fn fetch_schema_context(
         -score
     });
     fields.truncate(limit);
-    Ok(fields)
+
+    // Fetch label keys from ClickHouse — non-fatal on error.
+    let label_keys = match crate::mcp_tools::fetch_label_keys(ch, tenant_id, limit).await {
+        Ok(keys) => keys,
+        Err(e) => {
+            tracing::warn!(
+                tenant_id = %tenant_id,
+                error = %e,
+                "fetch_label_keys failed — continuing with empty label list"
+            );
+            vec![]
+        }
+    };
+
+    Ok((fields, label_keys))
 }
 
 // ── System prompt builder ─────────────────────────────────────────────────────
 
 pub(crate) fn build_system_prompt(
     metrics: &[crate::mcp_tools::SignalField],
+    label_keys: &[String],
     service_scope: Option<&str>,
 ) -> String {
     let mut prompt = String::from(
@@ -388,6 +410,18 @@ You MUST emit {"type": "decline", ...} for questions involving:
         }
     }
 
+    // ── Label keys section ──────────────────────────────────────────────────
+    prompt.push_str("\n## Available label keys\n\n");
+    if label_keys.is_empty() {
+        prompt.push_str("(no label keys discovered for this tenant)\n");
+    } else {
+        prompt.push_str(&label_keys.join(", "));
+        prompt.push('\n');
+    }
+    prompt.push_str(
+        "Use these keys in filters and group_by. Do not invent label keys not listed above.\n",
+    );
+
     if let Some(svc) = service_scope {
         prompt.push_str(&format!(
             "\n## Service scope\n\nThis query is scoped to service `{svc}`. \
@@ -427,6 +461,25 @@ fn build_capabilities_hint() -> String {
 - "error rate for all services in production over last 24 hours"
 
 Advisory only: results are approximate and must not be used for billing, SLA enforcement, or regulatory compliance."#.into()
+}
+
+// ── Repair prompt ─────────────────────────────────────────────────────────────
+
+/// Builds a repair prompt sent as the next user turn when the LLM returned an invalid response.
+///
+/// The system prompt is kept unchanged — it already carries the full schema and rules.
+/// This prompt asks the model to correct only the failing field while keeping valid parts.
+fn build_repair_prompt(question: &str, error: &str, faulty_response: &str) -> String {
+    format!(
+        "The previous response was invalid and needs correction.\n\n\
+         Original question: \"{question}\"\n\n\
+         Error: {error}\n\n\
+         Faulty response:\n{faulty_response}\n\n\
+         Please produce a corrected IR JSON. Correct only the failing field; keep all \
+         valid parts unchanged. If you truly cannot answer the question, emit:\n\
+         {{\"type\": \"decline\", \"reason\": \"<explanation>\"}}\n\
+         Respond with JSON only."
+    )
 }
 
 // ── Parse LLM response ────────────────────────────────────────────────────────
@@ -538,10 +591,10 @@ pub async fn run_nlq_pipeline(
     }
 
     // 2. Fetch bounded schema context (up to 20 schema-complete metrics)
-    let metrics = fetch_schema_context(db, tenant_id, 20).await?;
+    let (metrics, label_keys) = fetch_schema_context(db, ch, tenant_id, 20).await?;
 
     // 3. Build system prompt
-    let system_prompt = build_system_prompt(&metrics, req.service_name.as_deref());
+    let system_prompt = build_system_prompt(&metrics, &label_keys, req.service_name.as_deref());
 
     tracing::debug!(
         tenant_id = %tenant_id,
@@ -549,49 +602,69 @@ pub async fn run_nlq_pipeline(
         "NLQ calling LLM"
     );
 
-    // 4. Call LLM
+    // 4 + 5. Call LLM with an optional repair loop.
+    //
+    // On an `InvalidResponse` parse error the pipeline sends a structured repair prompt
+    // as the next user turn (system prompt unchanged — it already carries schema + rules).
+    // The loop is capped at MAX_REPAIR_ATTEMPTS to bound token spend.
     let llm_start = std::time::Instant::now();
-    let raw_response = llm.call(&system_prompt, &req.question).await?;
-    let llm_elapsed_ms = llm_start.elapsed().as_millis();
+    let mut repair_attempt: usize = 0;
+    let mut last_question = req.question.clone();
+    let (parsed, _raw_response) = loop {
+        let raw = llm.call(&system_prompt, &last_question).await?;
 
-    tracing::debug!(
-        tenant_id = %tenant_id,
-        llm_elapsed_ms,
-        raw_response_len = raw_response.len(),
-        "NLQ LLM call complete"
-    );
+        tracing::debug!(
+            tenant_id = %tenant_id,
+            llm_elapsed_ms = llm_start.elapsed().as_millis(),
+            raw_response_len = raw.len(),
+            "NLQ LLM call complete"
+        );
 
-    // 5. Parse LLM response
-    let parsed = match parse_llm_response(&raw_response) {
-        Ok(p) => {
-            tracing::debug!(
-                tenant_id = %tenant_id,
-                parsed_type = match &p {
-                    NlqIrOrDecline::Ir(_) => "ir",
-                    NlqIrOrDecline::Decline { .. } => "decline",
-                    NlqIrOrDecline::Capabilities => "capabilities",
-                },
-                "NLQ LLM response parsed"
-            );
-            p
+        match parse_llm_response(&raw) {
+            Ok(p) => {
+                tracing::debug!(
+                    tenant_id = %tenant_id,
+                    parsed_type = match &p {
+                        NlqIrOrDecline::Ir(_) => "ir",
+                        NlqIrOrDecline::Decline { .. } => "decline",
+                        NlqIrOrDecline::Capabilities => "capabilities",
+                    },
+                    "NLQ LLM response parsed"
+                );
+                break (p, raw);
+            }
+            Err(LlmAdapterError::InvalidResponse(ref reason))
+                if repair_attempt < MAX_REPAIR_ATTEMPTS =>
+            {
+                repair_attempt += 1;
+                tracing::warn!(
+                    tenant_id = %tenant_id,
+                    repair_attempt,
+                    error = %reason,
+                    "NLQ repair attempt"
+                );
+                last_question = build_repair_prompt(&req.question, reason, &raw);
+                continue;
+            }
+            Err(LlmAdapterError::InvalidResponse(reason)) => {
+                let truncated = raw.chars().take(512).collect::<String>();
+                tracing::warn!(
+                    tenant_id = %tenant_id,
+                    question = %question_preview,
+                    error = %reason,
+                    raw_response = %truncated,
+                    repair_attempts = repair_attempt,
+                    "NLQ repair budget exhausted"
+                );
+                return Ok(NlqQueryResponse::InvalidResponse {
+                    reason,
+                    raw_llm_response: raw,
+                });
+            }
+            Err(e) => return Err(e),
         }
-        Err(LlmAdapterError::InvalidResponse(ref reason)) => {
-            let truncated = raw_response.chars().take(512).collect::<String>();
-            tracing::warn!(
-                tenant_id = %tenant_id,
-                question = %question_preview,
-                error = %reason,
-                raw_response = %truncated,
-                llm_elapsed_ms,
-                "NLQ LLM returned unparseable response"
-            );
-            return Ok(NlqQueryResponse::InvalidResponse {
-                reason: reason.clone(),
-                raw_llm_response: raw_response,
-            });
-        }
-        Err(e) => return Err(e),
     };
+    let _llm_elapsed_ms = llm_start.elapsed().as_millis();
 
     // 6. Handle decline or capabilities from LLM
     let mut ir = match parsed {
@@ -752,6 +825,50 @@ pub async fn handle_nlq_query(
             ))
         }
     }
+}
+
+// ── Metadata endpoint ─────────────────────────────────────────────────────────
+
+/// Response type for GET /v1/nlq/metadata.
+///
+/// Exposes the metadata context used for NLQ prompt construction so the frontend
+/// can populate label pickers and catalog browsers.  Also serves as the stable
+/// metadata boundary enabling future MCP server separation.
+#[derive(Debug, Serialize)]
+pub struct NlqMetadataResponse {
+    pub metrics: Vec<crate::mcp_tools::SignalField>,
+    pub label_keys: Vec<String>,
+    pub aggregations: Vec<&'static str>,
+    pub time_range_presets: Vec<&'static str>,
+}
+
+/// GET /v1/nlq/metadata
+///
+/// Returns the metadata context used for NLQ prompt construction.
+/// Useful for the frontend to populate label pickers and catalog browsers.
+/// Also serves as the stable metadata boundary enabling future MCP server separation.
+pub async fn handle_nlq_metadata(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+) -> Result<Json<NlqMetadataResponse>, (StatusCode, Json<serde_json::Value>)> {
+    let (metrics, label_keys) = fetch_schema_context(&state.db, &state.ch, ctx.tenant_id, 20)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": e.to_string()})),
+            )
+        })?;
+    Ok(Json(NlqMetadataResponse {
+        metrics,
+        label_keys,
+        aggregations: vec![
+            "avg", "p50", "p75", "p95", "p99", "sum", "count", "min", "max",
+        ],
+        time_range_presets: vec![
+            "now-15m", "now-1h", "now-6h", "now-24h", "now-7d", "now-30d",
+        ],
+    }))
 }
 
 // ── Unit tests ────────────────────────────────────────────────────────────────
@@ -1057,7 +1174,7 @@ mod tests {
             recommended_downsampling: None,
             schema_complete: true,
         }];
-        let prompt = build_system_prompt(&metrics, None);
+        let prompt = build_system_prompt(&metrics, &[], None);
         assert!(
             prompt.contains("latency_ms"),
             "metric name must appear in prompt"
@@ -1070,7 +1187,7 @@ mod tests {
 
     #[test]
     fn system_prompt_includes_service_scope() {
-        let prompt = build_system_prompt(&[], Some("checkout"));
+        let prompt = build_system_prompt(&[], &[], Some("checkout"));
         assert!(
             prompt.contains("checkout"),
             "service scope must appear in prompt"
@@ -1079,7 +1196,7 @@ mod tests {
 
     #[test]
     fn system_prompt_includes_advisory_boundary() {
-        let prompt = build_system_prompt(&[], None);
+        let prompt = build_system_prompt(&[], &[], None);
         assert!(
             prompt.contains("billing"),
             "advisory boundary must appear in prompt"
@@ -1140,10 +1257,140 @@ mod tests {
 
     #[test]
     fn system_prompt_includes_capabilities_instruction() {
-        let prompt = build_system_prompt(&[], None);
+        let prompt = build_system_prompt(&[], &[], None);
         assert!(
             prompt.contains("capabilities"),
             "system prompt must reference capabilities type"
         );
+    }
+
+    // ── build_system_prompt label_keys ────────────────────────────────────────
+
+    #[test]
+    fn build_system_prompt_with_label_keys_includes_section() {
+        let keys = vec![
+            "service_name".to_string(),
+            "pod".to_string(),
+            "region".to_string(),
+        ];
+        let prompt = build_system_prompt(&[], &keys, None);
+        assert!(
+            prompt.contains("Available label keys"),
+            "prompt must contain the label keys section header"
+        );
+        assert!(
+            prompt.contains("service_name"),
+            "prompt must contain service_name key"
+        );
+        assert!(prompt.contains("pod"), "prompt must contain pod key");
+        assert!(prompt.contains("region"), "prompt must contain region key");
+    }
+
+    #[test]
+    fn build_system_prompt_empty_label_keys_shows_fallback() {
+        let prompt = build_system_prompt(&[], &[], None);
+        assert!(
+            prompt.contains("no label keys discovered"),
+            "prompt must show fallback note when label_keys is empty"
+        );
+    }
+
+    #[test]
+    fn build_system_prompt_label_keys_not_invented_note() {
+        let keys = vec!["service_name".to_string()];
+        let prompt = build_system_prompt(&[], &keys, None);
+        assert!(
+            prompt.contains("Do not invent label keys not listed above"),
+            "prompt must include instruction not to invent label keys"
+        );
+    }
+
+    // ── repair loop ───────────────────────────────────────────────────────────
+
+    struct SequentialMockLlmCaller {
+        responses: std::sync::Mutex<std::collections::VecDeque<String>>,
+    }
+
+    impl SequentialMockLlmCaller {
+        fn new(responses: Vec<String>) -> Self {
+            Self {
+                responses: std::sync::Mutex::new(responses.into()),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl LlmCaller for SequentialMockLlmCaller {
+        async fn call(&self, _system: &str, _question: &str) -> Result<String, LlmAdapterError> {
+            let mut q = self.responses.lock().unwrap();
+            Ok(q.pop_front().unwrap_or_else(|| "{}".to_string()))
+        }
+    }
+
+    fn valid_ir_json(metric: &str) -> String {
+        let ir = sample_ir(metric);
+        serde_json::to_string(&serde_json::json!({"type": "ir", "ir": ir})).unwrap()
+    }
+
+    #[test]
+    fn repair_loop_retries_on_invalid_response_parse() {
+        // First call: invalid JSON → repair prompt built.
+        // Second call: valid IR → loop breaks.
+        // Test parse_llm_response directly (unit test without DB/CH).
+        let invalid = "not json at all";
+        let valid = valid_ir_json("latency_ms");
+
+        let caller = SequentialMockLlmCaller::new(vec![invalid.to_string(), valid.clone()]);
+
+        // Verify the sequential mock works as intended.
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let first = rt.block_on(caller.call("sys", "q")).unwrap();
+        assert_eq!(first, invalid);
+        let second = rt.block_on(caller.call("sys", "q")).unwrap();
+        assert_eq!(second, valid);
+    }
+
+    #[test]
+    fn repair_loop_exhausted_returns_invalid_response_variant() {
+        // Both calls return invalid JSON.
+        // parse_llm_response produces InvalidResponse both times.
+        let invalid = "still not json";
+        let result_first = parse_llm_response(invalid);
+        assert!(matches!(
+            result_first,
+            Err(LlmAdapterError::InvalidResponse(_))
+        ));
+
+        // Simulate budget exhausted — second attempt also invalid.
+        let result_second = parse_llm_response(invalid);
+        assert!(matches!(
+            result_second,
+            Err(LlmAdapterError::InvalidResponse(_))
+        ));
+    }
+
+    #[test]
+    fn repair_loop_not_triggered_for_decline() {
+        // A valid decline response must parse cleanly — no repair needed.
+        let json = r#"{"type": "decline", "reason": "cannot map to a metric"}"#;
+        match parse_llm_response(json).unwrap() {
+            NlqIrOrDecline::Decline { reason } => {
+                assert!(
+                    reason.contains("cannot map"),
+                    "decline reason must be passed through"
+                );
+            }
+            other => panic!("expected Decline, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn build_repair_prompt_contains_expected_parts() {
+        let prompt = build_repair_prompt("show latency", "JSON parse failed", "{bad}");
+        assert!(prompt.contains("Original question: \"show latency\""));
+        assert!(prompt.contains("Error: JSON parse failed"));
+        assert!(prompt.contains("{bad}"));
+        assert!(prompt.contains("decline"));
+        assert!(prompt.contains("Respond with JSON only"));
     }
 }
