@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use opentelemetry_proto::tonic::common::v1::{any_value, AnyValue, KeyValue};
 use opentelemetry_proto::tonic::logs::v1::ResourceLogs;
@@ -65,9 +65,17 @@ pub fn kv_str_map(kvs: &[KeyValue]) -> HashMap<String, String> {
 }
 
 fn service_name_from_kv(attrs: &[KeyValue]) -> String {
+    string_attr_from_kv(attrs, "service.name")
+}
+
+fn environment_from_kv(attrs: &[KeyValue]) -> String {
+    string_attr_from_kv(attrs, "deployment.environment")
+}
+
+fn string_attr_from_kv(attrs: &[KeyValue], key: &str) -> String {
     attrs
         .iter()
-        .find(|kv| kv.key == "service.name")
+        .find(|kv| kv.key == key)
         .and_then(|kv| kv.value.as_ref())
         .and_then(|v| match &v.value {
             Some(any_value::Value::StringValue(s)) => Some(s.clone()),
@@ -209,6 +217,7 @@ pub fn proto_metrics_to_domain(
 ) -> (Vec<domain::MetricSeries>, Vec<domain::MetricPoint>) {
     let mut series_list = Vec::new();
     let mut points_list = Vec::new();
+    let mut seen_series = HashSet::new();
 
     for rm in resource_metrics {
         let resource_attrs = rm
@@ -217,6 +226,7 @@ pub fn proto_metrics_to_domain(
             .map(|r| r.attributes.as_slice())
             .unwrap_or_default();
         let service_name = service_name_from_kv(resource_attrs);
+        let environment = environment_from_kv(resource_attrs);
         let resource_attributes = kv_list_to_map(resource_attrs);
 
         for scope_metric in &rm.scope_metrics {
@@ -228,10 +238,8 @@ pub fn proto_metrics_to_domain(
                 match data {
                     metric::Data::Gauge(g) => {
                         for dp in &g.data_points {
-                            let sid = Uuid::new_v4();
-                            series_list.push(domain::MetricSeries {
+                            let mut series = domain::MetricSeries {
                                 tenant_id,
-                                metric_series_id: sid,
                                 metric_name: m.name.clone(),
                                 description: m.description.clone(),
                                 unit: m.unit.clone(),
@@ -241,11 +249,17 @@ pub fn proto_metrics_to_domain(
                                 attributes: kv_str_map(&dp.attributes),
                                 resource_attributes: resource_attributes.clone(),
                                 service_name: service_name.clone(),
-                                environment: String::new(),
-                            });
+                                environment: environment.clone(),
+                                ..Default::default()
+                            };
+                            series.metric_series_id =
+                                domain::deterministic_metric_series_id(&series);
+                            if seen_series.insert(series.metric_series_id) {
+                                series_list.push(series.clone());
+                            }
                             points_list.push(number_data_point_to_domain(
                                 dp,
-                                sid,
+                                series.metric_series_id,
                                 &m.name,
                                 &service_name,
                                 tenant_id,
@@ -255,10 +269,8 @@ pub fn proto_metrics_to_domain(
                     metric::Data::Sum(s) => {
                         let agg = proto_temporality_to_domain(s.aggregation_temporality);
                         for dp in &s.data_points {
-                            let sid = Uuid::new_v4();
-                            series_list.push(domain::MetricSeries {
+                            let mut series = domain::MetricSeries {
                                 tenant_id,
-                                metric_series_id: sid,
                                 metric_name: m.name.clone(),
                                 description: m.description.clone(),
                                 unit: m.unit.clone(),
@@ -268,11 +280,17 @@ pub fn proto_metrics_to_domain(
                                 attributes: kv_str_map(&dp.attributes),
                                 resource_attributes: resource_attributes.clone(),
                                 service_name: service_name.clone(),
-                                environment: String::new(),
-                            });
+                                environment: environment.clone(),
+                                ..Default::default()
+                            };
+                            series.metric_series_id =
+                                domain::deterministic_metric_series_id(&series);
+                            if seen_series.insert(series.metric_series_id) {
+                                series_list.push(series.clone());
+                            }
                             points_list.push(number_data_point_to_domain(
                                 dp,
-                                sid,
+                                series.metric_series_id,
                                 &m.name,
                                 &service_name,
                                 tenant_id,
@@ -282,10 +300,8 @@ pub fn proto_metrics_to_domain(
                     metric::Data::Histogram(h) => {
                         let agg = proto_temporality_to_domain(h.aggregation_temporality);
                         for dp in &h.data_points {
-                            let sid = Uuid::new_v4();
-                            series_list.push(domain::MetricSeries {
+                            let mut series = domain::MetricSeries {
                                 tenant_id,
-                                metric_series_id: sid,
                                 metric_name: m.name.clone(),
                                 description: m.description.clone(),
                                 unit: m.unit.clone(),
@@ -295,11 +311,17 @@ pub fn proto_metrics_to_domain(
                                 attributes: kv_str_map(&dp.attributes),
                                 resource_attributes: resource_attributes.clone(),
                                 service_name: service_name.clone(),
-                                environment: String::new(),
-                            });
+                                environment: environment.clone(),
+                                ..Default::default()
+                            };
+                            series.metric_series_id =
+                                domain::deterministic_metric_series_id(&series);
+                            if seen_series.insert(series.metric_series_id) {
+                                series_list.push(series.clone());
+                            }
                             points_list.push(domain::MetricPoint {
                                 tenant_id,
-                                metric_series_id: sid,
+                                metric_series_id: series.metric_series_id,
                                 metric_name: m.name.clone(),
                                 service_name: service_name.clone(),
                                 time_unix_nano: dp.time_unix_nano,
@@ -368,5 +390,76 @@ fn non_empty_hex(bytes: &[u8]) -> Option<String> {
         None
     } else {
         Some(hex::encode(bytes))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opentelemetry_proto::tonic::{
+        common::v1::{any_value, AnyValue, KeyValue},
+        metrics::v1::{
+            metric, number_data_point, Gauge, Metric, NumberDataPoint, ResourceMetrics,
+            ScopeMetrics,
+        },
+        resource::v1::Resource,
+    };
+
+    fn string_kv(key: &str, value: &str) -> KeyValue {
+        KeyValue {
+            key: key.to_string(),
+            value: Some(AnyValue {
+                value: Some(any_value::Value::StringValue(value.to_string())),
+            }),
+        }
+    }
+
+    fn gauge_resource_metrics() -> Vec<ResourceMetrics> {
+        vec![ResourceMetrics {
+            resource: Some(Resource {
+                attributes: vec![string_kv("service.name", "checkout")],
+                dropped_attributes_count: 0,
+                entity_refs: Vec::new(),
+            }),
+            scope_metrics: vec![ScopeMetrics {
+                scope: None,
+                metrics: vec![Metric {
+                    name: "cpu.usage".to_string(),
+                    description: String::new(),
+                    unit: "1".to_string(),
+                    data: Some(metric::Data::Gauge(Gauge {
+                        data_points: vec![NumberDataPoint {
+                            attributes: vec![string_kv("core", "0")],
+                            start_time_unix_nano: 100,
+                            time_unix_nano: 200,
+                            exemplars: Vec::new(),
+                            flags: 0,
+                            value: Some(number_data_point::Value::AsDouble(0.7)),
+                        }],
+                    })),
+                    metadata: Vec::new(),
+                }],
+                schema_url: String::new(),
+            }],
+            schema_url: String::new(),
+        }]
+    }
+
+    #[test]
+    fn proto_metrics_to_domain_uses_stable_series_id_for_same_series() {
+        let tenant = Uuid::nil();
+        let payload = gauge_resource_metrics();
+
+        let (first_series, first_points) = proto_metrics_to_domain(&payload, tenant);
+        let (second_series, second_points) = proto_metrics_to_domain(&payload, tenant);
+
+        assert_eq!(
+            first_series[0].metric_series_id,
+            second_series[0].metric_series_id
+        );
+        assert_eq!(
+            first_points[0].metric_series_id,
+            second_points[0].metric_series_id
+        );
     }
 }

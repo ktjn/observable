@@ -146,7 +146,27 @@ main() {
     -d "{\"resourceMetrics\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"$SERVICE_NAME\"}}]},\"scopeMetrics\":[{\"metrics\":[{\"name\":\"smoke.counter\",\"sum\":{\"dataPoints\":[{\"asDouble\":1.0,\"timeUnixNano\":\"$(date +%s%N)\"}],\"aggregationTemporality\":2,\"isMonotonic\":true}}]}]}]}"
   echo " OK"
 
-  echo "5b. Sending log via gRPC..."
+  echo "5a. Verifying metric series is queryable..."
+  METRIC_SERIES_ID=""
+  for _ in $(seq 1 20); do
+    METRIC_SERIES_RESULT=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" "$QUERY/v1/metrics?service=$SERVICE_NAME" || true)
+    METRIC_SERIES_ID=$(echo "$METRIC_SERIES_RESULT" | jq -r '.series[] | select(.metric_name == "smoke.counter") | .metric_series_id' 2>/dev/null | head -n 1)
+    if [ -n "$METRIC_SERIES_ID" ] && [ "$METRIC_SERIES_ID" != "null" ]; then
+      echo " OK (metric series) - $METRIC_SERIES_ID"
+      break
+    fi
+    sleep 1
+  done
+  if [ -z "$METRIC_SERIES_ID" ] || [ "$METRIC_SERIES_ID" = "null" ]; then
+    echo " FAIL: smoke.counter series did not become queryable"
+    echo " Last result: ${METRIC_SERIES_RESULT:-<empty>}"
+    exit 1
+  fi
+
+  echo "5b. Verifying metric points are queryable..."
+  wait_for_json_count "metric points" "$QUERY/v1/metrics/$METRIC_SERIES_ID" '.points | length'
+
+  echo "5c. Sending log via gRPC..."
   GRPC_HOST=$(echo "$GRPC_INGEST" | sed 's|http://||')
   GRPC_BODY="smoke-grpc-log-$(date +%s%N)"
   grpcurl -plaintext \
@@ -158,10 +178,10 @@ main() {
     opentelemetry.proto.collector.logs.v1.LogsService/Export
   echo " OK (sent)"
 
-  echo "5c. Verifying gRPC log landed in ClickHouse..."
+  echo "5d. Verifying gRPC log landed in ClickHouse..."
   wait_for_json_count "grpc logs" "$QUERY/v1/logs?service=$GRPC_SERVICE_NAME" '.logs | length'
 
-  echo "5d. Verifying log histogram endpoint returns buckets..."
+  echo "5e. Verifying log histogram endpoint returns buckets..."
   FROM_ISO=$(date -u -d "1 hour ago" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -v-1H +"%Y-%m-%dT%H:%M:%SZ")
   TO_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   HIST_RESULT=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" \
