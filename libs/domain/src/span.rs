@@ -226,9 +226,12 @@ mod tests {
             event_index: 2,
             name: "exception".into(),
             timestamp_unix_nano: 1_700_000_000_000_000_001,
-            attributes: [("exception.type".to_string(), serde_json::json!("NullPointerException"))]
-                .into_iter()
-                .collect(),
+            attributes: [(
+                "exception.type".to_string(),
+                serde_json::json!("NullPointerException"),
+            )]
+            .into_iter()
+            .collect(),
         };
         let row = SpanEventRow::from(ev.clone());
         let recovered = SpanEvent::from(row);

@@ -119,7 +119,11 @@ pub async fn get_trace(
         },
     )
     .await;
-    Ok(Json(TraceResponse { trace_id, spans, events }))
+    Ok(Json(TraceResponse {
+        trace_id,
+        spans,
+        events,
+    }))
 }
 
 pub async fn search_traces(

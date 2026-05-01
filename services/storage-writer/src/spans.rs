@@ -3,7 +3,8 @@ use domain::{Span, SpanEvent, SpanEventRow, SpanRow};
 
 pub async fn insert_spans(ch: &Client, spans: Vec<Span>) -> anyhow::Result<()> {
     // Collect events before consuming spans
-    let all_events: Vec<SpanEvent> = spans.iter()
+    let all_events: Vec<SpanEvent> = spans
+        .iter()
         .flat_map(|s| s.events.iter().cloned())
         .collect();
 
@@ -265,7 +266,9 @@ mod tests {
             ..Default::default()
         };
 
-        insert_spans(&ch, vec![span]).await.expect("insert succeeded");
+        insert_spans(&ch, vec![span])
+            .await
+            .expect("insert succeeded");
 
         // Query span_events to verify 2 rows
         let count: u64 = ch
@@ -289,9 +292,6 @@ mod tests {
             .await
             .expect("names query");
 
-        assert_eq!(
-            names,
-            vec!["exception".to_string(), "retry".to_string()]
-        );
+        assert_eq!(names, vec!["exception".to_string(), "retry".to_string()]);
     }
 }
