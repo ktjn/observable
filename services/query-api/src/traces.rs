@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use chrono::{DateTime, Utc};
 use clickhouse::Client;
 use domain::{Span, SpanEvent, SpanEventRow, SpanRow};
 use serde::{Deserialize, Serialize};
@@ -50,6 +51,29 @@ pub struct SearchParams {
     pub service: Option<String>,
     pub limit: Option<u32>,
     pub facets: Option<String>, // Comma-separated list of fields to facet
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
+    pub lookback_minutes: Option<u32>,
+}
+
+#[derive(Deserialize)]
+pub struct TraceHistogramParams {
+    pub service: Option<String>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
+    pub buckets: Option<u32>,
+}
+
+#[derive(Serialize)]
+pub struct TraceHistogramBucket {
+    pub start_ms: u64,
+    pub end_ms: u64,
+    pub count: u64,
+}
+
+#[derive(Serialize)]
+pub struct TraceHistogramResponse {
+    pub buckets: Vec<TraceHistogramBucket>,
 }
 
 pub(crate) const SELECT_COLS: &str = "tenant_id, trace_id, span_id, parent_span_id, service_name, \
@@ -133,11 +157,37 @@ pub async fn search_traces(
 ) -> Result<Json<TraceListResponse>, StatusCode> {
     let plan = state.planner.plan_trace_search(&params);
 
+    let now_ns = Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64;
+    let from_ns = if let Some(dt) = params.from {
+        dt.timestamp_nanos_opt().unwrap_or(0) as u64
+    } else if let Some(lookback) = params.lookback_minutes {
+        now_ns.saturating_sub(lookback as u64 * 60 * 1_000_000_000)
+    } else {
+        now_ns.saturating_sub(3_600_000_000_000) // Default 1h
+    };
+    let to_ns = params
+        .to
+        .map(|dt| dt.timestamp_nanos_opt().unwrap_or(0) as u64)
+        .unwrap_or(now_ns);
+
+    // Bind the common parameters in the correct order as defined by trace_search_where_clause:
+    // tenant_id, from_ns (if any), to_ns (if any), service_name (if any)
+    let bind_common = |mut q: clickhouse::query::Query| {
+        q = q.bind(ctx.tenant_id);
+        if params.from.is_some() || params.lookback_minutes.is_some() {
+            q = q.bind(from_ns);
+        }
+        if params.to.is_some() {
+            q = q.bind(to_ns);
+        }
+        if let Some(ref svc) = params.service {
+            q = q.bind(svc.as_str());
+        }
+        q
+    };
+
     // First, count total distinct traces.
-    let mut count_query = state.ch.query(&plan.count_sql).bind(ctx.tenant_id);
-    if let Some(ref svc) = params.service {
-        count_query = count_query.bind(svc.as_str());
-    }
+    let count_query = bind_common(state.ch.query(&plan.count_sql));
     let total: u64 = count_query.fetch_one().await.map_err(|e| {
         tracing::error!(error = ?e, "ClickHouse total count error");
         StatusCode::INTERNAL_SERVER_ERROR
@@ -145,7 +195,7 @@ pub async fn search_traces(
 
     // Handle facets.
     let mut facet_results = HashMap::new();
-    if let Some(facets_str) = params.facets {
+    if let Some(ref facets_str) = params.facets {
         let requested_facets: Vec<&str> = facets_str.split(',').map(|s| s.trim()).collect();
 
         for field in requested_facets {
@@ -164,15 +214,18 @@ pub async fn search_traces(
             let mut facet_sql = format!(
                 "SELECT toString({field}) as value, count(DISTINCT trace_id) as count FROM observable.spans WHERE tenant_id = ?"
             );
+            if params.from.is_some() || params.lookback_minutes.is_some() {
+                facet_sql.push_str(" AND start_time_unix_nano >= ?");
+            }
+            if params.to.is_some() {
+                facet_sql.push_str(" AND start_time_unix_nano <= ?");
+            }
             if params.service.is_some() {
                 facet_sql.push_str(" AND service_name = ?");
             }
             facet_sql.push_str(&format!(" GROUP BY {field} ORDER BY count DESC LIMIT 10"));
 
-            let mut facet_query = state.ch.query(&facet_sql).bind(ctx.tenant_id);
-            if let Some(ref svc) = params.service {
-                facet_query = facet_query.bind(svc.as_str());
-            }
+            let facet_query = bind_common(state.ch.query(&facet_sql));
 
             let mut cursor = facet_query.fetch::<(String, u64)>().map_err(|e| {
                 tracing::error!("ClickHouse facet query error: {:?}", e);
@@ -191,10 +244,12 @@ pub async fn search_traces(
     }
 
     // Then, fetch the newest span for each of the newest N traces.
-    let mut query = state.ch.query(&plan.spans_sql).bind(ctx.tenant_id);
-    if let Some(ref svc) = params.service {
-        query = query.bind(svc.as_str());
-    }
+    debug_assert_eq!(
+        trace_search_common_bind_count(&params) + 1,
+        plan.spans_sql.matches('?').count()
+    );
+    let mut query = state.ch.query(&plan.spans_sql);
+    query = bind_common(query);
     query = query.bind(plan.limit);
 
     let rows: Vec<SpanRow> = query.fetch_all().await.map_err(|e| {
@@ -235,6 +290,70 @@ pub async fn search_traces(
     }))
 }
 
+pub async fn trace_histogram(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Query(params): Query<TraceHistogramParams>,
+) -> Result<Json<TraceHistogramResponse>, StatusCode> {
+    use chrono::Utc;
+    let now_ns = Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64;
+    let from_ns = params
+        .from
+        .map(|dt| dt.timestamp_nanos_opt().unwrap_or(0) as u64)
+        .unwrap_or_else(|| now_ns.saturating_sub(3_600_000_000_000));
+    let to_ns = params
+        .to
+        .map(|dt| dt.timestamp_nanos_opt().unwrap_or(0) as u64)
+        .unwrap_or(now_ns);
+    let bucket_count = params.buckets.unwrap_or(30).clamp(1, 200);
+
+    let plan =
+        state
+            .planner
+            .plan_trace_histogram(from_ns, to_ns, params.service.as_deref(), bucket_count);
+
+    let mut query = state
+        .ch
+        .query(&plan.sql)
+        .bind(plan.from_ns)
+        .bind(plan.interval_ns)
+        .bind(ctx.tenant_id)
+        .bind(from_ns)
+        .bind(to_ns);
+    if let Some(service) = &params.service {
+        query = query.bind(service);
+    }
+
+    let mut cursor = query.fetch::<(i64, i32, u64)>().map_err(|e| {
+        tracing::error!("ClickHouse trace histogram query error: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let mut raw: HashMap<i64, u64> = HashMap::new();
+    while let Some((bucket_idx, _dummy, count)) = cursor.next().await.map_err(|e| {
+        tracing::error!("ClickHouse trace histogram fetch error: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })? {
+        if bucket_idx >= 0 && bucket_idx < bucket_count as i64 {
+            *raw.entry(bucket_idx).or_default() += count;
+        }
+    }
+
+    let buckets = (0..bucket_count)
+        .map(|i| {
+            let start_ns = plan.from_ns + i as u64 * plan.interval_ns;
+            let end_ns = start_ns + plan.interval_ns;
+            TraceHistogramBucket {
+                start_ms: start_ns / 1_000_000,
+                end_ms: end_ns / 1_000_000,
+                count: raw.remove(&(i as i64)).unwrap_or_default(),
+            }
+        })
+        .collect();
+
+    Ok(Json(TraceHistogramResponse { buckets }))
+}
+
 /// Repository-level fetch used by integration tests to verify tenant-filter correctness.
 #[allow(dead_code)]
 pub async fn fetch_trace_spans(
@@ -270,6 +389,20 @@ fn validate_trace_rows_for_tenant(
         "trace query returned rows outside tenant context"
     );
     Err(StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+fn trace_search_common_bind_count(params: &SearchParams) -> usize {
+    let mut count = 1;
+    if params.from.is_some() || params.lookback_minutes.is_some() {
+        count += 1;
+    }
+    if params.to.is_some() {
+        count += 1;
+    }
+    if params.service.is_some() {
+        count += 1;
+    }
+    count
 }
 
 #[cfg(test)]
@@ -405,6 +538,9 @@ mod tests {
                 service,
                 limit: Some(10),
                 facets: None,
+                from: None,
+                to: None,
+                lookback_minutes: None,
             };
             let plan = planner.plan_trace_search(&params);
             assert!(
@@ -413,5 +549,27 @@ mod tests {
                 plan.count_sql
             );
         }
+    }
+
+    #[test]
+    fn trace_search_spans_bind_count_matches_generated_sql() {
+        use crate::planner::QueryPlanner;
+        let planner = QueryPlanner;
+        let params = SearchParams {
+            service: Some("checkout".to_string()),
+            limit: Some(10),
+            facets: None,
+            from: Some(Utc::now()),
+            to: Some(Utc::now()),
+            lookback_minutes: None,
+        };
+        let plan = planner.plan_trace_search(&params);
+
+        assert_eq!(
+            trace_search_common_bind_count(&params) + 1,
+            plan.spans_sql.matches('?').count(),
+            "spans_sql must bind one common filter group plus the subquery LIMIT: {}",
+            plan.spans_sql
+        );
     }
 }

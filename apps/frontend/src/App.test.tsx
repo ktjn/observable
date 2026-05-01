@@ -122,6 +122,10 @@ test("promotes the current trace search filter to a dashboard panel", async () =
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
 
+    if (url.includes("/v1/traces/histogram")) {
+      return new Response(JSON.stringify({ buckets: [] }), { status: 200 });
+    }
+
     if (url.includes("/v1/traces")) {
       return new Response(
         JSON.stringify({

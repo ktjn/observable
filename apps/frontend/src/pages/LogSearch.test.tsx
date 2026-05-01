@@ -154,8 +154,8 @@ test("builds histogram buckets across the selected time range", () => {
 
   expect(buckets).toHaveLength(30);
   expect(buckets.reduce((sum, bucket) => sum + bucket.total, 0)).toBe(2);
-  expect(buckets.some((bucket) => bucket.levels.INFO === 1)).toBe(true);
-  expect(buckets.some((bucket) => bucket.levels.ERROR === 1)).toBe(true);
+  expect(buckets.some((bucket) => bucket.categories.INFO === 1)).toBe(true);
+  expect(buckets.some((bucket) => bucket.categories.ERROR === 1)).toBe(true);
 });
 
 test("histogram drag selection zooms the log query to the selected bucket range", async () => {

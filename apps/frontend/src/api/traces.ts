@@ -56,11 +56,40 @@ function tenantHeaders(): HeadersInit {
   return { "X-Tenant-ID": DEV_TENANT_ID };
 }
 
+export interface TraceHistogramBucket {
+  start_ms: number;
+  end_ms: number;
+  count: number;
+}
+
+export interface TraceHistogramResponse {
+  buckets: TraceHistogramBucket[];
+}
+
+export async function fetchTraceHistogram(params: {
+  service?: string;
+  from?: string;
+  to?: string;
+  buckets?: number;
+}): Promise<TraceHistogramResponse> {
+  const url = new URL("/v1/traces/histogram", window.location.origin);
+  if (params.service) url.searchParams.set("service", params.service);
+  if (params.from) url.searchParams.set("from", params.from);
+  if (params.to) url.searchParams.set("to", params.to);
+  if (params.buckets) url.searchParams.set("buckets", String(params.buckets));
+
+  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  if (!res.ok) throw new Error(`Histogram query failed: ${res.status}`);
+  return res.json();
+}
+
 export async function searchTraces(params: {
   service?: string;
   lookback_minutes?: number;
   limit?: number;
   facets?: string[];
+  from?: string;
+  to?: string;
 }): Promise<TraceListResponse> {
   const url = new URL("/v1/traces", window.location.origin);
   if (params.service) url.searchParams.set("service", params.service);
@@ -69,6 +98,8 @@ export async function searchTraces(params: {
   }
   if (params.limit) url.searchParams.set("limit", String(params.limit));
   if (params.facets) url.searchParams.set("facets", params.facets.join(","));
+  if (params.from) url.searchParams.set("from", params.from);
+  if (params.to) url.searchParams.set("to", params.to);
 
   const res = await fetch(url.toString(), { headers: tenantHeaders() });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);

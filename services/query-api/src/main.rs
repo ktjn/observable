@@ -60,6 +60,7 @@ async fn main() -> anyhow::Result<()> {
     };
     let app = Router::new()
         .route("/v1/traces", get(traces::search_traces))
+        .route("/v1/traces/histogram", get(traces::trace_histogram))
         .route("/v1/traces/:trace_id", get(traces::get_trace))
         .route("/v1/logs", get(logs::search_logs))
         .route("/v1/logs/histogram", get(logs::log_histogram))
