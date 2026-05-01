@@ -3,15 +3,20 @@ import { Facets } from "../api/logs";
 interface FacetSidebarProps {
   facets?: Facets;
   onFacetClick: (field: string, value: string) => void;
+  ariaLabel?: string;
 }
 
-export function FacetSidebar({ facets, onFacetClick }: FacetSidebarProps) {
+export function FacetSidebar({
+  facets,
+  onFacetClick,
+  ariaLabel = "Facets",
+}: FacetSidebarProps) {
   if (!facets || Object.keys(facets).length === 0) {
     return null;
   }
 
   return (
-    <aside className="facet-sidebar">
+    <aside className="facet-sidebar" aria-label={ariaLabel}>
       <div className="field-label mb-4">Facets</div>
       {Object.entries(facets).map(([field, values]) => (
         <div key={field} className="facet-group">
@@ -24,6 +29,7 @@ export function FacetSidebar({ facets, onFacetClick }: FacetSidebarProps) {
                 key={v.value}
                 role="button"
                 tabIndex={0}
+                aria-label={`${v.value} ${v.count}`}
                 onClick={() => onFacetClick(field, v.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
