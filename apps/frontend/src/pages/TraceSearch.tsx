@@ -8,16 +8,19 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { LoadingState } from "../components/ui/loading-state";
+import { Select, SelectOption } from "../components/ui/select";
 import { TablePanel } from "../components/ui/table-panel";
 
 export default function TraceSearch() {
   const [service, setService] = useState(() => new URLSearchParams(window.location.search).get("service") ?? "");
+  const [lookback, setLookback] = useState(60);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   
   const { data, isLoading, error } = useQuery({
-    queryKey: ["traces", service],
-    queryFn: () => searchTraces({ 
-      service: service || undefined, 
+    queryKey: ["traces", service, lookback],
+    queryFn: () => searchTraces({
+      service: service || undefined,
+      lookback_minutes: lookback,
       limit: 50,
       facets: ["service_name", "status_code", "span_kind"]
     }),
@@ -68,6 +71,23 @@ export default function TraceSearch() {
           onChange={(e) => setService(e.target.value)}
           aria-label="Filter by service"
         />
+        <div className="flex flex-col">
+          <label htmlFor="lookback-select" className="text-xs font-medium text-[var(--muted)] mb-1">
+            Lookback
+          </label>
+          <Select
+            id="lookback-select"
+            value={lookback}
+            onChange={(e) => setLookback(parseInt(e.target.value, 10))}
+            aria-label="Select lookback time period"
+          >
+            <SelectOption value={15}>Last 15 min</SelectOption>
+            <SelectOption value={60}>Last 1 hour</SelectOption>
+            <SelectOption value={360}>Last 6 hours</SelectOption>
+            <SelectOption value={1440}>Last 24 hours</SelectOption>
+            <SelectOption value={10080}>Last 7 days</SelectOption>
+          </Select>
+        </div>
         {service && (
           <Button variant="secondary" onClick={() => setService("")}>
             Clear filters
