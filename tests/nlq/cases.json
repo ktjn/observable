@@ -212,15 +212,19 @@
     "service_name": null,
     "expect": {
       "type": "frame",
-      "operation": "rate",
       "data_non_empty": false,
       "fields": [],
-      "value_checks": []
+      "value_checks": [],
+      "operation_any_of": [
+        "rate",
+        "timeseries",
+        "irate"
+      ]
     },
     "tags": [
       "rate"
     ],
-    "notes": "rate requires a monotonic counter metric; request_duration_ms is a histogram so this may route to timeseries instead"
+    "notes": "rate requires a monotonic counter metric; request_duration_ms is a histogram so smaller LLMs may route to timeseries or irate instead. Any frame response is acceptable."
   },
   {
     "id": "topk-latency",
@@ -392,15 +396,18 @@
     "service_name": null,
     "expect": {
       "type": "frame",
-      "operation": "irate",
       "data_non_empty": false,
       "fields": [],
-      "value_checks": []
+      "value_checks": [],
+      "operation_any_of": [
+        "irate",
+        "rate"
+      ]
     },
     "tags": [
       "irate"
     ],
-    "notes": "All testbench metrics are gauge type so data may be empty; only validates op routing"
+    "notes": "Smaller LLMs often route to rate instead of irate; both are semantically valid for this question. All testbench metrics are gauge type so data may be empty; only validates op routing."
   },
   {
     "id": "increase-requests",

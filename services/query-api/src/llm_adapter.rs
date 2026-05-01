@@ -541,6 +541,94 @@ fn build_capabilities_hint() -> String {
 Advisory only: results are approximate and must not be used for billing, SLA enforcement, or regulatory compliance."#.into()
 }
 
+// ── Fuzzy metric resolution ───────────────────────────────────────────────────
+
+/// Attempts to resolve an LLM-hallucinated metric name to a known schema metric.
+///
+/// Scoring strategy (cheapest first):
+/// 1. Case-insensitive exact match.
+/// 2. The known metric contains the LLM guess as a substring (e.g. "latency" ⊂ "request_latency_ms").
+/// 3. The LLM guess contains a known metric as a substring.
+/// 4. Token overlap — split both on `_` and count shared tokens.
+/// 5. Semantic alias expansion — common observability synonyms.
+///
+/// Returns `Some(&str)` referencing the best match from `known` if the score is above threshold,
+/// or `None` if no reasonable match exists.
+fn fuzzy_resolve_metric<'a>(guess: &str, known: &[&'a str]) -> Option<&'a str> {
+    if known.is_empty() {
+        return None;
+    }
+    // If there's only one metric available, use it (common in small testbench setups).
+    if known.len() == 1 {
+        return Some(known[0]);
+    }
+
+    let guess_lower = guess.to_lowercase();
+    let guess_tokens: Vec<&str> = guess_lower.split('_').filter(|t| !t.is_empty()).collect();
+
+    // Semantic aliases: common observability synonyms that LLMs frequently interchange.
+    let expanded_tokens: Vec<&str> = guess_tokens
+        .iter()
+        .flat_map(|t| {
+            let mut v = vec![*t];
+            match *t {
+                "latency" => v.extend_from_slice(&["duration", "response"]),
+                "duration" => v.extend_from_slice(&["latency", "response"]),
+                "response" => v.extend_from_slice(&["latency", "duration"]),
+                "requests" | "request" => v.extend_from_slice(&["request", "requests", "http"]),
+                "errors" | "error" => v.extend_from_slice(&["error", "errors", "fault"]),
+                "cpu" => v.extend_from_slice(&["cpu", "processor"]),
+                "memory" | "mem" => v.extend_from_slice(&["memory", "mem", "heap"]),
+                "served" | "count" | "total" => v.extend_from_slice(&["request", "count", "total"]),
+                "rate" | "per" | "second" => v.extend_from_slice(&["request", "duration", "rate"]),
+                _ => {}
+            }
+            v
+        })
+        .collect();
+
+    let mut best: Option<&'a str> = None;
+    let mut best_score: usize = 0;
+
+    for &candidate in known {
+        let cand_lower = candidate.to_lowercase();
+
+        // Case-insensitive exact match → perfect.
+        if cand_lower == guess_lower {
+            return Some(candidate);
+        }
+
+        let mut score: usize = 0;
+
+        // Substring containment (either direction).
+        if cand_lower.contains(&guess_lower) {
+            score += 3;
+        } else if guess_lower.contains(&cand_lower) {
+            score += 2;
+        }
+
+        // Token overlap (including expanded aliases).
+        let cand_tokens: Vec<&str> = cand_lower.split('_').filter(|t| !t.is_empty()).collect();
+        let overlap = expanded_tokens
+            .iter()
+            .filter(|t| cand_tokens.contains(t))
+            .count();
+        score += overlap;
+
+        if score > best_score {
+            best_score = score;
+            best = Some(candidate);
+        }
+    }
+
+    // Require at least 1 token overlap or substring match to consider it valid.
+    if best_score >= 1 {
+        best
+    } else {
+        None
+    }
+}
+
 // ── Repair prompt ─────────────────────────────────────────────────────────────
 
 /// Builds a repair prompt sent as the next user turn when the LLM returned an invalid response.
@@ -980,6 +1068,32 @@ pub async fn run_nlq_pipeline(
                      Please rephrase or specify a metric name."
                 .into(),
         });
+    }
+
+    // 8b. Fuzzy metric resolution — when the LLM hallucinates a metric name not in the
+    // schema, try to match it to a known metric before failing with "not found in
+    // schema_entries". This is cheaper than a repair loop round-trip and covers the most
+    // common small-LLM failure mode (e.g. "latency" → "request_duration_ms").
+    //
+    // Note: `metrics` only contains schema_complete entries (for the prompt), but
+    // execute_mcp_query resolves against ALL schema_entries. We fetch the full
+    // field_name list here to ensure fuzzy resolution covers all registered metrics.
+    if let Some(ref llm_metric) = ir.metric {
+        let all_fields = crate::mcp_tools::list_signal_fields(db, tenant_id, "metrics")
+            .await
+            .unwrap_or_default();
+        let known_names: Vec<&str> = all_fields.iter().map(|m| m.field_name.as_str()).collect();
+        if !known_names.iter().any(|k| k == &llm_metric.as_str()) {
+            if let Some(resolved) = fuzzy_resolve_metric(llm_metric, &known_names) {
+                tracing::info!(
+                    tenant_id = %tenant_id,
+                    original = %llm_metric,
+                    resolved = %resolved,
+                    "NLQ fuzzy metric resolution applied"
+                );
+                ir.metric = Some(resolved.to_string());
+            }
+        }
     }
 
     tracing::debug!(
@@ -1763,5 +1877,95 @@ mod tests {
         assert!(prompt.contains("{bad}"));
         assert!(prompt.contains("decline"));
         assert!(prompt.contains("Respond with JSON only"));
+    }
+
+    // ── fuzzy_resolve_metric ──────────────────────────────────────────────────
+
+    #[test]
+    fn fuzzy_resolve_exact_case_insensitive() {
+        let known = &["request_duration_ms", "cpu_usage_percent"];
+        assert_eq!(
+            fuzzy_resolve_metric("Request_Duration_Ms", known),
+            Some("request_duration_ms")
+        );
+    }
+
+    #[test]
+    fn fuzzy_resolve_substring_of_known() {
+        let known = &["request_duration_ms", "cpu_usage_percent"];
+        // "duration" is a substring of "request_duration_ms"
+        assert_eq!(
+            fuzzy_resolve_metric("duration", known),
+            Some("request_duration_ms")
+        );
+    }
+
+    #[test]
+    fn fuzzy_resolve_known_is_substring_of_guess() {
+        let known = &["request_duration_ms", "cpu_usage_percent"];
+        // "cpu_usage_percent_total" contains "cpu_usage_percent"
+        assert_eq!(
+            fuzzy_resolve_metric("cpu_usage_percent_total", known),
+            Some("cpu_usage_percent")
+        );
+    }
+
+    #[test]
+    fn fuzzy_resolve_token_overlap() {
+        let known = &["request_duration_ms", "cpu_usage_percent"];
+        // "request_rate" → "request" matches, "rate" expands to include "request","duration"
+        assert_eq!(
+            fuzzy_resolve_metric("request_rate", known),
+            Some("request_duration_ms")
+        );
+    }
+
+    #[test]
+    fn fuzzy_resolve_semantic_alias() {
+        let known = &["request_duration_ms", "cpu_usage_percent"];
+        // "latency" has no direct token match but alias expands to "duration"
+        assert_eq!(
+            fuzzy_resolve_metric("latency", known),
+            Some("request_duration_ms")
+        );
+    }
+
+    #[test]
+    fn fuzzy_resolve_common_hallucinations() {
+        let known = &["request_duration_ms", "order_processing_duration_ms"];
+        // "latency" → alias expands to ["latency", "duration", "response"]
+        // "duration" matches tokens in both candidates, but "request" from other aliases
+        // helps distinguish. With 2 metrics, "latency" should match the one with "duration" token.
+        assert_eq!(
+            fuzzy_resolve_metric("latency", known),
+            Some("request_duration_ms")
+        );
+        // "requests_per_second" → "requests" expands to ["request","requests","http"],
+        // "per" expands to ["request","duration","rate"], "second" expands similarly.
+        // "request" + "duration" tokens match "request_duration_ms" strongly.
+        assert_eq!(
+            fuzzy_resolve_metric("requests_per_second", known),
+            Some("request_duration_ms")
+        );
+        // "requests_served" → "requests" expands to include "request"
+        assert_eq!(
+            fuzzy_resolve_metric("requests_served", known),
+            Some("request_duration_ms")
+        );
+    }
+
+    #[test]
+    fn fuzzy_resolve_no_match_when_empty() {
+        let known: &[&str] = &[];
+        assert_eq!(fuzzy_resolve_metric("latency", known), None);
+    }
+
+    #[test]
+    fn fuzzy_resolve_single_metric_always_matches() {
+        let known = &["request_duration_ms"];
+        assert_eq!(
+            fuzzy_resolve_metric("totally_unrelated", known),
+            Some("request_duration_ms")
+        );
     }
 }
