@@ -7,13 +7,12 @@ Full-stack observability platform specification.
 The full specification is located in the [spec/](spec/) directory.
 
 Implementation plans and iteration documents can be found in [docs/superpowers/plans/](docs/superpowers/plans/).
+Historical plans are archived in [archived/plans/](archived/plans/).
 
 ## AI Agent Instructions
 
-Mandatory instructions for any AI agent interacting with this repository can be found in:
-- [AGENT.md](AGENT.md) (Generic)
-- [GEMINI.md](GEMINI.md) (Gemini CLI)
-- [CLAUDE.md](CLAUDE.md) (Claude Desktop/CLI)
+Mandatory instructions for any AI agent interacting with this repository can be found in [AGENTS.md](AGENTS.md).
+(The legacy [AGENT.md](AGENT.md), [GEMINI.md](GEMINI.md), and [CLAUDE.md](CLAUDE.md) files are now pointers to the canonical instructions).
 
 ## Development
 

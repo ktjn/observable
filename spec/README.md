@@ -32,3 +32,4 @@ Full-stack observability platform specification — Dynatrace / New Relic class,
 ## Implementation Plans
 
 Active implementation plans and iteration documents are located in the [docs/superpowers/plans/](../docs/superpowers/plans/) directory.
+Historical plans are archived in the [archived/plans/](../archived/plans/) directory.

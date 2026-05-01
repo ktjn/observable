@@ -24,9 +24,19 @@ defined in `.github/agents/coordinator.agent.md`.
 
 ## Phase Plan Status
 
-- **Phase 1 is closed:** treat `docs/superpowers/plans/2026-04-17-phase1-internal-mvp.md` as a historical implementation record, not as an active backlog to reopen or continue.
+- **Phase 1 is closed:** treat `archived/plans/2026-04-17-phase1-internal-mvp.md` as a historical implementation record, not as an active backlog to reopen or continue.
 - **Active roadmap work starts after Phase 1:** use `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md` for current and follow-on slices unless the user explicitly asks to revise the historical Phase 1 document.
 - If a Phase 1 item appears unfinished in the old plan text, check the reconciliation notes in that document and the follow-on slices in the Phases 2–8 plan before proposing or making changes.
+
+## Before Starting Any Implementation Task
+
+1. **Read `spec/adr/README.md`** to scan the one-line decision summaries. Open and read in full any ADR whose domain overlaps with the task.
+2. **Use the latest stable versions** of all dependencies:
+   - **Rust crates:** check [crates.io](https://crates.io) for the current stable version before adding or updating a dependency.
+   - **npm packages:** check [npmjs.com](https://www.npmjs.com) for the current stable version before adding or updating a dependency.
+   - **GitHub Actions:** use the latest release tag of every action (e.g. `actions/checkout@v4`); check the action's release page if uncertain.
+   - **Docker images (Compose/local):** pin to `image:major.minor` at minimum. For production Dockerfiles and base images, use `image:major.minor.patch`; SHA digest is strongly preferred.
+   - Do not pin to an older version without a documented reason in the PR description.
 
 ## MANDATORY: Before Pushing ANY Code
 
@@ -65,3 +75,10 @@ SQL templates, metadata injection, IR parser, repair loop, or eval test cases �
 The eval harness is a protected regression gate. Do not weaken assertions without a
 replacement signal and reviewer approval. See `spec/08-ai-ml.md §13.4` for the full
 operation reference, design rationale, and feedback loop.
+
+## CI and Scripts
+
+- All non-trivial CI logic must live in `scripts/` and be runnable locally (see ADR-019).
+- Migrations and smoke tests are handled automatically by Docker Compose.
+- Run `docker compose up -d` to start the system and run migrations.
+- Run `docker compose up smoke-test --abort-on-container-exit` to verify.

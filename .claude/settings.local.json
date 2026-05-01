@@ -62,7 +62,16 @@
       "Bash(grep -E \"\\\\.tsx$|\\\\.ts$|\\\\.json$\")",
       "Bash(awk -F: '{sum += $2} END {print \"Total test cases:\", sum}')",
       "Bash(awk -F: '{sum += $2} END {print \"Total \\(incl nested\\):\", sum}')",
-      "Bash(awk -F: '{sum += $2} END {print \"Total:\", sum}')"
+      "Bash(awk -F: '{sum += $2} END {print \"Total:\", sum}')",
+      "Bash(dir C:\\\\git\\\\Observable *)",
+      "Bash(dir C:\\\\git\\\\Observable\\\\apps *)",
+      "Bash(dir C:\\\\git\\\\Observable\\\\apps\\\\frontend *)",
+      "Bash(dir C:\\\\git\\\\Observable\\\\apps\\\\frontend\\\\src *)",
+      "Bash(docker compose *)",
+      "Bash(find C:\\\\git\\\\Observable\\\\services\\\\query-api\\\\src *)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(find C:\\\\git\\\\Observable\\\\services\\\\ingest-gateway\\\\src *)",
+      "Bash(find C:\\\\git\\\\Observable\\\\services\\\\storage-writer\\\\src *)"
     ]
   }
 }
