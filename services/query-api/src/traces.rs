@@ -157,8 +157,27 @@ pub async fn search_traces(
 ) -> Result<Json<TraceListResponse>, StatusCode> {
     let plan = state.planner.plan_trace_search(&params);
 
+    let now_ns = Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64;
+    let from_ns = if let Some(dt) = params.from {
+        dt.timestamp_nanos_opt().unwrap_or(0) as u64
+    } else if let Some(lookback) = params.lookback_minutes {
+        now_ns.saturating_sub(lookback as u64 * 60 * 1_000_000_000)
+    } else {
+        now_ns.saturating_sub(3_600_000_000_000) // Default 1h
+    };
+    let to_ns = params
+        .to
+        .map(|dt| dt.timestamp_nanos_opt().unwrap_or(0) as u64)
+        .unwrap_or(now_ns);
+
     // First, count total distinct traces.
     let mut count_query = state.ch.query(&plan.count_sql).bind(ctx.tenant_id);
+    if params.from.is_some() || params.lookback_minutes.is_some() {
+        count_query = count_query.bind(from_ns);
+    }
+    if params.to.is_some() {
+        count_query = count_query.bind(to_ns);
+    }
     if let Some(ref svc) = params.service {
         count_query = count_query.bind(svc.as_str());
     }
@@ -188,12 +207,24 @@ pub async fn search_traces(
             let mut facet_sql = format!(
                 "SELECT toString({field}) as value, count(DISTINCT trace_id) as count FROM observable.spans WHERE tenant_id = ?"
             );
+            if params.from.is_some() || params.lookback_minutes.is_some() {
+                facet_sql.push_str(" AND start_time_unix_nano >= ?");
+            }
+            if params.to.is_some() {
+                facet_sql.push_str(" AND start_time_unix_nano <= ?");
+            }
             if params.service.is_some() {
                 facet_sql.push_str(" AND service_name = ?");
             }
             facet_sql.push_str(&format!(" GROUP BY {field} ORDER BY count DESC LIMIT 10"));
 
             let mut facet_query = state.ch.query(&facet_sql).bind(ctx.tenant_id);
+            if params.from.is_some() || params.lookback_minutes.is_some() {
+                facet_query = facet_query.bind(from_ns);
+            }
+            if params.to.is_some() {
+                facet_query = facet_query.bind(to_ns);
+            }
             if let Some(ref svc) = params.service {
                 facet_query = facet_query.bind(svc.as_str());
             }
@@ -216,6 +247,12 @@ pub async fn search_traces(
 
     // Then, fetch the newest span for each of the newest N traces.
     let mut query = state.ch.query(&plan.spans_sql).bind(ctx.tenant_id);
+    if params.from.is_some() || params.lookback_minutes.is_some() {
+        query = query.bind(from_ns);
+    }
+    if params.to.is_some() {
+        query = query.bind(to_ns);
+    }
     if let Some(ref svc) = params.service {
         query = query.bind(svc.as_str());
     }

@@ -35,19 +35,12 @@ pub struct QueryPlanner;
 
 impl QueryPlanner {
     pub fn plan_trace_search(&self, params: &TraceSearchParams) -> TraceSearchPlan {
-        let count_sql = if params.service.is_some() {
-            "SELECT count(DISTINCT trace_id) FROM observable.spans WHERE tenant_id = ? AND service_name = ?"
-        } else {
-            "SELECT count(DISTINCT trace_id) FROM observable.spans WHERE tenant_id = ?"
-        }
-        .to_string();
+        let where_clause = trace_search_where_clause(params);
+        let count_sql = format!("SELECT count(DISTINCT trace_id) FROM observable.spans {where_clause}");
 
-        let latest_trace_ids_sql = if params.service.is_some() {
-            "(SELECT tenant_id, trace_id, max(start_time_unix_nano) FROM observable.spans WHERE tenant_id = ? AND service_name = ? GROUP BY tenant_id, trace_id ORDER BY max(start_time_unix_nano) DESC LIMIT ?)"
-        } else {
-            "(SELECT tenant_id, trace_id, max(start_time_unix_nano) FROM observable.spans WHERE tenant_id = ? GROUP BY tenant_id, trace_id ORDER BY max(start_time_unix_nano) DESC LIMIT ?)"
-        }
-        .to_string();
+        let latest_trace_ids_sql = format!(
+            "(SELECT tenant_id, trace_id, max(start_time_unix_nano) FROM observable.spans {where_clause} GROUP BY tenant_id, trace_id ORDER BY max(start_time_unix_nano) DESC LIMIT ?)"
+        );
 
         let spans_sql = format!(
             "SELECT {SELECT_COLS} FROM observable.spans \
@@ -217,6 +210,20 @@ impl QueryPlanner {
             interval_ns,
         }
     }
+}
+
+fn trace_search_where_clause(params: &TraceSearchParams) -> String {
+    let mut where_clause = "WHERE tenant_id = ?".to_string();
+    if params.from.is_some() || params.lookback_minutes.is_some() {
+        where_clause.push_str(" AND start_time_unix_nano >= ?");
+    }
+    if params.to.is_some() {
+        where_clause.push_str(" AND start_time_unix_nano <= ?");
+    }
+    if params.service.is_some() {
+        where_clause.push_str(" AND service_name = ?");
+    }
+    where_clause
 }
 
 fn log_search_where_clause(params: &LogSearchParams) -> String {
