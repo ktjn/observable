@@ -76,9 +76,15 @@ export default function TraceSearch() {
   const traces = data?.traces ?? [];
   const selectedTrace = traces.find((t) => t.trace_id === selectedTraceId);
   const histogram = useMemo(
-    () => histogramData ? histogramFromApi(histogramData.buckets) : buildTraceHistogram([], histogramFromMs, histogramToMs),
-    [histogramData, histogramFromMs, histogramToMs],
+    () => {
+      if (histogramData?.buckets.length) {
+        return histogramFromApi(histogramData.buckets);
+      }
+      return buildTraceHistogram(traces, histogramFromMs, histogramToMs);
+    },
+    [histogramData, histogramFromMs, histogramToMs, traces],
   );
+  const canRenderHistogram = Boolean(histogramData) || traces.length > 0;
 
   const handleFacetClick = (field: string, value: string) => {
     if (field === "service_name") {
@@ -178,7 +184,7 @@ export default function TraceSearch() {
         )}
       </div>
 
-      {histogramData ? (
+      {canRenderHistogram ? (
         <Histogram
           buckets={histogram}
           categoryOrder={["Traces"]}
@@ -196,7 +202,7 @@ export default function TraceSearch() {
           className="border border-[var(--border)] bg-[var(--surface)] p-3 h-[168px] animate-pulse"
         />
       )}
-      {isHistogramError && (
+      {isHistogramError && !canRenderHistogram && (
         <p className="text-xs text-[var(--muted)]">Histogram unavailable</p>
       )}
 
@@ -375,14 +381,27 @@ function histogramFromApi(buckets: ApiHistogramBucket[]): HistogramBucket<"Trace
 
 export function buildTraceHistogram(_traces: TraceResponse[], fromMs: number, toMs: number): HistogramBucket<"Traces">[] {
   const bucketCount = 30;
-  const rangeMs = toMs - fromMs;
+  const rangeMs = Math.max(1, toMs - fromMs);
   const bucketMs = rangeMs / bucketCount;
-  return Array.from({ length: bucketCount }, (_, index) => ({
+  const buckets = Array.from({ length: bucketCount }, (_, index) => ({
     startMs: fromMs + index * bucketMs,
     endMs: fromMs + (index + 1) * bucketMs,
     total: 0,
     categories: { Traces: 0 },
   }));
+
+  for (const trace of _traces) {
+    const root = trace.spans[0];
+    if (!root) continue;
+    const startMs = Number(root.start_time_unix_nano) / 1_000_000;
+    if (!Number.isFinite(startMs)) continue;
+    const rawIndex = Math.floor((startMs - fromMs) / bucketMs);
+    const index = Math.min(bucketCount - 1, Math.max(0, rawIndex));
+    buckets[index].total += 1;
+    buckets[index].categories.Traces += 1;
+  }
+
+  return buckets;
 }
 
 function formatBucketLabel(ms: number, format: import("../lib/timeDisplay").TimeFormat): string {
