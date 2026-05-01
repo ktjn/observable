@@ -15,11 +15,19 @@ const baseSpan = {
   tenant_id: "t1",
   span_id: "111",
   service_name: "checkout",
+  service_namespace: "production",
+  service_version: "1.0.0",
   operation_name: "POST /order",
+  span_kind: "INTERNAL",
   start_time_unix_nano: 0,
   end_time_unix_nano: 5000000,
   duration_ns: 5_000_000,
   status_code: "OK",
+  status_message: "",
+  environment: "prod",
+  host_id: "host-1",
+  workload: "checkout-service",
+  deployment_id: "deploy-123",
 };
 
 beforeEach(() => {
