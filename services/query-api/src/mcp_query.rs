@@ -12,7 +12,9 @@
 //     billing, or SLA enforcement.
 use crate::mcp_tools::get_metric_schema;
 use crate::middleware::auth::TenantContext;
-use crate::sql_templates::{generate_sql, SchemaMetricType, SqlContext, SqlTemplateError};
+use crate::sql_templates::{
+    generate_log_sql, generate_sql, LogSqlContext, SchemaMetricType, SqlContext, SqlTemplateError,
+};
 use crate::traces::AppState;
 use axum::{
     extract::{Extension, State},
@@ -20,7 +22,8 @@ use axum::{
     Json,
 };
 use domain::{
-    FieldRole, FieldRoleKind, NlqIr, NlqOperation, VisualizationFrame, VisualizationFrameType,
+    FieldRole, FieldRoleKind, NlqIr, NlqOperation, NlqSignal, VisualizationFrame,
+    VisualizationFrameType,
 };
 use uuid::Uuid;
 
@@ -73,6 +76,11 @@ pub async fn execute_mcp_query(
     tenant_id: Uuid,
     ir: &NlqIr,
 ) -> Result<VisualizationFrame, McpQueryError> {
+    // Log signal routing — log queries bypass the metric schema entirely.
+    if ir.signals == vec![NlqSignal::Logs] {
+        return execute_log_query(ch, tenant_id, ir).await;
+    }
+
     // Catalog operation: query series metadata; no metric or schema lookup needed.
     if ir.operation == NlqOperation::Catalog {
         return execute_catalog_query(ch, tenant_id, ir).await;
@@ -200,6 +208,69 @@ async fn execute_catalog_query(
         approximation_statement: "Advisory result. Data is not sampled. \
             This result is approximate and must not be used for billing, \
             SLA enforcement, or regulatory compliance."
+            .into(),
+    })
+}
+
+// ── Log query ─────────────────────────────────────────────────────────────────
+
+/// Executes a log search query against `observable.logs`.
+///
+/// Supports free-text body search via `ir.query` and structured filters on
+/// direct columns (service_name, severity_text, environment, trace_id, span_id)
+/// or JSON attribute extraction.
+async fn execute_log_query(
+    ch: &clickhouse::Client,
+    tenant_id: Uuid,
+    ir: &NlqIr,
+) -> Result<VisualizationFrame, McpQueryError> {
+    let ctx = LogSqlContext { tenant_id, ir };
+    let sql = generate_log_sql(&ctx)?;
+
+    tracing::debug!(
+        tenant_id = %tenant_id,
+        query = ?ir.query,
+        "MCP executing log search SQL"
+    );
+
+    let data = execute_query_as_json(ch, &sql).await?;
+
+    let field_roles = vec![
+        FieldRole {
+            name: "ts".into(),
+            role: FieldRoleKind::Time,
+        },
+        FieldRole {
+            name: "body".into(),
+            role: FieldRoleKind::Value,
+        },
+        FieldRole {
+            name: "service_name".into(),
+            role: FieldRoleKind::Label,
+        },
+        FieldRole {
+            name: "severity_text".into(),
+            role: FieldRoleKind::Label,
+        },
+    ];
+
+    Ok(VisualizationFrame {
+        frame_type: VisualizationFrameType::Table,
+        x_field: Some("ts".into()),
+        y_field: None,
+        series_field: None,
+        unit: None,
+        suggested_visualization: "table".into(),
+        field_roles,
+        data,
+        nlq_ir: ir.clone(),
+        source_sql: sql,
+        time_range: ir.time_range.clone(),
+        signal_types: ir.signals.clone(),
+        sample_rate: None,
+        approximation_statement: "Advisory result — log search. Logs are not sampled \
+            but may be incomplete under backpressure. This result must not be used for \
+            billing, SLA enforcement, or regulatory compliance."
             .into(),
     })
 }
@@ -507,6 +578,7 @@ mod tests {
             percentiles: None,
             catalog_field: None,
             limit: None,
+            query: None,
         }
     }
 

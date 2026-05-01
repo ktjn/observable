@@ -223,6 +223,7 @@ fn base_ir(op: NlqOperation) -> NlqIr {
         percentiles: None,
         catalog_field: None,
         limit: None,
+        query: None,
     }
 }
 

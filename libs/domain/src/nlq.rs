@@ -48,6 +48,9 @@ pub struct NlqIr {
     /// For topk operations: how many top results to return. Defaults to 10 if absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limit: Option<u32>,
+    /// Free-text search term for log queries. Applied as substring match on the log `body` column.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
 }
 
 /// Supported query operation types.
