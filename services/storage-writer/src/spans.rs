@@ -1,12 +1,25 @@
 use clickhouse::Client;
-use domain::{Span, SpanRow};
+use domain::{Span, SpanEvent, SpanEventRow, SpanRow};
 
 pub async fn insert_spans(ch: &Client, spans: Vec<Span>) -> anyhow::Result<()> {
+    // Collect events before consuming spans
+    let all_events: Vec<SpanEvent> = spans.iter()
+        .flat_map(|s| s.events.iter().cloned())
+        .collect();
+
     let mut insert = ch.insert::<SpanRow>("spans").await?;
     for span in spans {
         insert.write(&SpanRow::from(span)).await?;
     }
     insert.end().await?;
+
+    if !all_events.is_empty() {
+        let mut ev_insert = ch.insert::<SpanEventRow>("span_events").await?;
+        for ev in all_events {
+            ev_insert.write(&SpanEventRow::from(ev)).await?;
+        }
+        ev_insert.end().await?;
+    }
     Ok(())
 }
 
@@ -42,6 +55,7 @@ mod tests {
             host_id: "web-1".into(),
             workload: "checkout-deploy".into(),
             deployment_id: "deploy-42".into(),
+            events: vec![],
         }
     }
 
