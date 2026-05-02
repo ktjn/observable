@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import type { TraceResponse } from "../../api/traces";
+import type { TraceResponse } from "../../../api/traces";
 import { Badge } from "../../../components/ui/badge";
 import { formatTimestamp } from "../../../utils/formatTimestamp";
 import type { TimeFormat } from "../../../lib/timeDisplay";

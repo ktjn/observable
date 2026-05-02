@@ -1,26 +1,26 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createDashboard } from "../api/dashboards";
-import { searchLogs, fetchLogHistogram, LogRecord, LogHistogramBucket as ApiHistogramBucket, LogHistogramResponse } from "../api/logs";
+import {
+  searchLogs,
+  fetchLogHistogram,
+  LogRecord,
+  LogHistogramBucket as ApiHistogramBucket,
+  LogHistogramResponse,
+} from "../api/logs";
 import { infraLinks } from "../utils/infraLinks";
 import { formatTimestamp } from "../utils/formatTimestamp";
+import { formatBucketLabel } from "../utils/formatBucketLabel";
 import { OTelLevel, otelSeverity, formatLogMessage, formatContextValue } from "../utils/logFormatting";
 import { useTimeDisplay } from "../lib/timeDisplay";
+import { useSignalSearch } from "../hooks/useSignalSearch";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
 import { LoadingState } from "../components/ui/loading-state";
-import { Select, SelectOption } from "../components/ui/select";
 import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
+import { SignalExplorer, SaveStatus } from "../components/shared/SignalExplorer";
 import { LogResultsTable } from "../features/signals/components/LogResultsTable";
-
-const timeRangeOptions = [
-  { label: "15m", value: 15 },
-  { label: "1h", value: 60 },
-  { label: "6h", value: 360 },
-  { label: "24h", value: 1440 },
-];
 
 const levelOrder: OTelLevel[] = ["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"];
 const levelBarClasses: Record<OTelLevel, string> = {
@@ -59,42 +59,26 @@ export function LogExplorer({
   showPromote = true,
   tableAriaLabel,
 }: LogExplorerProps) {
-  const [service, setService] = useState(initialService);
   const { format } = useTimeDisplay();
-  const [lookbackMinutes, setLookbackMinutes] = useState(initialLookbackMinutes);
-  const [selectedLogId, setSelectedLogId] = useState<string | undefined>();
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [customRangeMs, setCustomRangeMs] = useState<{ fromMs: number; toMs: number } | null>(null);
+  const {
+    service,
+    setService,
+    lookbackMinutes,
+    setLookbackMinutes,
+    customRangeMs,
+    handleHistogramRangeSelect,
+    handleClearRange,
+    from,
+    to,
+    histogramFromMs,
+    histogramToMs,
+  } = useSignalSearch({ initialService, initialLookbackMinutes });
   const [bucketCount, setBucketCount] = useState(60);
-
-  const { from, to, histogramFromMs, histogramToMs } = useMemo(() => {
-    if (customRangeMs) {
-      return {
-        from: new Date(customRangeMs.fromMs).toISOString(),
-        to: new Date(customRangeMs.toMs).toISOString(),
-        histogramFromMs: customRangeMs.fromMs,
-        histogramToMs: customRangeMs.toMs,
-      };
-    }
-    const toMs = Date.now();
-    const fromMs = toMs - lookbackMinutes * 60 * 1000;
-    return {
-      from: new Date(fromMs).toISOString(),
-      to: undefined as string | undefined,
-      histogramFromMs: fromMs,
-      histogramToMs: toMs,
-    };
-  }, [customRangeMs, lookbackMinutes]);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["logs", service, from, to],
-    queryFn: () =>
-      searchLogs({
-        service: service || undefined,
-        from,
-        to,
-        limit: 50,
-      }),
+    queryFn: () => searchLogs({ service: service || undefined, from, to, limit: 50 }),
   });
 
   const { data: histogramData, isError: isHistogramError } = useQuery({
@@ -110,7 +94,6 @@ export function LogExplorer({
   });
 
   const logs = data?.logs ?? [];
-  const selectedLog = logs.find((log) => log.log_id === selectedLogId);
   const histogram = useMemo(
     () =>
       histogramData?.buckets
@@ -118,16 +101,6 @@ export function LogExplorer({
         : buildLogHistogram([], histogramFromMs, histogramToMs),
     [histogramData, histogramFromMs, histogramToMs],
   );
-
-  function handleHistogramRangeSelect(fromMs: number, toMs: number) {
-    setCustomRangeMs({ fromMs, toMs });
-    setSelectedLogId(undefined);
-  }
-
-  function handleClearRange() {
-    setCustomRangeMs(null);
-    setSelectedLogId(undefined);
-  }
 
   const handlePromote = async () => {
     setSaveStatus("saving");
@@ -145,102 +118,53 @@ export function LogExplorer({
         ],
       });
       setSaveStatus("saved");
-    } catch (error) {
-      console.error(error);
+    } catch {
       setSaveStatus("error");
     }
   };
 
   return (
-    <div className="page-stack">
-      {showHeader && (
-        <div className="page-header">
-          <div>
-            <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
-            <h1>Logs</h1>
-          </div>
-        </div>
-      )}
-
-      <div className="toolbar-row">
-        {!lockedService && (
-          <Input
-            className="max-w-[360px]"
-            placeholder="Filter by service"
-            value={service}
-            onChange={(e) => setService(e.target.value)}
-            aria-label="Filter by service"
+    <SignalExplorer
+      title="Log"
+      service={service}
+      onServiceChange={(s) => { setService(s); }}
+      lookbackMinutes={lookbackMinutes}
+      onLookbackChange={(m) => { setLookbackMinutes(m); }}
+      customRangeMs={customRangeMs}
+      customRangeLabel={
+        customRangeMs
+          ? `${formatBucketLabel(customRangeMs.fromMs, format)} – ${formatBucketLabel(customRangeMs.toMs, format)}`
+          : undefined
+      }
+      onClearRange={handleClearRange}
+      lockedService={lockedService}
+      showHeader={showHeader}
+      showPromote={showPromote}
+      saveStatus={saveStatus}
+      onPromote={handlePromote}
+      histogram={
+        histogramData ? (
+          <Histogram
+            buckets={histogram}
+            categoryOrder={levelOrder}
+            categoryColors={levelBarClasses}
+            format={(ms) => formatBucketLabel(ms, format)}
+            onRangeSelect={handleHistogramRangeSelect}
+            onBucketCountChange={setBucketCount}
+            ariaLabel="Log volume histogram"
+            title="Logs over time"
+            subtitle="Volume"
           />
-        )}
-        {customRangeMs ? (
-          <>
-            <span className="text-xs whitespace-nowrap font-mono text-[var(--text-strong)]">
-              {formatBucketLabel(customRangeMs.fromMs, format)} – {formatBucketLabel(customRangeMs.toMs, format)}
-            </span>
-            <Button variant="secondary" onClick={handleClearRange}>
-              Reset range
-            </Button>
-          </>
+        ) : !isHistogramError ? (
+          <div
+            aria-hidden="true"
+            className="border border-[var(--border)] bg-[var(--surface)] p-3 h-[168px] animate-pulse"
+          />
         ) : (
-          <Select
-            aria-label="Log time range"
-            className="max-w-[120px]"
-            value={String(lookbackMinutes)}
-            onChange={(event) => {
-              setLookbackMinutes(Number(event.target.value));
-              setSelectedLogId(undefined);
-            }}
-          >
-            {timeRangeOptions.map((option) => (
-              <SelectOption key={option.value} value={option.value}>
-                {option.label}
-              </SelectOption>
-            ))}
-          </Select>
-        )}
-        {service && !lockedService && (
-          <Button variant="secondary" onClick={() => setService("")}>
-            Clear filters
-          </Button>
-        )}
-        {showPromote && (
-          <>
-            <Button onClick={handlePromote} disabled={saveStatus === "saving"}>
-              Promote to dashboard
-            </Button>
-            {saveStatus === "saved" && (
-              <span className="text-sm font-semibold text-[var(--good)]">Saved to dashboard</span>
-            )}
-            {saveStatus === "error" && (
-              <span className="text-sm font-semibold text-[var(--bad)]">Dashboard save failed</span>
-            )}
-          </>
-        )}
-      </div>
-
-      {histogramData ? (
-        <Histogram
-          buckets={histogram}
-          categoryOrder={levelOrder}
-          categoryColors={levelBarClasses}
-          format={(ms) => formatBucketLabel(ms, format)}
-          onRangeSelect={handleHistogramRangeSelect}
-          onBucketCountChange={setBucketCount}
-          ariaLabel="Log volume histogram"
-          title="Logs over time"
-          subtitle="Volume"
-        />
-      ) : !isHistogramError && (
-        <div
-          aria-hidden="true"
-          className="border border-[var(--border)] bg-[var(--surface)] p-3 h-[168px] animate-pulse"
-        />
-      )}
-      {isHistogramError && (
-        <p className="text-xs text-[var(--muted)]">Histogram unavailable</p>
-      )}
-
-      <div className="flex items-start gap-3 max-[900px]:flex-col">
+          <p className="text-xs text-[var(--muted)]">Histogram unavailable</p>
+        )
+      }
+      renderTable={(selectedId, onSelect) => (
         <TablePanel className="flex-1">
           {isLoading ? (
             <LoadingState>Loading logs…</LoadingState>
@@ -251,20 +175,20 @@ export function LogExplorer({
           ) : (
             <LogResultsTable
               logs={logs}
-              selectedLogId={selectedLogId}
-              onSelectLog={setSelectedLogId}
+              selectedLogId={selectedId ?? undefined}
+              onSelectLog={(id) => onSelect(id)}
               timeFormat={format}
               showServiceColumn={showServiceColumn}
               ariaLabel={tableAriaLabel}
             />
           )}
         </TablePanel>
-
-        {selectedLog && (
-          <LogContextSidebar log={selectedLog} format={format} onClose={() => setSelectedLogId(undefined)} />
-        )}
-      </div>
-    </div>
+      )}
+      renderPanel={(selectedId, onClose) => {
+        const log = logs.find((l) => l.log_id === selectedId);
+        return log ? <LogContextSidebar log={log} format={format} onClose={onClose} /> : null;
+      }}
+    />
   );
 }
 
@@ -284,7 +208,7 @@ function LogContextSidebar({
   return (
     <aside
       aria-label="Selected log context"
-      className="w-[320px] shrink-0 border border-[var(--border)] bg-[var(--surface)] p-4 max-[900px]:w-full"
+      className="w-full border border-[var(--border)] bg-[var(--surface)] p-4"
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
@@ -359,70 +283,50 @@ export function buildLogHistogram(logs: LogRecord[], fromMs: number, toMs: numbe
   const bucketCount = 30;
   const rangeMs = toMs - fromMs;
   const bucketMs = rangeMs / bucketCount;
-  const buckets = Array.from({ length: bucketCount }, (_, index) => ({
-    startMs: fromMs + index * bucketMs,
-    endMs: fromMs + (index + 1) * bucketMs,
+  const buckets = Array.from({ length: bucketCount }, (_, i) => ({
+    startMs: fromMs + i * bucketMs,
+    endMs: fromMs + (i + 1) * bucketMs,
     total: 0,
     categories: emptyLevels(),
   }));
-
   for (const log of logs) {
-    const timestampMs = Number(log.timestamp_unix_nano) / 1_000_000;
-    if (!Number.isFinite(timestampMs)) continue;
-    const rawIndex = Math.floor((timestampMs - fromMs) / bucketMs);
-    const index = Math.min(bucketCount - 1, Math.max(0, rawIndex));
+    const ms = Number(log.timestamp_unix_nano) / 1_000_000;
+    if (!Number.isFinite(ms)) continue;
+    const idx = Math.min(bucketCount - 1, Math.max(0, Math.floor((ms - fromMs) / bucketMs)));
     const level = otelSeverity(log.severity_number).label;
-    buckets[index].total += 1;
-    buckets[index].categories[level] += 1;
+    buckets[idx].total += 1;
+    buckets[idx].categories[level] += 1;
   }
-
   return buckets;
 }
 
 function emptyLevels(): Record<OTelLevel, number> {
-  return {
-    TRACE: 0,
-    DEBUG: 0,
-    INFO: 0,
-    WARN: 0,
-    ERROR: 0,
-    FATAL: 0,
-  };
+  return { TRACE: 0, DEBUG: 0, INFO: 0, WARN: 0, ERROR: 0, FATAL: 0 };
 }
 
-function logContextEntries(log: LogRecord, format: import("../lib/timeDisplay").TimeFormat): [string, string][] {
+function logContextEntries(
+  log: LogRecord,
+  format: import("../lib/timeDisplay").TimeFormat,
+): [string, string][] {
   const entries: [string, string][] = [
     ["time", formatTimestamp(log.timestamp_unix_nano, format)],
     ["service.name", log.service_name],
     ["severity_number", String(log.severity_number)],
     ["message", formatLogMessage(log.body)],
   ];
-
-  if (log.observed_timestamp_unix_nano) {
+  if (log.observed_timestamp_unix_nano)
     entries.push(["observed_time", formatTimestamp(log.observed_timestamp_unix_nano, format)]);
-  }
   if (log.environment) entries.push(["environment", log.environment]);
   if (log.host_id) entries.push(["host_id", log.host_id]);
   if (log.trace_id) entries.push(["trace_id", log.trace_id]);
   if (log.span_id) entries.push(["span_id", log.span_id]);
-  if (log.fingerprint !== null && log.fingerprint !== undefined) {
+  if (log.fingerprint !== null && log.fingerprint !== undefined)
     entries.push(["fingerprint", String(log.fingerprint)]);
-  }
-
-  for (const [key, value] of Object.entries(log.attributes ?? {}).sort(([a], [b]) => a.localeCompare(b))) {
-    entries.push([`log.${key}`, formatContextValue(value)]);
-  }
-
-  for (const [key, value] of Object.entries(log.resource_attributes ?? {}).sort(([a], [b]) => a.localeCompare(b))) {
-    entries.push([key, formatContextValue(value)]);
-  }
-
+  for (const [k, v] of Object.entries(log.attributes ?? {}).sort(([a], [b]) => a.localeCompare(b)))
+    entries.push([`log.${k}`, formatContextValue(v)]);
+  for (const [k, v] of Object.entries(log.resource_attributes ?? {}).sort(([a], [b]) => a.localeCompare(b)))
+    entries.push([k, formatContextValue(v)]);
   return entries;
-}
-
-function formatBucketLabel(ms: number, format: import("../lib/timeDisplay").TimeFormat): string {
-  const utc = format === "iso-utc-ms" || format === "iso-utc-ns" || format === "unix-ms" || format === "unix-ns";
-  return utc ? new Date(ms).toISOString() : new Date(ms).toLocaleTimeString();
 }
 
 export { otelSeverity, formatLogMessage } from "../utils/logFormatting";
