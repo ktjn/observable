@@ -48,12 +48,15 @@ The coordinator decides which specialist(s) to invoke based on what surfaces the
   coordinator delegates directly to implementation-steward; no specialist review required unless the
   change introduces a new architectural boundary (see Architecture change above).
 
-## Non-Goals (Phase 1)
+## Non-Goals (Advisory Pilot — Phase 1 of the Agent Model)
 
 - No hard tool deny-lists or allow-lists enforced.
 - No mandatory role declaration on every PR.
 - No process rewrites beyond this role-model introduction.
 - Soft enforcement (PR labels, checklist gates) is deferred to a follow-up iteration after a pilot.
+
+**Note:** "Phase 1" here refers to the first phase of the agent-model rollout (the advisory pilot),
+not the closed project Phase 1 described in AGENTS.md.
 
 ## Pilot Metrics
 
