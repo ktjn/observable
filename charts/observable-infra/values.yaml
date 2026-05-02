@@ -12,6 +12,14 @@ infraSetup:
 selfObservability:
   mode: "self"
   otlpEndpoint: "http://ingest-gateway:4318"
+  # bearerToken: set this to send an Authorization: Bearer header to the ingest-gateway.
+  # Use for dev/kind environments where a static key is sufficient.
+  # For production, use headersSecretRef instead.
+  bearerToken: ""
+  deploymentEnvironment: ""
+  tenant: ""
+  cluster: ""
+  release: ""
 
 postgresql:
   enabled: true

@@ -11,6 +11,7 @@ from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
 from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
@@ -80,6 +81,7 @@ log_provider.add_log_record_processor(BatchLogRecordProcessor(OTLPLogExporter(en
 set_logger_provider(log_provider)
 
 LoggingInstrumentor().instrument(set_logging_format=True)
+HTTPXClientInstrumentor().instrument()
 
 SCENARIOS = [
     ("browse_products", 30),

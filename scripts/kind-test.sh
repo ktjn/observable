@@ -301,6 +301,8 @@ watch_pods "$NAMESPACE" 20 &
 WATCH_INFRA=$!
 helm upgrade --install observable-infra "$REPO_ROOT/charts/observable-infra" \
   --namespace "$NAMESPACE" \
+  --set selfObservability.bearerToken=dev-api-key-0000 \
+  --set selfObservability.deploymentEnvironment=observable \
   --wait \
   --timeout 10m
 kill "$WATCH_INFRA" 2>/dev/null || true

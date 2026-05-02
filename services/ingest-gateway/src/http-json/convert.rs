@@ -366,6 +366,44 @@ fn otlp_attrs_to_string_map(attrs: &Value) -> HashMap<String, String> {
     map
 }
 
+fn span_kind_from_json(v: &Value) -> domain::SpanKind {
+    // OTLP JSON encodes SpanKind as an integer (proto3 JSON) or a string enum name.
+    let n = v
+        .as_i64()
+        .or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok()));
+    match n {
+        Some(2) => domain::SpanKind::Server,
+        Some(3) => domain::SpanKind::Client,
+        Some(4) => domain::SpanKind::Producer,
+        Some(5) => domain::SpanKind::Consumer,
+        _ => domain::SpanKind::Internal,
+    }
+}
+
+fn status_from_json(status: Option<&Value>) -> (domain::StatusCode, String) {
+    let Some(st) = status else {
+        return Default::default();
+    };
+    let code = st
+        .get("code")
+        .and_then(|c| {
+            c.as_i64()
+                .or_else(|| c.as_str().and_then(|s| s.parse::<i64>().ok()))
+        })
+        .unwrap_or(0);
+    let status_code = match code {
+        1 => domain::StatusCode::Ok,
+        2 => domain::StatusCode::Error,
+        _ => domain::StatusCode::Unset,
+    };
+    let status_message = st
+        .get("message")
+        .and_then(|m| m.as_str())
+        .unwrap_or_default()
+        .to_string();
+    (status_code, status_message)
+}
+
 pub fn parse_otlp_traces(body: &Value, tenant_id: Uuid) -> Result<Vec<domain::Span>, StatusCode> {
     let resource_spans = body
         .get("resourceSpans")
@@ -380,6 +418,9 @@ pub fn parse_otlp_traces(body: &Value, tenant_id: Uuid) -> Result<Vec<domain::Sp
             .cloned()
             .unwrap_or_default();
         let service_name = extract_string_attr(&resource_attrs, "service.name").unwrap_or_default();
+        let environment =
+            extract_string_attr(&resource_attrs, "deployment.environment").unwrap_or_default();
+        let resource_attributes = otlp_attrs_to_map(&resource_attrs);
         for scope_spans in rs
             .get("scopeSpans")
             .and_then(|v| v.as_array())
@@ -408,19 +449,39 @@ pub fn parse_otlp_traces(body: &Value, tenant_id: Uuid) -> Result<Vec<domain::Sp
                     .and_then(|v| v.as_str())
                     .unwrap_or_default()
                     .into();
+                let parent_span_id: Option<String> = s
+                    .get("parentSpanId")
+                    .and_then(|v| v.as_str())
+                    .filter(|v| !v.is_empty())
+                    .map(String::from);
+                let span_kind = s
+                    .get("kind")
+                    .map(span_kind_from_json)
+                    .unwrap_or(domain::SpanKind::Internal);
+                let (status_code, status_message) = status_from_json(s.get("status"));
                 spans.push(domain::Span {
                     tenant_id,
                     trace_id: trace_id.clone(),
                     span_id: span_id.clone(),
+                    parent_span_id,
                     service_name: service_name.clone(),
                     operation_name: s
                         .get("name")
                         .and_then(|v| v.as_str())
                         .unwrap_or_default()
                         .into(),
+                    span_kind,
                     start_time_unix_nano: start,
                     end_time_unix_nano: end,
                     duration_ns: end.saturating_sub(start),
+                    status_code,
+                    status_message,
+                    attributes: s
+                        .get("attributes")
+                        .map(otlp_attrs_to_map)
+                        .unwrap_or_default(),
+                    resource_attributes: resource_attributes.clone(),
+                    environment: environment.clone(),
                     ..Default::default()
                 });
                 let span_events: Vec<domain::SpanEvent> = s
@@ -656,5 +717,103 @@ mod tests {
             first_points[0].metric_series_id,
             second_points[0].metric_series_id
         );
+    }
+
+    #[test]
+    fn parse_otlp_traces_extracts_parent_span_id_and_environment() {
+        let tenant = Uuid::nil();
+        let body = json!({
+            "resourceSpans": [{
+                "resource": {
+                    "attributes": [
+                        {"key": "service.name", "value": {"stringValue": "shop-frontend"}},
+                        {"key": "deployment.environment", "value": {"stringValue": "testbench"}},
+                        {"key": "host.name", "value": {"stringValue": "node-1"}}
+                    ]
+                },
+                "scopeSpans": [{
+                    "spans": [{
+                        "traceId": "aabbccddaabbccddaabbccddaabbccdd",
+                        "spanId": "1122334411223344",
+                        "parentSpanId": "aabbccdd11223344",
+                        "name": "GET /products",
+                        "kind": 3,
+                        "startTimeUnixNano": "1000000000",
+                        "endTimeUnixNano": "2000000000",
+                        "status": {"code": 2, "message": "internal error"},
+                        "attributes": [
+                            {"key": "http.method", "value": {"stringValue": "GET"}},
+                            {"key": "http.status_code", "value": {"intValue": "500"}}
+                        ]
+                    }]
+                }]
+            }]
+        });
+
+        let spans = parse_otlp_traces(&body, tenant).unwrap();
+        assert_eq!(spans.len(), 1);
+
+        let span = &spans[0];
+        assert_eq!(span.parent_span_id.as_deref(), Some("aabbccdd11223344"));
+        assert_eq!(span.environment, "testbench");
+        assert_eq!(span.span_kind, domain::SpanKind::Client);
+        assert_eq!(span.status_code, domain::StatusCode::Error);
+        assert_eq!(span.status_message, "internal error");
+        assert_eq!(span.attributes.get("http.method"), Some(&json!("GET")));
+        assert_eq!(
+            span.resource_attributes.get("host.name"),
+            Some(&json!("node-1"))
+        );
+        assert_eq!(span.duration_ns, 1_000_000_000);
+    }
+
+    #[test]
+    fn parse_otlp_traces_empty_parent_span_id_becomes_none() {
+        let tenant = Uuid::nil();
+        let body = json!({
+            "resourceSpans": [{
+                "resource": {"attributes": [
+                    {"key": "service.name", "value": {"stringValue": "svc"}}
+                ]},
+                "scopeSpans": [{
+                    "spans": [{
+                        "traceId": "aabb",
+                        "spanId": "ccdd",
+                        "parentSpanId": "",
+                        "name": "root",
+                        "startTimeUnixNano": "0",
+                        "endTimeUnixNano": "0"
+                    }]
+                }]
+            }]
+        });
+
+        let spans = parse_otlp_traces(&body, tenant).unwrap();
+        assert_eq!(spans[0].parent_span_id, None);
+    }
+
+    #[test]
+    fn parse_otlp_traces_status_code_ok() {
+        let tenant = Uuid::nil();
+        let body = json!({
+            "resourceSpans": [{
+                "resource": {"attributes": [
+                    {"key": "service.name", "value": {"stringValue": "svc"}}
+                ]},
+                "scopeSpans": [{
+                    "spans": [{
+                        "traceId": "aa",
+                        "spanId": "bb",
+                        "name": "op",
+                        "startTimeUnixNano": "0",
+                        "endTimeUnixNano": "0",
+                        "status": {"code": 1}
+                    }]
+                }]
+            }]
+        });
+
+        let spans = parse_otlp_traces(&body, tenant).unwrap();
+        assert_eq!(spans[0].status_code, domain::StatusCode::Ok);
     }
 }
