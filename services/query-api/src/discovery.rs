@@ -417,12 +417,10 @@ pub async fn get_service_response_time_history(
 
     let interval_secs = plan.interval_ns as f64 / 1_000_000_000.0;
     let mut raw: HashMap<i64, (f64, f64, u64)> = HashMap::new();
-    while let Some((bucket_idx, p50_ns, p95_ns, span_count)) =
-        cursor.next().await.map_err(|e| {
-            tracing::error!(error = ?e, "ClickHouse response time histogram fetch error");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
-    {
+    while let Some((bucket_idx, p50_ns, p95_ns, span_count)) = cursor.next().await.map_err(|e| {
+        tracing::error!(error = ?e, "ClickHouse response time histogram fetch error");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })? {
         if bucket_idx >= 0 && bucket_idx < bucket_count as i64 {
             raw.insert(bucket_idx, (p50_ns, p95_ns, span_count));
         }
@@ -432,8 +430,7 @@ pub async fn get_service_response_time_history(
         .map(|i| {
             let start_ns = plan.from_ns + i as u64 * plan.interval_ns;
             let end_ns = start_ns + plan.interval_ns;
-            let (p50_ns, p95_ns, span_count) =
-                raw.remove(&(i as i64)).unwrap_or((0.0, 0.0, 0));
+            let (p50_ns, p95_ns, span_count) = raw.remove(&(i as i64)).unwrap_or((0.0, 0.0, 0));
             ResponseTimeBucket {
                 start_ms: start_ns / 1_000_000,
                 end_ms: end_ns / 1_000_000,

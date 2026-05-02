@@ -241,7 +241,11 @@ impl QueryPlanner {
          ORDER BY bucket_idx ASC"
             .to_string();
 
-        ResponseTimeHistogramPlan { sql, from_ns, interval_ns }
+        ResponseTimeHistogramPlan {
+            sql,
+            from_ns,
+            interval_ns,
+        }
     }
 }
 
@@ -588,10 +592,16 @@ mod tests {
         let from_ns = 0u64;
         let to_ns = 60 * 1_000_000_000u64; // 60 seconds in ns
         let plan = planner.plan_response_time_histogram(from_ns, to_ns, 60);
-        assert_eq!(plan.interval_ns, 1_000_000_000, "interval should be 1 second");
+        assert_eq!(
+            plan.interval_ns, 1_000_000_000,
+            "interval should be 1 second"
+        );
         assert_eq!(plan.from_ns, 0);
         assert!(plan.sql.contains("quantile(0.50)"), "sql must include P50");
         assert!(plan.sql.contains("quantile(0.95)"), "sql must include P95");
-        assert!(plan.sql.contains("service_name = ?"), "sql must filter by service");
+        assert!(
+            plan.sql.contains("service_name = ?"),
+            "sql must filter by service"
+        );
     }
 }
