@@ -7,6 +7,7 @@ import { LoadingState } from "../components/ui/loading-state";
 import { TablePanel } from "../components/ui/table-panel";
 import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
 import { deriveViewFiltersFromIr } from "../features/nlq/queryFilters";
+import { LogExplorer } from "./LogSearch";
 
 export default function ServiceTopologyPage() {
   const [environment, setEnvironment] = useState<string>("all");
@@ -111,6 +112,20 @@ export default function ServiceTopologyPage() {
           </div>
         )}
       </TablePanel>
+
+      {focusedService && (
+        <section aria-label="Focused service logs">
+          <LogExplorer
+            key={focusedService}
+            initialService={focusedService}
+            lockedService
+            showHeader={false}
+            showServiceColumn={false}
+            showPromote={false}
+            tableAriaLabel="Focused service logs"
+          />
+        </section>
+      )}
     </section>
   );
 }
