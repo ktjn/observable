@@ -654,13 +654,17 @@ async fn fetch_infrastructure_summaries(
     let has_service = service.is_some();
     let has_search = search.is_some();
 
+    // NOTE: The inner column is aliased as `_env` (not `environment`) to avoid a
+    // ClickHouse alias-substitution bug where the outer `argMax(…) AS environment`
+    // is resolved in the WHERE clause instead of the raw column, causing
+    // ILLEGAL_AGGREGATION errors and silently ignoring the environment filter.
     let mut sql = format!(
         "SELECT \
             cluster_name, \
             namespace_name, \
             pod_name, \
             entity_name, \
-            argMax(environment, event_time) AS environment, \
+            argMax(_env, event_time) AS environment, \
             max(event_time) AS last_seen_unix_nano, \
             arraySort(groupUniqArrayIf(service_name, service_name != '')) AS related_services, \
             sum(log_events) AS log_events, \
@@ -672,7 +676,7 @@ async fn fetch_infrastructure_summaries(
                 JSONExtractString(resource_attributes, 'k8s.namespace.name') AS namespace_name, \
                 JSONExtractString(resource_attributes, 'k8s.pod.name') AS pod_name, \
                 {entity_expr} AS entity_name, \
-                environment, \
+                environment AS _env, \
                 service_name, \
                 start_time_unix_nano AS event_time, \
                 toUInt64(0) AS log_events, \
@@ -686,7 +690,7 @@ async fn fetch_infrastructure_summaries(
                 JSONExtractString(resource_attributes, 'k8s.namespace.name') AS namespace_name, \
                 JSONExtractString(resource_attributes, 'k8s.pod.name') AS pod_name, \
                 {entity_expr} AS entity_name, \
-                environment, \
+                environment AS _env, \
                 service_name, \
                 timestamp_unix_nano AS event_time, \
                 toUInt64(1) AS log_events, \
@@ -700,7 +704,7 @@ async fn fetch_infrastructure_summaries(
                 JSONExtractString(resource_attributes, 'k8s.namespace.name') AS namespace_name, \
                 JSONExtractString(resource_attributes, 'k8s.pod.name') AS pod_name, \
                 {entity_expr} AS entity_name, \
-                environment, \
+                environment AS _env, \
                 service_name, \
                 toUInt64(toUnixTimestamp(created_at)) * 1000000000 AS event_time, \
                 toUInt64(0) AS log_events, \
@@ -713,7 +717,7 @@ async fn fetch_infrastructure_summaries(
     );
 
     if has_environment {
-        sql.push_str(" AND environment = ?");
+        sql.push_str(" AND _env = ?");
     }
     if has_service {
         sql.push_str(" AND service_name = ?");
