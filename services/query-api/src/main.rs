@@ -86,6 +86,10 @@ async fn main() -> anyhow::Result<()> {
             "/v1/services/:service_name/summary",
             get(discovery::get_service_summary),
         )
+        .route(
+            "/v1/services/:service_name/response-time-history",
+            get(discovery::get_service_response_time_history),
+        )
         .route("/v1/environments", get(discovery::list_environments))
         .route("/v1/deployments", get(deployments::list_deployments))
         .route("/v1/dashboards", get(dashboards::handle_list_dashboards))
