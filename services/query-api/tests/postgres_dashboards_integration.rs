@@ -71,7 +71,7 @@ async fn create_dashboard_preserves_promoted_panel_filters() {
                 title: "Logs for checkout".into(),
                 query_kind: "logs".into(),
                 service: Some("checkout".into()),
-                lookback_minutes: 60,
+                preset: Some("1h".into()),
                 filters: serde_json::json!({"facets":["service_name","severity_number"]}),
             }],
         },
@@ -83,7 +83,7 @@ async fn create_dashboard_preserves_promoted_panel_filters() {
     assert_eq!(created.panels.len(), 1);
     assert_eq!(created.panels[0].query_kind, "logs");
     assert_eq!(created.panels[0].service.as_deref(), Some("checkout"));
-    assert_eq!(created.panels[0].lookback_minutes, 60);
+    assert_eq!(created.panels[0].preset.as_deref(), Some("1h"));
 
     let dashboards = list_dashboards(&pool, tenant).await.unwrap();
     assert_eq!(dashboards.len(), 1);
@@ -108,7 +108,7 @@ async fn list_dashboards_does_not_return_other_tenant_dashboards() {
                 title: "Trace search".into(),
                 query_kind: "traces".into(),
                 service: None,
-                lookback_minutes: 30,
+                preset: None,
                 filters: serde_json::json!({}),
             }],
         },
