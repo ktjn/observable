@@ -301,8 +301,6 @@ watch_pods "$NAMESPACE" 20 &
 WATCH_INFRA=$!
 helm upgrade --install observable-infra "$REPO_ROOT/charts/observable-infra" \
   --namespace "$NAMESPACE" \
-  --set selfObservability.bearerToken=dev-api-key-0000 \
-  --set selfObservability.deploymentEnvironment=observable \
   --wait \
   --timeout 10m
 kill "$WATCH_INFRA" 2>/dev/null || true
@@ -333,6 +331,7 @@ helm upgrade --install "$RELEASE_NAME" "$APP_CHART" \
   --set global.frontendImage.repository=observable-frontend \
   --set global.frontendImage.tag=local \
   --set global.frontendImage.pullPolicy=Never \
+  --set selfObservability.bearerToken=observable-api-key-0000 \
   --wait \
   --timeout 5m \
   || { kill "$WATCH_APP" 2>/dev/null || true; dump_pod_events "$NAMESPACE"; exit 1; }

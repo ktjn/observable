@@ -29,7 +29,7 @@ impl MetricsService for OltpMetricService {
             .and_then(|v| v.strip_prefix("Bearer "))
             .ok_or_else(|| Status::unauthenticated("missing authorization token"))?;
 
-        let (tenant_id, role) = self
+        let (tenant_id, role, environment) = self
             .state
             .validate_api_key(auth_header)
             .await
@@ -53,8 +53,11 @@ impl MetricsService for OltpMetricService {
         }
 
         let inner = request.into_inner();
-        let (series, points) =
-            super::convert::proto_metrics_to_domain(&inner.resource_metrics, tenant_id);
+        let (series, points) = super::convert::proto_metrics_to_domain(
+            &inner.resource_metrics,
+            tenant_id,
+            &environment,
+        );
 
         tracing::info!(
             tenant_id = %tenant_id,

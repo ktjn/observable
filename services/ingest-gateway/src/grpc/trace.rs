@@ -28,7 +28,7 @@ impl TraceService for OltpTraceService {
             .and_then(|v| v.strip_prefix("Bearer "))
             .ok_or_else(|| Status::unauthenticated("missing authorization token"))?;
 
-        let (tenant_id, role) = self
+        let (tenant_id, role, environment) = self
             .state
             .validate_api_key(auth_header)
             .await
@@ -47,7 +47,8 @@ impl TraceService for OltpTraceService {
         }
 
         let inner = request.into_inner();
-        let spans = super::convert::proto_spans_to_domain(&inner.resource_spans, tenant_id);
+        let spans =
+            super::convert::proto_spans_to_domain(&inner.resource_spans, tenant_id, &environment);
 
         tracing::info!(tenant_id = %tenant_id, span_count = spans.len(), "received gRPC trace export");
 

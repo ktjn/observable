@@ -50,9 +50,10 @@ async fn postgres_container_applies_migrations_and_validates_seed_key() {
     let (pool, _container) = start_pool().await;
 
     // dev-api-key-0000 / tenant 00000000-0000-0000-0000-000000000001 / role member is seeded by migrations
-    let (tenant_id, role): (Uuid, String) = lookup_api_key(&pool, "dev-api-key-0000")
-        .await
-        .expect("seed key must validate");
+    let (tenant_id, role, _environment): (Uuid, String, String) =
+        lookup_api_key(&pool, "dev-api-key-0000")
+            .await
+            .expect("seed key must validate");
 
     assert_eq!(
         tenant_id.to_string(),
@@ -66,9 +67,10 @@ async fn lookup_api_key_returns_viewer_role_for_viewer_seed_key() {
     let (pool, _container) = start_pool().await;
 
     // dev-viewer-key-0000 / tenant 00000000-0000-0000-0000-000000000001 / role viewer is seeded by migration 006
-    let (tenant_id, role): (Uuid, String) = lookup_api_key(&pool, "dev-viewer-key-0000")
-        .await
-        .expect("viewer seed key must validate");
+    let (tenant_id, role, _environment): (Uuid, String, String) =
+        lookup_api_key(&pool, "dev-viewer-key-0000")
+            .await
+            .expect("viewer seed key must validate");
 
     assert_eq!(
         tenant_id.to_string(),

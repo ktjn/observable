@@ -28,7 +28,7 @@ impl LogsService for OltpLogService {
             .and_then(|v| v.strip_prefix("Bearer "))
             .ok_or_else(|| Status::unauthenticated("missing authorization token"))?;
 
-        let (tenant_id, role) = self
+        let (tenant_id, role, environment) = self
             .state
             .validate_api_key(auth_header)
             .await
@@ -43,7 +43,8 @@ impl LogsService for OltpLogService {
         }
 
         let inner = request.into_inner();
-        let logs = super::convert::proto_logs_to_domain(&inner.resource_logs, tenant_id);
+        let logs =
+            super::convert::proto_logs_to_domain(&inner.resource_logs, tenant_id, &environment);
 
         tracing::info!(tenant_id = %tenant_id, log_count = logs.len(), "received gRPC log export");
 

@@ -26,6 +26,7 @@ struct ValidateRequest {
 struct ValidateResponse {
     tenant_id: Uuid,
     role: String,
+    environment: String,
 }
 
 async fn validate_handler(
@@ -35,9 +36,13 @@ async fn validate_handler(
     let hash = validate::sha256_hex(&req.api_key);
 
     match lookup_api_key(&state.db, &req.api_key).await {
-        Ok((tenant_id, role)) => {
+        Ok((tenant_id, role, environment)) => {
             audit::write(&state.db, &audit::AuditEntry::allow(hash, tenant_id)).await;
-            Ok(Json(ValidateResponse { tenant_id, role }))
+            Ok(Json(ValidateResponse {
+                tenant_id,
+                role,
+                environment,
+            }))
         }
         Err(e) => {
             let reason = if e.to_string().contains("revoked") {

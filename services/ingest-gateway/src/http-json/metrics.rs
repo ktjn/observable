@@ -35,10 +35,11 @@ pub async fn export_metrics(
                 None => return StatusCode::BAD_REQUEST.into_response(),
             };
 
-            let (series, points) = match super::convert::parse_otlp_metrics(&body, ctx.tenant_id) {
-                Ok(m) => m,
-                Err(status) => return status.into_response(),
-            };
+            let (series, points) =
+                match super::convert::parse_otlp_metrics(&body, ctx.tenant_id, &ctx.environment) {
+                    Ok(m) => m,
+                    Err(status) => return status.into_response(),
+                };
 
             (resource_metrics.len(), series, points)
         }

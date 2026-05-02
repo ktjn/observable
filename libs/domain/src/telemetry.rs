@@ -1,6 +1,7 @@
 use opentelemetry::trace::TracerProvider as _;
-use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_otlp::{WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::trace::SdkTracerProvider;
+use opentelemetry_sdk::Resource;
 use std::collections::HashMap;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -26,6 +27,8 @@ impl TryFrom<&str> for SelfObservabilityMode {
 pub struct SelfObservabilityConfig {
     pub mode: SelfObservabilityMode,
     pub otlp_endpoint: Option<String>,
+    /// Bearer token sent as `Authorization: Bearer <token>` on every OTLP export request.
+    pub bearer_token: Option<String>,
 }
 
 impl SelfObservabilityConfig {
@@ -62,10 +65,15 @@ impl SelfObservabilityConfig {
             .or_else(|| vars.get("OTEL_EXPORTER_OTLP_ENDPOINT"))
             .filter(|value| !value.trim().is_empty())
             .cloned();
+        let bearer_token = vars
+            .get("OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN")
+            .filter(|v| !v.trim().is_empty())
+            .cloned();
 
         Ok(Self {
             mode,
             otlp_endpoint,
+            bearer_token,
         })
     }
 
@@ -81,21 +89,45 @@ impl SelfObservabilityConfig {
 /// `SdkTracerProvider` must be kept alive for the process lifetime; dropping it
 /// triggers a flush + shutdown of the exporter.
 ///
+/// `bearer_token` — when `Some`, adds `Authorization: Bearer <token>` to every
+/// OTLP export request so the service can authenticate directly with ingest-gateway.
+/// The `deployment.environment` resource attribute is stamped server-side from the
+/// API key's environment field — no client-side setting is required or supported.
+///
 /// When `otlp_endpoint` is `None`, only the JSON `fmt` layer is registered.
 pub fn init_telemetry(
     service_name: &str,
     otlp_endpoint: Option<&str>,
+    bearer_token: Option<&str>,
 ) -> anyhow::Result<Option<SdkTracerProvider>> {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     if let Some(endpoint) = otlp_endpoint {
+        let traces_endpoint = if endpoint.ends_with("/v1/traces") {
+            endpoint.to_string()
+        } else {
+            format!("{}/v1/traces", endpoint.trim_end_matches('/'))
+        };
+
+        let mut headers = HashMap::new();
+        if let Some(token) = bearer_token {
+            headers.insert("Authorization".to_string(), format!("Bearer {token}"));
+        }
+
         let exporter = opentelemetry_otlp::SpanExporter::builder()
             .with_http()
-            .with_endpoint(endpoint)
+            .with_endpoint(&traces_endpoint)
+            .with_headers(headers)
+            .with_http_client(reqwest::blocking::Client::new())
             .build()
             .map_err(|e| anyhow::anyhow!("failed to build OTLP exporter: {e}"))?;
 
         let provider = SdkTracerProvider::builder()
+            .with_resource(
+                Resource::builder()
+                    .with_service_name(service_name.to_string())
+                    .build(),
+            )
             .with_batch_exporter(exporter)
             .build();
 
@@ -133,7 +165,11 @@ pub fn init_self_observability_telemetry(
     service_name: &str,
 ) -> anyhow::Result<Option<SdkTracerProvider>> {
     let config = SelfObservabilityConfig::from_env()?;
-    let provider = init_telemetry(service_name, config.selected_otlp_endpoint())?;
+    let provider = init_telemetry(
+        service_name,
+        config.selected_otlp_endpoint(),
+        config.bearer_token.as_deref(),
+    )?;
     tracing::info!(
         service = service_name,
         self_observability_mode = config.mode.as_str(),
@@ -160,7 +196,7 @@ mod tests {
     fn telemetry_init_is_idempotent() {
         // Verifies init_telemetry does not panic when OTLP endpoint is absent.
         // Subscriber may already be set in other tests; ignore the error.
-        let _ = init_telemetry("test-service", None);
+        let _ = init_telemetry("test-service", None, None);
     }
 
     #[test]
@@ -169,6 +205,7 @@ mod tests {
 
         assert_eq!(config.mode, SelfObservabilityMode::SelfIngest);
         assert_eq!(config.otlp_endpoint, None);
+        assert_eq!(config.bearer_token, None);
         assert_eq!(config.selected_otlp_endpoint(), None);
     }
 
@@ -187,6 +224,19 @@ mod tests {
             config.selected_otlp_endpoint(),
             Some("http://observer-ingest:4318")
         );
+    }
+
+    #[test]
+    fn bearer_token_is_read_from_env_vars() {
+        let config = SelfObservabilityConfig::from_env_iter([
+            (
+                "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT",
+                "http://ingest-gateway:4318",
+            ),
+            ("OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN", "my-secret"),
+        ]);
+
+        assert_eq!(config.bearer_token.as_deref(), Some("my-secret"));
     }
 
     #[test]

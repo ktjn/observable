@@ -35,7 +35,8 @@ pub async fn export_logs(
                 None => return StatusCode::BAD_REQUEST.into_response(),
             };
 
-            let logs = match super::convert::parse_otlp_logs(&body, ctx.tenant_id) {
+            let logs = match super::convert::parse_otlp_logs(&body, ctx.tenant_id, &ctx.environment)
+            {
                 Ok(l) => l,
                 Err(status) => return status.into_response(),
             };

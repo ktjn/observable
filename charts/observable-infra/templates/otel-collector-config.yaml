@@ -32,9 +32,6 @@ data:
           - key: service.version
             action: upsert
             value: {{ .Values.selfObservability.release | quote }}
-          - key: service.name
-            action: upsert
-            value: observable-self-observability-gateway
       batch: {}
     exporters:
       otlphttp/self_observability:
