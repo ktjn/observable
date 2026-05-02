@@ -61,6 +61,20 @@ describe("deriveViewFiltersFromIr", () => {
     expect(filters).toEqual({ service: "payments", environment: "prod" });
   });
 
+  test("extracts environment from infrastructure NLQ IR (timeseries with env filter)", () => {
+    const filters = deriveViewFiltersFromIr(
+      {
+        operation: "timeseries",
+        signals: ["metrics"],
+        metric: "order_processing_duration_ms",
+        filters: [{ field: "environment", op: "=", value: "observable" }],
+      },
+      "infrastructure",
+    );
+
+    expect(filters).toEqual({ environment: "observable" });
+  });
+
   test("preserves log text search when a service filter is also present", () => {
     const filters = deriveViewFiltersFromIr(
       {
