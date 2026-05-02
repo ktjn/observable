@@ -4,6 +4,7 @@ use opentelemetry_proto::tonic::collector::logs::v1::{
     logs_service_server::LogsService, ExportLogsServiceRequest, ExportLogsServiceResponse,
 };
 use tonic::{Request, Response, Status};
+use tracing::Instrument as _;
 
 pub struct OltpLogService {
     state: AppState,
@@ -28,7 +29,7 @@ impl LogsService for OltpLogService {
             .and_then(|v| v.strip_prefix("Bearer "))
             .ok_or_else(|| Status::unauthenticated("missing authorization token"))?;
 
-        let (tenant_id, role) = self
+        let (tenant_id, role, environment) = self
             .state
             .validate_api_key(auth_header)
             .await
@@ -43,21 +44,29 @@ impl LogsService for OltpLogService {
         }
 
         let inner = request.into_inner();
-        let logs = super::convert::proto_logs_to_domain(&inner.resource_logs, tenant_id);
-
-        tracing::info!(tenant_id = %tenant_id, log_count = logs.len(), "received gRPC log export");
-
-        if let Some(producer) = &self.state.producer {
-            let envelope = build_envelope(tenant_id, domain::EnvelopePayload::Logs(logs));
-            producer
-                .publish(&envelope)
-                .await
-                .map_err(|_| Status::internal("failed to publish log records"))?;
+        let producer = self.state.producer.clone();
+        let span = tracing::info_span!("grpc.export.logs", %tenant_id, %environment);
+        async move {
+            let logs = super::convert::proto_logs_to_domain(
+                &inner.resource_logs,
+                tenant_id,
+                &environment,
+            );
+            tracing::info!(tenant_id = %tenant_id, log_count = logs.len(), "received gRPC log export");
+            if let Some(ref producer) = producer {
+                let envelope =
+                    build_envelope(tenant_id, &environment, domain::EnvelopePayload::Logs(logs));
+                producer
+                    .publish(&envelope)
+                    .await
+                    .map_err(|_| Status::internal("failed to publish log records"))?;
+            }
+            Ok(Response::new(ExportLogsServiceResponse {
+                partial_success: None,
+            }))
         }
-
-        Ok(Response::new(ExportLogsServiceResponse {
-            partial_success: None,
-        }))
+        .instrument(span)
+        .await
     }
 }
 

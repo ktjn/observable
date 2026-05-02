@@ -44,3 +44,4 @@ Rejected due to lack of consistency, poor auditability, and high maintenance ove
 - `spec/14-domain-model.md` §6 (Authoritative authorization entity definitions: RBAC roles, ReBAC tuple format, resource types, DataScope)
 - `spec/10-process.md` (ADR list)
 - `spec/adr/ADR-007-multi-tenant-isolation.md` (Multi-Tenant Isolation Strategy)
+- `spec/adr/ADR-028-ingestion-token-environment-binding.md` (each API key is scoped to one tenant and one environment; auth-service returns `(tenant_id, role, environment)` from token lookup)

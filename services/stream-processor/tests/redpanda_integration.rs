@@ -91,6 +91,7 @@ async fn redpanda_container_preserves_tenant_id_and_payload_across_queue_boundar
     let envelope = TelemetryEnvelope {
         envelope_id,
         tenant_id,
+        environment: "testbench".to_string(),
         received_at_unix_nano: 1_700_000_000_000_000_000_u64,
         payload: EnvelopePayload::Spans(vec![]),
     };

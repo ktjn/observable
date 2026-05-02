@@ -9,7 +9,8 @@
     (dict "name" "AUTH_SERVICE_URL"         "value" (printf "http://auth-service:%d" (int .Values.services.authService.port)))
     (dict "name" "DATABASE_URL"             "value" .Values.postgres.url)
     (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)
-    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT" "value" .Values.selfObservability.otlpEndpoint) -}}
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT" "value" .Values.selfObservability.otlpEndpoint)
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN" "value" .Values.selfObservability.bearerToken) -}}
 
 {{- /* We override the deployment and service to handle multiple ports since common library is single-port */ -}}
 apiVersion: apps/v1

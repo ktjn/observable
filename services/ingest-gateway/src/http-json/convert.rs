@@ -104,6 +104,7 @@ fn otlp_attrs_to_map(attrs: &Value) -> HashMap<String, Value> {
 pub fn parse_otlp_logs(
     body: &Value,
     tenant_id: Uuid,
+    _environment: &str,
 ) -> Result<Vec<domain::LogRecord>, StatusCode> {
     let resource_logs = body
         .get("resourceLogs")
@@ -173,6 +174,7 @@ pub fn parse_otlp_logs(
 pub fn parse_otlp_metrics(
     body: &Value,
     tenant_id: Uuid,
+    environment: &str,
 ) -> Result<(Vec<domain::MetricSeries>, Vec<domain::MetricPoint>), StatusCode> {
     let resource_metrics = body
         .get("resourceMetrics")
@@ -190,8 +192,6 @@ pub fn parse_otlp_metrics(
             .cloned()
             .unwrap_or_default();
         let service_name = extract_string_attr(&resource_attrs, "service.name").unwrap_or_default();
-        let environment =
-            extract_string_attr(&resource_attrs, "deployment.environment").unwrap_or_default();
         let resource_attributes = otlp_attrs_to_map(&resource_attrs);
 
         for scope_metrics in rm
@@ -263,7 +263,7 @@ pub fn parse_otlp_metrics(
                         attributes,
                         resource_attributes: resource_attributes.clone(),
                         service_name: service_name.clone(),
-                        environment: environment.clone(),
+                        environment: environment.to_string(),
                         ..Default::default()
                     };
                     series.metric_series_id = domain::deterministic_metric_series_id(&series);
@@ -404,7 +404,11 @@ fn status_from_json(status: Option<&Value>) -> (domain::StatusCode, String) {
     (status_code, status_message)
 }
 
-pub fn parse_otlp_traces(body: &Value, tenant_id: Uuid) -> Result<Vec<domain::Span>, StatusCode> {
+pub fn parse_otlp_traces(
+    body: &Value,
+    tenant_id: Uuid,
+    environment: &str,
+) -> Result<Vec<domain::Span>, StatusCode> {
     let resource_spans = body
         .get("resourceSpans")
         .and_then(|v| v.as_array())
@@ -418,8 +422,6 @@ pub fn parse_otlp_traces(body: &Value, tenant_id: Uuid) -> Result<Vec<domain::Sp
             .cloned()
             .unwrap_or_default();
         let service_name = extract_string_attr(&resource_attrs, "service.name").unwrap_or_default();
-        let environment =
-            extract_string_attr(&resource_attrs, "deployment.environment").unwrap_or_default();
         let resource_attributes = otlp_attrs_to_map(&resource_attrs);
         for scope_spans in rs
             .get("scopeSpans")
@@ -481,7 +483,7 @@ pub fn parse_otlp_traces(body: &Value, tenant_id: Uuid) -> Result<Vec<domain::Sp
                         .map(otlp_attrs_to_map)
                         .unwrap_or_default(),
                     resource_attributes: resource_attributes.clone(),
-                    environment: environment.clone(),
+                    environment: environment.to_string(),
                     ..Default::default()
                 });
                 let span_events: Vec<domain::SpanEvent> = s
@@ -581,7 +583,7 @@ mod tests {
                 }]
             }]
         });
-        let logs = parse_otlp_logs(&body, tenant).unwrap();
+        let logs = parse_otlp_logs(&body, tenant, "testbench").unwrap();
         assert_eq!(logs.len(), 1);
         assert_eq!(
             logs[0].timestamp_unix_nano, 1_745_606_400_000_000_000u64,
@@ -610,7 +612,7 @@ mod tests {
                 }]
             }]
         });
-        let logs = parse_otlp_logs(&body, tenant).unwrap();
+        let logs = parse_otlp_logs(&body, tenant, "testbench").unwrap();
         assert_eq!(logs[0].timestamp_unix_nano, 1_745_606_400_000_000_000u64);
     }
 
@@ -649,7 +651,7 @@ mod tests {
             }]
         });
 
-        let (series, points) = parse_otlp_metrics(&body, tenant).unwrap();
+        let (series, points) = parse_otlp_metrics(&body, tenant, "prod").unwrap();
 
         assert_eq!(series.len(), 1);
         assert_eq!(points.len(), 1);
@@ -706,8 +708,9 @@ mod tests {
             }]
         });
 
-        let (first_series, first_points) = parse_otlp_metrics(&body, tenant).unwrap();
-        let (second_series, second_points) = parse_otlp_metrics(&body, tenant).unwrap();
+        let (first_series, first_points) = parse_otlp_metrics(&body, tenant, "testbench").unwrap();
+        let (second_series, second_points) =
+            parse_otlp_metrics(&body, tenant, "testbench").unwrap();
 
         assert_eq!(
             first_series[0].metric_series_id,
@@ -750,7 +753,7 @@ mod tests {
             }]
         });
 
-        let spans = parse_otlp_traces(&body, tenant).unwrap();
+        let spans = parse_otlp_traces(&body, tenant, "testbench").unwrap();
         assert_eq!(spans.len(), 1);
 
         let span = &spans[0];
@@ -788,7 +791,7 @@ mod tests {
             }]
         });
 
-        let spans = parse_otlp_traces(&body, tenant).unwrap();
+        let spans = parse_otlp_traces(&body, tenant, "testbench").unwrap();
         assert_eq!(spans[0].parent_span_id, None);
     }
 
@@ -813,7 +816,7 @@ mod tests {
             }]
         });
 
-        let spans = parse_otlp_traces(&body, tenant).unwrap();
+        let spans = parse_otlp_traces(&body, tenant, "testbench").unwrap();
         assert_eq!(spans[0].status_code, domain::StatusCode::Ok);
     }
 }

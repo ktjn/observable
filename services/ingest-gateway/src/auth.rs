@@ -10,6 +10,7 @@ use uuid::Uuid;
 pub struct TenantContext {
     pub tenant_id: Uuid,
     pub role: String,
+    pub environment: String,
 }
 
 impl TenantContext {
@@ -30,12 +31,16 @@ pub async fn auth_middleware(
         .and_then(|v| v.strip_prefix("Bearer "))
         .ok_or(StatusCode::UNAUTHORIZED)?;
 
-    let (tenant_id, role) = state
+    let (tenant_id, role, environment) = state
         .validate_api_key(bearer)
         .await
         .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
-    let ctx = TenantContext { tenant_id, role };
+    let ctx = TenantContext {
+        tenant_id,
+        role,
+        environment,
+    };
     if !ctx.can_ingest() {
         tracing::warn!(tenant_id = %ctx.tenant_id, role = %ctx.role, "ingest rejected: insufficient role");
         return Err(StatusCode::FORBIDDEN);
@@ -54,6 +59,7 @@ mod tests {
         let ctx = TenantContext {
             tenant_id: Uuid::new_v4(),
             role: "member".to_string(),
+            environment: String::new(),
         };
         assert!(ctx.can_ingest());
     }
@@ -63,6 +69,7 @@ mod tests {
         let ctx = TenantContext {
             tenant_id: Uuid::new_v4(),
             role: "admin".to_string(),
+            environment: String::new(),
         };
         assert!(ctx.can_ingest());
     }
@@ -72,6 +79,7 @@ mod tests {
         let ctx = TenantContext {
             tenant_id: Uuid::new_v4(),
             role: "viewer".to_string(),
+            environment: String::new(),
         };
         assert!(!ctx.can_ingest());
     }

@@ -35,10 +35,15 @@ impl QueueProducer {
     }
 }
 
-pub fn build_envelope(tenant_id: Uuid, payload: EnvelopePayload) -> TelemetryEnvelope {
+pub fn build_envelope(
+    tenant_id: Uuid,
+    environment: &str,
+    payload: EnvelopePayload,
+) -> TelemetryEnvelope {
     TelemetryEnvelope {
         envelope_id: Uuid::new_v4(),
         tenant_id,
+        environment: environment.to_string(),
         received_at_unix_nano: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -53,7 +58,11 @@ mod tests {
 
     #[test]
     fn envelope_serializes_for_kafka() {
-        let env = build_envelope(Uuid::new_v4(), domain::EnvelopePayload::Spans(vec![]));
+        let env = build_envelope(
+            Uuid::new_v4(),
+            "test",
+            domain::EnvelopePayload::Spans(vec![]),
+        );
         let bytes = serde_json::to_vec(&env).unwrap();
         assert!(!bytes.is_empty());
     }

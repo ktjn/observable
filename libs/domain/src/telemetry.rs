@@ -1,4 +1,9 @@
+use opentelemetry::trace::TracerProvider as _;
+use opentelemetry_otlp::{WithExportConfig, WithTonicConfig};
+use opentelemetry_sdk::trace::SdkTracerProvider;
+use opentelemetry_sdk::Resource;
 use std::collections::HashMap;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelfObservabilityMode {
@@ -22,6 +27,8 @@ impl TryFrom<&str> for SelfObservabilityMode {
 pub struct SelfObservabilityConfig {
     pub mode: SelfObservabilityMode,
     pub otlp_endpoint: Option<String>,
+    /// Bearer token sent as `Authorization: Bearer <token>` on every OTLP export request.
+    pub bearer_token: Option<String>,
 }
 
 impl SelfObservabilityConfig {
@@ -58,10 +65,15 @@ impl SelfObservabilityConfig {
             .or_else(|| vars.get("OTEL_EXPORTER_OTLP_ENDPOINT"))
             .filter(|value| !value.trim().is_empty())
             .cloned();
+        let bearer_token = vars
+            .get("OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN")
+            .filter(|v| !v.trim().is_empty())
+            .cloned();
 
         Ok(Self {
             mode,
             otlp_endpoint,
+            bearer_token,
         })
     }
 
@@ -70,31 +82,100 @@ impl SelfObservabilityConfig {
     }
 }
 
-/// Initialise JSON tracing subscriber for the service.
-pub fn init_telemetry(service_name: &str, otlp_endpoint: Option<&str>) -> anyhow::Result<()> {
-    tracing_subscriber::fmt().json().init();
-    if let Some(ep) = otlp_endpoint {
+/// Initialise tracing for the service.
+///
+/// When `otlp_endpoint` is `Some`, wires the OTel SDK: spans emitted via the
+/// `tracing` macros are forwarded to the endpoint using OTLP/HTTP. The returned
+/// `SdkTracerProvider` must be kept alive for the process lifetime; dropping it
+/// triggers a flush + shutdown of the exporter.
+///
+/// `bearer_token` — when `Some`, adds `Authorization: Bearer <token>` to every
+/// OTLP export request so the service can authenticate directly with ingest-gateway.
+/// The `deployment.environment` resource attribute is stamped server-side from the
+/// API key's environment field — no client-side setting is required or supported.
+///
+/// When `otlp_endpoint` is `None`, only the JSON `fmt` layer is registered.
+pub fn init_telemetry(
+    service_name: &str,
+    otlp_endpoint: Option<&str>,
+    bearer_token: Option<&str>,
+) -> anyhow::Result<Option<SdkTracerProvider>> {
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+
+    if let Some(endpoint) = otlp_endpoint {
+        let mut metadata = tonic::metadata::MetadataMap::new();
+        if let Some(token) = bearer_token {
+            let value = format!("Bearer {token}")
+                .parse()
+                .map_err(|e| anyhow::anyhow!("invalid bearer token: {e}"))?;
+            metadata.insert("authorization", value);
+        }
+
+        let exporter = opentelemetry_otlp::SpanExporter::builder()
+            .with_tonic()
+            .with_endpoint(endpoint)
+            .with_metadata(metadata)
+            .build()
+            .map_err(|e| anyhow::anyhow!("failed to build OTLP exporter: {e}"))?;
+
+        let provider = SdkTracerProvider::builder()
+            .with_resource(
+                Resource::builder()
+                    .with_service_name(service_name.to_string())
+                    .build(),
+            )
+            .with_batch_exporter(exporter)
+            .build();
+
+        opentelemetry::global::set_tracer_provider(provider.clone());
+        opentelemetry::global::set_text_map_propagator(
+            opentelemetry_sdk::propagation::TraceContextPropagator::new(),
+        );
+
+        let tracer = provider.tracer(service_name.to_string());
+        let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+
+        tracing_subscriber::registry()
+            .with(tracing_subscriber::fmt::layer().json())
+            .with(env_filter)
+            .with(otel_layer)
+            .init();
+
         tracing::info!(
             service = service_name,
-            otlp_endpoint = ep,
-            "OTLP export configured (Phase 2 SDK wiring)"
+            otlp_endpoint = endpoint,
+            "OTLP tracing enabled"
         );
+
+        Ok(Some(provider))
     } else {
-        tracing::info!(service = service_name, "telemetry initialised");
+        tracing_subscriber::registry()
+            .with(tracing_subscriber::fmt::layer().json())
+            .with(env_filter)
+            .init();
+
+        tracing::info!(service = service_name, "telemetry initialised (log-only)");
+
+        Ok(None)
     }
-    Ok(())
 }
 
-pub fn init_self_observability_telemetry(service_name: &str) -> anyhow::Result<()> {
+pub fn init_self_observability_telemetry(
+    service_name: &str,
+) -> anyhow::Result<Option<SdkTracerProvider>> {
     let config = SelfObservabilityConfig::from_env()?;
-    init_telemetry(service_name, config.selected_otlp_endpoint())?;
+    let provider = init_telemetry(
+        service_name,
+        config.selected_otlp_endpoint(),
+        config.bearer_token.as_deref(),
+    )?;
     tracing::info!(
         service = service_name,
         self_observability_mode = config.mode.as_str(),
         otlp_endpoint = config.selected_otlp_endpoint(),
         "self-observability route selected"
     );
-    Ok(())
+    Ok(provider)
 }
 
 impl SelfObservabilityMode {
@@ -102,6 +183,27 @@ impl SelfObservabilityMode {
         match self {
             Self::SelfIngest => "self",
             Self::ObserverInstance => "observer_instance",
+        }
+    }
+}
+
+/// Inject the current OpenTelemetry span context into a `reqwest` `HeaderMap` as a
+/// W3C `traceparent` header. Call this before every outgoing HTTP request that should
+/// be linked to the current trace (e.g. ingest-gateway → auth-service calls).
+///
+/// This is a no-op when no OTel provider / propagator has been installed (e.g. in
+/// unit-test mode or when `otlp_endpoint` is `None`).
+pub fn inject_current_context(headers: &mut reqwest::header::HeaderMap) {
+    let mut carrier = std::collections::HashMap::<String, String>::new();
+    opentelemetry::global::get_text_map_propagator(|propagator| {
+        propagator.inject(&mut carrier);
+    });
+    for (k, v) in carrier {
+        if let (Ok(name), Ok(value)) = (
+            reqwest::header::HeaderName::from_bytes(k.as_bytes()),
+            reqwest::header::HeaderValue::from_str(&v),
+        ) {
+            headers.insert(name, value);
         }
     }
 }
@@ -114,7 +216,7 @@ mod tests {
     fn telemetry_init_is_idempotent() {
         // Verifies init_telemetry does not panic when OTLP endpoint is absent.
         // Subscriber may already be set in other tests; ignore the error.
-        let _ = init_telemetry("test-service", None);
+        let _ = init_telemetry("test-service", None, None);
     }
 
     #[test]
@@ -123,6 +225,7 @@ mod tests {
 
         assert_eq!(config.mode, SelfObservabilityMode::SelfIngest);
         assert_eq!(config.otlp_endpoint, None);
+        assert_eq!(config.bearer_token, None);
         assert_eq!(config.selected_otlp_endpoint(), None);
     }
 
@@ -141,6 +244,19 @@ mod tests {
             config.selected_otlp_endpoint(),
             Some("http://observer-ingest:4318")
         );
+    }
+
+    #[test]
+    fn bearer_token_is_read_from_env_vars() {
+        let config = SelfObservabilityConfig::from_env_iter([
+            (
+                "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT",
+                "http://ingest-gateway:4318",
+            ),
+            ("OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN", "my-secret"),
+        ]);
+
+        assert_eq!(config.bearer_token.as_deref(), Some("my-secret"));
     }
 
     #[test]

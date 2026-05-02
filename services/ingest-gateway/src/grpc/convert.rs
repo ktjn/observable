@@ -68,10 +68,6 @@ fn service_name_from_kv(attrs: &[KeyValue]) -> String {
     string_attr_from_kv(attrs, "service.name")
 }
 
-fn environment_from_kv(attrs: &[KeyValue]) -> String {
-    string_attr_from_kv(attrs, "deployment.environment")
-}
-
 fn string_attr_from_kv(attrs: &[KeyValue], key: &str) -> String {
     attrs
         .iter()
@@ -91,6 +87,7 @@ fn string_attr_from_kv(attrs: &[KeyValue], key: &str) -> String {
 pub fn proto_logs_to_domain(
     resource_logs: &[ResourceLogs],
     tenant_id: Uuid,
+    environment: &str,
 ) -> Vec<domain::LogRecord> {
     let mut records = Vec::new();
     for rl in resource_logs {
@@ -117,6 +114,7 @@ pub fn proto_logs_to_domain(
                     attributes: kv_list_to_map(&lr.attributes),
                     resource_attributes: resource_attributes.clone(),
                     service_name: service_name.clone(),
+                    environment: environment.to_string(),
                     ..Default::default()
                 });
             }
@@ -132,6 +130,7 @@ pub fn proto_logs_to_domain(
 pub fn proto_spans_to_domain(
     resource_spans: &[ResourceSpans],
     tenant_id: Uuid,
+    environment: &str,
 ) -> Vec<domain::Span> {
     let mut spans = Vec::new();
     for rs in resource_spans {
@@ -182,6 +181,7 @@ pub fn proto_spans_to_domain(
                     status_message,
                     attributes: kv_list_to_map(&s.attributes),
                     resource_attributes: resource_attributes.clone(),
+                    environment: environment.to_string(),
                     ..Default::default()
                 });
                 let span_events: Vec<domain::SpanEvent> = s
@@ -214,6 +214,7 @@ pub fn proto_spans_to_domain(
 pub fn proto_metrics_to_domain(
     resource_metrics: &[ResourceMetrics],
     tenant_id: Uuid,
+    environment: &str,
 ) -> (Vec<domain::MetricSeries>, Vec<domain::MetricPoint>) {
     let mut series_list = Vec::new();
     let mut points_list = Vec::new();
@@ -226,7 +227,6 @@ pub fn proto_metrics_to_domain(
             .map(|r| r.attributes.as_slice())
             .unwrap_or_default();
         let service_name = service_name_from_kv(resource_attrs);
-        let environment = environment_from_kv(resource_attrs);
         let resource_attributes = kv_list_to_map(resource_attrs);
 
         for scope_metric in &rm.scope_metrics {
@@ -249,7 +249,7 @@ pub fn proto_metrics_to_domain(
                                 attributes: kv_str_map(&dp.attributes),
                                 resource_attributes: resource_attributes.clone(),
                                 service_name: service_name.clone(),
-                                environment: environment.clone(),
+                                environment: environment.to_string(),
                                 ..Default::default()
                             };
                             series.metric_series_id =
@@ -280,7 +280,7 @@ pub fn proto_metrics_to_domain(
                                 attributes: kv_str_map(&dp.attributes),
                                 resource_attributes: resource_attributes.clone(),
                                 service_name: service_name.clone(),
-                                environment: environment.clone(),
+                                environment: environment.to_string(),
                                 ..Default::default()
                             };
                             series.metric_series_id =
@@ -311,7 +311,7 @@ pub fn proto_metrics_to_domain(
                                 attributes: kv_str_map(&dp.attributes),
                                 resource_attributes: resource_attributes.clone(),
                                 service_name: service_name.clone(),
-                                environment: environment.clone(),
+                                environment: environment.to_string(),
                                 ..Default::default()
                             };
                             series.metric_series_id =
@@ -450,8 +450,8 @@ mod tests {
         let tenant = Uuid::nil();
         let payload = gauge_resource_metrics();
 
-        let (first_series, first_points) = proto_metrics_to_domain(&payload, tenant);
-        let (second_series, second_points) = proto_metrics_to_domain(&payload, tenant);
+        let (first_series, first_points) = proto_metrics_to_domain(&payload, tenant, "testbench");
+        let (second_series, second_points) = proto_metrics_to_domain(&payload, tenant, "testbench");
 
         assert_eq!(
             first_series[0].metric_series_id,

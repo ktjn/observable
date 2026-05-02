@@ -3,10 +3,11 @@ mod evaluator;
 use axum::{routing::get, Router};
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
+use tower_http::trace::TraceLayer;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    domain::telemetry::init_self_observability_telemetry("alert-evaluator")?;
+    let _telemetry = domain::telemetry::init_self_observability_telemetry("alert-evaluator")?;
 
     let database_url =
         std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://localhost/observable".into());
@@ -39,7 +40,9 @@ async fn main() -> anyhow::Result<()> {
         std::time::Duration::from_secs(interval_secs),
     ));
 
-    let app = Router::new().route("/health", get(|| async { axum::http::StatusCode::OK }));
+    let app = Router::new()
+        .route("/health", get(|| async { axum::http::StatusCode::OK }))
+        .layer(TraceLayer::new_for_http());
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "alert-evaluator listening");
     axum::serve(listener, app).await?;

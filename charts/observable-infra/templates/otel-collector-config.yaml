@@ -11,7 +11,9 @@ data:
       otlp:
         protocols:
           grpc:
+            endpoint: "0.0.0.0:4317"
           http:
+            endpoint: "0.0.0.0:4318"
     processors:
       resource:
         attributes:
@@ -30,9 +32,6 @@ data:
           - key: service.version
             action: upsert
             value: {{ .Values.selfObservability.release | quote }}
-          - key: service.name
-            action: upsert
-            value: observable-self-observability-gateway
       batch: {}
     exporters:
       otlphttp/self_observability:

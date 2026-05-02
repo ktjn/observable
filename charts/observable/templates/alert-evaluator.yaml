@@ -7,7 +7,8 @@
     (dict "name" "ALERT_EVALUATOR_PORT"      "value" (toString .Values.services.alertEvaluator.port))
     (dict "name" "ALERT_EVAL_INTERVAL_SECONDS" "value" .Values.services.alertEvaluator.evalIntervalSeconds)
     (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)
-    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT" "value" .Values.selfObservability.otlpEndpoint) -}}
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT" "value" .Values.selfObservability.otlpEndpoint)
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN" "value" .Values.selfObservability.bearerToken) -}}
 {{- $ctx := dict
     "name"    "alert-evaluator"
     "command" "alert-evaluator"

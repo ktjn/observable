@@ -4,13 +4,16 @@ mod retention;
 mod spans;
 
 use axum::{
-    extract::State,
+    extract::{Request, State},
     http::StatusCode,
+    middleware::{self, Next},
+    response::Response,
     routing::{get, post},
     Json, Router,
 };
 use clickhouse::Client;
 use serde::Deserialize;
+use tower_http::trace::TraceLayer;
 
 #[derive(Clone)]
 struct AppState {
@@ -59,9 +62,24 @@ async fn write_metrics(State(state): State<AppState>, Json(b): Json<MetricsBatch
     }
 }
 
+/// Set the OTel parent context on the current (TraceLayer) span by extracting
+/// the W3C `traceparent` header. Must run INSIDE the TraceLayer span.
+async fn extract_otel_context(request: Request, next: Next) -> Response {
+    use tracing_opentelemetry::OpenTelemetrySpanExt as _;
+    let carrier: std::collections::HashMap<String, String> = request
+        .headers()
+        .iter()
+        .filter_map(|(k, v)| v.to_str().ok().map(|v| (k.to_string(), v.to_string())))
+        .collect();
+    let parent_cx =
+        opentelemetry::global::get_text_map_propagator(|propagator| propagator.extract(&carrier));
+    let _ = tracing::Span::current().set_parent(parent_cx);
+    next.run(request).await
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    domain::telemetry::init_self_observability_telemetry("storage-writer")?;
+    let _telemetry = domain::telemetry::init_self_observability_telemetry("storage-writer")?;
     let ch_url = std::env::var("CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".into());
     let ch_user = std::env::var("CLICKHOUSE_USER").unwrap_or_else(|_| "default".into());
     let ch_password = std::env::var("CLICKHOUSE_PASSWORD").unwrap_or_default();
@@ -78,12 +96,38 @@ async fn main() -> anyhow::Result<()> {
         ch.clone(),
         retention_config,
     ));
+    let state = AppState { ch };
     let app = Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/internal/spans", post(write_spans))
         .route("/internal/logs", post(write_logs))
         .route("/internal/metrics", post(write_metrics))
-        .with_state(AppState { ch });
+        .layer(middleware::from_fn::<_, (axum::extract::Request,)>(
+            extract_otel_context,
+        ))
+        .layer(
+            TraceLayer::new_for_http().make_span_with(|request: &axum::extract::Request| {
+                // Suppress span creation when processing observable-environment data to
+                // prevent feedback loops: observable spans going through the pipeline
+                // would generate new observable spans, which would loop indefinitely.
+                let is_observable = request
+                    .headers()
+                    .get("x-observable-environment")
+                    .and_then(|v| v.to_str().ok())
+                    .map(|v| v == "observable")
+                    .unwrap_or(false);
+                if is_observable {
+                    tracing::Span::none()
+                } else {
+                    tracing::info_span!(
+                        "request",
+                        method = %request.method(),
+                        uri = %request.uri().path(),
+                    )
+                }
+            }),
+        )
+        .with_state(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "storage-writer listening");
     axum::serve(listener, app).await?;

@@ -35,7 +35,8 @@ pub async fn export_logs(
                 None => return StatusCode::BAD_REQUEST.into_response(),
             };
 
-            let logs = match super::convert::parse_otlp_logs(&body, ctx.tenant_id) {
+            let logs = match super::convert::parse_otlp_logs(&body, ctx.tenant_id, &ctx.environment)
+            {
                 Ok(l) => l,
                 Err(status) => return status.into_response(),
             };
@@ -53,7 +54,11 @@ pub async fn export_logs(
     );
 
     if let Some(producer) = &state.producer {
-        let envelope = build_envelope(ctx.tenant_id, domain::EnvelopePayload::Logs(logs));
+        let envelope = build_envelope(
+            ctx.tenant_id,
+            &ctx.environment,
+            domain::EnvelopePayload::Logs(logs),
+        );
         if producer.publish(&envelope).await.is_err() {
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }

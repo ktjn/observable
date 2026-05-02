@@ -35,14 +35,14 @@ fn build_rate_limiter(per_second: u32) -> Arc<governor::DefaultKeyedRateLimiter<
 }
 
 impl AppState {
-    pub async fn validate_api_key(&self, key: &str) -> anyhow::Result<(Uuid, String)> {
+    pub async fn validate_api_key(&self, key: &str) -> anyhow::Result<(Uuid, String, String)> {
         #[cfg(test)]
         if let Some(id) = self.stub_tenant {
             if key == "dev-api-key-0000" {
-                return Ok((id, "member".to_string()));
+                return Ok((id, "member".to_string(), "testbench".to_string()));
             }
             if key == "dev-viewer-key-0000" {
-                return Ok((id, "viewer".to_string()));
+                return Ok((id, "viewer".to_string(), String::new()));
             }
             anyhow::bail!("stub auth rejected");
         }
@@ -51,6 +51,11 @@ impl AppState {
             .http_client
             .post(format!("{}/internal/validate", self.auth_service_url))
             .json(&serde_json::json!({"api_key": key}))
+            .headers({
+                let mut h = reqwest::header::HeaderMap::new();
+                domain::telemetry::inject_current_context(&mut h);
+                h
+            })
             .send()
             .await?;
         if !resp.status().is_success() {
@@ -59,7 +64,8 @@ impl AppState {
         let body: serde_json::Value = resp.json().await?;
         let id = body["tenant_id"].as_str().unwrap_or_default().parse()?;
         let role = body["role"].as_str().unwrap_or("member").to_string();
-        Ok((id, role))
+        let environment = body["environment"].as_str().unwrap_or_default().to_string();
+        Ok((id, role, environment))
     }
 
     #[cfg(test)]
@@ -131,7 +137,7 @@ fn test_pool() -> Arc<sqlx::PgPool> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    domain::telemetry::init_self_observability_telemetry("ingest-gateway")?;
+    let _telemetry = domain::telemetry::init_self_observability_telemetry("ingest-gateway")?;
 
     let http_port: u16 = std::env::var("INGEST_GATEWAY_HTTP_JSON_PORT")
         .or_else(|_| std::env::var("INGEST_GATEWAY_PORT"))

@@ -34,7 +34,16 @@ A logical grouping of services and environments within a tenant. A project is th
 A named deployment stage within a project (e.g. production, staging, development, canary). Environments partition signals so that metrics and traces from different stages do not mix in queries unless explicitly requested.
 
 - **Cardinality:** belongs to 1 Project; receives 0..N Deployments; runs 0..N Workloads
-- **OTel resource attribute:** `deployment.environment` (OTel semantic convention)
+- **OTel resource attribute:** `deployment.environment` is the OTel semantic convention but is **not** used as the authoritative source for the `environment` column. The authoritative value is resolved server-side from the ingestion token (see `ApiKey` below and ADR-028).
+
+### ApiKey (Ingestion Token)
+A long-lived credential used by collectors, agents, and services to authenticate ingest requests. Every token belongs to exactly one Tenant and is scoped to exactly one Environment. The `auth-service` resolves `(tenant_id, role, environment)` from a token on every ingest request; the ingest-gateway stamps that environment onto all telemetry before queuing. No client-side `deployment.environment` configuration is required or trusted.
+
+- **Cardinality:** belongs to exactly 1 Tenant; scoped to exactly 1 Environment; 1 Tenant may own many ApiKeys
+- **Schema:** `(id UUID, tenant_id UUID, key_hash TEXT, name TEXT, role TEXT, environment TEXT, created_at TIMESTAMPTZ, revoked_at TIMESTAMPTZ)`
+- The `key_hash` is SHA-256 of the plaintext token; the plaintext is never stored.
+- A token with `revoked_at IS NOT NULL` is rejected at ingest.
+- See `migrations/postgres/014_add_environment_to_api_keys.sql` and ADR-028.
 
 ### Service
 A named deployable unit — a microservice, monolith, function, or job. The service is the primary entity around which SLOs, alerts, and RED metrics are organized.
@@ -109,7 +118,7 @@ The fields below align with OTel semantic conventions (1.x). Fields marked `reso
 | links | array[SpanLink] | no | `links` |
 | resource_attributes | map[string]AnyValue | no | `resource.attributes` |
 | deployment_id | string | no | injected at ingest |
-| environment | string | no | resource attr: `deployment.environment` |
+| environment | string | no | injected at ingest from ingestion token (see ADR-028); `deployment.environment` resource attr is preserved in `resource_attributes` but is not the authoritative source |
 | host_id | string | no | resource attr: `host.id` |
 | workload | string | no | resource attr: `k8s.pod.name` / `process.pid` |
 
@@ -135,7 +144,7 @@ A Trace is a materialized rollup over its constituent Spans. It is written once 
 | error_span_count | uint32 | yes | count of spans with `status.code = ERROR` |
 | has_error | bool | yes | derived: `error_span_count > 0` |
 | services | array[string] | yes | distinct service_names in trace |
-| environment | string | no | resource attr: `deployment.environment` |
+| environment | string | no | injected at ingest from ingestion token (see ADR-028); `deployment.environment` resource attr is preserved in `resource_attributes` but is not the authoritative source |
 | deployment_id | string | no | injected at ingest |
 
 **Retention tier default:** hot (3-14d)
@@ -161,7 +170,7 @@ A LogRecord may be correlated to tracing context, but logs are independent signa
 | attributes | map[string]AnyValue | no | `attributes` |
 | resource_attributes | map[string]AnyValue | no | `resource.attributes` |
 | service_name | string | yes | resource attr: `service.name` |
-| environment | string | no | resource attr: `deployment.environment` |
+| environment | string | no | injected at ingest from ingestion token (see ADR-028); `deployment.environment` resource attr is preserved in `resource_attributes` but is not the authoritative source |
 | host_id | string | no | resource attr: `host.id` |
 | fingerprint | uint64 | no | log pattern hash; injected at ingest |
 | parsed_fields | map[string]string | no | extracted structured fields; injected at ingest |
@@ -190,7 +199,7 @@ A MetricSeries represents one OTel metric stream: metric identity plus resource 
 | scope_version | string | no | instrumentation scope `version` |
 | schema_url | string | no | resource/scope/metric schema URL when provided |
 | service_name | string | yes | resource attr: `service.name` |
-| environment | string | no | resource attr: `deployment.environment` |
+| environment | string | no | injected at ingest from ingestion token (see ADR-028); `deployment.environment` resource attr is preserved in `resource_attributes` but is not the authoritative source |
 
 **Retention tier default:** hot (3-14d) → warm with rollups
 
@@ -252,7 +261,7 @@ Metric query and alert code must respect OTel temporality:
 | profile_id | UUID | yes | OTel Profiles: `profile_id` |
 | service_name | string | yes | resource attr: `service.name` |
 | service_version | string | no | resource attr: `service.version` |
-| environment | string | no | resource attr: `deployment.environment` |
+| environment | string | no | injected at ingest from ingestion token (see ADR-028); `deployment.environment` resource attr is preserved in `resource_attributes` but is not the authoritative source |
 | start_time_unix_nano | uint64 | yes | `start_time_unix_nano` |
 | end_time_unix_nano | uint64 | no | `end_time_unix_nano` |
 | duration_ns | uint64 | yes | derived or explicit |
@@ -348,6 +357,8 @@ A SyntheticCheck is the result of one execution of a synthetic monitor — an HT
 ```mermaid
 erDiagram
     TENANT ||--o{ PROJECT : has
+    TENANT ||--o{ API_KEY : owns
+    API_KEY }|--|| ENVIRONMENT : scoped_to
     PROJECT ||--o{ ENVIRONMENT : has
     PROJECT ||--o{ SERVICE : contains
     SERVICE ||--o{ WORKLOAD : runs_as
@@ -587,7 +598,7 @@ The following fields appear across all signal types and align with the common di
 | `account_id` | `observable.account_id` | Billing entity |
 | `org_id` | `observable.org_id` (injected at ingest) | Organization grouping layer; only populated for tenants that have Organizations configured. Injected by the control plane at ingest from the project-to-organization mapping. Not emitted by OTel SDKs. |
 | `project_id` | `observable.project_id` | Project scope |
-| `environment` | `deployment.environment` | Named deployment stage |
+| `environment` | injected at ingest from ingestion token | Named deployment stage. Resolved server-side from the ingestion token by `auth-service`; stamped by ingest-gateway before queuing. The OTel resource attribute `deployment.environment` is preserved in `resource_attributes` for diagnostics but is **not** the authoritative source. See ADR-028. |
 | `service_name` | `service.name` | Service identifier |
 | `service_namespace` | `service.namespace` | Optional service grouping |
 | `service_version` | `service.version` | Deployed version |

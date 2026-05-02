@@ -23,10 +23,11 @@ use axum::{
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
+use tower_http::trace::TraceLayer;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    domain::telemetry::init_self_observability_telemetry("query-api")?;
+    let _telemetry = domain::telemetry::init_self_observability_telemetry("query-api")?;
     let ch_url = std::env::var("CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".into());
     let ch_user = std::env::var("CLICKHOUSE_USER").unwrap_or_else(|_| "default".into());
     let ch_password = std::env::var("CLICKHOUSE_PASSWORD").unwrap_or_default();
@@ -135,6 +136,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
+        .layer(TraceLayer::new_for_http())
         .with_state(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "query-api listening");

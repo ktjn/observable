@@ -64,6 +64,8 @@ spec:
               value: {{ .Values.selfObservability.mode | quote }}
             - name: OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT
               value: {{ .Values.selfObservability.otlpEndpoint | quote }}
+            - name: OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN
+              value: {{ .Values.selfObservability.bearerToken | quote }}
           volumeMounts:
             - name: postgres-migrations
               mountPath: /migrations/postgres
@@ -99,6 +101,8 @@ spec:
               value: {{ .Values.selfObservability.mode | quote }}
             - name: OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT
               value: {{ .Values.selfObservability.otlpEndpoint | quote }}
+            - name: OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN
+              value: {{ .Values.selfObservability.bearerToken | quote }}
           volumeMounts:
             - name: clickhouse-migrations
               mountPath: /migrations/clickhouse

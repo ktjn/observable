@@ -35,10 +35,11 @@ pub async fn export_traces(
                 None => return StatusCode::BAD_REQUEST.into_response(),
             };
 
-            let spans = match super::convert::parse_otlp_traces(&body, ctx.tenant_id) {
-                Ok(s) => s,
-                Err(status) => return status.into_response(),
-            };
+            let spans =
+                match super::convert::parse_otlp_traces(&body, ctx.tenant_id, &ctx.environment) {
+                    Ok(s) => s,
+                    Err(status) => return status.into_response(),
+                };
 
             (resource_spans.len(), spans)
         }
@@ -55,6 +56,7 @@ pub async fn export_traces(
         if producer
             .publish(&build_envelope(
                 ctx.tenant_id,
+                &ctx.environment,
                 domain::EnvelopePayload::Spans(spans),
             ))
             .await
