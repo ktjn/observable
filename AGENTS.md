@@ -32,7 +32,10 @@ defined in `.github/agents/coordinator.agent.md`.
 ## Before Starting Any Implementation Task
 
 1. **Read `spec/adr/README.md`** to scan the one-line decision summaries. Open and read in full any ADR whose domain overlaps with the task.
-2. **Use the latest stable versions** of all dependencies:
+2. **Read `docs/agent-context.md`** for the current living codebase map, active source-of-truth pointers, and agent-maintained gotchas. This guide does not replace inspecting the actual files relevant to the task.
+3. **Inspect the actual code every time** before editing. Read the relevant implementation, tests, scripts, specs, and docs for the requested slice; do not rely only on summaries or prior memory.
+4. **Keep the agent context current:** if the change affects repo layout, ownership boundaries, active roadmap guidance, required verification, architectural assumptions, or future agent gotchas, update `docs/agent-context.md` in the same PR. If no update is needed, state why in the PR description.
+5. **Use the latest stable versions** of all dependencies:
    - **Rust crates:** check [crates.io](https://crates.io) for the current stable version before adding or updating a dependency.
    - **npm packages:** check [npmjs.com](https://www.npmjs.com) for the current stable version before adding or updating a dependency.
    - **GitHub Actions:** use the latest release tag of every action (e.g. `actions/checkout@v4`); check the action's release page if uncertain.
