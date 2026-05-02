@@ -49,7 +49,7 @@ beforeEach(() => {
 test("shows loading state while fetching", () => {
   vi.spyOn(logsApi, "getLogContext").mockReturnValue(new Promise(() => {}));
   render(<LogContextView logId="pivot-id" onClose={vi.fn()} />, { wrapper });
-  expect(screen.getByText(/Loading context/)).toBeInTheDocument();
+  expect(screen.getByText(/Loading logs/)).toBeInTheDocument();
 });
 
 test("renders log lines with pivot highlighted", async () => {
