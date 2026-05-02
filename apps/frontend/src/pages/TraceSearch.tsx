@@ -12,7 +12,7 @@ import { Select, SelectOption } from "../components/ui/select";
 import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
 import { useTimeDisplay } from "../lib/timeDisplay";
-import { TraceResultsTable } from "../features/signals/TraceResultsTable";
+import { TraceResultsTable } from "../features/signals/components/TraceResultsTable";
 import { infraLinks } from "../utils/infraLinks";
 import { formatContextValue } from "../utils/logFormatting";
 

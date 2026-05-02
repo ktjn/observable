@@ -13,7 +13,7 @@ import { LoadingState } from "../components/ui/loading-state";
 import { Select, SelectOption } from "../components/ui/select";
 import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
-import { LogResultsTable } from "../features/signals/LogResultsTable";
+import { LogResultsTable } from "../features/signals/components/LogResultsTable";
 
 const timeRangeOptions = [
   { label: "15m", value: 15 },

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { expect, test, vi } from "vitest";
-import type { TraceResponse } from "../../api/traces";
+import type { TraceResponse } from "../../../api/traces";
 import { TraceResultsTable } from "./TraceResultsTable";
 
 vi.mock("@tanstack/react-router", () => ({

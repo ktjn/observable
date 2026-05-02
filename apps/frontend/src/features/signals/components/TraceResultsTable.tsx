@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import type { TraceResponse } from "../../api/traces";
-import { Badge } from "../../components/ui/badge";
+import type { TraceResponse } from "../../../api/traces";
+import { Badge } from "../../../components/ui/badge";
 
 export function TraceResultsTable({
   traces,

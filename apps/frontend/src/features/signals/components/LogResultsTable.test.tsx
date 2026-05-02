@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
-import type { LogRecord } from "../../api/logs";
+import type { LogRecord } from "../../../api/logs";
 import { LogResultsTable } from "./LogResultsTable";
 
 const logs: LogRecord[] = [
