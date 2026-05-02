@@ -9,6 +9,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -69,6 +70,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/internal/validate", post(validate_handler))
+        .layer(TraceLayer::new_for_http())
         .with_state(AppState { db });
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "auth-service listening");

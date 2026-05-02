@@ -11,6 +11,7 @@ use axum::{
 };
 use clickhouse::Client;
 use serde::Deserialize;
+use tower_http::trace::TraceLayer;
 
 #[derive(Clone)]
 struct AppState {
@@ -83,6 +84,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/internal/spans", post(write_spans))
         .route("/internal/logs", post(write_logs))
         .route("/internal/metrics", post(write_metrics))
+        .layer(TraceLayer::new_for_http())
         .with_state(AppState { ch });
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "storage-writer listening");

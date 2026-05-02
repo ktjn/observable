@@ -13,6 +13,7 @@ use axum::{
 use flate2::read::GzDecoder;
 use serde_json::Value;
 use std::io::Read;
+use tower_http::trace::TraceLayer;
 
 use crate::{auth, deployments, AppState};
 
@@ -79,6 +80,7 @@ pub fn build_router(state: AppState) -> Router {
             auth::auth_middleware,
         ))
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
+        .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
 
@@ -96,6 +98,7 @@ pub fn build_platform_router(state: AppState) -> Router {
             auth::auth_middleware,
         ))
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
+        .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
 

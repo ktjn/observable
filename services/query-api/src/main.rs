@@ -23,6 +23,7 @@ use axum::{
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
+use tower_http::trace::TraceLayer;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -135,6 +136,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
+        .layer(TraceLayer::new_for_http())
         .with_state(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "query-api listening");
