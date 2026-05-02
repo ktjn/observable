@@ -881,3 +881,81 @@ async fn log_context_returns_surrounding_logs() {
         "after rows in ascending order"
     );
 }
+
+async fn run_response_time_histogram(
+    ch: &Client,
+    tenant_id: Uuid,
+    service: &str,
+    from_ns: u64,
+    to_ns: u64,
+    bucket_count: u32,
+) -> Vec<(i64, f64, f64, u64)> {
+    let planner = QueryPlanner;
+    let plan = planner.plan_response_time_histogram(from_ns, to_ns, bucket_count);
+    ch.query(&plan.sql)
+        .bind(plan.from_ns)
+        .bind(plan.interval_ns)
+        .bind(tenant_id)
+        .bind(service)
+        .bind(from_ns)
+        .bind(to_ns)
+        .fetch_all::<(i64, f64, f64, u64)>()
+        .await
+        .expect("response time histogram query succeeded")
+}
+
+#[tokio::test]
+async fn response_time_histogram_buckets_latency_by_time_window() {
+    let container = ClickHouse::default()
+        .with_tag("24.3")
+        .with_env_var("CLICKHOUSE_USER", "default")
+        .with_env_var("CLICKHOUSE_PASSWORD", "test")
+        .start()
+        .await
+        .expect("clickhouse container started");
+
+    let port = container.get_host_port_ipv4(8123).await.unwrap();
+    let base_url = format!("http://127.0.0.1:{port}");
+    let ch = apply_migrations(&base_url, "default", "test").await;
+
+    let tenant = Uuid::new_v4();
+    let now_ns = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+    let from_ns = now_ns.saturating_sub(60 * 60 * 1_000_000_000); // 1 hour ago
+
+    // Bucket 0 (first 30 min): fast span — 1ms
+    let mut early = make_span(tenant, "trace-rt-early", "span-rt-early");
+    early.service_name = "svc-rt".into();
+    early.start_time_unix_nano = from_ns + 1_000;
+    early.duration_ns = 1_000_000; // 1ms
+    insert_span(&ch, early).await;
+
+    // Bucket 1 (second 30 min): slow span — 100ms
+    let mut late = make_span(tenant, "trace-rt-late", "span-rt-late");
+    late.service_name = "svc-rt".into();
+    late.start_time_unix_nano = from_ns + 30 * 60 * 1_000_000_000 + 1_000;
+    late.duration_ns = 100_000_000; // 100ms
+    insert_span(&ch, late).await;
+
+    let rows = run_response_time_histogram(&ch, tenant, "svc-rt", from_ns, now_ns, 2).await;
+
+    assert_eq!(rows.len(), 2, "two buckets returned");
+
+    let (idx0, p50_b0, _p95_b0, count_b0) = rows[0];
+    assert_eq!(idx0, 0, "first row is bucket 0");
+    assert_eq!(count_b0, 1, "bucket 0 has one span");
+    assert!(
+        (p50_b0 - 1_000_000.0).abs() < 10_000.0,
+        "bucket 0 p50 ≈ 1ms in nanoseconds, got {p50_b0}"
+    );
+
+    let (idx1, p50_b1, _p95_b1, count_b1) = rows[1];
+    assert_eq!(idx1, 1, "second row is bucket 1");
+    assert_eq!(count_b1, 1, "bucket 1 has one span");
+    assert!(
+        p50_b1 > p50_b0,
+        "bucket 1 latency ({p50_b1}) must exceed bucket 0 ({p50_b0})"
+    );
+}

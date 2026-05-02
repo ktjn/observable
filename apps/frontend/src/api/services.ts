@@ -95,3 +95,38 @@ export async function listEnvironments(): Promise<DiscoveryResponse> {
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
+
+export interface ResponseTimeHistoryBucket {
+  start_ms: number;
+  end_ms: number;
+  p50_ms: number;
+  p95_ms: number;
+  request_rate: number;
+}
+
+export interface ResponseTimeHistoryResponse {
+  buckets: ResponseTimeHistoryBucket[];
+}
+
+export async function getServiceResponseTimeHistory(
+  serviceName: string,
+  params: {
+    lookback_minutes?: number;
+    buckets?: number;
+  } = {},
+): Promise<ResponseTimeHistoryResponse> {
+  const encodedService = encodeURIComponent(serviceName);
+  const url = new URL(
+    `/v1/services/${encodedService}/response-time-history`,
+    window.location.origin,
+  );
+  if (params.lookback_minutes) {
+    url.searchParams.set("lookback_minutes", String(params.lookback_minutes));
+  }
+  if (params.buckets) {
+    url.searchParams.set("buckets", String(params.buckets));
+  }
+  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  if (!res.ok) throw new Error(`Query failed: ${res.status}`);
+  return res.json();
+}

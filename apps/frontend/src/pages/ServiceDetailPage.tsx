@@ -1,16 +1,23 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams, useSearch } from "@tanstack/react-router";
-import { getServiceSummary, ServiceSummary } from "../api/services";
-import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
 import { listDeployments } from "../api/deployments";
-import { DeploymentTimeline } from "../components/DeploymentTimeline";
+import {
+  getServiceResponseTimeHistory,
+  getServiceSummary,
+  ServiceSummary,
+} from "../api/services";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
+import {
+  TimeSeriesGraph,
+  TimeSeriesSeries,
+} from "../components/ui/time-series-graph";
 import { NlqPanel } from "../features/nlq/NlqPanel";
 import { ServiceMetricsWorkspace } from "../features/metrics/ServiceMetricsWorkspace";
+import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
 import { LogExplorer } from "./LogSearch";
 import { TraceExplorer } from "./TraceSearch";
 
@@ -84,7 +91,7 @@ function ServiceDetailView({
         <MetricCard label="Active Alerts" value={String(service.active_alert_count)} tone={service.active_alert_count > 0 ? "warn" : "good"} />
       </div>
 
-      <DeploymentTimelineSection
+      <ResponseTimeGraphSection
         serviceName={service.service_name}
         lookbackMinutes={lookbackMinutes}
       />
@@ -159,7 +166,7 @@ function ServiceDetailView({
   );
 }
 
-type ServiceSignalTab = "overview" | "logs" | "metrics" | "traces";
+type ServiceSignalTab = "logs" | "metrics" | "traces";
 type ServiceDetailSearch = {
   lookback_minutes?: number | string;
 };
@@ -172,10 +179,9 @@ function readLookbackMinutes(search: ServiceDetailSearch): number {
 }
 
 function signalTabFromPath(pathname: string): ServiceSignalTab {
-  if (pathname.endsWith("/logs")) return "logs";
   if (pathname.endsWith("/metrics")) return "metrics";
   if (pathname.endsWith("/traces")) return "traces";
-  return "overview";
+  return "logs";
 }
 
 function ServiceSignalTabs({
@@ -189,11 +195,10 @@ function ServiceSignalTabs({
 }) {
   const encodedService = encodeURIComponent(serviceName);
   const tabLinks = [
-    { tab: "overview", label: "Overview", to: "/services/$serviceId" },
-    { tab: "logs", label: "Logs", to: "/services/$serviceId/logs" },
-    { tab: "metrics", label: "Metrics", to: "/services/$serviceId/metrics" },
-    { tab: "traces", label: "Traces", to: "/services/$serviceId/traces" },
-  ] as const;
+    { tab: "logs" as const,    label: "Logs",    to: "/services/$serviceId/logs" },
+    { tab: "metrics" as const, label: "Metrics", to: "/services/$serviceId/metrics" },
+    { tab: "traces" as const,  label: "Traces",  to: "/services/$serviceId/traces" },
+  ];
   const preservedSearch = { lookback_minutes: lookbackMinutes };
 
   return (
@@ -212,11 +217,6 @@ function ServiceSignalTabs({
           </Link>
         ))}
       </nav>
-      {activeTab === "overview" && (
-        <div className="signal-empty">
-          {serviceName} · Last {lookbackMinutes}m
-        </div>
-      )}
       {activeTab === "logs" && (
         <ServiceLogsTab serviceName={serviceName} lookbackMinutes={lookbackMinutes} />
       )}
@@ -281,7 +281,7 @@ function healthLabel(healthState: ServiceSummary["health_state"]) {
   return "Healthy";
 }
 
-function DeploymentTimelineSection({
+function ResponseTimeGraphSection({
   serviceName,
   lookbackMinutes,
 }: {
@@ -291,7 +291,16 @@ function DeploymentTimelineSection({
   const nowMs = Date.now();
   const startMs = nowMs - lookbackMinutes * 60 * 1000;
 
-  const { data } = useQuery({
+  const { data: historyData } = useQuery({
+    queryKey: ["service-response-time", serviceName, lookbackMinutes],
+    queryFn: () =>
+      getServiceResponseTimeHistory(serviceName, {
+        lookback_minutes: lookbackMinutes,
+        buckets: 60,
+      }),
+  });
+
+  const { data: deploymentData } = useQuery({
     queryKey: ["deployments", serviceName, lookbackMinutes],
     queryFn: () =>
       listDeployments({
@@ -302,13 +311,42 @@ function DeploymentTimelineSection({
       }),
   });
 
-  if (!data?.items.length) return null;
+  if (!historyData?.buckets?.length) return null;
+
+  const p95Series: TimeSeriesSeries = {
+    key: "p95",
+    label: "P95",
+    color: "#818cf8",
+    formatY: (v) => `${Math.round(v)}ms`,
+    points: historyData.buckets.map((b) => ({ timestampMs: b.start_ms, value: b.p95_ms })),
+  };
+
+  const p50Series: TimeSeriesSeries = {
+    key: "p50",
+    label: "P50",
+    color: "#34d399",
+    formatY: (v) => `${Math.round(v)}ms`,
+    points: historyData.buckets.map((b) => ({ timestampMs: b.start_ms, value: b.p50_ms })),
+  };
+
+  const rateSeries: TimeSeriesSeries = {
+    key: "request_rate",
+    label: "Req/s",
+    color: "#fb923c",
+    dashed: true,
+    formatY: (v) => `${v.toFixed(1)} rps`,
+    points: historyData.buckets.map((b) => ({ timestampMs: b.start_ms, value: b.request_rate })),
+  };
 
   return (
-    <DeploymentTimeline
-      markers={data.items}
+    <TimeSeriesGraph
+      series={[p95Series, p50Series, rateSeries]}
+      deploymentMarkers={deploymentData?.items ?? []}
       rangeStartMs={startMs}
       rangeEndMs={nowMs}
+      eyebrow="Performance"
+      title={`Response Time & Throughput — Last ${lookbackMinutes}m`}
+      ariaLabel="Service response time and throughput graph"
     />
   );
 }

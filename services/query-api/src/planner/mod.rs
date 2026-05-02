@@ -30,6 +30,12 @@ pub struct LogHistogramPlan {
     pub interval_ns: u64,
 }
 
+pub struct ResponseTimeHistogramPlan {
+    pub sql: String,
+    pub from_ns: u64,
+    pub interval_ns: u64,
+}
+
 #[derive(Clone, Default)]
 pub struct QueryPlanner;
 
@@ -210,6 +216,32 @@ impl QueryPlanner {
             from_ns,
             interval_ns,
         }
+    }
+
+    pub fn plan_response_time_histogram(
+        &self,
+        from_ns: u64,
+        to_ns: u64,
+        bucket_count: u32,
+    ) -> ResponseTimeHistogramPlan {
+        let range_ns = to_ns.saturating_sub(from_ns).max(1);
+        let interval_ns = (range_ns / bucket_count as u64).max(1);
+
+        let sql = "SELECT \
+           intDiv(start_time_unix_nano - ?, ?) AS bucket_idx, \
+           quantile(0.50)(duration_ns) AS p50_ns, \
+           quantile(0.95)(duration_ns) AS p95_ns, \
+           count() AS span_count \
+         FROM observable.spans \
+         WHERE tenant_id = ? \
+           AND service_name = ? \
+           AND start_time_unix_nano >= ? \
+           AND start_time_unix_nano <= ? \
+         GROUP BY bucket_idx \
+         ORDER BY bucket_idx ASC"
+            .to_string();
+
+        ResponseTimeHistogramPlan { sql, from_ns, interval_ns }
     }
 }
 
@@ -548,5 +580,18 @@ mod tests {
         assert_eq!(plan_a.interval_ns, 1_000_000_000);
         assert_eq!(plan_b.interval_ns, 2_000_000_000);
         assert_eq!(plan_b.interval_ns, plan_a.interval_ns * 2);
+    }
+
+    #[test]
+    fn plan_response_time_histogram_divides_range_into_equal_intervals() {
+        let planner = QueryPlanner;
+        let from_ns = 0u64;
+        let to_ns = 60 * 1_000_000_000u64; // 60 seconds in ns
+        let plan = planner.plan_response_time_histogram(from_ns, to_ns, 60);
+        assert_eq!(plan.interval_ns, 1_000_000_000, "interval should be 1 second");
+        assert_eq!(plan.from_ns, 0);
+        assert!(plan.sql.contains("quantile(0.50)"), "sql must include P50");
+        assert!(plan.sql.contains("quantile(0.95)"), "sql must include P95");
+        assert!(plan.sql.contains("service_name = ?"), "sql must filter by service");
     }
 }
