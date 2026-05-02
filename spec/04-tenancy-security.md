@@ -36,8 +36,8 @@ Recommended model:
 - OIDC mandatory
 - SAML optional
 - SCIM provisioning
-- workload identity for agents and collectors
-- short-lived credentials only
+- workload identity for agents and collectors (see §8.6 for machine-to-machine ingestion tokens)
+- short-lived credentials for user-facing and RUM contexts; long-lived ingestion tokens for machine-to-machine ingest (see §8.6)
 
 ### 8.2 Data Security
 
@@ -75,3 +75,28 @@ Recommended model:
 - GDPR
 - regional data boundaries
 - audit retention policy
+
+### 8.6 Ingestion Tokens
+
+Ingestion tokens (API keys) are long-lived credentials used exclusively for machine-to-machine telemetry ingest. They are distinct from user credentials and short-lived tokens used in other contexts.
+
+**Cardinality rules:**
+- Each ingestion token belongs to exactly one tenant.
+- Each ingestion token is scoped to exactly one environment (e.g. `production`, `staging`, `observable`).
+- One tenant may have many ingestion tokens (one per environment, plus additional tokens for rotation or tooling).
+
+**Token schema:** `(id, tenant_id, key_hash, name, role, environment, created_at, revoked_at)`  
+The `key_hash` is SHA-256 of the plaintext token; the plaintext is never stored.
+
+**Server-side environment resolution:**
+The `auth-service` resolves `(tenant_id, role, environment)` from the token on every ingest request. The ingest-gateway stamps all incoming telemetry with the resolved environment before queuing. Clients do not need to configure `deployment.environment` in their OTel SDK — the token alone determines the environment. The client-supplied `deployment.environment` OTel resource attribute is preserved in `resource_attributes` for diagnostics but is not the authoritative `environment` value. See ADR-028 for the full decision record.
+
+**Lifecycle:**
+- Tokens can be revoked by setting `revoked_at`. Revoked tokens are rejected immediately at the ingest-gateway.
+- Token rotation is accomplished by issuing a new token before revoking the old one.
+- Token creation and revocation must be recorded in the audit log.
+
+**Security notes:**
+- A client using the wrong token will silently route telemetry to the wrong environment. Operational runbooks must emphasize token-to-environment mapping.
+- Ingestion tokens do not grant read or query access; they are write-only credentials at the ingest boundary.
+

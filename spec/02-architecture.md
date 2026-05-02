@@ -157,7 +157,7 @@ flowchart TB
 - **Tenant/project/environment service:** owns tenancy metadata, isolation mode, quota, residency, and environment configuration.
 - **Config/schema/dashboard/alert service:** owns mutable product configuration and validates config-as-code inputs.
 - **Audit service:** records credential, config, query, admin, and data access events.
-- **Ingest gateways:** accept OTLP and edge telemetry, authenticate producers, validate payloads, apply tenant routing, and write to the durable queue.
+- **Ingest gateways:** accept OTLP and edge telemetry, authenticate producers, resolve tenant and environment from the ingestion token, validate payloads, stamp all telemetry with the token-resolved environment, and write to the durable queue.
 - **Stream processors and enrichment:** normalize payloads, enrich resource metadata, apply sampling/filtering, enforce cardinality controls, and fan out to writers/evaluators.
 - **Storage writers:** perform idempotent writes into telemetry stores and object storage.
 - **Query facade and executors:** expose signal-specific and cross-signal query APIs, perform pushdown, and hide storage-engine differences from clients.
@@ -189,7 +189,7 @@ flowchart TB
 
 **Ingestion pipeline stages**
 1. authn/authz
-2. tenant routing
+2. tenant and environment resolution (tenant_id and environment resolved from ingestion token; client-supplied `deployment.environment` is not used as the authoritative environment — see ADR-028)
 3. validation
 4. normalization
 5. sampling/filtering
