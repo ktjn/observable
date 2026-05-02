@@ -381,7 +381,8 @@ mod tests {
         let planner = QueryPlanner;
         let params = TopologyParams {
             environment: None,
-            lookback_minutes: None,
+            from: None,
+            to: None,
             service: None,
         };
 
@@ -400,7 +401,8 @@ mod tests {
         let planner = QueryPlanner;
         let params = TopologyParams {
             environment: None,
-            lookback_minutes: None,
+            from: None,
+            to: None,
             service: Some("checkout".into()),
         };
 
@@ -416,7 +418,8 @@ mod tests {
         let planner = QueryPlanner;
         let params = TopologyParams {
             environment: None,
-            lookback_minutes: None,
+            from: None,
+            to: None,
             service: None,
         };
 
@@ -442,7 +445,8 @@ mod tests {
         let planner = QueryPlanner;
         let params = TopologyParams {
             environment: Some("prod".into()),
-            lookback_minutes: None,
+            from: None,
+            to: None,
             service: None,
         };
 
