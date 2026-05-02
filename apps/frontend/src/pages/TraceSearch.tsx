@@ -23,10 +23,40 @@ const timeRangeOptions = [
   { label: "24h", value: 1440 },
 ];
 
+export type TraceExplorerProps = {
+  initialService?: string;
+  lockedService?: boolean;
+  initialLookbackMinutes?: number;
+  showHeader?: boolean;
+  showServiceColumn?: boolean;
+  showPromote?: boolean;
+  showFacets?: boolean;
+  tableAriaLabel?: string;
+  tableMode?: "select" | "link";
+};
+
 export default function TraceSearch() {
-  const [service, setService] = useState(() => new URLSearchParams(window.location.search).get("service") ?? "");
+  return (
+    <TraceExplorer
+      initialService={new URLSearchParams(window.location.search).get("service") ?? ""}
+    />
+  );
+}
+
+export function TraceExplorer({
+  initialService = "",
+  lockedService = false,
+  initialLookbackMinutes = 60,
+  showHeader = true,
+  showServiceColumn = true,
+  showPromote = true,
+  showFacets = true,
+  tableAriaLabel,
+  tableMode = "select",
+}: TraceExplorerProps) {
+  const [service, setService] = useState(initialService);
   const { format } = useTimeDisplay();
-  const [lookbackMinutes, setLookbackMinutes] = useState(60);
+  const [lookbackMinutes, setLookbackMinutes] = useState(initialLookbackMinutes);
   const [selectedTraceId, setSelectedTraceId] = useState<string | undefined>();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [customRangeMs, setCustomRangeMs] = useState<{ fromMs: number; toMs: number } | null>(null);
@@ -78,7 +108,7 @@ export default function TraceSearch() {
   const selectedTrace = traces.find((t) => t.trace_id === selectedTraceId);
   const histogram = useMemo(
     () => {
-      if (histogramData?.buckets.length) {
+      if (histogramData?.buckets?.length) {
         return histogramFromApi(histogramData.buckets);
       }
       return buildTraceHistogram(traces, histogramFromMs, histogramToMs);
@@ -128,21 +158,25 @@ export default function TraceSearch() {
 
   return (
     <div className="page-stack">
-      <div className="page-header">
-        <div>
-          <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
-          <h1>Traces</h1>
+      {showHeader && (
+        <div className="page-header">
+          <div>
+            <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
+            <h1>Traces</h1>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="toolbar-row">
-        <Input
-          className="max-w-[360px]"
-          placeholder="Filter by service"
-          value={service}
-          onChange={(e) => setService(e.target.value)}
-          aria-label="Filter by service"
-        />
+        {!lockedService && (
+          <Input
+            className="max-w-[360px]"
+            placeholder="Filter by service"
+            value={service}
+            onChange={(e) => setService(e.target.value)}
+            aria-label="Filter by service"
+          />
+        )}
         {customRangeMs ? (
           <>
             <span className="text-xs whitespace-nowrap font-mono text-[var(--text-strong)]">
@@ -169,19 +203,23 @@ export default function TraceSearch() {
             ))}
           </Select>
         )}
-        {service && (
+        {service && !lockedService && (
           <Button variant="secondary" onClick={() => setService("")}>
             Clear filters
           </Button>
         )}
-        <Button onClick={handlePromote} disabled={saveStatus === "saving"}>
-          Promote to dashboard
-        </Button>
-        {saveStatus === "saved" && (
-          <span className="text-sm font-semibold text-[var(--good)]">Saved to dashboard</span>
-        )}
-        {saveStatus === "error" && (
-          <span className="text-sm font-semibold text-[var(--bad)]">Dashboard save failed</span>
+        {showPromote && (
+          <>
+            <Button onClick={handlePromote} disabled={saveStatus === "saving"}>
+              Promote to dashboard
+            </Button>
+            {saveStatus === "saved" && (
+              <span className="text-sm font-semibold text-[var(--good)]">Saved to dashboard</span>
+            )}
+            {saveStatus === "error" && (
+              <span className="text-sm font-semibold text-[var(--bad)]">Dashboard save failed</span>
+            )}
+          </>
         )}
       </div>
 
@@ -208,11 +246,13 @@ export default function TraceSearch() {
       )}
 
       <div className="flex items-start gap-3 max-[900px]:flex-col">
-        <FacetSidebar
-          facets={data?.facets}
-          onFacetClick={handleFacetClick}
-          ariaLabel="Trace facets"
-        />
+        {showFacets && (
+          <FacetSidebar
+            facets={data?.facets}
+            onFacetClick={handleFacetClick}
+            ariaLabel="Trace facets"
+          />
+        )}
 
         <TablePanel className="flex-1">
           {isLoading ? (
@@ -226,6 +266,9 @@ export default function TraceSearch() {
               traces={traces}
               selectedTraceId={selectedTraceId}
               onSelectTrace={setSelectedTraceId}
+              mode={tableMode}
+              showServiceColumn={showServiceColumn}
+              ariaLabel={tableAriaLabel}
             />
           )}
         </TablePanel>

@@ -1,22 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams, useSearch } from "@tanstack/react-router";
-import { searchLogs } from "../api/logs";
 import { getServiceSummary, ServiceSummary } from "../api/services";
-import { searchTraces } from "../api/traces";
 import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
 import { listDeployments } from "../api/deployments";
 import { DeploymentTimeline } from "../components/DeploymentTimeline";
-import { useTimeDisplay } from "../lib/timeDisplay";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
-import { TablePanel } from "../components/ui/table-panel";
 import { NlqPanel } from "../features/nlq/NlqPanel";
 import { ServiceMetricsWorkspace } from "../features/metrics/ServiceMetricsWorkspace";
-import { LogResultsTable } from "../features/signals/LogResultsTable";
-import { TraceResultsTable } from "../features/signals/TraceResultsTable";
+import { LogExplorer } from "./LogSearch";
+import { TraceExplorer } from "./TraceSearch";
 
 export default function ServiceDetailPage() {
   const { serviceId } = useParams({ strict: false });
@@ -239,27 +235,16 @@ function ServiceLogsTab({
   serviceName: string;
   lookbackMinutes: number;
 }) {
-  const { format } = useTimeDisplay();
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["service", serviceName, "logs", lookbackMinutes],
-    queryFn: () => searchLogs({ service: serviceName, from: new Date(Date.now() - lookbackMinutes * 60 * 1000).toISOString(), limit: 50 }),
-  });
-
-  if (isLoading) return <LoadingState>Loading service logs…</LoadingState>;
-  if (error) return <div className="signal-empty">Logs could not be loaded.</div>;
-  if (!data?.logs.length) return <div className="signal-empty">No logs found for {serviceName}.</div>;
-
   return (
-    <TablePanel>
-      <LogResultsTable
-        logs={data.logs}
-        selectedLogId={undefined}
-        onSelectLog={() => undefined}
-        timeFormat={format}
-        showServiceColumn={false}
-        ariaLabel="Service logs"
-      />
-    </TablePanel>
+    <LogExplorer
+      initialService={serviceName}
+      lockedService
+      initialLookbackMinutes={lookbackMinutes}
+      showHeader={false}
+      showServiceColumn={false}
+      showPromote={false}
+      tableAriaLabel="Service logs"
+    />
   );
 }
 
@@ -270,27 +255,18 @@ function ServiceTracesTab({
   serviceName: string;
   lookbackMinutes: number;
 }) {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["service", serviceName, "traces", lookbackMinutes],
-    queryFn: () =>
-      searchTraces({ service: serviceName, lookback_minutes: lookbackMinutes, limit: 50 }),
-  });
-
-  if (isLoading) return <LoadingState>Loading service traces…</LoadingState>;
-  if (error) return <div className="signal-empty">Traces could not be loaded.</div>;
-  if (!data?.traces.length) return <div className="signal-empty">No traces found for {serviceName}.</div>;
-
   return (
-    <TablePanel>
-      <TraceResultsTable
-        traces={data.traces}
-        selectedTraceId={undefined}
-        onSelectTrace={() => undefined}
-        mode="link"
-        showServiceColumn={false}
-        ariaLabel="Service traces"
-      />
-    </TablePanel>
+    <TraceExplorer
+      initialService={serviceName}
+      lockedService
+      initialLookbackMinutes={lookbackMinutes}
+      showHeader={false}
+      showServiceColumn={false}
+      showPromote={false}
+      showFacets={false}
+      tableMode="link"
+      tableAriaLabel="Service traces"
+    />
   );
 }
 

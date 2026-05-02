@@ -32,10 +32,36 @@ const levelBarClasses: Record<OTelLevel, string> = {
   FATAL: "bg-[var(--bad)]",
 };
 
+export type LogExplorerProps = {
+  initialService?: string;
+  lockedService?: boolean;
+  initialLookbackMinutes?: number;
+  showHeader?: boolean;
+  showServiceColumn?: boolean;
+  showPromote?: boolean;
+  tableAriaLabel?: string;
+};
+
 export default function LogSearch() {
-  const [service, setService] = useState(() => new URLSearchParams(window.location.search).get("service") ?? "");
+  return (
+    <LogExplorer
+      initialService={new URLSearchParams(window.location.search).get("service") ?? ""}
+    />
+  );
+}
+
+export function LogExplorer({
+  initialService = "",
+  lockedService = false,
+  initialLookbackMinutes = 60,
+  showHeader = true,
+  showServiceColumn = true,
+  showPromote = true,
+  tableAriaLabel,
+}: LogExplorerProps) {
+  const [service, setService] = useState(initialService);
   const { format } = useTimeDisplay();
-  const [lookbackMinutes, setLookbackMinutes] = useState(60);
+  const [lookbackMinutes, setLookbackMinutes] = useState(initialLookbackMinutes);
   const [selectedLogId, setSelectedLogId] = useState<string | undefined>();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [customRangeMs, setCustomRangeMs] = useState<{ fromMs: number; toMs: number } | null>(null);
@@ -86,7 +112,10 @@ export default function LogSearch() {
   const logs = data?.logs ?? [];
   const selectedLog = logs.find((log) => log.log_id === selectedLogId);
   const histogram = useMemo(
-    () => histogramData ? histogramFromApi(histogramData.buckets) : buildLogHistogram([], histogramFromMs, histogramToMs),
+    () =>
+      histogramData?.buckets
+        ? histogramFromApi(histogramData.buckets)
+        : buildLogHistogram([], histogramFromMs, histogramToMs),
     [histogramData, histogramFromMs, histogramToMs],
   );
 
@@ -124,21 +153,25 @@ export default function LogSearch() {
 
   return (
     <div className="page-stack">
-      <div className="page-header">
-        <div>
-          <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
-          <h1>Logs</h1>
+      {showHeader && (
+        <div className="page-header">
+          <div>
+            <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
+            <h1>Logs</h1>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="toolbar-row">
-        <Input
-          className="max-w-[360px]"
-          placeholder="Filter by service"
-          value={service}
-          onChange={(e) => setService(e.target.value)}
-          aria-label="Filter by service"
-        />
+        {!lockedService && (
+          <Input
+            className="max-w-[360px]"
+            placeholder="Filter by service"
+            value={service}
+            onChange={(e) => setService(e.target.value)}
+            aria-label="Filter by service"
+          />
+        )}
         {customRangeMs ? (
           <>
             <span className="text-xs whitespace-nowrap font-mono text-[var(--text-strong)]">
@@ -165,19 +198,23 @@ export default function LogSearch() {
             ))}
           </Select>
         )}
-        {service && (
+        {service && !lockedService && (
           <Button variant="secondary" onClick={() => setService("")}>
             Clear filters
           </Button>
         )}
-        <Button onClick={handlePromote} disabled={saveStatus === "saving"}>
-          Promote to dashboard
-        </Button>
-        {saveStatus === "saved" && (
-          <span className="text-sm font-semibold text-[var(--good)]">Saved to dashboard</span>
-        )}
-        {saveStatus === "error" && (
-          <span className="text-sm font-semibold text-[var(--bad)]">Dashboard save failed</span>
+        {showPromote && (
+          <>
+            <Button onClick={handlePromote} disabled={saveStatus === "saving"}>
+              Promote to dashboard
+            </Button>
+            {saveStatus === "saved" && (
+              <span className="text-sm font-semibold text-[var(--good)]">Saved to dashboard</span>
+            )}
+            {saveStatus === "error" && (
+              <span className="text-sm font-semibold text-[var(--bad)]">Dashboard save failed</span>
+            )}
+          </>
         )}
       </div>
 
@@ -217,6 +254,8 @@ export default function LogSearch() {
               selectedLogId={selectedLogId}
               onSelectLog={setSelectedLogId}
               timeFormat={format}
+              showServiceColumn={showServiceColumn}
+              ariaLabel={tableAriaLabel}
             />
           )}
         </TablePanel>
