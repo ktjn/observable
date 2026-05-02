@@ -29,17 +29,23 @@ Before marking any change complete:
    If Testcontainers is not applicable, state why in the PR and name the replacement signal.
 5. **Frontend checks** (if `apps/frontend/` is touched): `npm run typecheck`, `npm run lint`,
    `npm run build`, `npm test`.
-6. **Reusable UI Components** — verify that the UI is built using reusable components with minimal duplication. Check for existing components in `src/components/` or `src/features/**/components/` and extract shared logic into hooks/utilities.
-7. **`bash scripts/local-ci.sh`** — run the full local CI gate before pushing. Use
+6. **Reusable UI Components** — verify that the UI is built using reusable components with minimal duplication. Check for existing components in `apps/frontend/src/components/` or `apps/frontend/src/features/**/components/` and extract shared logic into hooks/utilities.
+7. **NLQ Quality Gate** — if the change touches the NLQ→IR→SQL pipeline (system prompt, IR schema,
+   SQL templates, metadata injection, IR parser, repair loop, or eval test cases):
+   a. Include or update cases in `tests/nlq/cases.json` covering the changed behavior.
+   b. Run `python3 scripts/nlq-eval.py` against a running cluster and record pass/fail in the PR.
+   c. Confirm no previously-passing case has regressed.
+   If this gate is not applicable, state why in the PR.
+8. **`bash scripts/local-ci.sh`** — run the full local CI gate before pushing. Use
    `--skip-docker`, `--skip-frontend`, or `--skip-smoke` only when the relevant tooling is
    genuinely unavailable.
-8. **Regression gates** — do not weaken `scripts/local-ci.sh`, `tests/e2e/smoke_test.sh`,
+9. **Regression gates** — do not weaken `scripts/local-ci.sh`, `tests/e2e/smoke_test.sh`,
    `scripts/perf-smoke.sh`, or any Docker Compose verification service without a replacement signal.
-9. **ADR compliance** — verify the change does not violate any relevant ADR. If it introduces a new
-   architectural decision, flag it to the coordinator before proceeding.
-10. **Migration files** — schema changes must be in versioned SQL files under `migrations/`;
-   no ORM-generated schema (ADR-013).
-11. **Tenant isolation** — every new telemetry table must include `tenant_id` (ADR-007).
+10. **ADR compliance** — verify the change does not violate any relevant ADR. If it introduces a new
+    architectural decision, flag it to the coordinator before proceeding.
+11. **Migration files** — schema changes must be in versioned SQL files under `migrations/`;
+    no ORM-generated schema (ADR-013).
+12. **Tenant isolation** — every new telemetry table must include `tenant_id` (ADR-007).
 
 ## Surface Boundaries
 
