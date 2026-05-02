@@ -2,3 +2,4 @@ httpx==0.27.2
 opentelemetry-sdk==1.41.0
 opentelemetry-exporter-otlp-proto-grpc==1.41.0
 opentelemetry-instrumentation-logging==0.62b0
+opentelemetry-instrumentation-httpx==0.62b0
