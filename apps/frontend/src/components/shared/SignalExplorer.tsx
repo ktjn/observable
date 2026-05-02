@@ -139,14 +139,14 @@ export function SignalExplorer({
       {histogram}
 
       <div className="flex items-start gap-3 max-[900px]:flex-col">
+        <div className="flex flex-1 items-start gap-3">
+          {renderTable(selectedId, handleSelect)}
+        </div>
         {selectedId !== null && (
           <div className="w-1/4 shrink-0">
             {renderPanel(selectedId, () => setSelectedId(null))}
           </div>
         )}
-        <div className="flex flex-1 items-start gap-3">
-          {renderTable(selectedId, handleSelect)}
-        </div>
       </div>
     </div>
   );

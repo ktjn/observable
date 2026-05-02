@@ -62,22 +62,21 @@ function LogResultsRow({
   const message = formatLogMessage(log.body);
 
   return (
-    <tr className={`modern-table-row ${selected ? "bg-[var(--surface-subtle)]" : ""}`}>
+    <tr
+      className={`modern-table-row cursor-pointer ${selected ? "bg-[var(--surface-subtle)]" : ""}`}
+      onClick={onSelect}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelect()}
+      tabIndex={0}
+      role="button"
+      aria-label={`Open log context for ${message}`}
+      aria-pressed={selected}
+    >
       <td className="whitespace-nowrap">{formatTimestamp(log.timestamp_unix_nano, timeFormat)}</td>
       <td>
         <Badge tone={severity.tone}>{severity.label}</Badge>
       </td>
       {showServiceColumn && <td>{log.service_name}</td>}
-      <td>
-        <button
-          type="button"
-          className="w-full text-left text-[var(--text)] bg-transparent border-0 p-0 font-inherit cursor-pointer hover:text-[var(--brand-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
-          aria-label={`Open log context for ${message}`}
-          onClick={onSelect}
-        >
-          {message}
-        </button>
-      </td>
+      <td>{message}</td>
     </tr>
   );
 }

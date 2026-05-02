@@ -264,7 +264,6 @@ function ServiceTracesTab({
       showServiceColumn={false}
       showPromote={false}
       showFacets={false}
-      tableMode="link"
       tableAriaLabel="Service traces"
     />
   );

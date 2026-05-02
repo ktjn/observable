@@ -69,7 +69,15 @@ function TraceResultsRow({
   if (!root) return null;
 
   return (
-    <tr className={`modern-table-row ${selected ? "bg-[var(--surface-subtle)]" : ""}`}>
+    <tr
+      className={`modern-table-row ${mode === "select" ? "cursor-pointer" : ""} ${selected ? "bg-[var(--surface-subtle)]" : ""}`}
+      onClick={mode === "select" ? onSelect : undefined}
+      onKeyDown={mode === "select" ? (e) => (e.key === "Enter" || e.key === " ") && onSelect() : undefined}
+      tabIndex={mode === "select" ? 0 : undefined}
+      role={mode === "select" ? "button" : undefined}
+      aria-label={mode === "select" ? `Open trace ${trace.trace_id.substring(0, 16)}` : undefined}
+      aria-pressed={mode === "select" ? selected : undefined}
+    >
       <td className="whitespace-nowrap">{formatTimestamp(root.start_time_unix_nano, timeFormat)}</td>
       <td className="strong-cell">
         {mode === "link" ? (
@@ -77,14 +85,13 @@ function TraceResultsRow({
             {trace.trace_id.substring(0, 16)}
           </Link>
         ) : (
-          <button
-            type="button"
-            className="text-left text-[var(--brand)] bg-transparent border-0 p-0 font-inherit cursor-pointer hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
-            aria-label={`${trace.trace_id.substring(0, 16)}…`}
-            onClick={onSelect}
+          <Link
+            to="/traces/$traceId"
+            params={{ traceId: trace.trace_id }}
+            onClick={(e) => e.stopPropagation()}
           >
             {trace.trace_id.substring(0, 16)}…
-          </button>
+          </Link>
         )}
       </td>
       {showServiceColumn && <td>{root.service_name}</td>}
