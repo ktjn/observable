@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams, useSearch } from "@tanstack/react-router";
 import { searchLogs } from "../api/logs";
-import { listMetrics } from "../api/metrics";
 import { getServiceSummary, ServiceSummary } from "../api/services";
 import { searchTraces } from "../api/traces";
 import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
@@ -16,6 +15,7 @@ import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
 import { TablePanel } from "../components/ui/table-panel";
 import { NlqPanel } from "../features/nlq/NlqPanel";
+import { ServiceMetricsWorkspace } from "../features/metrics/ServiceMetricsWorkspace";
 
 export default function ServiceDetailPage() {
   const { serviceId } = useParams({ strict: false });
@@ -129,7 +129,7 @@ function ServiceOverview({
               Logs
             </a>
             <a
-              href={`/metrics?service=${encodeURIComponent(service.service_name)}`}
+              href={`/services/${encodeURIComponent(service.service_name)}/metrics?lookback_minutes=60`}
               className="min-h-[54px] border border-[var(--border)] grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
             >
               Metrics
@@ -223,7 +223,7 @@ function ServiceSignalTabs({
       {activeTab === "logs" && (
         <ServiceLogsTab serviceName={serviceName} lookbackMinutes={lookbackMinutes} />
       )}
-      {activeTab === "metrics" && <ServiceMetricsTab serviceName={serviceName} />}
+      {activeTab === "metrics" && <ServiceMetricsWorkspace serviceName={serviceName} />}
       {activeTab === "traces" && (
         <ServiceTracesTab serviceName={serviceName} lookbackMinutes={lookbackMinutes} />
       )}
@@ -266,44 +266,6 @@ function ServiceLogsTab({
               <td>{log.severity_text || log.severity_number}</td>
               <td>{typeof log.body === "string" ? log.body : JSON.stringify(log.body)}</td>
               <td>{log.trace_id ? log.trace_id.substring(0, 16) : "none"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </TablePanel>
-  );
-}
-
-function ServiceMetricsTab({ serviceName }: { serviceName: string }) {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["service", serviceName, "metrics"],
-    queryFn: () => listMetrics({ service: serviceName }),
-  });
-
-  if (isLoading) return <LoadingState>Loading service metrics…</LoadingState>;
-  if (error) return <div className="signal-empty">Metrics could not be loaded.</div>;
-  if (!data?.series.length) {
-    return <div className="signal-empty">No metric series found for {serviceName}.</div>;
-  }
-
-  return (
-    <TablePanel>
-      <table aria-label="Service metrics">
-        <thead>
-          <tr>
-            <th>Metric</th>
-            <th>Type</th>
-            <th>Unit</th>
-            <th>Environment</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.series.map((series) => (
-            <tr key={series.metric_series_id}>
-              <td>{series.metric_name}</td>
-              <td>{series.metric_type}</td>
-              <td>{series.unit || "none"}</td>
-              <td>{series.environment || "default"}</td>
             </tr>
           ))}
         </tbody>

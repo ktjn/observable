@@ -35,6 +35,8 @@ const FIXTURE_TRACE = {
 
 const EMPTY_LOGS = { logs: [], total: 0, facets: {} };
 
+const EMPTY_LOG_HISTOGRAM = { buckets: [] };
+
 const FIXTURE_LOGS = {
   logs: [
     {
@@ -95,6 +97,44 @@ const FIXTURE_SERVICE_SUMMARY = {
   },
 };
 
+const FIXTURE_METRICS = {
+  series: [
+    {
+      tenant_id: "00000000-0000-0000-0000-000000000001",
+      metric_series_id: "00000000-0000-0000-0000-000000000222",
+      metric_name: "checkout.requests",
+      description: "",
+      unit: "1",
+      metric_type: "sum",
+      is_monotonic: true,
+      aggregation_temporality: "cumulative",
+      attributes: { route: "/checkout" },
+      resource_attributes: {},
+      service_name: "checkout",
+      environment: "prod",
+    },
+  ],
+};
+
+const FIXTURE_METRIC_POINTS = {
+  points: [
+    {
+      tenant_id: "00000000-0000-0000-0000-000000000001",
+      metric_series_id: "00000000-0000-0000-0000-000000000222",
+      metric_name: "checkout.requests",
+      service_name: "checkout",
+      time_unix_nano: 1700000000000000000,
+      start_time_unix_nano: null,
+      value_double: 42.5,
+      value_int: null,
+      histogram_count: null,
+      histogram_sum: null,
+      histogram_bucket_counts: [],
+      histogram_explicit_bounds: [],
+    },
+  ],
+};
+
 const FIXTURE_INFRASTRUCTURE_ENTITY = {
   entity_type: "pod",
   entity_id: "prod-cluster/payments/checkout-pod-1",
@@ -140,6 +180,9 @@ test.describe("log search", () => {
   test.beforeEach(async ({ page }) => {
     await page.route("**/v1/logs**", (route) =>
       route.fulfill({ json: FIXTURE_LOGS })
+    );
+    await page.route("**/v1/logs/histogram**", (route) =>
+      route.fulfill({ json: EMPTY_LOG_HISTOGRAM })
     );
   });
 
@@ -196,11 +239,24 @@ test.describe("service and infrastructure detail", () => {
         },
       })
     );
+    await page.route("**/v1/metrics/00000000-0000-0000-0000-000000000222", (route) =>
+      route.fulfill({ json: FIXTURE_METRIC_POINTS })
+    );
+    await page.route("**/v1/metrics**", (route) =>
+      route.fulfill({ json: FIXTURE_METRICS })
+    );
   });
 
   test("service detail has no axe violations", async ({ page }) => {
     await page.goto("/services/checkout");
     await page.waitForSelector("text=checkout@2026.04.21");
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test("service metrics has no axe violations", async ({ page }) => {
+    await page.goto("/services/checkout/metrics?lookback_minutes=60");
+    await page.waitForSelector("text=checkout.requests");
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
   });
@@ -218,6 +274,9 @@ test.describe("service and infrastructure detail", () => {
 test("detects injected violation (harness proof)", async ({ page }) => {
   await page.route("**/v1/logs**", (route) =>
     route.fulfill({ json: EMPTY_LOGS })
+  );
+  await page.route("**/v1/logs/histogram**", (route) =>
+    route.fulfill({ json: EMPTY_LOG_HISTOGRAM })
   );
   await page.goto("/logs");
   await page.waitForSelector("text=No logs found");

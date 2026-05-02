@@ -340,9 +340,139 @@ test("renders the service detail overview with performance entry points", async 
     "href",
     "/traces?service=checkout",
   );
+  expect(within(entryPoints).getByRole("link", { name: "Metrics" })).toHaveAttribute(
+    "href",
+    "/services/checkout/metrics?lookback_minutes=60",
+  );
   expect(within(entryPoints).getByRole("link", { name: "Infrastructure" })).toHaveAttribute(
     "href",
     "/infrastructure?service=checkout",
+  );
+});
+
+test("renders service metrics workspace with filtering and selected series points", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+
+    if (url.includes("/v1/services/checkout/summary")) {
+      return new Response(
+        JSON.stringify({
+          service: {
+            service_name: "checkout",
+            request_rate: 12.5,
+            error_rate: 0.025,
+            p95_latency_ms: 245,
+            health_state: "watch",
+            active_alert_count: 2,
+            latest_deployment: "checkout@2026.04.21",
+          },
+        }),
+        { status: 200 },
+      );
+    }
+
+    if (url.includes("/v1/metrics/00000000-0000-0000-0000-000000000222")) {
+      return new Response(
+        JSON.stringify({
+          points: [
+            {
+              tenant_id: "00000000-0000-0000-0000-000000000001",
+              metric_series_id: "00000000-0000-0000-0000-000000000222",
+              metric_name: "checkout.requests",
+              service_name: "checkout",
+              time_unix_nano: 1700000000000000000,
+              start_time_unix_nano: null,
+              value_double: 42.5,
+              value_int: null,
+              histogram_count: null,
+              histogram_sum: null,
+              histogram_bucket_counts: [],
+              histogram_explicit_bounds: [],
+            },
+            {
+              tenant_id: "00000000-0000-0000-0000-000000000001",
+              metric_series_id: "00000000-0000-0000-0000-000000000222",
+              metric_name: "checkout.requests",
+              service_name: "checkout",
+              time_unix_nano: 1700000060000000000,
+              start_time_unix_nano: null,
+              value_double: 47,
+              value_int: null,
+              histogram_count: null,
+              histogram_sum: null,
+              histogram_bucket_counts: [],
+              histogram_explicit_bounds: [],
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    }
+
+    if (url.includes("/v1/metrics")) {
+      return new Response(
+        JSON.stringify({
+          series: [
+            {
+              tenant_id: "00000000-0000-0000-0000-000000000001",
+              metric_series_id: "00000000-0000-0000-0000-000000000222",
+              metric_name: "checkout.requests",
+              description: "",
+              unit: "1",
+              metric_type: "sum",
+              is_monotonic: true,
+              aggregation_temporality: "cumulative",
+              attributes: { route: "/checkout" },
+              resource_attributes: { "k8s.namespace.name": "payments" },
+              service_name: "checkout",
+              environment: "prod",
+            },
+            {
+              tenant_id: "00000000-0000-0000-0000-000000000001",
+              metric_series_id: "00000000-0000-0000-0000-000000000333",
+              metric_name: "checkout.latency",
+              description: "",
+              unit: "ms",
+              metric_type: "gauge",
+              attributes: { route: "/checkout" },
+              resource_attributes: {},
+              service_name: "checkout",
+              environment: "stage",
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    }
+
+    return new Response(JSON.stringify({ items: [] }), { status: 200 });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  window.history.pushState({}, "", "/services/checkout/metrics?lookback_minutes=60");
+
+  render(<App />);
+
+  expect(await screen.findByText("2 series")).toBeInTheDocument();
+  expect(screen.getByText("2 types")).toBeInTheDocument();
+  expect(screen.getByText("2 envs")).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText("Metric name filter"), {
+    target: { value: "latency" },
+  });
+  expect(screen.queryByText("checkout.requests")).not.toBeInTheDocument();
+  expect(screen.getByText("checkout.latency")).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText("Metric name filter"), {
+    target: { value: "" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Select checkout.requests" }));
+
+  expect(await screen.findByText("Selected series")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getAllByText("2 points").length).toBeGreaterThan(0));
+  await waitFor(() => expect(screen.getAllByText("47").length).toBeGreaterThan(0));
+  expect(fetchMock).toHaveBeenCalledWith(
+    expect.stringContaining("/v1/metrics/00000000-0000-0000-0000-000000000222"),
+    expect.anything(),
   );
 });
 

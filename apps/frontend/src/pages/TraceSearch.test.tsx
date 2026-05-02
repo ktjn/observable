@@ -131,7 +131,7 @@ test("renders the trace explorer shell with facets and named results table", asy
 test("renders a visible trace histogram from search results when histogram buckets are empty", async () => {
   renderTraceSearch();
 
-  const histogram = await screen.findByRole("img", { name: "Trace volume histogram" });
+  const histogram = await screen.findByRole("group", { name: "Trace volume histogram" });
   const traceBar = histogram.querySelector("[title*='Traces: 1']");
 
   expect(traceBar).toBeInTheDocument();
@@ -142,7 +142,7 @@ test("keeps a visible trace histogram when the histogram query fails", async () 
 
   renderTraceSearch();
 
-  const histogram = await screen.findByRole("img", { name: "Trace volume histogram" });
+  const histogram = await screen.findByRole("group", { name: "Trace volume histogram" });
   const traceBar = histogram.querySelector("[title*='Traces: 1']");
 
   expect(traceBar).toBeInTheDocument();
