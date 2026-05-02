@@ -51,6 +51,11 @@ impl AppState {
             .http_client
             .post(format!("{}/internal/validate", self.auth_service_url))
             .json(&serde_json::json!({"api_key": key}))
+            .headers({
+                let mut h = reqwest::header::HeaderMap::new();
+                domain::telemetry::inject_current_context(&mut h);
+                h
+            })
             .send()
             .await?;
         if !resp.status().is_success() {

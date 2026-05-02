@@ -1,5 +1,5 @@
 use opentelemetry::trace::TracerProvider as _;
-use opentelemetry_otlp::{WithExportConfig, WithHttpConfig};
+use opentelemetry_otlp::{WithExportConfig, WithTonicConfig};
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::Resource;
 use std::collections::HashMap;
@@ -103,22 +103,18 @@ pub fn init_telemetry(
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     if let Some(endpoint) = otlp_endpoint {
-        let traces_endpoint = if endpoint.ends_with("/v1/traces") {
-            endpoint.to_string()
-        } else {
-            format!("{}/v1/traces", endpoint.trim_end_matches('/'))
-        };
-
-        let mut headers = HashMap::new();
+        let mut metadata = tonic::metadata::MetadataMap::new();
         if let Some(token) = bearer_token {
-            headers.insert("Authorization".to_string(), format!("Bearer {token}"));
+            let value = format!("Bearer {token}")
+                .parse()
+                .map_err(|e| anyhow::anyhow!("invalid bearer token: {e}"))?;
+            metadata.insert("authorization", value);
         }
 
         let exporter = opentelemetry_otlp::SpanExporter::builder()
-            .with_http()
-            .with_endpoint(&traces_endpoint)
-            .with_headers(headers)
-            .with_http_client(reqwest::blocking::Client::new())
+            .with_tonic()
+            .with_endpoint(endpoint)
+            .with_metadata(metadata)
             .build()
             .map_err(|e| anyhow::anyhow!("failed to build OTLP exporter: {e}"))?;
 
@@ -132,6 +128,9 @@ pub fn init_telemetry(
             .build();
 
         opentelemetry::global::set_tracer_provider(provider.clone());
+        opentelemetry::global::set_text_map_propagator(
+            opentelemetry_sdk::propagation::TraceContextPropagator::new(),
+        );
 
         let tracer = provider.tracer(service_name.to_string());
         let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
@@ -184,6 +183,27 @@ impl SelfObservabilityMode {
         match self {
             Self::SelfIngest => "self",
             Self::ObserverInstance => "observer_instance",
+        }
+    }
+}
+
+/// Inject the current OpenTelemetry span context into a `reqwest` `HeaderMap` as a
+/// W3C `traceparent` header. Call this before every outgoing HTTP request that should
+/// be linked to the current trace (e.g. ingest-gateway → auth-service calls).
+///
+/// This is a no-op when no OTel provider / propagator has been installed (e.g. in
+/// unit-test mode or when `otlp_endpoint` is `None`).
+pub fn inject_current_context(headers: &mut reqwest::header::HeaderMap) {
+    let mut carrier = std::collections::HashMap::<String, String>::new();
+    opentelemetry::global::get_text_map_propagator(|propagator| {
+        propagator.inject(&mut carrier);
+    });
+    for (k, v) in carrier {
+        if let (Ok(name), Ok(value)) = (
+            reqwest::header::HeaderName::from_bytes(k.as_bytes()),
+            reqwest::header::HeaderValue::from_str(&v),
+        ) {
+            headers.insert(name, value);
         }
     }
 }

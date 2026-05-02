@@ -41,7 +41,7 @@ selfObservability:
   # - self: emit platform telemetry to this release's system tenant.
   # - observer_instance: emit platform telemetry to a second Observable instance.
   mode: "self"
-  otlpEndpoint: "http://ingest-gateway:4318"
+  otlpEndpoint: "http://ingest-gateway:4317"
   # bearerToken: set to the plaintext API key for the observable-internal ingestion key.
   # The corresponding key must exist in the api_keys table with environment='observable'.
   bearerToken: ""

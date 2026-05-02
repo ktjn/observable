@@ -60,6 +60,7 @@ pub async fn export_metrics(
     if let Some(producer) = &state.producer {
         let envelope = build_envelope(
             ctx.tenant_id,
+            &ctx.environment,
             domain::EnvelopePayload::Metrics { series, points },
         );
         if producer.publish(&envelope).await.is_err() {

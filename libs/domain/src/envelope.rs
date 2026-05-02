@@ -5,6 +5,7 @@ use uuid::Uuid;
 pub struct TelemetryEnvelope {
     pub envelope_id: Uuid,
     pub tenant_id: Uuid,
+    pub environment: String,
     pub received_at_unix_nano: u64,
     pub payload: EnvelopePayload,
 }

@@ -186,6 +186,7 @@ dependencies = [
  "axum 0.7.9",
  "chrono",
  "domain",
+ "opentelemetry",
  "serde",
  "serde_json",
  "sha2",
@@ -195,6 +196,7 @@ dependencies = [
  "tokio",
  "tower-http",
  "tracing",
+ "tracing-opentelemetry",
  "tracing-subscriber",
  "uuid",
 ]
@@ -1028,6 +1030,7 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "tonic",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
@@ -1871,6 +1874,7 @@ dependencies = [
  "flate2",
  "governor",
  "hex",
+ "opentelemetry",
  "opentelemetry-proto",
  "prost",
  "rdkafka",
@@ -1883,6 +1887,7 @@ dependencies = [
  "tonic",
  "tower-http",
  "tracing",
+ "tracing-opentelemetry",
  "tracing-subscriber",
  "uuid",
 ]
@@ -2469,6 +2474,8 @@ dependencies = [
  "prost",
  "reqwest 0.12.28",
  "thiserror 2.0.18",
+ "tokio",
+ "tonic",
  "tracing",
 ]
 
@@ -3980,6 +3987,7 @@ dependencies = [
  "axum 0.7.9",
  "clickhouse",
  "domain",
+ "opentelemetry",
  "serde",
  "serde_json",
  "testcontainers",
@@ -3987,6 +3995,7 @@ dependencies = [
  "tokio",
  "tower-http",
  "tracing",
+ "tracing-opentelemetry",
  "tracing-subscriber",
  "uuid",
 ]

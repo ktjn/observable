@@ -9,6 +9,8 @@ path = "src/main.rs"
 
 [dependencies]
 domain             = { path = "../../libs/domain", features = ["storage"] }
+opentelemetry      = { workspace = true }
+tracing-opentelemetry = { workspace = true }
 tokio              = { workspace = true }
 axum               = { workspace = true }
 tower-http         = { workspace = true }

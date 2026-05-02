@@ -4,6 +4,7 @@ use opentelemetry_proto::tonic::collector::logs::v1::{
     logs_service_server::LogsService, ExportLogsServiceRequest, ExportLogsServiceResponse,
 };
 use tonic::{Request, Response, Status};
+use tracing::Instrument as _;
 
 pub struct OltpLogService {
     state: AppState,
@@ -43,22 +44,29 @@ impl LogsService for OltpLogService {
         }
 
         let inner = request.into_inner();
-        let logs =
-            super::convert::proto_logs_to_domain(&inner.resource_logs, tenant_id, &environment);
-
-        tracing::info!(tenant_id = %tenant_id, log_count = logs.len(), "received gRPC log export");
-
-        if let Some(producer) = &self.state.producer {
-            let envelope = build_envelope(tenant_id, domain::EnvelopePayload::Logs(logs));
-            producer
-                .publish(&envelope)
-                .await
-                .map_err(|_| Status::internal("failed to publish log records"))?;
+        let producer = self.state.producer.clone();
+        let span = tracing::info_span!("grpc.export.logs", %tenant_id, %environment);
+        async move {
+            let logs = super::convert::proto_logs_to_domain(
+                &inner.resource_logs,
+                tenant_id,
+                &environment,
+            );
+            tracing::info!(tenant_id = %tenant_id, log_count = logs.len(), "received gRPC log export");
+            if let Some(ref producer) = producer {
+                let envelope =
+                    build_envelope(tenant_id, &environment, domain::EnvelopePayload::Logs(logs));
+                producer
+                    .publish(&envelope)
+                    .await
+                    .map_err(|_| Status::internal("failed to publish log records"))?;
+            }
+            Ok(Response::new(ExportLogsServiceResponse {
+                partial_success: None,
+            }))
         }
-
-        Ok(Response::new(ExportLogsServiceResponse {
-            partial_success: None,
-        }))
+        .instrument(span)
+        .await
     }
 }
 

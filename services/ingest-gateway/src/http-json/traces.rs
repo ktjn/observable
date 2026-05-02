@@ -56,6 +56,7 @@ pub async fn export_traces(
         if producer
             .publish(&build_envelope(
                 ctx.tenant_id,
+                &ctx.environment,
                 domain::EnvelopePayload::Spans(spans),
             ))
             .await
