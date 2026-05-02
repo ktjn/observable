@@ -362,6 +362,7 @@ canonical reference for any change to the system prompt, IR schema, or SQL templ
 | `table` | Raw point scan — most recent rows | Any | Up to 1000 rows |
 | `distribution` | Scalar stats for a single time window | Any gauge or histogram | One row (p95, avg, …) |
 | `catalog` | Enumerate distinct values of a dimension | None (series metadata) | Many rows (field, count) |
+| `inventory` | Filter/search infrastructure entity table | None (entity metadata) | Many rows (entity summary) |
 
 #### Operation Design Choices
 
@@ -436,6 +437,29 @@ can ask for any dimension; the system will truthfully return nothing if the data
 `table` is a `LIMIT 1000 ORDER BY time_unix_nano DESC` point scan with no aggregation. It is the
 escape hatch for users who want to inspect raw data. The `metric` field narrows the scan to a
 specific metric; without it the scan is across all series for the tenant.
+
+**`inventory` — entity table filtering**
+
+`inventory` queries the infrastructure entity store (ClickHouse `infrastructure_entities` / recent
+metrics tables), not the `metric_points` table. No metric is required. The MCP server calls
+`fetch_infrastructure_summaries` with IR-derived filters and returns
+`VisualizationFrame(table)` with rows that are serialised `InfrastructureEntitySummary` objects.
+
+Server-side filterable fields via `ir.filters`:
+
+| Filter field | Maps to |
+|---|---|
+| `entity_type` | Entity type enum (pod, node, deployment, namespace, …) |
+| `environment` | Environment label on the entity |
+| `service_name` | Related service association |
+| `name` / `display_name` | Free-text search on entity display name |
+
+The `health_state` field is computed post-query from `error_rate` and cannot be filtered server-side.
+
+Entity-table pages (e.g., `/infrastructure`) are IR-driven: they start with a base `inventory` IR,
+merge the user's NLQ-interpreted IR using `mergeIrs()`, and re-execute via `POST /v1/nlq` with
+`mode: "execute"` and the raw JSON IR as the `question` field. The `surface_hint: "infrastructure"`
+field constrains the LLM to `inventory` operations when the user types NLQ into the filter box.
 
 #### Eval Harness and Regression Gate
 

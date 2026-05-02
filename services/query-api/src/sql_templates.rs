@@ -103,6 +103,9 @@ pub fn generate_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
         NlqOperation::Table => table_sql(ctx),
         NlqOperation::Distribution => distribution_sql(ctx),
         NlqOperation::Catalog => catalog_sql(ctx),
+        // Inventory operations are executed by execute_inventory_query in mcp_query,
+        // not through the SQL template pipeline. Reaching here is a logic error.
+        NlqOperation::Inventory => Err(SqlTemplateError::MissingMetricName),
     }
 }
 

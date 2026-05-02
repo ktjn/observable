@@ -75,6 +75,11 @@ pub enum NlqOperation {
     Distribution,
     /// Catalog of observable entities (distinct-values query on series metadata).
     Catalog,
+    /// Entity inventory filter — filter a predefined entity table (infrastructure, services)
+    /// by attribute predicates (environment, entity_type, health_state, service_name, text).
+    /// No metric required. Backend executes the infrastructure ClickHouse SQL with the
+    /// IR-derived filters and returns a VisualizationFrame(table).
+    Inventory,
 }
 
 /// Signal types Observable can query.
@@ -465,5 +470,41 @@ mod tests {
             !out.contains("catalog_field"),
             "catalog_field must be absent when None: {out}"
         );
+    }
+
+    // ── inventory ──────────────────────────────────────────────────────────────
+
+    #[test]
+    fn inventory_operation_with_filters_roundtrips() {
+        let json = r#"{
+            "operation": "inventory",
+            "signals": [],
+            "time_range": {"from": "now-1h", "to": "now"},
+            "filters": [
+                {"field": "environment", "op": "=", "value": "observable"},
+                {"field": "entity_type", "op": "=", "value": "pod"}
+            ]
+        }"#;
+        let ir: NlqIr = serde_json::from_str(json).expect("deserialization failed");
+        assert_eq!(ir.operation, NlqOperation::Inventory);
+        assert_eq!(ir.filters.len(), 2);
+        assert!(ir.metric.is_none(), "inventory requires no metric");
+        let out = serde_json::to_string(&ir).unwrap();
+        assert!(
+            out.contains(r#""operation":"inventory""#),
+            "operation must round-trip: {out}"
+        );
+    }
+
+    #[test]
+    fn inventory_operation_no_filters_roundtrips() {
+        let json = r#"{
+            "operation": "inventory",
+            "signals": [],
+            "time_range": {"from": "now-1h", "to": "now"}
+        }"#;
+        let ir: NlqIr = serde_json::from_str(json).expect("deserialization failed");
+        assert_eq!(ir.operation, NlqOperation::Inventory);
+        assert!(ir.filters.is_empty());
     }
 }

@@ -551,7 +551,7 @@ pub async fn list_infrastructure_inventory(
     let mut items = Vec::new();
     for entity_type in entity_types {
         let mut rows = fetch_infrastructure_summaries(
-            &state,
+            &state.ch,
             ctx.tenant_id,
             entity_type,
             params.environment.as_deref(),
@@ -584,7 +584,7 @@ pub async fn get_infrastructure_detail(
     let lookback_minutes = validated_infrastructure_lookback_minutes(params.lookback_minutes)?;
 
     let mut matches = fetch_infrastructure_summaries(
-        &state,
+        &state.ch,
         ctx.tenant_id,
         entity_type,
         params.environment.as_deref(),
@@ -639,8 +639,8 @@ fn health_state(error_rate: f64) -> &'static str {
     }
 }
 
-async fn fetch_infrastructure_summaries(
-    state: &AppState,
+pub async fn fetch_infrastructure_summaries(
+    ch: &clickhouse::Client,
     tenant_id: Uuid,
     entity_type: InfrastructureEntityType,
     environment: Option<&str>,
@@ -736,8 +736,7 @@ async fn fetch_infrastructure_summaries(
          ORDER BY last_seen_unix_nano DESC, entity_name ASC",
     );
 
-    let mut query = state
-        .ch
+    let mut query = ch
         .query(&sql)
         .bind(tenant_id)
         .bind(start_ns)
@@ -776,7 +775,7 @@ async fn fetch_infrastructure_summaries(
         .collect())
 }
 
-fn all_infrastructure_entity_types() -> [InfrastructureEntityType; 5] {
+pub fn all_infrastructure_entity_types() -> [InfrastructureEntityType; 5] {
     [
         InfrastructureEntityType::Host,
         InfrastructureEntityType::Cluster,

@@ -74,6 +74,7 @@ export type NlqResponse =
 export interface NlqRequest {
   question: string;
   service_name?: string;
+  surface_hint?: string;
   mode?: "execute" | "interpret";
 }
 

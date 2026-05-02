@@ -2,10 +2,10 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
-  listInfrastructure,
   type InfrastructureEntitySummary,
   type InfrastructureEntityType,
 } from "../api/infrastructure";
+import { submitNlqQuery } from "../api/nlq";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { Badge } from "../components/ui/badge";
@@ -13,28 +13,36 @@ import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { TablePanel } from "../components/ui/table-panel";
 import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
-import { deriveViewFiltersFromIr } from "../features/nlq/queryFilters";
+import type { NlqIrLike } from "../features/nlq/queryFilters";
+import { INFRA_BASE_IR, mergeIrs } from "../features/nlq/mergeIrs";
 
 type InfrastructureTypeFilter = "all" | InfrastructureEntityType;
 
 export default function InfrastructureInventoryPage() {
-  const [environment, setEnvironment] = useState("all");
-  const [entityType, setEntityType] = useState<InfrastructureTypeFilter>("all");
+  const [activeIr, setActiveIr] = useState<NlqIrLike>(INFRA_BASE_IR);
   const [healthFilter, setHealthFilter] = useState("all");
+  const [entityTypeFilter, setEntityTypeFilter] = useState<InfrastructureTypeFilter>("all");
   const [search, setSearch] = useState("");
   const { format } = useTimeDisplay();
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["infrastructure", environment],
-    queryFn: () =>
-      listInfrastructure(environment !== "all" ? { environment } : {}),
+    queryKey: ["infrastructure", activeIr],
+    queryFn: async () => {
+      const response = await submitNlqQuery({
+        question: JSON.stringify(activeIr),
+        mode: "execute",
+      });
+      if (response.type !== "frame") return [];
+      return response.frame.data as unknown as InfrastructureEntitySummary[];
+    },
   });
 
+  const items = data ?? [];
+
   const filteredItems = useMemo(() => {
-      const searchValue = search.trim().toLowerCase();
-    return (data?.items ?? []).filter((item) => {
-      const matchesType = entityType === "all" || item.entity_type === entityType;
-      const matchesEnvironment = environment === "all" || item.environment === environment;
+    const searchValue = search.trim().toLowerCase();
+    return items.filter((item) => {
+      const matchesType = entityTypeFilter === "all" || item.entity_type === entityTypeFilter;
       const matchesHealth = healthFilter === "all" || item.health_state === healthFilter;
       const matchesSearch =
         searchValue.length === 0 ||
@@ -42,10 +50,9 @@ export default function InfrastructureInventoryPage() {
         item.entity_id.toLowerCase().includes(searchValue) ||
         item.parent_display_name?.toLowerCase().includes(searchValue) === true ||
         item.related_services.some((service) => service.toLowerCase().includes(searchValue));
-
-      return matchesType && matchesEnvironment && matchesHealth && matchesSearch;
+      return matchesType && matchesHealth && matchesSearch;
     });
-  }, [data, environment, entityType, healthFilter, search]);
+  }, [items, entityTypeFilter, healthFilter, search]);
 
   const summary = useMemo(() => summarizeInfrastructure(filteredItems), [filteredItems]);
 
@@ -62,12 +69,12 @@ export default function InfrastructureInventoryPage() {
         <QueryFilterInput
           surface="infrastructure"
           placeholder='Filter infrastructure, e.g. "prod pods for checkout in breach" or raw NLQ IR JSON'
-          onIr={(ir) => {
-            const filters = deriveViewFiltersFromIr(ir, "infrastructure");
-            setSearch(filters.text ?? filters.service ?? "");
-            setEnvironment(filters.environment ?? "all");
-            setEntityType((filters.entityType as InfrastructureTypeFilter | undefined) ?? "all");
-            setHealthFilter(filters.health ?? "all");
+          onIr={(userIr: NlqIrLike) => {
+            setActiveIr(mergeIrs(INFRA_BASE_IR, userIr));
+            // Secondary client-side filters — reset so they don't conflict with the merged IR.
+            setEntityTypeFilter("all");
+            setHealthFilter("all");
+            setSearch("");
           }}
         />
       </div>

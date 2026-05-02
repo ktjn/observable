@@ -168,6 +168,11 @@ pub struct NlqQueryRequest {
     /// Optional service scope. If provided, a `service_name = <value>` filter is enforced
     /// on the generated IR regardless of what the LLM emits.
     pub service_name: Option<String>,
+    /// Optional page / surface hint (e.g. "infrastructure", "services").
+    /// When set, the LLM system prompt is augmented with surface-specific instructions,
+    /// and the `inventory` operation is preferred for entity-attribute filter queries.
+    #[serde(default)]
+    pub surface_hint: Option<String>,
     /// Execution mode. `execute` preserves the existing NLQ behavior; `interpret`
     /// returns a validated IR without running the MCP query.
     #[serde(default)]
@@ -324,6 +329,7 @@ pub(crate) fn build_system_prompt(
     metrics: &[crate::mcp_tools::SignalField],
     label_keys: &[String],
     service_scope: Option<&str>,
+    surface_hint: Option<&str>,
 ) -> String {
     let mut prompt = String::from(
         r#"You are an observability query assistant. You translate natural language questions
@@ -393,6 +399,11 @@ The metric name goes in the `metric` field, never in `signals`.
   Example: "list all metric names" → {"type":"ir","ir":{"operation":"catalog","signals":["metrics"],"catalog_field":"metric_name","filters":[],"time_range":{"from":"now-24h","to":"now"}}}
   Example: "what pods does checkout use?" → {"type":"ir","ir":{"operation":"catalog","signals":["metrics"],"catalog_field":"pod","filters":[{"field":"service_name","op":"=","value":"checkout"}],"time_range":{"from":"now-24h","to":"now"}}}
   Example: "what metrics does payments emit?" → {"type":"ir","ir":{"operation":"catalog","signals":["metrics"],"catalog_field":"metric_name","filters":[{"field":"service_name","op":"=","value":"payments"}],"time_range":{"from":"now-24h","to":"now"}}}
+- **inventory**: Filter an entity inventory table (infrastructure page, services list) by attribute predicates. Use ONLY when the user is on an entity inventory page and the query is about filtering by entity attributes — NOT about computing a metric or charting over time. Does NOT require a `metric` field. Set `filters` to entity attribute predicates: `entity_type` (host/cluster/namespace/pod/container), `environment`, `service_name`, `display_name` (text search). Do NOT set `catalog_field`.
+  Example: "type equals pod" → {"type":"ir","ir":{"operation":"inventory","signals":[],"filters":[{"field":"entity_type","op":"=","value":"pod"}],"time_range":{"from":"now-1h","to":"now"}}}
+  Example: "environment equals observable and type equals pod" → {"type":"ir","ir":{"operation":"inventory","signals":[],"filters":[{"field":"environment","op":"=","value":"observable"},{"field":"entity_type","op":"=","value":"pod"}],"time_range":{"from":"now-1h","to":"now"}}}
+  Example: "show pods for checkout service" → {"type":"ir","ir":{"operation":"inventory","signals":[],"filters":[{"field":"entity_type","op":"=","value":"pod"},{"field":"service_name","op":"=","value":"checkout"}],"time_range":{"from":"now-1h","to":"now"}}}
+  Example: "pods in breach" → {"type":"ir","ir":{"operation":"inventory","signals":[],"filters":[{"field":"entity_type","op":"=","value":"pod"},{"field":"health_state","op":"=","value":"breach"}],"time_range":{"from":"now-1h","to":"now"}}}
 
 **NEVER confuse `topk` and `catalog`:**
 - catalog = "list what exists" (no aggregation, no ranking by value)
@@ -547,6 +558,38 @@ When in doubt, produce an IR. Only decline when the question **explicitly** ment
             "\n## Service scope\n\nThis query is scoped to service `{svc}`. \
              You do not need to add a service_name filter — it is enforced automatically.\n"
         ));
+    }
+
+    if let Some(surface) = surface_hint {
+        match surface {
+            "infrastructure" => {
+                prompt.push_str(
+                    "\n## Page context\n\n\
+                     You are operating on the **infrastructure inventory page**. \
+                     This page shows a table of infrastructure entities (hosts, clusters, \
+                     namespaces, pods, containers). The user is filtering this table by \
+                     entity attributes — NOT asking for a time-series chart or metric computation.\n\
+                     **ALWAYS use `operation: \"inventory\"` for queries on this page.** \
+                     Valid filter fields: `entity_type` (host/cluster/namespace/pod/container), \
+                     `environment`, `service_name`, `health_state` (healthy/watch/breach), \
+                     `display_name` (text search). Do NOT add a `metric` field.\n"
+                );
+            }
+            "services" => {
+                prompt.push_str(
+                    "\n## Page context\n\n\
+                     You are operating on the **services inventory page**. \
+                     This page shows a table of services. The user is filtering this table. \
+                     Prefer `operation: \"inventory\"` when the user is filtering by service \
+                     attributes rather than requesting a metric computation.\n",
+                );
+            }
+            _ => {
+                prompt.push_str(&format!(
+                    "\n## Page context\n\nYou are operating on the **{surface}** page.\n"
+                ));
+            }
+        }
     }
 
     prompt
@@ -1011,7 +1054,12 @@ pub async fn run_nlq_pipeline(
     let (metrics, label_keys) = fetch_schema_context(db, ch, tenant_id, 20).await?;
 
     // 3. Build system prompt
-    let system_prompt = build_system_prompt(&metrics, &label_keys, req.service_name.as_deref());
+    let system_prompt = build_system_prompt(
+        &metrics,
+        &label_keys,
+        req.service_name.as_deref(),
+        req.surface_hint.as_deref(),
+    );
 
     tracing::debug!(
         tenant_id = %tenant_id,
@@ -1113,9 +1161,13 @@ pub async fn run_nlq_pipeline(
         enforce_service_scope(&mut ir, svc);
     }
 
-    // 8. Validate: metric is required for non-catalog, non-log operations
+    // 8. Validate: metric is required for non-catalog, non-log, non-inventory operations
     let is_log_query = ir.signals == vec![NlqSignal::Logs];
-    if ir.metric.is_none() && ir.operation != NlqOperation::Catalog && !is_log_query {
+    let is_no_metric_op = matches!(
+        ir.operation,
+        NlqOperation::Catalog | NlqOperation::Inventory
+    );
+    if ir.metric.is_none() && !is_no_metric_op && !is_log_query {
         tracing::info!(
             tenant_id = %tenant_id,
             question = %question_preview,
@@ -1809,7 +1861,7 @@ mod tests {
             recommended_downsampling: None,
             schema_complete: true,
         }];
-        let prompt = build_system_prompt(&metrics, &[], None);
+        let prompt = build_system_prompt(&metrics, &[], None, None);
         assert!(
             prompt.contains("latency_ms"),
             "metric name must appear in prompt"
@@ -1822,7 +1874,7 @@ mod tests {
 
     #[test]
     fn system_prompt_includes_service_scope() {
-        let prompt = build_system_prompt(&[], &[], Some("checkout"));
+        let prompt = build_system_prompt(&[], &[], Some("checkout"), None);
         assert!(
             prompt.contains("checkout"),
             "service scope must appear in prompt"
@@ -1831,7 +1883,7 @@ mod tests {
 
     #[test]
     fn system_prompt_includes_advisory_boundary() {
-        let prompt = build_system_prompt(&[], &[], None);
+        let prompt = build_system_prompt(&[], &[], None, None);
         assert!(
             prompt.contains("billing"),
             "advisory boundary must appear in prompt"
@@ -1892,7 +1944,7 @@ mod tests {
 
     #[test]
     fn system_prompt_includes_capabilities_instruction() {
-        let prompt = build_system_prompt(&[], &[], None);
+        let prompt = build_system_prompt(&[], &[], None, None);
         assert!(
             prompt.contains("capabilities"),
             "system prompt must reference capabilities type"
@@ -1908,7 +1960,7 @@ mod tests {
             "pod".to_string(),
             "region".to_string(),
         ];
-        let prompt = build_system_prompt(&[], &keys, None);
+        let prompt = build_system_prompt(&[], &keys, None, None);
         assert!(
             prompt.contains("Available label keys"),
             "prompt must contain the label keys section header"
@@ -1923,7 +1975,7 @@ mod tests {
 
     #[test]
     fn build_system_prompt_empty_label_keys_shows_fallback() {
-        let prompt = build_system_prompt(&[], &[], None);
+        let prompt = build_system_prompt(&[], &[], None, None);
         assert!(
             prompt.contains("no label keys discovered"),
             "prompt must show fallback note when label_keys is empty"
@@ -1933,7 +1985,7 @@ mod tests {
     #[test]
     fn build_system_prompt_label_keys_not_invented_note() {
         let keys = vec!["service_name".to_string()];
-        let prompt = build_system_prompt(&[], &keys, None);
+        let prompt = build_system_prompt(&[], &keys, None, None);
         assert!(
             prompt.contains("Do not invent label keys not listed above"),
             "prompt must include instruction not to invent label keys"
