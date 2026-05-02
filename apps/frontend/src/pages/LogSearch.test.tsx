@@ -111,8 +111,8 @@ test("renders histogram and primary Time Level Message columns", async () => {
   const table = screen.getByRole("table", { name: "Log results" });
   expect(within(table).getByRole("columnheader", { name: "Time" })).toBeInTheDocument();
   expect(within(table).getByRole("columnheader", { name: "Level" })).toBeInTheDocument();
+  expect(within(table).getByRole("columnheader", { name: "Service" })).toBeInTheDocument();
   expect(within(table).getByRole("columnheader", { name: "Message" })).toBeInTheDocument();
-  expect(within(table).queryByRole("columnheader", { name: "Service" })).not.toBeInTheDocument();
   expect(within(table).getByText("checkout completed")).toBeInTheDocument();
 });
 

@@ -1,12 +1,12 @@
 import { createRouter, createRoute, createRootRoute } from "@tanstack/react-router";
-import { createElement } from "react";
 import { AppShell } from "./components/AppShell";
+import AdminPage from "./pages/AdminPage";
 import InfrastructureDetailPage from "./pages/InfrastructureDetailPage";
 import InfrastructureInventoryPage from "./pages/InfrastructureInventoryPage";
 import { ProductAreaPage } from "./pages/ProductAreaPage";
 import { AlertsPage } from "./features/alerts/AlertsPage";
 import ServiceDetailPage from "./pages/ServiceDetailPage";
-import ServiceOverview from "./pages/ServiceOverview";
+import ServiceTopologyPage from "./pages/ServiceTopologyPage";
 import SetupPage from "./pages/SetupPage";
 import TraceSearch from "./pages/TraceSearch";
 import TraceDetailPage from "./pages/TraceDetailPage";
@@ -21,12 +21,12 @@ const rootRoute = createRootRoute({
 const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: () => createElement(ProductAreaPage, { area: "services" }),
+  component: ProductAreaPage,
 });
 const servicesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/services",
-  component: () => createElement(ProductAreaPage, { area: "services" }),
+  component: ProductAreaPage,
 });
 const setupRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -66,7 +66,7 @@ const infrastructureDetailRoute = createRoute({
 const serviceOverviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/service-overview",
-  component: ServiceOverview,
+  component: ServiceTopologyPage,
 });
 const dashboardsRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -81,7 +81,7 @@ const alertsRoute = createRoute({
 const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin",
-  component: () => createElement(ProductAreaPage, { area: "admin" }),
+  component: AdminPage,
 });
 const traceSearchRoute = createRoute({
   getParentRoute: () => rootRoute,

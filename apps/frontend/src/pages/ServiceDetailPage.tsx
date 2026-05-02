@@ -1,21 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams, useSearch } from "@tanstack/react-router";
-import { searchLogs } from "../api/logs";
 import { getServiceSummary, ServiceSummary } from "../api/services";
-import { searchTraces } from "../api/traces";
 import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
 import { listDeployments } from "../api/deployments";
 import { DeploymentTimeline } from "../components/DeploymentTimeline";
-import { formatTimestamp } from "../utils/formatTimestamp";
-import { useTimeDisplay } from "../lib/timeDisplay";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
-import { TablePanel } from "../components/ui/table-panel";
 import { NlqPanel } from "../features/nlq/NlqPanel";
 import { ServiceMetricsWorkspace } from "../features/metrics/ServiceMetricsWorkspace";
+import { LogExplorer } from "./LogSearch";
+import { TraceExplorer } from "./TraceSearch";
 
 export default function ServiceDetailPage() {
   const { serviceId } = useParams({ strict: false });
@@ -46,7 +43,7 @@ export default function ServiceDetailPage() {
   }
 
   return (
-    <ServiceOverview
+    <ServiceDetailView
       service={data.service}
       activeTab={activeTab}
       lookbackMinutes={lookbackMinutes}
@@ -54,7 +51,7 @@ export default function ServiceDetailPage() {
   );
 }
 
-function ServiceOverview({
+function ServiceDetailView({
   service,
   activeTab,
   lookbackMinutes,
@@ -238,39 +235,16 @@ function ServiceLogsTab({
   serviceName: string;
   lookbackMinutes: number;
 }) {
-  const { format } = useTimeDisplay();
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["service", serviceName, "logs", lookbackMinutes],
-    queryFn: () => searchLogs({ service: serviceName, from: new Date(Date.now() - lookbackMinutes * 60 * 1000).toISOString(), limit: 50 }),
-  });
-
-  if (isLoading) return <LoadingState>Loading service logs…</LoadingState>;
-  if (error) return <div className="signal-empty">Logs could not be loaded.</div>;
-  if (!data?.logs.length) return <div className="signal-empty">No logs found for {serviceName}.</div>;
-
   return (
-    <TablePanel>
-      <table aria-label="Service logs">
-        <thead>
-          <tr>
-            <th>Timestamp</th>
-            <th>Level</th>
-            <th>Body</th>
-            <th>Trace</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.logs.map((log) => (
-            <tr key={log.log_id}>
-              <td className="whitespace-nowrap">{formatTimestamp(log.timestamp_unix_nano, format)}</td>
-              <td>{log.severity_text || log.severity_number}</td>
-              <td>{typeof log.body === "string" ? log.body : JSON.stringify(log.body)}</td>
-              <td>{log.trace_id ? log.trace_id.substring(0, 16) : "none"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </TablePanel>
+    <LogExplorer
+      initialService={serviceName}
+      lockedService
+      initialLookbackMinutes={lookbackMinutes}
+      showHeader={false}
+      showServiceColumn={false}
+      showPromote={false}
+      tableAriaLabel="Service logs"
+    />
   );
 }
 
@@ -281,47 +255,18 @@ function ServiceTracesTab({
   serviceName: string;
   lookbackMinutes: number;
 }) {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["service", serviceName, "traces", lookbackMinutes],
-    queryFn: () =>
-      searchTraces({ service: serviceName, lookback_minutes: lookbackMinutes, limit: 50 }),
-  });
-
-  if (isLoading) return <LoadingState>Loading service traces…</LoadingState>;
-  if (error) return <div className="signal-empty">Traces could not be loaded.</div>;
-  if (!data?.traces.length) return <div className="signal-empty">No traces found for {serviceName}.</div>;
-
   return (
-    <TablePanel>
-      <table aria-label="Service traces">
-        <thead>
-          <tr>
-            <th>Trace ID</th>
-            <th>Operation</th>
-            <th>Duration</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.traces.map((trace) => {
-            const root = trace.spans[0];
-            if (!root) return null;
-            return (
-              <tr key={trace.trace_id}>
-                <td>
-                  <Link to="/traces/$traceId" params={{ traceId: trace.trace_id }}>
-                    {trace.trace_id.substring(0, 16)}
-                  </Link>
-                </td>
-                <td>{root.operation_name}</td>
-                <td>{(root.duration_ns / 1e6).toFixed(2)}ms</td>
-                <td>{root.status_code}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </TablePanel>
+    <TraceExplorer
+      initialService={serviceName}
+      lockedService
+      initialLookbackMinutes={lookbackMinutes}
+      showHeader={false}
+      showServiceColumn={false}
+      showPromote={false}
+      showFacets={false}
+      tableMode="link"
+      tableAriaLabel="Service traces"
+    />
   );
 }
 

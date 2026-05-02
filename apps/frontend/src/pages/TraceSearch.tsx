@@ -12,6 +12,7 @@ import { Select, SelectOption } from "../components/ui/select";
 import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
 import { useTimeDisplay } from "../lib/timeDisplay";
+import { TraceResultsTable } from "../features/signals/TraceResultsTable";
 import { infraLinks } from "../utils/infraLinks";
 import { formatContextValue } from "../utils/logFormatting";
 
@@ -22,10 +23,40 @@ const timeRangeOptions = [
   { label: "24h", value: 1440 },
 ];
 
+export type TraceExplorerProps = {
+  initialService?: string;
+  lockedService?: boolean;
+  initialLookbackMinutes?: number;
+  showHeader?: boolean;
+  showServiceColumn?: boolean;
+  showPromote?: boolean;
+  showFacets?: boolean;
+  tableAriaLabel?: string;
+  tableMode?: "select" | "link";
+};
+
 export default function TraceSearch() {
-  const [service, setService] = useState(() => new URLSearchParams(window.location.search).get("service") ?? "");
+  return (
+    <TraceExplorer
+      initialService={new URLSearchParams(window.location.search).get("service") ?? ""}
+    />
+  );
+}
+
+export function TraceExplorer({
+  initialService = "",
+  lockedService = false,
+  initialLookbackMinutes = 60,
+  showHeader = true,
+  showServiceColumn = true,
+  showPromote = true,
+  showFacets = true,
+  tableAriaLabel,
+  tableMode = "select",
+}: TraceExplorerProps) {
+  const [service, setService] = useState(initialService);
   const { format } = useTimeDisplay();
-  const [lookbackMinutes, setLookbackMinutes] = useState(60);
+  const [lookbackMinutes, setLookbackMinutes] = useState(initialLookbackMinutes);
   const [selectedTraceId, setSelectedTraceId] = useState<string | undefined>();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [customRangeMs, setCustomRangeMs] = useState<{ fromMs: number; toMs: number } | null>(null);
@@ -77,7 +108,7 @@ export default function TraceSearch() {
   const selectedTrace = traces.find((t) => t.trace_id === selectedTraceId);
   const histogram = useMemo(
     () => {
-      if (histogramData?.buckets.length) {
+      if (histogramData?.buckets?.length) {
         return histogramFromApi(histogramData.buckets);
       }
       return buildTraceHistogram(traces, histogramFromMs, histogramToMs);
@@ -127,21 +158,25 @@ export default function TraceSearch() {
 
   return (
     <div className="page-stack">
-      <div className="page-header">
-        <div>
-          <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
-          <h1>Traces</h1>
+      {showHeader && (
+        <div className="page-header">
+          <div>
+            <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
+            <h1>Traces</h1>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="toolbar-row">
-        <Input
-          className="max-w-[360px]"
-          placeholder="Filter by service"
-          value={service}
-          onChange={(e) => setService(e.target.value)}
-          aria-label="Filter by service"
-        />
+        {!lockedService && (
+          <Input
+            className="max-w-[360px]"
+            placeholder="Filter by service"
+            value={service}
+            onChange={(e) => setService(e.target.value)}
+            aria-label="Filter by service"
+          />
+        )}
         {customRangeMs ? (
           <>
             <span className="text-xs whitespace-nowrap font-mono text-[var(--text-strong)]">
@@ -168,19 +203,23 @@ export default function TraceSearch() {
             ))}
           </Select>
         )}
-        {service && (
+        {service && !lockedService && (
           <Button variant="secondary" onClick={() => setService("")}>
             Clear filters
           </Button>
         )}
-        <Button onClick={handlePromote} disabled={saveStatus === "saving"}>
-          Promote to dashboard
-        </Button>
-        {saveStatus === "saved" && (
-          <span className="text-sm font-semibold text-[var(--good)]">Saved to dashboard</span>
-        )}
-        {saveStatus === "error" && (
-          <span className="text-sm font-semibold text-[var(--bad)]">Dashboard save failed</span>
+        {showPromote && (
+          <>
+            <Button onClick={handlePromote} disabled={saveStatus === "saving"}>
+              Promote to dashboard
+            </Button>
+            {saveStatus === "saved" && (
+              <span className="text-sm font-semibold text-[var(--good)]">Saved to dashboard</span>
+            )}
+            {saveStatus === "error" && (
+              <span className="text-sm font-semibold text-[var(--bad)]">Dashboard save failed</span>
+            )}
+          </>
         )}
       </div>
 
@@ -207,11 +246,13 @@ export default function TraceSearch() {
       )}
 
       <div className="flex items-start gap-3 max-[900px]:flex-col">
-        <FacetSidebar
-          facets={data?.facets}
-          onFacetClick={handleFacetClick}
-          ariaLabel="Trace facets"
-        />
+        {showFacets && (
+          <FacetSidebar
+            facets={data?.facets}
+            onFacetClick={handleFacetClick}
+            ariaLabel="Trace facets"
+          />
+        )}
 
         <TablePanel className="flex-1">
           {isLoading ? (
@@ -221,27 +262,14 @@ export default function TraceSearch() {
           ) : traces.length === 0 ? (
             <LoadingState>No traces found.</LoadingState>
           ) : (
-            <table aria-label="Trace results">
-              <thead>
-                <tr>
-                  <th>Trace ID</th>
-                  <th>Service</th>
-                  <th>Operation</th>
-                  <th>Duration</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {traces.map((t) => (
-                  <TraceRow
-                    key={t.trace_id}
-                    trace={t}
-                    selected={selectedTraceId === t.trace_id}
-                    onSelect={() => setSelectedTraceId(t.trace_id)}
-                  />
-                ))}
-              </tbody>
-            </table>
+            <TraceResultsTable
+              traces={traces}
+              selectedTraceId={selectedTraceId}
+              onSelectTrace={setSelectedTraceId}
+              mode={tableMode}
+              showServiceColumn={showServiceColumn}
+              ariaLabel={tableAriaLabel}
+            />
           )}
         </TablePanel>
 
@@ -250,40 +278,6 @@ export default function TraceSearch() {
         )}
       </div>
     </div>
-  );
-}
-
-function TraceRow({
-  trace,
-  selected,
-  onSelect,
-}: {
-  trace: TraceResponse;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  const root = trace.spans[0];
-  if (!root) return null;
-  return (
-    <tr className={`modern-table-row ${selected ? "bg-[var(--surface-subtle)]" : ""}`}>
-      <td className="strong-cell">
-        <button
-          type="button"
-          className="text-left text-[var(--brand)] bg-transparent border-0 p-0 font-inherit cursor-pointer hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
-          onClick={onSelect}
-        >
-          {trace.trace_id.substring(0, 16)}…
-        </button>
-      </td>
-      <td>{root.service_name}</td>
-      <td>{root.operation_name}</td>
-      <td>{(root.duration_ns / 1e6).toFixed(2)}ms</td>
-      <td>
-        <Badge tone={root.status_code === "ERROR" ? "bad" : "good"}>
-          {root.status_code}
-        </Badge>
-      </td>
-    </tr>
   );
 }
 

@@ -13,6 +13,7 @@ import { LoadingState } from "../components/ui/loading-state";
 import { Select, SelectOption } from "../components/ui/select";
 import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
+import { LogResultsTable } from "../features/signals/LogResultsTable";
 
 const timeRangeOptions = [
   { label: "15m", value: 15 },
@@ -31,10 +32,36 @@ const levelBarClasses: Record<OTelLevel, string> = {
   FATAL: "bg-[var(--bad)]",
 };
 
+export type LogExplorerProps = {
+  initialService?: string;
+  lockedService?: boolean;
+  initialLookbackMinutes?: number;
+  showHeader?: boolean;
+  showServiceColumn?: boolean;
+  showPromote?: boolean;
+  tableAriaLabel?: string;
+};
+
 export default function LogSearch() {
-  const [service, setService] = useState(() => new URLSearchParams(window.location.search).get("service") ?? "");
+  return (
+    <LogExplorer
+      initialService={new URLSearchParams(window.location.search).get("service") ?? ""}
+    />
+  );
+}
+
+export function LogExplorer({
+  initialService = "",
+  lockedService = false,
+  initialLookbackMinutes = 60,
+  showHeader = true,
+  showServiceColumn = true,
+  showPromote = true,
+  tableAriaLabel,
+}: LogExplorerProps) {
+  const [service, setService] = useState(initialService);
   const { format } = useTimeDisplay();
-  const [lookbackMinutes, setLookbackMinutes] = useState(60);
+  const [lookbackMinutes, setLookbackMinutes] = useState(initialLookbackMinutes);
   const [selectedLogId, setSelectedLogId] = useState<string | undefined>();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [customRangeMs, setCustomRangeMs] = useState<{ fromMs: number; toMs: number } | null>(null);
@@ -85,7 +112,10 @@ export default function LogSearch() {
   const logs = data?.logs ?? [];
   const selectedLog = logs.find((log) => log.log_id === selectedLogId);
   const histogram = useMemo(
-    () => histogramData ? histogramFromApi(histogramData.buckets) : buildLogHistogram([], histogramFromMs, histogramToMs),
+    () =>
+      histogramData?.buckets
+        ? histogramFromApi(histogramData.buckets)
+        : buildLogHistogram([], histogramFromMs, histogramToMs),
     [histogramData, histogramFromMs, histogramToMs],
   );
 
@@ -123,21 +153,25 @@ export default function LogSearch() {
 
   return (
     <div className="page-stack">
-      <div className="page-header">
-        <div>
-          <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
-          <h1>Logs</h1>
+      {showHeader && (
+        <div className="page-header">
+          <div>
+            <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
+            <h1>Logs</h1>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="toolbar-row">
-        <Input
-          className="max-w-[360px]"
-          placeholder="Filter by service"
-          value={service}
-          onChange={(e) => setService(e.target.value)}
-          aria-label="Filter by service"
-        />
+        {!lockedService && (
+          <Input
+            className="max-w-[360px]"
+            placeholder="Filter by service"
+            value={service}
+            onChange={(e) => setService(e.target.value)}
+            aria-label="Filter by service"
+          />
+        )}
         {customRangeMs ? (
           <>
             <span className="text-xs whitespace-nowrap font-mono text-[var(--text-strong)]">
@@ -164,19 +198,23 @@ export default function LogSearch() {
             ))}
           </Select>
         )}
-        {service && (
+        {service && !lockedService && (
           <Button variant="secondary" onClick={() => setService("")}>
             Clear filters
           </Button>
         )}
-        <Button onClick={handlePromote} disabled={saveStatus === "saving"}>
-          Promote to dashboard
-        </Button>
-        {saveStatus === "saved" && (
-          <span className="text-sm font-semibold text-[var(--good)]">Saved to dashboard</span>
-        )}
-        {saveStatus === "error" && (
-          <span className="text-sm font-semibold text-[var(--bad)]">Dashboard save failed</span>
+        {showPromote && (
+          <>
+            <Button onClick={handlePromote} disabled={saveStatus === "saving"}>
+              Promote to dashboard
+            </Button>
+            {saveStatus === "saved" && (
+              <span className="text-sm font-semibold text-[var(--good)]">Saved to dashboard</span>
+            )}
+            {saveStatus === "error" && (
+              <span className="text-sm font-semibold text-[var(--bad)]">Dashboard save failed</span>
+            )}
+          </>
         )}
       </div>
 
@@ -211,26 +249,14 @@ export default function LogSearch() {
           ) : logs.length === 0 ? (
             <LoadingState>No logs found.</LoadingState>
           ) : (
-            <table aria-label="Log results">
-              <thead>
-                <tr>
-                  <th aria-label="Time">Time</th>
-                  <th>Level</th>
-                  <th>Message</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((log) => (
-                  <LogRow
-                    key={log.log_id}
-                    log={log}
-                    format={format}
-                    selected={selectedLogId === log.log_id}
-                    onSelect={() => setSelectedLogId(log.log_id)}
-                  />
-                ))}
-              </tbody>
-            </table>
+            <LogResultsTable
+              logs={logs}
+              selectedLogId={selectedLogId}
+              onSelectLog={setSelectedLogId}
+              timeFormat={format}
+              showServiceColumn={showServiceColumn}
+              ariaLabel={tableAriaLabel}
+            />
           )}
         </TablePanel>
 
@@ -239,41 +265,6 @@ export default function LogSearch() {
         )}
       </div>
     </div>
-  );
-}
-
-function LogRow({
-  log,
-  format,
-  selected,
-  onSelect,
-}: {
-  log: LogRecord;
-  format: import("../lib/timeDisplay").TimeFormat;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  const severity = otelSeverity(log.severity_number);
-  const message = formatLogMessage(log.body);
-  return (
-    <tr className={`modern-table-row ${selected ? "bg-[var(--surface-subtle)]" : ""}`}>
-      <td className="whitespace-nowrap">{formatTimestamp(log.timestamp_unix_nano, format)}</td>
-      <td>
-        <Badge tone={severity.tone}>
-          {severity.label}
-        </Badge>
-      </td>
-      <td>
-        <button
-          type="button"
-          className="w-full text-left text-[var(--text)] bg-transparent border-0 p-0 font-inherit cursor-pointer hover:text-[var(--brand-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
-          aria-label={`Open log context for ${message}`}
-          onClick={onSelect}
-        >
-          {message}
-        </button>
-      </td>
-    </tr>
   );
 }
 
