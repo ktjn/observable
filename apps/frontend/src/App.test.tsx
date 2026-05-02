@@ -1013,6 +1013,67 @@ test("clicking a node enters focused mode", async () => {
   expect(screen.getByRole("link", { name: "→ Service detail" })).toBeInTheDocument();
 });
 
+test("focused service overview shows logs for the selected service", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/v1/topology")) {
+      return new Response(
+        JSON.stringify({
+          edges: [
+            {
+              caller: "checkout-api",
+              callee: "payments-api",
+              request_count: 100,
+              error_rate: 0.01,
+              p95_latency_ms: 45.0,
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    }
+    if (url.includes("/v1/logs/histogram")) {
+      return new Response(JSON.stringify({ buckets: [] }), { status: 200 });
+    }
+    if (url.includes("/v1/logs")) {
+      return new Response(
+        JSON.stringify({
+          logs: [
+            {
+              tenant_id: "00000000-0000-0000-0000-000000000001",
+              log_id: "00000000-0000-0000-0000-000000000111",
+              timestamp_unix_nano: "10",
+              severity_number: 9,
+              severity_text: "INFO",
+              body: "checkout overview log",
+              service_name: "checkout-api",
+            },
+          ],
+          total: 1,
+          facets: {},
+        }),
+        { status: 200 },
+      );
+    }
+    if (url.includes("/v1/environments")) {
+      return new Response(JSON.stringify({ items: ["prod"] }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ items: [] }), { status: 200 });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  window.history.pushState({}, "", "/service-overview");
+  render(<App />);
+
+  fireEvent.click(await screen.findByRole("button", { name: "checkout-api" }));
+
+  expect(await screen.findByText("checkout overview log")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith(
+    expect.stringContaining("/v1/logs?service=checkout-api&from="),
+    expect.anything(),
+  );
+});
+
 test("clicking a focused node returns to full graph", async () => {
   vi.stubGlobal(
     "fetch",
