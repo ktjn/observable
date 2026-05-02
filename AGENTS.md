@@ -45,11 +45,12 @@ You **MUST** run `bash scripts/local-ci.sh` before pushing **ANY** code changes.
 
 **Note:** Pure documentation changes (files under `docs/`, `spec/`, or any `.md` files) are exempt.
 
-`scripts/local-ci.sh` runs: Rust fmt, clippy, tests, frontend typecheck/lint/build/test, Docker image build, and smoke test.
+`scripts/local-ci.sh` runs: Rust fmt, clippy, tests, frontend typecheck/lint/build/test, Helm lint, Docker image build, and smoke test.
 
 Use flags to skip stages when Docker or Node are unavailable:
 - `--skip-docker` — skip image build and smoke test
 - `--skip-frontend` — skip all npm checks
+- `--skip-helm` — skip Helm chart lint
 - `--skip-smoke` — build image but skip smoke test
 
 If any check fails, you **MUST** fix it before pushing.
