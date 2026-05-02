@@ -125,7 +125,7 @@ export function LogExplorer({
 
   return (
     <SignalExplorer
-      title="Log"
+      title="Logs"
       service={service}
       onServiceChange={(s) => { setService(s); }}
       lookbackMinutes={lookbackMinutes}

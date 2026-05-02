@@ -98,7 +98,7 @@ test("queries logs using the selected time range", async () => {
 
   await waitFor(() => expect(searchLogs).toHaveBeenCalledWith(expect.objectContaining({ from: expect.any(String) })));
 
-  fireEvent.change(screen.getByLabelText("Log time range"), { target: { value: "360" } });
+  fireEvent.change(screen.getByLabelText("Logs time range"), { target: { value: "360" } });
 
   await waitFor(() => expect(searchLogs).toHaveBeenLastCalledWith(expect.objectContaining({ from: expect.any(String) })));
 });
@@ -205,7 +205,7 @@ test("histogram reset range button restores lookback query", async () => {
 
   // Dropdown restored, "Reset range" gone
   await waitFor(() => {
-    expect(screen.getByLabelText("Log time range")).toBeInTheDocument();
+    expect(screen.getByLabelText("Logs time range")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Reset range" })).not.toBeInTheDocument();
   });
 
