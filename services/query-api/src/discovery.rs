@@ -26,6 +26,7 @@ pub struct SummaryParams {
 pub struct TopologyParams {
     pub environment: Option<String>,
     pub from: Option<DateTime<Utc>>,
+    #[allow(dead_code)]
     pub to: Option<DateTime<Utc>>,
     pub service: Option<String>,
 }

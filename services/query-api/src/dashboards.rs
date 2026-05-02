@@ -167,7 +167,13 @@ pub async fn create_dashboard(
         .bind(row.dashboard_id)
         .bind(panel.title.trim())
         .bind(&panel.query_kind)
-        .bind(panel.service.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()))
+        .bind(
+            panel
+                .service
+                .as_ref()
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty()),
+        )
         .bind(panel.preset.as_deref())
         .bind(&panel.filters)
         .bind(position as i32)
