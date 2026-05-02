@@ -168,6 +168,18 @@ pub struct NlqQueryRequest {
     /// Optional service scope. If provided, a `service_name = <value>` filter is enforced
     /// on the generated IR regardless of what the LLM emits.
     pub service_name: Option<String>,
+    /// Execution mode. `execute` preserves the existing NLQ behavior; `interpret`
+    /// returns a validated IR without running the MCP query.
+    #[serde(default)]
+    pub mode: NlqQueryMode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum NlqQueryMode {
+    #[default]
+    Execute,
+    Interpret,
 }
 
 #[derive(Debug, Serialize)]
@@ -176,6 +188,9 @@ pub struct NlqQueryRequest {
 pub enum NlqQueryResponse {
     Frame {
         frame: VisualizationFrame,
+    },
+    Ir {
+        ir: NlqIr,
     },
     Decline {
         reason: String,
@@ -203,6 +218,12 @@ pub(crate) enum NlqIrOrDecline {
     Ir(NlqIr),
     Decline { reason: String },
     Capabilities,
+}
+
+#[derive(Debug)]
+pub(crate) enum UserQueryInput {
+    RawIr(Box<NlqIr>),
+    NaturalLanguage,
 }
 
 // ── Server-side deny gate ─────────────────────────────────────────────────────
@@ -908,6 +929,22 @@ pub(crate) fn parse_llm_response(json: &str) -> Result<NlqIrOrDecline, LlmAdapte
     }
 }
 
+pub(crate) fn parse_user_query_input(input: &str) -> Result<UserQueryInput, LlmAdapterError> {
+    let trimmed = input.trim();
+    if trimmed.starts_with('{') {
+        let mut ir_val: serde_json::Value = serde_json::from_str(trimmed).map_err(|e| {
+            LlmAdapterError::InvalidResponse(format!("raw NLQ IR JSON is invalid: {e}"))
+        })?;
+        patch_null_time_range(&mut ir_val);
+        normalize_nlq_ir(&mut ir_val);
+        let ir = serde_json::from_value::<NlqIr>(ir_val).map_err(|e| {
+            LlmAdapterError::InvalidResponse(format!("raw NLQ IR JSON is invalid: {e}"))
+        })?;
+        return Ok(UserQueryInput::RawIr(Box::new(ir)));
+    }
+    Ok(UserQueryInput::NaturalLanguage)
+}
+
 // ── Service scope enforcement ─────────────────────────────────────────────────
 
 /// Patches a JSON IR value in-place to replace null `time_range.from` / `time_range.to`
@@ -1113,6 +1150,15 @@ pub async fn run_nlq_pipeline(
         }
     }
 
+    if req.mode == NlqQueryMode::Interpret {
+        tracing::info!(
+            tenant_id = %tenant_id,
+            operation = ?ir.operation,
+            "NLQ interpreted to IR without execution"
+        );
+        return Ok(NlqQueryResponse::Ir { ir });
+    }
+
     tracing::debug!(
         tenant_id = %tenant_id,
         operation = ?ir.operation,
@@ -1158,6 +1204,42 @@ pub async fn handle_nlq_query(
     Extension(ctx): Extension<TenantContext>,
     Json(req): Json<NlqQueryRequest>,
 ) -> Result<Json<NlqQueryResponse>, (StatusCode, Json<serde_json::Value>)> {
+    if req.question.trim().is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "question is required"})),
+        ));
+    }
+
+    match parse_user_query_input(&req.question) {
+        Ok(UserQueryInput::RawIr(ir)) => {
+            let mut ir = *ir;
+            if let Some(svc) = &req.service_name {
+                enforce_service_scope(&mut ir, svc);
+            }
+            if req.mode == NlqQueryMode::Interpret {
+                return Ok(Json(NlqQueryResponse::Ir { ir }));
+            }
+            return match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
+                Ok(frame) => Ok(Json(NlqQueryResponse::Frame { frame })),
+                Err(e) => {
+                    tracing::error!(error = %e, tenant_id = %ctx.tenant_id, "raw IR MCP query failed");
+                    Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({"error": "query execution failed"})),
+                    ))
+                }
+            };
+        }
+        Ok(UserQueryInput::NaturalLanguage) => {}
+        Err(e) => {
+            return Err((
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({"error": e.to_string()})),
+            ));
+        }
+    }
+
     // Resolve the LLM caller: prefer pre-built caller in AppState (from env var at startup),
     // fall back to constructing one from the DB-stored config at call time.
     //
@@ -1202,13 +1284,6 @@ pub async fn handle_nlq_query(
         ));
         db_caller.as_ref().unwrap()
     };
-
-    if req.question.trim().is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "question is required"})),
-        ));
-    }
 
     match run_nlq_pipeline(&state.db, &state.ch, llm, ctx.tenant_id, &req).await {
         Ok(response) => Ok(Json(response)),
@@ -1509,6 +1584,63 @@ mod tests {
             ),
             "unrecognised operation name must still yield InvalidResponse"
         );
+    }
+
+    #[test]
+    fn parse_user_query_input_detects_raw_ir_json() {
+        let raw = r#"{
+            "operation": "catalog",
+            "signals": ["metrics"],
+            "catalog_field": "service_name",
+            "time_range": {"from": "now-24h", "to": "now"}
+        }"#;
+
+        match parse_user_query_input(raw).expect("raw IR JSON should parse") {
+            UserQueryInput::RawIr(ir) => {
+                assert_eq!(ir.operation, NlqOperation::Catalog);
+                assert_eq!(ir.catalog_field.as_deref(), Some("service_name"));
+            }
+            UserQueryInput::NaturalLanguage => panic!("expected raw IR"),
+        }
+    }
+
+    #[test]
+    fn parse_user_query_input_keeps_plain_text_as_natural_language() {
+        match parse_user_query_input("show p99 latency for checkout").unwrap() {
+            UserQueryInput::NaturalLanguage => {}
+            UserQueryInput::RawIr(_) => panic!("expected natural language"),
+        }
+    }
+
+    #[test]
+    fn parse_user_query_input_rejects_malformed_json_like_input() {
+        let result = parse_user_query_input(r#"{"operation":"catalog""#);
+        assert!(
+            matches!(result, Err(LlmAdapterError::InvalidResponse(_))),
+            "malformed JSON that looks like IR must not fall through to LLM"
+        );
+    }
+
+    #[test]
+    fn raw_ir_service_scope_is_enforced() {
+        let raw = r#"{
+            "operation": "timeseries",
+            "signals": ["metrics"],
+            "metric": "request_duration_ms",
+            "filters": [],
+            "time_range": {"from": "now-1h", "to": "now"}
+        }"#;
+
+        let mut ir = match parse_user_query_input(raw).unwrap() {
+            UserQueryInput::RawIr(ir) => *ir,
+            UserQueryInput::NaturalLanguage => panic!("expected raw IR"),
+        };
+        enforce_service_scope(&mut ir, "checkout-api");
+
+        assert!(ir
+            .filters
+            .iter()
+            .any(|f| f.field == "service_name" && f.value == "checkout-api"));
     }
 
     #[test]

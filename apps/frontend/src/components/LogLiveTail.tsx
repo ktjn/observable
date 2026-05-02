@@ -3,10 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { tailLogs } from "../api/logs";
 import type { LogRecord } from "../api/logs";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import { formatLogMessage, getSeverityColor } from "../utils/logFormatting";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { useTimeDisplay } from "../lib/timeDisplay";
+import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
+import { deriveViewFiltersFromIr } from "../features/nlq/queryFilters";
 
 const POLL_INTERVAL_MS = 1000;
 const MAX_LOGS = 200;
@@ -55,12 +56,13 @@ export function LogLiveTail() {
         >
           {enabled ? "Pause" : "Resume"}
         </Button>
-        <Input
-          aria-label="Live log service filter"
-          placeholder="Filter by service"
-          value={service}
-          onChange={(event) => setService(event.target.value)}
-          className="w-[260px]"
+        <QueryFilterInput
+          surface="live-logs"
+          placeholder='Filter live logs, e.g. "checkout service" or raw NLQ IR JSON'
+          onIr={(ir) => {
+            const filters = deriveViewFiltersFromIr(ir, "live-logs");
+            setService(filters.service ?? filters.text ?? "");
+          }}
         />
         <span aria-live="polite" className="text-sm text-[var(--muted)]">
           {enabled ? "Tailing every 1s" : "Paused"}

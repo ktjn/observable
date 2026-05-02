@@ -49,6 +49,9 @@ export interface GlobalDateRange {
 export function useGlobalDateRange(): GlobalDateRange {
   const search = useSearch({ strict: false }) as RootSearch;
   const navigate = useNavigate();
+  const updateSearch = (nextSearch: RootSearch) => {
+    navigate({ search: nextSearch } as unknown as Parameters<typeof navigate>[0]);
+  };
 
   const isCustom = search.from != null && search.to != null;
   const preset: Preset | null = isCustom ? null : (search.preset ?? "1h");
@@ -56,33 +59,27 @@ export function useGlobalDateRange(): GlobalDateRange {
   const { fromMs, toMs } = useMemo(() => deriveRange(search), [search.preset, search.from, search.to]);
 
   function setPreset(p: Preset) {
-    navigate({
-      search: {
-        preset: p,
-        from: undefined,
-        to: undefined,
-      },
-    } as any);
+    updateSearch({
+      preset: p,
+      from: undefined,
+      to: undefined,
+    });
   }
 
   function setCustomRange(from: number, to: number) {
-    navigate({
-      search: {
-        preset: undefined,
-        from,
-        to,
-      },
-    } as any);
+    updateSearch({
+      preset: undefined,
+      from,
+      to,
+    });
   }
 
   function clearCustomRange() {
-    navigate({
-      search: {
-        preset: "1h",
-        from: undefined,
-        to: undefined,
-      },
-    } as any);
+    updateSearch({
+      preset: "1h",
+      from: undefined,
+      to: undefined,
+    });
   }
 
   return { preset, fromMs, toMs, setPreset, setCustomRange, clearCustomRange };

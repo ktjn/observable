@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from "react";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
+import { QueryFilterInput } from "../../features/nlq/QueryFilterInput";
+import { deriveViewFiltersFromIr, type QuerySurface } from "../../features/nlq/queryFilters";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -11,6 +12,7 @@ export interface SignalExplorerProps {
   lockedService?: boolean;
   showHeader?: boolean;
   showPromote?: boolean;
+  querySurface?: Extract<QuerySurface, "logs" | "traces">;
   saveStatus: SaveStatus;
   onPromote: () => void;
   histogram: ReactNode;
@@ -25,6 +27,7 @@ export function SignalExplorer({
   lockedService = false,
   showHeader = true,
   showPromote = true,
+  querySurface = "logs",
   saveStatus,
   onPromote,
   histogram,
@@ -55,12 +58,13 @@ export function SignalExplorer({
 
       <div className="toolbar-row">
         {!lockedService && (
-          <Input
-            className="max-w-[360px]"
-            placeholder="Filter by service"
-            value={service}
-            onChange={(e) => handleServiceChange(e.target.value)}
-            aria-label="Filter by service"
+          <QueryFilterInput
+            surface={querySurface}
+            placeholder={`Filter ${title.toLowerCase()} with NLQ or raw NLQ IR JSON`}
+            onIr={(ir) => {
+              const filters = deriveViewFiltersFromIr(ir, querySurface);
+              handleServiceChange(filters.service ?? filters.text ?? "");
+            }}
           />
         )}
         {service && !lockedService && (

@@ -351,7 +351,7 @@ test("renders the service detail overview with performance entry points", async 
 });
 
 test("renders service metrics workspace with filtering and selected series points", async () => {
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
 
     if (url.includes("/v1/services/checkout/summary")) {
@@ -409,6 +409,26 @@ test("renders service metrics workspace with filtering and selected series point
       );
     }
 
+    if (url.includes("/v1/nlq")) {
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      const metric = String(body.question).includes("requests")
+        ? "checkout.requests"
+        : "checkout.latency";
+      return new Response(
+        JSON.stringify({
+          type: "ir",
+          ir: {
+            operation: "timeseries",
+            signals: ["metrics"],
+            metric,
+            filters: [],
+            time_range: { from: "now-1h", to: "now" },
+          },
+        }),
+        { status: 200 },
+      );
+    }
+
     if (url.includes("/v1/metrics")) {
       return new Response(
         JSON.stringify({
@@ -456,15 +476,18 @@ test("renders service metrics workspace with filtering and selected series point
   expect(screen.getByText("2 types")).toBeInTheDocument();
   expect(screen.getByText("2 envs")).toBeInTheDocument();
 
-  fireEvent.change(screen.getByLabelText("Metric name filter"), {
-    target: { value: "latency" },
+  fireEvent.change(screen.getByRole("textbox", { name: "Query current view input" }), {
+    target: { value: "latency metrics" },
   });
-  expect(screen.queryByText("checkout.requests")).not.toBeInTheDocument();
+  fireEvent.submit(screen.getByRole("form", { name: "Query current view" }));
+  await waitFor(() => expect(screen.queryByText("checkout.requests")).not.toBeInTheDocument());
   expect(screen.getByText("checkout.latency")).toBeInTheDocument();
 
-  fireEvent.change(screen.getByLabelText("Metric name filter"), {
-    target: { value: "" },
+  fireEvent.change(screen.getByRole("textbox", { name: "Query current view input" }), {
+    target: { value: "requests metrics" },
   });
+  fireEvent.submit(screen.getByRole("form", { name: "Query current view" }));
+  await screen.findByText("checkout.requests");
   fireEvent.click(screen.getByRole("button", { name: "Select checkout.requests" }));
 
   expect(await screen.findByText("Selected series")).toBeInTheDocument();
@@ -578,6 +601,21 @@ test("filters the infrastructure inventory by entity type", async () => {
         );
       }
 
+      if (url.includes("/v1/nlq")) {
+        return new Response(
+          JSON.stringify({
+            type: "ir",
+            ir: {
+              operation: "catalog",
+              signals: ["metrics"],
+              filters: [{ field: "entity_type", op: "=", value: "host" }],
+              time_range: { from: "now-1h", to: "now" },
+            },
+          }),
+          { status: 200 },
+        );
+      }
+
       if (url.includes("/v1/environments")) {
         return new Response(JSON.stringify({ items: ["prod"] }), { status: 200 });
       }
@@ -590,11 +628,12 @@ test("filters the infrastructure inventory by entity type", async () => {
   render(<App />);
 
   await screen.findByText("checkout-pod-1");
-  fireEvent.change(screen.getByLabelText("Infrastructure type filter"), {
-    target: { value: "host" },
+  fireEvent.change(screen.getByRole("textbox", { name: "Query current view input" }), {
+    target: { value: "host infrastructure" },
   });
+  fireEvent.submit(screen.getByRole("form", { name: "Query current view" }));
 
-  expect(screen.queryByText("checkout-pod-1")).not.toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByText("checkout-pod-1")).not.toBeInTheDocument());
   expect(screen.getByText("ip-10-0-0-12")).toBeInTheDocument();
 });
 

@@ -129,6 +129,7 @@ export function TraceExplorer({
       lockedService={lockedService}
       showHeader={showHeader}
       showPromote={showPromote}
+      querySurface="traces"
       saveStatus={saveStatus}
       onPromote={handlePromote}
       histogram={

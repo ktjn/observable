@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { listEnvironments } from "../api/services";
 import {
   listInfrastructure,
   type InfrastructureEntitySummary,
@@ -10,33 +9,20 @@ import {
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { Badge } from "../components/ui/badge";
-import { Input } from "../components/ui/input";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
-import { Select, SelectOption } from "../components/ui/select";
 import { TablePanel } from "../components/ui/table-panel";
+import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
+import { deriveViewFiltersFromIr } from "../features/nlq/queryFilters";
 
 type InfrastructureTypeFilter = "all" | InfrastructureEntityType;
-
-const infrastructureTypeOptions: InfrastructureTypeFilter[] = [
-  "all",
-  "host",
-  "cluster",
-  "namespace",
-  "pod",
-  "container",
-];
 
 export default function InfrastructureInventoryPage() {
   const [environment, setEnvironment] = useState("all");
   const [entityType, setEntityType] = useState<InfrastructureTypeFilter>("all");
+  const [healthFilter, setHealthFilter] = useState("all");
   const [search, setSearch] = useState("");
   const { format } = useTimeDisplay();
-
-  const { data: environments } = useQuery({
-    queryKey: ["environments"],
-    queryFn: () => listEnvironments(),
-  });
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["infrastructure"],
@@ -44,10 +30,11 @@ export default function InfrastructureInventoryPage() {
   });
 
   const filteredItems = useMemo(() => {
-    const searchValue = search.trim().toLowerCase();
+      const searchValue = search.trim().toLowerCase();
     return (data?.items ?? []).filter((item) => {
       const matchesType = entityType === "all" || item.entity_type === entityType;
       const matchesEnvironment = environment === "all" || item.environment === environment;
+      const matchesHealth = healthFilter === "all" || item.health_state === healthFilter;
       const matchesSearch =
         searchValue.length === 0 ||
         item.display_name.toLowerCase().includes(searchValue) ||
@@ -55,9 +42,9 @@ export default function InfrastructureInventoryPage() {
         item.parent_display_name?.toLowerCase().includes(searchValue) === true ||
         item.related_services.some((service) => service.toLowerCase().includes(searchValue));
 
-      return matchesType && matchesEnvironment && matchesSearch;
+      return matchesType && matchesEnvironment && matchesHealth && matchesSearch;
     });
-  }, [data, environment, entityType, search]);
+  }, [data, environment, entityType, healthFilter, search]);
 
   const summary = useMemo(() => summarizeInfrastructure(filteredItems), [filteredItems]);
 
@@ -71,36 +58,17 @@ export default function InfrastructureInventoryPage() {
       </div>
 
       <div className="toolbar-row">
-        <Input
-          className="max-w-[360px]"
-          aria-label="Search infrastructure"
-          placeholder="Search infrastructure"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
+        <QueryFilterInput
+          surface="infrastructure"
+          placeholder='Filter infrastructure, e.g. "prod pods for checkout in breach" or raw NLQ IR JSON'
+          onIr={(ir) => {
+            const filters = deriveViewFiltersFromIr(ir, "infrastructure");
+            setSearch(filters.text ?? filters.service ?? "");
+            setEnvironment(filters.environment ?? "all");
+            setEntityType((filters.entityType as InfrastructureTypeFilter | undefined) ?? "all");
+            setHealthFilter(filters.health ?? "all");
+          }}
         />
-        <Select
-          aria-label="Infrastructure type filter"
-          value={entityType}
-          onChange={(event) => setEntityType(event.target.value as InfrastructureTypeFilter)}
-        >
-          {infrastructureTypeOptions.map((option) => (
-            <SelectOption key={option} value={option}>
-              {option === "all" ? "All types" : option}
-            </SelectOption>
-          ))}
-        </Select>
-        <Select
-          aria-label="Environment filter"
-          value={environment}
-          onChange={(event) => setEnvironment(event.target.value)}
-        >
-          <SelectOption value="all">All environments</SelectOption>
-          {environments?.items.map((env) => (
-            <SelectOption key={env} value={env}>
-              {env}
-            </SelectOption>
-          ))}
-        </Select>
       </div>
 
       <div

@@ -1,14 +1,14 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { listEnvironments, listServiceSummaries, type ServiceSummary } from "../api/services";
+import { listServiceSummaries, type ServiceSummary } from "../api/services";
 import { Badge } from "../components/ui/badge";
-import { Input } from "../components/ui/input";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
-import { Select, SelectOption } from "../components/ui/select";
 import { Toolbar } from "../components/ui/toolbar";
+import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
+import { deriveViewFiltersFromIr } from "../features/nlq/queryFilters";
 
 export function ProductAreaPage() {
   const [environment, setEnvironment] = useState<string>("all");
@@ -16,11 +16,6 @@ export function ProductAreaPage() {
   const [healthFilter, setHealthFilter] = useState("all");
   const [sortBy, setSortBy] = useState<keyof ServiceSummary | "health">("service_name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-
-  const { data: envsData } = useQuery({
-    queryKey: ["environments"],
-    queryFn: () => listEnvironments(),
-  });
 
   const { data: servicesData, isLoading } = useQuery({
     queryKey: ["services", environment],
@@ -98,35 +93,16 @@ export function ProductAreaPage() {
       </div>
 
       <Toolbar aria-label="Service filters">
-        <Input
-          className="max-w-[360px]"
-          placeholder="Search services"
-          aria-label="Search services"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
+        <QueryFilterInput
+          surface="services"
+          placeholder='Filter services, e.g. "prod checkout services in watch" or raw NLQ IR JSON'
+          onIr={(ir) => {
+            const filters = deriveViewFiltersFromIr(ir, "services");
+            setSearch(filters.text ?? "");
+            setEnvironment(filters.environment ?? "all");
+            setHealthFilter(filters.health ?? "all");
+          }}
         />
-        <Select
-          aria-label="Environment filter"
-          value={environment}
-          onChange={(event) => setEnvironment(event.target.value)}
-        >
-          <SelectOption value="all">All environments</SelectOption>
-          {envsData?.items.map((env) => (
-            <SelectOption key={env} value={env}>
-              {env}
-            </SelectOption>
-          ))}
-        </Select>
-        <Select
-          aria-label="Health filter"
-          value={healthFilter}
-          onChange={(event) => setHealthFilter(event.target.value)}
-        >
-          <SelectOption value="all">All health</SelectOption>
-          <SelectOption value="healthy">Healthy</SelectOption>
-          <SelectOption value="watch">Watch</SelectOption>
-          <SelectOption value="breach">Breach</SelectOption>
-        </Select>
       </Toolbar>
 
       <div
