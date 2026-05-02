@@ -11,6 +11,7 @@ from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExp
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
 from opentelemetry.instrumentation.pika import PikaInstrumentor
+from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
@@ -41,67 +42,98 @@ metric_reader = PeriodicExportingMetricReader(
 meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
 metrics.set_meter_provider(meter_provider)
 meter = metrics.get_meter("shop-worker")
-order_duration_gauge = meter.create_gauge(
+order_duration_histogram = meter.create_histogram(
     "order_processing_duration_ms",
     unit="ms",
     description="Order processing duration in milliseconds",
 )
+orders_processed_counter = meter.create_counter(
+    "shop.orders.processed_total",
+    unit="1",
+    description="Total orders processed by the worker",
+)
 
 LoggingInstrumentor().instrument(set_logging_format=True)
 PikaInstrumentor().instrument()
+Psycopg2Instrumentor().instrument()
 
 AMQP_URL = os.getenv("AMQP_URL", "amqp://shop:shop@shop-queue:5672/")
 DB_DSN = os.getenv("DATABASE_URL", "postgresql://shop:shop@shop-db:5432/shop")
 
+_db: psycopg2.extensions.connection | None = None
 
-def get_db():
-    for attempt in range(20):
-        try:
-            return psycopg2.connect(DB_DSN)
-        except Exception:
-            log.warning("DB not ready, retrying (%d/20)", attempt + 1)
-            time.sleep(3)
-    raise RuntimeError("could not connect to database")
+
+def get_db() -> psycopg2.extensions.connection:
+    global _db
+    if _db is None or _db.closed:
+        for attempt in range(20):
+            try:
+                _db = psycopg2.connect(DB_DSN)
+                log.info("connected to database")
+                return _db
+            except Exception:
+                log.warning("DB not ready, retrying (%d/20)", attempt + 1)
+                time.sleep(3)
+        raise RuntimeError("could not connect to database")
+    return _db
 
 
 def process_order(ch, method, properties, body):
     with tracer.start_as_current_span("worker.process_order") as span:
         t0 = time.monotonic()
+        status = "failed"
         try:
             payload = json.loads(body)
             order_id = payload["order_id"]
+            product_id = payload.get("product_id")
             span.set_attribute("order.id", order_id)
+            if product_id:
+                span.set_attribute("order.product_id", product_id)
 
             delay = random.uniform(0.5, 2.0)
             time.sleep(delay)
 
-            db = get_db()
-            cur = db.cursor()
-            cur.execute("UPDATE orders SET status = 'processed' WHERE id = %s", (order_id,))
-            db.commit()
-            cur.close()
-            db.close()
+            conn = get_db()
+            cur = conn.cursor()
 
-            duration_ms = (time.monotonic() - t0) * 1000.0
-            order_duration_gauge.set(
-                duration_ms,
-                attributes={"service.name": "shop-worker", "order.status": "processed"},
+            cur.execute(
+                "SELECT id, user_id, product_id, total, status FROM orders WHERE id = %s",
+                (order_id,),
             )
+            row = cur.fetchone()
+            if row is None:
+                raise ValueError(f"order {order_id} not found in database")
+
+            cur.execute(
+                "UPDATE orders SET status = 'processed' WHERE id = %s AND status = 'pending'",
+                (order_id,),
+            )
+            conn.commit()
+            cur.close()
+
+            status = "processed"
+            duration_ms = (time.monotonic() - t0) * 1000.0
+            order_duration_histogram.record(duration_ms, {"order.status": status})
+            orders_processed_counter.add(1, {"order.status": status})
             ch.basic_ack(delivery_tag=method.delivery_tag)
             log.info("order processed order_id=%d delay=%.2fs", order_id, delay)
+
         except Exception as exc:
             span.record_exception(exc)
             span.set_attribute("error", True)
             duration_ms = (time.monotonic() - t0) * 1000.0
-            order_duration_gauge.set(
-                duration_ms,
-                attributes={"service.name": "shop-worker", "order.status": "failed"},
-            )
+            order_duration_histogram.record(duration_ms, {"order.status": status})
+            orders_processed_counter.add(1, {"order.status": status})
             log.error("failed to process order: %s", exc)
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
+            global _db
+            _db = None
+
 
 def main():
+    get_db()
+
     for attempt in range(30):
         try:
             params = pika.URLParameters(AMQP_URL)

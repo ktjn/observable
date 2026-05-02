@@ -84,7 +84,10 @@
       "Bash(dir *)",
       "PowerShell(git *)",
       "PowerShell(New-Item *)",
-      "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")"
+      "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\git\\\\Observable\" -Directory)",
+      "Bash(Select-Object -ExpandProperty Name)",
+      "PowerShell(head *)"
     ]
   }
 }

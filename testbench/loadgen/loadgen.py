@@ -82,10 +82,12 @@ set_logger_provider(log_provider)
 LoggingInstrumentor().instrument(set_logging_format=True)
 
 SCENARIOS = [
-    ("browse_products", 40),
+    ("browse_products", 30),
     ("place_order", 30),
-    ("user_lookup", 20),
-    ("error_path", 10),
+    ("user_lookup", 15),
+    ("check_inventory", 15),
+    ("restock", 5),
+    ("error_path", 5),
 ]
 _weights = [w for _, w in SCENARIOS]
 _names = [n for n, _ in SCENARIOS]
@@ -115,6 +117,8 @@ def run_place_order(client: httpx.Client):
         span.set_attribute("http.status_code", resp.status_code)
         if resp.status_code == 201:
             log.info("place_order product_id=%d order_id=%s", product_id, resp.json().get("order_id"))
+        elif resp.status_code == 409:
+            log.warning("place_order rejected product_id=%d reason=out_of_stock", product_id)
         else:
             log.warning("place_order failed product_id=%d status=%d", product_id, resp.status_code)
         request_counter.add(1, {"scenario": "place_order"})
@@ -130,10 +134,35 @@ def run_user_lookup(client: httpx.Client):
         request_counter.add(1, {"scenario": "user_lookup"})
 
 
+def run_check_inventory(client: httpx.Client):
+    with tracer.start_as_current_span("loadgen.scenario.check_inventory") as span:
+        resp = client.get(f"{API_URL}/inventory")
+        span.set_attribute("http.status_code", resp.status_code)
+        if resp.status_code == 200:
+            items = resp.json()
+            low_stock = [i for i in items if i["quantity"] < 10]
+            span.set_attribute("inventory.items_total", len(items))
+            span.set_attribute("inventory.items_low_stock", len(low_stock))
+            log.info("check_inventory items=%d low_stock=%d", len(items), len(low_stock))
+        request_counter.add(1, {"scenario": "check_inventory"})
+
+
+def run_restock(client: httpx.Client):
+    product_id = random.choice(PRODUCT_IDS)
+    with tracer.start_as_current_span("loadgen.scenario.restock") as span:
+        span.set_attribute("product.id", product_id)
+        resp = client.post(f"{API_URL}/inventory/restock/{product_id}")
+        span.set_attribute("http.status_code", resp.status_code)
+        if resp.status_code == 200:
+            new_qty = resp.json().get("quantity")
+            span.set_attribute("inventory.quantity_after", new_qty)
+            log.info("restock product_id=%d new_quantity=%d", product_id, new_qty)
+        request_counter.add(1, {"scenario": "restock"})
+
+
 def run_error_path(client: httpx.Client):
     with tracer.start_as_current_span("loadgen.scenario.error_path") as span:
         span.set_attribute("error.intentional", True)
-        # Request a product ID that doesn't exist
         bad_id = random.randint(9000, 9999)
         resp = client.get(f"{API_URL}/products/{bad_id}")
         span.set_attribute("http.status_code", resp.status_code)
@@ -148,6 +177,8 @@ RUNNERS = {
     "browse_products": run_browse_products,
     "place_order": run_place_order,
     "user_lookup": run_user_lookup,
+    "check_inventory": run_check_inventory,
+    "restock": run_restock,
     "error_path": run_error_path,
 }
 

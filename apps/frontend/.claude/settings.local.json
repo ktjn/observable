@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash scripts/local-ci.sh --skip-docker)",
+      "Bash(docker compose *)",
+      "PowerShell(docker compose *)",
+      "PowerShell(git *)",
+      "PowerShell(docker build *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\git\\\\Observable\\\\services\\\\ingest-gateway\" -Recurse -File -Name)"
+    ]
+  }
+}

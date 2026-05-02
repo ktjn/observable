@@ -26,6 +26,11 @@ data:
       status     TEXT NOT NULL DEFAULT 'pending',
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    CREATE TABLE IF NOT EXISTS inventory (
+      product_id INTEGER PRIMARY KEY REFERENCES products(id),
+      quantity   INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
     INSERT INTO products (name, price) VALUES
       ('Widget A', 9.99), ('Widget B', 14.99), ('Gadget X', 49.99),
       ('Gadget Y', 79.99), ('Thingamajig', 4.99),
@@ -38,6 +43,9 @@ data:
       ('Carol', 'carol@testbench.local'),
       ('Dave', 'dave@testbench.local'),
       ('Eve', 'eve@testbench.local')
+    ON CONFLICT DO NOTHING;
+    INSERT INTO inventory (product_id, quantity)
+    SELECT id, 50 FROM products
     ON CONFLICT DO NOTHING;
 ---
 apiVersion: v1

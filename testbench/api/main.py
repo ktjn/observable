@@ -24,7 +24,6 @@ log = logging.getLogger("shop-api")
 
 OTLP_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
 
-# OTel setup
 resource = Resource.create({
     "service.name": "shop-api",
     "service.version": os.getenv("SERVICE_VERSION", "0.1.0"),
@@ -48,6 +47,11 @@ request_duration_histogram = meter.create_histogram(
     "request_duration_ms",
     unit="ms",
     description="HTTP request duration in milliseconds",
+)
+stock_out_counter = meter.create_counter(
+    "shop.orders.stock_out_total",
+    unit="1",
+    description="Orders rejected due to insufficient inventory",
 )
 
 LoggingInstrumentor().instrument(set_logging_format=True)
@@ -150,14 +154,37 @@ async def place_order(body: dict):
             raise HTTPException(status_code=400, detail="product_id required")
 
         async with _pool.acquire() as conn:
-            product = await conn.fetchrow("SELECT id, price FROM products WHERE id = $1", product_id)
-            if not product:
-                span.set_attribute("error", True)
-                raise HTTPException(status_code=404, detail="product not found")
-            order_id = await conn.fetchval(
-                "INSERT INTO orders (user_id, product_id, total, status) VALUES ($1, $2, $3, 'pending') RETURNING id",
-                user_id, product_id, product["price"],
-            )
+            async with conn.transaction():
+                product = await conn.fetchrow(
+                    "SELECT id, price FROM products WHERE id = $1", product_id
+                )
+                if not product:
+                    span.set_attribute("error", True)
+                    raise HTTPException(status_code=404, detail="product not found")
+
+                inv = await conn.fetchrow(
+                    "SELECT quantity FROM inventory WHERE product_id = $1 FOR UPDATE",
+                    product_id,
+                )
+                quantity = inv["quantity"] if inv else 0
+                span.set_attribute("inventory.quantity_before", quantity)
+
+                if quantity < 1:
+                    span.set_attribute("inventory.stock_out", True)
+                    stock_out_counter.add(1, {"product_id": str(product_id)})
+                    log.warning("order rejected product_id=%d reason=out_of_stock", product_id)
+                    raise HTTPException(status_code=409, detail="out of stock")
+
+                await conn.execute(
+                    "UPDATE inventory SET quantity = quantity - 1, updated_at = now() WHERE product_id = $1",
+                    product_id,
+                )
+                span.set_attribute("inventory.quantity_after", quantity - 1)
+
+                order_id = await conn.fetchval(
+                    "INSERT INTO orders (user_id, product_id, total, status) VALUES ($1, $2, $3, 'pending') RETURNING id",
+                    user_id, product_id, product["price"],
+                )
 
         span.set_attribute("order.id", order_id)
         span.set_attribute("order.product_id", product_id)
@@ -179,3 +206,32 @@ async def get_user(user_id: int):
         raise HTTPException(status_code=404, detail="user not found")
     log.info("user fetched user_id=%d", user_id)
     return dict(row)
+
+
+@app.get("/inventory")
+async def list_inventory():
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT p.id, p.name, i.quantity, i.updated_at"
+            " FROM products p JOIN inventory i ON p.id = i.product_id"
+            " ORDER BY p.id"
+        )
+    return [dict(r) for r in rows]
+
+
+@app.post("/inventory/restock/{product_id}", status_code=200)
+async def restock_product(product_id: int):
+    with tracer.start_as_current_span("inventory.restock") as span:
+        span.set_attribute("db.system", "postgresql")
+        span.set_attribute("product.id", product_id)
+        async with _pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "UPDATE inventory SET quantity = quantity + 50, updated_at = now()"
+                " WHERE product_id = $1 RETURNING quantity",
+                product_id,
+            )
+        if not row:
+            raise HTTPException(status_code=404, detail="product not found in inventory")
+        span.set_attribute("inventory.quantity_after", row["quantity"])
+        log.info("inventory restocked product_id=%d new_quantity=%d", product_id, row["quantity"])
+        return {"product_id": product_id, "quantity": row["quantity"]}

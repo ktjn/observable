@@ -3,4 +3,5 @@ psycopg2-binary==2.9.10
 opentelemetry-sdk==1.41.0
 opentelemetry-exporter-otlp-proto-grpc==1.41.0
 opentelemetry-instrumentation-pika==0.62b0
+opentelemetry-instrumentation-psycopg2==0.62b0
 opentelemetry-instrumentation-logging==0.62b0

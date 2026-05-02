@@ -244,6 +244,77 @@ services:
     depends_on:
       query-api: { condition: service_healthy }
 
+  # --- TESTBENCH ---
+  shop-db:
+    image: postgres:16
+    ports: ["5433:5432"]
+    environment:
+      POSTGRES_DB: shop
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: shop
+    volumes:
+      - shop_db_data:/var/lib/postgresql/data
+      - ./testbench/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop"]
+      interval: 2s
+      timeout: 1s
+      retries: 20
+
+  shop-queue:
+    image: rabbitmq:3.13-management
+    ports: ["5672:5672", "15672:15672"]
+    environment:
+      RABBITMQ_DEFAULT_USER: shop
+      RABBITMQ_DEFAULT_PASS: shop
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  shop-api:
+    image: testbench-api:local
+    build: { context: testbench/api }
+    ports: ["8000:8000"]
+    environment:
+      DATABASE_URL: postgresql://shop:shop@shop-db:5432/shop
+      AMQP_URL: amqp://shop:shop@shop-queue:5672/
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://ingest-gateway:4317
+      OTEL_EXPORTER_OTLP_HEADERS: "authorization=Bearer dev-api-key-0000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+    depends_on:
+      shop-db: { condition: service_healthy }
+      shop-queue: { condition: service_healthy }
+      ingest-gateway: { condition: service_healthy }
+
+  shop-worker:
+    image: testbench-worker:local
+    build: { context: testbench/worker }
+    environment:
+      DATABASE_URL: postgresql://shop:shop@shop-db:5432/shop
+      AMQP_URL: amqp://shop:shop@shop-queue:5672/
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://ingest-gateway:4317
+      OTEL_EXPORTER_OTLP_HEADERS: "authorization=Bearer dev-api-key-0000"
+    depends_on:
+      shop-api: { condition: service_healthy }
+      ingest-gateway: { condition: service_healthy }
+
+  shop-loadgen:
+    image: testbench-loadgen:local
+    build: { context: testbench/loadgen }
+    environment:
+      SHOP_API_URL: http://shop-api:8000
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://ingest-gateway:4317
+      OTEL_EXPORTER_OTLP_HEADERS: "authorization=Bearer dev-api-key-0000"
+    depends_on:
+      shop-api: { condition: service_healthy }
+      ingest-gateway: { condition: service_healthy }
+
   # --- VERIFICATION ---
   smoke-test:
     image: observable-services:local
@@ -279,3 +350,4 @@ volumes:
   clickhouse_data:
   redpanda_data:
   postgres_data:
+  shop_db_data:
