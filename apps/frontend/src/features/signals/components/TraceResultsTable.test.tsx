@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { expect, test, vi } from "vitest";
-import type { TraceResponse } from "../../api/traces";
+import type { TraceResponse } from "../../../api/traces";
 import { TraceResultsTable } from "./TraceResultsTable";
 
 vi.mock("@tanstack/react-router", () => ({
@@ -93,4 +93,20 @@ test("renders linked trace rows for scoped service views", () => {
     "href",
     "/traces/trace-abc-1234567890",
   );
+});
+
+test("renders a Time column using the provided timeFormat", () => {
+  render(
+    <TraceResultsTable
+      traces={traces}
+      selectedTraceId={undefined}
+      onSelectTrace={vi.fn()}
+      timeFormat="iso-utc-ms"
+    />,
+  );
+
+  const table = screen.getByRole("table", { name: "Trace results" });
+  expect(within(table).getByRole("columnheader", { name: "Time" })).toBeInTheDocument();
+  // start_time_unix_nano: 1 → 1970-01-01 00:00:00.000Z
+  expect(within(table).getByText("1970-01-01 00:00:00.000Z")).toBeInTheDocument();
 });

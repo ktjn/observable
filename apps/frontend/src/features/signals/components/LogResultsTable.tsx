@@ -1,8 +1,8 @@
-import type { LogRecord } from "../../api/logs";
-import { Badge } from "../../components/ui/badge";
-import { formatTimestamp } from "../../utils/formatTimestamp";
-import { formatLogMessage, otelSeverity } from "../../utils/logFormatting";
-import type { TimeFormat } from "../../lib/timeDisplay";
+import type { LogRecord } from "../../../api/logs";
+import { Badge } from "../../../components/ui/badge";
+import { formatTimestamp } from "../../../utils/formatTimestamp";
+import { formatLogMessage, otelSeverity } from "../../../utils/logFormatting";
+import type { TimeFormat } from "../../../lib/timeDisplay";
 
 export function LogResultsTable({
   logs,

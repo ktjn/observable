@@ -2,26 +2,27 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { createDashboard } from "../api/dashboards";
-import { searchTraces, fetchTraceHistogram, TraceResponse, TraceHistogramBucket as ApiHistogramBucket, TraceHistogramResponse } from "../api/traces";
+import {
+  searchTraces,
+  fetchTraceHistogram,
+  TraceResponse,
+  TraceHistogramBucket as ApiHistogramBucket,
+  TraceHistogramResponse,
+} from "../api/traces";
 import { FacetSidebar } from "../components/FacetSidebar";
-import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
+import { Badge } from "../components/ui/badge";
 import { LoadingState } from "../components/ui/loading-state";
-import { Select, SelectOption } from "../components/ui/select";
 import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
 import { useTimeDisplay } from "../lib/timeDisplay";
-import { TraceResultsTable } from "../features/signals/TraceResultsTable";
-import { infraLinks } from "../utils/infraLinks";
+import { useSignalSearch } from "../hooks/useSignalSearch";
+import { formatBucketLabel } from "../utils/formatBucketLabel";
+import { formatTimestamp } from "../utils/formatTimestamp";
 import { formatContextValue } from "../utils/logFormatting";
-
-const timeRangeOptions = [
-  { label: "15m", value: 15 },
-  { label: "1h", value: 60 },
-  { label: "6h", value: 360 },
-  { label: "24h", value: 1440 },
-];
+import { infraLinks } from "../utils/infraLinks";
+import { SignalExplorer, SaveStatus } from "../components/shared/SignalExplorer";
+import { TraceResultsTable } from "../features/signals/components/TraceResultsTable";
 
 export type TraceExplorerProps = {
   initialService?: string;
@@ -54,42 +55,33 @@ export function TraceExplorer({
   tableAriaLabel,
   tableMode = "select",
 }: TraceExplorerProps) {
-  const [service, setService] = useState(initialService);
   const { format } = useTimeDisplay();
-  const [lookbackMinutes, setLookbackMinutes] = useState(initialLookbackMinutes);
-  const [selectedTraceId, setSelectedTraceId] = useState<string | undefined>();
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [customRangeMs, setCustomRangeMs] = useState<{ fromMs: number; toMs: number } | null>(null);
+  const {
+    service,
+    setService,
+    lookbackMinutes,
+    setLookbackMinutes,
+    customRangeMs,
+    handleHistogramRangeSelect,
+    handleClearRange,
+    from,
+    to,
+    histogramFromMs,
+    histogramToMs,
+  } = useSignalSearch({ initialService, initialLookbackMinutes });
   const [bucketCount, setBucketCount] = useState(60);
-
-  const { from, to, histogramFromMs, histogramToMs } = useMemo(() => {
-    if (customRangeMs) {
-      return {
-        from: new Date(customRangeMs.fromMs).toISOString(),
-        to: new Date(customRangeMs.toMs).toISOString(),
-        histogramFromMs: customRangeMs.fromMs,
-        histogramToMs: customRangeMs.toMs,
-      };
-    }
-    const toMs = Date.now();
-    const fromMs = toMs - lookbackMinutes * 60 * 1000;
-    return {
-      from: new Date(fromMs).toISOString(),
-      to: undefined as string | undefined,
-      histogramFromMs: fromMs,
-      histogramToMs: toMs,
-    };
-  }, [customRangeMs, lookbackMinutes]);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["traces", service, from, to],
-    queryFn: () => searchTraces({
-      service: service || undefined,
-      from,
-      to,
-      limit: 50,
-      facets: ["service_name", "status_code", "span_kind"]
-    }),
+    queryFn: () =>
+      searchTraces({
+        service: service || undefined,
+        from,
+        to,
+        limit: 50,
+        facets: ["service_name", "status_code", "span_kind"],
+      }),
   });
 
   const { data: histogramData, isError: isHistogramError } = useQuery({
@@ -105,34 +97,18 @@ export function TraceExplorer({
   });
 
   const traces = data?.traces ?? [];
-  const selectedTrace = traces.find((t) => t.trace_id === selectedTraceId);
+  const canRenderHistogram = Boolean(histogramData) || traces.length > 0;
   const histogram = useMemo(
-    () => {
-      if (histogramData?.buckets?.length) {
-        return histogramFromApi(histogramData.buckets);
-      }
-      return buildTraceHistogram(traces, histogramFromMs, histogramToMs);
-    },
+    () =>
+      histogramData?.buckets?.length
+        ? histogramFromApi(histogramData.buckets)
+        : buildTraceHistogram(traces, histogramFromMs, histogramToMs),
     [histogramData, histogramFromMs, histogramToMs, traces],
   );
-  const canRenderHistogram = Boolean(histogramData) || traces.length > 0;
 
   const handleFacetClick = (field: string, value: string) => {
-    if (field === "service_name") {
-      setService(value);
-      setSelectedTraceId(undefined);
-    }
+    if (field === "service_name") setService(value);
   };
-
-  function handleHistogramRangeSelect(fromMs: number, toMs: number) {
-    setCustomRangeMs({ fromMs, toMs });
-    setSelectedTraceId(undefined);
-  }
-
-  function handleClearRange() {
-    setCustomRangeMs(null);
-    setSelectedTraceId(undefined);
-  }
 
   const handlePromote = async () => {
     setSaveStatus("saving");
@@ -150,134 +126,87 @@ export function TraceExplorer({
         ],
       });
       setSaveStatus("saved");
-    } catch (error) {
-      console.error(error);
+    } catch {
       setSaveStatus("error");
     }
   };
 
   return (
-    <div className="page-stack">
-      {showHeader && (
-        <div className="page-header">
-          <div>
-            <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
-            <h1>Traces</h1>
-          </div>
-        </div>
-      )}
-
-      <div className="toolbar-row">
-        {!lockedService && (
-          <Input
-            className="max-w-[360px]"
-            placeholder="Filter by service"
-            value={service}
-            onChange={(e) => setService(e.target.value)}
-            aria-label="Filter by service"
+    <SignalExplorer
+      title="Traces"
+      service={service}
+      onServiceChange={(s) => { setService(s); }}
+      lookbackMinutes={lookbackMinutes}
+      onLookbackChange={(m) => { setLookbackMinutes(m); }}
+      customRangeMs={customRangeMs}
+      customRangeLabel={
+        customRangeMs
+          ? `${formatBucketLabel(customRangeMs.fromMs, format)} – ${formatBucketLabel(customRangeMs.toMs, format)}`
+          : undefined
+      }
+      onClearRange={handleClearRange}
+      lockedService={lockedService}
+      showHeader={showHeader}
+      showPromote={showPromote}
+      saveStatus={saveStatus}
+      onPromote={handlePromote}
+      histogram={
+        canRenderHistogram ? (
+          <Histogram
+            buckets={histogram}
+            categoryOrder={["Traces"]}
+            categoryColors={{ Traces: "bg-[var(--brand)]" }}
+            format={(ms) => formatBucketLabel(ms, format)}
+            onRangeSelect={handleHistogramRangeSelect}
+            onBucketCountChange={setBucketCount}
+            ariaLabel="Trace volume histogram"
+            title="Traces over time"
+            subtitle="Volume"
           />
-        )}
-        {customRangeMs ? (
-          <>
-            <span className="text-xs whitespace-nowrap font-mono text-[var(--text-strong)]">
-              {formatBucketLabel(customRangeMs.fromMs, format)} – {formatBucketLabel(customRangeMs.toMs, format)}
-            </span>
-            <Button variant="secondary" onClick={handleClearRange}>
-              Reset range
-            </Button>
-          </>
+        ) : !isHistogramError ? (
+          <div
+            aria-hidden="true"
+            className="border border-[var(--border)] bg-[var(--surface)] p-3 h-[168px] animate-pulse"
+          />
         ) : (
-          <Select
-            aria-label="Trace time range"
-            className="max-w-[120px]"
-            value={String(lookbackMinutes)}
-            onChange={(event) => {
-              setLookbackMinutes(Number(event.target.value));
-              setSelectedTraceId(undefined);
-            }}
-          >
-            {timeRangeOptions.map((option) => (
-              <SelectOption key={option.value} value={option.value}>
-                {option.label}
-              </SelectOption>
-            ))}
-          </Select>
-        )}
-        {service && !lockedService && (
-          <Button variant="secondary" onClick={() => setService("")}>
-            Clear filters
-          </Button>
-        )}
-        {showPromote && (
-          <>
-            <Button onClick={handlePromote} disabled={saveStatus === "saving"}>
-              Promote to dashboard
-            </Button>
-            {saveStatus === "saved" && (
-              <span className="text-sm font-semibold text-[var(--good)]">Saved to dashboard</span>
-            )}
-            {saveStatus === "error" && (
-              <span className="text-sm font-semibold text-[var(--bad)]">Dashboard save failed</span>
-            )}
-          </>
-        )}
-      </div>
-
-      {canRenderHistogram ? (
-        <Histogram
-          buckets={histogram}
-          categoryOrder={["Traces"]}
-          categoryColors={{ Traces: "bg-[var(--brand)]" }}
-          format={(ms) => formatBucketLabel(ms, format)}
-          onRangeSelect={handleHistogramRangeSelect}
-          onBucketCountChange={setBucketCount}
-          ariaLabel="Trace volume histogram"
-          title="Traces over time"
-          subtitle="Volume"
-        />
-      ) : !isHistogramError && (
-        <div
-          aria-hidden="true"
-          className="border border-[var(--border)] bg-[var(--surface)] p-3 h-[168px] animate-pulse"
-        />
-      )}
-      {isHistogramError && !canRenderHistogram && (
-        <p className="text-xs text-[var(--muted)]">Histogram unavailable</p>
-      )}
-
-      <div className="flex items-start gap-3 max-[900px]:flex-col">
-        {showFacets && (
-          <FacetSidebar
-            facets={data?.facets}
-            onFacetClick={handleFacetClick}
-            ariaLabel="Trace facets"
-          />
-        )}
-
-        <TablePanel className="flex-1">
-          {isLoading ? (
-            <LoadingState>Loading traces…</LoadingState>
-          ) : error ? (
-            <LoadingState className="text-[var(--bad)]">Error loading traces: {String(error)}</LoadingState>
-          ) : traces.length === 0 ? (
-            <LoadingState>No traces found.</LoadingState>
-          ) : (
-            <TraceResultsTable
-              traces={traces}
-              selectedTraceId={selectedTraceId}
-              onSelectTrace={setSelectedTraceId}
-              mode={tableMode}
-              showServiceColumn={showServiceColumn}
-              ariaLabel={tableAriaLabel}
+          <p className="text-xs text-[var(--muted)]">Histogram unavailable</p>
+        )
+      }
+      renderTable={(selectedId, onSelect) => (
+        <>
+          {showFacets && (
+            <FacetSidebar
+              facets={data?.facets}
+              onFacetClick={handleFacetClick}
+              ariaLabel="Trace facets"
             />
           )}
-        </TablePanel>
-
-        {selectedTrace && (
-          <TraceContextSidebar trace={selectedTrace} onClose={() => setSelectedTraceId(undefined)} />
-        )}
-      </div>
-    </div>
+          <TablePanel className="flex-1">
+            {isLoading ? (
+              <LoadingState>Loading traces…</LoadingState>
+            ) : error ? (
+              <LoadingState className="text-[var(--bad)]">Error loading traces: {String(error)}</LoadingState>
+            ) : traces.length === 0 ? (
+              <LoadingState>No traces found.</LoadingState>
+            ) : (
+              <TraceResultsTable
+                traces={traces}
+                selectedTraceId={selectedId ?? undefined}
+                onSelectTrace={(id) => onSelect(id)}
+                mode={tableMode}
+                showServiceColumn={showServiceColumn}
+                timeFormat={format}
+                ariaLabel={tableAriaLabel}
+              />
+            )}
+          </TablePanel>
+        </>
+      )}
+      renderPanel={(selectedId, onClose) => {
+        const trace = traces.find((t) => t.trace_id === selectedId);
+        return trace ? <TraceContextSidebar trace={trace} onClose={onClose} /> : null;
+      }}
+    />
   );
 }
 
@@ -291,12 +220,13 @@ function TraceContextSidebar({
   const root = trace.spans[0];
   if (!root) return null;
 
+  const { format } = useTimeDisplay();
   const badges = infraLinks(root.resource_attributes ?? {});
 
   return (
     <aside
       aria-label="Selected trace context"
-      className="w-[320px] shrink-0 border border-[var(--border)] bg-[var(--surface)] p-4 max-[900px]:w-full"
+      className="w-full border border-[var(--border)] bg-[var(--surface)] p-4"
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
@@ -328,6 +258,12 @@ function TraceContextSidebar({
           <dd className="m-0 min-w-0 break-all text-[var(--text)]">{trace.trace_id}</dd>
         </div>
         <div className="contents">
+          <dt className="break-all font-bold text-[var(--muted)]">start_time</dt>
+          <dd className="m-0 min-w-0 break-all text-[var(--text)]">
+            {formatTimestamp(root.start_time_unix_nano, format)}
+          </dd>
+        </div>
+        <div className="contents">
           <dt className="break-all font-bold text-[var(--muted)]">service.name</dt>
           <dd className="m-0 min-w-0 break-all text-[var(--text)]">{root.service_name}</dd>
         </div>
@@ -337,14 +273,18 @@ function TraceContextSidebar({
         </div>
         <div className="contents">
           <dt className="break-all font-bold text-[var(--muted)]">duration</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{(root.duration_ns / 1e6).toFixed(2)}ms</dd>
+          <dd className="m-0 min-w-0 break-all text-[var(--text)]">
+            {(root.duration_ns / 1e6).toFixed(2)}ms
+          </dd>
         </div>
-        {Object.entries(root.resource_attributes ?? {}).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => (
-          <div key={key} className="contents">
-            <dt className="break-all font-bold text-[var(--muted)]">{key}</dt>
-            <dd className="m-0 min-w-0 break-all text-[var(--text)]">{formatContextValue(value)}</dd>
-          </div>
-        ))}
+        {Object.entries(root.resource_attributes ?? {})
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([key, value]) => (
+            <div key={key} className="contents">
+              <dt className="break-all font-bold text-[var(--muted)]">{key}</dt>
+              <dd className="m-0 min-w-0 break-all text-[var(--text)]">{formatContextValue(value)}</dd>
+            </div>
+          ))}
       </dl>
 
       {badges.length > 0 && (
@@ -373,32 +313,28 @@ function histogramFromApi(buckets: ApiHistogramBucket[]): HistogramBucket<"Trace
   }));
 }
 
-export function buildTraceHistogram(_traces: TraceResponse[], fromMs: number, toMs: number): HistogramBucket<"Traces">[] {
+export function buildTraceHistogram(
+  _traces: TraceResponse[],
+  fromMs: number,
+  toMs: number,
+): HistogramBucket<"Traces">[] {
   const bucketCount = 30;
   const rangeMs = Math.max(1, toMs - fromMs);
   const bucketMs = rangeMs / bucketCount;
-  const buckets = Array.from({ length: bucketCount }, (_, index) => ({
-    startMs: fromMs + index * bucketMs,
-    endMs: fromMs + (index + 1) * bucketMs,
+  const buckets = Array.from({ length: bucketCount }, (_, i) => ({
+    startMs: fromMs + i * bucketMs,
+    endMs: fromMs + (i + 1) * bucketMs,
     total: 0,
     categories: { Traces: 0 },
   }));
-
   for (const trace of _traces) {
     const root = trace.spans[0];
     if (!root) continue;
     const startMs = Number(root.start_time_unix_nano) / 1_000_000;
     if (!Number.isFinite(startMs)) continue;
-    const rawIndex = Math.floor((startMs - fromMs) / bucketMs);
-    const index = Math.min(bucketCount - 1, Math.max(0, rawIndex));
-    buckets[index].total += 1;
-    buckets[index].categories.Traces += 1;
+    const idx = Math.min(bucketCount - 1, Math.max(0, Math.floor((startMs - fromMs) / bucketMs)));
+    buckets[idx].total += 1;
+    buckets[idx].categories.Traces += 1;
   }
-
   return buckets;
-}
-
-function formatBucketLabel(ms: number, format: import("../lib/timeDisplay").TimeFormat): string {
-  const utc = format === "iso-utc-ms" || format === "iso-utc-ns" || format === "unix-ms" || format === "unix-ns";
-  return utc ? new Date(ms).toISOString() : new Date(ms).toLocaleTimeString();
 }
