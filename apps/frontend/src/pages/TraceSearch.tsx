@@ -268,6 +268,7 @@ export function TraceExplorer({
               onSelectTrace={setSelectedTraceId}
               mode={tableMode}
               showServiceColumn={showServiceColumn}
+              timeFormat={format}
               ariaLabel={tableAriaLabel}
             />
           )}
