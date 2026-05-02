@@ -1,3 +1,5 @@
+import type { Preset } from "../router";
+
 const DEV_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 
 function tenantHeaders(): HeadersInit {
@@ -11,7 +13,7 @@ export interface DashboardPanel {
   title: string;
   query_kind: DashboardQueryKind;
   service?: string | null;
-  lookback_minutes: number;
+  preset: Preset | null;
   filters: Record<string, unknown>;
 }
 
@@ -32,7 +34,7 @@ export interface CreateDashboardRequest {
     title: string;
     query_kind: DashboardQueryKind;
     service?: string;
-    lookback_minutes: number;
+    preset: Preset | null;
     filters: Record<string, unknown>;
   }>;
 }
