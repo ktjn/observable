@@ -6,7 +6,6 @@ import { searchTraces } from "../api/traces";
 import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
 import { listDeployments } from "../api/deployments";
 import { DeploymentTimeline } from "../components/DeploymentTimeline";
-import { formatTimestamp } from "../utils/formatTimestamp";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
@@ -16,6 +15,8 @@ import { Panel } from "../components/ui/panel";
 import { TablePanel } from "../components/ui/table-panel";
 import { NlqPanel } from "../features/nlq/NlqPanel";
 import { ServiceMetricsWorkspace } from "../features/metrics/ServiceMetricsWorkspace";
+import { LogResultsTable } from "../features/signals/LogResultsTable";
+import { TraceResultsTable } from "../features/signals/TraceResultsTable";
 
 export default function ServiceDetailPage() {
   const { serviceId } = useParams({ strict: false });
@@ -46,7 +47,7 @@ export default function ServiceDetailPage() {
   }
 
   return (
-    <ServiceOverview
+    <ServiceDetailView
       service={data.service}
       activeTab={activeTab}
       lookbackMinutes={lookbackMinutes}
@@ -54,7 +55,7 @@ export default function ServiceDetailPage() {
   );
 }
 
-function ServiceOverview({
+function ServiceDetailView({
   service,
   activeTab,
   lookbackMinutes,
@@ -250,26 +251,14 @@ function ServiceLogsTab({
 
   return (
     <TablePanel>
-      <table aria-label="Service logs">
-        <thead>
-          <tr>
-            <th>Timestamp</th>
-            <th>Level</th>
-            <th>Body</th>
-            <th>Trace</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.logs.map((log) => (
-            <tr key={log.log_id}>
-              <td className="whitespace-nowrap">{formatTimestamp(log.timestamp_unix_nano, format)}</td>
-              <td>{log.severity_text || log.severity_number}</td>
-              <td>{typeof log.body === "string" ? log.body : JSON.stringify(log.body)}</td>
-              <td>{log.trace_id ? log.trace_id.substring(0, 16) : "none"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <LogResultsTable
+        logs={data.logs}
+        selectedLogId={undefined}
+        onSelectLog={() => undefined}
+        timeFormat={format}
+        showServiceColumn={false}
+        ariaLabel="Service logs"
+      />
     </TablePanel>
   );
 }
@@ -293,34 +282,14 @@ function ServiceTracesTab({
 
   return (
     <TablePanel>
-      <table aria-label="Service traces">
-        <thead>
-          <tr>
-            <th>Trace ID</th>
-            <th>Operation</th>
-            <th>Duration</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.traces.map((trace) => {
-            const root = trace.spans[0];
-            if (!root) return null;
-            return (
-              <tr key={trace.trace_id}>
-                <td>
-                  <Link to="/traces/$traceId" params={{ traceId: trace.trace_id }}>
-                    {trace.trace_id.substring(0, 16)}
-                  </Link>
-                </td>
-                <td>{root.operation_name}</td>
-                <td>{(root.duration_ns / 1e6).toFixed(2)}ms</td>
-                <td>{root.status_code}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <TraceResultsTable
+        traces={data.traces}
+        selectedTraceId={undefined}
+        onSelectTrace={() => undefined}
+        mode="link"
+        showServiceColumn={false}
+        ariaLabel="Service traces"
+      />
     </TablePanel>
   );
 }

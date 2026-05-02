@@ -13,6 +13,7 @@ import { LoadingState } from "../components/ui/loading-state";
 import { Select, SelectOption } from "../components/ui/select";
 import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
+import { LogResultsTable } from "../features/signals/LogResultsTable";
 
 const timeRangeOptions = [
   { label: "15m", value: 15 },
@@ -211,26 +212,12 @@ export default function LogSearch() {
           ) : logs.length === 0 ? (
             <LoadingState>No logs found.</LoadingState>
           ) : (
-            <table aria-label="Log results">
-              <thead>
-                <tr>
-                  <th aria-label="Time">Time</th>
-                  <th>Level</th>
-                  <th>Message</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((log) => (
-                  <LogRow
-                    key={log.log_id}
-                    log={log}
-                    format={format}
-                    selected={selectedLogId === log.log_id}
-                    onSelect={() => setSelectedLogId(log.log_id)}
-                  />
-                ))}
-              </tbody>
-            </table>
+            <LogResultsTable
+              logs={logs}
+              selectedLogId={selectedLogId}
+              onSelectLog={setSelectedLogId}
+              timeFormat={format}
+            />
           )}
         </TablePanel>
 
@@ -239,41 +226,6 @@ export default function LogSearch() {
         )}
       </div>
     </div>
-  );
-}
-
-function LogRow({
-  log,
-  format,
-  selected,
-  onSelect,
-}: {
-  log: LogRecord;
-  format: import("../lib/timeDisplay").TimeFormat;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  const severity = otelSeverity(log.severity_number);
-  const message = formatLogMessage(log.body);
-  return (
-    <tr className={`modern-table-row ${selected ? "bg-[var(--surface-subtle)]" : ""}`}>
-      <td className="whitespace-nowrap">{formatTimestamp(log.timestamp_unix_nano, format)}</td>
-      <td>
-        <Badge tone={severity.tone}>
-          {severity.label}
-        </Badge>
-      </td>
-      <td>
-        <button
-          type="button"
-          className="w-full text-left text-[var(--text)] bg-transparent border-0 p-0 font-inherit cursor-pointer hover:text-[var(--brand-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
-          aria-label={`Open log context for ${message}`}
-          onClick={onSelect}
-        >
-          {message}
-        </button>
-      </td>
-    </tr>
   );
 }
 

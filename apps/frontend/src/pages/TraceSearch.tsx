@@ -12,6 +12,7 @@ import { Select, SelectOption } from "../components/ui/select";
 import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
 import { useTimeDisplay } from "../lib/timeDisplay";
+import { TraceResultsTable } from "../features/signals/TraceResultsTable";
 import { infraLinks } from "../utils/infraLinks";
 import { formatContextValue } from "../utils/logFormatting";
 
@@ -221,27 +222,11 @@ export default function TraceSearch() {
           ) : traces.length === 0 ? (
             <LoadingState>No traces found.</LoadingState>
           ) : (
-            <table aria-label="Trace results">
-              <thead>
-                <tr>
-                  <th>Trace ID</th>
-                  <th>Service</th>
-                  <th>Operation</th>
-                  <th>Duration</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {traces.map((t) => (
-                  <TraceRow
-                    key={t.trace_id}
-                    trace={t}
-                    selected={selectedTraceId === t.trace_id}
-                    onSelect={() => setSelectedTraceId(t.trace_id)}
-                  />
-                ))}
-              </tbody>
-            </table>
+            <TraceResultsTable
+              traces={traces}
+              selectedTraceId={selectedTraceId}
+              onSelectTrace={setSelectedTraceId}
+            />
           )}
         </TablePanel>
 
@@ -250,40 +235,6 @@ export default function TraceSearch() {
         )}
       </div>
     </div>
-  );
-}
-
-function TraceRow({
-  trace,
-  selected,
-  onSelect,
-}: {
-  trace: TraceResponse;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  const root = trace.spans[0];
-  if (!root) return null;
-  return (
-    <tr className={`modern-table-row ${selected ? "bg-[var(--surface-subtle)]" : ""}`}>
-      <td className="strong-cell">
-        <button
-          type="button"
-          className="text-left text-[var(--brand)] bg-transparent border-0 p-0 font-inherit cursor-pointer hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
-          onClick={onSelect}
-        >
-          {trace.trace_id.substring(0, 16)}…
-        </button>
-      </td>
-      <td>{root.service_name}</td>
-      <td>{root.operation_name}</td>
-      <td>{(root.duration_ns / 1e6).toFixed(2)}ms</td>
-      <td>
-        <Badge tone={root.status_code === "ERROR" ? "bad" : "good"}>
-          {root.status_code}
-        </Badge>
-      </td>
-    </tr>
   );
 }
 

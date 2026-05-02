@@ -7,7 +7,7 @@ import { LoadingState } from "../components/ui/loading-state";
 import { Select, SelectOption } from "../components/ui/select";
 import { TablePanel } from "../components/ui/table-panel";
 
-export default function ServiceOverview() {
+export default function ServiceTopologyPage() {
   const [environment, setEnvironment] = useState<string>("all");
   const [focusedService, setFocusedService] = useState<string | null>(null);
   const [edgePopover, setEdgePopover] = useState<{
