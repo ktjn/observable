@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { getTopology, listEnvironments, type TopologyEdge } from "../api/services";
+import { getTopology, type TopologyEdge } from "../api/services";
 import { Button } from "../components/ui/button";
 import { LoadingState } from "../components/ui/loading-state";
-import { Select, SelectOption } from "../components/ui/select";
 import { TablePanel } from "../components/ui/table-panel";
+import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
+import { deriveViewFiltersFromIr } from "../features/nlq/queryFilters";
 
 export default function ServiceTopologyPage() {
   const [environment, setEnvironment] = useState<string>("all");
@@ -15,11 +16,6 @@ export default function ServiceTopologyPage() {
     x: number;
     y: number;
   } | null>(null);
-
-  const { data: envsData } = useQuery({
-    queryKey: ["environments"],
-    queryFn: () => listEnvironments(),
-  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["topology", environment],
@@ -37,22 +33,16 @@ export default function ServiceTopologyPage() {
       </div>
 
       <div className="toolbar-row">
-        <Select
-          aria-label="Environment filter"
-          value={environment}
-          onChange={(e) => {
-            setEnvironment(e.target.value);
-            setFocusedService(null);
+        <QueryFilterInput
+          surface="topology"
+          placeholder='Focus topology, e.g. "prod payments service" or raw NLQ IR JSON'
+          onIr={(ir) => {
+            const filters = deriveViewFiltersFromIr(ir, "topology");
+            setEnvironment(filters.environment ?? "all");
+            setFocusedService(filters.service ?? null);
             setEdgePopover(null);
           }}
-        >
-          <SelectOption value="all">All environments</SelectOption>
-          {envsData?.items.map((env) => (
-            <SelectOption key={env} value={env}>
-              {env}
-            </SelectOption>
-          ))}
-        </Select>
+        />
       </div>
 
       {focusedService && (

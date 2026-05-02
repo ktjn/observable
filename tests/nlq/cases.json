@@ -552,5 +552,61 @@
       "search"
     ],
     "notes": "First log search test case \u2014 verifies end-to-end NLQ log query path"
+  },
+  {
+    "id": "frontend-service-environment-filter-intent",
+    "description": "Service filter intent emits service_name and environment filters",
+    "query": "show request_duration_ms for checkout-api in prod over the last hour",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "timeseries",
+      "data_non_empty": false,
+      "fields": [],
+      "value_checks": [],
+      "ir_filter_checks": [
+        {
+          "field": "service_name",
+          "op": "=",
+          "value": "checkout-api"
+        },
+        {
+          "field": "environment",
+          "op": "=",
+          "value": "prod"
+        }
+      ]
+    },
+    "tags": [
+      "filters",
+      "frontend"
+    ],
+    "notes": "Covers NLQ-as-filter-input behavior for service and environment narrowing."
+  },
+  {
+    "id": "frontend-metric-type-filter-intent",
+    "description": "Metric browse filter intent preserves metric type filtering",
+    "query": "show histogram request_duration_ms metrics for checkout-api over the last hour",
+    "service_name": null,
+    "expect": {
+      "type": "frame",
+      "operation": "histogram",
+      "data_non_empty": false,
+      "fields": [],
+      "value_checks": [],
+      "ir_filter_checks": [
+        {
+          "field": "service_name",
+          "op": "=",
+          "value": "checkout-api"
+        }
+      ]
+    },
+    "tags": [
+      "filters",
+      "frontend",
+      "histogram"
+    ],
+    "notes": "Covers metric-type filter intent for the shared frontend query input; metric type is enforced by schema/template selection."
   }
 ]

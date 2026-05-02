@@ -47,6 +47,7 @@ The NLQ layer is a three-stage pipeline:
 
 ```
 NLQ (user) → LLM → NLQ IR → MCP Server → SQL/DataFusion → VisualizationFrame → UI
+Raw NlqIr JSON (user) ───────┘
 ```
 
 **Stage 1 — LLM → NLQ IR**
@@ -82,6 +83,12 @@ The LLM receives the rendered prompt and the user's question. It emits one of:
 - `{"type": "capabilities"}` — user asked a meta-question about the system
 
 The LLM emits IR, never SQL. The IR is stable and testable independent of the LLM.
+
+`POST /v1/nlq` also accepts `mode: "interpret"` for frontend filter replacement. In interpret
+mode, natural language is translated and validated into `{"type":"ir","ir":<NlqIr>}` without
+executing SQL. If the submitted question is raw `NlqIr` JSON, the backend validates it directly and
+does not require LLM configuration. This is the no-LLM fallback; no mini-language or proprietary
+query syntax is introduced.
 
 **Stage 1c — Validation and repair loop**
 

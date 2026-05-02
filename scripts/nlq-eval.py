@@ -339,6 +339,32 @@ def evaluate_case(
                 "detail": detail,
             })
 
+        for fc in expect.get("ir_filter_checks", []):
+            expected_field = fc.get("field")
+            expected_op = fc.get("op", "=")
+            expected_value = fc.get("value")
+            filters = raw_ir.get("filters") or []
+            if not isinstance(filters, list):
+                ok = False
+                detail = f"ir.filters is {type(filters).__name__}, expected list"
+            else:
+                ok = any(
+                    isinstance(f, dict)
+                    and f.get("field") == expected_field
+                    and f.get("op") == expected_op
+                    and f.get("value") == expected_value
+                    for f in filters
+                )
+                detail = (
+                    f"expected filter field={expected_field!r} op={expected_op!r} "
+                    f"value={expected_value!r}: actual={filters}"
+                )
+            checks.append({
+                "name": f"ir_filter:{expected_field}_{expected_op}_{expected_value}",
+                "passed": ok,
+                "detail": detail,
+            })
+
     result_record["checks"] = checks
     all_passed = all(c["passed"] for c in checks)
     result_record["result"] = "pass" if all_passed else "fail"

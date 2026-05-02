@@ -10,8 +10,10 @@
  *   - InvalidResponse (unparseable LLM output) shows reason + raw LLM text for debugging.
  */
 import { useState } from "react";
-import type { NlqResponse } from "../../api/nlq";
+import type { NlqResponse, VisualizationFrame } from "../../api/nlq";
 import { submitNlqQuery } from "../../api/nlq";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
 import { VisualizationPanel } from "./VisualizationPanel";
 
 interface Props {
@@ -19,6 +21,10 @@ interface Props {
   serviceName?: string;
   /** Placeholder text for the query input. */
   placeholder?: string;
+  /** Called when an executed NLQ query returns a frame. */
+  onFrameResult?: (frame: VisualizationFrame) => void;
+  /** Hide inline frame rendering when another surface owns result placement. */
+  suppressFrameResult?: boolean;
 }
 
 type QueryState =
@@ -27,7 +33,12 @@ type QueryState =
   | { status: "error"; message: string }
   | { status: "result"; response: NlqResponse; question: string };
 
-export function NlqPanel({ serviceName, placeholder }: Props) {
+export function NlqPanel({
+  serviceName,
+  placeholder,
+  onFrameResult,
+  suppressFrameResult = false,
+}: Props) {
   const [question, setQuestion] = useState("");
   const [state, setState] = useState<QueryState>({ status: "idle" });
 
@@ -38,6 +49,9 @@ export function NlqPanel({ serviceName, placeholder }: Props) {
     setState({ status: "loading" });
     try {
       const response = await submitNlqQuery({ question: q, service_name: serviceName });
+      if (response.type === "frame") {
+        onFrameResult?.(response.frame);
+      }
       setState({ status: "result", response, question: q });
     } catch (err) {
       setState({
@@ -51,8 +65,7 @@ export function NlqPanel({ serviceName, placeholder }: Props) {
     <section className="nlq-panel" aria-label="Natural language query">
       {/* Input bar */}
       <form onSubmit={handleSubmit} className="flex gap-2">
-        <input
-          type="text"
+        <Input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           placeholder={
@@ -61,17 +74,16 @@ export function NlqPanel({ serviceName, placeholder }: Props) {
           }
           aria-label="Natural language query"
           disabled={state.status === "loading"}
-          className="flex-1 rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:opacity-50"
+          className="flex-1"
           data-testid="nlq-input"
         />
-        <button
+        <Button
           type="submit"
           disabled={state.status === "loading" || !question.trim()}
-          className="rounded bg-[var(--brand)] px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
           data-testid="nlq-submit"
         >
           {state.status === "loading" ? "Querying…" : "Ask"}
-        </button>
+        </Button>
       </form>
 
       {/* Results */}
@@ -97,12 +109,31 @@ export function NlqPanel({ serviceName, placeholder }: Props) {
             />
           ) : state.response.type === "capabilities" ? (
             <CapabilitiesPanel hint={state.response.hint} />
+          ) : state.response.type === "ir" ? (
+            <InterpretedIrPanel ir={state.response.ir} />
+          ) : suppressFrameResult ? (
+            <p className="text-sm text-[var(--muted)]">
+              Query result is shown in the matching signal tab below.
+            </p>
           ) : (
             <FrameResult response={state.response} question={state.question} />
           )}
         </div>
       )}
     </section>
+  );
+}
+
+function InterpretedIrPanel({ ir }: { ir: Record<string, unknown> }) {
+  return (
+    <details className="text-xs" open>
+      <summary className="cursor-pointer select-none text-[var(--text-muted)]">
+        Interpreted IR
+      </summary>
+      <pre className="mt-1 overflow-x-auto rounded bg-[var(--bg-code)] p-2 text-[0.7rem]">
+        {JSON.stringify(ir, null, 2)}
+      </pre>
+    </details>
   );
 }
 

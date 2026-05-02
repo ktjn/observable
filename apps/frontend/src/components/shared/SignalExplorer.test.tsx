@@ -1,7 +1,18 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { vi, expect, test } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { vi, expect, test, afterEach } from "vitest";
 import { SignalExplorer } from "./SignalExplorer";
 import type { SignalExplorerProps } from "./SignalExplorer";
+
+vi.mock("../../api/nlq", () => ({
+  submitNlqQuery: vi.fn(),
+}));
+
+import { submitNlqQuery } from "../../api/nlq";
+const mockSubmit = vi.mocked(submitNlqQuery);
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
 function makeProps(overrides: Partial<SignalExplorerProps> = {}): SignalExplorerProps {
   return {
@@ -71,9 +82,20 @@ test("panel container has w-1/4 class when open", () => {
   expect(panelContainer.className).toMatch(/w-1\/4/);
 });
 
-test("service input calls onServiceChange on change", () => {
+test("query input applies interpreted service filter", async () => {
   const onServiceChange = vi.fn();
+  mockSubmit.mockResolvedValue({
+    type: "ir",
+    ir: {
+      operation: "catalog",
+      signals: ["logs"],
+      filters: [{ field: "service_name", op: "=", value: "checkout" }],
+    },
+  });
+
   render(<SignalExplorer {...makeProps({ onServiceChange })} />);
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "checkout" } });
-  expect(onServiceChange).toHaveBeenCalledWith("checkout");
+  fireEvent.submit(screen.getByRole("form", { name: "Query current view" }));
+
+  await waitFor(() => expect(onServiceChange).toHaveBeenCalledWith("checkout"));
 });

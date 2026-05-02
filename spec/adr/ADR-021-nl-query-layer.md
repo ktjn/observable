@@ -38,10 +38,16 @@ three-stage pipeline:
 
 ```
 NLQ (user) → LLM → NLQ IR → MCP Server → SQL/DataFusion → VisualizationFrame → UI
+Raw NlqIr JSON (user) ───────┘
 ```
 
 No proprietary query DSL will be introduced at any stage. SQL/DataFusion is the canonical query
 IR. See [ADR-026](ADR-026-no-proprietary-query-dsl.md).
+
+The same query input is also the primary filter UX in the frontend. Selector-style filters compile
+to or are replaced by `NlqIr` filters. When no LLM is configured, users may paste raw `NlqIr` JSON
+as the deterministic intermediate-format fallback; the backend validates and executes it without
+calling an LLM.
 
 ### Stage 1 — NLQ → LLM → NLQ IR
 
@@ -77,6 +83,11 @@ The LLM emits exactly one of three JSON shapes:
 - `{"type": "ir", "ir": <NlqIr>}` — a valid NLQ IR
 - `{"type": "decline", "reason": "..."}` — question is out of scope or unanswerable
 - `{"type": "capabilities"}` — user asked a meta-question about system capabilities
+
+For UI filter replacement, `POST /v1/nlq` supports an `interpret` mode that returns
+`{"type":"ir","ir":<NlqIr>}` after validation and service-scope enforcement without executing the
+MCP query. Raw `NlqIr` JSON is accepted in both `interpret` and execute modes before LLM
+configuration is checked.
 
 #### Validation and repair loop
 

@@ -216,6 +216,19 @@ next frontend priority.
 | Admin Console | Tenant config, RBAC, data scopes, quota management |
 | AI Insights Panel | NLQ entry point: natural language query box, auto-graphing via VisualizationFrame, smart grouping, anomaly surface, query suggestions (advisory only, provenance required) |
 
+### 9.3.1 Query And Filter UX
+
+Natural language query is the primary filter input across service, topology, infrastructure, log,
+trace, and metric surfaces. Selector-style filter controls should not be introduced for new
+narrowing behavior. The shared query input accepts:
+
+- natural language, translated through `POST /v1/nlq` with `mode: "interpret"` for page filtering;
+- raw `NlqIr` JSON as the deterministic fallback when no LLM is configured.
+
+The global date/time range remains a separate global control. Sorting, navigation, and actions
+remain explicit controls. Service detail NLQ execution routes returned `VisualizationFrame` data to
+the matching Logs, Metrics, or Traces tab below the input.
+
 ### 9.4 Cross-Signal Correlation Patterns
 
 Correlation is a first-class UI concern. The following patterns must be implemented consistently across all signal explorers.

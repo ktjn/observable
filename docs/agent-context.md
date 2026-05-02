@@ -43,6 +43,9 @@ making changes.
   storage, OpenFGA, or similar real dependency boundaries need the narrowest applicable
   Testcontainers integration test unless the PR explains why a different regression signal applies.
 - Frontend work must reuse existing shared or feature components before adding new ones.
+- Frontend filtering surfaces use the shared NLQ query input as the primary filter UI. Preserve the
+  separate global time picker, accept raw `NlqIr` JSON as the no-LLM fallback, and avoid adding new
+  selector-style filters unless a spec or ADR explicitly reintroduces them.
 - ADRs and specs must be updated together when architecture, technology choices, deployment model,
   data model, security model, or roadmap scope changes.
 

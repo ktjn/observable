@@ -3,12 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { getMetricPoints, listMetrics, type MetricPoint, type MetricSeries } from "../../api/metrics";
 import { Button } from "../../components/ui/button";
 import { EmptyState } from "../../components/ui/empty-state";
-import { Input } from "../../components/ui/input";
 import { LoadingState } from "../../components/ui/loading-state";
 import { MetricCard } from "../../components/ui/metric-card";
 import { Panel } from "../../components/ui/panel";
-import { Select, SelectOption } from "../../components/ui/select";
 import { TablePanel } from "../../components/ui/table-panel";
+import { QueryFilterInput } from "../nlq/QueryFilterInput";
+import { deriveViewFiltersFromIr } from "../nlq/queryFilters";
 
 type FilterState = {
   name: string;
@@ -65,43 +65,20 @@ export function ServiceMetricsWorkspace({ serviceName }: { serviceName: string }
       </div>
 
       <Panel eyebrow="Browse" title="Metric Series">
-        <div className="grid grid-cols-[minmax(180px,1fr)_160px_160px] gap-3 max-[760px]:grid-cols-1">
-          <label className="grid gap-1">
-            <span className="field-label">Metric name</span>
-            <Input
-              aria-label="Metric name filter"
-              value={filters.name}
-              onChange={(event) => setFilters((current) => ({ ...current, name: event.target.value }))}
-              placeholder="Filter metric names"
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="field-label">Type</span>
-            <Select
-              aria-label="Metric type filter"
-              value={filters.type}
-              onChange={(event) => setFilters((current) => ({ ...current, type: event.target.value }))}
-            >
-              <SelectOption value="all">All types</SelectOption>
-              {metricTypes.map((type) => (
-                <SelectOption key={type} value={type}>{type}</SelectOption>
-              ))}
-            </Select>
-          </label>
-          <label className="grid gap-1">
-            <span className="field-label">Environment</span>
-            <Select
-              aria-label="Metric environment filter"
-              value={filters.environment}
-              onChange={(event) => setFilters((current) => ({ ...current, environment: event.target.value }))}
-            >
-              <SelectOption value="all">All envs</SelectOption>
-              {environments.map((environment) => (
-                <SelectOption key={environment} value={environment}>{environment}</SelectOption>
-              ))}
-            </Select>
-          </label>
-        </div>
+        <QueryFilterInput
+          surface="metrics"
+          serviceName={serviceName}
+          placeholder='Filter metric series, e.g. "histogram latency metrics in prod" or raw NLQ IR JSON'
+          onIr={(ir) => {
+            const next = deriveViewFiltersFromIr(ir, "metrics");
+            setFilters({
+              name: next.metricName ?? "",
+              type: next.metricType ?? "all",
+              environment: next.environment ?? "all",
+            });
+            setSelectedSeriesId(null);
+          }}
+        />
 
         <div className="mt-4">
           {filteredSeries.length ? (

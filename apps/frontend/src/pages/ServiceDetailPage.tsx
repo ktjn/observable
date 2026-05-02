@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "@tanstack/react-router";
+import { useState } from "react";
 import { listDeployments } from "../api/deployments";
 import {
   getServiceResponseTimeHistory,
@@ -16,6 +17,8 @@ import {
   TimeSeriesSeries,
 } from "../components/ui/time-series-graph";
 import { NlqPanel } from "../features/nlq/NlqPanel";
+import type { VisualizationFrame } from "../api/nlq";
+import { VisualizationPanel } from "../features/nlq/VisualizationPanel";
 import { ServiceMetricsWorkspace } from "../features/metrics/ServiceMetricsWorkspace";
 import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
@@ -71,6 +74,10 @@ function ServiceDetailView({
   fromMs: number;
   toMs: number;
 }) {
+  const [nlqFrame, setNlqFrame] = useState<VisualizationFrame | null>(null);
+  const [nlqTab, setNlqTab] = useState<ServiceSignalTab | null>(null);
+  const displayedTab = nlqTab ?? activeTab;
+
   return (
     <section className="page-stack">
       <div className="page-header">
@@ -159,12 +166,19 @@ function ServiceDetailView({
         <NlqPanel
           serviceName={service.service_name}
           placeholder={`Ask about ${service.service_name}… e.g. "p99 latency over the last hour"`}
+          suppressFrameResult
+          onFrameResult={(frame) => {
+            const tab = signalTabFromFrame(frame);
+            setNlqFrame(frame);
+            setNlqTab(tab);
+          }}
         />
       </Panel>
 
       <ServiceSignalTabs
         serviceName={service.service_name}
-        activeTab={activeTab}
+        activeTab={displayedTab}
+        nlqFrame={nlqFrame}
       />
     </section>
   );
@@ -188,9 +202,11 @@ function describeRange(fromMs: number, toMs: number): string {
 function ServiceSignalTabs({
   serviceName,
   activeTab,
+  nlqFrame,
 }: {
   serviceName: string;
   activeTab: ServiceSignalTab;
+  nlqFrame: VisualizationFrame | null;
 }) {
   const encodedService = encodeURIComponent(serviceName);
   const tabLinks = [
@@ -215,13 +231,45 @@ function ServiceSignalTabs({
         ))}
       </nav>
       {activeTab === "logs" && (
-        <ServiceLogsTab serviceName={serviceName} />
+        nlqFrame && signalTabFromFrame(nlqFrame) === "logs" ? (
+          <NlqTabFrame frame={nlqFrame} />
+        ) : (
+          <ServiceLogsTab serviceName={serviceName} />
+        )
       )}
-      {activeTab === "metrics" && <ServiceMetricsWorkspace serviceName={serviceName} />}
+      {activeTab === "metrics" && (
+        nlqFrame && signalTabFromFrame(nlqFrame) === "metrics" ? (
+          <NlqTabFrame frame={nlqFrame} />
+        ) : (
+          <ServiceMetricsWorkspace serviceName={serviceName} />
+        )
+      )}
       {activeTab === "traces" && (
-        <ServiceTracesTab serviceName={serviceName} />
+        nlqFrame && signalTabFromFrame(nlqFrame) === "traces" ? (
+          <NlqTabFrame frame={nlqFrame} />
+        ) : (
+          <ServiceTracesTab serviceName={serviceName} />
+        )
       )}
     </Panel>
+  );
+}
+
+function signalTabFromFrame(frame: VisualizationFrame): ServiceSignalTab {
+  const signal = frame.signal_types[0];
+  if (signal === "metrics") return "metrics";
+  if (signal === "traces") return "traces";
+  return "logs";
+}
+
+function NlqTabFrame({ frame }: { frame: VisualizationFrame }) {
+  return (
+    <div className="space-y-3 p-4" data-testid="service-nlq-tab-result">
+      <VisualizationPanel frame={frame} />
+      <p className="m-0 text-xs italic text-[var(--muted)]">
+        {frame.approximation_statement}
+      </p>
+    </div>
   );
 }
 

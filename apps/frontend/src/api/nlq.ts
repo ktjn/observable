@@ -41,6 +41,11 @@ export interface NlqFrameResponse {
   frame: VisualizationFrame;
 }
 
+export interface NlqIrResponse {
+  type: "ir";
+  ir: Record<string, unknown>;
+}
+
 export interface NlqDeclineResponse {
   type: "decline";
   reason: string;
@@ -59,6 +64,7 @@ export interface NlqCapabilitiesResponse {
 
 export type NlqResponse =
   | NlqFrameResponse
+  | NlqIrResponse
   | NlqDeclineResponse
   | NlqInvalidResponse
   | NlqCapabilitiesResponse;
@@ -68,6 +74,7 @@ export type NlqResponse =
 export interface NlqRequest {
   question: string;
   service_name?: string;
+  mode?: "execute" | "interpret";
 }
 
 export async function submitNlqQuery(req: NlqRequest): Promise<NlqResponse> {

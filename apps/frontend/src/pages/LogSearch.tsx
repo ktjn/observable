@@ -121,6 +121,7 @@ export function LogExplorer({
       lockedService={lockedService}
       showHeader={showHeader}
       showPromote={showPromote}
+      querySurface="logs"
       saveStatus={saveStatus}
       onPromote={handlePromote}
       histogram={
