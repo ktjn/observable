@@ -106,7 +106,7 @@ test("queries logs using the selected time range", async () => {
 test("renders histogram and primary Time Level Message columns", async () => {
   renderLogSearch();
 
-  expect(await screen.findByRole("img", { name: "Log volume histogram" })).toBeInTheDocument();
+  expect(await screen.findByRole("group", { name: "Log volume histogram" })).toBeInTheDocument();
 
   const table = screen.getByRole("table", { name: "Log results" });
   expect(within(table).getByRole("columnheader", { name: "Time" })).toBeInTheDocument();
@@ -165,9 +165,9 @@ test("histogram drag selection zooms the log query to the selected bucket range"
   });
 
   renderLogSearch();
-  await screen.findByRole("img", { name: "Log volume histogram" });
+  await screen.findByRole("group", { name: "Log volume histogram" });
 
-  const histogram = screen.getByRole("img", { name: "Log volume histogram" });
+  const histogram = screen.getByRole("group", { name: "Log volume histogram" });
   const grid = histogram.querySelector("[aria-hidden='true']") as HTMLElement;
 
   // Drag across the first 6 buckets (left half)
@@ -190,9 +190,9 @@ test("histogram reset range button restores lookback query", async () => {
   });
 
   renderLogSearch();
-  await screen.findByRole("img", { name: "Log volume histogram" });
+  await screen.findByRole("group", { name: "Log volume histogram" });
 
-  const histogram = screen.getByRole("img", { name: "Log volume histogram" });
+  const histogram = screen.getByRole("group", { name: "Log volume histogram" });
   const grid = histogram.querySelector("[aria-hidden='true']") as HTMLElement;
 
   fireEvent.pointerDown(grid, { clientX: 0, pointerId: 1 });
@@ -252,9 +252,9 @@ test("histogram renders visible bars when API returns non-zero severity counts",
   });
 
   renderLogSearch();
-  await screen.findByRole("img", { name: "Log volume histogram" });
+  await screen.findByRole("group", { name: "Log volume histogram" });
 
-  const histogram = screen.getByRole("img", { name: "Log volume histogram" });
+  const histogram = screen.getByRole("group", { name: "Log volume histogram" });
   // bars have title="<timestamp> <LEVEL>: <count>" — only rendered for count > 0
   const infoBar = histogram.querySelector("[title*='INFO: 5']");
   const errorBar = histogram.querySelector("[title*='ERROR: 2']");

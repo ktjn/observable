@@ -98,7 +98,7 @@ export function Histogram<T extends string>({
   return (
     <section
       ref={sectionRef}
-      role="img"
+      role="group"
       aria-label={ariaLabel}
       className="border border-[var(--border)] bg-[var(--surface)] p-3"
     >

@@ -198,7 +198,7 @@ impl QueryPlanner {
         let sql = format!(
             "SELECT \
                intDiv(start_time_unix_nano - ?, ?) AS bucket_idx, \
-               1 as dummy_severity, \
+               toInt32(1) as dummy_severity, \
                count(DISTINCT trace_id) AS cnt \
              FROM observable.spans {where_clause} \
              GROUP BY bucket_idx \
