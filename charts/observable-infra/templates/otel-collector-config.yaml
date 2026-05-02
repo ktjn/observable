@@ -85,6 +85,13 @@ data:
           disk: {}
           filesystem: {}
           network: {}
+      # Collect per-pod CPU/memory/network metrics from the node kubelet.
+      # k8s.namespace.name, k8s.pod.name and k8s.container.name are included
+      # by default in kubeletstats resource attributes.
+      kubeletstats:
+        auth_type: serviceAccount
+        insecure_skip_verify: true
+        collection_interval: 30s
     processors:
       resource:
         attributes:
@@ -106,6 +113,14 @@ data:
           - key: service.name
             action: upsert
             value: observable-self-observability-node-agent
+      # Drop any metrics that came from the testbench namespace so that
+      # pod/container metrics for testbench workloads are not attributed to
+      # the observable environment by the node-level collector.
+      filter/drop_testbench:
+        error_mode: ignore
+        metrics:
+          datapoint:
+            - 'resource.attributes["k8s.namespace.name"] == "testbench"'
       batch: {}
     exporters:
       otlphttp/self_observability:
@@ -121,6 +136,61 @@ data:
     service:
       pipelines:
         metrics:
-          receivers: [prometheus, hostmetrics]
-          processors: [resource, batch]
+          receivers: [prometheus, hostmetrics, kubeletstats]
+          processors: [resource, filter/drop_testbench, batch]
+          exporters: [otlphttp/self_observability]
+---
+# k8s-metrics collector: collects cluster-level Kubernetes entity metrics
+# (pod phases, namespace inventory, deployment/daemonset status) using the
+# k8s_cluster receiver which reads from the kube-apiserver. Runs as a single
+# Deployment so each entity is reported exactly once.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: observable-self-observability-k8s-metrics
+  labels:
+    app.kubernetes.io/part-of: observable
+    app.kubernetes.io/component: self-observability-k8s-metrics
+data:
+  collector.yaml: |
+    receivers:
+      k8s_cluster:
+        collection_interval: 30s
+        allocatable_types_to_report:
+          - cpu
+          - memory
+          - storage
+    processors:
+      resource:
+        attributes:
+          - key: k8s.cluster.name
+            action: upsert
+            value: {{ .Values.selfObservability.cluster | quote }}
+          - key: service.name
+            action: upsert
+            value: observable-self-observability-k8s-metrics
+      # Drop cluster metrics that belong to the testbench namespace so that
+      # testbench pods/namespaces are not attributed to the observable environment.
+      filter/drop_testbench:
+        error_mode: ignore
+        metrics:
+          datapoint:
+            - 'resource.attributes["k8s.namespace.name"] == "testbench"'
+      batch: {}
+    exporters:
+      otlphttp/self_observability:
+        endpoint: {{ .Values.selfObservability.otlpEndpoint | quote }}
+        encoding: json
+        {{- if .Values.selfObservability.bearerToken }}
+        headers:
+          Authorization: "Bearer {{ .Values.selfObservability.bearerToken }}"
+        {{- else if .Values.selfObservability.headersSecretRef }}
+        headers:
+          Authorization: "${OTEL_EXPORTER_OTLP_HEADERS}"
+        {{- end }}
+    service:
+      pipelines:
+        metrics:
+          receivers: [k8s_cluster]
+          processors: [resource, filter/drop_testbench, batch]
           exporters: [otlphttp/self_observability]

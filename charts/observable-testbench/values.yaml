@@ -113,6 +113,17 @@ otelGateway:
         attributes:
           - { key: deployment.environment, value: testbench, action: upsert }
           - { key: k8s.cluster.name, value: "{{ .Values.global.testbench.clusterName }}", action: upsert }
+      # Drop any k8s cluster/namespace/pod metrics that do not belong to the
+      # testbench namespace. Metrics without k8s.namespace.name (e.g. node-level
+      # aggregates) are passed through unchanged.
+      filter/testbench_only:
+        error_mode: ignore
+        metrics:
+          datapoint:
+            - 'resource.attributes["k8s.namespace.name"] != nil and resource.attributes["k8s.namespace.name"] != "testbench"'
+        logs:
+          log_record:
+            - 'resource.attributes["k8s.namespace.name"] != nil and resource.attributes["k8s.namespace.name"] != "testbench"'
 
     exporters:
       debug: null
@@ -133,11 +144,11 @@ otelGateway:
           exporters: [otlphttp/observable]
         metrics:
           receivers: [otlp]
-          processors: [resource, memory_limiter, batch]
+          processors: [resource, memory_limiter, filter/testbench_only, batch]
           exporters: [otlphttp/observable]
         logs:
           receivers: [otlp]
-          processors: [resource, memory_limiter, batch]
+          processors: [resource, memory_limiter, filter/testbench_only, batch]
           exporters: [otlphttp/observable]
 
 # ---------------------------------------------------------------------------
@@ -190,6 +201,16 @@ otelAgent:
         attributes:
           - { key: deployment.environment, value: testbench, action: upsert }
           - { key: k8s.cluster.name, value: "{{ .Values.global.testbench.clusterName }}", action: upsert }
+      # Drop pod/container metrics for namespaces that are not testbench so that
+      # kube-system, observable, etc. do not appear under the testbench environment.
+      filter/testbench_only:
+        error_mode: ignore
+        metrics:
+          datapoint:
+            - 'resource.attributes["k8s.namespace.name"] != nil and resource.attributes["k8s.namespace.name"] != "testbench"'
+        logs:
+          log_record:
+            - 'resource.attributes["k8s.namespace.name"] != nil and resource.attributes["k8s.namespace.name"] != "testbench"'
 
     exporters:
       debug: null
@@ -206,10 +227,10 @@ otelAgent:
         # k8sattributes prepended to processors by kubernetesAttributes preset
         metrics:
           receivers: [kubeletstats]
-          processors: [resource, batch]
+          processors: [resource, filter/testbench_only, batch]
           exporters: [otlp/gateway]
         logs:
           receivers: [filelog]
-          processors: [resource, batch]
+          processors: [resource, filter/testbench_only, batch]
           exporters: [otlp/gateway]
       extensions: [health_check]

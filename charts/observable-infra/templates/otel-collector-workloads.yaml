@@ -1,0 +1,103 @@
+{{- if .Values.selfObservability.bearerToken }}
+# DaemonSet — node-agent
+# Collects host-level metrics (CPU, memory, disk, network via hostmetrics),
+# per-pod resource metrics (via kubeletstats), and dependency metrics
+# (ClickHouse, Redpanda via prometheus scraper). Runs on every node.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: observable-self-observability-node-agent
+  labels:
+    app.kubernetes.io/part-of: observable
+    app.kubernetes.io/component: self-observability-node-agent
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: self-observability-node-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: observable
+        app.kubernetes.io/component: self-observability-node-agent
+    spec:
+      serviceAccountName: observable-otelcol
+      hostNetwork: true
+      hostPID: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: otelcol
+          image: otel/opentelemetry-collector-contrib:0.150.1
+          args: ["--config=/conf/collector.yaml"]
+          env:
+            - name: K8S_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: config
+              mountPath: /conf
+            - name: hostfs
+              mountPath: /hostfs
+              readOnly: true
+              mountPropagation: HostToContainer
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            runAsUser: 0
+      tolerations:
+        - operator: Exists
+      volumes:
+        - name: config
+          configMap:
+            name: observable-self-observability-node-agent
+        - name: hostfs
+          hostPath:
+            path: /
+---
+# Deployment — k8s-metrics collector
+# Runs as a single replica and collects cluster-level Kubernetes entity metrics
+# (pod phases, namespace inventory, deployment/daemonset status) by reading
+# from the kube-apiserver via the k8s_cluster receiver.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: observable-self-observability-k8s-metrics
+  labels:
+    app.kubernetes.io/part-of: observable
+    app.kubernetes.io/component: self-observability-k8s-metrics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: self-observability-k8s-metrics
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: observable
+        app.kubernetes.io/component: self-observability-k8s-metrics
+    spec:
+      serviceAccountName: observable-otelcol
+      containers:
+        - name: otelcol
+          image: otel/opentelemetry-collector-contrib:0.150.1
+          args: ["--config=/conf/collector.yaml"]
+          volumeMounts:
+            - name: config
+              mountPath: /conf
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: config
+          configMap:
+            name: observable-self-observability-k8s-metrics
+{{- end }}
