@@ -75,7 +75,7 @@ function TraceResultsRow({
       onKeyDown={mode === "select" ? (e) => (e.key === "Enter" || e.key === " ") && onSelect() : undefined}
       tabIndex={mode === "select" ? 0 : undefined}
       role={mode === "select" ? "button" : undefined}
-      aria-label={mode === "select" ? `Open trace ${trace.trace_id.substring(0, 16)}` : undefined}
+      aria-label={mode === "select" ? `${trace.trace_id.substring(0, 16)}…` : undefined}
       aria-pressed={mode === "select" ? selected : undefined}
     >
       <td className="whitespace-nowrap">{formatTimestamp(root.start_time_unix_nano, timeFormat)}</td>
