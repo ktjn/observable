@@ -37,12 +37,14 @@ trap cleanup_smoke_compose EXIT
 
 SKIP_DOCKER=${SKIP_DOCKER:-0}
 SKIP_FRONTEND=${SKIP_FRONTEND:-0}
+SKIP_HELM=${SKIP_HELM:-0}
 SKIP_SMOKE=${SKIP_SMOKE:-0}
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --skip-docker)   SKIP_DOCKER=1   ;;
     --skip-frontend) SKIP_FRONTEND=1 ;;
+    --skip-helm)     SKIP_HELM=1     ;;
     --skip-smoke)    SKIP_SMOKE=1    ;;
     *) echo "Unknown flag: $1"; exit 1 ;;
   esac
@@ -83,6 +85,15 @@ if [[ $SKIP_FRONTEND -eq 0 ]]; then
     npm run test:a11y --workspace=apps/frontend && ok "a11y" || fail "a11y"
   else
     echo "SKIP  a11y (Chromium not installed — run: cd apps/frontend && npx playwright install chromium)"
+  fi
+fi
+
+if [[ $SKIP_HELM -eq 0 ]]; then
+  step "Helm lint"
+  if command -v helm >/dev/null 2>&1; then
+    bash scripts/helm-lint.sh && ok "helm lint" || fail "helm lint"
+  else
+    echo "SKIP  helm lint (helm not installed — run: bash scripts/helm-lint.sh)"
   fi
 fi
 
