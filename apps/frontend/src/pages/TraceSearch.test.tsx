@@ -5,6 +5,20 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
 import TraceSearch from "./TraceSearch";
 
+const FIXED_TO_MS   = 1_700_100_000_000;
+const FIXED_FROM_MS = FIXED_TO_MS - 60 * 60 * 1000;
+
+vi.mock("../hooks/useGlobalDateRange", () => ({
+  useGlobalDateRange: vi.fn(() => ({
+    preset: "1h",
+    fromMs: FIXED_FROM_MS,
+    toMs:   FIXED_TO_MS,
+    setPreset: vi.fn(),
+    setCustomRange: vi.fn(),
+    clearCustomRange: vi.fn(),
+  })),
+}));
+
 const traceResponse = {
   traces: [
     {
