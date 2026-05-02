@@ -104,7 +104,7 @@ fn otlp_attrs_to_map(attrs: &Value) -> HashMap<String, Value> {
 pub fn parse_otlp_logs(
     body: &Value,
     tenant_id: Uuid,
-    _environment: &str,
+    environment: &str,
 ) -> Result<Vec<domain::LogRecord>, StatusCode> {
     let resource_logs = body
         .get("resourceLogs")
@@ -158,6 +158,7 @@ pub fn parse_otlp_logs(
                         .map(extract_otlp_any_value)
                         .unwrap_or(Value::Null),
                     service_name: service_name.clone(),
+                    environment: environment.to_string(),
                     attributes: lr
                         .get("attributes")
                         .map(otlp_attrs_to_map)
@@ -595,6 +596,10 @@ mod tests {
             "body should be extracted string, not OTLP wrapper"
         );
         assert_eq!(logs[0].service_name, "svc");
+        assert_eq!(
+            logs[0].environment, "testbench",
+            "environment must be set from token"
+        );
     }
 
     #[test]
