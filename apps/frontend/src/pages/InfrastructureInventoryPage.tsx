@@ -25,8 +25,9 @@ export default function InfrastructureInventoryPage() {
   const { format } = useTimeDisplay();
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["infrastructure"],
-    queryFn: () => listInfrastructure(),
+    queryKey: ["infrastructure", environment],
+    queryFn: () =>
+      listInfrastructure(environment !== "all" ? { environment } : {}),
   });
 
   const filteredItems = useMemo(() => {
