@@ -6,6 +6,7 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Serialize)]
@@ -76,6 +77,26 @@ pub struct ServiceSummaryResponse {
 #[derive(Serialize)]
 pub struct ServiceDetailResponse {
     pub service: ServiceSummary,
+}
+
+#[derive(Deserialize)]
+pub struct ResponseTimeHistoryParams {
+    pub lookback_minutes: Option<u32>,
+    pub buckets: Option<u32>,
+}
+
+#[derive(Serialize)]
+pub struct ResponseTimeBucket {
+    pub start_ms: u64,
+    pub end_ms: u64,
+    pub p50_ms: f64,
+    pub p95_ms: f64,
+    pub request_rate: f64,
+}
+
+#[derive(Serialize)]
+pub struct ResponseTimeHistoryResponse {
+    pub buckets: Vec<ResponseTimeBucket>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -357,6 +378,73 @@ pub async fn get_service_summary(
     Ok(Json(ServiceDetailResponse {
         service: service_summary_from_row(row, duration_secs),
     }))
+}
+
+pub async fn get_service_response_time_history(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(service_name): Path<String>,
+    Query(params): Query<ResponseTimeHistoryParams>,
+) -> Result<Json<ResponseTimeHistoryResponse>, StatusCode> {
+    let lookback_mins = params.lookback_minutes.unwrap_or(60);
+    let bucket_count = params.buckets.unwrap_or(60).clamp(1, 200);
+    let lookback_ns = (lookback_mins as u64) * 60 * 1_000_000_000;
+    let now_ns = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+    let from_ns = now_ns.saturating_sub(lookback_ns);
+    let to_ns = now_ns;
+
+    let plan = state
+        .planner
+        .plan_response_time_histogram(from_ns, to_ns, bucket_count);
+
+    let mut cursor = state
+        .ch
+        .query(&plan.sql)
+        .bind(plan.from_ns)
+        .bind(plan.interval_ns)
+        .bind(ctx.tenant_id)
+        .bind(&service_name)
+        .bind(from_ns)
+        .bind(to_ns)
+        .fetch::<(i64, f64, f64, u64)>()
+        .map_err(|e| {
+            tracing::error!(error = ?e, "ClickHouse response time histogram error");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let interval_secs = plan.interval_ns as f64 / 1_000_000_000.0;
+    let mut raw: HashMap<i64, (f64, f64, u64)> = HashMap::new();
+    while let Some((bucket_idx, p50_ns, p95_ns, span_count)) =
+        cursor.next().await.map_err(|e| {
+            tracing::error!(error = ?e, "ClickHouse response time histogram fetch error");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+    {
+        if bucket_idx >= 0 && bucket_idx < bucket_count as i64 {
+            raw.insert(bucket_idx, (p50_ns, p95_ns, span_count));
+        }
+    }
+
+    let buckets = (0..bucket_count)
+        .map(|i| {
+            let start_ns = plan.from_ns + i as u64 * plan.interval_ns;
+            let end_ns = start_ns + plan.interval_ns;
+            let (p50_ns, p95_ns, span_count) =
+                raw.remove(&(i as i64)).unwrap_or((0.0, 0.0, 0));
+            ResponseTimeBucket {
+                start_ms: start_ns / 1_000_000,
+                end_ms: end_ns / 1_000_000,
+                p50_ms: p50_ns / 1_000_000.0,
+                p95_ms: p95_ns / 1_000_000.0,
+                request_rate: span_count as f64 / interval_secs,
+            }
+        })
+        .collect();
+
+    Ok(Json(ResponseTimeHistoryResponse { buckets }))
 }
 
 pub async fn get_topology(
