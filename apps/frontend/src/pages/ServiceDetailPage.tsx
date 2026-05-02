@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation, useParams, useSearch } from "@tanstack/react-router";
+import { Link, useLocation, useParams } from "@tanstack/react-router";
 import { listDeployments } from "../api/deployments";
 import {
   getServiceResponseTimeHistory,
@@ -18,6 +18,7 @@ import {
 import { NlqPanel } from "../features/nlq/NlqPanel";
 import { ServiceMetricsWorkspace } from "../features/metrics/ServiceMetricsWorkspace";
 import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
+import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { LogExplorer } from "./LogSearch";
 import { TraceExplorer } from "./TraceSearch";
 
@@ -29,11 +30,13 @@ export default function ServiceDetailPage() {
   const serviceName = decodeURIComponent(serviceId);
   const location = useLocation();
   const activeTab = signalTabFromPath(location.pathname);
-  const search = useSearch({ strict: false }) as ServiceDetailSearch;
-  const lookbackMinutes = readLookbackMinutes(search);
+  const { fromMs, toMs } = useGlobalDateRange();
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["service-summary", serviceName, lookbackMinutes],
-    queryFn: () => getServiceSummary(serviceName, { lookback_minutes: lookbackMinutes }),
+    queryKey: ["service-summary", serviceName, fromMs, toMs],
+    queryFn: () => getServiceSummary(serviceName, {
+      lookback_minutes: Math.round((toMs - fromMs) / 60_000),
+    }),
   });
 
   if (isLoading) {
@@ -53,7 +56,8 @@ export default function ServiceDetailPage() {
     <ServiceDetailView
       service={data.service}
       activeTab={activeTab}
-      lookbackMinutes={lookbackMinutes}
+      fromMs={fromMs}
+      toMs={toMs}
     />
   );
 }
@@ -61,11 +65,13 @@ export default function ServiceDetailPage() {
 function ServiceDetailView({
   service,
   activeTab,
-  lookbackMinutes,
+  fromMs,
+  toMs,
 }: {
   service: ServiceSummary;
   activeTab: ServiceSignalTab;
-  lookbackMinutes: number;
+  fromMs: number;
+  toMs: number;
 }) {
   return (
     <section className="page-stack">
@@ -93,7 +99,8 @@ function ServiceDetailView({
 
       <ResponseTimeGraphSection
         serviceName={service.service_name}
-        lookbackMinutes={lookbackMinutes}
+        fromMs={fromMs}
+        toMs={toMs}
       />
 
       <div className="detail-grid">
@@ -112,8 +119,8 @@ function ServiceDetailView({
               <dd>{service.latest_deployment ?? "No deployment marker"}</dd>
             </div>
             <div>
-              <dt>Lookback</dt>
-              <dd>Last 1h</dd>
+              <dt>Time window</dt>
+              <dd>{describeRange(fromMs, toMs)}</dd>
             </div>
           </dl>
         </Panel>
@@ -160,23 +167,12 @@ function ServiceDetailView({
       <ServiceSignalTabs
         serviceName={service.service_name}
         activeTab={activeTab}
-        lookbackMinutes={lookbackMinutes}
       />
     </section>
   );
 }
 
 type ServiceSignalTab = "logs" | "metrics" | "traces";
-type ServiceDetailSearch = {
-  lookback_minutes?: number | string;
-};
-
-function readLookbackMinutes(search: ServiceDetailSearch): number {
-  const raw = search.lookback_minutes;
-  const parsed = typeof raw === "number" ? raw : Number(raw ?? 60);
-  if (!Number.isFinite(parsed) || parsed <= 0) return 60;
-  return Math.floor(parsed);
-}
 
 function signalTabFromPath(pathname: string): ServiceSignalTab {
   if (pathname.endsWith("/metrics")) return "metrics";
@@ -184,14 +180,19 @@ function signalTabFromPath(pathname: string): ServiceSignalTab {
   return "logs";
 }
 
+function describeRange(fromMs: number, toMs: number): string {
+  const minutes = Math.round((toMs - fromMs) / 60_000);
+  if (minutes < 60) return `Last ${minutes}m`;
+  const hours = Math.round(minutes / 60);
+  return `Last ${hours}h`;
+}
+
 function ServiceSignalTabs({
   serviceName,
   activeTab,
-  lookbackMinutes,
 }: {
   serviceName: string;
   activeTab: ServiceSignalTab;
-  lookbackMinutes: number;
 }) {
   const encodedService = encodeURIComponent(serviceName);
   const tabLinks = [
@@ -199,7 +200,6 @@ function ServiceSignalTabs({
     { tab: "metrics" as const, label: "Metrics", to: "/services/$serviceId/metrics" },
     { tab: "traces" as const,  label: "Traces",  to: "/services/$serviceId/traces" },
   ];
-  const preservedSearch = { lookback_minutes: lookbackMinutes };
 
   return (
     <Panel className="overflow-hidden">
@@ -209,7 +209,6 @@ function ServiceSignalTabs({
             key={link.tab}
             to={link.to}
             params={{ serviceId: encodedService }}
-            search={preservedSearch}
             className={activeTab === link.tab ? "modern-signal-tab active" : "modern-signal-tab"}
             aria-current={activeTab === link.tab ? "page" : undefined}
           >
@@ -218,28 +217,21 @@ function ServiceSignalTabs({
         ))}
       </nav>
       {activeTab === "logs" && (
-        <ServiceLogsTab serviceName={serviceName} lookbackMinutes={lookbackMinutes} />
+        <ServiceLogsTab serviceName={serviceName} />
       )}
       {activeTab === "metrics" && <ServiceMetricsWorkspace serviceName={serviceName} />}
       {activeTab === "traces" && (
-        <ServiceTracesTab serviceName={serviceName} lookbackMinutes={lookbackMinutes} />
+        <ServiceTracesTab serviceName={serviceName} />
       )}
     </Panel>
   );
 }
 
-function ServiceLogsTab({
-  serviceName,
-  lookbackMinutes,
-}: {
-  serviceName: string;
-  lookbackMinutes: number;
-}) {
+function ServiceLogsTab({ serviceName }: { serviceName: string }) {
   return (
     <LogExplorer
       initialService={serviceName}
       lockedService
-      initialLookbackMinutes={lookbackMinutes}
       showHeader={false}
       showServiceColumn={false}
       showPromote={false}
@@ -248,18 +240,11 @@ function ServiceLogsTab({
   );
 }
 
-function ServiceTracesTab({
-  serviceName,
-  lookbackMinutes,
-}: {
-  serviceName: string;
-  lookbackMinutes: number;
-}) {
+function ServiceTracesTab({ serviceName }: { serviceName: string }) {
   return (
     <TraceExplorer
       initialService={serviceName}
       lockedService
-      initialLookbackMinutes={lookbackMinutes}
       showHeader={false}
       showServiceColumn={false}
       showPromote={false}
@@ -283,16 +268,18 @@ function healthLabel(healthState: ServiceSummary["health_state"]) {
 
 function ResponseTimeGraphSection({
   serviceName,
-  lookbackMinutes,
+  fromMs,
+  toMs,
 }: {
   serviceName: string;
-  lookbackMinutes: number;
+  fromMs: number;
+  toMs: number;
 }) {
-  const nowMs = Date.now();
-  const startMs = nowMs - lookbackMinutes * 60 * 1000;
+  const { setCustomRange } = useGlobalDateRange();
+  const lookbackMinutes = Math.round((toMs - fromMs) / 60_000);
 
   const { data: historyData } = useQuery({
-    queryKey: ["service-response-time", serviceName, lookbackMinutes],
+    queryKey: ["service-response-time", serviceName, fromMs, toMs],
     queryFn: () =>
       getServiceResponseTimeHistory(serviceName, {
         lookback_minutes: lookbackMinutes,
@@ -301,12 +288,12 @@ function ResponseTimeGraphSection({
   });
 
   const { data: deploymentData } = useQuery({
-    queryKey: ["deployments", serviceName, lookbackMinutes],
+    queryKey: ["deployments", serviceName, fromMs, toMs],
     queryFn: () =>
       listDeployments({
         service_name: serviceName,
-        start_time: new Date(startMs).toISOString(),
-        end_time: new Date(nowMs).toISOString(),
+        start_time: new Date(fromMs).toISOString(),
+        end_time: new Date(toMs).toISOString(),
         limit: 20,
       }),
   });
@@ -342,11 +329,12 @@ function ResponseTimeGraphSection({
     <TimeSeriesGraph
       series={[p95Series, p50Series, rateSeries]}
       deploymentMarkers={deploymentData?.items ?? []}
-      rangeStartMs={startMs}
-      rangeEndMs={nowMs}
+      rangeStartMs={fromMs}
+      rangeEndMs={toMs}
       eyebrow="Performance"
-      title={`Response Time & Throughput — Last ${lookbackMinutes}m`}
+      title="Response Time & Throughput"
       ariaLabel="Service response time and throughput graph"
+      onRangeSelect={setCustomRange}
     />
   );
 }

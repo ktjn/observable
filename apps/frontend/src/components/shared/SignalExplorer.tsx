@@ -1,14 +1,6 @@
 import { type ReactNode, useState } from "react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import { Select, SelectOption } from "../ui/select";
-
-const timeRangeOptions = [
-  { label: "15m", value: 15 },
-  { label: "1h", value: 60 },
-  { label: "6h", value: 360 },
-  { label: "24h", value: 1440 },
-];
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -16,11 +8,6 @@ export interface SignalExplorerProps {
   title: string;
   service: string;
   onServiceChange: (service: string) => void;
-  lookbackMinutes: number;
-  onLookbackChange: (minutes: number) => void;
-  customRangeMs: { fromMs: number; toMs: number } | null;
-  customRangeLabel?: string;
-  onClearRange: () => void;
   lockedService?: boolean;
   showHeader?: boolean;
   showPromote?: boolean;
@@ -35,11 +22,6 @@ export function SignalExplorer({
   title,
   service,
   onServiceChange,
-  lookbackMinutes,
-  onLookbackChange,
-  customRangeMs,
-  customRangeLabel,
-  onClearRange,
   lockedService = false,
   showHeader = true,
   showPromote = true,
@@ -58,16 +40,6 @@ export function SignalExplorer({
   function handleServiceChange(s: string) {
     setSelectedId(null);
     onServiceChange(s);
-  }
-
-  function handleLookbackChange(m: number) {
-    setSelectedId(null);
-    onLookbackChange(m);
-  }
-
-  function handleClearRangeAndReset() {
-    setSelectedId(null);
-    onClearRange();
   }
 
   return (
@@ -90,31 +62,6 @@ export function SignalExplorer({
             onChange={(e) => handleServiceChange(e.target.value)}
             aria-label="Filter by service"
           />
-        )}
-        {customRangeMs ? (
-          <>
-            {customRangeLabel && (
-              <span className="text-xs whitespace-nowrap font-mono text-[var(--text-strong)]">
-                {customRangeLabel}
-              </span>
-            )}
-            <Button variant="secondary" onClick={handleClearRangeAndReset}>
-              Reset range
-            </Button>
-          </>
-        ) : (
-          <Select
-            aria-label={`${title} time range`}
-            className="max-w-[120px]"
-            value={String(lookbackMinutes)}
-            onChange={(e) => handleLookbackChange(Number(e.target.value))}
-          >
-            {timeRangeOptions.map((opt) => (
-              <SelectOption key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectOption>
-            ))}
-          </Select>
         )}
         {service && !lockedService && (
           <Button variant="secondary" onClick={() => handleServiceChange("")}>

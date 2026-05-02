@@ -14,8 +14,32 @@ import LogSearch from "./pages/LogSearch";
 import DashboardsPage from "./pages/DashboardsPage";
 import NlqQueryPage from "./pages/NlqQueryPage";
 
+export type Preset = "5m" | "15m" | "30m" | "1h" | "3h" | "12h";
+export const DEFAULT_PRESET: Preset = "1h";
+
+export type RootSearch = {
+  preset?: Preset;
+  from?: number;
+  to?: number;
+};
+
+const VALID_PRESETS = new Set<string>(["5m", "15m", "30m", "1h", "3h", "12h"]);
+
 const rootRoute = createRootRoute({
   component: AppShell,
+  validateSearch: (search: Record<string, unknown>): RootSearch => {
+    const raw = search.preset;
+    const preset = typeof raw === "string" && VALID_PRESETS.has(raw)
+      ? (raw as Preset)
+      : undefined;
+    const from = typeof search.from === "number" ? search.from
+      : typeof search.from === "string" ? Number(search.from) || undefined
+      : undefined;
+    const to = typeof search.to === "number" ? search.to
+      : typeof search.to === "string" ? Number(search.to) || undefined
+      : undefined;
+    return { preset, from, to };
+  },
 });
 
 const homeRoute = createRoute({

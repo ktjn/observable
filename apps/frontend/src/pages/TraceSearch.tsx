@@ -16,7 +16,7 @@ import { LoadingState } from "../components/ui/loading-state";
 import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
 import { useTimeDisplay } from "../lib/timeDisplay";
-import { useSignalSearch } from "../hooks/useSignalSearch";
+import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { formatBucketLabel } from "../utils/formatBucketLabel";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { formatContextValue } from "../utils/logFormatting";
@@ -27,7 +27,6 @@ import { TraceResultsTable } from "../features/signals/components/TraceResultsTa
 export type TraceExplorerProps = {
   initialService?: string;
   lockedService?: boolean;
-  initialLookbackMinutes?: number;
   showHeader?: boolean;
   showServiceColumn?: boolean;
   showPromote?: boolean;
@@ -47,7 +46,6 @@ export default function TraceSearch() {
 export function TraceExplorer({
   initialService = "",
   lockedService = false,
-  initialLookbackMinutes = 60,
   showHeader = true,
   showServiceColumn = true,
   showPromote = true,
@@ -56,24 +54,16 @@ export function TraceExplorer({
   tableMode = "select",
 }: TraceExplorerProps) {
   const { format } = useTimeDisplay();
-  const {
-    service,
-    setService,
-    lookbackMinutes,
-    setLookbackMinutes,
-    customRangeMs,
-    handleHistogramRangeSelect,
-    handleClearRange,
-    from,
-    to,
-    histogramFromMs,
-    histogramToMs,
-  } = useSignalSearch({ initialService, initialLookbackMinutes });
+  const { fromMs, toMs, setCustomRange } = useGlobalDateRange();
+  const [service, setService] = useState(initialService);
+
+  const from = new Date(fromMs).toISOString();
+  const to   = new Date(toMs).toISOString();
   const [bucketCount, setBucketCount] = useState(60);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["traces", service, from, to],
+    queryKey: ["traces", service, fromMs, toMs],
     queryFn: () =>
       searchTraces({
         service: service || undefined,
@@ -85,12 +75,12 @@ export function TraceExplorer({
   });
 
   const { data: histogramData, isError: isHistogramError } = useQuery({
-    queryKey: ["traces-histogram", service, from, to, bucketCount],
+    queryKey: ["traces-histogram", service, fromMs, toMs, bucketCount],
     queryFn: () =>
       fetchTraceHistogram({
         service: service || undefined,
         from,
-        to: new Date(histogramToMs).toISOString(),
+        to,
         buckets: bucketCount,
       }),
     placeholderData: (prev: TraceHistogramResponse | undefined) => prev,
@@ -102,8 +92,8 @@ export function TraceExplorer({
     () =>
       histogramData?.buckets?.length
         ? histogramFromApi(histogramData.buckets)
-        : buildTraceHistogram(traces, histogramFromMs, histogramToMs),
-    [histogramData, histogramFromMs, histogramToMs, traces],
+        : buildTraceHistogram(traces, fromMs, toMs),
+    [histogramData, fromMs, toMs, traces],
   );
 
   const handleFacetClick = (field: string, value: string) => {
@@ -120,7 +110,7 @@ export function TraceExplorer({
             title: service ? `Traces for ${service}` : "Trace search",
             query_kind: "traces",
             service: service || undefined,
-            lookback_minutes: lookbackMinutes,
+            lookback_minutes: Math.round((toMs - fromMs) / 60_000),
             filters: { facets: ["service_name", "status_code", "span_kind"] },
           },
         ],
@@ -136,15 +126,6 @@ export function TraceExplorer({
       title="Traces"
       service={service}
       onServiceChange={(s) => { setService(s); }}
-      lookbackMinutes={lookbackMinutes}
-      onLookbackChange={(m) => { setLookbackMinutes(m); }}
-      customRangeMs={customRangeMs}
-      customRangeLabel={
-        customRangeMs
-          ? `${formatBucketLabel(customRangeMs.fromMs, format)} – ${formatBucketLabel(customRangeMs.toMs, format)}`
-          : undefined
-      }
-      onClearRange={handleClearRange}
       lockedService={lockedService}
       showHeader={showHeader}
       showPromote={showPromote}
@@ -157,7 +138,7 @@ export function TraceExplorer({
             categoryOrder={["Traces"]}
             categoryColors={{ Traces: "bg-[var(--brand)]" }}
             format={(ms) => formatBucketLabel(ms, format)}
-            onRangeSelect={handleHistogramRangeSelect}
+            onRangeSelect={setCustomRange}
             onBucketCountChange={setBucketCount}
             ariaLabel="Trace volume histogram"
             title="Traces over time"

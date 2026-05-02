@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildPolylinePoints, toX, toY } from "./time-series-graph";
+import { buildPolylinePoints, toX, toY, pixelToMs, TimeSeriesGraph } from "./time-series-graph";
+import { render } from "@testing-library/react";
+import { fireEvent } from "@testing-library/react";
+import { vi } from "vitest";
 
 describe("toX", () => {
   it("maps range start to 0", () => {
@@ -55,5 +58,61 @@ describe("buildPolylinePoints", () => {
     // Point 1: toX(0,0,100,400)=0, toY(0,0,100,10,70)=70 → "0,70"
     // Point 2: toX(100,0,100,400)=400, toY(100,0,100,10,70)=10 → "400,10"
     expect(buildPolylinePoints(series, 0, 100, 400, 10, 70)).toBe("0,70 400,10");
+  });
+});
+
+describe("pixelToMs", () => {
+  it("maps x=0 to rangeStartMs", () => {
+    expect(pixelToMs(0, 1000, 2000, 400)).toBe(1000);
+  });
+  it("maps x=width to rangeEndMs", () => {
+    expect(pixelToMs(400, 1000, 2000, 400)).toBe(2000);
+  });
+  it("maps x=200 to midpoint", () => {
+    expect(pixelToMs(200, 1000, 2000, 400)).toBe(1500);
+  });
+});
+
+describe("TimeSeriesGraph brush", () => {
+  it("does not fire onRangeSelect when prop is not provided", () => {
+    const onRangeSelect = vi.fn();
+    render(
+      <TimeSeriesGraph
+        series={[]}
+        rangeStartMs={1000}
+        rangeEndMs={2000}
+        ariaLabel="test graph"
+      />
+    );
+    const svg = document.querySelector("svg")!;
+    fireEvent.pointerDown(svg, { clientX: 10 });
+    fireEvent.pointerUp(svg, { clientX: 50 });
+    expect(onRangeSelect).not.toHaveBeenCalled();
+  });
+
+  it("fires onRangeSelect with from/to ms when brush drag completes", () => {
+    const onRangeSelect = vi.fn();
+    const rangeStartMs = 0;
+    const rangeEndMs = 1000;
+    render(
+      <TimeSeriesGraph
+        series={[]}
+        rangeStartMs={rangeStartMs}
+        rangeEndMs={rangeEndMs}
+        onRangeSelect={onRangeSelect}
+        ariaLabel="test graph"
+      />
+    );
+    const svg = document.querySelector("svg")!;
+    Object.defineProperty(svg, "getBoundingClientRect", {
+      value: () => ({ left: 0, width: 400, top: 0, height: 80 } as DOMRect),
+    });
+    fireEvent.pointerDown(svg, { clientX: 0, pointerId: 1 });
+    fireEvent.pointerMove(svg, { clientX: 200, pointerId: 1 });
+    fireEvent.pointerUp(svg, { clientX: 200, pointerId: 1 });
+    expect(onRangeSelect).toHaveBeenCalledOnce();
+    const [from, to] = onRangeSelect.mock.calls[0];
+    expect(from).toBe(0);
+    expect(to).toBe(500);
   });
 });

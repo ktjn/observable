@@ -785,18 +785,18 @@ test("renders service-scoped signal tabs with preserved URL state", async () => 
   });
 
   vi.stubGlobal("fetch", fetchMock);
-  window.history.pushState({}, "", "/services/checkout/logs?lookback_minutes=60");
+  window.history.pushState({}, "", "/services/checkout/logs");
 
   render(<App />);
 
   const tabs = await screen.findByLabelText("Service signals");
   expect(within(tabs).getByRole("link", { name: "Logs" })).toHaveAttribute(
     "href",
-    "/services/checkout/logs?lookback_minutes=60",
+    "/services/checkout/logs",
   );
   expect(within(tabs).getByRole("link", { name: "Metrics" })).toHaveAttribute(
     "href",
-    "/services/checkout/metrics?lookback_minutes=60",
+    "/services/checkout/metrics",
   );
   expect(await screen.findByText("cart accepted")).toBeInTheDocument();
   expect(fetchMock).toHaveBeenCalledWith(
