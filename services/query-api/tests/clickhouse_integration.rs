@@ -263,6 +263,33 @@ async fn run_histogram(
         .expect("histogram query succeeded")
 }
 
+/// Executes the trace histogram query using the same tuple shape as the handler.
+async fn run_trace_histogram(
+    ch: &Client,
+    tenant_id: Uuid,
+    from_ns: u64,
+    to_ns: u64,
+    service: Option<&str>,
+    bucket_count: u32,
+) -> Vec<(i64, i32, u64)> {
+    let planner = QueryPlanner;
+    let plan = planner.plan_trace_histogram(from_ns, to_ns, service, bucket_count);
+    let mut query = ch
+        .query(&plan.sql)
+        .bind(plan.from_ns)
+        .bind(plan.interval_ns)
+        .bind(tenant_id)
+        .bind(from_ns)
+        .bind(to_ns);
+    if let Some(svc) = service {
+        query = query.bind(svc);
+    }
+    query
+        .fetch_all::<(i64, i32, u64)>()
+        .await
+        .expect("trace histogram query must decode using handler tuple shape")
+}
+
 /// Regression test for: Code 60 UNKNOWN_TABLE 'logs'
 ///
 /// The query planner generates `SELECT count() FROM logs WHERE ...` using an unqualified
@@ -580,6 +607,45 @@ async fn log_histogram_severity_distribution() {
         rows.iter().any(|(_, sev, _)| *sev == 17),
         "ERROR severity (17) must appear"
     );
+}
+
+#[tokio::test]
+async fn trace_histogram_dummy_column_decodes_as_i32() {
+    let container = ClickHouse::default()
+        .with_tag("24.3")
+        .with_env_var("CLICKHOUSE_USER", "default")
+        .with_env_var("CLICKHOUSE_PASSWORD", "test")
+        .start()
+        .await
+        .expect("clickhouse container started");
+    let port = container.get_host_port_ipv4(8123).await.unwrap();
+    let base_url = format!("http://127.0.0.1:{port}");
+    let ch = apply_migrations(&base_url, "default", "test").await;
+
+    let tenant = Uuid::new_v4();
+    let now_ns = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+    let mut span = make_span(tenant, "trace-histogram-decode", "span-1");
+    span.service_name = "svc".into();
+    span.start_time_unix_nano = now_ns - 1_000_000_000;
+    span.end_time_unix_nano = now_ns;
+    insert_span(&ch, span).await;
+
+    let rows = run_trace_histogram(
+        &ch,
+        tenant,
+        now_ns - 2_000_000_000,
+        now_ns + 1_000_000_000,
+        Some("svc"),
+        30,
+    )
+    .await;
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].1, 1);
+    assert_eq!(rows[0].2, 1);
 }
 
 // ─── Log search / context integration tests ─────────────────────────────────
