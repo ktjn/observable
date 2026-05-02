@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from opentelemetry import metrics, trace
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.aio_pika import AioPikaInstrumentor
 from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
@@ -56,6 +57,7 @@ stock_out_counter = meter.create_counter(
 
 LoggingInstrumentor().instrument(set_logging_format=True)
 AsyncPGInstrumentor().instrument()
+AioPikaInstrumentor().instrument()
 
 app = FastAPI(title="shop-api")
 FastAPIInstrumentor.instrument_app(app)
