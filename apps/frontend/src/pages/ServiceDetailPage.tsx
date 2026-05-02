@@ -34,9 +34,7 @@ export default function ServiceDetailPage() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["service-summary", serviceName, fromMs, toMs],
-    queryFn: () => getServiceSummary(serviceName, {
-      lookback_minutes: Math.round((toMs - fromMs) / 60_000),
-    }),
+    queryFn: () => getServiceSummary(serviceName, { from: fromMs, to: toMs }),
   });
 
   if (isLoading) {
@@ -276,13 +274,13 @@ function ResponseTimeGraphSection({
   toMs: number;
 }) {
   const { setCustomRange } = useGlobalDateRange();
-  const lookbackMinutes = Math.round((toMs - fromMs) / 60_000);
 
   const { data: historyData } = useQuery({
     queryKey: ["service-response-time", serviceName, fromMs, toMs],
     queryFn: () =>
       getServiceResponseTimeHistory(serviceName, {
-        lookback_minutes: lookbackMinutes,
+        from: fromMs,
+        to: toMs,
         buckets: 60,
       }),
   });

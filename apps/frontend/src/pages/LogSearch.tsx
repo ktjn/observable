@@ -102,7 +102,7 @@ export function LogExplorer({
             title: service ? `Logs for ${service}` : "Log search",
             query_kind: "logs",
             service: service || undefined,
-            lookback_minutes: Math.round((toMs - fromMs) / 60_000),
+            preset: null,
             filters: { facets: ["service_name", "severity_number", "environment", "host_id"] },
           },
         ],
