@@ -53,7 +53,6 @@ pub struct SearchParams {
     pub facets: Option<String>, // Comma-separated list of fields to facet
     pub from: Option<DateTime<Utc>>,
     pub to: Option<DateTime<Utc>>,
-    pub lookback_minutes: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -160,8 +159,6 @@ pub async fn search_traces(
     let now_ns = Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64;
     let from_ns = if let Some(dt) = params.from {
         dt.timestamp_nanos_opt().unwrap_or(0) as u64
-    } else if let Some(lookback) = params.lookback_minutes {
-        now_ns.saturating_sub(lookback as u64 * 60 * 1_000_000_000)
     } else {
         now_ns.saturating_sub(3_600_000_000_000) // Default 1h
     };
@@ -174,7 +171,7 @@ pub async fn search_traces(
     // tenant_id, from_ns (if any), to_ns (if any), service_name (if any)
     let bind_common = |mut q: clickhouse::query::Query| {
         q = q.bind(ctx.tenant_id);
-        if params.from.is_some() || params.lookback_minutes.is_some() {
+        if params.from.is_some() {
             q = q.bind(from_ns);
         }
         if params.to.is_some() {
@@ -214,7 +211,7 @@ pub async fn search_traces(
             let mut facet_sql = format!(
                 "SELECT toString({field}) as value, count(DISTINCT trace_id) as count FROM observable.spans WHERE tenant_id = ?"
             );
-            if params.from.is_some() || params.lookback_minutes.is_some() {
+            if params.from.is_some() {
                 facet_sql.push_str(" AND start_time_unix_nano >= ?");
             }
             if params.to.is_some() {
@@ -393,7 +390,7 @@ fn validate_trace_rows_for_tenant(
 
 fn trace_search_common_bind_count(params: &SearchParams) -> usize {
     let mut count = 1;
-    if params.from.is_some() || params.lookback_minutes.is_some() {
+    if params.from.is_some() {
         count += 1;
     }
     if params.to.is_some() {
@@ -540,7 +537,6 @@ mod tests {
                 facets: None,
                 from: None,
                 to: None,
-                lookback_minutes: None,
             };
             let plan = planner.plan_trace_search(&params);
             assert!(
@@ -561,7 +557,6 @@ mod tests {
             facets: None,
             from: Some(Utc::now()),
             to: Some(Utc::now()),
-            lookback_minutes: None,
         };
         let plan = planner.plan_trace_search(&params);
 

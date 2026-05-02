@@ -85,7 +85,6 @@ export async function fetchTraceHistogram(params: {
 
 export async function searchTraces(params: {
   service?: string;
-  lookback_minutes?: number;
   limit?: number;
   facets?: string[];
   from?: string;
@@ -93,9 +92,6 @@ export async function searchTraces(params: {
 }): Promise<TraceListResponse> {
   const url = new URL("/v1/traces", window.location.origin);
   if (params.service) url.searchParams.set("service", params.service);
-  if (params.lookback_minutes) {
-    url.searchParams.set("lookback_minutes", String(params.lookback_minutes));
-  }
   if (params.limit) url.searchParams.set("limit", String(params.limit));
   if (params.facets) url.searchParams.set("facets", params.facets.join(","));
   if (params.from) url.searchParams.set("from", params.from);

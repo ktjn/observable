@@ -110,7 +110,7 @@ export function TraceExplorer({
             title: service ? `Traces for ${service}` : "Trace search",
             query_kind: "traces",
             service: service || undefined,
-            lookback_minutes: Math.round((toMs - fromMs) / 60_000),
+            preset: null,
             filters: { facets: ["service_name", "status_code", "span_kind"] },
           },
         ],

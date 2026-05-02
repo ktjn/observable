@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { listDashboards, type DashboardPanel } from "../api/dashboards";
+import { PRESET_OPTIONS } from "../hooks/useGlobalDateRange";
 import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { Panel } from "../components/ui/panel";
@@ -45,10 +46,13 @@ export default function DashboardsPage() {
 
 function DashboardPanelCard({ panel }: { panel: DashboardPanel }) {
   const service = panel.service || "all services";
+  const timeLabel = panel.preset
+    ? (PRESET_OPTIONS.find((o) => o.value === panel.preset)?.label ?? panel.preset)
+    : "Global date range";
   return (
     <div className="border border-[var(--border)] bg-[var(--surface)] p-4">
       <div className="text-xs font-bold uppercase text-[var(--muted)]">
-        {panel.query_kind} · {service} · Last {panel.lookback_minutes}m
+        {panel.query_kind} · {service} · {timeLabel}
       </div>
       <h2 className="mt-2 mb-0 text-base font-bold text-[var(--text-strong)]">{panel.title}</h2>
     </div>

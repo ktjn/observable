@@ -74,7 +74,7 @@ export default function ServiceTopologyPage() {
           <div className="signal-empty">Error loading topology: {String(error)}</div>
         ) : !data || data.edges.length === 0 ? (
           <div className="signal-empty">
-            No service relationships found in the selected lookback.
+            No service relationships found in the selected time range.
           </div>
         ) : (
           <div className="min-h-[600px] flex justify-center relative">
@@ -97,12 +97,12 @@ export default function ServiceTopologyPage() {
                 }}
               >
                 <a
-                  href={`/traces?caller=${encodeURIComponent(edgePopover.edge.caller)}&callee=${encodeURIComponent(edgePopover.edge.callee)}&lookback_minutes=60`}
+                  href={`/traces?caller=${encodeURIComponent(edgePopover.edge.caller)}&callee=${encodeURIComponent(edgePopover.edge.callee)}`}
                 >
                   View Traces
                 </a>
                 <a
-                  href={`/logs?service=${encodeURIComponent(edgePopover.edge.caller)}&lookback_minutes=60`}
+                  href={`/logs?service=${encodeURIComponent(edgePopover.edge.caller)}`}
                 >
                   View Logs
                 </a>

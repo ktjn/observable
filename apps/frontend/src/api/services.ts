@@ -4,6 +4,10 @@ function tenantHeaders(): HeadersInit {
   return { "X-Tenant-ID": DEV_TENANT_ID };
 }
 
+function msToIso(ms?: number): string | undefined {
+  return ms != null ? new Date(ms).toISOString() : undefined;
+}
+
 export interface ServiceSummary {
   service_name: string;
   request_rate: number;
@@ -24,14 +28,15 @@ export interface ServiceDetailResponse {
 
 export async function listServiceSummaries(params: {
   environment?: string;
-  lookback_minutes?: number;
+  from?: number;
+  to?: number;
 } = {}): Promise<ServiceSummaryResponse> {
   const url = new URL("/v1/services/summary", window.location.origin);
   if (params.environment) url.searchParams.set("environment", params.environment);
-  if (params.lookback_minutes) {
-    url.searchParams.set("lookback_minutes", String(params.lookback_minutes));
-  }
-
+  const fromIso = msToIso(params.from);
+  const toIso = msToIso(params.to);
+  if (fromIso) url.searchParams.set("from", fromIso);
+  if (toIso) url.searchParams.set("to", toIso);
   const res = await fetch(url.toString(), { headers: tenantHeaders() });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
@@ -41,16 +46,17 @@ export async function getServiceSummary(
   serviceName: string,
   params: {
     environment?: string;
-    lookback_minutes?: number;
+    from?: number;
+    to?: number;
   } = {},
 ): Promise<ServiceDetailResponse> {
   const encodedService = encodeURIComponent(serviceName);
   const url = new URL(`/v1/services/${encodedService}/summary`, window.location.origin);
   if (params.environment) url.searchParams.set("environment", params.environment);
-  if (params.lookback_minutes) {
-    url.searchParams.set("lookback_minutes", String(params.lookback_minutes));
-  }
-
+  const fromIso = msToIso(params.from);
+  const toIso = msToIso(params.to);
+  if (fromIso) url.searchParams.set("from", fromIso);
+  if (toIso) url.searchParams.set("to", toIso);
   const res = await fetch(url.toString(), { headers: tenantHeaders() });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
@@ -74,16 +80,17 @@ export interface TopologyResponse {
 
 export async function getTopology(params: {
   environment?: string;
-  lookback_minutes?: number;
+  from?: number;
+  to?: number;
   service?: string;
 } = {}): Promise<TopologyResponse> {
   const url = new URL("/v1/topology", window.location.origin);
   if (params.environment) url.searchParams.set("environment", params.environment);
-  if (params.lookback_minutes) {
-    url.searchParams.set("lookback_minutes", String(params.lookback_minutes));
-  }
+  const fromIso = msToIso(params.from);
+  const toIso = msToIso(params.to);
+  if (fromIso) url.searchParams.set("from", fromIso);
+  if (toIso) url.searchParams.set("to", toIso);
   if (params.service) url.searchParams.set("service", params.service);
-
   const res = await fetch(url.toString(), { headers: tenantHeaders() });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
@@ -111,7 +118,8 @@ export interface ResponseTimeHistoryResponse {
 export async function getServiceResponseTimeHistory(
   serviceName: string,
   params: {
-    lookback_minutes?: number;
+    from?: number;
+    to?: number;
     buckets?: number;
   } = {},
 ): Promise<ResponseTimeHistoryResponse> {
@@ -120,12 +128,11 @@ export async function getServiceResponseTimeHistory(
     `/v1/services/${encodedService}/response-time-history`,
     window.location.origin,
   );
-  if (params.lookback_minutes) {
-    url.searchParams.set("lookback_minutes", String(params.lookback_minutes));
-  }
-  if (params.buckets) {
-    url.searchParams.set("buckets", String(params.buckets));
-  }
+  const fromIso = msToIso(params.from);
+  const toIso = msToIso(params.to);
+  if (fromIso) url.searchParams.set("from", fromIso);
+  if (toIso) url.searchParams.set("to", toIso);
+  if (params.buckets) url.searchParams.set("buckets", String(params.buckets));
   const res = await fetch(url.toString(), { headers: tenantHeaders() });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();

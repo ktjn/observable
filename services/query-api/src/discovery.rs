@@ -5,6 +5,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -17,13 +18,16 @@ pub struct DiscoveryResponse {
 #[derive(Deserialize)]
 pub struct SummaryParams {
     pub environment: Option<String>,
-    pub lookback_minutes: Option<u32>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
 }
 
 #[derive(Deserialize)]
 pub struct TopologyParams {
     pub environment: Option<String>,
-    pub lookback_minutes: Option<u32>,
+    pub from: Option<DateTime<Utc>>,
+    #[allow(dead_code)]
+    pub to: Option<DateTime<Utc>>,
     pub service: Option<String>,
 }
 
@@ -81,7 +85,8 @@ pub struct ServiceDetailResponse {
 
 #[derive(Deserialize)]
 pub struct ResponseTimeHistoryParams {
-    pub lookback_minutes: Option<u32>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
     pub buckets: Option<u32>,
 }
 
@@ -282,13 +287,19 @@ pub async fn list_service_summaries(
     Extension(ctx): Extension<TenantContext>,
     Query(params): Query<SummaryParams>,
 ) -> Result<Json<ServiceSummaryResponse>, StatusCode> {
-    let lookback_mins = params.lookback_minutes.unwrap_or(60);
-    let lookback_ns = (lookback_mins as u64) * 60 * 1_000_000_000;
     let now_ns = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos() as u64;
-    let start_ns = now_ns.saturating_sub(lookback_ns);
+    let from_ns = params
+        .from
+        .map(|dt| dt.timestamp_nanos_opt().unwrap_or(0) as u64)
+        .unwrap_or_else(|| now_ns.saturating_sub(3_600_000_000_000));
+    let to_ns = params
+        .to
+        .map(|dt| dt.timestamp_nanos_opt().unwrap_or(0) as u64)
+        .unwrap_or(now_ns);
+    let duration_secs = (to_ns.saturating_sub(from_ns)) as f64 / 1_000_000_000.0;
 
     let mut sql = "SELECT \
             service_name, \
@@ -305,7 +316,7 @@ pub async fn list_service_summaries(
 
     sql.push_str(" GROUP BY service_name ORDER BY service_name");
 
-    let mut query = state.ch.query(&sql).bind(ctx.tenant_id).bind(start_ns);
+    let mut query = state.ch.query(&sql).bind(ctx.tenant_id).bind(from_ns);
 
     if let Some(ref env) = params.environment {
         query = query.bind(env);
@@ -316,7 +327,6 @@ pub async fn list_service_summaries(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    let duration_secs = (lookback_mins as f64) * 60.0;
     let items = rows
         .into_iter()
         .map(|row| service_summary_from_row(row, duration_secs))
@@ -331,13 +341,19 @@ pub async fn get_service_summary(
     Path(service_name): Path<String>,
     Query(params): Query<SummaryParams>,
 ) -> Result<Json<ServiceDetailResponse>, StatusCode> {
-    let lookback_mins = params.lookback_minutes.unwrap_or(60);
-    let lookback_ns = (lookback_mins as u64) * 60 * 1_000_000_000;
     let now_ns = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos() as u64;
-    let start_ns = now_ns.saturating_sub(lookback_ns);
+    let from_ns = params
+        .from
+        .map(|dt| dt.timestamp_nanos_opt().unwrap_or(0) as u64)
+        .unwrap_or_else(|| now_ns.saturating_sub(3_600_000_000_000));
+    let to_ns = params
+        .to
+        .map(|dt| dt.timestamp_nanos_opt().unwrap_or(0) as u64)
+        .unwrap_or(now_ns);
+    let duration_secs = (to_ns.saturating_sub(from_ns)) as f64 / 1_000_000_000.0;
 
     let mut sql = "SELECT \
             service_name, \
@@ -359,7 +375,7 @@ pub async fn get_service_summary(
         .query(&sql)
         .bind(ctx.tenant_id)
         .bind(&service_name)
-        .bind(start_ns);
+        .bind(from_ns);
 
     if let Some(ref env) = params.environment {
         query = query.bind(env);
@@ -374,7 +390,6 @@ pub async fn get_service_summary(
         })?
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let duration_secs = (lookback_mins as f64) * 60.0;
     Ok(Json(ServiceDetailResponse {
         service: service_summary_from_row(row, duration_secs),
     }))
@@ -386,15 +401,19 @@ pub async fn get_service_response_time_history(
     Path(service_name): Path<String>,
     Query(params): Query<ResponseTimeHistoryParams>,
 ) -> Result<Json<ResponseTimeHistoryResponse>, StatusCode> {
-    let lookback_mins = params.lookback_minutes.unwrap_or(60);
-    let bucket_count = params.buckets.unwrap_or(60).clamp(1, 200);
-    let lookback_ns = (lookback_mins as u64) * 60 * 1_000_000_000;
     let now_ns = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos() as u64;
-    let from_ns = now_ns.saturating_sub(lookback_ns);
-    let to_ns = now_ns;
+    let from_ns = params
+        .from
+        .map(|dt| dt.timestamp_nanos_opt().unwrap_or(0) as u64)
+        .unwrap_or_else(|| now_ns.saturating_sub(3_600_000_000_000));
+    let to_ns = params
+        .to
+        .map(|dt| dt.timestamp_nanos_opt().unwrap_or(0) as u64)
+        .unwrap_or(now_ns);
+    let bucket_count = params.buckets.unwrap_or(60).clamp(1, 200);
 
     let plan = state
         .planner
@@ -449,13 +468,14 @@ pub async fn get_topology(
     Extension(ctx): Extension<TenantContext>,
     Query(params): Query<TopologyParams>,
 ) -> Result<Json<TopologyResponse>, StatusCode> {
-    let lookback_mins = params.lookback_minutes.unwrap_or(60);
-    let lookback_ns = (lookback_mins as u64) * 60 * 1_000_000_000;
     let now_ns = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos() as u64;
-    let start_ns = now_ns.saturating_sub(lookback_ns);
+    let start_ns = params
+        .from
+        .map(|dt| dt.timestamp_nanos_opt().unwrap_or(0) as u64)
+        .unwrap_or_else(|| now_ns.saturating_sub(3_600_000_000_000));
 
     let plan = state.planner.plan_topology(&params);
 

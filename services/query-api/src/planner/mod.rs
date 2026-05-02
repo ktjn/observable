@@ -251,7 +251,7 @@ impl QueryPlanner {
 
 fn trace_search_where_clause(params: &TraceSearchParams) -> String {
     let mut where_clause = "WHERE tenant_id = ?".to_string();
-    if params.from.is_some() || params.lookback_minutes.is_some() {
+    if params.from.is_some() {
         where_clause.push_str(" AND start_time_unix_nano >= ?");
     }
     if params.to.is_some() {
@@ -381,7 +381,8 @@ mod tests {
         let planner = QueryPlanner;
         let params = TopologyParams {
             environment: None,
-            lookback_minutes: None,
+            from: None,
+            to: None,
             service: None,
         };
 
@@ -400,7 +401,8 @@ mod tests {
         let planner = QueryPlanner;
         let params = TopologyParams {
             environment: None,
-            lookback_minutes: None,
+            from: None,
+            to: None,
             service: Some("checkout".into()),
         };
 
@@ -416,7 +418,8 @@ mod tests {
         let planner = QueryPlanner;
         let params = TopologyParams {
             environment: None,
-            lookback_minutes: None,
+            from: None,
+            to: None,
             service: None,
         };
 
@@ -442,7 +445,8 @@ mod tests {
         let planner = QueryPlanner;
         let params = TopologyParams {
             environment: Some("prod".into()),
-            lookback_minutes: None,
+            from: None,
+            to: None,
             service: None,
         };
 
@@ -491,7 +495,6 @@ mod tests {
             facets: None,
             from: None,
             to: None,
-            lookback_minutes: None,
         };
 
         let plan = planner.plan_trace_search(&params);
@@ -519,7 +522,6 @@ mod tests {
             facets: None,
             from: None,
             to: None,
-            lookback_minutes: None,
         };
 
         let plan = planner.plan_trace_search(&params);
