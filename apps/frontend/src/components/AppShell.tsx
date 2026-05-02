@@ -1,6 +1,7 @@
 import { Link, Outlet } from "@tanstack/react-router";
 import { useTheme, type ThemePreference } from "../lib/theme";
 import { useTimeDisplay, TIME_FORMAT_OPTIONS } from "../lib/timeDisplay";
+import { GlobalDateRangePicker } from "./GlobalDateRangePicker";
 
 const navItems = [
   { label: "Setup", to: "/setup" },
@@ -79,7 +80,7 @@ export function AppShell() {
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
-            <span className="context-pill">Last 1h</span>
+            <GlobalDateRangePicker />
             <Link to="/traces" className="secondary-link">Traces</Link>
             <Link to="/logs" className="secondary-link">Logs</Link>
           </div>
