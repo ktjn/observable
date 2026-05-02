@@ -9,6 +9,22 @@ import LogSearch, {
   otelSeverity,
 } from "./LogSearch";
 
+const mockSetCustomRange = vi.fn();
+
+const FIXED_TO_MS   = 1_700_100_000_000;
+const FIXED_FROM_MS = FIXED_TO_MS - 60 * 60 * 1000;
+
+vi.mock("../hooks/useGlobalDateRange", () => ({
+  useGlobalDateRange: vi.fn(() => ({
+    preset: "1h",
+    fromMs: FIXED_FROM_MS,
+    toMs:   FIXED_TO_MS,
+    setPreset: vi.fn(),
+    setCustomRange: mockSetCustomRange,
+    clearCustomRange: vi.fn(),
+  })),
+}));
+
 const logs: LogRecord[] = [
   {
     tenant_id: "00000000-0000-0000-0000-000000000001",
@@ -77,6 +93,7 @@ const { searchLogs, fetchLogHistogram } = await import("../api/logs");
 beforeEach(() => {
   vi.clearAllMocks();
   window.history.pushState({}, "", "/logs");
+  mockSetCustomRange.mockClear();
 });
 
 function renderLogSearch() {
@@ -93,14 +110,10 @@ function renderLogSearch() {
   );
 }
 
-test("queries logs using the selected time range", async () => {
+test("queries logs using the global date range", async () => {
   renderLogSearch();
 
-  await waitFor(() => expect(searchLogs).toHaveBeenCalledWith(expect.objectContaining({ from: expect.any(String) })));
-
-  fireEvent.change(screen.getByLabelText("Logs time range"), { target: { value: "360" } });
-
-  await waitFor(() => expect(searchLogs).toHaveBeenLastCalledWith(expect.objectContaining({ from: expect.any(String) })));
+  await waitFor(() => expect(searchLogs).toHaveBeenCalledWith(expect.objectContaining({ from: expect.any(String), to: expect.any(String) })));
 });
 
 test("renders histogram and primary Time Level Message columns", async () => {
@@ -158,7 +171,7 @@ test("builds histogram buckets across the selected time range", () => {
   expect(buckets.some((bucket) => bucket.categories.ERROR === 1)).toBe(true);
 });
 
-test("histogram drag selection zooms the log query to the selected bucket range", async () => {
+test("histogram drag selection calls setCustomRange with selected bucket range", async () => {
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
     left: 0, top: 0, right: 600, bottom: 112, width: 600, height: 112, x: 0, y: 0,
     toJSON: () => ({}),
@@ -176,40 +189,21 @@ test("histogram drag selection zooms the log query to the selected bucket range"
   fireEvent.pointerUp(grid, { pointerId: 1 });
 
   await waitFor(() => {
-    const calls = vi.mocked(searchLogs).mock.calls;
-    expect(calls.some(([p]) => p.to !== undefined)).toBe(true);
+    expect(mockSetCustomRange).toHaveBeenCalled();
   });
 
   vi.restoreAllMocks();
 });
 
-test("histogram reset range button restores lookback query", async () => {
-  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
-    left: 0, top: 0, right: 600, bottom: 112, width: 600, height: 112, x: 0, y: 0,
-    toJSON: () => ({}),
-  });
-
+test("date range controls are managed globally, not per-page", async () => {
   renderLogSearch();
+
   await screen.findByRole("group", { name: "Log volume histogram" });
 
-  const histogram = screen.getByRole("group", { name: "Log volume histogram" });
-  const grid = histogram.querySelector("[aria-hidden='true']") as HTMLElement;
-
-  fireEvent.pointerDown(grid, { clientX: 0, pointerId: 1 });
-  fireEvent.pointerMove(grid, { clientX: 300, pointerId: 1 });
-  fireEvent.pointerUp(grid, { pointerId: 1 });
-
-  // "Reset range" button should appear after selection
-  const resetBtn = await screen.findByRole("button", { name: "Reset range" });
-  fireEvent.click(resetBtn);
-
-  // Dropdown restored, "Reset range" gone
-  await waitFor(() => {
-    expect(screen.getByLabelText("Logs time range")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Reset range" })).not.toBeInTheDocument();
-  });
-
-  vi.restoreAllMocks();
+  // The per-page time range dropdown and reset button no longer exist;
+  // date range is managed by the global AppShell picker.
+  expect(screen.queryByLabelText("Logs time range")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Reset range" })).not.toBeInTheDocument();
 });
 
 test("trace_id in log context sidebar is a link to the trace detail page", async () => {

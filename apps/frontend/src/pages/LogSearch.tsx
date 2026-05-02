@@ -13,7 +13,7 @@ import { formatTimestamp } from "../utils/formatTimestamp";
 import { formatBucketLabel } from "../utils/formatBucketLabel";
 import { OTelLevel, otelSeverity, formatLogMessage, formatContextValue } from "../utils/logFormatting";
 import { useTimeDisplay } from "../lib/timeDisplay";
-import { useSignalSearch } from "../hooks/useSignalSearch";
+import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { LoadingState } from "../components/ui/loading-state";
@@ -35,7 +35,6 @@ const levelBarClasses: Record<OTelLevel, string> = {
 export type LogExplorerProps = {
   initialService?: string;
   lockedService?: boolean;
-  initialLookbackMinutes?: number;
   showHeader?: boolean;
   showServiceColumn?: boolean;
   showPromote?: boolean;
@@ -53,41 +52,32 @@ export default function LogSearch() {
 export function LogExplorer({
   initialService = "",
   lockedService = false,
-  initialLookbackMinutes = 60,
   showHeader = true,
   showServiceColumn = true,
   showPromote = true,
   tableAriaLabel,
 }: LogExplorerProps) {
   const { format } = useTimeDisplay();
-  const {
-    service,
-    setService,
-    lookbackMinutes,
-    setLookbackMinutes,
-    customRangeMs,
-    handleHistogramRangeSelect,
-    handleClearRange,
-    from,
-    to,
-    histogramFromMs,
-    histogramToMs,
-  } = useSignalSearch({ initialService, initialLookbackMinutes });
+  const { fromMs, toMs, setCustomRange } = useGlobalDateRange();
+  const [service, setService] = useState(initialService);
+
+  const from = new Date(fromMs).toISOString();
+  const to   = new Date(toMs).toISOString();
   const [bucketCount, setBucketCount] = useState(60);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["logs", service, from, to],
+    queryKey: ["logs", service, fromMs, toMs],
     queryFn: () => searchLogs({ service: service || undefined, from, to, limit: 50 }),
   });
 
   const { data: histogramData, isError: isHistogramError } = useQuery({
-    queryKey: ["logs-histogram", service, from, to, bucketCount],
+    queryKey: ["logs-histogram", service, fromMs, toMs, bucketCount],
     queryFn: () =>
       fetchLogHistogram({
         service: service || undefined,
         from,
-        to: new Date(histogramToMs).toISOString(),
+        to,
         buckets: bucketCount,
       }),
     placeholderData: (prev: LogHistogramResponse | undefined) => prev,
@@ -98,8 +88,8 @@ export function LogExplorer({
     () =>
       histogramData?.buckets
         ? histogramFromApi(histogramData.buckets)
-        : buildLogHistogram([], histogramFromMs, histogramToMs),
-    [histogramData, histogramFromMs, histogramToMs],
+        : buildLogHistogram([], fromMs, toMs),
+    [histogramData, fromMs, toMs],
   );
 
   const handlePromote = async () => {
@@ -112,7 +102,7 @@ export function LogExplorer({
             title: service ? `Logs for ${service}` : "Log search",
             query_kind: "logs",
             service: service || undefined,
-            lookback_minutes: lookbackMinutes,
+            lookback_minutes: Math.round((toMs - fromMs) / 60_000),
             filters: { facets: ["service_name", "severity_number", "environment", "host_id"] },
           },
         ],
@@ -128,15 +118,6 @@ export function LogExplorer({
       title="Logs"
       service={service}
       onServiceChange={(s) => { setService(s); }}
-      lookbackMinutes={lookbackMinutes}
-      onLookbackChange={(m) => { setLookbackMinutes(m); }}
-      customRangeMs={customRangeMs}
-      customRangeLabel={
-        customRangeMs
-          ? `${formatBucketLabel(customRangeMs.fromMs, format)} – ${formatBucketLabel(customRangeMs.toMs, format)}`
-          : undefined
-      }
-      onClearRange={handleClearRange}
       lockedService={lockedService}
       showHeader={showHeader}
       showPromote={showPromote}
@@ -149,7 +130,7 @@ export function LogExplorer({
             categoryOrder={levelOrder}
             categoryColors={levelBarClasses}
             format={(ms) => formatBucketLabel(ms, format)}
-            onRangeSelect={handleHistogramRangeSelect}
+            onRangeSelect={setCustomRange}
             onBucketCountChange={setBucketCount}
             ariaLabel="Log volume histogram"
             title="Logs over time"
