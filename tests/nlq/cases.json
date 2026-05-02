@@ -608,5 +608,52 @@
       "histogram"
     ],
     "notes": "Covers metric-type filter intent for the shared frontend query input; metric type is enforced by schema/template selection."
+  },
+  {
+    "id": "infra-filter-type-pod",
+    "description": "Infrastructure inventory filter by entity type",
+    "query": "type equals pod",
+    "service_name": null,
+    "surface_hint": "infrastructure",
+    "mode": "interpret",
+    "expect": {
+      "type": "ir",
+      "operation": "inventory",
+      "ir_filter_checks": [
+        {
+          "field": "entity_type",
+          "op": "=",
+          "value": "pod"
+        }
+      ]
+    },
+    "tags": ["inventory", "infrastructure"],
+    "notes": "Verifies LLM returns inventory operation with entity_type filter when surface_hint=infrastructure is provided."
+  },
+  {
+    "id": "infra-filter-env-and-type",
+    "description": "Infrastructure inventory filter by environment and entity type",
+    "query": "environment equals observable and type equals pod",
+    "service_name": null,
+    "surface_hint": "infrastructure",
+    "mode": "interpret",
+    "expect": {
+      "type": "ir",
+      "operation": "inventory",
+      "ir_filter_checks": [
+        {
+          "field": "environment",
+          "op": "=",
+          "value": "observable"
+        },
+        {
+          "field": "entity_type",
+          "op": "=",
+          "value": "pod"
+        }
+      ]
+    },
+    "tags": ["inventory", "infrastructure"],
+    "notes": "Verifies the original failing query now returns an inventory IR with both environment and entity_type filters."
   }
 ]

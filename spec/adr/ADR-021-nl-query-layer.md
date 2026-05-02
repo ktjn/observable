@@ -89,6 +89,10 @@ For UI filter replacement, `POST /v1/nlq` supports an `interpret` mode that retu
 MCP query. Raw `NlqIr` JSON is accepted in both `interpret` and execute modes before LLM
 configuration is checked.
 
+A `surface_hint` field in the request body provides page-level context to the LLM. When set (e.g.,
+`"surface_hint": "infrastructure"`), the prompt includes a page context section constraining which
+operations and filter fields are valid, reducing hallucination on entity-table pages.
+
 #### Validation and repair loop
 
 After the LLM responds, the backend validates and optionally repairs:
@@ -163,6 +167,24 @@ This is the **auto-graphing** contract.
 Where the question admits multiple independent signals, the LLM generates one NLQ IR per signal.
 The MCP server executes them in parallel and the LLM compares results for convergence or
 divergence. See [spec/08 §13.2](../08-ai-ml.md).
+
+### Entity Inventory Queries
+
+The `inventory` NLQ operation enables pure entity-attribute filtering on entity-table pages (e.g.,
+the infrastructure inventory page). Unlike time-series operations, `inventory` requires no metric:
+
+```json
+{"operation": "inventory", "filters": [{"field": "entity_type", "op": "=", "value": "pod"}]}
+```
+
+The MCP server executes inventory queries by calling the infrastructure ClickHouse SQL with
+IR-derived filters and returning a `VisualizationFrame(table)` whose rows are serialised
+`InfrastructureEntitySummary` objects. Server-side filterable fields: `environment`, `entity_type`,
+`service_name`, and free-text search on `display_name`/`name`. The `health_state` field is computed
+post-query from `error_rate` and remains a client-side filter only.
+
+Entity-table pages are fully IR-driven: they start with a base `inventory` IR, merge user NLQ input
+(interpreted by the LLM with `surface_hint=infrastructure`) to produce a merged IR, then execute it.
 
 ### Time-Series Semantics
 

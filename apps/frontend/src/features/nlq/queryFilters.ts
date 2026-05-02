@@ -17,6 +17,7 @@ export interface NlqIrLike {
     op?: string;
     value?: string;
   }>;
+  time_range?: { from: string; to: string } | null;
 }
 
 export interface ViewQueryFilters {

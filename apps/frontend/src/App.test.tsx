@@ -500,34 +500,39 @@ test("renders service metrics workspace with filtering and selected series point
 });
 
 test("renders infrastructure inventory rows from the infrastructure API", async () => {
+  const podItem = {
+    entity_type: "pod",
+    entity_id: "prod-cluster/payments/checkout-pod-1",
+    display_name: "checkout-pod-1",
+    parent_id: "payments",
+    parent_display_name: "payments",
+    environment: "prod",
+    health_state: "watch",
+    last_seen_unix_nano: 42,
+    related_services: ["checkout-api"],
+    log_rate_per_minute: 8.5,
+    error_rate: 0.02,
+    restart_count: null,
+    cpu_usage: null,
+    memory_usage: null,
+    disk_usage: null,
+    network_io: null,
+  };
+
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
 
-      if (url.includes("/v1/infrastructure")) {
+      if (url.includes("/v1/nlq")) {
         return new Response(
           JSON.stringify({
-            items: [
-              {
-                entity_type: "pod",
-                entity_id: "prod-cluster/payments/checkout-pod-1",
-                display_name: "checkout-pod-1",
-                parent_id: "payments",
-                parent_display_name: "payments",
-                environment: "prod",
-                health_state: "watch",
-                last_seen_unix_nano: 42,
-                related_services: ["checkout-api"],
-                log_rate_per_minute: 8.5,
-                error_rate: 0.02,
-                restart_count: null,
-                cpu_usage: null,
-                memory_usage: null,
-                disk_usage: null,
-                network_io: null,
-              },
-            ],
+            type: "frame",
+            frame: {
+              frame_type: "table",
+              data: [podItem],
+              nlq_ir: { operation: "inventory" },
+            },
           }),
           { status: 200 },
         );
@@ -550,67 +555,76 @@ test("renders infrastructure inventory rows from the infrastructure API", async 
 });
 
 test("filters the infrastructure inventory by entity type", async () => {
+  const podItem = {
+    entity_type: "pod",
+    entity_id: "prod-cluster/payments/checkout-pod-1",
+    display_name: "checkout-pod-1",
+    parent_id: "payments",
+    parent_display_name: "payments",
+    environment: "prod",
+    health_state: "watch",
+    last_seen_unix_nano: 42,
+    related_services: ["checkout-api"],
+    log_rate_per_minute: 8.5,
+    error_rate: 0.02,
+    restart_count: null,
+    cpu_usage: null,
+    memory_usage: null,
+    disk_usage: null,
+    network_io: null,
+  };
+  const hostItem = {
+    entity_type: "host",
+    entity_id: "ip-10-0-0-12",
+    display_name: "ip-10-0-0-12",
+    parent_id: null,
+    parent_display_name: null,
+    environment: "prod",
+    health_state: "healthy",
+    last_seen_unix_nano: 43,
+    related_services: ["checkout-api"],
+    log_rate_per_minute: 1.5,
+    error_rate: null,
+    restart_count: null,
+    cpu_usage: 0.27,
+    memory_usage: 0.61,
+    disk_usage: null,
+    network_io: null,
+  };
+
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: RequestInfo | URL) => {
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (url.includes("/v1/infrastructure")) {
-        return new Response(
-          JSON.stringify({
-            items: [
-              {
-                entity_type: "pod",
-                entity_id: "prod-cluster/payments/checkout-pod-1",
-                display_name: "checkout-pod-1",
-                parent_id: "payments",
-                parent_display_name: "payments",
-                environment: "prod",
-                health_state: "watch",
-                last_seen_unix_nano: 42,
-                related_services: ["checkout-api"],
-                log_rate_per_minute: 8.5,
-                error_rate: 0.02,
-                restart_count: null,
-                cpu_usage: null,
-                memory_usage: null,
-                disk_usage: null,
-                network_io: null,
-              },
-              {
-                entity_type: "host",
-                entity_id: "ip-10-0-0-12",
-                display_name: "ip-10-0-0-12",
-                parent_id: null,
-                parent_display_name: null,
-                environment: "prod",
-                health_state: "healthy",
-                last_seen_unix_nano: 43,
-                related_services: ["checkout-api"],
-                log_rate_per_minute: 1.5,
-                error_rate: null,
-                restart_count: null,
-                cpu_usage: 0.27,
-                memory_usage: 0.61,
-                disk_usage: null,
-                network_io: null,
-              },
-            ],
-          }),
-          { status: 200 },
-        );
-      }
-
       if (url.includes("/v1/nlq")) {
+        const bodyText = init?.body ? String(init.body) : "{}";
+        const body = JSON.parse(bodyText) as { mode?: string; question?: string };
+        if (body.mode === "interpret") {
+          // NLQ filter input: user typed "host infrastructure"
+          return new Response(
+            JSON.stringify({
+              type: "ir",
+              ir: {
+                operation: "inventory",
+                signals: [],
+                filters: [{ field: "entity_type", op: "=", value: "host" }],
+                time_range: { from: "now-1h", to: "now" },
+              },
+            }),
+            { status: 200 },
+          );
+        }
+        // execute mode: parse IR to determine which items to return
+        const ir = JSON.parse(body.question ?? "{}") as {
+          filters?: Array<{ field: string; value: string }>;
+        };
+        const entityTypeFilter = ir.filters?.find((f) => f.field === "entity_type")?.value;
+        const items = entityTypeFilter === "host" ? [hostItem] : [podItem, hostItem];
         return new Response(
           JSON.stringify({
-            type: "ir",
-            ir: {
-              operation: "catalog",
-              signals: ["metrics"],
-              filters: [{ field: "entity_type", op: "=", value: "host" }],
-              time_range: { from: "now-1h", to: "now" },
-            },
+            type: "frame",
+            frame: { frame_type: "table", data: items, nlq_ir: { operation: "inventory" } },
           }),
           { status: 200 },
         );
@@ -634,7 +648,7 @@ test("filters the infrastructure inventory by entity type", async () => {
   fireEvent.submit(screen.getByRole("form", { name: "Query current view" }));
 
   await waitFor(() => expect(screen.queryByText("checkout-pod-1")).not.toBeInTheDocument());
-  expect(screen.getByText("ip-10-0-0-12")).toBeInTheDocument();
+  expect(await screen.findByText("ip-10-0-0-12")).toBeInTheDocument();
 });
 
 test("renders infrastructure detail action links from a pod detail route", async () => {
@@ -698,8 +712,14 @@ test("renders empty state when infrastructure inventory has no items", async () 
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.includes("/v1/infrastructure")) {
-        return new Response(JSON.stringify({ items: [] }), { status: 200 });
+      if (url.includes("/v1/nlq")) {
+        return new Response(
+          JSON.stringify({
+            type: "frame",
+            frame: { frame_type: "table", data: [], nlq_ir: { operation: "inventory" } },
+          }),
+          { status: 200 },
+        );
       }
       if (url.includes("/v1/environments")) {
         return new Response(JSON.stringify({ items: [] }), { status: 200 });
@@ -755,8 +775,14 @@ test("navigates to infrastructure detail when clicking an inventory row entity",
           { status: 200 },
         );
       }
-      if (url.includes("/v1/infrastructure")) {
-        return new Response(JSON.stringify({ items: [podItem] }), { status: 200 });
+      if (url.includes("/v1/nlq")) {
+        return new Response(
+          JSON.stringify({
+            type: "frame",
+            frame: { frame_type: "table", data: [podItem], nlq_ir: { operation: "inventory" } },
+          }),
+          { status: 200 },
+        );
       }
       if (url.includes("/v1/environments")) {
         return new Response(JSON.stringify({ items: ["prod"] }), { status: 200 });

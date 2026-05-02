@@ -36,6 +36,7 @@ describe("QueryFilterInput", () => {
         question: "show checkout services",
         mode: "interpret",
         service_name: undefined,
+        surface_hint: "services",
       }),
     );
     expect(onIr).toHaveBeenCalledWith({

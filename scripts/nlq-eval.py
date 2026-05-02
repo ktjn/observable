@@ -114,11 +114,15 @@ class Printer:
 # ── API client ────────────────────────────────────────────────────────────────
 
 
-def call_nlq(base_url: str, tenant_id: str, question: str, service_name: str | None) -> dict[str, Any]:
+def call_nlq(base_url: str, tenant_id: str, question: str, service_name: str | None, surface_hint: str | None = None, mode: str = "execute") -> dict[str, Any]:
     url = base_url.rstrip("/") + "/v1/nlq"
     body: dict[str, Any] = {"question": question}
     if service_name:
         body["service_name"] = service_name
+    if surface_hint:
+        body["surface_hint"] = surface_hint
+    if mode != "execute":
+        body["mode"] = mode
     data = json.dumps(body).encode()
     req = urllib.request.Request(
         url,
@@ -194,6 +198,8 @@ def evaluate_case(
     case_id = case["id"]
     query = case["query"]
     service_name = case.get("service_name")
+    surface_hint = case.get("surface_hint")
+    mode = case.get("mode", "execute")
     expect = case["expect"]
 
     result_record: dict[str, Any] = {
@@ -212,7 +218,7 @@ def evaluate_case(
 
     # --- Call API ---
     try:
-        resp = call_nlq(base_url, tenant_id, query, service_name)
+        resp = call_nlq(base_url, tenant_id, query, service_name, surface_hint=surface_hint, mode=mode)
     except Exception as exc:
         result_record["error"] = str(exc)
         print(f"  {printer.red('ERR')}  {case_id}: {exc}")
@@ -221,7 +227,7 @@ def evaluate_case(
     resp_type = resp.get("type")
     result_record["response_type"] = resp_type
 
-    # Populate extra fields from frame
+    # Populate extra fields from frame or ir response
     if resp_type == "frame":
         frame = resp.get("frame", {})
         ir = frame.get("nlq_ir", {})
@@ -229,6 +235,10 @@ def evaluate_case(
         result_record["raw_ir"] = ir
         result_record["source_sql"] = frame.get("source_sql")
         result_record["row_count"] = len(frame.get("data", []))
+    elif resp_type == "ir":
+        ir = resp.get("ir", {})
+        result_record["actual_operation"] = ir.get("operation")
+        result_record["raw_ir"] = ir
     elif resp_type == "invalid_response":
         result_record["raw_llm_response"] = resp.get("raw_llm_response")
 
@@ -243,11 +253,11 @@ def evaluate_case(
         "detail": f"expected={expected_type} actual={resp_type}",
     })
 
-    # Check 2: IR operation (only for frame responses)
+    # Check 2: IR operation (for frame or ir responses)
     # Supports both "operation": "catalog" (exact) and "operation_any_of": ["histogram","distribution"] (set)
     expected_op = expect.get("operation")
     expected_op_any = expect.get("operation_any_of")
-    if resp_type == "frame" and (expected_op is not None or expected_op_any is not None):
+    if resp_type in ("frame", "ir") and (expected_op is not None or expected_op_any is not None):
         actual_op = result_record["actual_operation"]
         if expected_op_any is not None:
             op_ok = actual_op in expected_op_any
@@ -260,13 +270,13 @@ def evaluate_case(
             "passed": op_ok,
             "detail": detail,
         })
-    elif (expected_op is not None or expected_op_any is not None) and resp_type != "frame":
-        # Can't check operation if not a frame
+    elif (expected_op is not None or expected_op_any is not None) and resp_type not in ("frame", "ir"):
+        # Can't check operation if not a frame or ir
         label = expected_op or f"one of {expected_op_any}"
         checks.append({
             "name": "ir_operation",
             "passed": False,
-            "detail": f"expected operation={label} but response type={resp_type} (not frame)",
+            "detail": f"expected operation={label} but response type={resp_type} (not frame or ir)",
         })
 
     # Check 3: data non-empty
@@ -307,7 +317,7 @@ def evaluate_case(
 
     # Check 6: IR field checks (validate fields in the raw IR, e.g. group_by)
     # Format: [{"field": "group_by", "op": "contains", "value": "service_name"}]
-    if resp_type == "frame":
+    if resp_type in ("frame", "ir"):
         raw_ir = result_record.get("raw_ir") or {}
         for ifc in expect.get("ir_field_checks", []):
             ir_field = ifc.get("field")
@@ -385,6 +395,10 @@ def evaluate_case(
         sql = frame.get("source_sql", "")
         print(f"       {printer.cyan('IR:')} {json.dumps(ir)}")
         print(f"       {printer.cyan('SQL:')} {sql[:200]}{'…' if len(sql) > 200 else ''}")
+
+    if verbose and resp_type == "ir":
+        ir = resp.get("ir", {})
+        print(f"       {printer.cyan('IR:')} {json.dumps(ir)}")
 
     if resp_type == "invalid_response" and not all_passed:
         reason = resp.get("reason", "")

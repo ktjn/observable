@@ -36,6 +36,7 @@ export function QueryFilterInput({
         question,
         mode: "interpret",
         service_name: serviceName,
+        surface_hint: surface,
       });
       if (response.type !== "ir") {
         const message =

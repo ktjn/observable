@@ -10,6 +10,9 @@
 //     signal_types, sample_rate, approximation_statement).
 //   - The response is advisory; callers must not feed it into automated alert evaluation,
 //     billing, or SLA enforcement.
+use crate::discovery::{
+    all_infrastructure_entity_types, fetch_infrastructure_summaries, InfrastructureEntityType,
+};
 use crate::mcp_tools::get_metric_schema;
 use crate::middleware::auth::TenantContext;
 use crate::sql_templates::{
@@ -22,7 +25,7 @@ use axum::{
     Json,
 };
 use domain::{
-    FieldRole, FieldRoleKind, NlqIr, NlqOperation, NlqSignal, VisualizationFrame,
+    FieldRole, FieldRoleKind, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, VisualizationFrame,
     VisualizationFrameType,
 };
 use uuid::Uuid;
@@ -84,6 +87,11 @@ pub async fn execute_mcp_query(
     // Catalog operation: query series metadata; no metric or schema lookup needed.
     if ir.operation == NlqOperation::Catalog {
         return execute_catalog_query(ch, tenant_id, ir).await;
+    }
+
+    // Inventory operation: filter infrastructure entity table; no metric required.
+    if ir.operation == NlqOperation::Inventory {
+        return execute_inventory_query(ch, tenant_id, ir).await;
     }
 
     // Step 1: Resolve metric name and schema
@@ -275,7 +283,129 @@ async fn execute_log_query(
     })
 }
 
-// ── ClickHouse execution ──────────────────────────────────────────────────────
+// ── Inventory query ───────────────────────────────────────────────────────────
+
+/// Executes an infrastructure entity inventory query.
+///
+/// Extracts entity attribute filters from the IR (`entity_type`, `environment`,
+/// `service_name`, `display_name`/`name` for text search), delegates to
+/// `fetch_infrastructure_summaries` for each entity type, and returns a
+/// `VisualizationFrame(table)` where every data row is a serialised
+/// `InfrastructureEntitySummary` with the same field names as the REST API.
+async fn execute_inventory_query(
+    ch: &clickhouse::Client,
+    tenant_id: Uuid,
+    ir: &NlqIr,
+) -> Result<VisualizationFrame, McpQueryError> {
+    // Extract filter values from the IR filter list.
+    let filter_val = |field: &str| -> Option<String> {
+        let want = field.to_lowercase();
+        ir.filters
+            .iter()
+            .find(|f| f.field.to_lowercase() == want && f.op == NlqFilterOp::Eq)
+            .map(|f| f.value.clone())
+    };
+
+    let environment = filter_val("environment")
+        .or_else(|| filter_val("deployment.environment"))
+        .or_else(|| filter_val("resource.environment"));
+    let entity_type_str = filter_val("entity_type").or_else(|| filter_val("type"));
+    let service = filter_val("service_name")
+        .or_else(|| filter_val("service.name"))
+        .or_else(|| filter_val("service"));
+    let search = filter_val("display_name")
+        .or_else(|| filter_val("name"))
+        .or_else(|| filter_val("search"));
+
+    // Determine lookback from time_range (e.g., "now-1h" → 60 min, "now-30m" → 30).
+    let lookback_minutes = parse_relative_minutes(&ir.time_range.from).unwrap_or(60);
+
+    // Determine which entity types to query.
+    let entity_types: Vec<InfrastructureEntityType> = match entity_type_str.as_deref() {
+        Some(s) => match InfrastructureEntityType::try_from(s) {
+            Ok(et) => vec![et],
+            Err(_) => {
+                tracing::warn!(entity_type = %s, "inventory IR: unknown entity_type filter — querying all");
+                all_infrastructure_entity_types().to_vec()
+            }
+        },
+        None => all_infrastructure_entity_types().to_vec(),
+    };
+
+    let mut items = Vec::new();
+    for entity_type in entity_types {
+        let rows = fetch_infrastructure_summaries(
+            ch,
+            tenant_id,
+            entity_type,
+            environment.as_deref(),
+            service.as_deref(),
+            search.as_deref(),
+            lookback_minutes,
+        )
+        .await
+        .map_err(|_| {
+            McpQueryError::ClickHouse(clickhouse::error::Error::Custom(
+                "infrastructure inventory query failed".into(),
+            ))
+        })?;
+        items.extend(rows);
+    }
+
+    // Sort by last_seen desc, then name asc — same ordering as the REST API.
+    items.sort_by(|a, b| {
+        b.last_seen_unix_nano
+            .cmp(&a.last_seen_unix_nano)
+            .then_with(|| a.display_name.cmp(&b.display_name))
+    });
+
+    let data: Vec<serde_json::Value> = items
+        .into_iter()
+        .map(|s| serde_json::to_value(s).unwrap_or(serde_json::Value::Null))
+        .collect();
+
+    let source_sql = format!(
+        "-- inventory: entity_type={:?} environment={:?} service={:?} search={:?} lookback={}m",
+        entity_type_str, environment, service, search, lookback_minutes
+    );
+
+    Ok(VisualizationFrame {
+        frame_type: VisualizationFrameType::Table,
+        x_field: None,
+        y_field: None,
+        series_field: None,
+        unit: None,
+        suggested_visualization: "table".into(),
+        field_roles: vec![],
+        data,
+        nlq_ir: ir.clone(),
+        source_sql,
+        time_range: ir.time_range.clone(),
+        signal_types: ir.signals.clone(),
+        sample_rate: None,
+        approximation_statement: format!(
+            "Advisory result — infrastructure entity inventory for the last {lookback_minutes} \
+             minutes. Entities not seen within the lookback window are excluded. \
+             This result must not be used for billing, SLA enforcement, or regulatory compliance."
+        ),
+    })
+}
+
+/// Parses a relative time expression of the form `now-{N}h`, `now-{N}m`, or `now-{N}d`
+/// and returns the duration in minutes. Returns `None` for unrecognised formats.
+fn parse_relative_minutes(from: &str) -> Option<u32> {
+    let s = from.trim().to_lowercase();
+    let s = s.strip_prefix("now-")?;
+    if let Some(hours) = s.strip_suffix('h') {
+        hours.parse::<u32>().ok().map(|h| h * 60)
+    } else if let Some(mins) = s.strip_suffix('m') {
+        mins.parse::<u32>().ok()
+    } else if let Some(days) = s.strip_suffix('d') {
+        days.parse::<u32>().ok().map(|d| d * 24 * 60)
+    } else {
+        None
+    }
+}
 
 /// Executes raw SQL against ClickHouse and returns each row as a `serde_json::Value`.
 ///
@@ -424,6 +554,7 @@ fn derive_frame_type(ir: &NlqIr) -> VisualizationFrameType {
         NlqOperation::Table => VisualizationFrameType::Table,
         NlqOperation::Distribution => VisualizationFrameType::Distribution,
         NlqOperation::Catalog => VisualizationFrameType::Table,
+        NlqOperation::Inventory => VisualizationFrameType::Table,
     }
 }
 
