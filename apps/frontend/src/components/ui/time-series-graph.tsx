@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { DeploymentMarker } from "../../api/deployments";
 import { markerColor, markerPosition } from "../DeploymentTimeline";
 
@@ -25,6 +25,7 @@ export interface TimeSeriesGraphProps {
   title?: string;
   eyebrow?: string;
   ariaLabel?: string;
+  onRangeSelect?: (fromMs: number, toMs: number) => void;
 }
 
 const PLOT_TOP = 10;
@@ -40,6 +41,17 @@ export function toX(
   const span = rangeEndMs - rangeStartMs;
   if (span <= 0) return 0;
   return Math.round(((timestampMs - rangeStartMs) / span) * width);
+}
+
+export function pixelToMs(
+  x: number,
+  rangeStartMs: number,
+  rangeEndMs: number,
+  width: number,
+): number {
+  const span = rangeEndMs - rangeStartMs;
+  if (width <= 0) return rangeStartMs;
+  return Math.round(rangeStartMs + (x / width) * span);
 }
 
 export function toY(
@@ -84,11 +96,14 @@ export function TimeSeriesGraph({
   title,
   eyebrow,
   ariaLabel = "Time series graph",
+  onRangeSelect,
 }: TimeSeriesGraphProps) {
   const wrapperRef = useRef<HTMLElement>(null);
   const [width, setWidth] = useState(400);
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [deployTooltip, setDeployTooltip] = useState<DeploymentMarker | null>(null);
+  const dragRef = useRef<{ startX: number; endX: number } | null>(null);
+  const [dragDisplay, setDragDisplay] = useState<{ startX: number; endX: number } | null>(null);
 
   useEffect(() => {
     const el = wrapperRef.current;
@@ -125,6 +140,36 @@ export function TimeSeriesGraph({
         ? a
         : b,
     );
+  }
+
+  function handlePointerDown(e: React.PointerEvent<SVGSVGElement>) {
+    if (!onRangeSelect) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = Math.round(e.clientX - rect.left);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* jsdom */ }
+    dragRef.current = { startX: x, endX: x };
+    setDragDisplay({ startX: x, endX: x });
+  }
+
+  function handlePointerMove(e: React.PointerEvent<SVGSVGElement>) {
+    if (!dragRef.current) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = Math.round(e.clientX - rect.left);
+    dragRef.current = { ...dragRef.current, endX: x };
+    setDragDisplay({ ...dragRef.current });
+  }
+
+  function handlePointerUp(e: React.PointerEvent<SVGSVGElement>) {
+    const drag = dragRef.current;
+    if (drag && onRangeSelect) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const w = rect.width || width;
+      const fromMs = pixelToMs(Math.min(drag.startX, drag.endX), rangeStartMs, rangeEndMs, w);
+      const toMs   = pixelToMs(Math.max(drag.startX, drag.endX), rangeStartMs, rangeEndMs, w);
+      if (toMs > fromMs) onRangeSelect(fromMs, toMs);
+    }
+    dragRef.current = null;
+    setDragDisplay(null);
   }
 
   return (
@@ -169,11 +214,18 @@ export function TimeSeriesGraph({
           viewBox={`0 0 ${width} ${height}`}
           aria-hidden="true"
           onPointerMove={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            setHoverX(Math.round(e.clientX - rect.left));
+            if (dragRef.current) {
+              handlePointerMove(e);
+            } else {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setHoverX(Math.round(e.clientX - rect.left));
+            }
           }}
-          onPointerLeave={() => setHoverX(null)}
-          style={{ cursor: "crosshair", overflow: "visible" }}
+          onPointerLeave={() => { setHoverX(null); }}
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={() => { dragRef.current = null; setDragDisplay(null); }}
+          style={{ cursor: onRangeSelect ? "crosshair" : "default", overflow: "visible" }}
         >
           {gridYs.map((y) => (
             <line
@@ -248,6 +300,21 @@ export function TimeSeriesGraph({
               {label}
             </text>
           ))}
+
+          {dragDisplay != null && (() => {
+            const x1 = Math.min(dragDisplay.startX, dragDisplay.endX);
+            const x2 = Math.max(dragDisplay.startX, dragDisplay.endX);
+            return (
+              <rect
+                x={x1}
+                y={PLOT_TOP}
+                width={x2 - x1}
+                height={plotBottom - PLOT_TOP}
+                fill="var(--brand)"
+                opacity={0.15}
+              />
+            );
+          })()}
         </svg>
 
         {hoverX != null && (
