@@ -284,7 +284,7 @@ fn histogram_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
                      arrayMap(\n                \
                          (b, c) -> (b, c),\n                \
                          mp.histogram_explicit_bounds,\n                \
-                         arrayDifference(arrayConcat([toUInt64(0)], mp.histogram_bucket_counts))\n            \
+                         arraySlice(arrayDifference(arrayConcat([toUInt64(0)], mp.histogram_bucket_counts)), 1, length(mp.histogram_explicit_bounds))\n            \
                      )\n        \
                  ) AS bc,\n        \
                  bc.1 AS bound,\n        \
