@@ -64,10 +64,10 @@ test("shows trace-correlated heading when no span selected", async () => {
   });
 
   render(<LogCorrelatedList traceId="trace-abc" />, { wrapper });
+  expect(screen.getByText(/Trace-correlated logs/)).toBeInTheDocument();
   await waitFor(() =>
-    expect(screen.getByText(/Trace-correlated logs/)).toBeInTheDocument()
+    expect(screen.getByText("trace level message")).toBeInTheDocument()
   );
-  expect(screen.getByText("trace level message")).toBeInTheDocument();
   expect(screen.getByText("span level message")).toBeInTheDocument();
 });
 
@@ -79,14 +79,14 @@ test("shows span-scoped heading and filters when spanId is provided", async () =
   });
 
   render(<LogCorrelatedList traceId="trace-abc" spanId="span-111" />, { wrapper });
+  expect(screen.getByText(/Exact span logs and trace-level logs/)).toBeInTheDocument();
   await waitFor(() =>
-    expect(screen.getByText(/Exact span logs and trace-level logs/)).toBeInTheDocument()
+    expect(screen.getByText("span level message")).toBeInTheDocument()
   );
-  expect(screen.getByText("span level message")).toBeInTheDocument();
   expect(screen.getByText("trace level message")).toBeInTheDocument();
 });
 
-test("clicking a log row marks it as focused with surface-subtle background", async () => {
+test("clicking a log row opens the context view with Surrounding Logs heading", async () => {
   vi.spyOn(logsApi, "searchLogs").mockResolvedValue({
     logs: [traceLog],
     total: 1,
@@ -98,13 +98,11 @@ test("clicking a log row marks it as focused with surface-subtle background", as
   await waitFor(() => screen.getByText("trace level message"));
 
   const row = screen.getByText("trace level message").closest('[role="button"]')!;
-  expect(row.className).not.toMatch(/surface-subtle/);
-
   fireEvent.click(row);
-  expect(row.className).toMatch(/surface-subtle/);
+  expect(screen.getByText(/Surrounding Logs/)).toBeInTheDocument();
 });
 
-test("Exact span correlation label appears for span-linked logs", async () => {
+test("span-linked log renders trace link with span aria-label", async () => {
   vi.spyOn(logsApi, "searchLogs").mockResolvedValue({
     logs: [spanLog],
     total: 1,
@@ -112,10 +110,14 @@ test("Exact span correlation label appears for span-linked logs", async () => {
   });
 
   render(<LogCorrelatedList traceId="trace-abc" />, { wrapper });
-  await waitFor(() => expect(screen.getByText("Exact span")).toBeInTheDocument());
+  await waitFor(() =>
+    expect(screen.getByRole("link", { name: `View span ${spanLog.span_id}` })).toBeInTheDocument()
+  );
+  const link = screen.getByRole("link", { name: `View span ${spanLog.span_id}` });
+  expect(link).toHaveAttribute("href", "/traces/trace-abc");
 });
 
-test("Trace-level correlation label appears for logs without span_id", async () => {
+test("trace-level log renders trace link with trace aria-label", async () => {
   vi.spyOn(logsApi, "searchLogs").mockResolvedValue({
     logs: [traceLog],
     total: 1,
@@ -123,18 +125,7 @@ test("Trace-level correlation label appears for logs without span_id", async () 
   });
 
   render(<LogCorrelatedList traceId="trace-abc" />, { wrapper });
-  await waitFor(() => expect(screen.getByText("Trace-level")).toBeInTheDocument());
-});
-
-test("span-linked log renders a link with correct href", async () => {
-  vi.spyOn(logsApi, "searchLogs").mockResolvedValue({
-    logs: [spanLog],
-    total: 1,
-    facets: {},
-  });
-
-  render(<LogCorrelatedList traceId="trace-abc" />, { wrapper });
-  await waitFor(() => expect(screen.getByRole("link", { name: "Exact span" })).toBeInTheDocument());
-  const link = screen.getByRole("link", { name: "Exact span" });
-  expect(link).toHaveAttribute("href", "/traces/trace-abc");
+  await waitFor(() =>
+    expect(screen.getByRole("link", { name: `View trace ${traceLog.trace_id}` })).toBeInTheDocument()
+  );
 });
