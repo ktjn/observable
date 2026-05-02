@@ -71,7 +71,8 @@
       "Bash(find C:\\\\git\\\\Observable\\\\services\\\\query-api\\\\src *)",
       "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
       "Bash(find C:\\\\git\\\\Observable\\\\services\\\\ingest-gateway\\\\src *)",
-      "Bash(find C:\\\\git\\\\Observable\\\\services\\\\storage-writer\\\\src *)"
+      "Bash(find C:\\\\git\\\\Observable\\\\services\\\\storage-writer\\\\src *)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\git\\\\Observable\" -Force | Select-Object Name, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}} | Format-Table -AutoSize)"
     ]
   }
 }

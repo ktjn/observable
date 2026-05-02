@@ -29,16 +29,17 @@ Before marking any change complete:
    If Testcontainers is not applicable, state why in the PR and name the replacement signal.
 5. **Frontend checks** (if `apps/frontend/` is touched): `npm run typecheck`, `npm run lint`,
    `npm run build`, `npm test`.
-6. **`bash scripts/local-ci.sh`** — run the full local CI gate before pushing. Use
+6. **Reusable UI Components** — verify that the UI is built using reusable components with minimal duplication. Check for existing components in `src/components/` or `src/features/**/components/` and extract shared logic into hooks/utilities.
+7. **`bash scripts/local-ci.sh`** — run the full local CI gate before pushing. Use
    `--skip-docker`, `--skip-frontend`, or `--skip-smoke` only when the relevant tooling is
    genuinely unavailable.
-7. **Regression gates** — do not weaken `scripts/local-ci.sh`, `tests/e2e/smoke_test.sh`,
+8. **Regression gates** — do not weaken `scripts/local-ci.sh`, `tests/e2e/smoke_test.sh`,
    `scripts/perf-smoke.sh`, or any Docker Compose verification service without a replacement signal.
-8. **ADR compliance** — verify the change does not violate any relevant ADR. If it introduces a new
+9. **ADR compliance** — verify the change does not violate any relevant ADR. If it introduces a new
    architectural decision, flag it to the coordinator before proceeding.
-9. **Migration files** — schema changes must be in versioned SQL files under `migrations/`;
+10. **Migration files** — schema changes must be in versioned SQL files under `migrations/`;
    no ORM-generated schema (ADR-013).
-10. **Tenant isolation** — every new telemetry table must include `tenant_id` (ADR-007).
+11. **Tenant isolation** — every new telemetry table must include `tenant_id` (ADR-007).
 
 ## Surface Boundaries
 

@@ -22,6 +22,13 @@ The **frontend will be built using React (v19+), TypeScript, and Vite (v8+)**.
 
 We will use **TanStack Query** for server-state management and **TanStack Router** for URL-driven navigation.
 
+### Component Reusability and Minimal Duplication
+To maintain a scalable and maintainable codebase, we mandate the use of **reusable components** and **minimal logic duplication**. 
+- UI primitives are owned and styled locally in `src/components/ui/` (Shadcn pattern).
+- Domain-agnostic layout and shared components live in `src/components/shared/`.
+- Domain-specific components are kept within their respective `src/features/**/components/` directories but must be made reusable within that domain.
+- Common business logic, data fetching patterns, and UI behaviors must be extracted into custom hooks and utility functions to avoid "copy-paste" development.
+
 ### Styling Choice: Tailwind CSS v4 over CSS Modules
 Initially, CSS Modules were considered for their scoping and performance. However, **Tailwind CSS v4** provides a superior developer experience for building high-density observability UIs. Its new Rust-based compiler handles the thousands of utility classes required for complex dashboards with zero runtime overhead and significantly faster build times.
 

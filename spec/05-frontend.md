@@ -43,13 +43,17 @@ apps/frontend/src/
 
 ### 9.3 Design System & Styling
 
-Consistency in an observability UI is critical for reducing cognitive load.
+Consistency in an observability UI is critical for reducing cognitive load. **All UI development must prioritize reusable components and minimal duplication.**
 
 - **Component Primitives**: We use **Base UI** for accessible, unstyled primitives (Dialogs, Dropdowns, Tabs). Base UI's render-prop pattern ensures better predictability than traditional `asChild` models.
 - **Styling Method**: **Tailwind CSS v4** is used for all styling. Its Rust-based compiler provides the performance required for extremely dense data visualizations without the management overhead of CSS Modules.
 - **Design Tokens**: Defined within Tailwind's theme and custom CSS variables in `src/styles/globals.css`.
 - **Ownership Model**: We follow the **Shadcn pattern**—component code for primitives (Button, Popover, etc.) is copied into `src/components/ui/` and styled locally. This allows for deep performance optimizations without library lock-in.
 - **Visuals**: **Grafana Scenes** are used specifically for data-heavy dashboarding and complex chart interactions.
+- **Reusability Mandate**: 
+  - Developers MUST check for existing components in `src/components/` and `src/features/**/components/` before creating new ones.
+  - Shared UI logic and data patterns MUST be extracted into hooks (in `src/hooks/` or feature-local `hooks/`) or utilities.
+  - Duplication of JSX or business logic is considered a blocking review item.
 
 ### 9.4 Testing Strategy
 
