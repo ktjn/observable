@@ -80,7 +80,7 @@ test("promotes the current log search filter to a dashboard panel", async () => 
       expect(body.panels[0]).toMatchObject({
         query_kind: "logs",
         service: "checkout",
-        lookback_minutes: 60,
+        preset: null,
       });
       return new Response(
         JSON.stringify({
@@ -160,7 +160,7 @@ test("promotes the current trace search filter to a dashboard panel", async () =
       expect(body.panels[0]).toMatchObject({
         query_kind: "traces",
         service: "checkout",
-        lookback_minutes: 60,
+        preset: null,
       });
       return new Response(
         JSON.stringify({
@@ -209,7 +209,7 @@ test("renders saved dashboard panels with preserved query context", async () => 
                     title: "Logs for checkout",
                     query_kind: "logs",
                     service: "checkout",
-                    lookback_minutes: 60,
+                    preset: "1h",
                     filters: { facets: ["service_name", "severity_number"] },
                   },
                 ],
@@ -231,7 +231,7 @@ test("renders saved dashboard panels with preserved query context", async () => 
   expect(await screen.findByRole("heading", { name: "Dashboards" })).toBeInTheDocument();
   expect(await screen.findByText("Promoted log query")).toBeInTheDocument();
   expect(screen.getByText("Logs for checkout")).toBeInTheDocument();
-  expect(screen.getByText("logs · checkout · Last 60m")).toBeInTheDocument();
+  expect(screen.getByText(/logs.*checkout.*Last\s*1\s*hour/)).toBeInTheDocument();
 });
 
 test("renders onboarding setup with endpoint, redacted key, and first signal success", async () => {
@@ -1051,10 +1051,10 @@ test("clicking an edge shows trace and log links", async () => {
   const tracesLink = screen.getByRole("link", { name: "View Traces" });
   expect(tracesLink).toHaveAttribute(
     "href",
-    "/traces?caller=checkout-api&callee=payments-api&lookback_minutes=60",
+    "/traces?caller=checkout-api&callee=payments-api",
   );
   const logsLink = screen.getByRole("link", { name: "View Logs" });
-  expect(logsLink).toHaveAttribute("href", "/logs?service=checkout-api&lookback_minutes=60");
+  expect(logsLink).toHaveAttribute("href", "/logs?service=checkout-api");
 });
 
 test("clicking SVG background closes edge popover", async () => {
@@ -1115,7 +1115,7 @@ test("renders empty state when no edges returned", async () => {
   render(<App />);
 
   expect(
-    await screen.findByText("No service relationships found in the selected lookback."),
+    await screen.findByText("No service relationships found in the selected time range."),
   ).toBeInTheDocument();
 });
 
