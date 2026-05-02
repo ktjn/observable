@@ -60,7 +60,7 @@ async fn validate_handler(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    domain::telemetry::init_self_observability_telemetry("auth-service")?;
+    let _telemetry = domain::telemetry::init_self_observability_telemetry("auth-service")?;
     let db_url = std::env::var("DATABASE_URL")?;
     let db = PgPool::connect(&db_url).await?;
     let port: u16 = std::env::var("AUTH_SERVICE_PORT")

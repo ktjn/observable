@@ -6,7 +6,7 @@ use sqlx::postgres::PgPoolOptions;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    domain::telemetry::init_self_observability_telemetry("alert-evaluator")?;
+    let _telemetry = domain::telemetry::init_self_observability_telemetry("alert-evaluator")?;
 
     let database_url =
         std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://localhost/observable".into());

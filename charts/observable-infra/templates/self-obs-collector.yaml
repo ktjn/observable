@@ -1,0 +1,71 @@
+{{- if or .Values.selfObservability.bearerToken .Values.selfObservability.headersSecretRef }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: observable-self-observability-gateway
+  labels:
+    app.kubernetes.io/part-of: observable
+    app.kubernetes.io/component: self-observability-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: observable-self-observability-gateway
+  template:
+    metadata:
+      labels:
+        app: observable-self-observability-gateway
+        app.kubernetes.io/part-of: observable
+        app.kubernetes.io/component: self-observability-gateway
+    spec:
+      containers:
+        - name: collector
+          image: otel/opentelemetry-collector-contrib:0.150.1
+          args:
+            - --config=/conf/collector.yaml
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+          {{- if .Values.selfObservability.headersSecretRef }}
+          env:
+            - name: OTEL_EXPORTER_OTLP_HEADERS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.selfObservability.headersSecretRef }}
+                  key: headers
+          {{- end }}
+          volumeMounts:
+            - name: collector-config
+              mountPath: /conf
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        - name: collector-config
+          configMap:
+            name: observable-self-observability-gateway
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: observable-self-observability-gateway
+  labels:
+    app.kubernetes.io/part-of: observable
+    app.kubernetes.io/component: self-observability-gateway
+spec:
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+  selector:
+    app: observable-self-observability-gateway
+{{- end }}

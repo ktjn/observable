@@ -26,7 +26,7 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    domain::telemetry::init_self_observability_telemetry("query-api")?;
+    let _telemetry = domain::telemetry::init_self_observability_telemetry("query-api")?;
     let ch_url = std::env::var("CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".into());
     let ch_user = std::env::var("CLICKHOUSE_USER").unwrap_or_else(|_| "default".into());
     let ch_password = std::env::var("CLICKHOUSE_PASSWORD").unwrap_or_default();

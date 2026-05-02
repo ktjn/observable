@@ -1,4 +1,8 @@
+use opentelemetry::trace::TracerProvider as _;
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::trace::SdkTracerProvider;
 use std::collections::HashMap;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelfObservabilityMode {
@@ -70,31 +74,73 @@ impl SelfObservabilityConfig {
     }
 }
 
-/// Initialise JSON tracing subscriber for the service.
-pub fn init_telemetry(service_name: &str, otlp_endpoint: Option<&str>) -> anyhow::Result<()> {
-    tracing_subscriber::fmt().json().init();
-    if let Some(ep) = otlp_endpoint {
+/// Initialise tracing for the service.
+///
+/// When `otlp_endpoint` is `Some`, wires the OTel SDK: spans emitted via the
+/// `tracing` macros are forwarded to the endpoint using OTLP/HTTP. The returned
+/// `SdkTracerProvider` must be kept alive for the process lifetime; dropping it
+/// triggers a flush + shutdown of the exporter.
+///
+/// When `otlp_endpoint` is `None`, only the JSON `fmt` layer is registered.
+pub fn init_telemetry(
+    service_name: &str,
+    otlp_endpoint: Option<&str>,
+) -> anyhow::Result<Option<SdkTracerProvider>> {
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+
+    if let Some(endpoint) = otlp_endpoint {
+        let exporter = opentelemetry_otlp::SpanExporter::builder()
+            .with_http()
+            .with_endpoint(endpoint)
+            .build()
+            .map_err(|e| anyhow::anyhow!("failed to build OTLP exporter: {e}"))?;
+
+        let provider = SdkTracerProvider::builder()
+            .with_batch_exporter(exporter)
+            .build();
+
+        opentelemetry::global::set_tracer_provider(provider.clone());
+
+        let tracer = provider.tracer(service_name.to_string());
+        let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+
+        tracing_subscriber::registry()
+            .with(tracing_subscriber::fmt::layer().json())
+            .with(env_filter)
+            .with(otel_layer)
+            .init();
+
         tracing::info!(
             service = service_name,
-            otlp_endpoint = ep,
-            "OTLP export configured (Phase 2 SDK wiring)"
+            otlp_endpoint = endpoint,
+            "OTLP tracing enabled"
         );
+
+        Ok(Some(provider))
     } else {
-        tracing::info!(service = service_name, "telemetry initialised");
+        tracing_subscriber::registry()
+            .with(tracing_subscriber::fmt::layer().json())
+            .with(env_filter)
+            .init();
+
+        tracing::info!(service = service_name, "telemetry initialised (log-only)");
+
+        Ok(None)
     }
-    Ok(())
 }
 
-pub fn init_self_observability_telemetry(service_name: &str) -> anyhow::Result<()> {
+pub fn init_self_observability_telemetry(
+    service_name: &str,
+) -> anyhow::Result<Option<SdkTracerProvider>> {
     let config = SelfObservabilityConfig::from_env()?;
-    init_telemetry(service_name, config.selected_otlp_endpoint())?;
+    let provider = init_telemetry(service_name, config.selected_otlp_endpoint())?;
     tracing::info!(
         service = service_name,
         self_observability_mode = config.mode.as_str(),
         otlp_endpoint = config.selected_otlp_endpoint(),
         "self-observability route selected"
     );
-    Ok(())
+    Ok(provider)
 }
 
 impl SelfObservabilityMode {

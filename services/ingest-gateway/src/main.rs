@@ -131,7 +131,7 @@ fn test_pool() -> Arc<sqlx::PgPool> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    domain::telemetry::init_self_observability_telemetry("ingest-gateway")?;
+    let _telemetry = domain::telemetry::init_self_observability_telemetry("ingest-gateway")?;
 
     let http_port: u16 = std::env::var("INGEST_GATEWAY_HTTP_JSON_PORT")
         .or_else(|_| std::env::var("INGEST_GATEWAY_PORT"))

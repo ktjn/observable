@@ -5,7 +5,7 @@ use domain::{EnvelopePayload, TelemetryEnvelope};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    domain::telemetry::init_self_observability_telemetry("stream-processor")?;
+    let _telemetry = domain::telemetry::init_self_observability_telemetry("stream-processor")?;
     let brokers = std::env::var("REDPANDA_BROKERS")?;
     let topic = std::env::var("INGEST_TOPIC")?;
     let writer_url =
