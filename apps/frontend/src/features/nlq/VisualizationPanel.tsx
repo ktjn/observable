@@ -246,6 +246,22 @@ const COLUMN_LABEL: Record<string, string> = {
   avg_value:                 "Avg value",
 };
 
+/**
+ * Parse a ClickHouse DateTime64 string ("YYYY-MM-DD HH:MM:SS[.frac]", UTC) into a
+ * synthetic nanosecond string compatible with formatTimestamp().
+ */
+function parseCHDatetime(val: string): string {
+  const [datePart = "", timePart = ""] = val.split(" ");
+  const [hmsPart = "00:00:00", fracStr = ""] = timePart.split(".");
+  const [yyyy = "1970", mo = "1", dd = "1"] = datePart.split("-");
+  const [hh = "0", min = "0", sec = "0"] = hmsPart.split(":");
+  const fracPadded = fracStr.padEnd(9, "0").slice(0, 9);
+  const fracMs = +fracPadded.slice(0, 3);
+  const epochMs = Date.UTC(+yyyy, +mo - 1, +dd, +hh, +min, +sec) + fracMs;
+  // Concat epochMs + sub-ms digits → formatTimestamp reads ms via /1e6, subMs via slice(-6)
+  return `${epochMs}${fracPadded.slice(3)}`;
+}
+
 /** Columns that contain nanosecond timestamps and should be formatted via formatTimestamp. */
 const TIMESTAMP_COLS = new Set([
   "timestamp_unix_nano",
@@ -286,7 +302,12 @@ function GenericTable({ frame }: Props) {
               {cols.map((c) => (
                 <td key={c} className="py-1 pr-4 font-mono whitespace-nowrap">
                   {TIMESTAMP_COLS.has(c) && row[c] != null
-                    ? formatTimestamp(row[c] as string | number, format)
+                    ? formatTimestamp(
+                        typeof row[c] === "string" && (row[c] as string).includes(" ")
+                          ? parseCHDatetime(row[c] as string)
+                          : (row[c] as string | number),
+                        format,
+                      )
                     : formatValue(row[c])}
                 </td>
               ))}
