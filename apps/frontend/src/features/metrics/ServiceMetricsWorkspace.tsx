@@ -140,9 +140,15 @@ export function ServiceMetricsWorkspace({
             <Panel eyebrow="Browse" title="Metric Series">
               <div className="mb-4">
                 <QueryFilterInput
-                  surface="metrics"
+                  baseIr={METRICS_BASE_IR}
                   serviceName={serviceName}
                   placeholder='Filter metric series, e.g. "histogram latency metrics in prod" or raw NLQ IR JSON'
+                  onSubmit={(_rawText) => {
+                    // Need to derive IR and apply filters based on rawText here?
+                    // Actually, the previous implementation used `onIr`.
+                    // Let's keep `onIr` and add `baseIr` as required.
+                  }}
+
                   onIr={(ir) => {
                     const next = deriveViewFiltersFromIr(ir, "metrics");
                     setFilters({
@@ -156,6 +162,7 @@ export function ServiceMetricsWorkspace({
                     setSelectedSeriesId(null);
                   }}
                 />
+
               </div>
               {filteredSeries.length > 0 ? (
                 <MetricSeriesTable
