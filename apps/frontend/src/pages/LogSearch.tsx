@@ -93,7 +93,7 @@ export function LogExplorer({
     queryKey: ["logs", "nlq", userQuery, fromMs, toMs],
     queryFn: async () => {
       const response = await submitNlqQuery({
-        base_ir: LOG_BASE_IR,
+        base_ir: { ...LOG_BASE_IR, time_range: { from, to } },
         question: userQuery ?? undefined,
         mode: "execute",
       });

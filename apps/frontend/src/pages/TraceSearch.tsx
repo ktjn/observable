@@ -126,7 +126,7 @@ export function TraceExplorer({
     queryKey: ["traces", "nlq", userQuery, fromMs, toMs],
     queryFn: async () => {
       const response = await submitNlqQuery({
-        base_ir: TRACE_BASE_IR,
+        base_ir: { ...TRACE_BASE_IR, time_range: { from, to } },
         question: userQuery ?? undefined,
         mode: "execute",
       });

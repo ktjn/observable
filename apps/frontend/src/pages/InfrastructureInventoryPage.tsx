@@ -9,6 +9,7 @@ import { submitNlqQuery } from "../api/nlq";
 import type { NlqIrLike } from "../features/nlq/queryFilters";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { useTimeDisplay } from "../lib/timeDisplay";
+import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { Badge } from "../components/ui/badge";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
@@ -30,12 +31,15 @@ export default function InfrastructureInventoryPage() {
   const [entityTypeFilter, setEntityTypeFilter] = useState<InfrastructureTypeFilter>("all");
   const [search, setSearch] = useState("");
   const { format } = useTimeDisplay();
+  const { fromMs, toMs } = useGlobalDateRange();
+  const from = new Date(fromMs).toISOString();
+  const to = new Date(toMs).toISOString();
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["infrastructure", "surface", userQuery],
+    queryKey: ["infrastructure", "surface", userQuery, fromMs, toMs],
     queryFn: async () => {
       const response = await submitNlqQuery({
-        base_ir: INFRA_BASE_IR,
+        base_ir: { ...INFRA_BASE_IR, time_range: { from, to } },
         question: userQuery ?? undefined,
         mode: "execute",
       });

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { submitNlqQuery } from "../../api/nlq";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
 import type { NlqIrLike } from "./queryFilters";
 
 interface QueryFilterInputProps {
@@ -28,6 +29,17 @@ export function QueryFilterInput({
   onSubmit,
   onIr,
 }: QueryFilterInputProps) {
+  const { fromMs, toMs } = useGlobalDateRange();
+  const effectiveBaseIr = useMemo<NlqIrLike>(
+    () => ({
+      ...baseIr,
+      time_range: {
+        from: new Date(fromMs).toISOString(),
+        to: new Date(toMs).toISOString(),
+      },
+    }),
+    [baseIr, fromMs, toMs],
+  );
   const [query, setQuery] = useState("");
   const [state, setState] = useState<
     | { status: "idle" }
@@ -47,7 +59,7 @@ export function QueryFilterInput({
         question,
         mode: "interpret",
         service_name: serviceName,
-        base_ir: baseIr,
+        base_ir: effectiveBaseIr,
       });
       if (response.type !== "ir") {
         const message =
