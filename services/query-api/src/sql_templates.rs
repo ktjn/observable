@@ -344,7 +344,7 @@ fn table_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
 
     Ok(format!(
         "SELECT\n    \
-             fromUnixTimestamp64Nano(mp.time_unix_nano) AS ts,\n    \
+             mp.time_unix_nano AS timestamp_unix_nano,\n    \
              ms.metric_name,\n    \
              ms.service_name,\n    \
              coalesce(mp.value_double, toFloat64(mp.value_int)) AS value{extra_select}\n\
@@ -353,7 +353,7 @@ fn table_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
              ON ms.tenant_id = mp.tenant_id AND ms.metric_series_id = mp.metric_series_id\n\
          WHERE mp.tenant_id = '{tenant_id}'\n  \
            AND ms.metric_name = '{metric_name}'{filters}{time_clause}\n\
-         ORDER BY ts DESC\n\
+         ORDER BY timestamp_unix_nano DESC\n\
          LIMIT 1000",
         tenant_id = ctx.tenant_id,
         metric_name = escape_string_value(ctx.metric_name),
@@ -1135,7 +1135,7 @@ mod tests {
         let ctx = ctx_for(&ir);
         let sql = generate_sql(&ctx).unwrap();
         assert!(sql.contains("LIMIT 1000"));
-        assert!(sql.contains("ORDER BY ts DESC"));
+        assert!(sql.contains("ORDER BY timestamp_unix_nano DESC"));
     }
 
     // ── Distribution ─────────────────────────────────────────────────────────

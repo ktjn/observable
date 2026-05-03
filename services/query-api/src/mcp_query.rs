@@ -774,7 +774,12 @@ fn derive_field_layout(
                 .collect();
             (None, Some(y_field), None, field_roles)
         }
-        _ => (Some("ts".into()), Some("value".into()), None, vec![]),
+        _ => (
+            Some("timestamp_unix_nano".into()),
+            Some("value".into()),
+            None,
+            vec![],
+        ),
     }
 }
 
@@ -894,7 +899,7 @@ mod tests {
             effective_sample_rate: None,
             not_for_billing: None,
             metric_type: Some("gauge".into()),
-            timestamp_column: Some("ts".into()),
+            timestamp_column: Some("timestamp_unix_nano".into()),
             unit: None,
             recommended_downsampling: None,
             schema_complete: true,
@@ -924,7 +929,7 @@ mod tests {
             effective_sample_rate: Some(0.1),
             not_for_billing: None,
             metric_type: Some("gauge".into()),
-            timestamp_column: Some("ts".into()),
+            timestamp_column: Some("timestamp_unix_nano".into()),
             unit: None,
             recommended_downsampling: None,
             schema_complete: true,
