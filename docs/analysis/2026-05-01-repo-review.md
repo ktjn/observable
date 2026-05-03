@@ -17,7 +17,7 @@ This report complements `2026-04-19-gaps-analysis.md` (still the canonical strat
 
 ```
 011_create_dashboards.sql
-011_create_schema_registry.sql
+015_create_schema_registry.sql
 012_add_worker_metrics.sql
 013_platform_config.sql
 ```
@@ -169,7 +169,7 @@ All triggers in `build.yml` are commented out except `workflow_dispatch`. This i
 
 | Anomaly | Slice size | Touches |
 |---|---|---|
-| 1.1 — rename `011_create_schema_registry.sql` | XS | `migrations/postgres/`, ADR-013 (one-line note) |
+| 1.1 — rename `015_create_schema_registry.sql` | XS | `migrations/postgres/`, ADR-013 (one-line note) |
 | 1.2 — reconcile P8-S6b plan with ADR-027 | XS | `docs/superpowers/plans/2026-04-29-p8-s6b-local-llm-vllm.md`, iteration plan §791 |
 | 1.3 — collapse agent-instruction files | S | `AGENT.md`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md` |
 | 1.4 — document `nlq-multi-model.py` | XS | `spec/08-ai-ml.md`, `AGENTS.md`, `CLAUDE.md`, `README.md` |

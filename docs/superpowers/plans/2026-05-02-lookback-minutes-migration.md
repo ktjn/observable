@@ -14,7 +14,7 @@
 
 | Action | Path | What changes |
 |--------|------|------|
-| Create | `migrations/postgres/014_dashboard_preset.sql` | Add `preset TEXT`, backfill, drop `lookback_minutes` |
+| Create | `migrations/postgres/016_dashboard_preset.sql` | Add `preset TEXT`, backfill, drop `lookback_minutes` |
 | Modify | `services/query-api/src/dashboards.rs` | `lookback_minutes: i32` → `preset: Option<String>` everywhere |
 | Modify | `services/query-api/src/discovery.rs` | `SummaryParams`, `TopologyParams`, `ResponseTimeHistoryParams`: replace `lookback_minutes` with `from`/`to` |
 | Modify | `services/query-api/src/traces.rs` | Remove `lookback_minutes` from `SearchParams`; update 4 usage sites |
@@ -35,7 +35,7 @@
 ## Task 1: Database Migration
 
 **Files:**
-- Create: `migrations/postgres/014_dashboard_preset.sql`
+- Create: `migrations/postgres/016_dashboard_preset.sql`
 
 - [ ] **Step 1: Write the migration**
 
@@ -70,7 +70,7 @@ Expected: migration applies cleanly, `lookback_minutes` column is gone from `das
 - [ ] **Step 3: Commit**
 
 ```bash
-git add migrations/postgres/014_dashboard_preset.sql
+git add migrations/postgres/016_dashboard_preset.sql
 git commit -m "feat: add dashboard_panels.preset column, drop lookback_minutes"
 ```
 
