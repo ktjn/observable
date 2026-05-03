@@ -6,6 +6,10 @@ vi.mock("../../api/nlq", () => ({
   submitNlqQuery: vi.fn(),
 }));
 
+vi.mock("../../hooks/useGlobalDateRange", () => ({
+  useGlobalDateRange: () => ({ fromMs: Date.now() - 3600_000, toMs: Date.now() }),
+}));
+
 import { submitNlqQuery } from "../../api/nlq";
 const mockSubmit = vi.mocked(submitNlqQuery);
 
@@ -44,7 +48,14 @@ describe("QueryFilterInput", () => {
         question: "show checkout services",
         mode: "interpret",
         service_name: undefined,
-        base_ir: SERVICES_BASE_IR,
+        base_ir: expect.objectContaining({
+          operation: "catalog",
+          signals: ["metrics"],
+          time_range: expect.objectContaining({
+            from: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+            to: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+          }),
+        }),
       }),
     );
     expect(onSubmit).toHaveBeenCalledWith("show checkout services");

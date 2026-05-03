@@ -13,11 +13,12 @@ mod middleware;
 mod planner;
 mod schemas;
 mod sql_templates;
+mod tokens;
 mod traces;
 
 use axum::{
     middleware as axum_middleware,
-    routing::{get, patch, post},
+    routing::{delete, get, patch, post},
     Router,
 };
 use clickhouse::Client;
@@ -134,6 +135,9 @@ async fn main() -> anyhow::Result<()> {
             "/v1/config/llm-key",
             axum::routing::put(config::put_llm_key),
         )
+        .route("/v1/tokens", get(tokens::list_tokens))
+        .route("/v1/tokens", post(tokens::create_token))
+        .route("/v1/tokens/:id", delete(tokens::revoke_token))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
         .layer(TraceLayer::new_for_http())
