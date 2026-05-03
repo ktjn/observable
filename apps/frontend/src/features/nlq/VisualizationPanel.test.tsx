@@ -2,6 +2,15 @@ import { render, screen } from "@testing-library/react";
 import { describe, test, expect } from "vitest";
 import { VisualizationPanel } from "./VisualizationPanel";
 import type { VisualizationFrame } from "../../api/nlq";
+import { TimeDisplayProvider } from "../../lib/timeDisplay";
+
+function Wrapper({ children }: { children: React.ReactNode }) {
+  return <TimeDisplayProvider>{children}</TimeDisplayProvider>;
+}
+
+function renderViz(frame: VisualizationFrame) {
+  return render(<VisualizationPanel frame={frame} />, { wrapper: Wrapper });
+}
 
 function baseFrame(overrides: Partial<VisualizationFrame> = {}): VisualizationFrame {
   return {
@@ -25,7 +34,7 @@ function baseFrame(overrides: Partial<VisualizationFrame> = {}): VisualizationFr
 
 describe("VisualizationPanel", () => {
   test("renders empty state when data is empty", () => {
-    render(<VisualizationPanel frame={baseFrame({ data: [] })} />);
+    renderViz(baseFrame({ data: [] }));
     expect(screen.getByTestId("viz-empty")).toBeInTheDocument();
   });
 
@@ -36,7 +45,7 @@ describe("VisualizationPanel", () => {
       y_field: "value",
       data: [{ bucket: "2026-01-01 10:00", value: 120.5 }],
     });
-    render(<VisualizationPanel frame={frame} />);
+    renderViz(frame);
     expect(screen.getByTestId("timeseries-table")).toBeInTheDocument();
     expect(screen.getByTestId("viz-panel")).toHaveAttribute(
       "data-frame-type",
@@ -51,7 +60,7 @@ describe("VisualizationPanel", () => {
       y_field: "avg_latency",
       data: [{ bucket: "10:00", avg_latency: 42.1 }],
     });
-    render(<VisualizationPanel frame={frame} />);
+    renderViz(frame);
     expect(screen.getByText("Time bucket")).toBeInTheDocument();
     expect(screen.getByText("42.100")).toBeInTheDocument();
   });
@@ -64,7 +73,7 @@ describe("VisualizationPanel", () => {
       series_field: "service_name",
       data: [{ bucket: "10:00", value: 55.0, service_name: "checkout" }],
     });
-    render(<VisualizationPanel frame={frame} />);
+    renderViz(frame);
     expect(screen.getByText("service_name")).toBeInTheDocument();
     expect(screen.getByText("checkout")).toBeInTheDocument();
   });
@@ -79,7 +88,7 @@ describe("VisualizationPanel", () => {
         { bound: 50, count: 20 },
       ],
     });
-    render(<VisualizationPanel frame={frame} />);
+    renderViz(frame);
     expect(screen.getByTestId("histogram-table")).toBeInTheDocument();
     expect(screen.getByText("Distribution")).toBeInTheDocument();
   });
@@ -94,7 +103,7 @@ describe("VisualizationPanel", () => {
         { service_name: "payment", avg_value: 150 },
       ],
     });
-    render(<VisualizationPanel frame={frame} />);
+    renderViz(frame);
     expect(screen.getByTestId("topk-table")).toBeInTheDocument();
     expect(screen.getByText("#1")).toBeInTheDocument();
     expect(screen.getByText("#2")).toBeInTheDocument();
@@ -105,7 +114,7 @@ describe("VisualizationPanel", () => {
       frame_type: "distribution",
       data: [{ p50: 10, p90: 50, p95: 80, p99: 200, min_val: 1, max_val: 500 }],
     });
-    render(<VisualizationPanel frame={frame} />);
+    renderViz(frame);
     expect(screen.getByTestId("distribution-table")).toBeInTheDocument();
     expect(screen.getByText("p50 (median)")).toBeInTheDocument();
     expect(screen.getByText("p99")).toBeInTheDocument();
@@ -119,7 +128,7 @@ describe("VisualizationPanel", () => {
       frame_type: "distribution",
       data: [{ p99: 200, average: 45, median: 30 }],
     });
-    render(<VisualizationPanel frame={frame} />);
+    renderViz(frame);
     expect(screen.getByTestId("distribution-table")).toBeInTheDocument();
     expect(screen.getByText("p99")).toBeInTheDocument();
     expect(screen.getByText("average")).toBeInTheDocument();
@@ -134,9 +143,10 @@ describe("VisualizationPanel", () => {
       frame_type: "table",
       data: [{ ts: "2026-01-01", metric_name: "cpu_usage", value: 0.75 }],
     });
-    render(<VisualizationPanel frame={frame} />);
+    renderViz(frame);
     expect(screen.getByTestId("generic-table")).toBeInTheDocument();
-    expect(screen.getByText("metric_name")).toBeInTheDocument();
+    // metric_name maps to display label "Metric"
+    expect(screen.getByText("Metric")).toBeInTheDocument();
   });
 
   test("falls back to generic table for unknown frame types", () => {
@@ -144,7 +154,7 @@ describe("VisualizationPanel", () => {
       frame_type: "heatmap" as VisualizationFrame["frame_type"],
       data: [{ x: 1, y: 2 }],
     });
-    render(<VisualizationPanel frame={frame} />);
+    renderViz(frame);
     expect(screen.getByTestId("generic-table")).toBeInTheDocument();
   });
 
@@ -155,7 +165,7 @@ describe("VisualizationPanel", () => {
       y_field: "value",
       data: [{ bucket: "10:00", value: 42 }],
     });
-    render(<VisualizationPanel frame={frame} />);
+    renderViz(frame);
     expect(screen.getByText("42")).toBeInTheDocument();
   });
 
@@ -166,7 +176,7 @@ describe("VisualizationPanel", () => {
       y_field: "value",
       data: [{ bucket: "10:00", value: 3.14159 }],
     });
-    render(<VisualizationPanel frame={frame} />);
+    renderViz(frame);
     expect(screen.getByText("3.142")).toBeInTheDocument();
   });
 
@@ -177,7 +187,7 @@ describe("VisualizationPanel", () => {
       y_field: "value",
       data: [{ bucket: null, value: undefined }],
     });
-    render(<VisualizationPanel frame={frame} />);
+    renderViz(frame);
     // Both bucket and value should show em-dash
     const dashes = screen.getAllByText("—");
     expect(dashes.length).toBeGreaterThanOrEqual(2);
@@ -188,7 +198,7 @@ describe("VisualizationPanel", () => {
       frame_type: "distribution",
       data: [{ p95: 4.237, median: 3.1, average: 3.5 }],
     });
-    render(<VisualizationPanel frame={frame} />);
+    renderViz(frame);
     expect(screen.getByTestId("distribution-table")).toBeInTheDocument();
     expect(screen.getByText("p95")).toBeInTheDocument();
     expect(screen.getByText("median")).toBeInTheDocument();
@@ -203,8 +213,34 @@ describe("VisualizationPanel", () => {
       frame_type: "distribution",
       data: [{ p95: NaN }],
     });
-    render(<VisualizationPanel frame={frame} />);
+    renderViz(frame);
     expect(screen.getByText("—")).toBeInTheDocument();
     expect(screen.queryByText("NaN")).not.toBeInTheDocument();
+  });
+
+  test("generic table pins timestamp column first and shows display label 'Occurred Time'", () => {
+    const frame = baseFrame({
+      frame_type: "table",
+      // Backend returns body before timestamp — column order must be fixed
+      data: [{ body: "hello", timestamp_unix_nano: "1700000000000000000", service_name: "svc" }],
+    });
+    renderViz(frame);
+    const headers = screen.getAllByRole("columnheader");
+    expect(headers[0].textContent).toBe("Occurred Time");
+    expect(headers[1].textContent).toBe("Message");
+    expect(headers[2].textContent).toBe("Service");
+  });
+
+  test("generic table formats timestamp_unix_nano using the time format context", () => {
+    const frame = baseFrame({
+      frame_type: "table",
+      data: [{ timestamp_unix_nano: "1700000000000000000" }],
+    });
+    renderViz(frame);
+    // Default format is iso-local-ms; should NOT render raw nanosecond string
+    expect(screen.queryByText("1700000000000000000")).not.toBeInTheDocument();
+    // Should render a formatted timestamp (contains at least year and colons)
+    const cell = screen.getByRole("cell");
+    expect(cell.textContent).toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 });

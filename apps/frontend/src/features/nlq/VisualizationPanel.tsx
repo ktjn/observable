@@ -5,6 +5,8 @@
  * as per ADR-021 §VisualizationFrame Contract. No chart library required.
  */
 import type { VisualizationFrame } from "../../api/nlq";
+import { useTimeDisplay } from "../../lib/timeDisplay";
+import { formatTimestamp } from "../../utils/formatTimestamp";
 
 interface Props {
   frame: VisualizationFrame;
@@ -198,9 +200,73 @@ function DistributionTable({ frame }: Props) {
 
 // ── Generic table ─────────────────────────────────────────────────────────────
 
+/** Human-readable labels for well-known signal field names. */
+const COLUMN_LABEL: Record<string, string> = {
+  // Timestamps — always pinned first; see TIMESTAMP_COLS
+  timestamp_unix_nano:              "Occurred Time",
+  observed_timestamp_unix_nano:     "Observed Time",
+  start_time_unix_nano:             "Start Time",
+  end_time_unix_nano:               "End Time",
+  last_seen_unix_nano:              "Last Seen",
+  event_time_unix_nano:             "Occurred Time",
+  // Logs
+  body:                      "Message",
+  severity_text:             "Severity",
+  severity_number:           "Sev#",
+  service_name:              "Service",
+  log_id:                    "Log ID",
+  trace_id:                  "Trace ID",
+  span_id:                   "Span ID",
+  resource_attributes:       "Resources",
+  tenant_id:                 "Tenant",
+  // Traces
+  operation_name:            "Operation",
+  duration_ns:               "Duration (ns)",
+  duration_ms:               "Duration (ms)",
+  status_code:               "Status",
+  root_service:              "Service",
+  root_operation:            "Operation",
+  span_count:                "Spans",
+  // Infrastructure
+  entity_type:               "Type",
+  entity_id:                 "Entity ID",
+  display_name:              "Entity",
+  environment:               "Environment",
+  health_state:              "Health",
+  parent_display_name:       "Parent",
+  related_services:          "Services",
+  error_rate:                "Error Rate",
+  restart_count:             "Restarts",
+  cpu_usage:                 "CPU",
+  memory_usage:              "Memory",
+  // Metrics / general
+  metric_name:               "Metric",
+  bucket:                    "Time bucket",
+  value:                     "Value",
+  avg_value:                 "Avg value",
+};
+
+/** Columns that contain nanosecond timestamps and should be formatted via formatTimestamp. */
+const TIMESTAMP_COLS = new Set([
+  "timestamp_unix_nano",
+  "observed_timestamp_unix_nano",
+  "start_time_unix_nano",
+  "end_time_unix_nano",
+  "last_seen_unix_nano",
+  "event_time_unix_nano",
+]);
+
+/** Sort columns so that timestamp fields come first, then the rest in backend order. */
+function sortColumns(cols: string[]): string[] {
+  const ts = cols.filter((c) => TIMESTAMP_COLS.has(c));
+  const rest = cols.filter((c) => !TIMESTAMP_COLS.has(c));
+  return [...ts, ...rest];
+}
+
 function GenericTable({ frame }: Props) {
+  const { format } = useTimeDisplay();
   if (frame.data.length === 0) return null;
-  const cols = Object.keys(frame.data[0]);
+  const cols = sortColumns(Object.keys(frame.data[0]));
 
   return (
     <div className="overflow-x-auto" data-testid="generic-table">
@@ -209,7 +275,7 @@ function GenericTable({ frame }: Props) {
           <tr className="border-b border-[var(--border)]">
             {cols.map((c) => (
               <th key={c} className="py-1 pr-4 text-left font-medium whitespace-nowrap">
-                {c}
+                {COLUMN_LABEL[c] ?? c}
               </th>
             ))}
           </tr>
@@ -219,7 +285,9 @@ function GenericTable({ frame }: Props) {
             <tr key={i} className="border-b border-[var(--border-subtle)]">
               {cols.map((c) => (
                 <td key={c} className="py-1 pr-4 font-mono whitespace-nowrap">
-                  {formatValue(row[c])}
+                  {TIMESTAMP_COLS.has(c) && row[c] != null
+                    ? formatTimestamp(row[c] as string | number, format)
+                    : formatValue(row[c])}
                 </td>
               ))}
             </tr>

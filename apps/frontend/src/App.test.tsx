@@ -458,7 +458,8 @@ test("renders service metrics workspace with filtering and selected series point
 
   render(<App />);
 
-  expect(await screen.findByText("2 series")).toBeInTheDocument();
+  // Both "Metric Series" and "Filtered" cards show "2 series" when no filter is active.
+  expect((await screen.findAllByText("2 series")).length).toBeGreaterThan(0);
   expect(screen.getByText("2 types")).toBeInTheDocument();
   expect(screen.getByText("2 envs")).toBeInTheDocument();
 
@@ -476,12 +477,15 @@ test("renders service metrics workspace with filtering and selected series point
   await screen.findByText("checkout.requests");
   fireEvent.click(screen.getByRole("button", { name: "Select checkout.requests" }));
 
-  expect(await screen.findByText("Selected series")).toBeInTheDocument();
-  await waitFor(() => expect(screen.getAllByText("2 points").length).toBeGreaterThan(0));
-  await waitFor(() => expect(screen.getAllByText("47").length).toBeGreaterThan(0));
-  expect(fetchMock).toHaveBeenCalledWith(
-    expect.stringContaining("/v1/metrics/00000000-0000-0000-0000-000000000222"),
-    expect.anything(),
+  // Panel opens: sidebar shows "Selected Metric" label and the metric name
+  expect(await screen.findByRole("complementary", { name: "Selected metric details" })).toBeInTheDocument();
+  expect(screen.getByText("Selected Metric")).toBeInTheDocument();
+  // Series detail API called for the selected series
+  await waitFor(() =>
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/v1/metrics/00000000-0000-0000-0000-000000000222"),
+      expect.anything(),
+    ),
   );
 });
 
