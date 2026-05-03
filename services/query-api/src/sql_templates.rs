@@ -512,7 +512,7 @@ pub fn parse_time_expr(expr: &str) -> Result<String, SqlTemplateError> {
         let clean = expr
             .replace('T', " ")
             .replace('Z', "")
-            .trim_end_matches(|c: char| c == '+' || c.is_ascii_digit() || c == ':')
+            .trim_end_matches(|c: char| c == '+' || c.is_ascii_digit() || c == ':' || c == '.')
             .trim()
             .to_string();
         return Ok(format!("toDateTime('{clean}', 'UTC')"));
