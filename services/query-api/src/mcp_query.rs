@@ -16,7 +16,8 @@ use crate::discovery::{
 use crate::mcp_tools::get_metric_schema;
 use crate::middleware::auth::TenantContext;
 use crate::sql_templates::{
-    generate_log_sql, generate_sql, LogSqlContext, SchemaMetricType, SqlContext, SqlTemplateError,
+    generate_log_sql, generate_sql, parse_time_expr, LogSqlContext, SchemaMetricType, SqlContext,
+    SqlTemplateError,
 };
 use crate::traces::AppState;
 use axum::{
@@ -295,14 +296,14 @@ async fn execute_log_query(
 /// Returns root spans (those with an empty `parent_span_id`) as distributed traces.
 /// Supported IR filters: `service_name`, `status_code` (OK/ERROR/UNSET),
 /// `environment`, free-text via `ir.query` on `operation_name`.
-/// Time range is derived from `ir.time_range` (same `parse_relative_minutes` helper as logs).
+/// Time range is taken directly from `ir.time_range.from`/`to` via `parse_time_expr`.
 async fn execute_trace_query(
     ch: &clickhouse::Client,
     tenant_id: Uuid,
     ir: &NlqIr,
 ) -> Result<VisualizationFrame, McpQueryError> {
-    let lookback_minutes = parse_relative_minutes(&ir.time_range.from).unwrap_or(60);
-    let db = format!("tenant_{}", tenant_id.as_simple());
+    let from_expr = parse_time_expr(&ir.time_range.from)?;
+    let to_expr = parse_time_expr(&ir.time_range.to)?;
 
     let filter_val = |field: &str| -> Option<String> {
         let want = field.to_lowercase();
@@ -318,10 +319,10 @@ async fn execute_trace_query(
     let operation_text = ir.query.as_deref().unwrap_or("");
 
     let mut where_clauses: Vec<String> = vec![
+        format!("tenant_id = '{tenant_id}'"),
         "(parent_span_id = '' OR parent_span_id IS NULL)".into(),
-        format!(
-            "start_time_unix_nano >= toUnixTimestamp64Nano(now() - INTERVAL {lookback_minutes} MINUTE)"
-        ),
+        format!("fromUnixTimestamp64Nano(start_time_unix_nano) >= {from_expr}"),
+        format!("fromUnixTimestamp64Nano(start_time_unix_nano) <= {to_expr}"),
     ];
 
     if let Some(svc) = &service_name {
@@ -353,7 +354,7 @@ async fn execute_trace_query(
            status_code, \
            JSONExtractString(resource_attributes, 'deployment.environment') AS environment, \
            start_time_unix_nano \
-         FROM {db}.spans \
+         FROM observable.spans \
          WHERE {where_sql} \
          ORDER BY start_time_unix_nano DESC \
          LIMIT 500"
