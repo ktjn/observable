@@ -36,3 +36,6 @@ testcontainers-modules = { version = "0.15.0", features = ["clickhouse", "postgr
 tokio                  = { version = "1", features = ["full"] }
 uuid                   = { version = "1", features = ["v4"] }
 chrono                 = { workspace = true }
+tower                  = { version = "0.4", features = ["util"] }
+http-body-util         = "0.1"
+serde_json             = { workspace = true }
