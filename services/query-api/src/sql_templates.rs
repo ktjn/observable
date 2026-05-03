@@ -578,12 +578,20 @@ pub fn generate_log_sql(ctx: &LogSqlContext) -> Result<String, SqlTemplateError>
 
     Ok(format!(
         "SELECT\n    \
-             fromUnixTimestamp64Nano(timestamp_unix_nano) AS ts,\n    \
-             body,\n    \
-             service_name,\n    \
+             log_id,\n    \
+             timestamp_unix_nano,\n    \
+             observed_timestamp_unix_nano,\n    \
+             severity_number,\n    \
              severity_text,\n    \
+             body,\n    \
              trace_id,\n    \
-             span_id\n\
+             span_id,\n    \
+             service_name,\n    \
+             environment,\n    \
+             host_id,\n    \
+             fingerprint,\n    \
+             attributes,\n    \
+             resource_attributes\n\
          FROM observable.logs\n\
          WHERE tenant_id = '{tenant_id}'{query_clause}{filter_clause}{time_clause}\n\
          ORDER BY timestamp_unix_nano DESC\n\

@@ -250,7 +250,7 @@ async fn execute_log_query(
 
     let field_roles = vec![
         FieldRole {
-            name: "ts".into(),
+            name: "timestamp_unix_nano".into(),
             role: FieldRoleKind::Time,
         },
         FieldRole {
@@ -269,7 +269,7 @@ async fn execute_log_query(
 
     Ok(VisualizationFrame {
         frame_type: VisualizationFrameType::Table,
-        x_field: Some("ts".into()),
+        x_field: Some("timestamp_unix_nano".into()),
         y_field: None,
         series_field: None,
         unit: None,
@@ -302,7 +302,6 @@ async fn execute_trace_query(
     ir: &NlqIr,
 ) -> Result<VisualizationFrame, McpQueryError> {
     let lookback_minutes = parse_relative_minutes(&ir.time_range.from).unwrap_or(60);
-    let db = format!("tenant_{}", tenant_id.as_simple());
 
     let filter_val = |field: &str| -> Option<String> {
         let want = field.to_lowercase();
@@ -318,6 +317,7 @@ async fn execute_trace_query(
     let operation_text = ir.query.as_deref().unwrap_or("");
 
     let mut where_clauses: Vec<String> = vec![
+        format!("tenant_id = '{tenant_id}'"),
         "(parent_span_id = '' OR parent_span_id IS NULL)".into(),
         format!(
             "start_time_unix_nano >= toUnixTimestamp64Nano(now() - INTERVAL {lookback_minutes} MINUTE)"
@@ -353,7 +353,7 @@ async fn execute_trace_query(
            status_code, \
            JSONExtractString(resource_attributes, 'deployment.environment') AS environment, \
            start_time_unix_nano \
-         FROM {db}.spans \
+         FROM observable.spans \
          WHERE {where_sql} \
          ORDER BY start_time_unix_nano DESC \
          LIMIT 500"
