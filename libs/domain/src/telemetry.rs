@@ -1,5 +1,6 @@
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_otlp::{WithExportConfig, WithTonicConfig};
+use opentelemetry_sdk::logs::SdkLoggerProvider;
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::Resource;
 use std::collections::HashMap;
@@ -82,24 +83,27 @@ impl SelfObservabilityConfig {
     }
 }
 
-/// Initialise tracing for the service.
+pub struct Telemetry {
+    pub tracer_provider: Option<SdkTracerProvider>,
+    pub logger_provider: Option<SdkLoggerProvider>,
+}
+
+/// Initialise tracing and logging for the service.
 ///
-/// When `otlp_endpoint` is `Some`, wires the OTel SDK: spans emitted via the
-/// `tracing` macros are forwarded to the endpoint using OTLP/HTTP. The returned
-/// `SdkTracerProvider` must be kept alive for the process lifetime; dropping it
-/// triggers a flush + shutdown of the exporter.
+/// When `otlp_endpoint` is `Some`, wires the OTel SDK: spans and logs emitted via
+/// the `tracing` macros are forwarded to the endpoint using OTLP/gRPC.
+/// The returned `Telemetry` must be kept alive for the process lifetime; dropping
+/// it triggers a flush + shutdown of the exporters.
 ///
 /// `bearer_token` — when `Some`, adds `Authorization: Bearer <token>` to every
 /// OTLP export request so the service can authenticate directly with ingest-gateway.
-/// The `deployment.environment` resource attribute is stamped server-side from the
-/// API key's environment field — no client-side setting is required or supported.
 ///
 /// When `otlp_endpoint` is `None`, only the JSON `fmt` layer is registered.
 pub fn init_telemetry(
     service_name: &str,
     otlp_endpoint: Option<&str>,
     bearer_token: Option<&str>,
-) -> anyhow::Result<Option<SdkTracerProvider>> {
+) -> anyhow::Result<Telemetry> {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     if let Some(endpoint) = otlp_endpoint {
@@ -111,43 +115,66 @@ pub fn init_telemetry(
             metadata.insert("authorization", value);
         }
 
-        let exporter = opentelemetry_otlp::SpanExporter::builder()
-            .with_tonic()
-            .with_endpoint(endpoint)
-            .with_metadata(metadata)
-            .build()
-            .map_err(|e| anyhow::anyhow!("failed to build OTLP exporter: {e}"))?;
-
-        let provider = SdkTracerProvider::builder()
-            .with_resource(
-                Resource::builder()
-                    .with_service_name(service_name.to_string())
-                    .build(),
-            )
-            .with_batch_exporter(exporter)
+        let resource = Resource::builder()
+            .with_service_name(service_name.to_string())
             .build();
 
-        opentelemetry::global::set_tracer_provider(provider.clone());
+        // 1. Setup Tracer
+        let span_exporter = opentelemetry_otlp::SpanExporter::builder()
+            .with_tonic()
+            .with_endpoint(endpoint)
+            .with_metadata(metadata.clone())
+            .build()
+            .map_err(|e| anyhow::anyhow!("failed to build OTLP span exporter: {e}"))?;
+
+        let tracer_provider = SdkTracerProvider::builder()
+            .with_resource(resource.clone())
+            .with_batch_exporter(span_exporter)
+            .build();
+
+        opentelemetry::global::set_tracer_provider(tracer_provider.clone());
         opentelemetry::global::set_text_map_propagator(
             opentelemetry_sdk::propagation::TraceContextPropagator::new(),
         );
 
-        let tracer = provider.tracer(service_name.to_string());
-        let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+        let tracer = tracer_provider.tracer(service_name.to_string());
+        let otel_trace_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+
+        // 2. Setup Logger
+        let log_exporter = opentelemetry_otlp::LogExporter::builder()
+            .with_tonic()
+            .with_endpoint(endpoint)
+            .with_metadata(metadata)
+            .build()
+            .map_err(|e| anyhow::anyhow!("failed to build OTLP log exporter: {e}"))?;
+
+        let logger_provider = SdkLoggerProvider::builder()
+            .with_resource(resource)
+            .with_batch_exporter(log_exporter)
+            .build();
+
+        // opentelemetry::global::set_logger_provider(logger_provider.clone());
+        let otel_log_layer = opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge::new(
+            &logger_provider,
+        );
 
         tracing_subscriber::registry()
             .with(tracing_subscriber::fmt::layer().json())
             .with(env_filter)
-            .with(otel_layer)
+            .with(otel_trace_layer)
+            .with(otel_log_layer)
             .init();
 
         tracing::info!(
             service = service_name,
             otlp_endpoint = endpoint,
-            "OTLP tracing enabled"
+            "OTLP tracing and logging enabled"
         );
 
-        Ok(Some(provider))
+        Ok(Telemetry {
+            tracer_provider: Some(tracer_provider),
+            logger_provider: Some(logger_provider),
+        })
     } else {
         tracing_subscriber::registry()
             .with(tracing_subscriber::fmt::layer().json())
@@ -156,15 +183,16 @@ pub fn init_telemetry(
 
         tracing::info!(service = service_name, "telemetry initialised (log-only)");
 
-        Ok(None)
+        Ok(Telemetry {
+            tracer_provider: None,
+            logger_provider: None,
+        })
     }
 }
 
-pub fn init_self_observability_telemetry(
-    service_name: &str,
-) -> anyhow::Result<Option<SdkTracerProvider>> {
+pub fn init_self_observability_telemetry(service_name: &str) -> anyhow::Result<Telemetry> {
     let config = SelfObservabilityConfig::from_env()?;
-    let provider = init_telemetry(
+    let telemetry = init_telemetry(
         service_name,
         config.selected_otlp_endpoint(),
         config.bearer_token.as_deref(),
@@ -175,7 +203,7 @@ pub fn init_self_observability_telemetry(
         otlp_endpoint = config.selected_otlp_endpoint(),
         "self-observability route selected"
     );
-    Ok(provider)
+    Ok(telemetry)
 }
 
 impl SelfObservabilityMode {
