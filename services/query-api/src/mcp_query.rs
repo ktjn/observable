@@ -84,6 +84,11 @@ pub async fn execute_mcp_query(
         return execute_log_query(ch, tenant_id, ir).await;
     }
 
+    // Trace signal routing — trace queries bypass the metric schema.
+    if ir.signals == vec![NlqSignal::Traces] {
+        return execute_trace_query(ch, tenant_id, ir).await;
+    }
+
     // Catalog operation: query series metadata; no metric or schema lookup needed.
     if ir.operation == NlqOperation::Catalog {
         return execute_catalog_query(ch, tenant_id, ir).await;
@@ -277,6 +282,124 @@ async fn execute_log_query(
         signal_types: ir.signals.clone(),
         sample_rate: None,
         approximation_statement: "Advisory result — log search. Logs are not sampled \
+            but may be incomplete under backpressure. This result must not be used for \
+            billing, SLA enforcement, or regulatory compliance."
+            .into(),
+    })
+}
+
+// ── Trace query ───────────────────────────────────────────────────────────────
+
+/// Executes a trace search query against `observable.spans`.
+///
+/// Returns root spans (those with an empty `parent_span_id`) as distributed traces.
+/// Supported IR filters: `service_name`, `status_code` (OK/ERROR/UNSET),
+/// `environment`, free-text via `ir.query` on `operation_name`.
+/// Time range is derived from `ir.time_range` (same `parse_relative_minutes` helper as logs).
+async fn execute_trace_query(
+    ch: &clickhouse::Client,
+    tenant_id: Uuid,
+    ir: &NlqIr,
+) -> Result<VisualizationFrame, McpQueryError> {
+    let lookback_minutes = parse_relative_minutes(&ir.time_range.from).unwrap_or(60);
+    let db = format!("tenant_{}", tenant_id.as_simple());
+
+    let filter_val = |field: &str| -> Option<String> {
+        let want = field.to_lowercase();
+        ir.filters
+            .iter()
+            .find(|f| f.field.to_lowercase() == want && f.op == NlqFilterOp::Eq)
+            .map(|f| f.value.clone())
+    };
+
+    let service_name = filter_val("service_name");
+    let status_code = filter_val("status_code");
+    let environment = filter_val("environment");
+    let operation_text = ir.query.as_deref().unwrap_or("");
+
+    let mut where_clauses: Vec<String> = vec![
+        "(parent_span_id = '' OR parent_span_id IS NULL)".into(),
+        format!(
+            "start_time_unix_nano >= toUnixTimestamp64Nano(now() - INTERVAL {lookback_minutes} MINUTE)"
+        ),
+    ];
+
+    if let Some(svc) = &service_name {
+        let escaped = svc.replace('\'', "\\'");
+        where_clauses.push(format!("service_name = '{escaped}'"));
+    }
+    if let Some(sc) = &status_code {
+        let escaped = sc.replace('\'', "\\'");
+        where_clauses.push(format!("status_code = '{escaped}'"));
+    }
+    if let Some(env) = &environment {
+        let escaped = env.replace('\'', "\\'");
+        where_clauses.push(format!(
+            "JSONExtractString(resource_attributes, 'deployment.environment') = '{escaped}'"
+        ));
+    }
+    if !operation_text.is_empty() {
+        let escaped = operation_text.replace('\'', "\\'");
+        where_clauses.push(format!("operation_name ILIKE '%{escaped}%'"));
+    }
+
+    let where_sql = where_clauses.join(" AND ");
+    let sql = format!(
+        "SELECT \
+           trace_id, \
+           service_name AS root_service, \
+           operation_name AS root_operation, \
+           intDiv(duration_ns, 1000000) AS duration_ms, \
+           status_code, \
+           JSONExtractString(resource_attributes, 'deployment.environment') AS environment, \
+           start_time_unix_nano \
+         FROM {db}.spans \
+         WHERE {where_sql} \
+         ORDER BY start_time_unix_nano DESC \
+         LIMIT 500"
+    );
+
+    tracing::debug!(
+        tenant_id = %tenant_id,
+        "MCP executing trace search SQL"
+    );
+
+    let data = execute_query_as_json(ch, &sql).await?;
+
+    let field_roles = vec![
+        FieldRole {
+            name: "start_time_unix_nano".into(),
+            role: FieldRoleKind::Time,
+        },
+        FieldRole {
+            name: "root_service".into(),
+            role: FieldRoleKind::Label,
+        },
+        FieldRole {
+            name: "root_operation".into(),
+            role: FieldRoleKind::Label,
+        },
+        FieldRole {
+            name: "duration_ms".into(),
+            role: FieldRoleKind::Value,
+        },
+    ];
+
+    Ok(VisualizationFrame {
+        frame_type: VisualizationFrameType::Table,
+        x_field: Some("start_time_unix_nano".into()),
+        y_field: None,
+        series_field: None,
+        unit: None,
+        suggested_visualization: "table".into(),
+        field_roles,
+        data,
+        nlq_ir: ir.clone(),
+        source_sql: sql,
+        time_range: ir.time_range.clone(),
+        signal_types: ir.signals.clone(),
+        sample_rate: None,
+        approximation_statement: "Advisory result — trace search. Traces are not sampled \
             but may be incomplete under backpressure. This result must not be used for \
             billing, SLA enforcement, or regulatory compliance."
             .into(),

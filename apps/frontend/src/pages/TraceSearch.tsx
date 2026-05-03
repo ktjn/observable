@@ -3,12 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { createDashboard } from "../api/dashboards";
 import {
-  searchTraces,
   fetchTraceHistogram,
   TraceResponse,
   TraceHistogramBucket as ApiHistogramBucket,
   TraceHistogramResponse,
 } from "../api/traces";
+import { submitNlqQuery } from "../api/nlq";
+import type { NlqIrLike } from "../features/nlq/queryFilters";
 import { FacetSidebar } from "../components/FacetSidebar";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -24,6 +25,53 @@ import { infraLinks } from "../utils/infraLinks";
 import { SignalExplorer, SaveStatus } from "../components/shared/SignalExplorer";
 import { TraceResultsTable } from "../features/signals/components/TraceResultsTable";
 
+const TRACE_BASE_IR: NlqIrLike = {
+  operation: "table",
+  signals: ["traces"],
+  filters: [],
+  time_range: { from: "now-1h", to: "now" },
+};
+
+/** Shape of a row returned by the NLQ trace execute query. */
+interface NlqTraceRow {
+  trace_id: string;
+  root_service: string;
+  root_operation: string;
+  duration_ms: number;
+  status_code: string;
+  environment?: string;
+  start_time_unix_nano: number | string;
+}
+
+/** Maps a flat NLQ trace row to the TraceResponse shape used by TraceResultsTable. */
+function nlqRowToTraceResponse(row: NlqTraceRow): TraceResponse {
+  return {
+    trace_id: row.trace_id,
+    spans: [
+      {
+        tenant_id: "",
+        trace_id: row.trace_id,
+        span_id: "",
+        service_name: row.root_service,
+        service_namespace: "",
+        service_version: "",
+        operation_name: row.root_operation,
+        span_kind: "",
+        start_time_unix_nano: Number(row.start_time_unix_nano),
+        end_time_unix_nano: Number(row.start_time_unix_nano) + row.duration_ms * 1_000_000,
+        duration_ns: row.duration_ms * 1_000_000,
+        status_code: row.status_code,
+        status_message: "",
+        environment: row.environment ?? "",
+        host_id: "",
+        workload: "",
+        deployment_id: "",
+      },
+    ],
+    events: [],
+  };
+}
+
 export type TraceExplorerProps = {
   initialService?: string;
   lockedService?: boolean;
@@ -33,6 +81,8 @@ export type TraceExplorerProps = {
   showFacets?: boolean;
   tableAriaLabel?: string;
   tableMode?: "select" | "link";
+  /** When set, pre-filters traces to this service. */
+  serviceName?: string;
 };
 
 export default function TraceSearch() {
@@ -49,29 +99,40 @@ export function TraceExplorer({
   showHeader = true,
   showServiceColumn = true,
   showPromote = true,
-  showFacets = true,
+  showFacets = false,
   tableAriaLabel,
   tableMode = "select",
+  serviceName,
 }: TraceExplorerProps) {
   const { format } = useTimeDisplay();
   const { fromMs, toMs, setCustomRange } = useGlobalDateRange();
+
+  const initialQuery = serviceName
+    ? JSON.stringify({
+        ...TRACE_BASE_IR,
+        filters: [{ field: "service_name", op: "=", value: serviceName }],
+      })
+    : null;
+
+  const [userQuery, setUserQuery] = useState<string | null>(initialQuery);
   const [service, setService] = useState(initialService);
 
   const from = new Date(fromMs).toISOString();
-  const to   = new Date(toMs).toISOString();
+  const to = new Date(toMs).toISOString();
   const [bucketCount, setBucketCount] = useState(60);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["traces", service, fromMs, toMs],
-    queryFn: () =>
-      searchTraces({
-        service: service || undefined,
-        from,
-        to,
-        limit: 50,
-        facets: ["service_name", "status_code", "span_kind"],
-      }),
+    queryKey: ["traces", "nlq", userQuery, fromMs, toMs],
+    queryFn: async () => {
+      const response = await submitNlqQuery({
+        base_ir: TRACE_BASE_IR,
+        question: userQuery ?? undefined,
+        mode: "execute",
+      });
+      if (response.type !== "frame") return [];
+      return (response.frame.data as unknown as NlqTraceRow[]).map(nlqRowToTraceResponse);
+    },
   });
 
   const { data: histogramData, isError: isHistogramError } = useQuery({
@@ -86,7 +147,7 @@ export function TraceExplorer({
     placeholderData: (prev: TraceHistogramResponse | undefined) => prev,
   });
 
-  const traces = data?.traces ?? [];
+  const traces = data ?? [];
   const canRenderHistogram = Boolean(histogramData) || traces.length > 0;
   const histogram = useMemo(
     () =>
@@ -95,10 +156,6 @@ export function TraceExplorer({
         : buildTraceHistogram(traces, fromMs, toMs),
     [histogramData, fromMs, toMs, traces],
   );
-
-  const handleFacetClick = (field: string, value: string) => {
-    if (field === "service_name") setService(value);
-  };
 
   const handlePromote = async () => {
     setSaveStatus("saving");
@@ -125,11 +182,17 @@ export function TraceExplorer({
     <SignalExplorer
       title="Traces"
       service={service}
-      onServiceChange={(s) => { setService(s); }}
+      onServiceChange={(s) => {
+        setService(s);
+      }}
       lockedService={lockedService}
       showHeader={showHeader}
       showPromote={showPromote}
-      querySurface="traces"
+      baseIr={TRACE_BASE_IR}
+      onQuerySubmit={(text) => {
+        setUserQuery(text || null);
+        setService("");
+      }}
       saveStatus={saveStatus}
       onPromote={handlePromote}
       histogram={
@@ -158,8 +221,8 @@ export function TraceExplorer({
         <>
           {showFacets && (
             <FacetSidebar
-              facets={data?.facets}
-              onFacetClick={handleFacetClick}
+              facets={undefined}
+              onFacetClick={() => {}}
               ariaLabel="Trace facets"
             />
           )}

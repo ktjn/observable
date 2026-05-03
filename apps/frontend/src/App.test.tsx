@@ -46,6 +46,16 @@ test("renders the product navigation shell", async () => {
 });
 
 test("promotes the current log search filter to a dashboard panel", async () => {
+  const logRow = {
+    tenant_id: "00000000-0000-0000-0000-000000000001",
+    log_id: "log-1",
+    timestamp_unix_nano: "1700000000000000000",
+    severity_number: 9,
+    severity_text: "INFO",
+    body: "checkout complete",
+    service_name: "checkout",
+    resource_attributes: {},
+  };
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
 
@@ -53,23 +63,11 @@ test("promotes the current log search filter to a dashboard panel", async () => 
       return new Response(JSON.stringify({ buckets: [] }), { status: 200 });
     }
 
-    if (url.includes("/v1/logs")) {
+    if (url.includes("/v1/nlq")) {
       return new Response(
         JSON.stringify({
-          logs: [
-            {
-              tenant_id: "00000000-0000-0000-0000-000000000001",
-              log_id: "log-1",
-              timestamp_unix_nano: "1700000000000000000",
-              severity_number: 9,
-              severity_text: "INFO",
-              body: "checkout complete",
-              service_name: "checkout",
-              resource_attributes: {},
-            },
-          ],
-          total: 1,
-          facets: {},
+          type: "frame",
+          frame: { frame_type: "table", data: [logRow], nlq_ir: {}, source_sql: "", time_range: { from: "now-1h", to: "now" }, signal_types: ["logs"], sample_rate: null, approximation_statement: "" },
         }),
         { status: 200 },
       );
@@ -79,7 +77,6 @@ test("promotes the current log search filter to a dashboard panel", async () => 
       const body = JSON.parse(String(init.body));
       expect(body.panels[0]).toMatchObject({
         query_kind: "logs",
-        service: "checkout",
         preset: null,
       });
       return new Response(
@@ -103,7 +100,7 @@ test("promotes the current log search filter to a dashboard panel", async () => 
     return new Response(JSON.stringify({ items: [] }), { status: 200 });
   });
   vi.stubGlobal("fetch", fetchMock);
-  window.history.pushState({}, "", "/logs?service=checkout");
+  window.history.pushState({}, "", "/logs");
 
   render(<App />);
 
@@ -119,6 +116,15 @@ test("promotes the current log search filter to a dashboard panel", async () => 
 });
 
 test("promotes the current trace search filter to a dashboard panel", async () => {
+  const traceRow = {
+    trace_id: "trace-1",
+    root_service: "checkout",
+    root_operation: "GET /checkout",
+    duration_ms: 1,
+    status_code: "OK",
+    span_count: 1,
+    start_time_unix_nano: "1700000000000000000",
+  };
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
 
@@ -126,30 +132,11 @@ test("promotes the current trace search filter to a dashboard panel", async () =
       return new Response(JSON.stringify({ buckets: [] }), { status: 200 });
     }
 
-    if (url.includes("/v1/traces")) {
+    if (url.includes("/v1/nlq")) {
       return new Response(
         JSON.stringify({
-          traces: [
-            {
-              trace_id: "trace-1",
-              spans: [
-                {
-                  tenant_id: "00000000-0000-0000-0000-000000000001",
-                  trace_id: "trace-1",
-                  span_id: "span-1",
-                  service_name: "checkout",
-                  operation_name: "GET /checkout",
-                  start_time_unix_nano: 1,
-                  end_time_unix_nano: 2,
-                  duration_ns: 1000000,
-                  status_code: "OK",
-                  resource_attributes: {},
-                },
-              ],
-            },
-          ],
-          total: 1,
-          facets: {},
+          type: "frame",
+          frame: { frame_type: "table", data: [traceRow], nlq_ir: {}, source_sql: "", time_range: { from: "now-1h", to: "now" }, signal_types: ["traces"], sample_rate: null, approximation_statement: "" },
         }),
         { status: 200 },
       );
@@ -159,7 +146,6 @@ test("promotes the current trace search filter to a dashboard panel", async () =
       const body = JSON.parse(String(init.body));
       expect(body.panels[0]).toMatchObject({
         query_kind: "traces",
-        service: "checkout",
         preset: null,
       });
       return new Response(
@@ -179,7 +165,7 @@ test("promotes the current trace search filter to a dashboard panel", async () =
     return new Response(JSON.stringify({ items: [] }), { status: 200 });
   });
   vi.stubGlobal("fetch", fetchMock);
-  window.history.pushState({}, "", "/traces?service=checkout");
+  window.history.pushState({}, "", "/traces");
 
   render(<App />);
 
@@ -599,7 +585,7 @@ test("filters the infrastructure inventory by entity type", async () => {
 
       if (url.includes("/v1/nlq")) {
         const bodyText = init?.body ? String(init.body) : "{}";
-        const body = JSON.parse(bodyText) as { mode?: string; question?: string };
+        const body = JSON.parse(bodyText) as { mode?: string; question?: string; base_ir?: object };
         if (body.mode === "interpret") {
           // NLQ filter input: user typed "host infrastructure"
           return new Response(
@@ -615,12 +601,10 @@ test("filters the infrastructure inventory by entity type", async () => {
             { status: 200 },
           );
         }
-        // execute mode: parse IR to determine which items to return
-        const ir = JSON.parse(body.question ?? "{}") as {
-          filters?: Array<{ field: string; value: string }>;
-        };
-        const entityTypeFilter = ir.filters?.find((f) => f.field === "entity_type")?.value;
-        const items = entityTypeFilter === "host" ? [hostItem] : [podItem, hostItem];
+        // execute mode: when question is present (user query), return filtered items;
+        // when no question (page-load base_ir), return all items.
+        const hasUserQuery = !!body.question;
+        const items = hasUserQuery ? [hostItem] : [podItem, hostItem];
         return new Response(
           JSON.stringify({
             type: "frame",
@@ -802,6 +786,16 @@ test("navigates to infrastructure detail when clicking an inventory row entity",
 });
 
 test("renders service-scoped signal tabs with preserved URL state", async () => {
+  const logRow = {
+    tenant_id: "00000000-0000-0000-0000-000000000001",
+    log_id: "00000000-0000-0000-0000-000000000111",
+    timestamp_unix_nano: "10",
+    severity_number: 9,
+    severity_text: "INFO",
+    body: "cart accepted",
+    service_name: "checkout",
+    resource_attributes: {},
+  };
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
 
@@ -826,21 +820,11 @@ test("renders service-scoped signal tabs with preserved URL state", async () => 
       return new Response(JSON.stringify({ buckets: [] }), { status: 200 });
     }
 
-    if (url.includes("/v1/logs")) {
+    if (url.includes("/v1/nlq")) {
       return new Response(
         JSON.stringify({
-          logs: [
-            {
-              tenant_id: "00000000-0000-0000-0000-000000000001",
-              log_id: "00000000-0000-0000-0000-000000000111",
-              timestamp_unix_nano: "10",
-              severity_number: 9,
-              severity_text: "INFO",
-              body: "cart accepted",
-              service_name: "checkout",
-            },
-          ],
-          total: 1,
+          type: "frame",
+          frame: { frame_type: "table", data: [logRow], nlq_ir: {}, source_sql: "", time_range: { from: "now-1h", to: "now" }, signal_types: ["logs"], sample_rate: null, approximation_statement: "" },
         }),
         { status: 200 },
       );
@@ -865,7 +849,7 @@ test("renders service-scoped signal tabs with preserved URL state", async () => 
   );
   expect(await screen.findByText("cart accepted")).toBeInTheDocument();
   expect(fetchMock).toHaveBeenCalledWith(
-    expect.stringContaining("/v1/logs?service=checkout&from="),
+    expect.stringContaining("/v1/nlq"),
     expect.anything(),
   );
 });
@@ -910,6 +894,24 @@ test("browser back restores the previous service signal tab", async () => {
                 environment: "prod",
               },
             ],
+          }),
+          { status: 200 },
+        );
+      }
+
+    if (url.includes("/v1/nlq")) {
+        return new Response(
+          JSON.stringify({
+            type: "frame",
+            frame: { frame_type: "table", data: [{
+              trace_id: "abcdef0123456789",
+              root_service: "checkout",
+              root_operation: "POST /checkout",
+              duration_ms: 1,
+              status_code: "OK",
+              span_count: 1,
+              start_time_unix_nano: "0",
+            }], nlq_ir: {}, source_sql: "", time_range: { from: "now-1h", to: "now" }, signal_types: ["traces"], sample_rate: null, approximation_statement: "" },
           }),
           { status: 200 },
         );
@@ -1040,6 +1042,16 @@ test("clicking a node enters focused mode", async () => {
 });
 
 test("focused service overview shows logs for the selected service", async () => {
+  const logRow = {
+    tenant_id: "00000000-0000-0000-0000-000000000001",
+    log_id: "00000000-0000-0000-0000-000000000111",
+    timestamp_unix_nano: "10",
+    severity_number: 9,
+    severity_text: "INFO",
+    body: "checkout overview log",
+    service_name: "checkout-api",
+    resource_attributes: {},
+  };
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes("/v1/topology")) {
@@ -1061,22 +1073,11 @@ test("focused service overview shows logs for the selected service", async () =>
     if (url.includes("/v1/logs/histogram")) {
       return new Response(JSON.stringify({ buckets: [] }), { status: 200 });
     }
-    if (url.includes("/v1/logs")) {
+    if (url.includes("/v1/nlq")) {
       return new Response(
         JSON.stringify({
-          logs: [
-            {
-              tenant_id: "00000000-0000-0000-0000-000000000001",
-              log_id: "00000000-0000-0000-0000-000000000111",
-              timestamp_unix_nano: "10",
-              severity_number: 9,
-              severity_text: "INFO",
-              body: "checkout overview log",
-              service_name: "checkout-api",
-            },
-          ],
-          total: 1,
-          facets: {},
+          type: "frame",
+          frame: { frame_type: "table", data: [logRow], nlq_ir: {}, source_sql: "", time_range: { from: "now-1h", to: "now" }, signal_types: ["logs"], sample_rate: null, approximation_statement: "" },
         }),
         { status: 200 },
       );
@@ -1095,7 +1096,7 @@ test("focused service overview shows logs for the selected service", async () =>
 
   expect(await screen.findByText("checkout overview log")).toBeInTheDocument();
   expect(fetchMock).toHaveBeenCalledWith(
-    expect.stringContaining("/v1/logs?service=checkout-api&from="),
+    expect.stringContaining("/v1/nlq"),
     expect.anything(),
   );
 });

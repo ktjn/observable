@@ -6,6 +6,7 @@ import {
   type InfrastructureEntityType,
 } from "../api/infrastructure";
 import { submitNlqQuery } from "../api/nlq";
+import type { NlqIrLike } from "../features/nlq/queryFilters";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { Badge } from "../components/ui/badge";
@@ -13,23 +14,29 @@ import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { TablePanel } from "../components/ui/table-panel";
 import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
-import type { NlqIrLike } from "../features/nlq/queryFilters";
-import { INFRA_BASE_IR, mergeIrs } from "../features/nlq/mergeIrs";
+
+const INFRA_BASE_IR: NlqIrLike = {
+  operation: "inventory",
+  signals: ["metrics"],
+  filters: [],
+  time_range: { from: "now-1h", to: "now" },
+};
 
 type InfrastructureTypeFilter = "all" | InfrastructureEntityType;
 
 export default function InfrastructureInventoryPage() {
-  const [activeIr, setActiveIr] = useState<NlqIrLike>(INFRA_BASE_IR);
+  const [userQuery, setUserQuery] = useState<string | null>(null);
   const [healthFilter, setHealthFilter] = useState("all");
   const [entityTypeFilter, setEntityTypeFilter] = useState<InfrastructureTypeFilter>("all");
   const [search, setSearch] = useState("");
   const { format } = useTimeDisplay();
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["infrastructure", activeIr],
+    queryKey: ["infrastructure", "surface", userQuery],
     queryFn: async () => {
       const response = await submitNlqQuery({
-        question: JSON.stringify(activeIr),
+        base_ir: INFRA_BASE_IR,
+        question: userQuery ?? undefined,
         mode: "execute",
       });
       if (response.type !== "frame") return [];
@@ -67,10 +74,10 @@ export default function InfrastructureInventoryPage() {
 
       <div className="toolbar-row">
         <QueryFilterInput
-          surface="infrastructure"
+          baseIr={INFRA_BASE_IR}
           placeholder='Filter infrastructure, e.g. "prod pods for checkout in breach" or raw NLQ IR JSON'
-          onIr={(userIr: NlqIrLike) => {
-            setActiveIr(mergeIrs(INFRA_BASE_IR, userIr));
+          onSubmit={(text) => {
+            setUserQuery(text);
             // Secondary client-side filters — reset so they don't conflict with the merged IR.
             setEntityTypeFilter("all");
             setHealthFilter("all");

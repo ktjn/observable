@@ -19,45 +19,42 @@ vi.mock("../hooks/useGlobalDateRange", () => ({
   })),
 }));
 
-const traceResponse = {
-  traces: [
-    {
-      trace_id: "trace-abc-1234567890",
-      events: [],
-      spans: [
-        {
-          tenant_id: "00000000-0000-0000-0000-000000000001",
-          trace_id: "trace-abc-1234567890",
-          span_id: "span-root",
-          service_name: "checkout",
-          service_namespace: "shop",
-          service_version: "2026.04.30",
-          operation_name: "GET /checkout",
-          span_kind: "SERVER",
-          start_time_unix_nano: 1,
-          end_time_unix_nano: 5000001,
-          duration_ns: 5000000,
-          status_code: "OK",
-          status_message: "",
-          attributes: {},
-          resource_attributes: {},
-          environment: "prod",
-          host_id: "host-1",
-          workload: "checkout-api",
-          deployment_id: "deploy-1",
-        },
-      ],
-    },
-  ],
-  total: 1,
-  facets: {
-    service_name: [{ value: "checkout", count: 1 }],
-    status_code: [{ value: "OK", count: 1 }],
+/** NLQ trace row returned by execute_trace_query */
+const nlqTraceRows = [
+  {
+    trace_id: "trace-abc-1234567890",
+    root_service: "checkout",
+    root_operation: "GET /checkout",
+    duration_ms: 5,
+    status_code: "OK",
+    environment: "prod",
+    start_time_unix_nano: 1,
   },
-};
+];
+
+vi.mock("../api/nlq", () => ({
+  submitNlqQuery: vi.fn(async () => ({
+    type: "frame",
+    frame: {
+      frame_type: "table",
+      x_field: null,
+      y_field: null,
+      series_field: null,
+      unit: null,
+      suggested_visualization: "table",
+      field_roles: [],
+      data: nlqTraceRows,
+      nlq_ir: {},
+      source_sql: "",
+      time_range: { from: "now-1h", to: "now" },
+      signal_types: ["traces"],
+      sample_rate: null,
+      approximation_statement: "",
+    },
+  })),
+}));
 
 vi.mock("../api/traces", () => ({
-  searchTraces: vi.fn(async () => traceResponse),
   fetchTraceHistogram: vi.fn(async () => ({ buckets: [] })),
 }));
 
@@ -90,11 +87,11 @@ vi.mock("@tanstack/react-router", () => ({
   },
 }));
 
-const { searchTraces, fetchTraceHistogram } = await import("../api/traces");
+const { fetchTraceHistogram } = await import("../api/traces");
 
 beforeEach(() => {
   vi.clearAllMocks();
-  window.history.pushState({}, "", "/traces?service=checkout");
+  window.history.pushState({}, "", "/traces");
 });
 
 function renderTraceSearch() {
@@ -111,35 +108,27 @@ function renderTraceSearch() {
   );
 }
 
-test("renders the trace explorer shell with facets and named results table", async () => {
+test("queries traces via NLQ execute on load", async () => {
+  const { submitNlqQuery } = await import("../api/nlq");
   renderTraceSearch();
 
   await waitFor(() =>
-    expect(searchTraces).toHaveBeenCalledWith(
-      expect.objectContaining({
-        service: "checkout",
-        limit: 50,
-        facets: ["service_name", "status_code", "span_kind"],
-      }),
+    expect(submitNlqQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: "execute", base_ir: expect.objectContaining({ signals: ["traces"] }) }),
     ),
   );
+});
 
-  expect(screen.getByText("Explorer")).toBeInTheDocument();
+test("renders the trace explorer shell and named results table", async () => {
+  renderTraceSearch();
+
+  await waitFor(() => expect(screen.getByText("Explorer")).toBeInTheDocument());
   expect(screen.getByRole("heading", { name: "Traces" })).toBeInTheDocument();
 
-  const facets = await screen.findByRole("complementary", {
-    name: "Trace facets",
-  });
-  expect(within(facets).getByText("service name")).toBeInTheDocument();
-  expect(within(facets).getByRole("button", { name: "checkout 1" })).toBeInTheDocument();
-
-  const table = screen.getByRole("table", { name: "Trace results" });
+  const table = await screen.findByRole("table", { name: "Trace results" });
   expect(within(table).getByRole("columnheader", { name: "Trace ID" })).toBeInTheDocument();
   expect(within(table).getByRole("columnheader", { name: "Duration" })).toBeInTheDocument();
   expect(within(table).getByText("GET /checkout")).toBeInTheDocument();
-  
-  // Trace ID is now a button for selection in the main view
-  expect(within(table).getByRole("button", { name: "trace-abc-123456…" })).toBeInTheDocument();
 });
 
 test("renders a visible trace histogram from search results when histogram buckets are empty", async () => {

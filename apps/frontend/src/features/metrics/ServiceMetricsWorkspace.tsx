@@ -8,7 +8,14 @@ import { MetricCard } from "../../components/ui/metric-card";
 import { Panel } from "../../components/ui/panel";
 import { TablePanel } from "../../components/ui/table-panel";
 import { QueryFilterInput } from "../nlq/QueryFilterInput";
-import { deriveViewFiltersFromIr } from "../nlq/queryFilters";
+import { deriveViewFiltersFromIr, type NlqIrLike } from "../nlq/queryFilters";
+
+const METRICS_BASE_IR: NlqIrLike = {
+  operation: "catalog",
+  signals: ["metrics"],
+  filters: [],
+  time_range: { from: "now-1h", to: "now" },
+};
 
 type FilterState = {
   name: string;
@@ -66,7 +73,7 @@ export function ServiceMetricsWorkspace({ serviceName }: { serviceName: string }
 
       <Panel eyebrow="Browse" title="Metric Series">
         <QueryFilterInput
-          surface="metrics"
+          baseIr={METRICS_BASE_IR}
           serviceName={serviceName}
           placeholder='Filter metric series, e.g. "histogram latency metrics in prod" or raw NLQ IR JSON'
           onIr={(ir) => {

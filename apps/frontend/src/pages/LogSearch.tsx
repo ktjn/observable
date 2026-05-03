@@ -2,12 +2,13 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createDashboard } from "../api/dashboards";
 import {
-  searchLogs,
-  fetchLogHistogram,
   LogRecord,
   LogHistogramBucket as ApiHistogramBucket,
   LogHistogramResponse,
+  fetchLogHistogram,
 } from "../api/logs";
+import { submitNlqQuery } from "../api/nlq";
+import type { NlqIrLike } from "../features/nlq/queryFilters";
 import { infraLinks } from "../utils/infraLinks";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { formatBucketLabel } from "../utils/formatBucketLabel";
@@ -21,6 +22,13 @@ import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
 import { SignalExplorer, SaveStatus } from "../components/shared/SignalExplorer";
 import { LogResultsTable } from "../features/signals/components/LogResultsTable";
+
+const LOG_BASE_IR: NlqIrLike = {
+  operation: "table",
+  signals: ["logs"],
+  filters: [],
+  time_range: { from: "now-1h", to: "now" },
+};
 
 const levelOrder: OTelLevel[] = ["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"];
 const levelBarClasses: Record<OTelLevel, string> = {
@@ -39,6 +47,8 @@ export type LogExplorerProps = {
   showServiceColumn?: boolean;
   showPromote?: boolean;
   tableAriaLabel?: string;
+  /** When set, pre-filters logs to this service. */
+  serviceName?: string;
 };
 
 export default function LogSearch() {
@@ -56,19 +66,40 @@ export function LogExplorer({
   showServiceColumn = true,
   showPromote = true,
   tableAriaLabel,
+  serviceName,
 }: LogExplorerProps) {
   const { format } = useTimeDisplay();
   const { fromMs, toMs, setCustomRange } = useGlobalDateRange();
+
+  // userQuery is the raw text (NLQ or raw IR JSON) submitted by the user.
+  // When serviceName is provided, initialise with a pre-set service filter IR.
+  const initialQuery = serviceName
+    ? JSON.stringify({
+        ...LOG_BASE_IR,
+        filters: [{ field: "service_name", op: "=", value: serviceName }],
+      })
+    : null;
+
+  const [userQuery, setUserQuery] = useState<string | null>(initialQuery);
+  // Keep service for legacy clear-filter button visibility.
   const [service, setService] = useState(initialService);
 
   const from = new Date(fromMs).toISOString();
-  const to   = new Date(toMs).toISOString();
+  const to = new Date(toMs).toISOString();
   const [bucketCount, setBucketCount] = useState(60);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["logs", service, fromMs, toMs],
-    queryFn: () => searchLogs({ service: service || undefined, from, to, limit: 50 }),
+    queryKey: ["logs", "nlq", userQuery, fromMs, toMs],
+    queryFn: async () => {
+      const response = await submitNlqQuery({
+        base_ir: LOG_BASE_IR,
+        question: userQuery ?? undefined,
+        mode: "execute",
+      });
+      if (response.type !== "frame") return [];
+      return response.frame.data as unknown as LogRecord[];
+    },
   });
 
   const { data: histogramData, isError: isHistogramError } = useQuery({
@@ -83,7 +114,7 @@ export function LogExplorer({
     placeholderData: (prev: LogHistogramResponse | undefined) => prev,
   });
 
-  const logs = data?.logs ?? [];
+  const logs = data ?? [];
   const histogram = useMemo(
     () =>
       histogramData?.buckets
@@ -117,11 +148,17 @@ export function LogExplorer({
     <SignalExplorer
       title="Logs"
       service={service}
-      onServiceChange={(s) => { setService(s); }}
+      onServiceChange={(s) => {
+        setService(s);
+      }}
       lockedService={lockedService}
       showHeader={showHeader}
       showPromote={showPromote}
-      querySurface="logs"
+      baseIr={LOG_BASE_IR}
+      onQuerySubmit={(text) => {
+        setUserQuery(text || null);
+        setService("");
+      }}
       saveStatus={saveStatus}
       onPromote={handlePromote}
       histogram={

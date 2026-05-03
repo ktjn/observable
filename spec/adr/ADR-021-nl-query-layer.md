@@ -89,9 +89,17 @@ For UI filter replacement, `POST /v1/nlq` supports an `interpret` mode that retu
 MCP query. Raw `NlqIr` JSON is accepted in both `interpret` and execute modes before LLM
 configuration is checked.
 
-A `surface_hint` field in the request body provides page-level context to the LLM. When set (e.g.,
-`"surface_hint": "infrastructure"`), the prompt includes a page context section constraining which
-operations and filter fields are valid, reducing hallucination on entity-table pages.
+A `base_ir` field in the request body provides page-level context for both the LLM and query
+execution. When set, the backend derives surface context directly from `base_ir` — for example,
+`base_ir.signals == ["logs"]` means log surface, `base_ir.operation == "inventory"` means
+infrastructure surface — without requiring a separate `surface_hint` string.
+
+The `base_ir` field serves three purposes:
+
+1. **Page load data source**: `mode: "execute"` with no `question` → execute `base_ir` directly
+2. **Merge base**: `mode: "execute"` with `question` → interpret → `merge_irs(base_ir, user_ir)` → execute
+3. **LLM context signal**: `build_system_prompt` derives page context from `base_ir` instead of a
+   separate string hint
 
 #### Validation and repair loop
 
@@ -183,8 +191,13 @@ IR-derived filters and returning a `VisualizationFrame(table)` whose rows are se
 `service_name`, and free-text search on `display_name`/`name`. The `health_state` field is computed
 post-query from `error_rate` and remains a client-side filter only.
 
-Entity-table pages are fully IR-driven: they start with a base `inventory` IR, merge user NLQ input
-(interpreted by the LLM with `surface_hint=infrastructure`) to produce a merged IR, then execute it.
+Entity-table pages and all signal-browsing pages are fully IR-driven via server-side merge:
+the frontend sends `base_ir` (a page-specific constant) and an optional `question` string.
+The backend calls `merge_irs(base_ir, user_ir)` — preserving base `operation` and `signals`,
+letting user filters override same-field base filters, and using the user's `time_range` when
+present — before executing the merged IR. This removes all `surface_hint` coupling from the
+protocol. The `question` field is optional: when absent, `base_ir` is executed directly for
+page-load queries.
 
 ### Time-Series Semantics
 

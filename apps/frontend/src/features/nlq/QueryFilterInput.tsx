@@ -2,19 +2,30 @@ import { useState } from "react";
 import { submitNlqQuery } from "../../api/nlq";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
-import type { NlqIrLike, QuerySurface } from "./queryFilters";
+import type { NlqIrLike } from "./queryFilters";
 
 interface QueryFilterInputProps {
-  surface: QuerySurface;
+  /**
+   * The page base IR. Sent as `base_ir` in interpret requests so the LLM
+   * receives correct page context. Also forwarded on `onSubmit` for execute calls.
+   */
+  baseIr: NlqIrLike;
   serviceName?: string;
   placeholder?: string;
-  onIr: (ir: NlqIrLike | Record<string, unknown>) => void;
+  /**
+   * Called with the raw text (NLQ or raw IR JSON) after the user submits.
+   * The page uses this text in its own execute request, merged with `baseIr` server-side.
+   */
+  onSubmit?: (rawText: string) => void;
+  /** @deprecated Use `onSubmit` instead. Called with the interpreted IR for debug purposes. */
+  onIr?: (ir: NlqIrLike | Record<string, unknown>) => void;
 }
 
 export function QueryFilterInput({
-  surface,
+  baseIr,
   serviceName,
   placeholder,
+  onSubmit,
   onIr,
 }: QueryFilterInputProps) {
   const [query, setQuery] = useState("");
@@ -36,7 +47,7 @@ export function QueryFilterInput({
         question,
         mode: "interpret",
         service_name: serviceName,
-        surface_hint: surface,
+        base_ir: baseIr,
       });
       if (response.type !== "ir") {
         const message =
@@ -51,7 +62,10 @@ export function QueryFilterInput({
         return;
       }
       setState({ status: "interpreted", ir: response.ir });
-      onIr(response.ir);
+      // Notify parent with the raw text so it can drive its own execute call.
+      onSubmit?.(question);
+      // Legacy: also call onIr if provided.
+      onIr?.(response.ir);
     } catch (error) {
       setState({
         status: "error",
@@ -61,7 +75,7 @@ export function QueryFilterInput({
   }
 
   return (
-    <section className="grid gap-2" aria-label={`${surface} query filter`}>
+    <section className="grid gap-2" aria-label="query filter">
       <form
         aria-label="Query current view"
         role="form"

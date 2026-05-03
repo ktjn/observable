@@ -614,7 +614,6 @@
     "description": "Infrastructure inventory filter by entity type",
     "query": "type equals pod",
     "service_name": null,
-    "surface_hint": "infrastructure",
     "mode": "interpret",
     "expect": {
       "type": "ir",
@@ -627,15 +626,26 @@
         }
       ]
     },
-    "tags": ["inventory", "infrastructure"],
-    "notes": "Verifies LLM returns inventory operation with entity_type filter when surface_hint=infrastructure is provided."
+    "tags": [
+      "inventory",
+      "infrastructure"
+    ],
+    "notes": "Verifies LLM returns inventory operation with entity_type filter when base_ir (inventory) is provided.",
+    "base_ir": {
+      "operation": "inventory",
+      "signals": [],
+      "filters": [],
+      "time_range": {
+        "from": "now-1h",
+        "to": "now"
+      }
+    }
   },
   {
     "id": "infra-filter-env-and-type",
     "description": "Infrastructure inventory filter by environment and entity type",
     "query": "environment equals observable and type equals pod",
     "service_name": null,
-    "surface_hint": "infrastructure",
     "mode": "interpret",
     "expect": {
       "type": "ir",
@@ -653,7 +663,121 @@
         }
       ]
     },
-    "tags": ["inventory", "infrastructure"],
-    "notes": "Verifies the original failing query now returns an inventory IR with both environment and entity_type filters."
+    "tags": [
+      "inventory",
+      "infrastructure"
+    ],
+    "notes": "Verifies the original failing query now returns an inventory IR with both environment and entity_type filters.",
+    "base_ir": {
+      "operation": "inventory",
+      "signals": [],
+      "filters": [],
+      "time_range": {
+        "from": "now-1h",
+        "to": "now"
+      }
+    }
+  },
+  {
+    "id": "logs-filter-service",
+    "description": "Log search filtered by service name",
+    "query": "show logs for checkout",
+    "service_name": null,
+    "base_ir": {
+      "operation": "table",
+      "signals": [
+        "logs"
+      ],
+      "filters": [],
+      "time_range": {
+        "from": "now-1h",
+        "to": "now"
+      }
+    },
+    "mode": "interpret",
+    "expect": {
+      "type": "ir",
+      "operation": "table",
+      "ir_filter_checks": [
+        {
+          "field": "service_name",
+          "op": "=",
+          "value": "checkout"
+        }
+      ]
+    },
+    "tags": [
+      "logs",
+      "filter"
+    ],
+    "notes": "Verifies LLM interprets a log filter query with base_ir set to logs surface."
+  },
+  {
+    "id": "traces-filter-service",
+    "description": "Trace search filtered by service name",
+    "query": "traces for checkout service",
+    "service_name": null,
+    "base_ir": {
+      "operation": "table",
+      "signals": [
+        "traces"
+      ],
+      "filters": [],
+      "time_range": {
+        "from": "now-1h",
+        "to": "now"
+      }
+    },
+    "mode": "interpret",
+    "expect": {
+      "type": "ir",
+      "operation": "table",
+      "ir_filter_checks": [
+        {
+          "field": "service_name",
+          "op": "=",
+          "value": "checkout"
+        }
+      ]
+    },
+    "tags": [
+      "traces",
+      "filter"
+    ],
+    "notes": "Verifies LLM interprets a trace filter query with base_ir set to traces surface."
+  },
+  {
+    "id": "traces-filter-error",
+    "description": "Trace search filtered by error status",
+    "query": "show failed traces",
+    "service_name": null,
+    "base_ir": {
+      "operation": "table",
+      "signals": [
+        "traces"
+      ],
+      "filters": [],
+      "time_range": {
+        "from": "now-1h",
+        "to": "now"
+      }
+    },
+    "mode": "interpret",
+    "expect": {
+      "type": "ir",
+      "operation": "table",
+      "ir_filter_checks": [
+        {
+          "field": "status_code",
+          "op": "=",
+          "value": "ERROR"
+        }
+      ]
+    },
+    "tags": [
+      "traces",
+      "filter"
+    ],
+    "notes": "Verifies LLM maps \"failed traces\" to a status_code=ERROR filter with traces base_ir."
   }
 ]
