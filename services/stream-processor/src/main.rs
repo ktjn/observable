@@ -1,7 +1,10 @@
 mod consumer;
+mod metrics;
 mod normalise;
 
 use domain::{EnvelopePayload, TelemetryEnvelope};
+use std::sync::Arc;
+use tokio::time::{self, Duration};
 use tracing::Instrument as _;
 
 #[tokio::main]
@@ -13,12 +16,39 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("STORAGE_WRITER_URL").unwrap_or_else(|_| "http://localhost:4320".into());
     let http = reqwest::Client::new();
 
+    let aggregator = Arc::new(metrics::SpanMetricsAggregator::new());
+
+    // Background task to flush metrics
+    let agg_clone = aggregator.clone();
+    let http_clone = http.clone();
+    let writer_url_clone = writer_url.clone();
+    tokio::spawn(async move {
+        let mut interval = time::interval(Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            let (series, points) = agg_clone.flush();
+            if !series.is_empty() {
+                let res = http_clone
+                    .post(format!("{writer_url_clone}/internal/metrics"))
+                    .json(&serde_json::json!({ "series": series, "points": points }))
+                    .send()
+                    .await;
+                if let Err(e) = res {
+                    tracing::error!(error = %e, "failed to flush span metrics");
+                } else {
+                    tracing::info!(count = series.len(), "flushed span metrics");
+                }
+            }
+        }
+    });
+
     let qc = consumer::QueueConsumer::new(&brokers, "stream-processor", &topic)?;
     qc.run(|env: TelemetryEnvelope| {
         let http = http.clone();
         let writer_url = writer_url.clone();
         let tenant_id = env.tenant_id;
         let environment = env.environment.clone();
+        let aggregator = aggregator.clone();
         let is_observable = environment == "observable";
         async move {
             // Do not instrument processing of observable-environment data — those
@@ -35,6 +65,9 @@ async fn main() -> anyhow::Result<()> {
             );
             match env.payload {
                 EnvelopePayload::Spans(spans) => {
+                    for span in &spans {
+                        aggregator.record_span(span, tenant_id);
+                    }
                     let normalised: Vec<_> = spans
                         .into_iter()
                         .map(|s| normalise::normalise_span(s, tenant_id))
