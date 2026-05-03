@@ -321,8 +321,8 @@ async fn execute_trace_query(
     let mut where_clauses: Vec<String> = vec![
         format!("tenant_id = '{tenant_id}'"),
         "(parent_span_id = '' OR parent_span_id IS NULL)".into(),
-        format!("fromUnixTimestamp64Nano(start_time_unix_nano) >= {from_expr}"),
-        format!("fromUnixTimestamp64Nano(start_time_unix_nano) <= {to_expr}"),
+        format!("start_time_unix_nano >= {from_expr}"),
+        format!("start_time_unix_nano <= {to_expr}"),
     ];
 
     if let Some(svc) = &service_name {

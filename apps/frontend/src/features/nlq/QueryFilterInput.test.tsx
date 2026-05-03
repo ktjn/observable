@@ -52,8 +52,8 @@ describe("QueryFilterInput", () => {
           operation: "catalog",
           signals: ["metrics"],
           time_range: expect.objectContaining({
-            from: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
-            to: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+            from: expect.stringMatching(/^\d{15,}$/),
+            to: expect.stringMatching(/^\d{15,}$/),
           }),
         }),
       }),
