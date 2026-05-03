@@ -11,6 +11,7 @@ import SetupPage from "./pages/SetupPage";
 import TraceSearch from "./pages/TraceSearch";
 import TraceDetailPage from "./pages/TraceDetailPage";
 import LogSearch from "./pages/LogSearch";
+import MetricsSearch from "./pages/MetricsSearch";
 import DashboardsPage from "./pages/DashboardsPage";
 import NlqQueryPage from "./pages/NlqQueryPage";
 
@@ -122,6 +123,11 @@ const logSearchRoute = createRoute({
   path: "/logs",
   component: LogSearch,
 });
+const metricsSearchRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/metrics",
+  component: MetricsSearch,
+});
 const nlqRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/nlq",
@@ -145,6 +151,7 @@ export const router = createRouter({
     traceSearchRoute,
     traceDetailRoute,
     logSearchRoute,
+    metricsSearchRoute,
     nlqRoute,
   ]),
 });

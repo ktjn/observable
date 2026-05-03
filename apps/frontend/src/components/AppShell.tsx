@@ -9,6 +9,7 @@ const navItems = [
   { label: "Services", to: "/services" },
   { label: "Traces", to: "/traces" },
   { label: "Logs", to: "/logs" },
+  { label: "Metrics", to: "/metrics" },
   { label: "Infrastructure", to: "/infrastructure" },
   { label: "Service Overview", to: "/service-overview" },
   { label: "Dashboards", to: "/dashboards" },
