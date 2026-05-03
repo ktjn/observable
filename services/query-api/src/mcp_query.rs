@@ -247,7 +247,22 @@ async fn execute_log_query(
         "MCP executing log search SQL"
     );
 
-    let data = execute_query_as_json(ch, &sql).await?;
+    let mut data = execute_query_as_json(ch, &sql).await?;
+
+    // ClickHouse `String` columns come back as JSON strings via JSONEachRow.
+    // Parse `attributes`, `resource_attributes`, and `body` into JSON values so
+    // the frontend receives properly-typed objects instead of raw strings.
+    for row in &mut data {
+        if let Some(obj) = row.as_object_mut() {
+            for field in ["attributes", "resource_attributes", "body"] {
+                if let Some(serde_json::Value::String(s)) = obj.get(field) {
+                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(s) {
+                        obj.insert(field.to_string(), parsed);
+                    }
+                }
+            }
+        }
+    }
 
     let field_roles = vec![
         FieldRole {

@@ -8,9 +8,7 @@ use axum::{
 use clickhouse::Client as ChClient;
 use domain::{LogRow, SpanRow};
 use http_body_util::BodyExt;
-use query_api::{
-    logs, middleware::auth::require_tenant, planner::QueryPlanner, traces,
-};
+use query_api::{logs, middleware::auth::require_tenant, planner::QueryPlanner, traces};
 use serde_json::Value;
 use sqlx::postgres::PgPool;
 use std::{path::Path, sync::Arc};
@@ -82,8 +80,8 @@ async fn apply_ch_migrations(base_url: &str, user: &str, password: &str) -> ChCl
 fn build_app(ch: ChClient) -> Router {
     // Histogram endpoints don't touch Postgres; use a lazy pool so no real
     // connection is needed.
-    let db = PgPool::connect_lazy("postgres://user:pass@127.0.0.1:5432/db")
-        .expect("valid postgres url");
+    let db =
+        PgPool::connect_lazy("postgres://user:pass@127.0.0.1:5432/db").expect("valid postgres url");
     let state = traces::AppState {
         ch,
         db,
@@ -270,8 +268,16 @@ async fn trace_histogram_counts_inserted_spans() {
 
     let base = now_ns - 3_000_000_000;
     insert_span(&ch, make_span(tenant, "trace-1", "span-1", base)).await;
-    insert_span(&ch, make_span(tenant, "trace-2", "span-2", base + 1_000_000_000)).await;
-    insert_span(&ch, make_span(tenant, "trace-3", "span-3", base + 2_000_000_000)).await;
+    insert_span(
+        &ch,
+        make_span(tenant, "trace-2", "span-2", base + 1_000_000_000),
+    )
+    .await;
+    insert_span(
+        &ch,
+        make_span(tenant, "trace-3", "span-3", base + 2_000_000_000),
+    )
+    .await;
 
     let app = build_app(ch);
     let from = base - 1;
@@ -341,7 +347,11 @@ async fn trace_histogram_tenant_isolation() {
 
     let base = now_ns - 2_000_000_000;
     insert_span(&ch, make_span(tenant_a, "trace-a", "span-a", base)).await;
-    insert_span(&ch, make_span(tenant_b, "trace-b", "span-b", base + 500_000_000)).await;
+    insert_span(
+        &ch,
+        make_span(tenant_b, "trace-b", "span-b", base + 500_000_000),
+    )
+    .await;
 
     let app = build_app(ch);
     let from = base - 1;
