@@ -241,7 +241,7 @@ function ServiceSignalTabs({
         nlqFrame && signalTabFromFrame(nlqFrame) === "metrics" ? (
           <NlqTabFrame frame={nlqFrame} />
         ) : (
-          <ServiceMetricsWorkspace serviceName={serviceName} />
+          <ServiceMetricsWorkspace initialService={serviceName} />
         )
       )}
       {activeTab === "traces" && (
