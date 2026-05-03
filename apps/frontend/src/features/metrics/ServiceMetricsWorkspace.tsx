@@ -1,12 +1,16 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getMetricPoints, listMetrics, type MetricPoint, type MetricSeries } from "../../api/metrics";
+import { getMetricPoints, listMetrics, type MetricSeries } from "../../api/metrics";
+import { createDashboard } from "../../api/dashboards";
 import { Button } from "../../components/ui/button";
 import { EmptyState } from "../../components/ui/empty-state";
 import { LoadingState } from "../../components/ui/loading-state";
 import { MetricCard } from "../../components/ui/metric-card";
 import { Panel } from "../../components/ui/panel";
 import { TablePanel } from "../../components/ui/table-panel";
+import { TimeSeriesGraph, type TimeSeriesSeries } from "../../components/ui/time-series-graph";
+import { SignalExplorer, type SaveStatus } from "../../components/shared/SignalExplorer";
+import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
 import { QueryFilterInput } from "../nlq/QueryFilterInput";
 import { deriveViewFiltersFromIr } from "../nlq/queryFilters";
 
@@ -16,85 +20,218 @@ type FilterState = {
   environment: string;
 };
 
-export function ServiceMetricsWorkspace({ serviceName }: { serviceName: string }) {
+export function ServiceMetricsWorkspace({ 
+  initialService = "",
+  lockedService = false,
+  showHeader = true,
+}: { 
+  initialService?: string;
+  lockedService?: boolean;
+  showHeader?: boolean;
+}) {
+  const { fromMs, toMs, setCustomRange } = useGlobalDateRange();
+  const [serviceName, setServiceName] = useState(initialService);
   const [filters, setFilters] = useState<FilterState>({
     name: "",
     type: "all",
     environment: "all",
   });
   const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["service", serviceName, "metrics"],
-    queryFn: () => listMetrics({ service: serviceName }),
+    queryFn: () => listMetrics({ service: serviceName || undefined }),
+    enabled: true, // We want to allow listing all metrics if serviceName is empty
   });
 
   const series = data?.series ?? [];
-  const selectedSeries = series.find((item) => item.metric_series_id === selectedSeriesId) ?? null;
   const filteredSeries = useMemo(
     () => filterSeries(series, filters),
     [series, filters],
   );
+
   const metricTypes = useMemo(() => uniqueValues(series.map((item) => item.metric_type)), [series]);
   const environments = useMemo(
     () => uniqueValues(series.map((item) => item.environment || "default")),
     [series],
   );
 
+  const selectedSeries = useMemo(
+    () => series.find((s) => s.metric_series_id === selectedSeriesId) ?? null,
+    [series, selectedSeriesId],
+  );
+
+  const handlePromote = async () => {
+    setSaveStatus("saving");
+    try {
+      await createDashboard({
+        name: serviceName ? `Metrics for ${serviceName}` : "Global Metrics",
+        panels: [
+          {
+            title: serviceName ? `Metrics for ${serviceName}` : "Global Metrics",
+            query_kind: "metrics",
+            service: serviceName || undefined,
+            preset: null,
+            filters: { ...filters },
+          },
+        ],
+      });
+      setSaveStatus("saved");
+    } catch {
+      setSaveStatus("error");
+    }
+  };
+
   if (isLoading) return <LoadingState>Loading service metrics...</LoadingState>;
   if (error) return <div className="signal-empty">Metrics could not be loaded.</div>;
-  if (!series.length) {
-    return (
-      <EmptyState
-        title="No service metrics"
-        description={`No metric series found for ${serviceName}.`}
-      />
-    );
-  }
 
   return (
     <div className="space-y-4">
-      <div
-        className="grid grid-cols-[repeat(4,minmax(140px,1fr))] gap-3 max-[860px]:grid-cols-2 max-[560px]:grid-cols-1"
-        aria-label="Service metrics summary"
-      >
-        <MetricCard label="Metric Series" value={`${series.length} ${plural(series.length, "series", "series")}`} tone="info" />
-        <MetricCard label="Metric Types" value={`${metricTypes.length} ${plural(metricTypes.length, "type")}`} tone="good" />
-        <MetricCard label="Environments" value={`${environments.length} ${plural(environments.length, "env")}`} tone="info" />
-        <MetricPointSummaryCard seriesId={selectedSeriesId} />
-      </div>
-
-      <Panel eyebrow="Browse" title="Metric Series">
-        <QueryFilterInput
-          surface="metrics"
-          serviceName={serviceName}
-          placeholder='Filter metric series, e.g. "histogram latency metrics in prod" or raw NLQ IR JSON'
-          onIr={(ir) => {
-            const next = deriveViewFiltersFromIr(ir, "metrics");
-            setFilters({
-              name: next.metricName ?? "",
-              type: next.metricType ?? "all",
-              environment: next.environment ?? "all",
-            });
-            setSelectedSeriesId(null);
-          }}
-        />
-
-        <div className="mt-4">
-          {filteredSeries.length ? (
-            <MetricSeriesTable
-              series={filteredSeries}
-              selectedSeriesId={selectedSeriesId}
-              onSelect={setSelectedSeriesId}
-            />
-          ) : (
-            <div className="signal-empty">No metric series matched the current filters.</div>
-          )}
+      {showHeader && (
+        <div className="page-header">
+          <div>
+            <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
+            <h1>Metrics</h1>
+          </div>
         </div>
-      </Panel>
+      )}
+      {series.length > 0 && (
+        <div
+          className="grid grid-cols-[repeat(4,minmax(140px,1fr))] gap-3 max-[860px]:grid-cols-2 max-[560px]:grid-cols-1"
+          aria-label="Service metrics summary"
+        >
+          <MetricCard label="Metric Series" value={`${series.length} ${plural(series.length, "series", "series")}`} tone="info" />
+          <MetricCard label="Metric Types" value={`${metricTypes.length} ${plural(metricTypes.length, "type")}`} tone="good" />
+          <MetricCard label="Environments" value={`${environments.length} ${plural(environments.length, "env")}`} tone="info" />
+          <MetricCard label="Filtered" value={`${filteredSeries.length} ${plural(filteredSeries.length, "series", "series")}`} tone="info" />
+        </div>
+      )}
 
-      <MetricPointPreview selectedSeries={selectedSeries} />
+      <SignalExplorer
+        title="Metrics"
+        service={serviceName}
+        onServiceChange={setServiceName}
+        lockedService={lockedService}
+        showHeader={false}
+        showPromote={true}
+        querySurface="metrics"
+        saveStatus={saveStatus}
+        onPromote={handlePromote}
+        selectedId={selectedSeriesId}
+        onSelect={setSelectedSeriesId}
+        histogram={
+          <MetricGraphContainer
+            selectedSeries={selectedSeries}
+            fromMs={fromMs}
+            toMs={toMs}
+            onRangeSelect={setCustomRange}
+          />
+        }
+        renderTable={(selectedId, onSelect) => (
+          <div className="flex flex-col gap-4 w-full">
+            <Panel eyebrow="Browse" title="Metric Series">
+              <div className="mb-4">
+                <QueryFilterInput
+                  surface="metrics"
+                  serviceName={serviceName}
+                  placeholder='Filter metric series, e.g. "histogram latency metrics in prod" or raw NLQ IR JSON'
+                  onIr={(ir) => {
+                    const next = deriveViewFiltersFromIr(ir, "metrics");
+                    setFilters({
+                      name: next.metricName ?? "",
+                      type: next.metricType ?? "all",
+                      environment: next.environment ?? "all",
+                    });
+                    if (next.service && !lockedService) {
+                      setServiceName(next.service);
+                    }
+                    setSelectedSeriesId(null);
+                  }}
+                />
+              </div>
+              {filteredSeries.length > 0 ? (
+                <MetricSeriesTable
+                  series={filteredSeries}
+                  selectedSeriesId={selectedId}
+                  onSelect={onSelect}
+                />
+              ) : (
+                <EmptyState 
+                  title="No metrics found" 
+                  description={serviceName ? `No metrics for service ${serviceName} match filters.` : "No global metrics found matching filters."}
+                />
+              )}
+            </Panel>
+          </div>
+        )}
+        renderPanel={(_selectedId, onClose) => (
+          selectedSeries ? (
+            <MetricDetailSidebar
+              series={selectedSeries}
+              onClose={onClose}
+            />
+          ) : null
+        )}
+      />
     </div>
+  );
+}
+
+function MetricGraphContainer({
+  selectedSeries,
+  fromMs,
+  toMs,
+  onRangeSelect,
+}: {
+  selectedSeries: MetricSeries | null;
+  fromMs: number;
+  toMs: number;
+  onRangeSelect: (fromMs: number, toMs: number) => void;
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["metric-points", selectedSeries?.metric_series_id, fromMs, toMs],
+    queryFn: () => getMetricPoints(selectedSeries!.metric_series_id),
+    enabled: Boolean(selectedSeries),
+  });
+
+  if (!selectedSeries) {
+    return (
+      <div className="signal-empty border border-[var(--border)] bg-[var(--surface)] h-[168px] flex items-center justify-center text-sm text-[var(--muted)]">
+        Select a metric series below to visualize data.
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="border border-[var(--border)] bg-[var(--surface)] h-[168px] animate-pulse" />
+    );
+  }
+
+  const points = data?.points ?? [];
+  const seriesData: TimeSeriesSeries[] = [
+    {
+      key: selectedSeries.metric_series_id,
+      label: selectedSeries.metric_name,
+      color: "var(--brand)",
+      points: points.map((p) => ({
+        timestampMs: Number(p.time_unix_nano) / 1_000_000,
+        value: p.value_double ?? p.value_int ?? 0,
+      })),
+      formatY: (v) => `${v}${selectedSeries.unit ? ` ${selectedSeries.unit}` : ""}`,
+    },
+  ];
+
+  return (
+    <TimeSeriesGraph
+      series={seriesData}
+      rangeStartMs={fromMs}
+      rangeEndMs={toMs}
+      height={140}
+      onRangeSelect={onRangeSelect}
+      ariaLabel={`Graph for ${selectedSeries.metric_name}`}
+    />
   );
 }
 
@@ -105,7 +242,7 @@ function MetricSeriesTable({
 }: {
   series: MetricSeries[];
   selectedSeriesId: string | null;
-  onSelect: (seriesId: string) => void;
+  onSelect: (seriesId: string | null) => void;
 }) {
   return (
     <TablePanel>
@@ -117,12 +254,16 @@ function MetricSeriesTable({
             <th>Unit</th>
             <th>Environment</th>
             <th>Labels</th>
-            <th>Action</th>
           </tr>
         </thead>
         <tbody>
           {series.map((item) => (
-            <tr key={item.metric_series_id}>
+            <tr
+              key={item.metric_series_id}
+              className={selectedSeriesId === item.metric_series_id ? "selected" : "hoverable"}
+              onClick={() => onSelect(item.metric_series_id)}
+              style={{ cursor: "pointer" }}
+            >
               <td>
                 <div className="font-semibold text-[var(--text-strong)]">{item.metric_name}</div>
                 <div className="text-xs text-[var(--muted)]">{shortId(item.metric_series_id)}</div>
@@ -131,15 +272,6 @@ function MetricSeriesTable({
               <td>{item.unit || "none"}</td>
               <td>{item.environment || "default"}</td>
               <td>{labelSummary(item)}</td>
-              <td>
-                <Button
-                  variant={selectedSeriesId === item.metric_series_id ? "primary" : "secondary"}
-                  onClick={() => onSelect(item.metric_series_id)}
-                  aria-pressed={selectedSeriesId === item.metric_series_id}
-                >
-                  Select {item.metric_name}
-                </Button>
-              </td>
             </tr>
           ))}
         </tbody>
@@ -148,106 +280,65 @@ function MetricSeriesTable({
   );
 }
 
-function MetricPointPreview({ selectedSeries }: { selectedSeries: MetricSeries | null }) {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["metric-points", selectedSeries?.metric_series_id],
-    queryFn: () => getMetricPoints(selectedSeries!.metric_series_id),
-    enabled: Boolean(selectedSeries),
-  });
-
-  if (!selectedSeries) {
-    return (
-      <Panel eyebrow="Inspect" title="Selected series">
-        <div className="signal-empty">Select a metric series to preview recent points.</div>
-      </Panel>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <Panel eyebrow="Inspect" title="Selected series">
-        <LoadingState>Loading metric points...</LoadingState>
-      </Panel>
-    );
-  }
-
-  if (error) {
-    return (
-      <Panel eyebrow="Inspect" title="Selected series">
-        <div className="signal-empty">Metric points could not be loaded.</div>
-      </Panel>
-    );
-  }
-
-  const points = data?.points ?? [];
-  const latest = points.length ? points[points.length - 1] : undefined;
-
+function MetricDetailSidebar({
+  series,
+  onClose,
+}: {
+  series: MetricSeries;
+  onClose: () => void;
+}) {
   return (
-    <Panel
-      eyebrow="Inspect"
-      title="Selected series"
-      actions={<span className="context-pill">{points.length} {plural(points.length, "point")}</span>}
+    <aside
+      aria-label="Selected metric details"
+      className="w-full border border-[var(--border)] bg-[var(--surface)] p-4"
     >
-      <div className="grid grid-cols-[minmax(220px,0.8fr)_minmax(280px,1.2fr)] gap-4 max-[860px]:grid-cols-1">
-        <dl className="definition-grid">
-          <div>
-            <dt>Name</dt>
-            <dd>{selectedSeries.metric_name}</dd>
-          </div>
-          <div>
-            <dt>Latest value</dt>
-            <dd>{latest ? pointValue(latest) : "No points"}</dd>
-          </div>
-          <div>
-            <dt>Type</dt>
-            <dd>{selectedSeries.metric_type}</dd>
-          </div>
-          <div>
-            <dt>Unit</dt>
-            <dd>{selectedSeries.unit || "none"}</dd>
-          </div>
-        </dl>
-
-        {points.length ? (
-          <TablePanel>
-            <table aria-label="Selected metric points">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {points.slice(-8).map((point) => (
-                  <tr key={`${point.metric_series_id}-${point.time_unix_nano}`}>
-                    <td>{String(point.time_unix_nano)}</td>
-                    <td>{pointValue(point)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TablePanel>
-        ) : (
-          <div className="signal-empty">No points found for this metric series.</div>
-        )}
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-bold uppercase text-[var(--muted)]">Selected Metric</div>
+          <h2 className="m-0 text-base font-bold text-[var(--text-strong)]">{series.metric_name}</h2>
+        </div>
+        <Button variant="secondary" className="min-h-8 px-2 text-xs" onClick={onClose}>
+          Close
+        </Button>
       </div>
-    </Panel>
-  );
-}
 
-function MetricPointSummaryCard({ seriesId }: { seriesId: string | null }) {
-  const { data } = useQuery({
-    queryKey: ["metric-points", seriesId],
-    queryFn: () => getMetricPoints(seriesId!),
-    enabled: Boolean(seriesId),
-  });
+      <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
+        <div className="contents">
+          <dt className="break-all font-bold text-[var(--muted)]">series_id</dt>
+          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{series.metric_series_id}</dd>
+        </div>
+        <div className="contents">
+          <dt className="break-all font-bold text-[var(--muted)]">type</dt>
+          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{series.metric_type}</dd>
+        </div>
+        <div className="contents">
+          <dt className="break-all font-bold text-[var(--muted)]">unit</dt>
+          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{series.unit || "none"}</dd>
+        </div>
+        <div className="contents">
+          <dt className="break-all font-bold text-[var(--muted)]">service</dt>
+          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{series.service_name}</dd>
+        </div>
+        <div className="contents">
+          <dt className="break-all font-bold text-[var(--muted)]">environment</dt>
+          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{series.environment || "default"}</dd>
+        </div>
+      </dl>
 
-  return (
-    <MetricCard
-      label="Selected Points"
-      value={seriesId ? `${data?.points.length ?? 0} ${plural(data?.points.length ?? 0, "point")}` : "none"}
-      tone="info"
-    />
+      <div className="mt-4">
+        <div className="text-[10px] font-bold uppercase text-[var(--muted)] mb-2">Attributes</div>
+        <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-1 text-xs">
+          {Object.entries({ ...series.attributes, ...series.resource_attributes })
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([key, value]) => (
+              <div key={key} className="contents">
+                <dt className="break-all font-medium text-[var(--muted)]">{key}</dt>
+                <dd className="m-0 min-w-0 break-all text-[var(--text)]">{String(value)}</dd>
+              </div>
+            ))}
+        </dl>
+      </div>
+    </aside>
   );
 }
 
@@ -273,13 +364,6 @@ function labelSummary(series: MetricSeries): string {
   if (!labels.length) return "none";
   const suffix = attributes.length + resourceAttributes.length > labels.length ? " +" : "";
   return `${labels.join(", ")}${suffix}`;
-}
-
-function pointValue(point: MetricPoint): string {
-  if (point.value_double != null) return String(point.value_double);
-  if (point.value_int != null) return String(point.value_int);
-  if (point.histogram_count != null) return `${point.histogram_count} buckets`;
-  return "n/a";
 }
 
 function shortId(value: string): string {

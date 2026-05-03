@@ -12,12 +12,14 @@ export interface SignalExplorerProps {
   lockedService?: boolean;
   showHeader?: boolean;
   showPromote?: boolean;
-  querySurface?: Extract<QuerySurface, "logs" | "traces">;
+  querySurface?: Extract<QuerySurface, "logs" | "traces" | "metrics">;
   saveStatus: SaveStatus;
   onPromote: () => void;
   histogram: ReactNode;
   renderTable: (selectedId: string | null, onSelect: (id: string | null) => void) => ReactNode;
   renderPanel: (selectedId: string, onClose: () => void) => ReactNode;
+  selectedId?: string | null;
+  onSelect?: (id: string | null) => void;
 }
 
 export function SignalExplorer({
@@ -33,15 +35,27 @@ export function SignalExplorer({
   histogram,
   renderTable,
   renderPanel,
+  selectedId: controlledId,
+  onSelect: onControlledSelect,
 }: SignalExplorerProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [internalId, setInternalId] = useState<string | null>(null);
+  const selectedId = controlledId !== undefined ? controlledId : internalId;
 
   function handleSelect(id: string | null) {
-    setSelectedId((prev) => (prev === id ? null : id));
+    const nextId = selectedId === id ? null : id;
+    if (onControlledSelect) {
+      onControlledSelect(nextId);
+    } else {
+      setInternalId(nextId);
+    }
   }
 
   function handleServiceChange(s: string) {
-    setSelectedId(null);
+    if (onControlledSelect) {
+      onControlledSelect(null);
+    } else {
+      setInternalId(null);
+    }
     onServiceChange(s);
   }
 
@@ -95,7 +109,7 @@ export function SignalExplorer({
         </div>
         {selectedId !== null && (
           <div className="w-1/4 shrink-0">
-            {renderPanel(selectedId, () => setSelectedId(null))}
+            {renderPanel(selectedId, () => handleSelect(null))}
           </div>
         )}
       </div>
