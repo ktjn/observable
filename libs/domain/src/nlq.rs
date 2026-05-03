@@ -131,13 +131,17 @@ pub enum NlqFilterOp {
     Lte,
 }
 
-/// Query time range. Both `from` and `to` accept relative expressions ("now", "now-1h")
-/// or ISO-8601 timestamps.
+/// Query time range. Both `from` and `to` accept:
+/// - Relative expressions: `"now"`, `"now-1h"`, `"now-30m"`, `"now-1d"`, `"now-30s"`
+/// - Unix nanosecond integer strings: `"1746274719123000000"` (ADR-030)
+///
+/// ISO-8601 strings are explicitly rejected. Callers must convert to Unix nanoseconds before
+/// including in the IR (the frontend uses `String(BigInt(Math.floor(ms)) * 1_000_000n)`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NlqTimeRange {
-    /// Start of the range, e.g. "now-1h" or "2026-01-01T00:00:00Z".
+    /// Start of the range, e.g. `"now-1h"` or `"1746274719123000000"` (Unix nanoseconds).
     pub from: String,
-    /// End of the range, e.g. "now" or "2026-01-01T01:00:00Z".
+    /// End of the range, e.g. `"now"` or `"1746274732456000000"` (Unix nanoseconds).
     pub to: String,
 }
 

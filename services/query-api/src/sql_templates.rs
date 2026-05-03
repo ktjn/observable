@@ -488,34 +488,38 @@ fn stat_to_sql_expr(stat: &str, val: &str) -> Option<String> {
 
 /// Parses a relative or absolute time expression to a ClickHouse expression string.
 ///
-/// Supported forms:
-/// - `"now"` → `"now()"`
-/// - `"now-5m"` → `"now() - INTERVAL 5 MINUTE"`
-/// - `"now-2h"` → `"now() - INTERVAL 2 HOUR"`
-/// - `"now-1d"` → `"now() - INTERVAL 1 DAY"`
-/// - `"now-30s"` → `"now() - INTERVAL 30 SECOND"`
-/// - ISO-8601 / RFC-3339 → `"toDateTime('YYYY-MM-DD HH:MM:SS', 'UTC')"`
+/// Per ADR-030, all timestamps are transported as Unix nanosecond integers. Supported forms:
+/// - `"now"` → `"toUnixTimestamp64Nano(now64())"`
+/// - `"now-5m"` → `"toUnixTimestamp64Nano(now64()) - 300000000000"`
+/// - `"now-2h"` → `"toUnixTimestamp64Nano(now64()) - 7200000000000"`
+/// - `"now-1d"` → `"toUnixTimestamp64Nano(now64()) - 86400000000000"`
+/// - `"now-30s"` → `"toUnixTimestamp64Nano(now64()) - 30000000000"`
+/// - Unix nanosecond integer string (all digits) → the integer literal
+///
+/// ISO-8601 strings are intentionally rejected — callers must convert to Unix nanoseconds first.
 pub fn parse_time_expr(expr: &str) -> Result<String, SqlTemplateError> {
     let expr = expr.trim();
     if expr == "now" {
-        return Ok("now()".into());
+        return Ok("toUnixTimestamp64Nano(now64())".into());
     }
     if let Some(rest) = expr.strip_prefix("now-") {
         let (n, unit) = parse_duration_str(rest)
             .ok_or_else(|| SqlTemplateError::InvalidTimeExpression(expr.into()))?;
-        let ch_unit = duration_unit_to_ch(unit)
+        let nanos_per_unit: u64 = match unit {
+            "s" => 1_000_000_000,
+            "m" => 60_000_000_000,
+            "h" => 3_600_000_000_000,
+            "d" => 86_400_000_000_000,
+            _ => return Err(SqlTemplateError::InvalidTimeExpression(expr.into())),
+        };
+        let offset = n
+            .checked_mul(nanos_per_unit)
             .ok_or_else(|| SqlTemplateError::InvalidTimeExpression(expr.into()))?;
-        return Ok(format!("now() - INTERVAL {n} {ch_unit}"));
+        return Ok(format!("toUnixTimestamp64Nano(now64()) - {offset}"));
     }
-    // ISO-8601 fallback: 2026-01-01T00:00:00Z or 2026-01-01T00:00:00+00:00
-    if expr.contains('T') {
-        let clean = expr
-            .replace('T', " ")
-            .replace('Z', "")
-            .trim_end_matches(|c: char| c == '+' || c.is_ascii_digit() || c == ':' || c == '.')
-            .trim()
-            .to_string();
-        return Ok(format!("toDateTime('{clean}', 'UTC')"));
+    // Unix nanosecond integer literal (sent by frontend per ADR-030)
+    if !expr.is_empty() && expr.chars().all(|c| c.is_ascii_digit()) {
+        return Ok(expr.to_string());
     }
     Err(SqlTemplateError::InvalidTimeExpression(expr.into()))
 }
@@ -608,8 +612,8 @@ fn build_log_time_range_clause(from: &str, to: &str) -> Result<String, SqlTempla
     let from_expr = parse_time_expr(from)?;
     let to_expr = parse_time_expr(to)?;
     Ok(format!(
-        "\n  AND fromUnixTimestamp64Nano(timestamp_unix_nano) >= {from_expr}\
-         \n  AND fromUnixTimestamp64Nano(timestamp_unix_nano) <= {to_expr}"
+        "\n  AND timestamp_unix_nano >= {from_expr}\
+         \n  AND timestamp_unix_nano <= {to_expr}"
     ))
 }
 
@@ -676,18 +680,16 @@ fn build_time_range_clause(from: &str, to: &str) -> Result<String, SqlTemplateEr
     let from_expr = parse_time_expr(from)?;
     let to_expr = parse_time_expr(to)?;
     Ok(format!(
-        "\n  AND fromUnixTimestamp64Nano(mp.time_unix_nano) >= {from_expr}\
-         \n  AND fromUnixTimestamp64Nano(mp.time_unix_nano) <= {to_expr}"
+        "\n  AND mp.time_unix_nano >= {from_expr}\
+         \n  AND mp.time_unix_nano <= {to_expr}"
     ))
 }
 
 /// Builds a lookback window clause for rate/irate/increase queries.
 /// The window restricts the source rows to the last N seconds/minutes/hours.
 fn build_window_preceding_clause(window: &str) -> Result<String, SqlTemplateError> {
-    let interval = parse_interval(window)?;
-    Ok(format!(
-        "\n  AND fromUnixTimestamp64Nano(mp.time_unix_nano) >= now() - INTERVAL {interval}"
-    ))
+    let from_expr = parse_time_expr(&format!("now-{window}"))?;
+    Ok(format!("\n  AND mp.time_unix_nano >= {from_expr}"))
 }
 
 /// Translates a field name from NlqFilter into a ClickHouse column reference.
@@ -866,20 +868,29 @@ mod tests {
         let ir = base_ir(NlqOperation::Timeseries);
         let ctx = ctx_for(&ir);
         let sql = generate_sql(&ctx).unwrap();
-        assert!(sql.contains("now() - INTERVAL 1 HOUR"), "got: {sql}");
-        assert!(sql.contains("now()"), "to=now must render as now()");
+        assert!(
+            sql.contains("toUnixTimestamp64Nano(now64()) - 3600000000000"),
+            "got: {sql}"
+        );
+        assert!(
+            sql.contains("toUnixTimestamp64Nano(now64())"),
+            "to=now must render as toUnixTimestamp64Nano(now64())"
+        );
     }
 
     #[test]
     fn parse_time_expr_now() {
-        assert_eq!(parse_time_expr("now").unwrap(), "now()");
+        assert_eq!(
+            parse_time_expr("now").unwrap(),
+            "toUnixTimestamp64Nano(now64())"
+        );
     }
 
     #[test]
     fn parse_time_expr_relative_minutes() {
         assert_eq!(
             parse_time_expr("now-5m").unwrap(),
-            "now() - INTERVAL 5 MINUTE"
+            "toUnixTimestamp64Nano(now64()) - 300000000000"
         );
     }
 
@@ -887,20 +898,31 @@ mod tests {
     fn parse_time_expr_relative_hours() {
         assert_eq!(
             parse_time_expr("now-2h").unwrap(),
-            "now() - INTERVAL 2 HOUR"
+            "toUnixTimestamp64Nano(now64()) - 7200000000000"
         );
     }
 
     #[test]
     fn parse_time_expr_relative_days() {
-        assert_eq!(parse_time_expr("now-1d").unwrap(), "now() - INTERVAL 1 DAY");
+        assert_eq!(
+            parse_time_expr("now-1d").unwrap(),
+            "toUnixTimestamp64Nano(now64()) - 86400000000000"
+        );
     }
 
     #[test]
     fn parse_time_expr_relative_seconds() {
         assert_eq!(
             parse_time_expr("now-30s").unwrap(),
-            "now() - INTERVAL 30 SECOND"
+            "toUnixTimestamp64Nano(now64()) - 30000000000"
+        );
+    }
+
+    #[test]
+    fn parse_time_expr_unix_nano() {
+        assert_eq!(
+            parse_time_expr("1746274719123000000").unwrap(),
+            "1746274719123000000"
         );
     }
 
@@ -908,6 +930,8 @@ mod tests {
     fn parse_time_expr_invalid_returns_error() {
         assert!(parse_time_expr("yesterday").is_err());
         assert!(parse_time_expr("now-").is_err());
+        // ISO-8601 strings are rejected per ADR-030; callers must convert to Unix nanos
+        assert!(parse_time_expr("2026-05-03T13:05:52.000Z").is_err());
     }
 
     // ── Resolution / interval ─────────────────────────────────────────────────
@@ -1063,9 +1087,10 @@ mod tests {
         let ctx = ctx_for(&ir);
         let sql = generate_sql(&ctx).unwrap();
         assert!(sql.contains("lagInFrame"), "rate must use lagInFrame");
+        // window is now expressed as a Unix nano offset per ADR-030
         assert!(
-            sql.contains("INTERVAL 5 MINUTE"),
-            "window must be in SQL: {sql}"
+            sql.contains("300000000000"),
+            "5m window must appear as 300000000000 nanos in SQL: {sql}"
         );
     }
 

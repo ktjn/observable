@@ -32,8 +32,8 @@ export default function InfrastructureInventoryPage() {
   const [search, setSearch] = useState("");
   const { format } = useTimeDisplay();
   const { fromMs, toMs } = useGlobalDateRange();
-  const from = new Date(fromMs).toISOString();
-  const to = new Date(toMs).toISOString();
+  const from = String(BigInt(Math.floor(fromMs)) * 1_000_000n);
+  const to = String(BigInt(Math.floor(toMs)) * 1_000_000n);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["infrastructure", "surface", userQuery, fromMs, toMs],

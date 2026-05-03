@@ -34,8 +34,8 @@ export function QueryFilterInput({
     () => ({
       ...baseIr,
       time_range: {
-        from: new Date(fromMs).toISOString(),
-        to: new Date(toMs).toISOString(),
+        from: String(BigInt(Math.floor(fromMs)) * 1_000_000n),
+        to: String(BigInt(Math.floor(toMs)) * 1_000_000n),
       },
     }),
     [baseIr, fromMs, toMs],

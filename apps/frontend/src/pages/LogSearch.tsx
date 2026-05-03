@@ -84,8 +84,8 @@ export function LogExplorer({
   // Keep service for legacy clear-filter button visibility.
   const [service, setService] = useState(initialService);
 
-  const from = new Date(fromMs).toISOString();
-  const to = new Date(toMs).toISOString();
+  const from = String(BigInt(Math.floor(fromMs)) * 1_000_000n);
+  const to = String(BigInt(Math.floor(toMs)) * 1_000_000n);
   const [bucketCount, setBucketCount] = useState(60);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
