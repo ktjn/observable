@@ -1,3 +1,7 @@
+import type { NlqIrLike } from "../features/nlq/queryFilters";
+
+export type { NlqIrLike };
+
 const DEV_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 
 function tenantHeaders(): HeadersInit {
@@ -72,9 +76,20 @@ export type NlqResponse =
 // ── API function ──────────────────────────────────────────────────────────────
 
 export interface NlqRequest {
-  question: string;
+  /** Natural-language question or raw IR JSON string. Optional when `base_ir` is set. */
+  question?: string;
   service_name?: string;
-  surface_hint?: string;
+  /**
+   * Page base IR — defines the page surface and is used as the merge base for user NLQ.
+   * When `question` is omitted, the backend executes `base_ir` directly (page-load pattern).
+   * When `question` is present and mode is "execute", the backend merges the interpreted
+   * user IR into `base_ir` (preserving base `operation`/`signals`) before execution.
+   * When mode is "interpret", `base_ir` guides the LLM system prompt only.
+   *
+   * Replaces the former `surface_hint` string; LLM context is derived from
+   * `base_ir.signals`/`base_ir.operation` directly.
+   */
+  base_ir?: NlqIrLike;
   mode?: "execute" | "interpret";
 }
 

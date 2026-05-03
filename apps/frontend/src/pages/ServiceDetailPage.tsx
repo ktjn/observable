@@ -277,6 +277,7 @@ function ServiceLogsTab({ serviceName }: { serviceName: string }) {
   return (
     <LogExplorer
       initialService={serviceName}
+      serviceName={serviceName}
       lockedService
       showHeader={false}
       showServiceColumn={false}
@@ -290,6 +291,7 @@ function ServiceTracesTab({ serviceName }: { serviceName: string }) {
   return (
     <TraceExplorer
       initialService={serviceName}
+      serviceName={serviceName}
       lockedService
       showHeader={false}
       showServiceColumn={false}

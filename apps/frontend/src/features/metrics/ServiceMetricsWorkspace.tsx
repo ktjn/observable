@@ -12,7 +12,14 @@ import { TimeSeriesGraph, type TimeSeriesSeries } from "../../components/ui/time
 import { SignalExplorer, type SaveStatus } from "../../components/shared/SignalExplorer";
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
 import { QueryFilterInput } from "../nlq/QueryFilterInput";
-import { deriveViewFiltersFromIr } from "../nlq/queryFilters";
+import { deriveViewFiltersFromIr, type NlqIrLike } from "../nlq/queryFilters";
+
+const METRICS_BASE_IR: NlqIrLike = {
+  operation: "catalog",
+  signals: ["metrics"],
+  filters: [],
+  time_range: { from: "now-1h", to: "now" },
+};
 
 type FilterState = {
   name: string;
@@ -133,9 +140,15 @@ export function ServiceMetricsWorkspace({
             <Panel eyebrow="Browse" title="Metric Series">
               <div className="mb-4">
                 <QueryFilterInput
-                  surface="metrics"
+                  baseIr={METRICS_BASE_IR}
                   serviceName={serviceName}
                   placeholder='Filter metric series, e.g. "histogram latency metrics in prod" or raw NLQ IR JSON'
+                  onSubmit={(_rawText) => {
+                    // Need to derive IR and apply filters based on rawText here?
+                    // Actually, the previous implementation used `onIr`.
+                    // Let's keep `onIr` and add `baseIr` as required.
+                  }}
+
                   onIr={(ir) => {
                     const next = deriveViewFiltersFromIr(ir, "metrics");
                     setFilters({
@@ -149,6 +162,7 @@ export function ServiceMetricsWorkspace({
                     setSelectedSeriesId(null);
                   }}
                 />
+
               </div>
               {filteredSeries.length > 0 ? (
                 <MetricSeriesTable

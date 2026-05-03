@@ -164,16 +164,27 @@ impl std::error::Error for LlmAdapterError {}
 
 #[derive(Debug, Deserialize)]
 pub struct NlqQueryRequest {
-    pub question: String,
+    /// The user's natural-language question or raw IR JSON.
+    /// Optional when `base_ir` is set — omitting it fetches the page's base data directly.
+    #[serde(default)]
+    pub question: Option<String>,
     /// Optional service scope. If provided, a `service_name = <value>` filter is enforced
     /// on the generated IR regardless of what the LLM emits.
     pub service_name: Option<String>,
-    /// Optional page / surface hint (e.g. "infrastructure", "services").
-    /// When set, the LLM system prompt is augmented with surface-specific instructions,
-    /// and the `inventory` operation is preferred for entity-attribute filter queries.
+    /// Optional base IR for the current page surface.
+    ///
+    /// When set:
+    /// - No question → execute `base_ir` directly (page-load pattern; no LLM needed).
+    /// - Question present, mode=execute → interpret question → merge user IR into `base_ir`
+    ///   (base `operation`/`signals`/`catalog_field` preserved) → execute merged IR.
+    /// - Question present, mode=interpret → `base_ir` guides the LLM system prompt only;
+    ///   no merge is applied and the raw interpreted IR is returned.
+    ///
+    /// Replaces the former `surface_hint` string: LLM context is derived from `base_ir.operation`
+    /// and `base_ir.signals` directly, removing string-name coupling.
     #[serde(default)]
-    pub surface_hint: Option<String>,
-    /// Execution mode. `execute` preserves the existing NLQ behavior; `interpret`
+    pub base_ir: Option<NlqIr>,
+    /// Execution mode. `execute` runs the query and returns a frame; `interpret`
     /// returns a validated IR without running the MCP query.
     #[serde(default)]
     pub mode: NlqQueryMode,
@@ -329,7 +340,7 @@ pub(crate) fn build_system_prompt(
     metrics: &[crate::mcp_tools::SignalField],
     label_keys: &[String],
     service_scope: Option<&str>,
-    surface_hint: Option<&str>,
+    base_ir: Option<&NlqIr>,
 ) -> String {
     let mut prompt = String::from(
         r#"You are an observability query assistant. You translate natural language questions
@@ -560,35 +571,44 @@ When in doubt, produce an IR. Only decline when the question **explicitly** ment
         ));
     }
 
-    if let Some(surface) = surface_hint {
-        match surface {
-            "infrastructure" => {
-                prompt.push_str(
-                    "\n## Page context\n\n\
-                     You are operating on the **infrastructure inventory page**. \
-                     This page shows a table of infrastructure entities (hosts, clusters, \
-                     namespaces, pods, containers). The user is filtering this table by \
-                     entity attributes — NOT asking for a time-series chart or metric computation.\n\
-                     **ALWAYS use `operation: \"inventory\"` for queries on this page.** \
-                     Valid filter fields: `entity_type` (host/cluster/namespace/pod/container), \
-                     `environment`, `service_name`, `health_state` (healthy/watch/breach), \
-                     `display_name` (text search). Do NOT add a `metric` field.\n"
-                );
-            }
-            "services" => {
-                prompt.push_str(
-                    "\n## Page context\n\n\
-                     You are operating on the **services inventory page**. \
-                     This page shows a table of services. The user is filtering this table. \
-                     Prefer `operation: \"inventory\"` when the user is filtering by service \
-                     attributes rather than requesting a metric computation.\n",
-                );
-            }
-            _ => {
-                prompt.push_str(&format!(
-                    "\n## Page context\n\nYou are operating on the **{surface}** page.\n"
-                ));
-            }
+    if let Some(base) = base_ir {
+        let ctx = if base.operation == NlqOperation::Inventory {
+            "\n## Page context\n\n\
+             You are operating on the **infrastructure inventory page**. \
+             This page shows a table of infrastructure entities (hosts, clusters, \
+             namespaces, pods, containers). The user is filtering this table by \
+             entity attributes — NOT asking for a time-series chart or metric computation.\n\
+             **ALWAYS use `operation: \"inventory\"` for queries on this page.** \
+             Valid filter fields: `entity_type` (host/cluster/namespace/pod/container), \
+             `environment`, `service_name`, `health_state` (healthy/watch/breach), \
+             `display_name` (text search). Do NOT add a `metric` field.\n"
+        } else if base.signals.contains(&NlqSignal::Logs) {
+            "\n## Page context\n\n\
+             You are operating on the **log search page**. \
+             The user is searching and filtering log entries.\n\
+             **ALWAYS use `operation: \"table\"` and `signals: [\"logs\"]` for queries on this page.** \
+             Valid filter fields: `service_name`, `severity_text` (INFO/WARN/ERROR/FATAL), \
+             `environment`, `trace_id`, `span_id`. Use the `query` field for free-text body search.\n\
+             Do NOT set a `metric` field. Do NOT use timeseries, distribution, or catalog operations.\n"
+        } else if base.signals.contains(&NlqSignal::Traces) {
+            "\n## Page context\n\n\
+             You are operating on the **trace search page**. \
+             The user is searching and filtering distributed traces.\n\
+             **ALWAYS use `operation: \"table\"` and `signals: [\"traces\"]` for queries on this page.** \
+             Valid filter fields: `service_name`, `status_code` (OK/ERROR/UNSET), `environment`, \
+             `operation` (span operation name, free-text). Do NOT set a `metric` field.\n\
+             Do NOT use timeseries, distribution, or catalog operations.\n"
+        } else if base.operation == NlqOperation::Catalog {
+            "\n## Page context\n\n\
+             You are operating on the **services topology page**. \
+             The user is filtering the list of observed services.\n\
+             **ALWAYS use `operation: \"catalog\"` and `catalog_field: \"service_name\"` for queries on this page.** \
+             Valid filter fields: `environment`. Do NOT add a `metric` field.\n"
+        } else {
+            ""
+        };
+        if !ctx.is_empty() {
+            prompt.push_str(ctx);
         }
     }
 
@@ -972,6 +992,51 @@ pub(crate) fn parse_llm_response(json: &str) -> Result<NlqIrOrDecline, LlmAdapte
     }
 }
 
+/// Merges a user-supplied IR into a page base IR for server-side IR composition.
+///
+/// Rules:
+/// - Base `operation`, `signals`, and `catalog_field` are always preserved.
+/// - User filters override base filters for the same field (case-insensitive match).
+///   User filters for new fields not present in base are appended.
+/// - User `time_range` takes precedence when its `from` field is non-empty.
+/// - All other user IR fields (`metric`, `window`, `resolution`, `group_by`,
+///   `visualization_hint`, `percentiles`, `limit`) are ignored; the base IR
+///   operation context governs the result shape.
+/// - User `query` (free-text search term) is preserved from the user IR.
+pub fn merge_irs(base: NlqIr, user: NlqIr) -> NlqIr {
+    // Base filters first; user filters for the same field replace them.
+    let mut merged: Vec<NlqFilter> = Vec::new();
+    for f in &base.filters {
+        let key = f.field.to_lowercase();
+        if !user.filters.iter().any(|u| u.field.to_lowercase() == key) {
+            merged.push(f.clone());
+        }
+    }
+    merged.extend(user.filters);
+
+    let merged_time_range = if !user.time_range.from.is_empty() {
+        user.time_range
+    } else {
+        base.time_range
+    };
+
+    NlqIr {
+        operation: base.operation,
+        signals: base.signals,
+        catalog_field: base.catalog_field,
+        filters: merged,
+        time_range: merged_time_range,
+        query: user.query,
+        metric: None,
+        window: None,
+        group_by: vec![],
+        resolution: None,
+        visualization_hint: None,
+        percentiles: None,
+        limit: None,
+    }
+}
+
 pub(crate) fn parse_user_query_input(input: &str) -> Result<UserQueryInput, LlmAdapterError> {
     let trimmed = input.trim();
     if trimmed.starts_with('{') {
@@ -1030,7 +1095,8 @@ pub async fn run_nlq_pipeline(
     req: &NlqQueryRequest,
 ) -> Result<NlqQueryResponse, LlmAdapterError> {
     let pipeline_start = std::time::Instant::now();
-    let question_preview = req.question.chars().take(256).collect::<String>();
+    let question = req.question.as_deref().unwrap_or("");
+    let question_preview = question.chars().take(256).collect::<String>();
 
     tracing::info!(
         tenant_id = %tenant_id,
@@ -1040,7 +1106,7 @@ pub async fn run_nlq_pipeline(
     );
 
     // 1. Server-side deny gate (belt and suspenders — LLM prompt also instructs decline)
-    if let Some(reason) = server_side_deny_gate(&req.question) {
+    if let Some(reason) = server_side_deny_gate(question) {
         tracing::info!(
             tenant_id = %tenant_id,
             question = %question_preview,
@@ -1058,7 +1124,7 @@ pub async fn run_nlq_pipeline(
         &metrics,
         &label_keys,
         req.service_name.as_deref(),
-        req.surface_hint.as_deref(),
+        req.base_ir.as_ref(),
     );
 
     tracing::debug!(
@@ -1074,7 +1140,7 @@ pub async fn run_nlq_pipeline(
     // The loop is capped at MAX_REPAIR_ATTEMPTS to bound token spend.
     let llm_start = std::time::Instant::now();
     let mut repair_attempt: usize = 0;
-    let mut last_question = req.question.clone();
+    let mut last_question = question.to_string();
     let (parsed, _raw_response) = loop {
         let raw = llm.call(&system_prompt, &last_question).await?;
 
@@ -1108,7 +1174,7 @@ pub async fn run_nlq_pipeline(
                     error = %reason,
                     "NLQ repair attempt"
                 );
-                last_question = build_repair_prompt(&req.question, reason, &raw);
+                last_question = build_repair_prompt(question, reason, &raw);
                 continue;
             }
             Err(LlmAdapterError::InvalidResponse(reason)) => {
@@ -1161,13 +1227,14 @@ pub async fn run_nlq_pipeline(
         enforce_service_scope(&mut ir, svc);
     }
 
-    // 8. Validate: metric is required for non-catalog, non-log, non-inventory operations
+    // 8. Validate: metric is required for non-catalog, non-log, non-trace, non-inventory operations
     let is_log_query = ir.signals == vec![NlqSignal::Logs];
+    let is_trace_query = ir.signals == vec![NlqSignal::Traces];
     let is_no_metric_op = matches!(
         ir.operation,
         NlqOperation::Catalog | NlqOperation::Inventory
     );
-    if ir.metric.is_none() && !is_no_metric_op && !is_log_query {
+    if ir.metric.is_none() && !is_no_metric_op && !is_log_query && !is_trace_query {
         tracing::info!(
             tenant_id = %tenant_id,
             question = %question_preview,
@@ -1181,8 +1248,8 @@ pub async fn run_nlq_pipeline(
         });
     }
 
-    // 8b. Fuzzy metric resolution — skip for log queries (no metric to resolve).
-    if !is_log_query {
+    // 8b. Fuzzy metric resolution — skip for log/trace queries (no metric to resolve).
+    if !is_log_query && !is_trace_query {
         if let Some(ref llm_metric) = ir.metric {
             let all_fields = crate::mcp_tools::list_signal_fields(db, tenant_id, "metrics")
                 .await
@@ -1209,6 +1276,12 @@ pub async fn run_nlq_pipeline(
             "NLQ interpreted to IR without execution"
         );
         return Ok(NlqQueryResponse::Ir { ir });
+    }
+
+    // Apply base_ir merge in execute mode: base operation/signals preserved,
+    // user filters override same-field base filters, user time_range wins.
+    if let Some(base) = req.base_ir.clone() {
+        ir = merge_irs(base, ir);
     }
 
     tracing::debug!(
@@ -1256,14 +1329,36 @@ pub async fn handle_nlq_query(
     Extension(ctx): Extension<TenantContext>,
     Json(req): Json<NlqQueryRequest>,
 ) -> Result<Json<NlqQueryResponse>, (StatusCode, Json<serde_json::Value>)> {
-    if req.question.trim().is_empty() {
+    let question = req.question.as_deref().unwrap_or("").trim();
+
+    // Case 1: no question + base_ir set → execute base_ir directly (page-load pattern)
+    if question.is_empty() {
+        if let Some(ref base) = req.base_ir {
+            let mut ir = base.clone();
+            if let Some(svc) = &req.service_name {
+                enforce_service_scope(&mut ir, svc);
+            }
+            if req.mode == NlqQueryMode::Interpret {
+                return Ok(Json(NlqQueryResponse::Ir { ir }));
+            }
+            return match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
+                Ok(frame) => Ok(Json(NlqQueryResponse::Frame { frame })),
+                Err(e) => {
+                    tracing::error!(error = %e, tenant_id = %ctx.tenant_id, "base IR MCP query failed");
+                    Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({"error": "query execution failed"})),
+                    ))
+                }
+            };
+        }
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "question is required"})),
+            Json(serde_json::json!({"error": "question is required when base_ir is not provided"})),
         ));
     }
 
-    match parse_user_query_input(&req.question) {
+    match parse_user_query_input(question) {
         Ok(UserQueryInput::RawIr(ir)) => {
             let mut ir = *ir;
             if let Some(svc) = &req.service_name {
@@ -1271,6 +1366,10 @@ pub async fn handle_nlq_query(
             }
             if req.mode == NlqQueryMode::Interpret {
                 return Ok(Json(NlqQueryResponse::Ir { ir }));
+            }
+            // Apply base_ir merge if provided
+            if let Some(base) = req.base_ir.clone() {
+                ir = merge_irs(base, ir);
             }
             return match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
                 Ok(frame) => Ok(Json(NlqQueryResponse::Frame { frame })),

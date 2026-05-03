@@ -456,10 +456,13 @@ Server-side filterable fields via `ir.filters`:
 
 The `health_state` field is computed post-query from `error_rate` and cannot be filtered server-side.
 
-Entity-table pages (e.g., `/infrastructure`) are IR-driven: they start with a base `inventory` IR,
-merge the user's NLQ-interpreted IR using `mergeIrs()`, and re-execute via `POST /v1/nlq` with
-`mode: "execute"` and the raw JSON IR as the `question` field. The `surface_hint: "infrastructure"`
-field constrains the LLM to `inventory` operations when the user types NLQ into the filter box.
+Entity-table pages and all signal-browsing pages are IR-driven via the `base_ir` protocol:
+the frontend sends a page-specific `base_ir` constant and an optional `question` string to
+`POST /v1/nlq`. The backend derives LLM surface context from `base_ir` directly (no
+`surface_hint` string), calls `merge_irs(base_ir, user_ir)` to produce a merged IR — preserving
+base `operation` and `signals`, letting user filters override same-field base filters — then
+executes the merged IR. When `question` is absent, `base_ir` is executed directly (page-load
+pattern).
 
 #### Eval Harness and Regression Gate
 

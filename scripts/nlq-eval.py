@@ -114,13 +114,15 @@ class Printer:
 # ── API client ────────────────────────────────────────────────────────────────
 
 
-def call_nlq(base_url: str, tenant_id: str, question: str, service_name: str | None, surface_hint: str | None = None, mode: str = "execute") -> dict[str, Any]:
+def call_nlq(base_url: str, tenant_id: str, question: str | None, service_name: str | None, base_ir: dict | None = None, mode: str = "execute") -> dict[str, Any]:
     url = base_url.rstrip("/") + "/v1/nlq"
-    body: dict[str, Any] = {"question": question}
+    body: dict[str, Any] = {}
+    if question:
+        body["question"] = question
     if service_name:
         body["service_name"] = service_name
-    if surface_hint:
-        body["surface_hint"] = surface_hint
+    if base_ir:
+        body["base_ir"] = base_ir
     if mode != "execute":
         body["mode"] = mode
     data = json.dumps(body).encode()
@@ -198,7 +200,7 @@ def evaluate_case(
     case_id = case["id"]
     query = case["query"]
     service_name = case.get("service_name")
-    surface_hint = case.get("surface_hint")
+    base_ir = case.get("base_ir")
     mode = case.get("mode", "execute")
     expect = case["expect"]
 
@@ -218,7 +220,7 @@ def evaluate_case(
 
     # --- Call API ---
     try:
-        resp = call_nlq(base_url, tenant_id, query, service_name, surface_hint=surface_hint, mode=mode)
+        resp = call_nlq(base_url, tenant_id, query, service_name, base_ir=base_ir, mode=mode)
     except Exception as exc:
         result_record["error"] = str(exc)
         print(f"  {printer.red('ERR')}  {case_id}: {exc}")

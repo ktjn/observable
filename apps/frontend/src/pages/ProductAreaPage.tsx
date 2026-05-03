@@ -8,7 +8,14 @@ import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
 import { Toolbar } from "../components/ui/toolbar";
 import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
-import { deriveViewFiltersFromIr } from "../features/nlq/queryFilters";
+import { deriveViewFiltersFromIr, type NlqIrLike } from "../features/nlq/queryFilters";
+
+const SERVICES_BASE_IR: NlqIrLike = {
+  operation: "catalog",
+  signals: ["metrics"],
+  filters: [],
+  time_range: { from: "now-1h", to: "now" },
+};
 
 export function ProductAreaPage() {
   const [environment, setEnvironment] = useState<string>("all");
@@ -94,7 +101,7 @@ export function ProductAreaPage() {
 
       <Toolbar aria-label="Service filters">
         <QueryFilterInput
-          surface="services"
+          baseIr={SERVICES_BASE_IR}
           placeholder='Filter services, e.g. "prod checkout services in watch" or raw NLQ IR JSON'
           onIr={(ir) => {
             const filters = deriveViewFiltersFromIr(ir, "services");

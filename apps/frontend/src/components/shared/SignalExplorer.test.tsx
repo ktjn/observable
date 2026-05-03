@@ -82,20 +82,21 @@ test("panel container has w-1/4 class when open", () => {
   expect(panelContainer.className).toMatch(/w-1\/4/);
 });
 
-test("query input applies interpreted service filter", async () => {
-  const onServiceChange = vi.fn();
+test("query input calls onQuerySubmit with the raw text", async () => {
+  const onQuerySubmit = vi.fn();
+  const baseIr = { operation: "table", signals: ["logs"], filters: [], time_range: { from: "now-1h", to: "now" } };
   mockSubmit.mockResolvedValue({
     type: "ir",
     ir: {
-      operation: "catalog",
+      operation: "table",
       signals: ["logs"],
       filters: [{ field: "service_name", op: "=", value: "checkout" }],
     },
   });
 
-  render(<SignalExplorer {...makeProps({ onServiceChange })} />);
+  render(<SignalExplorer {...makeProps({ onQuerySubmit, baseIr })} />);
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "checkout" } });
   fireEvent.submit(screen.getByRole("form", { name: "Query current view" }));
 
-  await waitFor(() => expect(onServiceChange).toHaveBeenCalledWith("checkout"));
+  await waitFor(() => expect(onQuerySubmit).toHaveBeenCalledWith("checkout"));
 });

@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from "react";
 import { Button } from "../ui/button";
 import { QueryFilterInput } from "../../features/nlq/QueryFilterInput";
-import { deriveViewFiltersFromIr, type QuerySurface } from "../../features/nlq/queryFilters";
+import type { NlqIrLike, QuerySurface } from "../../features/nlq/queryFilters";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -13,6 +13,16 @@ export interface SignalExplorerProps {
   showHeader?: boolean;
   showPromote?: boolean;
   querySurface?: Extract<QuerySurface, "logs" | "traces" | "metrics">;
+  /**
+   * Page base IR for NLQ filtering. When provided, `QueryFilterInput` uses the
+   * new `baseIr`/`onSubmit` pattern and calls `onQuerySubmit` with the raw query text.
+   */
+  baseIr?: NlqIrLike;
+  /**
+   * Called with the raw query text when the user submits an NLQ query.
+   * Required when `baseIr` is provided.
+   */
+  onQuerySubmit?: (text: string) => void;
   saveStatus: SaveStatus;
   onPromote: () => void;
   histogram: ReactNode;
@@ -29,7 +39,8 @@ export function SignalExplorer({
   lockedService = false,
   showHeader = true,
   showPromote = true,
-  querySurface = "logs",
+  baseIr,
+  onQuerySubmit,
   saveStatus,
   onPromote,
   histogram,
@@ -59,6 +70,13 @@ export function SignalExplorer({
     onServiceChange(s);
   }
 
+  function handleClear() {
+    handleServiceChange("");
+    onQuerySubmit?.("");
+  }
+
+  const hasActiveFilter = !!service;
+
   return (
     <div className="page-stack">
       {showHeader && (
@@ -71,18 +89,15 @@ export function SignalExplorer({
       )}
 
       <div className="toolbar-row">
-        {!lockedService && (
+        {!lockedService && baseIr && onQuerySubmit && (
           <QueryFilterInput
-            surface={querySurface}
+            baseIr={baseIr}
             placeholder={`Filter ${title.toLowerCase()} with NLQ or raw NLQ IR JSON`}
-            onIr={(ir) => {
-              const filters = deriveViewFiltersFromIr(ir, querySurface);
-              handleServiceChange(filters.service ?? filters.text ?? "");
-            }}
+            onSubmit={onQuerySubmit}
           />
         )}
-        {service && !lockedService && (
-          <Button variant="secondary" onClick={() => handleServiceChange("")}>
+        {hasActiveFilter && !lockedService && (
+          <Button variant="secondary" onClick={handleClear}>
             Clear filters
           </Button>
         )}

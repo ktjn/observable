@@ -59,11 +59,32 @@ const logs: LogRecord[] = [
   },
 ];
 
+vi.mock("../api/nlq", () => ({
+  submitNlqQuery: vi.fn(async () => ({
+    type: "frame",
+    frame: {
+      frame_type: "table",
+      x_field: null,
+      y_field: null,
+      series_field: null,
+      unit: null,
+      suggested_visualization: "table",
+      field_roles: [],
+      data: logs,
+      nlq_ir: {},
+      source_sql: "",
+      time_range: { from: "now-1h", to: "now" },
+      signal_types: ["logs"],
+      sample_rate: null,
+      approximation_statement: "",
+    },
+  })),
+}));
+
 vi.mock("../api/logs", async () => {
   const actual = await vi.importActual<typeof import("../api/logs")>("../api/logs");
   return {
     ...actual,
-    searchLogs: vi.fn(async () => ({ logs, total: logs.length, facets: {} })),
     fetchLogHistogram: vi.fn(async (params: { from: string; to: string; buckets?: number }) => {
       const fromMs = new Date(params.from).getTime();
       const toMs = new Date(params.to).getTime();
@@ -88,7 +109,7 @@ vi.mock("../api/dashboards", () => ({
   })),
 }));
 
-const { searchLogs, fetchLogHistogram } = await import("../api/logs");
+const { fetchLogHistogram } = await import("../api/logs");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -110,10 +131,15 @@ function renderLogSearch() {
   );
 }
 
-test("queries logs using the global date range", async () => {
+test("queries logs via NLQ execute on load", async () => {
+  const { submitNlqQuery } = await import("../api/nlq");
   renderLogSearch();
 
-  await waitFor(() => expect(searchLogs).toHaveBeenCalledWith(expect.objectContaining({ from: expect.any(String), to: expect.any(String) })));
+  await waitFor(() =>
+    expect(submitNlqQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: "execute", base_ir: expect.objectContaining({ signals: ["logs"] }) }),
+    ),
+  );
 });
 
 test("renders histogram and primary Time Level Message columns", async () => {
@@ -255,3 +281,4 @@ test("histogram renders visible bars when API returns non-zero severity counts",
   expect(infoBar).toBeInTheDocument();
   expect(errorBar).toBeInTheDocument();
 });
+

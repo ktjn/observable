@@ -7,10 +7,17 @@ import { formatLogMessage, getSeverityColor } from "../utils/logFormatting";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
-import { deriveViewFiltersFromIr } from "../features/nlq/queryFilters";
+import { deriveViewFiltersFromIr, type NlqIrLike } from "../features/nlq/queryFilters";
 
 const POLL_INTERVAL_MS = 1000;
 const MAX_LOGS = 200;
+
+const LIVE_LOGS_BASE_IR: NlqIrLike = {
+  operation: "table",
+  signals: ["logs"],
+  filters: [],
+  time_range: { from: "now-5m", to: "now" },
+};
 
 export function LogLiveTail() {
   const [service, setService] = useState("");
@@ -57,7 +64,7 @@ export function LogLiveTail() {
           {enabled ? "Pause" : "Resume"}
         </Button>
         <QueryFilterInput
-          surface="live-logs"
+          baseIr={LIVE_LOGS_BASE_IR}
           placeholder='Filter live logs, e.g. "checkout service" or raw NLQ IR JSON'
           onIr={(ir) => {
             const filters = deriveViewFiltersFromIr(ir, "live-logs");

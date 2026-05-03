@@ -6,8 +6,15 @@ import { Button } from "../components/ui/button";
 import { LoadingState } from "../components/ui/loading-state";
 import { TablePanel } from "../components/ui/table-panel";
 import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
-import { deriveViewFiltersFromIr } from "../features/nlq/queryFilters";
+import { deriveViewFiltersFromIr, type NlqIrLike } from "../features/nlq/queryFilters";
 import { LogExplorer } from "./LogSearch";
+
+const TOPOLOGY_BASE_IR: NlqIrLike = {
+  operation: "catalog",
+  signals: ["metrics"],
+  filters: [],
+  time_range: { from: "now-1h", to: "now" },
+};
 
 export default function ServiceTopologyPage() {
   const [environment, setEnvironment] = useState<string>("all");
@@ -35,7 +42,7 @@ export default function ServiceTopologyPage() {
 
       <div className="toolbar-row">
         <QueryFilterInput
-          surface="topology"
+          baseIr={TOPOLOGY_BASE_IR}
           placeholder='Focus topology, e.g. "prod payments service" or raw NLQ IR JSON'
           onIr={(ir) => {
             const filters = deriveViewFiltersFromIr(ir, "topology");

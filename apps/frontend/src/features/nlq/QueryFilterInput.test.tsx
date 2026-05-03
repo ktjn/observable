@@ -9,13 +9,21 @@ vi.mock("../../api/nlq", () => ({
 import { submitNlqQuery } from "../../api/nlq";
 const mockSubmit = vi.mocked(submitNlqQuery);
 
+const SERVICES_BASE_IR = {
+  operation: "catalog",
+  signals: ["metrics"],
+  filters: [],
+  time_range: { from: "now-1h", to: "now" },
+};
+
 afterEach(() => {
   vi.clearAllMocks();
 });
 
 describe("QueryFilterInput", () => {
-  test("submits natural language in interpret mode and emits the returned IR", async () => {
+  test("submits natural language in interpret mode and calls onSubmit with raw text and onIr with IR", async () => {
     const onIr = vi.fn();
+    const onSubmit = vi.fn();
     mockSubmit.mockResolvedValue({
       type: "ir",
       ir: {
@@ -25,7 +33,7 @@ describe("QueryFilterInput", () => {
       },
     });
 
-    render(<QueryFilterInput onIr={onIr} surface="services" />);
+    render(<QueryFilterInput onIr={onIr} onSubmit={onSubmit} baseIr={SERVICES_BASE_IR} />);
     fireEvent.change(screen.getByRole("textbox", { name: "Query current view input" }), {
       target: { value: "show checkout services" },
     });
@@ -36,9 +44,10 @@ describe("QueryFilterInput", () => {
         question: "show checkout services",
         mode: "interpret",
         service_name: undefined,
-        surface_hint: "services",
+        base_ir: SERVICES_BASE_IR,
       }),
     );
+    expect(onSubmit).toHaveBeenCalledWith("show checkout services");
     expect(onIr).toHaveBeenCalledWith({
       operation: "catalog",
       signals: ["metrics"],
@@ -61,7 +70,7 @@ describe("QueryFilterInput", () => {
       },
     });
 
-    render(<QueryFilterInput onIr={vi.fn()} surface="topology" />);
+    render(<QueryFilterInput onIr={vi.fn()} baseIr={SERVICES_BASE_IR} />);
     fireEvent.change(screen.getByRole("textbox", { name: "Query current view input" }), {
       target: { value: raw },
     });
