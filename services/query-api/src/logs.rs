@@ -387,8 +387,8 @@ fn to_unix_nano(dt: DateTime<Utc>) -> u64 {
 #[derive(Deserialize)]
 pub struct LogHistogramParams {
     pub service: Option<String>,
-    pub from: Option<DateTime<Utc>>,
-    pub to: Option<DateTime<Utc>>,
+    pub from: Option<u64>,
+    pub to: Option<u64>,
     pub buckets: Option<u32>,
 }
 
@@ -412,9 +412,8 @@ pub async fn log_histogram(
     let now_ns = Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64;
     let from_ns = params
         .from
-        .map(to_unix_nano)
         .unwrap_or_else(|| now_ns.saturating_sub(3_600_000_000_000));
-    let to_ns = params.to.map(to_unix_nano).unwrap_or(now_ns);
+    let to_ns = params.to.unwrap_or(now_ns);
     let bucket_count = params.buckets.unwrap_or(30).clamp(1, 200);
 
     let plan =
