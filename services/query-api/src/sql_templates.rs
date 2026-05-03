@@ -344,7 +344,7 @@ fn table_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
 
     Ok(format!(
         "SELECT\n    \
-             fromUnixTimestamp64Nano(mp.time_unix_nano) AS timestamp_unix_nano,\n    \
+             mp.time_unix_nano AS timestamp_unix_nano,\n    \
              ms.metric_name,\n    \
              ms.service_name,\n    \
              coalesce(mp.value_double, toFloat64(mp.value_int)) AS value{extra_select}\n\
@@ -578,7 +578,7 @@ pub fn generate_log_sql(ctx: &LogSqlContext) -> Result<String, SqlTemplateError>
 
     Ok(format!(
         "SELECT\n    \
-             fromUnixTimestamp64Nano(timestamp_unix_nano) AS timestamp_unix_nano,\n    \
+             timestamp_unix_nano,\n    \
              body,\n    \
              service_name,\n    \
              severity_text,\n    \
