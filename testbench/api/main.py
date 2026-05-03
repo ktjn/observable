@@ -8,12 +8,16 @@ import asyncpg
 from aio_pika import connect_robust, Message
 from fastapi import FastAPI, HTTPException, Request, Response
 from opentelemetry import metrics, trace
+from opentelemetry._logs import set_logger_provider
+from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.aio_pika import AioPikaInstrumentor
 from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
+from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
@@ -54,6 +58,12 @@ stock_out_counter = meter.create_counter(
     unit="1",
     description="Orders rejected due to insufficient inventory",
 )
+
+log_provider = LoggerProvider(resource=resource)
+log_provider.add_log_record_processor(
+    BatchLogRecordProcessor(OTLPLogExporter(endpoint=OTLP_ENDPOINT, insecure=True))
+)
+set_logger_provider(log_provider)
 
 LoggingInstrumentor().instrument(set_logging_format=True)
 AsyncPGInstrumentor().instrument()
