@@ -274,6 +274,8 @@ function MetricSeriesTable({
           {series.map((item) => (
             <tr
               key={item.metric_series_id}
+              role="button"
+              aria-label={`Select ${item.metric_name}`}
               className={selectedSeriesId === item.metric_series_id ? "selected" : "hoverable"}
               onClick={() => onSelect(item.metric_series_id)}
               style={{ cursor: "pointer" }}
