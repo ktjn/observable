@@ -7,6 +7,10 @@ vi.mock("../../api/nlq", () => ({
   submitNlqQuery: vi.fn(),
 }));
 
+vi.mock("../../hooks/useGlobalDateRange", () => ({
+  useGlobalDateRange: () => ({ fromMs: Date.now() - 3600_000, toMs: Date.now() }),
+}));
+
 import { submitNlqQuery } from "../../api/nlq";
 const mockSubmit = vi.mocked(submitNlqQuery);
 

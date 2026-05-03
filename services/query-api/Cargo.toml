@@ -27,6 +27,8 @@ clickhouse         = { workspace = true }
 sqlx               = { workspace = true }
 async-openai       = { version = "0.36", features = ["chat-completion"] }
 async-trait        = "0.1"
+rand               = "0.9"
+sha2               = "0.10"
 
 [dev-dependencies]
 testcontainers         = "0.27.3"
