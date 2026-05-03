@@ -141,6 +141,7 @@ services:
       retries: 10
     depends_on:
       clickhouse-setup: { condition: service_completed_successfully }
+      ingest-gateway: { condition: service_healthy }
 
   stream-processor:
     image: observable-services:local
@@ -154,6 +155,7 @@ services:
     depends_on:
       redpanda-setup: { condition: service_completed_successfully }
       storage-writer: { condition: service_healthy }
+      ingest-gateway: { condition: service_healthy }
 
   ingest-gateway:
     image: observable-services:local
@@ -202,6 +204,7 @@ services:
     depends_on:
       clickhouse-setup: { condition: service_completed_successfully }
       postgres-setup: { condition: service_completed_successfully }
+      ingest-gateway: { condition: service_healthy }
 
   alert-evaluator:
     image: observable-services:local
