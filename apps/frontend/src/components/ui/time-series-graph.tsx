@@ -225,7 +225,7 @@ export function TimeSeriesGraph({
           onPointerDown={handlePointerDown}
           onPointerUp={handlePointerUp}
           onPointerCancel={() => { dragRef.current = null; setDragDisplay(null); }}
-          style={{ cursor: onRangeSelect ? "crosshair" : "default", overflow: "visible" }}
+          style={{ cursor: onRangeSelect ? "crosshair" : "default" }}
         >
           {gridYs.map((y) => (
             <line
