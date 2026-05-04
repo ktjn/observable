@@ -7,6 +7,7 @@ import { LoadingState } from "../components/ui/loading-state";
 import { TablePanel } from "../components/ui/table-panel";
 import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
 import { deriveViewFiltersFromIr, type NlqIrLike } from "../features/nlq/queryFilters";
+import { useTenantContext } from "../hooks/useTenantContext";
 import { LogExplorer } from "./LogSearch";
 
 const TOPOLOGY_BASE_IR: NlqIrLike = {
@@ -24,11 +25,12 @@ export default function ServiceTopologyPage() {
     x: number;
     y: number;
   } | null>(null);
+  const { tenantId } = useTenantContext();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["topology", environment],
+    queryKey: ["topology", tenantId, environment],
     queryFn: () =>
-      getTopology({ environment: environment === "all" ? undefined : environment }),
+      getTopology(tenantId, { environment: environment === "all" ? undefined : environment }),
   });
 
   return (

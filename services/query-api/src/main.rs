@@ -13,6 +13,7 @@ mod middleware;
 mod planner;
 mod schemas;
 mod sql_templates;
+mod tenants;
 mod tokens;
 mod traces;
 
@@ -143,6 +144,13 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/tokens/:id/restore", post(tokens::restore_token))
         .route("/v1/tokens/:id/permanent", delete(tokens::delete_token))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
+        // Bootstrap endpoints — no tenant-auth required; used to populate the
+        // global tenant+environment selector before a scope is chosen.
+        .route("/v1/tenants", get(tenants::list_tenants))
+        .route(
+            "/v1/tenants/:id/environments",
+            get(tenants::list_tenant_environments),
+        )
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
         .layer(TraceLayer::new_for_http())
         .with_state(state);

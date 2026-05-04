@@ -22,11 +22,13 @@ import { VisualizationPanel } from "../features/nlq/VisualizationPanel";
 import { ServiceMetricsWorkspace } from "../features/metrics/ServiceMetricsWorkspace";
 import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
+import { useTenantContext } from "../hooks/useTenantContext";
 import { LogExplorer } from "./LogSearch";
 import { TraceExplorer } from "./TraceSearch";
 
 export default function ServiceDetailPage() {
   const { serviceId } = useParams({ strict: false });
+  const { tenantId } = useTenantContext();
   if (!serviceId) {
     return <LoadingState>Loading service overview…</LoadingState>;
   }
@@ -36,8 +38,8 @@ export default function ServiceDetailPage() {
   const { fromMs, toMs } = useGlobalDateRange();
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["service-summary", serviceName, fromMs, toMs],
-    queryFn: () => getServiceSummary(serviceName, { from: fromMs, to: toMs }),
+    queryKey: ["service-summary", tenantId, serviceName, fromMs, toMs],
+    queryFn: () => getServiceSummary(tenantId, serviceName, { from: fromMs, to: toMs }),
   });
 
   if (isLoading) {
@@ -324,11 +326,12 @@ function ResponseTimeGraphSection({
   toMs: number;
 }) {
   const { setCustomRange } = useGlobalDateRange();
+  const { tenantId } = useTenantContext();
 
   const { data: historyData } = useQuery({
-    queryKey: ["service-response-time", serviceName, fromMs, toMs],
+    queryKey: ["service-response-time", tenantId, serviceName, fromMs, toMs],
     queryFn: () =>
-      getServiceResponseTimeHistory(serviceName, {
+      getServiceResponseTimeHistory(tenantId, serviceName, {
         from: fromMs,
         to: toMs,
         buckets: 60,
@@ -336,9 +339,9 @@ function ResponseTimeGraphSection({
   });
 
   const { data: deploymentData } = useQuery({
-    queryKey: ["deployments", serviceName, fromMs, toMs],
+    queryKey: ["deployments", tenantId, serviceName, fromMs, toMs],
     queryFn: () =>
-      listDeployments({
+      listDeployments(tenantId, {
         service_name: serviceName,
         start_time: new Date(fromMs).toISOString(),
         end_time: new Date(toMs).toISOString(),

@@ -15,13 +15,14 @@ import {
   saveLlmConfig,
   type LlmModelsResult,
 } from "../api/setup";
-import { createToken, deleteToken, listTokens, renewToken, restoreToken, revokeToken, type TokenRecord } from "../api/tokens";
-import { TOKENS_QUERY_KEY } from "../hooks/useTokens";
+import { createToken, deleteToken, listTokens, renewToken, restoreToken, revokeToken, type TokenRecord, type CreateTokenRequest } from "../api/tokens";
+import { useTenantContext } from "../hooks/useTenantContext";
 
 export default function SetupPage() {
+  const { tenantId } = useTenantContext();
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["setup", "first-signal"],
-    queryFn: getFirstSignalStatus,
+    queryKey: ["setup", "first-signal", tenantId],
+    queryFn: () => getFirstSignalStatus(tenantId),
   });
 
   const statusText = isLoading
@@ -113,9 +114,10 @@ const KNOWN_MODELS = [
 const CUSTOM_MODEL_SENTINEL = "__custom__";
 
 function LlmConfigPanel() {
+  const { tenantId } = useTenantContext();
   const { data: config, refetch: refetchConfig } = useQuery({
-    queryKey: ["setup", "config"],
-    queryFn: getConfig,
+    queryKey: ["setup", "config", tenantId],
+    queryFn: () => getConfig(tenantId),
   });
 
   const [apiKey, setApiKey] = useState("");
@@ -147,6 +149,7 @@ function LlmConfigPanel() {
     setModelsStatus("loading");
     setModelsError("");
     const result: LlmModelsResult = await fetchAvailableModels(
+      tenantId,
       urlValue.trim() || undefined,
       apiKey.trim() || undefined,
     );
@@ -169,7 +172,7 @@ function LlmConfigPanel() {
     e.preventDefault();
     setSaveState("saving");
     try {
-      await saveLlmConfig({
+      await saveLlmConfig(tenantId, {
         ...(apiKey.trim() && { apiKey: apiKey.trim() }),
         // Only include url/model once the server config has been loaded to avoid
         // overwriting persisted values with empty strings on a save-before-load race.
@@ -367,9 +370,10 @@ function ConnectivityBadge({ saveState, modelsStatus, modelsError, remoteModels 
 
 function IngressTokensPanel() {
   const qc = useQueryClient();
+  const { tenantId } = useTenantContext();
   const { data, isLoading } = useQuery({
-    queryKey: TOKENS_QUERY_KEY,
-    queryFn: listTokens,
+    queryKey: ["tokens", tenantId],
+    queryFn: () => listTokens(tenantId),
   });
 
   const [showForm, setShowForm] = useState(false);
@@ -385,9 +389,9 @@ function IngressTokensPanel() {
   ).sort();
 
   const createMutation = useMutation({
-    mutationFn: createToken,
+    mutationFn: (body: CreateTokenRequest) => createToken(tenantId, body),
     onSuccess: (res) => {
-      void qc.invalidateQueries({ queryKey: TOKENS_QUERY_KEY });
+      void qc.invalidateQueries({ queryKey: ["tokens", tenantId] });
       setNewPlaintext(res.plaintext);
       setShowForm(false);
       setName("");
@@ -398,26 +402,26 @@ function IngressTokensPanel() {
   });
 
   const revokeMutation = useMutation({
-    mutationFn: revokeToken,
-    onSuccess: () => void qc.invalidateQueries({ queryKey: TOKENS_QUERY_KEY }),
+    mutationFn: (id: string) => revokeToken(tenantId, id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["tokens", tenantId] }),
   });
 
   const renewMutation = useMutation({
-    mutationFn: renewToken,
+    mutationFn: (id: string) => renewToken(tenantId, id),
     onSuccess: (res) => {
-      void qc.invalidateQueries({ queryKey: TOKENS_QUERY_KEY });
+      void qc.invalidateQueries({ queryKey: ["tokens", tenantId] });
       setNewPlaintext(res.plaintext);
     },
   });
 
   const restoreMutation = useMutation({
-    mutationFn: restoreToken,
-    onSuccess: () => void qc.invalidateQueries({ queryKey: TOKENS_QUERY_KEY }),
+    mutationFn: (id: string) => restoreToken(tenantId, id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["tokens", tenantId] }),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteToken,
-    onSuccess: () => void qc.invalidateQueries({ queryKey: TOKENS_QUERY_KEY }),
+    mutationFn: (id: string) => deleteToken(tenantId, id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["tokens", tenantId] }),
   });
 
   function handleCreate(e: React.FormEvent) {

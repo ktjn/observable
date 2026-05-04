@@ -1,7 +1,5 @@
-const DEV_TENANT_ID = "00000000-0000-0000-0000-000000000001";
-
-function tenantHeaders(): HeadersInit {
-  return { "X-Tenant-ID": DEV_TENANT_ID };
+function tenantHeaders(tenantId: string): HeadersInit {
+  return { "X-Tenant-ID": tenantId };
 }
 
 export interface LogRecord {
@@ -37,7 +35,7 @@ export interface LogListResponse {
   facets: Facets;
 }
 
-export async function searchLogs(params: {
+export async function searchLogs(tenantId: string, params: {
   service?: string;
   trace_id?: string;
   span_id?: string;
@@ -55,7 +53,7 @@ export async function searchLogs(params: {
   if (params.limit) url.searchParams.set("limit", String(params.limit));
   if (params.facets) url.searchParams.set("facets", params.facets.join(","));
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
@@ -70,7 +68,7 @@ export interface LogHistogramResponse {
   buckets: LogHistogramBucket[];
 }
 
-export async function fetchLogHistogram(params: {
+export async function fetchLogHistogram(tenantId: string, params: {
   service?: string;
   from: string;
   to: string;
@@ -82,12 +80,12 @@ export async function fetchLogHistogram(params: {
   url.searchParams.set("to", params.to);
   if (params.buckets) url.searchParams.set("buckets", String(params.buckets));
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Histogram query failed: ${res.status}`);
   return res.json();
 }
 
-export async function tailLogs(params: {
+export async function tailLogs(tenantId: string, params: {
   service?: string;
   severity?: number;
   since_unix_nano?: string;
@@ -103,19 +101,20 @@ export async function tailLogs(params: {
   }
   if (params.limit) url.searchParams.set("limit", String(params.limit));
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Live tail failed: ${res.status}`);
   return res.json();
 }
 
 export async function getLogContext(
+  tenantId: string,
   logId: string,
   params: { window?: number } = {}
 ): Promise<LogListResponse> {
   const url = new URL(`/v1/logs/${logId}/context`, window.location.origin);
   if (params.window) url.searchParams.set("window", String(params.window));
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }

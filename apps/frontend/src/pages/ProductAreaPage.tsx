@@ -9,6 +9,7 @@ import { Panel } from "../components/ui/panel";
 import { Toolbar } from "../components/ui/toolbar";
 import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
 import { deriveViewFiltersFromIr, type NlqIrLike } from "../features/nlq/queryFilters";
+import { useTenantContext } from "../hooks/useTenantContext";
 
 const SERVICES_BASE_IR: NlqIrLike = {
   operation: "catalog",
@@ -23,11 +24,12 @@ export function ProductAreaPage() {
   const [healthFilter, setHealthFilter] = useState("all");
   const [sortBy, setSortBy] = useState<keyof ServiceSummary | "health">("service_name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const { tenantId } = useTenantContext();
 
   const { data: servicesData, isLoading } = useQuery({
-    queryKey: ["services", environment],
+    queryKey: ["services", tenantId, environment],
     queryFn: () =>
-      listServiceSummaries({
+      listServiceSummaries(tenantId, {
         environment: environment === "all" ? undefined : environment,
       }),
   });

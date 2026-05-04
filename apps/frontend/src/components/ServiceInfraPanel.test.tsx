@@ -2,11 +2,16 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { ServiceInfraPanel } from "./ServiceInfraPanel";
+import { TenantContextProvider } from "../hooks/useTenantContext";
 import * as infraApi from "../api/infrastructure";
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={qc}>
+      <TenantContextProvider>{children}</TenantContextProvider>
+    </QueryClientProvider>
+  );
 }
 
 describe("ServiceInfraPanel", () => {

@@ -1,7 +1,12 @@
-import { Link, Outlet } from "@tanstack/react-router";
+import { Outlet } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useTheme, type ThemePreference } from "../lib/theme";
 import { useTimeDisplay, TIME_FORMAT_OPTIONS } from "../lib/timeDisplay";
 import { GlobalDateRangePicker } from "./GlobalDateRangePicker";
+import { useTenantContext } from "../hooks/useTenantContext";
+import { listTenants, listEnvironments } from "../api/tenants";
+import { Select, SelectOption } from "./ui/select";
 
 const navItems = [
   { label: "Setup", to: "/setup" },
@@ -26,6 +31,21 @@ const themeOptions: { label: string; value: ThemePreference }[] = [
 export function AppShell() {
   const { preference, setPreference } = useTheme();
   const { format, setFormat } = useTimeDisplay();
+  const { tenantId, tenantName, environment, setTenant, setEnvironment } = useTenantContext();
+
+  const { data: tenantsData } = useQuery({
+    queryKey: ["tenants"],
+    queryFn: listTenants,
+  });
+
+  const { data: environmentsData } = useQuery({
+    queryKey: ["environments", tenantId],
+    queryFn: () => listEnvironments(tenantId),
+    enabled: !!tenantId,
+  });
+
+  const tenants = tenantsData?.tenants ?? [];
+  const environments = environmentsData?.environments ?? [];
 
   return (
     <div className="app-shell">
@@ -68,8 +88,30 @@ export function AppShell() {
 
       <div className="workspace">
         <header className="topbar">
-          <div className="topbar-title">Platform — dev</div>
+          <div className="topbar-title">Platform — {tenantName}</div>
           <div className="topbar-controls" aria-label="Global context">
+            <Select
+              aria-label="Tenant"
+              value={tenantId}
+              onChange={(e) => {
+                const selected = tenants.find((t) => t.id === e.target.value);
+                if (selected) setTenant({ id: selected.id, name: selected.name });
+              }}
+            >
+              {tenants.map((t) => (
+                <SelectOption key={t.id} value={t.id}>{t.name}</SelectOption>
+              ))}
+            </Select>
+            <Select
+              aria-label="Environment"
+              value={environment ?? ""}
+              onChange={(e) => setEnvironment(e.target.value === "" ? null : e.target.value)}
+            >
+              <SelectOption value="">All environments</SelectOption>
+              {environments.map((e) => (
+                <SelectOption key={e.environment} value={e.environment}>{e.environment}</SelectOption>
+              ))}
+            </Select>
             <select
               aria-label="Time display format"
               className="context-pill"
@@ -82,8 +124,6 @@ export function AppShell() {
               ))}
             </select>
             <GlobalDateRangePicker />
-            <Link to="/traces" className="secondary-link">Traces</Link>
-            <Link to="/logs" className="secondary-link">Logs</Link>
           </div>
         </header>
 

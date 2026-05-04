@@ -2,12 +2,19 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { vi, beforeEach } from "vitest";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
+import { TenantContextProvider } from "../hooks/useTenantContext";
 import { TraceDetail } from "./TraceDetail";
 import * as logsApi from "../api/logs";
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={qc}><TimeDisplayProvider>{children}</TimeDisplayProvider></QueryClientProvider>;
+  return (
+    <QueryClientProvider client={qc}>
+      <TenantContextProvider>
+        <TimeDisplayProvider>{children}</TimeDisplayProvider>
+      </TenantContextProvider>
+    </QueryClientProvider>
+  );
 }
 
 const baseSpan = {

@@ -3,6 +3,7 @@ import { getLogContext } from "../api/logs";
 import { Button } from "./ui/button";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { LogList } from "./shared/LogList";
+import { useTenantContext } from "../hooks/useTenantContext";
 
 interface Props {
   logId: string;
@@ -10,9 +11,10 @@ interface Props {
 }
 
 export function LogContextView({ logId, onClose }: Props) {
+  const { tenantId } = useTenantContext();
   const { data, isLoading } = useQuery({
-    queryKey: ["logs", "context", logId],
-    queryFn: () => getLogContext(logId),
+    queryKey: ["logs", "context", tenantId, logId],
+    queryFn: () => getLogContext(tenantId, logId),
   });
   const { format } = useTimeDisplay();
 

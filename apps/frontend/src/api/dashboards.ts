@@ -1,9 +1,7 @@
 import type { Preset } from "../router";
 
-const DEV_TENANT_ID = "00000000-0000-0000-0000-000000000001";
-
-function tenantHeaders(): HeadersInit {
-  return { "X-Tenant-ID": DEV_TENANT_ID };
+function tenantHeaders(tenantId: string): HeadersInit {
+  return { "X-Tenant-ID": tenantId };
 }
 
 export type DashboardQueryKind = "logs" | "traces" | "metrics";
@@ -39,17 +37,17 @@ export interface CreateDashboardRequest {
   }>;
 }
 
-export async function listDashboards(): Promise<DashboardListResponse> {
-  const res = await fetch("/v1/dashboards", { headers: tenantHeaders() });
+export async function listDashboards(tenantId: string): Promise<DashboardListResponse> {
+  const res = await fetch("/v1/dashboards", { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Dashboard query failed: ${res.status}`);
   return res.json();
 }
 
-export async function createDashboard(req: CreateDashboardRequest): Promise<Dashboard> {
+export async function createDashboard(tenantId: string, req: CreateDashboardRequest): Promise<Dashboard> {
   const res = await fetch("/v1/dashboards", {
     method: "POST",
     headers: {
-      ...tenantHeaders(),
+      ...tenantHeaders(tenantId),
       "Content-Type": "application/json",
     },
     body: JSON.stringify(req),

@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi, describe, test, expect, afterEach } from "vitest";
 import { NlqPanel } from "./NlqPanel";
 import type { NlqResponse } from "../../api/nlq";
+import { TenantContextProvider } from "../../hooks/useTenantContext";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -11,6 +12,12 @@ vi.mock("../../api/nlq", () => ({
 
 import { submitNlqQuery } from "../../api/nlq";
 const mockSubmit = vi.mocked(submitNlqQuery);
+
+const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
+
+function wrapper({ children }: { children: React.ReactNode }) {
+  return <TenantContextProvider>{children}</TenantContextProvider>;
+}
 
 const FRAME_RESPONSE: NlqResponse = {
   type: "frame",
@@ -55,23 +62,23 @@ afterEach(() => {
 
 describe("NlqPanel", () => {
   test("submit button shows 'Ask' label in idle state", () => {
-    render(<NlqPanel />);
+    render(<NlqPanel />, { wrapper });
     expect(screen.getByTestId("nlq-submit")).toHaveTextContent("Ask");
   });
 
   test("renders query input and submit button", () => {
-    render(<NlqPanel />);
+    render(<NlqPanel />, { wrapper });
     expect(screen.getByTestId("nlq-input")).toBeInTheDocument();
     expect(screen.getByTestId("nlq-submit")).toBeInTheDocument();
   });
 
   test("submit button is disabled when input is empty", () => {
-    render(<NlqPanel />);
+    render(<NlqPanel />, { wrapper });
     expect(screen.getByTestId("nlq-submit")).toBeDisabled();
   });
 
   test("submit button enables when input has text", async () => {
-    render(<NlqPanel />);
+    render(<NlqPanel />, { wrapper });
     fireEvent.change(screen.getByTestId("nlq-input"), {
       target: { value: "p99 latency" },
     });
@@ -86,7 +93,7 @@ describe("NlqPanel", () => {
       })
     );
 
-    render(<NlqPanel />);
+    render(<NlqPanel />, { wrapper });
     fireEvent.change(screen.getByTestId("nlq-input"), {
       target: { value: "p99 latency" },
     });
@@ -98,7 +105,7 @@ describe("NlqPanel", () => {
 
   test("renders visualization frame after successful query", async () => {
     mockSubmit.mockResolvedValue(FRAME_RESPONSE);
-    render(<NlqPanel />);
+    render(<NlqPanel />, { wrapper });
     fireEvent.change(screen.getByTestId("nlq-input"), {
       target: { value: "p99 latency" },
     });
@@ -112,7 +119,7 @@ describe("NlqPanel", () => {
 
   test("always shows approximation statement when frame is returned", async () => {
     mockSubmit.mockResolvedValue(FRAME_RESPONSE);
-    render(<NlqPanel />);
+    render(<NlqPanel />, { wrapper });
     fireEvent.change(screen.getByTestId("nlq-input"), {
       target: { value: "p99 latency" },
     });
@@ -128,7 +135,7 @@ describe("NlqPanel", () => {
 
   test("hides source SQL and NLQ IR until Show details clicked", async () => {
     mockSubmit.mockResolvedValue(FRAME_RESPONSE);
-    render(<NlqPanel />);
+    render(<NlqPanel />, { wrapper });
     fireEvent.change(screen.getByTestId("nlq-input"), {
       target: { value: "p99 latency" },
     });
@@ -153,7 +160,7 @@ describe("NlqPanel", () => {
 
   test("provenance shows NLQ question first", async () => {
     mockSubmit.mockResolvedValue(FRAME_RESPONSE);
-    render(<NlqPanel />);
+    render(<NlqPanel />, { wrapper });
     fireEvent.change(screen.getByTestId("nlq-input"), {
       target: { value: "p99 latency last hour" },
     });
@@ -174,7 +181,7 @@ describe("NlqPanel", () => {
 
   test("provenance order: NLQ question, NLQ IR, SQL, time range, signals", async () => {
     mockSubmit.mockResolvedValue(FRAME_RESPONSE);
-    render(<NlqPanel />);
+    render(<NlqPanel />, { wrapper });
     fireEvent.change(screen.getByTestId("nlq-input"), {
       target: { value: "p99 latency" },
     });
@@ -201,7 +208,7 @@ describe("NlqPanel", () => {
 
   test("renders decline message with reason", async () => {
     mockSubmit.mockResolvedValue(DECLINE_RESPONSE);
-    render(<NlqPanel />);
+    render(<NlqPanel />, { wrapper });
     fireEvent.change(screen.getByTestId("nlq-input"), {
       target: { value: "total billing this month" },
     });
@@ -215,7 +222,7 @@ describe("NlqPanel", () => {
 
   test("renders error message on API failure", async () => {
     mockSubmit.mockRejectedValue(new Error("NLQ service is not configured"));
-    render(<NlqPanel />);
+    render(<NlqPanel />, { wrapper });
     fireEvent.change(screen.getByTestId("nlq-input"), {
       target: { value: "latency" },
     });
@@ -231,14 +238,14 @@ describe("NlqPanel", () => {
 
   test("passes service_name to API when provided", async () => {
     mockSubmit.mockResolvedValue(DECLINE_RESPONSE);
-    render(<NlqPanel serviceName="checkout" />);
+    render(<NlqPanel serviceName="checkout" />, { wrapper });
     fireEvent.change(screen.getByTestId("nlq-input"), {
       target: { value: "latency" },
     });
     fireEvent.submit(screen.getByTestId("nlq-input").closest("form")!);
 
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledOnce());
-    expect(mockSubmit).toHaveBeenCalledWith({
+    expect(mockSubmit).toHaveBeenCalledWith(DEFAULT_TENANT_ID, {
       question: "latency",
       service_name: "checkout",
     });
@@ -246,7 +253,7 @@ describe("NlqPanel", () => {
 
   test("renders invalid response panel with reason and raw LLM response", async () => {
     mockSubmit.mockResolvedValue(INVALID_RESPONSE);
-    render(<NlqPanel />);
+    render(<NlqPanel />, { wrapper });
     fireEvent.change(screen.getByTestId("nlq-input"), {
       target: { value: "something confusing" },
     });
@@ -265,7 +272,7 @@ describe("NlqPanel", () => {
 
   test("invalid response panel shows raw LLM text in expandable details", async () => {
     mockSubmit.mockResolvedValue(INVALID_RESPONSE);
-    render(<NlqPanel />);
+    render(<NlqPanel />, { wrapper });
     fireEvent.change(screen.getByTestId("nlq-input"), {
       target: { value: "something confusing" },
     });

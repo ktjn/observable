@@ -2,10 +2,8 @@ import type { NlqIrLike } from "../features/nlq/queryFilters";
 
 export type { NlqIrLike };
 
-const DEV_TENANT_ID = "00000000-0000-0000-0000-000000000001";
-
-function tenantHeaders(): HeadersInit {
-  return { "X-Tenant-ID": DEV_TENANT_ID };
+function tenantHeaders(tenantId: string): HeadersInit {
+  return { "X-Tenant-ID": tenantId };
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -93,12 +91,12 @@ export interface NlqRequest {
   mode?: "execute" | "interpret";
 }
 
-export async function submitNlqQuery(req: NlqRequest): Promise<NlqResponse> {
+export async function submitNlqQuery(tenantId: string, req: NlqRequest): Promise<NlqResponse> {
   const res = await fetch("/v1/nlq", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...tenantHeaders(),
+      ...tenantHeaders(tenantId),
     },
     body: JSON.stringify(req),
   });

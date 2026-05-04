@@ -12,16 +12,18 @@ import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
+import { useTenantContext } from "../hooks/useTenantContext";
 
 export default function InfrastructureDetailPage() {
   const { entityType, entityId } = useParams({ strict: false });
   const { format } = useTimeDisplay();
+  const { tenantId } = useTenantContext();
 
   const canonicalEntityId = entityId ? decodeURIComponent(entityId) : "";
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["infrastructure-detail", entityType, canonicalEntityId],
-    queryFn: () => getInfrastructureDetail(entityType as InfrastructureEntityType, canonicalEntityId),
+    queryKey: ["infrastructure-detail", tenantId, entityType, canonicalEntityId],
+    queryFn: () => getInfrastructureDetail(tenantId, entityType as InfrastructureEntityType, canonicalEntityId),
     enabled: !!entityType && !!entityId,
   });
 

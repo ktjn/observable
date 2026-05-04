@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { vi, describe, test, expect, afterEach } from "vitest";
 import SetupPage from "./SetupPage";
+import { TenantContextProvider } from "../hooks/useTenantContext";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -33,12 +34,16 @@ const BASE_CONFIG = {
   llm_model: null,
 };
 
+const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
+
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={qc}>
-      <SetupPage />
-    </QueryClientProvider>
+    <TenantContextProvider>
+      <QueryClientProvider client={qc}>
+        <SetupPage />
+      </QueryClientProvider>
+    </TenantContextProvider>
   );
 }
 
@@ -114,6 +119,7 @@ describe("SetupPage — AI/NLQ panel", () => {
     fireEvent.submit(screen.getByTestId("llm-key-input").closest("form")!);
     await waitFor(() =>
       expect(mockSaveLlmConfig).toHaveBeenCalledWith(
+        DEFAULT_TENANT_ID,
         expect.objectContaining({ apiKey: "sk-test-key" })
       )
     );
@@ -134,6 +140,7 @@ describe("SetupPage — AI/NLQ panel", () => {
     fireEvent.submit(screen.getByTestId("llm-url-input").closest("form")!);
     await waitFor(() =>
       expect(mockSaveLlmConfig).toHaveBeenCalledWith(
+        DEFAULT_TENANT_ID,
         expect.objectContaining({ url: "http://localhost:8000", model: "gpt-4o" })
       )
     );
@@ -169,7 +176,7 @@ describe("SetupPage — AI/NLQ panel", () => {
     await screen.findByTestId("llm-key-input");
     fireEvent.submit(screen.getByTestId("llm-key-input").closest("form")!);
     await waitFor(() => expect(mockSaveLlmConfig).toHaveBeenCalled());
-    const callArg = mockSaveLlmConfig.mock.calls[0][0];
+    const callArg = mockSaveLlmConfig.mock.calls[0][1];
     expect(callArg).not.toHaveProperty("apiKey");
   });
 
@@ -192,7 +199,7 @@ describe("SetupPage — AI/NLQ panel", () => {
     fireEvent.change(urlInput, { target: { value: "http://ollama:11434/v1" } });
     fireEvent.click(screen.getByTestId("llm-config-test"));
     await waitFor(() =>
-      expect(mockFetchAvailableModels).toHaveBeenCalledWith("http://ollama:11434/v1", undefined)
+      expect(mockFetchAvailableModels).toHaveBeenCalledWith(DEFAULT_TENANT_ID, "http://ollama:11434/v1", undefined)
     );
   });
 

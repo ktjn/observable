@@ -18,6 +18,7 @@ import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
+import { useTenantContext } from "../hooks/useTenantContext";
 import { formatBucketLabel } from "../utils/formatBucketLabel";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { formatContextValue } from "../utils/logFormatting";
@@ -107,6 +108,7 @@ export function TraceExplorer({
 }: TraceExplorerProps) {
   const { format } = useTimeDisplay();
   const { fromMs, toMs, setCustomRange } = useGlobalDateRange();
+  const { tenantId } = useTenantContext();
 
   const initialQuery = serviceName
     ? JSON.stringify({
@@ -124,9 +126,9 @@ export function TraceExplorer({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["traces", "nlq", userQuery, fromMs, toMs],
+    queryKey: ["traces", "nlq", tenantId, userQuery, fromMs, toMs],
     queryFn: async () => {
-      const response = await submitNlqQuery({
+      const response = await submitNlqQuery(tenantId, {
         base_ir: { ...TRACE_BASE_IR, time_range: { from, to } },
         question: userQuery ?? undefined,
         mode: "execute",
@@ -137,9 +139,9 @@ export function TraceExplorer({
   });
 
   const { data: histogramData, isError: isHistogramError } = useQuery({
-    queryKey: ["traces-histogram", service, fromMs, toMs, bucketCount],
+    queryKey: ["traces-histogram", tenantId, service, fromMs, toMs, bucketCount],
     queryFn: () =>
-      fetchTraceHistogram({
+      fetchTraceHistogram(tenantId, {
         service: service || undefined,
         from,
         to,
@@ -163,7 +165,7 @@ export function TraceExplorer({
   const handlePromote = async () => {
     setSaveStatus("saving");
     try {
-      await createDashboard({
+      await createDashboard(tenantId, {
         name: service ? `Traces for ${service}` : "Promoted trace query",
         panels: [
           {

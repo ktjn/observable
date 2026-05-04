@@ -1,7 +1,5 @@
-const DEV_TENANT_ID = "00000000-0000-0000-0000-000000000001";
-
-function tenantHeaders(): HeadersInit {
-  return { "X-Tenant-ID": DEV_TENANT_ID };
+function tenantHeaders(tenantId: string): HeadersInit {
+  return { "X-Tenant-ID": tenantId };
 }
 
 export type InfrastructureEntityType =
@@ -44,6 +42,7 @@ export interface InfrastructureDetailResponse {
 }
 
 export async function listInfrastructure(
+  tenantId: string,
   params: Record<string, string> = {},
 ): Promise<InfrastructureInventoryResponse> {
   const url = new URL("/v1/infrastructure", window.location.origin);
@@ -51,12 +50,13 @@ export async function listInfrastructure(
     if (value) url.searchParams.set(key, value);
   }
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
 
 export async function getInfrastructureDetail(
+  tenantId: string,
   entityType: InfrastructureEntityType,
   entityId: string,
 ): Promise<InfrastructureDetailResponse> {
@@ -65,7 +65,7 @@ export async function getInfrastructureDetail(
     window.location.origin,
   );
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }

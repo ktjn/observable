@@ -15,6 +15,7 @@ import { formatBucketLabel } from "../utils/formatBucketLabel";
 import { OTelLevel, otelSeverity, formatLogMessage, formatContextValue } from "../utils/logFormatting";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
+import { useTenantContext } from "../hooks/useTenantContext";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { LoadingState } from "../components/ui/loading-state";
@@ -71,6 +72,7 @@ export function LogExplorer({
 }: LogExplorerProps) {
   const { format } = useTimeDisplay();
   const { fromMs, toMs, setCustomRange } = useGlobalDateRange();
+  const { tenantId } = useTenantContext();
 
   // userQuery is the raw text (NLQ or raw IR JSON) submitted by the user.
   // When serviceName is provided, initialise with a pre-set service filter IR.
@@ -91,9 +93,9 @@ export function LogExplorer({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["logs", "nlq", userQuery, fromMs, toMs],
+    queryKey: ["logs", "nlq", tenantId, userQuery, fromMs, toMs],
     queryFn: async () => {
-      const response = await submitNlqQuery({
+      const response = await submitNlqQuery(tenantId, {
         base_ir: { ...LOG_BASE_IR, time_range: { from, to } },
         question: userQuery ?? undefined,
         mode: "execute",
@@ -104,9 +106,9 @@ export function LogExplorer({
   });
 
   const { data: histogramData, isError: isHistogramError } = useQuery({
-    queryKey: ["logs-histogram", service, fromMs, toMs, bucketCount],
+    queryKey: ["logs-histogram", tenantId, service, fromMs, toMs, bucketCount],
     queryFn: () =>
-      fetchLogHistogram({
+      fetchLogHistogram(tenantId, {
         service: service || undefined,
         from,
         to,
@@ -129,7 +131,7 @@ export function LogExplorer({
   const handlePromote = async () => {
     setSaveStatus("saving");
     try {
-      await createDashboard({
+      await createDashboard(tenantId, {
         name: service ? `Logs for ${service}` : "Promoted log query",
         panels: [
           {

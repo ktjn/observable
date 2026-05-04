@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi, expect, test, afterEach } from "vitest";
 import { SignalExplorer } from "./SignalExplorer";
 import type { SignalExplorerProps } from "./SignalExplorer";
+import { TenantContextProvider } from "../../hooks/useTenantContext";
 
 vi.mock("../../api/nlq", () => ({
   submitNlqQuery: vi.fn(),
@@ -17,6 +18,10 @@ const mockSubmit = vi.mocked(submitNlqQuery);
 afterEach(() => {
   vi.clearAllMocks();
 });
+
+function wrapper({ children }: { children: React.ReactNode }) {
+  return <TenantContextProvider>{children}</TenantContextProvider>;
+}
 
 function makeProps(overrides: Partial<SignalExplorerProps> = {}): SignalExplorerProps {
   return {
@@ -43,44 +48,44 @@ function makeProps(overrides: Partial<SignalExplorerProps> = {}): SignalExplorer
 }
 
 test("renders the title in the page header", () => {
-  render(<SignalExplorer {...makeProps()} />);
+  render(<SignalExplorer {...makeProps()} />, { wrapper });
   expect(screen.getByRole("heading", { name: "Logs" })).toBeInTheDocument();
 });
 
 test("renders the histogram slot", () => {
-  render(<SignalExplorer {...makeProps()} />);
+  render(<SignalExplorer {...makeProps()} />, { wrapper });
   expect(screen.getByTestId("histogram")).toBeInTheDocument();
 });
 
 test("panel is hidden initially — renderTable receives null selectedId", () => {
-  render(<SignalExplorer {...makeProps()} />);
+  render(<SignalExplorer {...makeProps()} />, { wrapper });
   expect(screen.getByTestId("table")).toHaveTextContent("none selected");
   expect(screen.queryByTestId("panel")).not.toBeInTheDocument();
 });
 
 test("clicking a row opens the panel with that id", () => {
-  render(<SignalExplorer {...makeProps()} />);
+  render(<SignalExplorer {...makeProps()} />, { wrapper });
   fireEvent.click(screen.getByTestId("table"));
   expect(screen.getByTestId("panel")).toHaveAttribute("data-selected", "row-1");
   expect(screen.getByTestId("table")).toHaveTextContent("row-1");
 });
 
 test("clicking the same row again closes the panel", () => {
-  render(<SignalExplorer {...makeProps()} />);
+  render(<SignalExplorer {...makeProps()} />, { wrapper });
   fireEvent.click(screen.getByTestId("table")); // open
   fireEvent.click(screen.getByTestId("table")); // close (same id)
   expect(screen.queryByTestId("panel")).not.toBeInTheDocument();
 });
 
 test("panel close button clears selection", () => {
-  render(<SignalExplorer {...makeProps()} />);
+  render(<SignalExplorer {...makeProps()} />, { wrapper });
   fireEvent.click(screen.getByTestId("table")); // open
   fireEvent.click(screen.getByRole("button", { name: "Close" }));
   expect(screen.queryByTestId("panel")).not.toBeInTheDocument();
 });
 
 test("panel container has w-1/4 class when open", () => {
-  render(<SignalExplorer {...makeProps()} />);
+  render(<SignalExplorer {...makeProps()} />, { wrapper });
   fireEvent.click(screen.getByTestId("table")); // open
   const panelContainer = screen.getByTestId("panel").parentElement!;
   expect(panelContainer.className).toMatch(/w-1\/4/);
@@ -98,7 +103,7 @@ test("query input calls onQuerySubmit with the raw text", async () => {
     },
   });
 
-  render(<SignalExplorer {...makeProps({ onQuerySubmit, baseIr })} />);
+  render(<SignalExplorer {...makeProps({ onQuerySubmit, baseIr })} />, { wrapper });
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "checkout" } });
   fireEvent.submit(screen.getByRole("form", { name: "Query current view" }));
 
