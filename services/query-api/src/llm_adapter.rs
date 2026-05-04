@@ -28,7 +28,9 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use domain::{NlqFilter, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, NlqTimeRange, VisualizationFrame};
+use domain::{
+    NlqFilter, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, NlqTimeRange, VisualizationFrame,
+};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -2603,7 +2605,10 @@ mod tests {
             filters: vec![],
             group_by: vec![],
             resolution: None,
-            time_range: NlqTimeRange { from: "now-1h".into(), to: "now".into() },
+            time_range: NlqTimeRange {
+                from: "now-1h".into(),
+                to: "now".into(),
+            },
             visualization_hint: None,
             percentiles: None,
             catalog_field: None,
@@ -2628,10 +2633,17 @@ mod tests {
             signals: vec![NlqSignal::Metrics],
             metric: None,
             window: None,
-            filters: vec![NlqFilter { field: "env".into(), op: NlqFilterOp::Eq, value: "staging".into() }],
+            filters: vec![NlqFilter {
+                field: "env".into(),
+                op: NlqFilterOp::Eq,
+                value: "staging".into(),
+            }],
             group_by: vec![],
             resolution: None,
-            time_range: NlqTimeRange { from: "now-1h".into(), to: "now".into() },
+            time_range: NlqTimeRange {
+                from: "now-1h".into(),
+                to: "now".into(),
+            },
             visualization_hint: None,
             percentiles: None,
             catalog_field: None,
@@ -2639,7 +2651,11 @@ mod tests {
             query: None,
         };
         let sh = ShorthandIr {
-            filters: vec![NlqFilter { field: "env".into(), op: NlqFilterOp::Eq, value: "prod".into() }],
+            filters: vec![NlqFilter {
+                field: "env".into(),
+                op: NlqFilterOp::Eq,
+                value: "prod".into(),
+            }],
             ..Default::default()
         };
         let result = apply_shorthand_to_ir(base, sh);

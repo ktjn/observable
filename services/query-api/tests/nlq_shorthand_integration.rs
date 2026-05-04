@@ -96,7 +96,10 @@ async fn apply_pg_migrations(pool: &PgPool) {
 
     for entry in entries {
         let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        sqlx::raw_sql(&sql).execute(pool).await.expect("migration applied");
+        sqlx::raw_sql(&sql)
+            .execute(pool)
+            .await
+            .expect("migration applied");
     }
 }
 
@@ -119,7 +122,10 @@ async fn nlq_slash_prefix_interpret_returns_shorthand_ir() {
 
     assert_eq!(resp.status(), StatusCode::OK);
     let json = body_json(resp.into_body()).await;
-    assert_eq!(json["type"], "ir", "slash prefix must return ir discriminant");
+    assert_eq!(
+        json["type"], "ir",
+        "slash prefix must return ir discriminant"
+    );
     let filters = json["ir"]["filters"].as_array().unwrap();
     assert!(
         filters
