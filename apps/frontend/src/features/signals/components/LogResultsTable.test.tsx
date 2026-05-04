@@ -3,6 +3,20 @@ import { expect, test, vi } from "vitest";
 import type { LogRecord } from "../../../api/logs";
 import { LogResultsTable } from "./LogResultsTable";
 
+vi.mock("@tanstack/react-virtual", () => ({
+  useVirtualizer: ({ count }: { count: number }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: count }, (_, i) => ({
+        key: i,
+        index: i,
+        start: i * 40,
+        end: (i + 1) * 40,
+      })),
+    getTotalSize: () => count * 40,
+    measureElement: (_el: Element | null) => {},
+  }),
+}));
+
 const logs: LogRecord[] = [
   {
     tenant_id: "00000000-0000-0000-0000-000000000001",

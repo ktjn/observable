@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { TraceResponse } from "../../../api/traces";
 import { Badge } from "../../../components/ui/badge";
+import { VirtualTable } from "../../../components/ui/VirtualTable";
 import { formatTimestamp } from "../../../utils/formatTimestamp";
 import type { TimeFormat } from "../../../lib/timeDisplay";
 
@@ -22,8 +23,10 @@ export function TraceResultsTable({
   ariaLabel?: string;
 }) {
   return (
-    <table aria-label={ariaLabel}>
-      <thead>
+    <VirtualTable
+      rows={traces}
+      ariaLabel={ariaLabel}
+      renderHead={() => (
         <tr>
           <th aria-label="Time">Time</th>
           <th>Trace ID</th>
@@ -32,21 +35,21 @@ export function TraceResultsTable({
           <th>Duration</th>
           <th>Status</th>
         </tr>
-      </thead>
-      <tbody>
-        {traces.map((trace) => (
-          <TraceResultsRow
-            key={trace.trace_id}
-            trace={trace}
-            selected={selectedTraceId === trace.trace_id}
-            onSelect={() => onSelectTrace(trace.trace_id)}
-            mode={mode}
-            showServiceColumn={showServiceColumn}
-            timeFormat={timeFormat}
-          />
-        ))}
-      </tbody>
-    </table>
+      )}
+      renderRow={(trace, ref, index) => (
+        <TraceResultsRow
+          key={trace.trace_id}
+          trace={trace}
+          selected={selectedTraceId === trace.trace_id}
+          onSelect={() => onSelectTrace(trace.trace_id)}
+          mode={mode}
+          showServiceColumn={showServiceColumn}
+          timeFormat={timeFormat}
+          measureRef={ref}
+          index={index}
+        />
+      )}
+    />
   );
 }
 
@@ -57,6 +60,8 @@ function TraceResultsRow({
   mode,
   showServiceColumn,
   timeFormat,
+  measureRef,
+  index,
 }: {
   trace: TraceResponse;
   selected: boolean;
@@ -64,15 +69,21 @@ function TraceResultsRow({
   mode: "select" | "link";
   showServiceColumn: boolean;
   timeFormat: TimeFormat;
+  measureRef: (el: Element | null) => void;
+  index: number;
 }) {
   const root = trace.spans[0];
   if (!root) return null;
 
   return (
     <tr
+      ref={measureRef}
+      data-index={index}
       className={`modern-table-row ${mode === "select" ? "cursor-pointer" : ""} ${selected ? "bg-[var(--surface-subtle)]" : ""}`}
       onClick={mode === "select" ? onSelect : undefined}
-      onKeyDown={mode === "select" ? (e) => (e.key === "Enter" || e.key === " ") && onSelect() : undefined}
+      onKeyDown={
+        mode === "select" ? (e) => (e.key === "Enter" || e.key === " ") && onSelect() : undefined
+      }
       tabIndex={mode === "select" ? 0 : undefined}
       role={mode === "select" ? "button" : undefined}
       aria-label={mode === "select" ? `${trace.trace_id.substring(0, 16)}…` : undefined}
@@ -95,7 +106,7 @@ function TraceResultsRow({
         )}
       </td>
       {showServiceColumn && <td>{root.service_name}</td>}
-      <td>{root.operation_name}</td>
+      <td className="whitespace-normal break-all">{root.operation_name}</td>
       <td>{(root.duration_ns / 1e6).toFixed(2)}ms</td>
       <td>
         <Badge tone={root.status_code === "ERROR" ? "bad" : "good"}>{root.status_code}</Badge>

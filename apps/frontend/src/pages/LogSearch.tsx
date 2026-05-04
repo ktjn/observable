@@ -39,6 +39,7 @@ const levelBarClasses: Record<OTelLevel, string> = {
   ERROR: "bg-[var(--bad)]",
   FATAL: "bg-[var(--bad)]",
 };
+const ROW_LIMIT = 500;
 
 export type LogExplorerProps = {
   initialService?: string;
@@ -114,7 +115,9 @@ export function LogExplorer({
     placeholderData: (prev: LogHistogramResponse | undefined) => prev,
   });
 
-  const logs = data ?? [];
+  const rawLogs = data ?? [];
+  const logs = rawLogs.slice(0, ROW_LIMIT);
+  const isCapped = rawLogs.length > ROW_LIMIT;
   const histogram = useMemo(
     () =>
       histogramData?.buckets
@@ -192,14 +195,21 @@ export function LogExplorer({
           ) : logs.length === 0 ? (
             <LoadingState>No logs found.</LoadingState>
           ) : (
-            <LogResultsTable
-              logs={logs}
-              selectedLogId={selectedId ?? undefined}
-              onSelectLog={(id) => onSelect(id)}
-              timeFormat={format}
-              showServiceColumn={showServiceColumn}
-              ariaLabel={tableAriaLabel}
-            />
+            <>
+              <LogResultsTable
+                logs={logs}
+                selectedLogId={selectedId ?? undefined}
+                onSelectLog={(id) => onSelect(id)}
+                timeFormat={format}
+                showServiceColumn={showServiceColumn}
+                ariaLabel={tableAriaLabel}
+              />
+              {isCapped && (
+                <p className="px-3 py-2 text-xs text-[var(--muted)] border-t border-[var(--border)]">
+                  Showing {ROW_LIMIT} results — narrow the time range or add filters to see fewer.
+                </p>
+              )}
+            </>
           )}
         </TablePanel>
       )}

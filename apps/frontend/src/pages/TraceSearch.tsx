@@ -31,6 +31,7 @@ const TRACE_BASE_IR: NlqIrLike = {
   filters: [],
   time_range: { from: "now-1h", to: "now" },
 };
+const ROW_LIMIT = 500;
 
 /** Shape of a row returned by the NLQ trace execute query. */
 interface NlqTraceRow {
@@ -147,7 +148,9 @@ export function TraceExplorer({
     placeholderData: (prev: TraceHistogramResponse | undefined) => prev,
   });
 
-  const traces = data ?? [];
+  const rawTraces = data ?? [];
+  const traces = rawTraces.slice(0, ROW_LIMIT);
+  const isCapped = rawTraces.length > ROW_LIMIT;
   const canRenderHistogram = Boolean(histogramData) || traces.length > 0;
   const histogram = useMemo(
     () =>
@@ -234,15 +237,22 @@ export function TraceExplorer({
             ) : traces.length === 0 ? (
               <LoadingState>No traces found.</LoadingState>
             ) : (
-              <TraceResultsTable
-                traces={traces}
-                selectedTraceId={selectedId ?? undefined}
-                onSelectTrace={(id) => onSelect(id)}
-                mode={tableMode}
-                showServiceColumn={showServiceColumn}
-                timeFormat={format}
-                ariaLabel={tableAriaLabel}
-              />
+              <>
+                <TraceResultsTable
+                  traces={traces}
+                  selectedTraceId={selectedId ?? undefined}
+                  onSelectTrace={(id) => onSelect(id)}
+                  mode={tableMode}
+                  showServiceColumn={showServiceColumn}
+                  timeFormat={format}
+                  ariaLabel={tableAriaLabel}
+                />
+                {isCapped && (
+                  <p className="px-3 py-2 text-xs text-[var(--muted)] border-t border-[var(--border)]">
+                    Showing {ROW_LIMIT} results — narrow the time range or add filters to see fewer.
+                  </p>
+                )}
+              </>
             )}
           </TablePanel>
         </>

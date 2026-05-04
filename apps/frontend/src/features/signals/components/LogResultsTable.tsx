@@ -1,5 +1,6 @@
 import type { LogRecord } from "../../../api/logs";
 import { Badge } from "../../../components/ui/badge";
+import { VirtualTable } from "../../../components/ui/VirtualTable";
 import { formatTimestamp } from "../../../utils/formatTimestamp";
 import { formatLogMessage, otelSeverity } from "../../../utils/logFormatting";
 import type { TimeFormat } from "../../../lib/timeDisplay";
@@ -20,28 +21,30 @@ export function LogResultsTable({
   ariaLabel?: string;
 }) {
   return (
-    <table aria-label={ariaLabel}>
-      <thead>
+    <VirtualTable
+      rows={logs}
+      ariaLabel={ariaLabel}
+      renderHead={() => (
         <tr>
           <th aria-label="Time">Time</th>
           <th>Level</th>
           {showServiceColumn && <th>Service</th>}
           <th>Message</th>
         </tr>
-      </thead>
-      <tbody>
-        {logs.map((log) => (
-          <LogResultsRow
-            key={log.log_id}
-            log={log}
-            timeFormat={timeFormat}
-            selected={selectedLogId === log.log_id}
-            onSelect={() => onSelectLog(log.log_id)}
-            showServiceColumn={showServiceColumn}
-          />
-        ))}
-      </tbody>
-    </table>
+      )}
+      renderRow={(log, ref, index) => (
+        <LogResultsRow
+          key={log.log_id}
+          log={log}
+          timeFormat={timeFormat}
+          selected={selectedLogId === log.log_id}
+          onSelect={() => onSelectLog(log.log_id)}
+          showServiceColumn={showServiceColumn}
+          measureRef={ref}
+          index={index}
+        />
+      )}
+    />
   );
 }
 
@@ -51,18 +54,24 @@ function LogResultsRow({
   selected,
   onSelect,
   showServiceColumn,
+  measureRef,
+  index,
 }: {
   log: LogRecord;
   timeFormat: TimeFormat;
   selected: boolean;
   onSelect: () => void;
   showServiceColumn: boolean;
+  measureRef: (el: Element | null) => void;
+  index: number;
 }) {
   const severity = otelSeverity(log.severity_number);
   const message = formatLogMessage(log.body);
 
   return (
     <tr
+      ref={measureRef}
+      data-index={index}
       className={`modern-table-row cursor-pointer ${selected ? "bg-[var(--surface-subtle)]" : ""}`}
       onClick={onSelect}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelect()}
@@ -76,7 +85,7 @@ function LogResultsRow({
         <Badge tone={severity.tone}>{severity.label}</Badge>
       </td>
       {showServiceColumn && <td>{log.service_name}</td>}
-      <td>{message}</td>
+      <td className="whitespace-normal break-all">{message}</td>
     </tr>
   );
 }
