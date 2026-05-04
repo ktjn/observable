@@ -66,19 +66,20 @@ export function NlqPanel({
     <section className="nlq-panel" aria-label="Natural language query">
       {/* Input bar */}
       <form onSubmit={handleSubmit} className="flex gap-2">
-        <Input
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          placeholder={
-            placeholder ??
-            "Ask a question about your metrics\u2026 e.g. \u201cp99 latency last hour\u201d"
-          }
-          aria-label="Natural language query"
-          disabled={state.status === "loading"}
-          className="flex-1"
-          data-testid="nlq-input"
-        />
-        <ShorthandHint />
+        <ShorthandHint>
+          <Input
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder={
+              placeholder ??
+              "Ask a question about your metrics\u2026 e.g. \u201cp99 latency last hour\u201d"
+            }
+            aria-label="Natural language query"
+            disabled={state.status === "loading"}
+            className="w-full"
+            data-testid="nlq-input"
+          />
+        </ShorthandHint>
         <Button
           type="submit"
           disabled={state.status === "loading" || !question.trim()}
