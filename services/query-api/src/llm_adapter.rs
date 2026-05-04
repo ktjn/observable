@@ -28,7 +28,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use domain::{NlqFilter, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, VisualizationFrame};
+use domain::{NlqFilter, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, NlqTimeRange, VisualizationFrame};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -1053,6 +1053,200 @@ pub(crate) fn parse_user_query_input(input: &str) -> Result<UserQueryInput, LlmA
     Ok(UserQueryInput::NaturalLanguage)
 }
 
+// ── Simple IR Shorthand ───────────────────────────────────────────────────────
+//
+// Implements ADR-029: deterministic NlqIr construction from a compact token syntax.
+// Activated when the user query starts with '/' (explicit bypass) or when no LLM
+// is configured (graceful degradation).
+//
+// Syntax: tokens are space-separated.
+//   m:<name>          → metric field
+//   f:<field>:<val>   → equality filter (explicit prefix)
+//   op:<operation>    → operation override (timeseries|rate|topk|table|…)
+//   <field>:<val>     → equality filter (shorthand — any token containing ':')
+//   "quoted text"     → free-text query term (appended)
+//   unquoted word     → free-text query term (appended)
+
+/// Parsed tokens from a shorthand query string.
+/// All fields are optional — only what was explicitly written is set.
+#[derive(Debug, Default, PartialEq)]
+pub(crate) struct ShorthandIr {
+    pub operation: Option<NlqOperation>,
+    pub metric: Option<String>,
+    pub filters: Vec<NlqFilter>,
+    pub query: Option<String>,
+}
+
+impl ShorthandIr {
+    /// Convert to a standalone NlqIr when no base_ir is available.
+    /// Applies sensible defaults for required fields.
+    pub fn into_nlq_ir(self) -> NlqIr {
+        let signals = if self.metric.is_some() {
+            vec![NlqSignal::Metrics]
+        } else if self.query.is_some() {
+            vec![NlqSignal::Logs]
+        } else {
+            vec![NlqSignal::Metrics]
+        };
+        NlqIr {
+            operation: self.operation.unwrap_or(NlqOperation::Timeseries),
+            signals,
+            metric: self.metric,
+            window: None,
+            filters: self.filters,
+            group_by: vec![],
+            resolution: None,
+            time_range: NlqTimeRange {
+                from: "now-1h".into(),
+                to: "now".into(),
+            },
+            visualization_hint: None,
+            percentiles: None,
+            catalog_field: None,
+            limit: None,
+            query: self.query,
+        }
+    }
+}
+
+/// Apply a parsed shorthand on top of a `base_ir`.
+///
+/// - Shorthand filters override base filters for the same field (same logic as `merge_irs`).
+/// - Shorthand metric, operation, and query override base values when explicitly set.
+/// - All other base fields (signals, window, group_by, resolution, …) are preserved.
+pub(crate) fn apply_shorthand_to_ir(base: NlqIr, sh: ShorthandIr) -> NlqIr {
+    let mut filters: Vec<NlqFilter> = Vec::new();
+    for f in &base.filters {
+        let key = f.field.to_lowercase();
+        if !sh.filters.iter().any(|u| u.field.to_lowercase() == key) {
+            filters.push(f.clone());
+        }
+    }
+    filters.extend(sh.filters);
+
+    NlqIr {
+        operation: sh.operation.unwrap_or(base.operation),
+        signals: base.signals,
+        catalog_field: base.catalog_field,
+        metric: sh.metric.or(base.metric),
+        window: base.window,
+        filters,
+        group_by: base.group_by,
+        resolution: base.resolution,
+        time_range: base.time_range,
+        visualization_hint: base.visualization_hint,
+        percentiles: base.percentiles,
+        limit: base.limit,
+        query: sh.query,
+    }
+}
+
+/// Parse a shorthand query string into a [`ShorthandIr`].
+///
+/// Does not require or consume the leading `/` — callers strip it before calling.
+pub(crate) fn parse_shorthand_ir(input: &str) -> ShorthandIr {
+    let mut sh = ShorthandIr::default();
+    let mut query_parts: Vec<String> = Vec::new();
+
+    for token in tokenize_shorthand(input) {
+        if let Some(name) = token.strip_prefix("m:") {
+            if !name.is_empty() {
+                sh.metric = Some(name.to_string());
+            }
+        } else if let Some(rest) = token.strip_prefix("f:") {
+            if let Some(colon) = rest.find(':') {
+                let field = &rest[..colon];
+                let val = &rest[colon + 1..];
+                if !field.is_empty() {
+                    sh.filters.push(NlqFilter {
+                        field: field.to_string(),
+                        op: NlqFilterOp::Eq,
+                        value: val.to_string(),
+                    });
+                }
+            }
+        } else if let Some(op_str) = token.strip_prefix("op:") {
+            sh.operation = parse_shorthand_operation(op_str);
+        } else if let Some(colon) = token.find(':') {
+            // Generic <field>:<val> — shorthand filter
+            let field = &token[..colon];
+            let val = &token[colon + 1..];
+            if !field.is_empty() && !val.is_empty() {
+                sh.filters.push(NlqFilter {
+                    field: field.to_string(),
+                    op: NlqFilterOp::Eq,
+                    value: val.to_string(),
+                });
+            } else {
+                // Ambiguous (e.g. trailing colon) — treat as freetext
+                query_parts.push(token);
+            }
+        } else if !token.is_empty() {
+            query_parts.push(token);
+        }
+    }
+
+    if !query_parts.is_empty() {
+        sh.query = Some(query_parts.join(" "));
+    }
+
+    sh
+}
+
+/// Split a shorthand string into tokens, respecting double-quoted phrases.
+fn tokenize_shorthand(input: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut chars = input.chars().peekable();
+
+    while let Some(&ch) = chars.peek() {
+        if ch.is_whitespace() {
+            chars.next();
+            continue;
+        }
+        if ch == '"' {
+            chars.next();
+            let mut s = String::new();
+            loop {
+                match chars.next() {
+                    Some('"') | None => break,
+                    Some(c) => s.push(c),
+                }
+            }
+            if !s.is_empty() {
+                tokens.push(s);
+            }
+        } else {
+            let mut s = String::new();
+            while let Some(&c) = chars.peek() {
+                if c.is_whitespace() {
+                    break;
+                }
+                s.push(c);
+                chars.next();
+            }
+            tokens.push(s);
+        }
+    }
+
+    tokens
+}
+
+fn parse_shorthand_operation(s: &str) -> Option<NlqOperation> {
+    match s {
+        "timeseries" => Some(NlqOperation::Timeseries),
+        "rate" => Some(NlqOperation::Rate),
+        "irate" => Some(NlqOperation::Irate),
+        "increase" => Some(NlqOperation::Increase),
+        "histogram" => Some(NlqOperation::Histogram),
+        "topk" => Some(NlqOperation::Topk),
+        "table" => Some(NlqOperation::Table),
+        "distribution" => Some(NlqOperation::Distribution),
+        "catalog" => Some(NlqOperation::Catalog),
+        "inventory" => Some(NlqOperation::Inventory),
+        _ => None,
+    }
+}
+
 // ── Service scope enforcement ─────────────────────────────────────────────────
 
 /// Patches a JSON IR value in-place to replace null `time_range.from` / `time_range.to`
@@ -1391,6 +1585,33 @@ pub async fn handle_nlq_query(
         }
     }
 
+    // Case: user explicitly bypasses the LLM with a leading '/' (ADR-029 shorthand).
+    if let Some(shorthand_input) = question.strip_prefix('/') {
+        let sh = parse_shorthand_ir(shorthand_input);
+        let mut ir = if let Some(base) = req.base_ir.clone() {
+            apply_shorthand_to_ir(base, sh)
+        } else {
+            sh.into_nlq_ir()
+        };
+        if let Some(svc) = &req.service_name {
+            enforce_service_scope(&mut ir, svc);
+        }
+        tracing::info!(tenant_id = %ctx.tenant_id, "shorthand bypass: executing IR without LLM");
+        if req.mode == NlqQueryMode::Interpret {
+            return Ok(Json(NlqQueryResponse::Ir { ir }));
+        }
+        return match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
+            Ok(frame) => Ok(Json(NlqQueryResponse::Frame { frame })),
+            Err(e) => {
+                tracing::error!(error = %e, tenant_id = %ctx.tenant_id, "shorthand IR MCP query failed");
+                Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": "query execution failed"})),
+                ))
+            }
+        };
+    }
+
     // Resolve the LLM caller: prefer pre-built caller in AppState (from env var at startup),
     // fall back to constructing one from the DB-stored config at call time.
     //
@@ -1420,12 +1641,30 @@ pub async fn handle_nlq_query(
             .filter(|v| !v.is_empty());
 
         if api_key.is_none() && url.is_none() {
-            return Err((
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(serde_json::json!({
-                    "error": "LLM adapter not configured — set an API key or endpoint URL on the Setup page"
-                })),
-            ));
+            // Graceful degradation (ADR-029): no LLM configured → deterministic shorthand fallback.
+            tracing::info!(tenant_id = %ctx.tenant_id, "LLM not configured — using shorthand fallback");
+            let sh = parse_shorthand_ir(question);
+            let mut ir = if let Some(base) = req.base_ir.clone() {
+                apply_shorthand_to_ir(base, sh)
+            } else {
+                sh.into_nlq_ir()
+            };
+            if let Some(svc) = &req.service_name {
+                enforce_service_scope(&mut ir, svc);
+            }
+            if req.mode == NlqQueryMode::Interpret {
+                return Ok(Json(NlqQueryResponse::Ir { ir }));
+            }
+            return match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
+                Ok(frame) => Ok(Json(NlqQueryResponse::Frame { frame })),
+                Err(e) => {
+                    tracing::error!(error = %e, tenant_id = %ctx.tenant_id, "shorthand fallback MCP query failed");
+                    Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({"error": "query execution failed"})),
+                    ))
+                }
+            };
         }
 
         db_caller = Some(OpenAiLlmCaller::from_key(
@@ -2268,5 +2507,165 @@ mod tests {
             fuzzy_resolve_metric("totally_unrelated", known),
             Some("request_duration_ms")
         );
+    }
+
+    // ── Shorthand parser tests ────────────────────────────────────────────────
+
+    #[test]
+    fn shorthand_empty_input_returns_defaults() {
+        let sh = parse_shorthand_ir("");
+        assert_eq!(sh, ShorthandIr::default());
+    }
+
+    #[test]
+    fn shorthand_parses_metric_prefix() {
+        let sh = parse_shorthand_ir("m:http_requests");
+        assert_eq!(sh.metric, Some("http_requests".into()));
+        assert!(sh.filters.is_empty());
+        assert!(sh.query.is_none());
+    }
+
+    #[test]
+    fn shorthand_parses_explicit_filter_prefix() {
+        let sh = parse_shorthand_ir("f:service:checkout");
+        assert_eq!(sh.filters.len(), 1);
+        assert_eq!(sh.filters[0].field, "service");
+        assert_eq!(sh.filters[0].value, "checkout");
+        assert_eq!(sh.filters[0].op, NlqFilterOp::Eq);
+    }
+
+    #[test]
+    fn shorthand_parses_implicit_field_colon_value() {
+        let sh = parse_shorthand_ir("env:prod");
+        assert_eq!(sh.filters.len(), 1);
+        assert_eq!(sh.filters[0].field, "env");
+        assert_eq!(sh.filters[0].value, "prod");
+    }
+
+    #[test]
+    fn shorthand_parses_op_prefix() {
+        let sh = parse_shorthand_ir("op:topk");
+        assert_eq!(sh.operation, Some(NlqOperation::Topk));
+    }
+
+    #[test]
+    fn shorthand_unknown_op_is_ignored() {
+        let sh = parse_shorthand_ir("op:foobar");
+        assert_eq!(sh.operation, None);
+    }
+
+    #[test]
+    fn shorthand_quoted_text_becomes_query() {
+        let sh = parse_shorthand_ir(r#""timeout error""#);
+        assert_eq!(sh.query, Some("timeout error".into()));
+    }
+
+    #[test]
+    fn shorthand_unquoted_words_become_query() {
+        let sh = parse_shorthand_ir("checkout p99");
+        assert_eq!(sh.query, Some("checkout p99".into()));
+    }
+
+    #[test]
+    fn shorthand_combined_tokens() {
+        let sh = parse_shorthand_ir("m:request_latency service:checkout p99");
+        assert_eq!(sh.metric, Some("request_latency".into()));
+        assert_eq!(sh.filters.len(), 1);
+        assert_eq!(sh.filters[0].field, "service");
+        assert_eq!(sh.filters[0].value, "checkout");
+        assert_eq!(sh.query, Some("p99".into()));
+    }
+
+    #[test]
+    fn shorthand_combined_op_and_catalog() {
+        let sh = parse_shorthand_ir("op:catalog service_name");
+        assert_eq!(sh.operation, Some(NlqOperation::Catalog));
+        assert_eq!(sh.query, Some("service_name".into()));
+    }
+
+    #[test]
+    fn shorthand_multiple_filters() {
+        let sh = parse_shorthand_ir("env:prod service:checkout region:us-east-1");
+        assert_eq!(sh.filters.len(), 3);
+        let fields: Vec<&str> = sh.filters.iter().map(|f| f.field.as_str()).collect();
+        assert!(fields.contains(&"env"));
+        assert!(fields.contains(&"service"));
+        assert!(fields.contains(&"region"));
+    }
+
+    #[test]
+    fn apply_shorthand_to_ir_overrides_metric_preserves_base() {
+        let base = NlqIr {
+            operation: NlqOperation::Timeseries,
+            signals: vec![NlqSignal::Metrics],
+            metric: Some("old_metric".into()),
+            window: Some("5m".into()),
+            filters: vec![],
+            group_by: vec![],
+            resolution: None,
+            time_range: NlqTimeRange { from: "now-1h".into(), to: "now".into() },
+            visualization_hint: None,
+            percentiles: None,
+            catalog_field: None,
+            limit: None,
+            query: None,
+        };
+        let sh = ShorthandIr {
+            metric: Some("new_metric".into()),
+            ..Default::default()
+        };
+        let result = apply_shorthand_to_ir(base.clone(), sh);
+        assert_eq!(result.metric, Some("new_metric".into()));
+        assert_eq!(result.window, Some("5m".into())); // base preserved
+        assert_eq!(result.signals, vec![NlqSignal::Metrics]); // base preserved
+        assert_eq!(result.time_range.from, "now-1h"); // base preserved
+    }
+
+    #[test]
+    fn apply_shorthand_filter_overrides_base_same_field() {
+        let base = NlqIr {
+            operation: NlqOperation::Timeseries,
+            signals: vec![NlqSignal::Metrics],
+            metric: None,
+            window: None,
+            filters: vec![NlqFilter { field: "env".into(), op: NlqFilterOp::Eq, value: "staging".into() }],
+            group_by: vec![],
+            resolution: None,
+            time_range: NlqTimeRange { from: "now-1h".into(), to: "now".into() },
+            visualization_hint: None,
+            percentiles: None,
+            catalog_field: None,
+            limit: None,
+            query: None,
+        };
+        let sh = ShorthandIr {
+            filters: vec![NlqFilter { field: "env".into(), op: NlqFilterOp::Eq, value: "prod".into() }],
+            ..Default::default()
+        };
+        let result = apply_shorthand_to_ir(base, sh);
+        assert_eq!(result.filters.len(), 1);
+        assert_eq!(result.filters[0].value, "prod");
+    }
+
+    #[test]
+    fn shorthand_into_nlq_ir_defaults_to_metrics_when_metric_set() {
+        let sh = ShorthandIr {
+            metric: Some("http_requests".into()),
+            ..Default::default()
+        };
+        let ir = sh.into_nlq_ir();
+        assert_eq!(ir.signals, vec![NlqSignal::Metrics]);
+        assert_eq!(ir.metric, Some("http_requests".into()));
+    }
+
+    #[test]
+    fn shorthand_into_nlq_ir_defaults_to_logs_when_query_set() {
+        let sh = ShorthandIr {
+            query: Some("error".into()),
+            ..Default::default()
+        };
+        let ir = sh.into_nlq_ir();
+        assert_eq!(ir.signals, vec![NlqSignal::Logs]);
+        assert_eq!(ir.query, Some("error".into()));
     }
 }
