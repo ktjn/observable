@@ -3,6 +3,7 @@ import { submitNlqQuery } from "../../api/nlq";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
+import { ShorthandHint } from "./ShorthandHint";
 import type { NlqIrLike } from "./queryFilters";
 
 interface QueryFilterInputProps {
@@ -102,6 +103,7 @@ export function QueryFilterInput({
           disabled={state.status === "loading"}
           className="min-w-[260px] flex-1"
         />
+        <ShorthandHint />
         <Button type="submit" disabled={state.status === "loading" || !query.trim()}>
           {state.status === "loading" ? "Interpreting..." : "Apply query"}
         </Button>

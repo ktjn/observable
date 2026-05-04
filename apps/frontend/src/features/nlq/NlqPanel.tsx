@@ -14,6 +14,7 @@ import type { NlqResponse, VisualizationFrame } from "../../api/nlq";
 import { submitNlqQuery } from "../../api/nlq";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import { ShorthandHint } from "./ShorthandHint";
 import { VisualizationPanel } from "./VisualizationPanel";
 
 interface Props {
@@ -77,6 +78,7 @@ export function NlqPanel({
           className="flex-1"
           data-testid="nlq-input"
         />
+        <ShorthandHint />
         <Button
           type="submit"
           disabled={state.status === "loading" || !question.trim()}
