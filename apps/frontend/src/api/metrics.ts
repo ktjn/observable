@@ -4,23 +4,21 @@ function tenantHeaders(): HeadersInit {
   return { "X-Tenant-ID": DEV_TENANT_ID };
 }
 
-export interface MetricSeries {
+export interface MetricCatalogEntry {
   tenant_id: string;
-  metric_series_id: string;
   metric_name: string;
   description: string;
   unit: string;
   metric_type: string;
   is_monotonic?: boolean;
   aggregation_temporality?: string;
-  attributes: Record<string, unknown>;
-  resource_attributes: Record<string, unknown>;
   service_name: string;
   environment: string;
+  series_count: number;
 }
 
-export interface MetricSeriesListResponse {
-  series: MetricSeries[];
+export interface MetricCatalogResponse {
+  metrics: MetricCatalogEntry[];
 }
 
 export interface MetricPoint {
@@ -44,7 +42,7 @@ export interface MetricPointsResponse {
 
 export async function listMetrics(params: {
   service?: string;
-} = {}): Promise<MetricSeriesListResponse> {
+} = {}): Promise<MetricCatalogResponse> {
   const url = new URL("/v1/metrics", window.location.origin);
   if (params.service) url.searchParams.set("service", params.service);
 
@@ -53,8 +51,14 @@ export async function listMetrics(params: {
   return res.json();
 }
 
-export async function getMetricPoints(seriesId: string): Promise<MetricPointsResponse> {
-  const url = new URL(`/v1/metrics/${seriesId}`, window.location.origin);
+export async function getMetricGroupPoints(metric: MetricCatalogEntry): Promise<MetricPointsResponse> {
+  const url = new URL("/v1/metrics/points", window.location.origin);
+  url.searchParams.set("metric_name", metric.metric_name);
+  url.searchParams.set("service", metric.service_name);
+  url.searchParams.set("environment", metric.environment || "default");
+  url.searchParams.set("metric_type", metric.metric_type);
+  url.searchParams.set("unit", metric.unit || "");
+
   const res = await fetch(url.toString(), { headers: tenantHeaders() });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();

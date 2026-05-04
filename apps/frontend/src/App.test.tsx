@@ -257,7 +257,7 @@ test("renders onboarding setup with endpoint, redacted key, and first signal suc
       }
 
       if (url.includes("/v1/metrics")) {
-        return new Response(JSON.stringify({ series: [] }), { status: 200 });
+        return new Response(JSON.stringify({ metrics: [] }), { status: 200 });
       }
 
       return new Response(JSON.stringify({ items: [] }), { status: 200 });
@@ -279,7 +279,7 @@ test("renders onboarding setup with endpoint, redacted key, and first signal suc
 test("renders first signal empty state when no telemetry is queryable yet", async () => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => new Response(JSON.stringify({ traces: [], logs: [], series: [], total: 0 }), { status: 200 })),
+    vi.fn(async () => new Response(JSON.stringify({ traces: [], logs: [], metrics: [], total: 0 }), { status: 200 })),
   );
   window.history.pushState({}, "", "/setup");
 
@@ -371,7 +371,7 @@ test("renders service metrics workspace with filtering and selected series point
       );
     }
 
-    if (url.includes("/v1/metrics/00000000-0000-0000-0000-000000000222")) {
+    if (url.includes("/v1/metrics/points")) {
       return new Response(
         JSON.stringify({
           points: [
@@ -432,10 +432,9 @@ test("renders service metrics workspace with filtering and selected series point
     if (url.includes("/v1/metrics")) {
       return new Response(
         JSON.stringify({
-          series: [
+          metrics: [
             {
               tenant_id: "00000000-0000-0000-0000-000000000001",
-              metric_series_id: "00000000-0000-0000-0000-000000000222",
               metric_name: "checkout.requests",
               description: "",
               unit: "1",
@@ -446,10 +445,10 @@ test("renders service metrics workspace with filtering and selected series point
               resource_attributes: { "k8s.namespace.name": "payments" },
               service_name: "checkout",
               environment: "prod",
+              series_count: 2,
             },
             {
               tenant_id: "00000000-0000-0000-0000-000000000001",
-              metric_series_id: "00000000-0000-0000-0000-000000000333",
               metric_name: "checkout.latency",
               description: "",
               unit: "ms",
@@ -458,6 +457,7 @@ test("renders service metrics workspace with filtering and selected series point
               resource_attributes: {},
               service_name: "checkout",
               environment: "stage",
+              series_count: 1,
             },
           ],
         }),
@@ -472,8 +472,8 @@ test("renders service metrics workspace with filtering and selected series point
 
   render(<App />);
 
-  // Both "Metric Series" and "Filtered" cards show "2 series" when no filter is active.
-  expect((await screen.findAllByText("2 series")).length).toBeGreaterThan(0);
+  expect(await screen.findByText("2 metrics")).toBeInTheDocument();
+  expect(screen.getByText("3 series")).toBeInTheDocument();
   expect(screen.getByText("2 types")).toBeInTheDocument();
   expect(screen.getByText("2 envs")).toBeInTheDocument();
 
@@ -494,10 +494,10 @@ test("renders service metrics workspace with filtering and selected series point
   // Panel opens: sidebar shows "Selected Metric" label and the metric name
   expect(await screen.findByRole("complementary", { name: "Selected metric details" })).toBeInTheDocument();
   expect(screen.getByText("Selected Metric")).toBeInTheDocument();
-  // Series detail API called for the selected series
+  // Grouped metric detail API is called for the selected metric.
   await waitFor(() =>
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/v1/metrics/00000000-0000-0000-0000-000000000222"),
+      expect.stringContaining("/v1/metrics/points"),
       expect.anything(),
     ),
   );
@@ -898,18 +898,16 @@ test("browser back restores the previous service signal tab", async () => {
       if (url.includes("/v1/metrics")) {
         return new Response(
           JSON.stringify({
-            series: [
+            metrics: [
               {
                 tenant_id: "00000000-0000-0000-0000-000000000001",
-                metric_series_id: "00000000-0000-0000-0000-000000000222",
                 metric_name: "checkout.requests",
                 description: "",
                 unit: "1",
                 metric_type: "sum",
-                attributes: {},
-                resource_attributes: {},
                 service_name: "checkout",
                 environment: "prod",
+                series_count: 1,
               },
             ],
           }),

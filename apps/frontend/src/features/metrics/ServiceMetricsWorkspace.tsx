@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getMetricPoints, listMetrics, type MetricSeries } from "../../api/metrics";
+import { getMetricGroupPoints, listMetrics, type MetricCatalogEntry } from "../../api/metrics";
 import { createDashboard } from "../../api/dashboards";
 import { Button } from "../../components/ui/button";
 import { EmptyState } from "../../components/ui/empty-state";
@@ -43,7 +43,7 @@ export function ServiceMetricsWorkspace({
     type: "all",
     environment: "all",
   });
-  const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null);
+  const [selectedMetricId, setSelectedMetricId] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const { data, isLoading, error } = useQuery({
@@ -52,21 +52,25 @@ export function ServiceMetricsWorkspace({
     enabled: true, // We want to allow listing all metrics if serviceName is empty
   });
 
-  const series = data?.series ?? [];
-  const filteredSeries = useMemo(
-    () => filterSeries(series, filters),
-    [series, filters],
+  const metrics = data?.metrics ?? [];
+  const filteredMetrics = useMemo(
+    () => filterMetrics(metrics, filters),
+    [metrics, filters],
   );
 
-  const metricTypes = useMemo(() => uniqueValues(series.map((item) => item.metric_type)), [series]);
+  const metricTypes = useMemo(() => uniqueValues(metrics.map((item) => item.metric_type)), [metrics]);
   const environments = useMemo(
-    () => uniqueValues(series.map((item) => item.environment || "default")),
-    [series],
+    () => uniqueValues(metrics.map((item) => item.environment || "default")),
+    [metrics],
+  );
+  const backingSeriesCount = useMemo(
+    () => metrics.reduce((total, item) => total + item.series_count, 0),
+    [metrics],
   );
 
-  const selectedSeries = useMemo(
-    () => series.find((s) => s.metric_series_id === selectedSeriesId) ?? null,
-    [series, selectedSeriesId],
+  const selectedMetric = useMemo(
+    () => metrics.find((metric) => metricIdentity(metric) === selectedMetricId) ?? null,
+    [metrics, selectedMetricId],
   );
 
   const handlePromote = async () => {
@@ -103,15 +107,15 @@ export function ServiceMetricsWorkspace({
           </div>
         </div>
       )}
-      {series.length > 0 && (
+      {metrics.length > 0 && (
         <div
           className="grid grid-cols-[repeat(4,minmax(140px,1fr))] gap-3 max-[860px]:grid-cols-2 max-[560px]:grid-cols-1"
           aria-label="Service metrics summary"
         >
-          <MetricCard label="Metric Series" value={`${series.length} ${plural(series.length, "series", "series")}`} tone="info" />
+          <MetricCard label="Metrics" value={`${metrics.length} ${plural(metrics.length, "metric")}`} tone="info" />
+          <MetricCard label="Backing Series" value={`${backingSeriesCount} ${plural(backingSeriesCount, "series", "series")}`} tone="info" />
           <MetricCard label="Metric Types" value={`${metricTypes.length} ${plural(metricTypes.length, "type")}`} tone="good" />
           <MetricCard label="Environments" value={`${environments.length} ${plural(environments.length, "env")}`} tone="info" />
-          <MetricCard label="Filtered" value={`${filteredSeries.length} ${plural(filteredSeries.length, "series", "series")}`} tone="info" />
         </div>
       )}
 
@@ -125,11 +129,11 @@ export function ServiceMetricsWorkspace({
         querySurface="metrics"
         saveStatus={saveStatus}
         onPromote={handlePromote}
-        selectedId={selectedSeriesId}
-        onSelect={setSelectedSeriesId}
+        selectedId={selectedMetricId}
+        onSelect={setSelectedMetricId}
         histogram={
           <MetricGraphContainer
-            selectedSeries={selectedSeries}
+            selectedMetric={selectedMetric}
             fromMs={fromMs}
             toMs={toMs}
             onRangeSelect={setCustomRange}
@@ -159,14 +163,14 @@ export function ServiceMetricsWorkspace({
                     if (next.service && !lockedService) {
                       setServiceName(next.service);
                     }
-                    setSelectedSeriesId(null);
+                    setSelectedMetricId(null);
                   }}
                 />
 
               </div>
-              {filteredSeries.length > 0 ? (
-                <MetricSeriesTable
-                  series={filteredSeries}
+              {filteredMetrics.length > 0 ? (
+                <MetricCatalogTable
+                  metrics={filteredMetrics}
                   selectedSeriesId={selectedId}
                   onSelect={onSelect}
                 />
@@ -180,9 +184,9 @@ export function ServiceMetricsWorkspace({
           </div>
         )}
         renderPanel={(_selectedId, onClose) => (
-          selectedSeries ? (
+          selectedMetric ? (
             <MetricDetailSidebar
-              series={selectedSeries}
+              metric={selectedMetric}
               onClose={onClose}
             />
           ) : null
@@ -193,26 +197,26 @@ export function ServiceMetricsWorkspace({
 }
 
 function MetricGraphContainer({
-  selectedSeries,
+  selectedMetric,
   fromMs,
   toMs,
   onRangeSelect,
 }: {
-  selectedSeries: MetricSeries | null;
+  selectedMetric: MetricCatalogEntry | null;
   fromMs: number;
   toMs: number;
   onRangeSelect: (fromMs: number, toMs: number) => void;
 }) {
   const { data, isLoading } = useQuery({
-    queryKey: ["metric-points", selectedSeries?.metric_series_id, fromMs, toMs],
-    queryFn: () => getMetricPoints(selectedSeries!.metric_series_id),
-    enabled: Boolean(selectedSeries),
+    queryKey: ["metric-group-points", selectedMetric ? metricIdentity(selectedMetric) : null, fromMs, toMs],
+    queryFn: () => getMetricGroupPoints(selectedMetric!),
+    enabled: Boolean(selectedMetric),
   });
 
-  if (!selectedSeries) {
+  if (!selectedMetric) {
     return (
       <div className="signal-empty border border-[var(--border)] bg-[var(--surface)] h-[168px] flex items-center justify-center text-sm text-[var(--muted)]">
-        Select a metric series below to visualize data.
+        Select a metric below to visualize data.
       </div>
     );
   }
@@ -226,14 +230,14 @@ function MetricGraphContainer({
   const points = data?.points ?? [];
   const seriesData: TimeSeriesSeries[] = [
     {
-      key: selectedSeries.metric_series_id,
-      label: selectedSeries.metric_name,
+      key: metricIdentity(selectedMetric),
+      label: selectedMetric.metric_name,
       color: "var(--brand)",
       points: points.map((p) => ({
         timestampMs: Number(p.time_unix_nano) / 1_000_000,
         value: p.value_double ?? p.value_int ?? 0,
       })),
-      formatY: (v) => `${v}${selectedSeries.unit ? ` ${selectedSeries.unit}` : ""}`,
+      formatY: (v) => `${v}${selectedMetric.unit ? ` ${selectedMetric.unit}` : ""}`,
     },
   ];
 
@@ -244,17 +248,17 @@ function MetricGraphContainer({
       rangeEndMs={toMs}
       height={140}
       onRangeSelect={onRangeSelect}
-      ariaLabel={`Graph for ${selectedSeries.metric_name}`}
+      ariaLabel={`Graph for ${selectedMetric.metric_name}`}
     />
   );
 }
 
-function MetricSeriesTable({
-  series,
+function MetricCatalogTable({
+  metrics,
   selectedSeriesId,
   onSelect,
 }: {
-  series: MetricSeries[];
+  metrics: MetricCatalogEntry[];
   selectedSeriesId: string | null;
   onSelect: (seriesId: string | null) => void;
 }) {
@@ -267,29 +271,32 @@ function MetricSeriesTable({
             <th>Type</th>
             <th>Unit</th>
             <th>Environment</th>
-            <th>Labels</th>
+            <th>Series</th>
           </tr>
         </thead>
         <tbody>
-          {series.map((item) => (
+          {metrics.map((item) => {
+            const id = metricIdentity(item);
+            return (
             <tr
-              key={item.metric_series_id}
+              key={id}
               role="button"
               aria-label={`Select ${item.metric_name}`}
-              className={selectedSeriesId === item.metric_series_id ? "selected" : "hoverable"}
-              onClick={() => onSelect(item.metric_series_id)}
+              className={selectedSeriesId === id ? "selected" : "hoverable"}
+              onClick={() => onSelect(id)}
               style={{ cursor: "pointer" }}
             >
               <td>
                 <div className="font-semibold text-[var(--text-strong)]">{item.metric_name}</div>
-                <div className="text-xs text-[var(--muted)]">{shortId(item.metric_series_id)}</div>
+                <div className="text-xs text-[var(--muted)]">{item.service_name}</div>
               </td>
               <td>{item.metric_type}</td>
               <td>{item.unit || "none"}</td>
               <td>{item.environment || "default"}</td>
-              <td>{labelSummary(item)}</td>
+              <td>{`${item.series_count} ${plural(item.series_count, "series", "series")}`}</td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </TablePanel>
@@ -297,10 +304,10 @@ function MetricSeriesTable({
 }
 
 function MetricDetailSidebar({
-  series,
+  metric,
   onClose,
 }: {
-  series: MetricSeries;
+  metric: MetricCatalogEntry;
   onClose: () => void;
 }) {
   return (
@@ -311,7 +318,7 @@ function MetricDetailSidebar({
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Selected Metric</div>
-          <h2 className="m-0 text-base font-bold text-[var(--text-strong)]">{series.metric_name}</h2>
+          <h2 className="m-0 text-base font-bold text-[var(--text-strong)]">{metric.metric_name}</h2>
         </div>
         <Button variant="secondary" className="min-h-8 px-2 text-xs" onClick={onClose}>
           Close
@@ -320,47 +327,33 @@ function MetricDetailSidebar({
 
       <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
         <div className="contents">
-          <dt className="break-all font-bold text-[var(--muted)]">series_id</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{series.metric_series_id}</dd>
+          <dt className="break-all font-bold text-[var(--muted)]">series_count</dt>
+          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{metric.series_count}</dd>
         </div>
         <div className="contents">
           <dt className="break-all font-bold text-[var(--muted)]">type</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{series.metric_type}</dd>
+          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{metric.metric_type}</dd>
         </div>
         <div className="contents">
           <dt className="break-all font-bold text-[var(--muted)]">unit</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{series.unit || "none"}</dd>
+          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{metric.unit || "none"}</dd>
         </div>
         <div className="contents">
           <dt className="break-all font-bold text-[var(--muted)]">service</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{series.service_name}</dd>
+          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{metric.service_name}</dd>
         </div>
         <div className="contents">
           <dt className="break-all font-bold text-[var(--muted)]">environment</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{series.environment || "default"}</dd>
+          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{metric.environment || "default"}</dd>
         </div>
       </dl>
-
-      <div className="mt-4">
-        <div className="text-[10px] font-bold uppercase text-[var(--muted)] mb-2">Attributes</div>
-        <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-1 text-xs">
-          {Object.entries({ ...series.attributes, ...series.resource_attributes })
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([key, value]) => (
-              <div key={key} className="contents">
-                <dt className="break-all font-medium text-[var(--muted)]">{key}</dt>
-                <dd className="m-0 min-w-0 break-all text-[var(--text)]">{String(value)}</dd>
-              </div>
-            ))}
-        </dl>
-      </div>
     </aside>
   );
 }
 
-function filterSeries(series: MetricSeries[], filters: FilterState): MetricSeries[] {
+function filterMetrics(metrics: MetricCatalogEntry[], filters: FilterState): MetricCatalogEntry[] {
   const name = filters.name.trim().toLowerCase();
-  return series.filter((item) => {
+  return metrics.filter((item) => {
     const environment = item.environment || "default";
     const matchesName = !name || item.metric_name.toLowerCase().includes(name);
     const matchesType = filters.type === "all" || item.metric_type === filters.type;
@@ -373,17 +366,14 @@ function uniqueValues(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b));
 }
 
-function labelSummary(series: MetricSeries): string {
-  const attributes = Object.keys(series.attributes ?? {});
-  const resourceAttributes = Object.keys(series.resource_attributes ?? {});
-  const labels = [...attributes, ...resourceAttributes].slice(0, 3);
-  if (!labels.length) return "none";
-  const suffix = attributes.length + resourceAttributes.length > labels.length ? " +" : "";
-  return `${labels.join(", ")}${suffix}`;
-}
-
-function shortId(value: string): string {
-  return value.slice(0, 8);
+function metricIdentity(metric: MetricCatalogEntry): string {
+  return [
+    metric.metric_name,
+    metric.metric_type,
+    metric.unit || "",
+    metric.service_name,
+    metric.environment || "default",
+  ].join("|");
 }
 
 function plural(count: number, singular: string, pluralValue = `${singular}s`): string {

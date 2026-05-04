@@ -147,24 +147,32 @@ main() {
   echo " OK"
 
   echo "5a. Verifying metric series is queryable..."
-  METRIC_SERIES_ID=""
+  METRIC_FOUND=""
+  METRIC_ENVIRONMENT=""
+  METRIC_TYPE=""
+  METRIC_UNIT=""
   for _ in $(seq 1 20); do
     METRIC_SERIES_RESULT=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" "$QUERY/v1/metrics?service=$SERVICE_NAME" || true)
-    METRIC_SERIES_ID=$(echo "$METRIC_SERIES_RESULT" | jq -r '.series[] | select(.metric_name == "smoke.counter") | .metric_series_id' 2>/dev/null | head -n 1)
-    if [ -n "$METRIC_SERIES_ID" ] && [ "$METRIC_SERIES_ID" != "null" ]; then
-      echo " OK (metric series) - $METRIC_SERIES_ID"
+    METRIC_ENTRY=$(echo "$METRIC_SERIES_RESULT" | jq -c '.metrics[] | select(.metric_name == "smoke.counter")' 2>/dev/null | head -n 1)
+    METRIC_FOUND=$(echo "$METRIC_ENTRY" | jq -r '.metric_name // empty' 2>/dev/null)
+    if [ -n "$METRIC_FOUND" ] && [ "$METRIC_FOUND" != "null" ]; then
+      METRIC_ENVIRONMENT=$(echo "$METRIC_ENTRY" | jq -r '.environment // ""')
+      METRIC_TYPE=$(echo "$METRIC_ENTRY" | jq -r '.metric_type // ""')
+      METRIC_UNIT=$(echo "$METRIC_ENTRY" | jq -r '.unit // ""')
+      echo " OK (metric catalog) - $METRIC_FOUND"
       break
     fi
     sleep 1
   done
-  if [ -z "$METRIC_SERIES_ID" ] || [ "$METRIC_SERIES_ID" = "null" ]; then
-    echo " FAIL: smoke.counter series did not become queryable"
+  if [ -z "$METRIC_FOUND" ] || [ "$METRIC_FOUND" = "null" ]; then
+    echo " FAIL: smoke.counter metric did not become queryable"
     echo " Last result: ${METRIC_SERIES_RESULT:-<empty>}"
     exit 1
   fi
 
   echo "5b. Verifying metric points are queryable..."
-  wait_for_json_count "metric points" "$QUERY/v1/metrics/$METRIC_SERIES_ID" '.points | length'
+  METRIC_POINTS_URL="$QUERY/v1/metrics/points?metric_name=smoke.counter&service=$SERVICE_NAME&environment=$METRIC_ENVIRONMENT&metric_type=$METRIC_TYPE&unit=$METRIC_UNIT"
+  wait_for_json_count "metric points" "$METRIC_POINTS_URL" '.points | length'
 
   echo "5c. Sending log via gRPC..."
   GRPC_HOST=$(echo "$GRPC_INGEST" | sed 's|http://||')
@@ -182,10 +190,10 @@ main() {
   wait_for_json_count "grpc logs" "$QUERY/v1/logs?service=$GRPC_SERVICE_NAME" '.logs | length'
 
   echo "5e. Verifying log histogram endpoint returns buckets..."
-  FROM_ISO=$(date -u -d "1 hour ago" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -v-1H +"%Y-%m-%dT%H:%M:%SZ")
-  TO_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  FROM_NS=$(( ($(date +%s) - 3600) * 1000000000 ))
+  TO_NS=$(date +%s%N)
   HIST_RESULT=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" \
-    "$QUERY/v1/logs/histogram?service=$SERVICE_NAME&from=${FROM_ISO}&to=${TO_ISO}&buckets=30" || true)
+    "$QUERY/v1/logs/histogram?service=$SERVICE_NAME&from=${FROM_NS}&to=${TO_NS}&buckets=30" || true)
   BUCKET_COUNT=$(echo "$HIST_RESULT" | jq '.buckets | length' 2>/dev/null || echo 0)
   if [ "$BUCKET_COUNT" -eq 30 ]; then
     echo " OK (histogram) - 30 buckets"
