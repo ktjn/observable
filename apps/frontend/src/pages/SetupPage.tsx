@@ -3,7 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Panel } from "../components/ui/panel";
+import { Select, SelectOption } from "../components/ui/select";
 import {
+  fetchAvailableModels,
   getConfig,
   getFirstSignalStatus,
   LOCAL_DEV_API_KEY,
@@ -12,7 +14,7 @@ import {
   OTLP_HTTP_TRACE_ENDPOINT,
   REDACTED_LOCAL_API_KEY,
   saveLlmConfig,
-  testLlmConfig,
+  type LlmModelsResult,
 } from "../api/setup";
 import { createToken, listTokens, revokeToken, type TokenRecord } from "../api/tokens";
 import { TOKENS_QUERY_KEY } from "../hooks/useTokens";
@@ -121,7 +123,7 @@ export default function SetupPage() {
 
 // ── LLM config panel ───────────────────────────────────────────────────────────
 
-/** Known model identifiers shown in the datalist suggestion list. */
+/** Known model identifiers shown in the datalist suggestion list (fallback when no remote models). */
 const KNOWN_MODELS = [
   "gpt-4o-mini",
   "gpt-4o",
@@ -129,6 +131,9 @@ const KNOWN_MODELS = [
   "microsoft/Phi-3-mini-4k-instruct",
   "meta-llama/Meta-Llama-3-8B-Instruct",
 ];
+
+/** Sentinel value in the model <select> that switches the user to free-text entry. */
+const CUSTOM_MODEL_SENTINEL = "__custom__";
 
 function LlmConfigPanel() {
   const { data: config, refetch: refetchConfig } = useQuery({
@@ -141,9 +146,12 @@ function LlmConfigPanel() {
   const [url, setUrl] = useState<string | null>(null);
   const [model, setModel] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [testState, setTestState] = useState<"idle" | "testing" | "ok" | "failed">("idle");
-  const [testError, setTestError] = useState("");
-  const [testModel, setTestModel] = useState("");
+
+  // Model discovery state
+  const [remoteModels, setRemoteModels] = useState<string[]>([]);
+  const [modelsStatus, setModelsStatus] = useState<"idle" | "loading" | "loaded" | "error">("idle");
+  const [modelsError, setModelsError] = useState("");
+  const [useCustomModel, setUseCustomModel] = useState(false);
 
   // Pre-fill url and model from server config on first load.
   // API key is never echoed back — only the placeholder reflects configured status.
@@ -158,29 +166,31 @@ function LlmConfigPanel() {
   const urlValue = url ?? "";
   const modelValue = model ?? "";
 
-  async function runTest() {
-    setTestState("testing");
-    try {
-      const result = await testLlmConfig();
-      if (result.ok) {
-        setTestState("ok");
-        setTestModel(result.model);
+  async function handleTestConnection() {
+    setModelsStatus("loading");
+    setModelsError("");
+    const result: LlmModelsResult = await fetchAvailableModels(
+      urlValue.trim() || undefined,
+      apiKey.trim() || undefined,
+    );
+    if (result.ok) {
+      setRemoteModels(result.models);
+      setModelsStatus("loaded");
+      // If the currently selected model isn't in the fetched list, keep custom mode.
+      if (result.models.length > 0 && modelValue && !result.models.includes(modelValue)) {
+        setUseCustomModel(true);
       } else {
-        setTestState("failed");
-        setTestError(result.error ?? "Connection test failed");
-        setTestModel(result.model);
+        setUseCustomModel(false);
       }
-    } catch (err) {
-      setTestState("failed");
-      setTestError(err instanceof Error ? err.message : "Connection test failed");
-      setTestModel("");
+    } else {
+      setModelsStatus("error");
+      setModelsError(result.error ?? "Connection test failed");
     }
   }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaveState("saving");
-    setTestState("idle");
     try {
       await saveLlmConfig({
         ...(apiKey.trim() && { apiKey: apiKey.trim() }),
@@ -192,12 +202,14 @@ function LlmConfigPanel() {
       setApiKey("");
       setSaveState("saved");
       void refetchConfig();
-      // Auto-test connectivity immediately after saving.
-      await runTest();
     } catch {
       setSaveState("error");
     }
   }
+
+  const showModelSelect =
+    modelsStatus === "loaded" && remoteModels.length > 0 && !useCustomModel;
+  const modelLoading = modelsStatus === "loading";
 
   return (
     <Panel
@@ -238,52 +250,89 @@ function LlmConfigPanel() {
             data-testid="llm-url-input"
           />
         </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-semibold uppercase text-[var(--muted)]">Model</span>
-          <input
-            type="text"
-            list="llm-model-suggestions"
-            value={modelValue}
-            onChange={(e) => setModel(e.target.value)}
-            placeholder="gpt-4o-mini"
-            aria-label="LLM model"
-            className="rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
-            data-testid="llm-model-input"
-          />
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-semibold uppercase text-[var(--muted)]">
+            {modelLoading
+              ? "Model (loading…)"
+              : modelsStatus === "loaded" && remoteModels.length > 0 && !useCustomModel
+                ? `Model (${remoteModels.length} available)`
+                : "Model"}
+          </span>
+          {showModelSelect ? (
+            <Select
+              value={modelValue}
+              onChange={(e) => {
+                if (e.target.value === CUSTOM_MODEL_SENTINEL) {
+                  setUseCustomModel(true);
+                } else {
+                  setModel(e.target.value);
+                }
+              }}
+              aria-label="LLM model"
+              data-testid="llm-model-select"
+            >
+              <SelectOption value="">Select a model…</SelectOption>
+              {remoteModels.map((m) => (
+                <SelectOption key={m} value={m}>
+                  {m}
+                </SelectOption>
+              ))}
+              <SelectOption value={CUSTOM_MODEL_SENTINEL}>— enter custom model ID —</SelectOption>
+            </Select>
+          ) : (
+            <input
+              type="text"
+              list="llm-model-suggestions"
+              value={modelValue}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="gpt-4o-mini"
+              disabled={modelLoading}
+              aria-label="LLM model"
+              className="rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:opacity-50"
+              data-testid="llm-model-input"
+            />
+          )}
           <datalist id="llm-model-suggestions">
             {KNOWN_MODELS.map((m) => (
               <option key={m} value={m} />
             ))}
           </datalist>
-        </label>
+          {useCustomModel && remoteModels.length > 0 && (
+            <button
+              type="button"
+              className="self-start text-xs text-[var(--brand)] hover:underline"
+              onClick={() => setUseCustomModel(false)}
+              data-testid="llm-model-pick-from-list"
+            >
+              ← pick from list
+            </button>
+          )}
+        </div>
         <div className="flex flex-wrap gap-2 items-center">
           <Button
             variant="secondary"
             type="submit"
-            disabled={saveState === "saving" || testState === "testing" || config === undefined}
+            disabled={saveState === "saving" || config === undefined}
             data-testid="llm-config-save"
           >
-            {saveState === "saving"
-              ? "Saving…"
-              : testState === "testing"
-                ? "Testing…"
-                : "Save"}
+            {saveState === "saving" ? "Saving…" : "Save"}
           </Button>
-          {configured && saveState === "idle" && testState === "idle" && (
+          {urlValue.trim() && (
             <Button
               variant="secondary"
               type="button"
-              onClick={() => void runTest()}
+              disabled={modelsStatus === "loading"}
+              onClick={() => void handleTestConnection()}
               data-testid="llm-config-test"
             >
-              Test connection
+              {modelsStatus === "loading" ? "Testing…" : "Test connection"}
             </Button>
           )}
           <ConnectivityBadge
             saveState={saveState}
-            testState={testState}
-            testError={testError}
-            testModel={testModel}
+            modelsStatus={modelsStatus}
+            modelsError={modelsError}
+            remoteModels={remoteModels}
           />
         </div>
       </form>
@@ -298,12 +347,12 @@ function LlmConfigPanel() {
 
 interface ConnectivityBadgeProps {
   saveState: "idle" | "saving" | "saved" | "error";
-  testState: "idle" | "testing" | "ok" | "failed";
-  testError: string;
-  testModel: string;
+  modelsStatus: "idle" | "loading" | "loaded" | "error";
+  modelsError: string;
+  remoteModels: string[];
 }
 
-function ConnectivityBadge({ saveState, testState, testError, testModel }: ConnectivityBadgeProps) {
+function ConnectivityBadge({ saveState, modelsStatus, modelsError, remoteModels }: ConnectivityBadgeProps) {
   if (saveState === "error") {
     return (
       <span className="text-xs text-[var(--danger-text)]" role="alert" data-testid="llm-config-error">
@@ -311,22 +360,23 @@ function ConnectivityBadge({ saveState, testState, testError, testModel }: Conne
       </span>
     );
   }
-  if (testState === "ok") {
+  if (modelsStatus === "loaded") {
+    const modelCount = remoteModels.length;
     return (
       <span className="text-xs text-[var(--success-text,#22c55e)]" role="status" data-testid="llm-config-test-ok">
         {saveState === "saved" ? "Saved. " : ""}✓ Connected
-        {testModel ? ` (${testModel})` : ""}
+        {modelCount > 0 ? ` (${modelCount} model${modelCount === 1 ? "" : "s"})` : " (no models listed)"}
       </span>
     );
   }
-  if (testState === "failed") {
+  if (modelsStatus === "error") {
     return (
       <span className="text-xs text-[var(--danger-text)]" role="alert" data-testid="llm-config-test-failed">
-        {saveState === "saved" ? "Saved. " : ""}⚠ Connection failed: {testError}
+        {saveState === "saved" ? "Saved. " : ""}⚠ Connection failed: {modelsError}
       </span>
     );
   }
-  if (saveState === "saved" && testState === "idle") {
+  if (saveState === "saved") {
     return (
       <span className="text-xs text-[var(--text-muted)]" role="status" data-testid="llm-config-saved">
         Saved.

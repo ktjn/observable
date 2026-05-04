@@ -94,29 +94,48 @@ export async function saveLlmKey(key: string): Promise<void> {
   return saveLlmConfig({ apiKey: key });
 }
 
-// ── LLM connectivity test ─────────────────────────────────────────────────────
+// ── LLM model listing / connectivity probe ────────────────────────────────────
 
-export interface LlmTestResult {
+export interface LlmModelsResult {
   ok: boolean;
-  /** Present when ok is false. */
+  models: string[];
   error?: string;
-  /** The model that was probed. */
-  model: string;
 }
 
 /**
- * GET /v1/config/llm/test — fires a 1-token probe completion against the
- * currently-configured LLM and returns whether it succeeded.
+ * POST /v1/config/llm/models — verifies LLM connectivity and returns the list
+ * of available model IDs. Accepts optional url and apiKey to test pre-save
+ * credentials; falls back to stored DB/env config when omitted.
+ *
  * Always resolves (never rejects) — callers inspect `ok`.
- * Throws only if the server is unreachable or LLM is not configured (503).
  */
-export async function testLlmConfig(): Promise<LlmTestResult> {
-  const res = await fetch("/v1/config/llm/test", {
-    headers: {
-      "x-api-key": LOCAL_DEV_API_KEY,
-      "X-Tenant-ID": LOCAL_DEV_TENANT_ID,
-    },
-  });
-  if (!res.ok) throw new Error(`testLlmConfig failed: ${res.status}`);
-  return res.json() as Promise<LlmTestResult>;
+export async function fetchAvailableModels(
+  url?: string,
+  apiKey?: string,
+): Promise<LlmModelsResult> {
+  try {
+    const body: Record<string, string> = {};
+    if (url) body.url = url;
+    if (apiKey) body.api_key = apiKey;
+
+    const res = await fetch("/v1/config/llm/models", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": LOCAL_DEV_API_KEY,
+        "X-Tenant-ID": LOCAL_DEV_TENANT_ID,
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      return { ok: false, models: [], error: `Server error: ${res.status}` };
+    }
+    return res.json() as Promise<LlmModelsResult>;
+  } catch (err) {
+    return {
+      ok: false,
+      models: [],
+      error: err instanceof Error ? err.message : "Network error",
+    };
+  }
 }

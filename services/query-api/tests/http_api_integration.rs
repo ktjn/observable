@@ -2,13 +2,15 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
     middleware as axum_middleware,
-    routing::get,
+    routing::{get, post},
     Router,
 };
 use clickhouse::Client as ChClient;
 use domain::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use http_body_util::BodyExt;
-use query_api::{logs, metrics, middleware::auth::require_tenant, planner::QueryPlanner, traces};
+use query_api::{
+    config, logs, metrics, middleware::auth::require_tenant, planner::QueryPlanner, traces,
+};
 use serde_json::Value;
 use sqlx::postgres::PgPool;
 use std::{path::Path, sync::Arc};
@@ -101,6 +103,25 @@ fn fake_app() -> Router {
     // For auth tests that never reach the handler.
     let ch = ChClient::default().with_url("http://127.0.0.1:19999");
     build_app(ch)
+}
+
+/// Minimal app containing only the LLM models endpoint, backed by a lazy
+/// Postgres pool (no real connection needed when the request body provides
+/// both url and api_key).
+fn build_config_app() -> Router {
+    let db =
+        PgPool::connect_lazy("postgres://user:pass@127.0.0.1:5432/db").expect("valid postgres url");
+    let ch = ChClient::default().with_url("http://127.0.0.1:19999");
+    let state = traces::AppState {
+        ch,
+        db,
+        planner: Arc::new(QueryPlanner),
+        llm: None,
+    };
+    Router::new()
+        .route("/v1/config/llm/models", post(config::list_llm_models))
+        .layer(axum_middleware::from_fn(require_tenant))
+        .with_state(state)
 }
 
 fn tenant_request(method: &str, uri: &str, tenant_id: Uuid) -> Request<Body> {
@@ -552,4 +573,36 @@ async fn metric_group_points_sum_label_specific_series_at_same_timestamp() {
     assert_eq!(points.len(), 1, "same timestamp should be aggregated");
     assert_eq!(points[0]["metric_name"], "span.calls_total");
     assert_eq!(points[0]["value_double"], 5.0);
+}
+
+// ── LLM models endpoint ──────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn llm_models_returns_ok_false_when_unreachable() {
+    let tenant = Uuid::new_v4();
+    let app = build_config_app();
+
+    // Port 1 is reserved/refused on all standard OS configurations.
+    let body = r#"{"url":"http://127.0.0.1:1","api_key":""}"#;
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/config/llm/models")
+        .header("X-Tenant-ID", tenant.to_string())
+        .header("Content-Type", "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let json = response_body_json(resp.into_body()).await;
+    assert_eq!(
+        json["ok"], false,
+        "unreachable endpoint must return ok:false"
+    );
+    assert_eq!(
+        json["models"].as_array().expect("models array").len(),
+        0,
+        "models must be empty when connection fails"
+    );
 }
