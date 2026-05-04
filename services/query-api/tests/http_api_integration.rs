@@ -6,9 +6,9 @@ use axum::{
     Router,
 };
 use clickhouse::Client as ChClient;
-use domain::{LogRow, SpanRow};
+use domain::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use http_body_util::BodyExt;
-use query_api::{logs, middleware::auth::require_tenant, planner::QueryPlanner, traces};
+use query_api::{logs, metrics, middleware::auth::require_tenant, planner::QueryPlanner, traces};
 use serde_json::Value;
 use sqlx::postgres::PgPool;
 use std::{path::Path, sync::Arc};
@@ -91,6 +91,8 @@ fn build_app(ch: ChClient) -> Router {
     Router::new()
         .route("/v1/traces/histogram", get(traces::trace_histogram))
         .route("/v1/logs/histogram", get(logs::log_histogram))
+        .route("/v1/metrics", get(metrics::list_metrics))
+        .route("/v1/metrics/points", get(metrics::get_metric_group_points))
         .layer(axum_middleware::from_fn(require_tenant))
         .with_state(state)
 }
@@ -127,6 +129,24 @@ async fn insert_log(ch: &ChClient, row: LogRow) {
     let mut ins = ch.insert::<LogRow>("logs").await.expect("insert handle");
     ins.write(&row).await.expect("log written");
     ins.end().await.expect("insert committed");
+}
+
+async fn insert_metric_series(ch: &ChClient, row: MetricSeriesRow) {
+    let mut ins = ch
+        .insert::<MetricSeriesRow>("metric_series")
+        .await
+        .expect("metric_series insert handle");
+    ins.write(&row).await.expect("metric_series row written");
+    ins.end().await.expect("metric_series insert committed");
+}
+
+async fn insert_metric_point(ch: &ChClient, row: MetricPointRow) {
+    let mut ins = ch
+        .insert::<MetricPointRow>("metric_points")
+        .await
+        .expect("metric_points insert handle");
+    ins.write(&row).await.expect("metric_points row written");
+    ins.end().await.expect("metric_points insert committed");
 }
 
 fn make_span(tenant_id: Uuid, trace_id: &str, span_id: &str, start_ns: u64) -> SpanRow {
@@ -171,6 +191,51 @@ fn make_log(tenant_id: Uuid, service: &str, ts_ns: u64) -> LogRow {
         environment: "test".into(),
         host_id: "host-1".into(),
         fingerprint: None,
+    }
+}
+
+fn make_metric_series(
+    tenant_id: Uuid,
+    series_id: Uuid,
+    metric_name: &str,
+    route: &str,
+) -> MetricSeriesRow {
+    MetricSeriesRow {
+        tenant_id,
+        metric_series_id: series_id,
+        metric_name: metric_name.into(),
+        description: String::new(),
+        unit: "1".into(),
+        metric_type: "sum".into(),
+        is_monotonic: Some(1),
+        aggregation_temporality: Some("delta".into()),
+        attributes: format!(r#"{{"route":"{route}"}}"#),
+        resource_attributes: "{}".into(),
+        service_name: "checkout".into(),
+        environment: "prod".into(),
+    }
+}
+
+fn make_metric_point(
+    tenant_id: Uuid,
+    series_id: Uuid,
+    metric_name: &str,
+    ts_ns: u64,
+    value: i64,
+) -> MetricPointRow {
+    MetricPointRow {
+        tenant_id,
+        metric_series_id: series_id,
+        metric_name: metric_name.into(),
+        service_name: "checkout".into(),
+        time_unix_nano: ts_ns,
+        start_time_unix_nano: Some(ts_ns - 1_000_000_000),
+        value_double: None,
+        value_int: Some(value),
+        histogram_count: None,
+        histogram_sum: None,
+        histogram_bucket_counts: Vec::new(),
+        histogram_explicit_bounds: Vec::new(),
     }
 }
 
@@ -408,4 +473,83 @@ async fn log_histogram_service_filter() {
         .filter_map(|v| v.as_u64())
         .sum();
     assert_eq!(total, 1, "service filter must exclude svc-b");
+}
+
+// ── Metric catalog grouping ─────────────────────────────────────────────────
+
+#[tokio::test]
+async fn metric_list_groups_label_specific_series_by_metric_identity() {
+    let (ch, _container) = start_clickhouse().await;
+    let tenant = Uuid::new_v4();
+    insert_metric_series(
+        &ch,
+        make_metric_series(tenant, Uuid::new_v4(), "span.calls_total", "/checkout"),
+    )
+    .await;
+    insert_metric_series(
+        &ch,
+        make_metric_series(tenant, Uuid::new_v4(), "span.calls_total", "/cart"),
+    )
+    .await;
+
+    let app = build_app(ch);
+    let resp = app
+        .oneshot(tenant_request(
+            "GET",
+            "/v1/metrics?service=checkout",
+            tenant,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json = response_body_json(resp.into_body()).await;
+    let metrics = json["metrics"].as_array().expect("metrics array");
+    assert_eq!(metrics.len(), 1, "one grouped metric should be returned");
+    assert_eq!(metrics[0]["metric_name"], "span.calls_total");
+    assert_eq!(metrics[0]["series_count"], 2);
+}
+
+#[tokio::test]
+async fn metric_group_points_sum_label_specific_series_at_same_timestamp() {
+    let (ch, _container) = start_clickhouse().await;
+    let tenant = Uuid::new_v4();
+    let first_series = Uuid::new_v4();
+    let second_series = Uuid::new_v4();
+    let ts_ns = 1_777_819_009_493_000_000;
+
+    insert_metric_series(
+        &ch,
+        make_metric_series(tenant, first_series, "span.calls_total", "/checkout"),
+    )
+    .await;
+    insert_metric_series(
+        &ch,
+        make_metric_series(tenant, second_series, "span.calls_total", "/cart"),
+    )
+    .await;
+    insert_metric_point(
+        &ch,
+        make_metric_point(tenant, first_series, "span.calls_total", ts_ns, 2),
+    )
+    .await;
+    insert_metric_point(
+        &ch,
+        make_metric_point(tenant, second_series, "span.calls_total", ts_ns, 3),
+    )
+    .await;
+
+    let app = build_app(ch);
+    let uri = "/v1/metrics/points?metric_name=span.calls_total&service=checkout&environment=prod&metric_type=sum&unit=1";
+    let resp = app
+        .oneshot(tenant_request("GET", uri, tenant))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json = response_body_json(resp.into_body()).await;
+    let points = json["points"].as_array().expect("points array");
+    assert_eq!(points.len(), 1, "same timestamp should be aggregated");
+    assert_eq!(points[0]["metric_name"], "span.calls_total");
+    assert_eq!(points[0]["value_double"], 5.0);
 }

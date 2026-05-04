@@ -32,7 +32,7 @@ export async function getFirstSignalStatus(): Promise<FirstSignalStatus> {
 
   const traceCount = traces.value.total ?? traces.value.traces.length;
   const logCount = logs.value.total ?? logs.value.logs.length;
-  const metricCount = metrics.value.series.length;
+  const metricCount = metrics.value.metrics.length;
   const hasSignal = traceCount + logCount + metricCount > 0;
 
   return {

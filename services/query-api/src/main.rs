@@ -69,6 +69,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/logs/tail", get(logs::tail_logs))
         .route("/v1/logs/:log_id/context", get(logs::get_log_context))
         .route("/v1/metrics", get(metrics::list_metrics))
+        .route("/v1/metrics/points", get(metrics::get_metric_group_points))
         .route("/v1/metrics/:series_id", get(metrics::get_metric_points))
         .route("/v1/topology", get(discovery::get_topology))
         .route(

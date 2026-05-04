@@ -97,12 +97,18 @@ The Query API must support the following patterns required by the Frontend (see 
 
 #### Metric Query Readback
 - **Endpoints**:
-  - `GET /v1/metrics` returns tenant-scoped metric series. Supports optional `service`.
+  - `GET /v1/metrics` returns tenant-scoped metric catalog entries grouped by metric identity
+    (`metric_name`, service, environment, type, unit, monotonicity, and temporality), with
+    `series_count` showing how many label/resource-specific series back each entry. Supports
+    optional `service`.
+  - `GET /v1/metrics/points` returns tenant-scoped points aggregated across the label/resource
+    series for one grouped metric identity. Numeric sum metrics are summed per timestamp; gauges
+    are averaged per timestamp.
   - `GET /v1/metrics/{series_id}` returns tenant-scoped points for one metric series, ordered by `time_unix_nano ASC`.
 - **Ingest compatibility**: `POST /v1/metrics` accepts OTLP/HTTP JSON gauges, sums, and explicit histograms. The gRPC MetricsService maps the same supported metric families into the same internal model.
 - **Series identity**: Metric series IDs are deterministic for a stable tenant, metric name, metric type, point attributes, resource attributes, monotonicity, temporality, service, and environment. Repeated exports for the same series must append points to the same series ID rather than creating a new random series per point.
 - **Current unsupported families**: Exponential histograms and summaries remain out of scope for the current customer OTLP metrics path. They must be ignored safely until implemented, not misclassified as gauges or sums.
-- **Verification**: The smoke test must prove readback by posting `smoke.counter`, waiting for the series through `GET /v1/metrics?service=...`, and then waiting for points through `GET /v1/metrics/{series_id}`.
+- **Verification**: The smoke test must prove readback by posting `smoke.counter`, waiting for the metric catalog entry through `GET /v1/metrics?service=...`, and then waiting for points through `GET /v1/metrics/points` or the raw-series compatibility endpoint `GET /v1/metrics/{series_id}`.
 
 ### Resolved Query API Bugs
 
