@@ -4,7 +4,10 @@ import { searchTraces } from "./traces";
 
 export const LOCAL_DEV_TENANT = "local-dev";
 export const LOCAL_DEV_TENANT_ID = "00000000-0000-0000-0000-000000000001";
-export const OTLP_HTTP_TRACE_ENDPOINT = "http://localhost:4318/v1/traces";
+export const OTLP_GRPC_ENDPOINT = "http://localhost:4317";
+export const OTLP_HTTP_JSON_TRACES = "http://localhost:4318/v1/traces";
+export const OTLP_HTTP_JSON_METRICS = "http://localhost:4318/v1/metrics";
+export const OTLP_HTTP_JSON_LOGS = "http://localhost:4318/v1/logs";
 export const LOCAL_DEV_API_KEY = "dev-api-key-0000";
 export const REDACTED_LOCAL_API_KEY = "dev-api-key-...-0000";
 
