@@ -31,6 +31,7 @@ const TRACE_BASE_IR: NlqIrLike = {
   filters: [],
   time_range: { from: "now-1h", to: "now" },
 };
+const ROW_LIMIT = 500;
 
 /** Shape of a row returned by the NLQ trace execute query. */
 interface NlqTraceRow {
@@ -147,7 +148,6 @@ export function TraceExplorer({
     placeholderData: (prev: TraceHistogramResponse | undefined) => prev,
   });
 
-  const ROW_LIMIT = 500;
   const rawTraces = data ?? [];
   const traces = rawTraces.slice(0, ROW_LIMIT);
   const isCapped = rawTraces.length >= ROW_LIMIT;

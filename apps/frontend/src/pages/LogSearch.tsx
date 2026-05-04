@@ -39,6 +39,7 @@ const levelBarClasses: Record<OTelLevel, string> = {
   ERROR: "bg-[var(--bad)]",
   FATAL: "bg-[var(--bad)]",
 };
+const ROW_LIMIT = 500;
 
 export type LogExplorerProps = {
   initialService?: string;
@@ -114,7 +115,6 @@ export function LogExplorer({
     placeholderData: (prev: LogHistogramResponse | undefined) => prev,
   });
 
-  const ROW_LIMIT = 500;
   const rawLogs = data ?? [];
   const logs = rawLogs.slice(0, ROW_LIMIT);
   const isCapped = rawLogs.length >= ROW_LIMIT;
