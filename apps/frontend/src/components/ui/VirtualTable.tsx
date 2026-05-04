@@ -1,11 +1,13 @@
 import { useRef } from "react";
+import type { ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 interface VirtualTableProps<T> {
   rows: T[];
-  renderHead: () => React.ReactNode;
-  renderRow: (row: T, ref: (el: Element | null) => void, index: number) => React.ReactNode;
+  renderHead: () => ReactNode;
+  renderRow: (row: T, ref: (el: Element | null) => void, index: number) => ReactNode;
   estimateSize?: number;
+  /** Must be a fixed CSS value for virtualisation to work (e.g. `"600px"`, not `"auto"`). */
   height?: string;
   ariaLabel?: string;
 }
