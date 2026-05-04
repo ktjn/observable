@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 const ROWS: [string, string][] = [
   ["m:<name>", "metric name"],
   ["f:<field>:<val>", "filter (explicit)"],
@@ -7,22 +9,20 @@ const ROWS: [string, string][] = [
   ["unquoted word", "search term"],
 ];
 
+interface ShorthandHintProps {
+  children: ReactNode;
+  className?: string;
+}
+
 /**
- * Hover-triggered tooltip explaining the '/' shorthand syntax (ADR-029).
+ * Wraps an input element and shows a shorthand syntax reference card on hover.
  * CSS-only — no JS required.
  */
-export function ShorthandHint() {
+export function ShorthandHint({ children, className = "relative group flex-1" }: ShorthandHintProps) {
   return (
-    <div className="relative group shrink-0">
-      <button
-        type="button"
-        aria-label="Shorthand syntax reference"
-        className="flex h-8 w-8 items-center justify-center rounded text-xs text-[var(--muted)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
-      >
-        ?
-      </button>
+    <div className={className}>
+      {children}
 
-      {/* Tooltip — opens on hover via group-hover, pointer-events-none so it doesn't steal hover */}
       <div
         className="pointer-events-none absolute bottom-full right-0 z-20 mb-1 hidden w-72 group-hover:block"
         role="tooltip"

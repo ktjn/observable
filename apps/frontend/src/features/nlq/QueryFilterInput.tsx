@@ -95,15 +95,16 @@ export function QueryFilterInput({
         onSubmit={handleSubmit}
         className="flex gap-2 max-[640px]:flex-col"
       >
-        <Input
-          aria-label="Query current view input"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={placeholder ?? "Filter this view with natural language or raw NLQ IR JSON"}
-          disabled={state.status === "loading"}
-          className="min-w-[260px] flex-1"
-        />
-        <ShorthandHint />
+        <ShorthandHint className="relative group min-w-[260px] flex-1">
+          <Input
+            aria-label="Query current view input"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={placeholder ?? "Filter this view with natural language or raw NLQ IR JSON"}
+            disabled={state.status === "loading"}
+            className="w-full"
+          />
+        </ShorthandHint>
         <Button type="submit" disabled={state.status === "loading" || !query.trim()}>
           {state.status === "loading" ? "Interpreting..." : "Apply query"}
         </Button>
