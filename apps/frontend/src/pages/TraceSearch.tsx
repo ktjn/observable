@@ -150,7 +150,7 @@ export function TraceExplorer({
 
   const rawTraces = data ?? [];
   const traces = rawTraces.slice(0, ROW_LIMIT);
-  const isCapped = rawTraces.length >= ROW_LIMIT;
+  const isCapped = rawTraces.length > ROW_LIMIT;
   const canRenderHistogram = Boolean(histogramData) || traces.length > 0;
   const histogram = useMemo(
     () =>

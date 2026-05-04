@@ -117,7 +117,7 @@ export function LogExplorer({
 
   const rawLogs = data ?? [];
   const logs = rawLogs.slice(0, ROW_LIMIT);
-  const isCapped = rawLogs.length >= ROW_LIMIT;
+  const isCapped = rawLogs.length > ROW_LIMIT;
   const histogram = useMemo(
     () =>
       histogramData?.buckets
