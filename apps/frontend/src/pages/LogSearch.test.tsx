@@ -111,6 +111,20 @@ vi.mock("../api/dashboards", () => ({
 
 const { fetchLogHistogram } = await import("../api/logs");
 
+vi.mock("@tanstack/react-virtual", () => ({
+  useVirtualizer: ({ count }: { count: number }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: count }, (_, i) => ({
+        key: i,
+        index: i,
+        start: i * 40,
+        end: (i + 1) * 40,
+      })),
+    getTotalSize: () => count * 40,
+    measureElement: (_el: Element | null) => {},
+  }),
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
   window.history.pushState({}, "", "/logs");
