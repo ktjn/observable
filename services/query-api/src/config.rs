@@ -6,7 +6,8 @@
 // GET  /v1/config            — returns {llm_key_configured, llm_url, llm_model}; never echoes the key.
 // PUT  /v1/config/llm        — upserts api_key (XOR-obfuscated), url, model from JSON body.
 // PUT  /v1/config/llm-key    — legacy alias; accepts {key: "..."} for backwards compat.
-// GET  /v1/config/llm/test   — verifies LLM connectivity with a 1-token probe completion.
+// POST /v1/config/llm/models — tests connectivity and lists available models; accepts optional
+//                              {url, api_key} body (falls back to DB/env when omitted).
 //
 // Env vars take priority over DB values (LLM_API_KEY, LLM_URL / OPENAI_BASE_URL,
 // LLM_MODEL / OPENAI_MODEL).
@@ -154,68 +155,77 @@ pub async fn put_llm_key(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ── Connectivity test ─────────────────────────────────────────────────────────
+// ── Model listing / connectivity probe ───────────────────────────────────────
+
+/// POST /v1/config/llm/models request body. Both fields are optional.
+/// When omitted the handler falls back to DB then env values.
+#[derive(Deserialize)]
+pub struct ListLlmModelsRequest {
+    pub url: Option<String>,
+    pub api_key: Option<String>,
+}
 
 #[derive(Serialize)]
-pub struct LlmTestResult {
+pub struct LlmModelsResult {
     pub ok: bool,
+    /// Available model IDs, sorted alphabetically. Empty when `ok` is false.
+    pub models: Vec<String>,
     /// Present when `ok` is false; contains the provider error message.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-    /// The model name that was probed (from DB or default).
-    pub model: String,
 }
 
-/// GET /v1/config/llm/test
+/// POST /v1/config/llm/models
 ///
-/// Resolves the LLM configuration (env → DB) and fires a single 1-token
-/// probe completion to verify that the key, URL, and model are all valid.
-/// Always returns HTTP 200; callers inspect the `ok` field.
+/// Resolves the LLM configuration (request body → env → DB) and calls the
+/// provider's `/models` endpoint to verify connectivity and retrieve available
+/// model IDs. Always returns HTTP 200; callers inspect the `ok` field.
 ///
-/// Returns 503 if no LLM configuration is present at all.
-pub async fn test_llm_connection(
+/// Using POST keeps any supplied `api_key` out of server access logs and browser
+/// history (compared to query parameters).
+pub async fn list_llm_models(
     State(state): State<AppState>,
-) -> Result<Json<LlmTestResult>, StatusCode> {
+    Json(body): Json<ListLlmModelsRequest>,
+) -> Json<LlmModelsResult> {
     use crate::llm_adapter::OpenAiLlmCaller;
 
-    // Resolve the key (env first, then DB).
-    let api_key: Option<String> = if crate::config::env_key_present() {
-        std::env::var("LLM_API_KEY").ok().filter(|v| !v.is_empty())
+    // Resolve API key: request body → env → DB → empty (no-auth providers).
+    let api_key = if let Some(k) = body.api_key.filter(|v| !v.trim().is_empty()) {
+        k.trim().to_string()
+    } else if env_key_present() {
+        std::env::var("LLM_API_KEY").unwrap_or_default()
     } else {
         fetch_db_key(&state.db)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .unwrap_or(None)
+            .unwrap_or_default()
     };
 
-    // Resolve URL and model (env → DB → defaults).
-    let url = env_llm_url().or(fetch_db_value(&state.db, "llm_url")
-        .await
-        .unwrap_or(None)
-        .filter(|v| !v.is_empty()));
-    let model = env_llm_model()
-        .or(fetch_db_value(&state.db, "llm_model")
+    // Resolve URL: request body → env → DB → None (use provider default).
+    let url: Option<String> = if let Some(u) = body.url.filter(|v| !v.trim().is_empty()) {
+        Some(u.trim().to_string())
+    } else if let Some(u) = env_llm_url() {
+        Some(u)
+    } else {
+        fetch_db_value(&state.db, "llm_url")
             .await
             .unwrap_or(None)
-            .filter(|v| !v.is_empty()))
-        .unwrap_or_else(|| "gpt-4o-mini".into());
+            .filter(|v| !v.is_empty())
+    };
 
-    // For providers that don't require an API key (e.g. local vLLM with no auth),
-    // treat an empty / absent key as an empty string (async-openai accepts it).
-    let effective_key = api_key.unwrap_or_default();
+    let caller = OpenAiLlmCaller::from_key(api_key, url, None);
 
-    let caller = OpenAiLlmCaller::from_key(effective_key, url, Some(model.clone()));
-
-    match caller.probe().await {
-        Ok(()) => Ok(Json(LlmTestResult {
+    match caller.list_models().await {
+        Ok(models) => Json(LlmModelsResult {
             ok: true,
+            models,
             error: None,
-            model,
-        })),
-        Err(e) => Ok(Json(LlmTestResult {
+        }),
+        Err(e) => Json(LlmModelsResult {
             ok: false,
+            models: vec![],
             error: Some(e),
-            model,
-        })),
+        }),
     }
 }
 

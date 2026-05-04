@@ -25,7 +25,7 @@ tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 clickhouse         = { workspace = true }
 sqlx               = { workspace = true }
-async-openai       = { version = "0.36", features = ["chat-completion"] }
+async-openai       = { version = "0.36", features = ["chat-completion", "model"] }
 async-trait        = "0.1"
 rand               = "0.9"
 sha2               = "0.10"
