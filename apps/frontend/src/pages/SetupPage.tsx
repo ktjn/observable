@@ -8,19 +8,17 @@ import {
   fetchAvailableModels,
   getConfig,
   getFirstSignalStatus,
-  LOCAL_DEV_API_KEY,
-  LOCAL_DEV_TENANT,
-  LOCAL_DEV_TENANT_ID,
-  OTLP_HTTP_TRACE_ENDPOINT,
-  REDACTED_LOCAL_API_KEY,
+  OTLP_GRPC_ENDPOINT,
+  OTLP_HTTP_JSON_LOGS,
+  OTLP_HTTP_JSON_METRICS,
+  OTLP_HTTP_JSON_TRACES,
   saveLlmConfig,
   type LlmModelsResult,
 } from "../api/setup";
-import { createToken, listTokens, revokeToken, type TokenRecord } from "../api/tokens";
+import { createToken, deleteToken, listTokens, renewToken, restoreToken, revokeToken, type TokenRecord } from "../api/tokens";
 import { TOKENS_QUERY_KEY } from "../hooks/useTokens";
 
 export default function SetupPage() {
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["setup", "first-signal"],
     queryFn: getFirstSignalStatus,
@@ -33,15 +31,6 @@ export default function SetupPage() {
       : data?.state === "error"
         ? "First signal check failed"
         : "Waiting for first signal";
-
-  async function copyApiKey() {
-    try {
-      await navigator.clipboard.writeText(LOCAL_DEV_API_KEY);
-      setCopyState("copied");
-    } catch {
-      setCopyState("failed");
-    }
-  }
 
   return (
     <section className="page-stack" aria-labelledby="setup-heading">
@@ -59,34 +48,22 @@ export default function SetupPage() {
         <Panel eyebrow="Local ingest" title="Collector endpoint">
           <dl className="definition-grid">
             <div>
-              <dt>Tenant</dt>
-              <dd>{LOCAL_DEV_TENANT}</dd>
+              <dt>OTLP gRPC Ingestion URL</dt>
+              <dd><code className="text-xs">{OTLP_GRPC_ENDPOINT}</code></dd>
             </div>
             <div>
-              <dt>Tenant ID</dt>
-              <dd>{LOCAL_DEV_TENANT_ID}</dd>
+              <dt>OTLP HTTP/JSON Traces</dt>
+              <dd><code className="text-xs">{OTLP_HTTP_JSON_TRACES}</code></dd>
             </div>
             <div>
-              <dt>OTLP HTTP traces</dt>
-              <dd>{OTLP_HTTP_TRACE_ENDPOINT}</dd>
+              <dt>OTLP HTTP/JSON Metrics</dt>
+              <dd><code className="text-xs">{OTLP_HTTP_JSON_METRICS}</code></dd>
             </div>
             <div>
-              <dt>API key</dt>
-              <dd>{REDACTED_LOCAL_API_KEY}</dd>
+              <dt>OTLP HTTP/JSON Logs</dt>
+              <dd><code className="text-xs">{OTLP_HTTP_JSON_LOGS}</code></dd>
             </div>
           </dl>
-          <div className="setup-actions">
-            <Button variant="secondary" onClick={() => void copyApiKey()}>
-              Copy API key
-            </Button>
-            <span className="text-xs font-bold uppercase text-[var(--muted)]" role="status">
-              {copyState === "copied"
-                ? "Copied"
-                : copyState === "failed"
-                  ? "Copy unavailable"
-                : "Redacted in the UI"}
-            </span>
-          </div>
         </Panel>
 
         <Panel
@@ -425,6 +402,24 @@ function IngressTokensPanel() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: TOKENS_QUERY_KEY }),
   });
 
+  const renewMutation = useMutation({
+    mutationFn: renewToken,
+    onSuccess: (res) => {
+      void qc.invalidateQueries({ queryKey: TOKENS_QUERY_KEY });
+      setNewPlaintext(res.plaintext);
+    },
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: restoreToken,
+    onSuccess: () => void qc.invalidateQueries({ queryKey: TOKENS_QUERY_KEY }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteToken,
+    onSuccess: () => void qc.invalidateQueries({ queryKey: TOKENS_QUERY_KEY }),
+  });
+
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !environment.trim()) {
@@ -464,7 +459,7 @@ function IngressTokensPanel() {
           role="alert"
         >
           <p className="mb-1 text-xs font-semibold text-[var(--text-muted)]">
-            Token created — copy it now. It will not be shown again.
+            Token value — copy it now. It will not be shown again.
           </p>
           <div className="flex items-center gap-2">
             <code className="flex-1 break-all text-xs">{newPlaintext}</code>
@@ -543,6 +538,16 @@ function IngressTokensPanel() {
           tokens={data?.tokens ?? []}
           onRevoke={(id) => revokeMutation.mutate(id)}
           revoking={revokeMutation.isPending ? revokeMutation.variables : undefined}
+          onRenew={(id) => renewMutation.mutate(id)}
+          renewing={renewMutation.isPending ? renewMutation.variables : undefined}
+          onRestore={(id) => restoreMutation.mutate(id)}
+          restoring={restoreMutation.isPending ? restoreMutation.variables : undefined}
+          onDelete={(id) => {
+            if (confirm("Permanently delete this token? This cannot be undone.")) {
+              deleteMutation.mutate(id);
+            }
+          }}
+          deleting={deleteMutation.isPending ? deleteMutation.variables : undefined}
         />
       )}
     </Panel>
@@ -553,9 +558,15 @@ interface TokenTableProps {
   tokens: TokenRecord[];
   onRevoke: (id: string) => void;
   revoking?: string;
+  onRenew: (id: string) => void;
+  renewing?: string;
+  onRestore: (id: string) => void;
+  restoring?: string;
+  onDelete: (id: string) => void;
+  deleting?: string;
 }
 
-function TokenTable({ tokens, onRevoke, revoking }: TokenTableProps) {
+function TokenTable({ tokens, onRevoke, revoking, onRenew, renewing, onRestore, restoring, onDelete, deleting }: TokenTableProps) {
   if (tokens.length === 0) {
     return <p className="text-sm text-[var(--text-muted)]">No tokens registered.</p>;
   }
@@ -590,19 +601,44 @@ function TokenTable({ tokens, onRevoke, revoking }: TokenTableProps) {
                 </Badge>
               </td>
               <td className="py-2">
-                {!t.revoked && (
-                  <Button
-                    variant="ghost"
-                   
-                    disabled={revoking === t.id}
-                    onClick={() => {
-                      if (confirm(`Revoke token "${t.name}"? This cannot be undone.`)) {
-                        onRevoke(t.id);
-                      }
-                    }}
-                  >
-                    {revoking === t.id ? "Revoking…" : "Revoke"}
-                  </Button>
+                {!t.revoked ? (
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      disabled={renewing === t.id}
+                      onClick={() => onRenew(t.id)}
+                    >
+                      {renewing === t.id ? "Renewing…" : "Renew"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      disabled={revoking === t.id}
+                      onClick={() => {
+                        if (confirm(`Revoke token "${t.name}"? This cannot be undone.`)) {
+                          onRevoke(t.id);
+                        }
+                      }}
+                    >
+                      {revoking === t.id ? "Revoking…" : "Revoke"}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      disabled={restoring === t.id}
+                      onClick={() => onRestore(t.id)}
+                    >
+                      {restoring === t.id ? "Restoring…" : "Restore"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      disabled={deleting === t.id}
+                      onClick={() => onDelete(t.id)}
+                    >
+                      {deleting === t.id ? "Deleting…" : "Delete"}
+                    </Button>
+                  </div>
                 )}
               </td>
             </tr>

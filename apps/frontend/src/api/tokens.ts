@@ -52,3 +52,28 @@ export async function revokeToken(id: string): Promise<void> {
   });
   if (!res.ok && res.status !== 204) throw new Error(`revokeToken failed: ${res.status}`);
 }
+
+export async function renewToken(id: string): Promise<CreateTokenResponse> {
+  const res = await fetch(`/v1/tokens/${id}/renew`, {
+    method: "POST",
+    headers: HEADERS,
+  });
+  if (!res.ok) throw new Error(`renewToken failed: ${res.status}`);
+  return res.json() as Promise<CreateTokenResponse>;
+}
+
+export async function restoreToken(id: string): Promise<void> {
+  const res = await fetch(`/v1/tokens/${id}/restore`, {
+    method: "POST",
+    headers: HEADERS,
+  });
+  if (!res.ok && res.status !== 204) throw new Error(`restoreToken failed: ${res.status}`);
+}
+
+export async function deleteToken(id: string): Promise<void> {
+  const res = await fetch(`/v1/tokens/${id}/permanent`, {
+    method: "DELETE",
+    headers: HEADERS,
+  });
+  if (!res.ok && res.status !== 204) throw new Error(`deleteToken failed: ${res.status}`);
+}

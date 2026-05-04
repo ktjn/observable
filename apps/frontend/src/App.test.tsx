@@ -234,9 +234,7 @@ test("renders saved dashboard panels with preserved query context", async () => 
   expect(screen.getByText(/logs.*checkout.*Last\s*1\s*hour/)).toBeInTheDocument();
 });
 
-test("renders onboarding setup with endpoint, redacted key, and first signal success", async () => {
-  const writeText = vi.fn(async () => undefined);
-  Object.assign(navigator, { clipboard: { writeText } });
+test("renders onboarding setup with OTLP endpoints and first signal success", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
@@ -268,11 +266,10 @@ test("renders onboarding setup with endpoint, redacted key, and first signal suc
   render(<App />);
 
   expect(await screen.findByRole("heading", { name: "Setup" })).toBeInTheDocument();
+  expect(screen.getByText("http://localhost:4317")).toBeInTheDocument();
   expect(screen.getByText("http://localhost:4318/v1/traces")).toBeInTheDocument();
-  expect(screen.getByText("00000000-0000-0000-0000-000000000001")).toBeInTheDocument();
-  expect(screen.getByText("dev-api-key-...-0000")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Copy API key" }));
-  expect(writeText).toHaveBeenCalledWith("dev-api-key-0000");
+  expect(screen.getByText("http://localhost:4318/v1/metrics")).toBeInTheDocument();
+  expect(screen.getByText("http://localhost:4318/v1/logs")).toBeInTheDocument();
   expect(await screen.findByText("First signal detected")).toBeInTheDocument();
 });
 
