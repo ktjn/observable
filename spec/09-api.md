@@ -114,7 +114,7 @@ The Query API must support the following patterns required by the Frontend (see 
 
 #### Bug Report: Query API MVP response correctness regressions
 
-**Status:** Resolved in Phase 1 Task 20 (`docs/superpowers/plans/2026-04-17-phase1-internal-mvp.md`)
+**Status:** Resolved in Phase 1 Task 20 (`archived/plans/2026-04-17-phase1-internal-mvp.md`)
 
 **Affected endpoints:**
 - `GET /v1/traces`

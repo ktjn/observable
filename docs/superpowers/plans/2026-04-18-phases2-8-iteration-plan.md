@@ -2,7 +2,7 @@
 
 > **Purpose:** Convert the remaining roadmap into a practical sequence of small, reviewable vertical slices with explicit pause points, decision checkpoints, and entry/exit criteria.
 
-> **Scope:** This document starts **after Phase 1**. It assumes the platform can already ingest telemetry, persist it, query it, and render the minimum UI described in `spec/10-process.md §17` and the existing [Phase 1 plan](2026-04-17-phase1-internal-mvp.md).
+> **Scope:** This document starts **after Phase 1**. It assumes the platform can already ingest telemetry, persist it, query it, and render the minimum UI described in `spec/10-process.md §17` and the archived [Phase 1 plan](../../../archived/plans/2026-04-17-phase1-internal-mvp.md).
 
 ---
 
@@ -699,7 +699,7 @@ Before Phase 5 starts, answer:
     provenance payload present for both backends; 422 returned for unknown backend/model values.
   - Checkpoint: does the vLLM path use the same `LlmCaller` trait contract and provenance
     requirements as the OpenAI path (no shortcuts)?
-  - Detail: [2026-04-29-p8-s6b-local-llm-vllm.md](2026-04-29-p8-s6b-local-llm-vllm.md)
+  - Detail: [archived P8-S6b local LLM plan](../../../archived/plans/2026-04-29-p8-s6b-local-llm-vllm.md)
 
 **Checkpoint question:** can every AI output be explained, audited, and ignored without harming correctness?
 
@@ -720,39 +720,17 @@ Do not keep a 50-slice active queue. Keep the active horizon short and the roadm
 
 ## 13. Recommended Next Slice Right Now
 
-After this planning reconciliation, the next implementation slice should be:
+After the latest archive reconciliation, the next implementation slice should be:
 
-1. ~~P2-S1b: enforce tenant isolation for log query~~ (done)
-2. ~~P2-S1c: enforce tenant isolation for metric query~~ (done)
-3. ~~P2-S1d: assert tenant partition preservation in storage writes~~ (done)
-4. ~~P2-S2a: add deterministic rate limiting for trace ingest~~ (done)
-5. ~~P2-S5a: add audit logging for credential validation~~ (done)
-6. ~~P2-S5b: add audit logging for query reads~~ (done)
-7. ~~P2-S6a: add minimal RBAC distinction for one role pair~~ (done)
-8. ~~P2-S3a: add cardinality budget observation for one signal~~ (done)
-9. ~~P2-S4a: add hot retention policy for traces~~ (done)
-10. ~~P2-S7a: add one threshold alert evaluation path~~ (done)
-11. ~~P2-S8a: add Kubernetes manifest render and rollback skeleton~~ (done)
-12. ~~P2-S8b: add one canary promotion path~~ (done)
-13. ~~P2-S9a: add perf smoke baseline for ingest and common query paths~~ (done)
-14. ~~P3-S10: Add infrastructure correlation from service and trace views~~ (done)
-15. ~~P3-S6f: add modern UI foundation tokens and layout primitives~~ (done)
-16. ~~P3-S6c: add onboarding/setup flow for first-signal success~~ (done)
-17. ~~P3-S6d: add a minimal threshold-alert UI workflow~~ (done)
-18. ~~P3-S6e: add explicit accessibility regression coverage for the trace waterfall and other major new views~~ (done)
-19. P3-S12: add "Promote to Dashboard" from explorers and a fixed-layout dashboard route
-20. P3-S13: add dashboard-as-code import/export for one dashboard shape
-21. P3-S15: establish Testcontainers integration harness for real dependencies before the next backend slice touches PostgreSQL, ClickHouse, Redpanda, object storage, or OpenFGA
-17. ~~P3-S6e: add explicit accessibility regression coverage for the trace waterfall and other major new views~~ (done)
-18. ~~UI-R1: renovate service and infrastructure detail surfaces~~ (done)
-19. UI-R2: renovate explorer detail and log support surfaces
-20. UI-R3: remove remaining legacy style drift and document the frontend migration rule
-21. P3-S6d: add a minimal threshold-alert UI workflow
-22. P3-S12: add "Promote to Dashboard" from explorers and a fixed-layout dashboard route
-23. P3-S13: add dashboard-as-code import/export for one dashboard shape
-24. P3-S15: establish Testcontainers integration harness for real dependencies before the next backend slice touches PostgreSQL, ClickHouse, Redpanda, object storage, or OpenFGA
+1. ~~UI-R1: renovate service and infrastructure detail surfaces~~ (done)
+2. ~~UI-R2: renovate explorer detail and log support surfaces~~ (done)
+3. ~~UI-R3: remove remaining legacy style drift and document the frontend migration rule~~ (done)
+4. ~~P3-S6d: add a minimal threshold-alert UI workflow~~ (done)
+5. ~~P3-S12: add "Promote to Dashboard" from explorers and a fixed-layout dashboard route~~ (done)
+6. ~~P3-S13: add dashboard-as-code import/export for one dashboard shape~~ (done)
+7. P3-S15: establish Testcontainers integration harness for real dependencies before the next backend slice touches PostgreSQL, ClickHouse, Redpanda, object storage, or OpenFGA
 
-**Next recommended slice: UI-R2 - Renovate explorer detail and log support surfaces.**
+**Next recommended slice: P3-S15 - Establish Testcontainers integration harness for real dependencies.**
 
 **Phase 2 exit gate is now satisfied.** All Phase 2 slices (P2-S0 through P2-S9a) are complete. Before starting Phase 3, answer the Phase 2 pause-point questions:
 - Tenant safety under test: yes — P2-S1a through P2-S1d enforce and test cross-tenant isolation for all signal types.
@@ -760,17 +738,10 @@ After this planning reconciliation, the next implementation slice should be:
 - Roll back a bad deploy without manual heroics: yes — P2-S8a (Helm rollback skeleton) and P2-S8b (canary promotion path) cover both runtime and schema rollback.
 - Self-observability route choice: use a second observer instance for production and customer-facing environments; use recursive self-ingest for local development, dogfooding, and bootstrap. This follows `spec/17-self-observability.md` by preserving both recursive OTLP telemetry and independent health/Prometheus monitoring, and it requires service-level, infrastructure-level, and UI-level instrumentation before the slice is complete.
 
-The next recommended UI slices should complete the pure renovation gate before adding any
-new product UI workflows:
-- `UI-R1` service and infrastructure detail renovation
-- `UI-R2` explorer detail and log support renovation
-- `UI-R3` remaining style drift cleanup and migration rule documentation
-
-After the renovation gate is complete, the product UI sequence should close the remaining
-service-centric MVP bar before any further broad UI expansion:
-- `P3-S6d` threshold-alert UI
-- `P3-S12` dashboard workflow
-- `P3-S13` dashboard-as-code round-trip
+The UI renovation gate and service-centric MVP UI sequence are now complete. The remaining Phase 3
+blocking work is the P3-S15 Testcontainers harness, which should land before the next backend slice
+touches PostgreSQL, ClickHouse, Redpanda, object storage, OpenFGA, or another real dependency
+boundary.
 
 ---
 

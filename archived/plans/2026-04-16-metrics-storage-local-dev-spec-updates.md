@@ -269,7 +269,7 @@
     --body "$(cat <<'EOF'
   ## Summary
 
-  Resolves two open gaps identified in spec review pass (see design doc: `docs/superpowers/specs/2026-04-16-metrics-storage-and-local-dev-design.md`):
+  Resolves two open gaps identified in spec review pass (see design doc: `../specs/2026-04-16-metrics-storage-and-local-dev-design.md`):
 
   - **spec/03-storage.md**: Removes the \"two valid options\" hedge for metrics storage. Commits to ClickHouse for Phase 1 with an explicit revisit condition tied to Phase 2/3 cardinality testing.
   - **spec/adr/ADR-003-clickhouse-boundary.md**: Removes the \"initially\" qualifier. Metrics are now a committed part of the ClickHouse boundary. Adds revisit condition and MetricSeries schema reference.

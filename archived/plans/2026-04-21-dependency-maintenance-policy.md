@@ -125,7 +125,7 @@ git push -u origin <branch-name>
 Title: `spec(process): add dependency maintenance policy (§16.10)`
 
 Body must include:
-- Source spec: `docs/superpowers/specs/2026-04-21-dependency-maintenance-policy-design.md`
+- Source spec: `../specs/2026-04-21-dependency-maintenance-policy-design.md`
 - Acceptance target: `§16.10` exists in `spec/10-process.md` with pinning rules, cadence, CVE SLAs, automation note, and ownership; CLAUDE.md has Docker image guidance
 - ADR/spec sync: no ADR change required — this is operational policy, not an architectural decision
 - Doc/spec review: run `doc-review` skill and confirm all four phases pass before opening PR
