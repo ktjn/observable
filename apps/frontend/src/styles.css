@@ -110,11 +110,26 @@
 :root[data-theme="vt220"] textarea {
   color: var(--text);
   background-color: var(--surface-raised);
+  font-family: "VT323", "IBM Plex Mono", monospace;
+  font-size: 14px;
 }
 
 :root[data-theme="vt220"] input::placeholder,
 :root[data-theme="vt220"] textarea::placeholder {
   color: var(--muted);
+}
+
+:root[data-theme="vt220"] option {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: "VT323", "IBM Plex Mono", monospace;
+  font-size: 14px;
+}
+
+/* Override Chromium's blue/white selection highlight in native select dropdowns */
+:root[data-theme="vt220"] option:checked {
+  background: linear-gradient(var(--brand-bg), var(--brand-bg));
+  color: var(--text-strong);
 }
 
 
