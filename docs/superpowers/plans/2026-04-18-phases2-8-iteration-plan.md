@@ -19,7 +19,8 @@ Every iteration in the remaining phases must:
 3. include verification, rollback, and next-slice notes
 4. stop at a checkpoint before crossing a new trust boundary
 5. avoid bundling backend, frontend, infrastructure, and docs unless the slice requires all of them
-6. **Mandatory UI Standards**: Every frontend slice MUST:
+6. **Value-First Sequencing**: As of 2026-05-05, the roadmap is reordered to prioritize user-visible features and observability signal visibility (SLOs, Notifications, Profiling, RUM) over production-hardening tasks (Warm Retention, Backup/Restore, SSO). Hardening slices are deferred until the core "Golden Signals" and triage workflows are more complete.
+7. **Mandatory UI Standards**: Every frontend slice MUST:
    - Use the **feature-based directory structure** (`src/features/<domain>`)
    - Use **Base UI** primitives for new interactive components (Shadcn pattern)
    - Implement **Tailwind CSS v4** for styling
@@ -720,20 +721,20 @@ Do not keep a 50-slice active queue. Keep the active horizon short and the roadm
 
 ---
 
-## 13. Recommended Next Slice Right Now
+## 13. Recommended Next Slice Right Now (Value-First Sequence)
 
-After the latest archive reconciliation, the next implementation slice should be:
+After the 2026-05-05 reordering for value-first delivery, the next implementation sequence is:
 
-1. ~~UI-R1: renovate service and infrastructure detail surfaces~~ (done)
-2. ~~UI-R2: renovate explorer detail and log support surfaces~~ (done)
-3. ~~UI-R3: remove remaining legacy style drift and document the frontend migration rule~~ (done)
-4. ~~P3-S6d: add a minimal threshold-alert UI workflow~~ (done)
-5. ~~P3-S12: add "Promote to Dashboard" from explorers and a fixed-layout dashboard route~~ (done)
-6. ~~P3-S13: add dashboard-as-code import/export for one dashboard shape~~ (done)
-7. ~~P3-S15: establish Testcontainers integration harness for real dependencies before the next backend slice touches PostgreSQL, ClickHouse, Redpanda, object storage, or OpenFGA~~ (done)
-8. P4-S1: add one warm-retention movement path
+1. **P4-S5: Add SLO definition and one burn-rate alert** (Transitions to reliability-focused SLIs/SLOs)
+2. **P5-S2: Add one notification routing integration** (Makes alerts actionable via Slack/Webhooks)
+3. **P6-S1: Add continuous profiling ingestion and one query path** (Adds the fourth Golden Signal)
+4. **P6-S2: Add browser RUM for one web app** (Extends visibility to the end-user experience)
+5. **P5-S1: Add incident timeline for one alert source** (Central triage point for correlated events)
+6. **P8-S1: Add anomaly detection for one clearly bounded metric family** (Automated discovery)
+7. **P6-S4: Add one synthetic check workflow** (Proactive liveness verification)
+8. **P4-S1: Add one warm-retention movement path** (Starts production cost/retention management)
 
-**Next recommended slice: P4-S1 - Add one warm-retention movement path.**
+**Next recommended slice: P4-S5 - Add SLO definition and one burn-rate alert.**
 
 **Phase 2 exit gate is now satisfied.** All Phase 2 slices (P2-S0 through P2-S9a) are complete. Before starting Phase 3, answer the Phase 2 pause-point questions:
 - Tenant safety under test: yes — P2-S1a through P2-S1d enforce and test cross-tenant isolation for all signal types.

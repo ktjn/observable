@@ -20,7 +20,7 @@ making changes.
   default entry role. Runtimes without subagent support should apply matching specialist `.agent.md`
   files manually as checklists.
 - Active roadmap: `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`.
-- Active detailed implementation plan: `docs/superpowers/plans/2026-05-05-p4-s1-warm-retention.md` for P4-S1.
+- Active detailed implementation plan: none; write the next plan for **P4-S5** (SLO/Burn-rate) based on `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md` before starting.
 - Completed detailed plan archive: `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
 - Historical Phase 1 plan: `archived/plans/2026-04-17-phase1-internal-mvp.md`; do not treat it as an active backlog.
 - Architecture decisions: `spec/adr/`.
