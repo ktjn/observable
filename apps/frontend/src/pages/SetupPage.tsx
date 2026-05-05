@@ -343,7 +343,7 @@ function ConnectivityBadge({ saveState, modelsStatus, modelsError, remoteModels 
   if (modelsStatus === "loaded") {
     const modelCount = remoteModels.length;
     return (
-      <span className="text-xs text-[var(--success-text,#22c55e)]" role="status" data-testid="llm-config-test-ok">
+      <span className="text-xs text-[var(--good)]" role="status" data-testid="llm-config-test-ok">
         {saveState === "saved" ? "Saved. " : ""}✓ Connected
         {modelCount > 0 ? ` (${modelCount} model${modelCount === 1 ? "" : "s"})` : " (no models listed)"}
       </span>

@@ -28,6 +28,11 @@
   --info-bg: #f0f0f7;
   --shadow-panel: none;
   --shadow-control: none;
+  --text-muted: #666666;
+  --bg-input: #ffffff;
+  --danger-text: #bb0000;
+  --danger-border: #e0b0b0;
+  --danger-bg: #fdf0f0;
   font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', Arial, sans-serif;
 }
 
@@ -56,6 +61,11 @@
   --info-bg: #0a1f0a;
   --shadow-panel: none;
   --shadow-control: none;
+  --text-muted: #1a9a1a;
+  --bg-input: #020a02;
+  --danger-text: #ff5555;
+  --danger-border: #5a1a1a;
+  --danger-bg: #2a0a0a;
 }
 
 :root[data-theme="vt220"] {
@@ -83,7 +93,15 @@
   --info-bg: #1a1a00;
   --shadow-panel: none;
   --shadow-control: none;
+  --text-muted: #AA7700;
+  --bg-input: #141410;
+  --danger-text: #FF5533;
+  --danger-border: #5a2010;
+  --danger-bg: #2a0d00;
   font-family: "VT323", "IBM Plex Mono", monospace;
+}
+
+:root[data-theme="vt220"] body {
   font-size: 14px;
 }
 
