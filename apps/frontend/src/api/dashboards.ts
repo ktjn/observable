@@ -55,3 +55,38 @@ export async function createDashboard(tenantId: string, req: CreateDashboardRequ
   if (!res.ok) throw new Error(`Dashboard create failed: ${res.status}`);
   return res.json();
 }
+
+export interface DashboardExportPanel {
+  title: string;
+  query_kind: DashboardQueryKind;
+  service?: string | null;
+  preset?: Preset | null;
+  filters: Record<string, unknown>;
+}
+
+export interface DashboardExport {
+  schema_version: string;
+  name: string;
+  panels: DashboardExportPanel[];
+}
+
+export async function exportDashboard(tenantId: string, dashboardId: string): Promise<DashboardExport> {
+  const res = await fetch(`/v1/dashboards/${dashboardId}/export`, {
+    headers: tenantHeaders(tenantId),
+  });
+  if (!res.ok) throw new Error(`Dashboard export failed: ${res.status}`);
+  return res.json();
+}
+
+export async function importDashboard(tenantId: string, export_: DashboardExport): Promise<Dashboard> {
+  const res = await fetch("/v1/dashboards/import", {
+    method: "POST",
+    headers: {
+      ...tenantHeaders(tenantId),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(export_),
+  });
+  if (!res.ok) throw new Error(`Dashboard import failed: ${res.status}`);
+  return res.json();
+}

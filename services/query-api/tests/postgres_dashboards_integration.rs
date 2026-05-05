@@ -1,5 +1,6 @@
 use query_api::dashboards::{
-    create_dashboard, list_dashboards, CreateDashboardRequest, DashboardPanelRequest,
+    create_dashboard, export_dashboard, import_dashboard, list_dashboards, CreateDashboardRequest,
+    DashboardExport, DashboardExportPanel, DashboardPanelRequest,
 };
 use sqlx::PgPool;
 use std::path::Path;
@@ -120,5 +121,108 @@ async fn list_dashboards_does_not_return_other_tenant_dashboards() {
     assert!(
         tenant_b_dashboards.is_empty(),
         "tenant B must not see tenant A dashboards"
+    );
+}
+
+#[tokio::test]
+async fn export_dashboard_round_trips_panels() {
+    let (pool, _container) = start_pool().await;
+    let tenant = Uuid::new_v4();
+    insert_tenant(&pool, tenant).await;
+
+    let created = create_dashboard(
+        &pool,
+        tenant,
+        &CreateDashboardRequest {
+            name: "Export test".into(),
+            panels: vec![DashboardPanelRequest {
+                title: "Error logs".into(),
+                query_kind: "logs".into(),
+                service: Some("checkout".into()),
+                preset: Some("1h".into()),
+                filters: serde_json::json!({"facets":["severity_number"]}),
+            }],
+        },
+    )
+    .await
+    .unwrap();
+
+    let export = export_dashboard(&pool, tenant, created.dashboard_id)
+        .await
+        .unwrap()
+        .expect("export must be found");
+
+    assert_eq!(export.schema_version, "1");
+    assert_eq!(export.name, "Export test");
+    assert_eq!(export.panels.len(), 1);
+    assert_eq!(export.panels[0].title, "Error logs");
+    assert_eq!(export.panels[0].query_kind, "logs");
+    assert_eq!(export.panels[0].service.as_deref(), Some("checkout"));
+    assert_eq!(export.panels[0].preset.as_deref(), Some("1h"));
+    assert_eq!(export.panels[0].filters["facets"][0], "severity_number");
+}
+
+#[tokio::test]
+async fn import_creates_new_dashboard_from_export() {
+    let (pool, _container) = start_pool().await;
+    let tenant = Uuid::new_v4();
+    insert_tenant(&pool, tenant).await;
+
+    let export = DashboardExport {
+        schema_version: "1".into(),
+        name: "Imported dashboard".into(),
+        panels: vec![DashboardExportPanel {
+            title: "Trace search".into(),
+            query_kind: "traces".into(),
+            service: None,
+            preset: Some("3h".into()),
+            filters: serde_json::json!({}),
+        }],
+    };
+
+    let imported = import_dashboard(&pool, tenant, &export).await.unwrap();
+
+    assert_eq!(imported.name, "Imported dashboard");
+    assert_eq!(imported.panels.len(), 1);
+    assert_eq!(imported.panels[0].title, "Trace search");
+    assert_eq!(imported.panels[0].query_kind, "traces");
+    assert_eq!(imported.panels[0].preset.as_deref(), Some("3h"));
+
+    let all = list_dashboards(&pool, tenant).await.unwrap();
+    assert_eq!(all.len(), 1);
+}
+
+#[tokio::test]
+async fn export_returns_none_for_wrong_tenant() {
+    let (pool, _container) = start_pool().await;
+    let tenant_a = Uuid::new_v4();
+    let tenant_b = Uuid::new_v4();
+    insert_tenant(&pool, tenant_a).await;
+    insert_tenant(&pool, tenant_b).await;
+
+    let created = create_dashboard(
+        &pool,
+        tenant_a,
+        &CreateDashboardRequest {
+            name: "Tenant A dashboard".into(),
+            panels: vec![DashboardPanelRequest {
+                title: "Logs".into(),
+                query_kind: "logs".into(),
+                service: None,
+                preset: None,
+                filters: serde_json::json!({}),
+            }],
+        },
+    )
+    .await
+    .unwrap();
+
+    let result = export_dashboard(&pool, tenant_b, created.dashboard_id)
+        .await
+        .unwrap();
+
+    assert!(
+        result.is_none(),
+        "tenant B must not export tenant A dashboard"
     );
 }

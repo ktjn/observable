@@ -1,6 +1,10 @@
 use crate::middleware::auth::TenantContext;
 use crate::traces::AppState;
-use axum::{extract::State, http::StatusCode, Extension, Json};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Extension, Json,
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -202,6 +206,93 @@ pub async fn create_dashboard(
 }
 
 const VALID_PRESETS: &[&str] = &["5m", "15m", "30m", "1h", "3h", "12h"];
+const EXPORT_SCHEMA_VERSION: &str = "1";
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct DashboardExportPanel {
+    pub title: String,
+    pub query_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preset: Option<String>,
+    pub filters: serde_json::Value,
+}
+
+/// Portable dashboard representation — no IDs, stable for version control.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct DashboardExport {
+    pub schema_version: String,
+    pub name: String,
+    pub panels: Vec<DashboardExportPanel>,
+}
+
+pub async fn export_dashboard(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+    dashboard_id: Uuid,
+) -> Result<Option<DashboardExport>, sqlx::Error> {
+    let dashboard = sqlx::query_as::<_, DashboardRow>(
+        "SELECT dashboard_id, name, created_at \
+         FROM dashboards \
+         WHERE dashboard_id = $1 AND tenant_id = $2",
+    )
+    .bind(dashboard_id)
+    .bind(tenant_id)
+    .fetch_optional(db)
+    .await?;
+
+    let Some(dashboard) = dashboard else {
+        return Ok(None);
+    };
+
+    let panels = sqlx::query_as::<_, DashboardPanelRow>(
+        "SELECT dashboard_id, panel_id, title, query_kind, service, preset, filters \
+         FROM dashboard_panels \
+         WHERE dashboard_id = $1 \
+         ORDER BY position ASC",
+    )
+    .bind(dashboard.dashboard_id)
+    .fetch_all(db)
+    .await?;
+
+    Ok(Some(DashboardExport {
+        schema_version: EXPORT_SCHEMA_VERSION.into(),
+        name: dashboard.name,
+        panels: panels
+            .into_iter()
+            .map(|p| DashboardExportPanel {
+                title: p.title,
+                query_kind: p.query_kind,
+                service: p.service,
+                preset: p.preset,
+                filters: p.filters,
+            })
+            .collect(),
+    }))
+}
+
+pub async fn import_dashboard(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+    export: &DashboardExport,
+) -> Result<DashboardItem, CreateDashboardError> {
+    let req = CreateDashboardRequest {
+        name: export.name.clone(),
+        panels: export
+            .panels
+            .iter()
+            .map(|p| DashboardPanelRequest {
+                title: p.title.clone(),
+                query_kind: p.query_kind.clone(),
+                service: p.service.clone(),
+                preset: p.preset.clone(),
+                filters: p.filters.clone(),
+            })
+            .collect(),
+    };
+    create_dashboard(db, tenant_id, &req).await
+}
 
 fn validate_create_request(req: &CreateDashboardRequest) -> Result<(), CreateDashboardError> {
     if req.name.trim().is_empty() {
@@ -264,6 +355,43 @@ pub async fn handle_create_dashboard(
         }
         Err(CreateDashboardError::Db(e)) => {
             tracing::error!(error = %e, "failed to create dashboard");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+pub async fn handle_get_dashboard_export(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(dashboard_id): Path<Uuid>,
+) -> Result<Json<DashboardExport>, StatusCode> {
+    match export_dashboard(&state.db, ctx.tenant_id, dashboard_id).await {
+        Ok(Some(export)) => Ok(Json(export)),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            tracing::error!(error = %e, "failed to export dashboard");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+pub async fn handle_import_dashboard(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Json(export): Json<DashboardExport>,
+) -> Result<(StatusCode, Json<DashboardItem>), StatusCode> {
+    if export.schema_version != EXPORT_SCHEMA_VERSION {
+        tracing::warn!(schema_version = %export.schema_version, "unsupported dashboard export schema version");
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+    }
+    match import_dashboard(&state.db, ctx.tenant_id, &export).await {
+        Ok(item) => Ok((StatusCode::CREATED, Json(item))),
+        Err(CreateDashboardError::InvalidInput(msg)) => {
+            tracing::warn!(message = %msg, "invalid dashboard import");
+            Err(StatusCode::BAD_REQUEST)
+        }
+        Err(CreateDashboardError::Db(e)) => {
+            tracing::error!(error = %e, "failed to import dashboard");
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
