@@ -87,7 +87,19 @@
       "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
       "Bash(Get-ChildItem -Path \"C:\\\\git\\\\Observable\" -Directory)",
       "Bash(Select-Object -ExpandProperty Name)",
-      "PowerShell(head *)"
+      "PowerShell(head *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\git\\\\Observable\\\\apps\\\\frontend\\\\src\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\git\\\\Observable\\\\apps\\\\frontend\\\\src\" -Recurse | Where-Object { $_.PSIsContainer } | Select-Object -First 30 -ExpandProperty FullName)",
+      "Bash(Find . -type f -name \"*.tsx\" -o -name \"*.ts\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\git\\\\Observable\\\\apps\\\\frontend\\\\src\" -Recurse -Include \"*log*\",\"*signal*\",\"*view*\" -Exclude \"*.test.*\")",
+      "Bash(Sort-Object)",
+      "PowerShell(ls \"C:\\\\git\\\\Observable\" | Where-Object { $_.PSIsContainer })",
+      "PowerShell(ls \"C:\\\\git\\\\Observable\\\\apps\" | Where-Object { $_.PSIsContainer })",
+      "Bash(C:\\\\Users\\\\ktjn\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\5.0.7\\\\scripts\\\\start-server.sh *)",
+      "Bash(ls -d .worktrees)",
+      "Bash(ls -d worktrees)",
+      "Bash(npm --prefix apps/frontend run test -- --reporter=verbose --run)"
     ]
   }
 }

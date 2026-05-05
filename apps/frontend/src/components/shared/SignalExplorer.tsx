@@ -118,8 +118,8 @@ export function SignalExplorer({
 
       {histogram}
 
-      <div className="flex flex-1 min-h-0 items-start gap-3 max-[900px]:flex-col">
-        <div className="flex flex-1 min-h-0 items-start gap-3">
+      <div className="flex flex-1 min-h-0 gap-3 max-[900px]:flex-col">
+        <div className="flex flex-1 min-h-0">
           {renderTable(selectedId, handleSelect)}
         </div>
         {selectedId !== null && (

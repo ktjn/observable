@@ -2,64 +2,67 @@ import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { VirtualTable } from "./VirtualTable";
 
-vi.mock("@tanstack/react-virtual", () => ({
-  useVirtualizer: ({ count }: { count: number }) => ({
-    getVirtualItems: () =>
-      Array.from({ length: count }, (_, i) => ({
-        key: i,
-        index: i,
-        start: i * 40,
-        end: (i + 1) * 40,
-      })),
-    getTotalSize: () => count * 40,
-    measureElement: (_el: Element | null) => {},
-  }),
-}));
-
-test("renders table with aria-label, headers, and all rows", () => {
-  const rows = ["apple", "banana", "cherry"];
-  render(
+function renderTable(rows: string[]) {
+  return render(
     <VirtualTable
       rows={rows}
       renderHead={() => (
         <tr>
-          <th>Fruit</th>
+          <th>Item</th>
         </tr>
       )}
-      renderRow={(row, ref, index) => (
-        <tr key={index} ref={ref} data-index={index}>
+      renderRow={(row, _ref, index) => (
+        <tr key={index} data-index={index}>
           <td>{row}</td>
         </tr>
       )}
-      ariaLabel="Fruit table"
+      ariaLabel="Test table"
     />,
   );
+}
 
-  expect(screen.getByRole("table", { name: "Fruit table" })).toBeInTheDocument();
-  expect(screen.getByRole("columnheader", { name: "Fruit" })).toBeInTheDocument();
-  expect(screen.getByText("apple")).toBeInTheDocument();
-  expect(screen.getByText("banana")).toBeInTheDocument();
-  expect(screen.getByText("cherry")).toBeInTheDocument();
+test("renders table with aria-label and headers", () => {
+  renderTable(["apple", "banana", "cherry"]);
+  expect(screen.getByRole("table", { name: "Test table" })).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: "Item" })).toBeInTheDocument();
 });
 
 test("renders an empty table when rows is empty", () => {
-  render(
-    <VirtualTable
-      rows={[]}
-      renderHead={() => (
-        <tr>
-          <th>Fruit</th>
-        </tr>
-      )}
-      renderRow={(row, ref, index) => (
-        <tr key={index} ref={ref} data-index={index}>
-          <td>{String(row)}</td>
-        </tr>
-      )}
-      ariaLabel="Empty table"
-    />,
-  );
-
-  expect(screen.getByRole("table", { name: "Empty table" })).toBeInTheDocument();
+  renderTable([]);
+  expect(screen.getByRole("table", { name: "Test table" })).toBeInTheDocument();
   expect(screen.queryByRole("cell")).not.toBeInTheDocument();
+});
+
+test("renders only the first page of rows on initial load", () => {
+  const rows = Array.from({ length: 80 }, (_, i) => `row-${i}`);
+  renderTable(rows);
+  expect(screen.getByText("row-0")).toBeInTheDocument();
+  expect(screen.getByText("row-49")).toBeInTheDocument();
+  expect(screen.queryByText("row-50")).not.toBeInTheDocument();
+});
+
+test("reveals the next page when the sentinel enters the viewport", async () => {
+  let observerCallback: IntersectionObserverCallback | null = null;
+  window.IntersectionObserver = class {
+    constructor(cb: IntersectionObserverCallback) {
+      observerCallback = cb;
+    }
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof IntersectionObserver;
+
+  const rows = Array.from({ length: 120 }, (_, i) => `row-${i}`);
+  renderTable(rows);
+
+  expect(screen.queryByText("row-50")).not.toBeInTheDocument();
+
+  // Simulate sentinel entering viewport
+  observerCallback!([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+
+  await vi.waitFor(() => {
+    expect(screen.getByText("row-50")).toBeInTheDocument();
+    expect(screen.getByText("row-99")).toBeInTheDocument();
+    expect(screen.queryByText("row-100")).not.toBeInTheDocument();
+  });
 });

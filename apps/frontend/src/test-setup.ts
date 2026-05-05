@@ -24,3 +24,9 @@ window.ResizeObserver = class ResizeObserver {
   unobserve() {}
   disconnect() {}
 };
+
+window.IntersectionObserver = class IntersectionObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof IntersectionObserver;
