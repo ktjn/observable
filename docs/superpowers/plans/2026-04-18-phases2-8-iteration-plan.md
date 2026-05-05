@@ -396,9 +396,9 @@ Before starting any new product UI workflow, complete these pure renovation slic
   - Verification: ingest-gateway converter tests cover HTTP metadata preservation and stable HTTP/gRPC series IDs; `tests/e2e/smoke_test_unit.sh` covers the readback assertions; full local CI remains required before push.
   - Checkpoint: can a customer send a basic OTLP metric and query its points back without relying on random per-point series identity? Answer: yes for gauges, sums, and explicit histograms.
 
-- [ ] **P3-S13: Add dashboard-as-code import/export for one dashboard shape**
-  - Outcome: one dashboard can round-trip through API, storage, and UI
-  - Checkpoint: is the serialized contract stable enough to support CI validation later?
+- [x] **P3-S13: Add dashboard-as-code import/export for one dashboard shape**
+  - Outcome: one dashboard can round-trip through API, storage, and UI. `GET /v1/dashboards/:id/export` returns a stable JSON envelope (`schema_version`, `name`, `panels` — no IDs) safe for version control. `POST /v1/dashboards/import` accepts the same envelope and creates a new tenant-scoped dashboard. Frontend adds Export and Import buttons to DashboardsPage. 3 Testcontainers tests cover round-trip, import-creates-new, and cross-tenant isolation. 4 frontend tests cover list, empty state, export download, import pick, and error display. Completed 2026-05-05.
+  - Checkpoint: is the serialized contract stable enough to support CI validation later? Answer: yes. The `schema_version: "1"` field gates backward compatibility. The envelope contains only name, query_kind, service, preset, and filters — no database IDs or timestamps — so it is stable for CI round-trip validation and version control storage.
 
 - [x] **P3-S14: Add Schema Registry with semantic annotations for one signal type**
   - Outcome: one signal type's fields have business-meaning annotations queryable via API; sets the grounding foundation required by the NL query layer (ADR-021). See `spec/03-storage.md §5.4.1`. Migration `015_create_schema_registry.sql` adds `schema_entries` (global structural catalog) and `semantic_annotations` (tenant-scoped, includes `metric_type`, `timestamp_column`, `unit`, `recommended_downsampling` for MCP server time-series SQL generation). query-api exposes `GET /v1/schemas/:signal_type/attributes` and full CRUD for `/v1/schemas/:signal_type/attributes/:key/annotations`. 11 Testcontainers integration tests cover CRUD, tenant isolation, seeded dev data, and upsert vs. patch semantics. Completed 2026-04-29.
