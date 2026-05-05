@@ -249,6 +249,12 @@ h1 {
   font-weight: 400;
   border-radius: var(--radius, 4px);
   cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+select.context-pill {
+  padding-right: 14px;
 }
 
 .secondary-link:hover {
