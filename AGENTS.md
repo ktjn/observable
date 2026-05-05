@@ -24,6 +24,12 @@ See `.github/agents/README.md` for routing rules, escalation triggers, and role 
 When starting a new task or orchestrating work across multiple surfaces, use the **Coordinator** agent
 defined in `.github/agents/coordinator.agent.md`.
 
+Any AI agent working in this repository must treat `.github/agents/README.md` as the routing index
+for repository role guidance. For new tasks, first load `.github/agents/coordinator.agent.md`. When a
+task matches a routing rule, load the relevant specialist `.agent.md` file and follow it as the active
+role prompt or review checklist. If the runtime supports subagents, invoke the specialist as a
+subagent; otherwise, apply the specialist instructions manually in the current session.
+
 ## Phase Plan Status
 
 - **Phase 1 is closed:** treat `archived/plans/2026-04-17-phase1-internal-mvp.md` as a historical implementation record, not as an active backlog to reopen or continue.

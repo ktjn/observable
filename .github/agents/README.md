@@ -22,6 +22,21 @@ the slice of context relevant to their domain.
 | **Planning Steward** | `planning-steward.agent.md` | Subagent (read-only) | `docs/superpowers/plans/` |
 | **Implementation Steward** | `implementation-steward.agent.md` | Subagent (code) | `services/`, `apps/`, `libs/`, `migrations/`, `tests/` |
 
+## Runtime Compatibility
+
+These `.agent.md` files are runtime-neutral role prompts. Any AI agent or agent runtime can use them
+by loading this README as the routing index, then loading the matching `.agent.md` file as the active
+role instructions for the current task.
+
+- Runtimes with subagent support should invoke the matching specialist as a subagent and pass only
+  the bounded task context it needs.
+- Runtimes without subagent support should apply the matching specialist file manually as a checklist
+  in the current session.
+- If a runtime supports custom agent registration, register the files in this directory using their
+  filenames as the stable role identifiers.
+- `user-invocable: false` means the role is intended for coordinator-directed use, not that the file
+  is unavailable to other agent runtimes.
+
 ## Coordinator Routing Rules
 
 The coordinator decides which specialist(s) to invoke based on what surfaces the task touches:
