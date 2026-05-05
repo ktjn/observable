@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
-export type ThemePreference = "light" | "dark" | "system";
-type ResolvedTheme = "light" | "dark";
+export type ThemePreference = "light" | "dark" | "system" | "vt220";
+type ResolvedTheme = "light" | "dark" | "vt220";
 
 interface ThemeContextValue {
   preference: ThemePreference;
@@ -27,7 +27,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => media.removeEventListener("change", handleChange);
   }, []);
 
-  const resolvedTheme = preference === "system" ? systemTheme : preference;
+  const resolvedTheme = preference === "system" ? systemTheme : preference === "vt220" ? "vt220" : preference;
 
   useEffect(() => {
     document.documentElement.dataset.theme = resolvedTheme;
@@ -67,5 +67,5 @@ function getSystemTheme(): ResolvedTheme {
 }
 
 function isThemePreference(value: string | null): value is ThemePreference {
-  return value === "light" || value === "dark" || value === "system";
+  return value === "light" || value === "dark" || value === "system" || value === "vt220";
 }

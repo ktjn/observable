@@ -58,9 +58,36 @@
   --shadow-control: none;
 }
 
-* {
-  box-sizing: border-box;
+:root[data-theme="vt220"] {
+  color-scheme: dark;
+  --bg: #1A1A16;
+  --surface: #1f1f19;
+  --surface-subtle: #232319;
+  --border: #3a3210;
+  --border-strong: #6b5a10;
+  --text: #FFB000;
+  --text-strong: #FFD050;
+  --muted: #AA7700;
+  --brand: #FFB000;
+  --brand-strong: #FFD050;
+  --brand-bg: #2a2200;
+  --focus-ring: #FFB000;
+  --surface-raised: #141410;
+  --surface-inset: #111108;
+  --good: #44BB44;
+  --good-bg: #0d1f0d;
+  --warn: #FFB000;
+  --warn-bg: #2a1a00;
+  --bad: #FF5533;
+  --bad-bg: #2a0d00;
+  --info-bg: #1a1a00;
+  --shadow-panel: none;
+  --shadow-control: none;
+  font-family: "VT323", "IBM Plex Mono", monospace;
+  font-size: 14px;
 }
+
+
 
 body {
   margin: 0;

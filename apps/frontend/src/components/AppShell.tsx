@@ -25,6 +25,7 @@ const themeOptions: { label: string; value: ThemePreference }[] = [
   { label: "Light", value: "light" },
   { label: "Dark", value: "dark" },
   { label: "Sys", value: "system" },
+  { label: "VT220", value: "vt220" },
 ];
 
 export function AppShell() {
@@ -68,20 +69,16 @@ export function AppShell() {
 
         <div className="sidebar-footer">
           <div className="field-label">Theme</div>
-          <div className="segmented-control" role="radiogroup" aria-label="Theme preference">
+          <select
+            aria-label="Theme preference"
+            value={preference}
+            onChange={(e) => setPreference(e.target.value as ThemePreference)}
+            style={{ cursor: "pointer", background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border-strong)", padding: "2px 6px", fontSize: "inherit", width: "100%" }}
+          >
             {themeOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                role="radio"
-                aria-checked={preference === option.value}
-                className={preference === option.value ? "segment active" : "segment"}
-                onClick={() => setPreference(option.value)}
-              >
-                {option.label}
-              </button>
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </div>
+          </select>
         </div>
       </aside>
 

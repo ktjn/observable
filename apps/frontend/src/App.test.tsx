@@ -289,8 +289,8 @@ test("renders first signal empty state when no telemetry is queryable yet", asyn
 test("persists the selected theme preference", async () => {
   render(<App />);
 
-  const darkTheme = await screen.findByRole("radio", { name: "Dark" });
-  fireEvent.click(darkTheme);
+  const themeSelect = await screen.findByRole("combobox", { name: "Theme preference" });
+  fireEvent.change(themeSelect, { target: { value: "dark" } });
 
   expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
   expect(document.documentElement.dataset.themePreference).toBe("dark");
