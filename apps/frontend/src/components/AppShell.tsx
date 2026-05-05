@@ -6,7 +6,6 @@ import { useTimeDisplay, TIME_FORMAT_OPTIONS } from "../lib/timeDisplay";
 import { GlobalDateRangePicker } from "./GlobalDateRangePicker";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { listTenants, listEnvironments } from "../api/tenants";
-import { Select, SelectOption } from "./ui/select";
 
 const navItems = [
   { label: "Setup", to: "/setup" },
@@ -90,40 +89,50 @@ export function AppShell() {
         <header className="topbar">
           <div className="topbar-title">Platform — {tenantName}</div>
           <div className="topbar-controls" aria-label="Global context">
-            <Select
-              aria-label="Tenant"
-              value={tenantId}
-              onChange={(e) => {
-                const selected = tenants.find((t) => t.id === e.target.value);
-                if (selected) setTenant({ id: selected.id, name: selected.name });
-              }}
-            >
-              {tenants.map((t) => (
-                <SelectOption key={t.id} value={t.id}>{t.name}</SelectOption>
-              ))}
-            </Select>
-            <Select
-              aria-label="Environment"
-              value={environment ?? ""}
-              onChange={(e) => setEnvironment(e.target.value === "" ? null : e.target.value)}
-            >
-              <SelectOption value="">All environments</SelectOption>
-              {environments.map((e) => (
-                <SelectOption key={e.environment} value={e.environment}>{e.environment}</SelectOption>
-              ))}
-            </Select>
+            <GlobalDateRangePicker />
             <select
               aria-label="Time display format"
               className="context-pill"
               value={format}
               onChange={(e) => setFormat(e.target.value as typeof format)}
-              style={{ cursor: "pointer", background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "var(--radius, 4px)", padding: "2px 6px", fontSize: "inherit" }}
+              style={{ cursor: "pointer" }}
             >
               {TIME_FORMAT_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
-            <GlobalDateRangePicker />
+            <select
+              aria-label="Tenant"
+              className="context-pill"
+              value={tenantId}
+              onChange={(e) => {
+                const selected = tenants.find((t) => t.id === e.target.value);
+                if (selected) {
+                  setTenant({ id: selected.id, name: selected.name });
+                  window.location.reload();
+                }
+              }}
+              style={{ cursor: "pointer", maxWidth: "10rem" }}
+            >
+              {tenants.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+            <select
+              aria-label="Environment"
+              className="context-pill"
+              value={environment ?? ""}
+              onChange={(e) => {
+                setEnvironment(e.target.value === "" ? null : e.target.value);
+                window.location.reload();
+              }}
+              style={{ cursor: "pointer", maxWidth: "9rem" }}
+            >
+              <option value="">All envs</option>
+              {environments.map((env) => (
+                <option key={env.environment} value={env.environment}>{env.environment}</option>
+              ))}
+            </select>
           </div>
         </header>
 

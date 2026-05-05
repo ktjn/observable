@@ -2,6 +2,10 @@ import { createContext, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { LOCAL_DEV_TENANT, LOCAL_DEV_TENANT_ID } from "../api/setup";
 
+const LS_TENANT_ID = "observable.tenantId";
+const LS_TENANT_NAME = "observable.tenantName";
+const LS_ENVIRONMENT = "observable.environment";
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface TenantInfo {
@@ -42,9 +46,15 @@ const TenantContext = createContext<TenantContextValue | undefined>(undefined);
  * by the principal's permissions; the context itself needs no structural change.
  */
 export function TenantContextProvider({ children }: { children: ReactNode }) {
-  const [tenantId, setTenantId] = useState(LOCAL_DEV_TENANT_ID);
-  const [tenantName, setTenantName] = useState(LOCAL_DEV_TENANT);
-  const [environment, setEnvironmentState] = useState<string | null>(null);
+  const [tenantId, setTenantId] = useState(
+    () => localStorage.getItem(LS_TENANT_ID) ?? LOCAL_DEV_TENANT_ID,
+  );
+  const [tenantName, setTenantName] = useState(
+    () => localStorage.getItem(LS_TENANT_NAME) ?? LOCAL_DEV_TENANT,
+  );
+  const [environment, setEnvironmentState] = useState<string | null>(
+    () => localStorage.getItem(LS_ENVIRONMENT),
+  );
 
   const value = useMemo<TenantContextValue>(
     () => ({
@@ -52,11 +62,19 @@ export function TenantContextProvider({ children }: { children: ReactNode }) {
       tenantName,
       environment,
       setTenant({ id, name }) {
+        localStorage.setItem(LS_TENANT_ID, id);
+        localStorage.setItem(LS_TENANT_NAME, name);
+        localStorage.removeItem(LS_ENVIRONMENT);
         setTenantId(id);
         setTenantName(name);
-        setEnvironmentState(null); // reset on tenant change
+        setEnvironmentState(null);
       },
       setEnvironment(env) {
+        if (env !== null) {
+          localStorage.setItem(LS_ENVIRONMENT, env);
+        } else {
+          localStorage.removeItem(LS_ENVIRONMENT);
+        }
         setEnvironmentState(env);
       },
     }),
