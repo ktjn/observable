@@ -1,10 +1,15 @@
 import { createContext, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { LOCAL_DEV_TENANT, LOCAL_DEV_TENANT_ID } from "../api/setup";
 
 const LS_TENANT_ID = "observable.tenantId";
 const LS_TENANT_NAME = "observable.tenantName";
 const LS_ENVIRONMENT = "observable.environment";
+
+// The observable tenant is always present (seeded in migration 001/017).
+// It is the correct default before authentication is in place.
+// When auth arrives, the default will be determined by the authenticated user's tenant.
+const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
+const DEFAULT_TENANT_NAME = "observable";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -47,10 +52,10 @@ const TenantContext = createContext<TenantContextValue | undefined>(undefined);
  */
 export function TenantContextProvider({ children }: { children: ReactNode }) {
   const [tenantId, setTenantId] = useState(
-    () => localStorage.getItem(LS_TENANT_ID) ?? LOCAL_DEV_TENANT_ID,
+    () => localStorage.getItem(LS_TENANT_ID) ?? DEFAULT_TENANT_ID,
   );
   const [tenantName, setTenantName] = useState(
-    () => localStorage.getItem(LS_TENANT_NAME) ?? LOCAL_DEV_TENANT,
+    () => localStorage.getItem(LS_TENANT_NAME) ?? DEFAULT_TENANT_NAME,
   );
   const [environment, setEnvironmentState] = useState<string | null>(
     () => localStorage.getItem(LS_ENVIRONMENT),
