@@ -751,7 +751,7 @@ git commit -m "docs(plan): record base ui foundation slice"
 
 ### Spec coverage
 
-Covered requirements from `docs/superpowers/specs/2026-04-26-base-ui-primitives-foundation-design.md`:
+Covered requirements from `../specs/2026-04-26-base-ui-primitives-foundation-design.md`:
 
 - Base UI + Tailwind v4 installation: Task 1
 - preserve current theme contract: Task 1 and Task 3
@@ -781,7 +781,7 @@ The primitive names are consistent across all tasks:
 
 ## Execution Handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-04-26-base-ui-primitives-foundation.md`. Two execution options:
+Plan complete and saved to `archived/plans/2026-04-26-base-ui-primitives-foundation.md`. Two execution options:
 
 **1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
 

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Rust/axum (query-api), sqlx (Postgres), React/TypeScript, TanStack Query, Vitest/RTL, Testcontainers (Postgres)
 
-**Spec:** `docs/superpowers/specs/2026-04-28-p3-s6d-threshold-alert-ui-design.md`
+**Spec:** `../specs/2026-04-28-p3-s6d-threshold-alert-ui-design.md`
 
 ---
 

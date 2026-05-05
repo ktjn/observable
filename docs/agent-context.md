@@ -17,6 +17,7 @@ making changes.
 
 - Repository process: `AGENTS.md` and `spec/10-process.md`.
 - Active roadmap: `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`.
+- Active detailed implementation plan: `docs/superpowers/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
 - Historical Phase 1 plan: `archived/plans/2026-04-17-phase1-internal-mvp.md`; do not treat it as an active backlog.
 - Architecture decisions: `spec/adr/`.
 - Product and platform specs: `spec/`.

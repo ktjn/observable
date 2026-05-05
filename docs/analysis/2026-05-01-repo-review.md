@@ -30,7 +30,7 @@ This report complements `2026-04-19-gaps-analysis.md` (still the canonical strat
 
 **Recommendation:** Renumber one of them. The simplest fix is `014_create_schema_registry.sql` (it's the newer feature and has no foreign-key dependency on dashboards). Add a one-line note to ADR-013 if it doesn't already forbid duplicate sequence numbers explicitly.
 
-### 1.2 `docs/superpowers/plans/2026-04-29-p8-s6b-local-llm-vllm.md` is stale vs ADR-027
+### 1.2 `archived/plans/2026-04-29-p8-s6b-local-llm-vllm.md` is stale vs ADR-027
 
 The P8-S6b plan still describes the **superseded** "vLLM backend selector" approach:
 
@@ -170,7 +170,7 @@ All triggers in `build.yml` are commented out except `workflow_dispatch`. This i
 | Anomaly | Slice size | Touches |
 |---|---|---|
 | 1.1 — rename `015_create_schema_registry.sql` | XS | `migrations/postgres/`, ADR-013 (one-line note) |
-| 1.2 — reconcile P8-S6b plan with ADR-027 | XS | `docs/superpowers/plans/2026-04-29-p8-s6b-local-llm-vllm.md`, iteration plan §791 |
+| 1.2 — reconcile P8-S6b plan with ADR-027 | XS | `archived/plans/2026-04-29-p8-s6b-local-llm-vllm.md`, iteration plan ADR/Spec Sync Note |
 | 1.3 — collapse agent-instruction files | S | `AGENT.md`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md` |
 | 1.4 — document `nlq-multi-model.py` | XS | `spec/08-ai-ml.md`, `AGENTS.md`, `CLAUDE.md`, `README.md` |
 | 2.1 — bump image pins | XS | `docker-compose.yml`, `Dockerfile` |
