@@ -241,12 +241,14 @@ h1 {
 
 .context-pill,
 .secondary-link {
-  border: 1px solid var(--border-strong);
-  padding: 1px 6px;
-  background: var(--surface-raised);
-  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  background: var(--surface);
+  color: var(--text);
   font-size: 10px;
   font-weight: 400;
+  border-radius: var(--radius, 4px);
+  cursor: pointer;
 }
 
 .secondary-link:hover {

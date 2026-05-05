@@ -95,7 +95,6 @@ export function AppShell() {
               className="context-pill"
               value={format}
               onChange={(e) => setFormat(e.target.value as typeof format)}
-              style={{ cursor: "pointer" }}
             >
               {TIME_FORMAT_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -112,7 +111,7 @@ export function AppShell() {
                   window.location.reload();
                 }
               }}
-              style={{ cursor: "pointer", maxWidth: "10rem" }}
+              style={{ maxWidth: "10rem" }}
             >
               {tenants.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
@@ -126,7 +125,7 @@ export function AppShell() {
                 setEnvironment(e.target.value === "" ? null : e.target.value);
                 window.location.reload();
               }}
-              style={{ cursor: "pointer", maxWidth: "9rem" }}
+              style={{ maxWidth: "9rem" }}
             >
               <option value="">All envs</option>
               {environments.map((env) => (
