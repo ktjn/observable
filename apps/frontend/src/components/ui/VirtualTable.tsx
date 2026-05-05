@@ -7,8 +7,6 @@ interface VirtualTableProps<T> {
   renderHead: () => ReactNode;
   renderRow: (row: T, ref: (el: Element | null) => void, index: number) => ReactNode;
   estimateSize?: number;
-  /** Must be a fixed CSS value for virtualisation to work (e.g. `"600px"`, not `"auto"`). */
-  height?: string;
   ariaLabel?: string;
 }
 
@@ -17,7 +15,6 @@ export function VirtualTable<T>({
   renderHead,
   renderRow,
   estimateSize = 40,
-  height = "600px",
   ariaLabel,
 }: VirtualTableProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -36,7 +33,7 @@ export function VirtualTable<T>({
     virtualItems.length > 0 ? totalSize - virtualItems[virtualItems.length - 1].end : 0;
 
   return (
-    <div ref={parentRef} style={{ height, overflowY: "auto" }}>
+    <div ref={parentRef} style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
       <table aria-label={ariaLabel}>
         <thead className="sticky top-0 z-10 bg-[var(--surface)]">{renderHead()}</thead>
         <tbody>

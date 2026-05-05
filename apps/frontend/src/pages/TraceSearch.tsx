@@ -229,7 +229,7 @@ export function TraceExplorer({
               ariaLabel="Trace facets"
             />
           )}
-          <TablePanel className="flex-1">
+          <TablePanel className="flex-1 min-h-0 flex flex-col">
             {isLoading ? (
               <LoadingState>Loading traces…</LoadingState>
             ) : error ? (

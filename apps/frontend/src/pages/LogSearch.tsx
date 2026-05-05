@@ -187,7 +187,7 @@ export function LogExplorer({
         )
       }
       renderTable={(selectedId, onSelect) => (
-        <TablePanel className="flex-1">
+        <TablePanel className="flex-1 min-h-0 flex flex-col">
           {isLoading ? (
             <LoadingState>Loading logs…</LoadingState>
           ) : error ? (

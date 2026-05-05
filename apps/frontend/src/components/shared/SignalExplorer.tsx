@@ -78,7 +78,7 @@ export function SignalExplorer({
   const hasActiveFilter = !!service;
 
   return (
-    <div className="page-stack">
+    <div className="flex flex-col gap-3 h-full">
       {showHeader && (
         <div className="page-header">
           <div>
@@ -118,8 +118,8 @@ export function SignalExplorer({
 
       {histogram}
 
-      <div className="flex items-start gap-3 max-[900px]:flex-col">
-        <div className="flex flex-1 items-start gap-3">
+      <div className="flex flex-1 min-h-0 items-start gap-3 max-[900px]:flex-col">
+        <div className="flex flex-1 min-h-0 items-start gap-3">
           {renderTable(selectedId, handleSelect)}
         </div>
         {selectedId !== null && (
