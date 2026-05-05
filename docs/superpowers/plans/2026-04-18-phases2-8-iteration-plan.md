@@ -404,21 +404,23 @@ Before starting any new product UI workflow, complete these pure renovation slic
   - Outcome: one signal type's fields have business-meaning annotations queryable via API; sets the grounding foundation required by the NL query layer (ADR-021). See `spec/03-storage.md §5.4.1`. Migration `015_create_schema_registry.sql` adds `schema_entries` (global structural catalog) and `semantic_annotations` (tenant-scoped, includes `metric_type`, `timestamp_column`, `unit`, `recommended_downsampling` for MCP server time-series SQL generation). query-api exposes `GET /v1/schemas/:signal_type/attributes` and full CRUD for `/v1/schemas/:signal_type/attributes/:key/annotations`. 11 Testcontainers integration tests cover CRUD, tenant isolation, seeded dev data, and upsert vs. patch semantics. Completed 2026-04-29.
   - Checkpoint: are annotations stored structurally separate from schema shape so they can evolve independently of structural metadata? Answer: yes. `schema_entries` and `semantic_annotations` are separate tables with no FK dependency; annotations evolve independently. Annotations are tenant-scoped so different tenants can describe the same field name differently without interference.
 
-- [ ] **P3-S15: Establish Testcontainers integration harness for real dependencies**
-  - Source spec: `spec/11-testing.md §18.8`; ADR-025; implementation plan `docs/superpowers/plans/2026-04-27-testcontainers-integration-tests.md`.
-  - Outcome: auth-service, query-api, and stream-processor have isolated Testcontainers tests for PostgreSQL, ClickHouse, and Redpanda boundaries, giving backend slices a narrow real-dependency regression path before Compose smoke.
+- [x] **P3-S15: Establish Testcontainers integration harness for real dependencies**
+  - Source spec: `spec/11-testing.md §18.8`; ADR-025; archived implementation plan `archived/plans/2026-04-27-testcontainers-integration-tests.md`.
+  - Outcome: auth-service, query-api, and stream-processor have isolated Testcontainers tests for PostgreSQL, ClickHouse, and Redpanda boundaries, giving backend slices a narrow real-dependency regression path before Compose smoke. Completed 2026-05-05; the detailed implementation plan is archived at `archived/plans/2026-04-27-testcontainers-integration-tests.md`.
   - Files or modules expected to change: service crate dev-dependencies, service-local `tests/*_integration.rs` files, narrowly exported repository or queue seams, and `scripts/local-ci.sh` only if a dedicated Testcontainers stage is required.
   - Out of scope: replacing Docker Compose smoke tests, replacing kind tests, adding object-storage tests before warm/cold retention work needs them, or adding broad shared fixtures before at least two services need the same helper.
-  - Verification: focused `cargo test -p <service> --test <name> -- --nocapture` for each new suite, then `bash scripts/local-ci.sh` before push because this is a code-change slice.
-  - Checkpoint: can backend agents verify real dependency behavior without starting the entire platform stack?
+  - Verification: focused `cargo test -p auth-service --test postgres_integration -- --nocapture`, `cargo test -p query-api --test clickhouse_integration -- --nocapture`, `cargo test -p stream-processor --test redpanda_integration -- --nocapture`, and `bash scripts/local-ci.sh` were recorded in the detailed plan before closure.
+  - Checkpoint: can backend agents verify real dependency behavior without starting the entire platform stack? Answer: yes. The service-local Testcontainers suites now cover PostgreSQL migration/API-key validation, ClickHouse tenant-filtered reads, and Redpanda producer/consumer boundary behavior. `cargo test --workspace --all-targets` runs them through the existing Rust test stage, so `scripts/local-ci.sh` did not need a new Testcontainers stage.
 
 ### Phase 3 pause point
 
-Before Phase 4 starts, answer:
-- Are services first-class entities now?
-- Are cross-signal links precise enough to trust during incidents?
-- Can operators navigate Services, Infrastructure, and Service Overview without manual filter reconstruction?
-- Is the dashboard artifact shape stable enough to version?
+Phase 3 pause-point answers before Phase 4:
+- Are services first-class entities now? Yes. The services catalog, service detail overview, service-scoped Logs/Metrics/Traces tabs, and Service Overview topology are complete.
+- Are cross-signal links precise enough to trust during incidents? Yes for the current Phase 3 scope. Trace-to-log correlation, trace-level fallback, log context, live tail, infrastructure correlation, and deployment overlays are implemented; incident workflows remain Phase 5 scope.
+- Can operators navigate Services, Infrastructure, and Service Overview without manual filter reconstruction? Yes. Navigation preserves tenant/environment/time context and service-scoped flows retain filters across the completed Phase 3 views.
+- Is the dashboard artifact shape stable enough to version? Yes for the fixed-layout dashboard shape. P3-S13 exports and imports a stable schema-versioned envelope without database IDs; richer layout editing remains a later dashboard-builder slice.
+
+Phase 3 exit gate is satisfied for the planned Phase 3 scope. The next implementation slice is P4-S1.
 
 ---
 
@@ -728,9 +730,10 @@ After the latest archive reconciliation, the next implementation slice should be
 4. ~~P3-S6d: add a minimal threshold-alert UI workflow~~ (done)
 5. ~~P3-S12: add "Promote to Dashboard" from explorers and a fixed-layout dashboard route~~ (done)
 6. ~~P3-S13: add dashboard-as-code import/export for one dashboard shape~~ (done)
-7. P3-S15: establish Testcontainers integration harness for real dependencies before the next backend slice touches PostgreSQL, ClickHouse, Redpanda, object storage, or OpenFGA
+7. ~~P3-S15: establish Testcontainers integration harness for real dependencies before the next backend slice touches PostgreSQL, ClickHouse, Redpanda, object storage, or OpenFGA~~ (done)
+8. P4-S1: add one warm-retention movement path
 
-**Next recommended slice: P3-S15 - Establish Testcontainers integration harness for real dependencies.**
+**Next recommended slice: P4-S1 - Add one warm-retention movement path.**
 
 **Phase 2 exit gate is now satisfied.** All Phase 2 slices (P2-S0 through P2-S9a) are complete. Before starting Phase 3, answer the Phase 2 pause-point questions:
 - Tenant safety under test: yes — P2-S1a through P2-S1d enforce and test cross-tenant isolation for all signal types.
@@ -738,10 +741,10 @@ After the latest archive reconciliation, the next implementation slice should be
 - Roll back a bad deploy without manual heroics: yes — P2-S8a (Helm rollback skeleton) and P2-S8b (canary promotion path) cover both runtime and schema rollback.
 - Self-observability route choice: use a second observer instance for production and customer-facing environments; use recursive self-ingest for local development, dogfooding, and bootstrap. This follows `spec/17-self-observability.md` by preserving both recursive OTLP telemetry and independent health/Prometheus monitoring, and it requires service-level, infrastructure-level, and UI-level instrumentation before the slice is complete.
 
-The UI renovation gate and service-centric MVP UI sequence are now complete. The remaining Phase 3
-blocking work is the P3-S15 Testcontainers harness, which should land before the next backend slice
-touches PostgreSQL, ClickHouse, Redpanda, object storage, OpenFGA, or another real dependency
-boundary.
+The UI renovation gate, service-centric MVP UI sequence, Phase 3 correlation sequence, dashboard
+artifact sequence, schema registry prerequisite, and P3-S15 Testcontainers harness are now complete.
+The next active horizon starts Phase 4 with P4-S1. Use
+`docs/superpowers/plans/2026-05-05-p4-s1-warm-retention.md` as the detailed implementation plan.
 
 ---
 
@@ -768,3 +771,5 @@ The self-observability routing clarification also requires no ADR/spec update in
 **ADR-027 + P8-S6b added** (2026-04-29) — ADR-027 records the decision to add vLLM as an opt-in local LLM backend for the NLQ pipeline. P8-S6b (added above after P8-S7) is the implementation slice: `VllmCaller` reusing `async-openai` with no auth key, new `PUT /v1/config/llm-backend` endpoint, and a Setup page backend mode selector with Phi-3 Mini (default) and Llama-3 8B Instruct model options. `spec/08-ai-ml.md §13.1` and `spec/adr/ADR-021-nl-query-layer.md` are updated in the same iteration to cross-reference ADR-027.
 
 **P3-S12a customer OTLP metric readback** (2026-05-01) — no ADR update is required because the slice hardens the accepted OTLP-first metric path from ADR-001 and the ClickHouse metric storage path from ADR-002/ADR-003 without changing architecture, deployment model, storage engine choice, data model scope, or security model. `spec/09-api.md` and `contracts/openapi/ingest-v1.yaml` were updated to document deterministic series identity and smoke-test readback expectations.
+
+**P3-S15 closure + P4-S1 activation** (2026-05-05) — P3-S15 is marked complete based on the checked detailed Testcontainers plan and the presence of service-local PostgreSQL, ClickHouse, and Redpanda integration suites. The completed detailed plan is archived. P4-S1 is promoted as the next active detailed implementation plan. No ADR or spec update is required for this planning-only transition because it does not change roadmap scope, architecture, deployment model, data model, security model, or technology choice; it reconciles plan state with already-specified ADR-012, ADR-025, and `spec/03-storage.md §5.3`.
