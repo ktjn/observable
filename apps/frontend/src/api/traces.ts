@@ -50,10 +50,8 @@ export interface TraceListResponse {
   facets: Facets;
 }
 
-const DEV_TENANT_ID = "00000000-0000-0000-0000-000000000001";
-
-function tenantHeaders(): HeadersInit {
-  return { "X-Tenant-ID": DEV_TENANT_ID };
+function tenantHeaders(tenantId: string): HeadersInit {
+  return { "X-Tenant-ID": tenantId };
 }
 
 export interface TraceHistogramBucket {
@@ -66,7 +64,7 @@ export interface TraceHistogramResponse {
   buckets: TraceHistogramBucket[];
 }
 
-export async function fetchTraceHistogram(params: {
+export async function fetchTraceHistogram(tenantId: string, params: {
   service?: string;
   from?: string;
   to?: string;
@@ -78,12 +76,12 @@ export async function fetchTraceHistogram(params: {
   if (params.to) url.searchParams.set("to", params.to);
   if (params.buckets) url.searchParams.set("buckets", String(params.buckets));
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Histogram query failed: ${res.status}`);
   return res.json();
 }
 
-export async function searchTraces(params: {
+export async function searchTraces(tenantId: string, params: {
   service?: string;
   limit?: number;
   facets?: string[];
@@ -97,13 +95,13 @@ export async function searchTraces(params: {
   if (params.from) url.searchParams.set("from", params.from);
   if (params.to) url.searchParams.set("to", params.to);
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
 
-export async function getTrace(traceId: string): Promise<TraceResponse> {
-  const res = await fetch(`/v1/traces/${traceId}`, { headers: tenantHeaders() });
+export async function getTrace(tenantId: string, traceId: string): Promise<TraceResponse> {
+  const res = await fetch(`/v1/traces/${traceId}`, { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Not found: ${res.status}`);
   return res.json();
 }

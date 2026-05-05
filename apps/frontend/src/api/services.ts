@@ -1,7 +1,5 @@
-const DEV_TENANT_ID = "00000000-0000-0000-0000-000000000001";
-
-function tenantHeaders(): HeadersInit {
-  return { "X-Tenant-ID": DEV_TENANT_ID };
+function tenantHeaders(tenantId: string): HeadersInit {
+  return { "X-Tenant-ID": tenantId };
 }
 
 function msToIso(ms?: number): string | undefined {
@@ -26,7 +24,7 @@ export interface ServiceDetailResponse {
   service: ServiceSummary;
 }
 
-export async function listServiceSummaries(params: {
+export async function listServiceSummaries(tenantId: string, params: {
   environment?: string;
   from?: number;
   to?: number;
@@ -37,12 +35,13 @@ export async function listServiceSummaries(params: {
   const toIso = msToIso(params.to);
   if (fromIso) url.searchParams.set("from", fromIso);
   if (toIso) url.searchParams.set("to", toIso);
-  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
 
 export async function getServiceSummary(
+  tenantId: string,
   serviceName: string,
   params: {
     environment?: string;
@@ -57,7 +56,7 @@ export async function getServiceSummary(
   const toIso = msToIso(params.to);
   if (fromIso) url.searchParams.set("from", fromIso);
   if (toIso) url.searchParams.set("to", toIso);
-  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
@@ -78,7 +77,7 @@ export interface TopologyResponse {
   edges: TopologyEdge[];
 }
 
-export async function getTopology(params: {
+export async function getTopology(tenantId: string, params: {
   environment?: string;
   from?: number;
   to?: number;
@@ -91,14 +90,14 @@ export async function getTopology(params: {
   if (fromIso) url.searchParams.set("from", fromIso);
   if (toIso) url.searchParams.set("to", toIso);
   if (params.service) url.searchParams.set("service", params.service);
-  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
 
-export async function listEnvironments(): Promise<DiscoveryResponse> {
+export async function listEnvironments(tenantId: string): Promise<DiscoveryResponse> {
   const url = new URL("/v1/environments", window.location.origin);
-  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
@@ -116,6 +115,7 @@ export interface ResponseTimeHistoryResponse {
 }
 
 export async function getServiceResponseTimeHistory(
+  tenantId: string,
   serviceName: string,
   params: {
     from?: number;
@@ -133,7 +133,7 @@ export async function getServiceResponseTimeHistory(
   if (fromIso) url.searchParams.set("from", fromIso);
   if (toIso) url.searchParams.set("to", toIso);
   if (params.buckets) url.searchParams.set("buckets", String(params.buckets));
-  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }

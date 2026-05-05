@@ -34,6 +34,34 @@ making changes.
 - `scripts/`: local CI, smoke, migration, and operational scripts.
 - `tests/`: cross-cutting test suites and end-to-end checks.
 
+## Global Tenant + Environment Context (ADR-031)
+
+Every API call that is tenant-scoped must receive `tenantId` as its first parameter — obtained
+from the `useTenantContext()` hook. **Never import `LOCAL_DEV_TENANT_ID` at an API call site.**
+
+Key files:
+- `apps/frontend/src/hooks/useTenantContext.tsx` — `TenantContextProvider` + `useTenantContext` hook.
+  Default: self-ingestion/system tenant (`00000000-0000-0000-0000-000000000001`), environment `null` (= all).
+- `apps/frontend/src/api/tenants.ts` — `listTenants()` and `listEnvironments(tenantId)` (bootstrap, no auth header needed).
+- `services/query-api/src/tenants.rs` — `GET /v1/tenants` and `GET /v1/tenants/:id/environments`.
+  Routes are registered **outside** the `require_tenant` auth middleware (bootstrap endpoints).
+
+Pattern for new call sites:
+```typescript
+const { tenantId } = useTenantContext();
+useQuery({ queryKey: ["my-key", tenantId], queryFn: () => myApiFn(tenantId, ...params) });
+```
+
+`LOCAL_DEV_TENANT_ID` (exported from `api/setup.ts`) is still valid as the dev seed default value
+in `useTenantContext.tsx` itself, but must not be used directly at API call sites.
+
+When authentication is introduced, `GET /v1/tenants` will filter by the authenticated principal's
+access; the frontend needs no structural changes.
+
+The `projects` table exists in PostgreSQL (seeded with one "default" row) but is not connected to
+`api_keys`. The Tenant → Project → Environment hierarchy is deferred; this iteration implements
+Tenant → Environment only (per ADR-028 + ADR-031).
+
 ## Standing Constraints
 
 - Never commit or merge directly to `main` without human review.

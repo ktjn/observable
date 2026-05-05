@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, expect, test, vi } from "vitest";
 import type { LogRecord } from "../api/logs";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
+import { TenantContextProvider } from "../hooks/useTenantContext";
 import LogSearch, {
   buildLogHistogram,
   formatLogMessage,
@@ -85,7 +86,7 @@ vi.mock("../api/logs", async () => {
   const actual = await vi.importActual<typeof import("../api/logs")>("../api/logs");
   return {
     ...actual,
-    fetchLogHistogram: vi.fn(async (params: { from: string; to: string; buckets?: number }) => {
+    fetchLogHistogram: vi.fn(async (_tenantId: string, params: { from: string; to: string; buckets?: number }) => {
       const fromMs = new Date(params.from).getTime();
       const toMs = new Date(params.to).getTime();
       const count = params.buckets ?? 30;
@@ -137,11 +138,13 @@ function renderLogSearch() {
   });
 
   return render(
-    <QueryClientProvider client={client}>
-      <TimeDisplayProvider>
-        <LogSearch />
-      </TimeDisplayProvider>
-    </QueryClientProvider>,
+    <TenantContextProvider>
+      <QueryClientProvider client={client}>
+        <TimeDisplayProvider>
+          <LogSearch />
+        </TimeDisplayProvider>
+      </QueryClientProvider>
+    </TenantContextProvider>,
   );
 }
 
@@ -151,6 +154,7 @@ test("queries logs via NLQ execute on load", async () => {
 
   await waitFor(() =>
     expect(submitNlqQuery).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({ mode: "execute", base_ir: expect.objectContaining({ signals: ["logs"] }) }),
     ),
   );

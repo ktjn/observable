@@ -1,7 +1,5 @@
-const DEV_TENANT_ID = "00000000-0000-0000-0000-000000000001";
-
-function tenantHeaders(): HeadersInit {
-  return { "X-Tenant-ID": DEV_TENANT_ID };
+function tenantHeaders(tenantId: string): HeadersInit {
+  return { "X-Tenant-ID": tenantId };
 }
 
 export interface AlertRuleItem {
@@ -27,18 +25,19 @@ export interface CreateRuleRequest {
   threshold: number;
 }
 
-export async function listAlertRules(): Promise<AlertRuleListResponse> {
-  const res = await fetch("/v1/alerts/rules", { headers: tenantHeaders() });
+export async function listAlertRules(tenantId: string): Promise<AlertRuleListResponse> {
+  const res = await fetch("/v1/alerts/rules", { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Failed to list alert rules: ${res.status}`);
   return res.json();
 }
 
 export async function createAlertRule(
+  tenantId: string,
   req: CreateRuleRequest,
 ): Promise<AlertRuleItem> {
   const res = await fetch("/v1/alerts/rules", {
     method: "POST",
-    headers: { ...tenantHeaders(), "Content-Type": "application/json" },
+    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
     body: JSON.stringify(req),
   });
   if (!res.ok) throw new Error(`Failed to create alert rule: ${res.status}`);
@@ -46,12 +45,13 @@ export async function createAlertRule(
 }
 
 export async function silenceAlertRule(
+  tenantId: string,
   ruleId: string,
   silenced: boolean,
 ): Promise<AlertRuleItem> {
   const res = await fetch(`/v1/alerts/rules/${ruleId}/silence`, {
     method: "PATCH",
-    headers: { ...tenantHeaders(), "Content-Type": "application/json" },
+    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
     body: JSON.stringify({ silenced }),
   });
   if (!res.ok) throw new Error(`Failed to update alert rule: ${res.status}`);

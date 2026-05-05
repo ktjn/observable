@@ -4,11 +4,13 @@ import { PRESET_OPTIONS } from "../hooks/useGlobalDateRange";
 import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { Panel } from "../components/ui/panel";
+import { useTenantContext } from "../hooks/useTenantContext";
 
 export default function DashboardsPage() {
+  const { tenantId } = useTenantContext();
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["dashboards"],
-    queryFn: () => listDashboards(),
+    queryKey: ["dashboards", tenantId],
+    queryFn: () => listDashboards(tenantId),
   });
 
   return (

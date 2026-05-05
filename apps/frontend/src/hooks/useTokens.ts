@@ -1,13 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { listTokens } from "../api/tokens";
+import { useTenantContext } from "./useTenantContext";
 
 export const TOKENS_QUERY_KEY = ["tokens"] as const;
 
 /** Global cache of ingestion tokens — the authoritative source for registered environments and tenants. */
 export function useTokens() {
+  const { tenantId } = useTenantContext();
   return useQuery({
-    queryKey: TOKENS_QUERY_KEY,
-    queryFn: listTokens,
+    queryKey: ["tokens", tenantId],
+    queryFn: () => listTokens(tenantId),
     staleTime: 30_000,
   });
 }

@@ -5,6 +5,7 @@ import { searchLogs } from "../api/logs";
 import { LogContextView } from "./LogContextView";
 import { LogList } from "./shared/LogList";
 import { useTimeDisplay } from "../lib/timeDisplay";
+import { useTenantContext } from "../hooks/useTenantContext";
 
 interface Props {
   traceId: string;
@@ -14,9 +15,10 @@ interface Props {
 export function LogCorrelatedList({ traceId, spanId }: Props) {
   const [focusedLogId, setFocusedLogId] = useState<string | undefined>();
   const { format } = useTimeDisplay();
+  const { tenantId } = useTenantContext();
   const { data, isLoading } = useQuery({
-    queryKey: ["logs", traceId],
-    queryFn: () => searchLogs({ trace_id: traceId }),
+    queryKey: ["logs", tenantId, traceId],
+    queryFn: () => searchLogs(tenantId, { trace_id: traceId }),
   });
 
   const logs = filterCorrelatedLogs(data?.logs ?? [], spanId);

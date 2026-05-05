@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { QueryFilterInput } from "./QueryFilterInput";
+import { TenantContextProvider } from "../../hooks/useTenantContext";
 
 vi.mock("../../api/nlq", () => ({
   submitNlqQuery: vi.fn(),
@@ -12,6 +13,12 @@ vi.mock("../../hooks/useGlobalDateRange", () => ({
 
 import { submitNlqQuery } from "../../api/nlq";
 const mockSubmit = vi.mocked(submitNlqQuery);
+
+const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
+
+function wrapper({ children }: { children: React.ReactNode }) {
+  return <TenantContextProvider>{children}</TenantContextProvider>;
+}
 
 const SERVICES_BASE_IR = {
   operation: "catalog",
@@ -37,14 +44,14 @@ describe("QueryFilterInput", () => {
       },
     });
 
-    render(<QueryFilterInput onIr={onIr} onSubmit={onSubmit} baseIr={SERVICES_BASE_IR} />);
+    render(<QueryFilterInput onIr={onIr} onSubmit={onSubmit} baseIr={SERVICES_BASE_IR} />, { wrapper });
     fireEvent.change(screen.getByRole("textbox", { name: "Query current view input" }), {
       target: { value: "show checkout services" },
     });
     fireEvent.submit(screen.getByRole("form", { name: "Query current view" }));
 
     await waitFor(() =>
-      expect(mockSubmit).toHaveBeenCalledWith({
+      expect(mockSubmit).toHaveBeenCalledWith(DEFAULT_TENANT_ID, {
         question: "show checkout services",
         mode: "interpret",
         service_name: undefined,
@@ -81,7 +88,7 @@ describe("QueryFilterInput", () => {
       },
     });
 
-    render(<QueryFilterInput onIr={vi.fn()} baseIr={SERVICES_BASE_IR} />);
+    render(<QueryFilterInput onIr={vi.fn()} baseIr={SERVICES_BASE_IR} />, { wrapper });
     fireEvent.change(screen.getByRole("textbox", { name: "Query current view input" }), {
       target: { value: raw },
     });

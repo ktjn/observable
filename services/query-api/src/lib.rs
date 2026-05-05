@@ -13,5 +13,6 @@ pub mod middleware;
 pub mod planner;
 pub mod schemas;
 pub mod sql_templates;
+pub mod tenants;
 pub mod tokens;
 pub mod traces;

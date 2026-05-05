@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
+import { TenantContextProvider } from "../hooks/useTenantContext";
 import { TraceDetail } from "./TraceDetail";
 
 const queryClient = new QueryClient({
@@ -8,7 +9,13 @@ const queryClient = new QueryClient({
 });
 
 function wrapper({ children }: { children: React.ReactNode }) {
-  return <QueryClientProvider client={queryClient}><TimeDisplayProvider>{children}</TimeDisplayProvider></QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TenantContextProvider>
+        <TimeDisplayProvider>{children}</TimeDisplayProvider>
+      </TenantContextProvider>
+    </QueryClientProvider>
+  );
 }
 
 const baseSpan = {
@@ -34,9 +41,11 @@ const baseSpan = {
 test("renders waterfall with spans", () => {
   render(
     <QueryClientProvider client={queryClient}>
-      <TimeDisplayProvider>
-        <TraceDetail traceId="abc" spans={[baseSpan]} />
-      </TimeDisplayProvider>
+      <TenantContextProvider>
+        <TimeDisplayProvider>
+          <TraceDetail traceId="abc" spans={[baseSpan]} />
+        </TimeDisplayProvider>
+      </TenantContextProvider>
     </QueryClientProvider>
   );
   expect(screen.getByText(/POST \/order/)).toBeInTheDocument();
@@ -78,9 +87,11 @@ test("renders infra pill links when spans have resource_attributes", () => {
 test("omits infra section entirely when no span has resource_attributes", () => {
   render(
     <QueryClientProvider client={queryClient}>
-      <TimeDisplayProvider>
-        <TraceDetail traceId="abc" spans={[baseSpan]} />
-      </TimeDisplayProvider>
+      <TenantContextProvider>
+        <TimeDisplayProvider>
+          <TraceDetail traceId="abc" spans={[baseSpan]} />
+        </TimeDisplayProvider>
+      </TenantContextProvider>
     </QueryClientProvider>
   );
   expect(screen.queryByText(/Infrastructure/)).not.toBeInTheDocument();

@@ -5,6 +5,7 @@ import {
   createAlertRule,
   silenceAlertRule,
   type AlertRuleItem,
+  type CreateRuleRequest,
 } from "../../api/alerts";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -14,9 +15,11 @@ import { EmptyState } from "../../components/ui/empty-state";
 import { MetricCard } from "../../components/ui/metric-card";
 import { Panel } from "../../components/ui/panel";
 import { Toolbar } from "../../components/ui/toolbar";
+import { useTenantContext } from "../../hooks/useTenantContext";
 
 export function AlertsPage() {
   const queryClient = useQueryClient();
+  const { tenantId } = useTenantContext();
   const [isCreating, setIsCreating] = useState(false);
   const [formName, setFormName] = useState("");
   const [formMetric, setFormMetric] = useState("");
@@ -25,20 +28,20 @@ export function AlertsPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["alert-rules"],
-    queryFn: listAlertRules,
+    queryKey: ["alert-rules", tenantId],
+    queryFn: () => listAlertRules(tenantId),
   });
 
   const silenceMutation = useMutation({
     mutationFn: ({ ruleId, silenced }: { ruleId: string; silenced: boolean }) =>
-      silenceAlertRule(ruleId, silenced),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alert-rules"] }),
+      silenceAlertRule(tenantId, ruleId, silenced),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alert-rules", tenantId] }),
   });
 
   const createMutation = useMutation({
-    mutationFn: createAlertRule,
+    mutationFn: (req: CreateRuleRequest) => createAlertRule(tenantId, req),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["alert-rules"] });
+      queryClient.invalidateQueries({ queryKey: ["alert-rules", tenantId] });
       setIsCreating(false);
       setFormName("");
       setFormMetric("");

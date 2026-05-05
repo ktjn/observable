@@ -3,15 +3,17 @@ import { listInfrastructure, type InfrastructureEntitySummary } from "../api/inf
 import { Badge, HealthDot } from "./ui/badge";
 import { LoadingState } from "./ui/loading-state";
 import { Panel } from "./ui/panel";
+import { useTenantContext } from "../hooks/useTenantContext";
 
 interface Props {
   serviceName: string;
 }
 
 export function ServiceInfraPanel({ serviceName }: Props) {
+  const { tenantId } = useTenantContext();
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["service-infra", serviceName],
-    queryFn: () => listInfrastructure({ service: serviceName }),
+    queryKey: ["service-infra", tenantId, serviceName],
+    queryFn: () => listInfrastructure(tenantId, { service: serviceName }),
   });
 
   if (isLoading) return <LoadingState>Loading infrastructure…</LoadingState>;

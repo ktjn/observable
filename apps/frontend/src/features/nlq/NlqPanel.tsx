@@ -16,6 +16,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { ShorthandHint } from "./ShorthandHint";
 import { VisualizationPanel } from "./VisualizationPanel";
+import { useTenantContext } from "../../hooks/useTenantContext";
 
 interface Props {
   /** Optional service context. Passed to the backend to scope the NLQ query. */
@@ -42,6 +43,7 @@ export function NlqPanel({
 }: Props) {
   const [question, setQuestion] = useState("");
   const [state, setState] = useState<QueryState>({ status: "idle" });
+  const { tenantId } = useTenantContext();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,7 +51,7 @@ export function NlqPanel({
     if (!q) return;
     setState({ status: "loading" });
     try {
-      const response = await submitNlqQuery({ question: q, service_name: serviceName });
+      const response = await submitNlqQuery(tenantId, { question: q, service_name: serviceName });
       if (response.type === "frame") {
         onFrameResult?.(response.frame);
       }

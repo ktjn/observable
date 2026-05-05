@@ -3,6 +3,7 @@ import { submitNlqQuery } from "../../api/nlq";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
+import { useTenantContext } from "../../hooks/useTenantContext";
 import { ShorthandHint } from "./ShorthandHint";
 import type { NlqIrLike } from "./queryFilters";
 
@@ -31,6 +32,7 @@ export function QueryFilterInput({
   onIr,
 }: QueryFilterInputProps) {
   const { fromMs, toMs } = useGlobalDateRange();
+  const { tenantId } = useTenantContext();
   const effectiveBaseIr = useMemo<NlqIrLike>(
     () => ({
       ...baseIr,
@@ -56,7 +58,7 @@ export function QueryFilterInput({
 
     setState({ status: "loading" });
     try {
-      const response = await submitNlqQuery({
+      const response = await submitNlqQuery(tenantId, {
         question,
         mode: "interpret",
         service_name: serviceName,

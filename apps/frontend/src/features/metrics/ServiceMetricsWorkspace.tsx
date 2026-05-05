@@ -11,6 +11,7 @@ import { TablePanel } from "../../components/ui/table-panel";
 import { TimeSeriesGraph, type TimeSeriesSeries } from "../../components/ui/time-series-graph";
 import { SignalExplorer, type SaveStatus } from "../../components/shared/SignalExplorer";
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
+import { useTenantContext } from "../../hooks/useTenantContext";
 import { QueryFilterInput } from "../nlq/QueryFilterInput";
 import { deriveViewFiltersFromIr, type NlqIrLike } from "../nlq/queryFilters";
 
@@ -37,6 +38,7 @@ export function ServiceMetricsWorkspace({
   showHeader?: boolean;
 }) {
   const { fromMs, toMs, setCustomRange } = useGlobalDateRange();
+  const { tenantId } = useTenantContext();
   const [serviceName, setServiceName] = useState(initialService);
   const [filters, setFilters] = useState<FilterState>({
     name: "",
@@ -47,8 +49,8 @@ export function ServiceMetricsWorkspace({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["service", serviceName, "metrics"],
-    queryFn: () => listMetrics({ service: serviceName || undefined }),
+    queryKey: ["service", tenantId, serviceName, "metrics"],
+    queryFn: () => listMetrics(tenantId, { service: serviceName || undefined }),
     enabled: true, // We want to allow listing all metrics if serviceName is empty
   });
 
@@ -76,7 +78,7 @@ export function ServiceMetricsWorkspace({
   const handlePromote = async () => {
     setSaveStatus("saving");
     try {
-      await createDashboard({
+      await createDashboard(tenantId, {
         name: serviceName ? `Metrics for ${serviceName}` : "Global Metrics",
         panels: [
           {
@@ -207,9 +209,10 @@ function MetricGraphContainer({
   toMs: number;
   onRangeSelect: (fromMs: number, toMs: number) => void;
 }) {
+  const { tenantId } = useTenantContext();
   const { data, isLoading } = useQuery({
-    queryKey: ["metric-group-points", selectedMetric ? metricIdentity(selectedMetric) : null, fromMs, toMs],
-    queryFn: () => getMetricGroupPoints(selectedMetric!),
+    queryKey: ["metric-group-points", tenantId, selectedMetric ? metricIdentity(selectedMetric) : null, fromMs, toMs],
+    queryFn: () => getMetricGroupPoints(tenantId, selectedMetric!),
     enabled: Boolean(selectedMetric),
   });
 

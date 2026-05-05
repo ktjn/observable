@@ -18,15 +18,15 @@ export interface FirstSignalStatus {
   metrics: number;
 }
 
-export async function getFirstSignalStatus(): Promise<FirstSignalStatus> {
+export async function getFirstSignalStatus(tenantId: string): Promise<FirstSignalStatus> {
   const [traces, logs, metrics] = await Promise.allSettled([
-    searchTraces({
+    searchTraces(tenantId, {
       from: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
       to: new Date().toISOString(),
       limit: 1,
     }),
-    searchLogs({ from: new Date(Date.now() - 60 * 60 * 1000).toISOString(), limit: 1 }),
-    listMetrics(),
+    searchLogs(tenantId, { from: new Date(Date.now() - 60 * 60 * 1000).toISOString(), limit: 1 }),
+    listMetrics(tenantId),
   ]);
 
   if (traces.status === "rejected" || logs.status === "rejected" || metrics.status === "rejected") {
@@ -56,11 +56,11 @@ export interface PlatformConfig {
   llm_model: string | null;
 }
 
-export async function getConfig(): Promise<PlatformConfig> {
+export async function getConfig(tenantId: string): Promise<PlatformConfig> {
   const res = await fetch("/v1/config", {
     headers: {
       "x-api-key": LOCAL_DEV_API_KEY,
-      "X-Tenant-ID": LOCAL_DEV_TENANT_ID,
+      "X-Tenant-ID": tenantId,
     },
   });
   if (!res.ok) throw new Error(`getConfig failed: ${res.status}`);
@@ -74,7 +74,7 @@ export interface SaveLlmConfigParams {
 }
 
 /** PUT /v1/config/llm — upserts whichever of apiKey, url, model are provided. */
-export async function saveLlmConfig(params: SaveLlmConfigParams): Promise<void> {
+export async function saveLlmConfig(tenantId: string, params: SaveLlmConfigParams): Promise<void> {
   const body: Record<string, string> = {};
   if (params.apiKey !== undefined) body.api_key = params.apiKey;
   if (params.url !== undefined) body.url = params.url;
@@ -85,7 +85,7 @@ export async function saveLlmConfig(params: SaveLlmConfigParams): Promise<void> 
     headers: {
       "Content-Type": "application/json",
       "x-api-key": LOCAL_DEV_API_KEY,
-      "X-Tenant-ID": LOCAL_DEV_TENANT_ID,
+      "X-Tenant-ID": tenantId,
     },
     body: JSON.stringify(body),
   });
@@ -93,8 +93,8 @@ export async function saveLlmConfig(params: SaveLlmConfigParams): Promise<void> 
 }
 
 /** Legacy alias — kept for backwards compatibility. */
-export async function saveLlmKey(key: string): Promise<void> {
-  return saveLlmConfig({ apiKey: key });
+export async function saveLlmKey(tenantId: string, key: string): Promise<void> {
+  return saveLlmConfig(tenantId, { apiKey: key });
 }
 
 // ── LLM model listing / connectivity probe ────────────────────────────────────
@@ -113,6 +113,7 @@ export interface LlmModelsResult {
  * Always resolves (never rejects) — callers inspect `ok`.
  */
 export async function fetchAvailableModels(
+  tenantId: string,
   url?: string,
   apiKey?: string,
 ): Promise<LlmModelsResult> {
@@ -126,7 +127,7 @@ export async function fetchAvailableModels(
       headers: {
         "Content-Type": "application/json",
         "x-api-key": LOCAL_DEV_API_KEY,
-        "X-Tenant-ID": LOCAL_DEV_TENANT_ID,
+        "X-Tenant-ID": tenantId,
       },
       body: JSON.stringify(body),
     });

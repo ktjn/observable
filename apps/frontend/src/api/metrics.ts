@@ -1,7 +1,5 @@
-const DEV_TENANT_ID = "00000000-0000-0000-0000-000000000001";
-
-function tenantHeaders(): HeadersInit {
-  return { "X-Tenant-ID": DEV_TENANT_ID };
+function tenantHeaders(tenantId: string): HeadersInit {
+  return { "X-Tenant-ID": tenantId };
 }
 
 export interface MetricCatalogEntry {
@@ -40,18 +38,18 @@ export interface MetricPointsResponse {
   points: MetricPoint[];
 }
 
-export async function listMetrics(params: {
+export async function listMetrics(tenantId: string, params: {
   service?: string;
 } = {}): Promise<MetricCatalogResponse> {
   const url = new URL("/v1/metrics", window.location.origin);
   if (params.service) url.searchParams.set("service", params.service);
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
 
-export async function getMetricGroupPoints(metric: MetricCatalogEntry): Promise<MetricPointsResponse> {
+export async function getMetricGroupPoints(tenantId: string, metric: MetricCatalogEntry): Promise<MetricPointsResponse> {
   const url = new URL("/v1/metrics/points", window.location.origin);
   url.searchParams.set("metric_name", metric.metric_name);
   url.searchParams.set("service", metric.service_name);
@@ -59,7 +57,7 @@ export async function getMetricGroupPoints(metric: MetricCatalogEntry): Promise<
   url.searchParams.set("metric_type", metric.metric_type);
   url.searchParams.set("unit", metric.unit || "");
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }

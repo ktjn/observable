@@ -8,6 +8,7 @@ import { formatTimestamp } from "../utils/formatTimestamp";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
 import { deriveViewFiltersFromIr, type NlqIrLike } from "../features/nlq/queryFilters";
+import { useTenantContext } from "../hooks/useTenantContext";
 
 const POLL_INTERVAL_MS = 1000;
 const MAX_LOGS = 200;
@@ -25,12 +26,13 @@ export function LogLiveTail() {
   const [logs, setLogs] = useState<LogRecord[]>([]);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const { format } = useTimeDisplay();
+  const { tenantId } = useTenantContext();
 
   const cursor = useMemo(() => latestTimestamp(logs), [logs]);
   const { error } = useQuery({
-    queryKey: ["logs", "live-tail", service || "all", cursor],
+    queryKey: ["logs", "live-tail", tenantId, service || "all", cursor],
     queryFn: async () => {
-      const result = await tailLogs({
+      const result = await tailLogs(tenantId, {
         service: service || undefined,
         since_unix_nano: cursor,
         limit: 100,

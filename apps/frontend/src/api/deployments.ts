@@ -1,7 +1,5 @@
-const DEV_TENANT_ID = "00000000-0000-0000-0000-000000000001";
-
-function tenantHeaders(): HeadersInit {
-  return { "X-Tenant-ID": DEV_TENANT_ID };
+function tenantHeaders(tenantId: string): HeadersInit {
+  return { "X-Tenant-ID": tenantId };
 }
 
 export interface DeploymentMarker {
@@ -33,6 +31,7 @@ export interface ListDeploymentsParams {
 }
 
 export async function listDeployments(
+  tenantId: string,
   params: ListDeploymentsParams = {},
 ): Promise<ListDeploymentsResponse> {
   const url = new URL("/v1/deployments", window.location.origin);
@@ -42,7 +41,7 @@ export async function listDeployments(
   if (params.end_time) url.searchParams.set("end_time", params.end_time);
   if (params.limit !== undefined) url.searchParams.set("limit", String(params.limit));
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders() });
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Deployments fetch failed: ${res.status}`);
   return res.json();
 }

@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
+import { TenantContextProvider } from "../hooks/useTenantContext";
 import TraceSearch from "./TraceSearch";
 
 const FIXED_TO_MS   = 1_700_100_000_000;
@@ -114,11 +115,13 @@ function renderTraceSearch() {
   });
 
   return render(
-    <QueryClientProvider client={client}>
-      <TimeDisplayProvider>
-        <TraceSearch />
-      </TimeDisplayProvider>
-    </QueryClientProvider>,
+    <TenantContextProvider>
+      <QueryClientProvider client={client}>
+        <TimeDisplayProvider>
+          <TraceSearch />
+        </TimeDisplayProvider>
+      </QueryClientProvider>
+    </TenantContextProvider>,
   );
 }
 
@@ -128,6 +131,7 @@ test("queries traces via NLQ execute on load", async () => {
 
   await waitFor(() =>
     expect(submitNlqQuery).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({ mode: "execute", base_ir: expect.objectContaining({ signals: ["traces"] }) }),
     ),
   );
