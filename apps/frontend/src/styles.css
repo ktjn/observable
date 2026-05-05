@@ -84,10 +84,10 @@
   --focus-ring: #FFB000;
   --surface-raised: #141410;
   --surface-inset: #111108;
-  --good: #44BB44;
-  --good-bg: #0d1f0d;
-  --warn: #FFB000;
-  --warn-bg: #2a1a00;
+  --good: #FFD050;
+  --good-bg: #2a2200;
+  --warn: #CC8800;
+  --warn-bg: #1a1200;
   --bad: #FF5533;
   --bad-bg: #2a0d00;
   --info-bg: #1a1a00;
@@ -103,6 +103,18 @@
 
 :root[data-theme="vt220"] body {
   font-size: 14px;
+}
+
+:root[data-theme="vt220"] input,
+:root[data-theme="vt220"] select,
+:root[data-theme="vt220"] textarea {
+  color: var(--text);
+  background-color: var(--surface-raised);
+}
+
+:root[data-theme="vt220"] input::placeholder,
+:root[data-theme="vt220"] textarea::placeholder {
+  color: var(--muted);
 }
 
 
