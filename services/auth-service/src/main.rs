@@ -2,16 +2,14 @@ mod audit;
 
 use auth_service::{lookup_api_key, validate};
 use axum::{
-    extract::{Request, State},
+    extract::State,
     http::StatusCode,
-    middleware::{self, Next},
-    response::Response,
     routing::{get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
+use tower_http::trace::TraceLayer;
 use tracing::{Instrument as _, Level};
 use uuid::Uuid;
 
@@ -69,21 +67,6 @@ async fn validate_handler(
     .await
 }
 
-/// Set the OTel parent context on the current (TraceLayer) span by extracting
-/// the W3C `traceparent` header. Must run INSIDE the TraceLayer span.
-async fn extract_otel_context(request: Request, next: Next) -> Response {
-    use tracing_opentelemetry::OpenTelemetrySpanExt as _;
-    let carrier: std::collections::HashMap<String, String> = request
-        .headers()
-        .iter()
-        .filter_map(|(k, v)| v.to_str().ok().map(|v| (k.to_string(), v.to_string())))
-        .collect();
-    let parent_cx =
-        opentelemetry::global::get_text_map_propagator(|propagator| propagator.extract(&carrier));
-    let _ = tracing::Span::current().set_parent(parent_cx);
-    next.run(request).await
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _telemetry = domain::telemetry::init_self_observability_telemetry("auth-service")?;
@@ -96,10 +79,10 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/internal/validate", post(validate_handler))
-        .layer(middleware::from_fn::<_, (axum::extract::Request,)>(
-            extract_otel_context,
-        ))
-        .layer(TraceLayer::new_for_http().make_span_with(DefaultMakeSpan::new().level(Level::INFO)))
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(domain::telemetry::OtelMakeSpan::new(Level::INFO)),
+        )
         .with_state(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "auth-service listening");

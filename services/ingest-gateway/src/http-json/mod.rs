@@ -5,35 +5,18 @@ pub mod traces;
 
 use axum::{
     body::Bytes,
-    extract::Request,
     http::{header, HeaderMap, StatusCode},
-    middleware::{self, Next},
-    response::Response,
+    middleware,
     routing::{get, post},
     Router,
 };
 use flate2::read::GzDecoder;
 use serde_json::Value;
 use std::io::Read;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
+use tower_http::trace::TraceLayer;
 use tracing::Level;
 
 use crate::{auth, deployments, AppState};
-
-/// Set the OTel parent context on the current (TraceLayer) span by extracting
-/// the W3C `traceparent` header. Must run INSIDE the TraceLayer span.
-async fn extract_otel_context(request: Request, next: Next) -> Response {
-    use tracing_opentelemetry::OpenTelemetrySpanExt as _;
-    let carrier: std::collections::HashMap<String, String> = request
-        .headers()
-        .iter()
-        .filter_map(|(k, v)| v.to_str().ok().map(|v| (k.to_string(), v.to_string())))
-        .collect();
-    let parent_cx =
-        opentelemetry::global::get_text_map_propagator(|propagator| propagator.extract(&carrier));
-    let _ = tracing::Span::current().set_parent(parent_cx);
-    next.run(request).await
-}
 
 pub fn decode_json_otlp_request(headers: &HeaderMap, body: Bytes) -> Result<Value, StatusCode> {
     let content_type = get_content_type(headers);
@@ -98,10 +81,10 @@ pub fn build_router(state: AppState) -> Router {
             auth::auth_middleware,
         ))
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
-        .layer(middleware::from_fn::<_, (axum::extract::Request,)>(
-            extract_otel_context,
-        ))
-        .layer(TraceLayer::new_for_http().make_span_with(DefaultMakeSpan::new().level(Level::INFO)))
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(domain::telemetry::OtelMakeSpan::new(Level::INFO)),
+        )
         .with_state(state)
 }
 
@@ -119,10 +102,10 @@ pub fn build_platform_router(state: AppState) -> Router {
             auth::auth_middleware,
         ))
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
-        .layer(middleware::from_fn::<_, (axum::extract::Request,)>(
-            extract_otel_context,
-        ))
-        .layer(TraceLayer::new_for_http().make_span_with(DefaultMakeSpan::new().level(Level::INFO)))
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(domain::telemetry::OtelMakeSpan::new(Level::INFO)),
+        )
         .with_state(state)
 }
 

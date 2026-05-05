@@ -236,6 +236,109 @@ pub fn inject_current_context(headers: &mut reqwest::header::HeaderMap) {
     }
 }
 
+/// A `tower_http` [`MakeSpan`] implementation that correctly propagates incoming W3C trace
+/// context into the span created for each HTTP request.
+///
+/// # Why this exists
+///
+/// `tracing-opentelemetry` 0.32 changed [`set_parent`] to return `Result<(), SetParentError>`
+/// and silently fails when the OTel SpanBuilder has already been consumed (i.e. the span has
+/// been entered for the first time). The conventional pattern of running an Axum middleware
+/// that calls `Span::current().set_parent(…)` inside the TraceLayer span no longer works
+/// because `DefaultMakeSpan` creates a new root span and then enters it before any inner
+/// middleware runs.
+///
+/// `OtelMakeSpan` fixes this by calling [`set_parent`] directly on the freshly created (but
+/// not yet entered) tracing span inside `make_span`. At that point the OTel SpanBuilder has
+/// not been consumed, so `set_parent` succeeds and the span is exported with the correct
+/// parent trace ID.
+///
+/// # Usage
+///
+/// Replace `TraceLayer::new_for_http().make_span_with(DefaultMakeSpan::new().level(Level::INFO))`
+/// and the companion `extract_otel_context` middleware with:
+///
+/// ```ignore
+/// .layer(TraceLayer::new_for_http().make_span_with(OtelMakeSpan::new(Level::INFO)))
+/// ```
+///
+/// [`set_parent`]: tracing_opentelemetry::OpenTelemetrySpanExt::set_parent
+#[derive(Clone, Debug)]
+pub struct OtelMakeSpan {
+    level: tracing::Level,
+}
+
+impl OtelMakeSpan {
+    pub fn new(level: tracing::Level) -> Self {
+        Self { level }
+    }
+}
+
+impl Default for OtelMakeSpan {
+    fn default() -> Self {
+        Self::new(tracing::Level::INFO)
+    }
+}
+
+impl<B> tower_http::trace::MakeSpan<B> for OtelMakeSpan {
+    fn make_span(&mut self, request: &axum::http::Request<B>) -> tracing::Span {
+        use tracing_opentelemetry::OpenTelemetrySpanExt as _;
+
+        // Extract incoming W3C traceparent / tracestate from the request headers.
+        let carrier: HashMap<String, String> = request
+            .headers()
+            .iter()
+            .filter_map(|(k, v)| v.to_str().ok().map(|v| (k.to_string(), v.to_string())))
+            .collect();
+        let parent_cx = opentelemetry::global::get_text_map_propagator(|p| p.extract(&carrier));
+
+        // Create the span first (not yet entered, SpanBuilder not yet consumed).
+        let span = match self.level {
+            tracing::Level::ERROR => tracing::span!(
+                tracing::Level::ERROR, "request",
+                http.method = %request.method(),
+                http.uri = %request.uri(),
+                http.status_code = tracing::field::Empty,
+                otel.name = tracing::field::Empty,
+            ),
+            tracing::Level::WARN => tracing::span!(
+                tracing::Level::WARN, "request",
+                http.method = %request.method(),
+                http.uri = %request.uri(),
+                http.status_code = tracing::field::Empty,
+                otel.name = tracing::field::Empty,
+            ),
+            tracing::Level::DEBUG => tracing::span!(
+                tracing::Level::DEBUG, "request",
+                http.method = %request.method(),
+                http.uri = %request.uri(),
+                http.status_code = tracing::field::Empty,
+                otel.name = tracing::field::Empty,
+            ),
+            tracing::Level::TRACE => tracing::span!(
+                tracing::Level::TRACE, "request",
+                http.method = %request.method(),
+                http.uri = %request.uri(),
+                http.status_code = tracing::field::Empty,
+                otel.name = tracing::field::Empty,
+            ),
+            // INFO and any other level
+            _ => tracing::span!(
+                tracing::Level::INFO, "request",
+                http.method = %request.method(),
+                http.uri = %request.uri(),
+                http.status_code = tracing::field::Empty,
+                otel.name = tracing::field::Empty,
+            ),
+        };
+
+        // Set the parent BEFORE the span is entered so the OTel SpanBuilder has not yet
+        // been consumed. This is the key difference from calling set_parent in a middleware.
+        let _ = span.set_parent(parent_cx);
+        span
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
