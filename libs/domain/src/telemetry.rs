@@ -1,10 +1,44 @@
+use opentelemetry::logs::LogRecord as _;
 use opentelemetry::trace::TracerProvider as _;
+use opentelemetry::InstrumentationScope;
 use opentelemetry_otlp::{WithExportConfig, WithTonicConfig};
-use opentelemetry_sdk::logs::SdkLoggerProvider;
+use opentelemetry_sdk::error::OTelSdkResult;
+use opentelemetry_sdk::logs::{BatchLogProcessor, LogProcessor, SdkLogRecord, SdkLoggerProvider};
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::Resource;
 use std::collections::HashMap;
+use std::fmt;
+use std::time::SystemTime;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+/// Wraps an inner [`LogProcessor`] and backfills `timestamp` when the
+/// upstream bridge (e.g. `opentelemetry-appender-tracing`) leaves it unset.
+///
+/// Rust's `tracing` framework does not populate the OTel log `TimeUnixNano`
+/// field — the appender bridge never calls `set_timestamp`.  As a result every
+/// log emitted by Observable's own services arrives with `timestamp_unix_nano =
+/// 0`, which falls outside any real-time query window.  This processor sets the
+/// timestamp to `SystemTime::now()` whenever the record has none, mirroring
+/// what the OTel SDK does for `observed_timestamp`.
+#[derive(Debug)]
+struct TimestampFillProcessor<P>(P);
+
+impl<P: LogProcessor + fmt::Debug> LogProcessor for TimestampFillProcessor<P> {
+    fn emit(&self, record: &mut SdkLogRecord, scope: &InstrumentationScope) {
+        if record.timestamp().is_none() {
+            record.set_timestamp(SystemTime::now());
+        }
+        self.0.emit(record, scope);
+    }
+
+    fn force_flush(&self) -> OTelSdkResult {
+        self.0.force_flush()
+    }
+
+    fn shutdown(&self) -> OTelSdkResult {
+        self.0.shutdown()
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelfObservabilityMode {
@@ -150,7 +184,9 @@ pub fn init_telemetry(
 
         let logger_provider = SdkLoggerProvider::builder()
             .with_resource(resource)
-            .with_batch_exporter(log_exporter)
+            .with_log_processor(TimestampFillProcessor(
+                BatchLogProcessor::builder(log_exporter).build(),
+            ))
             .build();
 
         // opentelemetry::global::set_logger_provider(logger_provider.clone());
