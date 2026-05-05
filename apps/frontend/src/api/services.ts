@@ -102,6 +102,13 @@ export async function listEnvironments(tenantId: string): Promise<DiscoveryRespo
   return res.json();
 }
 
+export async function listServices(tenantId: string): Promise<DiscoveryResponse> {
+  const url = new URL("/v1/services", window.location.origin);
+  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  if (!res.ok) throw new Error(`Query failed: ${res.status}`);
+  return res.json();
+}
+
 export interface ResponseTimeHistoryBucket {
   start_ms: number;
   end_ms: number;

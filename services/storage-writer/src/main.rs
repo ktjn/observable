@@ -4,10 +4,8 @@ mod retention;
 mod spans;
 
 use axum::{
-    extract::{Request, State},
+    extract::State,
     http::StatusCode,
-    middleware::{self, Next},
-    response::Response,
     routing::{get, post},
     Json, Router,
 };
@@ -62,21 +60,6 @@ async fn write_metrics(State(state): State<AppState>, Json(b): Json<MetricsBatch
     }
 }
 
-/// Set the OTel parent context on the current (TraceLayer) span by extracting
-/// the W3C `traceparent` header. Must run INSIDE the TraceLayer span.
-async fn extract_otel_context(request: Request, next: Next) -> Response {
-    use tracing_opentelemetry::OpenTelemetrySpanExt as _;
-    let carrier: std::collections::HashMap<String, String> = request
-        .headers()
-        .iter()
-        .filter_map(|(k, v)| v.to_str().ok().map(|v| (k.to_string(), v.to_string())))
-        .collect();
-    let parent_cx =
-        opentelemetry::global::get_text_map_propagator(|propagator| propagator.extract(&carrier));
-    let _ = tracing::Span::current().set_parent(parent_cx);
-    next.run(request).await
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _telemetry = domain::telemetry::init_self_observability_telemetry("storage-writer")?;
@@ -102,11 +85,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/internal/spans", post(write_spans))
         .route("/internal/logs", post(write_logs))
         .route("/internal/metrics", post(write_metrics))
-        .layer(middleware::from_fn::<_, (axum::extract::Request,)>(
-            extract_otel_context,
-        ))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &axum::extract::Request| {
+                use tracing_opentelemetry::OpenTelemetrySpanExt as _;
+
                 // Suppress span creation when processing observable-environment data to
                 // prevent feedback loops: observable spans going through the pipeline
                 // would generate new observable spans, which would loop indefinitely.
@@ -117,14 +99,25 @@ async fn main() -> anyhow::Result<()> {
                     .map(|v| v == "observable")
                     .unwrap_or(false);
                 if is_observable {
-                    tracing::Span::none()
-                } else {
-                    tracing::info_span!(
-                        "request",
-                        method = %request.method(),
-                        uri = %request.uri().path(),
-                    )
+                    return tracing::Span::none();
                 }
+
+                // Extract incoming W3C traceparent before creating the span so
+                // set_parent succeeds (SpanBuilder not yet consumed at this point).
+                let carrier: std::collections::HashMap<String, String> = request
+                    .headers()
+                    .iter()
+                    .filter_map(|(k, v)| v.to_str().ok().map(|v| (k.to_string(), v.to_string())))
+                    .collect();
+                let parent_cx =
+                    opentelemetry::global::get_text_map_propagator(|p| p.extract(&carrier));
+                let span = tracing::info_span!(
+                    "request",
+                    method = %request.method(),
+                    uri = %request.uri().path(),
+                );
+                let _ = span.set_parent(parent_cx);
+                span
             }),
         )
         .with_state(state);

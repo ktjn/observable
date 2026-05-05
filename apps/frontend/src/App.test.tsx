@@ -994,6 +994,12 @@ test("renders service nodes from topology data", async () => {
           { status: 200 },
         );
       }
+      if (url.includes("/v1/services") && !url.includes("/v1/services/")) {
+        return new Response(
+          JSON.stringify({ items: ["checkout-api", "payments-api"] }),
+          { status: 200 },
+        );
+      }
       if (url.includes("/v1/environments")) {
         return new Response(JSON.stringify({ items: ["prod"] }), { status: 200 });
       }
@@ -1034,6 +1040,12 @@ test("clicking a node enters focused mode", async () => {
               },
             ],
           }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/v1/services") && !url.includes("/v1/services/")) {
+        return new Response(
+          JSON.stringify({ items: ["checkout-api", "payments-api", "gateway"] }),
           { status: 200 },
         );
       }
@@ -1080,6 +1092,12 @@ test("focused service overview shows logs for the selected service", async () =>
             },
           ],
         }),
+        { status: 200 },
+      );
+    }
+    if (url.includes("/v1/services") && !url.includes("/v1/services/")) {
+      return new Response(
+        JSON.stringify({ items: ["checkout-api", "payments-api"] }),
         { status: 200 },
       );
     }
@@ -1135,6 +1153,12 @@ test("clicking a focused node returns to full graph", async () => {
           { status: 200 },
         );
       }
+      if (url.includes("/v1/services") && !url.includes("/v1/services/")) {
+        return new Response(
+          JSON.stringify({ items: ["checkout-api", "payments-api"] }),
+          { status: 200 },
+        );
+      }
       if (url.includes("/v1/environments")) {
         return new Response(JSON.stringify({ items: ["prod"] }), { status: 200 });
       }
@@ -1171,6 +1195,12 @@ test("clicking an edge shows trace and log links", async () => {
               },
             ],
           }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/v1/services") && !url.includes("/v1/services/")) {
+        return new Response(
+          JSON.stringify({ items: ["checkout-api", "payments-api"] }),
           { status: 200 },
         );
       }
@@ -1218,6 +1248,12 @@ test("clicking SVG background closes edge popover", async () => {
           { status: 200 },
         );
       }
+      if (url.includes("/v1/services") && !url.includes("/v1/services/")) {
+        return new Response(
+          JSON.stringify({ items: ["checkout-api", "payments-api"] }),
+          { status: 200 },
+        );
+      }
       if (url.includes("/v1/environments")) {
         return new Response(JSON.stringify({ items: ["prod"] }), { status: 200 });
       }
@@ -1244,6 +1280,9 @@ test("renders empty state when no edges returned", async () => {
       if (url.includes("/v1/topology")) {
         return new Response(JSON.stringify({ edges: [] }), { status: 200 });
       }
+      if (url.includes("/v1/services") && !url.includes("/v1/services/")) {
+        return new Response(JSON.stringify({ items: [] }), { status: 200 });
+      }
       if (url.includes("/v1/environments")) {
         return new Response(JSON.stringify({ items: [] }), { status: 200 });
       }
@@ -1255,7 +1294,7 @@ test("renders empty state when no edges returned", async () => {
   render(<App />);
 
   expect(
-    await screen.findByText("No service relationships found in the selected time range."),
+    await screen.findByText("No services found in the selected time range."),
   ).toBeInTheDocument();
 });
 

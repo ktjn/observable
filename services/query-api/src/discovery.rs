@@ -231,11 +231,11 @@ pub async fn list_services(
     Extension(ctx): Extension<TenantContext>,
 ) -> Result<Json<DiscoveryResponse>, StatusCode> {
     let sql = "SELECT DISTINCT service_name FROM ( \
-        SELECT DISTINCT service_name FROM observable.spans WHERE tenant_id = ? \
+        SELECT DISTINCT service_name FROM observable.spans WHERE tenant_id = ? AND service_name != '' \
         UNION DISTINCT \
-        SELECT DISTINCT service_name FROM observable.logs WHERE tenant_id = ? \
+        SELECT DISTINCT service_name FROM observable.logs WHERE tenant_id = ? AND service_name != '' \
         UNION DISTINCT \
-        SELECT DISTINCT service_name FROM observable.metric_series WHERE tenant_id = ? \
+        SELECT DISTINCT service_name FROM observable.metric_series WHERE tenant_id = ? AND service_name != '' \
     ) ORDER BY service_name";
 
     let rows: Vec<String> = state

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { getTopology, type TopologyEdge } from "../api/services";
+import { getTopology, listServices, type TopologyEdge } from "../api/services";
 import { Button } from "../components/ui/button";
 import { LoadingState } from "../components/ui/loading-state";
 import { TablePanel } from "../components/ui/table-panel";
@@ -32,6 +32,13 @@ export default function ServiceTopologyPage() {
     queryFn: () =>
       getTopology(tenantId, { environment: environment === "all" ? undefined : environment }),
   });
+
+  const { data: servicesData } = useQuery({
+    queryKey: ["services", tenantId],
+    queryFn: () => listServices(tenantId),
+  });
+
+  const allServiceNames = (servicesData?.items ?? []).filter((s) => s !== "");
 
   return (
     <section className="page-stack">
@@ -72,10 +79,6 @@ export default function ServiceTopologyPage() {
           <LoadingState>Loading topology…</LoadingState>
         ) : error ? (
           <div className="signal-empty">Error loading topology: {String(error)}</div>
-        ) : !data || data.edges.length === 0 ? (
-          <div className="signal-empty">
-            No service relationships found in the selected time range.
-          </div>
         ) : (
           <div className="min-h-[600px] flex justify-center relative">
             {/* Popover uses SVG midpoint coordinates. Works correctly when the SVG renders
@@ -108,16 +111,28 @@ export default function ServiceTopologyPage() {
                 </a>
               </div>
             )}
-            <TopologyMap
-              edges={data.edges}
-              focusedService={focusedService}
-              onNodeClick={(svc) => {
-                setEdgePopover(null);
-                setFocusedService((prev) => (prev === svc ? null : svc));
-              }}
-              onEdgeClick={(edge, x, y) => setEdgePopover({ edge, x, y })}
-              onBackgroundClick={() => setEdgePopover(null)}
-            />
+            {allServiceNames.length === 0 ? (
+              <div className="signal-empty">No services found in the selected time range.</div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 w-full">
+                {(!data || data.edges.length === 0) && (
+                  <p className="text-xs text-[var(--muted)]">
+                    No observed call relationships yet — services shown as standalone nodes.
+                  </p>
+                )}
+                <TopologyMap
+                  edges={data?.edges ?? []}
+                  allServices={allServiceNames}
+                  focusedService={focusedService}
+                  onNodeClick={(svc) => {
+                    setEdgePopover(null);
+                    setFocusedService((prev) => (prev === svc ? null : svc));
+                  }}
+                  onEdgeClick={(edge, x, y) => setEdgePopover({ edge, x, y })}
+                  onBackgroundClick={() => setEdgePopover(null)}
+                />
+              </div>
+            )}
           </div>
         )}
       </TablePanel>
@@ -141,6 +156,7 @@ export default function ServiceTopologyPage() {
 
 interface TopologyMapProps {
   edges: TopologyEdge[];
+  allServices: string[];
   focusedService: string | null;
   onNodeClick: (svc: string) => void;
   onEdgeClick: (edge: TopologyEdge, x: number, y: number) => void;
@@ -149,12 +165,17 @@ interface TopologyMapProps {
 
 function TopologyMap({
   edges,
+  allServices,
   focusedService,
   onNodeClick,
   onEdgeClick,
   onBackgroundClick,
 }: TopologyMapProps) {
-  const services = Array.from(new Set(edges.flatMap((e) => [e.caller, e.callee])));
+  // Use allServices as the authoritative node set so services with no edges
+  // (leaf nodes, databases, metrics agents) are still visible in the map.
+  const services = allServices.length > 0
+    ? allServices
+    : Array.from(new Set(edges.flatMap((e) => [e.caller, e.callee])));
 
   const radius = 200;
   const centerX = 400;
