@@ -460,6 +460,7 @@ Phase 3 exit gate is satisfied for the planned Phase 3 scope. The next implement
 - [ ] **P4-S5: Add SLO definition and one burn-rate alert**
   - Outcome: one service has a complete SLO workflow with alerting.
   - Closure steps: add the SLO definition model/API, reuse the Phase 2 threshold evaluator dispatch loop for an `slo_burn_rate` rule type, evaluate at least one multi-window burn-rate condition, and expose enough state for the frontend to show SLO health.
+  - Detail: [P4-S5 SLO burn-rate implementation plan](2026-05-05-p4-s5-slo-burn-rate.md)
   - Checkpoint: are error budget semantics now reliable enough for customer use?
 
 - [ ] **P4-S6: Add production runbook set for one failure class**
@@ -744,8 +745,8 @@ After the 2026-05-05 reordering for value-first delivery, the next implementatio
 
 The UI renovation gate, service-centric MVP UI sequence, Phase 3 correlation sequence, dashboard
 artifact sequence, schema registry prerequisite, and P3-S15 Testcontainers harness are now complete.
-The next active horizon starts Phase 4 with P4-S1. Use
-`docs/superpowers/plans/2026-05-05-p4-s1-warm-retention.md` as the detailed implementation plan.
+The next active horizon starts with P4-S5. Use
+`docs/superpowers/plans/2026-05-05-p4-s5-slo-burn-rate.md` as the detailed implementation plan.
 
 ---
 
@@ -773,4 +774,6 @@ The self-observability routing clarification also requires no ADR/spec update in
 
 **P3-S12a customer OTLP metric readback** (2026-05-01) — no ADR update is required because the slice hardens the accepted OTLP-first metric path from ADR-001 and the ClickHouse metric storage path from ADR-002/ADR-003 without changing architecture, deployment model, storage engine choice, data model scope, or security model. `spec/09-api.md` and `contracts/openapi/ingest-v1.yaml` were updated to document deterministic series identity and smoke-test readback expectations.
 
-**P3-S15 closure + P4-S1 activation** (2026-05-05) — P3-S15 is marked complete based on the checked detailed Testcontainers plan and the presence of service-local PostgreSQL, ClickHouse, and Redpanda integration suites. The completed detailed plan is archived. P4-S1 is promoted as the next active detailed implementation plan. No ADR or spec update is required for this planning-only transition because it does not change roadmap scope, architecture, deployment model, data model, security model, or technology choice; it reconciles plan state with already-specified ADR-012, ADR-025, and `spec/03-storage.md §5.3`.
+**P3-S15 closure + P4-S1 activation** (2026-05-05) — P3-S15 is marked complete based on the checked detailed Testcontainers plan and the presence of service-local PostgreSQL, ClickHouse, and Redpanda integration suites. The completed detailed plan is archived. P4-S1 was promoted as the next active detailed implementation plan before the value-first reordering.
+
+**Value-first P4-S5 activation** (2026-05-05) — after the value-first reorder, P4-S5 is the next active detailed implementation plan and P4-S1 is deferred. The detailed P4-S5 plan is `docs/superpowers/plans/2026-05-05-p4-s5-slo-burn-rate.md`. No ADR or spec update is required for this planning-only transition because it does not change roadmap scope, architecture, deployment model, data model, security model, or technology choice; it decomposes already-specified SLO and burn-rate scope from `spec/07-alerting-slo.md`, `spec/14-domain-model.md`, and `spec/10-process.md`.
