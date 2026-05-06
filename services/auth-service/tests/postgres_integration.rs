@@ -119,3 +119,49 @@ async fn lookup_api_key_rejects_revoked_key() {
         "error must mention 'revoked', got: {msg}"
     );
 }
+
+#[tokio::test]
+async fn upsert_user_creates_and_deduplicates() {
+    let (pool, _container) = start_pool().await;
+
+    let tenant_id = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
+
+    // First upsert — creates
+    let user_id_1 = auth_service::oidc::upsert_user(
+        &pool,
+        "zitadel|user-1",
+        "alice@example.com",
+        Some("Alice"),
+    )
+    .await
+    .expect("upsert 1");
+
+    // Second upsert — updates, returns same ID
+    let user_id_2 = auth_service::oidc::upsert_user(
+        &pool,
+        "zitadel|user-1",
+        "alice-updated@example.com",
+        Some("Alice Updated"),
+    )
+    .await
+    .expect("upsert 2");
+
+    assert_eq!(user_id_1, user_id_2, "same subject must return same UUID");
+
+    // Assign role
+    auth_service::oidc::upsert_user_tenant_role(&pool, user_id_1, tenant_id, "member")
+        .await
+        .expect("role assignment");
+
+    // Verify role is stored
+    let role: String = sqlx::query_scalar(
+        "SELECT role FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2",
+    )
+    .bind(user_id_1)
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .expect("role row");
+
+    assert_eq!(role, "member");
+}
