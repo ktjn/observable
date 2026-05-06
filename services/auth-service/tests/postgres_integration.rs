@@ -49,7 +49,8 @@ async fn start_pool() -> (
 async fn postgres_container_applies_migrations_and_validates_seed_key() {
     let (pool, _container) = start_pool().await;
 
-    // dev-api-key-0000 / tenant 00000000-0000-0000-0000-000000000001 / role member is seeded by migrations
+    // dev-api-key-0000 / tenant 00000000-0000-0000-0000-000000000002 (dev-tenant) / role member
+    // Migration 017 moved dev keys from the observable tenant (...001) to dev-tenant (...002).
     let (tenant_id, role, _environment): (Uuid, String, String) =
         lookup_api_key(&pool, "dev-api-key-0000")
             .await
@@ -57,7 +58,7 @@ async fn postgres_container_applies_migrations_and_validates_seed_key() {
 
     assert_eq!(
         tenant_id.to_string(),
-        "00000000-0000-0000-0000-000000000001"
+        "00000000-0000-0000-0000-000000000002"
     );
     assert_eq!(role, "member");
 }
@@ -66,7 +67,8 @@ async fn postgres_container_applies_migrations_and_validates_seed_key() {
 async fn lookup_api_key_returns_viewer_role_for_viewer_seed_key() {
     let (pool, _container) = start_pool().await;
 
-    // dev-viewer-key-0000 / tenant 00000000-0000-0000-0000-000000000001 / role viewer is seeded by migration 006
+    // dev-viewer-key-0000 / tenant 00000000-0000-0000-0000-000000000002 (dev-tenant) / role viewer
+    // Migration 017 moved dev keys from the observable tenant (...001) to dev-tenant (...002).
     let (tenant_id, role, _environment): (Uuid, String, String) =
         lookup_api_key(&pool, "dev-viewer-key-0000")
             .await
@@ -74,7 +76,7 @@ async fn lookup_api_key_returns_viewer_role_for_viewer_seed_key() {
 
     assert_eq!(
         tenant_id.to_string(),
-        "00000000-0000-0000-0000-000000000001"
+        "00000000-0000-0000-0000-000000000002"
     );
     assert_eq!(role, "viewer");
 }
