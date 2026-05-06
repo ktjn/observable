@@ -61,6 +61,38 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
 
+  zitadel:
+    image: ghcr.io/zitadel/zitadel:v2.71.0
+    command: start-from-init --masterkeyFromEnv --tlsMode disabled --steps /zitadel-steps.yaml
+    environment:
+      ZITADEL_DATABASE_POSTGRES_HOST: postgres
+      ZITADEL_DATABASE_POSTGRES_PORT: 5432
+      ZITADEL_DATABASE_POSTGRES_DATABASE: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: ${PG_USER:-observable}
+      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: ${PG_PASSWORD:-observable}
+      ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: ${PG_USER:-observable}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: ${PG_PASSWORD:-observable}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
+      ZITADEL_MASTERKEY: ${ZITADEL_MASTERKEY:-observabledevelopermasterkey0000}
+      ZITADEL_EXTERNALDOMAIN: localhost
+      ZITADEL_EXTERNALPORT: 8082
+      ZITADEL_EXTERNALINSECURE: "true"
+      OBSERVABLE_DEV_ADMIN_PASSWORD: ${OBSERVABLE_DEV_ADMIN_PASSWORD:-Dev@Admin1234!}
+    volumes:
+      - ./config/zitadel/dev-first-instance.yaml:/zitadel-steps.yaml:ro
+    ports:
+      - "8082:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/debug/healthz"]
+      interval: 5s
+      timeout: 2s
+      retries: 30
+      start_period: 15s
+
   # --- SETUP & MIGRATIONS ---
   clickhouse-setup:
     image: clickhouse/clickhouse-server:24.3

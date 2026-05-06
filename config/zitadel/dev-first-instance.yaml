@@ -1,0 +1,19 @@
+# config/zitadel/dev-first-instance.yaml
+#
+# Processed once by Zitadel on first start-from-init.
+# Creates the default IAM owner org and human admin user.
+# Run scripts/setup-dev-idp.sh after first start to create dev-tenant org and OIDC app.
+FirstInstance:
+  InstanceName: Observable Dev
+  Org:
+    Name: Observable
+    Human:
+      UserName: admin
+      FirstName: Dev
+      LastName: Admin
+      Email:
+        Address: admin@dev.observable
+        IsEmailVerified: true
+      Password:
+        Value: ${OBSERVABLE_DEV_ADMIN_PASSWORD:-Dev@Admin1234!}
+        ChangeRequired: false
