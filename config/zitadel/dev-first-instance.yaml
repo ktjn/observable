@@ -14,6 +14,5 @@ FirstInstance:
       Email:
         Address: admin@dev.observable
         IsEmailVerified: true
-      Password:
-        Value: ${OBSERVABLE_DEV_ADMIN_PASSWORD:-Dev@Admin1234!}
-        ChangeRequired: false
+      Password: ${OBSERVABLE_DEV_ADMIN_PASSWORD:-Dev@Admin1234!}
+      PasswordChangeRequired: false
