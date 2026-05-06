@@ -1,3 +1,4 @@
+pub mod audit;
 pub mod oidc;
 pub mod session;
 pub mod validate;

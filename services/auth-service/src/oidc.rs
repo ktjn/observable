@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use crate::session::{generate_code_verifier, pkce_challenge, sign_session_jwt, verify_session_jwt};
+use crate::session::{
+    generate_code_verifier, pkce_challenge, sign_session_jwt, verify_session_jwt,
+};
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -103,12 +105,10 @@ pub async fn create_session(
 
 /// Return all tenant memberships for a user as (tenant_id, role) pairs.
 pub async fn list_user_tenants(pool: &PgPool, user_id: Uuid) -> Result<Vec<(Uuid, String)>> {
-    let rows = sqlx::query(
-        "SELECT tenant_id, role FROM user_tenant_roles WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_all(pool)
-    .await?;
+    let rows = sqlx::query("SELECT tenant_id, role FROM user_tenant_roles WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_all(pool)
+        .await?;
     Ok(rows
         .into_iter()
         .map(|r| {
@@ -146,7 +146,8 @@ pub async fn login_handler(State(state): State<OidcState>) -> Response {
     );
 
     let set_cv = format!("pkce_cv={verifier}; HttpOnly; SameSite=Lax; Path=/; Max-Age=300");
-    let set_state = format!("oauth_state={state_param}; HttpOnly; SameSite=Lax; Path=/; Max-Age=300");
+    let set_state =
+        format!("oauth_state={state_param}; HttpOnly; SameSite=Lax; Path=/; Max-Age=300");
 
     Response::builder()
         .status(StatusCode::FOUND)
@@ -205,7 +206,10 @@ pub async fn callback_handler(
         .await
         .map_err(|_| StatusCode::BAD_GATEWAY)?;
 
-    let sub = userinfo["sub"].as_str().ok_or(StatusCode::UNAUTHORIZED)?.to_owned();
+    let sub = userinfo["sub"]
+        .as_str()
+        .ok_or(StatusCode::UNAUTHORIZED)?
+        .to_owned();
     let email = userinfo["email"].as_str().unwrap_or("").to_owned();
     let name = userinfo["name"].as_str().map(ToOwned::to_owned);
 
@@ -232,8 +236,20 @@ pub async fn callback_handler(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let jwt = sign_session_jwt(&state.config.session_secret, user_id, tenant_id, &role, &environment)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    crate::audit::write(
+        &state.db,
+        &crate::audit::AuditEntry::login(sub.clone(), tenant_id),
+    )
+    .await;
+
+    let jwt = sign_session_jwt(
+        &state.config.session_secret,
+        user_id,
+        tenant_id,
+        &role,
+        &environment,
+    )
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let set_session = format!("session={jwt}; HttpOnly; SameSite=Lax; Path=/; Max-Age=3600");
 
@@ -255,10 +271,9 @@ pub async fn logout_handler(
 ) -> Response {
     if let Some(token) = extract_cookie(&headers, "session") {
         if let Ok(claims) = verify_session_jwt(&state.config.session_secret, &token) {
-            if let (Ok(user_id), Ok(tenant_id)) = (
-                Uuid::parse_str(&claims.sub),
-                Uuid::parse_str(&claims.tid),
-            ) {
+            if let (Ok(user_id), Ok(tenant_id)) =
+                (Uuid::parse_str(&claims.sub), Uuid::parse_str(&claims.tid))
+            {
                 let _ = sqlx::query(
                     "UPDATE user_sessions SET revoked_at = now() \
                      WHERE user_id = $1 AND tenant_id = $2 AND revoked_at IS NULL",
@@ -266,6 +281,12 @@ pub async fn logout_handler(
                 .bind(user_id)
                 .bind(tenant_id)
                 .execute(&state.db)
+                .await;
+
+                crate::audit::write(
+                    &state.db,
+                    &crate::audit::AuditEntry::logout(claims.sub.clone(), tenant_id),
+                )
                 .await;
             }
         }
@@ -383,17 +404,14 @@ pub async fn validate_session_handler(
 
 pub fn extract_cookie(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
     let cookie_header = headers.get(header::COOKIE)?.to_str().ok()?;
-    cookie_header
-        .split(';')
-        .map(str::trim)
-        .find_map(|part| {
-            let (k, v) = part.split_once('=')?;
-            if k.trim() == name {
-                Some(v.trim().to_owned())
-            } else {
-                None
-            }
-        })
+    cookie_header.split(';').map(str::trim).find_map(|part| {
+        let (k, v) = part.split_once('=')?;
+        if k.trim() == name {
+            Some(v.trim().to_owned())
+        } else {
+            None
+        }
+    })
 }
 
 fn urlencoding(s: &str) -> String {
