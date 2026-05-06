@@ -14,6 +14,8 @@ import LogSearch from "./pages/LogSearch";
 import MetricsSearch from "./pages/MetricsSearch";
 import DashboardsPage from "./pages/DashboardsPage";
 import NlqQueryPage from "./pages/NlqQueryPage";
+import LoginPage from "./pages/LoginPage";
+import AuthCallbackPage from "./pages/AuthCallbackPage";
 
 export type Preset = "5m" | "15m" | "30m" | "1h" | "3h" | "12h";
 export const DEFAULT_PRESET: Preset = "1h";
@@ -133,10 +135,25 @@ const nlqRoute = createRoute({
   path: "/nlq",
   component: NlqQueryPage,
 });
+
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/login",
+  component: LoginPage,
+});
+
+const authCallbackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/auth/callback",
+  component: AuthCallbackPage,
+});
+
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     homeRoute,
     setupRoute,
+    loginRoute,
+    authCallbackRoute,
     servicesRoute,
     serviceDetailRoute,
     serviceLogsRoute,
