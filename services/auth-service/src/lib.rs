@@ -1,3 +1,4 @@
+pub mod session;
 pub mod validate;
 
 use anyhow::{anyhow, bail, Result};
