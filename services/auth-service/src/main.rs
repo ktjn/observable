@@ -1,6 +1,7 @@
 mod audit;
+mod dev_bootstrap;
 
-use auth_service::{lookup_api_key, validate};
+use auth_service::{lookup_api_key, validate, oidc::{OidcConfig, OidcState}};
 use axum::{
     extract::State,
     http::StatusCode,
@@ -12,11 +13,6 @@ use sqlx::PgPool;
 use tower_http::trace::TraceLayer;
 use tracing::{Instrument as _, Level};
 use uuid::Uuid;
-
-#[derive(Clone)]
-struct AppState {
-    db: PgPool,
-}
 
 #[derive(Deserialize)]
 struct ValidateRequest {
@@ -31,7 +27,7 @@ struct ValidateResponse {
 }
 
 async fn validate_handler(
-    State(state): State<AppState>,
+    State(state): State<OidcState>,
     Json(req): Json<ValidateRequest>,
 ) -> Result<Json<ValidateResponse>, StatusCode> {
     let hash = validate::sha256_hex(&req.api_key);
@@ -39,11 +35,7 @@ async fn validate_handler(
         match lookup_api_key(&state.db, &req.api_key).await {
             Ok((tenant_id, role, environment)) => {
                 audit::write(&state.db, &audit::AuditEntry::allow(hash, tenant_id)).await;
-                Ok(Json(ValidateResponse {
-                    tenant_id,
-                    role,
-                    environment,
-                }))
+                Ok(Json(ValidateResponse { tenant_id, role, environment }))
             }
             Err(e) => {
                 let reason = if e.to_string().contains("revoked") {
@@ -70,20 +62,49 @@ async fn validate_handler(
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _telemetry = domain::telemetry::init_self_observability_telemetry("auth-service")?;
+
     let db_url = std::env::var("DATABASE_URL")?;
     let db = PgPool::connect(&db_url).await?;
+
     let port: u16 = std::env::var("AUTH_SERVICE_PORT")
         .unwrap_or_else(|_| "4319".into())
         .parse()?;
-    let state = AppState { db };
+
+    let oidc_config = OidcConfig {
+        issuer: std::env::var("ZITADEL_ISSUER")
+            .unwrap_or_else(|_| "http://localhost:8082".into()),
+        client_id: std::env::var("ZITADEL_CLIENT_ID")
+            .unwrap_or_else(|_| "dev-client-id".into()),
+        redirect_uri: std::env::var("ZITADEL_REDIRECT_URI")
+            .unwrap_or_else(|_| "http://localhost:5173/auth/callback".into()),
+        session_secret: std::env::var("SESSION_SECRET")
+            .unwrap_or_else(|_| "dev-session-secret-change-in-prod!!".into()),
+    };
+
+    let state = OidcState { db: db.clone(), config: oidc_config };
+
+    if std::env::var("OBSERVABLE_ENV").as_deref() == Ok("dev") {
+        let dev_email = std::env::var("DEV_ADMIN_EMAIL")
+            .unwrap_or_else(|_| "admin@dev.observable".into());
+        if let Err(e) = dev_bootstrap::seed_dev_admin_role(&db, &dev_email).await {
+            tracing::warn!(error = %e, "dev bootstrap role seed failed (non-fatal)");
+        }
+    }
+
     let app = Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/internal/validate", post(validate_handler))
+        .route("/internal/validate-session", post(auth_service::oidc::validate_session_handler))
+        .route("/v1/auth/login",    get(auth_service::oidc::login_handler))
+        .route("/v1/auth/callback", get(auth_service::oidc::callback_handler))
+        .route("/v1/auth/logout",   post(auth_service::oidc::logout_handler))
+        .route("/v1/auth/me",       get(auth_service::oidc::me_handler))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(domain::telemetry::OtelMakeSpan::new(Level::INFO)),
         )
         .with_state(state);
+
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "auth-service listening");
     axum::serve(listener, app).await?;
