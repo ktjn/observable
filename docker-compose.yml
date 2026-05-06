@@ -87,12 +87,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/debug/healthz"]
-      interval: 5s
-      timeout: 2s
-      retries: 30
-      start_period: 15s
 
   zitadel-bootstrap:
     image: alpine:3.20
@@ -106,7 +100,7 @@ services:
       - ./scripts/zitadel-bootstrap.sh:/scripts/zitadel-bootstrap.sh:ro
     depends_on:
       zitadel:
-        condition: service_healthy
+        condition: service_started
 
   # --- SETUP & MIGRATIONS ---
   clickhouse-setup:
