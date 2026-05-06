@@ -450,8 +450,21 @@ Phase 3 exit gate is satisfied for the planned Phase 3 scope. The next implement
   - Checkpoint: are measured RPO/RTO values acceptable?
 
 - [ ] **P4-S3: Add SSO/OIDC for one customer-compatible flow**
-  - Outcome: one external identity provider can authenticate into the platform
-  - Checkpoint: does this change require ADR/spec sync for auth scope or model?
+  - Source spec: `spec/04-tenancy-security.md` §8.1, `spec/05-frontend.md` Phase 4+ Admin Console, `spec/13-risks-roadmap.md` §24.2, ADR-008, ADR-015, ADR-031.
+  - Outcome: one external identity provider can authenticate a human user into the platform, and the UI can operate with the resulting principal rather than local-dev API-key assumptions.
+  - Closure steps: add OIDC authorization-code-with-PKCE login/logout and callback handling; map IdP subject, email, and groups into the local principal model; issue/verify short-lived user sessions for query/admin APIs; filter `GET /v1/tenants` by the authenticated principal per ADR-031; remove unauthenticated access from tenant-list bootstrap endpoints except for explicitly public setup status; add an Admin Console identity settings read view showing configured provider, redirect URI, issuer, and tenant mapping state without exposing secrets; audit login success/failure and tenant-selection decisions.
+  - UI operations: the AppShell must show authenticated user state, handle expired sessions without losing tenant/environment/time context, hide or collapse tenant selection for single-tenant users, and gate Admin/Fleet/Billing navigation by coarse RBAC.
+  - Out of scope: SAML, SCIM provisioning, multi-IdP routing, user/group lifecycle sync, password or local-user auth, and building a first-party identity provider.
+  - Verification: HTTP integration tests for protected query/admin paths, tenant-list filtering, missing/expired session rejection, and cross-tenant denial; frontend MSW/RTL tests for login state, session expiry, tenant picker filtering, and Admin Console identity settings; a documented manual smoke against one customer-compatible IdP or local Keycloak test realm.
+  - Checkpoint: does this change only integrate a bought/leverage IdP per ADR-015, and are any auth-model deltas reflected in ADR-008/spec updates?
+
+- [ ] **P4-S3b: Add SCIM/SSO management if required by target v1 customers**
+  - Trigger: execute only when a selected v1 customer requires automated user/group provisioning or multi-provider SSO management before launch.
+  - Outcome: tenant admins can manage SSO provisioning status and receive externally provisioned users/groups without manual database edits.
+  - Closure steps: define the SCIM user/group subset needed for tenant membership and coarse role assignment; add a SCIM-compatible provisioning endpoint or supported IdP webhook path backed by PostgreSQL control-plane tables; map external groups to TenantAdmin, ProjectAdmin, Member, and Viewer assignments; expose an Admin Console SSO settings surface for provider metadata, group mappings, sync status, and last error; audit create/update/deactivate events; document deprovisioning behavior and rollback.
+  - Out of scope: storing IdP secrets in the browser, custom password management, billing entitlement sync, and full enterprise policy features such as regional residency or BYOK.
+  - Verification: Testcontainers-backed PostgreSQL integration tests for provision, update, deactivate, group mapping, and idempotent replay; HTTP integration tests for tenant-admin-only management paths; frontend MSW/RTL tests for group mapping and sync-error states; manual smoke against the selected IdP's SCIM test app when available.
+  - Checkpoint: is SCIM required for the first v1 customer, or can it remain deferred without blocking external launch?
 
 - [ ] **P4-S4: Add fine-grained authorization for one protected resource**
   - Outcome: one OpenFGA-style protected object has enforceable sharing semantics
@@ -777,3 +790,5 @@ The self-observability routing clarification also requires no ADR/spec update in
 **P3-S15 closure + P4-S1 activation** (2026-05-05) — P3-S15 is marked complete based on the checked detailed Testcontainers plan and the presence of service-local PostgreSQL, ClickHouse, and Redpanda integration suites. The completed detailed plan is archived. P4-S1 was promoted as the next active detailed implementation plan before the value-first reordering.
 
 **Value-first P4-S5 activation** (2026-05-05) — after the value-first reorder, P4-S5 is the next active detailed implementation plan and P4-S1 is deferred. The detailed P4-S5 plan is `docs/superpowers/plans/2026-05-05-p4-s5-slo-burn-rate.md`. No ADR or spec update is required for this planning-only transition because it does not change roadmap scope, architecture, deployment model, data model, security model, or technology choice; it decomposes already-specified SLO and burn-rate scope from `spec/07-alerting-slo.md`, `spec/14-domain-model.md`, and `spec/10-process.md`.
+
+**P4-S3 OIDC/SCIM decomposition** (2026-05-06) — P4-S3 was expanded from a one-line SSO/OIDC item into a customer-compatible OIDC flow with explicit UI operations coverage: authenticated AppShell state, tenant-list filtering, session expiry handling, Admin Console identity settings, RBAC-gated navigation, and audit requirements. P4-S3b was added as a conditional SCIM/SSO management slice only when selected v1 customers require automated provisioning. No ADR or spec update is required for this planning-only edit because OIDC, optional SAML, SCIM provisioning, bought/leverage IdP strategy, RBAC/OpenFGA authorization, TenantAdmin SSO management, and ADR-031's auth hook are already specified in `spec/04-tenancy-security.md`, `spec/13-risks-roadmap.md`, `spec/14-domain-model.md`, ADR-008, ADR-015, and ADR-031.
