@@ -33,6 +33,9 @@ RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/regi
     --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
     cargo clippy --workspace --all-targets -- -D warnings
+# Integration tests use Testcontainers and require a Docker daemon — nested
+# Docker is unavailable during image builds. Run `bash scripts/local-ci.sh`
+# locally to execute the full integration test suite.
 RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
