@@ -1,12 +1,20 @@
 # config/zitadel/dev-first-instance.yaml
 #
 # Processed once by Zitadel on first start-from-init.
-# Creates the default IAM owner org and human admin user.
-# Run scripts/setup-dev-idp.sh after first start to create dev-tenant org and OIDC app.
+# Creates the IAM owner org, a bootstrap service account, and the dev human admin.
+# PatPath causes Zitadel to write the service account's PAT to /bootstrap/admin-pat.txt.
+# The zitadel-bootstrap container reads that PAT to create the Observable OIDC app.
 FirstInstance:
   InstanceName: Observable Dev
+  PatPath: /bootstrap/admin-pat.txt
   Org:
     Name: Observable
+    Machine:
+      Machine:
+        UserName: bootstrap-sa
+        Name: Bootstrap Service Account
+      Pat:
+        ExpirationDate: "2099-01-01T00:00:00Z"
     Human:
       UserName: admin
       FirstName: Dev

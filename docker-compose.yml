@@ -81,6 +81,7 @@ services:
       OBSERVABLE_DEV_ADMIN_PASSWORD: ${OBSERVABLE_DEV_ADMIN_PASSWORD:-Dev@Admin1234!}
     volumes:
       - ./config/zitadel/dev-first-instance.yaml:/zitadel-steps.yaml:ro
+      - zitadel-bootstrap:/bootstrap
     ports:
       - "8082:8080"
     depends_on:
@@ -92,6 +93,20 @@ services:
       timeout: 2s
       retries: 30
       start_period: 15s
+
+  zitadel-bootstrap:
+    image: alpine:3.20
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apk add -q --no-cache curl jq
+        /scripts/zitadel-bootstrap.sh
+    volumes:
+      - zitadel-bootstrap:/bootstrap
+      - ./scripts/zitadel-bootstrap.sh:/scripts/zitadel-bootstrap.sh:ro
+    depends_on:
+      zitadel:
+        condition: service_healthy
 
   # --- SETUP & MIGRATIONS ---
   clickhouse-setup:
@@ -141,11 +156,23 @@ services:
   auth-service:
     image: observable-services:local
     build: { context: ., dockerfile: Dockerfile }
-    command: ["auth-service"]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ -f /bootstrap/client_id ] && [ -s /bootstrap/client_id ]; then
+          export ZITADEL_CLIENT_ID=$$(cat /bootstrap/client_id)
+        fi
+        exec auth-service
     environment:
       <<: *platform-self-observability-env
       DATABASE_URL: postgres://observable:observable@postgres:5432/observable
       AUTH_SERVICE_PORT: "4319"
+      ZITADEL_ISSUER: http://zitadel:8080
+      ZITADEL_REDIRECT_URI: http://localhost/auth/callback
+      SESSION_SECRET: ${SESSION_SECRET:-dev-session-secret-for-observable-00}
+      OBSERVABLE_ENV: dev
+    volumes:
+      - zitadel-bootstrap:/bootstrap:ro
     ports: ["4319:4319"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4319/health"]
@@ -154,6 +181,7 @@ services:
       retries: 10
     depends_on:
       postgres-setup: { condition: service_completed_successfully }
+      zitadel-bootstrap: { condition: service_completed_successfully }
 
   storage-writer:
     image: observable-services:local
@@ -387,3 +415,4 @@ volumes:
   redpanda_data:
   postgres_data:
   shop_db_data:
+  zitadel-bootstrap:
