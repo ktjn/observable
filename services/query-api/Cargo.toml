@@ -21,6 +21,7 @@ serde_json         = { workspace = true }
 chrono             = { workspace = true }
 uuid               = { workspace = true }
 anyhow             = { workspace = true }
+reqwest            = { workspace = true }
 tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 clickhouse         = { workspace = true }

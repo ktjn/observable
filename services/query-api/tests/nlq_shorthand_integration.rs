@@ -35,6 +35,7 @@ fn build_nlq_app(ch: ChClient, db: PgPool) -> Router {
         db,
         planner: Arc::new(QueryPlanner),
         llm: None,
+        auth_service_url: "http://auth-service:4319".into(),
     };
     Router::new()
         .route("/v1/nlq", post(llm_adapter::handle_nlq_query))

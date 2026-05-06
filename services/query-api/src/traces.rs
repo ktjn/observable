@@ -24,6 +24,8 @@ pub struct AppState {
     pub planner: Arc<QueryPlanner>,
     /// Optional LLM caller. None when LLM_API_KEY is not set.
     pub llm: Option<Arc<dyn LlmCaller>>,
+    /// Base URL for the auth-service internal API.
+    pub auth_service_url: String,
 }
 
 #[derive(Serialize)]

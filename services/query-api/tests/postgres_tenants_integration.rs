@@ -71,6 +71,7 @@ fn build_tenants_app(pool: PgPool) -> Router {
         db: pool,
         planner: std::sync::Arc::new(query_api::planner::QueryPlanner),
         llm: None,
+        auth_service_url: "http://auth-service:4319".into(),
     };
     // No tenant-auth middleware — these are bootstrap endpoints.
     Router::new()
