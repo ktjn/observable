@@ -665,45 +665,14 @@ Before Phase 5 starts, answer:
   - Checkpoint: does the PromQL façade use the same MCP server execution path as NLQ (no parallel
     execution engine)?
 
-- [ ] **P8-S6b: Add local LLM backend (vLLM) with Phi-3 Mini / Llama-3 8B model selection**
-  - Outcome: operators can use natural language query without a cloud API key by pointing
-    Observable at a locally running vLLM server. The Setup page gains a backend mode selector:
-    "OpenAI API" (existing) or "vLLM (local)". vLLM mode exposes a model dropdown (Phi-3 Mini
-    3.8B default; Llama-3 8B Instruct alternative) and an endpoint URL field (default
-    `http://localhost:8000`). Observable does not run or manage the vLLM process.
-  - Prerequisite: P8-S6 complete.
-  - Architecture: vLLM exposes an OpenAI-compatible HTTP API. `VllmCaller` reuses the existing
-    `async-openai` crate with no auth key and a configurable base URL — no new HTTP client
-    dependency. Config stored in the existing `platform_config` key-value table; no schema
-    migration required. Backend selection follows the established env-var-or-DB precedence
-    pattern. See [ADR-027](../../spec/adr/ADR-027-local-llm-backend.md).
-  - Closure steps (strictly ordered):
-    1. **`VllmCaller` + `LlmBackendConfig`** — add to `llm_adapter.rs`; implement `LlmCaller`
-       trait; add `build_caller_from_config` factory; update `handle_nlq_query` to resolve
-       backend from env (`LLM_BACKEND`, `LLM_MODEL`, `VLLM_BASE_URL`) or DB.
-    2. **Config endpoint extension** — extend `ConfigStatus` with `llm_backend`/`llm_model`;
-       add `PUT /v1/config/llm-backend` handler; `fetch_llm_backend_config` DB helper; register
-       route in `main.rs`.
-    3. **Testcontainers integration test** — `put_llm_backend` stores vLLM config; `get_config`
-       reflects it.
-    4. **Frontend API** — extend `PlatformConfig`; add `saveLlmBackend()` in `setup.ts`.
-    5. **Setup page UI** — replace `LlmKeyPanel` with `LlmConfigPanel`: backend selector,
-       OpenAI mode (unchanged), vLLM mode (model dropdown + endpoint URL + informational note).
-    6. **Frontend tests** — update mocks; add tests for backend selector, vLLM model dropdown,
-       endpoint URL field, and `saveLlmBackend` call.
-  - Files expected to change: `services/query-api/src/llm_adapter.rs`,
-    `services/query-api/src/config.rs`, `services/query-api/src/main.rs`,
-    `services/query-api/tests/config_integration.rs` (create or modify),
-    `apps/frontend/src/api/setup.ts`, `apps/frontend/src/pages/SetupPage.tsx`,
-    `apps/frontend/src/pages/SetupPage.test.tsx`.
-  - Out of scope: vLLM authentication, Ollama support, streaming NLQ responses.
-  - Verification: `cargo test -p query-api` passes; `npm test` in `apps/frontend` passes;
-    `GET /v1/config` includes `llm_backend`/`llm_model`; `PUT /v1/config/llm-backend` returns
-    204; Setup page shows backend selector and vLLM mode UI; manual smoke against local vLLM;
-    provenance payload present for both backends; 422 returned for unknown backend/model values.
-  - Checkpoint: does the vLLM path use the same `LlmCaller` trait contract and provenance
-    requirements as the OpenAI path (no shortcuts)?
-  - Detail: [archived P8-S6b local LLM plan](../../../archived/plans/2026-04-29-p8-s6b-local-llm-vllm.md)
+- [x] **P8-S6b: Unified LLM backend configuration (three-field setup)**
+  - Outcome: operators configure the LLM connection via three fields — API key, endpoint URL,
+    and model — on the Setup page. This covers OpenAI, vLLM, Ollama, and any OpenAI-compatible
+    provider without a backend mode selector. `OpenAiLlmCaller` handles all providers via the
+    configurable URL field.
+  - ADR-027 superseded the earlier vLLM-specific backend-selector design. No `VllmCaller`
+    or `LlmBackendConfig` was introduced — the unified three-field model made them unnecessary.
+  - See [ADR-027](../../spec/adr/ADR-027-local-llm-backend.md).
 
 **Checkpoint question:** can every AI output be explained, audited, and ignored without harming correctness?
 

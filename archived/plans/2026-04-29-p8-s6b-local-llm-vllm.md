@@ -1,5 +1,10 @@
 # P8-S6b: Local LLM Backend (vLLM + Phi-3 Mini / Llama-3 8B)
 
+> **Status: SUPERSEDED** — ADR-027 (2026-04-29) replaced this backend-selector design with the
+> unified three-field setup model (`api_key` / `url` / `model`). `OpenAiLlmCaller` handles all
+> OpenAI-compatible endpoints via the configurable URL; no backend mode selector was implemented.
+> This document is retained for historical context only.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
 > (recommended) or superpowers:executing-plans to implement this plan task-by-task.
 > Steps use checkbox (`- [ ]`) syntax for tracking.
