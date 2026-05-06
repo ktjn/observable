@@ -1,4 +1,4 @@
-use auth_service::session::{sign_session_jwt, verify_session_jwt, pkce_challenge};
+use auth_service::session::{pkce_challenge, sign_session_jwt, verify_session_jwt};
 use uuid::Uuid;
 
 #[test]
@@ -22,8 +22,14 @@ fn wrong_secret_is_rejected() {
     let user_id = Uuid::new_v4();
     let tenant_id = Uuid::new_v4();
 
-    let token = sign_session_jwt("correctsecret1234567890abcdefgh", user_id, tenant_id, "member", "prod")
-        .expect("sign");
+    let token = sign_session_jwt(
+        "correctsecret1234567890abcdefgh",
+        user_id,
+        tenant_id,
+        "member",
+        "prod",
+    )
+    .expect("sign");
     let result = verify_session_jwt("wrongsecretXXXXXXXXXXXXXXXXXXXX", &token);
 
     assert!(result.is_err(), "wrong secret must be rejected");

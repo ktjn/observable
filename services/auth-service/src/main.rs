@@ -1,8 +1,7 @@
 mod dev_bootstrap;
 
 use auth_service::{
-    audit,
-    lookup_api_key,
+    audit, lookup_api_key,
     oidc::{OidcConfig, OidcState},
     validate,
 };

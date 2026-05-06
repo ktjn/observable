@@ -84,7 +84,10 @@ pub async fn list_tenants(
     Ok(Json(TenantListResponse {
         tenants: rows
             .into_iter()
-            .map(|r| TenantRecord { id: r.id, name: r.name })
+            .map(|r| TenantRecord {
+                id: r.id,
+                name: r.name,
+            })
             .collect(),
     }))
 }
@@ -113,7 +116,10 @@ pub async fn list_tenant_environments(
     })?;
 
     Ok(Json(EnvironmentListResponse {
-        environments: rows.into_iter().map(|e| EnvironmentRecord { environment: e }).collect(),
+        environments: rows
+            .into_iter()
+            .map(|e| EnvironmentRecord { environment: e })
+            .collect(),
     }))
 }
 
@@ -123,7 +129,11 @@ pub fn extract_session_cookie(headers: &HeaderMap) -> Option<String> {
     let cookie = headers.get(header::COOKIE)?.to_str().ok()?;
     cookie.split(';').map(str::trim).find_map(|part| {
         let (k, v) = part.split_once('=')?;
-        if k.trim() == "session" { Some(v.trim().to_owned()) } else { None }
+        if k.trim() == "session" {
+            Some(v.trim().to_owned())
+        } else {
+            None
+        }
     })
 }
 
@@ -163,6 +173,9 @@ mod tests {
             .header(header::COOKIE, "session=tok123; other=x")
             .body(Body::empty())
             .unwrap();
-        assert_eq!(extract_session_cookie(req.headers()), Some("tok123".to_string()));
+        assert_eq!(
+            extract_session_cookie(req.headers()),
+            Some("tok123".to_string())
+        );
     }
 }

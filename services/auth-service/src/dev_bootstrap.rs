@@ -14,11 +14,10 @@ const DEV_TENANT_ID: &str = "00000000-0000-0000-0000-000000000002";
 pub async fn seed_dev_admin_role(pool: &PgPool, dev_admin_email: &str) -> Result<()> {
     let tenant_id = Uuid::parse_str(DEV_TENANT_ID)?;
 
-    let user_id: Option<Uuid> =
-        sqlx::query_scalar("SELECT id FROM users WHERE email = $1")
-            .bind(dev_admin_email)
-            .fetch_optional(pool)
-            .await?;
+    let user_id: Option<Uuid> = sqlx::query_scalar("SELECT id FROM users WHERE email = $1")
+        .bind(dev_admin_email)
+        .fetch_optional(pool)
+        .await?;
 
     if let Some(uid) = user_id {
         sqlx::query(
@@ -32,7 +31,10 @@ pub async fn seed_dev_admin_role(pool: &PgPool, dev_admin_email: &str) -> Result
         .bind(tenant_id)
         .execute(pool)
         .await?;
-        tracing::info!(email = dev_admin_email, "dev admin role ensured on dev-tenant");
+        tracing::info!(
+            email = dev_admin_email,
+            "dev admin role ensured on dev-tenant"
+        );
     } else {
         tracing::info!(
             email = dev_admin_email,
