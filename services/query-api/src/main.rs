@@ -152,6 +152,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/tokens/:id/restore", post(tokens::restore_token))
         .route("/v1/tokens/:id/permanent", delete(tokens::delete_token))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
+        .layer(axum::Extension(state.db.clone()))
         // Bootstrap endpoints — no tenant-auth required; used to populate the
         // global tenant+environment selector before a scope is chosen.
         .route("/v1/tenants", get(tenants::list_tenants))
