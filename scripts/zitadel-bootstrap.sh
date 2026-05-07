@@ -20,11 +20,8 @@ REDIRECT_URI="${ZITADEL_REDIRECT_URI:-http://localhost:5173/auth/callback}"
 KEY_FILE="/bootstrap/sa-key.json"
 CLIENT_ID_FILE="/bootstrap/client_id"
 
-# Idempotent: skip if a previous run already wrote the client_id.
-if [ -f "$CLIENT_ID_FILE" ] && [ -s "$CLIENT_ID_FILE" ]; then
-  echo "zitadel-bootstrap: already complete (client_id=$(cat $CLIENT_ID_FILE))"
-  exit 0
-fi
+# No early-exit idempotency check — always verify/update the app config so that
+# changes to REDIRECT_URI are applied even when the bootstrap has run before.
 
 # Wait for Zitadel to write the machine-key file.
 echo "zitadel-bootstrap: waiting for machine-key file at $KEY_FILE ..."
@@ -116,32 +113,67 @@ else
   echo "zitadel-bootstrap: admin user not found, skipping password set" >&2
 fi
 
-# Create the Observable project.
-PROJECT_RESP=$($CURL -X POST "$ZITADEL_BASE/management/v1/projects" \
+# Find or create the Observable project.
+PROJECTS_RESP=$($CURL "$ZITADEL_BASE/management/v1/projects/_search" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Observable"}')
-PROJECT_ID=$(echo "$PROJECT_RESP" | jq -r '.id')
-echo "zitadel-bootstrap: project id = $PROJECT_ID"
+  -d '{"queries":[{"nameQuery":{"name":"Observable","method":"TEXT_QUERY_METHOD_EQUALS"}}]}')
+PROJECT_ID=$(echo "$PROJECTS_RESP" | jq -r '.result[0].id // empty')
+if [ -z "$PROJECT_ID" ]; then
+  PROJECT_ID=$($CURL -X POST "$ZITADEL_BASE/management/v1/projects" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"name":"Observable"}' | jq -r '.id')
+  echo "zitadel-bootstrap: created project id = $PROJECT_ID"
+else
+  echo "zitadel-bootstrap: found existing project id = $PROJECT_ID"
+fi
 
-# Create the OIDC web application (public client, PKCE, no secret).
-APP_RESP=$($CURL -X POST "$ZITADEL_BASE/management/v1/projects/$PROJECT_ID/apps/oidc" \
+LOGOUT_URI="${REDIRECT_URI%/auth/callback}/login"
+
+# Find existing OIDC app or create it.
+APPS_RESP=$($CURL "$ZITADEL_BASE/management/v1/projects/$PROJECT_ID/apps/_search" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "Observable Frontend",
-    "redirectUris": ["'"$REDIRECT_URI"'"],
-    "responseTypes": ["RESPONSE_TYPE_CODE"],
-    "grantTypes": ["GRANT_TYPE_AUTHORIZATION_CODE"],
-    "appType": "OIDC_APP_TYPE_WEB",
-    "authMethodType": "OIDC_AUTH_METHOD_TYPE_NONE",
-    "postLogoutRedirectUris": ["'"${REDIRECT_URI%/auth/callback}/login"'"],
-    "devMode": true
-  }')
+  -d '{"queries":[{"nameQuery":{"name":"Observable Frontend","method":"TEXT_QUERY_METHOD_EQUALS"}}]}')
+APP_ID=$(echo "$APPS_RESP" | jq -r '.result[0].id // empty')
+OIDC_CLIENT_ID=$(echo "$APPS_RESP" | jq -r '.result[0].oidcConfig.clientId // empty')
 
-OIDC_CLIENT_ID=$(echo "$APP_RESP" | jq -r '.clientId')
+if [ -z "$APP_ID" ]; then
+  APP_RESP=$($CURL -X POST "$ZITADEL_BASE/management/v1/projects/$PROJECT_ID/apps/oidc" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "name": "Observable Frontend",
+      "redirectUris": ["'"$REDIRECT_URI"'"],
+      "responseTypes": ["RESPONSE_TYPE_CODE"],
+      "grantTypes": ["GRANT_TYPE_AUTHORIZATION_CODE"],
+      "appType": "OIDC_APP_TYPE_WEB",
+      "authMethodType": "OIDC_AUTH_METHOD_TYPE_NONE",
+      "postLogoutRedirectUris": ["'"$LOGOUT_URI"'"],
+      "devMode": true
+    }')
+  OIDC_CLIENT_ID=$(echo "$APP_RESP" | jq -r '.clientId')
+  echo "zitadel-bootstrap: created OIDC app, client_id=$OIDC_CLIENT_ID"
+else
+  # App exists — update redirect URIs to match current config.
+  $CURL -X PUT "$ZITADEL_BASE/management/v1/projects/$PROJECT_ID/apps/$APP_ID/oidc" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "redirectUris": ["'"$REDIRECT_URI"'"],
+      "responseTypes": ["RESPONSE_TYPE_CODE"],
+      "grantTypes": ["GRANT_TYPE_AUTHORIZATION_CODE"],
+      "appType": "OIDC_APP_TYPE_WEB",
+      "authMethodType": "OIDC_AUTH_METHOD_TYPE_NONE",
+      "postLogoutRedirectUris": ["'"$LOGOUT_URI"'"],
+      "devMode": true
+    }' > /dev/null
+  echo "zitadel-bootstrap: updated redirect URIs for existing app, client_id=$OIDC_CLIENT_ID"
+fi
+
 if [ -z "$OIDC_CLIENT_ID" ] || [ "$OIDC_CLIENT_ID" = "null" ]; then
-  echo "zitadel-bootstrap: failed to get clientId: $APP_RESP" >&2
+  echo "zitadel-bootstrap: failed to get clientId" >&2
   exit 1
 fi
 
