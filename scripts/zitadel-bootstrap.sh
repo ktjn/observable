@@ -96,6 +96,25 @@ if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
 fi
 echo "zitadel-bootstrap: access token obtained."
 
+# Explicitly set the dev admin password via the Management API.
+# The YAML Password field is unreliable — this guarantees the password is set.
+ADMIN_PASSWORD="${OBSERVABLE_DEV_ADMIN_PASSWORD:-Dev@Admin1234!}"
+# The org domain is derived from org name "Observable" + instance domain "localhost".
+USERS_RESP=$($CURL "$ZITADEL_BASE/management/v1/users/_search" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"queries":[{"userNameQuery":{"userName":"admin@observable.localhost","method":"TEXT_QUERY_METHOD_EQUALS"}}]}')
+ADMIN_USER_ID=$(echo "$USERS_RESP" | jq -r '.result[0].id // empty')
+if [ -n "$ADMIN_USER_ID" ]; then
+  $CURL -X POST "$ZITADEL_BASE/management/v1/users/$ADMIN_USER_ID/password" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"password\":\"$ADMIN_PASSWORD\",\"noChangeRequired\":true}" > /dev/null
+  echo "zitadel-bootstrap: admin password set for user $ADMIN_USER_ID"
+else
+  echo "zitadel-bootstrap: admin user not found, skipping password set" >&2
+fi
+
 # Create the Observable project.
 PROJECT_RESP=$($CURL -X POST "$ZITADEL_BASE/management/v1/projects" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \

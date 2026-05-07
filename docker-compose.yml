@@ -106,6 +106,7 @@ services:
         /scripts/zitadel-bootstrap.sh
     environment:
       ZITADEL_ISSUER: "http://localhost"
+      OBSERVABLE_DEV_ADMIN_PASSWORD: ${OBSERVABLE_DEV_ADMIN_PASSWORD:-Dev@Admin1234!}
     volumes:
       - zitadel-bootstrap:/bootstrap
       - ./scripts/zitadel-bootstrap.sh:/scripts/zitadel-bootstrap.sh:ro
