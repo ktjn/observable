@@ -21,7 +21,8 @@ Do **not** pre-load all specs, all ADRs, or plan documents.
 
 Before marking any change complete:
 
-1. **`cargo fmt --all`** — Rust code must be formatted.
+1. **`cargo fmt --all`** — Rust code must be formatted. Run this explicitly before pushing any
+   Rust code change, even though `bash scripts/local-ci.sh` also runs formatting.
 2. **`cargo clippy --all-targets --all-features -- -D warnings`** — no clippy warnings.
 3. **`cargo test`** — all unit tests pass.
 4. **Testcontainers** — if the change touches PostgreSQL, ClickHouse, Redpanda/Kafka-compatible

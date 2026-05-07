@@ -138,6 +138,7 @@ When utilizing AI agents for development, the following mandates apply:
 - **Clarity Above All:** Nothing can be left unclear. If instructions, requirements, or code changes are ambiguous, the agent must seek clarification before proceeding.
 - **Specification Alignment:** All changes must align with the core architectural principles and specifications defined in the `spec/` directory.
 - **Implementation Plan Adherence:** All tasks must follow the latest implementation plans and iteration documents located in `docs/superpowers/plans/`.
+- **Finished Plan Archiving:** When a detailed task plan is completed, move that finished plan from `docs/superpowers/plans/` to `archived/plans/` in the same iteration and update all active-plan and agent-context links that pointed at it.
 - **ADR and Spec Synchronization:** Architecture, technology, deployment, data model, security, and roadmap changes must update both the relevant ADRs and affected specs in the same iteration. If an ADR change is not required, the PR must explain why.
 
 - **NLQ Quality Gate:** Any change that affects the NLQ→IR→SQL pipeline — including the system
@@ -168,6 +169,8 @@ You **MUST** run the following checks before pushing **ANY** code changes to the
 
 If any check fails, you **MUST** fix it before pushing.
 
+For any Rust code change, `cargo fmt --all` must be run explicitly before pushing, even when `bash scripts/local-ci.sh` is also required and also runs formatting.
+
 **Regression gate stewardship**
 
 Agents must treat `scripts/local-ci.sh`, `tests/e2e/smoke_test.sh`, `scripts/perf-smoke.sh`, and Docker Compose verification services as protected regression gates.
@@ -196,8 +199,9 @@ Agents must move from specification to final product through small, reviewable v
 5. **Implement the smallest coherent change:** prefer a thin end-to-end path over a broad partial subsystem.
 6. **Verify locally:** run the narrowest useful checks first, then the required local/CI-equivalent checks for the touched area. Compare results with the known baseline and fix any new failure before opening the PR.
 7. **Update docs/specs/ADRs:** keep implementation, specs, and architectural decisions aligned in the same branch.
-8. **Open a PR:** include source spec links, acceptance criteria, verification output, known gaps, rollback notes, and the next suggested tiny slice.
-9. **Wait for review or CI signal:** only stack follow-up work when the dependency is explicit and the new branch targets the previous PR branch.
+8. **Archive completed detailed plans:** when the slice completes a detailed task plan, move the finished plan from `docs/superpowers/plans/` to `archived/plans/` and update active roadmap and `docs/agent-context.md` links in the same PR.
+9. **Open a PR:** include source spec links, acceptance criteria, verification output, known gaps, rollback notes, and the next suggested tiny slice.
+10. **Wait for review or CI signal:** only stack follow-up work when the dependency is explicit and the new branch targets the previous PR branch.
 
 **Slice contract template**
 

@@ -8,7 +8,8 @@ making changes.
 
 1. Read `AGENTS.md`.
 2. Read `spec/adr/README.md`, then read any overlapping ADRs in full.
-3. Read the active plan in `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`.
+3. Read the active split roadmap plans: `docs/superpowers/plans/2026-05-07-finish-started-work-plan.md`
+   and `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md`.
 4. Read this file.
 5. Inspect the actual code, tests, scripts, specs, and docs touched by the task before editing.
 6. Create or switch to a dedicated short-lived branch before changing files.
@@ -19,8 +20,12 @@ making changes.
 - Agent role routing: `.github/agents/README.md`, with `.github/agents/coordinator.agent.md` as the
   default entry role. Runtimes without subagent support should apply matching specialist `.agent.md`
   files manually as checklists.
-- Active roadmap: `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`.
-- Active detailed implementation plan: `docs/superpowers/plans/2026-05-05-p4-s5-slo-burn-rate.md`.
+- Active roadmap: split between `docs/superpowers/plans/2026-05-07-finish-started-work-plan.md`
+  for already-started/scoped work and `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md`
+  for the long-horizon backlog. Keep `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`
+  as the historical Phases 2-8 closure reference.
+- Active detailed implementation plan: `docs/superpowers/plans/2026-05-05-p4-s5-slo-burn-rate.md`,
+  unless the finish-started plan requires out-of-band risk remediation first.
 - Completed detailed plan archive: `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
 - Historical Phase 1 plan: `archived/plans/2026-04-17-phase1-internal-mvp.md`; do not treat it as an active backlog.
 - Architecture decisions: `spec/adr/`.
@@ -72,6 +77,10 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 - Never commit or merge directly to `main` without human review.
 - Every implementation iteration needs a short-lived branch, commit, push, and pull request.
 - Pure documentation changes are exempt from `bash scripts/local-ci.sh`; code changes are not.
+- Rust code changes must run `cargo fmt --all` explicitly before pushing, even though
+  `bash scripts/local-ci.sh` also runs formatting.
+- Completed detailed task plans must move from `docs/superpowers/plans/` to `archived/plans/`,
+  with active roadmap and agent-context links updated in the same PR.
 - Backend changes crossing PostgreSQL, ClickHouse, Redpanda/Kafka-compatible brokers, object
   storage, OpenFGA, or similar real dependency boundaries need the narrowest applicable
   Testcontainers integration test unless the PR explains why a different regression signal applies.
