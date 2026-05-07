@@ -41,7 +41,7 @@ echo "zitadel-bootstrap: key file found."
 # Wait for Zitadel HTTP API to be ready.
 echo "zitadel-bootstrap: waiting for Zitadel API ..."
 i=0
-until curl -sf "$ZITADEL_BASE/debug/healthz" > /dev/null 2>&1; do
+until curl -sf -H "Host: localhost" "$ZITADEL_BASE/debug/healthz" > /dev/null 2>&1; do
   i=$((i+1))
   if [ $i -ge 90 ]; then
     echo "zitadel-bootstrap: timed out waiting for API" >&2
@@ -52,8 +52,8 @@ done
 echo "zitadel-bootstrap: API ready."
 
 # Parse key file.
-KEY_ID=$(jq -r '.keyId'   "$KEY_FILE")
-CLIENT_ID=$(jq -r '.clientId' "$KEY_FILE")
+KEY_ID=$(jq -r '.keyId'  "$KEY_FILE")
+CLIENT_ID=$(jq -r '.userId' "$KEY_FILE")
 jq -r '.key' "$KEY_FILE" > /tmp/sa-private.pem
 
 # Build a JWT (RS256) for the JWT-bearer token exchange.
@@ -76,9 +76,14 @@ SIGNATURE=$(printf '%s' "$SIGNING_INPUT" \
 
 JWT="${SIGNING_INPUT}.${SIGNATURE}"
 
+# Zitadel uses the Host header to identify the instance (ExternalDomain=localhost).
+# All calls go to the internal zitadel:8080 but carry Host: localhost so Zitadel
+# can route them to the correct instance.
+CURL="curl -sf -H Host:localhost"
+
 # Exchange JWT for an access token.
 echo "zitadel-bootstrap: exchanging JWT for access token ..."
-TOKEN_RESP=$(curl -sf -X POST "$ZITADEL_BASE/oauth/v2/token" \
+TOKEN_RESP=$($CURL -X POST "$ZITADEL_BASE/oauth/v2/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer" \
   --data-urlencode "scope=openid urn:zitadel:iam:org:project:id:zitadel:aud" \
@@ -92,7 +97,7 @@ fi
 echo "zitadel-bootstrap: access token obtained."
 
 # Create the Observable project.
-PROJECT_RESP=$(curl -sf -X POST "$ZITADEL_BASE/management/v1/projects" \
+PROJECT_RESP=$($CURL -X POST "$ZITADEL_BASE/management/v1/projects" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Observable"}')
@@ -100,7 +105,7 @@ PROJECT_ID=$(echo "$PROJECT_RESP" | jq -r '.id')
 echo "zitadel-bootstrap: project id = $PROJECT_ID"
 
 # Create the OIDC web application (public client, PKCE, no secret).
-APP_RESP=$(curl -sf -X POST "$ZITADEL_BASE/management/v1/projects/$PROJECT_ID/apps/oidc" \
+APP_RESP=$($CURL -X POST "$ZITADEL_BASE/management/v1/projects/$PROJECT_ID/apps/oidc" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

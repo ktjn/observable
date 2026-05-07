@@ -105,7 +105,7 @@ services:
         apk add -q --no-cache curl jq openssl
         /scripts/zitadel-bootstrap.sh
     environment:
-      ZITADEL_ISSUER: "http://localhost:8082"
+      ZITADEL_ISSUER: "http://localhost"
     volumes:
       - zitadel-bootstrap:/bootstrap
       - ./scripts/zitadel-bootstrap.sh:/scripts/zitadel-bootstrap.sh:ro
@@ -172,7 +172,7 @@ services:
       <<: *platform-self-observability-env
       DATABASE_URL: postgres://observable:observable@postgres:5432/observable
       AUTH_SERVICE_PORT: "4319"
-      ZITADEL_ISSUER: http://zitadel:8080
+      ZITADEL_ISSUER: http://localhost
       ZITADEL_REDIRECT_URI: http://localhost/auth/callback
       SESSION_SECRET: ${SESSION_SECRET:-dev-session-secret-for-observable-00}
       OBSERVABLE_ENV: dev
