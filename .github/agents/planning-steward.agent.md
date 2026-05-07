@@ -9,9 +9,13 @@ subagent to review iteration plans, phase sequencing, and task alignment with th
 
 ## Context Pack — Read First
 
-1. `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md` — active roadmap; this is the
-   primary planning reference for all current and follow-on work.
-2. Load historical plan documents (`docs/superpowers/plans/`) only if the task explicitly references
+1. `docs/superpowers/plans/2026-05-07-finish-started-work-plan.md` — active short-horizon queue
+   for already-started/scoped work.
+2. `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` — long-horizon backlog for
+   follow-on work.
+3. `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md` — historical Phases 2-8
+   closure reference.
+4. Load historical plan documents (`archived/plans/`) only if the task explicitly references
    them or if there is a suspected conflict with the active plan.
 
 Do **not** pre-load Phase 1 historical documents unless explicitly asked.
@@ -29,6 +33,8 @@ Do **not** pre-load Phase 1 historical documents unless explicitly asked.
    describes? Flag any out-of-scope additions so they can be tracked as follow-up slices.
 5. **Plan update required?** If the task changes planning assumptions (new slice, revised scope,
    closed slice), flag that the plan document should be updated in the same PR.
+6. **Finished plan archive check** — if a detailed task plan is complete, confirm it is moved from
+   `docs/superpowers/plans/` to `archived/plans/` and every active link is updated.
 
 ## Constraints
 
@@ -41,7 +47,7 @@ Do **not** pre-load Phase 1 historical documents unless explicitly asked.
 ```
 ## Planning Review
 
-**Active plan reference:** docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md
+**Active plan reference:** docs/superpowers/plans/2026-05-07-finish-started-work-plan.md and docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md
 
 **Plan alignment:**
 - [ ] Task found in plan: <yes — slice name> | <no — unplanned>

@@ -13,6 +13,7 @@ These instructions are foundational mandates for any AI agent interacting with t
 - **Clarity Above All:** Nothing can be left unclear. If instructions, requirements, or code changes are ambiguous, the agent must seek clarification before proceeding.
 - **Specification Alignment:** All changes must align with the core architectural principles and specifications defined in the `spec/` directory.
 - **Implementation Plan Adherence:** All tasks must follow the latest implementation plans and iteration documents located in `docs/superpowers/plans/`.
+- **Finished Plan Archiving:** When a detailed task plan is completed, move that finished plan from `docs/superpowers/plans/` to `archived/plans/` in the same iteration and update all active-plan and agent-context links that pointed at it.
 - **ADR and Spec Synchronization:** Any change to architecture, technology choices, deployment model, data model, security model, or roadmap scope must update both the relevant ADRs and the affected specs in the same iteration. If no ADR change is needed, state why in the PR.
 
 Refer to `spec/10-process.md` for the official development process and AI agent guidance.
@@ -33,7 +34,7 @@ subagent; otherwise, apply the specialist instructions manually in the current s
 ## Phase Plan Status
 
 - **Phase 1 is closed:** treat `archived/plans/2026-04-17-phase1-internal-mvp.md` as a historical implementation record, not as an active backlog to reopen or continue.
-- **Active roadmap work starts after Phase 1:** use `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md` for current and follow-on slices unless the user explicitly asks to revise the historical Phase 1 document.
+- **Active roadmap work starts after Phase 1:** use `docs/superpowers/plans/2026-05-07-finish-started-work-plan.md` for already-started/scoped work and `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` for follow-on slices unless the user explicitly asks to revise the historical Phase 1 document. Keep `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md` as the historical Phases 2-8 closure reference.
 - If a Phase 1 item appears unfinished in the old plan text, check the reconciliation notes in that document and the follow-on slices in the Phases 2–8 plan before proposing or making changes.
 
 ## Before Starting Any Implementation Task
@@ -54,6 +55,8 @@ subagent; otherwise, apply the specialist instructions manually in the current s
 You **MUST** run `bash scripts/local-ci.sh` before pushing **ANY** code changes. No exceptions. GitHub CI is disabled — do not push and rely on it to catch errors.
 
 **Note:** Pure documentation changes (files under `docs/`, `spec/`, or any `.md` files) are exempt.
+
+For any Rust code change, run `cargo fmt --all` explicitly before pushing, even though `scripts/local-ci.sh` also runs Rust formatting. Fix formatting drift before staging or pushing.
 
 `scripts/local-ci.sh` runs: Rust fmt, clippy, tests, frontend typecheck/lint/build/test, Helm lint, Docker image build, and smoke test.
 

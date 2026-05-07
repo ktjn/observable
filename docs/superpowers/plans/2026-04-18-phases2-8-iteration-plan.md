@@ -1,5 +1,12 @@
 # Phases 2–8 — Interactive Small-Iteration Delivery Plan
 
+> **Status as of 2026-05-07:** This document is retained as the historical Phases 2-8 reference and closure log. The active planning view is split into:
+>
+> - [Finish Started Work Implementation Plan](2026-05-07-finish-started-work-plan.md)
+> - [Remaining Roadmap Implementation Plan](2026-05-07-remaining-roadmap-plan.md)
+>
+> Use those two documents for new roadmap selection. Update this reference only when a completed slice needs historical closure evidence or when a reviewer explicitly asks to reconcile old phase text.
+
 > **Purpose:** Convert the remaining roadmap into a practical sequence of small, reviewable vertical slices with explicit pause points, decision checkpoints, and entry/exit criteria.
 
 > **Scope:** This document starts **after Phase 1**. It assumes the platform can already ingest telemetry, persist it, query it, and render the minimum UI described in `spec/10-process.md §17` and the archived [Phase 1 plan](../../../archived/plans/2026-04-17-phase1-internal-mvp.md).

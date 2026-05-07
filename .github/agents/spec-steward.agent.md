@@ -29,7 +29,9 @@ For every doc/spec change, check:
 4. **Governance alignment** — does the content align with AGENTS.md core mandates?
 5. **Wording quality** — is the intent unambiguous? Could an agent misread this and take a wrong action?
 6. **Phase plan consistency** — if the doc references a phase or iteration, does it match the active
-   Phases 2–8 plan in `docs/superpowers/plans/`?
+   split roadmap plans in `docs/superpowers/plans/`?
+7. **Finished plan archiving** — if the change completes a detailed task plan, does it move that
+   plan to `archived/plans/` and update active links?
 
 ## Escalation
 
