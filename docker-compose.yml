@@ -107,6 +107,7 @@ services:
     environment:
       ZITADEL_ISSUER: "http://localhost"
       OBSERVABLE_DEV_ADMIN_PASSWORD: ${OBSERVABLE_DEV_ADMIN_PASSWORD:-Dev@Admin1234!}
+      ZITADEL_REDIRECT_URI: "http://localhost:${FRONTEND_PORT:-5173}/auth/callback"
     volumes:
       - zitadel-bootstrap:/bootstrap
       - ./scripts/zitadel-bootstrap.sh:/scripts/zitadel-bootstrap.sh:ro
@@ -175,7 +176,7 @@ services:
       AUTH_SERVICE_PORT: "4319"
       ZITADEL_ISSUER: http://localhost:8082
       ZITADEL_API_BASE: http://zitadel:8080
-      ZITADEL_REDIRECT_URI: http://localhost/auth/callback
+      ZITADEL_REDIRECT_URI: "http://localhost:${FRONTEND_PORT:-5173}/auth/callback"
       SESSION_SECRET: ${SESSION_SECRET:-dev-session-secret-for-observable-00}
       OBSERVABLE_ENV: dev
     volumes:

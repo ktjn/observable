@@ -13,8 +13,9 @@ set -eu
 # Internal URL used for API calls (container-to-container).
 ZITADEL_BASE="http://zitadel:8080"
 # External issuer URL — must match ZITADEL_EXTERNALDOMAIN:ZITADEL_EXTERNALPORT.
-# Used as the 'aud' claim in the JWT-bearer assertion; Zitadel validates it.
 ZITADEL_ISSUER="${ZITADEL_ISSUER:-http://localhost:8082}"
+# Redirect URI registered in the Zitadel OIDC app — must match what auth-service sends.
+REDIRECT_URI="${ZITADEL_REDIRECT_URI:-http://localhost:5173/auth/callback}"
 
 KEY_FILE="/bootstrap/sa-key.json"
 CLIENT_ID_FILE="/bootstrap/client_id"
@@ -129,12 +130,12 @@ APP_RESP=$($CURL -X POST "$ZITADEL_BASE/management/v1/projects/$PROJECT_ID/apps/
   -H "Content-Type: application/json" \
   -d '{
     "name": "Observable Frontend",
-    "redirectUris": ["http://localhost/auth/callback"],
+    "redirectUris": ["'"$REDIRECT_URI"'"],
     "responseTypes": ["RESPONSE_TYPE_CODE"],
     "grantTypes": ["GRANT_TYPE_AUTHORIZATION_CODE"],
     "appType": "OIDC_APP_TYPE_WEB",
     "authMethodType": "OIDC_AUTH_METHOD_TYPE_NONE",
-    "postLogoutRedirectUris": ["http://localhost/login"],
+    "postLogoutRedirectUris": ["'"${REDIRECT_URI%/auth/callback}/login"'"],
     "devMode": true
   }')
 
