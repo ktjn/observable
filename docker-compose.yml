@@ -61,6 +61,13 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
 
+  # Makes /bootstrap writable by Zitadel's nonroot user (uid 65532) before Zitadel starts.
+  zitadel-volume-init:
+    image: alpine:3.20
+    command: ["sh", "-c", "chmod 777 /bootstrap"]
+    volumes:
+      - zitadel-bootstrap:/bootstrap
+
   zitadel:
     image: ghcr.io/zitadel/zitadel:v2.71.0
     command: start-from-init --masterkeyFromEnv --tlsMode disabled --steps /zitadel-steps.yaml
@@ -87,13 +94,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      zitadel-volume-init:
+        condition: service_completed_successfully
 
   zitadel-bootstrap:
     image: alpine:3.20
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        apk add -q --no-cache curl jq
+        apk add -q --no-cache curl jq openssl
         /scripts/zitadel-bootstrap.sh
     volumes:
       - zitadel-bootstrap:/bootstrap

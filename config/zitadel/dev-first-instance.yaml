@@ -1,19 +1,22 @@
 # config/zitadel/dev-first-instance.yaml
 #
 # Processed once by Zitadel on first start-from-init.
-# Creates the IAM owner org, a bootstrap service account, and the dev human admin.
-# PatPath causes Zitadel to write the service account's PAT to /bootstrap/admin-pat.txt.
-# The zitadel-bootstrap container reads that PAT to create the Observable OIDC app.
+# Creates the IAM owner org, a bootstrap service account with an RSA machine key,
+# and the dev human admin user.
+# MachineKeyPath causes Zitadel to write the service account's RSA private key JSON
+# to /bootstrap/sa-key.json.  The zitadel-bootstrap container uses that key to
+# generate JWT-bearer tokens and call the Management API to create the OIDC app.
 FirstInstance:
   InstanceName: Observable Dev
-  PatPath: /bootstrap/admin-pat.txt
+  MachineKeyPath: /bootstrap/sa-key.json
   Org:
     Name: Observable
     Machine:
       Machine:
         UserName: bootstrap-sa
         Name: Bootstrap Service Account
-      Pat:
+      MachineKey:
+        Type: 1
         ExpirationDate: "2099-01-01T00:00:00Z"
     Human:
       UserName: admin
