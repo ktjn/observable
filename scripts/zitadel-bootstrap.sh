@@ -157,14 +157,13 @@ if [ -z "$APP_ID" ]; then
   echo "zitadel-bootstrap: created OIDC app, client_id=$OIDC_CLIENT_ID"
 else
   # App exists — update redirect URIs to match current config.
-  $CURL -X PUT "$ZITADEL_BASE/management/v1/projects/$PROJECT_ID/apps/$APP_ID/oidc" \
+  $CURL -X PUT "$ZITADEL_BASE/management/v1/projects/$PROJECT_ID/apps/$APP_ID/oidc_config" \
     -H "Authorization: Bearer $ACCESS_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{
       "redirectUris": ["'"$REDIRECT_URI"'"],
-      "responseTypes": ["RESPONSE_TYPE_CODE"],
-      "grantTypes": ["GRANT_TYPE_AUTHORIZATION_CODE"],
-      "appType": "OIDC_APP_TYPE_WEB",
+      "responseTypes": ["OIDC_RESPONSE_TYPE_CODE"],
+      "grantTypes": ["OIDC_GRANT_TYPE_AUTHORIZATION_CODE"],
       "authMethodType": "OIDC_AUTH_METHOD_TYPE_NONE",
       "postLogoutRedirectUris": ["'"$LOGOUT_URI"'"],
       "devMode": true
