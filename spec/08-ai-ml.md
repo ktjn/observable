@@ -50,6 +50,11 @@ NLQ (user) → LLM → NLQ IR → MCP Server → SQL/DataFusion → Visualizatio
 Raw NlqIr JSON (user) ───────┘
 ```
 
+> **Full reference:** [`spec/20-nlq-ir-reference.md`](20-nlq-ir-reference.md) is the canonical
+> document for the NLQ IR schema, semantic rules, system prompt architecture, metadata injection
+> contract, shorthand syntax, SQL template library, and page-level `base_ir` catalogue.
+> The sections below remain the high-level summary and SQL pattern library.
+
 **Stage 1 — LLM → NLQ IR**
 
 The LLM and the MCP server never communicate directly. The **backend mediates everything**:
