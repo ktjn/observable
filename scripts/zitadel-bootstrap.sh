@@ -10,7 +10,12 @@
 # Requires: curl, jq, openssl  (all available in alpine)
 set -eu
 
+# Internal URL used for API calls (container-to-container).
 ZITADEL_BASE="http://zitadel:8080"
+# External issuer URL — must match ZITADEL_EXTERNALDOMAIN:ZITADEL_EXTERNALPORT.
+# Used as the 'aud' claim in the JWT-bearer assertion; Zitadel validates it.
+ZITADEL_ISSUER="${ZITADEL_ISSUER:-http://localhost:8082}"
+
 KEY_FILE="/bootstrap/sa-key.json"
 CLIENT_ID_FILE="/bootstrap/client_id"
 
@@ -61,7 +66,7 @@ b64url() {
 }
 
 HEADER=$(b64url "{\"alg\":\"RS256\",\"kid\":\"${KEY_ID}\"}")
-PAYLOAD=$(b64url "{\"iss\":\"${CLIENT_ID}\",\"sub\":\"${CLIENT_ID}\",\"aud\":[\"${ZITADEL_BASE}\"],\"iat\":${IAT},\"exp\":${EXP}}")
+PAYLOAD=$(b64url "{\"iss\":\"${CLIENT_ID}\",\"sub\":\"${CLIENT_ID}\",\"aud\":[\"${ZITADEL_ISSUER}\"],\"iat\":${IAT},\"exp\":${EXP}}")
 
 SIGNING_INPUT="${HEADER}.${PAYLOAD}"
 

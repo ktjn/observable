@@ -104,6 +104,8 @@ services:
       - |
         apk add -q --no-cache curl jq openssl
         /scripts/zitadel-bootstrap.sh
+    environment:
+      ZITADEL_ISSUER: "http://localhost:8082"
     volumes:
       - zitadel-bootstrap:/bootstrap
       - ./scripts/zitadel-bootstrap.sh:/scripts/zitadel-bootstrap.sh:ro
