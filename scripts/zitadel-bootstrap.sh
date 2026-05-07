@@ -156,18 +156,18 @@ if [ -z "$APP_ID" ]; then
   OIDC_CLIENT_ID=$(echo "$APP_RESP" | jq -r '.clientId')
   echo "zitadel-bootstrap: created OIDC app, client_id=$OIDC_CLIENT_ID"
 else
-  # App exists — update redirect URIs to match current config.
-  $CURL -X PUT "$ZITADEL_BASE/management/v1/projects/$PROJECT_ID/apps/$APP_ID/oidc_config" \
-    -H "Authorization: Bearer $ACCESS_TOKEN" \
-    -H "Content-Type: application/json" \
-    -d '{
-      "redirectUris": ["'"$REDIRECT_URI"'"],
-      "responseTypes": ["OIDC_RESPONSE_TYPE_CODE"],
-      "grantTypes": ["OIDC_GRANT_TYPE_AUTHORIZATION_CODE"],
-      "authMethodType": "OIDC_AUTH_METHOD_TYPE_NONE",
-      "postLogoutRedirectUris": ["'"$LOGOUT_URI"'"],
-      "devMode": true
-    }' > /dev/null
+  # Update redirect URIs if they differ (Zitadel returns 400 "No changes" if identical).
+  CURRENT_REDIRECT=$(echo "$APPS_RESP" | jq -r '.result[0].oidcConfig.redirectUris[0] // empty')
+  if [ "$CURRENT_REDIRECT" != "$REDIRECT_URI" ]; then
+    curl -s -H "Host: localhost" -X PUT "$ZITADEL_BASE/management/v1/projects/$PROJECT_ID/apps/$APP_ID/oidc_config" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "{\"redirectUris\":[\"$REDIRECT_URI\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_NONE\",\"postLogoutRedirectUris\":[\"$LOGOUT_URI\"],\"devMode\":true}" \
+      > /dev/null
+    echo "zitadel-bootstrap: redirect URI updated to $REDIRECT_URI"
+  else
+    echo "zitadel-bootstrap: redirect URI already correct ($REDIRECT_URI)"
+  fi
   echo "zitadel-bootstrap: updated redirect URIs for existing app, client_id=$OIDC_CLIENT_ID"
 fi
 
