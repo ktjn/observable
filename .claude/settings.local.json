@@ -99,7 +99,20 @@
       "Bash(C:\\\\Users\\\\ktjn\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\5.0.7\\\\scripts\\\\start-server.sh *)",
       "Bash(ls -d .worktrees)",
       "Bash(ls -d worktrees)",
-      "Bash(npm --prefix apps/frontend run test -- --reporter=verbose --run)"
+      "Bash(npm --prefix apps/frontend run test -- --reporter=verbose --run)",
+      "Bash(Get-ChildItem -Directory)",
+      "Bash(Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\git\\\\Observable\" -Recurse -Depth 1 | Where-Object { $_.PSIsContainer } | ForEach-Object { $_.FullName })",
+      "Bash(Get-ChildItem -Path \"C:\\\\git\\\\Observable\\\\migrations\\\\postgres\" -Filter \"*.sql\")",
+      "Bash(Sort-Object Name)",
+      "Bash(grep -E \"\\\\.sql$\")",
+      "Bash(sqlx database *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\git\\\\Observable\\\\scripts\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(Get-ChildItem -Path \"C:\\\\git\\\\Observable\\\\apps\\\\frontend\\\\src\\\\api\" -ErrorAction SilentlyContinue)",
+      "Bash(SQLX_OFFLINE=true cargo build *)",
+      "Bash(SQLX_OFFLINE=true cargo test *)",
+      "PowerShell(Set-Location C:\\\\git\\\\Observable; $GIT_DIR = \\(git rev-parse --git-dir | Resolve-Path\\).Path; $GIT_COMMON = \\(git rev-parse --git-common-dir | Resolve-Path\\).Path; Write-Host \"GIT_DIR: $GIT_DIR\"; Write-Host \"GIT_COMMON: $GIT_COMMON\"; Write-Host \"Same: $\\($GIT_DIR -eq $GIT_COMMON\\)\"; git rev-parse --abbrev-ref HEAD; git merge-base HEAD main)"
     ]
   }
 }

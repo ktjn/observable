@@ -1,25 +1,11 @@
-// Tenant and environment discovery endpoints for the UI context selector.
-//
-// These endpoints are intentionally placed outside the tenant-auth middleware
-// because they are used to populate the tenant/environment pickers before
-// the operator has selected a scope.  When authentication is introduced,
-// these handlers will consult the authenticated principal to filter the
-// returned list (admin → all, regular user → own tenants only).
-//
-// GET /v1/tenants                      — list all tenants
-// GET /v1/tenants/:id/environments     — list environments for one tenant
-//                                        (derived from active api_keys rows)
-
 use crate::traces::AppState;
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{header, HeaderMap, StatusCode},
     Json,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-// ── Types ─────────────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
 pub struct TenantRecord {
@@ -42,15 +28,51 @@ pub struct EnvironmentListResponse {
     pub environments: Vec<EnvironmentRecord>,
 }
 
-// ── Handlers ──────────────────────────────────────────────────────────────────
+#[derive(Deserialize)]
+struct ValidateSessionResponse {
+    user_id: String,
+    #[allow(dead_code)]
+    tenant_id: String,
+}
 
-/// GET /v1/tenants — list all tenants.
-/// No tenant-auth filter is applied here; the endpoint is a bootstrap resource.
-/// When authentication is in place this handler will filter by the caller's
-/// identity: admins see all tenants, regular users see only their own.
+/// GET /v1/tenants
+/// Without a session cookie: returns all tenants (backwards-compatible for API-key callers).
+/// With a session cookie: filters to only the tenants the authenticated user belongs to.
 pub async fn list_tenants(
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<TenantListResponse>, StatusCode> {
+    if let Some(session_token) = extract_session_cookie(&headers) {
+        let user_id = validate_session_with_auth_service(&state.auth_service_url, &session_token)
+            .await
+            .map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+        let rows = sqlx::query_as::<_, (Uuid, String)>(
+            r#"
+            SELECT t.id, t.name
+            FROM tenants t
+            JOIN user_tenant_roles utr ON utr.tenant_id = t.id
+            WHERE utr.user_id = $1
+            ORDER BY t.name ASC
+            "#,
+        )
+        .bind(user_id)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = ?e, "Failed to list user tenants");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+        return Ok(Json(TenantListResponse {
+            tenants: rows
+                .into_iter()
+                .map(|(id, name)| TenantRecord { id, name })
+                .collect(),
+        }));
+    }
+
+    // No session cookie — legacy path: return all tenants (API key callers).
     let rows = sqlx::query!(r#"SELECT id, name FROM tenants ORDER BY name ASC"#)
         .fetch_all(&state.db)
         .await
@@ -59,20 +81,18 @@ pub async fn list_tenants(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    let tenants = rows
-        .into_iter()
-        .map(|r| TenantRecord {
-            id: r.id,
-            name: r.name,
-        })
-        .collect();
-
-    Ok(Json(TenantListResponse { tenants }))
+    Ok(Json(TenantListResponse {
+        tenants: rows
+            .into_iter()
+            .map(|r| TenantRecord {
+                id: r.id,
+                name: r.name,
+            })
+            .collect(),
+    }))
 }
 
-/// GET /v1/tenants/:id/environments — list distinct environments issued for
-/// a given tenant, derived from active (non-revoked) api_keys rows.
-/// Returns environments in alphabetical order.
+/// GET /v1/tenants/:id/environments
 pub async fn list_tenant_environments(
     State(state): State<AppState>,
     Path(tenant_id): Path<Uuid>,
@@ -95,10 +115,67 @@ pub async fn list_tenant_environments(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    let environments = rows
-        .into_iter()
-        .map(|e| EnvironmentRecord { environment: e })
-        .collect();
+    Ok(Json(EnvironmentListResponse {
+        environments: rows
+            .into_iter()
+            .map(|e| EnvironmentRecord { environment: e })
+            .collect(),
+    }))
+}
 
-    Ok(Json(EnvironmentListResponse { environments }))
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+pub fn extract_session_cookie(headers: &HeaderMap) -> Option<String> {
+    let cookie = headers.get(header::COOKIE)?.to_str().ok()?;
+    cookie.split(';').map(str::trim).find_map(|part| {
+        let (k, v) = part.split_once('=')?;
+        if k.trim() == "session" {
+            Some(v.trim().to_owned())
+        } else {
+            None
+        }
+    })
+}
+
+async fn validate_session_with_auth_service(
+    auth_service_url: &str,
+    session_token: &str,
+) -> anyhow::Result<Uuid> {
+    let resp = reqwest::Client::new()
+        .post(format!("{auth_service_url}/internal/validate-session"))
+        .json(&serde_json::json!({ "session_token": session_token }))
+        .send()
+        .await?;
+
+    if !resp.status().is_success() {
+        anyhow::bail!("session validation failed: {}", resp.status());
+    }
+
+    let body: ValidateSessionResponse = resp.json().await?;
+    Ok(Uuid::parse_str(&body.user_id)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::{header, Request};
+
+    #[test]
+    fn extract_session_cookie_returns_none_when_absent() {
+        let req = Request::builder().body(Body::empty()).unwrap();
+        assert!(extract_session_cookie(req.headers()).is_none());
+    }
+
+    #[test]
+    fn extract_session_cookie_returns_value() {
+        let req = Request::builder()
+            .header(header::COOKIE, "session=tok123; other=x")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            extract_session_cookie(req.headers()),
+            Some("tok123".to_string())
+        );
+    }
 }

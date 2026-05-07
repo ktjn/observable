@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTheme, type ThemePreference } from "../lib/theme";
 import { useTimeDisplay, TIME_FORMAT_OPTIONS } from "../lib/timeDisplay";
 import { GlobalDateRangePicker } from "./GlobalDateRangePicker";
+import { UserMenu } from "./UserMenu";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { listTenants, listEnvironments } from "../api/tenants";
 
@@ -130,6 +131,7 @@ export function AppShell() {
                 <option key={env.environment} value={env.environment}>{env.environment}</option>
               ))}
             </select>
+            <UserMenu />
           </div>
         </header>
 

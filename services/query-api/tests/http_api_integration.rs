@@ -89,6 +89,7 @@ fn build_app(ch: ChClient) -> Router {
         db,
         planner: Arc::new(QueryPlanner),
         llm: None,
+        auth_service_url: "http://auth-service:4319".into(),
     };
     Router::new()
         .route("/v1/traces/histogram", get(traces::trace_histogram))
@@ -117,6 +118,7 @@ fn build_config_app() -> Router {
         db,
         planner: Arc::new(QueryPlanner),
         llm: None,
+        auth_service_url: "http://auth-service:4319".into(),
     };
     Router::new()
         .route("/v1/config/llm/models", post(config::list_llm_models))

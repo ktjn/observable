@@ -61,6 +61,58 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
 
+  # Makes /bootstrap writable by Zitadel's nonroot user (uid 65532) before Zitadel starts.
+  zitadel-volume-init:
+    image: alpine:3.20
+    command: ["sh", "-c", "chmod 777 /bootstrap"]
+    volumes:
+      - zitadel-bootstrap:/bootstrap
+
+  zitadel:
+    image: ghcr.io/zitadel/zitadel:v2.71.0
+    command: start-from-init --masterkeyFromEnv --tlsMode disabled --steps /zitadel-steps.yaml
+    environment:
+      ZITADEL_DATABASE_POSTGRES_HOST: postgres
+      ZITADEL_DATABASE_POSTGRES_PORT: 5432
+      ZITADEL_DATABASE_POSTGRES_DATABASE: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: ${PG_USER:-observable}
+      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: ${PG_PASSWORD:-observable}
+      ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: ${PG_USER:-observable}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: ${PG_PASSWORD:-observable}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
+      ZITADEL_MASTERKEY: ${ZITADEL_MASTERKEY:-observabledevelopermasterkey0000}
+      ZITADEL_EXTERNALDOMAIN: localhost
+      ZITADEL_EXTERNALPORT: 8082
+      ZITADEL_EXTERNALINSECURE: "true"
+      OBSERVABLE_DEV_ADMIN_PASSWORD: ${OBSERVABLE_DEV_ADMIN_PASSWORD:-Dev@Admin1234!}
+    volumes:
+      - ./config/zitadel/dev-first-instance.yaml:/zitadel-steps.yaml:ro
+      - zitadel-bootstrap:/bootstrap
+    ports:
+      - "8082:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      zitadel-volume-init:
+        condition: service_completed_successfully
+
+  zitadel-bootstrap:
+    image: alpine:3.20
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apk add -q --no-cache curl jq openssl
+        /scripts/zitadel-bootstrap.sh
+    environment:
+      ZITADEL_ISSUER: "http://localhost"
+    volumes:
+      - zitadel-bootstrap:/bootstrap
+      - ./scripts/zitadel-bootstrap.sh:/scripts/zitadel-bootstrap.sh:ro
+    depends_on:
+      zitadel:
+        condition: service_started
+
   # --- SETUP & MIGRATIONS ---
   clickhouse-setup:
     image: clickhouse/clickhouse-server:24.3
@@ -109,11 +161,24 @@ services:
   auth-service:
     image: observable-services:local
     build: { context: ., dockerfile: Dockerfile }
-    command: ["auth-service"]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ -f /bootstrap/client_id ] && [ -s /bootstrap/client_id ]; then
+          export ZITADEL_CLIENT_ID=$$(cat /bootstrap/client_id)
+        fi
+        exec auth-service
     environment:
       <<: *platform-self-observability-env
       DATABASE_URL: postgres://observable:observable@postgres:5432/observable
       AUTH_SERVICE_PORT: "4319"
+      ZITADEL_ISSUER: http://localhost:8082
+      ZITADEL_API_BASE: http://zitadel:8080
+      ZITADEL_REDIRECT_URI: http://localhost/auth/callback
+      SESSION_SECRET: ${SESSION_SECRET:-dev-session-secret-for-observable-00}
+      OBSERVABLE_ENV: dev
+    volumes:
+      - zitadel-bootstrap:/bootstrap:ro
     ports: ["4319:4319"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4319/health"]
@@ -122,6 +187,7 @@ services:
       retries: 10
     depends_on:
       postgres-setup: { condition: service_completed_successfully }
+      zitadel-bootstrap: { condition: service_completed_successfully }
 
   storage-writer:
     image: observable-services:local
@@ -355,3 +421,4 @@ volumes:
   redpanda_data:
   postgres_data:
   shop_db_data:
+  zitadel-bootstrap:

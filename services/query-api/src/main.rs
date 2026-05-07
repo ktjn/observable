@@ -55,11 +55,14 @@ async fn main() -> anyhow::Result<()> {
              (supports Ollama and other no-auth providers)"
         );
     }
+    let auth_service_url =
+        std::env::var("AUTH_SERVICE_URL").unwrap_or_else(|_| "http://auth-service:4319".into());
     let state = traces::AppState {
         ch,
         db,
         planner: Arc::new(planner::QueryPlanner),
         llm,
+        auth_service_url,
     };
     let app = Router::new()
         .route("/v1/traces", get(traces::search_traces))
