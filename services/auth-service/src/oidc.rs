@@ -17,7 +17,12 @@ use crate::session::{
 
 #[derive(Clone)]
 pub struct OidcConfig {
+    /// External issuer URL — browser-facing, used in the authorization redirect.
+    /// e.g. http://localhost:8082
     pub issuer: String,
+    /// Internal base URL for server-to-server Zitadel API calls.
+    /// e.g. http://zitadel:8080  (must include Host: localhost header — see below)
+    pub api_base: String,
     pub client_id: String,
     pub redirect_uri: String,
     pub session_secret: String,
@@ -173,9 +178,16 @@ pub async fn callback_handler(
 ) -> Result<Response, StatusCode> {
     let verifier = extract_cookie(&headers, "pkce_cv").ok_or(StatusCode::BAD_REQUEST)?;
 
-    // Exchange code for tokens at Zitadel.
+    // Exchange code for tokens at Zitadel (server-to-server, internal URL).
+    // Host header identifies the Zitadel instance (ExternalDomain).
+    let zitadel_host = state.config.issuer
+        .trim_start_matches("http://")
+        .trim_start_matches("https://")
+        .split(':').next().unwrap_or("localhost")
+        .to_owned();
     let token_resp = reqwest::Client::new()
-        .post(format!("{}/oauth/v2/token", state.config.issuer))
+        .post(format!("{}/oauth/v2/token", state.config.api_base))
+        .header("Host", &zitadel_host)
         .form(&[
             ("grant_type", "authorization_code"),
             ("code", &params.code),
@@ -195,9 +207,10 @@ pub async fn callback_handler(
         .ok_or(StatusCode::UNAUTHORIZED)?
         .to_owned();
 
-    // Fetch user info from Zitadel.
+    // Fetch user info from Zitadel (server-to-server, internal URL).
     let userinfo = reqwest::Client::new()
-        .get(format!("{}/oidc/v1/userinfo", state.config.issuer))
+        .get(format!("{}/oidc/v1/userinfo", state.config.api_base))
+        .header("Host", &zitadel_host)
         .bearer_auth(&access_token)
         .send()
         .await

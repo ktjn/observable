@@ -78,8 +78,12 @@ async fn main() -> anyhow::Result<()> {
         .parse()?;
 
     let oidc_config = OidcConfig {
-        issuer: std::env::var("ZITADEL_ISSUER").unwrap_or_else(|_| "http://localhost:8082".into()),
-        client_id: std::env::var("ZITADEL_CLIENT_ID").unwrap_or_else(|_| "dev-client-id".into()),
+        issuer: std::env::var("ZITADEL_ISSUER")
+            .unwrap_or_else(|_| "http://localhost:8082".into()),
+        api_base: std::env::var("ZITADEL_API_BASE")
+            .unwrap_or_else(|_| "http://localhost:8082".into()),
+        client_id: std::env::var("ZITADEL_CLIENT_ID")
+            .unwrap_or_else(|_| "dev-client-id".into()),
         redirect_uri: std::env::var("ZITADEL_REDIRECT_URI")
             .unwrap_or_else(|_| "http://localhost:5173/auth/callback".into()),
         session_secret: std::env::var("SESSION_SECRET")
