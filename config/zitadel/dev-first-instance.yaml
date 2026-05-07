@@ -6,6 +6,10 @@
 # MachineKeyPath causes Zitadel to write the service account's RSA private key JSON
 # to /bootstrap/sa-key.json.  The zitadel-bootstrap container uses that key to
 # generate JWT-bearer tokens and call the Management API to create the OIDC app.
+#
+# Dev login: admin@observable.localhost / Dev@Admin1234!
+# (Zitadel appends @<org-domain> to the UserName; org "Observable" + domain "localhost"
+#  gives the login name "admin@observable.localhost". The email claim is admin@dev.observable.)
 FirstInstance:
   InstanceName: Observable Dev
   MachineKeyPath: /bootstrap/sa-key.json
@@ -25,5 +29,5 @@ FirstInstance:
       Email:
         Address: admin@dev.observable
         IsEmailVerified: true
-      Password: ${OBSERVABLE_DEV_ADMIN_PASSWORD:-Dev@Admin1234!}
+      Password: Dev@Admin1234!
       PasswordChangeRequired: false
