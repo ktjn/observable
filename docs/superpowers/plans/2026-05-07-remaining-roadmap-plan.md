@@ -4,6 +4,60 @@
 
 **Goal:** Preserve the rest of the post-Phase-3 roadmap after separating out already-started and already-scoped work.
 
+---
+
+## UI Implementation Gaps (May 2026 Review)
+
+These gaps were identified during a direct review of `apps/frontend/src` against `spec/05-frontend.md` and the Phase 2-8 roadmap. They represent required product surface that is currently missing or only partially implemented.
+
+### Service Detail & Navigation
+- [ ] **Tab Completion**: Add **Deployments** and **Alerts / Incidents** tabs to `ServiceDetailPage.tsx` to match the navigation hierarchy in §9.5.
+- [ ] **Context Preservation**: Ensure all tabs (Logs, Metrics, Traces, etc.) consistently apply the service filter and global date range from the URL.
+
+### Dashboard Maturity
+- [ ] **Dashboard Detail View**: Create a dedicated page for viewing a single dashboard where `TimeSeriesGraph` and other visualizations are actually rendered for each panel.
+- [ ] **Dashboard Builder**: Implement the drag-and-drop panel editor and configuration UI as specified in §9.7.
+
+### Reliability & Alerting
+- [ ] **SLO Management**: Expand `features/alerts` to include SLO creation, error budget tracking, and burn-rate history (Phase 5 priority).
+- [ ] **Incident Timeline**: Implement the correlated event timeline for alert firings as specified in §9.2.
+- [ ] **Notification Channels**: Add UI for managing outbound notification integrations (webhooks, Slack).
+
+### Explorers & Workbench
+- [ ] **Live Tail**: Add the "Live" toggle and streaming append behavior to `LogSearch.tsx` as specified in §9.18.
+- [ ] **Trace Comparison**: Implement the side-by-side or diff view for comparing two traces.
+- [ ] **Query Workbench**: Implement the Monaco-based multi-signal notebook for ad-hoc exploration.
+
+### Platform Administration
+- [ ] **Fleet Management**: Add the agent health and remote configuration UI.
+- [ ] **Admin Console**: Implement the tenant configuration, RBAC, and quota management views.
+
+---
+
+## Backend Implementation Gaps & Performance Issues (May 2026 Review)
+
+These gaps were identified during a review of the Rust backend services and the Phase 2-8 roadmap.
+
+### Security & Tenancy
+- [ ] **Query API Tenancy (RF-0)**: Fix `query-api/src/middleware/auth.rs` to validate credentials (session/API key) before trusting `X-Tenant-ID`.
+- [ ] **NLQ SQL Safety (RF-3)**: Implement field and type allowlisting in `query-api/src/sql_templates.rs` to prevent SQL injection and unsafe query shapes.
+
+### Performance & Scaling
+- [ ] **Stream Processor Batching**: Refactor `stream-processor` to batch multiple telemetry envelopes before flushing to `storage-writer`. The current 1-request-per-envelope model is a high-volume bottleneck.
+- [ ] **Distributed Rate Limiting**: Move `ingest-gateway` rate limiters from in-memory to a shared store (e.g., Redis) to support horizontal scaling.
+- [ ] **ClickHouse Insert Efficiency**: Align `stream-processor` batching with `storage-writer` to ensure ClickHouse receives large, efficient blocks rather than many small inserts.
+
+### Reliability & Observability
+- [ ] **Alert Lifecycle (RF-4)**: Implement deduplication, `for_duration_secs` (pending state), and resolution logic in `alert-evaluator/src/evaluator.rs`.
+- [ ] **Deployment Correlation (RF-5)**: Implement active `deployment_id` enrichment in `stream-processor/src/normalise.rs` based on current deployment markers.
+- [ ] **Self-Observability (RF-6)**: Add `/metrics` (Prometheus) and `/readyz` endpoints to all services; ensure `Platform API` ports are correctly configured in Helm/Compose.
+
+### Test Coverage & CI
+- [ ] **Integration Test Regression (RF-2)**: Restore the integration test gate in `scripts/local-ci.sh` to ensure PostgreSQL and ClickHouse logic is verified by default.
+- [ ] **Telemetry Loop Prevention**: Audit and unify the "observable" environment suppression logic across all ingest and processing paths to prevent recursive feedback loops.
+
+---
+
 **Architecture:** Keep this document as the long-horizon backlog. Promote only the next one or two items into detailed implementation plans after the finish-started-work plan is complete or explicitly paused.
 
 **Tech Stack:** Rust, Axum, SQLx/PostgreSQL, ClickHouse, Redpanda, object storage, OpenFGA-style authorization, Kubernetes/Helm, React 19, Vite, Base UI, Tailwind CSS v4, Testcontainers, Docker Compose, Playwright.
