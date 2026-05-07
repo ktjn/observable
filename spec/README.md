@@ -26,6 +26,7 @@ Full-stack observability platform specification — Dynatrace / New Relic class,
 | [17-self-observability.md](17-self-observability.md) | Platform self-observability, monitoring, and health checks |
 | [18-deployment-markers.md](18-deployment-markers.md) | Deployment markers and release correlation |
 | [19-testbench.md](19-testbench.md) | Test bench: kind-based synthetic workload with full OTel + k8s cluster monitoring |
+| [20-nlq-ir-reference.md](20-nlq-ir-reference.md) | NLQ IR canonical reference: DSL grammar, semantic rules, system prompt architecture, metadata injection, shorthand syntax, SQL template library |
 | [81-product-lifecycle.md](81-product-lifecycle.md) | Product cost structure (CAPEX/OPEX), lifecycle management, support tiers, versioning and EOL policy |
 | [91-customer-tco.md](91-customer-tco.md) | Customer total cost of ownership, acquisition planning, deployment, upgrade strategy, and decommission guide |
 
