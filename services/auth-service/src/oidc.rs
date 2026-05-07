@@ -26,6 +26,7 @@ pub struct OidcConfig {
     pub client_id: String,
     pub redirect_uri: String,
     pub session_secret: String,
+    pub dev_mode: bool,
 }
 
 #[derive(Clone)]
@@ -180,10 +181,14 @@ pub async fn callback_handler(
 
     // Exchange code for tokens at Zitadel (server-to-server, internal URL).
     // Host header identifies the Zitadel instance (ExternalDomain).
-    let zitadel_host = state.config.issuer
+    let zitadel_host = state
+        .config
+        .issuer
         .trim_start_matches("http://")
         .trim_start_matches("https://")
-        .split(':').next().unwrap_or("localhost")
+        .split(':')
+        .next()
+        .unwrap_or("localhost")
         .to_owned();
     let token_resp = reqwest::Client::new()
         .post(format!("{}/oauth/v2/token", state.config.api_base))
@@ -230,9 +235,19 @@ pub async fn callback_handler(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let tenants = list_user_tenants(&state.db, user_id)
+    let mut tenants = list_user_tenants(&state.db, user_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Dev mode: first login has no role yet — seed tenant_admin on dev-tenant automatically.
+    if tenants.is_empty() && state.config.dev_mode {
+        let dev_tenant = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002")
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        upsert_user_tenant_role(&state.db, user_id, dev_tenant, "tenant_admin")
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        tenants = vec![(dev_tenant, "tenant_admin".to_string())];
+    }
 
     let (tenant_id, role) = tenants.into_iter().next().ok_or(StatusCode::FORBIDDEN)?;
 
