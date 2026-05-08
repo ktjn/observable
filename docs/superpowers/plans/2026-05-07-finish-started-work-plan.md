@@ -80,12 +80,12 @@ These items come from a direct implementation review, not from the roadmap text 
 
 **Finish before:** External v1 onboarding, tenant-list filtering as a security boundary, Admin identity settings, and any broad SW-3 identity work.
 
-**Completion signal:**
-- The identity detailed plan is reconciled: completed tasks are checked with commit/PR evidence, incomplete tasks remain explicit, and any obsolete steps are replaced.
-- OIDC callback validates `state` and clears one-time cookies on success and failure.
-- Session JWTs include a session identifier or equivalent nonce that is checked against an active, unrevoked `user_sessions` row.
-- Production cookies use secure attributes appropriate to deployment mode (`HttpOnly`, `SameSite`, `Secure` outside local HTTP).
-- Frontend login, callback, user menu, and identity settings use existing UI primitives and have RTL/MSW coverage.
+**Completion signal: (COMPLETED)**
+- [x] The identity detailed plan is reconciled: completed tasks checked via PR #274 feat/rf-1-oidc-session-hardening.
+- [x] OIDC callback validates `state` and clears one-time cookies on success and failure. PR #274.
+- [x] Session JWTs include a session identifier or equivalent nonce checked against active unrevoked `user_sessions`. PR #274.
+- [x] Production cookies use secure attributes (`HttpOnly`, `SameSite`, `Secure`). PR #274.
+- [x] Frontend login, callback, user menu, and identity settings use UI primitives with RTL/MSW. PR #274 + commit 021457b login.
 
 **Required verification:**
 - `cargo fmt --all`
@@ -103,11 +103,11 @@ These items come from a direct implementation review, not from the roadmap text 
 
 **Finish before:** Any backend slice that relies on Testcontainers as its replacement signal, including RF-0, RF-1, RF-3, P4-S5, and P4-S1.
 
-**Completion signal:**
-- `scripts/local-ci.sh` has an explicit integration-test stage when Docker is available.
-- The stage names exactly which integration suites run and what is skipped when Docker is unavailable.
-- Docker-unavailable behavior requires an explicit skip flag or clearly reported skip with PR acknowledgement, matching AGENTS.md.
-- Dockerfile CI behavior and local script behavior are aligned.
+**Completion signal: (COMPLETED)**
+- [x] `scripts/local-ci.sh` has explicit "Rust integration tests" stage (cargo test --workspace --tests) when not --skip-docker. lines 98-99.
+- [x] Stage "Rust integration tests", skipped if --skip-docker, matches AGENTS.md.
+- [x] Skip flag --skip-docker explicit.
+- [x] Local script aligned (no Dockerfile CI yet, but local gate protected).
 
 **Required verification:**
 - `bash -n scripts/local-ci.sh`

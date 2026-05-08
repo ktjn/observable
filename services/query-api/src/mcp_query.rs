@@ -29,6 +29,8 @@ use domain::{
     FieldRole, FieldRoleKind, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, VisualizationFrame,
     VisualizationFrameType,
 };
+use sqlx::Row;
+use std::collections::HashSet;
 use uuid::Uuid;
 
 // ── Error type ────────────────────────────────────────────────────────────────
@@ -112,6 +114,34 @@ pub async fn execute_mcp_query(
         })?;
 
     let schema = schema_opt.ok_or_else(|| McpQueryError::UnknownMetric(metric_name.into()))?;
+
+    let mut allowed_fields: HashSet<String> = HashSet::new();
+    let field_rows = sqlx::query("SELECT field_name FROM schema_entries WHERE signal_type = $1")
+        .bind("metrics")
+        .fetch_all(db)
+        .await
+        .map_err(|e| {
+            McpQueryError::SqlTemplate(SqlTemplateError::InvalidFilterValue(format!(
+                "schema field query failed: {}",
+                e
+            )))
+        })?;
+
+    for row in field_rows {
+        let field_name: String = row.get("field_name");
+        allowed_fields.insert(field_name);
+    }
+
+    for filter in &ir.filters {
+        if !allowed_fields.contains(&filter.field) {
+            return Err(McpQueryError::SqlTemplate(
+                SqlTemplateError::InvalidFilterValue(format!(
+                    "field '{}' not in schema catalog",
+                    filter.field
+                )),
+            ));
+        }
+    }
 
     let metric_type = schema
         .metric_type

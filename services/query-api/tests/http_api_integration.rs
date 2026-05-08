@@ -733,3 +733,58 @@ async fn llm_models_returns_ok_false_when_unreachable() {
         "models must be empty when connection fails"
     );
 }
+
+#[tokio::test]
+async fn test_mcp_query_rejects_unknown_filter_field() {
+    let (db, _pg_container) = start_postgres().await;
+    let (ch_client, _ch_container) = start_clickhouse().await;
+
+    let state = query_api::traces::AppState {
+        ch: ch_client,
+        db: db.clone(),
+        planner: Arc::new(QueryPlanner),
+        llm: None,
+        auth_service_url: "http://auth-service:4319".to_string(),
+    };
+
+    let app = Router::new()
+        .route(
+            "/v1/mcp/query",
+            post(query_api::mcp_query::handle_mcp_query),
+        )
+        .layer(axum_middleware::from_fn(require_tenant))
+        .layer(axum::Extension(db.clone()))
+        .with_state(state);
+
+    let ir = serde_json::json!({
+        "metric": "request_duration_ms",
+        "signals": ["metrics"],
+        "operation": "query",
+        "time_range": {
+            "from": "2024-01-01T00:00:00Z",
+            "to": "2024-01-02T00:00:00Z"
+        },
+        "filters": [{
+            "field": "invalid_foo",
+            "op": "eq",
+            "value": "bar"
+        }]
+    });
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/mcp/query")
+        .header("Authorization", format!("Bearer {}", DEV_API_KEY))
+        .header("X-Tenant-ID", DEV_TENANT_ID)
+        .header("Content-Type", "application/json")
+        .body(Body::from(serde_json::to_vec(&ir).unwrap()))
+        .unwrap();
+
+    let response = app.oneshot(req).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body_bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let body_str = std::str::from_utf8(&body_bytes).unwrap();
+    assert!(body_str.contains("field 'invalid_foo' not in schema catalog"));
+}
