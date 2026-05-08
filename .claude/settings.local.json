@@ -112,7 +112,11 @@
       "Bash(Get-ChildItem -Path \"C:\\\\git\\\\Observable\\\\apps\\\\frontend\\\\src\\\\api\" -ErrorAction SilentlyContinue)",
       "Bash(SQLX_OFFLINE=true cargo build *)",
       "Bash(SQLX_OFFLINE=true cargo test *)",
-      "PowerShell(Set-Location C:\\\\git\\\\Observable; $GIT_DIR = \\(git rev-parse --git-dir | Resolve-Path\\).Path; $GIT_COMMON = \\(git rev-parse --git-common-dir | Resolve-Path\\).Path; Write-Host \"GIT_DIR: $GIT_DIR\"; Write-Host \"GIT_COMMON: $GIT_COMMON\"; Write-Host \"Same: $\\($GIT_DIR -eq $GIT_COMMON\\)\"; git rev-parse --abbrev-ref HEAD; git merge-base HEAD main)"
+      "PowerShell(Set-Location C:\\\\git\\\\Observable; $GIT_DIR = \\(git rev-parse --git-dir | Resolve-Path\\).Path; $GIT_COMMON = \\(git rev-parse --git-common-dir | Resolve-Path\\).Path; Write-Host \"GIT_DIR: $GIT_DIR\"; Write-Host \"GIT_COMMON: $GIT_COMMON\"; Write-Host \"Same: $\\($GIT_DIR -eq $GIT_COMMON\\)\"; git rev-parse --abbrev-ref HEAD; git merge-base HEAD main)",
+      "WebFetch(domain:charts.zitadel.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(Remove-Item *)",
+      "Bash(grep -v \"^warning: \\\\`\")"
     ]
   }
 }

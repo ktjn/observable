@@ -19,7 +19,7 @@ INGEST="${INGEST_URL:-http://localhost:4318}"
 GRPC_INGEST="${GRPC_INGEST_URL:-http://localhost:4317}"
 QUERY="${QUERY_URL:-http://localhost:8090}"
 TOKEN="dev-api-key-0000"
-TENANT_ID="00000000-0000-0000-0000-000000000001"
+TENANT_ID="00000000-0000-0000-0000-000000000002"
 RUN_ID="${RUN_ID:-$(date +%s%N)}"
 SERVICE_NAME="smoke-svc-${RUN_ID}"
 GRPC_SERVICE_NAME="smoke-grpc-svc-${RUN_ID}"
@@ -34,8 +34,13 @@ wait_for_json_count() {
   local result
   local count
 
+  local http_status=""
   for _ in $(seq 1 "$attempts"); do
-    result=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" "$url" || true)
+    http_status=$(curl -s -o /tmp/smoke_body -w "%{http_code}" \
+      -H "X-Tenant-ID: $TENANT_ID" \
+      -H "Authorization: Bearer $TOKEN" \
+      "$url" || echo "000")
+    result=$(cat /tmp/smoke_body 2>/dev/null || true)
     count=$(echo "$result" | jq -r "$jq_expr" 2>/dev/null || echo 0)
     if [[ ! "$count" =~ ^[0-9]+$ ]]; then
       count=0
@@ -48,6 +53,7 @@ wait_for_json_count() {
   done
 
   echo " FAIL: $label did not return records after $attempts attempts"
+  echo " Last HTTP status: ${http_status:-unknown}"
   echo " Last result: ${result:-<empty>}"
   return 1
 }
@@ -115,8 +121,11 @@ main() {
     -d "{\"resourceSpans\":[]}"
 
   echo "2b. Checking cross-tenant trace denial..."
-  OTHER_TENANT_ID="00000000-0000-0000-0000-000000000002"
-  CROSS_RESULT=$(curl -sf -H "X-Tenant-ID: $OTHER_TENANT_ID" "$QUERY/v1/traces/$TRACE_ID" || true)
+  OTHER_TENANT_ID="00000000-0000-0000-0000-000000000001"
+  CROSS_RESULT=$(curl -sf \
+    -H "X-Tenant-ID: $OTHER_TENANT_ID" \
+    -H "Authorization: Bearer $TOKEN" \
+    "$QUERY/v1/traces/$TRACE_ID" || true)
   CROSS_SPAN_COUNT=$(echo "$CROSS_RESULT" | jq '.spans | length' 2>/dev/null || echo 0)
   if [[ ! "$CROSS_SPAN_COUNT" =~ ^[0-9]+$ ]]; then
     CROSS_SPAN_COUNT=0
@@ -152,7 +161,10 @@ main() {
   METRIC_TYPE=""
   METRIC_UNIT=""
   for _ in $(seq 1 20); do
-    METRIC_SERIES_RESULT=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" "$QUERY/v1/metrics?service=$SERVICE_NAME" || true)
+    METRIC_SERIES_RESULT=$(curl -sf \
+      -H "X-Tenant-ID: $TENANT_ID" \
+      -H "Authorization: Bearer $TOKEN" \
+      "$QUERY/v1/metrics?service=$SERVICE_NAME" || true)
     METRIC_ENTRY=$(echo "$METRIC_SERIES_RESULT" | jq -c '.metrics[] | select(.metric_name == "smoke.counter")' 2>/dev/null | head -n 1)
     METRIC_FOUND=$(echo "$METRIC_ENTRY" | jq -r '.metric_name // empty' 2>/dev/null)
     if [ -n "$METRIC_FOUND" ] && [ "$METRIC_FOUND" != "null" ]; then
@@ -192,7 +204,9 @@ main() {
   echo "5e. Verifying log histogram endpoint returns buckets..."
   FROM_NS=$(( ($(date +%s) - 3600) * 1000000000 ))
   TO_NS=$(date +%s%N)
-  HIST_RESULT=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" \
+  HIST_RESULT=$(curl -sf \
+    -H "X-Tenant-ID: $TENANT_ID" \
+    -H "Authorization: Bearer $TOKEN" \
     "$QUERY/v1/logs/histogram?service=$SERVICE_NAME&from=${FROM_NS}&to=${TO_NS}&buckets=30" || true)
   BUCKET_COUNT=$(echo "$HIST_RESULT" | jq '.buckets | length' 2>/dev/null || echo 0)
   if [ "$BUCKET_COUNT" -eq 30 ]; then

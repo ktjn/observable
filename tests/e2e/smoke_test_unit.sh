@@ -117,7 +117,7 @@ test_local_smoke_defaults_match_seeded_setup() {
   tenant="$(echo "$output" | sed -n '2p')"
 
   assert_eq "dev-api-key-0000" "$token" "smoke test should use the seeded local dev API key"
-  assert_eq "00000000-0000-0000-0000-000000000001" "$tenant" "smoke test should use the seeded local dev tenant"
+  assert_eq "00000000-0000-0000-0000-000000000002" "$tenant" "smoke test should use the dev-tenant (migration 017 moved dev-key to ...002)"
 }
 
 test_postgres_migrations_seed_local_setup() {

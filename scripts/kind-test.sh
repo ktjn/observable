@@ -273,6 +273,7 @@ kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -
 log "Installing infrastructure dependencies"
 helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
 helm repo add openfga https://openfga.github.io/helm-charts
+helm repo add zitadel https://charts.zitadel.com
 helm repo update
 
 # Create migration ConfigMaps now — namespace exists and files are local,
@@ -335,7 +336,7 @@ helm upgrade --install "$RELEASE_NAME" "$APP_CHART" \
   --set global.frontendImage.pullPolicy=Never \
   --set selfObservability.bearerToken=observable-api-key-0000 \
   --wait \
-  --timeout 5m \
+  --timeout 10m \
   || { kill "$WATCH_APP" 2>/dev/null || true; dump_pod_events "$NAMESPACE"; exit 1; }
 kill "$WATCH_APP" 2>/dev/null || true
 
@@ -348,7 +349,7 @@ show_pods "$NAMESPACE"
 # ---------------------------------------------------------------------------
 
 log "Verifying all service Deployments are ready"
-for svc in auth-service ingest-gateway stream-processor storage-writer query-api alert-evaluator frontend; do
+for svc in observable-zitadel auth-service ingest-gateway stream-processor storage-writer query-api alert-evaluator frontend; do
   wait_for_rollout "deployment/$svc" \
     || { info "FAILED: $svc did not become ready"; dump_pod_events "$NAMESPACE"; exit 1; }
   info "$svc: ready"
@@ -381,16 +382,20 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
   kubectl port-forward service/auth-service 14319:4319 \
     --namespace "$NAMESPACE" &
   PF_AUTH=$!
+  # Port-forward Zitadel
+  kubectl port-forward service/observable-zitadel 18082:8080 \
+    --namespace "$NAMESPACE" &
+  PF_ZITADEL=$!
 
   cleanup_pf() {
-    kill "$PF_INGEST_HTTP" "$PF_INGEST_GRPC" "$PF_QUERY" "$PF_FRONTEND" "$PF_AUTH" 2>/dev/null || true
+    kill "$PF_INGEST_HTTP" "$PF_INGEST_GRPC" "$PF_QUERY" "$PF_FRONTEND" "$PF_AUTH" "$PF_ZITADEL" 2>/dev/null || true
   }
   trap 'cleanup_pf; cleanup' EXIT
 
   sleep 3  # let port-forwards establish
 
   DEV_KEY="dev-api-key-0000"
-  TENANT_ID="00000000-0000-0000-0000-000000000001"
+  TENANT_ID="00000000-0000-0000-0000-000000000002"
 
   # Health checks
   info "Checking /health endpoints"
@@ -398,6 +403,7 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
   curl -sf http://localhost:18090/health | grep -q "ok" && info "query-api /health OK"
   curl -sf http://localhost:15173/ | grep -q "<!doctype html" && info "frontend / OK"
   curl -sf http://localhost:14319/health | grep -q "ok" && info "auth-service /health OK"
+  curl -sf http://localhost:18082/debug/ready | grep -q "" && info "zitadel /debug/ready OK" || info "WARN: zitadel /debug/ready did not respond"
 
   # Send a trace
   info "Sending test trace to ingest-gateway"
@@ -426,8 +432,9 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
 
   # Query trace
   info "Querying trace from query-api"
-  RESULT=$(curl -sf "http://localhost:18090/v1/traces?tenant_id=$TENANT_ID" \
-    -H "Authorization: Bearer $DEV_KEY" || echo "query_failed")
+  RESULT=$(curl -sf "http://localhost:18090/v1/traces" \
+    -H "Authorization: Bearer $DEV_KEY" \
+    -H "X-Tenant-ID: $TENANT_ID" || echo "query_failed")
 
   if echo "$RESULT" | grep -q "kind-smoke-test"; then
     info "PASS: trace found in query results"
@@ -439,7 +446,8 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
 
   info "Checking frontend same-origin API proxy"
   FRONTEND_RESULT=$(curl -sf "http://localhost:15173/v1/environments" \
-    -H "X-Tenant-ID: $TENANT_ID" || echo "frontend_query_failed")
+    -H "X-Tenant-ID: $TENANT_ID" \
+    -H "Authorization: Bearer $DEV_KEY" || echo "frontend_query_failed")
 
   if echo "$FRONTEND_RESULT" | grep -q "frontend_query_failed"; then
     info "WARN: frontend /v1 proxy did not respond"

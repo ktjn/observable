@@ -9,11 +9,13 @@
 use axum::{
     body::Body,
     http::{Request, StatusCode},
+    middleware::Next,
+    response::Response,
     routing::{get, post},
     Router,
 };
 use http_body_util::BodyExt;
-use query_api::{tenants, tokens, traces::AppState};
+use query_api::{middleware::auth::TenantContext, tenants, tokens, traces::AppState};
 use serde_json::Value;
 use sqlx::PgPool;
 use std::path::Path;
@@ -62,6 +64,24 @@ async fn start_pool() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
     (pool, container)
 }
 
+// ── Test middleware ───────────────────────────────────────────────────────────
+
+/// Injects TenantContext from X-Tenant-ID without verifying an API key.
+/// Used for routes that need a TenantContext but where auth is not under test.
+async fn inject_tenant_ctx(mut req: Request<Body>, next: Next) -> Response {
+    let tenant_id: Uuid = req
+        .headers()
+        .get("X-Tenant-ID")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_default();
+    req.extensions_mut().insert(TenantContext {
+        tenant_id,
+        role: "member".into(),
+    });
+    next.run(req).await
+}
+
 // ── App builder ──────────────────────────────────────────────────────────────
 
 fn build_tenants_app(pool: PgPool) -> Router {
@@ -80,12 +100,10 @@ fn build_tenants_app(pool: PgPool) -> Router {
             "/v1/tenants/:id/environments",
             get(tenants::list_tenant_environments),
         )
-        // Tokens route is used to seed environments in some tests.
+        // Tokens route seeds environments in tests; auth is not under test here.
         .route(
             "/v1/tokens",
-            post(tokens::create_token).layer(axum::middleware::from_fn(
-                query_api::middleware::auth::require_tenant,
-            )),
+            post(tokens::create_token).layer(axum::middleware::from_fn(inject_tenant_ctx)),
         )
         .with_state(state)
 }

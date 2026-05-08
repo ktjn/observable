@@ -13,11 +13,12 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
     middleware as axum_middleware,
+    response::Response,
     routing::{delete, get, post},
     Router,
 };
 use http_body_util::BodyExt;
-use query_api::{middleware::auth::require_tenant, tokens, traces::AppState};
+use query_api::{middleware::auth::TenantContext, tokens, traces::AppState};
 use serde_json::Value;
 use sqlx::PgPool;
 use std::path::Path;
@@ -66,6 +67,22 @@ async fn start_pool() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
     (pool, container)
 }
 
+// ── Test middleware ───────────────────────────────────────────────────────────
+
+async fn inject_tenant_ctx(mut req: Request<Body>, next: axum_middleware::Next) -> Response {
+    let tenant_id: Uuid = req
+        .headers()
+        .get("X-Tenant-ID")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_default();
+    req.extensions_mut().insert(TenantContext {
+        tenant_id,
+        role: "member".into(),
+    });
+    next.run(req).await
+}
+
 // ── App builder ──────────────────────────────────────────────────────────────
 
 fn build_tokens_app(pool: PgPool) -> Router {
@@ -84,7 +101,7 @@ fn build_tokens_app(pool: PgPool) -> Router {
         .route("/v1/tokens/:id/renew", post(tokens::renew_token))
         .route("/v1/tokens/:id/restore", post(tokens::restore_token))
         .route("/v1/tokens/:id/permanent", delete(tokens::delete_token))
-        .layer(axum_middleware::from_fn(require_tenant))
+        .layer(axum_middleware::from_fn(inject_tenant_ctx))
         .with_state(state)
 }
 
@@ -306,13 +323,22 @@ async fn delete_token_permanently_removes_row() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::NO_CONTENT);
 
-    // List is now empty.
+    // The hard-deleted token must not appear in the list (seeded tokens may remain).
     let list_resp = app
         .oneshot(tenant_req("GET", "/v1/tokens", tenant_id))
         .await
         .unwrap();
     let list = body_json(list_resp.into_body()).await;
-    assert_eq!(list["tokens"].as_array().unwrap().len(), 0);
+    let ids: Vec<&str> = list["tokens"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|t| t["id"].as_str())
+        .collect();
+    assert!(
+        !ids.contains(&id.as_str()),
+        "hard-deleted token must not appear in list"
+    );
 }
 
 #[tokio::test]

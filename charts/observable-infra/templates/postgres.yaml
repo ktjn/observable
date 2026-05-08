@@ -27,6 +27,9 @@ spec:
       owner: {{ .Values.postgresql.auth.username }}
       secret:
         name: postgres-auth
+      postInitSQL:
+        # Zitadel's init job creates its own DB role; the app user needs CREATEROLE.
+        - ALTER USER {{ .Values.postgresql.auth.username }} CREATEROLE CREATEDB;
 ---
 apiVersion: v1
 kind: Service

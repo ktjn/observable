@@ -2,5 +2,8 @@ dependencies:
 - name: observable-common
   repository: file://../observable-common
   version: 0.1.0
-digest: sha256:598b70bc6841a5a203491c09c70c353ce59da9b890df5f6227bfa1ac94e22f9e
-generated: "2026-04-19T12:45:33.9815174+02:00"
+- name: zitadel
+  repository: https://charts.zitadel.com
+  version: 8.13.4
+digest: sha256:f31acfe6ff9b5feb07ec4f0e5cb04f006ea04e71e443c8605acc0047f0b5b991
+generated: "2026-05-08T13:01:01.1704985+02:00"

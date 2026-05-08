@@ -145,6 +145,71 @@ services:
         cpu: 200m
         memory: 128Mi
 
+# Zitadel identity provider (subchart: zitadel/zitadel 8.13.4).
+# Image is pinned to v2.71.0 (compose baseline) via the image.tag override.
+# ExternalDomain must match "{release-name}-zitadel" so the iss claim in tokens
+# is reachable by auth-service inside the cluster.
+zitadel:
+  enabled: true
+  replicaCount: 1
+  image:
+    tag: "v2.71.0"
+  zitadel:
+    masterkey: "observabledevelopermasterkey0000"
+    configmapConfig:
+      ExternalDomain: observable-zitadel
+      ExternalPort: 8080
+      ExternalSecure: false
+      TLS:
+        Enabled: false
+    dbSslCaCrt: ""
+  env:
+    - name: ZITADEL_DATABASE_POSTGRES_HOST
+      value: postgres
+    - name: ZITADEL_DATABASE_POSTGRES_PORT
+      value: "5432"
+    - name: ZITADEL_DATABASE_POSTGRES_DATABASE
+      value: zitadel
+    - name: ZITADEL_DATABASE_POSTGRES_USER_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: postgres-auth
+          key: username
+    - name: ZITADEL_DATABASE_POSTGRES_USER_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-auth
+          key: password
+    - name: ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE
+      value: disable
+    - name: ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: postgres-auth
+          key: username
+    - name: ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-auth
+          key: password
+    - name: ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE
+      value: disable
+  ingress:
+    enabled: false
+  podDisruptionBudget:
+    enabled: false
+
+# OIDC / session settings consumed by auth-service.
+# issuer and apiBase default to the in-cluster Zitadel service URL
+# ({release-name}-zitadel:8080) when left empty.
+identity:
+  issuer: ""
+  apiBase: ""
+  clientId: ""
+  redirectUri: "http://localhost:5173/auth/callback"
+  sessionSecret: "dev-session-secret-for-observable-00"
+  env: "dev"
+
 # Migration job settings (pre-install / pre-upgrade Helm hook).
 migrations:
   # BackoffLimit for the migration Job before Helm marks the hook failed.
