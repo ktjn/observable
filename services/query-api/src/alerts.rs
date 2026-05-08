@@ -20,6 +20,7 @@ pub struct AlertRuleItem {
     pub threshold: f64,
     pub severity: String,
     pub silenced: bool,
+    pub state: String,
     pub firing: bool,
     pub last_fired_at: Option<DateTime<Utc>>,
 }
@@ -73,6 +74,7 @@ struct AlertRuleRow {
     condition: serde_json::Value,
     severity: String,
     silenced: bool,
+    state: String,
     firing: bool,
     last_fired_at: Option<DateTime<Utc>>,
 }
@@ -90,12 +92,24 @@ pub async fn list_alert_rules(
 ) -> Result<Vec<AlertRuleItem>, sqlx::Error> {
     let rows = sqlx::query_as::<_, AlertRuleRow>(
         "SELECT r.rule_id, r.name, r.condition, r.severity, r.silenced, \
+         CASE \
+             WHEN r.silenced THEN 'silenced' \
+             ELSE COALESCE(( \
+                 SELECT af.state FROM alert_firings af \
+                 WHERE af.rule_id = r.rule_id AND af.tenant_id = r.tenant_id \
+                 ORDER BY CASE WHEN af.state IN ('pending', 'active') THEN 0 ELSE 1 END, \
+                          af.occurred_at DESC \
+                 LIMIT 1 \
+             ), 'ok') \
+         END AS state, \
          EXISTS( \
              SELECT 1 FROM alert_firings af \
-             WHERE af.rule_id = r.rule_id AND af.state = 'active' \
+             WHERE af.rule_id = r.rule_id AND af.tenant_id = r.tenant_id \
+               AND af.state = 'active' AND r.silenced = false \
          ) AS firing, \
          (SELECT MAX(occurred_at) FROM alert_firings af \
-          WHERE af.rule_id = r.rule_id AND af.state = 'active') AS last_fired_at \
+          WHERE af.rule_id = r.rule_id AND af.tenant_id = r.tenant_id \
+            AND af.state = 'active') AS last_fired_at \
          FROM alert_rules r \
          WHERE r.tenant_id = $1 AND r.alert_type = 'threshold' \
          ORDER BY r.created_at DESC",
@@ -116,6 +130,7 @@ pub async fn list_alert_rules(
                     threshold,
                     severity: row.severity,
                     silenced: row.silenced,
+                    state: row.state,
                     firing: row.firing,
                     last_fired_at: row.last_fired_at,
                 }),
@@ -179,6 +194,7 @@ pub async fn create_alert_rule(
         threshold: req.threshold,
         severity: "warning".into(),
         silenced: false,
+        state: "ok".into(),
         firing: false,
         last_fired_at: None,
     })
@@ -312,6 +328,7 @@ mod tests {
             threshold: 0.05,
             severity: "warning".into(),
             silenced: false,
+            state: "active".into(),
             firing: true,
             last_fired_at: None,
         };
@@ -319,6 +336,7 @@ mod tests {
         assert_eq!(v["name"], "High error rate");
         assert_eq!(v["metric_name"], "error_rate");
         assert_eq!(v["operator"], "gt");
+        assert_eq!(v["state"], "active");
         assert_eq!(v["firing"], true);
         assert!(v["last_fired_at"].is_null());
     }

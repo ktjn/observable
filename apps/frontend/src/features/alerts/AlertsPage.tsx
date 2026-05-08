@@ -69,7 +69,8 @@ export function AlertsPage() {
   };
 
   const rules = data?.items ?? [];
-  const firingCount = rules.filter((r) => r.firing).length;
+  const firingCount = rules.filter((r) => r.state === "active").length;
+  const pendingCount = rules.filter((r) => r.state === "pending").length;
   const silencedCount = rules.filter((r) => r.silenced).length;
 
   return (
@@ -81,9 +82,10 @@ export function AlertsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-label="Alert summary">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4" aria-label="Alert summary">
         <MetricCard label="Total Rules" value={rules.length} tone="info" />
         <MetricCard label="Firing" value={firingCount} tone={firingCount > 0 ? "bad" : "good"} />
+        <MetricCard label="Pending" value={pendingCount} tone="warn" />
         <MetricCard label="Silenced" value={silencedCount} tone="warn" />
       </div>
 
@@ -229,6 +231,7 @@ function AlertRuleRow({
   onToggleSilence: () => void;
 }) {
   const conditionLabel = `${rule.operator} ${rule.threshold}`;
+  const status = alertStatus(rule);
 
   return (
     <tr className="modern-table-row">
@@ -239,11 +242,7 @@ function AlertRuleRow({
         <Badge tone="neutral">{rule.severity}</Badge>
       </td>
       <td className="py-3 pr-4">
-        {rule.firing ? (
-          <Badge tone="bad">Firing</Badge>
-        ) : (
-          <Badge tone="good">OK</Badge>
-        )}
+        <Badge tone={status.tone}>{status.label}</Badge>
       </td>
       <td className="py-3">
         <Button variant="ghost" onClick={onToggleSilence} className="h-8 py-0">
@@ -252,4 +251,23 @@ function AlertRuleRow({
       </td>
     </tr>
   );
+}
+
+function alertStatus(rule: AlertRuleItem): {
+  label: string;
+  tone: "good" | "warn" | "bad" | "info" | "neutral";
+} {
+  switch (rule.state) {
+    case "active":
+      return { label: "Firing", tone: "bad" };
+    case "pending":
+      return { label: "Pending", tone: "warn" };
+    case "resolved":
+      return { label: "Resolved", tone: "good" };
+    case "silenced":
+      return { label: "Silenced", tone: "neutral" };
+    case "ok":
+    default:
+      return { label: "OK", tone: "good" };
+  }
 }

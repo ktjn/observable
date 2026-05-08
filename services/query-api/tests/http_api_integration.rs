@@ -9,7 +9,7 @@ use clickhouse::Client as ChClient;
 use domain::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use http_body_util::BodyExt;
 use query_api::{
-    config, logs, metrics, middleware::auth::require_tenant, planner::QueryPlanner, traces,
+    alerts, config, logs, metrics, middleware::auth::require_tenant, planner::QueryPlanner, traces,
 };
 use serde_json::Value;
 use sqlx::postgres::{PgPool, PgPoolOptions};
@@ -145,6 +145,7 @@ fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
         .route("/v1/logs/histogram", get(logs::log_histogram))
         .route("/v1/metrics", get(metrics::list_metrics))
         .route("/v1/metrics/points", get(metrics::get_metric_group_points))
+        .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .layer(axum_middleware::from_fn(require_tenant))
         .layer(axum::Extension(db))
         .layer(axum::Extension(auth_service_url))
@@ -172,6 +173,7 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
         .route("/v1/logs/histogram", get(logs::log_histogram))
         .route("/v1/metrics", get(metrics::list_metrics))
         .route("/v1/metrics/points", get(metrics::get_metric_group_points))
+        .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .layer(axum_middleware::from_fn(require_tenant))
         .layer(axum::Extension(db))
         .layer(axum::Extension(auth_service_url_ext))
@@ -689,6 +691,58 @@ async fn metric_group_points_sum_label_specific_series_at_same_timestamp() {
     assert_eq!(points[0]["value_double"], 5.0);
 }
 
+// ── Alert lifecycle API ─────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn list_alert_rules_http_returns_lifecycle_state() {
+    let (ch, _ch_container) = start_clickhouse().await;
+    let (pg, _pg_container) = start_postgres().await;
+    let app = build_app_with_pg(ch, pg.clone());
+    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+    let rule_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO alert_rules \
+         (rule_id, tenant_id, name, alert_type, severity, condition) \
+         VALUES ($1, $2, 'HTTP lifecycle rule', 'threshold', 'warning', $3)",
+    )
+    .bind(rule_id)
+    .bind(tenant)
+    .bind(serde_json::json!({
+        "metric_name": "http_lifecycle_metric",
+        "operator": "gt",
+        "threshold": 0.05,
+    }))
+    .execute(&pg)
+    .await
+    .expect("alert rule inserted");
+    sqlx::query(
+        "INSERT INTO alert_firings (rule_id, tenant_id, state, value) \
+         VALUES ($1, $2, 'pending', 0.10)",
+    )
+    .bind(rule_id)
+    .bind(tenant)
+    .execute(&pg)
+    .await
+    .expect("alert firing inserted");
+
+    let response = app
+        .oneshot(dev_request("GET", "/v1/alerts/rules"))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_body_json(response.into_body()).await;
+    let item = body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["rule_id"] == rule_id.to_string())
+        .expect("inserted rule appears in HTTP response");
+    assert_eq!(item["state"], "pending");
+    assert_eq!(item["firing"], false);
+}
+
 // ── LLM models endpoint ──────────────────────────────────────────────────────
 
 #[tokio::test]
@@ -759,14 +813,14 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
     let ir = serde_json::json!({
         "metric": "request_duration_ms",
         "signals": ["metrics"],
-        "operation": "query",
+        "operation": "table",
         "time_range": {
             "from": "2024-01-01T00:00:00Z",
             "to": "2024-01-02T00:00:00Z"
         },
         "filters": [{
             "field": "invalid_foo",
-            "op": "eq",
+            "op": "=",
             "value": "bar"
         }]
     });
@@ -782,9 +836,12 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
 
     let response = app.oneshot(req).await.unwrap();
 
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
     let body_bytes = response.into_body().collect().await.unwrap().to_bytes();
     let body_str = std::str::from_utf8(&body_bytes).unwrap();
-    assert!(body_str.contains("field 'invalid_foo' not in schema catalog"));
+    assert!(
+        body_str.contains("field 'invalid_foo' not in schema catalog"),
+        "unexpected response body: {body_str}"
+    );
 }

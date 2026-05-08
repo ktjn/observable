@@ -67,6 +67,7 @@ async fn list_rules_returns_seeded_dev_rule() {
     assert_eq!(seeded.operator, "gt");
     assert!(!seeded.silenced);
     assert!(!seeded.firing);
+    assert_eq!(seeded.state, "ok");
 }
 
 #[tokio::test]
@@ -173,4 +174,106 @@ async fn list_rules_does_not_return_other_tenant_rules() {
         tenant_b_rules.is_empty(),
         "tenant B must not see tenant A's rules"
     );
+}
+
+#[tokio::test]
+async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
+    let (pool, _container) = start_pool().await;
+    let tenant = Uuid::new_v4();
+
+    let pending = create_alert_rule(
+        &pool,
+        tenant,
+        &CreateRuleRequest {
+            name: "Pending rule".into(),
+            metric_name: "pending_metric".into(),
+            operator: "gt".into(),
+            threshold: 1.0,
+        },
+    )
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO alert_firings (rule_id, tenant_id, state, value) \
+         VALUES ($1, $2, 'pending', 2.0)",
+    )
+    .bind(pending.rule_id)
+    .bind(tenant)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let active = create_alert_rule(
+        &pool,
+        tenant,
+        &CreateRuleRequest {
+            name: "Active rule".into(),
+            metric_name: "active_metric".into(),
+            operator: "gt".into(),
+            threshold: 1.0,
+        },
+    )
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO alert_firings (rule_id, tenant_id, state, value) \
+         VALUES ($1, $2, 'active', 2.0)",
+    )
+    .bind(active.rule_id)
+    .bind(tenant)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let resolved = create_alert_rule(
+        &pool,
+        tenant,
+        &CreateRuleRequest {
+            name: "Resolved rule".into(),
+            metric_name: "resolved_metric".into(),
+            operator: "gt".into(),
+            threshold: 1.0,
+        },
+    )
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO alert_firings (rule_id, tenant_id, state, value, resolved_at) \
+         VALUES ($1, $2, 'resolved', 0.5, NOW())",
+    )
+    .bind(resolved.rule_id)
+    .bind(tenant)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let silenced = create_alert_rule(
+        &pool,
+        tenant,
+        &CreateRuleRequest {
+            name: "Silenced rule".into(),
+            metric_name: "silenced_metric".into(),
+            operator: "gt".into(),
+            threshold: 1.0,
+        },
+    )
+    .await
+    .unwrap();
+    silence_alert_rule(&pool, tenant, silenced.rule_id, true)
+        .await
+        .unwrap();
+
+    let rules = list_alert_rules(&pool, tenant).await.unwrap();
+
+    let state_for = |name: &str| {
+        rules
+            .iter()
+            .find(|rule| rule.name == name)
+            .map(|rule| rule.state.as_str())
+            .unwrap()
+    };
+    assert_eq!(state_for("Pending rule"), "pending");
+    assert_eq!(state_for("Active rule"), "active");
+    assert_eq!(state_for("Resolved rule"), "resolved");
+    assert_eq!(state_for("Silenced rule"), "silenced");
 }

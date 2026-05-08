@@ -34,7 +34,7 @@ Completed Phase 2 and Phase 3 slices stay in `2026-04-18-phases2-8-iteration-pla
 2. Finish **RF-1 OIDC/session hardening and plan reconciliation**. OIDC code exists in the repo, but the detailed plan remains unchecked and the implementation needs security review before it is treated as a completed identity slice.
 3. Finish **RF-2 Regression gate restoration for integration tests**. `scripts/local-ci.sh` currently skips Rust integration tests in the normal Rust test stage, which conflicts with the Testcontainers harness being treated as a protected signal.
 4. Finish **RF-3 NLQ SQL safety hardening**. Generated SQL still inlines LLM-sourced filters; string escaping is not enough for the current NLQ quality/security bar.
-5. Finish **RF-4 Alert lifecycle semantics** before P4-S5 burn-rate work. The evaluator writes active firings but does not yet enforce `for_duration_secs`, active-firing dedupe, or resolution semantics.
+5. **RF-4 Alert lifecycle semantics is complete** on branch `feat/rf-4-alert-lifecycle-semantics`; keep this as closure evidence before P4-S5 burn-rate work.
 6. Finish **RF-5 Deployment marker correlation closure** before release/rollback claims depend on deployment markers. Marker CRUD and UI overlays exist, but signal enrichment and canary marker automation are still missing.
 7. Finish **RF-6 Self-observability endpoint closure** before production-readiness claims. Services expose health checks and OTLP telemetry, but the required Prometheus `/metrics` and readiness behavior are not uniformly implemented.
 8. Finish **SW-1 P4-S5 SLO burn-rate**. This is the current value-first product lane and unlocks notification routing.
@@ -144,11 +144,11 @@ These items come from a direct implementation review, not from the roadmap text 
 
 **Finish before:** SW-1 P4-S5 SLO burn-rate and P5-S2 notification routing.
 
-**Completion signal:**
-- Alert evaluator enforces `for_duration_secs` as Pending -> Active.
-- Existing active firings are reused or updated instead of creating unbounded duplicates.
-- Conditions that clear move active/pending firings to `resolved` with a timestamp.
-- Query API and UI show active, pending, silenced, and resolved state clearly enough for the next SLO slice.
+**Completion signal: (COMPLETED)**
+- [x] Alert evaluator enforces `for_duration_secs` as Pending -> Active. Implemented in branch `feat/rf-4-alert-lifecycle-semantics`.
+- [x] Existing active firings are reused or updated instead of creating unbounded duplicates. Implemented in branch `feat/rf-4-alert-lifecycle-semantics`.
+- [x] Conditions that clear move active/pending firings to `resolved` with a timestamp. Implemented in branch `feat/rf-4-alert-lifecycle-semantics`.
+- [x] Query API and UI show active, pending, silenced, and resolved state clearly enough for the next SLO slice. Implemented in branch `feat/rf-4-alert-lifecycle-semantics`.
 
 **Required verification:**
 - `cargo fmt --all`

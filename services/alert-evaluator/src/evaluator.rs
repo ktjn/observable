@@ -45,6 +45,7 @@ pub struct AlertRuleRow {
     pub tenant_id: Uuid,
     pub name: String,
     pub condition: serde_json::Value,
+    pub for_duration_secs: Option<i64>,
 }
 
 #[derive(clickhouse::Row, serde::Deserialize)]
@@ -58,7 +59,7 @@ pub async fn eval_threshold_rules(
     ch: &clickhouse::Client,
 ) -> anyhow::Result<()> {
     let rules: Vec<AlertRuleRow> = sqlx::query_as(
-        "SELECT rule_id, tenant_id, name, condition \
+        "SELECT rule_id, tenant_id, name, condition, for_duration_secs \
          FROM alert_rules WHERE alert_type = 'threshold' AND silenced = false",
     )
     .fetch_all(db)
@@ -67,7 +68,7 @@ pub async fn eval_threshold_rules(
     tracing::debug!(count = rules.len(), "evaluating threshold rules");
 
     for rule in rules {
-        let cond: ThresholdCondition = match serde_json::from_value(rule.condition) {
+        let cond: ThresholdCondition = match serde_json::from_value(rule.condition.clone()) {
             Ok(c) => c,
             Err(e) => {
                 tracing::warn!(
@@ -111,30 +112,97 @@ pub async fn eval_threshold_rules(
             (None, None) => continue,
         };
 
-        if evaluate_threshold(value, &cond) == EvalResult::Firing {
-            tracing::warn!(
-                rule_id = %rule.rule_id,
-                tenant_id = %rule.tenant_id,
-                rule_name = %rule.name,
-                metric_name = %cond.metric_name,
-                value = value,
-                threshold = cond.threshold,
-                "alert firing: threshold exceeded"
-            );
-            if let Err(e) = sqlx::query(
-                "INSERT INTO alert_firings (rule_id, tenant_id, state, value) \
-                 VALUES ($1, $2, 'active', $3)",
-            )
-            .bind(rule.rule_id)
-            .bind(rule.tenant_id)
-            .bind(value)
-            .execute(db)
-            .await
-            {
-                tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to record alert firing");
+        match evaluate_threshold(value, &cond) {
+            EvalResult::Firing => {
+                tracing::warn!(
+                    rule_id = %rule.rule_id,
+                    tenant_id = %rule.tenant_id,
+                    rule_name = %rule.name,
+                    metric_name = %cond.metric_name,
+                    value = value,
+                    threshold = cond.threshold,
+                    "alert firing: threshold exceeded"
+                );
+                if let Err(e) = record_firing(db, &rule, value).await {
+                    tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to record alert firing");
+                }
+            }
+            EvalResult::Ok => {
+                if let Err(e) = resolve_open_firing(db, rule.rule_id, rule.tenant_id, value).await {
+                    tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to resolve alert firing");
+                }
             }
         }
     }
+    Ok(())
+}
+
+async fn record_firing(db: &sqlx::PgPool, rule: &AlertRuleRow, value: f64) -> anyhow::Result<()> {
+    let for_duration_secs = rule.for_duration_secs.unwrap_or(0).max(0);
+    let initial_state = if for_duration_secs == 0 {
+        "active"
+    } else {
+        "pending"
+    };
+
+    sqlx::query(
+        "WITH updated AS ( \
+             UPDATE alert_firings \
+             SET value = $3, \
+                 occurred_at = NOW(), \
+                 state = CASE \
+                     WHEN state = 'pending' \
+                      AND NOW() >= firing_start + ($4::BIGINT * INTERVAL '1 second') \
+                     THEN 'active' \
+                     ELSE state \
+                 END \
+             WHERE firing_id = ( \
+                 SELECT firing_id FROM alert_firings \
+                 WHERE rule_id = $1 \
+                   AND tenant_id = $2 \
+                   AND state IN ('pending', 'active') \
+                 ORDER BY occurred_at DESC \
+                 LIMIT 1 \
+             ) \
+             RETURNING firing_id \
+         ) \
+         INSERT INTO alert_firings (rule_id, tenant_id, state, value, firing_start) \
+         SELECT $1, $2, $5, $3, NOW() \
+         WHERE NOT EXISTS (SELECT 1 FROM updated)",
+    )
+    .bind(rule.rule_id)
+    .bind(rule.tenant_id)
+    .bind(value)
+    .bind(for_duration_secs)
+    .bind(initial_state)
+    .execute(db)
+    .await?;
+
+    Ok(())
+}
+
+async fn resolve_open_firing(
+    db: &sqlx::PgPool,
+    rule_id: Uuid,
+    tenant_id: Uuid,
+    value: f64,
+) -> anyhow::Result<()> {
+    sqlx::query(
+        "UPDATE alert_firings \
+         SET state = 'resolved', \
+             resolved_at = NOW(), \
+             occurred_at = NOW(), \
+             value = $3 \
+         WHERE rule_id = $1 \
+           AND tenant_id = $2 \
+           AND state IN ('pending', 'active')",
+    )
+    .bind(rule_id)
+    .bind(tenant_id)
+    .bind(value)
+    .execute(db)
+    .await?;
+
     Ok(())
 }
 

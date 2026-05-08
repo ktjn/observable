@@ -20,3 +20,8 @@ tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 sqlx               = { workspace = true }
 clickhouse         = { workspace = true }
+
+[dev-dependencies]
+domain                  = { path = "../../libs/domain", features = ["storage"] }
+testcontainers         = "0.27.3"
+testcontainers-modules = { version = "0.15.0", features = ["clickhouse", "postgres"] }
