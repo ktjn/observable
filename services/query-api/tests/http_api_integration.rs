@@ -663,10 +663,7 @@ async fn metric_group_points_sum_label_specific_series_at_same_timestamp() {
 
     let app = build_app_with_pg(ch, db);
     let uri = "/v1/metrics/points?metric_name=span.calls_total&service=checkout&environment=prod&metric_type=sum&unit=1";
-    let resp = app
-        .oneshot(dev_request("GET", uri))
-        .await
-        .unwrap();
+    let resp = app.oneshot(dev_request("GET", uri)).await.unwrap();
 
     assert_eq!(resp.status(), StatusCode::OK);
     let json = response_body_json(resp.into_body()).await;
@@ -687,6 +684,7 @@ async fn llm_models_returns_ok_false_when_unreachable() {
         db: db.clone(),
         planner: Arc::new(QueryPlanner),
         llm: None,
+        auth_service_url: String::new(),
     };
     let app = Router::new()
         .route("/v1/config/llm/models", post(config::list_llm_models))

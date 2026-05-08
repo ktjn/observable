@@ -1101,7 +1101,10 @@ mod tests {
         let malicious = "' OR 1=1 --";
         let escaped = escape_string_value(malicious);
         // The single quote must be backslash-escaped so it cannot close the literal.
-        assert!(escaped.contains("\\'"), "single quote must be backslash-escaped");
+        assert!(
+            escaped.contains("\\'"),
+            "single quote must be backslash-escaped"
+        );
         // When placed inside a quoted SQL literal the injected quote is neutralised —
         // verify the full literal starts and never closes prematurely.
         let sql_fragment = format!("service_name = '{escaped}'");
@@ -1109,10 +1112,10 @@ mod tests {
         // must be at the very end of the fragment.
         let inner = &sql_fragment["service_name = '".len()..sql_fragment.len() - 1];
         // inner must not contain an unescaped single quote (i.e. "'" not preceded by "\")
-        let mut chars = inner.chars().peekable();
+        let chars = inner.chars().peekable();
         let mut prev_backslash = false;
         let mut has_unescaped_quote = false;
-        while let Some(c) = chars.next() {
+        for c in chars {
             if c == '\'' && !prev_backslash {
                 has_unescaped_quote = true;
             }

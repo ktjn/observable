@@ -793,8 +793,7 @@ fn build_filter_clauses_checked(filters: &[NlqFilter]) -> Result<String, SqlTemp
         .iter()
         .map(|f| {
             let col = map_filter_field(&f.field);
-            build_filter_expr_checked(&col, f.op, &f.value)
-                .map(|expr| format!("\n  AND ({expr})"))
+            build_filter_expr_checked(&col, f.op, &f.value).map(|expr| format!("\n  AND ({expr})"))
         })
         .collect::<Result<Vec<_>, _>>()
         .map(|v| v.join(""))
@@ -831,8 +830,7 @@ fn build_log_filter_clauses_checked(filters: &[NlqFilter]) -> Result<String, Sql
         .iter()
         .map(|f| {
             let col = map_log_filter_field(&f.field);
-            build_filter_expr_checked(&col, f.op, &f.value)
-                .map(|expr| format!("\n  AND ({expr})"))
+            build_filter_expr_checked(&col, f.op, &f.value).map(|expr| format!("\n  AND ({expr})"))
         })
         .collect::<Result<Vec<_>, _>>()
         .map(|v| v.join(""))
@@ -1602,9 +1600,11 @@ mod tests {
             op: NlqFilterOp::Gt,
             value: "0 OR 1=1".into(),
         };
-        let err =
-            build_filter_expr_checked("duration_ms", filter.op, &filter.value).unwrap_err();
-        assert_eq!(err, SqlTemplateError::InvalidFilterValue("duration_ms".into()));
+        let err = build_filter_expr_checked("duration_ms", filter.op, &filter.value).unwrap_err();
+        assert_eq!(
+            err,
+            SqlTemplateError::InvalidFilterValue("duration_ms".into())
+        );
     }
 
     #[test]

@@ -1,9 +1,4 @@
-use axum::{
-    extract::Request,
-    http::StatusCode,
-    middleware::Next,
-    response::Response,
-};
+use axum::{extract::Request, http::StatusCode, middleware::Next, response::Response};
 use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
@@ -12,6 +7,7 @@ use uuid::Uuid;
 #[derive(Clone, Debug)]
 pub struct TenantContext {
     pub tenant_id: Uuid,
+    #[allow(dead_code)]
     pub role: String,
 }
 
@@ -36,16 +32,10 @@ struct ApiKeyRow {
 /// so that no reference to `req` is held across an await point.
 pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, StatusCode> {
     // --- Synchronous extraction (no await) ---
-    let db = req
-        .extensions()
-        .get::<PgPool>()
-        .cloned()
-        .ok_or_else(|| {
-            tracing::error!(
-                "PgPool not found in request extensions — misconfigured middleware stack"
-            );
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let db = req.extensions().get::<PgPool>().cloned().ok_or_else(|| {
+        tracing::error!("PgPool not found in request extensions — misconfigured middleware stack");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let token = extract_bearer_token(req.headers())?;
     let tenant_id = extract_tenant_id(req.headers())?;
@@ -107,20 +97,19 @@ async fn verify_credentials(
     };
 
     // Look up the api_key; reject if not found or revoked.
-    let row: ApiKeyRow = sqlx::query_as(
-        "SELECT tenant_id, role, revoked_at FROM api_keys WHERE key_hash = $1",
-    )
-    .bind(&key_hash)
-    .fetch_optional(db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "database error during auth");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?
-    .ok_or_else(|| {
-        tracing::warn!(reason = "key_not_found", "auth rejected");
-        StatusCode::UNAUTHORIZED
-    })?;
+    let row: ApiKeyRow =
+        sqlx::query_as("SELECT tenant_id, role, revoked_at FROM api_keys WHERE key_hash = $1")
+            .bind(&key_hash)
+            .fetch_optional(db)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "database error during auth");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+            .ok_or_else(|| {
+                tracing::warn!(reason = "key_not_found", "auth rejected");
+                StatusCode::UNAUTHORIZED
+            })?;
 
     if row.revoked_at.is_some() {
         tracing::warn!(reason = "key_revoked", "auth rejected");

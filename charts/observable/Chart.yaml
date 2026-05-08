@@ -8,3 +8,7 @@ dependencies:
   - name: observable-common
     version: "0.1.0"
     repository: "file://../observable-common"
+  - name: zitadel
+    version: "8.13.4"
+    repository: "https://charts.zitadel.com"
+    condition: zitadel.enabled

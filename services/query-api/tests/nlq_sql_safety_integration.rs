@@ -38,8 +38,7 @@ fn string_filter_accepts_injected_payload_as_literal() {
     use query_api::sql_templates::build_filter_expr_checked;
 
     // Injection attempt in a string equality filter — should be safely escaped, not rejected.
-    let result =
-        build_filter_expr_checked("service_name", NlqFilterOp::Eq, "checkout' OR '1'='1");
+    let result = build_filter_expr_checked("service_name", NlqFilterOp::Eq, "checkout' OR '1'='1");
     let sql = result.expect("string filters must accept any value after escaping");
     // The injected single quote must be backslash-escaped.
     assert!(

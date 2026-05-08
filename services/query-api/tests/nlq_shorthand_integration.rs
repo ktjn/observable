@@ -13,12 +13,13 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
     middleware as axum_middleware,
+    response::Response,
     routing::post,
     Router,
 };
 use clickhouse::Client as ChClient;
 use http_body_util::BodyExt;
-use query_api::{llm_adapter, middleware::auth::require_tenant, planner::QueryPlanner, traces};
+use query_api::{llm_adapter, middleware::auth::TenantContext, planner::QueryPlanner, traces};
 use serde_json::Value;
 use sqlx::postgres::PgPool;
 use std::{path::Path, sync::Arc};
@@ -28,6 +29,22 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Test-only middleware: reads X-Tenant-ID and injects TenantContext directly,
+/// bypassing API-key auth. These tests cover NLQ shorthand logic, not auth.
+async fn inject_tenant_ctx(mut req: Request<Body>, next: axum_middleware::Next) -> Response {
+    let tenant_id: Uuid = req
+        .headers()
+        .get("X-Tenant-ID")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_default();
+    req.extensions_mut().insert(TenantContext {
+        tenant_id,
+        role: "member".into(),
+    });
+    next.run(req).await
+}
 
 fn build_nlq_app(ch: ChClient, db: PgPool) -> Router {
     let state = traces::AppState {
@@ -39,7 +56,7 @@ fn build_nlq_app(ch: ChClient, db: PgPool) -> Router {
     };
     Router::new()
         .route("/v1/nlq", post(llm_adapter::handle_nlq_query))
-        .layer(axum_middleware::from_fn(require_tenant))
+        .layer(axum_middleware::from_fn(inject_tenant_ctx))
         .with_state(state)
 }
 
