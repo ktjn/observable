@@ -18,6 +18,10 @@ use testcontainers::{runners::AsyncRunner, ImageExt};
 use testcontainers_modules::{clickhouse::ClickHouse, postgres::Postgres};
 use tower::ServiceExt;
 use uuid::Uuid;
+use wiremock::{
+    matchers::{method, path},
+    Mock, MockServer, ResponseTemplate,
+};
 
 // ── Dev credentials (must match seed data in migrations) ────────────────────
 // Migration 017 moves dev-key to the dev-tenant at ...0002.
@@ -135,6 +139,7 @@ fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
         llm: None,
         auth_service_url: "http://auth-service:4319".into(),
     };
+    let auth_service_url = Arc::new(state.auth_service_url.clone());
     Router::new()
         .route("/v1/traces/histogram", get(traces::trace_histogram))
         .route("/v1/logs/histogram", get(logs::log_histogram))
@@ -142,23 +147,26 @@ fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
         .route("/v1/metrics/points", get(metrics::get_metric_group_points))
         .layer(axum_middleware::from_fn(require_tenant))
         .layer(axum::Extension(db))
+        .layer(axum::Extension(auth_service_url))
         .with_state(state)
 }
 
 /// App used for tests where auth rejection happens before the handler is
 /// reached (i.e. missing Authorization header → immediate 401). The lazy
 /// Postgres pool is never actually queried in these cases.
-fn fake_app_no_db() -> Router {
+fn fake_app_no_db(auth_url: Option<String>) -> Router {
     let db =
         PgPool::connect_lazy("postgres://user:pass@127.0.0.1:5432/db").expect("valid postgres url");
     let ch = ChClient::default().with_url("http://127.0.0.1:19999");
+    let auth_service_url = auth_url.unwrap_or_else(|| "http://auth-service:4319".into());
     let state = traces::AppState {
         ch,
         db: db.clone(),
         planner: Arc::new(QueryPlanner),
         llm: None,
-        auth_service_url: "http://auth-service:4319".into(),
+        auth_service_url: auth_service_url.clone(),
     };
+    let auth_service_url_ext = Arc::new(auth_service_url);
     Router::new()
         .route("/v1/traces/histogram", get(traces::trace_histogram))
         .route("/v1/logs/histogram", get(logs::log_histogram))
@@ -166,6 +174,7 @@ fn fake_app_no_db() -> Router {
         .route("/v1/metrics/points", get(metrics::get_metric_group_points))
         .layer(axum_middleware::from_fn(require_tenant))
         .layer(axum::Extension(db))
+        .layer(axum::Extension(auth_service_url_ext))
         .with_state(state)
 }
 
@@ -311,7 +320,7 @@ fn make_metric_point(
 /// Missing Authorization header → 401, before any DB query.
 #[tokio::test]
 async fn query_api_rejects_missing_authorization_header() {
-    let app = fake_app_no_db();
+    let app = fake_app_no_db(None);
     let req = Request::builder()
         .method("GET")
         .uri("/v1/traces/histogram?buckets=10")
@@ -373,7 +382,14 @@ async fn query_api_accepts_matching_token_and_tenant_header() {
 
 #[tokio::test]
 async fn missing_tenant_id_header_returns_401() {
-    let app = fake_app_no_db();
+    let mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/internal/validate-session"))
+        .respond_with(ResponseTemplate::new(401))
+        .mount(&mock_server)
+        .await;
+
+    let app = fake_app_no_db(Some(mock_server.uri()));
     // Has Authorization but no X-Tenant-ID
     let req = Request::builder()
         .method("GET")
@@ -389,7 +405,7 @@ async fn missing_tenant_id_header_returns_401() {
 
 #[tokio::test]
 async fn invalid_tenant_id_header_returns_400() {
-    let app = fake_app_no_db();
+    let app = fake_app_no_db(None);
     let req = Request::builder()
         .method("GET")
         .uri("/v1/traces/histogram?buckets=10")
