@@ -1,6 +1,8 @@
 {
   "name": "observable",
   "private": true,
-  "workspaces": ["apps/frontend"],
+  "workspaces": [
+    "apps/frontend"
+  ],
   "scripts": {}
 }

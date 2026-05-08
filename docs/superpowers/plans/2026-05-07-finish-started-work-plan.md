@@ -58,11 +58,11 @@ These items come from a direct implementation review, not from the roadmap text 
 
 **Finish before:** Any new tenant-scoped query-api feature, including P4-S5.
 
-**Completion signal:**
-- Query API accepts either a valid API-key credential or a valid OIDC session and derives tenant context from that credential.
-- `X-Tenant-ID` becomes a requested scope that must match an authorized tenant, not the source of truth.
-- Bootstrap endpoints are explicitly public only where required and are filtered when a user session is present.
-- HTTP integration tests cover missing credential, invalid credential, cross-tenant mismatch, valid API-key access, valid session access, and bootstrap behavior.
+**Completion signal: (COMPLETED)**
+- [x] Query API accepts either a valid API-key credential or a valid OIDC session and derives tenant context from that credential.
+- [x] `X-Tenant-ID` becomes a requested scope that must match an authorized tenant, not the source of truth.
+- [x] Bootstrap endpoints are explicitly public only where required and are filtered when a user session is present.
+- [x] HTTP integration tests cover missing credential, invalid credential, cross-tenant mismatch, valid API-key access, valid session access, and bootstrap behavior.
 
 **Required verification:**
 - `cargo fmt --all`

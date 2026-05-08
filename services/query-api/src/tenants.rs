@@ -42,7 +42,9 @@ pub async fn list_tenants(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<TenantListResponse>, StatusCode> {
-    if let Some(session_token) = extract_session_cookie(&headers) {
+    let session_token = extract_session_cookie(&headers).or_else(|| extract_bearer_token(&headers));
+
+    if let Some(session_token) = session_token {
         let user_id = validate_session_with_auth_service(&state.auth_service_url, &session_token)
             .await
             .map_err(|_| StatusCode::UNAUTHORIZED)?;
@@ -96,7 +98,30 @@ pub async fn list_tenants(
 pub async fn list_tenant_environments(
     State(state): State<AppState>,
     Path(tenant_id): Path<Uuid>,
+    headers: HeaderMap,
 ) -> Result<Json<EnvironmentListResponse>, StatusCode> {
+    // If a session is present, verify the user has access to the requested tenant.
+    let session_token = extract_session_cookie(&headers).or_else(|| extract_bearer_token(&headers));
+    if let Some(session_token) = session_token {
+        let user_id = validate_session_with_auth_service(&state.auth_service_url, &session_token)
+            .await
+            .map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+        let has_access = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2",
+        )
+        .bind(user_id)
+        .bind(tenant_id)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        if has_access == 0 {
+            tracing::warn!(%user_id, %tenant_id, "User attempted to access unauthorized tenant environments");
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
+
     let rows = sqlx::query_scalar!(
         r#"
         SELECT DISTINCT environment
@@ -135,6 +160,15 @@ pub fn extract_session_cookie(headers: &HeaderMap) -> Option<String> {
             None
         }
     })
+}
+
+pub fn extract_bearer_token(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get(header::AUTHORIZATION)?
+        .to_str()
+        .ok()?
+        .strip_prefix("Bearer ")
+        .map(|s| s.to_owned())
 }
 
 async fn validate_session_with_auth_service(

@@ -40,3 +40,4 @@ chrono                 = { workspace = true }
 tower                  = { version = "0.4", features = ["util"] }
 http-body-util         = "0.1"
 serde_json             = { workspace = true }
+wiremock               = "0.6"

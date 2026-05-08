@@ -39,7 +39,8 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
 
     let bearer = extract_bearer_token(req.headers()).ok();
     let session_cookie = extract_session_cookie(req.headers());
-    let tenant_id_hdr = extract_tenant_id(req.headers()).ok();
+    let tenant_id_res = extract_tenant_id(req.headers());
+    let tenant_id_hdr = tenant_id_res.as_ref().ok().cloned();
     // --- End of synchronous extraction ---
 
     // Path 1: API key — bearer token + X-Tenant-ID header.
@@ -53,6 +54,8 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
             Err(StatusCode::UNAUTHORIZED) => {}
             Err(e) => return Err(e),
         }
+    } else if let Err(StatusCode::BAD_REQUEST) = tenant_id_res {
+        return Err(StatusCode::BAD_REQUEST);
     }
 
     // Path 2: OIDC session cookie (UI after login).
@@ -67,6 +70,19 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
     })?;
 
     let ctx = validate_session(&auth_url, &session_token).await?;
+
+    // If X-Tenant-ID is also provided, it MUST match the session's tenant.
+    if let Some(requested_tenant_id) = tenant_id_hdr {
+        if requested_tenant_id != ctx.tenant_id {
+            tracing::warn!(
+                session_tenant = %ctx.tenant_id,
+                requested_tenant = %requested_tenant_id,
+                "tenant mismatch between session and X-Tenant-ID header"
+            );
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
+
     req.extensions_mut().insert(ctx);
     Ok(next.run(req).await)
 }
