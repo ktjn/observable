@@ -14,6 +14,8 @@ pub struct SessionClaims {
     pub tid: String,
     pub role: String,
     pub env: String,
+    /// Session UUID (nonce).
+    pub nonce: String,
     pub iat: i64,
     pub exp: i64,
 }
@@ -26,6 +28,7 @@ pub fn sign_session_jwt(
     tenant_id: Uuid,
     role: &str,
     environment: &str,
+    session_id: Uuid,
 ) -> Result<String> {
     let now = chrono::Utc::now().timestamp();
     let claims = SessionClaims {
@@ -33,6 +36,7 @@ pub fn sign_session_jwt(
         tid: tenant_id.to_string(),
         role: role.to_owned(),
         env: environment.to_owned(),
+        nonce: session_id.to_string(),
         iat: now,
         exp: now + SESSION_TTL_SECS,
     };

@@ -1,13 +1,11 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { me, logout } from "../api/auth";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "./ui/button"
+import { logout } from "../api/auth";
+import { useAuth } from "../hooks/useAuth";
 
 export function UserMenu() {
   const queryClient = useQueryClient();
-  const { data, isLoading } = useQuery({
-    queryKey: ["me"],
-    queryFn: me,
-    retry: false,
-  });
+  const { data: user, isLoading } = useAuth();
 
   const logoutMutation = useMutation({
     mutationFn: logout,
@@ -18,7 +16,7 @@ export function UserMenu() {
   });
 
   if (isLoading) return null;
-  if (!data) {
+  if (!user) {
     return (
       <a href="/login" style={{ color: "var(--text-muted, #888)", fontSize: "0.85rem" }}>
         Sign in
@@ -27,23 +25,16 @@ export function UserMenu() {
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", fontSize: "0.85rem" }}>
-      <span style={{ color: "var(--text-muted, #888)" }}>{data.email}</span>
-      <button
+    <div className="flex items-center gap-2 text-sm">
+      <span className="text-muted-foreground">{user.email}</span>
+      <Button
+        variant="ghost"
+        className="h-8 px-3"
         onClick={() => logoutMutation.mutate()}
         disabled={logoutMutation.isPending}
-        style={{
-          background: "none",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius, 4px)",
-          padding: "2px 8px",
-          cursor: "pointer",
-          color: "var(--text)",
-          fontSize: "inherit",
-        }}
       >
         Sign out
-      </button>
+      </Button>
     </div>
   );
 }

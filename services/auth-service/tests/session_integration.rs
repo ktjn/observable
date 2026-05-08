@@ -7,10 +7,19 @@ fn round_trip_session_jwt() {
     let user_id = Uuid::new_v4();
     let tenant_id = Uuid::new_v4();
 
-    let token = sign_session_jwt(secret, user_id, tenant_id, "member", "production")
-        .expect("sign must succeed");
+    let session_id = Uuid::new_v4();
+    let token = sign_session_jwt(
+        secret,
+        user_id,
+        tenant_id,
+        "member",
+        "production",
+        session_id,
+    )
+    .expect("sign must succeed");
     let claims = verify_session_jwt(secret, &token).expect("verify must succeed");
 
+    assert_eq!(claims.nonce, session_id.to_string());
     assert_eq!(claims.sub, user_id.to_string());
     assert_eq!(claims.tid, tenant_id.to_string());
     assert_eq!(claims.role, "member");
@@ -22,12 +31,14 @@ fn wrong_secret_is_rejected() {
     let user_id = Uuid::new_v4();
     let tenant_id = Uuid::new_v4();
 
+    let session_id = Uuid::new_v4();
     let token = sign_session_jwt(
         "correctsecret1234567890abcdefgh",
         user_id,
         tenant_id,
         "member",
         "prod",
+        session_id,
     )
     .expect("sign");
     let result = verify_session_jwt("wrongsecretXXXXXXXXXXXXXXXXXXXX", &token);

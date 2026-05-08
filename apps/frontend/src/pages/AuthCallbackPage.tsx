@@ -9,8 +9,8 @@ export default function AuthCallbackPage() {
   }, []);
 
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
-      Completing sign-in…
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-lg text-muted-foreground p-8">Completing sign-in…</div>
     </div>
   );
 }
