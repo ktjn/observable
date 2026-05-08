@@ -1,5 +1,4 @@
-mod evaluator;
-
+use alert_evaluator::evaluator;
 use axum::{routing::get, Router};
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;

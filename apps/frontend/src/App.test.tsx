@@ -1315,6 +1315,7 @@ test("alerts page renders rule list with firing badge", async () => {
                 threshold: 0.05,
                 severity: "warning",
                 silenced: false,
+                state: "active",
                 firing: true,
                 last_fired_at: "2026-04-28T10:00:00Z",
               },
@@ -1352,6 +1353,7 @@ test("alerts page shows OK status when rule is not firing", async () => {
                 threshold: 1.0,
                 severity: "warning",
                 silenced: false,
+                state: "ok",
                 firing: false,
                 last_fired_at: null,
               },
@@ -1385,6 +1387,7 @@ test("alerts page silence button calls PATCH and refreshes list", async () => {
           severity: "warning",
           silenced: true,
           firing: false,
+          state: "silenced",
           last_fired_at: null,
         }),
         { status: 200 },
@@ -1402,6 +1405,7 @@ test("alerts page silence button calls PATCH and refreshes list", async () => {
               threshold: 0.05,
               severity: "warning",
               silenced: false,
+              state: "active",
               firing: true,
               last_fired_at: null,
             },
@@ -1445,6 +1449,7 @@ test("alerts page create form submits POST and closes panel", async () => {
           threshold: 500,
           severity: "warning",
           silenced: false,
+          state: "ok",
           firing: false,
           last_fired_at: null,
         }),
@@ -1512,4 +1517,52 @@ test("alerts page renders empty state when no rules exist", async () => {
   expect(
     screen.getByText("Create a threshold rule to start monitoring metrics."),
   ).toBeInTheDocument();
+});
+
+test("alerts page renders pending and resolved lifecycle states", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v1/alerts/rules")) {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                rule_id: "10000000-0000-0000-0000-000000000003",
+                name: "Pending burn check",
+                metric_name: "error_rate",
+                operator: "gt",
+                threshold: 0.05,
+                severity: "warning",
+                silenced: false,
+                state: "pending",
+                firing: false,
+                last_fired_at: null,
+              },
+              {
+                rule_id: "10000000-0000-0000-0000-000000000004",
+                name: "Recovered burn check",
+                metric_name: "error_rate",
+                operator: "gt",
+                threshold: 0.05,
+                severity: "warning",
+                silenced: false,
+                state: "resolved",
+                firing: false,
+                last_fired_at: "2026-04-28T10:00:00Z",
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+  window.history.pushState({}, "", "/alerts");
+  render(<App />);
+
+  expect(await screen.findByText("Pending burn check")).toBeInTheDocument();
+  expect(screen.getByText("Resolved")).toBeInTheDocument();
 });

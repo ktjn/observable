@@ -10,6 +10,7 @@ export interface AlertRuleItem {
   threshold: number;
   severity: string;
   silenced: boolean;
+  state: "ok" | "pending" | "active" | "resolved" | "silenced";
   firing: boolean;
   last_fired_at: string | null;
 }

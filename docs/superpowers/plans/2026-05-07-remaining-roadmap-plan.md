@@ -48,7 +48,7 @@ These gaps were identified during a review of the Rust backend services and the 
 - [ ] **ClickHouse Insert Efficiency**: Align `stream-processor` batching with `storage-writer` to ensure ClickHouse receives large, efficient blocks rather than many small inserts.
 
 ### Reliability & Observability
-- [ ] **Alert Lifecycle (RF-4)**: Implement deduplication, `for_duration_secs` (pending state), and resolution logic in `alert-evaluator/src/evaluator.rs`.
+- [x] **Alert Lifecycle (RF-4)**: Implement deduplication, `for_duration_secs` (pending state), and resolution logic in `alert-evaluator/src/evaluator.rs`. Completed in branch `feat/rf-4-alert-lifecycle-semantics`; see the finish-started plan for verification scope.
 - [ ] **Deployment Correlation (RF-5)**: Implement active `deployment_id` enrichment in `stream-processor/src/normalise.rs` based on current deployment markers.
 - [ ] **Self-Observability (RF-6)**: Add `/metrics` (Prometheus) and `/readyz` endpoints to all services; ensure `Platform API` ports are correctly configured in Helm/Compose.
 
