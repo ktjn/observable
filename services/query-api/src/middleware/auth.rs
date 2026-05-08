@@ -2,6 +2,7 @@ use axum::{extract::Request, http::StatusCode, middleware::Next, response::Respo
 use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
+use std::sync::Arc;
 use uuid::Uuid;
 
 #[derive(Clone, Debug)]
@@ -19,32 +20,111 @@ struct ApiKeyRow {
     revoked_at: Option<DateTime<Utc>>,
 }
 
-/// Middleware that verifies `Authorization: Bearer <token>` + `X-Tenant-ID`
-/// against the `api_keys` table and inserts `TenantContext` into request
-/// extensions.
+/// Middleware that accepts either:
+///   1. `Authorization: Bearer <api-key>` + `X-Tenant-ID` — verified against
+///      the `api_keys` table (existing SDK / CLI path).
+///   2. `Cookie: session=<jwt>` — forwarded to auth-service
+///      `POST /internal/validate-session` (browser / UI path after OIDC login).
 ///
-/// The `PgPool` is read from request extensions. Callers must place a
-/// `.layer(axum::Extension(db))` BELOW this middleware in the tower stack.
-///
-/// # !Send note
-/// `axum::body::Body` is `!Sync`, which makes `&Request<Body>` `!Send`.
-/// All header extraction MUST happen synchronously before the first `.await`
-/// so that no reference to `req` is held across an await point.
+/// Extensions required in the tower stack (via `.layer(axum::Extension(...))`):
+///   - `PgPool`          — for API-key lookups
+///   - `Arc<String>`     — the auth-service base URL (for session validation)
 pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, StatusCode> {
     // --- Synchronous extraction (no await) ---
     let db = req.extensions().get::<PgPool>().cloned().ok_or_else(|| {
         tracing::error!("PgPool not found in request extensions — misconfigured middleware stack");
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
+    let auth_service_url = req.extensions().get::<Arc<String>>().cloned();
 
-    let token = extract_bearer_token(req.headers())?;
-    let tenant_id = extract_tenant_id(req.headers())?;
+    let bearer = extract_bearer_token(req.headers()).ok();
+    let session_cookie = extract_session_cookie(req.headers());
+    let tenant_id_hdr = extract_tenant_id(req.headers()).ok();
     // --- End of synchronous extraction ---
 
-    // Now we can safely await: no reference to `req` remains.
-    let ctx = verify_credentials(token, tenant_id, &db).await?;
+    // Path 1: API key — bearer token + X-Tenant-ID header.
+    if let (Some(token), Some(tenant_id)) = (bearer.as_ref(), tenant_id_hdr) {
+        match verify_credentials(token.clone(), tenant_id, &db).await {
+            Ok(ctx) => {
+                req.extensions_mut().insert(ctx);
+                return Ok(next.run(req).await);
+            }
+            // key_not_found → fall through to session path
+            Err(StatusCode::UNAUTHORIZED) => {}
+            Err(e) => return Err(e),
+        }
+    }
+
+    // Path 2: OIDC session cookie (UI after login).
+    let session_token = session_cookie.or(bearer).ok_or_else(|| {
+        tracing::warn!(reason = "no_credentials", "auth rejected");
+        StatusCode::UNAUTHORIZED
+    })?;
+
+    let auth_url = auth_service_url.ok_or_else(|| {
+        tracing::error!("auth_service_url extension missing — misconfigured middleware stack");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let ctx = validate_session(&auth_url, &session_token).await?;
     req.extensions_mut().insert(ctx);
     Ok(next.run(req).await)
+}
+
+/// Call auth-service to validate a session JWT and return a TenantContext.
+async fn validate_session(auth_url: &str, token: &str) -> Result<TenantContext, StatusCode> {
+    #[derive(serde::Serialize)]
+    struct Req<'a> {
+        session_token: &'a str,
+    }
+    #[derive(serde::Deserialize)]
+    struct Resp {
+        tenant_id: String,
+        role: String,
+    }
+
+    let resp = reqwest::Client::new()
+        .post(format!("{auth_url}/internal/validate-session"))
+        .json(&Req {
+            session_token: token,
+        })
+        .send()
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "auth-service unreachable");
+            StatusCode::SERVICE_UNAVAILABLE
+        })?;
+
+    if !resp.status().is_success() {
+        tracing::warn!(status = %resp.status(), reason = "session_invalid", "auth rejected");
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let body: Resp = resp
+        .json()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let tenant_id = body
+        .tenant_id
+        .parse::<Uuid>()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(TenantContext {
+        tenant_id,
+        role: body.role,
+    })
+}
+
+/// Extract the `session` cookie value from the Cookie header.
+fn extract_session_cookie(headers: &axum::http::HeaderMap) -> Option<String> {
+    let cookie = headers.get("cookie")?.to_str().ok()?;
+    cookie.split(';').map(str::trim).find_map(|part| {
+        let (k, v) = part.split_once('=')?;
+        if k.trim() == "session" {
+            Some(v.trim().to_owned())
+        } else {
+            None
+        }
+    })
 }
 
 /// Extract the raw bearer token value from the Authorization header.
