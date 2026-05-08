@@ -57,11 +57,8 @@ cargo fmt --all -- --check && ok "cargo fmt" || fail "cargo fmt"
 step "Rust clippy"
 cargo clippy --workspace --all-targets -- -D warnings && ok "cargo clippy" || fail "cargo clippy"
 
-step "Rust tests"
-# Integration tests (Testcontainers-based) require Docker and run inside the
-# Docker build (Dockerfile uses the same --lib --bins flags). Skip them here
-# so local-ci.sh passes in environments without a Docker socket.
-cargo test --workspace --lib --bins && ok "cargo test" || fail "cargo test"
+step "Rust unit tests"
+cargo test --workspace --lib --bins && ok "cargo unit tests" || fail "cargo unit tests"
 
 if [[ $SKIP_FRONTEND -eq 0 ]]; then
   step "Frontend typecheck"
@@ -98,6 +95,9 @@ if [[ $SKIP_HELM -eq 0 ]]; then
 fi
 
 if [[ $SKIP_DOCKER -eq 0 ]]; then
+  step "Rust integration tests"
+  cargo test --workspace --tests && ok "cargo integration tests" || fail "cargo integration tests"
+
   step "Docker image build"
   if command -v docker-buildx >/dev/null 2>&1 || docker help buildx >/dev/null 2>&1; then
     docker buildx build --load --tag observable-services:local . && ok "docker build" || fail "docker build"
