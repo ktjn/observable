@@ -179,6 +179,12 @@ pub async fn callback_handler(
 ) -> Result<Response, StatusCode> {
     let verifier = extract_cookie(&headers, "pkce_cv").ok_or(StatusCode::BAD_REQUEST)?;
 
+    let cookie_state = extract_cookie(&headers, "oauth_state").ok_or(StatusCode::BAD_REQUEST)?;
+
+    if cookie_state != params.state {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
     // Exchange code for tokens at Zitadel (server-to-server, internal URL).
     // Host header identifies the Zitadel instance (ExternalDomain).
     let zitadel_host = state
@@ -260,7 +266,7 @@ pub async fn callback_handler(
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let environment = env_row.unwrap_or_else(|| "default".to_string());
 
-    let _session_id = create_session(&state.db, user_id, tenant_id, &environment)
+    let session_id = create_session(&state.db, user_id, tenant_id, &environment)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -276,10 +282,19 @@ pub async fn callback_handler(
         tenant_id,
         &role,
         &environment,
+        session_id,
     )
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let set_session = format!("session={jwt}; HttpOnly; SameSite=Lax; Path=/; Max-Age=3600");
+    let secure_attr = if state.config.dev_mode {
+        String::new()
+    } else {
+        "; Secure".to_string()
+    };
+    let set_session = format!(
+        "session={}; HttpOnly{}; SameSite=Strict; Path=/; Max-Age=3600",
+        jwt, secure_attr
+    );
 
     Ok(Response::builder()
         .status(StatusCode::FOUND)
@@ -401,22 +416,26 @@ pub async fn validate_session_handler(
     let claims = verify_session_jwt(&state.config.session_secret, &req.session_token)
         .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
-    let tenant_id = Uuid::parse_str(&claims.tid).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    let nonce_uuid = uuid::Uuid::parse_str(&claims.nonce).map_err(|_| StatusCode::UNAUTHORIZED)?;
 
-    let active: Option<Uuid> = sqlx::query_scalar(
-        "SELECT id FROM user_sessions \
-         WHERE user_id = $1 AND tenant_id = $2 \
-           AND expires_at > now() AND revoked_at IS NULL \
-         LIMIT 1",
+    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    let _tenant_id = Uuid::parse_str(&claims.tid).map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+    let active: bool = sqlx::query_scalar(
+        r#"
+        SELECT EXISTS (
+            SELECT 1 FROM user_sessions 
+            WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > now()
+        )
+        "#,
     )
+    .bind(nonce_uuid)
     .bind(user_id)
-    .bind(tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_one(&state.db)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    if active.is_none() {
+    if !active {
         return Err(StatusCode::UNAUTHORIZED);
     }
 

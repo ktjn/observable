@@ -7,6 +7,9 @@ import { GlobalDateRangePicker } from "./GlobalDateRangePicker";
 import { UserMenu } from "./UserMenu";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { listTenants, listEnvironments } from "../api/tenants";
+import { useEffect } from "react";
+import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useAuth } from "../hooks/useAuth";
 
 const navItems = [
   { label: "Setup", to: "/setup" },
@@ -47,6 +50,17 @@ export function AppShell() {
 
   const tenants = tenantsData?.tenants ?? [];
   const environments = environmentsData?.environments ?? [];
+
+  const { data: user, isLoading: authLoading } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const pathname = location.pathname;
+    if (!authLoading && !user && !/^\/(login|auth\/callback)$/.test(pathname)) {
+      navigate({ to: "/login" });
+    }
+  }, [authLoading, user, location.pathname, navigate]);
 
   return (
     <div className="app-shell">
