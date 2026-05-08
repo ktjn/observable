@@ -16,8 +16,8 @@ use crate::discovery::{
 use crate::mcp_tools::get_metric_schema;
 use crate::middleware::auth::TenantContext;
 use crate::sql_templates::{
-    generate_log_sql, generate_sql, parse_time_expr, LogSqlContext, SchemaMetricType, SqlContext,
-    SqlTemplateError,
+    escape_string_value, generate_log_sql, generate_sql, parse_time_expr, LogSqlContext,
+    SchemaMetricType, SqlContext, SqlTemplateError,
 };
 use crate::traces::AppState;
 use axum::{
@@ -341,21 +341,21 @@ async fn execute_trace_query(
     ];
 
     if let Some(svc) = &service_name {
-        let escaped = svc.replace('\'', "\\'");
+        let escaped = escape_string_value(svc);
         where_clauses.push(format!("service_name = '{escaped}'"));
     }
     if let Some(sc) = &status_code {
-        let escaped = sc.replace('\'', "\\'");
+        let escaped = escape_string_value(sc);
         where_clauses.push(format!("status_code = '{escaped}'"));
     }
     if let Some(env) = &environment {
-        let escaped = env.replace('\'', "\\'");
+        let escaped = escape_string_value(env);
         where_clauses.push(format!(
             "JSONExtractString(resource_attributes, 'deployment.environment') = '{escaped}'"
         ));
     }
     if !operation_text.is_empty() {
-        let escaped = operation_text.replace('\'', "\\'");
+        let escaped = escape_string_value(operation_text);
         where_clauses.push(format!("operation_name ILIKE '%{escaped}%'"));
     }
 
@@ -1089,6 +1089,38 @@ mod tests {
         assert!(
             matches!(result, std::borrow::Cow::Borrowed(_)),
             "clean row must not allocate"
+        );
+    }
+
+    // ── trace query SQL escaping ──────────────────────────────────────────────
+
+    #[test]
+    fn trace_query_injection_stays_in_string_literal() {
+        // Verify that a malicious value doesn't break out of the SQL string.
+        // escape_string_value must escape both backslashes and single quotes.
+        let malicious = "' OR 1=1 --";
+        let escaped = escape_string_value(malicious);
+        // The single quote must be backslash-escaped so it cannot close the literal.
+        assert!(escaped.contains("\\'"), "single quote must be backslash-escaped");
+        // When placed inside a quoted SQL literal the injected quote is neutralised —
+        // verify the full literal starts and never closes prematurely.
+        let sql_fragment = format!("service_name = '{escaped}'");
+        // The literal must start with "= '" and the only unescaped closing "'"
+        // must be at the very end of the fragment.
+        let inner = &sql_fragment["service_name = '".len()..sql_fragment.len() - 1];
+        // inner must not contain an unescaped single quote (i.e. "'" not preceded by "\")
+        let mut chars = inner.chars().peekable();
+        let mut prev_backslash = false;
+        let mut has_unescaped_quote = false;
+        while let Some(c) = chars.next() {
+            if c == '\'' && !prev_backslash {
+                has_unescaped_quote = true;
+            }
+            prev_backslash = c == '\\';
+        }
+        assert!(
+            !has_unescaped_quote,
+            "no unescaped single quote inside the literal: {sql_fragment}"
         );
     }
 }

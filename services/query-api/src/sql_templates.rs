@@ -67,6 +67,9 @@ pub enum SqlTemplateError {
     InvalidResolution(String),
     InvalidTimeExpression(String),
     MissingCatalogField,
+    /// A filter value failed validation (e.g. non-numeric value for a numeric operator,
+    /// or an overlong regex pattern). The String is the field name.
+    InvalidFilterValue(String),
 }
 
 impl std::fmt::Display for SqlTemplateError {
@@ -79,6 +82,9 @@ impl std::fmt::Display for SqlTemplateError {
             Self::InvalidTimeExpression(e) => write!(f, "invalid time expression: {e}"),
             Self::MissingCatalogField => {
                 write!(f, "catalog_field is required for catalog operations")
+            }
+            Self::InvalidFilterValue(field) => {
+                write!(f, "invalid filter value for field: {field}")
             }
         }
     }
@@ -116,7 +122,7 @@ pub fn generate_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
 fn timeseries_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
     let resolution = ctx.ir.resolution.as_deref().unwrap_or("1m");
     let interval = parse_interval(resolution)?;
-    let filters = build_filter_clauses(&ctx.ir.filters);
+    let filters = build_filter_clauses_checked(&ctx.ir.filters)?;
     let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
     let (group_select, group_clause) = build_group_by(&ctx.ir.group_by);
 
@@ -147,7 +153,7 @@ fn rate_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
     let interval = parse_interval(resolution)?;
     let interval_secs = interval_to_secs(resolution)?;
     let window = ctx.ir.window.as_deref().unwrap_or("5m");
-    let filters = build_filter_clauses(&ctx.ir.filters);
+    let filters = build_filter_clauses_checked(&ctx.ir.filters)?;
     let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
     let window_clause = build_window_preceding_clause(window)?;
     let (group_select, group_clause) = build_group_by(&ctx.ir.group_by);
@@ -191,7 +197,7 @@ fn rate_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
 /// Instantaneous rate using the two most-recent samples in the lookback window.
 fn irate_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
     let window = ctx.ir.window.as_deref().unwrap_or("1m");
-    let filters = build_filter_clauses(&ctx.ir.filters);
+    let filters = build_filter_clauses_checked(&ctx.ir.filters)?;
     let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
     let window_clause = build_window_preceding_clause(window)?;
 
@@ -235,7 +241,7 @@ fn irate_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
 /// Monotonic counter increase over the lookback window (sum of positive deltas).
 fn increase_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
     let window = ctx.ir.window.as_deref().unwrap_or("1h");
-    let filters = build_filter_clauses(&ctx.ir.filters);
+    let filters = build_filter_clauses_checked(&ctx.ir.filters)?;
     let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
     let window_clause = build_window_preceding_clause(window)?;
     let (group_select, group_clause) = build_group_by(&ctx.ir.group_by);
@@ -274,7 +280,7 @@ fn increase_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
 
 /// Histogram bucket distribution via explicit_bounds + arrayDifference on bucket counts.
 fn histogram_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
-    let filters = build_filter_clauses(&ctx.ir.filters);
+    let filters = build_filter_clauses_checked(&ctx.ir.filters)?;
     let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
 
     Ok(format!(
@@ -312,7 +318,7 @@ fn histogram_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
 fn topk_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
     const DEFAULT_K: u32 = 10;
     let k = ctx.ir.limit.unwrap_or(DEFAULT_K);
-    let filters = build_filter_clauses(&ctx.ir.filters);
+    let filters = build_filter_clauses_checked(&ctx.ir.filters)?;
     let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
 
     Ok(format!(
@@ -338,7 +344,7 @@ fn topk_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
 
 /// Flat tabular point scan (most-recent 1000 rows).
 fn table_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
-    let filters = build_filter_clauses(&ctx.ir.filters);
+    let filters = build_filter_clauses_checked(&ctx.ir.filters)?;
     let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
     let (extra_select, _) = build_group_by(&ctx.ir.group_by);
 
@@ -377,7 +383,7 @@ fn table_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
 ///
 /// Unrecognised entries are silently skipped.
 fn distribution_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
-    let filters = build_filter_clauses(&ctx.ir.filters);
+    let filters = build_filter_clauses_checked(&ctx.ir.filters)?;
     let time_clause = build_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
     let val = "coalesce(mp.value_double, toFloat64(mp.value_int))";
 
@@ -433,7 +439,7 @@ fn catalog_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
         .ok_or(SqlTemplateError::MissingCatalogField)?;
 
     let col_expr = map_filter_field(field);
-    let filters = build_filter_clauses(&ctx.ir.filters);
+    let filters = build_filter_clauses_checked(&ctx.ir.filters)?;
 
     // Use the catalog_field name as the column alias so the frontend and eval
     // harness can identify rows by meaningful names (e.g. "service_name", "metric_name").
@@ -569,7 +575,7 @@ pub struct LogSqlContext<'a> {
 /// Filters map to direct log columns or JSON attribute extraction.
 pub fn generate_log_sql(ctx: &LogSqlContext) -> Result<String, SqlTemplateError> {
     let time_clause = build_log_time_range_clause(&ctx.ir.time_range.from, &ctx.ir.time_range.to)?;
-    let filter_clause = build_log_filter_clauses(&ctx.ir.filters);
+    let filter_clause = build_log_filter_clauses_checked(&ctx.ir.filters)?;
     let query_clause = match &ctx.ir.query {
         Some(q) if !q.is_empty() => {
             format!(
@@ -634,6 +640,10 @@ fn map_log_filter_field(field: &str) -> String {
 }
 
 /// Builds filter clauses for log queries.
+///
+/// Unchecked variant kept for reference. Active callers use
+/// `build_log_filter_clauses_checked`.
+#[allow(dead_code)]
 fn build_log_filter_clauses(filters: &[NlqFilter]) -> String {
     if filters.is_empty() {
         return String::new();
@@ -709,6 +719,10 @@ fn map_filter_field(field: &str) -> String {
 }
 
 /// Builds a filter value expression for a given operator and raw string value.
+///
+/// This is the unchecked variant kept for internal use. Prefer
+/// `build_filter_expr_checked` for any new call site.
+#[allow(dead_code)]
 fn build_filter_expr(col: &str, op: NlqFilterOp, value: &str) -> String {
     let escaped = escape_string_value(value);
     match op {
@@ -723,7 +737,74 @@ fn build_filter_expr(col: &str, op: NlqFilterOp, value: &str) -> String {
     }
 }
 
+/// Validated filter expression builder.
+///
+/// - Numeric operators (`Gt`, `Gte`, `Lt`, `Lte`) require the value to parse as `f64`;
+///   non-numeric values return `Err(InvalidFilterValue)`.
+/// - Regex operators (`Re`, `Nre`) are limited to 256 characters to prevent ReDoS.
+/// - String operators (`Eq`, `Ne`) accept any value and escape it.
+pub fn build_filter_expr_checked(
+    col: &str,
+    op: NlqFilterOp,
+    value: &str,
+) -> Result<String, SqlTemplateError> {
+    let escaped = escape_string_value(value);
+    match op {
+        NlqFilterOp::Eq => Ok(format!("{col} = '{escaped}'")),
+        NlqFilterOp::Ne => Ok(format!("{col} != '{escaped}'")),
+        NlqFilterOp::Re | NlqFilterOp::Nre if value.len() <= 256 => {
+            let expr = format!("match({col}, '{escaped}')");
+            Ok(if op == NlqFilterOp::Nre {
+                format!("NOT {expr}")
+            } else {
+                expr
+            })
+        }
+        NlqFilterOp::Re | NlqFilterOp::Nre => {
+            tracing::warn!(field = %col, "filter rejected: regex pattern exceeds 256 chars");
+            Err(SqlTemplateError::InvalidFilterValue(col.into()))
+        }
+        NlqFilterOp::Gt | NlqFilterOp::Gte | NlqFilterOp::Lt | NlqFilterOp::Lte => {
+            let parsed: f64 = value.parse().map_err(|_| {
+                tracing::warn!(field = %col, "filter rejected: non-numeric value for numeric operator");
+                SqlTemplateError::InvalidFilterValue(col.into())
+            })?;
+            let numeric = parsed.to_string();
+            Ok(match op {
+                NlqFilterOp::Gt => format!("{col} > {numeric}"),
+                NlqFilterOp::Gte => format!("{col} >= {numeric}"),
+                NlqFilterOp::Lt => format!("{col} < {numeric}"),
+                NlqFilterOp::Lte => format!("{col} <= {numeric}"),
+                _ => unreachable!(),
+            })
+        }
+    }
+}
+
+/// Builds the `\n  AND (…)\n  AND (…)` filter block from a slice of NlqFilter.
+///
+/// Each predicate is wrapped in parentheses. Returns an error if any filter
+/// value fails validation (see `build_filter_expr_checked`).
+fn build_filter_clauses_checked(filters: &[NlqFilter]) -> Result<String, SqlTemplateError> {
+    if filters.is_empty() {
+        return Ok(String::new());
+    }
+    filters
+        .iter()
+        .map(|f| {
+            let col = map_filter_field(&f.field);
+            build_filter_expr_checked(&col, f.op, &f.value)
+                .map(|expr| format!("\n  AND ({expr})"))
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(|v| v.join(""))
+}
+
 /// Builds the `\n  AND …\n  AND …` filter block from a slice of NlqFilter.
+///
+/// This is the unchecked variant kept for reference. All active callers use
+/// `build_filter_clauses_checked`.
+#[allow(dead_code)]
 fn build_filter_clauses(filters: &[NlqFilter]) -> String {
     if filters.is_empty() {
         return String::new();
@@ -736,6 +817,25 @@ fn build_filter_clauses(filters: &[NlqFilter]) -> String {
         })
         .collect::<Vec<_>>()
         .join("")
+}
+
+/// Builds the `\n  AND (…)\n  AND (…)` filter block for log queries.
+///
+/// Each predicate is wrapped in parentheses. Returns an error if any filter
+/// value fails validation.
+fn build_log_filter_clauses_checked(filters: &[NlqFilter]) -> Result<String, SqlTemplateError> {
+    if filters.is_empty() {
+        return Ok(String::new());
+    }
+    filters
+        .iter()
+        .map(|f| {
+            let col = map_log_filter_field(&f.field);
+            build_filter_expr_checked(&col, f.op, &f.value)
+                .map(|expr| format!("\n  AND ({expr})"))
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(|v| v.join(""))
 }
 
 /// Builds `(extra_select_cols, group_by_extension)` for a group_by list.
@@ -1491,5 +1591,30 @@ mod tests {
             sql.contains("severity_text = 'ERROR'"),
             "severity filter must map directly: {sql}"
         );
+    }
+
+    // ── Checked filter validation ─────────────────────────────────────────────
+
+    #[test]
+    fn numeric_filter_rejects_non_numeric_value() {
+        let filter = NlqFilter {
+            field: "duration_ms".into(),
+            op: NlqFilterOp::Gt,
+            value: "0 OR 1=1".into(),
+        };
+        let err =
+            build_filter_expr_checked("duration_ms", filter.op, &filter.value).unwrap_err();
+        assert_eq!(err, SqlTemplateError::InvalidFilterValue("duration_ms".into()));
+    }
+
+    #[test]
+    fn filter_clauses_wrap_each_predicate_in_parentheses() {
+        let filters = vec![NlqFilter {
+            field: "service_name".into(),
+            op: NlqFilterOp::Eq,
+            value: "checkout".into(),
+        }];
+        let sql = build_filter_clauses_checked(&filters).unwrap();
+        assert!(sql.contains("AND (ms.service_name = 'checkout')"));
     }
 }
