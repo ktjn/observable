@@ -50,27 +50,13 @@ Do not start a new broad roadmap slice from the remaining-roadmap companion unti
 
 These items come from a direct implementation review, not from the roadmap text alone. They are intentionally placed ahead of the existing finish-started queue because later work depends on their correctness.
 
-### RF-0: Query API Credential-Bound Tenancy
-
-**Observed implementation:** `services/query-api/src/middleware/auth.rs` accepts any parseable `X-Tenant-ID` and inserts it as `TenantContext`. Protected query-api routes in `services/query-api/src/main.rs` rely on that middleware. This means any caller who can reach query-api can choose a tenant ID without proving possession of an API key or user session for that tenant.
-
-**Why this is incomplete or bad:** The old roadmap marks tenant isolation complete, but row filtering alone is not tenant authorization. P4-S5 SLO APIs, dashboards, tokens, alerts, schema annotations, NLQ, and all query reads inherit this weakness.
-
-**Finish before:** Any new tenant-scoped query-api feature, including P4-S5.
+### RF-0: Query API Credential-Bound Tenancy (COMPLETED)
 
 **Completion signal: (COMPLETED)**
 - [x] Query API accepts either a valid API-key credential or a valid OIDC session and derives tenant context from that credential.
 - [x] `X-Tenant-ID` becomes a requested scope that must match an authorized tenant, not the source of truth.
 - [x] Bootstrap endpoints are explicitly public only where required and are filtered when a user session is present.
 - [x] HTTP integration tests cover missing credential, invalid credential, cross-tenant mismatch, valid API-key access, valid session access, and bootstrap behavior.
-
-**Required verification:**
-- `cargo fmt --all`
-- Focused query-api HTTP integration tests through `tower::ServiceExt::oneshot`
-- PostgreSQL Testcontainers coverage for credential/session tenant membership
-- `bash scripts/local-ci.sh`
-
-**Related plan:** This replaces the broad first task in `docs/superpowers/plans/2026-05-05-out-of-band-risk-remediation.md` with a mandatory front-of-queue closure item.
 
 ### RF-1: OIDC/Session Hardening And Plan Reconciliation
 
