@@ -12,6 +12,7 @@ mod metrics;
 mod middleware;
 mod planner;
 mod schemas;
+mod slos;
 mod sql_templates;
 mod tenants;
 mod tokens;
@@ -115,6 +116,8 @@ async fn main() -> anyhow::Result<()> {
             "/v1/alerts/rules/:rule_id/silence",
             patch(alerts::handle_silence_rule),
         )
+        .route("/v1/slos", get(slos::handle_list_slos))
+        .route("/v1/slos", post(slos::handle_create_slo))
         .route(
             "/v1/schemas/:signal_type/attributes",
             get(schemas::handle_list_attributes),
