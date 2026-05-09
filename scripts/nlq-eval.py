@@ -52,7 +52,7 @@ from typing import Any
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_CASES = os.path.join(REPO_ROOT, "tests", "nlq", "cases.json")
 DEFAULT_OUTPUT = os.path.join(REPO_ROOT, "tests", "nlq", "last-run.json")
-DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001"
+DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000002"
 REQUEST_TIMEOUT_S = 120  # LLM inference can be slow on CPU
 
 # ANSI colors
@@ -74,6 +74,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--cases", default=DEFAULT_CASES, help="Path to cases.json")
     p.add_argument("--output", default=DEFAULT_OUTPUT, help="Path for last-run.json")
     p.add_argument("--tenant-id", default=DEFAULT_TENANT_ID, help="X-Tenant-ID header")
+    p.add_argument("--api-key", default="dev-api-key-0000", help="Bearer token for Authorization header")
     p.add_argument(
         "--filter",
         default=None,
@@ -114,7 +115,7 @@ class Printer:
 # ── API client ────────────────────────────────────────────────────────────────
 
 
-def call_nlq(base_url: str, tenant_id: str, question: str | None, service_name: str | None, base_ir: dict | None = None, mode: str = "execute") -> dict[str, Any]:
+def call_nlq(base_url: str, tenant_id: str, api_key: str, question: str | None, service_name: str | None, base_ir: dict | None = None, mode: str = "execute") -> dict[str, Any]:
     url = base_url.rstrip("/") + "/v1/nlq"
     body: dict[str, Any] = {}
     if question:
@@ -132,6 +133,7 @@ def call_nlq(base_url: str, tenant_id: str, question: str | None, service_name: 
         headers={
             "Content-Type": "application/json",
             "X-Tenant-ID": tenant_id,
+            "Authorization": f"Bearer {api_key}",
         },
         method="POST",
     )
@@ -194,6 +196,7 @@ def evaluate_case(
     case: dict[str, Any],
     base_url: str,
     tenant_id: str,
+    api_key: str,
     verbose: bool,
     printer: Printer,
 ) -> dict[str, Any]:
@@ -220,8 +223,14 @@ def evaluate_case(
 
     # --- Call API ---
     try:
-        resp = call_nlq(base_url, tenant_id, query, service_name, base_ir=base_ir, mode=mode)
+        resp = call_nlq(base_url, tenant_id, api_key, query, service_name, base_ir=base_ir, mode=mode)
     except Exception as exc:
+        if expect.get("type") == "error" and expect.get("status") in str(exc):
+            result_record["result"] = "pass"
+            result_record["response_type"] = "error"
+            result_record["error"] = str(exc)
+            return result_record
+
         result_record["error"] = str(exc)
         print(f"  {printer.red('ERR')}  {case_id}: {exc}")
         return result_record
@@ -449,7 +458,10 @@ def main() -> int:
     try:
         req = urllib.request.Request(
             test_url,
-            headers={"X-Tenant-ID": args.tenant_id},
+            headers={
+                "X-Tenant-ID": args.tenant_id,
+                "Authorization": f"Bearer {args.api_key}",
+            },
         )
         with urllib.request.urlopen(req, timeout=10):
             pass
@@ -463,7 +475,7 @@ def main() -> int:
     passed = failed = errored = 0
 
     for case in cases:
-        rec = evaluate_case(case, args.url, args.tenant_id, args.verbose, printer)
+        rec = evaluate_case(case, args.url, args.tenant_id, args.api_key, args.verbose, printer)
         results.append(rec)
         if rec["result"] == "pass":
             passed += 1

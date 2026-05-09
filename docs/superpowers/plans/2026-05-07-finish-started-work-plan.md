@@ -123,11 +123,11 @@ These items come from a direct implementation review, not from the roadmap text 
 
 **Finish before:** P8-S7 PromQL facade, local LLM backend expansion, or any SLO/cost/security claim that relies on NLQ output being harmless.
 
-**Completion signal:**
-- LLM-sourced filters are validated by type and field allowlist before SQL generation.
-- Unsupported regexes, numeric predicates with non-numeric values, dangerous field names, and expensive query shapes fail closed with a user-visible 4xx response.
-- Tenant predicates remain server-injected and cannot be overridden by IR filters.
-- NLQ eval cases cover accepted and rejected filters, and no previously passing eval case regresses.
+**Completion signal: (IMPLEMENTED; live NLQ eval pending)**
+- [x] LLM-sourced filters are validated by type and field allowlist before SQL generation.
+- [x] Unsupported regexes, numeric predicates with non-numeric values, dangerous field names, and expensive query shapes fail closed with a user-visible 4xx response.
+- [x] Tenant predicates remain server-injected and cannot be overridden by IR filters.
+- [ ] NLQ eval cases cover accepted and rejected filters, and no previously passing eval case regresses.
 
 **Required verification:**
 - `cargo fmt --all`

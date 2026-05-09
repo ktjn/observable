@@ -115,7 +115,7 @@ pub async fn execute_mcp_query(
 
     let schema = schema_opt.ok_or_else(|| McpQueryError::UnknownMetric(metric_name.into()))?;
 
-    let mut allowed_fields: HashSet<String> = HashSet::new();
+    let mut allowed_fields = allowed_metric_filter_fields();
     let field_rows = sqlx::query("SELECT field_name FROM schema_entries WHERE signal_type = $1")
         .bind("metrics")
         .fetch_all(db)
@@ -129,11 +129,11 @@ pub async fn execute_mcp_query(
 
     for row in field_rows {
         let field_name: String = row.get("field_name");
-        allowed_fields.insert(field_name);
+        allowed_fields.insert(field_name.to_lowercase());
     }
 
     for filter in &ir.filters {
-        if !allowed_fields.contains(&filter.field) {
+        if !allowed_fields.contains(&filter.field.to_lowercase()) {
             return Err(McpQueryError::SqlTemplate(
                 SqlTemplateError::InvalidFilterValue(format!(
                     "field '{}' not in schema catalog",
@@ -190,6 +190,20 @@ pub async fn execute_mcp_query(
         sample_rate,
         approximation_statement,
     })
+}
+
+fn allowed_metric_filter_fields() -> HashSet<String> {
+    [
+        "service_name",
+        "service",
+        "environment",
+        "env",
+        "metric_name",
+        "metric",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect()
 }
 
 // ── Catalog query ─────────────────────────────────────────────────────────────
@@ -1037,6 +1051,25 @@ mod tests {
         ir.group_by = vec!["service_name".into()];
         let (_, _, series, _) = derive_field_layout(&ir, &VisualizationFrameType::Timeseries);
         assert_eq!(series.as_deref(), Some("service_name"));
+    }
+
+    #[test]
+    fn metric_filter_allowlist_includes_direct_dimensions() {
+        let fields = allowed_metric_filter_fields();
+        for field in [
+            "service_name",
+            "service",
+            "environment",
+            "env",
+            "metric_name",
+            "metric",
+        ] {
+            assert!(fields.contains(field), "{field} must be allowed");
+        }
+        assert!(
+            !fields.contains("invalid_foo"),
+            "arbitrary fields still require schema catalog membership"
+        );
     }
 
     // ── Distribution field layout ─────────────────────────────────────────────
