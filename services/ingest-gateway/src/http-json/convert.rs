@@ -423,6 +423,8 @@ pub fn parse_otlp_traces(
             .cloned()
             .unwrap_or_default();
         let service_name = extract_string_attr(&resource_attrs, "service.name").unwrap_or_default();
+        let service_version =
+            extract_string_attr(&resource_attrs, "service.version").unwrap_or_default();
         let resource_attributes = otlp_attrs_to_map(&resource_attrs);
         for scope_spans in rs
             .get("scopeSpans")
@@ -468,6 +470,7 @@ pub fn parse_otlp_traces(
                     span_id: span_id.clone(),
                     parent_span_id,
                     service_name: service_name.clone(),
+                    service_version: service_version.clone(),
                     operation_name: s
                         .get("name")
                         .and_then(|v| v.as_str())

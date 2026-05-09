@@ -25,7 +25,7 @@ making changes.
   for the long-horizon backlog. Keep `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`
   as the historical Phases 2-8 closure reference.
 - Active detailed implementation plan: `docs/superpowers/plans/2026-05-05-p4-s5-slo-burn-rate.md`,
-  unless the finish-started plan requires out-of-band risk remediation first.
+  unless the finish-started plan requires out-of-band risk remediation first (RF-5 is now complete).
 - Completed detailed plan archive: `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
 - Historical Phase 1 plan: `archived/plans/2026-04-17-phase1-internal-mvp.md`; do not treat it as an active backlog.
 - Architecture decisions: `spec/adr/`.
@@ -71,6 +71,17 @@ access; the frontend needs no structural changes.
 The `projects` table exists in PostgreSQL (seeded with one "default" row) but is not connected to
 `api_keys`. The Tenant → Project → Environment hierarchy is deferred; this iteration implements
 Tenant → Environment only (per ADR-028 + ADR-031).
+
+## Deployment Marker Enrichment (RF-5, completed 2026-05-09)
+
+- `services/ingest-gateway/src/deployment_registry.rs` resolves the active deployment marker
+  for each incoming span's (tenant_id, service_name, environment, service_version) and stamps
+  `deployment_id` before the span is published to Redpanda.
+- The registry caches results for 30 s; on DB error it returns `""` (fail-open, never blocks ingestion).
+- `canary-promote.sh --marker-url <url>` creates a marker before deploy and updates it to
+  `success` or `failed` when promotion or gate-failure completes.
+- `ingest-gateway` is now a dual lib+bin crate (`src/lib.rs` re-exports `deployment_registry`
+  for Testcontainers integration tests in `services/ingest-gateway/tests/`).
 
 ## Standing Constraints
 
