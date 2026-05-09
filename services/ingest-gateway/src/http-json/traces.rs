@@ -28,7 +28,7 @@ pub async fn export_traces(
             .into_response();
     }
 
-    let (span_count, spans) = match super::decode_json_otlp_request(&headers, body) {
+    let (span_count, mut spans) = match super::decode_json_otlp_request(&headers, body) {
         Ok(body) => {
             let resource_spans = match body.get("resourceSpans").and_then(|v| v.as_array()) {
                 Some(s) => s,
@@ -45,6 +45,23 @@ pub async fn export_traces(
         }
         Err(status) => return status.into_response(),
     };
+
+    // Stamp deployment_id on each span by looking up the active deployment
+    // marker for its (service_name, service_version, environment) coordinates.
+    // The registry caches results so this adds no per-span DB round-trips.
+    for span in &mut spans {
+        if span.deployment_id.is_empty() {
+            span.deployment_id = state
+                .deployment_registry
+                .lookup(
+                    ctx.tenant_id,
+                    &span.service_name,
+                    &span.environment,
+                    &span.service_version,
+                )
+                .await;
+        }
+    }
 
     tracing::info!(
         tenant_id = %ctx.tenant_id,

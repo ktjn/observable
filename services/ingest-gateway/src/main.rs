@@ -1,11 +1,13 @@
 mod auth;
 mod cardinality;
+mod deployment_registry;
 mod deployments;
 mod grpc;
 #[path = "http-json/mod.rs"]
 mod http_json;
 mod queue;
 
+use deployment_registry::DeploymentRegistry;
 use sqlx::postgres::PgPoolOptions;
 use std::num::NonZeroU32;
 use std::sync::Arc;
@@ -23,6 +25,7 @@ pub struct AppState {
     pub metric_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
     pub metric_cardinality: Arc<cardinality::MetricCardinalityBudget>,
     pub db: Arc<sqlx::PgPool>,
+    pub deployment_registry: Arc<DeploymentRegistry>,
     #[cfg(test)]
     pub stub_tenant: Option<Uuid>,
 }
@@ -70,6 +73,7 @@ impl AppState {
 
     #[cfg(test)]
     pub fn test_stub() -> Self {
+        let db = test_pool();
         Self {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
@@ -78,13 +82,15 @@ impl AppState {
             log_rate_limiter: build_rate_limiter(1000),
             metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
-            db: test_pool(),
+            deployment_registry: DeploymentRegistry::new(db.clone()),
+            db,
             stub_tenant: None,
         }
     }
 
     #[cfg(test)]
     pub fn with_stub_auth(tenant_id: &str) -> Self {
+        let db = test_pool();
         Self {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
@@ -93,13 +99,15 @@ impl AppState {
             log_rate_limiter: build_rate_limiter(1000),
             metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
-            db: test_pool(),
+            deployment_registry: DeploymentRegistry::new(db.clone()),
+            db,
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
     }
 
     #[cfg(test)]
     pub fn with_stub_auth_and_rate_limit(tenant_id: &str, per_second: u32) -> Self {
+        let db = test_pool();
         Self {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
@@ -108,13 +116,15 @@ impl AppState {
             log_rate_limiter: build_rate_limiter(per_second),
             metric_rate_limiter: build_rate_limiter(per_second),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
-            db: test_pool(),
+            deployment_registry: DeploymentRegistry::new(db.clone()),
+            db,
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
     }
 
     #[cfg(test)]
     pub fn with_stub_auth_and_metric_budget(tenant_id: &str, budget: u64) -> Self {
+        let db = test_pool();
         Self {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
@@ -123,7 +133,8 @@ impl AppState {
             log_rate_limiter: build_rate_limiter(1000),
             metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(budget),
-            db: test_pool(),
+            deployment_registry: DeploymentRegistry::new(db.clone()),
+            db,
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
     }
@@ -188,6 +199,7 @@ async fn main() -> anyhow::Result<()> {
         log_rate_limiter: build_rate_limiter(log_rate_limit),
         metric_rate_limiter: build_rate_limiter(metric_rate_limit),
         metric_cardinality: cardinality::MetricCardinalityBudget::new(metric_series_budget),
+        deployment_registry: DeploymentRegistry::new(db.clone()),
         db: db.clone(),
         #[cfg(test)]
         stub_tenant: None,
