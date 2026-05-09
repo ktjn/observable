@@ -12,9 +12,7 @@
 import { useState } from "react";
 import type { NlqResponse, VisualizationFrame } from "../../api/nlq";
 import { submitNlqQuery } from "../../api/nlq";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { ShorthandHint } from "./ShorthandHint";
+import { SignalQueryForm } from "../../components/shared/SignalQueryForm";
 import { VisualizationPanel } from "./VisualizationPanel";
 import { useTenantContext } from "../../hooks/useTenantContext";
 
@@ -67,29 +65,22 @@ export function NlqPanel({
   return (
     <section className="nlq-panel" aria-label="Natural language query">
       {/* Input bar */}
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <ShorthandHint>
-          <Input
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder={
-              placeholder ??
-              "Ask a question about your metrics\u2026 e.g. \u201cp99 latency last hour\u201d"
-            }
-            aria-label="Natural language query"
-            disabled={state.status === "loading"}
-            className="w-full"
-            data-testid="nlq-input"
-          />
-        </ShorthandHint>
-        <Button
-          type="submit"
-          disabled={state.status === "loading" || !question.trim()}
-          data-testid="nlq-submit"
-        >
-          {state.status === "loading" ? "Querying…" : "Ask"}
-        </Button>
-      </form>
+      <SignalQueryForm
+        value={question}
+        onChange={setQuestion}
+        onSubmit={handleSubmit}
+        isLoading={state.status === "loading"}
+        inputLabel="Natural language query"
+        formLabel="Natural language query form"
+        placeholder={
+          placeholder ??
+          "Ask a question about your metrics\u2026 e.g. \u201cp99 latency last hour\u201d"
+        }
+        idleLabel="Ask"
+        loadingLabel="Querying…"
+        inputTestId="nlq-input"
+        submitTestId="nlq-submit"
+      />
 
       {/* Results */}
       {state.status === "error" && (

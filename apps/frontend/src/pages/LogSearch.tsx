@@ -16,6 +16,7 @@ import { OTelLevel, otelSeverity, formatLogMessage, formatContextValue } from ".
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { LoadingState } from "../components/ui/loading-state";
@@ -103,6 +104,7 @@ export function LogExplorer({
       if (response.type !== "frame") return [];
       return response.frame.data as unknown as LogRecord[];
     },
+    ...liveViewQueryOptions,
   });
 
   const { data: histogramData, isError: isHistogramError } = useQuery({
@@ -115,6 +117,7 @@ export function LogExplorer({
         buckets: bucketCount,
       }),
     placeholderData: (prev: LogHistogramResponse | undefined) => prev,
+    ...liveViewQueryOptions,
   });
 
   const rawLogs = data ?? [];

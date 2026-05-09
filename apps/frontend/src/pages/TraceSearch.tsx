@@ -19,6 +19,7 @@ import { Histogram, HistogramBucket } from "../components/ui/histogram";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
 import { formatBucketLabel } from "../utils/formatBucketLabel";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { formatContextValue } from "../utils/logFormatting";
@@ -136,6 +137,7 @@ export function TraceExplorer({
       if (response.type !== "frame") return [];
       return (response.frame.data as unknown as NlqTraceRow[]).map(nlqRowToTraceResponse);
     },
+    ...liveViewQueryOptions,
   });
 
   const { data: histogramData, isError: isHistogramError } = useQuery({
@@ -148,6 +150,7 @@ export function TraceExplorer({
         buckets: bucketCount,
       }),
     placeholderData: (prev: TraceHistogramResponse | undefined) => prev,
+    ...liveViewQueryOptions,
   });
 
   const rawTraces = data ?? [];

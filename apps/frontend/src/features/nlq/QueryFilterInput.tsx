@@ -1,10 +1,8 @@
 import { useMemo, useState } from "react";
 import { submitNlqQuery } from "../../api/nlq";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
+import { SignalQueryForm } from "../../components/shared/SignalQueryForm";
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
 import { useTenantContext } from "../../hooks/useTenantContext";
-import { ShorthandHint } from "./ShorthandHint";
 import type { NlqIrLike } from "./queryFilters";
 
 interface QueryFilterInputProps {
@@ -91,26 +89,17 @@ export function QueryFilterInput({
 
   return (
     <section className="grid gap-2" aria-label="query filter">
-      <form
-        aria-label="Query current view"
-        role="form"
+      <SignalQueryForm
+        value={query}
+        onChange={setQuery}
         onSubmit={handleSubmit}
-        className="flex gap-2 max-[640px]:flex-col"
-      >
-        <ShorthandHint className="relative group min-w-[260px] flex-1">
-          <Input
-            aria-label="Query current view input"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={placeholder ?? "Filter this view with natural language or raw NLQ IR JSON"}
-            disabled={state.status === "loading"}
-            className="w-full"
-          />
-        </ShorthandHint>
-        <Button type="submit" disabled={state.status === "loading" || !query.trim()}>
-          {state.status === "loading" ? "Interpreting..." : "Apply query"}
-        </Button>
-      </form>
+        isLoading={state.status === "loading"}
+        inputLabel="Query current view input"
+        formLabel="Query current view"
+        placeholder={placeholder ?? "Filter this view with natural language or raw NLQ IR JSON"}
+        idleLabel="Apply query"
+        loadingLabel="Interpreting..."
+      />
 
       {state.status === "error" && (
         <p className="m-0 text-sm text-[var(--bad)]" role="alert">
