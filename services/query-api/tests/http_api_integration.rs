@@ -9,7 +9,8 @@ use clickhouse::Client as ChClient;
 use domain::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use http_body_util::BodyExt;
 use query_api::{
-    alerts, config, logs, metrics, middleware::auth::require_tenant, planner::QueryPlanner, traces,
+    alerts, config, llm_adapter, logs, metrics, middleware::auth::require_tenant,
+    middleware::auth::TenantContext, planner::QueryPlanner, traces,
 };
 use serde_json::Value;
 use sqlx::postgres::{PgPool, PgPoolOptions};
@@ -145,6 +146,7 @@ fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
         .route("/v1/logs/histogram", get(logs::log_histogram))
         .route("/v1/metrics", get(metrics::list_metrics))
         .route("/v1/metrics/points", get(metrics::get_metric_group_points))
+        .route("/v1/nlq", post(llm_adapter::handle_nlq_query))
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .layer(axum_middleware::from_fn(require_tenant))
         .layer(axum::Extension(db))
@@ -177,6 +179,27 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
         .layer(axum_middleware::from_fn(require_tenant))
         .layer(axum::Extension(db))
         .layer(axum::Extension(auth_service_url_ext))
+        .with_state(state)
+}
+
+fn fake_nlq_app_no_db() -> Router {
+    let db =
+        PgPool::connect_lazy("postgres://user:pass@127.0.0.1:5432/db").expect("valid postgres url");
+    let ch = ChClient::default().with_url("http://127.0.0.1:19999");
+    let state = traces::AppState {
+        ch,
+        db,
+        planner: Arc::new(QueryPlanner),
+        llm: None,
+        auth_service_url: "http://auth-service:4319".into(),
+    };
+    let tenant_id = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+    Router::new()
+        .route("/v1/nlq", post(llm_adapter::handle_nlq_query))
+        .layer(axum::Extension(TenantContext {
+            tenant_id,
+            role: "admin".into(),
+        }))
         .with_state(state)
 }
 
@@ -785,6 +808,47 @@ async fn llm_models_returns_ok_false_when_unreachable() {
         json["models"].as_array().expect("models array").len(),
         0,
         "models must be empty when connection fails"
+    );
+}
+
+#[tokio::test]
+async fn nlq_base_ir_invalid_regex_filter_returns_400() {
+    let app = fake_nlq_app_no_db();
+    let long_pattern = "a".repeat(257);
+
+    let body = serde_json::json!({
+        "mode": "execute",
+        "base_ir": {
+            "signals": ["logs"],
+            "operation": "table",
+            "time_range": {
+                "from": "now-1h",
+                "to": "now"
+            },
+            "filters": [{
+                "field": "service_name",
+                "op": "=~",
+                "value": long_pattern
+            }]
+        }
+    });
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/nlq")
+        .header("Authorization", format!("Bearer {DEV_API_KEY}"))
+        .header("X-Tenant-ID", DEV_TENANT_ID)
+        .header("Content-Type", "application/json")
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+
+    let response = app.oneshot(req).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = response_body_json(response.into_body()).await;
+    assert_eq!(
+        body["error"],
+        "invalid filter value for field: service_name"
     );
 }
 

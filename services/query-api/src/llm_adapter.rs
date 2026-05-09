@@ -1508,6 +1508,41 @@ pub async fn run_nlq_pipeline(
 
 // ── HTTP handler ──────────────────────────────────────────────────────────────
 
+fn map_mcp_error(
+    e: crate::mcp_query::McpQueryError,
+    tenant_id: Uuid,
+) -> (StatusCode, Json<serde_json::Value>) {
+    match e {
+        crate::mcp_query::McpQueryError::SqlTemplate(
+            crate::sql_templates::SqlTemplateError::InvalidFilterValue(field),
+        ) => {
+            tracing::warn!(tenant_id = %tenant_id, field = %field, "NLQ rejected: invalid filter value");
+            (
+                StatusCode::BAD_REQUEST,
+                Json(
+                    serde_json::json!({"error": format!("invalid filter value for field: {field}")}),
+                ),
+            )
+        }
+        _ if e.to_string().contains("Connect") || e.to_string().contains("network") => {
+            tracing::error!(error = %e, tenant_id = %tenant_id, "NLQ pipeline failed — data store unreachable");
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(
+                    serde_json::json!({"error": "data store temporarily unavailable, please retry"}),
+                ),
+            )
+        }
+        _ => {
+            tracing::error!(error = %e, tenant_id = %tenant_id, "NLQ pipeline failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "query execution failed"})),
+            )
+        }
+    }
+}
+
 /// POST /v1/nlq
 ///
 /// Accepts a natural language question, calls the LLM adapter, and returns a discriminated
@@ -1533,13 +1568,7 @@ pub async fn handle_nlq_query(
             }
             return match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
                 Ok(frame) => Ok(Json(NlqQueryResponse::Frame { frame })),
-                Err(e) => {
-                    tracing::error!(error = %e, tenant_id = %ctx.tenant_id, "base IR MCP query failed");
-                    Err((
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({"error": "query execution failed"})),
-                    ))
-                }
+                Err(e) => Err(map_mcp_error(e, ctx.tenant_id)),
             };
         }
         return Err((
@@ -1563,13 +1592,7 @@ pub async fn handle_nlq_query(
             }
             return match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
                 Ok(frame) => Ok(Json(NlqQueryResponse::Frame { frame })),
-                Err(e) => {
-                    tracing::error!(error = %e, tenant_id = %ctx.tenant_id, "raw IR MCP query failed");
-                    Err((
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({"error": "query execution failed"})),
-                    ))
-                }
+                Err(e) => Err(map_mcp_error(e, ctx.tenant_id)),
             };
         }
         Ok(UserQueryInput::NaturalLanguage) => {}
@@ -1598,13 +1621,7 @@ pub async fn handle_nlq_query(
         }
         return match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
             Ok(frame) => Ok(Json(NlqQueryResponse::Frame { frame })),
-            Err(e) => {
-                tracing::error!(error = %e, tenant_id = %ctx.tenant_id, "shorthand IR MCP query failed");
-                Err((
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({"error": "query execution failed"})),
-                ))
-            }
+            Err(e) => Err(map_mcp_error(e, ctx.tenant_id)),
         };
     }
 
@@ -1691,6 +1708,17 @@ pub async fn handle_nlq_query(
                 StatusCode::SERVICE_UNAVAILABLE,
                 Json(
                     serde_json::json!({"error": "data store temporarily unavailable, please retry"}),
+                ),
+            ))
+        }
+        Err(LlmAdapterError::QueryExecution(crate::mcp_query::McpQueryError::SqlTemplate(
+            crate::sql_templates::SqlTemplateError::InvalidFilterValue(field),
+        ))) => {
+            tracing::warn!(field = %field, "NLQ rejected: invalid filter value");
+            Err((
+                StatusCode::BAD_REQUEST,
+                Json(
+                    serde_json::json!({"error": format!("invalid filter value for field: {field}")}),
                 ),
             ))
         }

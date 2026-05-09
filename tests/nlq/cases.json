@@ -779,5 +779,41 @@
       "filter"
     ],
     "notes": "Verifies LLM maps \"failed traces\" to a status_code=ERROR filter with traces base_ir."
+  },
+  {
+    "id": "reject-numeric-injection",
+    "description": "Numeric operator with SQL injection attempt in base_ir",
+    "query": "",
+    "base_ir": {
+      "signals": ["metrics"],
+      "operation": "timeseries",
+      "metric": "request_duration_ms",
+      "filters": [
+        { "field": "request_duration_ms", "op": ">", "value": "0 OR 1=1" }
+      ],
+      "time_range": { "from": "now-1h", "to": "now" }
+    },
+    "expect": {
+      "type": "error",
+      "status": "400"
+    }
+  },
+  {
+    "id": "reject-long-regex",
+    "description": "Regex operator with overlong pattern in base_ir",
+    "query": "",
+    "base_ir": {
+      "signals": ["metrics"],
+      "operation": "timeseries",
+      "metric": "request_duration_ms",
+      "filters": [
+        { "field": "request_duration_ms", "op": "=~", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+      ],
+      "time_range": { "from": "now-1h", "to": "now" }
+    },
+    "expect": {
+      "type": "error",
+      "status": "400"
+    }
   }
 ]
