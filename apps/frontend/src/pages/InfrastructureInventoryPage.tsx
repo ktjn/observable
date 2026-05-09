@@ -11,6 +11,7 @@ import { formatTimestamp } from "../utils/formatTimestamp";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
 import { Badge } from "../components/ui/badge";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
@@ -48,6 +49,7 @@ export default function InfrastructureInventoryPage() {
       if (response.type !== "frame") return [];
       return response.frame.data as unknown as InfrastructureEntitySummary[];
     },
+    ...liveViewQueryOptions,
   });
 
   const items = data ?? [];

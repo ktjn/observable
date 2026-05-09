@@ -24,7 +24,7 @@ export function ShorthandHint({ children, className = "relative group flex-1" }:
       {children}
 
       <div
-        className="pointer-events-none absolute bottom-full right-0 z-20 mb-1 hidden w-72 group-hover:block"
+        className="pointer-events-none absolute right-0 top-full z-[1000] mt-1 hidden w-72 max-w-[min(18rem,calc(100vw-2rem))] group-hover:block max-[640px]:left-0 max-[640px]:right-auto"
         role="tooltip"
       >
         <div className="rounded border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-xs shadow-lg">

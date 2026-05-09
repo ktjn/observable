@@ -12,6 +12,7 @@ import { TimeSeriesGraph, type TimeSeriesSeries } from "../../components/ui/time
 import { SignalExplorer, type SaveStatus } from "../../components/shared/SignalExplorer";
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
 import { useTenantContext } from "../../hooks/useTenantContext";
+import { liveViewQueryOptions } from "../../hooks/useLiveRefresh";
 import { QueryFilterInput } from "../nlq/QueryFilterInput";
 import { deriveViewFiltersFromIr, type NlqIrLike } from "../nlq/queryFilters";
 
@@ -52,6 +53,7 @@ export function ServiceMetricsWorkspace({
     queryKey: ["service", tenantId, serviceName, "metrics"],
     queryFn: () => listMetrics(tenantId, { service: serviceName || undefined }),
     enabled: true, // We want to allow listing all metrics if serviceName is empty
+    ...liveViewQueryOptions,
   });
 
   const metrics = data?.metrics ?? [];
@@ -214,6 +216,7 @@ function MetricGraphContainer({
     queryKey: ["metric-group-points", tenantId, selectedMetric ? metricIdentity(selectedMetric) : null, fromMs, toMs],
     queryFn: () => getMetricGroupPoints(tenantId, selectedMetric!),
     enabled: Boolean(selectedMetric),
+    ...liveViewQueryOptions,
   });
 
   if (!selectedMetric) {

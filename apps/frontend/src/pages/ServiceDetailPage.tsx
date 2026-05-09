@@ -23,6 +23,7 @@ import { ServiceMetricsWorkspace } from "../features/metrics/ServiceMetricsWorks
 import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
 import { LogExplorer } from "./LogSearch";
 import { TraceExplorer } from "./TraceSearch";
 
@@ -40,6 +41,7 @@ export default function ServiceDetailPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["service-summary", tenantId, serviceName, fromMs, toMs],
     queryFn: () => getServiceSummary(tenantId, serviceName, { from: fromMs, to: toMs }),
+    ...liveViewQueryOptions,
   });
 
   if (isLoading) {
@@ -336,6 +338,7 @@ function ResponseTimeGraphSection({
         to: toMs,
         buckets: 60,
       }),
+    ...liveViewQueryOptions,
   });
 
   const { data: deploymentData } = useQuery({
@@ -347,6 +350,7 @@ function ResponseTimeGraphSection({
         end_time: new Date(toMs).toISOString(),
         limit: 20,
       }),
+    ...liveViewQueryOptions,
   });
 
   if (!historyData?.buckets?.length) return null;
