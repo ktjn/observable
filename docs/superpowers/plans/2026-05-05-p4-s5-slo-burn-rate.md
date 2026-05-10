@@ -390,9 +390,9 @@ Add tests in `services/alert-evaluator/src/evaluator.rs`:
 
 ```rust
 #[test]
-fn burn_rate_uses_window_fraction_of_budget() {
+fn burn_rate_uses_error_rate_over_error_budget() {
     let burn = calculate_burn_rate(10, 1_000, 0.999, 60, 30);
-    assert!((burn - 240.0).abs() < 0.001);
+    assert!((burn - 10.0).abs() < 0.001);
 }
 
 #[test]
@@ -457,16 +457,15 @@ pub fn calculate_burn_rate(
     bad_events: u64,
     total_events: u64,
     target: f64,
-    window_minutes: u64,
-    slo_window_days: i32,
+    _window_minutes: u64,
+    _slo_window_days: i32,
 ) -> f64 {
     if bad_events == 0 || total_events == 0 {
         return 0.0;
     }
     let error_budget_fraction = 1.0 - target;
-    let slo_window_minutes = (slo_window_days as f64) * 24.0 * 60.0;
     let observed_error_fraction = bad_events as f64 / total_events as f64;
-    observed_error_fraction / (error_budget_fraction * (window_minutes as f64 / slo_window_minutes))
+    observed_error_fraction / error_budget_fraction
 }
 
 pub fn evaluate_burn_rate(

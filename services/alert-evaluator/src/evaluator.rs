@@ -39,6 +39,42 @@ pub fn evaluate_threshold(value: f64, condition: &ThresholdCondition) -> EvalRes
     }
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct SloBurnRateCondition {
+    pub slo_id: Uuid,
+    pub fast_window_minutes: u64,
+    pub slow_window_minutes: u64,
+}
+
+pub fn calculate_burn_rate(
+    bad_events: u64,
+    total_events: u64,
+    target: f64,
+    _window_minutes: u64,
+    _slo_window_days: i32,
+) -> f64 {
+    if bad_events == 0 || total_events == 0 {
+        return 0.0;
+    }
+    let error_budget_fraction = 1.0 - target;
+    let observed_error_fraction = bad_events as f64 / total_events as f64;
+    observed_error_fraction / error_budget_fraction
+}
+
+pub fn evaluate_burn_rate(
+    fast_burn_rate: f64,
+    slow_burn_rate: f64,
+    fast_threshold: f64,
+    slow_threshold: f64,
+    _condition: &SloBurnRateCondition,
+) -> EvalResult {
+    if fast_burn_rate >= fast_threshold && slow_burn_rate >= slow_threshold {
+        EvalResult::Firing
+    } else {
+        EvalResult::Ok
+    }
+}
+
 #[derive(sqlx::FromRow)]
 pub struct AlertRuleRow {
     pub rule_id: Uuid,
@@ -52,6 +88,24 @@ pub struct AlertRuleRow {
 pub struct LatestPointRow {
     pub value_double: Option<f64>,
     pub value_int: Option<i64>,
+}
+
+#[derive(sqlx::FromRow)]
+pub struct SloDefinitionRow {
+    pub slo_id: Uuid,
+    pub tenant_id: Uuid,
+    pub service_name: String,
+    pub environment: String,
+    pub target: f64,
+    pub window_days: i32,
+    pub burn_rate_fast_threshold: f64,
+    pub burn_rate_slow_threshold: f64,
+}
+
+#[derive(clickhouse::Row, serde::Deserialize)]
+pub struct SpanCountRow {
+    pub total_count: u64,
+    pub bad_count: u64,
 }
 
 pub async fn eval_threshold_rules(
@@ -137,6 +191,178 @@ pub async fn eval_threshold_rules(
     Ok(())
 }
 
+pub async fn eval_slo_burn_rate_rules(
+    db: &sqlx::PgPool,
+    ch: &clickhouse::Client,
+) -> anyhow::Result<()> {
+    let rules: Vec<AlertRuleRow> = sqlx::query_as(
+        "SELECT rule_id, tenant_id, name, condition, for_duration_secs \
+         FROM alert_rules WHERE alert_type = 'slo_burn_rate' AND silenced = false",
+    )
+    .fetch_all(db)
+    .await?;
+
+    tracing::debug!(count = rules.len(), "evaluating SLO burn-rate rules");
+
+    for rule in rules {
+        let cond: SloBurnRateCondition = match serde_json::from_value(rule.condition.clone()) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(
+                    rule_id = %rule.rule_id,
+                    error = %e,
+                    "skipping SLO rule: condition parse failed"
+                );
+                continue;
+            }
+        };
+
+        let slo: Option<SloDefinitionRow> = sqlx::query_as(
+            "SELECT slo_id, tenant_id, service_name, environment, target, window_days, \
+             burn_rate_fast_threshold, burn_rate_slow_threshold \
+             FROM slo_definitions WHERE slo_id = $1 AND tenant_id = $2",
+        )
+        .bind(cond.slo_id)
+        .bind(rule.tenant_id)
+        .fetch_optional(db)
+        .await?;
+
+        let Some(slo) = slo else {
+            tracing::warn!(
+                rule_id = %rule.rule_id,
+                slo_id = %cond.slo_id,
+                "skipping SLO rule: SLO definition not found"
+            );
+            continue;
+        };
+
+        let fast_counts = match fetch_span_counts(
+            ch,
+            slo.tenant_id,
+            &slo.service_name,
+            &slo.environment,
+            cond.fast_window_minutes,
+        )
+        .await
+        {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(rule_id = %rule.rule_id, error = %e, "skipping SLO rule: fast-window span fetch failed");
+                continue;
+            }
+        };
+
+        let slow_counts = match fetch_span_counts(
+            ch,
+            slo.tenant_id,
+            &slo.service_name,
+            &slo.environment,
+            cond.slow_window_minutes,
+        )
+        .await
+        {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(rule_id = %rule.rule_id, error = %e, "skipping SLO rule: slow-window span fetch failed");
+                continue;
+            }
+        };
+
+        let fast_burn_rate = calculate_burn_rate(
+            fast_counts.bad_count,
+            fast_counts.total_count,
+            slo.target,
+            cond.fast_window_minutes,
+            slo.window_days,
+        );
+        let slow_burn_rate = calculate_burn_rate(
+            slow_counts.bad_count,
+            slow_counts.total_count,
+            slo.target,
+            cond.slow_window_minutes,
+            slo.window_days,
+        );
+
+        match evaluate_burn_rate(
+            fast_burn_rate,
+            slow_burn_rate,
+            slo.burn_rate_fast_threshold,
+            slo.burn_rate_slow_threshold,
+            &cond,
+        ) {
+            EvalResult::Firing => {
+                tracing::warn!(
+                    rule_id = %rule.rule_id,
+                    slo_id = %slo.slo_id,
+                    tenant_id = %slo.tenant_id,
+                    service_name = %slo.service_name,
+                    environment = %slo.environment,
+                    fast_burn_rate,
+                    slow_burn_rate,
+                    fast_threshold = slo.burn_rate_fast_threshold,
+                    slow_threshold = slo.burn_rate_slow_threshold,
+                    "alert firing: SLO burn rate exceeded"
+                );
+                if let Err(e) = record_firing(db, &rule, fast_burn_rate).await {
+                    tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to record SLO alert firing");
+                }
+            }
+            EvalResult::Ok => {
+                if let Err(e) =
+                    resolve_open_firing(db, rule.rule_id, rule.tenant_id, fast_burn_rate).await
+                {
+                    tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to resolve SLO alert firing");
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn fetch_span_counts(
+    ch: &clickhouse::Client,
+    tenant_id: Uuid,
+    service_name: &str,
+    environment: &str,
+    window_minutes: u64,
+) -> anyhow::Result<SpanCountRow> {
+    let now_ns = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_nanos() as u64;
+    let cutoff_ns = now_ns.saturating_sub(window_minutes * 60 * 1_000_000_000);
+    let mut cursor = ch
+        .query(
+            "SELECT count() AS total_count, countIf(status_code = 'ERROR') AS bad_count \
+             FROM observable.spans \
+             WHERE tenant_id = ? \
+               AND service_name = ? \
+               AND environment = ? \
+               AND start_time_unix_nano >= ?",
+        )
+        .bind(tenant_id)
+        .bind(service_name)
+        .bind(environment)
+        .bind(cutoff_ns)
+        .fetch::<SpanCountRow>()
+        .map_err(|e| anyhow::anyhow!("clickhouse query error: {e}"))?;
+
+    match cursor.next().await {
+        Ok(Some(row)) => Ok(row),
+        Ok(None) => Ok(SpanCountRow {
+            total_count: 0,
+            bad_count: 0,
+        }),
+        Err(e) => Err(anyhow::anyhow!("clickhouse query error: {e}")),
+    }
+}
+
+pub async fn eval_alert_rules(db: &sqlx::PgPool, ch: &clickhouse::Client) -> anyhow::Result<()> {
+    eval_threshold_rules(db, ch).await?;
+    eval_slo_burn_rate_rules(db, ch).await?;
+    Ok(())
+}
+
 async fn record_firing(db: &sqlx::PgPool, rule: &AlertRuleRow, value: f64) -> anyhow::Result<()> {
     let for_duration_secs = rule.for_duration_secs.unwrap_or(0).max(0);
     let initial_state = if for_duration_secs == 0 {
@@ -213,12 +439,12 @@ pub async fn start_eval_worker(
 ) {
     tracing::info!(
         interval_secs = interval.as_secs(),
-        "alert-evaluator: starting threshold eval worker"
+        "alert-evaluator: starting alert eval worker"
     );
     let mut ticker = tokio::time::interval(interval);
     loop {
         ticker.tick().await;
-        if let Err(e) = eval_threshold_rules(&db, &ch).await {
+        if let Err(e) = eval_alert_rules(&db, &ch).await {
             tracing::warn!(error = %e, "alert-evaluator: eval cycle failed");
         }
     }
@@ -314,5 +540,28 @@ mod tests {
         ] {
             assert_eq!(evaluate_threshold(value, &cond(op, threshold)), expected);
         }
+    }
+
+    #[test]
+    fn burn_rate_uses_error_rate_over_error_budget() {
+        let burn = calculate_burn_rate(10, 1_000, 0.999, 60, 30);
+        assert!((burn - 10.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn multi_window_requires_fast_and_slow_to_fire() {
+        let cond = SloBurnRateCondition {
+            slo_id: Uuid::nil(),
+            fast_window_minutes: 60,
+            slow_window_minutes: 360,
+        };
+        assert_eq!(
+            evaluate_burn_rate(15.0, 2.0, 14.4, 1.0, &cond),
+            EvalResult::Firing
+        );
+        assert_eq!(
+            evaluate_burn_rate(15.0, 0.5, 14.4, 1.0, &cond),
+            EvalResult::Ok
+        );
     }
 }
