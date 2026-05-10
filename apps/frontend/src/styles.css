@@ -3,6 +3,14 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
+@font-face {
+  font-family: "Glass TTY VT220";
+  src: url("/fonts/Glass_TTY_VT220.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
   --bg: #f2f2f2;
@@ -98,11 +106,11 @@
   --danger-text: #FF5533;
   --danger-border: #5a2010;
   --danger-bg: #2a0d00;
-  font-family: "VT323", "IBM Plex Mono", monospace;
+  font-family: "Glass TTY VT220", "IBM Plex Mono", monospace;
 }
 
 :root[data-theme="vt220"] body {
-  font-size: 14px;
+  font-size: 16px;
 }
 
 :root[data-theme="vt220"] input,
@@ -110,8 +118,8 @@
 :root[data-theme="vt220"] textarea {
   color: var(--text);
   background-color: var(--surface-raised);
-  font-family: "VT323", "IBM Plex Mono", monospace;
-  font-size: 14px;
+  font-family: "Glass TTY VT220", "IBM Plex Mono", monospace;
+  font-size: 16px;
 }
 
 :root[data-theme="vt220"] input::placeholder,
@@ -122,8 +130,8 @@
 :root[data-theme="vt220"] option {
   background-color: var(--bg);
   color: var(--text);
-  font-family: "VT323", "IBM Plex Mono", monospace;
-  font-size: 14px;
+  font-family: "Glass TTY VT220", "IBM Plex Mono", monospace;
+  font-size: 16px;
 }
 
 /* Override Chromium's blue/white selection highlight in native select dropdowns */
