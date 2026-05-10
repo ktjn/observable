@@ -8,8 +8,8 @@ making changes.
 
 1. Read `AGENTS.md`.
 2. Read `spec/adr/README.md`, then read any overlapping ADRs in full.
-3. Read the active split roadmap plans: `docs/superpowers/plans/2026-05-07-finish-started-work-plan.md`
-   and `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md`.
+3. Read the active roadmap plans: `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md`
+   and `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`.
 4. Read this file.
 5. Inspect the actual code, tests, scripts, specs, and docs touched by the task before editing.
 6. Create or switch to a dedicated short-lived branch before changing files.
@@ -20,13 +20,13 @@ making changes.
 - Agent role routing: `.github/agents/README.md`, with `.github/agents/coordinator.agent.md` as the
   default entry role. Runtimes without subagent support should apply matching specialist `.agent.md`
   files manually as checklists.
-- Active roadmap: split between `docs/superpowers/plans/2026-05-07-finish-started-work-plan.md`
-  for already-started/scoped work and `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md`
-  for the long-horizon backlog. Keep `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`
+- Active roadmap: `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` for the
+  long-horizon backlog and `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`
   as the historical Phases 2-8 closure reference.
-- Active detailed implementation plan: `docs/superpowers/plans/2026-05-05-p4-s5-slo-burn-rate.md`,
-  unless the finish-started plan requires out-of-band risk remediation first (RF-5 is now complete).
-- Completed detailed plan archive: `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
+- Active detailed implementation plan: none. Write the next detailed plan for **P5-S2**
+  notification routing integration before implementation starts.
+- Completed detailed plan archive: `archived/plans/2026-05-05-p4-s5-slo-burn-rate.md` for P4-S5
+  and `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
 - Historical Phase 1 plan: `archived/plans/2026-04-17-phase1-internal-mvp.md`; do not treat it as an active backlog.
 - Architecture decisions: `spec/adr/`.
 - Product and platform specs: `spec/`.

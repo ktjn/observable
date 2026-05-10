@@ -1500,6 +1500,118 @@ test("alerts page create form submits POST and closes panel", async () => {
   );
 });
 
+test("alerts page renders SLO health cards", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v1/alerts/rules")) {
+        return new Response(JSON.stringify({ items: [] }), { status: 200 });
+      }
+      if (url.includes("/v1/slos")) {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                slo_id: "20000000-0000-0000-0000-000000000001",
+                service_name: "checkout",
+                environment: "prod",
+                sli_type: "availability",
+                target: 0.999,
+                window_days: 30,
+                burn_rate_fast_threshold: 14.4,
+                burn_rate_slow_threshold: 1.0,
+                description: "Checkout availability SLO",
+                firing: false,
+                last_fired_at: null,
+                created_at: "2026-05-10T10:00:00Z",
+                updated_at: "2026-05-10T10:00:00Z",
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }),
+  );
+  window.history.pushState({}, "", "/alerts");
+  render(<App />);
+
+  expect(await screen.findByText("Checkout availability SLO")).toBeInTheDocument();
+  expect(screen.getByText("checkout")).toBeInTheDocument();
+  expect(screen.getByText("99.9%")).toBeInTheDocument();
+  expect(screen.getByText("30d")).toBeInTheDocument();
+});
+
+test("alerts page creates an availability SLO", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+
+    if (url.includes("/v1/slos") && method === "POST") {
+      return new Response(
+        JSON.stringify({
+          slo_id: "20000000-0000-0000-0000-000000000002",
+          service_name: "checkout",
+          environment: "prod",
+          sli_type: "availability",
+          target: 0.999,
+          window_days: 30,
+          burn_rate_fast_threshold: 14.4,
+          burn_rate_slow_threshold: 1.0,
+          description: "Checkout availability SLO",
+          firing: false,
+          last_fired_at: null,
+          created_at: "2026-05-10T10:00:00Z",
+          updated_at: "2026-05-10T10:00:00Z",
+        }),
+        { status: 201 },
+      );
+    }
+    if (url.includes("/v1/alerts/rules") || url.includes("/v1/slos")) {
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ items: [] }), { status: 200 });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  window.history.pushState({}, "", "/alerts");
+  render(<App />);
+
+  await screen.findByRole("heading", { name: "Alerts & SLOs" });
+  fireEvent.click(screen.getByRole("button", { name: "New SLO" }));
+
+  fireEvent.change(screen.getByLabelText("SLO service"), {
+    target: { value: "checkout" },
+  });
+  fireEvent.change(screen.getByLabelText("SLO environment"), {
+    target: { value: "prod" },
+  });
+  fireEvent.change(screen.getByLabelText("SLO target"), {
+    target: { value: "99.9" },
+  });
+  fireEvent.change(screen.getByLabelText("SLO description"), {
+    target: { value: "Checkout availability SLO" },
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Create SLO" }));
+
+  await waitFor(() => {
+    const postCall = fetchMock.mock.calls.find(
+      ([url, init]) =>
+        String(url).includes("/v1/slos") && (init as RequestInit)?.method === "POST",
+    );
+    expect(postCall).toBeDefined();
+    const body = JSON.parse((postCall![1] as RequestInit).body as string);
+    expect(body.service_name).toBe("checkout");
+    expect(body.environment).toBe("prod");
+    expect(body.target).toBe(0.999);
+    expect(body.window_days).toBe(30);
+    expect(body.burn_rate_fast_threshold).toBe(14.4);
+    expect(body.burn_rate_slow_threshold).toBe(1.0);
+  });
+});
+
 test("alerts page renders empty state when no rules exist", async () => {
   vi.stubGlobal(
     "fetch",

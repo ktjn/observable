@@ -1,11 +1,10 @@
 # Phases 2–8 — Interactive Small-Iteration Delivery Plan
 
-> **Status as of 2026-05-07:** This document is retained as the historical Phases 2-8 reference and closure log. The active planning view is split into:
+> **Status as of 2026-05-10:** This document is retained as the historical Phases 2-8 reference and closure log. The active planning view is:
 >
-> - [Finish Started Work Implementation Plan](2026-05-07-finish-started-work-plan.md)
 > - [Remaining Roadmap Implementation Plan](2026-05-07-remaining-roadmap-plan.md)
 >
-> Use those two documents for new roadmap selection. Update this reference only when a completed slice needs historical closure evidence or when a reviewer explicitly asks to reconcile old phase text.
+> Use that document for new roadmap selection. Update this reference only when a completed slice needs historical closure evidence or when a reviewer explicitly asks to reconcile old phase text.
 
 > **Purpose:** Convert the remaining roadmap into a practical sequence of small, reviewable vertical slices with explicit pause points, decision checkpoints, and entry/exit criteria.
 
@@ -477,11 +476,11 @@ Phase 3 exit gate is satisfied for the planned Phase 3 scope. The next implement
   - Outcome: one OpenFGA-style protected object has enforceable sharing semantics
   - Checkpoint: is the ReBAC model additive to RBAC rather than conflicting with it?
 
-- [ ] **P4-S5: Add SLO definition and one burn-rate alert**
-  - Outcome: one service has a complete SLO workflow with alerting.
-  - Closure steps: add the SLO definition model/API, reuse the Phase 2 threshold evaluator dispatch loop for an `slo_burn_rate` rule type, evaluate at least one multi-window burn-rate condition, and expose enough state for the frontend to show SLO health.
-  - Detail: [P4-S5 SLO burn-rate implementation plan](2026-05-05-p4-s5-slo-burn-rate.md)
-  - Checkpoint: are error budget semantics now reliable enough for customer use?
+- [x] **P4-S5: Add SLO definition and one burn-rate alert**
+  - Outcome: one service-level availability SLO can be created/read, `alert-evaluator` evaluates an `slo_burn_rate` rule using fast and slow ClickHouse span windows, and the Alerts & SLOs UI shows SLO health.
+  - Closure steps: SLO definition model/API, `slo_burn_rate` evaluator dispatch, multi-window burn-rate evaluation, active firing state, and frontend SLO create/read workflow are complete.
+  - Detail: [P4-S5 SLO burn-rate implementation plan](../../../archived/plans/2026-05-05-p4-s5-slo-burn-rate.md)
+  - Checkpoint: are error budget semantics now reliable enough for customer use? Answer: yes for service-level availability SLOs backed by hot span data and multi-window burn-rate alerts. Latency, synthetic, incident, and notification behavior remain follow-up slices.
 
 - [ ] **P4-S6: Add production runbook set for one failure class**
   - Outcome: one documented incident type has triage, rollback, and restore steps
@@ -724,7 +723,7 @@ After the 2026-05-05 reordering for value-first delivery, the next implementatio
 7. **P6-S4: Add one synthetic check workflow** (Proactive liveness verification)
 8. **P4-S1: Add one warm-retention movement path** (Starts production cost/retention management)
 
-**Next recommended slice: P4-S5 - Add SLO definition and one burn-rate alert.**
+**Next recommended slice: P5-S2 - Add one notification routing integration.**
 
 **Phase 2 exit gate is now satisfied.** All Phase 2 slices (P2-S0 through P2-S9a) are complete. Before starting Phase 3, answer the Phase 2 pause-point questions:
 - Tenant safety under test: yes — P2-S1a through P2-S1d enforce and test cross-tenant isolation for all signal types.
@@ -734,8 +733,8 @@ After the 2026-05-05 reordering for value-first delivery, the next implementatio
 
 The UI renovation gate, service-centric MVP UI sequence, Phase 3 correlation sequence, dashboard
 artifact sequence, schema registry prerequisite, and P3-S15 Testcontainers harness are now complete.
-The next active horizon starts with P4-S5. Use
-`docs/superpowers/plans/2026-05-05-p4-s5-slo-burn-rate.md` as the detailed implementation plan.
+The next active horizon starts with P5-S2. Write a detailed implementation plan for one outbound
+notification routing integration before implementation starts.
 
 ---
 
@@ -765,6 +764,6 @@ The self-observability routing clarification also requires no ADR/spec update in
 
 **P3-S15 closure + P4-S1 activation** (2026-05-05) — P3-S15 is marked complete based on the checked detailed Testcontainers plan and the presence of service-local PostgreSQL, ClickHouse, and Redpanda integration suites. The completed detailed plan is archived. P4-S1 was promoted as the next active detailed implementation plan before the value-first reordering.
 
-**Value-first P4-S5 activation** (2026-05-05) — after the value-first reorder, P4-S5 is the next active detailed implementation plan and P4-S1 is deferred. The detailed P4-S5 plan is `docs/superpowers/plans/2026-05-05-p4-s5-slo-burn-rate.md`. No ADR or spec update is required for this planning-only transition because it does not change roadmap scope, architecture, deployment model, data model, security model, or technology choice; it decomposes already-specified SLO and burn-rate scope from `spec/07-alerting-slo.md`, `spec/14-domain-model.md`, and `spec/10-process.md`.
+**Value-first P4-S5 activation** (2026-05-05) — after the value-first reorder, P4-S5 became the next active detailed implementation plan and P4-S1 was deferred. The detailed P4-S5 plan is archived at `archived/plans/2026-05-05-p4-s5-slo-burn-rate.md`. No ADR or spec update was required for this planning-only transition because it did not change roadmap scope, architecture, deployment model, data model, security model, or technology choice; it decomposed already-specified SLO and burn-rate scope from `spec/07-alerting-slo.md`, `spec/14-domain-model.md`, and `spec/10-process.md`.
 
 **P4-S3 OIDC/SCIM decomposition** (2026-05-06) — P4-S3 was expanded from a one-line SSO/OIDC item into a customer-compatible OIDC flow with explicit UI operations coverage: authenticated AppShell state, tenant-list filtering, session expiry handling, Admin Console identity settings, RBAC-gated navigation, and audit requirements. P4-S3b was added as a conditional SCIM/SSO management slice only when selected v1 customers require automated provisioning. No ADR or spec update is required for this planning-only edit because OIDC, optional SAML, SCIM provisioning, bought/leverage IdP strategy, RBAC/OpenFGA authorization, TenantAdmin SSO management, and ADR-031's auth hook are already specified in `spec/04-tenancy-security.md`, `spec/13-risks-roadmap.md`, `spec/14-domain-model.md`, ADR-008, ADR-015, and ADR-031.

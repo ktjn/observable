@@ -217,7 +217,7 @@ These items come from a direct implementation review, not from the roadmap text 
 
 ## SW-1: P4-S5 SLO Definition And Burn-Rate Alert
 
-**Detailed plan:** `docs/superpowers/plans/2026-05-05-p4-s5-slo-burn-rate.md`
+**Detailed plan:** `archived/plans/2026-05-05-p4-s5-slo-burn-rate.md`
 
 **Why this is started:** This is the active detailed implementation plan named by `docs/agent-context.md` before this split. It is also the next value-first slice in the old Phases 2-8 roadmap.
 

@@ -9,13 +9,11 @@ subagent to review iteration plans, phase sequencing, and task alignment with th
 
 ## Context Pack — Read First
 
-1. `docs/superpowers/plans/2026-05-07-finish-started-work-plan.md` — active short-horizon queue
-   for already-started/scoped work.
-2. `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` — long-horizon backlog for
+1. `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` — long-horizon backlog for
    follow-on work.
-3. `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md` — historical Phases 2-8
+2. `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md` — historical Phases 2-8
    closure reference.
-4. Load historical plan documents (`archived/plans/`) only if the task explicitly references
+3. Load historical plan documents (`archived/plans/`) only if the task explicitly references
    them or if there is a suspected conflict with the active plan.
 
 Do **not** pre-load Phase 1 historical documents unless explicitly asked.
@@ -47,7 +45,7 @@ Do **not** pre-load Phase 1 historical documents unless explicitly asked.
 ```
 ## Planning Review
 
-**Active plan reference:** docs/superpowers/plans/2026-05-07-finish-started-work-plan.md and docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md
+**Active plan reference:** docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md and docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md
 
 **Plan alignment:**
 - [ ] Task found in plan: <yes — slice name> | <no — unplanned>
