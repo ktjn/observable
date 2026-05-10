@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   getDashboard,
   updateDashboard,
@@ -11,11 +12,14 @@ import {
 import { submitNlqQuery } from "../api/nlq";
 import { VisualizationPanel } from "../features/nlq/VisualizationPanel";
 import type { NlqIrLike } from "../features/nlq/queryFilters";
-import { Button } from "../components/ui/button";
 import { LoadingState } from "../components/ui/loading-state";
 import { Panel } from "../components/ui/panel";
 import { presetToMs, useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
+
+const DASHBOARD_GRID_COLUMNS = 12;
+const RESIZE_COLUMN_PX = 80;
+const RESIZE_ROW_PX = 80;
 
 function msToNsString(ms: number): string {
   return String(BigInt(Math.floor(ms)) * 1_000_000n);
@@ -51,6 +55,21 @@ function panelToUpdate(panel: DashboardPanel): UpdateDashboardRequest["panels"][
   };
 }
 
+function resizeFromLeft(layout: DashboardPanelLayout, columns: number): DashboardPanelLayout {
+  if (columns === 0) return layout;
+  if (columns > 0) {
+    const growBy = Math.min(columns, layout.x, DASHBOARD_GRID_COLUMNS - layout.w);
+    return { ...layout, x: layout.x - growBy, w: layout.w + growBy };
+  }
+  const shrinkBy = Math.min(-columns, layout.w - 1, DASHBOARD_GRID_COLUMNS - layout.x - 1);
+  return { ...layout, x: layout.x + shrinkBy, w: layout.w - shrinkBy };
+}
+
+function resizeFromBottom(layout: DashboardPanelLayout, rows: number): DashboardPanelLayout {
+  if (rows === 0) return layout;
+  return { ...layout, h: Math.max(1, layout.h + rows) };
+}
+
 export default function DashboardDetailPage() {
   const params = useParams({ strict: false }) as { dashboardId: string };
   const dashboardId = params.dashboardId;
@@ -70,20 +89,13 @@ export default function DashboardDetailPage() {
     },
   });
 
-  function resizePanel(panelId: string, delta: Partial<Pick<DashboardPanelLayout, "w" | "h">>) {
+  function resizePanel(panelId: string, updateLayout: (layout: DashboardPanelLayout) => DashboardPanelLayout) {
     if (!data) return;
     const panels = data.panels.map((panel) => {
       if (panel.panel_id !== panelId) return panel;
-      const nextW = Math.min(12, Math.max(1, panel.layout.w + (delta.w ?? 0)));
-      const maxX = Math.max(0, 12 - nextW);
       return {
         ...panel,
-        layout: {
-          ...panel.layout,
-          x: Math.min(panel.layout.x, maxX),
-          w: nextW,
-          h: Math.max(1, panel.layout.h + (delta.h ?? 0)),
-        },
+        layout: updateLayout(panel.layout),
       };
     });
 
@@ -114,10 +126,8 @@ export default function DashboardDetailPage() {
             dashboardId={data.dashboard_id}
             panel={panel}
             globalRange={{ fromMs: globalDateRange.fromMs, toMs: globalDateRange.toMs }}
-            onWiden={() => resizePanel(panel.panel_id, { w: 1 })}
-            onNarrow={() => resizePanel(panel.panel_id, { w: -1 })}
-            onTaller={() => resizePanel(panel.panel_id, { h: 1 })}
-            onShorter={() => resizePanel(panel.panel_id, { h: -1 })}
+            onResizeLeft={(columns) => resizePanel(panel.panel_id, (layout) => resizeFromLeft(layout, columns))}
+            onResizeBottom={(rows) => resizePanel(panel.panel_id, (layout) => resizeFromBottom(layout, rows))}
           />
         ))}
       </div>
@@ -129,45 +139,64 @@ function DashboardPanelView({
   dashboardId,
   panel,
   globalRange,
-  onWiden,
-  onNarrow,
-  onTaller,
-  onShorter,
+  onResizeLeft,
+  onResizeBottom,
 }: {
   dashboardId: string;
   panel: DashboardPanel;
   globalRange: { fromMs: number; toMs: number };
-  onWiden: () => void;
-  onNarrow: () => void;
-  onTaller: () => void;
-  onShorter: () => void;
+  onResizeLeft: (columns: number) => void;
+  onResizeBottom: (rows: number) => void;
 }) {
   const minHeight = Math.max(160, panel.layout.h * 80);
+  function startLeftResize(event: ReactPointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    const startX = event.clientX;
+    const onPointerUp = (upEvent: PointerEvent) => {
+      const columns = Math.round((startX - upEvent.clientX) / RESIZE_COLUMN_PX);
+      onResizeLeft(columns);
+      document.removeEventListener("pointerup", onPointerUp);
+    };
+    document.addEventListener("pointerup", onPointerUp);
+  }
+
+  function startBottomResize(event: ReactPointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    const startY = event.clientY;
+    const onPointerUp = (upEvent: PointerEvent) => {
+      const rows = Math.round((upEvent.clientY - startY) / RESIZE_ROW_PX);
+      onResizeBottom(rows);
+      document.removeEventListener("pointerup", onPointerUp);
+    };
+    document.addEventListener("pointerup", onPointerUp);
+  }
+
   return (
     <div
       className="min-w-0"
-      style={{ gridColumn: `span ${Math.min(12, Math.max(1, panel.layout.w))} / span ${Math.min(12, Math.max(1, panel.layout.w))}` }}
+      style={{ gridColumn: `span ${Math.min(DASHBOARD_GRID_COLUMNS, Math.max(1, panel.layout.w))} / span ${Math.min(DASHBOARD_GRID_COLUMNS, Math.max(1, panel.layout.w))}` }}
     >
       <Panel
         title={panel.title}
         eyebrow={panel.panel_kind === "text" ? "Text" : panel.query_kind ?? "Query"}
-        actions={
-          <>
-            <Button variant="secondary" className="min-h-8 px-2 text-xs" onClick={onNarrow}>
-              Narrow
-            </Button>
-            <Button variant="secondary" className="min-h-8 px-2 text-xs" onClick={onWiden}>
-              Widen {panel.title}
-            </Button>
-            <Button variant="secondary" className="min-h-8 px-2 text-xs" onClick={onShorter}>
-              Shorter
-            </Button>
-            <Button variant="secondary" className="min-h-8 px-2 text-xs" onClick={onTaller}>
-              Taller
-            </Button>
-          </>
-        }
+        className="relative"
       >
+        <div
+          aria-label={`Resize ${panel.title} from left border`}
+          className="absolute top-0 bottom-0 left-0 z-10 w-2 cursor-ew-resize touch-none border-l-2 border-transparent hover:border-[var(--brand)] focus:border-[var(--brand)] focus:outline-none"
+          role="separator"
+          tabIndex={0}
+          onPointerDown={startLeftResize}
+        />
+        <div
+          aria-label={`Resize ${panel.title} from bottom border`}
+          className="absolute right-0 bottom-0 left-0 z-10 h-2 cursor-ns-resize touch-none border-b-2 border-transparent hover:border-[var(--brand)] focus:border-[var(--brand)] focus:outline-none"
+          role="separator"
+          tabIndex={0}
+          onPointerDown={startBottomResize}
+        />
         <div style={{ minHeight }}>
           {panel.panel_kind === "text" ? (
             <TextPanel panel={panel} />
