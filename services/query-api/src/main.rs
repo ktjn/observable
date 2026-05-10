@@ -20,7 +20,7 @@ mod traces;
 
 use axum::{
     middleware as axum_middleware,
-    routing::{delete, get, patch, post},
+    routing::{delete, get, patch, post, put},
     Router,
 };
 use clickhouse::Client;
@@ -102,6 +102,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/deployments", get(deployments::list_deployments))
         .route("/v1/dashboards", get(dashboards::handle_list_dashboards))
         .route("/v1/dashboards", post(dashboards::handle_create_dashboard))
+        .route("/v1/dashboards/:id", get(dashboards::handle_get_dashboard))
+        .route(
+            "/v1/dashboards/:id",
+            put(dashboards::handle_update_dashboard),
+        )
         .route(
             "/v1/dashboards/import",
             post(dashboards::handle_import_dashboard),

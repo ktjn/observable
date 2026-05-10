@@ -15,10 +15,15 @@ const sampleDashboard: dashboardsApi.Dashboard = {
     {
       panel_id: "panel-1",
       title: "Error Logs",
+      panel_kind: "query",
       query_kind: "logs",
       service: "checkout",
       preset: "1h",
       filters: {},
+      query_text: "errors in checkout",
+      content: null,
+      layout: { x: 0, y: 0, w: 6, h: 4 },
+      time_range: { mode: "preset", preset: "1h" },
     },
   ],
   created_at: "2026-05-05T00:00:00Z",
@@ -63,6 +68,7 @@ test("Export button calls exportDashboard and creates a download blob", async ()
   });
   const createObjectURLSpy = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:url");
   vi.spyOn(URL, "revokeObjectURL").mockReturnValue(undefined);
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
 
   renderPage();
 

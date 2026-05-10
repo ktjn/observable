@@ -5,14 +5,25 @@ function tenantHeaders(tenantId: string): HeadersInit {
 }
 
 export type DashboardQueryKind = "logs" | "traces" | "metrics";
+export type DashboardPanelKind = "query" | "text";
+export type DashboardPanelLayout = { x: number; y: number; w: number; h: number };
+export type DashboardPanelTimeRange =
+  | { mode: "global" }
+  | { mode: "preset"; preset: Preset }
+  | { mode: "absolute"; from_ms: number; to_ms: number };
 
 export interface DashboardPanel {
   panel_id: string;
   title: string;
-  query_kind: DashboardQueryKind;
+  panel_kind: DashboardPanelKind;
+  query_kind: DashboardQueryKind | null;
   service?: string | null;
   preset: Preset | null;
   filters: Record<string, unknown>;
+  query_text?: string | null;
+  content?: string | null;
+  layout: DashboardPanelLayout;
+  time_range: DashboardPanelTimeRange;
 }
 
 export interface Dashboard {
@@ -30,16 +41,44 @@ export interface CreateDashboardRequest {
   name: string;
   panels: Array<{
     title: string;
-    query_kind: DashboardQueryKind;
+    panel_kind?: DashboardPanelKind;
+    query_kind?: DashboardQueryKind | null;
     service?: string;
     preset: Preset | null;
     filters: Record<string, unknown>;
+    query_text?: string | null;
+    content?: string | null;
+    layout?: DashboardPanelLayout;
+    time_range?: DashboardPanelTimeRange;
+  }>;
+}
+
+export interface UpdateDashboardRequest {
+  name: string;
+  panels: Array<{
+    panel_id?: string;
+    title: string;
+    panel_kind: DashboardPanelKind;
+    query_kind: DashboardQueryKind | null;
+    service?: string | null;
+    preset: Preset | null;
+    filters: Record<string, unknown>;
+    query_text?: string | null;
+    content?: string | null;
+    layout: DashboardPanelLayout;
+    time_range: DashboardPanelTimeRange;
   }>;
 }
 
 export async function listDashboards(tenantId: string): Promise<DashboardListResponse> {
   const res = await fetch("/v1/dashboards", { headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Dashboard query failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getDashboard(tenantId: string, dashboardId: string): Promise<Dashboard> {
+  const res = await fetch(`/v1/dashboards/${dashboardId}`, { headers: tenantHeaders(tenantId) });
+  if (!res.ok) throw new Error(`Dashboard get failed: ${res.status}`);
   return res.json();
 }
 
@@ -56,12 +95,34 @@ export async function createDashboard(tenantId: string, req: CreateDashboardRequ
   return res.json();
 }
 
+export async function updateDashboard(
+  tenantId: string,
+  dashboardId: string,
+  req: UpdateDashboardRequest,
+): Promise<Dashboard> {
+  const res = await fetch(`/v1/dashboards/${dashboardId}`, {
+    method: "PUT",
+    headers: {
+      ...tenantHeaders(tenantId),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) throw new Error(`Dashboard update failed: ${res.status}`);
+  return res.json();
+}
+
 export interface DashboardExportPanel {
   title: string;
-  query_kind: DashboardQueryKind;
+  panel_kind?: DashboardPanelKind;
+  query_kind?: DashboardQueryKind | null;
   service?: string | null;
   preset?: Preset | null;
   filters: Record<string, unknown>;
+  query_text?: string | null;
+  content?: string | null;
+  layout?: DashboardPanelLayout;
+  time_range?: DashboardPanelTimeRange;
 }
 
 export interface DashboardExport {
