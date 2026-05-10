@@ -13,6 +13,9 @@ import {
   type CreateSloRequest,
   type SloDefinitionItem,
 } from "../../api/slos";
+import {
+  listNotificationChannels,
+} from "../../api/notifications";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Select, SelectOption } from "../../components/ui/select";
@@ -21,7 +24,9 @@ import { EmptyState } from "../../components/ui/empty-state";
 import { MetricCard } from "../../components/ui/metric-card";
 import { Panel } from "../../components/ui/panel";
 import { Toolbar } from "../../components/ui/toolbar";
+import { Tabs } from "../../components/ui/tabs";
 import { useTenantContext } from "../../hooks/useTenantContext";
+import { NotificationChannelsList } from "./NotificationChannelsList";
 
 export function AlertsPage() {
   const queryClient = useQueryClient();
@@ -31,6 +36,7 @@ export function AlertsPage() {
   const [formMetric, setFormMetric] = useState("");
   const [formOperator, setFormOperator] = useState("gt");
   const [formThreshold, setFormThreshold] = useState("");
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [isCreatingSlo, setIsCreatingSlo] = useState(false);
   const [sloService, setSloService] = useState("");
@@ -49,6 +55,11 @@ export function AlertsPage() {
     queryFn: () => listSlos(tenantId),
   });
 
+  const { data: channelsData } = useQuery({
+    queryKey: ["notification-channels", tenantId],
+    queryFn: () => listNotificationChannels(tenantId),
+  });
+
   const silenceMutation = useMutation({
     mutationFn: ({ ruleId, silenced }: { ruleId: string; silenced: boolean }) =>
       silenceAlertRule(tenantId, ruleId, silenced),
@@ -64,6 +75,7 @@ export function AlertsPage() {
       setFormMetric("");
       setFormOperator("gt");
       setFormThreshold("");
+      setSelectedChannels([]);
       setFormError(null);
     },
     onError: (e: Error) => setFormError(e.message),
@@ -96,6 +108,7 @@ export function AlertsPage() {
       metric_name: formMetric,
       operator: formOperator,
       threshold,
+      notification_channels: selectedChannels,
     });
   };
 
@@ -120,6 +133,7 @@ export function AlertsPage() {
 
   const rules = data?.items ?? [];
   const slos = sloData?.items ?? [];
+  const channels = channelsData ?? [];
   const firingCount = rules.filter((r) => r.state === "active").length;
   const pendingCount = rules.filter((r) => r.state === "pending").length;
   const silencedCount = rules.filter((r) => r.silenced).length;
@@ -134,241 +148,289 @@ export function AlertsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4" aria-label="Alert summary">
-        <MetricCard label="Total Rules" value={rules.length} tone="info" />
-        <MetricCard label="Firing" value={firingCount} tone={firingCount > 0 ? "bad" : "good"} />
-        <MetricCard label="Pending" value={pendingCount} tone="warn" />
-        <MetricCard label="Silenced" value={silencedCount} tone="warn" />
-      </div>
+      <Tabs.Root defaultValue="rules">
+        <Tabs.List>
+          <Tabs.Tab value="rules">Alert Rules</Tabs.Tab>
+          <Tabs.Tab value="slos">SLOs</Tabs.Tab>
+          <Tabs.Tab value="channels">Notification Channels</Tabs.Tab>
+        </Tabs.List>
 
-      <Toolbar aria-label="Alert actions" className="justify-end">
-        <Button variant="secondary" onClick={() => setIsCreatingSlo((v) => !v)}>
-          {isCreatingSlo ? "Cancel SLO" : "New SLO"}
-        </Button>
-        <Button onClick={() => setIsCreating((v) => !v)}>
-          {isCreating ? "Cancel" : "New Rule"}
-        </Button>
-      </Toolbar>
-
-      {isCreatingSlo && (
-        <Panel title="Create Availability SLO" eyebrow="Reliability target">
-          <form
-            onSubmit={handleCreateSloSubmit}
-            aria-label="Create SLO"
-            className="flex flex-col gap-3"
-          >
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="slo-service">SLO service</label>
-                <Input
-                  id="slo-service"
-                  value={sloService}
-                  onChange={(e) => setSloService(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="slo-environment">SLO environment</label>
-                <Input
-                  id="slo-environment"
-                  value={sloEnvironment}
-                  onChange={(e) => setSloEnvironment(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="slo-target">SLO target</label>
-                <Input
-                  id="slo-target"
-                  type="number"
-                  step="0.001"
-                  value={sloTarget}
-                  onChange={(e) => setSloTarget(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="slo-description">SLO description</label>
-                <Input
-                  id="slo-description"
-                  value={sloDescription}
-                  onChange={(e) => setSloDescription(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {sloFormError && (
-              <div role="alert" className="text-sm font-bold text-[var(--bad)]">
-                {sloFormError}
-              </div>
-            )}
-
-            <div className="flex gap-2 pt-2">
-              <Button type="submit" disabled={createSloMutation.isPending}>
-                {createSloMutation.isPending ? "Creating..." : "Create SLO"}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setIsCreatingSlo(false);
-                  setSloFormError(null);
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </Panel>
-      )}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-label="SLO summary">
-        <MetricCard label="Availability SLOs" value={slos.length} tone="info" />
-        <MetricCard label="Burning" value={sloBreachCount} tone={sloBreachCount > 0 ? "bad" : "good"} />
-        <MetricCard label="Within Budget" value={slos.length - sloBreachCount} tone="good" />
-      </div>
-
-      {isLoadingSlos ? (
-        <Panel>
-          <div className="py-8 text-center text-[var(--muted)]">Loading SLOs...</div>
-        </Panel>
-      ) : slos.length > 0 ? (
-        <Panel title="SLO health" eyebrow="Error budget">
-          <div className="grid gap-3 lg:grid-cols-2">
-            {slos.map((slo) => (
-              <SloHealthCard key={slo.slo_id} slo={slo} />
-            ))}
+        <Tabs.Panel value="rules" className="space-y-4 pt-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-4" aria-label="Alert summary">
+            <MetricCard label="Total Rules" value={rules.length} tone="info" />
+            <MetricCard label="Firing" value={firingCount} tone={firingCount > 0 ? "bad" : "good"} />
+            <MetricCard label="Pending" value={pendingCount} tone="warn" />
+            <MetricCard label="Silenced" value={silencedCount} tone="warn" />
           </div>
-        </Panel>
-      ) : null}
 
-      {isCreating && (
-        <Panel title="Create Threshold Rule" eyebrow="Configuration">
-          <form
-            onSubmit={handleCreateSubmit}
-            aria-label="Create alert rule"
-            className="flex flex-col gap-3"
-          >
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="rule-name">Rule name</label>
-                <Input
-                  id="rule-name"
-                  placeholder="e.g. High Error Rate"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="metric-name">Metric name</label>
-                <Input
-                  id="metric-name"
-                  placeholder="e.g. error_rate"
-                  value={formMetric}
-                  onChange={(e) => setFormMetric(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
+          <Toolbar aria-label="Alert actions" className="justify-end">
+            <Button onClick={() => setIsCreating((v) => !v)}>
+              {isCreating ? "Cancel" : "New Rule"}
+            </Button>
+          </Toolbar>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="operator">Operator</label>
-                <Select
-                  id="operator"
-                  value={formOperator}
-                  onChange={(e) => setFormOperator(e.target.value)}
-                >
-                  <SelectOption value="gt">&gt; (greater than)</SelectOption>
-                  <SelectOption value="gte">&ge; (greater than or equal)</SelectOption>
-                  <SelectOption value="lt">&lt; (less than)</SelectOption>
-                  <SelectOption value="lte">&le; (less than or equal)</SelectOption>
-                  <SelectOption value="eq">= (equal)</SelectOption>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="threshold">Threshold value</label>
-                <Input
-                  id="threshold"
-                  type="number"
-                  step="any"
-                  value={formThreshold}
-                  onChange={(e) => setFormThreshold(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            {formError && (
-              <div role="alert" className="text-sm font-bold text-[var(--bad)]">
-                {formError}
-              </div>
-            )}
-
-            <div className="flex gap-2 pt-2">
-              <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? "Creating…" : "Create Rule"}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setIsCreating(false);
-                  setFormError(null);
-                }}
+          {isCreating && (
+            <Panel title="Create Threshold Rule" eyebrow="Configuration">
+              <form
+                onSubmit={handleCreateSubmit}
+                aria-label="Create alert rule"
+                className="flex flex-col gap-3"
               >
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </Panel>
-      )}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="rule-name">Rule name</label>
+                    <Input
+                      id="rule-name"
+                      placeholder="e.g. High Error Rate"
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="metric-name">Metric name</label>
+                    <Input
+                      id="metric-name"
+                      placeholder="e.g. error_rate"
+                      value={formMetric}
+                      onChange={(e) => setFormMetric(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
 
-      {isLoading ? (
-        <Panel>
-          <div className="py-8 text-center text-[var(--muted)]">Loading alert rules…</div>
-        </Panel>
-      ) : rules.length === 0 ? (
-        <EmptyState
-          title="No alert rules"
-          description="Create a threshold rule to start monitoring metrics."
-        />
-      ) : (
-        <Panel title="Active alert rules" eyebrow="Health and performance">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr>
-                  <th className="pb-3 pr-4">Name</th>
-                  <th className="pb-3 pr-4">Metric</th>
-                  <th className="pb-3 pr-4">Condition</th>
-                  <th className="pb-3 pr-4">Severity</th>
-                  <th className="pb-3 pr-4">Status</th>
-                  <th className="pb-3">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rules.map((rule) => (
-                  <AlertRuleRow
-                    key={rule.rule_id}
-                    rule={rule}
-                    onToggleSilence={() =>
-                      silenceMutation.mutate({
-                        ruleId: rule.rule_id,
-                        silenced: !rule.silenced,
-                      })
-                    }
-                  />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="operator">Operator</label>
+                    <Select
+                      id="operator"
+                      value={formOperator}
+                      onChange={(e) => setFormOperator(e.target.value)}
+                    >
+                      <SelectOption value="gt">&gt; (greater than)</SelectOption>
+                      <SelectOption value="gte">&ge; (greater than or equal)</SelectOption>
+                      <SelectOption value="lt">&lt; (less than)</SelectOption>
+                      <SelectOption value="lte">&le; (less than or equal)</SelectOption>
+                      <SelectOption value="eq">= (equal)</SelectOption>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="threshold">Threshold value</label>
+                    <Input
+                      id="threshold"
+                      type="number"
+                      step="any"
+                      value={formThreshold}
+                      onChange={(e) => setFormThreshold(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase text-[var(--muted)]">Notification channels</label>
+                  <div className="flex flex-wrap gap-4 pt-1">
+                    {channels.map((c) => (
+                      <label key={c.channel_id} className="flex items-center gap-2 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={selectedChannels.includes(c.channel_id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedChannels([...selectedChannels, c.channel_id]);
+                            } else {
+                              setSelectedChannels(selectedChannels.filter((id) => id !== c.channel_id));
+                            }
+                          }}
+                        />
+                        {c.name}
+                      </label>
+                    ))}
+                    {channels.length === 0 && <div className="text-xs italic text-[var(--muted)]">No channels configured.</div>}
+                  </div>
+                </div>
+
+                {formError && (
+                  <div role="alert" className="text-sm font-bold text-[var(--bad)]">
+                    {formError}
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <Button type="submit" disabled={createMutation.isPending}>
+                    {createMutation.isPending ? "Creating…" : "Create Rule"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setIsCreating(false);
+                      setFormError(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </Panel>
+          )}
+
+          {isLoading ? (
+            <Panel>
+              <div className="py-8 text-center text-[var(--muted)]">Loading alert rules…</div>
+            </Panel>
+          ) : rules.length === 0 ? (
+            <EmptyState
+              title="No alert rules"
+              description="Create a threshold rule to start monitoring metrics."
+            />
+          ) : (
+            <Panel title="Active alert rules" eyebrow="Health and performance">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr>
+                      <th className="pb-3 pr-4">Name</th>
+                      <th className="pb-3 pr-4">Metric</th>
+                      <th className="pb-3 pr-4">Condition</th>
+                      <th className="pb-3 pr-4">Channels</th>
+                      <th className="pb-3 pr-4">Status</th>
+                      <th className="pb-3">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rules.map((rule) => (
+                      <AlertRuleRow
+                        key={rule.rule_id}
+                        rule={rule}
+                        channels={channels}
+                        onToggleSilence={() =>
+                          silenceMutation.mutate({
+                            ruleId: rule.rule_id,
+                            silenced: !rule.silenced,
+                          })
+                        }
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
+          )}
+        </Tabs.Panel>
+
+        <Tabs.Panel value="slos" className="space-y-4 pt-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-label="SLO summary">
+            <MetricCard label="Availability SLOs" value={slos.length} tone="info" />
+            <MetricCard label="Burning" value={sloBreachCount} tone={sloBreachCount > 0 ? "bad" : "good"} />
+            <MetricCard label="Within Budget" value={slos.length - sloBreachCount} tone="good" />
+          </div>
+
+          <Toolbar aria-label="SLO actions" className="justify-end">
+            <Button variant="secondary" onClick={() => setIsCreatingSlo((v) => !v)}>
+              {isCreatingSlo ? "Cancel SLO" : "New SLO"}
+            </Button>
+          </Toolbar>
+
+          {isCreatingSlo && (
+            <Panel title="Create Availability SLO" eyebrow="Reliability target">
+              <form
+                onSubmit={handleCreateSloSubmit}
+                aria-label="Create SLO"
+                className="flex flex-col gap-3"
+              >
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="slo-service">SLO service</label>
+                    <Input
+                      id="slo-service"
+                      value={sloService}
+                      onChange={(e) => setSloService(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="slo-environment">SLO environment</label>
+                    <Input
+                      id="slo-environment"
+                      value={sloEnvironment}
+                      onChange={(e) => setSloEnvironment(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="slo-target">SLO target</label>
+                    <Input
+                      id="slo-target"
+                      type="number"
+                      step="0.001"
+                      value={sloTarget}
+                      onChange={(e) => setSloTarget(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="slo-description">SLO description</label>
+                    <Input
+                      id="slo-description"
+                      value={sloDescription}
+                      onChange={(e) => setSloDescription(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {sloFormError && (
+                  <div role="alert" className="text-sm font-bold text-[var(--bad)]">
+                    {sloFormError}
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <Button type="submit" disabled={createSloMutation.isPending}>
+                    {createSloMutation.isPending ? "Creating..." : "Create SLO"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setIsCreatingSlo(false);
+                      setSloFormError(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </Panel>
+          )}
+
+          {isLoadingSlos ? (
+            <Panel>
+              <div className="py-8 text-center text-[var(--muted)]">Loading SLOs...</div>
+            </Panel>
+          ) : slos.length > 0 ? (
+            <Panel title="SLO health" eyebrow="Error budget">
+              <div className="grid gap-3 lg:grid-cols-2">
+                {slos.map((slo) => (
+                  <SloHealthCard key={slo.slo_id} slo={slo} />
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
-      )}
+              </div>
+            </Panel>
+          ) : (
+            <EmptyState
+              title="No SLOs"
+              description="Define a service-level objective to track your reliability."
+            />
+          )}
+        </Tabs.Panel>
+
+        <Tabs.Panel value="channels" className="pt-4">
+          <NotificationChannelsList />
+        </Tabs.Panel>
+      </Tabs.Root>
     </section>
   );
 }
@@ -422,19 +484,28 @@ function formatPercent(value: number) {
 
 function AlertRuleRow({
   rule,
+  channels,
   onToggleSilence,
 }: {
   rule: AlertRuleItem;
+  channels: any[];
   onToggleSilence: () => void;
 }) {
   const conditionLabel = `${rule.operator} ${rule.threshold}`;
   const status = alertStatus(rule);
+  const channelNames = rule.notification_channels
+    .map((id) => channels.find((c) => c.channel_id === id)?.name)
+    .filter(Boolean)
+    .join(", ");
 
   return (
     <tr className="modern-table-row">
       <td className="py-3 pr-4 font-bold text-[var(--text-strong)]">{rule.name}</td>
       <td className="py-3 pr-4">{rule.metric_name}</td>
       <td className="py-3 pr-4">{conditionLabel}</td>
+      <td className="py-3 pr-4 text-xs text-[var(--muted)]">
+        {channelNames || "None"}
+      </td>
       <td className="py-3 pr-4">
         <Badge tone="neutral">{rule.severity}</Badge>
       </td>

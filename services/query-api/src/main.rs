@@ -10,6 +10,7 @@ mod mcp_query;
 mod mcp_tools;
 mod metrics;
 mod middleware;
+mod notifications;
 mod planner;
 mod schemas;
 mod slos;
@@ -120,6 +121,18 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/alerts/rules/:rule_id/silence",
             patch(alerts::handle_silence_rule),
+        )
+        .route(
+            "/v1/notifications/channels",
+            get(notifications::handle_list_channels),
+        )
+        .route(
+            "/v1/notifications/channels",
+            post(notifications::handle_create_channel),
+        )
+        .route(
+            "/v1/notifications/channels/:id",
+            delete(notifications::handle_delete_channel),
         )
         .route("/v1/slos", get(slos::handle_list_slos))
         .route("/v1/slos", post(slos::handle_create_slo))

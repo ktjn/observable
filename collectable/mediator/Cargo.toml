@@ -17,14 +17,14 @@ tracing      = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 config       = "0.14"
 signal-hook  = "0.3"
-syslog-loose = "0.21"
+syslog_loose = "0.21"
 grok         = "2"
 regex        = "1"
 csv          = "1"
 rumqttc      = "0.24"
 rdkafka      = { version = "0.36", features = ["tokio", "cmake-build"] }
 opentelemetry        = { version = "0.31", features = ["logs"] }
-opentelemetry-sdk    = { version = "0.31", features = ["logs"] }
+opentelemetry_sdk    = { version = "0.31", features = ["logs"] }
 opentelemetry-otlp   = { version = "0.31", features = ["http-proto", "logs", "grpc-tonic"] }
 opentelemetry-semantic-conventions = "0.31"
 tonic        = "0.14"

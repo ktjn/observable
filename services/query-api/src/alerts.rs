@@ -23,6 +23,7 @@ pub struct AlertRuleItem {
     pub state: String,
     pub firing: bool,
     pub last_fired_at: Option<DateTime<Utc>>,
+    pub notification_channels: Vec<Uuid>,
 }
 
 #[derive(Serialize)]
@@ -36,6 +37,7 @@ pub struct CreateRuleRequest {
     pub metric_name: String,
     pub operator: String,
     pub threshold: f64,
+    pub notification_channels: Option<Vec<Uuid>>,
 }
 
 #[derive(Deserialize)]
@@ -77,6 +79,7 @@ struct AlertRuleRow {
     state: String,
     firing: bool,
     last_fired_at: Option<DateTime<Utc>>,
+    notification_channels: Vec<Uuid>,
 }
 
 fn condition_fields(condition: &serde_json::Value) -> Option<(String, String, f64)> {
@@ -109,7 +112,8 @@ pub async fn list_alert_rules(
          ) AS firing, \
          (SELECT MAX(occurred_at) FROM alert_firings af \
           WHERE af.rule_id = r.rule_id AND af.tenant_id = r.tenant_id \
-            AND af.state = 'active') AS last_fired_at \
+            AND af.state = 'active') AS last_fired_at, \
+         r.notification_channels \
          FROM alert_rules r \
          WHERE r.tenant_id = $1 AND r.alert_type = 'threshold' \
          ORDER BY r.created_at DESC",
@@ -133,6 +137,7 @@ pub async fn list_alert_rules(
                     state: row.state,
                     firing: row.firing,
                     last_fired_at: row.last_fired_at,
+                    notification_channels: row.notification_channels,
                 }),
                 None => {
                     tracing::warn!(rule_id = %row.rule_id, "skipping alert rule with malformed condition JSONB");
@@ -174,14 +179,17 @@ pub async fn create_alert_rule(
         "threshold": req.threshold,
     });
 
+    let channels = req.notification_channels.clone().unwrap_or_default();
+
     let rule_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO alert_rules (tenant_id, name, alert_type, severity, condition) \
-         VALUES ($1, $2, 'threshold', 'warning', $3) \
+        "INSERT INTO alert_rules (tenant_id, name, alert_type, severity, condition, notification_channels) \
+         VALUES ($1, $2, 'threshold', 'warning', $3, $4) \
          RETURNING rule_id",
     )
     .bind(tenant_id)
     .bind(&req.name)
     .bind(&condition)
+    .bind(&channels)
     .fetch_one(db)
     .await
     .map_err(CreateRuleError::Db)?;
@@ -197,6 +205,7 @@ pub async fn create_alert_rule(
         state: "ok".into(),
         firing: false,
         last_fired_at: None,
+        notification_channels: channels,
     })
 }
 
@@ -331,6 +340,7 @@ mod tests {
             state: "active".into(),
             firing: true,
             last_fired_at: None,
+            notification_channels: vec![],
         };
         let v = serde_json::to_value(&item).unwrap();
         assert_eq!(v["name"], "High error rate");

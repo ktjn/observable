@@ -34,10 +34,12 @@ async fn main() -> anyhow::Result<()> {
         .parse()?;
 
     tokio::spawn(evaluator::start_eval_worker(
-        db,
+        db.clone(),
         ch,
         std::time::Duration::from_secs(interval_secs),
     ));
+
+    tokio::spawn(evaluator::notification_worker(db));
 
     let app = Router::new()
         .route("/health", get(|| async { axum::http::StatusCode::OK }))

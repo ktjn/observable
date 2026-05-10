@@ -10,6 +10,7 @@ pub mod mcp_query;
 pub mod mcp_tools;
 pub mod metrics;
 pub mod middleware;
+pub mod notifications;
 pub mod planner;
 pub mod schemas;
 pub mod slos;

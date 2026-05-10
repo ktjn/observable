@@ -80,6 +80,7 @@ async fn create_rule_appears_in_list() {
         metric_name: "p95_latency_ms".into(),
         operator: "gt".into(),
         threshold: 500.0,
+        notification_channels: None,
     };
     let created = create_alert_rule(&pool, tenant, &req).await.unwrap();
 
@@ -108,6 +109,7 @@ async fn silence_toggle_updates_silenced_flag() {
         metric_name: "cpu_usage".into(),
         operator: "gt".into(),
         threshold: 0.9,
+        notification_channels: None,
     };
     let created = create_alert_rule(&pool, tenant, &req).await.unwrap();
     assert!(!created.silenced);
@@ -132,11 +134,13 @@ async fn silence_returns_none_for_cross_tenant_rule() {
     let tenant_b = Uuid::new_v4();
 
     let req = CreateRuleRequest {
-        name: "Private rule".into(),
-        metric_name: "requests".into(),
-        operator: "lt".into(),
-        threshold: 1.0,
+        name: "test rule".into(),
+        metric_name: "test_metric".into(),
+        operator: "gt".into(),
+        threshold: 10.0,
+        notification_channels: None,
     };
+
     let created = create_alert_rule(&pool, tenant_a, &req).await.unwrap();
 
     let result = silence_alert_rule(&pool, tenant_b, created.rule_id, true)
@@ -162,11 +166,13 @@ async fn list_rules_does_not_return_other_tenant_rules() {
     let tenant_b = Uuid::new_v4();
 
     let req = CreateRuleRequest {
-        name: "Tenant A rule".into(),
-        metric_name: "errors".into(),
+        name: "test rule".into(),
+        metric_name: "test_metric".into(),
         operator: "gt".into(),
         threshold: 10.0,
+        notification_channels: None,
     };
+
     create_alert_rule(&pool, tenant_a, &req).await.unwrap();
 
     let tenant_b_rules = list_alert_rules(&pool, tenant_b).await.unwrap();
@@ -189,6 +195,7 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             metric_name: "pending_metric".into(),
             operator: "gt".into(),
             threshold: 1.0,
+            notification_channels: None,
         },
     )
     .await
@@ -211,6 +218,7 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             metric_name: "active_metric".into(),
             operator: "gt".into(),
             threshold: 1.0,
+            notification_channels: None,
         },
     )
     .await
@@ -233,6 +241,7 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             metric_name: "resolved_metric".into(),
             operator: "gt".into(),
             threshold: 1.0,
+            notification_channels: None,
         },
     )
     .await
@@ -255,6 +264,7 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             metric_name: "silenced_metric".into(),
             operator: "gt".into(),
             threshold: 1.0,
+            notification_channels: None,
         },
     )
     .await

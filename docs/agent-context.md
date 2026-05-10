@@ -23,9 +23,8 @@ making changes.
 - Active roadmap: `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` for the
   long-horizon backlog and `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`
   as the historical Phases 2-8 closure reference.
-- Active detailed implementation plan: none. Write the next detailed plan for **P5-S2**
-  notification routing integration before implementation starts.
-- Completed detailed plan archive: `archived/plans/2026-05-05-p4-s5-slo-burn-rate.md` for P4-S5
+- Active detailed implementation plan: none.
+- Completed detailed plan archive: `archived/plans/2026-05-10-p5-s2-notification-routing-webhook-complete.md` for P5-S2
   and `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
 - Historical Phase 1 plan: `archived/plans/2026-04-17-phase1-internal-mvp.md`; do not treat it as an active backlog.
 - Architecture decisions: `spec/adr/`.
