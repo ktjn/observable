@@ -11,6 +11,7 @@ export interface NlqIrLike {
   operation?: string;
   signals?: string[];
   metric?: string | null;
+  catalog_field?: string | null;
   query?: string | null;
   filters?: Array<{
     field?: string;

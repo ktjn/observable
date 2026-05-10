@@ -1055,6 +1055,39 @@ async fn nlq_base_ir_invalid_regex_filter_returns_400() {
 }
 
 #[tokio::test]
+async fn nlq_metrics_base_ir_without_metric_returns_400() {
+    let app = fake_nlq_app_no_db();
+
+    let body = serde_json::json!({
+        "mode": "execute",
+        "base_ir": {
+            "signals": ["metrics"],
+            "operation": "table",
+            "time_range": {
+                "from": "now-1h",
+                "to": "now"
+            },
+            "filters": []
+        }
+    });
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/nlq")
+        .header("Authorization", format!("Bearer {DEV_API_KEY}"))
+        .header("X-Tenant-ID", DEV_TENANT_ID)
+        .header("Content-Type", "application/json")
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+
+    let response = app.oneshot(req).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = response_body_json(response.into_body()).await;
+    assert_eq!(body["error"], "metric is required for this operation");
+}
+
+#[tokio::test]
 async fn test_mcp_query_rejects_unknown_filter_field() {
     let (db, _pg_container) = start_postgres().await;
     let (ch_client, _ch_container) = start_clickhouse().await;
