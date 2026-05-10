@@ -224,3 +224,43 @@ test("local preset time range overrides the global date range", async () => {
     ),
   );
 });
+
+test("metrics panels without query text execute a metric catalog base IR", async () => {
+  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue({
+    ...dashboard,
+    panels: [
+      {
+        ...dashboard.panels[0],
+        query_kind: "metrics",
+        query_text: null,
+        service: null,
+        filters: { name: "request", type: "histogram", environment: "prod" },
+      },
+    ],
+  });
+  vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+
+  renderPage();
+
+  await screen.findByRole("heading", { name: "Checkout Health" });
+
+  await waitFor(() =>
+    expect(submitNlqQuery).toHaveBeenCalledWith(
+      "test-tenant",
+      expect.objectContaining({
+        question: undefined,
+        mode: "execute",
+        base_ir: expect.objectContaining({
+          operation: "catalog",
+          signals: ["metrics"],
+          catalog_field: "metric_name",
+          filters: expect.arrayContaining([
+            { field: "metric_name", op: "=", value: "request" },
+            { field: "metric_type", op: "=", value: "histogram" },
+            { field: "environment", op: "=", value: "prod" },
+          ]),
+        }),
+      }),
+    ),
+  );
+});

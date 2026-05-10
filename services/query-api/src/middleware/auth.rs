@@ -37,7 +37,7 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
     })?;
     let auth_service_url = req.extensions().get::<Arc<String>>().cloned();
 
-    let bearer = extract_bearer_token(req.headers()).ok();
+    let bearer = extract_bearer_token(req.headers())?;
     let session_cookie = extract_session_cookie(req.headers());
     let tenant_id_res = extract_tenant_id(req.headers());
     let tenant_id_hdr = tenant_id_res.as_ref().ok().cloned();
@@ -144,17 +144,16 @@ fn extract_session_cookie(headers: &axum::http::HeaderMap) -> Option<String> {
 }
 
 /// Extract the raw bearer token value from the Authorization header.
-fn extract_bearer_token(headers: &axum::http::HeaderMap) -> Result<String, StatusCode> {
-    headers
-        .get("Authorization")
-        .ok_or_else(|| {
-            tracing::warn!(reason = "missing_authorization_header", "auth rejected");
-            StatusCode::UNAUTHORIZED
-        })?
+fn extract_bearer_token(headers: &axum::http::HeaderMap) -> Result<Option<String>, StatusCode> {
+    let Some(value) = headers.get("Authorization") else {
+        return Ok(None);
+    };
+
+    value
         .to_str()
         .ok()
         .and_then(|v| v.strip_prefix("Bearer "))
-        .map(|s| s.to_owned())
+        .map(|s| Some(s.to_owned()))
         .ok_or_else(|| {
             tracing::warn!(reason = "malformed_authorization_header", "auth rejected");
             StatusCode::UNAUTHORIZED
@@ -252,7 +251,7 @@ mod tests {
     fn missing_authorization_header_is_rejected() {
         let headers = headers_from(&[("X-Tenant-ID", "00000000-0000-0000-0000-000000000001")]);
         let result = extract_bearer_token(&headers);
-        assert_eq!(result.unwrap_err(), StatusCode::UNAUTHORIZED);
+        assert_eq!(result.unwrap(), None);
     }
 
     #[test]
@@ -276,7 +275,7 @@ mod tests {
     fn bearer_prefix_is_stripped_correctly() {
         let headers = headers_from(&[("Authorization", "Bearer dev-api-key-0000")]);
         let result = extract_bearer_token(&headers).unwrap();
-        assert_eq!(result, "dev-api-key-0000");
+        assert_eq!(result, Some("dev-api-key-0000".into()));
     }
 
     #[test]

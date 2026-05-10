@@ -995,9 +995,10 @@ pub(crate) fn parse_llm_response(json: &str) -> Result<NlqIrOrDecline, LlmAdapte
 /// - User filters override base filters for the same field (case-insensitive match).
 ///   User filters for new fields not present in base are appended.
 /// - User `time_range` takes precedence when its `from` field is non-empty.
-/// - All other user IR fields (`metric`, `window`, `resolution`, `group_by`,
-///   `visualization_hint`, `percentiles`, `limit`) are ignored; the base IR
-///   operation context governs the result shape.
+/// - Metric execution-shape fields (`metric`, `window`, `resolution`, `group_by`,
+///   `visualization_hint`, `percentiles`, `limit`) are preserved from the base IR.
+///   If the base IR leaves `metric` empty, the user metric is used so generic
+///   metrics surfaces can still execute a resolved metric query.
 /// - User `query` (free-text search term) is preserved from the user IR.
 pub fn merge_irs(base: NlqIr, user: NlqIr) -> NlqIr {
     // Base filters first; user filters for the same field replace them.
@@ -1023,13 +1024,17 @@ pub fn merge_irs(base: NlqIr, user: NlqIr) -> NlqIr {
         filters: merged,
         time_range: merged_time_range,
         query: user.query,
-        metric: None,
-        window: None,
-        group_by: vec![],
-        resolution: None,
-        visualization_hint: None,
-        percentiles: None,
-        limit: None,
+        metric: base.metric.or(user.metric),
+        window: base.window.or(user.window),
+        group_by: if base.group_by.is_empty() {
+            user.group_by
+        } else {
+            base.group_by
+        },
+        resolution: base.resolution.or(user.resolution),
+        visualization_hint: base.visualization_hint.or(user.visualization_hint),
+        percentiles: base.percentiles.or(user.percentiles),
+        limit: base.limit.or(user.limit),
     }
 }
 
@@ -1524,6 +1529,13 @@ fn map_mcp_error(
                 ),
             )
         }
+        crate::mcp_query::McpQueryError::MissingMetric => {
+            tracing::warn!(tenant_id = %tenant_id, "NLQ rejected: metric is required");
+            (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "metric is required for this operation"})),
+            )
+        }
         _ if e.to_string().contains("Connect") || e.to_string().contains("network") => {
             tracing::error!(error = %e, tenant_id = %tenant_id, "NLQ pipeline failed — data store unreachable");
             (
@@ -1722,6 +1734,13 @@ pub async fn handle_nlq_query(
                 ),
             ))
         }
+        Err(LlmAdapterError::QueryExecution(crate::mcp_query::McpQueryError::MissingMetric)) => {
+            tracing::warn!(tenant_id = %ctx.tenant_id, "NLQ rejected: metric is required");
+            Err((
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "metric is required for this operation"})),
+            ))
+        }
         Err(e) => {
             tracing::error!(error = %e, tenant_id = %ctx.tenant_id, "NLQ pipeline failed");
             Err((
@@ -1781,7 +1800,7 @@ pub async fn handle_nlq_metadata(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domain::{NlqOperation, NlqSignal, NlqTimeRange};
+    use domain::{NlqOperation, NlqSignal, NlqTimeRange, NlqVisualizationHint};
 
     // ── Mock LlmCaller ────────────────────────────────────────────────────────
 
@@ -2615,6 +2634,79 @@ mod tests {
         assert!(fields.contains(&"env"));
         assert!(fields.contains(&"service"));
         assert!(fields.contains(&"region"));
+    }
+
+    #[test]
+    fn merge_irs_preserves_metric_execution_shape_from_base_ir() {
+        let base = NlqIr {
+            operation: NlqOperation::Timeseries,
+            signals: vec![NlqSignal::Metrics],
+            metric: Some("request_duration_ms".into()),
+            window: Some("5m".into()),
+            filters: vec![NlqFilter {
+                field: "service_name".into(),
+                op: NlqFilterOp::Eq,
+                value: "checkout".into(),
+            }],
+            group_by: vec!["environment".into()],
+            resolution: Some("1m".into()),
+            time_range: NlqTimeRange {
+                from: "now-1h".into(),
+                to: "now".into(),
+            },
+            visualization_hint: Some(NlqVisualizationHint::Timeseries),
+            percentiles: Some(vec!["p95".into()]),
+            catalog_field: None,
+            limit: Some(10),
+            query: None,
+        };
+        let user = NlqIr {
+            operation: NlqOperation::Table,
+            signals: vec![NlqSignal::Metrics],
+            metric: Some("ignored_user_metric".into()),
+            window: Some("ignored".into()),
+            filters: vec![NlqFilter {
+                field: "environment".into(),
+                op: NlqFilterOp::Eq,
+                value: "prod".into(),
+            }],
+            group_by: vec!["ignored".into()],
+            resolution: Some("ignored".into()),
+            time_range: NlqTimeRange {
+                from: "now-15m".into(),
+                to: "now".into(),
+            },
+            visualization_hint: Some(NlqVisualizationHint::Table),
+            percentiles: Some(vec!["p99".into()]),
+            catalog_field: None,
+            limit: Some(99),
+            query: Some("errors".into()),
+        };
+
+        let merged = merge_irs(base, user);
+
+        assert_eq!(merged.operation, NlqOperation::Timeseries);
+        assert_eq!(merged.signals, vec![NlqSignal::Metrics]);
+        assert_eq!(merged.metric.as_deref(), Some("request_duration_ms"));
+        assert_eq!(merged.window.as_deref(), Some("5m"));
+        assert_eq!(merged.group_by, vec!["environment"]);
+        assert_eq!(merged.resolution.as_deref(), Some("1m"));
+        assert_eq!(
+            merged.visualization_hint,
+            Some(NlqVisualizationHint::Timeseries)
+        );
+        assert_eq!(merged.percentiles, Some(vec!["p95".into()]));
+        assert_eq!(merged.limit, Some(10));
+        assert_eq!(merged.query.as_deref(), Some("errors"));
+        assert_eq!(merged.time_range.from, "now-15m");
+        assert!(merged
+            .filters
+            .iter()
+            .any(|f| f.field == "service_name" && f.value == "checkout"));
+        assert!(merged
+            .filters
+            .iter()
+            .any(|f| f.field == "environment" && f.value == "prod"));
     }
 
     #[test]
