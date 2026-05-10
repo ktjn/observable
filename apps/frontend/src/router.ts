@@ -13,6 +13,7 @@ import TraceDetailPage from "./pages/TraceDetailPage";
 import LogSearch from "./pages/LogSearch";
 import MetricsSearch from "./pages/MetricsSearch";
 import DashboardsPage from "./pages/DashboardsPage";
+import DashboardDetailPage from "./pages/DashboardDetailPage";
 import NlqQueryPage from "./pages/NlqQueryPage";
 import LoginPage from "./pages/LoginPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
@@ -101,6 +102,11 @@ const dashboardsRoute = createRoute({
   path: "/dashboards",
   component: DashboardsPage,
 });
+const dashboardDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/dashboards/$dashboardId",
+  component: DashboardDetailPage,
+});
 const alertsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/alerts",
@@ -169,6 +175,7 @@ export const router = createRouter({
     infrastructureDetailRoute,
     serviceOverviewRoute,
     dashboardsRoute,
+    dashboardDetailRoute,
     alertsRoute,
     adminRoute,
     identitySettingsRoute,

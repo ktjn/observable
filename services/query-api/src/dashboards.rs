@@ -10,15 +10,22 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 const VALID_QUERY_KINDS: &[&str] = &["logs", "traces", "metrics"];
+const VALID_PANEL_KINDS: &[&str] = &["query", "text"];
+const EXPORT_SCHEMA_VERSION: &str = "2";
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct DashboardPanelItem {
     pub panel_id: Uuid,
     pub title: String,
-    pub query_kind: String,
+    pub panel_kind: String,
+    pub query_kind: Option<String>,
     pub service: Option<String>,
     pub preset: Option<String>,
     pub filters: serde_json::Value,
+    pub query_text: Option<String>,
+    pub content: Option<String>,
+    pub layout: serde_json::Value,
+    pub time_range: serde_json::Value,
 }
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
@@ -34,17 +41,54 @@ pub struct DashboardListResponse {
     pub items: Vec<DashboardItem>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct DashboardPanelRequest {
     pub title: String,
-    pub query_kind: String,
+    #[serde(default)]
+    pub panel_kind: Option<String>,
+    #[serde(default)]
+    pub query_kind: Option<String>,
+    #[serde(default)]
     pub service: Option<String>,
+    #[serde(default)]
     pub preset: Option<String>,
+    #[serde(default = "empty_object")]
     pub filters: serde_json::Value,
+    #[serde(default)]
+    pub query_text: Option<String>,
+    #[serde(default)]
+    pub content: Option<String>,
+    #[serde(default)]
+    pub layout: Option<serde_json::Value>,
+    #[serde(default)]
+    pub time_range: Option<serde_json::Value>,
+}
+
+impl Default for DashboardPanelRequest {
+    fn default() -> Self {
+        Self {
+            title: String::new(),
+            panel_kind: None,
+            query_kind: None,
+            service: None,
+            preset: None,
+            filters: serde_json::json!({}),
+            query_text: None,
+            content: None,
+            layout: None,
+            time_range: None,
+        }
+    }
 }
 
 #[derive(Deserialize)]
 pub struct CreateDashboardRequest {
+    pub name: String,
+    pub panels: Vec<DashboardPanelRequest>,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateDashboardRequest {
     pub name: String,
     pub panels: Vec<DashboardPanelRequest>,
 }
@@ -85,10 +129,15 @@ struct DashboardPanelRow {
     dashboard_id: Uuid,
     panel_id: Uuid,
     title: String,
-    query_kind: String,
+    panel_kind: String,
+    query_kind: Option<String>,
     service: Option<String>,
     preset: Option<String>,
     filters: serde_json::Value,
+    query_text: Option<String>,
+    content: Option<String>,
+    layout: serde_json::Value,
+    time_range: serde_json::Value,
 }
 
 pub async fn list_dashboards(
@@ -110,7 +159,8 @@ pub async fn list_dashboards(
         Vec::new()
     } else {
         sqlx::query_as::<_, DashboardPanelRow>(
-            "SELECT dashboard_id, panel_id, title, query_kind, service, preset, filters \
+            "SELECT dashboard_id, panel_id, title, panel_kind, query_kind, service, preset, \
+                    filters, query_text, content, layout, time_range \
              FROM dashboard_panels \
              WHERE dashboard_id = ANY($1) \
              ORDER BY dashboard_id, position ASC",
@@ -129,10 +179,15 @@ pub async fn list_dashboards(
                 .map(|panel| DashboardPanelItem {
                     panel_id: panel.panel_id,
                     title: panel.title.clone(),
+                    panel_kind: panel.panel_kind.clone(),
                     query_kind: panel.query_kind.clone(),
                     service: panel.service.clone(),
                     preset: panel.preset.clone(),
                     filters: panel.filters.clone(),
+                    query_text: panel.query_text.clone(),
+                    content: panel.content.clone(),
+                    layout: panel.layout.clone(),
+                    time_range: panel.time_range.clone(),
                 })
                 .collect(),
             dashboard_id: dashboard.dashboard_id,
@@ -140,6 +195,44 @@ pub async fn list_dashboards(
             created_at: dashboard.created_at,
         })
         .collect())
+}
+
+pub async fn get_dashboard(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+    dashboard_id: Uuid,
+) -> Result<Option<DashboardItem>, sqlx::Error> {
+    let dashboard = sqlx::query_as::<_, DashboardRow>(
+        "SELECT dashboard_id, name, created_at \
+         FROM dashboards \
+         WHERE dashboard_id = $1 AND tenant_id = $2",
+    )
+    .bind(dashboard_id)
+    .bind(tenant_id)
+    .fetch_optional(db)
+    .await?;
+
+    let Some(dashboard) = dashboard else {
+        return Ok(None);
+    };
+
+    let panels = sqlx::query_as::<_, DashboardPanelRow>(
+        "SELECT dashboard_id, panel_id, title, panel_kind, query_kind, service, preset, \
+                filters, query_text, content, layout, time_range \
+         FROM dashboard_panels \
+         WHERE dashboard_id = $1 \
+         ORDER BY position ASC",
+    )
+    .bind(dashboard.dashboard_id)
+    .fetch_all(db)
+    .await?;
+
+    Ok(Some(DashboardItem {
+        dashboard_id: dashboard.dashboard_id,
+        name: dashboard.name,
+        panels: panels.into_iter().map(row_to_panel_item).collect(),
+        created_at: dashboard.created_at,
+    }))
 }
 
 pub async fn create_dashboard(
@@ -162,15 +255,21 @@ pub async fn create_dashboard(
 
     let mut panels = Vec::with_capacity(req.panels.len());
     for (position, panel) in req.panels.iter().enumerate() {
+        let panel_kind = panel_kind(panel);
+        let layout = normalized_layout(panel.layout.as_ref(), position);
+        let time_range = normalized_time_range(panel);
         let item = sqlx::query_as::<_, DashboardPanelRow>(
             "INSERT INTO dashboard_panels \
-             (dashboard_id, title, query_kind, service, preset, filters, position) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7) \
-             RETURNING dashboard_id, panel_id, title, query_kind, service, preset, filters",
+             (dashboard_id, title, panel_kind, query_kind, service, preset, filters, \
+              query_text, content, layout, time_range, position) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) \
+             RETURNING dashboard_id, panel_id, title, panel_kind, query_kind, service, preset, \
+                       filters, query_text, content, layout, time_range",
         )
         .bind(row.dashboard_id)
         .bind(panel.title.trim())
-        .bind(&panel.query_kind)
+        .bind(panel_kind)
+        .bind(panel.query_kind.as_deref())
         .bind(
             panel
                 .service
@@ -180,19 +279,28 @@ pub async fn create_dashboard(
         )
         .bind(panel.preset.as_deref())
         .bind(&panel.filters)
+        .bind(
+            panel
+                .query_text
+                .as_ref()
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty()),
+        )
+        .bind(
+            panel
+                .content
+                .as_ref()
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty()),
+        )
+        .bind(&layout)
+        .bind(&time_range)
         .bind(position as i32)
         .fetch_one(&mut *tx)
         .await
         .map_err(CreateDashboardError::Db)?;
 
-        panels.push(DashboardPanelItem {
-            panel_id: item.panel_id,
-            title: item.title,
-            query_kind: item.query_kind,
-            service: item.service,
-            preset: item.preset,
-            filters: item.filters,
-        });
+        panels.push(row_to_panel_item(item));
     }
 
     tx.commit().await.map_err(CreateDashboardError::Db)?;
@@ -205,18 +313,124 @@ pub async fn create_dashboard(
     })
 }
 
+pub async fn update_dashboard(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+    dashboard_id: Uuid,
+    req: &UpdateDashboardRequest,
+) -> Result<Option<DashboardItem>, CreateDashboardError> {
+    let create_req = CreateDashboardRequest {
+        name: req.name.clone(),
+        panels: req.panels.clone(),
+    };
+    validate_create_request(&create_req)?;
+
+    let mut tx = db.begin().await.map_err(CreateDashboardError::Db)?;
+    let row = sqlx::query_as::<_, DashboardRow>(
+        "UPDATE dashboards \
+         SET name = $1 \
+         WHERE dashboard_id = $2 AND tenant_id = $3 \
+         RETURNING dashboard_id, name, created_at",
+    )
+    .bind(req.name.trim())
+    .bind(dashboard_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(CreateDashboardError::Db)?;
+
+    let Some(row) = row else {
+        tx.rollback().await.map_err(CreateDashboardError::Db)?;
+        return Ok(None);
+    };
+
+    sqlx::query("DELETE FROM dashboard_panels WHERE dashboard_id = $1")
+        .bind(row.dashboard_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(CreateDashboardError::Db)?;
+
+    let mut panels = Vec::with_capacity(req.panels.len());
+    for (position, panel) in req.panels.iter().enumerate() {
+        let panel_kind = panel_kind(panel);
+        let layout = normalized_layout(panel.layout.as_ref(), position);
+        let time_range = normalized_time_range(panel);
+        let item = sqlx::query_as::<_, DashboardPanelRow>(
+            "INSERT INTO dashboard_panels \
+             (dashboard_id, title, panel_kind, query_kind, service, preset, filters, \
+              query_text, content, layout, time_range, position) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) \
+             RETURNING dashboard_id, panel_id, title, panel_kind, query_kind, service, preset, \
+                       filters, query_text, content, layout, time_range",
+        )
+        .bind(row.dashboard_id)
+        .bind(panel.title.trim())
+        .bind(panel_kind)
+        .bind(panel.query_kind.as_deref())
+        .bind(
+            panel
+                .service
+                .as_ref()
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty()),
+        )
+        .bind(panel.preset.as_deref())
+        .bind(&panel.filters)
+        .bind(
+            panel
+                .query_text
+                .as_ref()
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty()),
+        )
+        .bind(
+            panel
+                .content
+                .as_ref()
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty()),
+        )
+        .bind(&layout)
+        .bind(&time_range)
+        .bind(position as i32)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(CreateDashboardError::Db)?;
+        panels.push(row_to_panel_item(item));
+    }
+
+    tx.commit().await.map_err(CreateDashboardError::Db)?;
+
+    Ok(Some(DashboardItem {
+        dashboard_id: row.dashboard_id,
+        name: row.name,
+        panels,
+        created_at: row.created_at,
+    }))
+}
+
 const VALID_PRESETS: &[&str] = &["5m", "15m", "30m", "1h", "3h", "12h"];
-const EXPORT_SCHEMA_VERSION: &str = "1";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct DashboardExportPanel {
     pub title: String,
-    pub query_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub panel_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query_kind: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preset: Option<String>,
     pub filters: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query_text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub layout: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time_range: Option<serde_json::Value>,
 }
 
 /// Portable dashboard representation — no IDs, stable for version control.
@@ -247,7 +461,8 @@ pub async fn export_dashboard(
     };
 
     let panels = sqlx::query_as::<_, DashboardPanelRow>(
-        "SELECT dashboard_id, panel_id, title, query_kind, service, preset, filters \
+        "SELECT dashboard_id, panel_id, title, panel_kind, query_kind, service, preset, \
+                filters, query_text, content, layout, time_range \
          FROM dashboard_panels \
          WHERE dashboard_id = $1 \
          ORDER BY position ASC",
@@ -263,10 +478,15 @@ pub async fn export_dashboard(
             .into_iter()
             .map(|p| DashboardExportPanel {
                 title: p.title,
+                panel_kind: Some(p.panel_kind),
                 query_kind: p.query_kind,
                 service: p.service,
                 preset: p.preset,
                 filters: p.filters,
+                query_text: p.query_text,
+                content: p.content,
+                layout: Some(p.layout),
+                time_range: Some(p.time_range),
             })
             .collect(),
     }))
@@ -284,10 +504,15 @@ pub async fn import_dashboard(
             .iter()
             .map(|p| DashboardPanelRequest {
                 title: p.title.clone(),
+                panel_kind: p.panel_kind.clone(),
                 query_kind: p.query_kind.clone(),
                 service: p.service.clone(),
                 preset: p.preset.clone(),
                 filters: p.filters.clone(),
+                query_text: p.query_text.clone(),
+                content: p.content.clone(),
+                layout: p.layout.clone(),
+                time_range: p.time_range.clone(),
             })
             .collect(),
     };
@@ -306,15 +531,52 @@ fn validate_create_request(req: &CreateDashboardRequest) -> Result<(), CreateDas
         ));
     }
     for panel in &req.panels {
+        let kind = panel_kind(panel);
         if panel.title.trim().is_empty() {
             return Err(CreateDashboardError::InvalidInput(
                 "panel title is required".into(),
             ));
         }
-        if !VALID_QUERY_KINDS.contains(&panel.query_kind.as_str()) {
+        if !VALID_PANEL_KINDS.contains(&kind) {
             return Err(CreateDashboardError::InvalidInput(format!(
-                "query_kind must be one of: {}",
-                VALID_QUERY_KINDS.join(", ")
+                "panel_kind must be one of: {}",
+                VALID_PANEL_KINDS.join(", ")
+            )));
+        }
+        if kind == "query" && panel.query_kind.as_deref().is_none() {
+            return Err(CreateDashboardError::InvalidInput(
+                "query panels require query_kind".into(),
+            ));
+        }
+        if kind == "text" && panel.content.as_ref().is_none_or(|s| s.trim().is_empty()) {
+            return Err(CreateDashboardError::InvalidInput(
+                "text panels require content".into(),
+            ));
+        }
+        if let Some(query_kind) = &panel.query_kind {
+            if !VALID_QUERY_KINDS.contains(&query_kind.as_str()) {
+                return Err(CreateDashboardError::InvalidInput(format!(
+                    "query_kind must be one of: {}",
+                    VALID_QUERY_KINDS.join(", ")
+                )));
+            }
+        }
+        if let Some(layout) = &panel.layout {
+            validate_layout(layout)?;
+        }
+        if let Some(time_range) = &panel.time_range {
+            validate_time_range(time_range)?;
+        }
+        if kind == "query"
+            && panel.time_range.is_none()
+            && panel
+                .preset
+                .as_ref()
+                .is_some_and(|preset| !VALID_PRESETS.contains(&preset.as_str()))
+        {
+            return Err(CreateDashboardError::InvalidInput(format!(
+                "preset must be one of: {} (or omitted for global date range)",
+                VALID_PRESETS.join(", ")
             )));
         }
         if let Some(ref preset) = panel.preset {
@@ -327,6 +589,94 @@ fn validate_create_request(req: &CreateDashboardRequest) -> Result<(), CreateDas
         }
     }
     Ok(())
+}
+
+fn row_to_panel_item(row: DashboardPanelRow) -> DashboardPanelItem {
+    DashboardPanelItem {
+        panel_id: row.panel_id,
+        title: row.title,
+        panel_kind: row.panel_kind,
+        query_kind: row.query_kind,
+        service: row.service,
+        preset: row.preset,
+        filters: row.filters,
+        query_text: row.query_text,
+        content: row.content,
+        layout: row.layout,
+        time_range: row.time_range,
+    }
+}
+
+fn empty_object() -> serde_json::Value {
+    serde_json::json!({})
+}
+
+fn panel_kind(panel: &DashboardPanelRequest) -> &str {
+    panel.panel_kind.as_deref().unwrap_or("query")
+}
+
+fn normalized_layout(layout: Option<&serde_json::Value>, position: usize) -> serde_json::Value {
+    layout.cloned().unwrap_or_else(
+        || serde_json::json!({"x": (position % 2) * 6, "y": position / 2 * 4, "w": 6, "h": 4}),
+    )
+}
+
+fn normalized_time_range(panel: &DashboardPanelRequest) -> serde_json::Value {
+    panel.time_range.clone().unwrap_or_else(|| {
+        panel
+            .preset
+            .as_ref()
+            .map(|preset| serde_json::json!({"mode":"preset","preset":preset}))
+            .unwrap_or_else(|| serde_json::json!({"mode":"global"}))
+    })
+}
+
+fn validate_layout(layout: &serde_json::Value) -> Result<(), CreateDashboardError> {
+    let x = layout.get("x").and_then(|v| v.as_i64());
+    let y = layout.get("y").and_then(|v| v.as_i64());
+    let w = layout.get("w").and_then(|v| v.as_i64());
+    let h = layout.get("h").and_then(|v| v.as_i64());
+    let Some((x, y, w, h)) = x.zip(y).zip(w).zip(h).map(|(((x, y), w), h)| (x, y, w, h)) else {
+        return Err(CreateDashboardError::InvalidInput(
+            "layout requires numeric x, y, w, h".into(),
+        ));
+    };
+    if x < 0 || y < 0 || w < 1 || h < 1 || w > 12 || x + w > 12 {
+        return Err(CreateDashboardError::InvalidInput(
+            "layout must fit within 12 columns".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_time_range(time_range: &serde_json::Value) -> Result<(), CreateDashboardError> {
+    match time_range.get("mode").and_then(|v| v.as_str()) {
+        Some("global") => Ok(()),
+        Some("preset") => {
+            let preset = time_range.get("preset").and_then(|v| v.as_str());
+            if preset.is_some_and(|preset| VALID_PRESETS.contains(&preset)) {
+                Ok(())
+            } else {
+                Err(CreateDashboardError::InvalidInput(
+                    "preset time_range requires a valid preset".into(),
+                ))
+            }
+        }
+        Some("absolute") => {
+            if time_range.get("from_ms").and_then(|v| v.as_i64()).is_some()
+                && time_range.get("to_ms").and_then(|v| v.as_i64()).is_some()
+            {
+                Ok(())
+            } else {
+                Err(CreateDashboardError::InvalidInput(
+                    "absolute time_range requires from_ms and to_ms".into(),
+                ))
+            }
+        }
+        _ => Err(CreateDashboardError::InvalidInput(
+            "time_range mode must be global, preset, or absolute".into(),
+        )),
+    }
 }
 
 pub async fn handle_list_dashboards(
@@ -360,6 +710,41 @@ pub async fn handle_create_dashboard(
     }
 }
 
+pub async fn handle_get_dashboard(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(dashboard_id): Path<Uuid>,
+) -> Result<Json<DashboardItem>, StatusCode> {
+    match get_dashboard(&state.db, ctx.tenant_id, dashboard_id).await {
+        Ok(Some(item)) => Ok(Json(item)),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            tracing::error!(error = %e, "failed to get dashboard");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+pub async fn handle_update_dashboard(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(dashboard_id): Path<Uuid>,
+    Json(req): Json<UpdateDashboardRequest>,
+) -> Result<Json<DashboardItem>, StatusCode> {
+    match update_dashboard(&state.db, ctx.tenant_id, dashboard_id, &req).await {
+        Ok(Some(item)) => Ok(Json(item)),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(CreateDashboardError::InvalidInput(msg)) => {
+            tracing::warn!(message = %msg, "invalid dashboard update");
+            Err(StatusCode::BAD_REQUEST)
+        }
+        Err(CreateDashboardError::Db(e)) => {
+            tracing::error!(error = %e, "failed to update dashboard");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
 pub async fn handle_get_dashboard_export(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
@@ -380,7 +765,7 @@ pub async fn handle_import_dashboard(
     Extension(ctx): Extension<TenantContext>,
     Json(export): Json<DashboardExport>,
 ) -> Result<(StatusCode, Json<DashboardItem>), StatusCode> {
-    if export.schema_version != EXPORT_SCHEMA_VERSION {
+    if export.schema_version != "1" && export.schema_version != EXPORT_SCHEMA_VERSION {
         tracing::warn!(schema_version = %export.schema_version, "unsupported dashboard export schema version");
         return Err(StatusCode::UNPROCESSABLE_ENTITY);
     }
@@ -407,10 +792,11 @@ mod tests {
             name: "   ".into(),
             panels: vec![DashboardPanelRequest {
                 title: "Panel 1".into(),
-                query_kind: "logs".into(),
+                query_kind: Some("logs".into()),
                 service: None,
                 preset: None,
                 filters: serde_json::json!({}),
+                ..Default::default()
             }],
         };
         assert!(validate_create_request(&req).is_err());
@@ -431,10 +817,11 @@ mod tests {
             name: "My dashboard".into(),
             panels: vec![DashboardPanelRequest {
                 title: "   ".into(),
-                query_kind: "logs".into(),
+                query_kind: Some("logs".into()),
                 service: None,
                 preset: None,
                 filters: serde_json::json!({}),
+                ..Default::default()
             }],
         };
         assert!(validate_create_request(&req).is_err());
@@ -446,10 +833,11 @@ mod tests {
             name: "My dashboard".into(),
             panels: vec![DashboardPanelRequest {
                 title: "Panel 1".into(),
-                query_kind: "invalid".into(),
+                query_kind: Some("invalid".into()),
                 service: None,
                 preset: None,
                 filters: serde_json::json!({}),
+                ..Default::default()
             }],
         };
         assert!(validate_create_request(&req).is_err());
@@ -461,10 +849,11 @@ mod tests {
             name: "My dashboard".into(),
             panels: vec![DashboardPanelRequest {
                 title: "Panel 1".into(),
-                query_kind: "logs".into(),
+                query_kind: Some("logs".into()),
                 service: None,
                 preset: None,
                 filters: serde_json::json!({}),
+                ..Default::default()
             }],
         };
         assert!(validate_create_request(&req).is_ok());
@@ -476,10 +865,11 @@ mod tests {
             name: "My dashboard".into(),
             panels: vec![DashboardPanelRequest {
                 title: "Panel 1".into(),
-                query_kind: "traces".into(),
+                query_kind: Some("traces".into()),
                 service: None,
                 preset: Some("1h".into()),
                 filters: serde_json::json!({}),
+                ..Default::default()
             }],
         };
         assert!(validate_create_request(&req).is_ok());
@@ -491,10 +881,11 @@ mod tests {
             name: "My dashboard".into(),
             panels: vec![DashboardPanelRequest {
                 title: "Panel 1".into(),
-                query_kind: "logs".into(),
+                query_kind: Some("logs".into()),
                 service: None,
                 preset: Some("99m".into()),
                 filters: serde_json::json!({}),
+                ..Default::default()
             }],
         };
         assert!(validate_create_request(&req).is_err());

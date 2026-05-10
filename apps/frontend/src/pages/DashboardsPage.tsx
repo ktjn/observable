@@ -101,9 +101,17 @@ export default function DashboardsPage() {
             title={dashboard.name}
             eyebrow="Dashboard"
             actions={
-              <Button variant="secondary" onClick={() => handleExport(dashboard)}>
-                Export
-              </Button>
+              <>
+                <a
+                  href={`/dashboards/${dashboard.dashboard_id}`}
+                  className="inline-flex min-h-9 items-center border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] no-underline hover:border-[var(--brand)]"
+                >
+                  Open
+                </a>
+                <Button variant="secondary" onClick={() => handleExport(dashboard)}>
+                  Export
+                </Button>
+              </>
             }
           >
             <div className="grid gap-3 md:grid-cols-2">
@@ -123,10 +131,11 @@ function DashboardPanelCard({ panel }: { panel: DashboardPanel }) {
   const timeLabel = panel.preset
     ? (PRESET_OPTIONS.find((o) => o.value === panel.preset)?.label ?? panel.preset)
     : "Global date range";
+  const kind = panel.panel_kind === "text" ? "text" : (panel.query_kind ?? "query");
   return (
     <div className="border border-[var(--border)] bg-[var(--surface)] p-4">
       <div className="text-xs font-bold uppercase text-[var(--muted)]">
-        {panel.query_kind} · {service} · {timeLabel}
+        {kind} · {service} · {timeLabel}
       </div>
       <h2 className="mt-2 mb-0 text-base font-bold text-[var(--text-strong)]">{panel.title}</h2>
     </div>

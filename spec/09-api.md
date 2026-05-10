@@ -88,12 +88,28 @@ The Query API must support the following patterns required by the Frontend (see 
 
 #### Dashboard Promotion
 - **Endpoints**:
-  - `GET /v1/dashboards` returns tenant-scoped fixed-layout dashboards.
-  - `POST /v1/dashboards` creates one dashboard with one or more promoted panels.
-- **Behavior**: Explorer promotion persists the selected query kind, service filter, lookback window, and structured filter metadata so the dashboard route can render the saved panel context without reconstructing it from browser-local state.
-- **Current Response Fields**: `dashboard_id`, `name`, `created_at`, and `panels[]` with `panel_id`, `title`, `query_kind`, `service`, `lookback_minutes`, and `filters`.
-- **Current Panel Types**: `logs`, `traces`, and `metrics` are valid `query_kind` values. P3-S12 wires Logs and Traces promotion first; metrics promotion can reuse the same contract when the metric explorer exposes an ad-hoc query surface.
-- **Out of Scope**: Drag-and-drop layout editing, dashboard-as-code import/export, and CI validation are handled by later dashboard slices.
+  - `GET /v1/dashboards` returns tenant-scoped saved dashboards.
+  - `GET /v1/dashboards/{dashboard_id}` returns one tenant-scoped dashboard and all panels.
+  - `POST /v1/dashboards` creates one dashboard with one or more promoted or authored panels.
+  - `PUT /v1/dashboards/{dashboard_id}` replaces the dashboard name and panel set for layout/content edits.
+  - `GET /v1/dashboards/{dashboard_id}/export` exports a portable dashboard artifact.
+  - `POST /v1/dashboards/import` imports a portable dashboard artifact.
+- **Behavior**: A dashboard is a set of query and text panels. Query panels persist the selected
+  query kind, service filter, structured filter metadata, optional NLQ/raw-IR query text, persisted
+  grid layout, and panel time-range behavior. Text panels persist explanation content and layout.
+- **Current Response Fields**: `dashboard_id`, `name`, `created_at`, and `panels[]` with
+  `panel_id`, `title`, `panel_kind`, `query_kind`, `service`, `preset`, `filters`, `query_text`,
+  `content`, `layout`, and `time_range`.
+- **Current Panel Types**: `panel_kind` values are `query` and `text`. For query panels, `logs`,
+  `traces`, and `metrics` are valid `query_kind` values. Text panels do not require `query_kind`.
+- **Time Range**: `time_range.mode = "global"` follows the UI global date selector.
+  `time_range.mode = "preset"` uses the panel's relative preset. `time_range.mode = "absolute"`
+  uses saved `from_ms` and `to_ms` values.
+- **Import/Export**: Export schema version `2` includes text/query panel fields, layout, and
+  time-range behavior. Version `1` imports remain supported by converting legacy panels to query
+  panels with default layout and global or preset time behavior.
+- **Out of Scope**: Drag-and-drop layout editing and CI dashboard linting are handled by later
+  dashboard-builder slices.
 
 #### Metric Query Readback
 - **Endpoints**:
