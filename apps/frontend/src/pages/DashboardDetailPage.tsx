@@ -51,6 +51,25 @@ function panelToUpdate(panel: DashboardPanel): UpdateDashboardRequest["panels"][
   };
 }
 
+function dashboardFiltersToNlqFilters(filters: Record<string, unknown>): NonNullable<NlqIrLike["filters"]> {
+  const result: NonNullable<NlqIrLike["filters"]> = [];
+  const name = stringFilter(filters.name);
+  const type = stringFilter(filters.type);
+  const environment = stringFilter(filters.environment);
+
+  if (name) result.push({ field: "metric_name", op: "=", value: name });
+  if (type && type !== "all") result.push({ field: "metric_type", op: "=", value: type });
+  if (environment && environment !== "all") {
+    result.push({ field: "environment", op: "=", value: environment });
+  }
+
+  return result;
+}
+
+function stringFilter(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 export default function DashboardDetailPage() {
   const params = useParams({ strict: false }) as { dashboardId: string };
   const dashboardId = params.dashboardId;
@@ -200,10 +219,12 @@ function QueryPanel({
   const { tenantId } = useTenantContext();
   const resolved = resolvePanelTimeRange(panel.time_range, globalRange);
   const signal = panel.query_kind ?? "logs";
+  const hasQuestion = Boolean(panel.query_text?.trim());
   const baseIr: NlqIrLike = {
-    operation: "table",
+    operation: signal === "metrics" && !hasQuestion ? "catalog" : "table",
     signals: [signal],
-    filters: [],
+    catalog_field: signal === "metrics" && !hasQuestion ? "metric_name" : undefined,
+    filters: signal === "metrics" ? dashboardFiltersToNlqFilters(panel.filters) : [],
     time_range: {
       from: msToNsString(resolved.fromMs),
       to: msToNsString(resolved.toMs),

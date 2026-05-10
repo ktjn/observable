@@ -610,6 +610,50 @@
     "notes": "Covers metric-type filter intent for the shared frontend query input; metric type is enforced by schema/template selection."
   },
   {
+    "id": "metrics-base-ir-execute-preserves-resolved-metric",
+    "description": "Metrics execute query with base_ir preserves resolved metric through merge",
+    "query": "{\"operation\":\"table\",\"signals\":[\"metrics\"],\"metric\":\"request_duration_ms\",\"filters\":[{\"field\":\"service_name\",\"op\":\"=\",\"value\":\"checkout-api\"}],\"time_range\":{\"from\":\"now-1h\",\"to\":\"now\"}}",
+    "service_name": null,
+    "base_ir": {
+      "operation": "table",
+      "signals": [
+        "metrics"
+      ],
+      "filters": [],
+      "time_range": {
+        "from": "now-1h",
+        "to": "now"
+      }
+    },
+    "expect": {
+      "type": "frame",
+      "operation": "table",
+      "data_non_empty": false,
+      "fields": [],
+      "value_checks": [],
+      "ir_field_checks": [
+        {
+          "field": "metric",
+          "op": "not_empty",
+          "value": null
+        }
+      ],
+      "ir_filter_checks": [
+        {
+          "field": "service_name",
+          "op": "=",
+          "value": "checkout-api"
+        }
+      ]
+    },
+    "tags": [
+      "metrics",
+      "base_ir",
+      "regression"
+    ],
+    "notes": "Regression for dashboard metrics panels: execute-mode base_ir merge must not drop the metric before MCP execution."
+  },
+  {
     "id": "infra-filter-type-pod",
     "description": "Infrastructure inventory filter by entity type",
     "query": "type equals pod",
