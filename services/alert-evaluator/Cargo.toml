@@ -20,6 +20,8 @@ tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 sqlx               = { workspace = true }
 clickhouse         = { workspace = true }
+reqwest            = { workspace = true }
+chrono             = { workspace = true }
 
 [dev-dependencies]
 domain                  = { path = "../../libs/domain", features = ["storage"] }

@@ -99,11 +99,9 @@ Use this resolution:
 ## Next Promotion Candidates
 
 Promote only one candidate at a time.
+- [x] **P5-S2: Add one notification routing integration**
+  - COMPLETED 2026-05-10. Rule-level webhook integration with retry and audit behavior.
 
-1. **P5-S2: Add one notification routing integration**
-   - Promote next; P4-S5 SLO burn-rate is complete.
-   - First detailed plan should target one outbound channel, preferably webhook or Slack-compatible webhook, with retry and audit behavior.
-   - Missing clarity: choose the first channel and decide whether secrets live in PostgreSQL config, environment variables, or an external secret store for this slice.
 
 2. **P5-S1: Add incident timeline for one alert source**
    - Promote after P4-S5 or P5-S2, depending on whether the product wants triage history before outbound notifications.

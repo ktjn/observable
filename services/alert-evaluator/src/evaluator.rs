@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -75,13 +75,14 @@ pub fn evaluate_burn_rate(
     }
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(sqlx::FromRow, Clone)]
 pub struct AlertRuleRow {
     pub rule_id: Uuid,
     pub tenant_id: Uuid,
     pub name: String,
     pub condition: serde_json::Value,
     pub for_duration_secs: Option<i64>,
+    pub notification_channels: Vec<Uuid>,
 }
 
 #[derive(clickhouse::Row, serde::Deserialize)]
@@ -113,7 +114,7 @@ pub async fn eval_threshold_rules(
     ch: &clickhouse::Client,
 ) -> anyhow::Result<()> {
     let rules: Vec<AlertRuleRow> = sqlx::query_as(
-        "SELECT rule_id, tenant_id, name, condition, for_duration_secs \
+        "SELECT rule_id, tenant_id, name, condition, for_duration_secs, notification_channels \
          FROM alert_rules WHERE alert_type = 'threshold' AND silenced = false",
     )
     .fetch_all(db)
@@ -182,7 +183,7 @@ pub async fn eval_threshold_rules(
                 }
             }
             EvalResult::Ok => {
-                if let Err(e) = resolve_open_firing(db, rule.rule_id, rule.tenant_id, value).await {
+                if let Err(e) = resolve_open_firing(db, &rule, value).await {
                     tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to resolve alert firing");
                 }
             }
@@ -196,7 +197,7 @@ pub async fn eval_slo_burn_rate_rules(
     ch: &clickhouse::Client,
 ) -> anyhow::Result<()> {
     let rules: Vec<AlertRuleRow> = sqlx::query_as(
-        "SELECT rule_id, tenant_id, name, condition, for_duration_secs \
+        "SELECT rule_id, tenant_id, name, condition, for_duration_secs, notification_channels \
          FROM alert_rules WHERE alert_type = 'slo_burn_rate' AND silenced = false",
     )
     .fetch_all(db)
@@ -308,9 +309,7 @@ pub async fn eval_slo_burn_rate_rules(
                 }
             }
             EvalResult::Ok => {
-                if let Err(e) =
-                    resolve_open_firing(db, rule.rule_id, rule.tenant_id, fast_burn_rate).await
-                {
+                if let Err(e) = resolve_open_firing(db, &rule, fast_burn_rate).await {
                     tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to resolve SLO alert firing");
                 }
             }
@@ -371,7 +370,7 @@ async fn record_firing(db: &sqlx::PgPool, rule: &AlertRuleRow, value: f64) -> an
         "pending"
     };
 
-    sqlx::query(
+    let res: Option<(Uuid, String)> = sqlx::query_as(
         "WITH updated AS ( \
              UPDATE alert_firings \
              SET value = $3, \
@@ -390,30 +389,48 @@ async fn record_firing(db: &sqlx::PgPool, rule: &AlertRuleRow, value: f64) -> an
                  ORDER BY occurred_at DESC \
                  LIMIT 1 \
              ) \
-             RETURNING firing_id \
+             RETURNING firing_id, state \
+         ), \
+         inserted AS ( \
+             INSERT INTO alert_firings (rule_id, tenant_id, state, value, firing_start) \
+             SELECT $1, $2, $5, $3, NOW() \
+             WHERE NOT EXISTS (SELECT 1 FROM updated) \
+             RETURNING firing_id, state \
          ) \
-         INSERT INTO alert_firings (rule_id, tenant_id, state, value, firing_start) \
-         SELECT $1, $2, $5, $3, NOW() \
-         WHERE NOT EXISTS (SELECT 1 FROM updated)",
+         SELECT firing_id, state FROM updated \
+         UNION ALL \
+         SELECT firing_id, state FROM inserted",
     )
     .bind(rule.rule_id)
     .bind(rule.tenant_id)
     .bind(value)
     .bind(for_duration_secs)
     .bind(initial_state)
-    .execute(db)
+    .fetch_optional(db)
     .await?;
+
+    if let Some((firing_id, state)) = res {
+        if state == "active" {
+            enqueue_notifications(
+                db,
+                rule.tenant_id,
+                firing_id,
+                &rule.notification_channels,
+                "active",
+            )
+            .await?;
+        }
+    }
 
     Ok(())
 }
 
 async fn resolve_open_firing(
     db: &sqlx::PgPool,
-    rule_id: Uuid,
-    tenant_id: Uuid,
+    rule: &AlertRuleRow,
     value: f64,
 ) -> anyhow::Result<()> {
-    sqlx::query(
+    let firings: Vec<Uuid> = sqlx::query_scalar(
         "UPDATE alert_firings \
          SET state = 'resolved', \
              resolved_at = NOW(), \
@@ -421,14 +438,181 @@ async fn resolve_open_firing(
              value = $3 \
          WHERE rule_id = $1 \
            AND tenant_id = $2 \
-           AND state IN ('pending', 'active')",
+           AND state IN ('pending', 'active') \
+         RETURNING firing_id",
     )
-    .bind(rule_id)
-    .bind(tenant_id)
+    .bind(rule.rule_id)
+    .bind(rule.tenant_id)
     .bind(value)
-    .execute(db)
+    .fetch_all(db)
     .await?;
 
+    for firing_id in firings {
+        enqueue_notifications(
+            db,
+            rule.tenant_id,
+            firing_id,
+            &rule.notification_channels,
+            "resolved",
+        )
+        .await?;
+    }
+
+    Ok(())
+}
+
+async fn enqueue_notifications(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+    firing_id: Uuid,
+    channels: &[Uuid],
+    trigger_state: &str,
+) -> anyhow::Result<()> {
+    for &channel_id in channels {
+        sqlx::query(
+            "INSERT INTO notification_audit_log (tenant_id, firing_id, channel_id, trigger_state) \
+             VALUES ($1, $2, $3, $4) \
+             ON CONFLICT (firing_id, channel_id, trigger_state) DO NOTHING",
+        )
+        .bind(tenant_id)
+        .bind(firing_id)
+        .bind(channel_id)
+        .bind(trigger_state)
+        .execute(db)
+        .await?;
+    }
+    Ok(())
+}
+
+#[derive(Serialize)]
+pub struct WebhookPayload {
+    pub version: String,
+    pub firing_id: Uuid,
+    pub rule_id: Uuid,
+    pub rule_name: String,
+    pub tenant_id: Uuid,
+    pub severity: String,
+    pub state: String,
+    pub value: f64,
+    pub occurred_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(sqlx::FromRow)]
+struct PendingNotificationRow {
+    audit_id: Uuid,
+    tenant_id: Uuid,
+    firing_id: Uuid,
+    trigger_state: String,
+    retry_count: i32,
+    rule_id: Uuid,
+    value: Option<f64>,
+    occurred_at: chrono::DateTime<chrono::Utc>,
+    rule_name: String,
+    severity: String,
+    channel_config: serde_json::Value,
+}
+
+pub async fn notification_worker(db: sqlx::PgPool) {
+    tracing::info!("alert-evaluator: starting notification worker");
+    let mut ticker = tokio::time::interval(std::time::Duration::from_secs(10));
+    let http_client = reqwest::Client::new();
+
+    loop {
+        ticker.tick().await;
+        if let Err(e) = process_pending_notifications(&db, &http_client).await {
+            tracing::error!(error = %e, "notification worker cycle failed");
+        }
+    }
+}
+
+async fn process_pending_notifications(
+    db: &sqlx::PgPool,
+    http_client: &reqwest::Client,
+) -> anyhow::Result<()> {
+    let pending = sqlx::query_as::<_, PendingNotificationRow>(
+        "SELECT a.audit_id, a.tenant_id, a.firing_id, a.channel_id, a.trigger_state, a.retry_count, \
+                f.rule_id, f.value, f.occurred_at, r.name as rule_name, r.severity, \
+                c.config as channel_config \
+         FROM notification_audit_log a \
+         JOIN alert_firings f ON a.firing_id = f.firing_id \
+         JOIN alert_rules r ON f.rule_id = r.rule_id \
+         JOIN notification_channels c ON a.channel_id = c.channel_id \
+         WHERE a.state = 'pending' \
+           AND (a.last_attempt_at IS NULL OR a.last_attempt_at < NOW() - (POWER(2, a.retry_count) * INTERVAL '10 seconds')) \
+         LIMIT 50"
+    )
+    .fetch_all(db)
+    .await?;
+
+    for record in pending {
+        let payload = WebhookPayload {
+            version: "1".into(),
+            firing_id: record.firing_id,
+            rule_id: record.rule_id,
+            rule_name: record.rule_name,
+            tenant_id: record.tenant_id,
+            severity: record.severity,
+            state: record.trigger_state.clone(),
+            value: record.value.unwrap_or(0.0),
+            occurred_at: record.occurred_at,
+        };
+
+        let config: serde_json::Value = record.channel_config;
+        let url = config["url"].as_str().unwrap_or("");
+
+        if url.is_empty() {
+            sqlx::query(
+                "UPDATE notification_audit_log SET state = 'failed', error_message = 'missing url' WHERE audit_id = $1"
+            )
+            .bind(record.audit_id)
+            .execute(db).await?;
+            continue;
+        }
+
+        match http_client.post(url).json(&payload).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                sqlx::query(
+                    "UPDATE notification_audit_log SET state = 'sent', last_attempt_at = NOW() WHERE audit_id = $1"
+                )
+                .bind(record.audit_id)
+                .execute(db).await?;
+            }
+            Ok(resp) => {
+                let status = resp.status();
+                let error = format!("HTTP {}", status);
+                handle_notification_failure(db, record.audit_id, record.retry_count, error).await?;
+            }
+            Err(e) => {
+                handle_notification_failure(db, record.audit_id, record.retry_count, e.to_string())
+                    .await?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn handle_notification_failure(
+    db: &sqlx::PgPool,
+    audit_id: Uuid,
+    retry_count: i32,
+    error: String,
+) -> anyhow::Result<()> {
+    if retry_count >= 10 {
+        sqlx::query(
+            "UPDATE notification_audit_log SET state = 'failed', error_message = $2, last_attempt_at = NOW() WHERE audit_id = $1"
+        )
+        .bind(audit_id)
+        .bind(error)
+        .execute(db).await?;
+    } else {
+        sqlx::query(
+            "UPDATE notification_audit_log SET retry_count = retry_count + 1, error_message = $2, last_attempt_at = NOW() WHERE audit_id = $1"
+        )
+        .bind(audit_id)
+        .bind(error)
+        .execute(db).await?;
+    }
     Ok(())
 }
 

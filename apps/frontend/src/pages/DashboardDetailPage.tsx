@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import {
   getDashboard,
   updateDashboard,
@@ -58,16 +58,27 @@ function panelToUpdate(panel: DashboardPanel): UpdateDashboardRequest["panels"][
 function resizeFromLeft(layout: DashboardPanelLayout, columns: number): DashboardPanelLayout {
   if (columns === 0) return layout;
   if (columns > 0) {
-    const growBy = Math.min(columns, layout.x, DASHBOARD_GRID_COLUMNS - layout.w);
+    const growBy = Math.min(columns, layout.x);
     return { ...layout, x: layout.x - growBy, w: layout.w + growBy };
   }
-  const shrinkBy = Math.min(-columns, layout.w - 1, DASHBOARD_GRID_COLUMNS - layout.x - 1);
+  const shrinkBy = Math.min(-columns, layout.w - 1);
   return { ...layout, x: layout.x + shrinkBy, w: layout.w - shrinkBy };
 }
 
 function resizeFromBottom(layout: DashboardPanelLayout, rows: number): DashboardPanelLayout {
   if (rows === 0) return layout;
   return { ...layout, h: Math.max(1, layout.h + rows) };
+}
+
+function resizeFromRight(layout: DashboardPanelLayout, columns: number): DashboardPanelLayout {
+  if (columns === 0) return layout;
+  if (columns > 0) {
+    const growBy = Math.min(columns, DASHBOARD_GRID_COLUMNS - layout.x - layout.w);
+    return { ...layout, w: layout.w + growBy };
+  }
+  const shrinkBy = Math.min(-columns, layout.w - 1);
+  return { ...layout, w: layout.w - shrinkBy };
+}
 function dashboardFiltersToNlqFilters(filters: Record<string, unknown>): NonNullable<NlqIrLike["filters"]> {
   const result: NonNullable<NlqIrLike["filters"]> = [];
   const name = stringFilter(filters.name);
@@ -144,6 +155,7 @@ export default function DashboardDetailPage() {
             panel={panel}
             globalRange={{ fromMs: globalDateRange.fromMs, toMs: globalDateRange.toMs }}
             onResizeLeft={(columns) => resizePanel(panel.panel_id, (layout) => resizeFromLeft(layout, columns))}
+            onResizeRight={(columns) => resizePanel(panel.panel_id, (layout) => resizeFromRight(layout, columns))}
             onResizeBottom={(rows) => resizePanel(panel.panel_id, (layout) => resizeFromBottom(layout, rows))}
           />
         ))}
@@ -157,43 +169,136 @@ function DashboardPanelView({
   panel,
   globalRange,
   onResizeLeft,
+  onResizeRight,
   onResizeBottom,
 }: {
   dashboardId: string;
   panel: DashboardPanel;
   globalRange: { fromMs: number; toMs: number };
   onResizeLeft: (columns: number) => void;
+  onResizeRight: (columns: number) => void;
   onResizeBottom: (rows: number) => void;
 }) {
-  const minHeight = Math.max(160, panel.layout.h * 80);
+  const [previewLayout, setPreviewLayout] = useState<DashboardPanelLayout | null>(null);
+  const cleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => {
+      cleanupRef.current?.();
+    };
+  }, []);
+
+  const layout = previewLayout ?? panel.layout;
+  const x = Math.max(0, Math.min(DASHBOARD_GRID_COLUMNS - 1, layout.x));
+  const w = Math.max(1, Math.min(DASHBOARD_GRID_COLUMNS - x, layout.w));
+  const h = Math.max(1, layout.h);
+  const minHeight = Math.max(160, h * RESIZE_ROW_PX);
+
   function startLeftResize(event: ReactPointerEvent<HTMLDivElement>) {
     event.preventDefault();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    const startX = event.clientX;
-    const onPointerUp = (upEvent: PointerEvent) => {
-      const columns = Math.round((startX - upEvent.clientX) / RESIZE_COLUMN_PX);
-      onResizeLeft(columns);
-      document.removeEventListener("pointerup", onPointerUp);
+    cleanupRef.current?.();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const startEdgeX = rect.width > 0 ? rect.left : event.clientX;
+    const startLayout = panel.layout;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const columns = (startEdgeX - moveEvent.clientX) / RESIZE_COLUMN_PX;
+      setPreviewLayout(resizeFromLeft(startLayout, columns));
     };
+
+    const onPointerUp = (upEvent: PointerEvent) => {
+      const columns = Math.round((startEdgeX - upEvent.clientX) / RESIZE_COLUMN_PX);
+      onResizeLeft(columns);
+      setPreviewLayout(null);
+      cleanup();
+    };
+
+    const cleanup = () => {
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("pointercancel", onPointerUp);
+      cleanupRef.current = null;
+    };
+
+    cleanupRef.current = cleanup;
+    document.addEventListener("pointermove", onPointerMove);
     document.addEventListener("pointerup", onPointerUp);
+    document.addEventListener("pointercancel", onPointerUp);
+  }
+
+  function startRightResize(event: ReactPointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    cleanupRef.current?.();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const startEdgeX = rect.width > 0 ? rect.right : event.clientX;
+    const startLayout = panel.layout;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const columns = (moveEvent.clientX - startEdgeX) / RESIZE_COLUMN_PX;
+      setPreviewLayout(resizeFromRight(startLayout, columns));
+    };
+
+    const onPointerUp = (upEvent: PointerEvent) => {
+      const columns = Math.round((upEvent.clientX - startEdgeX) / RESIZE_COLUMN_PX);
+      onResizeRight(columns);
+      setPreviewLayout(null);
+      cleanup();
+    };
+
+    const cleanup = () => {
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("pointercancel", onPointerUp);
+      cleanupRef.current = null;
+    };
+
+    cleanupRef.current = cleanup;
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp);
+    document.addEventListener("pointercancel", onPointerUp);
   }
 
   function startBottomResize(event: ReactPointerEvent<HTMLDivElement>) {
     event.preventDefault();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    const startY = event.clientY;
-    const onPointerUp = (upEvent: PointerEvent) => {
-      const rows = Math.round((upEvent.clientY - startY) / RESIZE_ROW_PX);
-      onResizeBottom(rows);
-      document.removeEventListener("pointerup", onPointerUp);
+    cleanupRef.current?.();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const startEdgeY = rect.height > 0 ? rect.bottom : event.clientY;
+    const startLayout = panel.layout;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const rows = (moveEvent.clientY - startEdgeY) / RESIZE_ROW_PX;
+      setPreviewLayout(resizeFromBottom(startLayout, rows));
     };
+
+    const onPointerUp = (upEvent: PointerEvent) => {
+      const rows = Math.round((upEvent.clientY - startEdgeY) / RESIZE_ROW_PX);
+      onResizeBottom(rows);
+      setPreviewLayout(null);
+      cleanup();
+    };
+
+    const cleanup = () => {
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("pointercancel", onPointerUp);
+      cleanupRef.current = null;
+    };
+
+    cleanupRef.current = cleanup;
+    document.addEventListener("pointermove", onPointerMove);
     document.addEventListener("pointerup", onPointerUp);
+    document.addEventListener("pointercancel", onPointerUp);
   }
 
   return (
     <div
       className="min-w-0"
-      style={{ gridColumn: `span ${Math.min(DASHBOARD_GRID_COLUMNS, Math.max(1, panel.layout.w))} / span ${Math.min(DASHBOARD_GRID_COLUMNS, Math.max(1, panel.layout.w))}` }}
+      style={{
+        gridColumnStart: x + 1,
+        gridColumnEnd: `span ${w}`,
+        gridRowStart: layout.y + 1,
+        gridRowEnd: `span ${h}`,
+      }}
     >
       <Panel
         title={panel.title}
@@ -202,18 +307,37 @@ function DashboardPanelView({
       >
         <div
           aria-label={`Resize ${panel.title} from left border`}
-          className="absolute top-0 bottom-0 left-0 z-10 w-2 cursor-ew-resize touch-none border-l-2 border-transparent hover:border-[var(--brand)] focus:border-[var(--brand)] focus:outline-none"
+          className="group absolute top-0 bottom-0 left-0 z-10 w-3 cursor-ew-resize touch-none border-l-2 border-transparent hover:border-[var(--brand)] focus:border-[var(--brand)] focus:outline-none"
           role="separator"
           tabIndex={0}
           onPointerDown={startLeftResize}
-        />
+        >
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="h-5 w-0.5 rounded-full bg-[var(--brand)] opacity-0 transition-opacity group-hover:opacity-100" />
+          </div>
+        </div>
+        <div
+          aria-label={`Resize ${panel.title} from right border`}
+          className="group absolute top-0 right-0 bottom-0 z-10 w-3 cursor-ew-resize touch-none border-r-2 border-transparent hover:border-[var(--brand)] focus:border-[var(--brand)] focus:outline-none"
+          role="separator"
+          tabIndex={0}
+          onPointerDown={startRightResize}
+        >
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="h-5 w-0.5 rounded-full bg-[var(--brand)] opacity-0 transition-opacity group-hover:opacity-100" />
+          </div>
+        </div>
         <div
           aria-label={`Resize ${panel.title} from bottom border`}
-          className="absolute right-0 bottom-0 left-0 z-10 h-2 cursor-ns-resize touch-none border-b-2 border-transparent hover:border-[var(--brand)] focus:border-[var(--brand)] focus:outline-none"
+          className="group absolute right-0 bottom-0 left-0 z-10 h-3 cursor-ns-resize touch-none border-b-2 border-transparent hover:border-[var(--brand)] focus:border-[var(--brand)] focus:outline-none"
           role="separator"
           tabIndex={0}
           onPointerDown={startBottomResize}
-        />
+        >
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="h-0.5 w-5 rounded-full bg-[var(--brand)] opacity-0 transition-opacity group-hover:opacity-100" />
+          </div>
+        </div>
         <div style={{ minHeight }}>
           {panel.panel_kind === "text" ? (
             <TextPanel panel={panel} />

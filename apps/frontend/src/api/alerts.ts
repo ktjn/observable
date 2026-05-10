@@ -13,6 +13,7 @@ export interface AlertRuleItem {
   state: "ok" | "pending" | "active" | "resolved" | "silenced";
   firing: boolean;
   last_fired_at: string | null;
+  notification_channels: string[];
 }
 
 export interface AlertRuleListResponse {
@@ -24,6 +25,7 @@ export interface CreateRuleRequest {
   metric_name: string;
   operator: string;
   threshold: number;
+  notification_channels?: string[];
 }
 
 export async function listAlertRules(tenantId: string): Promise<AlertRuleListResponse> {

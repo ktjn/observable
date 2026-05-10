@@ -162,6 +162,40 @@ test("dragging a panel left border persists a new layout width", async () => {
   );
 });
 
+test("dragging a panel right border persists a new layout width", async () => {
+  const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue({
+    ...dashboard,
+    panels: [
+      { ...dashboard.panels[0], layout: { x: 0, y: 0, w: 7, h: 4 } },
+      dashboard.panels[1],
+    ],
+  });
+  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+
+  renderPage();
+
+  await screen.findByRole("heading", { name: "Checkout Health" });
+  const handle = screen.getByLabelText("Resize Error logs from right border");
+  fireEvent.pointerDown(handle, { clientX: 100, pointerId: 1 });
+  fireEvent.pointerMove(document, { clientX: 180, pointerId: 1 });
+  fireEvent.pointerUp(document, { clientX: 180, pointerId: 1 });
+
+  await waitFor(() =>
+    expect(updateSpy).toHaveBeenCalledWith(
+      "test-tenant",
+      "dash-1",
+      expect.objectContaining({
+        panels: expect.arrayContaining([
+          expect.objectContaining({
+            panel_id: "query-1",
+            layout: expect.objectContaining({ x: 0, w: 7 }),
+          }),
+        ]),
+      }),
+    ),
+  );
+});
+
 test("dragging a panel bottom border persists a new layout height", async () => {
   const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue({
     ...dashboard,
