@@ -19,7 +19,7 @@ These gaps were identified during a direct review of `apps/frontend/src` against
 - [ ] **Dashboard Builder**: Implement the drag-and-drop panel editor and configuration UI as specified in §9.7.
 
 ### Reliability & Alerting
-- [ ] **SLO Management**: Expand `features/alerts` to include SLO creation, error budget tracking, and burn-rate history (Phase 5 priority).
+- [ ] **SLO Management**: Expand `features/alerts` to include error budget tracking and burn-rate history. SLO creation and current health cards are complete in P4-S5.
 - [ ] **Incident Timeline**: Implement the correlated event timeline for alert firings as specified in §9.2.
 - [ ] **Notification Channels**: Add UI for managing outbound notification integrations (webhooks, Slack).
 
@@ -49,7 +49,7 @@ These gaps were identified during a review of the Rust backend services and the 
 
 ### Reliability & Observability
 - [x] **Alert Lifecycle (RF-4)**: Implement deduplication, `for_duration_secs` (pending state), and resolution logic in `alert-evaluator/src/evaluator.rs`. Completed in branch `feat/rf-4-alert-lifecycle-semantics`; see the finish-started plan for verification scope.
-- [ ] **Deployment Correlation (RF-5)**: Implement active `deployment_id` enrichment in `stream-processor/src/normalise.rs` based on current deployment markers.
+- [x] **Deployment Correlation (RF-5)**: Implement active `deployment_id` enrichment in the ingest path based on current deployment markers. Completed 2026-05-09; see `docs/agent-context.md`.
 - [ ] **Self-Observability (RF-6)**: Add `/metrics` (Prometheus) and `/readyz` endpoints to all services; ensure `Platform API` ports are correctly configured in Helm/Compose.
 
 ### Test Coverage & CI
@@ -66,7 +66,7 @@ These gaps were identified during a review of the Rust backend services and the 
 
 ## Source Documents
 
-- Finish-started companion: `docs/superpowers/plans/2026-05-07-finish-started-work-plan.md`
+- Finish-started closure record: `archived/plans/2026-05-09-finish-started-work-plan-rf0-complete.md`
 - Historical active roadmap/reference: `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`
 - Roadmap scope: `spec/10-process.md §17`, `spec/13-risks-roadmap.md §24`
 - Specs and ADRs named by each promoted slice
@@ -75,7 +75,7 @@ These gaps were identified during a review of the Rust backend services and the 
 
 Before implementing any item in this document:
 
-1. Check `2026-05-07-finish-started-work-plan.md` for blocking started work.
+1. Check `archived/plans/2026-05-09-finish-started-work-plan-rf0-complete.md` for closure notes from the started-work queue.
 2. Write a detailed implementation plan in `docs/superpowers/plans/YYYY-MM-DD-<slice>.md`.
 3. Include exact file paths, tests, rollback path, telemetry impact, auth/tenancy impact, data-retention impact, and ADR/spec sync decision.
 4. Keep the PR below the repo's tiny-iteration size target unless the reviewer accepts a larger slice.
@@ -90,7 +90,7 @@ The old Phases 2-8 plan contains two sequencing models:
 
 Use this resolution:
 
-- The **finish-started plan** controls the immediate queue.
+- The started-work queue is archived; this remaining-roadmap plan now controls the immediate queue.
 - Cross-phase value-first slices may be promoted early only when their direct prerequisites are satisfied and the PR states which phase-gate risk remains.
 - The formal external-v1 exit gate still requires the Phase 4 supportability items: restore, auth, runbooks, cost reporting, test evidence, and security review.
 
@@ -98,10 +98,10 @@ Use this resolution:
 
 ## Next Promotion Candidates
 
-Promote only one candidate at a time after the finish-started plan is current.
+Promote only one candidate at a time.
 
 1. **P5-S2: Add one notification routing integration**
-   - Promote after P4-S5 SLO burn-rate is complete.
+   - Promote next; P4-S5 SLO burn-rate is complete.
    - First detailed plan should target one outbound channel, preferably webhook or Slack-compatible webhook, with retry and audit behavior.
    - Missing clarity: choose the first channel and decide whether secrets live in PostgreSQL config, environment variables, or an external secret store for this slice.
 

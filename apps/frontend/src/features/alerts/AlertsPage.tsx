@@ -7,6 +7,12 @@ import {
   type AlertRuleItem,
   type CreateRuleRequest,
 } from "../../api/alerts";
+import {
+  createSlo,
+  listSlos,
+  type CreateSloRequest,
+  type SloDefinitionItem,
+} from "../../api/slos";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Select, SelectOption } from "../../components/ui/select";
@@ -26,10 +32,21 @@ export function AlertsPage() {
   const [formOperator, setFormOperator] = useState("gt");
   const [formThreshold, setFormThreshold] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [isCreatingSlo, setIsCreatingSlo] = useState(false);
+  const [sloService, setSloService] = useState("");
+  const [sloEnvironment, setSloEnvironment] = useState("");
+  const [sloTarget, setSloTarget] = useState("99.9");
+  const [sloDescription, setSloDescription] = useState("");
+  const [sloFormError, setSloFormError] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["alert-rules", tenantId],
     queryFn: () => listAlertRules(tenantId),
+  });
+
+  const { data: sloData, isLoading: isLoadingSlos } = useQuery({
+    queryKey: ["slos", tenantId],
+    queryFn: () => listSlos(tenantId),
   });
 
   const silenceMutation = useMutation({
@@ -52,6 +69,20 @@ export function AlertsPage() {
     onError: (e: Error) => setFormError(e.message),
   });
 
+  const createSloMutation = useMutation({
+    mutationFn: (req: CreateSloRequest) => createSlo(tenantId, req),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["slos", tenantId] });
+      setIsCreatingSlo(false);
+      setSloService("");
+      setSloEnvironment("");
+      setSloTarget("99.9");
+      setSloDescription("");
+      setSloFormError(null);
+    },
+    onError: (e: Error) => setSloFormError(e.message),
+  });
+
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const threshold = parseFloat(formThreshold);
@@ -68,10 +99,31 @@ export function AlertsPage() {
     });
   };
 
+  const handleCreateSloSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetPercentage = parseFloat(sloTarget);
+    if (!Number.isFinite(targetPercentage) || targetPercentage <= 0 || targetPercentage >= 100) {
+      setSloFormError("Target must be a percentage between 0 and 100");
+      return;
+    }
+    setSloFormError(null);
+    createSloMutation.mutate({
+      service_name: sloService,
+      environment: sloEnvironment,
+      target: Number((targetPercentage / 100).toFixed(6)),
+      window_days: 30,
+      burn_rate_fast_threshold: 14.4,
+      burn_rate_slow_threshold: 1.0,
+      description: sloDescription || undefined,
+    });
+  };
+
   const rules = data?.items ?? [];
+  const slos = sloData?.items ?? [];
   const firingCount = rules.filter((r) => r.state === "active").length;
   const pendingCount = rules.filter((r) => r.state === "pending").length;
   const silencedCount = rules.filter((r) => r.silenced).length;
+  const sloBreachCount = slos.filter((slo) => slo.firing).length;
 
   return (
     <section className="page-stack">
@@ -90,10 +142,108 @@ export function AlertsPage() {
       </div>
 
       <Toolbar aria-label="Alert actions" className="justify-end">
+        <Button variant="secondary" onClick={() => setIsCreatingSlo((v) => !v)}>
+          {isCreatingSlo ? "Cancel SLO" : "New SLO"}
+        </Button>
         <Button onClick={() => setIsCreating((v) => !v)}>
           {isCreating ? "Cancel" : "New Rule"}
         </Button>
       </Toolbar>
+
+      {isCreatingSlo && (
+        <Panel title="Create Availability SLO" eyebrow="Reliability target">
+          <form
+            onSubmit={handleCreateSloSubmit}
+            aria-label="Create SLO"
+            className="flex flex-col gap-3"
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="slo-service">SLO service</label>
+                <Input
+                  id="slo-service"
+                  value={sloService}
+                  onChange={(e) => setSloService(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="slo-environment">SLO environment</label>
+                <Input
+                  id="slo-environment"
+                  value={sloEnvironment}
+                  onChange={(e) => setSloEnvironment(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="slo-target">SLO target</label>
+                <Input
+                  id="slo-target"
+                  type="number"
+                  step="0.001"
+                  value={sloTarget}
+                  onChange={(e) => setSloTarget(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="slo-description">SLO description</label>
+                <Input
+                  id="slo-description"
+                  value={sloDescription}
+                  onChange={(e) => setSloDescription(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {sloFormError && (
+              <div role="alert" className="text-sm font-bold text-[var(--bad)]">
+                {sloFormError}
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <Button type="submit" disabled={createSloMutation.isPending}>
+                {createSloMutation.isPending ? "Creating..." : "Create SLO"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setIsCreatingSlo(false);
+                  setSloFormError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </Panel>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-label="SLO summary">
+        <MetricCard label="Availability SLOs" value={slos.length} tone="info" />
+        <MetricCard label="Burning" value={sloBreachCount} tone={sloBreachCount > 0 ? "bad" : "good"} />
+        <MetricCard label="Within Budget" value={slos.length - sloBreachCount} tone="good" />
+      </div>
+
+      {isLoadingSlos ? (
+        <Panel>
+          <div className="py-8 text-center text-[var(--muted)]">Loading SLOs...</div>
+        </Panel>
+      ) : slos.length > 0 ? (
+        <Panel title="SLO health" eyebrow="Error budget">
+          <div className="grid gap-3 lg:grid-cols-2">
+            {slos.map((slo) => (
+              <SloHealthCard key={slo.slo_id} slo={slo} />
+            ))}
+          </div>
+        </Panel>
+      ) : null}
 
       {isCreating && (
         <Panel title="Create Threshold Rule" eyebrow="Configuration">
@@ -221,6 +371,53 @@ export function AlertsPage() {
       )}
     </section>
   );
+}
+
+function SloHealthCard({ slo }: { slo: SloDefinitionItem }) {
+  const target = formatPercent(slo.target);
+  const status = slo.firing
+    ? { label: "Burning", tone: "bad" as const }
+    : { label: "Within budget", tone: "good" as const };
+
+  return (
+    <article className="border border-[var(--border)] bg-[var(--surface)] p-3">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-bold text-[var(--text-strong)]">
+            {slo.description || `${slo.service_name} availability`}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-1 text-xs text-[var(--muted)]">
+            <span>{slo.service_name}</span>
+            <span aria-hidden="true">·</span>
+            <span>{slo.environment}</span>
+          </div>
+        </div>
+        <Badge tone={status.tone}>{status.label}</Badge>
+      </div>
+      <dl className="grid grid-cols-2 gap-3 text-xs">
+        <div>
+          <dt className="field-label">Target</dt>
+          <dd className="m-0 font-bold text-[var(--text-strong)]">{target}</dd>
+        </div>
+        <div>
+          <dt className="field-label">Window</dt>
+          <dd className="m-0 font-bold text-[var(--text-strong)]">{slo.window_days}d</dd>
+        </div>
+        <div>
+          <dt className="field-label">Fast burn</dt>
+          <dd className="m-0 font-bold text-[var(--text-strong)]">{slo.burn_rate_fast_threshold}x</dd>
+        </div>
+        <div>
+          <dt className="field-label">Slow burn</dt>
+          <dd className="m-0 font-bold text-[var(--text-strong)]">{slo.burn_rate_slow_threshold}x</dd>
+        </div>
+      </dl>
+    </article>
+  );
+}
+
+function formatPercent(value: number) {
+  return `${Number((value * 100).toFixed(3))}%`;
 }
 
 function AlertRuleRow({
