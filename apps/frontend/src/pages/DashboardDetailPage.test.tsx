@@ -128,17 +128,54 @@ test("renders query panels through NLQ and text panels as explanation boxes", as
   );
 });
 
-test("panel resize controls persist a new layout width", async () => {
+test("dragging a panel left border persists a new layout width", async () => {
   const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue({
     ...dashboard,
-    panels: [{ ...dashboard.panels[0], layout: { x: 0, y: 0, w: 7, h: 4 } }, dashboard.panels[1]],
+    panels: [
+      dashboard.panels[0],
+      { ...dashboard.panels[1], layout: { x: 5, y: 0, w: 7, h: 2 } },
+    ],
   });
   vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
 
   renderPage();
 
   await screen.findByRole("heading", { name: "Checkout Health" });
-  fireEvent.click(screen.getByRole("button", { name: "Widen Error logs" }));
+  const handle = screen.getByLabelText("Resize Incident notes from left border");
+  fireEvent.pointerDown(handle, { clientX: 240, pointerId: 1 });
+  fireEvent.pointerMove(document, { clientX: 160, pointerId: 1 });
+  fireEvent.pointerUp(document, { clientX: 160, pointerId: 1 });
+
+  await waitFor(() =>
+    expect(updateSpy).toHaveBeenCalledWith(
+      "test-tenant",
+      "dash-1",
+      expect.objectContaining({
+        panels: expect.arrayContaining([
+          expect.objectContaining({
+            panel_id: "text-1",
+            layout: expect.objectContaining({ x: 5, w: 7 }),
+          }),
+        ]),
+      }),
+    ),
+  );
+});
+
+test("dragging a panel bottom border persists a new layout height", async () => {
+  const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue({
+    ...dashboard,
+    panels: [{ ...dashboard.panels[0], layout: { x: 0, y: 0, w: 6, h: 5 } }, dashboard.panels[1]],
+  });
+  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+
+  renderPage();
+
+  await screen.findByRole("heading", { name: "Checkout Health" });
+  const handle = screen.getByLabelText("Resize Error logs from bottom border");
+  fireEvent.pointerDown(handle, { clientY: 320, pointerId: 1 });
+  fireEvent.pointerMove(document, { clientY: 410, pointerId: 1 });
+  fireEvent.pointerUp(document, { clientY: 410, pointerId: 1 });
 
   await waitFor(() =>
     expect(updateSpy).toHaveBeenCalledWith(
@@ -148,7 +185,7 @@ test("panel resize controls persist a new layout width", async () => {
         panels: expect.arrayContaining([
           expect.objectContaining({
             panel_id: "query-1",
-            layout: expect.objectContaining({ w: 7 }),
+            layout: expect.objectContaining({ h: 5 }),
           }),
         ]),
       }),
