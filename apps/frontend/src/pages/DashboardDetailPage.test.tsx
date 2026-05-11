@@ -259,6 +259,71 @@ test("local preset time range overrides the global date range", async () => {
   );
 });
 
+test("add panel button opens form and submits a new query panel", async () => {
+  const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+
+  renderPage();
+  await screen.findByRole("heading", { name: "Checkout Health" });
+
+  await screen.findByRole("button", { name: "Add panel" });
+  fireEvent.click(screen.getByRole("button", { name: "Add panel" }));
+
+  expect(await screen.findByPlaceholderText("Panel title")).toBeInTheDocument();
+
+  fireEvent.change(screen.getByPlaceholderText("Panel title"), { target: { value: "New metric" } });
+
+  const submitButton = screen.getAllByRole("button", { name: "Add panel" })[1];
+  fireEvent.click(submitButton);
+
+  await waitFor(() =>
+    expect(updateSpy).toHaveBeenCalledWith(
+      "test-tenant",
+      "dash-1",
+      expect.objectContaining({
+        panels: expect.arrayContaining([
+          expect.objectContaining({
+            title: "New metric",
+            panel_kind: "query",
+            query_kind: "logs",
+            layout: expect.objectContaining({ x: 0, y: 4, w: 12, h: 4 }),
+          }),
+        ]),
+      }),
+    ),
+  );
+});
+
+test("add panel form shows text content field when kind is text", async () => {
+  vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+
+  renderPage();
+  await screen.findByRole("heading", { name: "Checkout Health" });
+
+  fireEvent.click(screen.getByRole("button", { name: "Add panel" }));
+  await screen.findByPlaceholderText("Panel title");
+
+  fireEvent.change(screen.getByDisplayValue("Query"), { target: { value: "text" } });
+
+  expect(screen.getByPlaceholderText("Panel text content")).toBeInTheDocument();
+  expect(screen.queryByPlaceholderText("Natural language question, e.g. error rate over time")).not.toBeInTheDocument();
+});
+
+test("add panel cancel button closes the form", async () => {
+  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+  vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+
+  renderPage();
+  await screen.findByRole("heading", { name: "Checkout Health" });
+
+  fireEvent.click(screen.getByRole("button", { name: "Add panel" }));
+  expect(await screen.findByPlaceholderText("Panel title")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.queryByPlaceholderText("Panel title")).not.toBeInTheDocument();
+});
+
 test("metrics panels without query text execute a metric catalog base IR", async () => {
   vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue({
     ...dashboard,
