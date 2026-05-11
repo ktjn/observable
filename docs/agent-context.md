@@ -82,6 +82,16 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 - `ingest-gateway` is now a dual lib+bin crate (`src/lib.rs` re-exports `deployment_registry`
   for Testcontainers integration tests in `services/ingest-gateway/tests/`).
 
+## Incident Timeline (P5-S1, completed 2026-05-10)
+
+- `alert_rules` now has `auto_trigger_incident` (boolean, default `true`) and `auto_trigger_delay_secs`.
+- `incidents` table stores structured incidents with `dedup_key`, `status`, `severity`, and `triggered_by_rule_id`.
+- `incident_events` table stores the immutable timeline (`triggered`, `alert_fired`, `alert_resolved`, etc.).
+- `services/alert-evaluator/src/evaluator.rs` automatically creates incidents when threshold/SLO alert firings transition to `active` (if `auto_trigger_incident = true`) and resolves them when the alert clears.
+- `services/query-api/src/incidents.rs` exposes `GET /v1/incidents` and `GET /v1/incidents/:id`.
+- Frontend: `apps/frontend/src/features/incidents/` contains `IncidentsPage.tsx` (list with status filters) and `IncidentDetailPage.tsx` (timeline view).
+- Known simplification: `dedup_key` currently uses `rule_id` only because `alert_rules` lacks `service_name`/`environment`. The spec (`spec/14-domain-model.md`) defines `rule_id + service_name + environment`.
+
 ## Standing Constraints
 
 - Never commit or merge directly to `main` without human review.

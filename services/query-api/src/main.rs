@@ -4,6 +4,7 @@ mod config;
 mod dashboards;
 mod deployments;
 mod discovery;
+mod incidents;
 mod llm_adapter;
 mod logs;
 mod mcp_query;
@@ -121,6 +122,11 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/alerts/rules/:rule_id/silence",
             patch(alerts::handle_silence_rule),
+        )
+        .route("/v1/incidents", get(incidents::handle_list_incidents))
+        .route(
+            "/v1/incidents/:incident_id",
+            get(incidents::handle_get_incident),
         )
         .route(
             "/v1/notifications/channels",

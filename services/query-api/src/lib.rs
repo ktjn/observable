@@ -4,6 +4,7 @@ pub mod config;
 pub mod dashboards;
 pub mod deployments;
 pub mod discovery;
+pub mod incidents;
 pub mod llm_adapter;
 pub mod logs;
 pub mod mcp_query;

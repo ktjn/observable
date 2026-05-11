@@ -81,8 +81,11 @@ pub struct AlertRuleRow {
     pub tenant_id: Uuid,
     pub name: String,
     pub condition: serde_json::Value,
+    pub severity: String,
     pub for_duration_secs: Option<i64>,
     pub notification_channels: Vec<Uuid>,
+    pub auto_trigger_incident: bool,
+    pub auto_trigger_delay_secs: Option<i64>,
 }
 
 #[derive(clickhouse::Row, serde::Deserialize)]
@@ -114,7 +117,8 @@ pub async fn eval_threshold_rules(
     ch: &clickhouse::Client,
 ) -> anyhow::Result<()> {
     let rules: Vec<AlertRuleRow> = sqlx::query_as(
-        "SELECT rule_id, tenant_id, name, condition, for_duration_secs, notification_channels \
+        "SELECT rule_id, tenant_id, name, condition, severity, for_duration_secs, notification_channels, \
+         auto_trigger_incident, auto_trigger_delay_secs \
          FROM alert_rules WHERE alert_type = 'threshold' AND silenced = false",
     )
     .fetch_all(db)
@@ -197,7 +201,8 @@ pub async fn eval_slo_burn_rate_rules(
     ch: &clickhouse::Client,
 ) -> anyhow::Result<()> {
     let rules: Vec<AlertRuleRow> = sqlx::query_as(
-        "SELECT rule_id, tenant_id, name, condition, for_duration_secs, notification_channels \
+        "SELECT rule_id, tenant_id, name, condition, severity, for_duration_secs, notification_channels, \
+         auto_trigger_incident, auto_trigger_delay_secs \
          FROM alert_rules WHERE alert_type = 'slo_burn_rate' AND silenced = false",
     )
     .fetch_all(db)
@@ -419,6 +424,18 @@ async fn record_firing(db: &sqlx::PgPool, rule: &AlertRuleRow, value: f64) -> an
                 "active",
             )
             .await?;
+
+            if rule.auto_trigger_incident {
+                let dedup_key = rule.rule_id.to_string();
+                if let Err(e) = upsert_incident_from_firing(db, rule, firing_id, &dedup_key).await {
+                    tracing::warn!(
+                        rule_id = %rule.rule_id,
+                        firing_id = %firing_id,
+                        error = %e,
+                        "failed to upsert incident from firing"
+                    );
+                }
+            }
         }
     }
 
@@ -447,14 +464,125 @@ async fn resolve_open_firing(
     .fetch_all(db)
     .await?;
 
-    for firing_id in firings {
+    for firing_id in &firings {
         enqueue_notifications(
             db,
             rule.tenant_id,
-            firing_id,
+            *firing_id,
             &rule.notification_channels,
             "resolved",
         )
+        .await?;
+    }
+
+    if rule.auto_trigger_incident {
+        for firing_id in &firings {
+            if let Err(e) = resolve_incident_for_firing(db, rule, *firing_id).await {
+                tracing::warn!(
+                    rule_id = %rule.rule_id,
+                    firing_id = %firing_id,
+                    error = %e,
+                    "failed to resolve incident for firing"
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn upsert_incident_from_firing(
+    db: &sqlx::PgPool,
+    rule: &AlertRuleRow,
+    firing_id: Uuid,
+    dedup_key: &str,
+) -> anyhow::Result<()> {
+    let incident_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT incident_id FROM incidents \
+         WHERE tenant_id = $1 \
+           AND dedup_key = $2 \
+           AND status NOT IN ('resolved', 'post_mortem') \
+         LIMIT 1",
+    )
+    .bind(rule.tenant_id)
+    .bind(dedup_key)
+    .fetch_optional(db)
+    .await?;
+
+    let incident_id = match incident_id {
+        Some(id) => id,
+        None => {
+            let id: Uuid = sqlx::query_scalar(
+                "INSERT INTO incidents (tenant_id, title, severity, status, dedup_key, triggered_by_rule_id) \
+                 VALUES ($1, $2, $3, 'triggered', $4, $5) \
+                 RETURNING incident_id",
+            )
+            .bind(rule.tenant_id)
+            .bind(&rule.name)
+            .bind(&rule.severity)
+            .bind(dedup_key)
+            .bind(rule.rule_id)
+            .fetch_one(db)
+            .await?;
+
+            sqlx::query(
+                "INSERT INTO incident_events (incident_id, event_type, actor, message) \
+                 VALUES ($1, 'triggered', 'system', 'Alert rule transitioned to active')",
+            )
+            .bind(id)
+            .execute(db)
+            .await?;
+
+            id
+        }
+    };
+
+    sqlx::query(
+        "INSERT INTO incident_events (incident_id, event_type, actor, message) \
+         VALUES ($1, 'alert_fired', 'system', $2)",
+    )
+    .bind(incident_id)
+    .bind(format!("Firing {firing_id}"))
+    .execute(db)
+    .await?;
+
+    Ok(())
+}
+
+async fn resolve_incident_for_firing(
+    db: &sqlx::PgPool,
+    rule: &AlertRuleRow,
+    firing_id: Uuid,
+) -> anyhow::Result<()> {
+    let incident_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT incident_id FROM incidents \
+         WHERE tenant_id = $1 \
+           AND dedup_key = $2 \
+           AND status NOT IN ('resolved', 'post_mortem') \
+         LIMIT 1",
+    )
+    .bind(rule.tenant_id)
+    .bind(rule.rule_id.to_string())
+    .fetch_optional(db)
+    .await?;
+
+    if let Some(incident_id) = incident_id {
+        sqlx::query(
+            "UPDATE incidents \
+             SET status = 'resolved', resolved_at = NOW(), updated_at = NOW() \
+             WHERE incident_id = $1",
+        )
+        .bind(incident_id)
+        .execute(db)
+        .await?;
+
+        sqlx::query(
+            "INSERT INTO incident_events (incident_id, event_type, actor, message) \
+             VALUES ($1, 'alert_resolved', 'system', $2)",
+        )
+        .bind(incident_id)
+        .bind(format!("Firing {firing_id} resolved"))
+        .execute(db)
         .await?;
     }
 

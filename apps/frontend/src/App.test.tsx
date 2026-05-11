@@ -1538,6 +1538,9 @@ test("alerts page renders SLO health cards", async () => {
   window.history.pushState({}, "", "/alerts");
   render(<App />);
 
+  await screen.findByRole("heading", { name: "Alerts & SLOs" });
+  fireEvent.click(screen.getByRole("tab", { name: "SLOs" }));
+
   expect(await screen.findByText("Checkout availability SLO")).toBeInTheDocument();
   expect(screen.getByText("checkout")).toBeInTheDocument();
   expect(screen.getByText("99.9%")).toBeInTheDocument();
@@ -1579,6 +1582,7 @@ test("alerts page creates an availability SLO", async () => {
   render(<App />);
 
   await screen.findByRole("heading", { name: "Alerts & SLOs" });
+  fireEvent.click(screen.getByRole("tab", { name: "SLOs" }));
   fireEvent.click(screen.getByRole("button", { name: "New SLO" }));
 
   fireEvent.change(screen.getByLabelText("SLO service"), {
@@ -1651,6 +1655,7 @@ test("alerts page renders pending and resolved lifecycle states", async () => {
                 state: "pending",
                 firing: false,
                 last_fired_at: null,
+                notification_channels: [],
               },
               {
                 rule_id: "10000000-0000-0000-0000-000000000004",
@@ -1663,6 +1668,7 @@ test("alerts page renders pending and resolved lifecycle states", async () => {
                 state: "resolved",
                 firing: false,
                 last_fired_at: "2026-04-28T10:00:00Z",
+                notification_channels: [],
               },
             ],
           }),

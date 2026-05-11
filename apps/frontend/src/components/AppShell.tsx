@@ -22,6 +22,7 @@ const navItems = [
   { label: "Service Overview", to: "/service-overview" },
   { label: "Dashboards", to: "/dashboards" },
   { label: "Alerts & SLOs", to: "/alerts" },
+  { label: "Incidents", to: "/incidents" },
   { label: "Admin / Fleet / Billing", to: "/admin" },
 ] as const;
 
