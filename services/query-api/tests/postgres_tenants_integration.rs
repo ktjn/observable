@@ -77,6 +77,7 @@ async fn inject_tenant_ctx(mut req: Request<Body>, next: Next) -> Response {
         .unwrap_or_default();
     req.extensions_mut().insert(TenantContext {
         tenant_id,
+        user_id: None,
         role: "member".into(),
     });
     next.run(req).await

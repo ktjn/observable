@@ -245,14 +245,22 @@ pub async fn callback_handler(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Dev mode: first login has no role yet — seed tenant_admin on dev-tenant automatically.
+    // Dev mode: first login has no role yet — seed tenant_admin on both the
+    // observable tenant and dev-tenant so the admin can switch between them.
     if tenants.is_empty() && state.config.dev_mode {
-        let dev_tenant = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002")
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        upsert_user_tenant_role(&state.db, user_id, dev_tenant, "tenant_admin")
+        for tenant_str in [
+            "00000000-0000-0000-0000-000000000001", // observable
+            "00000000-0000-0000-0000-000000000002", // dev-tenant
+        ] {
+            let tid =
+                uuid::Uuid::parse_str(tenant_str).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            upsert_user_tenant_role(&state.db, user_id, tid, "tenant_admin")
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        }
+        tenants = list_user_tenants(&state.db, user_id)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        tenants = vec![(dev_tenant, "tenant_admin".to_string())];
     }
 
     let (tenant_id, role) = tenants.into_iter().next().ok_or(StatusCode::FORBIDDEN)?;
