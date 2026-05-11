@@ -5,13 +5,18 @@ import {
   getDashboard,
   updateDashboard,
   type DashboardPanel,
+  type DashboardPanelKind,
   type DashboardPanelLayout,
   type DashboardPanelTimeRange,
+  type DashboardQueryKind,
   type UpdateDashboardRequest,
 } from "../api/dashboards";
 import { submitNlqQuery } from "../api/nlq";
 import { VisualizationPanel } from "../features/nlq/VisualizationPanel";
 import type { NlqIrLike } from "../features/nlq/queryFilters";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Select, SelectOption } from "../components/ui/select";
 import { LoadingState } from "../components/ui/loading-state";
 import { Panel } from "../components/ui/panel";
 import { presetToMs, useGlobalDateRange } from "../hooks/useGlobalDateRange";
@@ -79,6 +84,11 @@ function resizeFromRight(layout: DashboardPanelLayout, columns: number): Dashboa
   const shrinkBy = Math.min(-columns, layout.w - 1);
   return { ...layout, w: layout.w - shrinkBy };
 }
+function nextRowAfterPanels(panels: DashboardPanel[]): number {
+  if (panels.length === 0) return 0;
+  return Math.max(...panels.map((p) => p.layout.y + p.layout.h));
+}
+
 function dashboardFiltersToNlqFilters(filters: Record<string, unknown>): NonNullable<NlqIrLike["filters"]> {
   const result: NonNullable<NlqIrLike["filters"]> = [];
   const name = stringFilter(filters.name);
@@ -104,6 +114,7 @@ export default function DashboardDetailPage() {
   const { tenantId } = useTenantContext();
   const globalDateRange = useGlobalDateRange();
   const queryClient = useQueryClient();
+  const [addPanelOpen, setAddPanelOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["dashboard", tenantId, dashboardId],
@@ -133,6 +144,35 @@ export default function DashboardDetailPage() {
     });
   }
 
+  function addPanel(newPanel: {
+    title: string;
+    panel_kind: DashboardPanelKind;
+    query_kind: DashboardQueryKind | null;
+    service: string | null;
+    query_text: string | null;
+    content: string | null;
+  }) {
+    if (!data) return;
+    const y = nextRowAfterPanels(data.panels);
+    const panel: UpdateDashboardRequest["panels"][number] = {
+      title: newPanel.title,
+      panel_kind: newPanel.panel_kind,
+      query_kind: newPanel.query_kind,
+      service: newPanel.service,
+      preset: null,
+      filters: {},
+      query_text: newPanel.query_text,
+      content: newPanel.content,
+      layout: { x: 0, y, w: 12, h: 4 },
+      time_range: { mode: "global" },
+    };
+    updateMutation.mutate({
+      name: data.name,
+      panels: [...data.panels.map(panelToUpdate), panel],
+    });
+    setAddPanelOpen(false);
+  }
+
   if (isLoading) return <LoadingState>Loading dashboard...</LoadingState>;
   if (error || !data) {
     return <LoadingState className="text-[var(--bad)]">Dashboard could not be loaded.</LoadingState>;
@@ -145,9 +185,20 @@ export default function DashboardDetailPage() {
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Dashboard</div>
           <h1>{data.name}</h1>
         </div>
+        <Button variant="primary" onClick={() => setAddPanelOpen((o) => !o)}>
+          Add panel
+        </Button>
       </div>
 
-      <div className="grid grid-cols-12 gap-3">
+      {addPanelOpen && (
+        <AddPanelForm
+          onAdd={addPanel}
+          onCancel={() => setAddPanelOpen(false)}
+          isPending={updateMutation.isPending}
+        />
+      )}
+
+      <div className="grid grid-cols-12 gap-3" style={{ gridAutoRows: `${RESIZE_ROW_PX}px` }}>
         {data.panels.map((panel) => (
           <DashboardPanelView
             key={panel.panel_id}
@@ -161,6 +212,116 @@ export default function DashboardDetailPage() {
         ))}
       </div>
     </section>
+  );
+}
+
+function AddPanelForm({
+  onAdd,
+  onCancel,
+  isPending,
+}: {
+  onAdd: (panel: {
+    title: string;
+    panel_kind: DashboardPanelKind;
+    query_kind: DashboardQueryKind | null;
+    service: string | null;
+    query_text: string | null;
+    content: string | null;
+  }) => void;
+  onCancel: () => void;
+  isPending: boolean;
+}) {
+  const [title, setTitle] = useState("");
+  const [panelKind, setPanelKind] = useState<DashboardPanelKind>("query");
+  const [queryKind, setQueryKind] = useState<DashboardQueryKind>("logs");
+  const [service, setService] = useState("");
+  const [queryText, setQueryText] = useState("");
+  const [content, setContent] = useState("");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    onAdd({
+      title: title.trim(),
+      panel_kind: panelKind,
+      query_kind: panelKind === "query" ? queryKind : null,
+      service: panelKind === "query" && service.trim() ? service.trim() : null,
+      query_text: panelKind === "query" && queryText.trim() ? queryText.trim() : null,
+      content: panelKind === "text" ? content : null,
+    });
+  }
+
+  return (
+    <Panel title="New panel" eyebrow="Add">
+      <form onSubmit={handleSubmit} className="grid gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-[var(--muted)]">Title</span>
+            <Input
+              required
+              placeholder="Panel title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-[var(--muted)]">Kind</span>
+            <Select value={panelKind} onChange={(e) => setPanelKind(e.target.value as DashboardPanelKind)}>
+              <SelectOption value="query">Query</SelectOption>
+              <SelectOption value="text">Text</SelectOption>
+            </Select>
+          </label>
+          {panelKind === "query" && (
+            <>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-semibold uppercase text-[var(--muted)]">Signal</span>
+                <Select value={queryKind} onChange={(e) => setQueryKind(e.target.value as DashboardQueryKind)}>
+                  <SelectOption value="logs">Logs</SelectOption>
+                  <SelectOption value="traces">Traces</SelectOption>
+                  <SelectOption value="metrics">Metrics</SelectOption>
+                </Select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-semibold uppercase text-[var(--muted)]">Service</span>
+                <Input
+                  placeholder="Optional"
+                  value={service}
+                  onChange={(e) => setService(e.target.value)}
+                />
+              </label>
+            </>
+          )}
+        </div>
+        {panelKind === "query" ? (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-[var(--muted)]">Query</span>
+            <Input
+              placeholder="Natural language question, e.g. error rate over time"
+              value={queryText}
+              onChange={(e) => setQueryText(e.target.value)}
+            />
+          </label>
+        ) : (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-[var(--muted)]">Content</span>
+            <textarea
+              className="min-h-[80px] w-full resize-y border border-[var(--border-strong)] bg-[var(--surface-raised)] px-2 py-1 font-[family-name:'IBM_Plex_Mono',monospace] text-[11px] text-[var(--text)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--focus-ring)]"
+              placeholder="Panel text content"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+            />
+          </label>
+        )}
+        <div className="flex gap-2">
+          <Button type="submit" variant="primary" disabled={!title.trim() || isPending}>
+            {isPending ? "Saving…" : "Add panel"}
+          </Button>
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </Panel>
   );
 }
 
@@ -192,7 +353,6 @@ function DashboardPanelView({
   const x = Math.max(0, Math.min(DASHBOARD_GRID_COLUMNS - 1, layout.x));
   const w = Math.max(1, Math.min(DASHBOARD_GRID_COLUMNS - x, layout.w));
   const h = Math.max(1, layout.h);
-  const minHeight = Math.max(160, h * RESIZE_ROW_PX);
 
   function startLeftResize(event: ReactPointerEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -303,7 +463,7 @@ function DashboardPanelView({
       <Panel
         title={panel.title}
         eyebrow={panel.panel_kind === "text" ? "Text" : panel.query_kind ?? "Query"}
-        className="relative"
+        className="relative h-full"
       >
         <div
           aria-label={`Resize ${panel.title} from left border`}
@@ -338,7 +498,7 @@ function DashboardPanelView({
             <div className="h-0.5 w-5 rounded-full bg-[var(--brand)] opacity-0 transition-opacity group-hover:opacity-100" />
           </div>
         </div>
-        <div style={{ minHeight }}>
+        <div className="h-full min-h-[80px]">
           {panel.panel_kind === "text" ? (
             <TextPanel panel={panel} />
           ) : (
