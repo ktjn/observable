@@ -17,6 +17,7 @@ the slice of context relevant to their domain.
 | Role | Agent file | Invocation | Primary surface |
 |------|-----------|------------|-----------------|
 | **Coordinator** | `coordinator.agent.md` | User-facing; entry point | Cross-domain orchestration |
+| **Issue Worker** | `issue-worker.agent.md` | User-facing; backlog entry point | GitHub issue → branch → PR (parallelisable) |
 | **Spec & Docs Steward** | `spec-steward.agent.md` | Subagent (read-only) | `spec/`, `docs/superpowers/` |
 | **Architecture Steward** | `architecture-steward.agent.md` | Subagent (read-only) | `spec/adr/`, architecture sections of specs |
 | **Planning Steward** | `planning-steward.agent.md` | Subagent (read-only) | `docs/superpowers/plans/` |
@@ -43,6 +44,7 @@ The coordinator decides which specialist(s) to invoke based on what surfaces the
 
 | Task touches… | Invoke |
 |---------------|--------|
+| GitHub issue backlog (scan, claim, fix, PR) | issue-worker (standalone; does not need coordinator) |
 | `spec/`, `docs/superpowers/`, AGENTS.md, CLAUDE.md | spec-steward |
 | `.github/agents/` (role charters, routing rules, escalation triggers) | spec-steward |
 | `spec/adr/`, architecture/deployment/data-model/security decisions | architecture-steward |

@@ -37,6 +37,53 @@ subagent; otherwise, apply the specialist instructions manually in the current s
 - **Active roadmap work starts after Phase 1:** use `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` for follow-on slices unless the user explicitly asks to revise the historical Phase 1 document. Keep `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md` as the historical Phases 2-8 closure reference and `archived/plans/2026-05-09-finish-started-work-plan-rf0-complete.md` as the started-work closure record.
 - If a Phase 1 item appears unfinished in the old plan text, check the reconciliation notes in that document and the follow-on slices in the Phases 2–8 plan before proposing or making changes.
 
+## GitHub Issues Workflow
+
+This is the primary entry point for backlog work. Multiple agent instances can run concurrently —
+each claims one issue and drives it independently to a merged PR.
+
+### Step-by-step
+
+1. **Scan** open, unassigned issues:
+   ```
+   gh issue list --assignee="" --state=open --limit=50
+   ```
+   Prefer `bug` labels over `enhancement` over unlabelled.
+
+2. **Claim** the issue before doing anything else:
+   ```
+   gh issue edit <NUMBER> --add-assignee @me --add-label "in-progress"
+   ```
+   Self-assignment is the concurrency lock. If the issue was already assigned between scan and
+   claim, pick the next one.
+
+3. **Branch** immediately and push so the branch is visible:
+   ```
+   git checkout -b fix/issue-<NUMBER>-<slug>   # bugs
+   git checkout -b feat/issue-<NUMBER>-<slug>  # features
+   git push -u origin <branch-name>
+   ```
+
+4. **For bugs — write the failing test first.**
+   Commit the reproducing test before writing any fix. The commit message must identify the issue:
+   ```
+   git commit -m "test(issue-<NUMBER>): reproduce <description>"
+   ```
+   Then fix the bug. The test must pass without modification after the fix.
+
+5. **For features** — write tests covering the acceptance criteria, then implement.
+
+6. **Run local CI** before pushing any code: `bash scripts/local-ci.sh`
+   Fix every failure. No exceptions (docs-only changes are exempt per the CI section below).
+
+7. **Open a PR** that closes the issue:
+   ```
+   gh pr create --title "fix(issue-<NUMBER>): ..." --body "Closes #<NUMBER> ..."
+   ```
+   Remove `in-progress`, add `ready-for-review` on the issue.
+
+Full role prompt with all constraints: `.github/agents/issue-worker.agent.md`
+
 ## Before Starting Any Implementation Task
 
 1. **Read `spec/adr/README.md`** to scan the one-line decision summaries. Open and read in full any ADR whose domain overlaps with the task.
