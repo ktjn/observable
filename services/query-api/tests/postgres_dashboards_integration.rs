@@ -250,6 +250,7 @@ async fn dashboard_v2_persists_query_layout_time_override_and_text_panels() {
             name: "Runtime dashboard".into(),
             panels: vec![
                 DashboardPanelRequest {
+                    panel_id: None,
                     title: "Latency".into(),
                     panel_kind: Some("query".into()),
                     query_kind: Some("metrics".into()),
@@ -262,6 +263,7 @@ async fn dashboard_v2_persists_query_layout_time_override_and_text_panels() {
                     time_range: Some(serde_json::json!({"mode":"preset","preset":"3h"})),
                 },
                 DashboardPanelRequest {
+                    panel_id: None,
                     title: "Context".into(),
                     panel_kind: Some("text".into()),
                     query_kind: None,
@@ -313,6 +315,7 @@ async fn update_dashboard_replaces_panel_layout_and_content() {
         &CreateDashboardRequest {
             name: "Original".into(),
             panels: vec![DashboardPanelRequest {
+                panel_id: None,
                 title: "Notes".into(),
                 panel_kind: Some("text".into()),
                 query_kind: None,
@@ -336,6 +339,7 @@ async fn update_dashboard_replaces_panel_layout_and_content() {
         &UpdateDashboardRequest {
             name: "Updated".into(),
             panels: vec![DashboardPanelRequest {
+                panel_id: None,
                 title: "Notes".into(),
                 panel_kind: Some("text".into()),
                 query_kind: None,

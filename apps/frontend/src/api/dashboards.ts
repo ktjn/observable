@@ -131,6 +131,14 @@ export interface DashboardExport {
   panels: DashboardExportPanel[];
 }
 
+export async function deleteDashboard(tenantId: string, dashboardId: string): Promise<void> {
+  const res = await fetch(`/v1/dashboards/${dashboardId}`, {
+    method: "DELETE",
+    headers: tenantHeaders(tenantId),
+  });
+  if (!res.ok) throw new Error(`Dashboard delete failed: ${res.status}`);
+}
+
 export async function exportDashboard(tenantId: string, dashboardId: string): Promise<DashboardExport> {
   const res = await fetch(`/v1/dashboards/${dashboardId}/export`, {
     headers: tenantHeaders(tenantId),

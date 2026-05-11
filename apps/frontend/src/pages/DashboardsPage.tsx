@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  deleteDashboard,
   exportDashboard,
   importDashboard,
   listDashboards,
@@ -24,6 +25,11 @@ export default function DashboardsPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["dashboards", tenantId],
     queryFn: () => listDashboards(tenantId),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (dashboardId: string) => deleteDashboard(tenantId, dashboardId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["dashboards", tenantId] }),
   });
 
   async function handleExport(dashboard: Dashboard) {
@@ -110,6 +116,17 @@ export default function DashboardsPage() {
                 </a>
                 <Button variant="secondary" onClick={() => handleExport(dashboard)}>
                   Export
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    if (confirm(`Delete dashboard "${dashboard.name}"?`)) {
+                      deleteMutation.mutate(dashboard.dashboard_id);
+                    }
+                  }}
+                  disabled={deleteMutation.isPending}
+                >
+                  Delete
                 </Button>
               </>
             }

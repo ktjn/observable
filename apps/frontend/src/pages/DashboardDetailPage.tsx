@@ -115,6 +115,8 @@ export default function DashboardDetailPage() {
   const globalDateRange = useGlobalDateRange();
   const queryClient = useQueryClient();
   const [addPanelOpen, setAddPanelOpen] = useState(false);
+  const [editingPanelId, setEditingPanelId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["dashboard", tenantId, dashboardId],
@@ -141,6 +143,25 @@ export default function DashboardDetailPage() {
     updateMutation.mutate({
       name: data.name,
       panels: panels.map(panelToUpdate),
+    });
+  }
+
+  function movePanel(panelId: string, dx: number, dy: number) {
+    if (!data || (dx === 0 && dy === 0)) return;
+    const panels = data.panels.map((panel) => {
+      if (panel.panel_id !== panelId) return panel;
+      const x = Math.max(0, Math.min(DASHBOARD_GRID_COLUMNS - panel.layout.w, panel.layout.x + dx));
+      const y = Math.max(0, panel.layout.y + dy);
+      return { ...panel, layout: { ...panel.layout, x, y } };
+    });
+    updateMutation.mutate({ name: data.name, panels: panels.map(panelToUpdate) });
+  }
+
+  function deletePanel(panelId: string) {
+    if (!data) return;
+    updateMutation.mutate({
+      name: data.name,
+      panels: data.panels.filter((p) => p.panel_id !== panelId).map(panelToUpdate),
     });
   }
 
@@ -173,6 +194,46 @@ export default function DashboardDetailPage() {
     setAddPanelOpen(false);
   }
 
+  function editPanel(
+    panelId: string,
+    changes: {
+      title: string;
+      panel_kind: DashboardPanelKind;
+      query_kind: DashboardQueryKind | null;
+      service: string | null;
+      query_text: string | null;
+      content: string | null;
+    },
+  ) {
+    if (!data) return;
+    updateMutation.mutate({
+      name: data.name,
+      panels: data.panels.map((p) =>
+        p.panel_id !== panelId
+          ? panelToUpdate(p)
+          : {
+              ...panelToUpdate(p),
+              title: changes.title,
+              panel_kind: changes.panel_kind,
+              query_kind: changes.query_kind,
+              service: changes.service,
+              query_text: changes.query_text,
+              content: changes.content,
+            },
+      ),
+    });
+    setEditingPanelId(null);
+  }
+
+  function renameDashboard(name: string) {
+    if (!data || !name.trim() || name.trim() === data.name) {
+      setEditingName(false);
+      return;
+    }
+    updateMutation.mutate({ name: name.trim(), panels: data.panels.map(panelToUpdate) });
+    setEditingName(false);
+  }
+
   if (isLoading) return <LoadingState>Loading dashboard...</LoadingState>;
   if (error || !data) {
     return <LoadingState className="text-[var(--bad)]">Dashboard could not be loaded.</LoadingState>;
@@ -183,7 +244,21 @@ export default function DashboardDetailPage() {
       <div className="page-header">
         <div>
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Dashboard</div>
-          <h1>{data.name}</h1>
+          {editingName ? (
+            <InlineNameEditor
+              initialValue={data.name}
+              onSave={renameDashboard}
+              onCancel={() => setEditingName(false)}
+            />
+          ) : (
+            <h1
+              className="cursor-pointer hover:opacity-70"
+              title="Click to rename"
+              onClick={() => setEditingName(true)}
+            >
+              {data.name}
+            </h1>
+          )}
         </div>
         <Button variant="primary" onClick={() => setAddPanelOpen((o) => !o)}>
           Add panel
@@ -199,17 +274,39 @@ export default function DashboardDetailPage() {
       )}
 
       <div className="grid grid-cols-12 gap-3" style={{ gridAutoRows: `${RESIZE_ROW_PX}px` }}>
-        {data.panels.map((panel) => (
-          <DashboardPanelView
-            key={panel.panel_id}
-            dashboardId={data.dashboard_id}
-            panel={panel}
-            globalRange={{ fromMs: globalDateRange.fromMs, toMs: globalDateRange.toMs }}
-            onResizeLeft={(columns) => resizePanel(panel.panel_id, (layout) => resizeFromLeft(layout, columns))}
-            onResizeRight={(columns) => resizePanel(panel.panel_id, (layout) => resizeFromRight(layout, columns))}
-            onResizeBottom={(rows) => resizePanel(panel.panel_id, (layout) => resizeFromBottom(layout, rows))}
-          />
-        ))}
+        {data.panels.map((panel) =>
+          editingPanelId === panel.panel_id ? (
+            <div
+              key={panel.panel_id}
+              style={{
+                gridColumnStart: panel.layout.x + 1,
+                gridColumnEnd: `span ${panel.layout.w}`,
+                gridRowStart: panel.layout.y + 1,
+                gridRowEnd: `span ${panel.layout.h}`,
+              }}
+            >
+              <EditPanelForm
+                panel={panel}
+                onSave={(changes) => editPanel(panel.panel_id, changes)}
+                onCancel={() => setEditingPanelId(null)}
+                isPending={updateMutation.isPending}
+              />
+            </div>
+          ) : (
+            <DashboardPanelView
+              key={panel.panel_id}
+              dashboardId={data.dashboard_id}
+              panel={panel}
+              globalRange={{ fromMs: globalDateRange.fromMs, toMs: globalDateRange.toMs }}
+              onResizeLeft={(columns) => resizePanel(panel.panel_id, (layout) => resizeFromLeft(layout, columns))}
+              onResizeRight={(columns) => resizePanel(panel.panel_id, (layout) => resizeFromRight(layout, columns))}
+              onResizeBottom={(rows) => resizePanel(panel.panel_id, (layout) => resizeFromBottom(layout, rows))}
+              onDelete={() => deletePanel(panel.panel_id)}
+              onEdit={() => setEditingPanelId(panel.panel_id)}
+              onMove={(dx, dy) => movePanel(panel.panel_id, dx, dy)}
+            />
+          ),
+        )}
       </div>
     </section>
   );
@@ -325,6 +422,137 @@ function AddPanelForm({
   );
 }
 
+function EditPanelForm({
+  panel,
+  onSave,
+  onCancel,
+  isPending,
+}: {
+  panel: DashboardPanel;
+  onSave: (changes: {
+    title: string;
+    panel_kind: DashboardPanelKind;
+    query_kind: DashboardQueryKind | null;
+    service: string | null;
+    query_text: string | null;
+    content: string | null;
+  }) => void;
+  onCancel: () => void;
+  isPending: boolean;
+}) {
+  const [title, setTitle] = useState(panel.title);
+  const [panelKind, setPanelKind] = useState<DashboardPanelKind>(panel.panel_kind);
+  const [queryKind, setQueryKind] = useState<DashboardQueryKind>((panel.query_kind as DashboardQueryKind) ?? "logs");
+  const [service, setService] = useState(panel.service ?? "");
+  const [queryText, setQueryText] = useState(panel.query_text ?? "");
+  const [content, setContent] = useState(panel.content ?? "");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    onSave({
+      title: title.trim(),
+      panel_kind: panelKind,
+      query_kind: panelKind === "query" ? queryKind : null,
+      service: panelKind === "query" && service.trim() ? service.trim() : null,
+      query_text: panelKind === "query" && queryText.trim() ? queryText.trim() : null,
+      content: panelKind === "text" ? content : null,
+    });
+  }
+
+  return (
+    <Panel title={panel.title} eyebrow="Edit">
+      <form onSubmit={handleSubmit} className="grid gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-[var(--muted)]">Title</span>
+            <Input required placeholder="Panel title" value={title} onChange={(e) => setTitle(e.target.value)} />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-[var(--muted)]">Kind</span>
+            <Select value={panelKind} onChange={(e) => setPanelKind(e.target.value as DashboardPanelKind)}>
+              <SelectOption value="query">Query</SelectOption>
+              <SelectOption value="text">Text</SelectOption>
+            </Select>
+          </label>
+          {panelKind === "query" && (
+            <>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-semibold uppercase text-[var(--muted)]">Signal</span>
+                <Select value={queryKind} onChange={(e) => setQueryKind(e.target.value as DashboardQueryKind)}>
+                  <SelectOption value="logs">Logs</SelectOption>
+                  <SelectOption value="traces">Traces</SelectOption>
+                  <SelectOption value="metrics">Metrics</SelectOption>
+                </Select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-semibold uppercase text-[var(--muted)]">Service</span>
+                <Input placeholder="Optional" value={service} onChange={(e) => setService(e.target.value)} />
+              </label>
+            </>
+          )}
+        </div>
+        {panelKind === "query" ? (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-[var(--muted)]">Query</span>
+            <Input
+              placeholder="Natural language question, e.g. error rate over time"
+              value={queryText}
+              onChange={(e) => setQueryText(e.target.value)}
+            />
+          </label>
+        ) : (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-[var(--muted)]">Content</span>
+            <textarea
+              className="min-h-[80px] w-full resize-y border border-[var(--border-strong)] bg-[var(--surface-raised)] px-2 py-1 font-[family-name:'IBM_Plex_Mono',monospace] text-[11px] text-[var(--text)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--focus-ring)]"
+              placeholder="Panel text content"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+            />
+          </label>
+        )}
+        <div className="flex gap-2">
+          <Button type="submit" variant="primary" disabled={!title.trim() || isPending}>
+            {isPending ? "Saving…" : "Save"}
+          </Button>
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </Panel>
+  );
+}
+
+function InlineNameEditor({
+  initialValue,
+  onSave,
+  onCancel,
+}: {
+  initialValue: string;
+  onSave: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initialValue);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") onSave(value);
+    if (e.key === "Escape") onCancel();
+  }
+
+  return (
+    <Input
+      autoFocus
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => onSave(value)}
+      onKeyDown={handleKeyDown}
+      className="text-xl font-bold"
+    />
+  );
+}
+
 function DashboardPanelView({
   dashboardId,
   panel,
@@ -332,6 +560,9 @@ function DashboardPanelView({
   onResizeLeft,
   onResizeRight,
   onResizeBottom,
+  onDelete,
+  onEdit,
+  onMove,
 }: {
   dashboardId: string;
   panel: DashboardPanel;
@@ -339,6 +570,9 @@ function DashboardPanelView({
   onResizeLeft: (columns: number) => void;
   onResizeRight: (columns: number) => void;
   onResizeBottom: (rows: number) => void;
+  onDelete: () => void;
+  onEdit: () => void;
+  onMove: (dx: number, dy: number) => void;
 }) {
   const [previewLayout, setPreviewLayout] = useState<DashboardPanelLayout | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
@@ -450,6 +684,42 @@ function DashboardPanelView({
     document.addEventListener("pointercancel", onPointerUp);
   }
 
+  function startMove(event: ReactPointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    cleanupRef.current?.();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startLayout = panel.layout;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const dx = (moveEvent.clientX - startX) / RESIZE_COLUMN_PX;
+      const dy = (moveEvent.clientY - startY) / RESIZE_ROW_PX;
+      const newX = Math.max(0, Math.min(DASHBOARD_GRID_COLUMNS - startLayout.w, startLayout.x + dx));
+      const newY = Math.max(0, startLayout.y + dy);
+      setPreviewLayout({ ...startLayout, x: newX, y: newY });
+    };
+
+    const onPointerUp = (upEvent: PointerEvent) => {
+      const dx = Math.round((upEvent.clientX - startX) / RESIZE_COLUMN_PX);
+      const dy = Math.round((upEvent.clientY - startY) / RESIZE_ROW_PX);
+      onMove(dx, dy);
+      setPreviewLayout(null);
+      cleanup();
+    };
+
+    const cleanup = () => {
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("pointercancel", onPointerUp);
+      cleanupRef.current = null;
+    };
+
+    cleanupRef.current = cleanup;
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp);
+    document.addEventListener("pointercancel", onPointerUp);
+  }
+
   return (
     <div
       className="min-w-0"
@@ -464,6 +734,36 @@ function DashboardPanelView({
         title={panel.title}
         eyebrow={panel.panel_kind === "text" ? "Text" : panel.query_kind ?? "Query"}
         className="relative h-full"
+        actions={
+          <>
+            <div
+              aria-label={`Move panel ${panel.title}`}
+              className="flex h-7 w-7 cursor-grab items-center justify-center touch-none text-[var(--muted)] hover:text-[var(--text)] active:cursor-grabbing"
+              role="button"
+              tabIndex={0}
+              onPointerDown={startMove}
+              title="Drag to move"
+            >
+              ⠿
+            </div>
+            <button
+              type="button"
+              aria-label={`Edit panel ${panel.title}`}
+              className="flex h-7 items-center px-2 text-xs text-[var(--muted)] hover:text-[var(--text)] focus:outline-none"
+              onClick={onEdit}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              aria-label={`Delete panel ${panel.title}`}
+              className="flex h-7 w-7 items-center justify-center text-[var(--muted)] hover:text-[var(--bad)] focus:outline-none"
+              onClick={onDelete}
+            >
+              ×
+            </button>
+          </>
+        }
       >
         <div
           aria-label={`Resize ${panel.title} from left border`}

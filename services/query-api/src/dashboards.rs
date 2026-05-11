@@ -43,6 +43,8 @@ pub struct DashboardListResponse {
 
 #[derive(Deserialize, Clone)]
 pub struct DashboardPanelRequest {
+    #[serde(default)]
+    pub panel_id: Option<Uuid>,
     pub title: String,
     #[serde(default)]
     pub panel_kind: Option<String>,
@@ -67,6 +69,7 @@ pub struct DashboardPanelRequest {
 impl Default for DashboardPanelRequest {
     fn default() -> Self {
         Self {
+            panel_id: None,
             title: String::new(),
             panel_kind: None,
             query_kind: None,
@@ -319,11 +322,7 @@ pub async fn update_dashboard(
     dashboard_id: Uuid,
     req: &UpdateDashboardRequest,
 ) -> Result<Option<DashboardItem>, CreateDashboardError> {
-    let create_req = CreateDashboardRequest {
-        name: req.name.clone(),
-        panels: req.panels.clone(),
-    };
-    validate_create_request(&create_req)?;
+    validate_update_request(req)?;
 
     let mut tx = db.begin().await.map_err(CreateDashboardError::Db)?;
     let row = sqlx::query_as::<_, DashboardRow>(
@@ -355,14 +354,16 @@ pub async fn update_dashboard(
         let panel_kind = panel_kind(panel);
         let layout = normalized_layout(panel.layout.as_ref(), position);
         let time_range = normalized_time_range(panel);
+        let panel_id = panel.panel_id.unwrap_or_else(Uuid::new_v4);
         let item = sqlx::query_as::<_, DashboardPanelRow>(
             "INSERT INTO dashboard_panels \
-             (dashboard_id, title, panel_kind, query_kind, service, preset, filters, \
+             (panel_id, dashboard_id, title, panel_kind, query_kind, service, preset, filters, \
               query_text, content, layout, time_range, position) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) \
              RETURNING dashboard_id, panel_id, title, panel_kind, query_kind, service, preset, \
                        filters, query_text, content, layout, time_range",
         )
+        .bind(panel_id)
         .bind(row.dashboard_id)
         .bind(panel.title.trim())
         .bind(panel_kind)
@@ -407,6 +408,21 @@ pub async fn update_dashboard(
         panels,
         created_at: row.created_at,
     }))
+}
+
+pub async fn delete_dashboard(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+    dashboard_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "DELETE FROM dashboards WHERE dashboard_id = $1 AND tenant_id = $2",
+    )
+    .bind(dashboard_id)
+    .bind(tenant_id)
+    .execute(db)
+    .await?;
+    Ok(result.rows_affected() > 0)
 }
 
 const VALID_PRESETS: &[&str] = &["5m", "15m", "30m", "1h", "3h", "12h"];
@@ -503,6 +519,7 @@ pub async fn import_dashboard(
             .panels
             .iter()
             .map(|p| DashboardPanelRequest {
+                panel_id: None,
                 title: p.title.clone(),
                 panel_kind: p.panel_kind.clone(),
                 query_kind: p.query_kind.clone(),
@@ -578,6 +595,61 @@ fn validate_create_request(req: &CreateDashboardRequest) -> Result<(), CreateDas
                 "preset must be one of: {} (or omitted for global date range)",
                 VALID_PRESETS.join(", ")
             )));
+        }
+        if let Some(ref preset) = panel.preset {
+            if !VALID_PRESETS.contains(&preset.as_str()) {
+                return Err(CreateDashboardError::InvalidInput(format!(
+                    "preset must be one of: {} (or omitted for global date range)",
+                    VALID_PRESETS.join(", ")
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_update_request(req: &UpdateDashboardRequest) -> Result<(), CreateDashboardError> {
+    if req.name.trim().is_empty() {
+        return Err(CreateDashboardError::InvalidInput(
+            "name is required".into(),
+        ));
+    }
+    for panel in &req.panels {
+        let kind = panel_kind(panel);
+        if panel.title.trim().is_empty() {
+            return Err(CreateDashboardError::InvalidInput(
+                "panel title is required".into(),
+            ));
+        }
+        if !VALID_PANEL_KINDS.contains(&kind) {
+            return Err(CreateDashboardError::InvalidInput(format!(
+                "panel_kind must be one of: {}",
+                VALID_PANEL_KINDS.join(", ")
+            )));
+        }
+        if kind == "query" && panel.query_kind.as_deref().is_none() {
+            return Err(CreateDashboardError::InvalidInput(
+                "query panels require query_kind".into(),
+            ));
+        }
+        if kind == "text" && panel.content.as_ref().is_none_or(|s| s.trim().is_empty()) {
+            return Err(CreateDashboardError::InvalidInput(
+                "text panels require content".into(),
+            ));
+        }
+        if let Some(query_kind) = &panel.query_kind {
+            if !VALID_QUERY_KINDS.contains(&query_kind.as_str()) {
+                return Err(CreateDashboardError::InvalidInput(format!(
+                    "query_kind must be one of: {}",
+                    VALID_QUERY_KINDS.join(", ")
+                )));
+            }
+        }
+        if let Some(layout) = &panel.layout {
+            validate_layout(layout)?;
+        }
+        if let Some(time_range) = &panel.time_range {
+            validate_time_range(time_range)?;
         }
         if let Some(ref preset) = panel.preset {
             if !VALID_PRESETS.contains(&preset.as_str()) {
@@ -740,6 +812,21 @@ pub async fn handle_update_dashboard(
         }
         Err(CreateDashboardError::Db(e)) => {
             tracing::error!(error = %e, "failed to update dashboard");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+pub async fn handle_delete_dashboard(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(dashboard_id): Path<Uuid>,
+) -> Result<StatusCode, StatusCode> {
+    match delete_dashboard(&state.db, ctx.tenant_id, dashboard_id).await {
+        Ok(true) => Ok(StatusCode::NO_CONTENT),
+        Ok(false) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            tracing::error!(error = %e, "failed to delete dashboard");
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }

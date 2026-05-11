@@ -116,7 +116,11 @@
       "WebFetch(domain:charts.zitadel.com)",
       "WebFetch(domain:github.com)",
       "Bash(Remove-Item *)",
-      "Bash(grep -v \"^warning: \\\\`\")"
+      "Bash(grep -v \"^warning: \\\\`\")",
+      "Bash(gh issue *)",
+      "Bash(Get-ChildItem -Path C:\\\\git\\\\Observable -Recurse -Depth 2 -Directory)",
+      "Bash(Get-ChildItem *)",
+      "Bash(Find /c/git/Observable/services/query-api/src -name \"*.rs\" -type f)"
     ]
   }
 }
