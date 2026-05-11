@@ -4,17 +4,22 @@ function tenantHeaders(tenantId: string): HeadersInit {
 
 export type NotificationChannelType = "webhook";
 
+export interface NotificationChannelConfig {
+  url: string;
+  [key: string]: unknown;
+}
+
 export interface NotificationChannelItem {
   channel_id: string;
   name: string;
   channel_type: NotificationChannelType;
-  config: any;
+  config: NotificationChannelConfig;
 }
 
 export interface CreateChannelRequest {
   name: string;
   channel_type: NotificationChannelType;
-  config: any;
+  config: NotificationChannelConfig;
 }
 
 export async function listNotificationChannels(tenantId: string): Promise<NotificationChannelItem[]> {

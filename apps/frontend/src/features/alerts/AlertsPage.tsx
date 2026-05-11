@@ -15,6 +15,7 @@ import {
 } from "../../api/slos";
 import {
   listNotificationChannels,
+  type NotificationChannelItem,
 } from "../../api/notifications";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -37,6 +38,7 @@ export function AlertsPage() {
   const [formOperator, setFormOperator] = useState("gt");
   const [formThreshold, setFormThreshold] = useState("");
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+  const [autoTriggerIncident, setAutoTriggerIncident] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
   const [isCreatingSlo, setIsCreatingSlo] = useState(false);
   const [sloService, setSloService] = useState("");
@@ -76,6 +78,7 @@ export function AlertsPage() {
       setFormOperator("gt");
       setFormThreshold("");
       setSelectedChannels([]);
+      setAutoTriggerIncident(true);
       setFormError(null);
     },
     onError: (e: Error) => setFormError(e.message),
@@ -109,6 +112,7 @@ export function AlertsPage() {
       operator: formOperator,
       threshold,
       notification_channels: selectedChannels,
+      auto_trigger_incident: autoTriggerIncident,
     });
   };
 
@@ -133,7 +137,7 @@ export function AlertsPage() {
 
   const rules = data?.items ?? [];
   const slos = sloData?.items ?? [];
-  const channels = channelsData ?? [];
+  const channels = Array.isArray(channelsData) ? channelsData : [];
   const firingCount = rules.filter((r) => r.state === "active").length;
   const pendingCount = rules.filter((r) => r.state === "pending").length;
   const silencedCount = rules.filter((r) => r.silenced).length;
@@ -249,6 +253,15 @@ export function AlertsPage() {
                     {channels.length === 0 && <div className="text-xs italic text-[var(--muted)]">No channels configured.</div>}
                   </div>
                 </div>
+
+                <label className="flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={autoTriggerIncident}
+                    onChange={(e) => setAutoTriggerIncident(e.target.checked)}
+                  />
+                  Auto-trigger incident on firing
+                </label>
 
                 {formError && (
                   <div role="alert" className="text-sm font-bold text-[var(--bad)]">
@@ -488,12 +501,12 @@ function AlertRuleRow({
   onToggleSilence,
 }: {
   rule: AlertRuleItem;
-  channels: any[];
+  channels: NotificationChannelItem[];
   onToggleSilence: () => void;
 }) {
   const conditionLabel = `${rule.operator} ${rule.threshold}`;
   const status = alertStatus(rule);
-  const channelNames = rule.notification_channels
+  const channelNames = (rule.notification_channels ?? [])
     .map((id) => channels.find((c) => c.channel_id === id)?.name)
     .filter(Boolean)
     .join(", ");

@@ -9,8 +9,9 @@ use clickhouse::Client as ChClient;
 use domain::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use http_body_util::BodyExt;
 use query_api::{
-    alerts, config, dashboards, llm_adapter, logs, metrics, middleware::auth::require_tenant,
-    middleware::auth::TenantContext, planner::QueryPlanner, slos, traces,
+    alerts, config, dashboards, incidents, llm_adapter, logs, metrics,
+    middleware::auth::require_tenant, middleware::auth::TenantContext, planner::QueryPlanner, slos,
+    traces,
 };
 use serde_json::Value;
 use sqlx::postgres::{PgPool, PgPoolOptions};
@@ -155,6 +156,11 @@ fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .route("/v1/slos", get(slos::handle_list_slos))
         .route("/v1/slos", post(slos::handle_create_slo))
+        .route("/v1/incidents", get(incidents::handle_list_incidents))
+        .route(
+            "/v1/incidents/:incident_id",
+            get(incidents::handle_get_incident),
+        )
         .layer(axum_middleware::from_fn(require_tenant))
         .layer(axum::Extension(db))
         .layer(axum::Extension(auth_service_url))
@@ -184,6 +190,11 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
         .route("/v1/metrics/points", get(metrics::get_metric_group_points))
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .route("/v1/slos", get(slos::handle_list_slos))
+        .route("/v1/incidents", get(incidents::handle_list_incidents))
+        .route(
+            "/v1/incidents/:incident_id",
+            get(incidents::handle_get_incident),
+        )
         .layer(axum_middleware::from_fn(require_tenant))
         .layer(axum::Extension(db))
         .layer(axum::Extension(auth_service_url_ext))
@@ -1143,4 +1154,94 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
         body_str.contains("field 'invalid_foo' not in schema catalog"),
         "unexpected response body: {body_str}"
     );
+}
+
+// ── Incident API ────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn list_incidents_returns_tenant_scoped_incidents() {
+    let (ch, _ch_container) = start_clickhouse().await;
+    let (pg, _pg_container) = start_postgres().await;
+    let app = build_app_with_pg(ch, pg.clone());
+    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+
+    sqlx::query(
+        "INSERT INTO incidents (incident_id, tenant_id, title, severity, status, dedup_key) \
+         VALUES ($1, $2, 'HTTP test incident', 'critical', 'triggered', 'dedup-1')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant)
+    .execute(&pg)
+    .await
+    .expect("incident inserted");
+
+    let response = app
+        .oneshot(dev_request("GET", "/v1/incidents"))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_body_json(response.into_body()).await;
+    let items = body["items"].as_array().unwrap();
+    assert!(
+        items.iter().any(|i| i["title"] == "HTTP test incident"),
+        "incident must appear in list"
+    );
+}
+
+#[tokio::test]
+async fn get_incident_returns_detail_with_timeline() {
+    let (ch, _ch_container) = start_clickhouse().await;
+    let (pg, _pg_container) = start_postgres().await;
+    let app = build_app_with_pg(ch, pg.clone());
+    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+    let incident_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO incidents (incident_id, tenant_id, title, severity, status, dedup_key) \
+         VALUES ($1, $2, 'Detail incident', 'warning', 'resolved', 'dedup-2')",
+    )
+    .bind(incident_id)
+    .bind(tenant)
+    .execute(&pg)
+    .await
+    .expect("incident inserted");
+
+    sqlx::query(
+        "INSERT INTO incident_events (incident_id, event_type, actor, message) \
+         VALUES ($1, 'triggered', 'system', 'Alert fired')",
+    )
+    .bind(incident_id)
+    .execute(&pg)
+    .await
+    .expect("event inserted");
+
+    let response = app
+        .oneshot(dev_request("GET", &format!("/v1/incidents/{incident_id}")))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_body_json(response.into_body()).await;
+    assert_eq!(body["title"], "Detail incident");
+    assert_eq!(body["status"], "resolved");
+    let timeline = body["timeline"].as_array().unwrap();
+    assert_eq!(timeline.len(), 1);
+    assert_eq!(timeline[0]["event_type"], "triggered");
+    assert_eq!(timeline[0]["actor"], "system");
+}
+
+#[tokio::test]
+async fn get_incident_returns_404_for_unknown_id() {
+    let (ch, _ch_container) = start_clickhouse().await;
+    let (pg, _pg_container) = start_postgres().await;
+    let app = build_app_with_pg(ch, pg.clone());
+    let unknown_id = Uuid::new_v4();
+
+    let response = app
+        .oneshot(dev_request("GET", &format!("/v1/incidents/{unknown_id}")))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }

@@ -81,6 +81,7 @@ async fn create_rule_appears_in_list() {
         operator: "gt".into(),
         threshold: 500.0,
         notification_channels: None,
+        auto_trigger_incident: None,
     };
     let created = create_alert_rule(&pool, tenant, &req).await.unwrap();
 
@@ -91,6 +92,7 @@ async fn create_rule_appears_in_list() {
     assert_eq!(created.severity, "warning");
     assert!(!created.silenced);
     assert!(!created.firing);
+    assert!(created.auto_trigger_incident);
 
     let rules = list_alert_rules(&pool, tenant).await.unwrap();
     assert!(
@@ -110,6 +112,7 @@ async fn silence_toggle_updates_silenced_flag() {
         operator: "gt".into(),
         threshold: 0.9,
         notification_channels: None,
+        auto_trigger_incident: None,
     };
     let created = create_alert_rule(&pool, tenant, &req).await.unwrap();
     assert!(!created.silenced);
@@ -139,6 +142,7 @@ async fn silence_returns_none_for_cross_tenant_rule() {
         operator: "gt".into(),
         threshold: 10.0,
         notification_channels: None,
+        auto_trigger_incident: None,
     };
 
     let created = create_alert_rule(&pool, tenant_a, &req).await.unwrap();
@@ -171,6 +175,7 @@ async fn list_rules_does_not_return_other_tenant_rules() {
         operator: "gt".into(),
         threshold: 10.0,
         notification_channels: None,
+        auto_trigger_incident: None,
     };
 
     create_alert_rule(&pool, tenant_a, &req).await.unwrap();
@@ -196,6 +201,7 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             operator: "gt".into(),
             threshold: 1.0,
             notification_channels: None,
+            auto_trigger_incident: None,
         },
     )
     .await
@@ -219,6 +225,7 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             operator: "gt".into(),
             threshold: 1.0,
             notification_channels: None,
+            auto_trigger_incident: None,
         },
     )
     .await
@@ -242,6 +249,7 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             operator: "gt".into(),
             threshold: 1.0,
             notification_channels: None,
+            auto_trigger_incident: None,
         },
     )
     .await
@@ -265,6 +273,7 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             operator: "gt".into(),
             threshold: 1.0,
             notification_channels: None,
+            auto_trigger_incident: None,
         },
     )
     .await

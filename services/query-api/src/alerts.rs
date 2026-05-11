@@ -24,6 +24,7 @@ pub struct AlertRuleItem {
     pub firing: bool,
     pub last_fired_at: Option<DateTime<Utc>>,
     pub notification_channels: Vec<Uuid>,
+    pub auto_trigger_incident: bool,
 }
 
 #[derive(Serialize)]
@@ -38,6 +39,7 @@ pub struct CreateRuleRequest {
     pub operator: String,
     pub threshold: f64,
     pub notification_channels: Option<Vec<Uuid>>,
+    pub auto_trigger_incident: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -80,6 +82,7 @@ struct AlertRuleRow {
     firing: bool,
     last_fired_at: Option<DateTime<Utc>>,
     notification_channels: Vec<Uuid>,
+    auto_trigger_incident: bool,
 }
 
 fn condition_fields(condition: &serde_json::Value) -> Option<(String, String, f64)> {
@@ -113,7 +116,7 @@ pub async fn list_alert_rules(
          (SELECT MAX(occurred_at) FROM alert_firings af \
           WHERE af.rule_id = r.rule_id AND af.tenant_id = r.tenant_id \
             AND af.state = 'active') AS last_fired_at, \
-         r.notification_channels \
+         r.notification_channels, r.auto_trigger_incident \
          FROM alert_rules r \
          WHERE r.tenant_id = $1 AND r.alert_type = 'threshold' \
          ORDER BY r.created_at DESC",
@@ -138,6 +141,7 @@ pub async fn list_alert_rules(
                     firing: row.firing,
                     last_fired_at: row.last_fired_at,
                     notification_channels: row.notification_channels,
+                    auto_trigger_incident: row.auto_trigger_incident,
                 }),
                 None => {
                     tracing::warn!(rule_id = %row.rule_id, "skipping alert rule with malformed condition JSONB");
@@ -180,16 +184,18 @@ pub async fn create_alert_rule(
     });
 
     let channels = req.notification_channels.clone().unwrap_or_default();
+    let auto_trigger = req.auto_trigger_incident.unwrap_or(true);
 
     let rule_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO alert_rules (tenant_id, name, alert_type, severity, condition, notification_channels) \
-         VALUES ($1, $2, 'threshold', 'warning', $3, $4) \
+        "INSERT INTO alert_rules (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
+         VALUES ($1, $2, 'threshold', 'warning', $3, $4, $5) \
          RETURNING rule_id",
     )
     .bind(tenant_id)
     .bind(&req.name)
     .bind(&condition)
     .bind(&channels)
+    .bind(auto_trigger)
     .fetch_one(db)
     .await
     .map_err(CreateRuleError::Db)?;
@@ -206,6 +212,7 @@ pub async fn create_alert_rule(
         firing: false,
         last_fired_at: None,
         notification_channels: channels,
+        auto_trigger_incident: auto_trigger,
     })
 }
 
@@ -341,6 +348,7 @@ mod tests {
             firing: true,
             last_fired_at: None,
             notification_channels: vec![],
+            auto_trigger_incident: true,
         };
         let v = serde_json::to_value(&item).unwrap();
         assert_eq!(v["name"], "High error rate");

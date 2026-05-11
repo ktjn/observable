@@ -5,6 +5,8 @@ import InfrastructureDetailPage from "./pages/InfrastructureDetailPage";
 import InfrastructureInventoryPage from "./pages/InfrastructureInventoryPage";
 import { ProductAreaPage } from "./pages/ProductAreaPage";
 import { AlertsPage } from "./features/alerts/AlertsPage";
+import { IncidentsPage } from "./features/incidents/IncidentsPage";
+import { IncidentDetailPage } from "./features/incidents/IncidentDetailPage";
 import ServiceDetailPage from "./pages/ServiceDetailPage";
 import ServiceTopologyPage from "./pages/ServiceTopologyPage";
 import SetupPage from "./pages/SetupPage";
@@ -112,6 +114,16 @@ const alertsRoute = createRoute({
   path: "/alerts",
   component: AlertsPage,
 });
+const incidentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/incidents",
+  component: IncidentsPage,
+});
+const incidentDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/incidents/$incidentId",
+  component: IncidentDetailPage,
+});
 const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin",
@@ -177,6 +189,8 @@ export const router = createRouter({
     dashboardsRoute,
     dashboardDetailRoute,
     alertsRoute,
+    incidentsRoute,
+    incidentDetailRoute,
     adminRoute,
     identitySettingsRoute,
     traceSearchRoute,

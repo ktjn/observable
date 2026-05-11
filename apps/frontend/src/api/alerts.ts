@@ -14,6 +14,7 @@ export interface AlertRuleItem {
   firing: boolean;
   last_fired_at: string | null;
   notification_channels: string[];
+  auto_trigger_incident: boolean;
 }
 
 export interface AlertRuleListResponse {
@@ -26,6 +27,7 @@ export interface CreateRuleRequest {
   operator: string;
   threshold: number;
   notification_channels?: string[];
+  auto_trigger_incident?: boolean;
 }
 
 export async function listAlertRules(tenantId: string): Promise<AlertRuleListResponse> {
