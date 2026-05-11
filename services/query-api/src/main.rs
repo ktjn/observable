@@ -107,8 +107,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/dashboards/:id", get(dashboards::handle_get_dashboard))
         .route(
             "/v1/dashboards/:id",
-            put(dashboards::handle_update_dashboard)
-                .delete(dashboards::handle_delete_dashboard),
+            put(dashboards::handle_update_dashboard).delete(dashboards::handle_delete_dashboard),
         )
         .route(
             "/v1/dashboards/import",

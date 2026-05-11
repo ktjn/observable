@@ -415,13 +415,11 @@ pub async fn delete_dashboard(
     tenant_id: Uuid,
     dashboard_id: Uuid,
 ) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query(
-        "DELETE FROM dashboards WHERE dashboard_id = $1 AND tenant_id = $2",
-    )
-    .bind(dashboard_id)
-    .bind(tenant_id)
-    .execute(db)
-    .await?;
+    let result = sqlx::query("DELETE FROM dashboards WHERE dashboard_id = $1 AND tenant_id = $2")
+        .bind(dashboard_id)
+        .bind(tenant_id)
+        .execute(db)
+        .await?;
     Ok(result.rows_affected() > 0)
 }
 
