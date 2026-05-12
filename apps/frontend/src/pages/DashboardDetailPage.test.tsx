@@ -38,14 +38,13 @@ vi.mock("../api/nlq", async (importOriginal) => {
   };
 });
 
-vi.mock('react-grid-layout', async () => {
-  const React = await import('react');
+vi.mock('react-grid-layout', () => {
   type LayoutItem = { i: string; x: number; y: number; w: number; h: number };
   const MockRGL = ({
     children,
     onLayoutChange,
   }: {
-    children: React.ReactNode;
+    children: import('react').ReactNode;
     onLayoutChange: (layout: LayoutItem[]) => void;
   }) => (
     <div data-testid="rgl">
