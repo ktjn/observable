@@ -8,6 +8,7 @@ use uuid::Uuid;
 #[derive(Clone, Debug)]
 pub struct TenantContext {
     pub tenant_id: Uuid,
+    pub user_id: Option<Uuid>,
     #[allow(dead_code)]
     pub role: String,
 }
@@ -71,15 +72,46 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
 
     let ctx = validate_session(&auth_url, &session_token).await?;
 
-    // If X-Tenant-ID is also provided, it MUST match the session's tenant.
+    // If X-Tenant-ID is provided and matches the session tenant, proceed as usual.
+    // If it differs, check whether the user actually has a role on the requested
+    // tenant (multi-tenant users can switch without re-login).
     if let Some(requested_tenant_id) = tenant_id_hdr {
         if requested_tenant_id != ctx.tenant_id {
-            tracing::warn!(
-                session_tenant = %ctx.tenant_id,
-                requested_tenant = %requested_tenant_id,
-                "tenant mismatch between session and X-Tenant-ID header"
-            );
-            return Err(StatusCode::FORBIDDEN);
+            let user_id = ctx.user_id.ok_or_else(|| {
+                tracing::error!("session context missing user_id for cross-tenant check");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+            let has_access = sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2",
+            )
+            .bind(user_id)
+            .bind(requested_tenant_id)
+            .fetch_one(&db)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "db error checking cross-tenant access");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+            if has_access == 0 {
+                tracing::warn!(
+                    %user_id,
+                    session_tenant = %ctx.tenant_id,
+                    requested_tenant = %requested_tenant_id,
+                    "user does not have access to requested tenant"
+                );
+                return Err(StatusCode::FORBIDDEN);
+            }
+
+            // User has access — override the tenant context to the requested tenant.
+            let ctx = TenantContext {
+                tenant_id: requested_tenant_id,
+                user_id: Some(user_id),
+                role: ctx.role,
+            };
+            req.extensions_mut().insert(ctx);
+            return Ok(next.run(req).await);
         }
     }
 
@@ -95,6 +127,7 @@ async fn validate_session(auth_url: &str, token: &str) -> Result<TenantContext, 
     }
     #[derive(serde::Deserialize)]
     struct Resp {
+        user_id: String,
         tenant_id: String,
         role: String,
     }
@@ -124,8 +157,13 @@ async fn validate_session(auth_url: &str, token: &str) -> Result<TenantContext, 
         .tenant_id
         .parse::<Uuid>()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_id = body
+        .user_id
+        .parse::<Uuid>()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(TenantContext {
         tenant_id,
+        user_id: Some(user_id),
         role: body.role,
     })
 }
@@ -219,6 +257,7 @@ async fn verify_credentials(
 
     Ok(TenantContext {
         tenant_id,
+        user_id: None,
         role: row.role,
     })
 }

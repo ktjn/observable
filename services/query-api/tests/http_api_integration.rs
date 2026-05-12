@@ -217,6 +217,7 @@ fn fake_nlq_app_no_db() -> Router {
         .route("/v1/nlq", post(llm_adapter::handle_nlq_query))
         .layer(axum::Extension(TenantContext {
             tenant_id,
+            user_id: None,
             role: "admin".into(),
         }))
         .with_state(state)

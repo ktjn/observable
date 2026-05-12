@@ -63,6 +63,18 @@ export function AppShell() {
     }
   }, [authLoading, user, location.pathname, navigate]);
 
+  // After login the session is filtered to only the tenants the user has access
+  // to.  If the current context (from localStorage) is no longer in that list,
+  // switch to the first available tenant so all API calls use a valid tenant.
+  useEffect(() => {
+    const available = tenantsData?.tenants;
+    if (!user || !available || available.length === 0) return;
+    const isValid = available.some((t) => t.id === tenantId);
+    if (!isValid) {
+      setTenant({ id: available[0].id, name: available[0].name });
+    }
+  }, [user, tenantsData, tenantId, setTenant]);
+
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Primary navigation">
