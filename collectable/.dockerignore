@@ -1,6 +1,5 @@
 # Version control
 .git/
-.worktrees/
 
 # Rust build artifacts
 target/
@@ -19,18 +18,10 @@ dist/
 **/.vite/
 **/.cache/
 **/__pycache__/
-**/.pytest_cache/
-
-# Test & coverage artifacts
-**/coverage/
-apps/frontend/test-results/*
 
 # Environment files
 .env*
 !.env*.example
-
-# Helm dependencies
-charts/*/charts/
 
 # Docker files
 Dockerfile*
@@ -41,19 +32,8 @@ docker-compose*.yml
 npm-debug.log*
 *.log
 
-# Directories not needed in root service builds
-archived/
-collectable/
-config/
-contracts/
+# Not needed by build-service (context is collectable/)
+builder/ui/
 docs/
-migrations/
-scripts/
-spec/
-testbench/
-tests/
-
-# IDE / agent configs
-.claude/
-.agents/
-.junie/
+samples/
+README.md
