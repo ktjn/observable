@@ -1549,7 +1549,7 @@ fn map_mcp_error(
             tracing::error!(error = %e, tenant_id = %tenant_id, "NLQ pipeline failed");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "query execution failed"})),
+                Json(serde_json::json!({"error": format!("query execution failed: {e}")})),
             )
         }
     }
@@ -1686,7 +1686,9 @@ pub async fn handle_nlq_query(
                     tracing::error!(error = %e, tenant_id = %ctx.tenant_id, "shorthand fallback MCP query failed");
                     Err((
                         StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({"error": "query execution failed"})),
+                        Json(serde_json::json!({
+                            "error": format!("No AI model is configured — query was interpreted as shorthand syntax. {e}")
+                        })),
                     ))
                 }
             };
@@ -1898,6 +1900,21 @@ mod tests {
     fn deny_gate_allows_error_rate_question() {
         let result = server_side_deny_gate("What is the error rate for payment service?");
         assert!(result.is_none(), "error rate question must pass deny gate");
+    }
+
+    // ── map_mcp_error ────────────────────────────────────────────────────────
+
+    #[test]
+    fn map_mcp_error_catch_all_includes_underlying_detail() {
+        let e = crate::mcp_query::McpQueryError::UnknownMetric("missing_metric".to_string());
+        let tenant_id = uuid::Uuid::nil();
+        let (status, axum::Json(body)) = map_mcp_error(e, tenant_id);
+        assert_eq!(status, axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+        let msg = body["error"].as_str().unwrap();
+        assert!(
+            msg.contains("missing_metric"),
+            "error body should include underlying detail, got: {msg}"
+        );
     }
 
     // ── parse_llm_response ────────────────────────────────────────────────────

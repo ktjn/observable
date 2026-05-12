@@ -1,12 +1,14 @@
+import { GridLayout, useContainerWidth, type LayoutItem } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useState } from "react";
 import {
   getDashboard,
   updateDashboard,
   type DashboardPanel,
   type DashboardPanelKind,
-  type DashboardPanelLayout,
   type DashboardPanelTimeRange,
   type DashboardQueryKind,
   type UpdateDashboardRequest,
@@ -21,10 +23,6 @@ import { LoadingState } from "../components/ui/loading-state";
 import { Panel } from "../components/ui/panel";
 import { presetToMs, useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
-
-const DASHBOARD_GRID_COLUMNS = 12;
-const RESIZE_COLUMN_PX = 80;
-const RESIZE_ROW_PX = 80;
 
 function msToNsString(ms: number): string {
   return String(BigInt(Math.floor(ms)) * 1_000_000n);
@@ -60,30 +58,6 @@ function panelToUpdate(panel: DashboardPanel): UpdateDashboardRequest["panels"][
   };
 }
 
-function resizeFromLeft(layout: DashboardPanelLayout, columns: number): DashboardPanelLayout {
-  if (columns === 0) return layout;
-  if (columns > 0) {
-    const growBy = Math.min(columns, layout.x);
-    return { ...layout, x: layout.x - growBy, w: layout.w + growBy };
-  }
-  const shrinkBy = Math.min(-columns, layout.w - 1);
-  return { ...layout, x: layout.x + shrinkBy, w: layout.w - shrinkBy };
-}
-
-function resizeFromBottom(layout: DashboardPanelLayout, rows: number): DashboardPanelLayout {
-  if (rows === 0) return layout;
-  return { ...layout, h: Math.max(1, layout.h + rows) };
-}
-
-function resizeFromRight(layout: DashboardPanelLayout, columns: number): DashboardPanelLayout {
-  if (columns === 0) return layout;
-  if (columns > 0) {
-    const growBy = Math.min(columns, DASHBOARD_GRID_COLUMNS - layout.x - layout.w);
-    return { ...layout, w: layout.w + growBy };
-  }
-  const shrinkBy = Math.min(-columns, layout.w - 1);
-  return { ...layout, w: layout.w - shrinkBy };
-}
 function nextRowAfterPanels(panels: DashboardPanel[]): number {
   if (panels.length === 0) return 0;
   return Math.max(...panels.map((p) => p.layout.y + p.layout.h));
@@ -117,6 +91,9 @@ export default function DashboardDetailPage() {
   const [addPanelOpen, setAddPanelOpen] = useState(false);
   const [editingPanelId, setEditingPanelId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [stagedLayout, setStagedLayout] = useState<LayoutItem[] | null>(null);
+  const { width, containerRef, mounted } = useContainerWidth({ initialWidth: 1200 });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["dashboard", tenantId, dashboardId],
@@ -130,31 +107,31 @@ export default function DashboardDetailPage() {
     },
   });
 
-  function resizePanel(panelId: string, updateLayout: (layout: DashboardPanelLayout) => DashboardPanelLayout) {
-    if (!data) return;
-    const panels = data.panels.map((panel) => {
-      if (panel.panel_id !== panelId) return panel;
-      return {
-        ...panel,
-        layout: updateLayout(panel.layout),
-      };
-    });
-
-    updateMutation.mutate({
-      name: data.name,
-      panels: panels.map(panelToUpdate),
-    });
+  function enterEditMode() {
+    setEditMode(true);
   }
 
-  function movePanel(panelId: string, dx: number, dy: number) {
-    if (!data || (dx === 0 && dy === 0)) return;
+  function saveLayout() {
+    if (!data) { setEditMode(false); return; }
     const panels = data.panels.map((panel) => {
-      if (panel.panel_id !== panelId) return panel;
-      const x = Math.max(0, Math.min(DASHBOARD_GRID_COLUMNS - panel.layout.w, panel.layout.x + dx));
-      const y = Math.max(0, panel.layout.y + dy);
-      return { ...panel, layout: { ...panel.layout, x, y } };
+      const staged = stagedLayout?.find((l) => l.i === panel.panel_id);
+      if (!staged) return panelToUpdate(panel);
+      return { ...panelToUpdate(panel), layout: { x: staged.x, y: staged.y, w: staged.w, h: staged.h } };
     });
-    updateMutation.mutate({ name: data.name, panels: panels.map(panelToUpdate) });
+    updateMutation.mutate(
+      { name: data.name, panels },
+      {
+        onSuccess: () => {
+          setStagedLayout(null);
+          setEditMode(false);
+        },
+      },
+    );
+  }
+
+  function cancelEdit() {
+    setStagedLayout(null);
+    setEditMode(false);
   }
 
   function deletePanel(panelId: string) {
@@ -260,9 +237,27 @@ export default function DashboardDetailPage() {
             </h1>
           )}
         </div>
-        <Button variant="primary" onClick={() => setAddPanelOpen((o) => !o)}>
-          Add panel
-        </Button>
+        <div className="flex items-center gap-2">
+          {editMode ? (
+            <>
+              <Button variant="primary" onClick={saveLayout} disabled={updateMutation.isPending}>
+                {updateMutation.isPending ? "Saving…" : "Done"}
+              </Button>
+              <Button variant="secondary" onClick={cancelEdit}>
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="secondary" onClick={enterEditMode}>
+                Edit layout
+              </Button>
+              <Button variant="primary" onClick={() => setAddPanelOpen((o) => !o)}>
+                Add panel
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {addPanelOpen && (
@@ -273,39 +268,53 @@ export default function DashboardDetailPage() {
         />
       )}
 
-      <div className="grid grid-cols-12 gap-3" style={{ gridAutoRows: `${RESIZE_ROW_PX}px` }}>
-        {data.panels.map((panel) =>
-          editingPanelId === panel.panel_id ? (
-            <div
-              key={panel.panel_id}
-              style={{
-                gridColumnStart: panel.layout.x + 1,
-                gridColumnEnd: `span ${panel.layout.w}`,
-                gridRowStart: panel.layout.y + 1,
-                gridRowEnd: `span ${panel.layout.h}`,
-              }}
-            >
-              <EditPanelForm
-                panel={panel}
-                onSave={(changes) => editPanel(panel.panel_id, changes)}
-                onCancel={() => setEditingPanelId(null)}
-                isPending={updateMutation.isPending}
-              />
-            </div>
-          ) : (
-            <DashboardPanelView
-              key={panel.panel_id}
-              dashboardId={data.dashboard_id}
-              panel={panel}
-              globalRange={{ fromMs: globalDateRange.fromMs, toMs: globalDateRange.toMs }}
-              onResizeLeft={(columns) => resizePanel(panel.panel_id, (layout) => resizeFromLeft(layout, columns))}
-              onResizeRight={(columns) => resizePanel(panel.panel_id, (layout) => resizeFromRight(layout, columns))}
-              onResizeBottom={(rows) => resizePanel(panel.panel_id, (layout) => resizeFromBottom(layout, rows))}
-              onDelete={() => deletePanel(panel.panel_id)}
-              onEdit={() => setEditingPanelId(panel.panel_id)}
-              onMove={(dx, dy) => movePanel(panel.panel_id, dx, dy)}
-            />
-          ),
+      <div ref={containerRef}>
+        {mounted && (
+          <GridLayout
+            width={width}
+            gridConfig={{ cols: 12, rowHeight: 100, margin: [12, 12] as [number, number] }}
+            dragConfig={{ enabled: editMode, handle: ".panel-drag-handle" }}
+            resizeConfig={{ enabled: editMode }}
+            layout={
+              stagedLayout ??
+              data.panels.map((p) => ({
+                i: p.panel_id,
+                x: p.layout.x,
+                y: p.layout.y,
+                w: p.layout.w,
+                h: p.layout.h,
+                minW: 2,
+                minH: 1,
+              }))
+            }
+            onLayoutChange={(layout) => {
+              if (editMode) setStagedLayout([...layout]);
+            }}
+          >
+            {data.panels.map((panel) =>
+              editingPanelId === panel.panel_id ? (
+                <div key={panel.panel_id} className="min-w-0">
+                  <EditPanelForm
+                    panel={panel}
+                    onSave={(changes) => editPanel(panel.panel_id, changes)}
+                    onCancel={() => setEditingPanelId(null)}
+                    isPending={updateMutation.isPending}
+                  />
+                </div>
+              ) : (
+                <div key={panel.panel_id} className="min-w-0">
+                  <DashboardPanelView
+                    dashboardId={data.dashboard_id}
+                    panel={panel}
+                    globalRange={{ fromMs: globalDateRange.fromMs, toMs: globalDateRange.toMs }}
+                    editMode={editMode}
+                    onDelete={() => deletePanel(panel.panel_id)}
+                    onEdit={() => setEditingPanelId(panel.panel_id)}
+                  />
+                </div>
+              ),
+            )}
+          </GridLayout>
         )}
       </div>
     </section>
@@ -557,256 +566,59 @@ function DashboardPanelView({
   dashboardId,
   panel,
   globalRange,
-  onResizeLeft,
-  onResizeRight,
-  onResizeBottom,
+  editMode,
   onDelete,
   onEdit,
-  onMove,
 }: {
   dashboardId: string;
   panel: DashboardPanel;
   globalRange: { fromMs: number; toMs: number };
-  onResizeLeft: (columns: number) => void;
-  onResizeRight: (columns: number) => void;
-  onResizeBottom: (rows: number) => void;
+  editMode: boolean;
   onDelete: () => void;
   onEdit: () => void;
-  onMove: (dx: number, dy: number) => void;
 }) {
-  const [previewLayout, setPreviewLayout] = useState<DashboardPanelLayout | null>(null);
-  const cleanupRef = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    return () => {
-      cleanupRef.current?.();
-    };
-  }, []);
-
-  const layout = previewLayout ?? panel.layout;
-  const x = Math.max(0, Math.min(DASHBOARD_GRID_COLUMNS - 1, layout.x));
-  const w = Math.max(1, Math.min(DASHBOARD_GRID_COLUMNS - x, layout.w));
-  const h = Math.max(1, layout.h);
-
-  function startLeftResize(event: ReactPointerEvent<HTMLDivElement>) {
-    event.preventDefault();
-    cleanupRef.current?.();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const startEdgeX = rect.width > 0 ? rect.left : event.clientX;
-    const startLayout = panel.layout;
-
-    const onPointerMove = (moveEvent: PointerEvent) => {
-      const columns = (startEdgeX - moveEvent.clientX) / RESIZE_COLUMN_PX;
-      setPreviewLayout(resizeFromLeft(startLayout, columns));
-    };
-
-    const onPointerUp = (upEvent: PointerEvent) => {
-      const columns = Math.round((startEdgeX - upEvent.clientX) / RESIZE_COLUMN_PX);
-      onResizeLeft(columns);
-      setPreviewLayout(null);
-      cleanup();
-    };
-
-    const cleanup = () => {
-      document.removeEventListener("pointermove", onPointerMove);
-      document.removeEventListener("pointerup", onPointerUp);
-      document.removeEventListener("pointercancel", onPointerUp);
-      cleanupRef.current = null;
-    };
-
-    cleanupRef.current = cleanup;
-    document.addEventListener("pointermove", onPointerMove);
-    document.addEventListener("pointerup", onPointerUp);
-    document.addEventListener("pointercancel", onPointerUp);
-  }
-
-  function startRightResize(event: ReactPointerEvent<HTMLDivElement>) {
-    event.preventDefault();
-    cleanupRef.current?.();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const startEdgeX = rect.width > 0 ? rect.right : event.clientX;
-    const startLayout = panel.layout;
-
-    const onPointerMove = (moveEvent: PointerEvent) => {
-      const columns = (moveEvent.clientX - startEdgeX) / RESIZE_COLUMN_PX;
-      setPreviewLayout(resizeFromRight(startLayout, columns));
-    };
-
-    const onPointerUp = (upEvent: PointerEvent) => {
-      const columns = Math.round((upEvent.clientX - startEdgeX) / RESIZE_COLUMN_PX);
-      onResizeRight(columns);
-      setPreviewLayout(null);
-      cleanup();
-    };
-
-    const cleanup = () => {
-      document.removeEventListener("pointermove", onPointerMove);
-      document.removeEventListener("pointerup", onPointerUp);
-      document.removeEventListener("pointercancel", onPointerUp);
-      cleanupRef.current = null;
-    };
-
-    cleanupRef.current = cleanup;
-    document.addEventListener("pointermove", onPointerMove);
-    document.addEventListener("pointerup", onPointerUp);
-    document.addEventListener("pointercancel", onPointerUp);
-  }
-
-  function startBottomResize(event: ReactPointerEvent<HTMLDivElement>) {
-    event.preventDefault();
-    cleanupRef.current?.();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const startEdgeY = rect.height > 0 ? rect.bottom : event.clientY;
-    const startLayout = panel.layout;
-
-    const onPointerMove = (moveEvent: PointerEvent) => {
-      const rows = (moveEvent.clientY - startEdgeY) / RESIZE_ROW_PX;
-      setPreviewLayout(resizeFromBottom(startLayout, rows));
-    };
-
-    const onPointerUp = (upEvent: PointerEvent) => {
-      const rows = Math.round((upEvent.clientY - startEdgeY) / RESIZE_ROW_PX);
-      onResizeBottom(rows);
-      setPreviewLayout(null);
-      cleanup();
-    };
-
-    const cleanup = () => {
-      document.removeEventListener("pointermove", onPointerMove);
-      document.removeEventListener("pointerup", onPointerUp);
-      document.removeEventListener("pointercancel", onPointerUp);
-      cleanupRef.current = null;
-    };
-
-    cleanupRef.current = cleanup;
-    document.addEventListener("pointermove", onPointerMove);
-    document.addEventListener("pointerup", onPointerUp);
-    document.addEventListener("pointercancel", onPointerUp);
-  }
-
-  function startMove(event: ReactPointerEvent<HTMLDivElement>) {
-    event.preventDefault();
-    cleanupRef.current?.();
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const startLayout = panel.layout;
-
-    const onPointerMove = (moveEvent: PointerEvent) => {
-      const dx = (moveEvent.clientX - startX) / RESIZE_COLUMN_PX;
-      const dy = (moveEvent.clientY - startY) / RESIZE_ROW_PX;
-      const newX = Math.max(0, Math.min(DASHBOARD_GRID_COLUMNS - startLayout.w, startLayout.x + dx));
-      const newY = Math.max(0, startLayout.y + dy);
-      setPreviewLayout({ ...startLayout, x: newX, y: newY });
-    };
-
-    const onPointerUp = (upEvent: PointerEvent) => {
-      const dx = Math.round((upEvent.clientX - startX) / RESIZE_COLUMN_PX);
-      const dy = Math.round((upEvent.clientY - startY) / RESIZE_ROW_PX);
-      onMove(dx, dy);
-      setPreviewLayout(null);
-      cleanup();
-    };
-
-    const cleanup = () => {
-      document.removeEventListener("pointermove", onPointerMove);
-      document.removeEventListener("pointerup", onPointerUp);
-      document.removeEventListener("pointercancel", onPointerUp);
-      cleanupRef.current = null;
-    };
-
-    cleanupRef.current = cleanup;
-    document.addEventListener("pointermove", onPointerMove);
-    document.addEventListener("pointerup", onPointerUp);
-    document.addEventListener("pointercancel", onPointerUp);
-  }
-
   return (
-    <div
-      className="min-w-0"
-      style={{
-        gridColumnStart: x + 1,
-        gridColumnEnd: `span ${w}`,
-        gridRowStart: layout.y + 1,
-        gridRowEnd: `span ${h}`,
-      }}
-    >
-      <Panel
-        title={panel.title}
-        eyebrow={panel.panel_kind === "text" ? "Text" : panel.query_kind ?? "Query"}
-        className="relative h-full"
-        actions={
-          <>
+    <Panel
+      title={panel.title}
+      eyebrow={panel.panel_kind === "text" ? "Text" : (panel.query_kind ?? "Query")}
+      className="h-full"
+      actions={
+        <>
+          {editMode && (
             <div
-              aria-label={`Move panel ${panel.title}`}
-              className="flex h-7 w-7 cursor-grab items-center justify-center touch-none text-[var(--muted)] hover:text-[var(--text)] active:cursor-grabbing"
-              role="button"
-              tabIndex={0}
-              onPointerDown={startMove}
+              className="panel-drag-handle flex h-7 w-7 cursor-grab items-center justify-center touch-none text-[var(--muted)] hover:text-[var(--text)] active:cursor-grabbing select-none"
               title="Drag to move"
             >
               ⠿
             </div>
-            <button
-              type="button"
-              aria-label={`Edit panel ${panel.title}`}
-              className="flex h-7 items-center px-2 text-xs text-[var(--muted)] hover:text-[var(--text)] focus:outline-none"
-              onClick={onEdit}
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              aria-label={`Delete panel ${panel.title}`}
-              className="flex h-7 w-7 items-center justify-center text-[var(--muted)] hover:text-[var(--bad)] focus:outline-none"
-              onClick={onDelete}
-            >
-              ×
-            </button>
-          </>
-        }
-      >
-        <div
-          aria-label={`Resize ${panel.title} from left border`}
-          className="group absolute top-0 bottom-0 left-0 z-10 w-3 cursor-ew-resize touch-none border-l-2 border-transparent hover:border-[var(--brand)] focus:border-[var(--brand)] focus:outline-none"
-          role="separator"
-          tabIndex={0}
-          onPointerDown={startLeftResize}
-        >
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="h-5 w-0.5 rounded-full bg-[var(--brand)] opacity-0 transition-opacity group-hover:opacity-100" />
-          </div>
-        </div>
-        <div
-          aria-label={`Resize ${panel.title} from right border`}
-          className="group absolute top-0 right-0 bottom-0 z-10 w-3 cursor-ew-resize touch-none border-r-2 border-transparent hover:border-[var(--brand)] focus:border-[var(--brand)] focus:outline-none"
-          role="separator"
-          tabIndex={0}
-          onPointerDown={startRightResize}
-        >
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="h-5 w-0.5 rounded-full bg-[var(--brand)] opacity-0 transition-opacity group-hover:opacity-100" />
-          </div>
-        </div>
-        <div
-          aria-label={`Resize ${panel.title} from bottom border`}
-          className="group absolute right-0 bottom-0 left-0 z-10 h-3 cursor-ns-resize touch-none border-b-2 border-transparent hover:border-[var(--brand)] focus:border-[var(--brand)] focus:outline-none"
-          role="separator"
-          tabIndex={0}
-          onPointerDown={startBottomResize}
-        >
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="h-0.5 w-5 rounded-full bg-[var(--brand)] opacity-0 transition-opacity group-hover:opacity-100" />
-          </div>
-        </div>
-        <div className="h-full min-h-[80px]">
-          {panel.panel_kind === "text" ? (
-            <TextPanel panel={panel} />
-          ) : (
-            <QueryPanel dashboardId={dashboardId} panel={panel} globalRange={globalRange} />
           )}
-        </div>
-      </Panel>
-    </div>
+          <button
+            type="button"
+            aria-label={`Edit panel ${panel.title}`}
+            className="flex h-7 items-center px-2 text-xs text-[var(--muted)] hover:text-[var(--text)] focus:outline-none"
+            onClick={onEdit}
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            aria-label={`Delete panel ${panel.title}`}
+            className="flex h-7 w-7 items-center justify-center text-[var(--muted)] hover:text-[var(--bad)] focus:outline-none"
+            onClick={onDelete}
+          >
+            ×
+          </button>
+        </>
+      }
+    >
+      <div className="h-full min-h-[100px]">
+        {panel.panel_kind === "text" ? (
+          <TextPanel panel={panel} />
+        ) : (
+          <QueryPanel dashboardId={dashboardId} panel={panel} globalRange={globalRange} />
+        )}
+      </div>
+    </Panel>
   );
 }
 
