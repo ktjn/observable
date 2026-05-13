@@ -27,7 +27,7 @@ const METRIC: &str = "latency_ms";
 
 async fn start_pg() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
     let container = Postgres::default()
-        .with_tag("16")
+        .with_tag("17")
         .start()
         .await
         .expect("postgres container started");
@@ -89,7 +89,7 @@ async fn seed_schema_registry(pool: &PgPool, tenant_id: Uuid) {
 
 async fn start_ch() -> (ChClient, testcontainers::ContainerAsync<ClickHouse>) {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()

@@ -70,21 +70,21 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/v1/traces", get(traces::search_traces))
         .route("/v1/traces/histogram", get(traces::trace_histogram))
-        .route("/v1/traces/:trace_id", get(traces::get_trace))
+        .route("/v1/traces/{trace_id}", get(traces::get_trace))
         .route("/v1/logs", get(logs::search_logs))
         .route("/v1/logs/histogram", get(logs::log_histogram))
         .route("/v1/logs/tail", get(logs::tail_logs))
-        .route("/v1/logs/:log_id/context", get(logs::get_log_context))
+        .route("/v1/logs/{log_id}/context", get(logs::get_log_context))
         .route("/v1/metrics", get(metrics::list_metrics))
         .route("/v1/metrics/points", get(metrics::get_metric_group_points))
-        .route("/v1/metrics/:series_id", get(metrics::get_metric_points))
+        .route("/v1/metrics/{series_id}", get(metrics::get_metric_points))
         .route("/v1/topology", get(discovery::get_topology))
         .route(
             "/v1/infrastructure",
             get(discovery::list_infrastructure_inventory),
         )
         .route(
-            "/v1/infrastructure/:entity_type/:entity_id",
+            "/v1/infrastructure/{entity_type}/{entity_id}",
             get(discovery::get_infrastructure_detail),
         )
         .route("/v1/services", get(discovery::list_services))
@@ -93,20 +93,20 @@ async fn main() -> anyhow::Result<()> {
             get(discovery::list_service_summaries),
         )
         .route(
-            "/v1/services/:service_name/summary",
+            "/v1/services/{service_name}/summary",
             get(discovery::get_service_summary),
         )
         .route(
-            "/v1/services/:service_name/response-time-history",
+            "/v1/services/{service_name}/response-time-history",
             get(discovery::get_service_response_time_history),
         )
         .route("/v1/environments", get(discovery::list_environments))
         .route("/v1/deployments", get(deployments::list_deployments))
         .route("/v1/dashboards", get(dashboards::handle_list_dashboards))
         .route("/v1/dashboards", post(dashboards::handle_create_dashboard))
-        .route("/v1/dashboards/:id", get(dashboards::handle_get_dashboard))
+        .route("/v1/dashboards/{id}", get(dashboards::handle_get_dashboard))
         .route(
-            "/v1/dashboards/:id",
+            "/v1/dashboards/{id}",
             put(dashboards::handle_update_dashboard).delete(dashboards::handle_delete_dashboard),
         )
         .route(
@@ -114,18 +114,18 @@ async fn main() -> anyhow::Result<()> {
             post(dashboards::handle_import_dashboard),
         )
         .route(
-            "/v1/dashboards/:id/export",
+            "/v1/dashboards/{id}/export",
             get(dashboards::handle_get_dashboard_export),
         )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .route("/v1/alerts/rules", post(alerts::handle_create_rule))
         .route(
-            "/v1/alerts/rules/:rule_id/silence",
+            "/v1/alerts/rules/{rule_id}/silence",
             patch(alerts::handle_silence_rule),
         )
         .route("/v1/incidents", get(incidents::handle_list_incidents))
         .route(
-            "/v1/incidents/:incident_id",
+            "/v1/incidents/{incident_id}",
             get(incidents::handle_get_incident),
         )
         .route(
@@ -137,32 +137,32 @@ async fn main() -> anyhow::Result<()> {
             post(notifications::handle_create_channel),
         )
         .route(
-            "/v1/notifications/channels/:id",
+            "/v1/notifications/channels/{id}",
             delete(notifications::handle_delete_channel),
         )
         .route("/v1/slos", get(slos::handle_list_slos))
         .route("/v1/slos", post(slos::handle_create_slo))
         .route(
-            "/v1/schemas/:signal_type/attributes",
+            "/v1/schemas/{signal_type}/attributes",
             get(schemas::handle_list_attributes),
         )
         .route(
-            "/v1/schemas/:signal_type/attributes/:key/annotations",
+            "/v1/schemas/{signal_type}/attributes/{key}/annotations",
             get(schemas::handle_get_annotation)
                 .put(schemas::handle_upsert_annotation)
                 .patch(schemas::handle_patch_annotation)
                 .delete(schemas::handle_delete_annotation),
         )
         .route(
-            "/v1/mcp/tools/metric-schema/:metric_name",
+            "/v1/mcp/tools/metric-schema/{metric_name}",
             get(mcp_tools::handle_get_metric_schema),
         )
         .route(
-            "/v1/mcp/tools/signal-fields/:signal_type",
+            "/v1/mcp/tools/signal-fields/{signal_type}",
             get(mcp_tools::handle_list_signal_fields),
         )
         .route(
-            "/v1/mcp/tools/resolve-label/:signal_type",
+            "/v1/mcp/tools/resolve-label/{signal_type}",
             get(mcp_tools::handle_resolve_label),
         )
         .route("/v1/mcp/query", post(mcp_query::handle_mcp_query))
@@ -177,10 +177,10 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/v1/tokens", get(tokens::list_tokens))
         .route("/v1/tokens", post(tokens::create_token))
-        .route("/v1/tokens/:id", delete(tokens::revoke_token))
-        .route("/v1/tokens/:id/renew", post(tokens::renew_token))
-        .route("/v1/tokens/:id/restore", post(tokens::restore_token))
-        .route("/v1/tokens/:id/permanent", delete(tokens::delete_token))
+        .route("/v1/tokens/{id}", delete(tokens::revoke_token))
+        .route("/v1/tokens/{id}/renew", post(tokens::renew_token))
+        .route("/v1/tokens/{id}/restore", post(tokens::restore_token))
+        .route("/v1/tokens/{id}/permanent", delete(tokens::delete_token))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))
         .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
@@ -188,7 +188,7 @@ async fn main() -> anyhow::Result<()> {
         // global tenant+environment selector before a scope is chosen.
         .route("/v1/tenants", get(tenants::list_tenants))
         .route(
-            "/v1/tenants/:id/environments",
+            "/v1/tenants/{id}/environments",
             get(tenants::list_tenant_environments),
         )
         .route("/health", get(|| async { axum::http::StatusCode::OK }))

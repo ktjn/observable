@@ -121,7 +121,7 @@ mod tests {
     #[tokio::test]
     async fn metrics_export_returns_200() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/metrics")
             .add_header(auth_header().0, auth_header().1)
@@ -133,7 +133,7 @@ mod tests {
     #[tokio::test]
     async fn protobuf_metrics_export_returns_415() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/metrics")
             .add_header(auth_header().0, auth_header().1)
@@ -149,7 +149,7 @@ mod tests {
     #[tokio::test]
     async fn gzip_compressed_metrics_payload_returns_200() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/metrics")
             .add_header(auth_header().0, auth_header().1)
@@ -169,7 +169,7 @@ mod tests {
     #[tokio::test]
     async fn exceeding_rate_limit_returns_429() {
         let app = build_router(AppState::with_stub_auth_and_rate_limit(TENANT, 1));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
 
         let first = server
             .post("/v1/metrics")
@@ -196,7 +196,7 @@ mod tests {
         let tenant_id = uuid::Uuid::parse_str(TENANT).unwrap();
 
         let app = build_router(state);
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         server
             .post("/v1/metrics")
             .add_header(auth_header().0, auth_header().1)
@@ -211,7 +211,7 @@ mod tests {
         // Budget of 1; request carries 2 series — ingest must NOT be rejected.
         let state = AppState::with_stub_auth_and_metric_budget(TENANT, 1);
         let app = build_router(state);
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/metrics")
             .add_header(auth_header().0, auth_header().1)
@@ -223,7 +223,7 @@ mod tests {
     #[tokio::test]
     async fn metrics_export_missing_auth_returns_401() {
         let app = build_router(AppState::test_stub());
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server.post("/v1/metrics").json(&two_series_payload()).await;
         assert_eq!(resp.status_code(), StatusCode::UNAUTHORIZED);
     }

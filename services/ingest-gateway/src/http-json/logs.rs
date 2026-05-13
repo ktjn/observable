@@ -113,7 +113,7 @@ mod tests {
     #[tokio::test]
     async fn logs_export_returns_200() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/logs")
             .add_header(auth_header().0, auth_header().1)
@@ -125,7 +125,7 @@ mod tests {
     #[tokio::test]
     async fn protobuf_logs_export_returns_415() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/logs")
             .add_header(auth_header().0, auth_header().1)
@@ -141,7 +141,7 @@ mod tests {
     #[tokio::test]
     async fn gzip_compressed_logs_payload_returns_200() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/logs")
             .add_header(auth_header().0, auth_header().1)
@@ -161,7 +161,7 @@ mod tests {
     #[tokio::test]
     async fn exceeding_rate_limit_returns_429() {
         let app = build_router(AppState::with_stub_auth_and_rate_limit(TENANT, 1));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
 
         let first = server
             .post("/v1/logs")
@@ -188,7 +188,7 @@ mod tests {
     #[tokio::test]
     async fn numeric_time_unix_nano_returns_200() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let payload = serde_json::json!({
             "resourceLogs": [{
                 "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "test-svc"}}]},

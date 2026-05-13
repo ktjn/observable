@@ -34,7 +34,7 @@ async fn start_pool() -> (
     testcontainers::ContainerAsync<testcontainers_modules::postgres::Postgres>,
 ) {
     let container = Postgres::default()
-        .with_tag("16")
+        .with_tag("17")
         .start()
         .await
         .expect("postgres container started");

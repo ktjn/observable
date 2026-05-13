@@ -86,7 +86,7 @@ async fn body_json(body: axum::body::Body) -> Value {
 
 async fn start_postgres() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
     let container = Postgres::default()
-        .with_tag("16")
+        .with_tag("17")
         .start()
         .await
         .expect("postgres container started");
