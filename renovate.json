@@ -7,8 +7,8 @@
   ],
   "labels": ["dependencies"],
   "dependencyDashboard": true,
-  "prConcurrentLimit": 10,
-  "prHourlyLimit": 4,
+  "prConcurrentLimit": 1,
+  "prHourlyLimit": 1,
   "branchPrefix": "renovate/",
   "rebaseWhen": "behind-base-branch",
   "platformAutomerge": false,
@@ -95,63 +95,10 @@
 
   "packageRules": [
     {
-      "description": "Group all opentelemetry Rust crates",
-      "matchManagers": ["cargo"],
-      "matchPackageNames": [
-        "opentelemetry",
-        "opentelemetry_sdk",
-        "opentelemetry-otlp",
-        "opentelemetry-appender-tracing",
-        "tracing-opentelemetry"
-      ],
-      "groupName": "opentelemetry-rust",
-      "groupSlug": "opentelemetry-rust"
-    },
-    {
-      "description": "Group testcontainers crates",
-      "matchManagers": ["cargo"],
-      "matchPackageNames": [
-        "testcontainers",
-        "testcontainers-modules"
-      ],
-      "groupName": "testcontainers",
-      "groupSlug": "testcontainers"
-    },
-    {
-      "description": "Group Tanstack npm packages",
-      "matchManagers": ["npm"],
-      "matchPackageNames": [
-        "@tanstack/**"
-      ],
-      "groupName": "tanstack",
-      "groupSlug": "tanstack"
-    },
-    {
-      "description": "Group OpenTelemetry Python packages",
-      "matchManagers": ["pip_requirements"],
-      "matchPackageNames": [
-        "opentelemetry-*"
-      ],
-      "groupName": "opentelemetry-python",
-      "groupSlug": "opentelemetry-python"
-    },
-    {
-      "description": "Group Helm open-telemetry chart updates",
-      "matchManagers": ["helm-requirements"],
-      "matchPackageNames": [
-        "opentelemetry-collector"
-      ],
-      "groupName": "otel-helm-charts",
-      "groupSlug": "otel-helm-charts"
-    },
-    {
-      "description": "Group Helm zitadel chart updates",
-      "matchManagers": ["helm-requirements"],
-      "matchPackageNames": [
-        "zitadel"
-      ],
-      "groupName": "zitadel-helm",
-      "groupSlug": "zitadel-helm"
+      "description": "Group everything into a single PR",
+      "matchPackagePatterns": [".*"],
+      "groupName": "all-dependencies",
+      "groupSlug": "all-dependencies"
     },
     {
       "description": "Pin Docker digests for production base images",
@@ -197,12 +144,6 @@
         "rabbitmq"
       ],
       "addLabels": ["manual-update", "testcontainers"]
-    },
-    {
-      "description": "Group GitHub Actions updates",
-      "matchManagers": ["github-actions"],
-      "groupName": "github-actions",
-      "groupSlug": "github-actions"
     }
   ]
 }
