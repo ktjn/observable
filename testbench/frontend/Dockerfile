@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM node:24-slim
 
 LABEL org.opencontainers.image.version="0.1.0"
 
