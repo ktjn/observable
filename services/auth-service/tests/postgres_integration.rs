@@ -1,5 +1,5 @@
 use auth_service::lookup_api_key;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use std::path::Path;
 use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
@@ -119,6 +119,45 @@ async fn lookup_api_key_rejects_revoked_key() {
     assert!(
         msg.contains("revoked"),
         "error must mention 'revoked', got: {msg}"
+    );
+}
+
+#[tokio::test]
+async fn create_session_expires_in_7_days() {
+    let (pool, _container) = start_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
+
+    sqlx::query("INSERT INTO users (id, idp_subject, email) VALUES ($1, 'sub-session', 'session@example.com')")
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .expect("user inserted");
+
+    sqlx::query("INSERT INTO tenants (id, name) VALUES ($1, 'Session Tenant')")
+        .bind(tenant_id)
+        .execute(&pool)
+        .await
+        .expect("tenant inserted");
+
+    let session_id = auth_service::oidc::create_session(&pool, user_id, tenant_id, "prod")
+        .await
+        .expect("create_session");
+
+    let row = sqlx::query("SELECT expires_at FROM user_sessions WHERE id = $1")
+        .bind(session_id)
+        .fetch_one(&pool)
+        .await
+        .expect("session row");
+
+    let expires_at: chrono::DateTime<chrono::Utc> = row.try_get("expires_at").unwrap();
+    let now = chrono::Utc::now();
+    let diff = expires_at - now;
+    assert!(
+        diff.num_days() >= 6 && diff.num_days() <= 8,
+        "session must expire ~7 days from now, got {} days",
+        diff.num_days()
     );
 }
 

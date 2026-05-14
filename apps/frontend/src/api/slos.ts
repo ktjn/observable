@@ -33,7 +33,7 @@ export interface CreateSloRequest {
 }
 
 export async function listSlos(tenantId: string): Promise<SloListResponse> {
-  const res = await fetch("/v1/slos", { headers: tenantHeaders(tenantId) });
+  const res = await fetch("/v1/slos", { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Failed to list SLOs: ${res.status}`);
   return res.json();
 }
@@ -43,6 +43,7 @@ export async function createSlo(
   req: CreateSloRequest,
 ): Promise<SloDefinitionItem> {
   const res = await fetch("/v1/slos", {
+    credentials: "include",
     method: "POST",
     headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
     body: JSON.stringify(req),

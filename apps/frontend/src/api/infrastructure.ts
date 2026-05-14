@@ -50,7 +50,7 @@ export async function listInfrastructure(
     if (value) url.searchParams.set(key, value);
   }
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
@@ -65,7 +65,7 @@ export async function getInfrastructureDetail(
     window.location.origin,
   );
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }

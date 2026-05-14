@@ -53,7 +53,7 @@ export async function searchLogs(tenantId: string, params: {
   if (params.limit) url.searchParams.set("limit", String(params.limit));
   if (params.facets) url.searchParams.set("facets", params.facets.join(","));
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
@@ -80,7 +80,7 @@ export async function fetchLogHistogram(tenantId: string, params: {
   url.searchParams.set("to", params.to);
   if (params.buckets) url.searchParams.set("buckets", String(params.buckets));
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Histogram query failed: ${res.status}`);
   return res.json();
 }
@@ -101,7 +101,7 @@ export async function tailLogs(tenantId: string, params: {
   }
   if (params.limit) url.searchParams.set("limit", String(params.limit));
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Live tail failed: ${res.status}`);
   return res.json();
 }
@@ -114,7 +114,7 @@ export async function getLogContext(
   const url = new URL(`/v1/logs/${logId}/context`, window.location.origin);
   if (params.window) url.searchParams.set("window", String(params.window));
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }

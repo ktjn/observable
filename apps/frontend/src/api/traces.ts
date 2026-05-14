@@ -76,7 +76,7 @@ export async function fetchTraceHistogram(tenantId: string, params: {
   if (params.to) url.searchParams.set("to", params.to);
   if (params.buckets) url.searchParams.set("buckets", String(params.buckets));
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Histogram query failed: ${res.status}`);
   return res.json();
 }
@@ -95,13 +95,13 @@ export async function searchTraces(tenantId: string, params: {
   if (params.from) url.searchParams.set("from", params.from);
   if (params.to) url.searchParams.set("to", params.to);
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
 
 export async function getTrace(tenantId: string, traceId: string): Promise<TraceResponse> {
-  const res = await fetch(`/v1/traces/${traceId}`, { headers: tenantHeaders(tenantId) });
+  const res = await fetch(`/v1/traces/${traceId}`, { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Not found: ${res.status}`);
   return res.json();
 }

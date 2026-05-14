@@ -23,7 +23,7 @@ export interface CreateChannelRequest {
 }
 
 export async function listNotificationChannels(tenantId: string): Promise<NotificationChannelItem[]> {
-  const res = await fetch("/v1/notifications/channels", { headers: tenantHeaders(tenantId) });
+  const res = await fetch("/v1/notifications/channels", { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Failed to list notification channels: ${res.status}`);
   return res.json();
 }
@@ -33,6 +33,7 @@ export async function createNotificationChannel(
   req: CreateChannelRequest,
 ): Promise<NotificationChannelItem> {
   const res = await fetch("/v1/notifications/channels", {
+    credentials: "include",
     method: "POST",
     headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
     body: JSON.stringify(req),
@@ -46,6 +47,7 @@ export async function deleteNotificationChannel(
   channelId: string,
 ): Promise<void> {
   const res = await fetch(`/v1/notifications/channels/${channelId}`, {
+    credentials: "include",
     method: "DELETE",
     headers: tenantHeaders(tenantId),
   });

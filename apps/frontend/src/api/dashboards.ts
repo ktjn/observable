@@ -71,19 +71,20 @@ export interface UpdateDashboardRequest {
 }
 
 export async function listDashboards(tenantId: string): Promise<DashboardListResponse> {
-  const res = await fetch("/v1/dashboards", { headers: tenantHeaders(tenantId) });
+  const res = await fetch("/v1/dashboards", { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Dashboard query failed: ${res.status}`);
   return res.json();
 }
 
 export async function getDashboard(tenantId: string, dashboardId: string): Promise<Dashboard> {
-  const res = await fetch(`/v1/dashboards/${dashboardId}`, { headers: tenantHeaders(tenantId) });
+  const res = await fetch(`/v1/dashboards/${dashboardId}`, { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Dashboard get failed: ${res.status}`);
   return res.json();
 }
 
 export async function createDashboard(tenantId: string, req: CreateDashboardRequest): Promise<Dashboard> {
   const res = await fetch("/v1/dashboards", {
+    credentials: "include",
     method: "POST",
     headers: {
       ...tenantHeaders(tenantId),
@@ -101,6 +102,7 @@ export async function updateDashboard(
   req: UpdateDashboardRequest,
 ): Promise<Dashboard> {
   const res = await fetch(`/v1/dashboards/${dashboardId}`, {
+    credentials: "include",
     method: "PUT",
     headers: {
       ...tenantHeaders(tenantId),
@@ -133,6 +135,7 @@ export interface DashboardExport {
 
 export async function deleteDashboard(tenantId: string, dashboardId: string): Promise<void> {
   const res = await fetch(`/v1/dashboards/${dashboardId}`, {
+    credentials: "include",
     method: "DELETE",
     headers: tenantHeaders(tenantId),
   });
@@ -141,6 +144,7 @@ export async function deleteDashboard(tenantId: string, dashboardId: string): Pr
 
 export async function exportDashboard(tenantId: string, dashboardId: string): Promise<DashboardExport> {
   const res = await fetch(`/v1/dashboards/${dashboardId}/export`, {
+    credentials: "include",
     headers: tenantHeaders(tenantId),
   });
   if (!res.ok) throw new Error(`Dashboard export failed: ${res.status}`);
@@ -149,6 +153,7 @@ export async function exportDashboard(tenantId: string, dashboardId: string): Pr
 
 export async function importDashboard(tenantId: string, export_: DashboardExport): Promise<Dashboard> {
   const res = await fetch("/v1/dashboards/import", {
+    credentials: "include",
     method: "POST",
     headers: {
       ...tenantHeaders(tenantId),

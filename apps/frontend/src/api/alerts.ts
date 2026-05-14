@@ -31,7 +31,7 @@ export interface CreateRuleRequest {
 }
 
 export async function listAlertRules(tenantId: string): Promise<AlertRuleListResponse> {
-  const res = await fetch("/v1/alerts/rules", { headers: tenantHeaders(tenantId) });
+  const res = await fetch("/v1/alerts/rules", { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Failed to list alert rules: ${res.status}`);
   return res.json();
 }
@@ -41,6 +41,7 @@ export async function createAlertRule(
   req: CreateRuleRequest,
 ): Promise<AlertRuleItem> {
   const res = await fetch("/v1/alerts/rules", {
+    credentials: "include",
     method: "POST",
     headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
     body: JSON.stringify(req),
@@ -55,6 +56,7 @@ export async function silenceAlertRule(
   silenced: boolean,
 ): Promise<AlertRuleItem> {
   const res = await fetch(`/v1/alerts/rules/${ruleId}/silence`, {
+    credentials: "include",
     method: "PATCH",
     headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
     body: JSON.stringify({ silenced }),
