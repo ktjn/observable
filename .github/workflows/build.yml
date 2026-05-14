@@ -47,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Install system dependencies
-        run: sudo apt-get install -y --no-install-recommends cmake libssl-dev pkg-config zlib1g-dev libcurl4-openssl-dev
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends cmake libssl-dev pkg-config zlib1g-dev libcurl4-openssl-dev
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.95.0"
