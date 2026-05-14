@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
 import { TenantContextProvider } from "../hooks/useTenantContext";
@@ -106,4 +106,19 @@ test("omits infra section when resource_attributes has no recognised infra keys"
   ];
   render(<TraceDetail traceId="abc" spans={spans} />, { wrapper });
   expect(screen.queryByText(/Infrastructure/)).not.toBeInTheDocument();
+});
+
+test("span context panel scrolls internally when content overflows", () => {
+  const span = {
+    ...baseSpan,
+    attributes: Object.fromEntries(
+      Array.from({ length: 50 }, (_, i) => [`attr.${i}`, `value-${i}`]),
+    ),
+  };
+  render(<TraceDetail traceId="abc" spans={[span]} />, { wrapper });
+
+  fireEvent.click(screen.getByRole("button", { name: /checkout: POST \/order/ }));
+
+  const panel = screen.getByRole("complementary", { name: "Selected span context" });
+  expect(panel).toHaveClass("overflow-y-auto");
 });
