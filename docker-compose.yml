@@ -63,7 +63,7 @@ services:
 
   # Makes /bootstrap writable by Zitadel's nonroot user (uid 65532) before Zitadel starts.
   zitadel-volume-init:
-    image: alpine:3.21
+    image: alpine:3.23
     command: ["sh", "-c", "chmod 777 /bootstrap"]
     volumes:
       - zitadel-bootstrap:/bootstrap
@@ -98,7 +98,7 @@ services:
         condition: service_completed_successfully
 
   zitadel-bootstrap:
-    image: alpine:3.21
+    image: alpine:3.23
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
