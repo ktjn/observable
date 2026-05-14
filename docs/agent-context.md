@@ -92,6 +92,20 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 - Frontend: `apps/frontend/src/features/incidents/` contains `IncidentsPage.tsx` (list with status filters) and `IncidentDetailPage.tsx` (timeline view).
 - Known simplification: `dedup_key` currently uses `rule_id` only because `alert_rules` lacks `service_name`/`environment`. The spec (`spec/14-domain-model.md`) defines `rule_id + service_name + environment`.
 
+## Dev Environment Gotchas
+
+### PostgreSQL major version upgrade requires volume reset
+Bumping the `postgres` image tag across a major version (e.g. 16→17) in `docker-compose.yml`
+makes the existing `observable_postgres_data` volume incompatible. The container will crash with:
+```
+FATAL: database files are incompatible with server
+DETAIL: The data directory was initialized by PostgreSQL version N.
+```
+Fix: run `make reset-volumes` (or `bash scripts/reset-dev-volumes.sh`) to drop the old volume,
+then `docker compose up --build`.  All 28+ migrations in `migrations/postgres/` re-apply
+automatically via `postgres-setup`. No data is lost — this is a local dev environment.
+The same pattern applies if ClickHouse or Redpanda change on-disk formats across major versions.
+
 ## Standing Constraints
 
 - Never commit or merge directly to `main` without human review.
