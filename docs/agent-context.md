@@ -110,6 +110,11 @@ Tenant → Environment only (per ADR-028 + ADR-031).
   selector-style filters unless a spec or ADR explicitly reintroduces them.
 - ADRs and specs must be updated together when architecture, technology choices, deployment model,
   data model, security model, or roadmap scope changes.
+- Dependency upgrades prefer the latest stable versions. Use native tooling only: npm for npm
+  packages, cargo for Rust crates, and uv for Python packages. If Python dependencies are not yet
+  uv-managed, plan the `pyproject.toml` + `uv.lock` migration before changing them. Keep Docker
+  Compose and Testcontainers image versions identical for the same dependency unless the PR explains
+  a deliberate compatibility exception.
 
 ## Keep This File Updated
 
