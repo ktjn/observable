@@ -1,15 +1,11 @@
 [package]
 name    = "auth-service"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 
 [lib]
 name = "auth_service"
 path = "src/lib.rs"
-
-[[bin]]
-name = "auth-service"
-path = "src/main.rs"
 
 [dependencies]
 domain             = { path = "../../libs/domain" }

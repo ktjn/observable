@@ -1,15 +1,11 @@
 [package]
 name    = "ingest-gateway"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 
 [lib]
 name    = "ingest_gateway"
 path    = "src/lib.rs"
-
-[[bin]]
-name = "ingest-gateway"
-path = "src/main.rs"
 
 [dependencies]
 domain             = { path = "../../libs/domain" }
