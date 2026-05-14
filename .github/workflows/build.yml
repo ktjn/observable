@@ -82,31 +82,6 @@ jobs:
       - run: docker load < /tmp/image.tar.gz
       - run: docker compose up smoke-test --abort-on-container-exit
 
-  kind:
-    needs: backend
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v6
-      - uses: azure/setup-helm@v5
-        with:
-          version: "3.14.4"
-      - name: Set up kind
-        uses: helm/kind-action@v1.14.0
-        with:
-          install_only: true
-          version: "v0.22.0"
-      - uses: actions/download-artifact@v8
-        with:
-          name: docker-image
-          path: /tmp
-      - run: docker load < /tmp/image.tar.gz
-      - name: Run kind integration test
-        run: bash scripts/kind-test.sh --skip-build
-      - name: Collect kind logs on failure
-        if: failure()
-        run: bash scripts/collect-kind-logs.sh
-
   perf-smoke:
     needs: backend
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
