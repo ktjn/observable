@@ -164,6 +164,9 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
   component: LoginPage,
+  validateSearch: (s: Record<string, unknown>) => ({
+    error: typeof s.error === "string" ? s.error : undefined,
+  }),
 });
 
 const authCallbackRoute = createRoute({
