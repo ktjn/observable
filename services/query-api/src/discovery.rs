@@ -1,9 +1,9 @@
 use crate::middleware::auth::TenantContext;
 use crate::traces::AppState;
 use axum::{
+    Json,
     extract::{Extension, Path, Query, State},
     http::StatusCode,
-    Json,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -1167,21 +1167,31 @@ mod tests {
 
     #[test]
     fn attribute_sql_expr_includes_id_fallback_for_host_and_container() {
-        assert!(InfrastructureEntityType::Host
-            .attribute_sql_expr()
-            .contains("host.id"));
-        assert!(InfrastructureEntityType::Container
-            .attribute_sql_expr()
-            .contains("container.id"));
-        assert!(!InfrastructureEntityType::Pod
-            .attribute_sql_expr()
-            .contains("if("));
-        assert!(!InfrastructureEntityType::Cluster
-            .attribute_sql_expr()
-            .contains("if("));
-        assert!(!InfrastructureEntityType::Namespace
-            .attribute_sql_expr()
-            .contains("if("));
+        assert!(
+            InfrastructureEntityType::Host
+                .attribute_sql_expr()
+                .contains("host.id")
+        );
+        assert!(
+            InfrastructureEntityType::Container
+                .attribute_sql_expr()
+                .contains("container.id")
+        );
+        assert!(
+            !InfrastructureEntityType::Pod
+                .attribute_sql_expr()
+                .contains("if(")
+        );
+        assert!(
+            !InfrastructureEntityType::Cluster
+                .attribute_sql_expr()
+                .contains("if(")
+        );
+        assert!(
+            !InfrastructureEntityType::Namespace
+                .attribute_sql_expr()
+                .contains("if(")
+        );
     }
 
     #[test]

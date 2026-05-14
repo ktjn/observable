@@ -1,11 +1,11 @@
 use query_api::dashboards::{
-    create_dashboard, export_dashboard, get_dashboard, import_dashboard, list_dashboards,
-    update_dashboard, CreateDashboardRequest, DashboardExport, DashboardExportPanel,
-    DashboardPanelRequest, UpdateDashboardRequest,
+    CreateDashboardRequest, DashboardExport, DashboardExportPanel, DashboardPanelRequest,
+    UpdateDashboardRequest, create_dashboard, export_dashboard, get_dashboard, import_dashboard,
+    list_dashboards, update_dashboard,
 };
 use sqlx::PgPool;
 use std::path::Path;
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
 use uuid::Uuid;
 

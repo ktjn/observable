@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
-use opentelemetry_proto::tonic::common::v1::{any_value, AnyValue, KeyValue};
+use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
 use opentelemetry_proto::tonic::logs::v1::ResourceLogs;
-use opentelemetry_proto::tonic::metrics::v1::{metric, ResourceMetrics};
+use opentelemetry_proto::tonic::metrics::v1::{ResourceMetrics, metric};
 use opentelemetry_proto::tonic::trace::v1::ResourceSpans;
 use uuid::Uuid;
 
@@ -397,10 +397,10 @@ fn non_empty_hex(bytes: &[u8]) -> Option<String> {
 mod tests {
     use super::*;
     use opentelemetry_proto::tonic::{
-        common::v1::{any_value, AnyValue, KeyValue},
+        common::v1::{AnyValue, KeyValue, any_value},
         metrics::v1::{
-            metric, number_data_point, Gauge, Metric, NumberDataPoint, ResourceMetrics,
-            ScopeMetrics,
+            Gauge, Metric, NumberDataPoint, ResourceMetrics, ScopeMetrics, metric,
+            number_data_point,
         },
         resource::v1::Resource,
     };

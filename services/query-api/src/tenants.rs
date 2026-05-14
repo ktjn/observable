@@ -1,8 +1,8 @@
 use crate::traces::AppState;
 use axum::{
-    extract::{Path, State},
-    http::{header, HeaderMap, StatusCode},
     Json,
+    extract::{Path, State},
+    http::{HeaderMap, StatusCode, header},
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -193,7 +193,7 @@ async fn validate_session_with_auth_service(
 mod tests {
     use super::*;
     use axum::body::Body;
-    use axum::http::{header, Request};
+    use axum::http::{Request, header};
 
     #[test]
     fn extract_session_cookie_returns_none_when_absent() {

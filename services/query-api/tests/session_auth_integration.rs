@@ -1,8 +1,8 @@
 use axum::{
-    body::Body,
-    http::{header, Request, StatusCode},
-    routing::get,
     Router,
+    body::Body,
+    http::{Request, StatusCode, header},
+    routing::get,
 };
 use http_body_util::BodyExt;
 use query_api::{
@@ -11,13 +11,13 @@ use query_api::{
 use serde_json::Value;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::{path::Path, sync::Arc};
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
 use tower::ServiceExt;
 use uuid::Uuid;
 use wiremock::{
-    matchers::{method, path},
     Mock, MockServer, ResponseTemplate,
+    matchers::{method, path},
 };
 
 async fn start_postgres() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {

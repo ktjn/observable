@@ -1,16 +1,16 @@
 use domain::{EnvelopePayload, TelemetryEnvelope};
 use rdkafka::{
+    ClientConfig, Message,
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,
     consumer::{BaseConsumer, Consumer, StreamConsumer},
     producer::{FutureProducer, FutureRecord},
-    ClientConfig, Message,
 };
 use std::{net::TcpListener, time::Duration};
 use testcontainers::{
+    ContainerAsync, GenericImage, ImageExt,
     core::{IntoContainerPort, WaitFor},
     runners::AsyncRunner,
-    ContainerAsync, GenericImage, ImageExt,
 };
 use uuid::Uuid;
 

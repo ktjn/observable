@@ -1,9 +1,9 @@
 use axum::{
+    Json,
     body::Bytes,
     extract::{Extension, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    Json,
 };
 
 use crate::auth::TenantContext;
@@ -72,8 +72,8 @@ mod tests {
     use axum::http::StatusCode;
     use axum_test::TestServer;
 
-    use crate::http_json::build_router;
     use crate::AppState;
+    use crate::http_json::build_router;
 
     const TENANT: &str = "00000000-0000-0000-0000-000000000001";
 

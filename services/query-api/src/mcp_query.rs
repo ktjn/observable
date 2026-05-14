@@ -11,19 +11,19 @@
 //   - The response is advisory; callers must not feed it into automated alert evaluation,
 //     billing, or SLA enforcement.
 use crate::discovery::{
-    all_infrastructure_entity_types, fetch_infrastructure_summaries, InfrastructureEntityType,
+    InfrastructureEntityType, all_infrastructure_entity_types, fetch_infrastructure_summaries,
 };
 use crate::mcp_tools::get_metric_schema;
 use crate::middleware::auth::TenantContext;
 use crate::sql_templates::{
-    escape_string_value, generate_log_sql, generate_sql, parse_time_expr, LogSqlContext,
-    SchemaMetricType, SqlContext, SqlTemplateError,
+    LogSqlContext, SchemaMetricType, SqlContext, SqlTemplateError, escape_string_value,
+    generate_log_sql, generate_sql, parse_time_expr,
 };
 use crate::traces::AppState;
 use axum::{
+    Json,
     extract::{Extension, State},
     http::StatusCode,
-    Json,
 };
 use domain::{
     FieldRole, FieldRoleKind, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, VisualizationFrame,

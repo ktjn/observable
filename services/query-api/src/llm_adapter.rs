@@ -15,18 +15,18 @@ use crate::mcp_query::execute_mcp_query;
 use crate::middleware::auth::TenantContext;
 use crate::traces::AppState;
 use async_openai::{
+    Client as OpenAiClient,
     config::OpenAIConfig,
     types::chat::{
         ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
         CreateChatCompletionRequestArgs, ResponseFormat,
     },
-    Client as OpenAiClient,
 };
 use async_trait::async_trait;
 use axum::{
+    Json,
     extract::{Extension, State},
     http::StatusCode,
-    Json,
 };
 use domain::{
     NlqFilter, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, NlqTimeRange, VisualizationFrame,
@@ -723,11 +723,7 @@ fn fuzzy_resolve_metric<'a>(guess: &str, known: &[&'a str]) -> Option<&'a str> {
     }
 
     // Require at least 1 token overlap or substring match to consider it valid.
-    if best_score >= 1 {
-        best
-    } else {
-        None
-    }
+    if best_score >= 1 { best } else { None }
 }
 
 // ── Repair prompt ─────────────────────────────────────────────────────────────
@@ -2087,10 +2083,11 @@ mod tests {
         };
         enforce_service_scope(&mut ir, "checkout-api");
 
-        assert!(ir
-            .filters
-            .iter()
-            .any(|f| f.field == "service_name" && f.value == "checkout-api"));
+        assert!(
+            ir.filters
+                .iter()
+                .any(|f| f.field == "service_name" && f.value == "checkout-api")
+        );
     }
 
     #[test]
@@ -2716,14 +2713,18 @@ mod tests {
         assert_eq!(merged.limit, Some(10));
         assert_eq!(merged.query.as_deref(), Some("errors"));
         assert_eq!(merged.time_range.from, "now-15m");
-        assert!(merged
-            .filters
-            .iter()
-            .any(|f| f.field == "service_name" && f.value == "checkout"));
-        assert!(merged
-            .filters
-            .iter()
-            .any(|f| f.field == "environment" && f.value == "prod"));
+        assert!(
+            merged
+                .filters
+                .iter()
+                .any(|f| f.field == "service_name" && f.value == "checkout")
+        );
+        assert!(
+            merged
+                .filters
+                .iter()
+                .any(|f| f.field == "environment" && f.value == "prod")
+        );
     }
 
     #[test]

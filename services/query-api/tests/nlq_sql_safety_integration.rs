@@ -10,7 +10,7 @@
 #[test]
 fn numeric_filter_rejects_sql_injection_attempt() {
     use domain::NlqFilterOp;
-    use query_api::sql_templates::{build_filter_expr_checked, SqlTemplateError};
+    use query_api::sql_templates::{SqlTemplateError, build_filter_expr_checked};
 
     let result = build_filter_expr_checked("duration_ms", NlqFilterOp::Gt, "0 OR 1=1");
     assert!(
@@ -22,7 +22,7 @@ fn numeric_filter_rejects_sql_injection_attempt() {
 #[test]
 fn regex_filter_rejects_overlong_pattern() {
     use domain::NlqFilterOp;
-    use query_api::sql_templates::{build_filter_expr_checked, SqlTemplateError};
+    use query_api::sql_templates::{SqlTemplateError, build_filter_expr_checked};
 
     let long_pattern = "a".repeat(257);
     let result = build_filter_expr_checked("service_name", NlqFilterOp::Re, &long_pattern);

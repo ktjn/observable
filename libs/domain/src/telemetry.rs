@@ -1,15 +1,15 @@
+use opentelemetry::InstrumentationScope;
 use opentelemetry::logs::LogRecord as _;
 use opentelemetry::trace::TracerProvider as _;
-use opentelemetry::InstrumentationScope;
 use opentelemetry_otlp::{WithExportConfig, WithTonicConfig};
+use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::error::OTelSdkResult;
 use opentelemetry_sdk::logs::{BatchLogProcessor, LogProcessor, SdkLogRecord, SdkLoggerProvider};
 use opentelemetry_sdk::trace::SdkTracerProvider;
-use opentelemetry_sdk::Resource;
 use std::collections::HashMap;
 use std::fmt;
 use std::time::SystemTime;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Wraps an inner [`LogProcessor`] and backfills `timestamp` when the
 /// upstream bridge (e.g. `opentelemetry-appender-tracing`) leaves it unset.

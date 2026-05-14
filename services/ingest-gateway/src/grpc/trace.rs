@@ -1,7 +1,7 @@
-use crate::queue::producer::build_envelope;
 use crate::AppState;
+use crate::queue::producer::build_envelope;
 use opentelemetry_proto::tonic::collector::trace::v1::{
-    trace_service_server::TraceService, ExportTraceServiceRequest, ExportTraceServiceResponse,
+    ExportTraceServiceRequest, ExportTraceServiceResponse, trace_service_server::TraceService,
 };
 use tonic::{Request, Response, Status};
 use tracing::Instrument as _;

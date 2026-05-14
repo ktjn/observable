@@ -135,7 +135,9 @@
       "Bash(docker run *)",
       "Bash(echo \"EXIT CODE: $?\")",
       "Bash(echo \"EXIT:$?\")",
-      "Bash(docker build *)"
+      "Bash(docker build *)",
+      "Skill(superpowers:systematic-debugging)",
+      "Bash(gh run *)"
     ]
   }
 }

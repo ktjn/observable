@@ -10,19 +10,19 @@
 // full handler path via tower::ServiceExt::oneshot.
 
 use axum::{
+    Router,
     body::Body,
     http::{Request, StatusCode},
     middleware as axum_middleware,
     response::Response,
     routing::{delete, get, post},
-    Router,
 };
 use http_body_util::BodyExt;
 use query_api::{middleware::auth::TenantContext, tokens, traces::AppState};
 use serde_json::Value;
 use sqlx::PgPool;
 use std::path::Path;
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
 use tower::ServiceExt;
 use uuid::Uuid;

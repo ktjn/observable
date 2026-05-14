@@ -1,6 +1,6 @@
 use domain::{
-    deterministic_metric_series_id, AggregationTemporality, MetricPoint, MetricSeries, MetricType,
-    Span, StatusCode,
+    AggregationTemporality, MetricPoint, MetricSeries, MetricType, Span, StatusCode,
+    deterministic_metric_series_id,
 };
 use std::collections::HashMap;
 use std::sync::Mutex;

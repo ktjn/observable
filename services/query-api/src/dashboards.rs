@@ -1,9 +1,9 @@
 use crate::middleware::auth::TenantContext;
 use crate::traces::AppState;
 use axum::{
+    Extension, Json,
     extract::{Path, State},
     http::StatusCode,
-    Extension, Json,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

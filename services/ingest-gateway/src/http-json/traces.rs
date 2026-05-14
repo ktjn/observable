@@ -1,9 +1,9 @@
 use axum::{
+    Json,
     body::Bytes,
     extract::{Extension, State},
-    http::{header, HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
-    Json,
 };
 
 use crate::auth::TenantContext;
@@ -91,8 +91,8 @@ mod tests {
     use axum::http::StatusCode;
     use axum_test::TestServer;
 
-    use crate::http_json::build_router;
     use crate::AppState;
+    use crate::http_json::build_router;
 
     fn auth_header() -> (axum::http::HeaderName, axum::http::HeaderValue) {
         (
