@@ -21,7 +21,7 @@
     "docker-compose",
     "helm-requirements",
     "helm-values",
-    "requirements",
+    "pip_requirements",
     "github-actions",
     "regex"
   ],
@@ -63,12 +63,6 @@
   "helm-values": {
     "fileMatch": [
       "(^|/)charts/[^/]+/values\\.ya?ml$"
-    ]
-  },
-
-  "requirements": {
-    "fileMatch": [
-      "(^|/)requirements[^/]*\\.txt$"
     ]
   },
 
@@ -134,7 +128,7 @@
     },
     {
       "description": "Group OpenTelemetry Python packages",
-      "matchManagers": ["requirements"],
+      "matchManagers": ["pip_requirements"],
       "matchPackageNames": [
         "opentelemetry-*"
       ],
@@ -205,9 +199,10 @@
       "addLabels": ["manual-update", "testcontainers"]
     },
     {
-      "description": "Disable automerge for all updates",
-      "matchPackagePatterns": ["*"],
-      "automerge": false
+      "description": "Group GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "groupSlug": "github-actions"
     }
   ]
 }
