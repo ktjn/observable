@@ -1,9 +1,9 @@
 use anyhow::Result;
 use axum::{
-    extract::{Query, State},
-    http::{header, StatusCode},
-    response::Response,
     Json,
+    extract::{Query, State},
+    http::{StatusCode, header},
+    response::Response,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
@@ -413,27 +413,25 @@ pub async fn logout_handler(
     State(state): State<OidcState>,
     headers: axum::http::HeaderMap,
 ) -> Response {
-    if let Some(token) = extract_cookie(&headers, "session") {
-        if let Ok(claims) = verify_session_jwt(&state.config.session_secret, &token) {
-            if let (Ok(user_id), Ok(tenant_id)) =
-                (Uuid::parse_str(&claims.sub), Uuid::parse_str(&claims.tid))
-            {
-                let _ = sqlx::query(
-                    "UPDATE user_sessions SET revoked_at = now() \
-                     WHERE user_id = $1 AND tenant_id = $2 AND revoked_at IS NULL",
-                )
-                .bind(user_id)
-                .bind(tenant_id)
-                .execute(&state.db)
-                .await;
+    if let Some(token) = extract_cookie(&headers, "session")
+        && let Ok(claims) = verify_session_jwt(&state.config.session_secret, &token)
+        && let (Ok(user_id), Ok(tenant_id)) =
+            (Uuid::parse_str(&claims.sub), Uuid::parse_str(&claims.tid))
+    {
+        let _ = sqlx::query(
+            "UPDATE user_sessions SET revoked_at = now() \
+             WHERE user_id = $1 AND tenant_id = $2 AND revoked_at IS NULL",
+        )
+        .bind(user_id)
+        .bind(tenant_id)
+        .execute(&state.db)
+        .await;
 
-                crate::audit::write(
-                    &state.db,
-                    &crate::audit::AuditEntry::logout(claims.sub.clone(), tenant_id),
-                )
-                .await;
-            }
-        }
+        crate::audit::write(
+            &state.db,
+            &crate::audit::AuditEntry::logout(claims.sub.clone(), tenant_id),
+        )
+        .await;
     }
 
     Response::builder()

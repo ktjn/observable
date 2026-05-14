@@ -15,18 +15,18 @@ use crate::mcp_query::execute_mcp_query;
 use crate::middleware::auth::TenantContext;
 use crate::traces::AppState;
 use async_openai::{
+    Client as OpenAiClient,
     config::OpenAIConfig,
     types::chat::{
         ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
         CreateChatCompletionRequestArgs, ResponseFormat,
     },
-    Client as OpenAiClient,
 };
 use async_trait::async_trait;
 use axum::{
+    Json,
     extract::{Extension, State},
     http::StatusCode,
-    Json,
 };
 use domain::{
     NlqFilter, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, NlqTimeRange, VisualizationFrame,
@@ -536,10 +536,10 @@ When in doubt, produce an IR. Only decline when the question **explicitly** ment
             if let Some(rule) = &m.interpretation_rule {
                 prompt.push_str(&format!(" Interpretation: {rule}"));
             }
-            if let Some(rate) = m.effective_sample_rate {
-                if rate < 1.0 {
-                    prompt.push_str(&format!(" [sampled at {:.0}%]", rate * 100.0));
-                }
+            if let Some(rate) = m.effective_sample_rate
+                && rate < 1.0
+            {
+                prompt.push_str(&format!(" [sampled at {:.0}%]", rate * 100.0));
             }
             prompt.push('\n');
         }
@@ -723,11 +723,7 @@ fn fuzzy_resolve_metric<'a>(guess: &str, known: &[&'a str]) -> Option<&'a str> {
     }
 
     // Require at least 1 token overlap or substring match to consider it valid.
-    if best_score >= 1 {
-        best
-    } else {
-        None
-    }
+    if best_score >= 1 { best } else { None }
 }
 
 // ── Repair prompt ─────────────────────────────────────────────────────────────
@@ -785,10 +781,10 @@ fn normalize_nlq_ir(ir_val: &mut serde_json::Value) {
 
     // null array → empty array for all Vec fields.
     for field in &["filters", "group_by", "percentiles"] {
-        if let Some(v) = ir_val.get_mut(*field) {
-            if v.is_null() {
-                *v = serde_json::json!([]);
-            }
+        if let Some(v) = ir_val.get_mut(*field)
+            && v.is_null()
+        {
+            *v = serde_json::json!([]);
         }
     }
 
@@ -856,41 +852,40 @@ pub(crate) fn parse_llm_response(json: &str) -> Result<NlqIrOrDecline, LlmAdapte
             // Case 1: there is a "type" field with any value AND an "ir" key — try to
             // parse it as NlqIr. Handles both operation-name types ("catalog", ...) and
             // chat-wrapper types like phi3.5's {"type":"response","ir":{...}}.
-            if let Some(type_val) = other {
-                if v.get("ir").is_some() {
-                    let mut ir_val = v["ir"].clone();
-                    if ir_val.get("operation").is_none() {
-                        // Only inject type as operation when it looks like a valid op name.
-                        const VALID_OPS: &[&str] = &[
-                            "timeseries",
-                            "rate",
-                            "irate",
-                            "increase",
-                            "histogram",
-                            "topk",
-                            "table",
-                            "distribution",
-                            "catalog",
-                        ];
-                        if VALID_OPS.contains(&type_val) {
-                            ir_val["operation"] =
-                                serde_json::Value::String((*type_val).to_string());
-                        }
+            if let Some(type_val) = other
+                && v.get("ir").is_some()
+            {
+                let mut ir_val = v["ir"].clone();
+                if ir_val.get("operation").is_none() {
+                    // Only inject type as operation when it looks like a valid op name.
+                    const VALID_OPS: &[&str] = &[
+                        "timeseries",
+                        "rate",
+                        "irate",
+                        "increase",
+                        "histogram",
+                        "topk",
+                        "table",
+                        "distribution",
+                        "catalog",
+                    ];
+                    if VALID_OPS.contains(&type_val) {
+                        ir_val["operation"] = serde_json::Value::String((*type_val).to_string());
                     }
-                    patch_null_time_range(&mut ir_val);
-                    normalize_nlq_ir(&mut ir_val);
-                    if ir_val.get("operation").is_some() {
-                        tracing::warn!(
-                            raw_type = ?other,
-                            "NLQ hybrid-envelope fallback: LLM mixed type-as-operation with ir nesting"
-                        );
-                        match serde_json::from_value::<NlqIr>(ir_val) {
-                            Ok(ir) => return Ok(NlqIrOrDecline::Ir(ir)),
-                            Err(e) => tracing::warn!(
-                                error = %e,
-                                "NlqIr deserialize failed (hybrid envelope); trying other fallbacks"
-                            ),
-                        }
+                }
+                patch_null_time_range(&mut ir_val);
+                normalize_nlq_ir(&mut ir_val);
+                if ir_val.get("operation").is_some() {
+                    tracing::warn!(
+                        raw_type = ?other,
+                        "NLQ hybrid-envelope fallback: LLM mixed type-as-operation with ir nesting"
+                    );
+                    match serde_json::from_value::<NlqIr>(ir_val) {
+                        Ok(ir) => return Ok(NlqIrOrDecline::Ir(ir)),
+                        Err(e) => tracing::warn!(
+                            error = %e,
+                            "NlqIr deserialize failed (hybrid envelope); trying other fallbacks"
+                        ),
                     }
                 }
             }
@@ -958,11 +953,11 @@ pub(crate) fn parse_llm_response(json: &str) -> Result<NlqIrOrDecline, LlmAdapte
                     "distribution",
                     "catalog",
                 ];
-                if let Some(type_val) = ir_val.get("type").cloned() {
-                    if type_val.as_str().is_some_and(|s| VALID_OPS.contains(&s)) {
-                        ir_val["operation"] = type_val;
-                        ir_val.as_object_mut().map(|o| o.remove("type"));
-                    }
+                if let Some(type_val) = ir_val.get("type").cloned()
+                    && type_val.as_str().is_some_and(|s| VALID_OPS.contains(&s))
+                {
+                    ir_val["operation"] = type_val;
+                    ir_val.as_object_mut().map(|o| o.remove("type"));
                 }
             }
 
@@ -1444,23 +1439,24 @@ pub async fn run_nlq_pipeline(
     }
 
     // 8b. Fuzzy metric resolution — skip for log/trace queries (no metric to resolve).
-    if !is_log_query && !is_trace_query {
-        if let Some(ref llm_metric) = ir.metric {
-            let all_fields = crate::mcp_tools::list_signal_fields(db, tenant_id, "metrics")
-                .await
-                .unwrap_or_default();
-            let known_names: Vec<&str> = all_fields.iter().map(|m| m.field_name.as_str()).collect();
-            if !known_names.iter().any(|k| k == &llm_metric.as_str()) {
-                if let Some(resolved) = fuzzy_resolve_metric(llm_metric, &known_names) {
-                    tracing::info!(
-                        tenant_id = %tenant_id,
-                        original = %llm_metric,
-                        resolved = %resolved,
-                        "NLQ fuzzy metric resolution applied"
-                    );
-                    ir.metric = Some(resolved.to_string());
-                }
-            }
+    if !is_log_query
+        && !is_trace_query
+        && let Some(ref llm_metric) = ir.metric
+    {
+        let all_fields = crate::mcp_tools::list_signal_fields(db, tenant_id, "metrics")
+            .await
+            .unwrap_or_default();
+        let known_names: Vec<&str> = all_fields.iter().map(|m| m.field_name.as_str()).collect();
+        if !known_names.iter().any(|k| k == &llm_metric.as_str())
+            && let Some(resolved) = fuzzy_resolve_metric(llm_metric, &known_names)
+        {
+            tracing::info!(
+                tenant_id = %tenant_id,
+                original = %llm_metric,
+                resolved = %resolved,
+                "NLQ fuzzy metric resolution applied"
+            );
+            ir.metric = Some(resolved.to_string());
         }
     }
 
@@ -2087,10 +2083,11 @@ mod tests {
         };
         enforce_service_scope(&mut ir, "checkout-api");
 
-        assert!(ir
-            .filters
-            .iter()
-            .any(|f| f.field == "service_name" && f.value == "checkout-api"));
+        assert!(
+            ir.filters
+                .iter()
+                .any(|f| f.field == "service_name" && f.value == "checkout-api")
+        );
     }
 
     #[test]
@@ -2716,14 +2713,18 @@ mod tests {
         assert_eq!(merged.limit, Some(10));
         assert_eq!(merged.query.as_deref(), Some("errors"));
         assert_eq!(merged.time_range.from, "now-15m");
-        assert!(merged
-            .filters
-            .iter()
-            .any(|f| f.field == "service_name" && f.value == "checkout"));
-        assert!(merged
-            .filters
-            .iter()
-            .any(|f| f.field == "environment" && f.value == "prod"));
+        assert!(
+            merged
+                .filters
+                .iter()
+                .any(|f| f.field == "service_name" && f.value == "checkout")
+        );
+        assert!(
+            merged
+                .filters
+                .iter()
+                .any(|f| f.field == "environment" && f.value == "prod")
+        );
     }
 
     #[test]

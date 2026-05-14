@@ -13,8 +13,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         libssl-dev \
         pkg-config \
         zlib1g-dev
-RUN rustup component add clippy rustfmt
-
 FROM chef AS planner
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
@@ -26,22 +24,8 @@ RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/regi
     --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
     cargo chef cook --release --all-targets --recipe-path recipe.json
 
-FROM cacher AS rust-ci
+FROM cacher AS rust-builder
 COPY . .
-RUN cargo fmt --check
-RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
-    cargo clippy --workspace --all-targets -- -D warnings
-# Integration tests use Testcontainers and require a Docker daemon — nested
-# Docker is unavailable during image builds. Run `bash scripts/local-ci.sh`
-# locally to execute the full integration test suite.
-RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
-    cargo test --workspace --lib --bins
-
-FROM rust-ci AS rust-builder
 RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \

@@ -1,28 +1,28 @@
 use axum::{
+    Router,
     body::Body,
     http::{Request, StatusCode},
     middleware as axum_middleware,
     routing::{get, post, put},
-    Router,
 };
 use clickhouse::Client as ChClient;
 use domain::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use http_body_util::BodyExt;
 use query_api::{
     alerts, config, dashboards, incidents, llm_adapter, logs, metrics,
-    middleware::auth::require_tenant, middleware::auth::TenantContext, planner::QueryPlanner, slos,
+    middleware::auth::TenantContext, middleware::auth::require_tenant, planner::QueryPlanner, slos,
     traces,
 };
 use serde_json::Value;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::{path::Path, sync::Arc};
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::{clickhouse::ClickHouse, postgres::Postgres};
 use tower::ServiceExt;
 use uuid::Uuid;
 use wiremock::{
-    matchers::{method, path},
     Mock, MockServer, ResponseTemplate,
+    matchers::{method, path},
 };
 
 // ── Dev credentials (must match seed data in migrations) ────────────────────

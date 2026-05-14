@@ -1,6 +1,6 @@
 use crate::middleware::auth::TenantContext;
 use crate::traces::AppState;
-use axum::{extract::State, http::StatusCode, Extension, Json};
+use axum::{Extension, Json, extract::State, http::StatusCode};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

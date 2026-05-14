@@ -1,6 +1,6 @@
 use crate::discovery::TopologyParams;
 use crate::logs::LogSearchParams;
-use crate::traces::{SearchParams as TraceSearchParams, SELECT_COLS};
+use crate::traces::{SELECT_COLS, SearchParams as TraceSearchParams};
 use std::collections::HashMap;
 
 pub struct LogQueryPlan {
@@ -371,9 +371,11 @@ mod tests {
 
         // Verify toString conversion for type safety
         let sev_plan = &plan.facet_plans["severity_number"];
-        assert!(sev_plan
-            .sql
-            .contains("SELECT toString(severity_number) as value"));
+        assert!(
+            sev_plan
+                .sql
+                .contains("SELECT toString(severity_number) as value")
+        );
     }
 
     #[test]
@@ -388,9 +390,10 @@ mod tests {
 
         let plan = planner.plan_topology(&params);
 
-        assert!(plan
-            .sql
-            .contains("WHERE child.tenant_id = ? AND parent.tenant_id = ?"));
+        assert!(
+            plan.sql
+                .contains("WHERE child.tenant_id = ? AND parent.tenant_id = ?")
+        );
         assert!(plan.sql.contains("AND child.start_time_unix_nano >= ?"));
         assert!(plan.sql.contains("GROUP BY caller, callee"));
         assert!(plan.sql.contains("ORDER BY request_count DESC"));
@@ -408,9 +411,10 @@ mod tests {
 
         let plan = planner.plan_topology(&params);
 
-        assert!(plan
-            .sql
-            .contains("AND (child.service_name = ? OR parent.service_name = ?)"));
+        assert!(
+            plan.sql
+                .contains("AND (child.service_name = ? OR parent.service_name = ?)")
+        );
     }
 
     #[test]
@@ -529,13 +533,15 @@ mod tests {
         assert_eq!(plan.limit, 500);
         assert!(plan.spans_sql.contains("max(start_time_unix_nano)"));
         assert!(plan.spans_sql.contains("GROUP BY tenant_id, trace_id"));
-        assert!(plan
-            .spans_sql
-            .contains("ORDER BY max(start_time_unix_nano) DESC LIMIT ?"));
+        assert!(
+            plan.spans_sql
+                .contains("ORDER BY max(start_time_unix_nano) DESC LIMIT ?")
+        );
         assert!(!plan.spans_sql.contains("SELECT DISTINCT trace_id"));
-        assert!(plan
-            .spans_sql
-            .contains("WHERE (tenant_id, trace_id, start_time_unix_nano) IN"));
+        assert!(
+            plan.spans_sql
+                .contains("WHERE (tenant_id, trace_id, start_time_unix_nano) IN")
+        );
     }
 
     #[test]

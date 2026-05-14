@@ -1,6 +1,6 @@
 use domain::{EnvelopePayload, TelemetryEnvelope};
-use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::ClientConfig;
+use rdkafka::producer::{FutureProducer, FutureRecord};
 use std::time::Duration;
 use uuid::Uuid;
 

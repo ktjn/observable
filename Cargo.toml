@@ -10,6 +10,9 @@ members = [
     "services/alert-evaluator",
 ]
 
+[workspace.package]
+edition = "2024"
+
 [workspace.dependencies]
 tokio              = { version = "1", features = ["full"] }
 axum               = { version = "0.8", features = ["json", "macros"] }

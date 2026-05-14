@@ -13,7 +13,7 @@ use domain::{MetricPointRow, MetricSeriesRow, NlqIr, NlqOperation, NlqSignal, Nl
 use query_api::mcp_query::execute_mcp_query;
 use sqlx::PgPool;
 use std::path::Path;
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::{clickhouse::ClickHouse, postgres::Postgres};
 use uuid::Uuid;
 

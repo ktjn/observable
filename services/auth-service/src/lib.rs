@@ -3,7 +3,7 @@ pub mod oidc;
 pub mod session;
 pub mod validate;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 

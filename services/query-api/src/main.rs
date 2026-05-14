@@ -21,9 +21,8 @@ mod tokens;
 mod traces;
 
 use axum::{
-    middleware as axum_middleware,
+    Router, middleware as axum_middleware,
     routing::{delete, get, patch, post, put},
-    Router,
 };
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;

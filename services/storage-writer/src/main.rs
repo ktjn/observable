@@ -4,10 +4,10 @@ mod retention;
 mod spans;
 
 use axum::{
+    Json, Router,
     extract::State,
     http::StatusCode,
     routing::{get, post},
-    Json, Router,
 };
 use clickhouse::Client;
 use serde::Deserialize;

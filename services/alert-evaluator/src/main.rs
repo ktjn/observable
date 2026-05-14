@@ -1,5 +1,5 @@
 use alert_evaluator::evaluator;
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
 use tower_http::trace::TraceLayer;

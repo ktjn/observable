@@ -1,11 +1,7 @@
 [package]
 name    = "alert-evaluator"
 version = "0.1.0"
-edition = "2021"
-
-[[bin]]
-name = "alert-evaluator"
-path = "src/main.rs"
+edition.workspace = true
 
 [dependencies]
 domain             = { path = "../../libs/domain" }

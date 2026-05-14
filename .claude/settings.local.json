@@ -131,7 +131,13 @@
       "Bash(xargs sed -i 's/\\\\.with_tag\\(\"24\\\\.3\"\\)/.with_tag\\(\"25.3\"\\)/g')",
       "Bash(xargs sed -i -E 's|/:\\([ a-zA-Z_][a-zA-Z0-9_]*\\)|/{\\\\1}|g')",
       "mcp__plugin_context7_context7__resolve-library-id",
-      "mcp__plugin_context7_context7__query-docs"
+      "mcp__plugin_context7_context7__query-docs",
+      "Bash(docker run *)",
+      "Bash(echo \"EXIT CODE: $?\")",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(docker build *)",
+      "Skill(superpowers:systematic-debugging)",
+      "Bash(gh run *)"
     ]
   }
 }

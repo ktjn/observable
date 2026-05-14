@@ -12,7 +12,7 @@
 // Env vars take priority over DB values (LLM_API_KEY, LLM_URL / OPENAI_BASE_URL,
 // LLM_MODEL / OPENAI_MODEL).
 use crate::traces::AppState;
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
