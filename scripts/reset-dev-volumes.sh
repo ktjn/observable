@@ -10,7 +10,13 @@
 #     Dropping the volume lets the new image re-initialize cleanly.  All schema is
 #     captured in migrations/postgres/ and re-applied automatically by postgres-setup.
 #
-#   - After a ClickHouse or Redpanda major version bump that changes on-disk formats.
+#   - After a Redpanda version bump that jumps too many logical versions at once.
+#     Redpanda tracks an internal logical version and refuses to upgrade more than a
+#     few steps at a time.  The container will crash with:
+#       Assert failure: 'false' Attempted to upgrade from incompatible logical version N to M!
+#     Dropping the volume lets Redpanda start fresh; the topic is re-created by redpanda-setup.
+#
+#   - After a ClickHouse major version bump that changes on-disk formats.
 #   - Any time you want a completely clean local environment.
 #
 # Usage:
@@ -45,8 +51,9 @@ else
   VOLUMES=(
     "${PROJECT}_postgres_data"
     "${PROJECT}_shop_db_data"
+    "${PROJECT}_redpanda_data"
   )
-  echo "==> Removing PostgreSQL volumes (postgres_data, shop_db_data)..."
+  echo "==> Removing stateful dev volumes (postgres_data, shop_db_data, redpanda_data)..."
 fi
 
 for vol in "${VOLUMES[@]}"; do

@@ -102,9 +102,21 @@ FATAL: database files are incompatible with server
 DETAIL: The data directory was initialized by PostgreSQL version N.
 ```
 Fix: run `make reset-volumes` (or `bash scripts/reset-dev-volumes.sh`) to drop the old volume,
-then `docker compose up --build`.  All 28+ migrations in `migrations/postgres/` re-apply
+then `docker compose up --build`. All 28+ migrations in `migrations/postgres/` re-apply
 automatically via `postgres-setup`. No data is lost — this is a local dev environment.
-The same pattern applies if ClickHouse or Redpanda change on-disk formats across major versions.
+
+### Redpanda version bump that skips logical versions also requires a volume reset
+Redpanda tracks an internal logical version and refuses to upgrade by more than a few steps
+at a time. A too-large version jump crashes with:
+```
+Assert failure: 'false' Attempted to upgrade from incompatible logical version N to M!
+```
+Fix: same as above — `make reset-volumes` drops `redpanda_data`. The `telemetry.raw` topic is
+re-created automatically by the `redpanda-setup` container on next startup.
+
+The same pattern applies if ClickHouse changes on-disk formats across major versions.
+`make reset-volumes` (default, no flags) now drops `postgres_data`, `shop_db_data`, and
+`redpanda_data`. Use `--all` to also wipe ClickHouse and Zitadel bootstrap volumes.
 
 ## Standing Constraints
 
