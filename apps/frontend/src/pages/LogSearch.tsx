@@ -242,7 +242,7 @@ function LogContextSidebar({
   return (
     <aside
       aria-label="Selected log context"
-      className="w-full border border-[var(--border)] bg-[var(--surface)] p-4"
+      className="w-full h-full max-[900px]:max-h-[calc(100vh-200px)] overflow-y-auto border border-[var(--border)] bg-[var(--surface)] p-4"
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
@@ -156,6 +156,17 @@ test("renders a visible trace histogram from search results when histogram bucke
   const traceBar = histogram.querySelector("[title*='Traces: 1']");
 
   expect(traceBar).toBeInTheDocument();
+});
+
+test("selecting a trace opens context sidebar that scrolls internally", async () => {
+  renderTraceSearch();
+
+  await screen.findByRole("table", { name: "Trace results" });
+  fireEvent.click(screen.getByRole("button", { name: "trace-abc-123456…" }));
+
+  const sidebar = screen.getByRole("complementary", { name: "Selected trace context" });
+  expect(within(sidebar).getByText("Root Span Details")).toBeInTheDocument();
+  expect(sidebar).toHaveClass("overflow-y-auto");
 });
 
 test("keeps a visible trace histogram when the histogram query fails", async () => {
