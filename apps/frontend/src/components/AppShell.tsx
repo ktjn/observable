@@ -14,7 +14,15 @@ import { TreeNav, type NavTreeItem } from "./TreeNav";
 
 const navTree: NavTreeItem[] = [
   { id: "home", label: "Home", to: "/" },
-  { id: "setup", label: "Setup", to: "/setup" },
+  {
+    id: "setup",
+    label: "Setup",
+    children: [
+      { id: "setup-ingest", label: "Ingest", to: "/setup" },
+      { id: "setup-llm", label: "LLM", to: "/setup/llm" },
+      { id: "setup-tokens", label: "Tokens", to: "/setup/tokens" },
+    ],
+  },
   { id: "nlq", label: "Ask (NLQ)", to: "/nlq" },
   { id: "services", label: "Services", to: "/services" },
   {
