@@ -26,7 +26,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.surfaces.outputs.backend }}
+      frontend: ${{ steps.surfaces.outputs.frontend }}
+      helm: ${{ steps.surfaces.outputs.helm }}
+      smoke: ${{ steps.surfaces.outputs.smoke }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: surfaces
+        run: bash scripts/ci-changed-surfaces.sh "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}"
+
   backend:
+    needs: changes
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.backend == '1'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -50,6 +66,8 @@ jobs:
           retention-days: 1
 
   frontend:
+    needs: changes
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == '1'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -62,6 +80,8 @@ jobs:
       - run: npm run test --workspace=apps/frontend -- --run
 
   helm:
+    needs: changes
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.helm == '1'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -71,7 +91,8 @@ jobs:
       - run: bash scripts/helm-lint.sh
 
   smoke:
-    needs: backend
+    needs: [changes, backend]
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.smoke == '1'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -83,7 +104,7 @@ jobs:
       - run: docker compose up smoke-test --abort-on-container-exit
 
   perf-smoke:
-    needs: backend
+    needs: [changes, backend]
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
