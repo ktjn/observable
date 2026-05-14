@@ -10,6 +10,8 @@ import { IncidentDetailPage } from "./features/incidents/IncidentDetailPage";
 import ServiceDetailPage from "./pages/ServiceDetailPage";
 import ServiceTopologyPage from "./pages/ServiceTopologyPage";
 import SetupPage from "./pages/SetupPage";
+import SetupLlmPage from "./pages/SetupLlmPage";
+import SetupTokensPage from "./pages/SetupTokensPage";
 import TraceSearch from "./pages/TraceSearch";
 import TraceDetailPage from "./pages/TraceDetailPage";
 import LogSearch from "./pages/LogSearch";
@@ -63,6 +65,16 @@ const setupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/setup",
   component: SetupPage,
+});
+const setupLlmRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/setup/llm",
+  component: SetupLlmPage,
+});
+const setupTokensRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/setup/tokens",
+  component: SetupTokensPage,
 });
 const serviceDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -179,6 +191,8 @@ export const router = createRouter({
   routeTree: rootRoute.addChildren([
     homeRoute,
     setupRoute,
+    setupLlmRoute,
+    setupTokensRoute,
     loginRoute,
     authCallbackRoute,
     servicesRoute,
