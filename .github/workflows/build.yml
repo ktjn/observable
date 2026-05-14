@@ -1,29 +1,24 @@
 name: Build & Test
 
-# PR and push triggers are intentionally disabled. GitHub Actions is not configured
-# as the authoritative CI gate for this repository. Run `bash scripts/local-ci.sh`
-# before pushing code; that script is the required local gate.
-#
-# on:
-#   pull_request:
-#     branches: [main]
-#     paths-ignore:
-#       - 'docs/**'
-#       - 'spec/**'
-#       - '**/*.md'
-#       - '.github/ISSUE_TEMPLATE/**'
-#       - '.github/PULL_REQUEST_TEMPLATE.md'
-#   push:
-#     branches: [main]
-#     paths-ignore:
-#       - 'docs/**'
-#       - 'spec/**'
-#       - '**/*.md'
-#       - '.github/ISSUE_TEMPLATE/**'
-#       - '.github/PULL_REQUEST_TEMPLATE.md'
-#   schedule:
-#     - cron: "0 2 * * *"
 on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'spec/**'
+      - '**/*.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'spec/**'
+      - '**/*.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
+  schedule:
+    - cron: "0 2 * * *"
   workflow_dispatch:
 
 jobs:
