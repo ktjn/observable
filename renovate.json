@@ -1,0 +1,213 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "docker:enableMajor",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "labels": ["dependencies"],
+  "dependencyDashboard": true,
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 4,
+  "branchPrefix": "renovate/",
+  "rebaseWhen": "behind-base-branch",
+  "platformAutomerge": false,
+  "automerge": false,
+
+  "enabledManagers": [
+    "cargo",
+    "npm",
+    "dockerfile",
+    "docker-compose",
+    "helm-requirements",
+    "helm-values",
+    "requirements",
+    "github-actions",
+    "regex"
+  ],
+
+  "cargo": {
+    "fileMatch": [
+      "(^|/)Cargo\\.toml$",
+      "(^|/)Cargo\\.lock$"
+    ]
+  },
+
+  "npm": {
+    "fileMatch": [
+      "(^|/)package\\.json$",
+      "(^|/)package-lock\\.json$"
+    ]
+  },
+
+  "dockerfile": {
+    "fileMatch": [
+      "(^|/|\\.)Dockerfile$",
+      "(^|/)Dockerfile\\.[^/]*$"
+    ]
+  },
+
+  "docker-compose": {
+    "fileMatch": [
+      "(^|/)docker-compose[^/]*\\.ya?ml$",
+      "(^|/)compose[^/]*\\.ya?ml$"
+    ]
+  },
+
+  "helm-requirements": {
+    "fileMatch": [
+      "(^|/)charts/[^/]+/Chart\\.yaml$"
+    ]
+  },
+
+  "helm-values": {
+    "fileMatch": [
+      "(^|/)charts/[^/]+/values\\.ya?ml$"
+    ]
+  },
+
+  "requirements": {
+    "fileMatch": [
+      "(^|/)requirements[^/]*\\.txt$"
+    ]
+  },
+
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update testcontainer image references in Rust integration tests",
+      "fileMatch": [
+        "(^|/)tests/.*_integration\\.rs$"
+      ],
+      "matchStrings": [
+        "GenericImage::new\\(\"(?<depName>[^\"]+)\",\\s*\"(?<currentValue>[^\"]+)\"\\)"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Update Docker syntax directive in Dockerfiles",
+      "fileMatch": [
+        "(^|/|\\.)Dockerfile$",
+        "(^|/)Dockerfile\\.[^/]*$"
+      ],
+      "matchStrings": [
+        "#\\s*syntax=docker/dockerfile:(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "docker/dockerfile"
+    }
+  ],
+
+  "packageRules": [
+    {
+      "description": "Group all opentelemetry Rust crates",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": [
+        "opentelemetry",
+        "opentelemetry_sdk",
+        "opentelemetry-otlp",
+        "opentelemetry-appender-tracing",
+        "tracing-opentelemetry"
+      ],
+      "groupName": "opentelemetry-rust",
+      "groupSlug": "opentelemetry-rust"
+    },
+    {
+      "description": "Group testcontainers crates",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": [
+        "testcontainers",
+        "testcontainers-modules"
+      ],
+      "groupName": "testcontainers",
+      "groupSlug": "testcontainers"
+    },
+    {
+      "description": "Group Tanstack npm packages",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "@tanstack/**"
+      ],
+      "groupName": "tanstack",
+      "groupSlug": "tanstack"
+    },
+    {
+      "description": "Group OpenTelemetry Python packages",
+      "matchManagers": ["requirements"],
+      "matchPackageNames": [
+        "opentelemetry-*"
+      ],
+      "groupName": "opentelemetry-python",
+      "groupSlug": "opentelemetry-python"
+    },
+    {
+      "description": "Group Helm open-telemetry chart updates",
+      "matchManagers": ["helm-requirements"],
+      "matchPackageNames": [
+        "opentelemetry-collector"
+      ],
+      "groupName": "otel-helm-charts",
+      "groupSlug": "otel-helm-charts"
+    },
+    {
+      "description": "Group Helm zitadel chart updates",
+      "matchManagers": ["helm-requirements"],
+      "matchPackageNames": [
+        "zitadel"
+      ],
+      "groupName": "zitadel-helm",
+      "groupSlug": "zitadel-helm"
+    },
+    {
+      "description": "Pin Docker digests for production base images",
+      "matchManagers": ["dockerfile"],
+      "matchUpdateTypes": ["digest"],
+      "pinDigests": true
+    },
+    {
+      "description": "Require manual approval for major Rust version bumps",
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Require manual approval for major Node.js image bumps",
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["node"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Require manual approval for major Python image bumps",
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["python"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Require manual approval for major Rust toolchain image bumps",
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["rust", "lukemathwalker/cargo-chef"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Tag testcontainer images with manual-update label",
+      "matchManagers": ["custom.regex", "docker-compose"],
+      "matchPackageNames": [
+        "redpandadata/redpanda",
+        "clickhouse/clickhouse-server",
+        "postgres",
+        "openfga/openfga",
+        "rabbitmq"
+      ],
+      "addLabels": ["manual-update", "testcontainers"]
+    },
+    {
+      "description": "Disable automerge for all updates",
+      "matchPackagePatterns": ["*"],
+      "automerge": false
+    }
+  ]
+}
