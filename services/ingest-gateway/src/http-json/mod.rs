@@ -94,7 +94,7 @@ pub fn build_platform_router(state: AppState) -> Router {
     Router::new()
         .route("/v1/deployments", post(deployments::create_deployment))
         .route(
-            "/v1/deployments/:deployment_id",
+            "/v1/deployments/{deployment_id}",
             axum::routing::patch(deployments::finish_deployment),
         )
         .layer(middleware::from_fn_with_state(

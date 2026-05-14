@@ -2525,3 +2525,19 @@ When a customer needs SCIM provisioning, no Observable code changes are needed. 
 4. Zitadel handles user and group lifecycle; Observable sees up-to-date user records on next OIDC login (no webhook needed for P4-S3b)
 
 If role sync from SCIM groups to `user_tenant_roles` is required, add a Zitadel webhook action that calls a new `POST /internal/sync-user-role` endpoint on auth-service.
+
+---
+
+## Future: Migrate to Zitadel Login V2
+
+**Context (discovered during v4.13.1 upgrade, 2026-05-14):**
+Zitadel v4 defaults to its new "Login V2" UI (`/ui/v2/login`), which is a standalone Next.js application (`ghcr.io/zitadel/zitadel-login`) that must be deployed separately — it is not bundled in the main Zitadel container. Upgrading docker-compose to v4.13.1 broke login with a 404 because nothing was serving that path. The workaround in `scripts/zitadel-bootstrap.sh` disables the Login V2 feature flag via `PUT /v2/features/instance` so the classic login UI at `/ui/login` (still bundled in the main container) is used instead.
+
+**What migration involves:**
+1. Add `ghcr.io/zitadel/zitadel-login:latest` as a service in docker-compose and Helm.
+2. Add a reverse proxy (nginx or Caddy) to route `/ui/v2/login/*` to the login service and everything else to Zitadel — both must be accessible on the same origin (`localhost:8082` / the external domain) because the authorize redirect is host-relative.
+3. Generate a PAT for the bootstrap service account and write it to a shared volume so the login service can authenticate to Zitadel's API (`ZITADEL_SERVICE_USER_TOKEN_FILE`).
+4. Remove the `PUT /v2/features/instance` disable call from the bootstrap script and instead call it to enable Login V2 with the correct base URI.
+5. Update the Helm values for production to deploy the login service and proxy alongside Zitadel.
+
+**Why bother:** Login V2 is the Zitadel-supported path forward; the classic UI will eventually be deprecated. Login V2 is also easier to brand (React/Next.js) and supports newer Zitadel features first.

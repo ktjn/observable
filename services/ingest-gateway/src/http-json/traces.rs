@@ -123,7 +123,7 @@ mod tests {
     #[tokio::test]
     async fn missing_auth_returns_401() {
         let app = build_router(AppState::test_stub());
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/traces")
             .json(&serde_json::json!({"resourceSpans": []}))
@@ -134,7 +134,7 @@ mod tests {
     #[tokio::test]
     async fn valid_empty_payload_returns_200() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/traces")
             .add_header(auth_header().0, auth_header().1)
@@ -146,7 +146,7 @@ mod tests {
     #[tokio::test]
     async fn protobuf_trace_payload_returns_415() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/traces")
             .add_header(auth_header().0, auth_header().1)
@@ -162,7 +162,7 @@ mod tests {
     #[tokio::test]
     async fn gzip_compressed_trace_payload_returns_200() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/traces")
             .add_header(auth_header().0, auth_header().1)
@@ -183,7 +183,7 @@ mod tests {
     async fn within_rate_limit_returns_200() {
         // quota of 2/s: first two requests succeed
         let app = build_router(AppState::with_stub_auth_and_rate_limit(TENANT, 2));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         for _ in 0..2 {
             let resp = server
                 .post("/v1/traces")
@@ -198,7 +198,7 @@ mod tests {
     async fn exceeding_rate_limit_returns_429() {
         // quota of 1/s: second request in same second is rejected
         let app = build_router(AppState::with_stub_auth_and_rate_limit(TENANT, 1));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
 
         let first = server
             .post("/v1/traces")
@@ -223,7 +223,7 @@ mod tests {
         // tenant A exhausts its quota; tenant B should still succeed
         let state_a = AppState::with_stub_auth_and_rate_limit(TENANT, 1);
         let app = build_router(state_a);
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
 
         // exhaust tenant A
         server
@@ -242,7 +242,7 @@ mod tests {
         const TENANT_B: &str = "00000000-0000-0000-0000-000000000002";
         let state_b = AppState::with_stub_auth_and_rate_limit(TENANT_B, 1);
         let app_b = build_router(state_b);
-        let server_b = TestServer::new(app_b).unwrap();
+        let server_b = TestServer::new(app_b);
         let resp_b = server_b
             .post("/v1/traces")
             .add_header(
@@ -257,7 +257,7 @@ mod tests {
     #[tokio::test]
     async fn viewer_role_cannot_ingest_traces() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/traces")
             .add_header(viewer_auth_header().0, viewer_auth_header().1)

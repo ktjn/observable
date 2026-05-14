@@ -98,7 +98,7 @@ async fn insert_span(ch: &Client, row: SpanRow) {
 #[tokio::test]
 async fn clickhouse_container_applies_migrations_and_enforces_tenant_filter() {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -174,7 +174,7 @@ async fn insert_log(ch: &Client, row: LogRow) {
 #[tokio::test]
 async fn clickhouse_container_enforces_tenant_filter_on_logs() {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -209,7 +209,7 @@ async fn clickhouse_container_enforces_tenant_filter_on_logs() {
 #[tokio::test]
 async fn clickhouse_container_filters_logs_by_timestamp_cutoff() {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -300,7 +300,7 @@ async fn run_trace_histogram(
 #[tokio::test]
 async fn planner_count_query_resolves_unqualified_logs_via_database_context() {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -371,7 +371,7 @@ async fn planner_count_query_resolves_unqualified_logs_via_database_context() {
 #[tokio::test]
 async fn log_histogram_empty_range_returns_no_rows() {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -397,7 +397,7 @@ async fn log_histogram_empty_range_returns_no_rows() {
 #[tokio::test]
 async fn log_histogram_counts_logs_in_correct_buckets() {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -429,7 +429,7 @@ async fn log_histogram_counts_logs_in_correct_buckets() {
 #[tokio::test]
 async fn log_histogram_service_filter_excludes_other_services() {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -466,7 +466,7 @@ async fn log_histogram_service_filter_excludes_other_services() {
 #[tokio::test]
 async fn log_histogram_tenant_isolation() {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -509,7 +509,7 @@ async fn log_histogram_tenant_isolation() {
 #[tokio::test]
 async fn log_histogram_bucket_count_param_changes_granularity() {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -557,7 +557,7 @@ async fn log_histogram_bucket_count_param_changes_granularity() {
 #[tokio::test]
 async fn log_histogram_severity_distribution() {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -612,7 +612,7 @@ async fn log_histogram_severity_distribution() {
 #[tokio::test]
 async fn trace_histogram_dummy_column_decodes_as_i32() {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -653,7 +653,7 @@ async fn trace_histogram_dummy_column_decodes_as_i32() {
 #[tokio::test]
 async fn log_search_service_filter() {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -711,7 +711,7 @@ async fn log_search_service_filter() {
 #[tokio::test]
 async fn log_search_severity_filter() {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -767,7 +767,7 @@ async fn log_search_severity_filter() {
 #[tokio::test]
 async fn log_context_returns_surrounding_logs() {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -907,7 +907,7 @@ async fn run_response_time_histogram(
 #[tokio::test]
 async fn response_time_histogram_buckets_latency_by_time_window() {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()

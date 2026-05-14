@@ -22,7 +22,7 @@ use wiremock::{
 
 async fn start_postgres() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
     let container = Postgres::default()
-        .with_tag("16")
+        .with_tag("17")
         .start()
         .await
         .expect("postgres container started");
@@ -74,7 +74,7 @@ fn build_app(db: PgPool, auth_service_url: String) -> Router {
         .layer(axum::middleware::from_fn(require_tenant))
         .route("/v1/tenants", get(tenants::list_tenants))
         .route(
-            "/v1/tenants/:id/environments",
+            "/v1/tenants/{id}/environments",
             get(tenants::list_tenant_environments),
         )
         .layer(axum::Extension(db))

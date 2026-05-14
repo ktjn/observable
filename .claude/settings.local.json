@@ -120,7 +120,18 @@
       "Bash(gh issue *)",
       "Bash(Get-ChildItem -Path C:\\\\git\\\\Observable -Recurse -Depth 2 -Directory)",
       "Bash(Get-ChildItem *)",
-      "Bash(Find /c/git/Observable/services/query-api/src -name \"*.rs\" -type f)"
+      "Bash(Find /c/git/Observable/services/query-api/src -name \"*.rs\" -type f)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\git\\\\Observable\" -Recurse -Depth 3 -Filter \"package.json\" | Where-Object { $_.FullName -notmatch \"node_modules\" } | Select-Object FullName)",
+      "WebSearch",
+      "Read(//mnt/c/git/Observable/**)",
+      "Bash(sed -i 's/\\\\.with_tag\\(\"16\"\\)/.with_tag\\(\"17\"\\)/g' /c/git/Observable/services/alert-evaluator/tests/incident_integration.rs /c/git/Observable/services/alert-evaluator/tests/lifecycle_integration.rs /c/git/Observable/services/alert-evaluator/tests/slo_burn_rate_integration.rs)",
+      "Bash(sed -i 's/\\\\.with_tag\\(\"24\\\\.3\"\\)/.with_tag\\(\"25.3\"\\)/g' /c/git/Observable/services/alert-evaluator/tests/incident_integration.rs /c/git/Observable/services/alert-evaluator/tests/lifecycle_integration.rs /c/git/Observable/services/alert-evaluator/tests/slo_burn_rate_integration.rs)",
+      "Bash(docker info *)",
+      "Bash(xargs sed -i 's/\\\\.with_tag\\(\"16\"\\)/.with_tag\\(\"17\"\\)/g')",
+      "Bash(xargs sed -i 's/\\\\.with_tag\\(\"24\\\\.3\"\\)/.with_tag\\(\"25.3\"\\)/g')",
+      "Bash(xargs sed -i -E 's|/:\\([ a-zA-Z_][a-zA-Z0-9_]*\\)|/{\\\\1}|g')",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs"
     ]
   }
 }

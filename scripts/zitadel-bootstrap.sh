@@ -123,6 +123,17 @@ if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
 fi
 echo "zitadel-bootstrap: access token obtained."
 
+# Disable Login V2 so Zitadel uses the classic bundled login UI at /ui/login.
+# In Zitadel v4 the new login UI (/ui/v2/login) is a separate service that is
+# not included in the main container image; without this call the authorize
+# endpoint redirects there and returns 404.
+curl_api -X PUT "$ZITADEL_BASE/v2/features/instance" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"loginV2":{"enabled":false}}' > /dev/null \
+  && echo "zitadel-bootstrap: Login V2 disabled (using classic /ui/login)" \
+  || echo "zitadel-bootstrap: WARNING - could not disable Login V2 (may already be disabled or API path changed)"
+
 # Explicitly set the dev admin password via the Management API.
 # The YAML Password field is unreliable — this guarantees the password is set.
 ADMIN_PASSWORD="${OBSERVABLE_DEV_ADMIN_PASSWORD:-Dev@Admin1234!}"

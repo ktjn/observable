@@ -1,6 +1,6 @@
 // HTTP integration tests for tenant discovery endpoints:
 //   GET /v1/tenants
-//   GET /v1/tenants/:id/environments
+//   GET /v1/tenants/{id}/environments
 //
 // Both endpoints are outside the tenant-auth middleware (bootstrap resources).
 // Tests use a real Postgres instance via Testcontainers and exercise the full
@@ -52,7 +52,7 @@ async fn apply_migrations(pool: &PgPool) {
 
 async fn start_pool() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
     let container = Postgres::default()
-        .with_tag("16")
+        .with_tag("17")
         .start()
         .await
         .expect("postgres container started");
@@ -98,7 +98,7 @@ fn build_tenants_app(pool: PgPool) -> Router {
     Router::new()
         .route("/v1/tenants", get(tenants::list_tenants))
         .route(
-            "/v1/tenants/:id/environments",
+            "/v1/tenants/{id}/environments",
             get(tenants::list_tenant_environments),
         )
         // Tokens route seeds environments in tests; auth is not under test here.
@@ -177,7 +177,7 @@ async fn list_tenants_response_shape() {
     assert!(first["name"].is_string(), "name must be a string");
 }
 
-// ── Tests: GET /v1/tenants/:id/environments ───────────────────────────────────
+// ── Tests: GET /v1/tenants/{id}/environments ───────────────────────────────────
 
 #[tokio::test]
 async fn list_tenant_environments_returns_seeded_environments() {

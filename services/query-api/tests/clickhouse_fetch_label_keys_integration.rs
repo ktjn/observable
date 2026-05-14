@@ -25,7 +25,7 @@ async fn start_ch() -> (
     testcontainers::ContainerAsync<ClickHouse>,
 ) {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
