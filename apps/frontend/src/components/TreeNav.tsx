@@ -100,7 +100,8 @@ function TreeNode({
 
   const linkClass =
     `tree-link` +
-    `${isItemActive || (hasActiveDescendant && !isItemActive) ? " active" : ""}` +
+    `${isItemActive ? " active" : ""}` +
+    `${hasActiveDescendant && !isItemActive ? " has-active-child" : ""}` +
     `${depth > 0 ? " indented" : ""}`;
 
   return (
@@ -110,13 +111,11 @@ function TreeNode({
           {hasChildren && (
             <button
               type="button"
-              className="tree-toggle"
+              className={`tree-toggle${isExpanded ? " expanded" : ""}`}
               onClick={() => onToggle(item.id)}
               aria-expanded={isExpanded}
               aria-label={isExpanded ? "Collapse" : "Expand"}
-            >
-              {isExpanded ? "\u25BC" : "\u25B6"}
-            </button>
+            />
           )}
         </span>
         {item.to ? (

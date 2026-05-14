@@ -271,6 +271,10 @@ h1 {
   align-items: stretch;
 }
 
+.tree-node-children {
+  padding-left: 18px;
+}
+
 .tree-toggle-area {
   width: 18px;
   display: flex;
@@ -289,14 +293,26 @@ h1 {
   margin: 0;
   border: none;
   background: transparent;
-  color: var(--muted);
-  font-size: 8px;
-  line-height: 1;
   cursor: pointer;
 }
 
-.tree-toggle:hover {
-  color: var(--text);
+.tree-toggle::after {
+  content: "";
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  transform: rotate(-45deg) translate(-1px, 1px);
+  transition: transform 0.15s ease;
+}
+
+.tree-toggle.expanded::after {
+  transform: rotate(45deg) translate(-2px, -2px);
+}
+
+.tree-toggle:hover::after {
+  border-color: var(--text);
 }
 
 .tree-link {
@@ -313,11 +329,10 @@ h1 {
 }
 
 .tree-link.indented {
-  padding-left: 14px;
-  border-left-color: transparent;
+  padding-left: 6px;
 }
 
-.tree-link:hover {
+a.tree-link:hover {
   background: var(--surface);
   color: var(--text);
   border-left-color: var(--border-strong);
@@ -329,6 +344,21 @@ h1 {
   font-weight: 600;
   border-left-color: var(--brand);
   box-shadow: none;
+}
+
+.tree-link.has-active-child {
+  color: var(--text);
+}
+
+span.tree-link {
+  cursor: default;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding-top: 8px;
+  padding-bottom: 2px;
+  min-height: 0;
 }
 
 .sidebar-footer {
