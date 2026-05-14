@@ -91,11 +91,20 @@ Full role prompt with all constraints: `.github/agents/issue-worker.agent.md`
 3. **Inspect the actual code every time** before editing. Read the relevant implementation, tests, scripts, specs, and docs for the requested slice; do not rely only on summaries or prior memory.
 4. **Keep the agent context current:** if the change affects repo layout, ownership boundaries, active roadmap guidance, required verification, architectural assumptions, or future agent gotchas, update `docs/agent-context.md` in the same PR. If no update is needed, state why in the PR description.
 5. **Use the latest stable versions** of all dependencies:
-   - **Rust crates:** check [crates.io](https://crates.io) for the current stable version before adding or updating a dependency.
-   - **npm packages:** check [npmjs.com](https://www.npmjs.com) for the current stable version before adding or updating a dependency.
+   - **Rust crates:** check [crates.io](https://crates.io) for the current stable version before adding or updating a dependency. Use `cargo` commands to add, update, or lock Rust dependencies; do not hand-edit lockfile entries.
+   - **npm packages:** check [npmjs.com](https://www.npmjs.com) for the current stable version before adding or updating a dependency. Use `npm` commands only (`npm install`, `npm update`, `npm audit`, `npm ci`); do not use yarn, pnpm, bun, or another package manager for npm work.
+   - **Python packages:** prefer `uv` for Python dependency management. If a Python dependency change is needed before the repo is fully uv-managed, plan and document the migration to `pyproject.toml` plus `uv.lock` in the PR before adding or updating packages. Do not introduce new `pip`, `requirements.txt`, Poetry, or Pipenv workflows without an ADR-backed exception.
    - **GitHub Actions:** use the latest release tag of every action (e.g. `actions/checkout@v4`); check the action's release page if uncertain.
-   - **Docker images (Compose/local):** pin to `image:major.minor` at minimum. For production Dockerfiles and base images, use `image:major.minor.patch`; SHA digest is strongly preferred.
+   - **Docker images:** prefer the latest stable version and pin Compose/local/Testcontainers images to `image:major.minor` at minimum. For production Dockerfiles and base images, use `image:major.minor.patch`; SHA digest is strongly preferred. When an image is used in both Docker Compose and Testcontainers, update every reference in the same PR and keep the versions identical unless the PR documents a deliberate compatibility exception.
    - Do not pin to an older version without a documented reason in the PR description.
+
+## Package and Image Upgrade Rules
+
+- Use the package manager native to the ecosystem. npm dependencies are updated with npm and nothing else; Rust dependencies are updated with cargo; Python dependencies are managed with uv or require a uv migration plan first.
+- Latest stable versions are the default target for all package and image updates. Older pins require a concrete compatibility, support, or rollback reason in the PR description.
+- Commit all dependency lockfiles changed by the native tool (`package-lock.json`, `Cargo.lock`, `uv.lock`). Do not manually edit lockfile package records except for conflict resolution that preserves tool output.
+- Docker image upgrades must search all runtime and test references before editing: `docker-compose*.yml`, `Dockerfile*`, Helm values/templates, scripts, and Testcontainers fixtures. Compose and Testcontainers references for PostgreSQL, ClickHouse, Redpanda/Kafka-compatible brokers, object storage, OpenFGA, and similar real dependencies must use the same image version.
+- For major package upgrades, image major upgrades, or Python uv migration work, keep the upgrade in a dedicated branch/PR with a rollback note and focused verification.
 
 ## MANDATORY: Before Pushing ANY Code
 

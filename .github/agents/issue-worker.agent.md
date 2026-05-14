@@ -106,6 +106,10 @@ Follow the standard implementation flow:
 2. Implement the feature.
 3. Confirm tests pass.
 4. Follow the reusable-component and Testcontainers mandates from AGENTS.md.
+5. For dependency or image work, prefer latest stable versions and use only the ecosystem-native
+   tool: npm for npm packages, cargo for Rust crates, and uv for Python packages. Keep Docker
+   Compose and Testcontainers image versions identical for the same dependency unless the PR
+   documents a deliberate compatibility exception.
 
 ---
 
