@@ -1,6 +1,7 @@
 import { Button } from "../components/ui/button"
 import { initiateLogin } from "../api/auth";
 import { useSearch } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 const ERROR_MESSAGES: Record<string, string> = {
   session_expired: "Your sign-in session expired. Please try again.",
@@ -13,6 +14,12 @@ const ERROR_MESSAGES: Record<string, string> = {
 export default function LoginPage() {
   const { error } = useSearch({ from: "/login" });
   const errorMessage = error ? (ERROR_MESSAGES[error] ?? "Sign-in failed. Please try again.") : null;
+
+  useEffect(() => {
+    if (!error) {
+      initiateLogin();
+    }
+  }, [error]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-8 gap-6">
