@@ -92,6 +92,32 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 - Frontend: `apps/frontend/src/features/incidents/` contains `IncidentsPage.tsx` (list with status filters) and `IncidentDetailPage.tsx` (timeline view).
 - Known simplification: `dedup_key` currently uses `rule_id` only because `alert_rules` lacks `service_name`/`environment`. The spec (`spec/14-domain-model.md`) defines `rule_id + service_name + environment`.
 
+## Dev Environment Gotchas
+
+### PostgreSQL major version upgrade requires volume reset
+Bumping the `postgres` image tag across a major version (e.g. 16→17) in `docker-compose.yml`
+makes the existing `observable_postgres_data` volume incompatible. The container will crash with:
+```
+FATAL: database files are incompatible with server
+DETAIL: The data directory was initialized by PostgreSQL version N.
+```
+Fix: run `make reset-volumes` (or `bash scripts/reset-dev-volumes.sh`) to drop the old volume,
+then `docker compose up --build`. All 28+ migrations in `migrations/postgres/` re-apply
+automatically via `postgres-setup`. No data is lost — this is a local dev environment.
+
+### Redpanda version bump that skips logical versions also requires a volume reset
+Redpanda tracks an internal logical version and refuses to upgrade by more than a few steps
+at a time. A too-large version jump crashes with:
+```
+Assert failure: 'false' Attempted to upgrade from incompatible logical version N to M!
+```
+Fix: same as above — `make reset-volumes` drops `redpanda_data`. The `telemetry.raw` topic is
+re-created automatically by the `redpanda-setup` container on next startup.
+
+The same pattern applies if ClickHouse changes on-disk formats across major versions.
+`make reset-volumes` (default, no flags) now drops `postgres_data`, `shop_db_data`, and
+`redpanda_data`. Use `--all` to also wipe ClickHouse and Zitadel bootstrap volumes.
+
 ## Standing Constraints
 
 - Never commit or merge directly to `main` without human review.

@@ -1,4 +1,4 @@
-.PHONY: dev dev-down test lint smoke-test ci
+.PHONY: dev dev-down reset-volumes test lint smoke-test ci
 
 dev:
 	docker compose up -d
@@ -6,6 +6,9 @@ dev:
 
 dev-down:
 	docker compose down
+
+reset-volumes:
+	bash scripts/reset-dev-volumes.sh
 
 test:
 	cargo test --workspace
