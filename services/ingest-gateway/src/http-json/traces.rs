@@ -69,8 +69,8 @@ pub async fn export_traces(
         "received trace export request"
     );
 
-    if let Some(producer) = &state.producer {
-        if producer
+    if let Some(producer) = &state.producer
+        && producer
             .publish(&build_envelope(
                 ctx.tenant_id,
                 &ctx.environment,
@@ -78,9 +78,8 @@ pub async fn export_traces(
             ))
             .await
             .is_err()
-        {
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
+    {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
 
     Json(serde_json::json!({ "partialSuccess": {} })).into_response()

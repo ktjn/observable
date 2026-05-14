@@ -568,13 +568,13 @@ fn validate_create_request(req: &CreateDashboardRequest) -> Result<(), CreateDas
                 "text panels require content".into(),
             ));
         }
-        if let Some(query_kind) = &panel.query_kind {
-            if !VALID_QUERY_KINDS.contains(&query_kind.as_str()) {
-                return Err(CreateDashboardError::InvalidInput(format!(
-                    "query_kind must be one of: {}",
-                    VALID_QUERY_KINDS.join(", ")
-                )));
-            }
+        if let Some(query_kind) = &panel.query_kind
+            && !VALID_QUERY_KINDS.contains(&query_kind.as_str())
+        {
+            return Err(CreateDashboardError::InvalidInput(format!(
+                "query_kind must be one of: {}",
+                VALID_QUERY_KINDS.join(", ")
+            )));
         }
         if let Some(layout) = &panel.layout {
             validate_layout(layout)?;
@@ -594,13 +594,13 @@ fn validate_create_request(req: &CreateDashboardRequest) -> Result<(), CreateDas
                 VALID_PRESETS.join(", ")
             )));
         }
-        if let Some(ref preset) = panel.preset {
-            if !VALID_PRESETS.contains(&preset.as_str()) {
-                return Err(CreateDashboardError::InvalidInput(format!(
-                    "preset must be one of: {} (or omitted for global date range)",
-                    VALID_PRESETS.join(", ")
-                )));
-            }
+        if let Some(ref preset) = panel.preset
+            && !VALID_PRESETS.contains(&preset.as_str())
+        {
+            return Err(CreateDashboardError::InvalidInput(format!(
+                "preset must be one of: {} (or omitted for global date range)",
+                VALID_PRESETS.join(", ")
+            )));
         }
     }
     Ok(())
@@ -635,13 +635,13 @@ fn validate_update_request(req: &UpdateDashboardRequest) -> Result<(), CreateDas
                 "text panels require content".into(),
             ));
         }
-        if let Some(query_kind) = &panel.query_kind {
-            if !VALID_QUERY_KINDS.contains(&query_kind.as_str()) {
-                return Err(CreateDashboardError::InvalidInput(format!(
-                    "query_kind must be one of: {}",
-                    VALID_QUERY_KINDS.join(", ")
-                )));
-            }
+        if let Some(query_kind) = &panel.query_kind
+            && !VALID_QUERY_KINDS.contains(&query_kind.as_str())
+        {
+            return Err(CreateDashboardError::InvalidInput(format!(
+                "query_kind must be one of: {}",
+                VALID_QUERY_KINDS.join(", ")
+            )));
         }
         if let Some(layout) = &panel.layout {
             validate_layout(layout)?;
@@ -649,13 +649,13 @@ fn validate_update_request(req: &UpdateDashboardRequest) -> Result<(), CreateDas
         if let Some(time_range) = &panel.time_range {
             validate_time_range(time_range)?;
         }
-        if let Some(ref preset) = panel.preset {
-            if !VALID_PRESETS.contains(&preset.as_str()) {
-                return Err(CreateDashboardError::InvalidInput(format!(
-                    "preset must be one of: {} (or omitted for global date range)",
-                    VALID_PRESETS.join(", ")
-                )));
-            }
+        if let Some(ref preset) = panel.preset
+            && !VALID_PRESETS.contains(&preset.as_str())
+        {
+            return Err(CreateDashboardError::InvalidInput(format!(
+                "preset must be one of: {} (or omitted for global date range)",
+                VALID_PRESETS.join(", ")
+            )));
         }
     }
     Ok(())

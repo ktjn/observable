@@ -299,10 +299,10 @@ async fn execute_log_query(
     for row in &mut data {
         if let Some(obj) = row.as_object_mut() {
             for field in ["attributes", "resource_attributes", "body"] {
-                if let Some(serde_json::Value::String(s)) = obj.get(field) {
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(s) {
-                        obj.insert(field.to_string(), parsed);
-                    }
+                if let Some(serde_json::Value::String(s)) = obj.get(field)
+                    && let Ok(parsed) = serde_json::from_str::<serde_json::Value>(s)
+                {
+                    obj.insert(field.to_string(), parsed);
                 }
             }
         }

@@ -132,55 +132,55 @@ fn validate_signal_type(signal_type: &str) -> Result<(), AnnotationError> {
 }
 
 fn validate_upsert(req: &UpsertAnnotationRequest) -> Result<(), AnnotationError> {
-    if let Some(rule) = &req.interpretation_rule {
-        if !VALID_INTERPRETATION_RULES.contains(&rule.as_str()) {
-            return Err(AnnotationError::InvalidInput(format!(
-                "interpretation_rule must be one of: {}",
-                VALID_INTERPRETATION_RULES.join(", ")
-            )));
-        }
+    if let Some(rule) = &req.interpretation_rule
+        && !VALID_INTERPRETATION_RULES.contains(&rule.as_str())
+    {
+        return Err(AnnotationError::InvalidInput(format!(
+            "interpretation_rule must be one of: {}",
+            VALID_INTERPRETATION_RULES.join(", ")
+        )));
     }
-    if let Some(mt) = &req.metric_type {
-        if !VALID_METRIC_TYPES.contains(&mt.as_str()) {
-            return Err(AnnotationError::InvalidInput(format!(
-                "metric_type must be one of: {}",
-                VALID_METRIC_TYPES.join(", ")
-            )));
-        }
+    if let Some(mt) = &req.metric_type
+        && !VALID_METRIC_TYPES.contains(&mt.as_str())
+    {
+        return Err(AnnotationError::InvalidInput(format!(
+            "metric_type must be one of: {}",
+            VALID_METRIC_TYPES.join(", ")
+        )));
     }
-    if let Some(rate) = req.effective_sample_rate {
-        if !(0.0..=1.0).contains(&rate) {
-            return Err(AnnotationError::InvalidInput(
-                "effective_sample_rate must be between 0 and 1".into(),
-            ));
-        }
+    if let Some(rate) = req.effective_sample_rate
+        && !(0.0..=1.0).contains(&rate)
+    {
+        return Err(AnnotationError::InvalidInput(
+            "effective_sample_rate must be between 0 and 1".into(),
+        ));
     }
     Ok(())
 }
 
 fn validate_patch(req: &PatchAnnotationRequest) -> Result<(), AnnotationError> {
-    if let Some(rule) = &req.interpretation_rule {
-        if !VALID_INTERPRETATION_RULES.contains(&rule.as_str()) {
-            return Err(AnnotationError::InvalidInput(format!(
-                "interpretation_rule must be one of: {}",
-                VALID_INTERPRETATION_RULES.join(", ")
-            )));
-        }
+    if let Some(rule) = &req.interpretation_rule
+        && !VALID_INTERPRETATION_RULES.contains(&rule.as_str())
+    {
+        return Err(AnnotationError::InvalidInput(format!(
+            "interpretation_rule must be one of: {}",
+            VALID_INTERPRETATION_RULES.join(", ")
+        )));
     }
-    if let Some(mt) = &req.metric_type {
-        if !VALID_METRIC_TYPES.contains(&mt.as_str()) {
-            return Err(AnnotationError::InvalidInput(format!(
-                "metric_type must be one of: {}",
-                VALID_METRIC_TYPES.join(", ")
-            )));
-        }
+    if let Some(mt) = &req.metric_type
+        && !VALID_METRIC_TYPES.contains(&mt.as_str())
+    {
+        return Err(AnnotationError::InvalidInput(format!(
+            "metric_type must be one of: {}",
+            VALID_METRIC_TYPES.join(", ")
+        )));
     }
-    if let Some(rate) = req.effective_sample_rate {
-        if !(0.0..=1.0).contains(&rate) {
-            return Err(AnnotationError::InvalidInput(
-                "effective_sample_rate must be between 0 and 1".into(),
-            ));
-        }
+    if let Some(rate) = req.effective_sample_rate
+        && !(0.0..=1.0).contains(&rate)
+    {
+        return Err(AnnotationError::InvalidInput(
+            "effective_sample_rate must be between 0 and 1".into(),
+        ));
     }
     Ok(())
 }

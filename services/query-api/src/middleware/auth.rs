@@ -75,44 +75,44 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
     // If X-Tenant-ID is provided and matches the session tenant, proceed as usual.
     // If it differs, check whether the user actually has a role on the requested
     // tenant (multi-tenant users can switch without re-login).
-    if let Some(requested_tenant_id) = tenant_id_hdr {
-        if requested_tenant_id != ctx.tenant_id {
-            let user_id = ctx.user_id.ok_or_else(|| {
-                tracing::error!("session context missing user_id for cross-tenant check");
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+    if let Some(requested_tenant_id) = tenant_id_hdr
+        && requested_tenant_id != ctx.tenant_id
+    {
+        let user_id = ctx.user_id.ok_or_else(|| {
+            tracing::error!("session context missing user_id for cross-tenant check");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
-            let has_access = sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2",
-            )
-            .bind(user_id)
-            .bind(requested_tenant_id)
-            .fetch_one(&db)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "db error checking cross-tenant access");
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+        let has_access = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2",
+        )
+        .bind(user_id)
+        .bind(requested_tenant_id)
+        .fetch_one(&db)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "db error checking cross-tenant access");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
-            if has_access == 0 {
-                tracing::warn!(
-                    %user_id,
-                    session_tenant = %ctx.tenant_id,
-                    requested_tenant = %requested_tenant_id,
-                    "user does not have access to requested tenant"
-                );
-                return Err(StatusCode::FORBIDDEN);
-            }
-
-            // User has access — override the tenant context to the requested tenant.
-            let ctx = TenantContext {
-                tenant_id: requested_tenant_id,
-                user_id: Some(user_id),
-                role: ctx.role,
-            };
-            req.extensions_mut().insert(ctx);
-            return Ok(next.run(req).await);
+        if has_access == 0 {
+            tracing::warn!(
+                %user_id,
+                session_tenant = %ctx.tenant_id,
+                requested_tenant = %requested_tenant_id,
+                "user does not have access to requested tenant"
+            );
+            return Err(StatusCode::FORBIDDEN);
         }
+
+        // User has access — override the tenant context to the requested tenant.
+        let ctx = TenantContext {
+            tenant_id: requested_tenant_id,
+            user_id: Some(user_id),
+            role: ctx.role,
+        };
+        req.extensions_mut().insert(ctx);
+        return Ok(next.run(req).await);
     }
 
     req.extensions_mut().insert(ctx);
