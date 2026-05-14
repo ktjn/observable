@@ -20,7 +20,7 @@ pub struct SessionClaims {
     pub exp: i64,
 }
 
-const SESSION_TTL_SECS: i64 = 3600;
+const SESSION_TTL_SECS: i64 = 604_800; // 7 days
 
 pub fn sign_session_jwt(
     secret: &str,

@@ -92,7 +92,7 @@ pub async fn create_session(
     tenant_id: Uuid,
     environment: &str,
 ) -> Result<Uuid> {
-    let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
+    let expires_at = chrono::Utc::now() + chrono::Duration::days(7);
     let row = sqlx::query(
         r#"
         INSERT INTO user_sessions (user_id, tenant_id, environment, expires_at)
@@ -393,7 +393,7 @@ pub async fn callback_handler(
         "; Secure".to_string()
     };
     let set_session = format!(
-        "session={}; HttpOnly{}; SameSite=Strict; Path=/; Max-Age=3600",
+        "session={}; HttpOnly{}; SameSite=Lax; Path=/; Max-Age=604800",
         jwt, secure_attr
     );
 

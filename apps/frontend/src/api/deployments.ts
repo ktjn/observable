@@ -41,7 +41,7 @@ export async function listDeployments(
   if (params.end_time) url.searchParams.set("end_time", params.end_time);
   if (params.limit !== undefined) url.searchParams.set("limit", String(params.limit));
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Deployments fetch failed: ${res.status}`);
   return res.json();
 }

@@ -26,13 +26,13 @@ export interface EnvironmentListResponse {
 }
 
 export async function listTenants(): Promise<TenantListResponse> {
-  const res = await fetch("/v1/tenants");
+  const res = await fetch("/v1/tenants", { credentials: "include" });
   if (!res.ok) throw new Error(`listTenants failed: ${res.status}`);
   return res.json() as Promise<TenantListResponse>;
 }
 
 export async function listEnvironments(tenantId: string): Promise<EnvironmentListResponse> {
-  const res = await fetch(`/v1/tenants/${encodeURIComponent(tenantId)}/environments`);
+  const res = await fetch(`/v1/tenants/${encodeURIComponent(tenantId)}/environments`, { credentials: "include" });
   if (!res.ok) throw new Error(`listEnvironments failed: ${res.status}`);
   return res.json() as Promise<EnvironmentListResponse>;
 }
