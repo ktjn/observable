@@ -254,6 +254,83 @@ h1 {
   color: inherit;
 }
 
+.tree-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 1;
+}
+
+.tree-node {
+  display: flex;
+  flex-direction: column;
+}
+
+.tree-node-row {
+  display: flex;
+  align-items: stretch;
+}
+
+.tree-toggle-area {
+  width: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tree-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tree-toggle:hover {
+  color: var(--text);
+}
+
+.tree-link {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 4px 10px 4px 2px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  min-height: 24px;
+}
+
+.tree-link.indented {
+  padding-left: 14px;
+  border-left-color: transparent;
+}
+
+.tree-link:hover {
+  background: var(--surface);
+  color: var(--text);
+  border-left-color: var(--border-strong);
+}
+
+.tree-link.active {
+  background: var(--brand-bg);
+  color: var(--text-strong);
+  font-weight: 600;
+  border-left-color: var(--brand);
+  box-shadow: none;
+}
+
 .sidebar-footer {
   margin-top: auto;
   padding: 8px 8px 0;
@@ -480,13 +557,27 @@ tbody tr:nth-child(even) td {
     border-bottom: 1px solid var(--border);
   }
 
-  .nav-list {
+  .nav-list,
+  .tree-nav {
     flex-direction: row;
     flex-wrap: wrap;
   }
 
-  .nav-link {
+  .nav-link,
+  .tree-node {
     flex: 0 0 50%;
+  }
+
+  .tree-node-children {
+    display: none;
+  }
+
+  .tree-toggle-area {
+    display: none;
+  }
+
+  .tree-link.indented {
+    padding-left: 10px;
   }
 
   .topbar {
@@ -500,11 +591,13 @@ tbody tr:nth-child(even) td {
     padding: 16px;
   }
 
-  .nav-list {
+  .nav-list,
+  .tree-nav {
     flex-direction: column;
   }
 
-  .nav-link {
+  .nav-link,
+  .tree-node {
     flex: none;
   }
 }
