@@ -8,8 +8,9 @@ import { UserMenu } from "./UserMenu";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { listTenants, listEnvironments } from "../api/tenants";
 import { useEffect } from "react";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import { useAuth } from "../hooks/useAuth";
+import { initiateLogin } from "../api/auth";
 
 const navItems = [
   { label: "Setup", to: "/setup" },
@@ -54,14 +55,13 @@ export function AppShell() {
 
   const { data: user, isLoading: authLoading } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
 
   useEffect(() => {
     const pathname = location.pathname;
     if (!authLoading && !user && !/^\/(login|auth\/callback)$/.test(pathname)) {
-      navigate({ to: "/login" });
+      initiateLogin();
     }
-  }, [authLoading, user, location.pathname, navigate]);
+  }, [authLoading, user, location.pathname]);
 
   // After login the session is filtered to only the tenants the user has access
   // to.  If the current context (from localStorage) is no longer in that list,
