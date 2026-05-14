@@ -2,7 +2,7 @@ use alert_evaluator::evaluator::eval_threshold_rules;
 use domain::MetricPointRow;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::path::Path;
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::{clickhouse::ClickHouse, postgres::Postgres};
 use uuid::Uuid;
 

@@ -6,10 +6,10 @@ use auth_service::{
     validate,
 };
 use axum::{
+    Json, Router,
     extract::State,
     http::StatusCode,
     routing::{get, post},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;

@@ -2,7 +2,7 @@ use ingest_gateway::deployment_registry::DeploymentRegistry;
 use sqlx::PgPool;
 use std::path::Path;
 use std::sync::Arc;
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
 use uuid::Uuid;
 

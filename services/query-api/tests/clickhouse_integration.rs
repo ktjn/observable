@@ -1,11 +1,11 @@
 use clickhouse::Client;
 use domain::{LogRow, SpanRow};
-use query_api::logs::{fetch_log_rows, fetch_log_rows_since, LogSearchParams};
+use query_api::logs::{LogSearchParams, fetch_log_rows, fetch_log_rows_since};
 use query_api::planner::QueryPlanner;
 use query_api::traces::fetch_trace_spans;
 use std::collections::HashSet;
 use std::path::Path;
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::clickhouse::ClickHouse;
 use uuid::Uuid;
 

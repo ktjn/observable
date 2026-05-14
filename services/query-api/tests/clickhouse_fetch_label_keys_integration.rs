@@ -10,7 +10,7 @@
 use domain::MetricSeriesRow;
 use query_api::mcp_tools::fetch_label_keys;
 use std::path::Path;
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::clickhouse::ClickHouse;
 use uuid::Uuid;
 

@@ -1,9 +1,9 @@
 use query_api::alerts::{
-    create_alert_rule, list_alert_rules, silence_alert_rule, CreateRuleRequest,
+    CreateRuleRequest, create_alert_rule, list_alert_rules, silence_alert_rule,
 };
 use sqlx::PgPool;
 use std::path::Path;
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
 use uuid::Uuid;
 

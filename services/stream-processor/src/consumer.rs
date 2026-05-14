@@ -1,7 +1,7 @@
 use domain::TelemetryEnvelope;
 use rdkafka::{
-    consumer::{Consumer, StreamConsumer},
     ClientConfig, Message,
+    consumer::{Consumer, StreamConsumer},
 };
 
 pub struct QueueConsumer {

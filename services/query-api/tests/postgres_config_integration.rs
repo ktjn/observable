@@ -3,7 +3,7 @@ use query_api::config::{
 };
 use sqlx::PgPool;
 use std::path::Path;
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
 
 async fn apply_migrations(pool: &PgPool) {

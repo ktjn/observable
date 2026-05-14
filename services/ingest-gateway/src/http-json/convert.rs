@@ -20,10 +20,10 @@ pub fn extract_string_attr(attrs: &Value, key: &str) -> Option<String> {
 /// encoded as either a decimal string or a bare JSON number.  Both are accepted.
 fn parse_nano_timestamp(v: &Value) -> u64 {
     // String form: "1745606400000000000"
-    if let Some(s) = v.as_str() {
-        if let Ok(n) = s.parse::<u64>() {
-            return n;
-        }
+    if let Some(s) = v.as_str()
+        && let Ok(n) = s.parse::<u64>()
+    {
+        return n;
     }
     // Number form: 1745606400000000000
     v.as_u64().unwrap_or(0)
@@ -53,10 +53,10 @@ fn extract_otlp_any_value(v: &Value) -> Value {
             return Value::Number(n.into());
         }
     }
-    if let Some(d) = v.get("doubleValue").and_then(|x| x.as_f64()) {
-        if let Some(n) = serde_json::Number::from_f64(d) {
-            return Value::Number(n);
-        }
+    if let Some(d) = v.get("doubleValue").and_then(|x| x.as_f64())
+        && let Some(n) = serde_json::Number::from_f64(d)
+    {
+        return Value::Number(n);
     }
     if let Some(b) = v.get("boolValue").and_then(|x| x.as_bool()) {
         return Value::Bool(b);

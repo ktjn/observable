@@ -10,12 +10,12 @@
 // DB config lookup (fetch_db_key, fetch_db_value) can return "not configured".
 
 use axum::{
+    Router,
     body::Body,
     http::{Request, StatusCode},
     middleware as axum_middleware,
     response::Response,
     routing::post,
-    Router,
 };
 use clickhouse::Client as ChClient;
 use http_body_util::BodyExt;
@@ -23,7 +23,7 @@ use query_api::{llm_adapter, middleware::auth::TenantContext, planner::QueryPlan
 use serde_json::Value;
 use sqlx::postgres::PgPool;
 use std::{path::Path, sync::Arc};
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
 use tower::ServiceExt;
 use uuid::Uuid;

@@ -11,19 +11,19 @@
 //   - The response is advisory; callers must not feed it into automated alert evaluation,
 //     billing, or SLA enforcement.
 use crate::discovery::{
-    all_infrastructure_entity_types, fetch_infrastructure_summaries, InfrastructureEntityType,
+    InfrastructureEntityType, all_infrastructure_entity_types, fetch_infrastructure_summaries,
 };
 use crate::mcp_tools::get_metric_schema;
 use crate::middleware::auth::TenantContext;
 use crate::sql_templates::{
-    escape_string_value, generate_log_sql, generate_sql, parse_time_expr, LogSqlContext,
-    SchemaMetricType, SqlContext, SqlTemplateError,
+    LogSqlContext, SchemaMetricType, SqlContext, SqlTemplateError, escape_string_value,
+    generate_log_sql, generate_sql, parse_time_expr,
 };
 use crate::traces::AppState;
 use axum::{
+    Json,
     extract::{Extension, State},
     http::StatusCode,
-    Json,
 };
 use domain::{
     FieldRole, FieldRoleKind, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, VisualizationFrame,
@@ -299,10 +299,10 @@ async fn execute_log_query(
     for row in &mut data {
         if let Some(obj) = row.as_object_mut() {
             for field in ["attributes", "resource_attributes", "body"] {
-                if let Some(serde_json::Value::String(s)) = obj.get(field) {
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(s) {
-                        obj.insert(field.to_string(), parsed);
-                    }
+                if let Some(serde_json::Value::String(s)) = obj.get(field)
+                    && let Ok(parsed) = serde_json::from_str::<serde_json::Value>(s)
+                {
+                    obj.insert(field.to_string(), parsed);
                 }
             }
         }

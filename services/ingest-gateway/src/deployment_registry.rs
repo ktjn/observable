@@ -60,10 +60,10 @@ impl DeploymentRegistry {
 
         {
             let cache = self.cache.read().await;
-            if let Some(entry) = cache.get(&key) {
-                if entry.fetched_at.elapsed() < CACHE_TTL {
-                    return entry.deployment_id.clone();
-                }
+            if let Some(entry) = cache.get(&key)
+                && entry.fetched_at.elapsed() < CACHE_TTL
+            {
+                return entry.deployment_id.clone();
             }
         }
 
