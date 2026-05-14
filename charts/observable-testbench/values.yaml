@@ -69,7 +69,7 @@ otelGateway:
 
   image:
     repository: otel/opentelemetry-collector-contrib
-    tag: "0.150.1"
+    tag: "0.152.0"
     pullPolicy: IfNotPresent
 
   presets:
@@ -164,7 +164,7 @@ otelAgent:
 
   image:
     repository: otel/opentelemetry-collector-contrib
-    tag: "0.150.1"
+    tag: "0.152.0"
     pullPolicy: IfNotPresent
 
   presets:
