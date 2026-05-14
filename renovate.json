@@ -96,9 +96,11 @@
   "packageRules": [
     {
       "description": "Group everything into a single PR",
-      "matchPackagePatterns": [".*"],
       "groupName": "all-dependencies",
-      "groupSlug": "all-dependencies"
+      "groupSlug": "all-dependencies",
+      "matchPackageNames": [
+        "/.*/"
+      ]
     },
     {
       "description": "Pin Docker digests for production base images",
