@@ -138,7 +138,28 @@
       "Bash(docker build *)",
       "Skill(superpowers:systematic-debugging)",
       "Bash(gh run *)",
-      "Bash(xargs -I {} ls -la \"{}\")"
+      "Bash(xargs -I {} ls -la \"{}\")",
+      "Skill(superpowers:brainstorming)",
+      "Bash(Select-Object -First 50)",
+      "Bash(Format-Table FullName)",
+      "Bash(grep -E \"\\\\.\\(css|scss\\)$\")",
+      "Bash(grep \"\\\\.tsx\\\\|\\\\.ts$\")",
+      "PowerShell(npm run *)",
+      "PowerShell(Start-Process -FilePath \"cmd.exe\" -ArgumentList \"/c cd C:\\\\git\\\\Observable\\\\apps\\\\frontend && npm run dev\" -WindowStyle Normal)",
+      "PowerShell(Start-Sleep -Seconds 4; Invoke-WebRequest -Uri \"http://localhost:5173\" -UseBasicParsing -TimeoutSec 5 | Select-Object -ExpandProperty StatusCode)",
+      "Skill(superpowers:verification-before-completion)",
+      "Bash(grep -E \"\\\\.\\(ts|js\\)$\")",
+      "Skill(superpowers:finishing-a-development-branch)",
+      "Bash(npx playwright *)",
+      "Bash(npx kill-port *)",
+      "Skill(superpowers:executing-plans)",
+      "Skill(superpowers:writing-plans)",
+      "Skill(superpowers:subagent-driven-development)",
+      "Skill(superpowers:using-superpowers)",
+      "PowerShell(Set-Location 'C:\\\\git\\\\Observable\\\\apps\\\\frontend' && npx vitest run src/features/incidents/IncidentsPage.test.tsx 2>&1 | Where-Object { $_ -match \"\\(PASS|FAIL|passed|failed|Tests\\)\" })",
+      "PowerShell(Set-Location 'C:\\\\git\\\\Observable\\\\apps\\\\frontend' && npx vitest run src/features/incidents/IncidentsPage.test.tsx 2>&1 | Where-Object { $_ -match \"\\(PASS|FAIL|passed|failed|Tests|test\\)\" })",
+      "Bash(mv C:/git/Observable/docs/superpowers/plans/2026-05-15-incidents-uplift.md C:/git/Observable/archived/plans/)",
+      "Bash(mv C:/git/Observable/docs/superpowers/specs/2026-05-15-incidents-uplift-design.md C:/git/Observable/archived/plans/)"
     ]
   }
 }
