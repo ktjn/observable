@@ -1,4 +1,259 @@
-import { useState, type ReactNode } from "react";
+# TraceDetail Uplift Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Bring `TraceDetailPage` and `TraceDetail` to visual parity with the rest of the uplifted pages — `page-stack`/`page-header` layout, MetricCard summary row, service color legend, Panel wrappers around the waterfall and correlated-logs sections.
+
+**Architecture:** Changes are local to three files. `TraceDetailPage` gets a trivial loading/error fix. `TraceDetail` switches from a raw `div.grid` to `section.page-stack`, adds MetricCards and a service legend using data already computed from the spans prop, and wraps the waterfall and `LogCorrelatedList` in `Panel` components. `LogCorrelatedList` loses its internal `<h3>` label (now carried by the wrapping Panel title in the parent). No new API calls or hooks are introduced.
+
+**Tech Stack:** React, TypeScript, Tailwind CSS with CSS design-system variables, `@tanstack/react-query`, Vitest + React Testing Library.
+
+---
+
+## File Map
+
+| File | Action |
+|---|---|
+| `apps/frontend/src/pages/TraceDetailPage.tsx` | Modify — replace bare `<p>` loading/error states with `LoadingState`/`EmptyState` |
+| `apps/frontend/src/pages/TraceDetail.tsx` | Modify — full layout uplift: page-stack, page-header, MetricCards, service legend, Panel wrappers |
+| `apps/frontend/src/pages/TraceDetail.test.tsx` | Modify — add router mock, fix ambiguous `getByText("5.00ms")` |
+| `apps/frontend/src/pages/TraceDetail.renovation.test.tsx` | Modify — add router mock |
+| `apps/frontend/src/components/LogCorrelatedList.tsx` | Modify — remove `<h3>` section label (moved to Panel title in parent) |
+| `apps/frontend/src/components/LogCorrelatedList.render.test.tsx` | Modify — remove assertions on the heading texts that are no longer rendered by the component |
+
+---
+
+## Task 1: Fix TraceDetailPage loading and error states
+
+**Files:**
+- Modify: `apps/frontend/src/pages/TraceDetailPage.tsx`
+
+- [ ] **Step 1: Replace the file**
+
+```tsx
+import { useParams } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { getTrace } from "../api/traces";
+import { TraceDetail } from "./TraceDetail";
+import { EmptyState } from "../components/ui/empty-state";
+import { LoadingState } from "../components/ui/loading-state";
+import { useTenantContext } from "../hooks/useTenantContext";
+
+export default function TraceDetailPage() {
+  const { traceId } = useParams({ from: "/traces/$traceId" });
+  const { tenantId } = useTenantContext();
+  const { data, isLoading } = useQuery({
+    queryKey: ["trace", tenantId, traceId],
+    queryFn: () => getTrace(tenantId, traceId),
+  });
+  if (isLoading) return <LoadingState>Loading trace…</LoadingState>;
+  if (!data) return <EmptyState title="Trace not found." />;
+  return <TraceDetail traceId={data.trace_id} spans={data.spans} events={data.events} />;
+}
+```
+
+- [ ] **Step 2: Run the full frontend test suite to confirm nothing broke**
+
+```
+cd apps/frontend && npx vitest run
+```
+
+Expected: All existing tests pass.
+
+- [ ] **Step 3: Commit**
+
+```
+git add apps/frontend/src/pages/TraceDetailPage.tsx
+git commit -m "fix(traces): replace bare loading/error states with LoadingState and EmptyState"
+```
+
+---
+
+## Task 2: Update existing TraceDetail tests — add router mock and fix ambiguous assertion
+
+**Files:**
+- Modify: `apps/frontend/src/pages/TraceDetail.test.tsx`
+- Modify: `apps/frontend/src/pages/TraceDetail.renovation.test.tsx`
+
+After the uplift in Task 3, `TraceDetail` will render a `<Link to="/traces">` from `@tanstack/react-router`. Without a router context the component throws. Both existing test files need the same mock.
+
+Additionally, in `TraceDetail.test.tsx` the assertion `getByText("5.00ms")` will become ambiguous: the Duration MetricCard and the span row both show `5.00ms` for a single-span trace. Fix it now.
+
+- [ ] **Step 1: Add the router mock and fix the assertion in `TraceDetail.test.tsx`**
+
+At the top of the file (after the existing imports, before `const queryClient = ...`), add:
+
+```tsx
+vi.mock("@tanstack/react-router", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    Link: ({
+      children,
+      ...props
+    }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { children?: React.ReactNode }) => (
+      <a {...props}>{children}</a>
+    ),
+  };
+});
+```
+
+Also add `vi` to the existing import from `vitest`:
+
+```tsx
+import { vi } from "vitest";
+```
+
+Then change the `"renders waterfall with spans"` test — replace the `getByText("5.00ms")` assertion with a specific span-row check:
+
+```tsx
+test("renders waterfall with spans", () => {
+  render(
+    <QueryClientProvider client={queryClient}>
+      <TenantContextProvider>
+        <TimeDisplayProvider>
+          <TraceDetail traceId="abc" spans={[baseSpan]} />
+        </TimeDisplayProvider>
+      </TenantContextProvider>
+    </QueryClientProvider>
+  );
+  expect(screen.getByText(/POST \/order/)).toBeInTheDocument();
+  // duration appears in the span row (and after uplift also in the Duration MetricCard)
+  expect(screen.getAllByText("5.00ms").length).toBeGreaterThanOrEqual(1);
+});
+```
+
+- [ ] **Step 2: Add the router mock to `TraceDetail.renovation.test.tsx`**
+
+At the top of the file (after the existing imports, before `function wrapper ...`), add:
+
+```tsx
+vi.mock("@tanstack/react-router", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    Link: ({
+      children,
+      ...props
+    }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { children?: React.ReactNode }) => (
+      <a {...props}>{children}</a>
+    ),
+  };
+});
+```
+
+- [ ] **Step 3: Run both test files to confirm they still pass**
+
+```
+cd apps/frontend && npx vitest run src/pages/TraceDetail.test.tsx src/pages/TraceDetail.renovation.test.tsx
+```
+
+Expected: All tests pass (the router mock is inert until `Link` is actually used).
+
+---
+
+## Task 3: Write new failing tests for the uplift, then implement
+
+**Files:**
+- Modify: `apps/frontend/src/pages/TraceDetail.test.tsx`
+- Modify: `apps/frontend/src/pages/TraceDetail.tsx`
+
+### Step 3a — Write the new failing tests
+
+- [ ] **Step 1: Add the new tests to the end of `TraceDetail.test.tsx`**
+
+First, add `searchLogs` mock setup to the existing `beforeEach` if absent. Since the existing file has no `beforeEach`, add one after the `queryClient` declaration and before the existing tests:
+
+```tsx
+import * as logsApi from "../api/logs";
+
+// ... existing code ...
+
+beforeEach(() => {
+  vi.spyOn(logsApi, "searchLogs").mockResolvedValue({ logs: [], total: 0, facets: {} });
+});
+```
+
+Then add these tests at the end of the file:
+
+```tsx
+test("renders page-header with Traces eyebrow and truncated trace ID", () => {
+  render(<TraceDetail traceId="abcdef1234567890xyz" spans={[baseSpan]} />, { wrapper });
+  expect(screen.getByText("Traces")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("abcdef12345678…");
+});
+
+test("renders Back to traces link", () => {
+  render(<TraceDetail traceId="abc" spans={[baseSpan]} />, { wrapper });
+  const link = screen.getByRole("link", { name: "Back to traces" });
+  expect(link).toBeInTheDocument();
+  expect(link).toHaveAttribute("href", "/traces");
+});
+
+test("renders MetricCard row with span count, duration, services, and errors", () => {
+  const errorSpan = { ...baseSpan, span_id: "222", status_code: "ERROR" };
+  render(<TraceDetail traceId="abc" spans={[baseSpan, errorSpan]} />, { wrapper });
+  expect(screen.getByText("Total Spans")).toBeInTheDocument();
+  expect(screen.getByText("Duration")).toBeInTheDocument();
+  expect(screen.getByText("Services")).toBeInTheDocument();
+  expect(screen.getByText("Errors")).toBeInTheDocument();
+});
+
+test("Errors MetricCard has bad tone when there are error spans", () => {
+  const errorSpan = { ...baseSpan, span_id: "222", status_code: "ERROR" };
+  render(<TraceDetail traceId="abc" spans={[baseSpan, errorSpan]} />, { wrapper });
+  // The error count MetricCard value is "1"
+  expect(screen.getByText("Errors")).toBeInTheDocument();
+});
+
+test("renders service color legend with unique service names", () => {
+  const paymentSpan = {
+    ...baseSpan,
+    span_id: "222",
+    service_name: "payment",
+  };
+  render(<TraceDetail traceId="abc" spans={[baseSpan, paymentSpan]} />, { wrapper });
+  const legend = screen.getByRole("generic", { name: "Service color legend" });
+  expect(legend).toBeInTheDocument();
+  expect(legend).toHaveTextContent("checkout");
+  expect(legend).toHaveTextContent("payment");
+});
+
+test("service color legend deduplicates services", () => {
+  const span2 = { ...baseSpan, span_id: "222" };
+  render(<TraceDetail traceId="abc" spans={[baseSpan, span2]} />, { wrapper });
+  const legend = screen.getByRole("generic", { name: "Service color legend" });
+  // Only one "checkout" entry despite two spans from the same service
+  expect(legend.querySelectorAll("span[aria-hidden]")).toHaveLength(1);
+});
+
+test("waterfall is wrapped in a Panel with Spans heading", () => {
+  render(<TraceDetail traceId="abc" spans={[baseSpan]} />, { wrapper });
+  expect(screen.getByText("Spans")).toBeInTheDocument();
+  expect(screen.getByText("Waterfall")).toBeInTheDocument();
+});
+
+test("correlated logs panel shows Trace-correlated logs title when no span selected", () => {
+  render(<TraceDetail traceId="abc" spans={[baseSpan]} />, { wrapper });
+  expect(screen.getByText("Trace-correlated logs")).toBeInTheDocument();
+  expect(screen.getByText("Correlation")).toBeInTheDocument();
+});
+```
+
+- [ ] **Step 2: Run new tests to confirm they fail**
+
+```
+cd apps/frontend && npx vitest run src/pages/TraceDetail.test.tsx
+```
+
+Expected: The 7 new tests FAIL (component does not yet have the new structure).
+
+### Step 3b — Implement the TraceDetail uplift
+
+- [ ] **Step 3: Replace the entire `TraceDetail.tsx` file**
+
+```tsx
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Span, SpanEvent } from "../api/traces";
 import { LogCorrelatedList } from "../components/LogCorrelatedList";
@@ -97,7 +352,7 @@ function CopyButton({ value }: { value: string }) {
   );
 }
 
-function SectionHeader({ children }: { children: ReactNode }) {
+function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
     <h3 className="m-0 mt-4 mb-2 text-xs font-bold uppercase text-[var(--muted)] border-b border-[var(--border)] pb-1">
       {children}
@@ -110,7 +365,7 @@ function DlRow({
   children,
 }: {
   label: string;
-  children: ReactNode;
+  children: React.ReactNode;
 }) {
   return (
     <div className="contents">
@@ -462,3 +717,176 @@ export function TraceDetail({ traceId, spans, events }: Props) {
     </section>
   );
 }
+```
+
+- [ ] **Step 4: Run new tests to confirm they pass**
+
+```
+cd apps/frontend && npx vitest run src/pages/TraceDetail.test.tsx
+```
+
+Expected: All tests pass including the 7 new ones.
+
+- [ ] **Step 5: Run renovation tests to confirm they still pass**
+
+```
+cd apps/frontend && npx vitest run src/pages/TraceDetail.renovation.test.tsx
+```
+
+Expected: All 3 tests pass.
+
+- [ ] **Step 6: Commit**
+
+```
+git add apps/frontend/src/pages/TraceDetail.tsx apps/frontend/src/pages/TraceDetail.test.tsx apps/frontend/src/pages/TraceDetail.renovation.test.tsx
+git commit -m "feat(traces): uplift TraceDetail with page-stack, MetricCards, service legend, and Panel wrappers"
+```
+
+---
+
+## Task 4: Remove h3 from LogCorrelatedList and wrap in Panel in TraceDetail
+
+**Context:** After Task 3, `LogCorrelatedList` is wrapped in a Panel whose `title` carries the dynamic label ("Trace-correlated logs" / "Exact span logs…"). The `<h3>` inside `LogCorrelatedList` is now redundant and creates a duplicate heading. Remove it. Update `LogCorrelatedList.render.test.tsx` to remove the assertions that checked for that heading (the heading now lives in the parent).
+
+**Files:**
+- Modify: `apps/frontend/src/components/LogCorrelatedList.tsx`
+- Modify: `apps/frontend/src/components/LogCorrelatedList.render.test.tsx`
+
+- [ ] **Step 1: Remove the `<h3>` from `LogCorrelatedList.tsx`**
+
+In `LogCorrelatedList.tsx`, the `return` block currently starts with:
+
+```tsx
+return (
+  <div className="mt-5">
+    <h3 className="text-sm font-bold text-[var(--text-strong)] mb-2">
+      {spanId
+        ? `Exact span logs and trace-level logs (${spanId.substring(0, 8)})`
+        : "Trace-correlated logs"}
+    </h3>
+    <LogList
+```
+
+Replace with (remove the `<h3>` and the outer `div.mt-5`, since Panel provides the spacing):
+
+```tsx
+return (
+  <div>
+    <LogList
+```
+
+Full replacement for the entire `return` block in `LogCorrelatedList`:
+
+```tsx
+  return (
+    <div>
+      <LogList
+        logs={logs}
+        loading={isLoading}
+        emptyMessage="No correlated logs found."
+        onRowClick={(log) => setFocusedLogId(log.log_id)}
+        showTraceLink
+        timeFormat={format}
+      />
+      {focusedLogId && (
+        <LogContextView logId={focusedLogId} onClose={() => setFocusedLogId(undefined)} />
+      )}
+    </div>
+  );
+```
+
+- [ ] **Step 2: Update `LogCorrelatedList.render.test.tsx` — remove heading assertions**
+
+The tests at lines 66–79 and 81–94 assert that heading text is rendered by the component. After removing the `<h3>`, those assertions must change to verify the content (log rows) rather than the heading.
+
+Replace the `"shows trace-correlated heading when no span selected"` test:
+
+```tsx
+test("shows all logs when no span selected", async () => {
+  vi.spyOn(logsApi, "searchLogs").mockResolvedValue({
+    logs: [traceLog, spanLog],
+    total: 2,
+    facets: {},
+  });
+
+  render(<LogCorrelatedList traceId="trace-abc" />, { wrapper });
+  await waitFor(() =>
+    expect(screen.getByText("trace level message")).toBeInTheDocument()
+  );
+  expect(screen.getByText("span level message")).toBeInTheDocument();
+});
+```
+
+Replace the `"shows span-scoped heading and filters when spanId is provided"` test:
+
+```tsx
+test("filters to exact span logs and trace-level logs when spanId provided", async () => {
+  vi.spyOn(logsApi, "searchLogs").mockResolvedValue({
+    logs: [traceLog, spanLog],
+    total: 2,
+    facets: {},
+  });
+
+  render(<LogCorrelatedList traceId="trace-abc" spanId="span-111" />, { wrapper });
+  await waitFor(() =>
+    expect(screen.getByText("span level message")).toBeInTheDocument()
+  );
+  expect(screen.getByText("trace level message")).toBeInTheDocument();
+});
+```
+
+- [ ] **Step 3: Run `LogCorrelatedList` tests to confirm they pass**
+
+```
+cd apps/frontend && npx vitest run src/components/LogCorrelatedList
+```
+
+Expected: All tests pass.
+
+- [ ] **Step 4: Run the full frontend test suite**
+
+```
+cd apps/frontend && npx vitest run
+```
+
+Expected: All tests pass.
+
+- [ ] **Step 5: Commit**
+
+```
+git add apps/frontend/src/components/LogCorrelatedList.tsx apps/frontend/src/components/LogCorrelatedList.render.test.tsx
+git commit -m "refactor(traces): remove LogCorrelatedList self-label h3, heading now in parent Panel"
+```
+
+---
+
+## Task 5: Open pull request
+
+- [ ] **Step 1: Push and open PR**
+
+```
+git push -u origin HEAD
+gh pr create --title "feat(traces): uplift TraceDetail with page-stack, MetricCards, service color legend, and Panel wrappers" --body "$(cat <<'EOF'
+## Summary
+- Replace bare \`<p>Loading…</p>\` / \`<p>Not found</p>\` states in TraceDetailPage with \`LoadingState\` and \`EmptyState\`
+- Switch TraceDetail wrapper from \`div.grid\` to \`section.page-stack\`
+- Add \`page-header\` with Traces eyebrow, truncated trace ID h1, and Back-to-traces link
+- Add MetricCard row: Total Spans, Duration, Services (unique), Errors (red when > 0)
+- Add service color legend — one dot per unique service mapped via \`serviceColor()\`
+- Wrap waterfall in \`Panel eyebrow="Waterfall" title="Spans"\`
+- Wrap correlated logs in \`Panel eyebrow="Correlation" title={dynamic}\` — dynamic title reflects selected span
+- Remove redundant \`<h3>\` from \`LogCorrelatedList\` (title now in parent Panel)
+
+## Test plan
+- [ ] \`npx vitest run src/pages/TraceDetail.test.tsx\` — all tests pass
+- [ ] \`npx vitest run src/pages/TraceDetail.renovation.test.tsx\` — all tests pass
+- [ ] \`npx vitest run src/components/LogCorrelatedList\` — all tests pass
+- [ ] \`npx vitest run\` — full suite clean
+- [ ] Open \`/traces/<any-trace-id>\` in browser — MetricCards visible, service legend shows, waterfall in Panel, correlated logs in Panel
+- [ ] Click a span — SpanContextPanel appears inside waterfall Panel, Correlation panel title updates to span-scoped label
+- [ ] Click Back to traces — navigates to /traces
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF
+)"
+```

@@ -1,8 +1,24 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { vi } from "vitest";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
 import { TenantContextProvider } from "../hooks/useTenantContext";
 import { TraceDetail } from "./TraceDetail";
+import * as logsApi from "../api/logs";
+
+vi.mock("@tanstack/react-router", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    Link: ({
+      children,
+      to,
+      ...props
+    }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { to?: string; children?: React.ReactNode }) => (
+      <a href={to} {...props}>{children}</a>
+    ),
+  };
+});
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false } },
@@ -38,6 +54,10 @@ const baseSpan = {
   deployment_id: "deploy-123",
 };
 
+beforeEach(() => {
+  vi.spyOn(logsApi, "searchLogs").mockResolvedValue({ logs: [], total: 0, facets: {} });
+});
+
 test("renders waterfall with spans", () => {
   render(
     <QueryClientProvider client={queryClient}>
@@ -49,7 +69,7 @@ test("renders waterfall with spans", () => {
     </QueryClientProvider>
   );
   expect(screen.getByText(/POST \/order/)).toBeInTheDocument();
-  expect(screen.getByText("5.00ms")).toBeInTheDocument();
+  expect(screen.getAllByText("5.00ms").length).toBeGreaterThanOrEqual(1);
 });
 
 test("renders infra pill links when spans have resource_attributes", () => {
@@ -121,4 +141,64 @@ test("span context panel scrolls internally when content overflows", () => {
 
   const panel = screen.getByRole("complementary", { name: "Selected span context" });
   expect(panel).toHaveClass("overflow-y-auto");
+});
+
+test("renders page-header with Traces eyebrow and truncated trace ID", () => {
+  render(<TraceDetail traceId="abcdef1234567890xyz" spans={[baseSpan]} />, { wrapper });
+  expect(screen.getByText("Traces")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("abcdef1234567890…");
+});
+
+test("renders Back to traces link", () => {
+  render(<TraceDetail traceId="abc" spans={[baseSpan]} />, { wrapper });
+  const link = screen.getByRole("link", { name: "Back to traces" });
+  expect(link).toBeInTheDocument();
+  expect(link).toHaveAttribute("href", "/traces");
+});
+
+test("renders MetricCard row with span count, duration, services, and errors", () => {
+  const errorSpan = { ...baseSpan, span_id: "222", status_code: "ERROR" };
+  render(<TraceDetail traceId="abc" spans={[baseSpan, errorSpan]} />, { wrapper });
+  expect(screen.getByText("Total Spans")).toBeInTheDocument();
+  expect(screen.getByText("Duration")).toBeInTheDocument();
+  expect(screen.getByText("Services")).toBeInTheDocument();
+  expect(screen.getByText("Errors")).toBeInTheDocument();
+});
+
+test("Errors MetricCard is present when there are error spans", () => {
+  const errorSpan = { ...baseSpan, span_id: "222", status_code: "ERROR" };
+  render(<TraceDetail traceId="abc" spans={[baseSpan, errorSpan]} />, { wrapper });
+  expect(screen.getByText("Errors")).toBeInTheDocument();
+});
+
+test("renders service color legend with unique service names", () => {
+  const paymentSpan = {
+    ...baseSpan,
+    span_id: "222",
+    service_name: "payment",
+  };
+  render(<TraceDetail traceId="abc" spans={[baseSpan, paymentSpan]} />, { wrapper });
+  const legend = screen.getByRole("generic", { name: "Service color legend" });
+  expect(legend).toBeInTheDocument();
+  expect(legend).toHaveTextContent("checkout");
+  expect(legend).toHaveTextContent("payment");
+});
+
+test("service color legend deduplicates services", () => {
+  const span2 = { ...baseSpan, span_id: "222" };
+  render(<TraceDetail traceId="abc" spans={[baseSpan, span2]} />, { wrapper });
+  const legend = screen.getByRole("generic", { name: "Service color legend" });
+  expect(legend.querySelectorAll("span[aria-hidden]")).toHaveLength(1);
+});
+
+test("waterfall is wrapped in a Panel with Spans heading", () => {
+  render(<TraceDetail traceId="abc" spans={[baseSpan]} />, { wrapper });
+  expect(screen.getByText("Spans")).toBeInTheDocument();
+  expect(screen.getByText("Waterfall")).toBeInTheDocument();
+});
+
+test("correlated logs panel shows Trace-correlated logs title when no span selected", () => {
+  render(<TraceDetail traceId="abc" spans={[baseSpan]} />, { wrapper });
+  expect(screen.getByText("Trace-correlated logs")).toBeInTheDocument();
+  expect(screen.getByText("Correlation")).toBeInTheDocument();
 });
