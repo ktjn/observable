@@ -53,6 +53,13 @@ export function TraceResultsTable({
   );
 }
 
+function durationToneClass(durationNs: number): string {
+  const ms = durationNs / 1_000_000;
+  if (ms > 500) return "text-[var(--bad)]";
+  if (ms > 100) return "text-[var(--warn)]";
+  return "text-[var(--good)]";
+}
+
 function TraceResultsRow({
   trace,
   selected,
@@ -75,11 +82,19 @@ function TraceResultsRow({
   const root = trace.spans[0];
   if (!root) return null;
 
+  const isError = root.status_code === "ERROR";
+  const isSlowMs = root.duration_ns / 1_000_000 > 2000;
+  const accentClass = isError
+    ? "border-l-2 border-l-[var(--bad)]"
+    : isSlowMs
+      ? "border-l-2 border-l-[var(--warn)]"
+      : "";
+
   return (
     <tr
       ref={measureRef}
       data-index={index}
-      className={`modern-table-row ${mode === "select" ? "cursor-pointer" : ""} ${selected ? "bg-[var(--surface-subtle)]" : ""}`}
+      className={`modern-table-row ${accentClass} ${mode === "select" ? "cursor-pointer" : ""} ${selected ? "bg-[var(--surface-subtle)]" : ""}`}
       onClick={mode === "select" ? onSelect : undefined}
       onKeyDown={
         mode === "select" ? (e) => (e.key === "Enter" || e.key === " ") && onSelect() : undefined
@@ -107,9 +122,11 @@ function TraceResultsRow({
       </td>
       {showServiceColumn && <td>{root.service_name}</td>}
       <td className="whitespace-normal break-all">{root.operation_name}</td>
-      <td>{(root.duration_ns / 1e6).toFixed(2)}ms</td>
+      <td className={`whitespace-nowrap font-mono ${durationToneClass(root.duration_ns)}`}>
+        {(root.duration_ns / 1e6).toFixed(2)}ms
+      </td>
       <td>
-        <Badge tone={root.status_code === "ERROR" ? "bad" : "good"}>{root.status_code}</Badge>
+        <Badge tone={isError ? "bad" : "good"}>{root.status_code}</Badge>
       </td>
     </tr>
   );
