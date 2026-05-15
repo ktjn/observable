@@ -6,7 +6,7 @@ import { LoadingState } from "../../components/ui/loading-state";
 import { Panel } from "../../components/ui/panel";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import { useTimeDisplay } from "../../lib/timeDisplay";
-import { formatTimestamp } from "../../utils/formatTimestamp";
+import { formatTimestamp, isoToNs } from "../../utils/formatTimestamp";
 
 function severityColor(severity: string): "bad" | "warn" | "neutral" {
   switch (severity) {
@@ -36,10 +36,6 @@ function eventGlyph(eventType: string): string {
     case "deployment_linked": return "↑";
     default:                  return "·";
   }
-}
-
-function isoToNs(iso: string): number {
-  return new Date(iso).getTime() * 1_000_000;
 }
 
 export function IncidentDetailPage() {

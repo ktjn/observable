@@ -9,7 +9,7 @@ import { MetricCard } from "../../components/ui/metric-card";
 import { Panel } from "../../components/ui/panel";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import { useTimeDisplay } from "../../lib/timeDisplay";
-import { formatTimestamp } from "../../utils/formatTimestamp";
+import { formatTimestamp, isoToNs } from "../../utils/formatTimestamp";
 
 type StatusFilter = "" | "triggered" | "acknowledged" | "resolved";
 
@@ -30,10 +30,6 @@ function statusColor(status: string): "bad" | "warn" | "good" | "neutral" {
   }
 }
 
-function isoToNs(iso: string): number {
-  return new Date(iso).getTime() * 1_000_000;
-}
-
 export function IncidentsPage() {
   const { tenantId } = useTenantContext();
   const { format } = useTimeDisplay();
@@ -49,7 +45,7 @@ export function IncidentsPage() {
   const acknowledgedCount = items.filter((i) => i.status === "acknowledged").length;
   const resolvedCount     = items.filter((i) => i.status === "resolved").length;
 
-  const resolvedItems = items.filter((i) => i.resolved_at);
+  const resolvedItems = items.filter((i) => i.status === "resolved" && i.resolved_at !== null);
   const mttrMin = resolvedItems.length
     ? Math.round(
         resolvedItems.reduce(
@@ -115,14 +111,14 @@ export function IncidentsPage() {
         })}
       </div>
 
-      <Panel title="Incidents" eyebrow="Active and historical">
+      <Panel eyebrow="Active and historical">
         {isLoading ? (
           <LoadingState>Loading incidents...</LoadingState>
         ) : !filteredItems.length ? (
           <EmptyState title="No incidents found." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm" aria-label="Incidents">
+            <table className="w-full text-sm" aria-label="Incidents list">
               <thead>
                 <tr className="border-b text-left">
                   <th className="pb-2 pr-4">Title</th>

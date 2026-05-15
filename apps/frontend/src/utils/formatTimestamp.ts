@@ -57,3 +57,7 @@ export function formatTimestamp(nanos: string | number, format: TimeFormat): str
     }
   }
 }
+
+export function isoToNs(iso: string): number {
+  return new Date(iso).getTime() * 1_000_000;
+}
