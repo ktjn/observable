@@ -25,11 +25,6 @@ export function LogCorrelatedList({ traceId, spanId }: Props) {
 
   return (
     <div className="mt-5">
-      <h3 className="text-sm font-bold text-[var(--text-strong)] mb-2">
-        {spanId
-          ? `Exact span logs and trace-level logs (${spanId.substring(0, 8)})`
-          : "Trace-correlated logs"}
-      </h3>
       <LogList
         logs={logs}
         loading={isLoading}
