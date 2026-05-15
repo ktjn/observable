@@ -67,18 +67,23 @@ beforeEach(() => {
 test("renders page header with Reliability eyebrow", async () => {
   vi.spyOn(incidentsApi, "listIncidents").mockResolvedValue({ items: sampleIncidents });
   renderPage();
-  await waitFor(() => screen.getByText("Incidents"));
+  await waitFor(() => screen.getByRole("heading", { level: 1, name: "Incidents" }));
   expect(screen.getByText("Reliability")).toBeInTheDocument();
 });
 
 test("renders MetricCard summary row with correct counts", async () => {
   vi.spyOn(incidentsApi, "listIncidents").mockResolvedValue({ items: sampleIncidents });
   renderPage();
-  await waitFor(() => screen.getByText("Total"));
+  // Wait for the data to load by checking for a metric value or the table content
+  await waitFor(() => expect(screen.getByText("Database CPU spike")).toBeInTheDocument());
   expect(screen.getByText("Total")).toBeInTheDocument();
-  expect(screen.getByText("Triggered")).toBeInTheDocument();
-  expect(screen.getByText("Acknowledged")).toBeInTheDocument();
-  expect(screen.getByText("Resolved")).toBeInTheDocument();
+  // Use getAllByText for labels that appear in multiple places (pill + metric)
+  const triggeredLabels = screen.getAllByText("Triggered");
+  expect(triggeredLabels.length).toBeGreaterThanOrEqual(1);
+  const acknowledgedLabels = screen.getAllByText("Acknowledged");
+  expect(acknowledgedLabels.length).toBeGreaterThanOrEqual(1);
+  const resolvedLabels = screen.getAllByText("Resolved");
+  expect(resolvedLabels.length).toBeGreaterThanOrEqual(1);
   expect(screen.getByText("MTTR")).toBeInTheDocument();
   // 3 total, 1 triggered, 1 acknowledged, 1 resolved
   expect(screen.getByRole("group", { name: "Incident summary" })).toBeInTheDocument();
