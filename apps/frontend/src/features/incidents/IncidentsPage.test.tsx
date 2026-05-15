@@ -12,6 +12,15 @@ vi.mock("../../lib/timeDisplay", () => ({
   useTimeDisplay: () => ({ format: "iso-local-ms" }),
 }));
 
+vi.mock("@tanstack/react-router", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    Link: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { children?: React.ReactNode }) =>
+      <a {...props}>{children}</a>,
+  };
+});
+
 const sampleIncidents: incidentsApi.IncidentItem[] = [
   {
     incident_id: "inc-1",
@@ -73,6 +82,10 @@ test("renders MetricCard summary row with correct counts", async () => {
   expect(screen.getByText("MTTR")).toBeInTheDocument();
   // 3 total, 1 triggered, 1 acknowledged, 1 resolved
   expect(screen.getByRole("group", { name: "Incident summary" })).toBeInTheDocument();
+  // Verify numeric values are rendered (Total=3, each status=1, MTTR=30m)
+  expect(screen.getByText("3")).toBeInTheDocument();
+  expect(screen.getAllByText("1").length).toBeGreaterThanOrEqual(3);
+  expect(screen.getByText("30m")).toBeInTheDocument();
 });
 
 test("renders filter pills and filters table on click", async () => {
@@ -103,5 +116,5 @@ test("MTTR shows dash when no resolved incidents", async () => {
   vi.spyOn(incidentsApi, "listIncidents").mockResolvedValue({ items: noResolved });
   renderPage();
   await waitFor(() => screen.getByText("MTTR"));
-  expect(screen.getByText("—")).toBeInTheDocument();
+  expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1);
 });
