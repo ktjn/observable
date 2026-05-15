@@ -95,6 +95,16 @@ const serviceTracesRoute = createRoute({
   path: "/services/$serviceId/traces",
   component: ServiceDetailPage,
 });
+const serviceDeploymentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/services/$serviceId/deployments",
+  component: ServiceDetailPage,
+});
+const serviceAlertsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/services/$serviceId/alerts",
+  component: ServiceDetailPage,
+});
 const infrastructureRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/infrastructure",
@@ -199,6 +209,8 @@ export const router = createRouter({
     serviceLogsRoute,
     serviceMetricsRoute,
     serviceTracesRoute,
+    serviceDeploymentsRoute,
+    serviceAlertsRoute,
     infrastructureRoute,
     infrastructureDetailRoute,
     serviceOverviewRoute,
