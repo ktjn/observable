@@ -103,11 +103,12 @@ describe("TreeNav", () => {
     expect(setupLink).toHaveClass("active");
   });
 
-  test("marks parent active when child route is active", () => {
+  test("marks parent with has-active-child when child route is active", () => {
     render(<TreeNav items={testItems} pathname="/admin/identity" />);
 
     const adminLabel = screen.getByText("Administration").closest("span");
-    expect(adminLabel).toHaveClass("active");
+    expect(adminLabel).toHaveClass("has-active-child");
+    expect(adminLabel).not.toHaveClass("active");
   });
 
   test("renders links for items with 'to' prop", () => {

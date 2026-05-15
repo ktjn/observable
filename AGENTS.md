@@ -112,9 +112,13 @@ You **MUST** run `bash scripts/local-ci.sh` before pushing **ANY** code changes.
 
 **Note:** Pure documentation changes (files under `docs/`, `spec/`, or any `.md` files) are exempt.
 
-For any Rust code change, run `cargo fmt --all` explicitly before pushing, even though `scripts/local-ci.sh` also runs Rust formatting. Fix formatting drift before staging or pushing.
+**For any Rust code change — run this first, every time, no exceptions:**
+```
+cargo fmt --all
+```
+Run it before staging, before committing, and before local-ci. Rust formatting is enforced inside the Docker build; a format error will fail CI. Do not skip this step.
 
-`scripts/local-ci.sh` runs: Rust fmt, clippy, tests, frontend typecheck/lint/build/test, Helm lint, Docker image build, and smoke test.
+`scripts/local-ci.sh` runs: frontend typecheck/lint/build/test, Helm lint, Docker image build (which includes Rust fmt, clippy, and unit tests), and smoke test.
 
 Use flags to skip stages when Docker or Node are unavailable:
 - `--skip-docker` — skip image build and smoke test

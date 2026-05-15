@@ -137,7 +137,8 @@
       "Bash(echo \"EXIT:$?\")",
       "Bash(docker build *)",
       "Skill(superpowers:systematic-debugging)",
-      "Bash(gh run *)"
+      "Bash(gh run *)",
+      "Bash(xargs -I {} ls -la \"{}\")"
     ]
   }
 }
