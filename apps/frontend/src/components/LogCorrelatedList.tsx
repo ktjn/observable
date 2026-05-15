@@ -24,7 +24,7 @@ export function LogCorrelatedList({ traceId, spanId }: Props) {
   const logs = filterCorrelatedLogs(data?.logs ?? [], spanId);
 
   return (
-    <div className="mt-5">
+    <div>
       <LogList
         logs={logs}
         loading={isLoading}
