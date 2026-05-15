@@ -21,6 +21,8 @@ import type { VisualizationFrame } from "../api/nlq";
 import { VisualizationPanel } from "../features/nlq/VisualizationPanel";
 import { ServiceMetricsWorkspace } from "../features/metrics/ServiceMetricsWorkspace";
 import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
+import { ServiceDeploymentsTab } from "../features/services/ServiceDeploymentsTab";
+import { ServiceAlertsTab } from "../features/services/ServiceAlertsTab";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
@@ -188,11 +190,13 @@ function ServiceDetailView({
   );
 }
 
-type ServiceSignalTab = "logs" | "metrics" | "traces";
+type ServiceSignalTab = "logs" | "metrics" | "traces" | "deployments" | "alerts";
 
 function signalTabFromPath(pathname: string): ServiceSignalTab {
   if (pathname.endsWith("/metrics")) return "metrics";
   if (pathname.endsWith("/traces")) return "traces";
+  if (pathname.endsWith("/deployments")) return "deployments";
+  if (pathname.endsWith("/alerts")) return "alerts";
   return "logs";
 }
 
@@ -214,9 +218,11 @@ function ServiceSignalTabs({
 }) {
   const encodedService = encodeURIComponent(serviceName);
   const tabLinks = [
-    { tab: "logs" as const,    label: "Logs",    to: "/services/$serviceId/logs" },
-    { tab: "metrics" as const, label: "Metrics", to: "/services/$serviceId/metrics" },
-    { tab: "traces" as const,  label: "Traces",  to: "/services/$serviceId/traces" },
+    { tab: "logs" as const,         label: "Logs",        to: "/services/$serviceId/logs" },
+    { tab: "metrics" as const,      label: "Metrics",     to: "/services/$serviceId/metrics" },
+    { tab: "traces" as const,       label: "Traces",      to: "/services/$serviceId/traces" },
+    { tab: "deployments" as const,  label: "Deployments", to: "/services/$serviceId/deployments" },
+    { tab: "alerts" as const,       label: "Alerts",      to: "/services/$serviceId/alerts" },
   ];
 
   return (
@@ -255,6 +261,10 @@ function ServiceSignalTabs({
           <ServiceTracesTab serviceName={serviceName} />
         )
       )}
+      {activeTab === "deployments" && (
+        <ServiceDeploymentsTab serviceName={serviceName} />
+      )}
+      {activeTab === "alerts" && <ServiceAlertsTab />}
     </Panel>
   );
 }
