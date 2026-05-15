@@ -68,11 +68,18 @@ function LogResultsRow({
   const severity = otelSeverity(log.severity_number);
   const message = formatLogMessage(log.body);
 
+  const accentClass =
+    severity.tone === "bad"
+      ? "border-l-2 border-l-[var(--bad)]"
+      : severity.tone === "warn"
+        ? "border-l-2 border-l-[var(--warn)]"
+        : "";
+
   return (
     <tr
       ref={measureRef}
       data-index={index}
-      className={`modern-table-row cursor-pointer ${selected ? "bg-[var(--surface-subtle)]" : ""}`}
+      className={`modern-table-row cursor-pointer ${accentClass} ${selected ? "bg-[var(--surface-subtle)]" : ""}`}
       onClick={onSelect}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelect()}
       tabIndex={0}
