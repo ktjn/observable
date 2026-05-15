@@ -449,7 +449,94 @@ Target: WCAG 2.1 AA (spec/05-frontend.md §9.11).
 
 ---
 
-## 12. Adding New Components
+## 12. Inventory & Catalog Page Patterns
+
+These patterns apply to all list/inventory views (Services, Infrastructure, etc.) and provide consistent interactive filtering and visual health encoding.
+
+### 12.1 Filter Pill Bar
+
+A toolbar row of mutually exclusive toggle buttons for filtering a table by a categorical dimension (health state, entity type, etc.).
+
+```
+[ All health (3) ] [ healthy (1) ] [ watch (1) ] [ breach (1) ]  [   Search…   ]
+```
+
+**Structure:**
+- Each pill is a `<button type="button">` with `flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold border rounded transition-colors`.
+- The count `(N)` is wrapped in `<span aria-hidden="true">` — it is supplementary visual information; screen readers learn totals from the MetricCard grid above the table.
+- **Count semantics:** each pill's count is computed by applying *all other* active filters except the one this pill controls. This means the count shows "how many items would appear in this bucket if I click it" — counts stay valid as other filters change.
+- **Inactive pill:** `border-[var(--border)] text-[var(--muted)] hover:border-[var(--brand)] hover:text-[var(--text)]`
+- **Active pill — semantic color per health state:**
+  - All → `var(--brand)` border + text
+  - Healthy → `var(--good)` border + text
+  - Watch → `var(--warn)` border + text
+  - Breach → `var(--bad)` border + text
+- Active styling is applied via inline `style` (`borderColor`, `color`) so the tonal color isn't hardcoded per-class.
+- A `<input type="search">` with `placeholder="Search …"` is placed at the far right of the same toolbar row via `ml-auto`.
+
+**Entity type pills** (where applicable) follow the same pattern but use `var(--brand)` for the active state and include an inline 14×14px SVG icon before the label.
+
+### 12.2 Health Row Tinting
+
+Table rows carry a left-border accent that mirrors the row's health state, allowing quick visual scanning without reading each badge.
+
+```css
+/* breach */ class="border-l-2 border-l-[var(--bad)]"
+/* watch  */ class="border-l-2 border-l-[var(--warn)]"
+/* healthy */ /* no class — no border */
+```
+
+Apply directly to the `<tr>` element. Do not apply `border-l-2` to healthy rows; absence of the accent communicates healthy state implicitly. The health Badge in the cell provides the text label for screen readers.
+
+### 12.3 Tonal Metric Cells
+
+Numeric values that directly indicate pressure (error rate, CPU, memory, latency) use inline color styling — no badge, no bar — just colored text that encodes the threshold band.
+
+| Metric | Warn threshold | Bad threshold |
+|--------|---------------|--------------|
+| Error rate | ≥ 1% | ≥ 5% |
+| P95 latency | ≥ 100ms | ≥ 500ms |
+| CPU / Memory / Disk | ≥ 60% | ≥ 80% |
+
+Render as `<span className="tabular-nums" style={{ color: colorVar }}>value</span>` where `colorVar` is `var(--bad)`, `var(--warn)`, or `var(--good)`.
+
+For null / unavailable values render `<span className="text-[var(--muted)]">--</span>` — never the word "Unavailable" in table cells.
+
+### 12.4 Utilization Bar
+
+An inline mini-bar used for ratio metrics (CPU, memory, disk) that communicates both magnitude and threshold band at a glance.
+
+```
+[ ████░░░░░░  62% ]
+```
+
+**Component:** `UtilizationBar({ value: number | null })`
+
+- `value` is a 0–1 fraction.
+- `null` → render `--` in muted text, no bar.
+- Bar: `w-16 h-1 rounded-full`, background `var(--border)`, fill colored by threshold.
+- Percentage label: `text-xs tabular-nums`, same tonal color as fill.
+- Same color thresholds as §12.3 (< 60% good, 60–80% warn, ≥ 80% bad).
+- Layout: `flex items-center gap-2`.
+
+### 12.5 View Toggle (List / Topology)
+
+When a page offers two fundamentally different views of the same data (e.g., table list vs. force-directed topology graph), use a compact toggle in the page header:
+
+```
+[ List | Topology ]   ← sits in page-header right slot, opposite the h1
+```
+
+**Structure:** a `<div>` with `flex items-center gap-1 border border-[var(--border)] rounded p-0.5` containing two `<button>` elements.
+
+- **Active:** `bg-[var(--brand)] text-white px-3 py-1 text-xs font-bold rounded`
+- **Inactive:** `text-[var(--muted)] hover:text-[var(--text)] px-3 py-1 text-xs font-bold rounded`
+
+The toggle controls a `view` state; only one view's content is mounted at a time. The filter pill bar (§12.1) is conditionally shown — only in the list view if it doesn't apply to the other view.
+
+---
+
+## 13. Adding New Components
 
 Checklist when adding a component to `apps/frontend/src/components/`:
 
@@ -460,4 +547,4 @@ Checklist when adding a component to `apps/frontend/src/components/`:
 5. Use **Base UI** for complex interactive logic.
 6. Co-locate a `.test.tsx` file using `@testing-library/react`.
 
-No ADR update is required for the modern UI foundation slice because it preserves the approved frontend stack, theme model, and service-centric navigation architecture.
+No ADR update is required for the modern UI foundation or inventory-page uplift slices because they preserve the approved frontend stack, theme model, and service-centric navigation architecture.

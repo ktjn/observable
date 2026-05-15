@@ -3,12 +3,11 @@ import { AppShell } from "./components/AppShell";
 import AdminPage from "./pages/AdminPage";
 import InfrastructureDetailPage from "./pages/InfrastructureDetailPage";
 import InfrastructureInventoryPage from "./pages/InfrastructureInventoryPage";
-import { ProductAreaPage } from "./pages/ProductAreaPage";
 import { AlertsPage } from "./features/alerts/AlertsPage";
 import { IncidentsPage } from "./features/incidents/IncidentsPage";
 import { IncidentDetailPage } from "./features/incidents/IncidentDetailPage";
 import ServiceDetailPage from "./pages/ServiceDetailPage";
-import ServiceTopologyPage from "./pages/ServiceTopologyPage";
+import ServicesPage from "./pages/ServicesPage";
 import SetupPage from "./pages/SetupPage";
 import SetupLlmPage from "./pages/SetupLlmPage";
 import SetupTokensPage from "./pages/SetupTokensPage";
@@ -54,12 +53,12 @@ const rootRoute = createRootRoute({
 const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: ProductAreaPage,
+  component: ServicesPage,
 });
 const servicesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/services",
-  component: ProductAreaPage,
+  component: ServicesPage,
 });
 const setupRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -109,7 +108,7 @@ const infrastructureDetailRoute = createRoute({
 const serviceOverviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/service-overview",
-  component: ServiceTopologyPage,
+  component: ServicesPage,
 });
 const dashboardsRoute = createRoute({
   getParentRoute: () => rootRoute,
