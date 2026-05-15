@@ -51,7 +51,6 @@ test("renders the product navigation shell", async () => {
   expect(within(navigation).getByText("Setup")).toBeInTheDocument();
   expect(within(navigation).getByRole("link", { name: "Services" })).toBeInTheDocument();
   expect(within(navigation).getByRole("link", { name: "Infrastructure" })).toBeInTheDocument();
-  expect(within(navigation).getByRole("link", { name: "Service Overview" })).toBeInTheDocument();
   expect(within(navigation).getByRole("link", { name: "Dashboards" })).toBeInTheDocument();
   expect(within(navigation).getByRole("link", { name: "Alerts & SLOs" })).toBeInTheDocument();
   expect(within(navigation).getByText("Administration")).toBeInTheDocument();
@@ -1011,7 +1010,9 @@ test("renders service nodes from topology data", async () => {
   window.history.pushState({}, "", "/service-overview");
   render(<App />);
 
-  expect(await screen.findByRole("heading", { name: "Service Overview" })).toBeInTheDocument();
+  await screen.findByRole("heading", { name: "Services" });
+  fireEvent.click(screen.getByRole("button", { name: "Topology" }));
+
   expect(await screen.findByRole("button", { name: "checkout-api" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "payments-api" })).toBeInTheDocument();
 });
@@ -1059,6 +1060,9 @@ test("clicking a node enters focused mode", async () => {
 
   window.history.pushState({}, "", "/service-overview");
   render(<App />);
+
+  await screen.findByRole("heading", { name: "Services" });
+  fireEvent.click(screen.getByRole("button", { name: "Topology" }));
 
   const checkoutNode = await screen.findByRole("button", { name: "checkout-api" });
   fireEvent.click(checkoutNode);
@@ -1124,6 +1128,9 @@ test("focused service overview shows logs for the selected service", async () =>
   window.history.pushState({}, "", "/service-overview");
   render(<App />);
 
+  await screen.findByRole("heading", { name: "Services" });
+  fireEvent.click(screen.getByRole("button", { name: "Topology" }));
+
   fireEvent.click(await screen.findByRole("button", { name: "checkout-api" }));
 
   expect(await screen.findByText("checkout overview log")).toBeInTheDocument();
@@ -1170,6 +1177,9 @@ test("clicking a focused node returns to full graph", async () => {
   window.history.pushState({}, "", "/service-overview");
   render(<App />);
 
+  await screen.findByRole("heading", { name: "Services" });
+  fireEvent.click(screen.getByRole("button", { name: "Topology" }));
+
   const checkoutNode = await screen.findByRole("button", { name: "checkout-api" });
   fireEvent.click(checkoutNode);
   expect(screen.getByText("Viewing: checkout-api")).toBeInTheDocument();
@@ -1214,6 +1224,9 @@ test("clicking an edge shows trace and log links", async () => {
 
   window.history.pushState({}, "", "/service-overview");
   render(<App />);
+
+  await screen.findByRole("heading", { name: "Services" });
+  fireEvent.click(screen.getByRole("button", { name: "Topology" }));
 
   await screen.findByRole("button", { name: "checkout-api" });
   const edgeButton = screen.getByRole("button", { name: "checkout-api to payments-api" });
@@ -1265,6 +1278,9 @@ test("clicking SVG background closes edge popover", async () => {
   window.history.pushState({}, "", "/service-overview");
   render(<App />);
 
+  await screen.findByRole("heading", { name: "Services" });
+  fireEvent.click(screen.getByRole("button", { name: "Topology" }));
+
   await screen.findByRole("button", { name: "checkout-api" });
   fireEvent.click(screen.getByRole("button", { name: "checkout-api to payments-api" }));
   expect(screen.getByRole("link", { name: "View Traces" })).toBeInTheDocument();
@@ -1293,6 +1309,9 @@ test("renders empty state when no edges returned", async () => {
 
   window.history.pushState({}, "", "/service-overview");
   render(<App />);
+
+  await screen.findByRole("heading", { name: "Services" });
+  fireEvent.click(screen.getByRole("button", { name: "Topology" }));
 
   expect(
     await screen.findByText("No services found in the selected time range."),
