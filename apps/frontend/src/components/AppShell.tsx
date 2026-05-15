@@ -35,7 +35,6 @@ const navTree: NavTreeItem[] = [
     ],
   },
   { id: "infrastructure", label: "Infrastructure", to: "/infrastructure" },
-  { id: "service-overview", label: "Service Overview", to: "/service-overview" },
   { id: "dashboards", label: "Dashboards", to: "/dashboards" },
   { id: "alerts", label: "Alerts & SLOs", to: "/alerts" },
   { id: "incidents", label: "Incidents", to: "/incidents" },

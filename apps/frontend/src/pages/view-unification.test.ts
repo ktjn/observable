@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import productAreaSource from "./ProductAreaPage.tsx?raw";
 import serviceDetailSource from "./ServiceDetailPage.tsx?raw";
+import servicesPageSource from "./ServicesPage.tsx?raw";
 import logSearchSource from "./LogSearch.tsx?raw";
 import traceSearchSource from "./TraceSearch.tsx?raw";
 import routerSource from "../router.ts?raw";
@@ -8,15 +8,12 @@ import signalExplorerSource from "../components/shared/SignalExplorer.tsx?raw";
 import logListSource from "../components/shared/LogList.tsx?raw";
 
 describe("view unification", () => {
-  it("keeps ProductAreaPage focused on the canonical services catalog only", () => {
-    expect(productAreaSource).not.toContain('"dashboards"');
-    expect(productAreaSource).not.toContain('"alerts"');
-    expect(productAreaSource).not.toContain('"admin"');
-    expect(productAreaSource).not.toContain("This workspace will use the same dense operational layout");
-  });
-
-  it("uses a topology page name instead of a duplicate service overview page name", () => {
-    expect(routerSource).toContain("ServiceTopologyPage");
+  it("ServicesPage owns both the service list and the topology view", () => {
+    // List view and topology view are unified under one page with a tab toggle.
+    expect(servicesPageSource).toContain("TopologyMap");
+    expect(servicesPageSource).toContain("listServiceSummaries");
+    // No separate service-overview page imported by the router.
+    expect(routerSource).not.toContain("ServiceTopologyPage");
     expect(routerSource).not.toContain("import ServiceOverview from");
   });
 
