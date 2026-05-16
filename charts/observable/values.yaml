@@ -186,7 +186,7 @@ zitadel:
           Name: Observable
           Machine:
             Machine:
-              UserName: bootstrap-sa
+              Username: bootstrap-sa
               Name: Bootstrap Service Account
             MachineKey:
               Type: 1
