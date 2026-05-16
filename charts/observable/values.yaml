@@ -147,21 +147,50 @@ services:
 
 # Zitadel identity provider (subchart: zitadel/zitadel 8.13.4).
 # Image is pinned to v2.71.0 (compose baseline) via the image.tag override.
-# ExternalDomain must match "{release-name}-zitadel" so the iss claim in tokens
-# is reachable by auth-service inside the cluster.
+# ExternalDomain/ExternalPort must match the URL where the browser reaches Zitadel.
+# In k8s, Zitadel is proxied through the frontend nginx (see frontend-nginx-configmap.yaml),
+# so ExternalPort should match the port where the frontend is accessible (8080 for the
+# testbench gateway NodePort, or whatever kubectl port-forward maps to the frontend).
+# For production override ExternalDomain + ExternalPort to your ingress hostname + 443.
+# auth-service uses ZITADEL_API_BASE (in-cluster service) for server-side calls
+# and ZITADEL_ISSUER (ExternalDomain:ExternalPort) for building browser auth redirects.
 zitadel:
   enabled: true
   replicaCount: 1
   image:
     tag: "v2.71.0"
+  # fsGroup keeps mounted config/secret volumes group-readable by Zitadel's uid
+  # (65532) without requiring a root init container.
+  podSecurityContext:
+    fsGroup: 65532
   zitadel:
     masterkey: "observabledevelopermasterkey0000"
     configmapConfig:
-      ExternalDomain: observable-zitadel
+      ExternalDomain: localhost
       ExternalPort: 8080
       ExternalSecure: false
       TLS:
         Enabled: false
+      FirstInstance:
+        InstanceName: Observable Dev
+        Org:
+          Name: Observable
+          Machine:
+            Machine:
+              UserName: bootstrap-sa
+              Name: Bootstrap Service Account
+            MachineKey:
+              Type: 1
+              ExpirationDate: "2099-01-01T00:00:00Z"
+          Human:
+            UserName: admin
+            FirstName: Dev
+            LastName: Admin
+            Email:
+              Address: admin@dev.observable
+              IsEmailVerified: true
+            Password: Dev@Admin1234!
+            PasswordChangeRequired: false
     dbSslCaCrt: ""
   env:
     - name: ZITADEL_DATABASE_POSTGRES_HOST
@@ -200,15 +229,32 @@ zitadel:
     enabled: false
 
 # OIDC / session settings consumed by auth-service.
-# issuer and apiBase default to the in-cluster Zitadel service URL
-# ({release-name}-zitadel:8080) when left empty.
+# issuer defaults to http://{ExternalDomain}:{ExternalPort} (browser-reachable, matches token iss).
+# apiBase defaults to the in-cluster Zitadel service URL ({release-name}-zitadel:8080) for server-side calls.
 identity:
   issuer: ""
   apiBase: ""
   clientId: ""
-  redirectUri: "http://localhost:5173/auth/callback"
+  redirectUri: "http://localhost:8080/auth/callback"
   sessionSecret: "dev-session-secret-for-observable-00"
   env: "dev"
+
+# Kubernetes Gateway API — exposes Zitadel via an HTTPRoute attached to a
+# managed Gateway.  Requires a Gateway API controller already installed in the
+# cluster (e.g. Envoy Gateway, Cilium, nginx-gateway-fabric).
+#
+# When enabled, auth-service derives ZITADEL_ISSUER from
+# gateway.zitadel.hostname + gateway.port automatically (identity.issuer
+# still overrides if set).  You must also align the Zitadel subchart so its
+# token iss claim matches:
+#   zitadel.zitadel.configmapConfig.ExternalDomain: <gateway.zitadel.hostname>
+#   zitadel.zitadel.configmapConfig.ExternalPort:   <gateway.port>
+gateway:
+  enabled: false
+  className: ""     # required: e.g. "envoy-gateway", "nginx", "cilium"
+  port: 80
+  zitadel:
+    hostname: ""    # e.g. "auth.example.com" — omit to match all hostnames
 
 # Migration job settings (pre-install / pre-upgrade Helm hook).
 migrations:
