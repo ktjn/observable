@@ -42,6 +42,10 @@ spec:
           image: {{ include "observable-common.image" . }}
           imagePullPolicy: {{ .Values.global.image.pullPolicy | default "IfNotPresent" }}
           command: [{{ .command | quote }}]
+          {{- with .args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- if .port }}
           ports:
             - name: http
@@ -53,6 +57,10 @@ spec:
             - name: {{ .name }}
               value: {{ .value | quote }}
             {{- end }}
+          {{- with .volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- if .port }}
           livenessProbe:
             httpGet:
@@ -71,4 +79,8 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .service.resources | nindent 12 }}
+      {{- with .volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 {{- end }}
