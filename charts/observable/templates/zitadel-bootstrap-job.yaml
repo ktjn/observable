@@ -132,20 +132,56 @@ spec:
               SIG=$(printf '%s' "${HEADER}.${PAYLOAD}" | openssl dgst -sha256 -sign /tmp/sa-private.pem | base64 | tr '+/' '-_' | tr -d '=' | tr -d '\n')
               JWT="${HEADER}.${PAYLOAD}.${SIG}"
 
-              CURL="curl -sf -H Host:localhost"
               curl_api() {
                 _attempt=0
                 while true; do
                   _attempt=$((_attempt+1))
-                  _code=$(curl -s -o /tmp/_body -w "%{http_code}" -H "Host:localhost" "$@")
-                  [ $_exit_val=$? -eq 0 ] && [ "$_code" -ge 200 ] && [ "$_code" -lt 300 ] && { cat /tmp/_body; return 0; }
-                  [ $_attempt -ge 30 ] && { echo "bootstrap: API call failed (HTTP $_code): $(cat /tmp/_body)" >&2; return 1; }
+                  _body_file=$(mktemp)
+                  if _code=$(curl -sS -o "$_body_file" -w "%{http_code}" -H "Host:localhost" "$@"); then
+                    if [ "$_code" -ge 200 ] && [ "$_code" -lt 300 ]; then
+                      cat "$_body_file"
+                      rm -f "$_body_file"
+                      return 0
+                    fi
+                  else
+                    _code=$?
+                  fi
+                  if [ "$_attempt" -ge 30 ]; then
+                    echo "bootstrap: API call failed (exit $_code): $(cat "$_body_file")" >&2
+                    rm -f "$_body_file"
+                    return 1
+                  fi
+                  rm -f "$_body_file"
+                  sleep 2
+                done
+              }
+
+              curl_form() {
+                _attempt=0
+                while true; do
+                  _attempt=$((_attempt+1))
+                  _body_file=$(mktemp)
+                  if _code=$(curl -sS -o "$_body_file" -w "%{http_code}" "$@"); then
+                    if [ "$_code" -ge 200 ] && [ "$_code" -lt 300 ]; then
+                      cat "$_body_file"
+                      rm -f "$_body_file"
+                      return 0
+                    fi
+                  else
+                    _code=$?
+                  fi
+                  if [ "$_attempt" -ge 30 ]; then
+                    echo "bootstrap: request failed (exit $_code, HTTP $_code): $(cat "$_body_file")" >&2
+                    rm -f "$_body_file"
+                    return 1
+                  fi
+                  rm -f "$_body_file"
                   sleep 2
                 done
               }
 
               echo "bootstrap: exchanging JWT for access token ..."
-              TOKEN_RESP=$($CURL -X POST "$ZITADEL_BASE/oauth/v2/token" \
+              TOKEN_RESP=$(curl_form -X POST --connect-timeout 5 --max-time 30 "$ZITADEL_BASE/oauth/v2/token" \
                 -H "Content-Type: application/x-www-form-urlencoded" \
                 --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer" \
                 --data-urlencode "scope=openid urn:zitadel:iam:org:project:id:zitadel:aud" \
