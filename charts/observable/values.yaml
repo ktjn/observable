@@ -152,8 +152,6 @@ services:
 # and routes Zitadel's OIDC/UI paths (`/oauth`, `/oidc`, `/.well-known`, `/ui`)
 # to the Zitadel service on the same origin so the browser never loops through
 # the frontend SPA for authorization redirects.
-# For the testbench, the shared Gateway listener is plain HTTP on localhost,
-# so the rendered browser URLs omit the default port.
 # For production override ExternalDomain + ExternalPort to your ingress hostname + 443.
 # auth-service uses ZITADEL_API_BASE (in-cluster service) for server-side calls
 # and ZITADEL_ISSUER for building browser auth redirects.
@@ -179,7 +177,7 @@ zitadel:
     masterkey: "observabledevelopermasterkey0000"
     configmapConfig:
       ExternalDomain: localhost
-      ExternalPort: 80
+      ExternalPort: 8080
       ExternalSecure: false
       TLS:
         Enabled: false
@@ -241,14 +239,14 @@ zitadel:
     enabled: false
 
 # OIDC / session settings consumed by auth-service.
-# issuer defaults to the browser-reachable Zitadel origin and is expected to
-# point at the Gateway listener that routes /oauth + /ui to Zitadel.
+# issuer defaults to http://{ExternalDomain}:{ExternalPort} (browser-reachable, matches token iss)
+# and is expected to point at the Gateway listener that routes /oauth + /ui to Zitadel.
 # apiBase defaults to the in-cluster Zitadel service URL ({release-name}-zitadel:8080) for server-side calls.
 identity:
   issuer: ""
   apiBase: ""
   clientId: ""
-  redirectUri: "http://localhost/auth/callback"
+  redirectUri: "http://localhost:8080/auth/callback"
   sessionSecret: "dev-session-secret-for-observable-00"
   env: "dev"
 
@@ -267,7 +265,7 @@ gateway:
   # Existing shared Gateway resource to attach the Zitadel route to.
   name: testbench-gateway
   sectionName: observable
-  port: 80   # browser-facing listener used to build ZITADEL_ISSUER
+  port: 8080   # browser-facing port used to build ZITADEL_ISSUER
   zitadel:
     hostname: ""    # e.g. "auth.example.com" — omit to match all hostnames
 

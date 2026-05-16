@@ -123,8 +123,9 @@ The live k8s cluster currently exposes the frontend through `observable/testbenc
 listener `observable` on port 80, with the frontend HTTPRoute attached at `/`. Zitadel now
 needs its own HTTPRoute on the same listener so `/oauth`, `/oidc`, `/.well-known`, and `/ui`
 go to `observable-zitadel` instead of looping through the SPA.
-The browser-facing Zitadel origin is `http://localhost` when the listener is on port 80, while
-the Zitadel service itself still listens on internal port 8080.
+For local access, the gateway is port-forwarded to `localhost:8080`, so the browser-facing
+Zitadel origin is `http://localhost:8080`, while the Zitadel service itself still listens on
+internal port 8080.
 
 ## Standing Constraints
 
