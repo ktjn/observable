@@ -380,6 +380,10 @@ the backend services. It is exposed via the shared platform ingress, which route
 
 ```
 /         → frontend container (nginx, port 80)
+/oauth/*  → Zitadel auth service
+/oidc/*   → Zitadel auth service
+/.well-known/* → Zitadel auth service
+/ui/*     → Zitadel login UI
 /api/*    → control-plane service (port 8090)
 /grpc/*   → ingest service (port 4317)
 ```

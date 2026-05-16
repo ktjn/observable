@@ -1,0 +1,284 @@
+{{- if and .Values.services.authService.enabled .Values.zitadel.enabled }}
+{{- $zitadelBase := printf "http://%s-zitadel:8080" .Release.Name }}
+{{- $zitadelOrigin := include "observable-common.httpOrigin" (dict
+    "domain" .Values.zitadel.zitadel.configmapConfig.ExternalDomain
+    "port" .Values.zitadel.zitadel.configmapConfig.ExternalPort
+) }}
+{{- $secretName  := printf "%s-zitadel-client" .Release.Name }}
+# RBAC — allows the bootstrap Job to create/update the client-id Secret.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: zitadel-bootstrap
+  labels:
+    {{- include "observable-common.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-20"
+    helm.sh/hook-delete-policy: before-hook-creation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: zitadel-bootstrap
+  labels:
+    {{- include "observable-common.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-20"
+    helm.sh/hook-delete-policy: before-hook-creation
+rules:
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, create, update, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: zitadel-bootstrap
+  labels:
+    {{- include "observable-common.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-20"
+    helm.sh/hook-delete-policy: before-hook-creation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: zitadel-bootstrap
+subjects:
+  - kind: ServiceAccount
+    name: zitadel-bootstrap
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: zitadel-bootstrap
+  labels:
+    {{- include "observable-common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: zitadel-bootstrap
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 5
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        {{- include "observable-common.labels" . | nindent 8 }}
+        app.kubernetes.io/component: zitadel-bootstrap
+    spec:
+      serviceAccountName: zitadel-bootstrap
+      restartPolicy: OnFailure
+      volumes:
+        - name: bootstrap
+          secret:
+            secretName: bootstrap-sa
+            items:
+              - key: bootstrap-sa.json
+                path: sa-key.json
+      containers:
+        - name: bootstrap
+          image: alpine:3.20
+          env:
+            - name: ZITADEL_BASE
+              value: {{ $zitadelOrigin | quote }}
+            - name: ZITADEL_CONNECT_TO
+              value: {{ printf "localhost:%v:%s-zitadel:8080" .Values.zitadel.zitadel.configmapConfig.ExternalPort .Release.Name | quote }}
+            - name: ZITADEL_ISSUER
+              value: {{ $zitadelOrigin | quote }}
+            - name: REDIRECT_URI
+              value: {{ .Values.identity.redirectUri | quote }}
+            - name: SECRET_NAME
+              value: {{ $secretName | quote }}
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: OBSERVABLE_DEV_ADMIN_PASSWORD
+              value: "Dev@Admin1234!"
+          volumeMounts:
+            - name: bootstrap
+              mountPath: /bootstrap
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              apk add --no-cache curl jq openssl > /dev/null 2>&1
+
+              KEY_FILE=/bootstrap/sa-key.json
+
+              echo "bootstrap: waiting for Zitadel SA key at $KEY_FILE ..."
+              i=0
+              until [ -f "$KEY_FILE" ] && [ -s "$KEY_FILE" ]; do
+                i=$((i+1)); [ $i -ge 90 ] && { echo "bootstrap: timed out waiting for key" >&2; exit 1; }
+                sleep 2
+              done
+              echo "bootstrap: key found."
+
+              echo "bootstrap: waiting for Zitadel API ..."
+              i=0
+              until curl -sf --connect-to "$ZITADEL_CONNECT_TO" -H "Host: localhost" "$ZITADEL_BASE/debug/healthz" > /dev/null 2>&1; do
+                i=$((i+1)); [ $i -ge 90 ] && { echo "bootstrap: timed out waiting for API" >&2; exit 1; }
+                sleep 2
+              done
+              echo "bootstrap: API ready."
+
+              KEY_ID=$(jq -r '.keyId'  "$KEY_FILE")
+              CLIENT_ID=$(jq -r '.userId' "$KEY_FILE")
+              jq -r '.key' "$KEY_FILE" > /tmp/sa-private.pem
+
+              IAT=$(date +%s); EXP=$((IAT + 3600))
+              b64url() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=' | tr -d '\n'; }
+              HEADER=$(b64url "{\"alg\":\"RS256\",\"kid\":\"${KEY_ID}\"}")
+              PAYLOAD=$(b64url "{\"iss\":\"${CLIENT_ID}\",\"sub\":\"${CLIENT_ID}\",\"aud\":[\"${ZITADEL_ISSUER}\"],\"iat\":${IAT},\"exp\":${EXP}}")
+              SIG=$(printf '%s' "${HEADER}.${PAYLOAD}" | openssl dgst -sha256 -sign /tmp/sa-private.pem | base64 | tr '+/' '-_' | tr -d '=' | tr -d '\n')
+              JWT="${HEADER}.${PAYLOAD}.${SIG}"
+
+              curl_api() {
+                _attempt=0
+                while true; do
+                  _attempt=$((_attempt+1))
+                  _body_file=$(mktemp)
+                  if _code=$(curl -sS -o "$_body_file" -w "%{http_code}" -H "Host:localhost" "$@"); then
+                    if [ "$_code" -ge 200 ] && [ "$_code" -lt 300 ]; then
+                      cat "$_body_file"
+                      rm -f "$_body_file"
+                      return 0
+                    fi
+                  else
+                    _code=$?
+                  fi
+                  if [ "$_attempt" -ge 30 ]; then
+                    echo "bootstrap: API call failed (exit $_code): $(cat "$_body_file")" >&2
+                    rm -f "$_body_file"
+                    return 1
+                  fi
+                  rm -f "$_body_file"
+                  sleep 2
+                done
+              }
+
+              curl_form() {
+                _attempt=0
+                while true; do
+                  _attempt=$((_attempt+1))
+                  _body_file=$(mktemp)
+                  if _code=$(curl -sS -o "$_body_file" -w "%{http_code}" "$@"); then
+                    if [ "$_code" -ge 200 ] && [ "$_code" -lt 300 ]; then
+                      cat "$_body_file"
+                      rm -f "$_body_file"
+                      return 0
+                    fi
+                  else
+                    _code=$?
+                  fi
+                  if [ "$_attempt" -ge 30 ]; then
+                    echo "bootstrap: request failed (exit $_code, HTTP $_code): $(cat "$_body_file")" >&2
+                    rm -f "$_body_file"
+                    return 1
+                  fi
+                  rm -f "$_body_file"
+                  sleep 2
+                done
+              }
+
+              echo "bootstrap: exchanging JWT for access token ..."
+              TOKEN_RESP=$(curl_form -X POST --connect-timeout 5 --max-time 30 --connect-to "$ZITADEL_CONNECT_TO" "$ZITADEL_BASE/oauth/v2/token" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer" \
+                --data-urlencode "scope=openid urn:zitadel:iam:org:project:id:zitadel:aud" \
+                --data-urlencode "assertion=$JWT")
+              ACCESS_TOKEN=$(echo "$TOKEN_RESP" | jq -r '.access_token')
+              [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ] && { echo "bootstrap: token exchange failed: $TOKEN_RESP" >&2; exit 1; }
+              echo "bootstrap: token obtained."
+
+              # Disable Login V2 so Zitadel uses classic /ui/login bundled in the image.
+              curl -sf --connect-to "$ZITADEL_CONNECT_TO" -H "Host:localhost" -X PUT "$ZITADEL_BASE/v2/features/instance" \
+                -H "Authorization: Bearer $ACCESS_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d '{"loginV2":{"enabled":false}}' > /dev/null \
+                && echo "bootstrap: Login V2 disabled" \
+                || echo "bootstrap: WARNING - could not disable Login V2"
+
+              # Set admin password.
+              USERS_RESP=$(curl_api --connect-to "$ZITADEL_CONNECT_TO" "$ZITADEL_BASE/management/v1/users/_search" \
+                -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" \
+                -d '{"queries":[{"userNameQuery":{"userName":"admin@observable.localhost","method":"TEXT_QUERY_METHOD_EQUALS"}}]}')
+              ADMIN_USER_ID=$(echo "$USERS_RESP" | jq -r '.result[0].id // empty')
+              if [ -n "$ADMIN_USER_ID" ]; then
+                curl_api --connect-to "$ZITADEL_CONNECT_TO" -X POST "$ZITADEL_BASE/management/v1/users/$ADMIN_USER_ID/password" \
+                  -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" \
+                  -d "{\"password\":\"$OBSERVABLE_DEV_ADMIN_PASSWORD\",\"noChangeRequired\":true}" > /dev/null
+                echo "bootstrap: admin password set"
+              fi
+
+              # Find or create the Observable project.
+              PROJECT_ID=$(curl_api --connect-to "$ZITADEL_CONNECT_TO" "$ZITADEL_BASE/management/v1/projects/_search" \
+                -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" \
+                -d '{"queries":[{"nameQuery":{"name":"Observable","method":"TEXT_QUERY_METHOD_EQUALS"}}]}' \
+                | jq -r '.result[0].id // empty')
+              if [ -z "$PROJECT_ID" ]; then
+                PROJECT_ID=$(curl_api --connect-to "$ZITADEL_CONNECT_TO" -X POST "$ZITADEL_BASE/management/v1/projects" \
+                  -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" \
+                  -d '{"name":"Observable"}' | jq -r '.id')
+                echo "bootstrap: created project $PROJECT_ID"
+              else
+                echo "bootstrap: found project $PROJECT_ID"
+              fi
+
+              LOGOUT_URI="${REDIRECT_URI%/auth/callback}/login"
+
+              # Find existing OIDC app or create it.
+              APPS_RESP=$(curl_api --connect-to "$ZITADEL_CONNECT_TO" "$ZITADEL_BASE/management/v1/projects/$PROJECT_ID/apps/_search" \
+                -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" \
+                -d '{"queries":[{"nameQuery":{"name":"Observable Frontend","method":"TEXT_QUERY_METHOD_EQUALS"}}]}')
+              APP_ID=$(echo "$APPS_RESP" | jq -r '.result[0].id // empty')
+              OIDC_CLIENT_ID=$(echo "$APPS_RESP" | jq -r '.result[0].oidcConfig.clientId // empty')
+
+              if [ -z "$APP_ID" ]; then
+                APP_RESP=$(curl_api --connect-to "$ZITADEL_CONNECT_TO" -X POST "$ZITADEL_BASE/management/v1/projects/$PROJECT_ID/apps/oidc" \
+                  -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" \
+                  -d "{\"name\":\"Observable Frontend\",\"redirectUris\":[\"$REDIRECT_URI\"],\"responseTypes\":[\"RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"GRANT_TYPE_AUTHORIZATION_CODE\"],\"appType\":\"OIDC_APP_TYPE_WEB\",\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_NONE\",\"postLogoutRedirectUris\":[\"$LOGOUT_URI\"],\"devMode\":true}")
+                OIDC_CLIENT_ID=$(echo "$APP_RESP" | jq -r '.clientId')
+                echo "bootstrap: created OIDC app, client_id=$OIDC_CLIENT_ID"
+              else
+                CURRENT=$(echo "$APPS_RESP" | jq -r '.result[0].oidcConfig.redirectUris[0] // empty')
+                if [ "$CURRENT" != "$REDIRECT_URI" ]; then
+                  curl_api --connect-to "$ZITADEL_CONNECT_TO" -X PUT "$ZITADEL_BASE/management/v1/projects/$PROJECT_ID/apps/$APP_ID/oidc_config" \
+                    -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" \
+                    -d "{\"redirectUris\":[\"$REDIRECT_URI\"],\"responseTypes\":[\"OIDC_RESPONSE_TYPE_CODE\"],\"grantTypes\":[\"OIDC_GRANT_TYPE_AUTHORIZATION_CODE\"],\"authMethodType\":\"OIDC_AUTH_METHOD_TYPE_NONE\",\"postLogoutRedirectUris\":[\"$LOGOUT_URI\"],\"devMode\":true}" > /dev/null
+                  echo "bootstrap: redirect URI updated to $REDIRECT_URI"
+                fi
+                echo "bootstrap: using existing app, client_id=$OIDC_CLIENT_ID"
+              fi
+
+              [ -z "$OIDC_CLIENT_ID" ] || [ "$OIDC_CLIENT_ID" = "null" ] && { echo "bootstrap: failed to get clientId" >&2; exit 1; }
+
+              # Write client_id to a Kubernetes Secret via the in-cluster API.
+              TOKEN_K8S=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+              CLIENT_ID_B64=$(printf '%s' "$OIDC_CLIENT_ID" | base64 | tr -d '\n')
+              SECRET_BODY="{\"apiVersion\":\"v1\",\"kind\":\"Secret\",\"metadata\":{\"name\":\"$SECRET_NAME\",\"namespace\":\"$NAMESPACE\"},\"data\":{\"ZITADEL_CLIENT_ID\":\"$CLIENT_ID_B64\"}}"
+
+              STATUS=$(curl -sk -o /dev/null -w "%{http_code}" \
+                -H "Authorization: Bearer $TOKEN_K8S" \
+                "https://kubernetes.default.svc/api/v1/namespaces/$NAMESPACE/secrets/$SECRET_NAME")
+
+              if [ "$STATUS" = "404" ]; then
+                curl -sk -X POST \
+                  -H "Authorization: Bearer $TOKEN_K8S" \
+                  -H "Content-Type: application/json" \
+                  "https://kubernetes.default.svc/api/v1/namespaces/$NAMESPACE/secrets" \
+                  -d "$SECRET_BODY" > /dev/null
+              else
+                curl -sk -X PUT \
+                  -H "Authorization: Bearer $TOKEN_K8S" \
+                  -H "Content-Type: application/json" \
+                  "https://kubernetes.default.svc/api/v1/namespaces/$NAMESPACE/secrets/$SECRET_NAME" \
+                  -d "$SECRET_BODY" > /dev/null
+              fi
+              echo "bootstrap: client_id written to Secret $SECRET_NAME. Done."
+{{- end }}

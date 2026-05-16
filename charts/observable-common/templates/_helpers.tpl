@@ -25,3 +25,18 @@ Context must contain .Values.global.image.{repository,tag}.
 {{- define "observable-common.image" -}}
 {{ .Values.global.image.repository }}:{{ .Values.global.image.tag | default "latest" }}
 {{- end }}
+
+{{/*
+Browser-facing HTTP origin from a domain and port.
+Omits the explicit port for the default HTTP/HTTPS ports so URLs stay stable
+when the public listener is exposed on plain localhost.
+Context must contain .domain and .port.
+*/}}
+{{- define "observable-common.httpOrigin" -}}
+{{- $port := int .port -}}
+{{- if or (eq $port 80) (eq $port 443) -}}
+http://{{ .domain }}
+{{- else -}}
+http://{{ .domain }}:{{ $port }}
+{{- end -}}
+{{- end }}

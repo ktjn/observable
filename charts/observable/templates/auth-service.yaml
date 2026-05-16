@@ -1,23 +1,60 @@
 {{- if .Values.services.authService.enabled -}}
-{{- $zitadelBase := printf "http://%s-zitadel:8080" .Release.Name -}}
+{{- $zitadelApiBase := printf "http://%s-zitadel:8080" .Release.Name -}}
+{{- $zitadelIssuer := include "observable-common.httpOrigin" (dict
+    "domain" .Values.zitadel.zitadel.configmapConfig.ExternalDomain
+    "port" .Values.zitadel.zitadel.configmapConfig.ExternalPort
+) -}}
+{{- $zitadelClientSecretName := printf "%s-zitadel-client" .Release.Name -}}
 {{- $env := list
     (dict "name" "DATABASE_URL"      "value" .Values.postgres.url)
     (dict "name" "AUTH_SERVICE_PORT" "value" (toString .Values.services.authService.port))
     (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)
     (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT" "value" .Values.selfObservability.otlpEndpoint)
     (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN" "value" .Values.selfObservability.bearerToken)
-    (dict "name" "ZITADEL_ISSUER"       "value" (coalesce .Values.identity.issuer $zitadelBase))
-    (dict "name" "ZITADEL_API_BASE"     "value" (coalesce .Values.identity.apiBase $zitadelBase))
-    (dict "name" "ZITADEL_CLIENT_ID"    "value" .Values.identity.clientId)
+    (dict "name" "ZITADEL_ISSUER"       "value" (coalesce .Values.identity.issuer $zitadelIssuer))
+    (dict "name" "ZITADEL_API_BASE"     "value" (coalesce .Values.identity.apiBase $zitadelApiBase))
+    (dict "name" "ZITADEL_CLIENT_ID"    "value" (default "" .Values.identity.clientId))
     (dict "name" "ZITADEL_REDIRECT_URI" "value" .Values.identity.redirectUri)
     (dict "name" "SESSION_SECRET"       "value" .Values.identity.sessionSecret)
     (dict "name" "OBSERVABLE_ENV"       "value" .Values.identity.env) -}}
+{{- $args := list "-c" (printf
+`set -eu
+if [ -z "${ZITADEL_CLIENT_ID:-}" ]; then
+  KEY_FILE=/bootstrap/client_id
+  echo "auth-service bootstrap: waiting for client id at $KEY_FILE ..."
+  i=0
+  until [ -s "$KEY_FILE" ]; do
+    i=$((i+1)); [ $i -ge 90 ] && { echo "auth-service bootstrap: timed out waiting for client id" >&2; exit 1; }
+    sleep 2
+  done
+  export ZITADEL_CLIENT_ID="$(cat "$KEY_FILE")"
+  echo "auth-service bootstrap: client id loaded"
+fi
+exec auth-service`
+) -}}
+{{- $volumeMounts := list (dict
+    "name" "zitadel-client-id"
+    "mountPath" "/bootstrap/client_id"
+    "subPath" "client_id"
+    "readOnly" true
+) -}}
+{{- $volumes := list (dict
+    "name" "zitadel-client-id"
+    "secret" (dict
+      "secretName" $zitadelClientSecretName
+      "optional" true
+      "items" (list (dict "key" "ZITADEL_CLIENT_ID" "path" "client_id"))
+    )
+) -}}
 {{- $ctx := dict
     "name"    "auth-service"
-    "command" "auth-service"
+    "command" "sh"
+    "args"    $args
     "port"    .Values.services.authService.port
     "service" .Values.services.authService
     "env"     $env
+    "volumes" $volumes
+    "volumeMounts" $volumeMounts
     "Values"  .Values
     "Chart"   .Chart
     "Release" .Release -}}

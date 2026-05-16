@@ -30,6 +30,8 @@ The platform will use a **Kubernetes-first deployment model**.
 **Harder:** 
 - Managing Kubernetes clusters adds overhead.
 - Complexity in networking and storage configuration (especially for stateful workloads).
+- Browser-facing services may still share a single public origin behind a Gateway API
+  listener, with path-based routing splitting the SPA from Zitadel's OIDC paths.
 
 **Constrained:** 
 - Non-containerized deployments are not natively supported and will require custom engineering if needed.

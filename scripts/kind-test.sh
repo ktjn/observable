@@ -271,9 +271,9 @@ log "Deploying namespace and infrastructure"
 kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
 log "Installing infrastructure dependencies"
-helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
-helm repo add openfga https://openfga.github.io/helm-charts
-helm repo add zitadel https://charts.zitadel.com
+helm repo add --force-update cloudnative-pg https://cloudnative-pg.github.io/charts
+helm repo add --force-update openfga https://openfga.github.io/helm-charts
+helm repo add --force-update zitadel https://charts.zitadel.com
 helm repo update
 
 # Create migration ConfigMaps now — namespace exists and files are local,
@@ -383,7 +383,7 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
     --namespace "$NAMESPACE" &
   PF_AUTH=$!
   # Port-forward Zitadel
-  kubectl port-forward service/observable-zitadel 18082:8080 \
+  kubectl port-forward service/observable-zitadel 8082:8080 \
     --namespace "$NAMESPACE" &
   PF_ZITADEL=$!
 
@@ -403,7 +403,7 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
   curl -sf http://localhost:18090/health | grep -q "ok" && info "query-api /health OK"
   curl -sf http://localhost:15173/ | grep -q "<!doctype html" && info "frontend / OK"
   curl -sf http://localhost:14319/health | grep -q "ok" && info "auth-service /health OK"
-  curl -sf http://localhost:18082/debug/ready | grep -q "" && info "zitadel /debug/ready OK" || info "WARN: zitadel /debug/ready did not respond"
+  curl -sf http://localhost:8082/debug/ready | grep -q "" && info "zitadel /debug/ready OK" || info "WARN: zitadel /debug/ready did not respond"
 
   # Send a trace
   info "Sending test trace to ingest-gateway"
