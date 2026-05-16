@@ -248,7 +248,7 @@ kubectl create namespace "$TESTBENCH_NS" --dry-run=client -o yaml | kubectl appl
 reset_stale_release "$TESTBENCH_RELEASE" "$TESTBENCH_NS"
 
 log "Resolving observable-testbench chart dependencies"
-helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+helm repo add --force-update open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 helm repo update
 helm dependency update "$TESTBENCH_CHART"
 
