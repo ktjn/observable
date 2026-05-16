@@ -1,6 +1,9 @@
 {{- if and .Values.services.authService.enabled .Values.zitadel.enabled }}
 {{- $zitadelBase := printf "http://%s-zitadel:8080" .Release.Name }}
-{{- $zitadelOrigin := printf "http://localhost:%v" .Values.zitadel.zitadel.configmapConfig.ExternalPort }}
+{{- $zitadelOrigin := include "observable-common.httpOrigin" (dict
+    "domain" .Values.zitadel.zitadel.configmapConfig.ExternalDomain
+    "port" .Values.zitadel.zitadel.configmapConfig.ExternalPort
+) }}
 {{- $secretName  := printf "%s-zitadel-client" .Release.Name }}
 # RBAC — allows the bootstrap Job to create/update the client-id Secret.
 apiVersion: v1
@@ -84,9 +87,9 @@ spec:
             - name: ZITADEL_BASE
               value: {{ $zitadelOrigin | quote }}
             - name: ZITADEL_CONNECT_TO
-              value: {{ printf "localhost:%v:%s-zitadel:%v" .Values.zitadel.zitadel.configmapConfig.ExternalPort .Release.Name .Values.zitadel.zitadel.configmapConfig.ExternalPort | quote }}
+              value: {{ printf "localhost:%v:%s-zitadel:8080" .Values.zitadel.zitadel.configmapConfig.ExternalPort .Release.Name | quote }}
             - name: ZITADEL_ISSUER
-              value: {{ printf "http://%s:%v" .Values.zitadel.zitadel.configmapConfig.ExternalDomain .Values.zitadel.zitadel.configmapConfig.ExternalPort | quote }}
+              value: {{ $zitadelOrigin | quote }}
             - name: REDIRECT_URI
               value: {{ .Values.identity.redirectUri | quote }}
             - name: SECRET_NAME

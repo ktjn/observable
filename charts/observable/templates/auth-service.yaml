@@ -1,6 +1,9 @@
 {{- if .Values.services.authService.enabled -}}
 {{- $zitadelApiBase := printf "http://%s-zitadel:8080" .Release.Name -}}
-{{- $zitadelIssuer := printf "http://%s:%v" .Values.zitadel.zitadel.configmapConfig.ExternalDomain .Values.zitadel.zitadel.configmapConfig.ExternalPort -}}
+{{- $zitadelIssuer := include "observable-common.httpOrigin" (dict
+    "domain" .Values.zitadel.zitadel.configmapConfig.ExternalDomain
+    "port" .Values.zitadel.zitadel.configmapConfig.ExternalPort
+) -}}
 {{- $zitadelClientSecretName := printf "%s-zitadel-client" .Release.Name -}}
 {{- $env := list
     (dict "name" "DATABASE_URL"      "value" .Values.postgres.url)
