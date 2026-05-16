@@ -118,6 +118,12 @@ The same pattern applies if ClickHouse changes on-disk formats across major vers
 `make reset-volumes` (default, no flags) now drops `postgres_data`, `shop_db_data`, and
 `redpanda_data`. Use `--all` to also wipe ClickHouse and Zitadel bootstrap volumes.
 
+### Browser auth routing uses the shared Gateway
+The live k8s cluster currently exposes the frontend through `observable/testbench-gateway`
+listener `observable` on port 80, with the frontend HTTPRoute attached at `/`. Zitadel now
+needs its own HTTPRoute on the same listener so `/oauth`, `/oidc`, `/.well-known`, and `/ui`
+go to `observable-zitadel` instead of looping through the SPA.
+
 ## Standing Constraints
 
 - Never commit or merge directly to `main` without human review.

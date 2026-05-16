@@ -147,10 +147,11 @@ services:
 
 # Zitadel identity provider (subchart: zitadel/zitadel 8.13.4).
 # Image is pinned to v2.71.0 (compose baseline) via the image.tag override.
-# ExternalDomain/ExternalPort must match the URL where the browser reaches Zitadel.
-# In k8s, Zitadel is proxied through the frontend nginx (see frontend-nginx-configmap.yaml),
-# so ExternalPort should match the port where the frontend is accessible (8080 for the
-# testbench gateway NodePort, or whatever kubectl port-forward maps to the frontend).
+# ExternalDomain/ExternalPort must match the browser-facing Zitadel origin.
+# In the Gateway API deployment, the shared listener serves the frontend on `/`
+# and routes Zitadel's OIDC/UI paths (`/oauth`, `/oidc`, `/.well-known`, `/ui`)
+# to the Zitadel service on the same origin so the browser never loops through
+# the frontend SPA for authorization redirects.
 # For production override ExternalDomain + ExternalPort to your ingress hostname + 443.
 # auth-service uses ZITADEL_API_BASE (in-cluster service) for server-side calls
 # and ZITADEL_ISSUER (ExternalDomain:ExternalPort) for building browser auth redirects.
@@ -238,7 +239,8 @@ zitadel:
     enabled: false
 
 # OIDC / session settings consumed by auth-service.
-# issuer defaults to http://{ExternalDomain}:{ExternalPort} (browser-reachable, matches token iss).
+# issuer defaults to http://{ExternalDomain}:{ExternalPort} (browser-reachable, matches token iss)
+# and is expected to point at the Gateway listener that routes /oauth + /ui to Zitadel.
 # apiBase defaults to the in-cluster Zitadel service URL ({release-name}-zitadel:8080) for server-side calls.
 identity:
   issuer: ""
@@ -248,20 +250,22 @@ identity:
   sessionSecret: "dev-session-secret-for-observable-00"
   env: "dev"
 
-# Kubernetes Gateway API — exposes Zitadel via an HTTPRoute attached to a
-# managed Gateway.  Requires a Gateway API controller already installed in the
-# cluster (e.g. Envoy Gateway, Cilium, nginx-gateway-fabric).
+# Kubernetes Gateway API — attaches Zitadel browser paths to the shared
+# observable Gateway so the browser stays on one origin.
 #
-# When enabled, auth-service derives ZITADEL_ISSUER from
-# gateway.zitadel.hostname + gateway.port automatically (identity.issuer
-# still overrides if set).  You must also align the Zitadel subchart so its
-# token iss claim matches:
-#   zitadel.zitadel.configmapConfig.ExternalDomain: <gateway.zitadel.hostname>
+# The frontend stays on `/`; Zitadel owns `/oauth`, `/oidc`, `/.well-known`,
+# and `/ui` on the same browser-facing origin.  auth-service derives
+# ZITADEL_ISSUER from gateway.zitadel.hostname + gateway.port automatically
+# (identity.issuer still overrides if set).  Keep the Zitadel subchart aligned
+# so its token iss claim matches:
+#   zitadel.zitadel.configmapConfig.ExternalDomain: <gateway.zitadel.hostname or localhost>
 #   zitadel.zitadel.configmapConfig.ExternalPort:   <gateway.port>
 gateway:
-  enabled: false
-  className: ""     # required: e.g. "envoy-gateway", "nginx", "cilium"
-  port: 80
+  enabled: true
+  # Existing shared Gateway resource to attach the Zitadel route to.
+  name: testbench-gateway
+  sectionName: observable
+  port: 8080   # browser-facing port used to build ZITADEL_ISSUER
   zitadel:
     hostname: ""    # e.g. "auth.example.com" — omit to match all hostnames
 
