@@ -24,8 +24,13 @@ making changes.
   long-horizon backlog and `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`
   as the historical Phases 2-8 closure reference.
 - Active detailed implementation plan: none.
-- Completed detailed plan archive: `archived/plans/2026-05-10-p5-s2-notification-routing-webhook-complete.md` for P5-S2
-  and `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
+- Completed detailed plan archive:
+  - `archived/plans/2026-05-17-dockerfile-clippy-cache.md` — Dockerfile planner/rust-ci selective copy + BuildKit cache mounts
+  - `archived/plans/2026-05-15-trace-detail-uplift.md` — TraceDetail page-stack, MetricCards, service legend, Panel wrappers
+  - `archived/plans/2026-05-12-dashboard-grid-redesign.md` — react-grid-layout edit mode + backend error surfacing
+  - `archived/plans/2026-05-05-out-of-band-risk-remediation.md` — query-api auth hardening, NLQ SQL safety, CI integration-test gate, governance drift cleanup
+  - `archived/plans/2026-05-10-p5-s2-notification-routing-webhook-complete.md` for P5-S2
+  - `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
 - Historical Phase 1 plan: `archived/plans/2026-04-17-phase1-internal-mvp.md`; do not treat it as an active backlog.
 - Architecture decisions: `spec/adr/`.
 - Product and platform specs: `spec/`.
