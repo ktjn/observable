@@ -262,6 +262,19 @@ kubectl wait job/redpanda-setup \
   || { dump_pod_events "$NAMESPACE"; exit 1; }
 
 # ---------------------------------------------------------------------------
+# Install Kubernetes Gateway API CRDs (required by the Observable chart)
+# ---------------------------------------------------------------------------
+
+GATEWAY_API_VERSION="v1.2.1"
+log "Installing Kubernetes Gateway API CRDs (${GATEWAY_API_VERSION})"
+kubectl apply -f \
+  "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/standard-install.yaml"
+kubectl wait --for=condition=Established \
+  crd/gateways.gateway.networking.k8s.io \
+  crd/httproutes.gateway.networking.k8s.io \
+  --timeout=60s
+
+# ---------------------------------------------------------------------------
 # Install the Observable chart
 # ---------------------------------------------------------------------------
 
