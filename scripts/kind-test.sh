@@ -35,6 +35,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# shellcheck source=scripts/lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
 CLUSTER_NAME="observable-test"
 NAMESPACE="observable"
 RELEASE_NAME="observable"
@@ -84,9 +87,6 @@ done
 # Helpers
 # ---------------------------------------------------------------------------
 
-log()  { echo ""; echo "==> [$(date +%H:%M:%S)] $*"; }
-info() { echo "    $*"; }
-
 current_revision() {
   helm history "$1" --namespace "$2" | awk 'NR > 1 { rev = $1 } END { print rev }'
 }
@@ -110,64 +110,6 @@ watch_pods() {
     kubectl get events --namespace "$ns" --sort-by='.lastTimestamp' 2>/dev/null \
       | tail -8 | sed 's/^/      /' || true
   done
-}
-
-dump_pod_events() {
-  local ns="${1:-$NAMESPACE}"
-  echo ""
-  info "--- Pod status (namespace: $ns) ---"
-  kubectl get pods --namespace "$ns" -o wide 2>/dev/null || true
-  echo ""
-  info "--- Recent events ---"
-  kubectl get events --namespace "$ns" --sort-by='.lastTimestamp' 2>/dev/null | tail -20 || true
-  echo ""
-  info "--- Non-running pods ---"
-  kubectl get pods --namespace "$ns" --field-selector='status.phase!=Running' -o wide 2>/dev/null || true
-}
-
-deployment_ready_now() {
-  local resource="$1"
-  local json
-  json="$(kubectl get "$resource" --namespace "$NAMESPACE" -o json 2>/dev/null)" || return 1
-
-  local generation observed replicas updated ready available unavailable
-  generation="$(jq -r '.metadata.generation // 0' <<<"$json")"
-  observed="$(jq -r '.status.observedGeneration // 0' <<<"$json")"
-  replicas="$(jq -r '.spec.replicas // 1' <<<"$json")"
-  updated="$(jq -r '.status.updatedReplicas // 0' <<<"$json")"
-  ready="$(jq -r '.status.readyReplicas // 0' <<<"$json")"
-  available="$(jq -r '.status.availableReplicas // 0' <<<"$json")"
-  unavailable="$(jq -r '.status.unavailableReplicas // 0' <<<"$json")"
-
-  [[ "$observed" == "$generation" ]] \
-    && [[ "$updated" == "$replicas" ]] \
-    && [[ "$ready" == "$replicas" ]] \
-    && [[ "$available" == "$replicas" ]] \
-    && [[ "$unavailable" == "0" ]]
-}
-
-wait_for_rollout() {
-  local resource="$1"
-  local timeout="${2:-180s}"
-  local name="${resource##*/}"
-  if deployment_ready_now "$resource"; then
-    info "$resource already ready at current generation"
-    return 0
-  fi
-  info "waiting for $resource (timeout: $timeout)"
-  kubectl rollout status "$resource" \
-    --namespace "$NAMESPACE" \
-    --timeout "$timeout" &
-  local pid=$!
-  local elapsed=0
-  while kill -0 "$pid" 2>/dev/null; do
-    sleep 15
-    elapsed=$((elapsed + 15))
-    info "  [${elapsed}s] pods matching '$name':"
-    kubectl get pods --namespace "$NAMESPACE" --no-headers 2>/dev/null \
-      | grep "$name" | sed 's/^/    /' || true
-  done
-  wait "$pid"
 }
 
 cleanup() {
@@ -271,9 +213,10 @@ log "Deploying namespace and infrastructure"
 kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
 log "Installing infrastructure dependencies"
-helm repo add --force-update cloudnative-pg https://cloudnative-pg.github.io/charts
-helm repo add --force-update openfga https://openfga.github.io/helm-charts
-helm repo add --force-update zitadel https://charts.zitadel.com
+helm repo add --force-update cloudnative-pg https://cloudnative-pg.github.io/charts &
+helm repo add --force-update openfga https://openfga.github.io/helm-charts &
+helm repo add --force-update zitadel https://charts.zitadel.com &
+wait
 helm repo update
 
 # Create migration ConfigMaps now — namespace exists and files are local,
@@ -348,12 +291,18 @@ show_pods "$NAMESPACE"
 # Wait for all service Deployments
 # ---------------------------------------------------------------------------
 
-log "Verifying all service Deployments are ready"
-for svc in observable-zitadel auth-service ingest-gateway stream-processor storage-writer query-api alert-evaluator frontend; do
-  wait_for_rollout "deployment/$svc" \
-    || { info "FAILED: $svc did not become ready"; dump_pod_events "$NAMESPACE"; exit 1; }
-  info "$svc: ready"
-done
+log "Verifying all service Deployments are ready (parallel)"
+wait_for_rollouts_parallel "$NAMESPACE" 180s \
+  deployment/observable-zitadel \
+  deployment/auth-service \
+  deployment/ingest-gateway \
+  deployment/stream-processor \
+  deployment/storage-writer \
+  deployment/query-api \
+  deployment/alert-evaluator \
+  deployment/frontend \
+  || exit 1
+info "All service Deployments ready"
 
 # ---------------------------------------------------------------------------
 # Smoke checks via port-forward
