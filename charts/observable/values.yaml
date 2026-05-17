@@ -246,7 +246,7 @@ identity:
   issuer: ""
   apiBase: ""
   clientId: ""
-  redirectUri: "http://localhost:8080/auth/callback"
+  redirectUri: "http://localhost:8080/v1/auth/callback"
   sessionSecret: "dev-session-secret-for-observable-00"
   env: "dev"
 
