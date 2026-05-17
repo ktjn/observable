@@ -23,7 +23,7 @@ if [ -z "${ZITADEL_CLIENT_ID:-}" ]; then
   KEY_FILE=/bootstrap/client_id
   echo "auth-service bootstrap: waiting for client id at $KEY_FILE ..."
   i=0
-  until [ -s "$KEY_FILE" ]; do
+  until [ -f "$KEY_FILE" ] && [ -s "$KEY_FILE" ]; do
     i=$((i+1)); [ $i -ge 90 ] && { echo "auth-service bootstrap: timed out waiting for client id" >&2; exit 1; }
     sleep 2
   done
@@ -34,8 +34,7 @@ exec auth-service`
 ) -}}
 {{- $volumeMounts := list (dict
     "name" "zitadel-client-id"
-    "mountPath" "/bootstrap/client_id"
-    "subPath" "client_id"
+    "mountPath" "/bootstrap"
     "readOnly" true
 ) -}}
 {{- $volumes := list (dict
