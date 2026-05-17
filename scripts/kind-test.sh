@@ -281,7 +281,7 @@ kubectl wait --for=condition=Established \
 
 log "Installing Observable chart"
 # Reset any release left in a stuck state from a previous failed install.
-_rel_status=$(helm status "$RELEASE_NAME" --namespace "$NAMESPACE" 2>/dev/null | awk '/^STATUS:/ {print $2}')
+_rel_status=$(helm status "$RELEASE_NAME" --namespace "$NAMESPACE" 2>/dev/null | awk '/^STATUS:/ {print $2}') || true
 case "${_rel_status}" in
   pending-install|pending-upgrade|pending-rollback|failed)
     log "Removing stale Helm release '$RELEASE_NAME' (status: ${_rel_status})"
