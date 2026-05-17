@@ -88,8 +88,8 @@ wait_for_rollouts_parallel() {
   fi
 }
 
-# build_images_parallel <"tag:context" ...>
-# Entry format matches TESTBENCH_IMAGES array: "image-tag:build-context"
+# build_images_parallel <"tag:variant:context" ...>
+# Entry format matches TESTBENCH_IMAGES array: "image-tag:image-variant:build-context"
 build_images_parallel() {
   local pids=() tags=()
   for entry in "$@"; do
