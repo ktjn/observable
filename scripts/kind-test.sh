@@ -279,6 +279,19 @@ kubectl wait --for=condition=Established \
 # ---------------------------------------------------------------------------
 
 log "Installing Observable chart"
+# Reset any release left in a stuck state from a previous failed install.
+_rel_status=$(helm status "$RELEASE_NAME" --namespace "$NAMESPACE" 2>/dev/null | awk '/^STATUS:/ {print $2}')
+case "${_rel_status}" in
+  pending-install|pending-upgrade|pending-rollback|failed)
+    log "Removing stale Helm release '$RELEASE_NAME' (status: ${_rel_status})"
+    helm uninstall "$RELEASE_NAME" --namespace "$NAMESPACE" || true
+    ;;
+esac
+
+# Install without --wait: the zitadel-bootstrap post-install hook must run
+# before auth-service can become ready (it writes the OIDC client_id secret).
+# Using --wait creates a deadlock — helm would block on auth-service readiness
+# forever because the hook that unblocks it runs only after --wait completes.
 watch_pods "$NAMESPACE" 20 &
 WATCH_APP=$!
 helm upgrade --install "$RELEASE_NAME" "$APP_CHART" \
@@ -290,10 +303,14 @@ helm upgrade --install "$RELEASE_NAME" "$APP_CHART" \
   --set global.frontendImage.tag=local \
   --set global.frontendImage.pullPolicy=Never \
   --set selfObservability.bearerToken=observable-api-key-0000 \
-  --wait \
   --timeout 10m \
   || { kill "$WATCH_APP" 2>/dev/null || true; dump_pod_events "$NAMESPACE"; exit 1; }
 kill "$WATCH_APP" 2>/dev/null || true
+
+log "Waiting for Zitadel bootstrap job to complete (writes OIDC client_id secret)"
+kubectl wait job/zitadel-bootstrap \
+  --for=condition=complete --namespace "$NAMESPACE" --timeout=300s \
+  || { dump_pod_events "$NAMESPACE"; exit 1; }
 
 log "Helm release status"
 helm status "$RELEASE_NAME" --namespace "$NAMESPACE"
