@@ -14,10 +14,10 @@ services:
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
     volumes: [clickhouse_data:/var/lib/clickhouse]
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
       interval: 2s
-      timeout: 1s
-      retries: 20
+      timeout: 2s
+      retries: 30
 
   redpanda:
     image: redpandadata/redpanda:v25.2.7
