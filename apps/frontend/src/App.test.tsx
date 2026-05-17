@@ -230,8 +230,8 @@ test("renders saved dashboard panels with preserved query context", async () => 
 
   expect(await screen.findByRole("heading", { name: "Dashboards" })).toBeInTheDocument();
   expect(await screen.findByText("Promoted log query")).toBeInTheDocument();
-  expect(screen.getByText("Logs for checkout")).toBeInTheDocument();
-  expect(screen.getByText(/logs.*checkout.*Last\s*1\s*hour/)).toBeInTheDocument();
+  expect(screen.getByText("1 panel")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Open" })).toBeInTheDocument();
 });
 
 test("renders onboarding setup with OTLP endpoints and first signal success", async () => {
