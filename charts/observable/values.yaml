@@ -173,6 +173,13 @@ zitadel:
   # (65532) without requiring a root init container.
   podSecurityContext:
     fsGroup: 65532
+  env:
+    - name: ZITADEL_EXTERNALDOMAIN
+      value: "localhost"
+    - name: ZITADEL_EXTERNALPORT
+      value: "8080"
+    - name: ZITADEL_EXTERNALSECURE
+      value: "false"
   zitadel:
     masterkey: "observabledevelopermasterkey0000"
     configmapConfig:
