@@ -91,12 +91,6 @@ current_revision() {
   helm history "$1" --namespace "$2" | awk 'NR > 1 { rev = $1 } END { print rev }'
 }
 
-show_pods() {
-  local ns="${1:-$NAMESPACE}"
-  echo ""
-  kubectl get pods --namespace "$ns" -o wide 2>/dev/null || true
-}
-
 watch_pods() {
   local ns="${1:-$NAMESPACE}"
   local interval="${2:-20}"
@@ -214,9 +208,14 @@ kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -
 
 log "Installing infrastructure dependencies"
 helm repo add --force-update cloudnative-pg https://cloudnative-pg.github.io/charts &
+PID_REPO_CNP=$!
 helm repo add --force-update openfga https://openfga.github.io/helm-charts &
+PID_REPO_OPENFGA=$!
 helm repo add --force-update zitadel https://charts.zitadel.com &
-wait
+PID_REPO_ZITADEL=$!
+wait "$PID_REPO_CNP"     || { echo "ERROR: helm repo add cloudnative-pg failed" >&2; exit 1; }
+wait "$PID_REPO_OPENFGA" || { echo "ERROR: helm repo add openfga failed" >&2; exit 1; }
+wait "$PID_REPO_ZITADEL" || { echo "ERROR: helm repo add zitadel failed" >&2; exit 1; }
 helm repo update
 
 # Create migration ConfigMaps now — namespace exists and files are local,
