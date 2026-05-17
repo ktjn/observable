@@ -101,6 +101,7 @@ cleanup() {
   kind delete cluster --name "$CLUSTER_NAME" || true
 }
 trap cleanup EXIT
+trap 'KEEP_CLUSTER=true' ERR
 
 # ---------------------------------------------------------------------------
 # Prerequisite checks
