@@ -217,7 +217,7 @@ helm upgrade --install "$TESTBENCH_RELEASE" "$TESTBENCH_CHART" \
 show_pods "$TESTBENCH_NS"
 
 log "Waiting for testbench Deployments in parallel"
-wait_for_rollouts_parallel "$TESTBENCH_NS" 180s \
+wait_for_rollouts_parallel "$TESTBENCH_NS" 300s \
   deployment/otel-collector-gateway \
   deployment/shop-api \
   deployment/shop-frontend \

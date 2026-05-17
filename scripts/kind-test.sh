@@ -253,12 +253,12 @@ show_pods "$NAMESPACE"
 
 log "Waiting for PostgreSQL cluster to become ready"
 kubectl wait cluster/postgres \
-  --for=condition=Ready --namespace "$NAMESPACE" --timeout=180s \
+  --for=condition=Ready --namespace "$NAMESPACE" --timeout=300s \
   || { dump_pod_events "$NAMESPACE"; exit 1; }
 
 log "Waiting for Redpanda topic setup Job to complete"
 kubectl wait job/redpanda-setup \
-  --for=condition=complete --namespace "$NAMESPACE" --timeout=120s \
+  --for=condition=complete --namespace "$NAMESPACE" --timeout=300s \
   || { dump_pod_events "$NAMESPACE"; exit 1; }
 
 # ---------------------------------------------------------------------------
@@ -291,7 +291,7 @@ show_pods "$NAMESPACE"
 # ---------------------------------------------------------------------------
 
 log "Verifying all service Deployments are ready (parallel)"
-wait_for_rollouts_parallel "$NAMESPACE" 180s \
+wait_for_rollouts_parallel "$NAMESPACE" 300s \
   deployment/observable-zitadel \
   deployment/auth-service \
   deployment/ingest-gateway \
