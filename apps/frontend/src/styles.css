@@ -790,9 +790,11 @@ th.sortable:hover {
 /* Always show handles when resizing is enabled (opacity was 0 until hover) */
 .dashboard-grid .react-grid-item > .react-resizable-handle {
   opacity: 1;
+  background-image: none;
+  transform: none;
 }
 
-/* Remove default tiny background image and pseudo-element */
+/* Remove default tiny pseudo-element diagonal */
 .dashboard-grid .react-grid-item > .react-resizable-handle::after {
   display: none;
 }
@@ -806,7 +808,9 @@ th.sortable:hover {
   height: 4px;
   cursor: ns-resize;
   background: transparent;
+  background-image: none;
   border-bottom: 2px solid var(--border-strong);
+  transform: none;
 }
 
 .dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-s:hover,
@@ -823,6 +827,7 @@ th.sortable:hover {
   height: auto;
   cursor: ew-resize;
   background: transparent;
+  background-image: none;
   border-left: 2px solid var(--border-strong);
   transform: none;
 }
@@ -840,6 +845,7 @@ th.sortable:hover {
   height: 16px;
   cursor: se-resize;
   background: transparent;
+  background-image: none;
   border-right: 2px solid var(--border-strong);
   border-bottom: 2px solid var(--border-strong);
 }
