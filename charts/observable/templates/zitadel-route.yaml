@@ -32,6 +32,12 @@ spec:
         - path:
             type: PathPrefix
             value: /ui
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: X-Forwarded-Host
+                value: "{{ .Values.zitadel.zitadel.configmapConfig.ExternalDomain }}:{{ .Values.zitadel.zitadel.configmapConfig.ExternalPort }}"
       backendRefs:
         - name: {{ .Release.Name }}-zitadel
           port: 8080

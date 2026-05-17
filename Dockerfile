@@ -15,7 +15,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         zlib1g-dev \
     && rustup component add rustfmt clippy
 FROM chef AS planner
-COPY . .
+COPY Cargo.toml Cargo.lock ./
+COPY libs libs
+COPY services services
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS cacher
@@ -25,13 +27,22 @@ RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/regi
     cargo chef cook --release --all-targets --recipe-path recipe.json
 
 FROM cacher AS rust-ci
-COPY . .
-RUN cargo fmt --check \
+COPY Cargo.toml Cargo.lock ./
+COPY libs libs
+COPY services services
+COPY proto proto
+RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
+    cargo fmt --check \
     && cargo clippy --workspace --all-targets -- -D warnings \
     && cargo test --workspace --lib --bins
 
 FROM rust-ci AS rust-builder
-RUN cargo build --release --workspace \
+RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
+    cargo build --release --workspace \
     && mkdir -p /app/bin \
     && cp /app/target/release/auth-service \
           /app/target/release/storage-writer \
