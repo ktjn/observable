@@ -116,6 +116,7 @@ cleanup() {
   kind delete cluster --name "$CLUSTER_NAME" || true
 }
 trap cleanup EXIT
+trap 'echo ""; echo "ERROR: command failed at line $LINENO: $BASH_COMMAND" >&2' ERR
 
 # ---------------------------------------------------------------------------
 # Prerequisite checks
@@ -254,12 +255,12 @@ show_pods "$NAMESPACE"
 log "Waiting for PostgreSQL cluster to become ready"
 kubectl wait cluster/postgres \
   --for=condition=Ready --namespace "$NAMESPACE" --timeout=300s \
-  || { dump_pod_events "$NAMESPACE"; exit 1; }
+  || { KEEP_CLUSTER=true; dump_pod_events "$NAMESPACE"; exit 1; }
 
 log "Waiting for Redpanda topic setup Job to complete"
 kubectl wait job/redpanda-setup \
   --for=condition=complete --namespace "$NAMESPACE" --timeout=300s \
-  || { dump_pod_events "$NAMESPACE"; exit 1; }
+  || { KEEP_CLUSTER=true; dump_pod_events "$NAMESPACE"; exit 1; }
 
 # ---------------------------------------------------------------------------
 # Install Kubernetes Gateway API CRDs (required by the Observable chart)
@@ -304,13 +305,13 @@ helm upgrade --install "$RELEASE_NAME" "$APP_CHART" \
   --set global.frontendImage.pullPolicy=Never \
   --set selfObservability.bearerToken=observable-api-key-0000 \
   --timeout 10m \
-  || { kill "$WATCH_APP" 2>/dev/null || true; dump_pod_events "$NAMESPACE"; exit 1; }
+  || { KEEP_CLUSTER=true; kill "$WATCH_APP" 2>/dev/null || true; dump_pod_events "$NAMESPACE"; exit 1; }
 kill "$WATCH_APP" 2>/dev/null || true
 
 log "Waiting for Zitadel bootstrap job to complete (writes OIDC client_id secret)"
 kubectl wait job/zitadel-bootstrap \
   --for=condition=complete --namespace "$NAMESPACE" --timeout=300s \
-  || { dump_pod_events "$NAMESPACE"; exit 1; }
+  || { KEEP_CLUSTER=true; dump_pod_events "$NAMESPACE"; exit 1; }
 
 log "Helm release status"
 helm status "$RELEASE_NAME" --namespace "$NAMESPACE"
@@ -330,7 +331,7 @@ wait_for_rollouts_parallel "$NAMESPACE" 300s \
   deployment/query-api \
   deployment/alert-evaluator \
   deployment/frontend \
-  || exit 1
+  || { KEEP_CLUSTER=true; exit 1; }
 info "All service Deployments ready"
 
 # ---------------------------------------------------------------------------

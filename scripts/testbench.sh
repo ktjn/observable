@@ -101,7 +101,7 @@ cleanup() {
   kind delete cluster --name "$CLUSTER_NAME" || true
 }
 trap cleanup EXIT
-trap 'KEEP_CLUSTER=true' ERR
+trap 'echo ""; echo "ERROR: command failed at line $LINENO: $BASH_COMMAND" >&2; KEEP_CLUSTER=true' ERR
 
 # ---------------------------------------------------------------------------
 # Prerequisite checks
@@ -199,8 +199,8 @@ load_images_parallel "$CLUSTER_NAME" "${TESTBENCH_IMAGE_TAGS[@]}" &
 LOAD_PID=$!
 helm dependency update "$TESTBENCH_CHART" &
 DEP_PID=$!
-wait "$LOAD_PID" || { echo "ERROR: image loading failed" >&2; exit 1; }
-wait "$DEP_PID"  || { echo "ERROR: helm dependency update failed" >&2; exit 1; }
+wait "$LOAD_PID" || { KEEP_CLUSTER=true; echo "ERROR: image loading failed" >&2; exit 1; }
+wait "$DEP_PID"  || { KEEP_CLUSTER=true; echo "ERROR: helm dependency update failed" >&2; exit 1; }
 
 log "Creating testbench namespace"
 kubectl create namespace "$TESTBENCH_NS" --dry-run=client -o yaml | kubectl apply -f -
@@ -212,7 +212,7 @@ helm upgrade --install "$TESTBENCH_RELEASE" "$TESTBENCH_CHART" \
   --namespace "$TESTBENCH_NS" \
   --wait \
   --timeout 10m \
-  || { dump_pod_events "$TESTBENCH_NS"; exit 1; }
+  || { KEEP_CLUSTER=true; dump_pod_events "$TESTBENCH_NS"; exit 1; }
 
 show_pods "$TESTBENCH_NS"
 
@@ -223,7 +223,7 @@ wait_for_rollouts_parallel "$TESTBENCH_NS" 300s \
   deployment/shop-frontend \
   deployment/shop-loadgen \
   deployment/shop-worker \
-  || exit 1
+  || { KEEP_CLUSTER=true; exit 1; }
 
 log "Waiting for otel-collector-agent DaemonSet"
 kubectl rollout status daemonset/otel-collector-agent \
