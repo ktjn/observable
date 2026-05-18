@@ -496,7 +496,7 @@ async fn resolve_open_firing(
 async fn upsert_incident_from_firing(
     db: &sqlx::PgPool,
     rule: &AlertRuleRow,
-    firing_id: Uuid,
+    _firing_id: Uuid,
     dedup_key: &str,
     value: f64,
 ) -> anyhow::Result<()> {
@@ -555,7 +555,7 @@ async fn upsert_incident_from_firing(
 async fn resolve_incident_for_firing(
     db: &sqlx::PgPool,
     rule: &AlertRuleRow,
-    firing_id: Uuid,
+    _firing_id: Uuid,
     value: f64,
 ) -> anyhow::Result<()> {
     let incident_id: Option<Uuid> = sqlx::query_scalar(
