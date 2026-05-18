@@ -445,10 +445,11 @@ Phase 3 exit gate is satisfied for the planned Phase 3 scope. The next implement
 
 ### Priority slice order
 
-- [ ] **P4-S1: Add one warm-retention movement path**
+- [-] **P4-S1: Add one warm-retention movement path** (ARCHIVED/DEFERRED)
   - Outcome: aged data moves from hot ClickHouse storage to one S3-compatible object-storage path without breaking queries for the selected dataset.
   - Closure steps: add local MinIO or equivalent S3-compatible storage, define object key layout and retention metadata for one signal, add one writer/export movement path, and document rollback/disable behavior.
   - Checkpoint: do query semantics stay stable across tiers?
+  - Archive: detailed implementation plan moved to `archived/plans/2026-05-05-p4-s1-warm-retention.md`. Deferred until object-storage prerequisites or cost/retention priorities change.
 
 - [ ] **P4-S2: Add backup and restore drill for one dataset**
   - Outcome: one restore path is practiced and timed, not merely specified.
