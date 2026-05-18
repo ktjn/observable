@@ -1245,3 +1245,152 @@ async fn get_incident_returns_404_for_unknown_id() {
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn get_incident_detail_includes_rule_name() {
+    let (ch, _ch_container) = start_clickhouse().await;
+    let (pg, _pg_container) = start_postgres().await;
+    let app = build_app_with_pg(ch, pg.clone());
+    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+
+    let rule_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO alert_rules \
+         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
+         VALUES ($1, 'CPU High', 'threshold', 'critical', \
+                 '{\"metric_name\":\"cpu\",\"operator\":\"gt\",\"threshold\":90}', \
+                 '{}', true) \
+         RETURNING rule_id",
+    )
+    .bind(tenant)
+    .fetch_one(&pg)
+    .await
+    .expect("rule inserted");
+
+    let incident_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO incidents \
+         (incident_id, tenant_id, title, severity, status, dedup_key, triggered_by_rule_id) \
+         VALUES ($1, $2, 'CPU spike', 'critical', 'triggered', 'dedup-rule-1', $3)",
+    )
+    .bind(incident_id)
+    .bind(tenant)
+    .bind(rule_id)
+    .execute(&pg)
+    .await
+    .expect("incident inserted");
+
+    let response = app
+        .oneshot(dev_request("GET", &format!("/v1/incidents/{incident_id}")))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_body_json(response.into_body()).await;
+    assert_eq!(body["rule_name"], "CPU High");
+}
+
+#[tokio::test]
+async fn get_incident_detail_rule_name_null_when_no_rule() {
+    let (ch, _ch_container) = start_clickhouse().await;
+    let (pg, _pg_container) = start_postgres().await;
+    let app = build_app_with_pg(ch, pg.clone());
+    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+
+    let incident_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO incidents \
+         (incident_id, tenant_id, title, severity, status, dedup_key) \
+         VALUES ($1, $2, 'Manual incident', 'warning', 'triggered', 'dedup-norule')",
+    )
+    .bind(incident_id)
+    .bind(tenant)
+    .execute(&pg)
+    .await
+    .expect("incident inserted");
+
+    let response = app
+        .oneshot(dev_request("GET", &format!("/v1/incidents/{incident_id}")))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_body_json(response.into_body()).await;
+    assert!(body["rule_name"].is_null());
+}
+
+#[tokio::test]
+async fn get_alert_rule_returns_detail_with_firings() {
+    let (ch, _ch_container) = start_clickhouse().await;
+    let (pg, _pg_container) = start_postgres().await;
+    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+
+    let rule_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO alert_rules \
+         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
+         VALUES ($1, 'High Error Rate', 'threshold', 'critical', \
+                 '{\"metric_name\":\"error_rate\",\"operator\":\"gt\",\"threshold\":0.05}', \
+                 '{}', false) \
+         RETURNING rule_id",
+    )
+    .bind(tenant)
+    .fetch_one(&pg)
+    .await
+    .expect("rule inserted");
+
+    for state in ["active", "resolved"] {
+        sqlx::query(
+            "INSERT INTO alert_firings (rule_id, tenant_id, state, value) \
+             VALUES ($1, $2, $3, $4)",
+        )
+        .bind(rule_id)
+        .bind(tenant)
+        .bind(state)
+        .bind(0.08_f64)
+        .execute(&pg)
+        .await
+        .expect("firing inserted");
+    }
+
+    let app = build_app_with_pg(ch, pg.clone());
+    let response = app
+        .oneshot(dev_request("GET", &format!("/v1/alerts/rules/{rule_id}")))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_body_json(response.into_body()).await;
+    assert_eq!(body["name"], "High Error Rate");
+    assert_eq!(body["severity"], "critical");
+    assert_eq!(body["alert_type"], "threshold");
+    let firings = body["firings"].as_array().unwrap();
+    assert_eq!(firings.len(), 2);
+}
+
+#[tokio::test]
+async fn get_alert_rule_returns_404_for_wrong_tenant() {
+    let (ch, _ch_container) = start_clickhouse().await;
+    let (pg, _pg_container) = start_postgres().await;
+    let _tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+
+    let rule_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO alert_rules \
+         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
+         VALUES ($1, 'Other Tenant Rule', 'threshold', 'warning', \
+                 '{\"metric_name\":\"m\",\"operator\":\"gt\",\"threshold\":1.0}', \
+                 '{}', false) \
+         RETURNING rule_id",
+    )
+    .bind(Uuid::new_v4()) // different tenant — NOT DEV_TENANT_ID
+    .fetch_one(&pg)
+    .await
+    .expect("rule inserted");
+
+    // Request is authenticated as DEV_TENANT_ID
+    let app = build_app_with_pg(ch, pg.clone());
+    let response = app
+        .oneshot(dev_request("GET", &format!("/v1/alerts/rules/{rule_id}")))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
