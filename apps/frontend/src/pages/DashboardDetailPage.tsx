@@ -275,7 +275,7 @@ export default function DashboardDetailPage() {
             className="dashboard-grid"
             gridConfig={{ cols: 12, rowHeight: 100, margin: [12, 12] as [number, number] }}
             dragConfig={{ enabled: editMode, handle: ".panel-drag-handle" }}
-            resizeConfig={{ enabled: editMode, handles: ["s", "w", "se"] }}
+            resizeConfig={{ enabled: editMode, handles: ["s", "e", "se"] }}
             layout={
               stagedLayout ??
               data.panels.map((p) => ({

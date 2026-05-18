@@ -792,6 +792,7 @@ th.sortable:hover {
   opacity: 1;
   background-image: none;
   transform: none;
+  padding: 0;
 }
 
 /* Remove default tiny pseudo-element diagonal */
@@ -811,6 +812,7 @@ th.sortable:hover {
   background-image: none;
   border-bottom: 2px solid var(--border-strong);
   transform: none;
+  padding: 0;
 }
 
 .dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-s:hover,
@@ -818,23 +820,24 @@ th.sortable:hover {
   border-bottom-color: var(--brand);
 }
 
-/* Left border resize handle */
-.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-w {
+/* Right border resize handle */
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-e {
   top: 0;
   bottom: 0;
-  left: 0;
+  right: 0;
   width: 4px;
   height: auto;
   cursor: ew-resize;
   background: transparent;
   background-image: none;
-  border-left: 2px solid var(--border-strong);
+  border-right: 2px solid var(--border-strong);
   transform: none;
+  padding: 0;
 }
 
-.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-w:hover,
-.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-w:focus {
-  border-left-color: var(--brand);
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-e:hover,
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-e:focus {
+  border-right-color: var(--brand);
 }
 
 /* Bottom-right corner resize handle */
@@ -848,6 +851,7 @@ th.sortable:hover {
   background-image: none;
   border-right: 2px solid var(--border-strong);
   border-bottom: 2px solid var(--border-strong);
+  padding: 0;
 }
 
 .dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-se:hover,
