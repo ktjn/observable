@@ -44,6 +44,7 @@ pub struct IncidentDetailResponse {
     pub resolved_at: Option<DateTime<Utc>>,
     pub triggered_by_rule_id: Option<Uuid>,
     pub runbook_url: Option<String>,
+    pub rule_name: Option<String>,
     pub timeline: Vec<IncidentEventItem>,
 }
 
@@ -74,6 +75,7 @@ struct IncidentDetailRow {
     resolved_at: Option<DateTime<Utc>>,
     triggered_by_rule_id: Option<Uuid>,
     runbook_url: Option<String>,
+    rule_name: Option<String>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -132,9 +134,12 @@ pub async fn get_incident(
     incident_id: Uuid,
 ) -> Result<Option<IncidentDetailResponse>, sqlx::Error> {
     let row: Option<IncidentDetailRow> = sqlx::query_as(
-        "SELECT incident_id, title, severity, status, dedup_key, triggered_at, resolved_at, triggered_by_rule_id, runbook_url \
-         FROM incidents \
-         WHERE incident_id = $1 AND tenant_id = $2",
+        "SELECT i.incident_id, i.title, i.severity, i.status, i.dedup_key, \
+                i.triggered_at, i.resolved_at, i.triggered_by_rule_id, i.runbook_url, \
+                r.name AS rule_name \
+         FROM incidents i \
+         LEFT JOIN alert_rules r ON i.triggered_by_rule_id = r.rule_id \
+         WHERE i.incident_id = $1 AND i.tenant_id = $2",
     )
     .bind(incident_id)
     .bind(tenant_id)
@@ -175,6 +180,7 @@ pub async fn get_incident(
         resolved_at: row.resolved_at,
         triggered_by_rule_id: row.triggered_by_rule_id,
         runbook_url: row.runbook_url,
+        rule_name: row.rule_name,
         timeline,
     }))
 }
