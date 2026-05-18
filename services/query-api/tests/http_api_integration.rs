@@ -154,6 +154,7 @@ fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
             put(dashboards::handle_update_dashboard),
         )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
+        .route("/v1/alerts/rules/:rule_id", get(alerts::handle_get_rule))
         .route("/v1/slos", get(slos::handle_list_slos))
         .route("/v1/slos", post(slos::handle_create_slo))
         .route("/v1/incidents", get(incidents::handle_list_incidents))

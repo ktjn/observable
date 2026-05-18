@@ -32,6 +32,47 @@ pub struct AlertRuleListResponse {
     pub items: Vec<AlertRuleItem>,
 }
 
+#[derive(Serialize)]
+pub struct FiringItem {
+    pub firing_id: Uuid,
+    pub state: String,
+    pub value: Option<f64>,
+    pub occurred_at: DateTime<Utc>,
+    pub resolved_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Serialize)]
+pub struct AlertRuleDetailResponse {
+    pub rule_id: Uuid,
+    pub name: String,
+    pub severity: String,
+    pub alert_type: String,
+    pub condition: serde_json::Value,
+    pub silenced: bool,
+    pub firing: bool,
+    pub firings: Vec<FiringItem>,
+}
+
+#[derive(sqlx::FromRow)]
+struct AlertRuleDetailRow {
+    rule_id: Uuid,
+    name: String,
+    severity: String,
+    alert_type: String,
+    condition: serde_json::Value,
+    silenced: bool,
+    firing: bool,
+}
+
+#[derive(sqlx::FromRow)]
+struct FiringRow {
+    firing_id: Uuid,
+    state: String,
+    value: Option<f64>,
+    occurred_at: DateTime<Utc>,
+    resolved_at: Option<DateTime<Utc>>,
+}
+
 #[derive(Deserialize)]
 pub struct CreateRuleRequest {
     pub name: String,
@@ -239,6 +280,78 @@ pub async fn silence_alert_rule(
 
     let rules = list_alert_rules(db, tenant_id).await?;
     Ok(rules.into_iter().find(|r| r.rule_id == rule_id))
+}
+
+pub async fn get_alert_rule(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+    rule_id: Uuid,
+) -> Result<Option<AlertRuleDetailResponse>, sqlx::Error> {
+    let row: Option<AlertRuleDetailRow> = sqlx::query_as(
+        "SELECT r.rule_id, r.name, r.severity, r.alert_type, r.condition, r.silenced, \
+         EXISTS( \
+             SELECT 1 FROM alert_firings af \
+             WHERE af.rule_id = r.rule_id AND af.tenant_id = r.tenant_id \
+               AND af.state = 'active' AND r.silenced = false \
+         ) AS firing \
+         FROM alert_rules r \
+         WHERE r.rule_id = $1 AND r.tenant_id = $2",
+    )
+    .bind(rule_id)
+    .bind(tenant_id)
+    .fetch_optional(db)
+    .await?;
+
+    let Some(row) = row else {
+        return Ok(None);
+    };
+
+    let firings: Vec<FiringRow> = sqlx::query_as(
+        "SELECT firing_id, state, value, occurred_at, resolved_at \
+         FROM alert_firings \
+         WHERE rule_id = $1 AND tenant_id = $2 \
+         ORDER BY occurred_at DESC \
+         LIMIT 20",
+    )
+    .bind(rule_id)
+    .bind(tenant_id)
+    .fetch_all(db)
+    .await?;
+
+    Ok(Some(AlertRuleDetailResponse {
+        rule_id: row.rule_id,
+        name: row.name,
+        severity: row.severity,
+        alert_type: row.alert_type,
+        condition: row.condition,
+        silenced: row.silenced,
+        firing: row.firing,
+        firings: firings
+            .into_iter()
+            .map(|f| FiringItem {
+                firing_id: f.firing_id,
+                state: f.state,
+                value: f.value,
+                occurred_at: f.occurred_at,
+                resolved_at: f.resolved_at,
+            })
+            .collect(),
+    }))
+}
+
+pub async fn handle_get_rule(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(rule_id): Path<Uuid>,
+) -> Result<Json<AlertRuleDetailResponse>, StatusCode> {
+    match get_alert_rule(&state.db, ctx.tenant_id, rule_id).await {
+        Ok(Some(detail)) => Ok(Json(detail)),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            tracing::error!(error = %e, "failed to get alert rule");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 pub async fn handle_list_rules(
