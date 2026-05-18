@@ -48,7 +48,8 @@ test("renders dashboard list when data loads", async () => {
   renderPage();
 
   await waitFor(() => expect(screen.getByText("My Dashboard")).toBeInTheDocument());
-  expect(screen.getByText("Error Logs")).toBeInTheDocument();
+  expect(screen.getByText("1 panel")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Open" })).toBeInTheDocument();
 });
 
 test("renders empty state when no dashboards", async () => {

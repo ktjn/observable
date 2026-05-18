@@ -782,3 +782,85 @@ th.sortable:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Dashboard detail page: visible border resize handles ───────────────────── */
+
+/* Scoped under .dashboard-grid for specificity and to avoid leaking to other grids */
+
+/* Always show handles when resizing is enabled (opacity was 0 until hover) */
+.dashboard-grid .react-grid-item > .react-resizable-handle {
+  opacity: 1;
+  background-image: none;
+  transform: none;
+  padding: 0;
+  margin: 0;
+  z-index: 1;
+}
+
+/* Remove default tiny pseudo-element diagonal */
+.dashboard-grid .react-grid-item > .react-resizable-handle::after {
+  display: none;
+}
+
+/* Bottom border resize handle */
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-s {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: auto;
+  height: 4px;
+  cursor: ns-resize;
+  background: transparent;
+  background-image: none;
+  border-bottom: 2px solid var(--border-strong);
+  transform: none;
+  padding: 0;
+  margin: 0;
+}
+
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-s:hover,
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-s:focus {
+  border-bottom-color: var(--brand);
+}
+
+/* Right border resize handle */
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-e {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 4px;
+  height: auto;
+  cursor: ew-resize;
+  background: transparent;
+  background-image: none;
+  border-right: 2px solid var(--border-strong);
+  transform: none;
+  padding: 0;
+  margin: 0;
+}
+
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-e:hover,
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-e:focus {
+  border-right-color: var(--brand);
+}
+
+/* Bottom-right corner resize handle */
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-se {
+  bottom: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  cursor: se-resize;
+  background: transparent;
+  background-image: none;
+  border-right: 2px solid var(--border-strong);
+  border-bottom: 2px solid var(--border-strong);
+  padding: 0;
+  margin: 0;
+}
+
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-se:hover,
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-se:focus {
+  border-right-color: var(--brand);
+  border-bottom-color: var(--brand);
+}
