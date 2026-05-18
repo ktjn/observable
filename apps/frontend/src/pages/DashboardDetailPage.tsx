@@ -15,6 +15,7 @@ import {
 } from "../api/dashboards";
 import { submitNlqQuery } from "../api/nlq";
 import { VisualizationPanel } from "../features/nlq/VisualizationPanel";
+import { PanelTemplateLibrary, type PanelTemplate } from "../features/dashboards/PanelTemplateLibrary";
 import type { NlqIrLike } from "../features/nlq/queryFilters";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -88,7 +89,7 @@ export default function DashboardDetailPage() {
   const { tenantId } = useTenantContext();
   const globalDateRange = useGlobalDateRange();
   const queryClient = useQueryClient();
-  const [addPanelOpen, setAddPanelOpen] = useState(false);
+  const [addPanelMode, setAddPanelMode] = useState<null | "templates" | "custom">(null);
   const [editingPanelId, setEditingPanelId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -168,7 +169,29 @@ export default function DashboardDetailPage() {
       name: data.name,
       panels: [...data.panels.map(panelToUpdate), panel],
     });
-    setAddPanelOpen(false);
+    setAddPanelMode(null);
+  }
+
+  function addTemplatePanel(template: PanelTemplate) {
+    if (!data) return;
+    const y = nextRowAfterPanels(data.panels);
+    const panel: UpdateDashboardRequest["panels"][number] = {
+      title: template.title,
+      panel_kind: template.panel_kind,
+      query_kind: template.query_kind,
+      service: template.service,
+      preset: null,
+      filters: {},
+      query_text: template.query_text,
+      content: template.content,
+      layout: { x: 0, y, w: 12, h: 4 },
+      time_range: { mode: "global" },
+    };
+    updateMutation.mutate({
+      name: data.name,
+      panels: [...data.panels.map(panelToUpdate), panel],
+    });
+    setAddPanelMode(null);
   }
 
   function editPanel(
@@ -252,7 +275,7 @@ export default function DashboardDetailPage() {
               <Button variant="secondary" onClick={enterEditMode}>
                 Edit layout
               </Button>
-              <Button variant="primary" onClick={() => setAddPanelOpen((o) => !o)}>
+              <Button variant="primary" onClick={() => setAddPanelMode("templates")}>
                 Add panel
               </Button>
             </>
@@ -260,10 +283,17 @@ export default function DashboardDetailPage() {
         </div>
       </div>
 
-      {addPanelOpen && (
+      {addPanelMode === "templates" && (
+        <PanelTemplateLibrary
+          onSelectTemplate={addTemplatePanel}
+          onCustomPanel={() => setAddPanelMode("custom")}
+        />
+      )}
+
+      {addPanelMode === "custom" && (
         <AddPanelForm
           onAdd={addPanel}
-          onCancel={() => setAddPanelOpen(false)}
+          onCancel={() => setAddPanelMode(null)}
           isPending={updateMutation.isPending}
         />
       )}
