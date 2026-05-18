@@ -189,7 +189,7 @@ test("local preset time range overrides the global date range", async () => {
   );
 });
 
-test("add panel button opens form and submits a new query panel", async () => {
+test("add panel button opens template library and custom form submits a new query panel", async () => {
   const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
   vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
 
@@ -198,6 +198,9 @@ test("add panel button opens form and submits a new query panel", async () => {
 
   await screen.findByRole("button", { name: "Add panel" });
   fireEvent.click(screen.getByRole("button", { name: "Add panel" }));
+
+  expect(await screen.findByTestId("template-custom")).toBeInTheDocument();
+  fireEvent.click(screen.getByTestId("template-custom"));
 
   expect(await screen.findByPlaceholderText("Panel title")).toBeInTheDocument();
 
@@ -232,6 +235,7 @@ test("add panel form shows text content field when kind is text", async () => {
   await screen.findByRole("heading", { name: "Checkout Health" });
 
   fireEvent.click(screen.getByRole("button", { name: "Add panel" }));
+  fireEvent.click(await screen.findByTestId("template-custom"));
   await screen.findByPlaceholderText("Panel title");
 
   fireEvent.change(screen.getByDisplayValue("Query"), { target: { value: "text" } });
@@ -248,10 +252,42 @@ test("add panel cancel button closes the form", async () => {
   await screen.findByRole("heading", { name: "Checkout Health" });
 
   fireEvent.click(screen.getByRole("button", { name: "Add panel" }));
+  fireEvent.click(await screen.findByTestId("template-custom"));
   expect(await screen.findByPlaceholderText("Panel title")).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   expect(screen.queryByPlaceholderText("Panel title")).not.toBeInTheDocument();
+});
+
+test("add panel from template submits pre-filled query panel", async () => {
+  const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+
+  renderPage();
+  await screen.findByRole("heading", { name: "Checkout Health" });
+
+  fireEvent.click(screen.getByRole("button", { name: "Add panel" }));
+  expect(await screen.findByTestId("template-error-rate")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByTestId("template-error-rate"));
+
+  await waitFor(() =>
+    expect(updateSpy).toHaveBeenCalledWith(
+      "test-tenant",
+      "dash-1",
+      expect.objectContaining({
+        panels: expect.arrayContaining([
+          expect.objectContaining({
+            title: "Error rate",
+            panel_kind: "query",
+            query_kind: "metrics",
+            query_text: "error rate over time",
+            layout: expect.objectContaining({ x: 0, y: 4, w: 12, h: 4 }),
+          }),
+        ]),
+      }),
+    ),
+  );
 });
 
 test("Edit layout button enters edit mode showing Done and Cancel", async () => {
