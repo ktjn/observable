@@ -5,6 +5,7 @@ import InfrastructureDetailPage from "./pages/InfrastructureDetailPage";
 import InfrastructureInventoryPage from "./pages/InfrastructureInventoryPage";
 import { ProductAreaPage } from "./pages/ProductAreaPage";
 import { AlertsPage } from "./features/alerts/AlertsPage";
+import { AlertRuleDetailPage } from "./features/alerts/AlertRuleDetailPage";
 import { IncidentsPage } from "./features/incidents/IncidentsPage";
 import { IncidentDetailPage } from "./features/incidents/IncidentDetailPage";
 import ServiceDetailPage from "./pages/ServiceDetailPage";
@@ -114,6 +115,11 @@ const alertsRoute = createRoute({
   path: "/alerts",
   component: AlertsPage,
 });
+const alertRuleDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/alerts/$ruleId",
+  component: AlertRuleDetailPage,
+});
 const incidentsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/incidents",
@@ -189,6 +195,7 @@ export const router = createRouter({
     dashboardsRoute,
     dashboardDetailRoute,
     alertsRoute,
+    alertRuleDetailRoute,
     incidentsRoute,
     incidentDetailRoute,
     adminRoute,
