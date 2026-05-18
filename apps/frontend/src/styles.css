@@ -793,6 +793,8 @@ th.sortable:hover {
   background-image: none;
   transform: none;
   padding: 0;
+  margin: 0;
+  z-index: 1;
 }
 
 /* Remove default tiny pseudo-element diagonal */
@@ -813,6 +815,7 @@ th.sortable:hover {
   border-bottom: 2px solid var(--border-strong);
   transform: none;
   padding: 0;
+  margin: 0;
 }
 
 .dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-s:hover,
@@ -833,6 +836,7 @@ th.sortable:hover {
   border-right: 2px solid var(--border-strong);
   transform: none;
   padding: 0;
+  margin: 0;
 }
 
 .dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-e:hover,
@@ -852,6 +856,7 @@ th.sortable:hover {
   border-right: 2px solid var(--border-strong);
   border-bottom: 2px solid var(--border-strong);
   padding: 0;
+  margin: 0;
 }
 
 .dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-se:hover,
