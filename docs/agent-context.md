@@ -25,6 +25,7 @@ making changes.
   as the historical Phases 2-8 closure reference.
 - Active detailed implementation plan: none.
 - Completed detailed plan archive:
+  - `archived/plans/2026-05-06-identity-provider-zitadel.md` — Zitadel 4.x OIDC PKCE flow, session JWTs, user/role tables, frontend login/callback/me pages, Admin Console identity settings
   - `archived/plans/2026-05-17-dockerfile-clippy-cache.md` — Dockerfile planner/rust-ci selective copy + BuildKit cache mounts
   - `archived/plans/2026-05-15-trace-detail-uplift.md` — TraceDetail page-stack, MetricCards, service legend, Panel wrappers
   - `archived/plans/2026-05-12-dashboard-grid-redesign.md` — react-grid-layout edit mode + backend error surfacing

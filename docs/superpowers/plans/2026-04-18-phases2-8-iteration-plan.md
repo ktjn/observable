@@ -455,7 +455,7 @@ Phase 3 exit gate is satisfied for the planned Phase 3 scope. The next implement
   - Closure steps: include object-storage state in the backup boundary if P4-S1 has landed; otherwise explicitly record why the first drill is hot-store-only.
   - Checkpoint: are measured RPO/RTO values acceptable?
 
-- [ ] **P4-S3: Add SSO/OIDC for one customer-compatible flow**
+- [x] **P4-S3: Add SSO/OIDC for one customer-compatible flow** (COMPLETED 2026-05-06)
   - Source spec: `spec/04-tenancy-security.md` §8.1, `spec/05-frontend.md` Phase 4+ Admin Console, `spec/13-risks-roadmap.md` §24.2, ADR-008, ADR-015, ADR-031.
   - Outcome: one external identity provider can authenticate a human user into the platform, and the UI can operate with the resulting principal rather than local-dev API-key assumptions.
   - Closure steps: add OIDC authorization-code-with-PKCE login/logout and callback handling; map IdP subject, email, and groups into the local principal model; issue/verify short-lived user sessions for query/admin APIs; filter `GET /v1/tenants` by the authenticated principal per ADR-031; remove unauthenticated access from tenant-list bootstrap endpoints except for explicitly public setup status; add an Admin Console identity settings read view showing configured provider, redirect URI, issuer, and tenant mapping state without exposing secrets; audit login success/failure and tenant-selection decisions.
@@ -463,6 +463,7 @@ Phase 3 exit gate is satisfied for the planned Phase 3 scope. The next implement
   - Out of scope: SAML, SCIM provisioning, multi-IdP routing, user/group lifecycle sync, password or local-user auth, and building a first-party identity provider.
   - Verification: HTTP integration tests for protected query/admin paths, tenant-list filtering, missing/expired session rejection, and cross-tenant denial; frontend MSW/RTL tests for login state, session expiry, tenant picker filtering, and Admin Console identity settings; a documented manual smoke against one customer-compatible IdP or local Keycloak test realm.
   - Checkpoint: does this change only integrate a bought/leverage IdP per ADR-015, and are any auth-model deltas reflected in ADR-008/spec updates?
+  - Archive: detailed implementation plan moved to `archived/plans/2026-05-06-identity-provider-zitadel.md`.
 
 - [ ] **P4-S3b: Add SCIM/SSO management if required by target v1 customers**
   - Trigger: execute only when a selected v1 customer requires automated user/group provisioning or multi-provider SSO management before launch.

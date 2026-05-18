@@ -11,17 +11,17 @@
 These gaps were identified during a direct review of `apps/frontend/src` against `spec/05-frontend.md` and the Phase 2-8 roadmap. They represent required product surface that is currently missing or only partially implemented.
 
 ### Service Detail & Navigation
-- [ ] **Tab Completion**: Add **Deployments** and **Alerts / Incidents** tabs to `ServiceDetailPage.tsx` to match the navigation hierarchy in §9.5.
+- [x] **Tab Completion**: Add **Deployments** and **Alerts** tabs to `ServiceDetailPage.tsx` (COMPLETED 2026-05-09). The `deployments` and `alerts` tabs are present and wired. Incidents tab on service detail remains deferred; incidents are reachable via the global Incidents page.
 - [ ] **Context Preservation**: Ensure all tabs (Logs, Metrics, Traces, etc.) consistently apply the service filter and global date range from the URL.
 
 ### Dashboard Maturity
-- [ ] **Dashboard Detail View**: Create a dedicated page for viewing a single dashboard where `TimeSeriesGraph` and other visualizations are actually rendered for each panel.
-- [ ] **Dashboard Builder**: Implement the drag-and-drop panel editor and configuration UI as specified in §9.7.
+- [x] **Dashboard Detail View**: Create a dedicated page for viewing a single dashboard where `TimeSeriesGraph` and other visualizations are actually rendered for each panel (COMPLETED 2026-05-12). `DashboardDetailPage.tsx` exists with panel rendering, edit mode, add/edit forms, and `react-grid-layout` drag/resize.
+- [ ] **Dashboard Builder**: Implement the full drag-and-drop panel editor and configuration UI as specified in §9.7. Partial: edit mode, add/edit panel forms, and layout drag/resize exist; full builder UX (e.g., widget library, template panels) remains.
 
 ### Reliability & Alerting
-- [ ] **SLO Management**: Expand `features/alerts` to include error budget tracking and burn-rate history. SLO creation and current health cards are complete in P4-S5.
-- [ ] **Incident Timeline**: Implement the correlated event timeline for alert firings as specified in §9.2.
-- [ ] **Notification Channels**: Add UI for managing outbound notification integrations (webhooks, Slack).
+- [x] **SLO Management**: Expand `features/alerts` to include error budget tracking and burn-rate history (COMPLETED 2026-05-05). `AlertsPage.tsx` includes SLO creation form, `SloHealthCard` components with burn-rate thresholds, and `api/slos.ts` backend integration.
+- [x] **Incident Timeline**: Implement the correlated event timeline for alert firings as specified in §9.2 (COMPLETED 2026-05-10). `IncidentDetailPage.tsx` renders a `Timeline` section with `IncidentEventItem` events (triggered, alert_fired, alert_resolved, etc.).
+- [x] **Notification Channels**: Add UI for managing outbound notification integrations (webhooks, Slack) (COMPLETED 2026-05-10). `NotificationChannelsList.tsx` exists in `features/alerts/`.
 
 ### Explorers & Workbench
 - [ ] **Live Tail**: Add the "Live" toggle and streaming append behavior to `LogSearch.tsx` as specified in §9.18.
@@ -39,8 +39,8 @@ These gaps were identified during a direct review of `apps/frontend/src` against
 These gaps were identified during a review of the Rust backend services and the Phase 2-8 roadmap.
 
 ### Security & Tenancy
-- [ ] **Query API Tenancy (RF-0)**: Fix `query-api/src/middleware/auth.rs` to validate credentials (session/API key) before trusting `X-Tenant-ID`.
-- [ ] **NLQ SQL Safety (RF-3)**: Implement field and type allowlisting in `query-api/src/sql_templates.rs` to prevent SQL injection and unsafe query shapes.
+- [x] **Query API Tenancy (RF-0)**: Fix `query-api/src/middleware/auth.rs` to validate credentials (session/API key) before trusting `X-Tenant-ID` (COMPLETED 2026-05-09). `auth.rs` implements dual-path validation: `Authorization: Bearer <api-key>` is verified against the `api_keys` table, and `Cookie: session=<jwt>` is validated via `auth-service` `POST /internal/validate-session`.
+- [ ] **NLQ SQL Safety (RF-3)**: Implement field and type allowlisting in `query-api/src/sql_templates.rs` to prevent SQL injection and unsafe query shapes. Partial: `mcp_query.rs` has `allowed_metric_filter_fields()` and `traces.rs` has `valid_fields` allowlists; comprehensive allowlisting across all SQL template paths remains.
 
 ### Performance & Scaling
 - [ ] **Stream Processor Batching**: Refactor `stream-processor` to batch multiple telemetry envelopes before flushing to `storage-writer`. The current 1-request-per-envelope model is a high-volume bottleneck.
