@@ -102,11 +102,8 @@ Promote only one candidate at a time.
 - [x] **P5-S2: Add one notification routing integration**
   - COMPLETED 2026-05-10. Rule-level webhook integration with retry and audit behavior.
 
-
-2. **P5-S1: Add incident timeline for one alert source**
-   - Promote after P4-S5 or P5-S2, depending on whether the product wants triage history before outbound notifications.
-   - First detailed plan should consume existing threshold or SLO alert firings and append immutable timeline events.
-   - Missing clarity: decide whether incident objects are created automatically from alert firings or manually from the Alerts UI for the first slice.
+- [x] **P5-S1: Add incident timeline for one alert source**
+  - COMPLETED 2026-05-18. `IncidentDetailResponse` includes `rule_name` via LEFT JOIN; alert evaluator writes human-readable messages (`{name} fired: value={value:.2}`); `GET /v1/alerts/rules/:rule_id` returns rule detail + 20 recent firings; `AlertRuleDetailPage` at `/alerts/$ruleId`; incident timeline links to rule detail on `alert_fired`/`alert_resolved` events.
 
 3. **P6-S1: Add continuous profiling ingestion and one query path**
    - Promote only after P4-S1 warm retention/object storage is complete.
@@ -161,13 +158,11 @@ Promote only one candidate at a time.
 
 ## Phase 5 Remaining Work
 
-- [ ] **P5-S1: Add incident timeline for one alert source**
-  - Direct prerequisite: at least one stable alert source, preferably P4-S5 burn-rate alerts.
-  - Completion signal: one alert source can produce a durable timeline with source links.
+- [x] **P5-S1: Add incident timeline for one alert source** (COMPLETED 2026-05-18)
+  - Completion: `IncidentDetailResponse` includes `rule_name` via LEFT JOIN; alert evaluator writes human-readable messages (`{name} fired: value={value:.2}`); `GET /v1/alerts/rules/:rule_id` returns rule detail + 20 recent firings; `AlertRuleDetailPage` at `/alerts/$ruleId`; incident timeline links to rule detail on `alert_fired`/`alert_resolved` events.
 
-- [ ] **P5-S2: Add one notification routing integration**
-  - Direct prerequisite: at least one stable alert source.
-  - Completion signal: one alert firing reaches one operator channel with retry, delivery status, and audit notes.
+- [x] **P5-S2: Add one notification routing integration** (COMPLETED 2026-05-10)
+  - Completion: Rule-level webhook integration with retry and audit behavior.
 
 - [ ] **P5-S3: Add runbook workflow attachment to an alert or incident**
   - Direct prerequisite: P4-S6 runbook format or P5-S1 incident model.
