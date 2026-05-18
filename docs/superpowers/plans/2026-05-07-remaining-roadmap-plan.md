@@ -111,7 +111,7 @@ These gaps were identified during a direct review of `apps/frontend/src` and the
 
 #### Dashboard Maturity
 - [x] **Dashboard Detail View**: Create a dedicated page for viewing a single dashboard where `TimeSeriesGraph` and other visualizations are actually rendered for each panel (COMPLETED 2026-05-12). `DashboardDetailPage.tsx` exists with panel rendering, edit mode, add/edit forms, and `react-grid-layout` drag/resize.
-- [ ] **Dashboard Builder**: Implement the full drag-and-drop panel editor and configuration UI as specified in §9.7. Partial: edit mode, add/edit panel forms, and layout drag/resize exist; full builder UX (e.g., widget library, template panels) remains.
+- [x] **Dashboard Builder**: Implement the full drag-and-drop panel editor and configuration UI as specified in §9.7 (COMPLETED 2026-05-18). `DashboardDetailPage.tsx` now includes a `PanelTemplateLibrary` with pre-built templates (error rate, request rate, P99 latency, slow traces, recent errors, CPU usage) plus the existing edit mode, add/edit forms, and `react-grid-layout` drag/resize. Custom panel creation remains available alongside templates.
 
 #### Reliability & Alerting
 - [x] **SLO Management**: Expand `features/alerts` to include error budget tracking and burn-rate history (COMPLETED 2026-05-05). `AlertsPage.tsx` includes SLO creation form, `SloHealthCard` components with burn-rate thresholds, and `api/slos.ts` backend integration.
