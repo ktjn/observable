@@ -427,7 +427,9 @@ async fn record_firing(db: &sqlx::PgPool, rule: &AlertRuleRow, value: f64) -> an
 
             if rule.auto_trigger_incident {
                 let dedup_key = rule.rule_id.to_string();
-                if let Err(e) = upsert_incident_from_firing(db, rule, firing_id, &dedup_key).await {
+                if let Err(e) =
+                    upsert_incident_from_firing(db, rule, firing_id, &dedup_key, value).await
+                {
                     tracing::warn!(
                         rule_id = %rule.rule_id,
                         firing_id = %firing_id,
@@ -477,7 +479,7 @@ async fn resolve_open_firing(
 
     if rule.auto_trigger_incident {
         for firing_id in &firings {
-            if let Err(e) = resolve_incident_for_firing(db, rule, *firing_id).await {
+            if let Err(e) = resolve_incident_for_firing(db, rule, *firing_id, value).await {
                 tracing::warn!(
                     rule_id = %rule.rule_id,
                     firing_id = %firing_id,
@@ -496,6 +498,7 @@ async fn upsert_incident_from_firing(
     rule: &AlertRuleRow,
     firing_id: Uuid,
     dedup_key: &str,
+    value: f64,
 ) -> anyhow::Result<()> {
     let incident_id: Option<Uuid> = sqlx::query_scalar(
         "SELECT incident_id FROM incidents \
@@ -542,7 +545,7 @@ async fn upsert_incident_from_firing(
          VALUES ($1, 'alert_fired', 'system', $2)",
     )
     .bind(incident_id)
-    .bind(format!("Firing {firing_id}"))
+    .bind(format!("{} fired: value={:.2}", rule.name, value))
     .execute(db)
     .await?;
 
@@ -553,6 +556,7 @@ async fn resolve_incident_for_firing(
     db: &sqlx::PgPool,
     rule: &AlertRuleRow,
     firing_id: Uuid,
+    value: f64,
 ) -> anyhow::Result<()> {
     let incident_id: Option<Uuid> = sqlx::query_scalar(
         "SELECT incident_id FROM incidents \
@@ -581,7 +585,7 @@ async fn resolve_incident_for_firing(
              VALUES ($1, 'alert_resolved', 'system', $2)",
         )
         .bind(incident_id)
-        .bind(format!("Firing {firing_id} resolved"))
+        .bind(format!("{} resolved: value={:.2}", rule.name, value))
         .execute(db)
         .await?;
     }
