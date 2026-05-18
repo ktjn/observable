@@ -62,3 +62,34 @@ export async function silenceAlertRule(
   if (!res.ok) throw new Error(`Failed to update alert rule: ${res.status}`);
   return res.json();
 }
+
+export interface FiringItem {
+  firing_id: string;
+  state: "pending" | "active" | "resolved";
+  value: number | null;
+  occurred_at: string;
+  resolved_at: string | null;
+}
+
+export interface AlertRuleDetailResponse {
+  rule_id: string;
+  name: string;
+  severity: string;
+  alert_type: string;
+  condition: Record<string, unknown>;
+  silenced: boolean;
+  firing: boolean;
+  firings: FiringItem[];
+}
+
+export async function getAlertRule(
+  tenantId: string,
+  ruleId: string,
+): Promise<AlertRuleDetailResponse> {
+  const res = await fetch(`/v1/alerts/rules/${ruleId}`, {
+    credentials: "include",
+    headers: tenantHeaders(tenantId),
+  });
+  if (!res.ok) throw new Error(`Failed to get alert rule: ${res.status}`);
+  return res.json();
+}
