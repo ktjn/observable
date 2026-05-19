@@ -14,7 +14,7 @@ services:
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
     volumes: [clickhouse_data:/var/lib/clickhouse]
     healthcheck:
-      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      test: ["CMD-SHELL", "clickhouse-client --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} --query 'SELECT 1'"]
       interval: 2s
       timeout: 2s
       retries: 30
