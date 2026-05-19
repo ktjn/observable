@@ -83,11 +83,17 @@ pub struct CreateRuleRequest {
     pub threshold: f64,
     pub notification_channels: Option<Vec<Uuid>>,
     pub auto_trigger_incident: Option<bool>,
+    pub runbook_url: Option<String>,
 }
 
 #[derive(Deserialize)]
 pub struct SilenceRequest {
     pub silenced: bool,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateRunbookRequest {
+    pub runbook_url: Option<String>,
 }
 
 #[derive(Debug)]
@@ -230,8 +236,9 @@ pub async fn create_alert_rule(
     let auto_trigger = req.auto_trigger_incident.unwrap_or(true);
 
     let rule_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO alert_rules (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
-         VALUES ($1, $2, 'threshold', 'warning', $3, $4, $5) \
+        "INSERT INTO alert_rules \
+         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident, runbook_url) \
+         VALUES ($1, $2, 'threshold', 'warning', $3, $4, $5, $6) \
          RETURNING rule_id",
     )
     .bind(tenant_id)
@@ -239,6 +246,7 @@ pub async fn create_alert_rule(
     .bind(&condition)
     .bind(&channels)
     .bind(auto_trigger)
+    .bind(req.runbook_url.as_deref())
     .fetch_one(db)
     .await
     .map_err(CreateRuleError::Db)?;
@@ -282,6 +290,25 @@ pub async fn silence_alert_rule(
 
     let rules = list_alert_rules(db, tenant_id).await?;
     Ok(rules.into_iter().find(|r| r.rule_id == rule_id))
+}
+
+pub async fn update_alert_rule_runbook(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+    rule_id: Uuid,
+    runbook_url: Option<&str>,
+) -> Result<bool, sqlx::Error> {
+    let updated: Option<Uuid> = sqlx::query_scalar(
+        "UPDATE alert_rules SET runbook_url = $1 \
+         WHERE rule_id = $2 AND tenant_id = $3 \
+         RETURNING rule_id",
+    )
+    .bind(runbook_url)
+    .bind(rule_id)
+    .bind(tenant_id)
+    .fetch_optional(db)
+    .await?;
+    Ok(updated.is_some())
 }
 
 pub async fn get_alert_rule(
@@ -342,6 +369,15 @@ pub async fn get_alert_rule(
     }))
 }
 
+fn validate_runbook_url(url: &Option<String>) -> Result<(), String> {
+    if let Some(u) = url {
+        if !u.starts_with("http://") && !u.starts_with("https://") {
+            return Err("runbook_url must start with http:// or https://".into());
+        }
+    }
+    Ok(())
+}
+
 pub async fn handle_get_rule(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
@@ -399,6 +435,33 @@ pub async fn handle_silence_rule(
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(e) => {
             tracing::error!(error = %e, "failed to silence alert rule");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+pub async fn handle_update_rule_runbook(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(rule_id): Path<Uuid>,
+    Json(req): Json<UpdateRunbookRequest>,
+) -> Result<StatusCode, StatusCode> {
+    if let Err(msg) = validate_runbook_url(&req.runbook_url) {
+        tracing::warn!(message = %msg, "invalid runbook URL");
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    match update_alert_rule_runbook(
+        &state.db,
+        ctx.tenant_id,
+        rule_id,
+        req.runbook_url.as_deref(),
+    )
+    .await
+    {
+        Ok(true) => Ok(StatusCode::NO_CONTENT),
+        Ok(false) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            tracing::error!(error = %e, "failed to update runbook URL");
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -464,6 +527,26 @@ mod tests {
         };
         let v = serde_json::to_value(&r).unwrap();
         assert_eq!(v["runbook_url"], "https://example.com/runbook");
+    }
+
+    #[test]
+    fn validate_runbook_url_accepts_https() {
+        assert!(super::validate_runbook_url(&Some("https://example.com/runbook".into())).is_ok());
+    }
+
+    #[test]
+    fn validate_runbook_url_accepts_http() {
+        assert!(super::validate_runbook_url(&Some("http://internal.example.com".into())).is_ok());
+    }
+
+    #[test]
+    fn validate_runbook_url_rejects_missing_scheme() {
+        assert!(super::validate_runbook_url(&Some("example.com/runbook".into())).is_err());
+    }
+
+    #[test]
+    fn validate_runbook_url_accepts_none() {
+        assert!(super::validate_runbook_url(&None).is_ok());
     }
 
     #[test]

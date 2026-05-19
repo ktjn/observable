@@ -123,6 +123,10 @@ async fn main() -> anyhow::Result<()> {
             "/v1/alerts/rules/{rule_id}/silence",
             patch(alerts::handle_silence_rule),
         )
+        .route(
+            "/v1/alerts/rules/{rule_id}/runbook",
+            patch(alerts::handle_update_rule_runbook),
+        )
         .route("/v1/incidents", get(incidents::handle_list_incidents))
         .route(
             "/v1/incidents/{incident_id}",
