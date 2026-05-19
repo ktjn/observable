@@ -28,6 +28,7 @@ export interface CreateRuleRequest {
   threshold: number;
   notification_channels?: string[];
   auto_trigger_incident?: boolean;
+  runbook_url?: string;
 }
 
 export async function listAlertRules(tenantId: string): Promise<AlertRuleListResponse> {
@@ -82,6 +83,7 @@ export interface AlertRuleDetailResponse {
   silenced: boolean;
   firing: boolean;
   firings: FiringItem[];
+  runbook_url: string | null;
 }
 
 export async function getAlertRule(
@@ -94,4 +96,18 @@ export async function getAlertRule(
   });
   if (!res.ok) throw new Error(`Failed to get alert rule: ${res.status}`);
   return res.json();
+}
+
+export async function setAlertRuleRunbook(
+  tenantId: string,
+  ruleId: string,
+  runbookUrl: string | null,
+): Promise<void> {
+  const res = await fetch(`/v1/alerts/rules/${ruleId}/runbook`, {
+    credentials: "include",
+    method: "PATCH",
+    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
+    body: JSON.stringify({ runbook_url: runbookUrl }),
+  });
+  if (!res.ok) throw new Error(`Failed to update runbook URL: ${res.status}`);
 }

@@ -44,6 +44,7 @@ const sampleRule: alertsApi.AlertRuleDetailResponse = {
       resolved_at: "2026-05-18T09:30:00Z",
     },
   ],
+  runbook_url: null,
 };
 
 function renderPage() {
