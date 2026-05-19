@@ -52,7 +52,7 @@ def run(argv: list[str] | None = None) -> None:
     print(f"World: {len(world.tenants)} tenants, "
           f"{sum(len(t.services) for t in world.tenants)} total services, "
           f"{(world.end_time - world.start_time).days} days")
-    print(f"Window: {world.start_time.isoformat()} → {world.end_time.isoformat()}")
+    print(f"Window: {world.start_time.isoformat()} -> {world.end_time.isoformat()}")
 
     if not args.no_postgres:
         seed_postgres(world.tenants, args.postgres_url, dry_run=args.dry_run)
