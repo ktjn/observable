@@ -51,6 +51,7 @@ pub struct AlertRuleDetailResponse {
     pub silenced: bool,
     pub firing: bool,
     pub firings: Vec<FiringItem>,
+    pub runbook_url: Option<String>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -62,6 +63,7 @@ struct AlertRuleDetailRow {
     condition: serde_json::Value,
     silenced: bool,
     firing: bool,
+    runbook_url: Option<String>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -288,7 +290,7 @@ pub async fn get_alert_rule(
     rule_id: Uuid,
 ) -> Result<Option<AlertRuleDetailResponse>, sqlx::Error> {
     let row: Option<AlertRuleDetailRow> = sqlx::query_as(
-        "SELECT r.rule_id, r.name, r.severity, r.alert_type, r.condition, r.silenced, \
+        "SELECT r.rule_id, r.name, r.severity, r.alert_type, r.condition, r.silenced, r.runbook_url, \
          EXISTS( \
              SELECT 1 FROM alert_firings af \
              WHERE af.rule_id = r.rule_id AND af.tenant_id = r.tenant_id \
@@ -326,6 +328,7 @@ pub async fn get_alert_rule(
         condition: row.condition,
         silenced: row.silenced,
         firing: row.firing,
+        runbook_url: row.runbook_url,
         firings: firings
             .into_iter()
             .map(|f| FiringItem {
@@ -444,6 +447,23 @@ mod tests {
     fn unknown_operator_is_not_valid() {
         assert!(!VALID_OPERATORS.contains(&"neq"));
         assert!(!VALID_OPERATORS.contains(&">"));
+    }
+
+    #[test]
+    fn alert_rule_detail_response_includes_runbook_url() {
+        let r = AlertRuleDetailResponse {
+            rule_id: Uuid::nil(),
+            name: "test".into(),
+            severity: "warning".into(),
+            alert_type: "threshold".into(),
+            condition: serde_json::json!({}),
+            silenced: false,
+            firing: false,
+            firings: vec![],
+            runbook_url: Some("https://example.com/runbook".into()),
+        };
+        let v = serde_json::to_value(&r).unwrap();
+        assert_eq!(v["runbook_url"], "https://example.com/runbook");
     }
 
     #[test]
