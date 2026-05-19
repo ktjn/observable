@@ -168,6 +168,33 @@ async fn create_threshold_rule_with_auto_trigger(
     rule_id
 }
 
+async fn create_threshold_rule_with_runbook(
+    pool: &PgPool,
+    tenant_id: Uuid,
+    metric_name: &str,
+    threshold: f64,
+    runbook_url: &str,
+) -> Uuid {
+    let rule_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO alert_rules \
+         (rule_id, tenant_id, name, alert_type, severity, condition, auto_trigger_incident, runbook_url) \
+         VALUES ($1, $2, 'runbook test rule', 'threshold', 'warning', $3, true, $4)",
+    )
+    .bind(rule_id)
+    .bind(tenant_id)
+    .bind(serde_json::json!({
+        "metric_name": metric_name,
+        "operator": "gt",
+        "threshold": threshold,
+    }))
+    .bind(runbook_url)
+    .execute(pool)
+    .await
+    .expect("threshold rule with runbook inserted");
+    rule_id
+}
+
 #[tokio::test]
 async fn auto_trigger_incident_created_on_active_firing() {
     let (pool, _pg) = start_postgres().await;
@@ -283,4 +310,30 @@ async fn no_incident_when_auto_trigger_is_false() {
         count, 0,
         "incident must not be created when auto_trigger_incident is false"
     );
+}
+
+#[tokio::test]
+async fn runbook_url_copied_from_rule_to_incident() {
+    let (pool, _pg) = start_postgres().await;
+    let (ch, _ch) = start_clickhouse().await;
+    let tenant_id = Uuid::new_v4();
+    let metric_name = "runbook_propagation_metric";
+    let runbook = "https://runbooks.example.com/high-error-rate";
+    let rule_id =
+        create_threshold_rule_with_runbook(&pool, tenant_id, metric_name, 0.05, runbook).await;
+
+    insert_metric_point(&ch, tenant_id, metric_name, 0.10).await;
+    eval_threshold_rules(&pool, &ch).await.unwrap();
+
+    let fetched_runbook: Option<String> = sqlx::query_scalar(
+        "SELECT runbook_url FROM incidents \
+         WHERE tenant_id = $1 AND triggered_by_rule_id = $2",
+    )
+    .bind(tenant_id)
+    .bind(rule_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(fetched_runbook.as_deref(), Some(runbook));
 }

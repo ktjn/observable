@@ -244,9 +244,8 @@ Before Phase 5 starts, answer:
   - Direct prerequisite: at least one stable alert source.
   - Completion signal: one alert firing reaches one operator channel with retry, delivery status, and audit notes.
 
-- [ ] **P5-S3: Add runbook workflow attachment to an alert or incident**
-  - Direct prerequisite: P4-S6 runbook format or P5-S1 incident model.
-  - Completion signal: an alert or incident can link to an executable or checkable runbook workflow.
+- [x] **P5-S3: Add runbook workflow attachment to an alert or incident** (COMPLETED 2026-05-19)
+  - `alert_rules.runbook_url TEXT` column (migration 029); `GET /v1/alerts/rules/:id` returns it; `POST /v1/alerts/rules` accepts it; `PATCH /v1/alerts/rules/:id/runbook` sets/clears it with http/https validation; evaluator copies it to `incidents.runbook_url` on incident creation; `AlertRuleDetailPage` shows inline-editable runbook row; `AlertsPage` create form includes optional Runbook URL field.
 
 - [ ] **P5-S4: Add topology-aware impact view for one incident**
   - Direct prerequisite: P3 service topology and P5-S1 incident timeline.

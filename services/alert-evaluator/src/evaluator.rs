@@ -86,6 +86,7 @@ pub struct AlertRuleRow {
     pub notification_channels: Vec<Uuid>,
     pub auto_trigger_incident: bool,
     pub auto_trigger_delay_secs: Option<i64>,
+    pub runbook_url: Option<String>,
 }
 
 #[derive(clickhouse::Row, serde::Deserialize)]
@@ -118,7 +119,7 @@ pub async fn eval_threshold_rules(
 ) -> anyhow::Result<()> {
     let rules: Vec<AlertRuleRow> = sqlx::query_as(
         "SELECT rule_id, tenant_id, name, condition, severity, for_duration_secs, notification_channels, \
-         auto_trigger_incident, auto_trigger_delay_secs \
+         auto_trigger_incident, auto_trigger_delay_secs, runbook_url \
          FROM alert_rules WHERE alert_type = 'threshold' AND silenced = false",
     )
     .fetch_all(db)
@@ -202,7 +203,7 @@ pub async fn eval_slo_burn_rate_rules(
 ) -> anyhow::Result<()> {
     let rules: Vec<AlertRuleRow> = sqlx::query_as(
         "SELECT rule_id, tenant_id, name, condition, severity, for_duration_secs, notification_channels, \
-         auto_trigger_incident, auto_trigger_delay_secs \
+         auto_trigger_incident, auto_trigger_delay_secs, runbook_url \
          FROM alert_rules WHERE alert_type = 'slo_burn_rate' AND silenced = false",
     )
     .fetch_all(db)
@@ -516,8 +517,9 @@ async fn upsert_incident_from_firing(
         Some(id) => id,
         None => {
             let id: Uuid = sqlx::query_scalar(
-                "INSERT INTO incidents (tenant_id, title, severity, status, dedup_key, triggered_by_rule_id) \
-                 VALUES ($1, $2, $3, 'triggered', $4, $5) \
+                "INSERT INTO incidents \
+                 (tenant_id, title, severity, status, dedup_key, triggered_by_rule_id, runbook_url) \
+                 VALUES ($1, $2, $3, 'triggered', $4, $5, $6) \
                  RETURNING incident_id",
             )
             .bind(rule.tenant_id)
@@ -525,6 +527,7 @@ async fn upsert_incident_from_firing(
             .bind(&rule.severity)
             .bind(dedup_key)
             .bind(rule.rule_id)
+            .bind(rule.runbook_url.as_deref())
             .fetch_one(db)
             .await?;
 

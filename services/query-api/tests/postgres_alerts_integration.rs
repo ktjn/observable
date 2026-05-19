@@ -82,6 +82,7 @@ async fn create_rule_appears_in_list() {
         threshold: 500.0,
         notification_channels: None,
         auto_trigger_incident: None,
+        runbook_url: None,
     };
     let created = create_alert_rule(&pool, tenant, &req).await.unwrap();
 
@@ -113,6 +114,7 @@ async fn silence_toggle_updates_silenced_flag() {
         threshold: 0.9,
         notification_channels: None,
         auto_trigger_incident: None,
+        runbook_url: None,
     };
     let created = create_alert_rule(&pool, tenant, &req).await.unwrap();
     assert!(!created.silenced);
@@ -143,6 +145,7 @@ async fn silence_returns_none_for_cross_tenant_rule() {
         threshold: 10.0,
         notification_channels: None,
         auto_trigger_incident: None,
+        runbook_url: None,
     };
 
     let created = create_alert_rule(&pool, tenant_a, &req).await.unwrap();
@@ -176,6 +179,7 @@ async fn list_rules_does_not_return_other_tenant_rules() {
         threshold: 10.0,
         notification_channels: None,
         auto_trigger_incident: None,
+        runbook_url: None,
     };
 
     create_alert_rule(&pool, tenant_a, &req).await.unwrap();
@@ -202,6 +206,7 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             threshold: 1.0,
             notification_channels: None,
             auto_trigger_incident: None,
+            runbook_url: None,
         },
     )
     .await
@@ -226,6 +231,7 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             threshold: 1.0,
             notification_channels: None,
             auto_trigger_incident: None,
+            runbook_url: None,
         },
     )
     .await
@@ -250,6 +256,7 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             threshold: 1.0,
             notification_channels: None,
             auto_trigger_incident: None,
+            runbook_url: None,
         },
     )
     .await
@@ -274,6 +281,7 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             threshold: 1.0,
             notification_channels: None,
             auto_trigger_incident: None,
+            runbook_url: None,
         },
     )
     .await
