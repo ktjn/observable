@@ -1,28 +1,28 @@
 use axum::{
+    Router,
     body::Body,
     http::{Request, StatusCode},
     middleware as axum_middleware,
     routing::{get, post, put},
-    Router,
 };
 use clickhouse::Client as ChClient;
 use domain::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use http_body_util::BodyExt;
 use query_api::{
     alerts, config, dashboards, incidents, llm_adapter, logs, metrics,
-    middleware::auth::require_tenant, middleware::auth::TenantContext, planner::QueryPlanner, slos,
+    middleware::auth::TenantContext, middleware::auth::require_tenant, planner::QueryPlanner, slos,
     traces,
 };
 use serde_json::Value;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::{path::Path, sync::Arc};
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::{clickhouse::ClickHouse, postgres::Postgres};
 use tower::ServiceExt;
 use uuid::Uuid;
 use wiremock::{
-    matchers::{method, path},
     Mock, MockServer, ResponseTemplate,
+    matchers::{method, path},
 };
 
 // ── Dev credentials (must match seed data in migrations) ────────────────────
@@ -36,7 +36,7 @@ const DEV_API_KEY: &str = "dev-api-key-0000";
 
 async fn start_clickhouse() -> (ChClient, testcontainers::ContainerAsync<ClickHouse>) {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -50,7 +50,7 @@ async fn start_clickhouse() -> (ChClient, testcontainers::ContainerAsync<ClickHo
 
 async fn start_postgres() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
     let container = Postgres::default()
-        .with_tag("16")
+        .with_tag("17")
         .start()
         .await
         .expect("postgres container started");
@@ -148,9 +148,9 @@ fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
         .route("/v1/metrics", get(metrics::list_metrics))
         .route("/v1/metrics/points", get(metrics::get_metric_group_points))
         .route("/v1/nlq", post(llm_adapter::handle_nlq_query))
-        .route("/v1/dashboards/:id", get(dashboards::handle_get_dashboard))
+        .route("/v1/dashboards/{id}", get(dashboards::handle_get_dashboard))
         .route(
-            "/v1/dashboards/:id",
+            "/v1/dashboards/{id}",
             put(dashboards::handle_update_dashboard),
         )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
@@ -159,7 +159,7 @@ fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
         .route("/v1/slos", post(slos::handle_create_slo))
         .route("/v1/incidents", get(incidents::handle_list_incidents))
         .route(
-            "/v1/incidents/:incident_id",
+            "/v1/incidents/{incident_id}",
             get(incidents::handle_get_incident),
         )
         .layer(axum_middleware::from_fn(require_tenant))
@@ -193,7 +193,7 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
         .route("/v1/slos", get(slos::handle_list_slos))
         .route("/v1/incidents", get(incidents::handle_list_incidents))
         .route(
-            "/v1/incidents/:incident_id",
+            "/v1/incidents/{incident_id}",
             get(incidents::handle_get_incident),
         )
         .layer(axum_middleware::from_fn(require_tenant))
@@ -218,6 +218,7 @@ fn fake_nlq_app_no_db() -> Router {
         .route("/v1/nlq", post(llm_adapter::handle_nlq_query))
         .layer(axum::Extension(TenantContext {
             tenant_id,
+            user_id: None,
             role: "admin".into(),
         }))
         .with_state(state)

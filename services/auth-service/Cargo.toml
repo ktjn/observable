@@ -1,15 +1,11 @@
 [package]
 name    = "auth-service"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 
 [lib]
 name = "auth_service"
 path = "src/lib.rs"
-
-[[bin]]
-name = "auth-service"
-path = "src/main.rs"
 
 [dependencies]
 domain             = { path = "../../libs/domain" }
@@ -27,7 +23,7 @@ tracing-subscriber = { workspace = true }
 sqlx               = { workspace = true }
 chrono             = { workspace = true }
 sha2               = "0.10"
-jsonwebtoken       = "9"
+jsonwebtoken       = { version = "10", features = ["rust_crypto"] }
 rand               = "0.8"
 base64             = "0.22"
 reqwest            = { workspace = true }

@@ -3,14 +3,15 @@ import { AppShell } from "./components/AppShell";
 import AdminPage from "./pages/AdminPage";
 import InfrastructureDetailPage from "./pages/InfrastructureDetailPage";
 import InfrastructureInventoryPage from "./pages/InfrastructureInventoryPage";
-import { ProductAreaPage } from "./pages/ProductAreaPage";
 import { AlertsPage } from "./features/alerts/AlertsPage";
 import { AlertRuleDetailPage } from "./features/alerts/AlertRuleDetailPage";
 import { IncidentsPage } from "./features/incidents/IncidentsPage";
 import { IncidentDetailPage } from "./features/incidents/IncidentDetailPage";
 import ServiceDetailPage from "./pages/ServiceDetailPage";
-import ServiceTopologyPage from "./pages/ServiceTopologyPage";
+import ServicesPage from "./pages/ServicesPage";
 import SetupPage from "./pages/SetupPage";
+import SetupLlmPage from "./pages/SetupLlmPage";
+import SetupTokensPage from "./pages/SetupTokensPage";
 import TraceSearch from "./pages/TraceSearch";
 import TraceDetailPage from "./pages/TraceDetailPage";
 import LogSearch from "./pages/LogSearch";
@@ -53,17 +54,27 @@ const rootRoute = createRootRoute({
 const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: ProductAreaPage,
+  component: ServicesPage,
 });
 const servicesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/services",
-  component: ProductAreaPage,
+  component: ServicesPage,
 });
 const setupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/setup",
   component: SetupPage,
+});
+const setupLlmRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/setup/llm",
+  component: SetupLlmPage,
+});
+const setupTokensRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/setup/tokens",
+  component: SetupTokensPage,
 });
 const serviceDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -85,6 +96,16 @@ const serviceTracesRoute = createRoute({
   path: "/services/$serviceId/traces",
   component: ServiceDetailPage,
 });
+const serviceDeploymentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/services/$serviceId/deployments",
+  component: ServiceDetailPage,
+});
+const serviceAlertsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/services/$serviceId/alerts",
+  component: ServiceDetailPage,
+});
 const infrastructureRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/infrastructure",
@@ -98,7 +119,7 @@ const infrastructureDetailRoute = createRoute({
 const serviceOverviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/service-overview",
-  component: ServiceTopologyPage,
+  component: ServicesPage,
 });
 const dashboardsRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -170,6 +191,9 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
   component: LoginPage,
+  validateSearch: (s: Record<string, unknown>) => ({
+    error: typeof s.error === "string" ? s.error : undefined,
+  }),
 });
 
 const authCallbackRoute = createRoute({
@@ -182,6 +206,8 @@ export const router = createRouter({
   routeTree: rootRoute.addChildren([
     homeRoute,
     setupRoute,
+    setupLlmRoute,
+    setupTokensRoute,
     loginRoute,
     authCallbackRoute,
     servicesRoute,
@@ -189,6 +215,8 @@ export const router = createRouter({
     serviceLogsRoute,
     serviceMetricsRoute,
     serviceTracesRoute,
+    serviceDeploymentsRoute,
+    serviceAlertsRoute,
     infrastructureRoute,
     infrastructureDetailRoute,
     serviceOverviewRoute,

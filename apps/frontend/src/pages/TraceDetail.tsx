@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 import { Span, SpanEvent } from "../api/traces";
 import { LogCorrelatedList } from "../components/LogCorrelatedList";
 import { infraLinks, InfraLink } from "../utils/infraLinks";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
+import { MetricCard } from "../components/ui/metric-card";
+import { Panel } from "../components/ui/panel";
 
 interface Props {
   traceId: string;
@@ -94,7 +97,7 @@ function CopyButton({ value }: { value: string }) {
   );
 }
 
-function SectionHeader({ children }: { children: React.ReactNode }) {
+function SectionHeader({ children }: { children: ReactNode }) {
   return (
     <h3 className="m-0 mt-4 mb-2 text-xs font-bold uppercase text-[var(--muted)] border-b border-[var(--border)] pb-1">
       {children}
@@ -107,7 +110,7 @@ function DlRow({
   children,
 }: {
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="contents">
@@ -156,7 +159,7 @@ function SpanContextPanel({
   return (
     <aside
       aria-label="Selected span context"
-      className="w-[320px] shrink-0 border border-[var(--border)] bg-[var(--surface)] p-4 max-[900px]:w-full"
+      className="w-[320px] shrink-0 border border-[var(--border)] bg-[var(--surface)] p-4 max-[900px]:w-full max-h-[calc(100vh-80px)] overflow-y-auto"
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
@@ -176,7 +179,6 @@ function SpanContextPanel({
         </Button>
       </div>
 
-      {/* Section 1: Core fields */}
       <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
         <DlRow label="trace_id">
           <span title={span.trace_id}>
@@ -207,7 +209,6 @@ function SpanContextPanel({
         <DlRow label="start time">{startDate}</DlRow>
       </dl>
 
-      {/* Section 2: DB Operation */}
       {dbSystem && (
         <>
           <SectionHeader>DB Operation</SectionHeader>
@@ -224,7 +225,6 @@ function SpanContextPanel({
         </>
       )}
 
-      {/* Section 3: HTTP */}
       {httpMethod && (
         <>
           <SectionHeader>HTTP</SectionHeader>
@@ -238,7 +238,6 @@ function SpanContextPanel({
         </>
       )}
 
-      {/* Section 4: Span Events */}
       {events.length > 0 && (
         <>
           <SectionHeader>Span Events</SectionHeader>
@@ -278,7 +277,6 @@ function SpanContextPanel({
         </>
       )}
 
-      {/* Section 5: Attributes */}
       {remainingAttrs.length > 0 && (
         <>
           <SectionHeader>Attributes</SectionHeader>
@@ -292,7 +290,6 @@ function SpanContextPanel({
         </>
       )}
 
-      {/* Section 6: Resource / Infrastructure */}
       {hasResourceSection && (
         <>
           <SectionHeader>Resource / Infrastructure</SectionHeader>
@@ -333,18 +330,42 @@ export function TraceDetail({ traceId, spans, events }: Props) {
 
   const infraPills = mergedInfraLinks(spans);
   const depthMap = buildDepthMap(spans);
-
   const selectedSpan = spans.find((s) => s.span_id === selectedSpanId);
 
+  const uniqueServices = [...new Set(spans.map((s) => s.service_name))];
+  const errorCount = spans.filter((s) => s.status_code === "ERROR").length;
+  const logPanelTitle = selectedSpanId
+    ? `Exact span logs (${selectedSpanId.substring(0, 8)}…) and trace-level logs`
+    : "Trace-correlated logs";
+
   return (
-    <div className="grid gap-4">
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--text-strong)] mt-0">
-          Trace {traceId.substring(0, 16)}…
-        </h1>
-        <p className="m-0 text-sm text-[var(--muted)]">
-          Total: {totalMs.toFixed(2)}ms — {spans.length} spans
-        </p>
+    <section className="page-stack">
+      <div className="page-header">
+        <div>
+          <div className="text-xs font-bold uppercase text-[var(--muted)]">Traces</div>
+          <h1>{traceId.substring(0, 16)}…</h1>
+        </div>
+        <Link to="/traces" className="secondary-link">Back to traces</Link>
+      </div>
+
+      <div className="grid grid-cols-4 gap-3 max-[700px]:grid-cols-2">
+        <MetricCard label="Total Spans" value={spans.length} tone="info" />
+        <MetricCard label="Duration" value={`${totalMs.toFixed(2)}ms`} tone="info" />
+        <MetricCard label="Services" value={uniqueServices.length} tone="info" />
+        <MetricCard label="Errors" value={errorCount} tone={errorCount > 0 ? "bad" : "good"} />
+      </div>
+
+      <div className="flex flex-wrap gap-x-4 gap-y-1" aria-label="Service color legend">
+        {uniqueServices.map((name) => (
+          <span key={name} className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
+            <span
+              aria-hidden="true"
+              className="inline-block h-2 w-2 rounded-full shrink-0"
+              style={{ background: serviceColor(name) }}
+            />
+            {name}
+          </span>
+        ))}
       </div>
 
       {infraPills.length > 0 && (
@@ -361,78 +382,83 @@ export function TraceDetail({ traceId, spans, events }: Props) {
         </div>
       )}
 
-      <div className="flex items-start gap-3 max-[900px]:flex-col">
-        <div className="flex-1 overflow-x-auto min-w-0">
+      <Panel eyebrow="Waterfall" title="Spans">
+        <div className="overflow-x-auto">
           <TimeRuler totalMs={totalMs} />
-          {spans.map((span) => {
-            const offset =
-              ((Number(span.start_time_unix_nano) - minStart) / totalNs) * 100;
-            const width = (span.duration_ns / totalNs) * 100;
-            const isSelected = selectedSpanId === span.span_id;
-            const depth = depthMap.get(span.span_id) ?? 0;
-            const color =
-              span.status_code === "ERROR"
-                ? "var(--bad)"
-                : serviceColor(span.service_name);
-            return (
-              <div
-                key={span.span_id}
-                role="button"
-                tabIndex={0}
-                onClick={() =>
-                  setSelectedSpanId(isSelected ? undefined : span.span_id)
-                }
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setSelectedSpanId(isSelected ? undefined : span.span_id);
-                  }
-                }}
-                className={`flex items-center mb-1 cursor-pointer px-0 py-0.5 ${
-                  isSelected ? "bg-[var(--surface-subtle)]" : "bg-transparent"
-                }`}
-              >
-                <span
-                  className="w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-xs shrink-0"
-                  style={{ paddingLeft: `${depth * 12}px` }}
-                >
-                  {span.service_name}: {span.operation_name}
-                  <span className="ml-1 text-[10px] text-[var(--muted)] font-mono">
-                    [{span.span_kind}]
-                  </span>
-                </span>
-                <div className="flex-1 relative h-4 bg-[var(--surface-inset)]">
+          <div className="flex items-start gap-3 max-[900px]:flex-col">
+            <div className="flex-1 min-w-0">
+              {spans.map((span) => {
+                const offset =
+                  ((Number(span.start_time_unix_nano) - minStart) / totalNs) * 100;
+                const width = (span.duration_ns / totalNs) * 100;
+                const isSelected = selectedSpanId === span.span_id;
+                const depth = depthMap.get(span.span_id) ?? 0;
+                const color =
+                  span.status_code === "ERROR"
+                    ? "var(--bad)"
+                    : serviceColor(span.service_name);
+                return (
                   <div
-                    className="absolute h-full"
-                    style={{
-                      left: `${offset}%`,
-                      width: `${Math.max(width, 0.5)}%`,
-                      background: color,
+                    key={span.span_id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() =>
+                      setSelectedSpanId(isSelected ? undefined : span.span_id)
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedSpanId(isSelected ? undefined : span.span_id);
+                      }
                     }}
-                    title={`${(span.duration_ns / 1e6).toFixed(2)}ms`}
-                  />
-                </div>
-                <span className="w-[60px] text-right text-xs shrink-0">
-                  {(span.duration_ns / 1e6).toFixed(2)}ms
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        {selectedSpan && (
-          <SpanContextPanel
-            span={selectedSpan}
-            events={(events ?? []).filter(
-              (e) => e.span_id === selectedSpan.span_id
+                    className={`flex items-center mb-1 cursor-pointer px-0 py-0.5 ${
+                      isSelected ? "bg-[var(--surface-subtle)]" : "bg-transparent"
+                    }`}
+                  >
+                    <span
+                      className="w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-xs shrink-0"
+                      style={{ paddingLeft: `${depth * 12}px` }}
+                    >
+                      {span.service_name}: {span.operation_name}
+                      <span className="ml-1 text-[10px] text-[var(--muted)] font-mono">
+                        [{span.span_kind}]
+                      </span>
+                    </span>
+                    <div className="flex-1 relative h-4 bg-[var(--surface-inset)]">
+                      <div
+                        className="absolute h-full"
+                        style={{
+                          left: `${offset}%`,
+                          width: `${Math.max(width, 0.5)}%`,
+                          background: color,
+                        }}
+                        title={`${(span.duration_ns / 1e6).toFixed(2)}ms`}
+                      />
+                    </div>
+                    <span className="w-[60px] text-right text-xs shrink-0">
+                      {(span.duration_ns / 1e6).toFixed(2)}ms
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            {selectedSpan && (
+              <SpanContextPanel
+                span={selectedSpan}
+                events={(events ?? []).filter(
+                  (e) => e.span_id === selectedSpan.span_id
+                )}
+                traceStartNs={minStart}
+                onClose={() => setSelectedSpanId(undefined)}
+              />
             )}
-            traceStartNs={minStart}
-            onClose={() => setSelectedSpanId(undefined)}
-          />
-        )}
-      </div>
+          </div>
+        </div>
+      </Panel>
 
-      <LogCorrelatedList traceId={traceId} spanId={selectedSpanId} />
-    </div>
+      <Panel eyebrow="Correlation" title={logPanelTitle}>
+        <LogCorrelatedList traceId={traceId} spanId={selectedSpanId} />
+      </Panel>
+    </section>
   );
 }

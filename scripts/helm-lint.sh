@@ -25,8 +25,8 @@ helm lint "$COMMON_CHART"
 
 echo ""
 echo "==> Adding Helm repositories"
-helm repo add openfga https://openfga.github.io/helm-charts
-helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+helm repo add --force-update openfga https://openfga.github.io/helm-charts
+helm repo add --force-update open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 helm repo update
 
 echo ""

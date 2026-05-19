@@ -1,0 +1,151 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "docker:enableMajor",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "labels": ["dependencies"],
+  "dependencyDashboard": true,
+  "prConcurrentLimit": 1,
+  "prHourlyLimit": 1,
+  "branchPrefix": "renovate/",
+  "rebaseWhen": "behind-base-branch",
+  "platformAutomerge": false,
+  "automerge": false,
+
+  "enabledManagers": [
+    "cargo",
+    "npm",
+    "dockerfile",
+    "docker-compose",
+    "helm-requirements",
+    "helm-values",
+    "pip_requirements",
+    "github-actions",
+    "custom.regex"
+  ],
+
+  "cargo": {
+    "managerFilePatterns": [
+      "/(^|/)Cargo\\.toml$/",
+      "/(^|/)Cargo\\.lock$/"
+    ]
+  },
+
+  "npm": {
+    "managerFilePatterns": [
+      "/(^|/)package\\.json$/",
+      "/(^|/)package-lock\\.json$/"
+    ]
+  },
+
+  "dockerfile": {
+    "managerFilePatterns": [
+      "/(^|/|\\.)Dockerfile$/",
+      "/(^|/)Dockerfile\\.[^/]*$/"
+    ]
+  },
+
+  "docker-compose": {
+    "managerFilePatterns": [
+      "/(^|/)docker-compose[^/]*\\.ya?ml$/",
+      "/(^|/)compose[^/]*\\.ya?ml$/"
+    ]
+  },
+
+  "helm-requirements": {
+    "managerFilePatterns": [
+      "/(^|/)charts/[^/]+/Chart\\.yaml$/"
+    ]
+  },
+
+  "helm-values": {
+    "managerFilePatterns": [
+      "/(^|/)charts/[^/]+/values\\.ya?ml$/"
+    ]
+  },
+
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update testcontainer image references in Rust integration tests",
+      "managerFilePatterns": [
+        "/(^|/)tests/.*_integration\\.rs$/"
+      ],
+      "matchStrings": [
+        "GenericImage::new\\(\"(?<depName>[^\"]+)\",\\s*\"(?<currentValue>[^\"]+)\"\\)"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Update Docker syntax directive in Dockerfiles",
+      "managerFilePatterns": [
+        "/(^|/|\\.)Dockerfile$/",
+        "/(^|/)Dockerfile\\.[^/]*$/"
+      ],
+      "matchStrings": [
+        "#\\s*syntax=docker/dockerfile:(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "docker/dockerfile"
+    }
+  ],
+
+  "packageRules": [
+    {
+      "description": "Group everything into a single PR",
+      "groupName": "all-dependencies",
+      "groupSlug": "all-dependencies",
+      "matchPackageNames": [
+        "/.*/"
+      ]
+    },
+    {
+      "description": "Pin Docker digests for production base images",
+      "matchManagers": ["dockerfile"],
+      "matchUpdateTypes": ["digest"],
+      "pinDigests": true
+    },
+    {
+      "description": "Require manual approval for major Rust version bumps",
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Require manual approval for major Node.js image bumps",
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["node"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Require manual approval for major Python image bumps",
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["python"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Require manual approval for major Rust toolchain image bumps",
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["rust", "lukemathwalker/cargo-chef"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Tag testcontainer images with manual-update label",
+      "matchManagers": ["custom.regex", "docker-compose"],
+      "matchPackageNames": [
+        "redpandadata/redpanda",
+        "clickhouse/clickhouse-server",
+        "postgres",
+        "openfga/openfga",
+        "rabbitmq"
+      ],
+      "addLabels": ["manual-update", "testcontainers"]
+    }
+  ]
+}

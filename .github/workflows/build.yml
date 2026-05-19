@@ -1,39 +1,54 @@
 name: Build & Test
 
-# PR and push triggers are intentionally disabled. GitHub Actions is not configured
-# as the authoritative CI gate for this repository. Run `bash scripts/local-ci.sh`
-# before pushing code; that script is the required local gate.
-#
-# on:
-#   pull_request:
-#     branches: [main]
-#     paths-ignore:
-#       - 'docs/**'
-#       - 'spec/**'
-#       - '**/*.md'
-#       - '.github/ISSUE_TEMPLATE/**'
-#       - '.github/PULL_REQUEST_TEMPLATE.md'
-#   push:
-#     branches: [main]
-#     paths-ignore:
-#       - 'docs/**'
-#       - 'spec/**'
-#       - '**/*.md'
-#       - '.github/ISSUE_TEMPLATE/**'
-#       - '.github/PULL_REQUEST_TEMPLATE.md'
-#   schedule:
-#     - cron: "0 2 * * *"
 on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'spec/**'
+      - '**/*.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'spec/**'
+      - '**/*.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
+  schedule:
+    - cron: "0 2 * * *"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.surfaces.outputs.backend }}
+      frontend: ${{ steps.surfaces.outputs.frontend }}
+      helm: ${{ steps.surfaces.outputs.helm }}
+      smoke: ${{ steps.surfaces.outputs.smoke }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: surfaces
+        run: bash scripts/ci-changed-surfaces.sh "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}"
+
   backend:
+    needs: [changes]
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.backend == '1'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: docker/setup-buildx-action@v4
 
-      - name: Build, test, and load final image
+      - name: Build and load final image
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -51,9 +66,11 @@ jobs:
           retention-days: 1
 
   frontend:
+    needs: changes
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == '1'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with: { node-version: "22", cache: "npm" }
       - run: npm ci
@@ -63,19 +80,22 @@ jobs:
       - run: npm run test --workspace=apps/frontend -- --run
 
   helm:
+    needs: changes
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.helm == '1'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: azure/setup-helm@v5
         with:
           version: "3.14.4"
       - run: bash scripts/helm-lint.sh
 
   smoke:
-    needs: backend
+    needs: [changes, backend]
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.smoke == '1'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/download-artifact@v8
         with:
           name: docker-image
@@ -83,37 +103,12 @@ jobs:
       - run: docker load < /tmp/image.tar.gz
       - run: docker compose up smoke-test --abort-on-container-exit
 
-  kind:
-    needs: backend
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v5
-        with:
-          version: "3.14.4"
-      - name: Set up kind
-        uses: helm/kind-action@v1.14.0
-        with:
-          install_only: true
-          version: "v0.22.0"
-      - uses: actions/download-artifact@v8
-        with:
-          name: docker-image
-          path: /tmp
-      - run: docker load < /tmp/image.tar.gz
-      - name: Run kind integration test
-        run: bash scripts/kind-test.sh --skip-build
-      - name: Collect kind logs on failure
-        if: failure()
-        run: bash scripts/collect-kind-logs.sh
-
   perf-smoke:
-    needs: backend
+    needs: [changes, backend]
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/download-artifact@v8
         with:
           name: docker-image

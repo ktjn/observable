@@ -272,6 +272,11 @@ Declares `observable-common` as a local file dependency. One template file per s
 (`charts/observable/values.yaml`) are keyed to mirror `docker-compose.yml` environment variable
 names so an operator can cross-reference both without separate documentation.
 
+When the shared Gateway API listener is enabled, the browser-facing origin is shared between
+the frontend and Zitadel. The frontend serves `/`, while Zitadel owns the OIDC and login
+paths (`/oauth`, `/oidc`, `/.well-known`, and `/ui`) on the same origin so authorization
+redirects do not loop through the SPA.
+
 **Install sequence:**
 
 ```bash

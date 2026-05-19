@@ -1,14 +1,59 @@
+# Version control
 .git/
 .worktrees/
+
+# Rust build artifacts
 target/
+**/target/
+
+# Node.js
 node_modules/
-dist/
-.env.local
 **/node_modules/
+
+# Build outputs
+dist/
 **/dist/
+
+# Caches
 **/.turbo/
 **/.vite/
+**/.cache/
+**/__pycache__/
+**/.pytest_cache/
+
+# Test & coverage artifacts
 **/coverage/
-npm-debug.log*
-Dockerfile
+apps/frontend/test-results/*
+
+# Environment files
+.env*
+!.env*.example
+
+# Helm dependencies
+charts/*/charts/
+
+# Docker files
+Dockerfile*
 docker-compose*.yml
+.dockerignore
+
+# Logs
+npm-debug.log*
+*.log
+
+# Directories not needed in root service builds
+archived/
+collectable/
+config/
+contracts/
+docs/
+migrations/
+scripts/
+spec/
+testbench/
+tests/
+
+# IDE / agent configs
+.claude/
+.agents/
+.junie/

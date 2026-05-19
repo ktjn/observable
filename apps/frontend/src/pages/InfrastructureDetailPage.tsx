@@ -129,7 +129,9 @@ export default function InfrastructureDetailPage() {
             </div>
             <div>
               <dt>Error rate</dt>
-              <dd>{formatNullablePercent(entity.error_rate)}</dd>
+              <dd style={toToneStyle(resourceTone(entity.error_rate, 0.001, 0.01))}>
+                {formatNullablePercent(entity.error_rate)}
+              </dd>
             </div>
             <div>
               <dt>Restart count</dt>
@@ -137,15 +139,21 @@ export default function InfrastructureDetailPage() {
             </div>
             <div>
               <dt>CPU usage</dt>
-              <dd>{formatNullablePercent(entity.cpu_usage)}</dd>
+              <dd style={toToneStyle(resourceTone(entity.cpu_usage, 0.6, 0.8))}>
+                {formatNullablePercent(entity.cpu_usage)}
+              </dd>
             </div>
             <div>
               <dt>Memory usage</dt>
-              <dd>{formatNullablePercent(entity.memory_usage)}</dd>
+              <dd style={toToneStyle(resourceTone(entity.memory_usage, 0.6, 0.8))}>
+                {formatNullablePercent(entity.memory_usage)}
+              </dd>
             </div>
             <div>
               <dt>Disk usage</dt>
-              <dd>{formatNullablePercent(entity.disk_usage)}</dd>
+              <dd style={toToneStyle(resourceTone(entity.disk_usage, 0.6, 0.8))}>
+                {formatNullablePercent(entity.disk_usage)}
+              </dd>
             </div>
             <div>
               <dt>Network I/O</dt>
@@ -206,6 +214,19 @@ function formatNullableBytes(value: number | null) {
   if (value >= 1_048_576) return `${(value / 1_048_576).toFixed(1)} MB/s`;
   if (value >= 1_024) return `${(value / 1_024).toFixed(1)} KB/s`;
   return `${value.toFixed(0)} B/s`;
+}
+
+function resourceTone(value: number | null, warnAt: number, badAt: number): "bad" | "warn" | null {
+  if (value === null) return null;
+  if (value >= badAt) return "bad";
+  if (value >= warnAt) return "warn";
+  return null;
+}
+
+function toToneStyle(tone: "bad" | "warn" | null): React.CSSProperties {
+  if (tone === "bad") return { color: "var(--bad)" };
+  if (tone === "warn") return { color: "var(--warn)" };
+  return {};
 }
 
 function healthTone(healthState: InfrastructureEntitySummary["health_state"]) {

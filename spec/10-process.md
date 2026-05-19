@@ -307,13 +307,21 @@ Blockers requiring fix before PR: N
 
 | Ecosystem | Version specifier | Lockfile | Notes |
 |---|---|---|---|
-| Rust crates | `^major.minor` in `Cargo.toml` | `Cargo.lock` committed | Lockfile is the exact pin |
-| npm packages | `^major` in `package.json` | `package-lock.json` committed | Lockfile is the exact pin |
-| Docker Compose (local/dev) | `image:major.minor` minimum | n/a | |
+| Rust crates | `^major.minor` in `Cargo.toml` | `Cargo.lock` committed | Lockfile is the exact pin; use `cargo` commands for dependency updates |
+| npm packages | `^major` in `package.json` | `package-lock.json` committed | Lockfile is the exact pin; use npm only, never yarn/pnpm/bun |
+| Python packages | `pyproject.toml` | `uv.lock` committed | Use uv; if not yet uv-managed, plan the uv migration before changing Python dependencies |
+| Docker Compose (local/dev) | `image:major.minor` minimum | n/a | Keep versions aligned with matching Testcontainers fixtures |
 | Production Dockerfiles / base images | `image:major.minor.patch` | SHA digest strongly preferred | |
 | GitHub Actions | `action@vN` (latest major tag) | n/a | |
 
 Lockfiles are always committed. Range specifiers without committed lockfiles are not permitted.
+
+Dependency and image changes must use the ecosystem-native tool:
+
+- Rust crates: use `cargo add`, `cargo update`, or the narrowest applicable cargo command. Do not hand-edit `Cargo.lock` entries.
+- npm packages: use npm commands only (`npm install`, `npm update`, `npm audit`, `npm ci`). Do not use yarn, pnpm, bun, or another package manager for npm dependency work.
+- Python packages: use uv. If the relevant Python tooling still uses `requirements.txt`, `pip`, Poetry, or Pipenv, the PR must include or link a migration plan to `pyproject.toml` plus `uv.lock` before changing dependencies.
+- Docker images: prefer the latest stable release. Search and update every matching reference in Docker Compose files, Dockerfiles, Helm values/templates, scripts, and Testcontainers fixtures. When the same dependency is started by Docker Compose and Testcontainers, the image version must be identical unless the PR documents a deliberate compatibility exception.
 
 #### Update cadence
 

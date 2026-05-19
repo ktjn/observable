@@ -38,6 +38,35 @@ vi.mock("../api/nlq", async (importOriginal) => {
   };
 });
 
+vi.mock('react-grid-layout', () => {
+  type LayoutItem = { i: string; x: number; y: number; w: number; h: number };
+  const MockRGL = ({
+    children,
+    onLayoutChange,
+  }: {
+    children: import('react').ReactNode;
+    onLayoutChange: (layout: LayoutItem[]) => void;
+  }) => (
+    <div data-testid="rgl">
+      <button
+        type="button"
+        onClick={() =>
+          onLayoutChange([
+            { i: 'query-1', x: 3, y: 0, w: 6, h: 4 },
+            { i: 'text-1', x: 6, y: 0, w: 6, h: 2 },
+          ])
+        }
+      >
+        Simulate layout change
+      </button>
+      {children}
+    </div>
+  );
+  MockRGL.displayName = 'MockRGL';
+  const useContainerWidth = () => ({ width: 1200, containerRef: { current: null }, mounted: true });
+  return { GridLayout: MockRGL, useContainerWidth };
+});
+
 const queryFrame = {
   type: "frame" as const,
   frame: {
@@ -128,105 +157,6 @@ test("renders query panels through NLQ and text panels as explanation boxes", as
   );
 });
 
-test("dragging a panel left border persists a new layout width", async () => {
-  const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue({
-    ...dashboard,
-    panels: [
-      dashboard.panels[0],
-      { ...dashboard.panels[1], layout: { x: 5, y: 0, w: 7, h: 2 } },
-    ],
-  });
-  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
-
-  renderPage();
-
-  await screen.findByRole("heading", { name: "Checkout Health" });
-  const handle = screen.getByLabelText("Resize Incident notes from left border");
-  fireEvent.pointerDown(handle, { clientX: 240, pointerId: 1 });
-  fireEvent.pointerMove(document, { clientX: 160, pointerId: 1 });
-  fireEvent.pointerUp(document, { clientX: 160, pointerId: 1 });
-
-  await waitFor(() =>
-    expect(updateSpy).toHaveBeenCalledWith(
-      "test-tenant",
-      "dash-1",
-      expect.objectContaining({
-        panels: expect.arrayContaining([
-          expect.objectContaining({
-            panel_id: "text-1",
-            layout: expect.objectContaining({ x: 5, w: 7 }),
-          }),
-        ]),
-      }),
-    ),
-  );
-});
-
-test("dragging a panel right border persists a new layout width", async () => {
-  const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue({
-    ...dashboard,
-    panels: [
-      { ...dashboard.panels[0], layout: { x: 0, y: 0, w: 7, h: 4 } },
-      dashboard.panels[1],
-    ],
-  });
-  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
-
-  renderPage();
-
-  await screen.findByRole("heading", { name: "Checkout Health" });
-  const handle = screen.getByLabelText("Resize Error logs from right border");
-  fireEvent.pointerDown(handle, { clientX: 100, pointerId: 1 });
-  fireEvent.pointerMove(document, { clientX: 180, pointerId: 1 });
-  fireEvent.pointerUp(document, { clientX: 180, pointerId: 1 });
-
-  await waitFor(() =>
-    expect(updateSpy).toHaveBeenCalledWith(
-      "test-tenant",
-      "dash-1",
-      expect.objectContaining({
-        panels: expect.arrayContaining([
-          expect.objectContaining({
-            panel_id: "query-1",
-            layout: expect.objectContaining({ x: 0, w: 7 }),
-          }),
-        ]),
-      }),
-    ),
-  );
-});
-
-test("dragging a panel bottom border persists a new layout height", async () => {
-  const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue({
-    ...dashboard,
-    panels: [{ ...dashboard.panels[0], layout: { x: 0, y: 0, w: 6, h: 5 } }, dashboard.panels[1]],
-  });
-  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
-
-  renderPage();
-
-  await screen.findByRole("heading", { name: "Checkout Health" });
-  const handle = screen.getByLabelText("Resize Error logs from bottom border");
-  fireEvent.pointerDown(handle, { clientY: 320, pointerId: 1 });
-  fireEvent.pointerMove(document, { clientY: 410, pointerId: 1 });
-  fireEvent.pointerUp(document, { clientY: 410, pointerId: 1 });
-
-  await waitFor(() =>
-    expect(updateSpy).toHaveBeenCalledWith(
-      "test-tenant",
-      "dash-1",
-      expect.objectContaining({
-        panels: expect.arrayContaining([
-          expect.objectContaining({
-            panel_id: "query-1",
-            layout: expect.objectContaining({ h: 5 }),
-          }),
-        ]),
-      }),
-    ),
-  );
-});
-
 test("local preset time range overrides the global date range", async () => {
   vi.spyOn(Date, "now").mockReturnValue(new Date("2026-05-10T12:00:00Z").getTime());
   vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue({
@@ -256,6 +186,168 @@ test("local preset time range overrides the global date range", async () => {
         }),
       }),
     ),
+  );
+});
+
+test("add panel button opens template library and custom form submits a new query panel", async () => {
+  const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+
+  renderPage();
+  await screen.findByRole("heading", { name: "Checkout Health" });
+
+  await screen.findByRole("button", { name: "Add panel" });
+  fireEvent.click(screen.getByRole("button", { name: "Add panel" }));
+
+  expect(await screen.findByTestId("template-custom")).toBeInTheDocument();
+  fireEvent.click(screen.getByTestId("template-custom"));
+
+  expect(await screen.findByPlaceholderText("Panel title")).toBeInTheDocument();
+
+  fireEvent.change(screen.getByPlaceholderText("Panel title"), { target: { value: "New metric" } });
+
+  const submitButton = screen.getAllByRole("button", { name: "Add panel" })[1];
+  fireEvent.click(submitButton);
+
+  await waitFor(() =>
+    expect(updateSpy).toHaveBeenCalledWith(
+      "test-tenant",
+      "dash-1",
+      expect.objectContaining({
+        panels: expect.arrayContaining([
+          expect.objectContaining({
+            title: "New metric",
+            panel_kind: "query",
+            query_kind: "logs",
+            layout: expect.objectContaining({ x: 0, y: 4, w: 12, h: 4 }),
+          }),
+        ]),
+      }),
+    ),
+  );
+});
+
+test("add panel form shows text content field when kind is text", async () => {
+  vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+
+  renderPage();
+  await screen.findByRole("heading", { name: "Checkout Health" });
+
+  fireEvent.click(screen.getByRole("button", { name: "Add panel" }));
+  fireEvent.click(await screen.findByTestId("template-custom"));
+  await screen.findByPlaceholderText("Panel title");
+
+  fireEvent.change(screen.getByDisplayValue("Query"), { target: { value: "text" } });
+
+  expect(screen.getByPlaceholderText("Panel text content")).toBeInTheDocument();
+  expect(screen.queryByPlaceholderText("Natural language question, e.g. error rate over time")).not.toBeInTheDocument();
+});
+
+test("add panel cancel button closes the form", async () => {
+  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+  vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+
+  renderPage();
+  await screen.findByRole("heading", { name: "Checkout Health" });
+
+  fireEvent.click(screen.getByRole("button", { name: "Add panel" }));
+  fireEvent.click(await screen.findByTestId("template-custom"));
+  expect(await screen.findByPlaceholderText("Panel title")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.queryByPlaceholderText("Panel title")).not.toBeInTheDocument();
+});
+
+test("add panel from template submits pre-filled query panel", async () => {
+  const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+
+  renderPage();
+  await screen.findByRole("heading", { name: "Checkout Health" });
+
+  fireEvent.click(screen.getByRole("button", { name: "Add panel" }));
+  expect(await screen.findByTestId("template-error-rate")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByTestId("template-error-rate"));
+
+  await waitFor(() =>
+    expect(updateSpy).toHaveBeenCalledWith(
+      "test-tenant",
+      "dash-1",
+      expect.objectContaining({
+        panels: expect.arrayContaining([
+          expect.objectContaining({
+            title: "Error rate",
+            panel_kind: "query",
+            query_kind: "metrics",
+            query_text: "error rate over time",
+            layout: expect.objectContaining({ x: 0, y: 4, w: 12, h: 4 }),
+          }),
+        ]),
+      }),
+    ),
+  );
+});
+
+test("Edit layout button enters edit mode showing Done and Cancel", async () => {
+  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+  vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+
+  renderPage();
+  await screen.findByRole("heading", { name: "Checkout Health" });
+
+  expect(screen.queryByRole("button", { name: "Done" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Edit layout" }));
+
+  expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Edit layout" })).not.toBeInTheDocument();
+});
+
+test("Cancel exits edit mode without calling updateDashboard", async () => {
+  const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+
+  renderPage();
+  await screen.findByRole("heading", { name: "Checkout Health" });
+
+  fireEvent.click(screen.getByRole("button", { name: "Edit layout" }));
+  fireEvent.click(screen.getByRole("button", { name: "Simulate layout change" }));
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+  expect(screen.getByRole("button", { name: "Edit layout" })).toBeInTheDocument();
+  expect(updateSpy).not.toHaveBeenCalled();
+});
+
+test("Done saves staged layout to API and exits edit mode", async () => {
+  const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+
+  renderPage();
+  await screen.findByRole("heading", { name: "Checkout Health" });
+
+  fireEvent.click(screen.getByRole("button", { name: "Edit layout" }));
+  fireEvent.click(screen.getByRole("button", { name: "Simulate layout change" }));
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
+  await waitFor(() =>
+    expect(updateSpy).toHaveBeenCalledWith(
+      "test-tenant",
+      "dash-1",
+      expect.objectContaining({
+        panels: expect.arrayContaining([
+          expect.objectContaining({
+            panel_id: "query-1",
+            layout: { x: 3, y: 0, w: 6, h: 4 },
+          }),
+        ]),
+      }),
+    ),
+  );
+
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Edit layout" })).toBeInTheDocument(),
   );
 });
 

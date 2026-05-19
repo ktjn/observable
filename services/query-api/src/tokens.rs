@@ -15,9 +15,9 @@
 use crate::middleware::auth::TenantContext;
 use crate::traces::AppState;
 use axum::{
+    Json,
     extract::{Extension, Path, State},
     http::StatusCode,
-    Json,
 };
 use rand::RngCore;
 use serde::{Deserialize, Serialize};

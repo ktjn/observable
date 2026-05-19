@@ -1,25 +1,25 @@
 // HTTP integration tests for tenant discovery endpoints:
 //   GET /v1/tenants
-//   GET /v1/tenants/:id/environments
+//   GET /v1/tenants/{id}/environments
 //
 // Both endpoints are outside the tenant-auth middleware (bootstrap resources).
 // Tests use a real Postgres instance via Testcontainers and exercise the full
 // handler path via tower::ServiceExt::oneshot.
 
 use axum::{
+    Router,
     body::Body,
     http::{Request, StatusCode},
     middleware::Next,
     response::Response,
     routing::{get, post},
-    Router,
 };
 use http_body_util::BodyExt;
 use query_api::{middleware::auth::TenantContext, tenants, tokens, traces::AppState};
 use serde_json::Value;
 use sqlx::PgPool;
 use std::path::Path;
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -52,7 +52,7 @@ async fn apply_migrations(pool: &PgPool) {
 
 async fn start_pool() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
     let container = Postgres::default()
-        .with_tag("16")
+        .with_tag("17")
         .start()
         .await
         .expect("postgres container started");
@@ -77,6 +77,7 @@ async fn inject_tenant_ctx(mut req: Request<Body>, next: Next) -> Response {
         .unwrap_or_default();
     req.extensions_mut().insert(TenantContext {
         tenant_id,
+        user_id: None,
         role: "member".into(),
     });
     next.run(req).await
@@ -97,7 +98,7 @@ fn build_tenants_app(pool: PgPool) -> Router {
     Router::new()
         .route("/v1/tenants", get(tenants::list_tenants))
         .route(
-            "/v1/tenants/:id/environments",
+            "/v1/tenants/{id}/environments",
             get(tenants::list_tenant_environments),
         )
         // Tokens route seeds environments in tests; auth is not under test here.
@@ -176,7 +177,7 @@ async fn list_tenants_response_shape() {
     assert!(first["name"].is_string(), "name must be a string");
 }
 
-// ── Tests: GET /v1/tenants/:id/environments ───────────────────────────────────
+// ── Tests: GET /v1/tenants/{id}/environments ───────────────────────────────────
 
 #[tokio::test]
 async fn list_tenant_environments_returns_seeded_environments() {

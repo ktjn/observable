@@ -1,7 +1,7 @@
 use axum::{
+    Json,
     extract::{Extension, Path, Query, State},
     http::StatusCode,
-    Json,
 };
 use domain::{MetricPoint, MetricPointRow};
 use serde::{Deserialize, Serialize};

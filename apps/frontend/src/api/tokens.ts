@@ -32,13 +32,14 @@ function makeHeaders(tenantId: string): HeadersInit {
 }
 
 export async function listTokens(tenantId: string): Promise<TokenListResponse> {
-  const res = await fetch("/v1/tokens", { headers: makeHeaders(tenantId) });
+  const res = await fetch("/v1/tokens", { credentials: "include", headers: makeHeaders(tenantId) });
   if (!res.ok) throw new Error(`listTokens failed: ${res.status}`);
   return res.json() as Promise<TokenListResponse>;
 }
 
 export async function createToken(tenantId: string, body: CreateTokenRequest): Promise<CreateTokenResponse> {
   const res = await fetch("/v1/tokens", {
+    credentials: "include",
     method: "POST",
     headers: makeHeaders(tenantId),
     body: JSON.stringify(body),
@@ -49,6 +50,7 @@ export async function createToken(tenantId: string, body: CreateTokenRequest): P
 
 export async function revokeToken(tenantId: string, id: string): Promise<void> {
   const res = await fetch(`/v1/tokens/${id}`, {
+    credentials: "include",
     method: "DELETE",
     headers: makeHeaders(tenantId),
   });
@@ -57,6 +59,7 @@ export async function revokeToken(tenantId: string, id: string): Promise<void> {
 
 export async function renewToken(tenantId: string, id: string): Promise<CreateTokenResponse> {
   const res = await fetch(`/v1/tokens/${id}/renew`, {
+    credentials: "include",
     method: "POST",
     headers: makeHeaders(tenantId),
   });
@@ -66,6 +69,7 @@ export async function renewToken(tenantId: string, id: string): Promise<CreateTo
 
 export async function restoreToken(tenantId: string, id: string): Promise<void> {
   const res = await fetch(`/v1/tokens/${id}/restore`, {
+    credentials: "include",
     method: "POST",
     headers: makeHeaders(tenantId),
   });
@@ -74,6 +78,7 @@ export async function restoreToken(tenantId: string, id: string): Promise<void> 
 
 export async function deleteToken(tenantId: string, id: string): Promise<void> {
   const res = await fetch(`/v1/tokens/${id}/permanent`, {
+    credentials: "include",
     method: "DELETE",
     headers: makeHeaders(tenantId),
   });

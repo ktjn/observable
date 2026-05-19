@@ -63,7 +63,7 @@ test("shows empty message when no correlated logs found", async () => {
   );
 });
 
-test("shows trace-correlated heading when no span selected", async () => {
+test("shows all logs when no span selected", async () => {
   vi.spyOn(logsApi, "searchLogs").mockResolvedValue({
     logs: [traceLog, spanLog],
     total: 2,
@@ -71,14 +71,13 @@ test("shows trace-correlated heading when no span selected", async () => {
   });
 
   render(<LogCorrelatedList traceId="trace-abc" />, { wrapper });
-  expect(screen.getByText(/Trace-correlated logs/)).toBeInTheDocument();
   await waitFor(() =>
     expect(screen.getByText("trace level message")).toBeInTheDocument()
   );
   expect(screen.getByText("span level message")).toBeInTheDocument();
 });
 
-test("shows span-scoped heading and filters when spanId is provided", async () => {
+test("filters to span and trace-level logs when spanId is provided", async () => {
   vi.spyOn(logsApi, "searchLogs").mockResolvedValue({
     logs: [traceLog, spanLog],
     total: 2,
@@ -86,7 +85,6 @@ test("shows span-scoped heading and filters when spanId is provided", async () =
   });
 
   render(<LogCorrelatedList traceId="trace-abc" spanId="span-111" />, { wrapper });
-  expect(screen.getByText(/Exact span logs and trace-level logs/)).toBeInTheDocument();
   await waitFor(() =>
     expect(screen.getByText("span level message")).toBeInTheDocument()
   );

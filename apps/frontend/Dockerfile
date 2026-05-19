@@ -1,6 +1,6 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.24
 
-FROM node:22-alpine AS deps
+FROM node:24-alpine AS deps
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -17,7 +17,7 @@ ENV VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE=$VITE_OBSERVABLE_SELF_OBSERVABILITY_
 ENV VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT=$VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT
 RUN npm run build
 
-FROM nginx:1.27-alpine AS runtime
+FROM nginx:1.31-alpine AS runtime
 
 RUN rm -rf /usr/share/nginx/html/*
 COPY --from=build /app/apps/frontend/dist /usr/share/nginx/html

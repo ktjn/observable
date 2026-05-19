@@ -1,9 +1,9 @@
 use axum::{
+    Json,
     body::Bytes,
     extract::{Extension, State},
-    http::{header, HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
-    Json,
 };
 
 use crate::auth::TenantContext;
@@ -69,8 +69,8 @@ pub async fn export_traces(
         "received trace export request"
     );
 
-    if let Some(producer) = &state.producer {
-        if producer
+    if let Some(producer) = &state.producer
+        && producer
             .publish(&build_envelope(
                 ctx.tenant_id,
                 &ctx.environment,
@@ -78,9 +78,8 @@ pub async fn export_traces(
             ))
             .await
             .is_err()
-        {
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
+    {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
 
     Json(serde_json::json!({ "partialSuccess": {} })).into_response()
@@ -91,8 +90,8 @@ mod tests {
     use axum::http::StatusCode;
     use axum_test::TestServer;
 
-    use crate::http_json::build_router;
     use crate::AppState;
+    use crate::http_json::build_router;
 
     fn auth_header() -> (axum::http::HeaderName, axum::http::HeaderValue) {
         (
@@ -123,7 +122,7 @@ mod tests {
     #[tokio::test]
     async fn missing_auth_returns_401() {
         let app = build_router(AppState::test_stub());
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/traces")
             .json(&serde_json::json!({"resourceSpans": []}))
@@ -134,7 +133,7 @@ mod tests {
     #[tokio::test]
     async fn valid_empty_payload_returns_200() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/traces")
             .add_header(auth_header().0, auth_header().1)
@@ -146,7 +145,7 @@ mod tests {
     #[tokio::test]
     async fn protobuf_trace_payload_returns_415() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/traces")
             .add_header(auth_header().0, auth_header().1)
@@ -162,7 +161,7 @@ mod tests {
     #[tokio::test]
     async fn gzip_compressed_trace_payload_returns_200() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/traces")
             .add_header(auth_header().0, auth_header().1)
@@ -183,7 +182,7 @@ mod tests {
     async fn within_rate_limit_returns_200() {
         // quota of 2/s: first two requests succeed
         let app = build_router(AppState::with_stub_auth_and_rate_limit(TENANT, 2));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         for _ in 0..2 {
             let resp = server
                 .post("/v1/traces")
@@ -198,7 +197,7 @@ mod tests {
     async fn exceeding_rate_limit_returns_429() {
         // quota of 1/s: second request in same second is rejected
         let app = build_router(AppState::with_stub_auth_and_rate_limit(TENANT, 1));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
 
         let first = server
             .post("/v1/traces")
@@ -223,7 +222,7 @@ mod tests {
         // tenant A exhausts its quota; tenant B should still succeed
         let state_a = AppState::with_stub_auth_and_rate_limit(TENANT, 1);
         let app = build_router(state_a);
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
 
         // exhaust tenant A
         server
@@ -242,7 +241,7 @@ mod tests {
         const TENANT_B: &str = "00000000-0000-0000-0000-000000000002";
         let state_b = AppState::with_stub_auth_and_rate_limit(TENANT_B, 1);
         let app_b = build_router(state_b);
-        let server_b = TestServer::new(app_b).unwrap();
+        let server_b = TestServer::new(app_b);
         let resp_b = server_b
             .post("/v1/traces")
             .add_header(
@@ -257,7 +256,7 @@ mod tests {
     #[tokio::test]
     async fn viewer_role_cannot_ingest_traces() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/traces")
             .add_header(viewer_auth_header().0, viewer_auth_header().1)

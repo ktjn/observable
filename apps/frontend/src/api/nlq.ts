@@ -93,6 +93,7 @@ export interface NlqRequest {
 
 export async function submitNlqQuery(tenantId: string, req: NlqRequest): Promise<NlqResponse> {
   const res = await fetch("/v1/nlq", {
+    credentials: "include",
     method: "POST",
     headers: {
       "Content-Type": "application/json",

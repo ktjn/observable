@@ -11,7 +11,7 @@ pub use log::LogRecord;
 #[cfg(feature = "storage")]
 pub use log::LogRow;
 pub use metric::{
-    deterministic_metric_series_id, AggregationTemporality, MetricPoint, MetricSeries, MetricType,
+    AggregationTemporality, MetricPoint, MetricSeries, MetricType, deterministic_metric_series_id,
 };
 #[cfg(feature = "storage")]
 pub use metric::{MetricPointRow, MetricSeriesRow};

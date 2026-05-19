@@ -35,7 +35,7 @@ export async function listServiceSummaries(tenantId: string, params: {
   const toIso = msToIso(params.to);
   if (fromIso) url.searchParams.set("from", fromIso);
   if (toIso) url.searchParams.set("to", toIso);
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
@@ -56,7 +56,7 @@ export async function getServiceSummary(
   const toIso = msToIso(params.to);
   if (fromIso) url.searchParams.set("from", fromIso);
   if (toIso) url.searchParams.set("to", toIso);
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
@@ -90,21 +90,21 @@ export async function getTopology(tenantId: string, params: {
   if (fromIso) url.searchParams.set("from", fromIso);
   if (toIso) url.searchParams.set("to", toIso);
   if (params.service) url.searchParams.set("service", params.service);
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
 
 export async function listEnvironments(tenantId: string): Promise<DiscoveryResponse> {
   const url = new URL("/v1/environments", window.location.origin);
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
 
 export async function listServices(tenantId: string): Promise<DiscoveryResponse> {
   const url = new URL("/v1/services", window.location.origin);
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
@@ -140,7 +140,7 @@ export async function getServiceResponseTimeHistory(
   if (fromIso) url.searchParams.set("from", fromIso);
   if (toIso) url.searchParams.set("to", toIso);
   if (params.buckets) url.searchParams.set("buckets", String(params.buckets));
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }

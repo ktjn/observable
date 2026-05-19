@@ -19,6 +19,7 @@ import { useTenantContext } from "../hooks/useTenantContext";
 import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
@@ -42,6 +43,24 @@ const levelBarClasses: Record<OTelLevel, string> = {
   FATAL: "bg-[var(--bad)]",
 };
 const ROW_LIMIT = 500;
+
+type SeverityFilter = "all" | "error" | "warn" | "info" | "debug";
+
+const SEVERITY_PILLS: { key: SeverityFilter; label: string; test: (sev: number) => boolean }[] = [
+  { key: "all", label: "All", test: () => true },
+  { key: "error", label: "Error", test: (sev) => sev >= 17 },
+  { key: "warn", label: "Warn", test: (sev) => sev >= 13 && sev < 17 },
+  { key: "info", label: "Info", test: (sev) => sev >= 9 && sev < 13 },
+  { key: "debug", label: "Debug", test: (sev) => sev < 9 },
+];
+
+const SEVERITY_PILL_ACTIVE_COLOR: Record<SeverityFilter, string> = {
+  all: "var(--brand)",
+  error: "var(--bad)",
+  warn: "var(--warn)",
+  info: "var(--good)",
+  debug: "var(--muted)",
+};
 
 export type LogExplorerProps = {
   initialService?: string;
@@ -87,6 +106,8 @@ export function LogExplorer({
   const [userQuery, setUserQuery] = useState<string | null>(initialQuery);
   // Keep service for legacy clear-filter button visibility.
   const [service, setService] = useState(initialService);
+  const [messageSearch, setMessageSearch] = useState("");
+  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
 
   const from = String(BigInt(Math.floor(fromMs)) * 1_000_000n);
   const to = String(BigInt(Math.floor(toMs)) * 1_000_000n);
@@ -123,6 +144,33 @@ export function LogExplorer({
   const rawLogs = data ?? [];
   const logs = rawLogs.slice(0, ROW_LIMIT);
   const isCapped = rawLogs.length > ROW_LIMIT;
+
+  // Apply message search first, then compute severity counts, then apply severity filter.
+  const messageFilteredLogs = useMemo(() => {
+    if (!messageSearch.trim()) return logs;
+    const needle = messageSearch.toLowerCase();
+    return logs.filter((l) => formatLogMessage(l.body).toLowerCase().includes(needle));
+  }, [logs, messageSearch]);
+
+  const severityCounts = useMemo(() => {
+    const counts: Record<SeverityFilter, number> = { all: messageFilteredLogs.length, error: 0, warn: 0, info: 0, debug: 0 };
+    for (const log of messageFilteredLogs) {
+      for (const pill of SEVERITY_PILLS) {
+        if (pill.key !== "all" && pill.test(log.severity_number)) {
+          counts[pill.key]++;
+          break;
+        }
+      }
+    }
+    return counts;
+  }, [messageFilteredLogs]);
+
+  const displayedLogs = useMemo(() => {
+    if (severityFilter === "all") return messageFilteredLogs;
+    const pill = SEVERITY_PILLS.find((p) => p.key === severityFilter);
+    return pill ? messageFilteredLogs.filter((l) => pill.test(l.severity_number)) : messageFilteredLogs;
+  }, [messageFilteredLogs, severityFilter]);
+
   const histogram = useMemo(
     () =>
       histogramData?.buckets
@@ -192,31 +240,75 @@ export function LogExplorer({
         )
       }
       renderTable={(selectedId, onSelect) => (
-        <TablePanel className="flex-1 min-h-0 flex flex-col">
-          {isLoading ? (
-            <LoadingState>Loading logs…</LoadingState>
-          ) : error ? (
-            <LoadingState className="text-[var(--bad)]">Error loading logs: {String(error)}</LoadingState>
-          ) : logs.length === 0 ? (
-            <LoadingState>No logs found.</LoadingState>
-          ) : (
-            <>
-              <LogResultsTable
-                logs={logs}
-                selectedLogId={selectedId ?? undefined}
-                onSelectLog={(id) => onSelect(id)}
-                timeFormat={format}
-                showServiceColumn={showServiceColumn}
-                ariaLabel={tableAriaLabel}
+        <div className="flex flex-col flex-1 min-h-0 gap-2">
+          {/* Severity pills + message search */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 flex-wrap" aria-label="Filter by severity">
+              {SEVERITY_PILLS.map((pill) => {
+                const isActive = severityFilter === pill.key;
+                const activeColor = SEVERITY_PILL_ACTIVE_COLOR[pill.key];
+                return (
+                  <button
+                    key={pill.key}
+                    type="button"
+                    onClick={() => setSeverityFilter(pill.key)}
+                    style={isActive ? { borderColor: activeColor, color: activeColor } : undefined}
+                    className={[
+                      "flex items-center gap-1 px-2.5 py-1 text-xs font-bold border transition-colors",
+                      isActive
+                        ? ""
+                        : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--brand)] hover:text-[var(--text)]",
+                    ].join(" ")}
+                  >
+                    {pill.label}
+                    <span aria-hidden="true" className="opacity-70">({severityCounts[pill.key]})</span>
+                  </button>
+                );
+              })}
+            </div>
+            <input
+              type="search"
+              value={messageSearch}
+              onChange={(e) => setMessageSearch(e.target.value)}
+              placeholder="Search messages…"
+              aria-label="Search log messages"
+              className="min-w-[180px] flex-1 border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--brand)] focus:outline-none"
+            />
+          </div>
+
+          <TablePanel className="flex-1 min-h-0 flex flex-col">
+            {isLoading ? (
+              <LoadingState>Loading logs…</LoadingState>
+            ) : error ? (
+              <LoadingState className="text-[var(--bad)]">Error loading logs: {String(error)}</LoadingState>
+            ) : displayedLogs.length === 0 ? (
+              <EmptyState
+                title="No logs found"
+                description={
+                  messageSearch || severityFilter !== "all"
+                    ? "No logs match the current filters. Try clearing the search or selecting a different severity."
+                    : "No logs in the selected time range. Try widening the time window or checking your service filter."
+                }
               />
-              {isCapped && (
-                <p className="px-3 py-2 text-xs text-[var(--muted)] border-t border-[var(--border)]">
-                  Showing {ROW_LIMIT} results — narrow the time range or add filters to see fewer.
-                </p>
-              )}
-            </>
-          )}
-        </TablePanel>
+            ) : (
+              <>
+                <LogResultsTable
+                  logs={displayedLogs}
+                  selectedLogId={selectedId ?? undefined}
+                  onSelectLog={(id) => onSelect(id)}
+                  timeFormat={format}
+                  showServiceColumn={showServiceColumn}
+                  ariaLabel={tableAriaLabel}
+                />
+                {isCapped && (
+                  <p className="px-3 py-2 text-xs text-[var(--muted)] border-t border-[var(--border)]">
+                    Showing {ROW_LIMIT} results — narrow the time range or add filters to see fewer.
+                  </p>
+                )}
+              </>
+            )}
+          </TablePanel>
+        </div>
       )}
       renderPanel={(selectedId, onClose) => {
         const log = logs.find((l) => l.log_id === selectedId);
@@ -242,7 +334,7 @@ function LogContextSidebar({
   return (
     <aside
       aria-label="Selected log context"
-      className="w-full border border-[var(--border)] bg-[var(--surface)] p-4"
+      className="w-full h-full max-[900px]:max-h-[calc(100vh-200px)] overflow-y-auto border border-[var(--border)] bg-[var(--surface)] p-4"
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>

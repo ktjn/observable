@@ -123,7 +123,7 @@ export function SignalExplorer({
           {renderTable(selectedId, handleSelect)}
         </div>
         {selectedId !== null && (
-          <div className="w-1/4 shrink-0">
+          <div className="w-1/4 shrink-0 h-full max-[900px]:h-auto">
             {renderPanel(selectedId, () => handleSelect(null))}
           </div>
         )}

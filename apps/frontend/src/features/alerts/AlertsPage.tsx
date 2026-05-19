@@ -32,6 +32,7 @@ import { NotificationChannelsList } from "./NotificationChannelsList";
 export function AlertsPage() {
   const queryClient = useQueryClient();
   const { tenantId } = useTenantContext();
+  const [ruleFilter, setRuleFilter] = useState<"all" | "firing" | "silenced">("all");
   const [isCreating, setIsCreating] = useState(false);
   const [formName, setFormName] = useState("");
   const [formMetric, setFormMetric] = useState("");
@@ -139,9 +140,14 @@ export function AlertsPage() {
   const slos = sloData?.items ?? [];
   const channels = Array.isArray(channelsData) ? channelsData : [];
   const firingCount = rules.filter((r) => r.state === "active").length;
-  const pendingCount = rules.filter((r) => r.state === "pending").length;
   const silencedCount = rules.filter((r) => r.silenced).length;
   const sloBreachCount = slos.filter((slo) => slo.firing).length;
+  const filteredRules =
+    ruleFilter === "firing"
+      ? rules.filter((r) => r.state === "active")
+      : ruleFilter === "silenced"
+        ? rules.filter((r) => r.silenced)
+        : rules;
 
   return (
     <section className="page-stack">
@@ -152,6 +158,13 @@ export function AlertsPage() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4" aria-label="Alert summary">
+        <MetricCard label="Total Rules" value={rules.length} tone="info" />
+        <MetricCard label="Firing" value={firingCount} tone={firingCount > 0 ? "bad" : "good"} />
+        <MetricCard label="Silenced" value={silencedCount} tone={silencedCount > 0 ? "warn" : "info"} />
+        <MetricCard label="SLOs" value={slos.length} tone={sloBreachCount > 0 ? "bad" : "info"} />
+      </div>
+
       <Tabs.Root defaultValue="rules">
         <Tabs.List>
           <Tabs.Tab value="rules">Alert Rules</Tabs.Tab>
@@ -160,18 +173,38 @@ export function AlertsPage() {
         </Tabs.List>
 
         <Tabs.Panel value="rules" className="space-y-4 pt-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-4" aria-label="Alert summary">
-            <MetricCard label="Total Rules" value={rules.length} tone="info" />
-            <MetricCard label="Firing" value={firingCount} tone={firingCount > 0 ? "bad" : "good"} />
-            <MetricCard label="Pending" value={pendingCount} tone="warn" />
-            <MetricCard label="Silenced" value={silencedCount} tone="warn" />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1" role="group" aria-label="Filter alert rules">
+              {(["all", "firing", "silenced"] as const).map((f) => {
+                const count =
+                  f === "all" ? rules.length : f === "firing" ? firingCount : silencedCount;
+                const activeColor = f === "firing" ? "var(--bad)" : f === "silenced" ? "var(--warn)" : "var(--brand)";
+                const isActive = ruleFilter === f;
+                return (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setRuleFilter(f)}
+                    className={[
+                      "flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold border rounded transition-colors",
+                      isActive
+                        ? ""
+                        : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--brand)] hover:text-[var(--text)]",
+                    ].join(" ")}
+                    style={isActive ? { borderColor: activeColor, color: activeColor } : undefined}
+                  >
+                    <span className="capitalize">{f === "all" ? "All" : f}</span>
+                    <span aria-hidden="true">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+            <Toolbar aria-label="Alert actions" className="ml-auto">
+              <Button onClick={() => setIsCreating((v) => !v)}>
+                {isCreating ? "Cancel" : "New Rule"}
+              </Button>
+            </Toolbar>
           </div>
-
-          <Toolbar aria-label="Alert actions" className="justify-end">
-            <Button onClick={() => setIsCreating((v) => !v)}>
-              {isCreating ? "Cancel" : "New Rule"}
-            </Button>
-          </Toolbar>
 
           {isCreating && (
             <Panel title="Create Threshold Rule" eyebrow="Configuration">
@@ -297,22 +330,28 @@ export function AlertsPage() {
               title="No alert rules"
               description="Create a threshold rule to start monitoring metrics."
             />
+          ) : filteredRules.length === 0 ? (
+            <EmptyState
+              title={`No ${ruleFilter} rules`}
+              description="Try selecting a different filter."
+            />
           ) : (
-            <Panel title="Active alert rules" eyebrow="Health and performance">
+            <Panel title="Alert rules" eyebrow="Health and performance">
               <div className="overflow-x-auto">
-                <table className="w-full text-left">
+                <table className="w-full text-left" aria-label="Alert rules">
                   <thead>
                     <tr>
                       <th className="pb-3 pr-4">Name</th>
                       <th className="pb-3 pr-4">Metric</th>
                       <th className="pb-3 pr-4">Condition</th>
                       <th className="pb-3 pr-4">Channels</th>
+                      <th className="pb-3 pr-4">Severity</th>
                       <th className="pb-3 pr-4">Status</th>
                       <th className="pb-3">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {rules.map((rule) => (
+                    {filteredRules.map((rule) => (
                       <AlertRuleRow
                         key={rule.rule_id}
                         rule={rule}
@@ -449,14 +488,22 @@ export function AlertsPage() {
 }
 
 function SloHealthCard({ slo }: { slo: SloDefinitionItem }) {
+  const targetPct = slo.target * 100;
   const target = formatPercent(slo.target);
   const status = slo.firing
     ? { label: "Burning", tone: "bad" as const }
     : { label: "Within budget", tone: "good" as const };
+  const barColor = slo.firing
+    ? "var(--bad)"
+    : targetPct >= 99.9
+      ? "var(--good)"
+      : targetPct >= 95
+        ? "var(--warn)"
+        : "var(--bad)";
 
   return (
     <article className="border border-[var(--border)] bg-[var(--surface)] p-3">
-      <div className="mb-3 flex items-start justify-between gap-3">
+      <div className="mb-2 flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-bold text-[var(--text-strong)]">
             {slo.description || `${slo.service_name} availability`}
@@ -469,11 +516,26 @@ function SloHealthCard({ slo }: { slo: SloDefinitionItem }) {
         </div>
         <Badge tone={status.tone}>{status.label}</Badge>
       </div>
-      <dl className="grid grid-cols-2 gap-3 text-xs">
-        <div>
-          <dt className="field-label">Target</dt>
-          <dd className="m-0 font-bold text-[var(--text-strong)]">{target}</dd>
+      <div className="mb-3 flex items-center gap-2">
+        <div
+          className="h-1.5 flex-1 overflow-hidden rounded-full"
+          style={{ backgroundColor: "var(--border)" }}
+          role="progressbar"
+          aria-valuenow={targetPct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`SLO target ${target}`}
+        >
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${targetPct}%`, backgroundColor: barColor }}
+          />
         </div>
+        <span className="text-xs tabular-nums font-bold" style={{ color: barColor }}>
+          {target}
+        </span>
+      </div>
+      <dl className="grid grid-cols-2 gap-3 text-xs">
         <div>
           <dt className="field-label">Window</dt>
           <dd className="m-0 font-bold text-[var(--text-strong)]">{slo.window_days}d</dd>
@@ -511,8 +573,17 @@ function AlertRuleRow({
     .filter(Boolean)
     .join(", ");
 
+  const rowClass = [
+    "modern-table-row border-l-2",
+    rule.state === "active"
+      ? "border-l-[var(--bad)]"
+      : rule.silenced
+        ? "border-l-[var(--warn)] opacity-60"
+        : "border-l-transparent",
+  ].join(" ");
+
   return (
-    <tr className="modern-table-row">
+    <tr className={rowClass}>
       <td className="py-3 pr-4 font-bold text-[var(--text-strong)]">{rule.name}</td>
       <td className="py-3 pr-4">{rule.metric_name}</td>
       <td className="py-3 pr-4">{conditionLabel}</td>
@@ -520,7 +591,7 @@ function AlertRuleRow({
         {channelNames || "None"}
       </td>
       <td className="py-3 pr-4">
-        <Badge tone="neutral">{rule.severity}</Badge>
+        <Badge tone={severityTone(rule.severity)}>{rule.severity}</Badge>
       </td>
       <td className="py-3 pr-4">
         <Badge tone={status.tone}>{status.label}</Badge>
@@ -532,6 +603,20 @@ function AlertRuleRow({
       </td>
     </tr>
   );
+}
+
+function severityTone(severity: string): "good" | "warn" | "bad" | "info" | "neutral" {
+  switch (severity?.toLowerCase()) {
+    case "critical":
+      return "bad";
+    case "warning":
+    case "warn":
+      return "warn";
+    case "info":
+      return "info";
+    default:
+      return "neutral";
+  }
 }
 
 function alertStatus(rule: AlertRuleItem): {

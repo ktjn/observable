@@ -37,6 +37,53 @@ subagent; otherwise, apply the specialist instructions manually in the current s
 - **Active roadmap work starts after Phase 1:** use `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` for follow-on slices unless the user explicitly asks to revise the historical Phase 1 document. Keep `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md` as the historical Phases 2-8 closure reference and `archived/plans/2026-05-09-finish-started-work-plan-rf0-complete.md` as the started-work closure record.
 - If a Phase 1 item appears unfinished in the old plan text, check the reconciliation notes in that document and the follow-on slices in the Phases 2–8 plan before proposing or making changes.
 
+## GitHub Issues Workflow
+
+This is the primary entry point for backlog work. Multiple agent instances can run concurrently —
+each claims one issue and drives it independently to a merged PR.
+
+### Step-by-step
+
+1. **Scan** open, unassigned issues:
+   ```
+   gh issue list --assignee="" --state=open --limit=50
+   ```
+   Prefer `bug` labels over `enhancement` over unlabelled.
+
+2. **Claim** the issue before doing anything else:
+   ```
+   gh issue edit <NUMBER> --add-assignee @me --add-label "in-progress"
+   ```
+   Self-assignment is the concurrency lock. If the issue was already assigned between scan and
+   claim, pick the next one.
+
+3. **Branch** immediately and push so the branch is visible:
+   ```
+   git checkout -b fix/issue-<NUMBER>-<slug>   # bugs
+   git checkout -b feat/issue-<NUMBER>-<slug>  # features
+   git push -u origin <branch-name>
+   ```
+
+4. **For bugs — write the failing test first.**
+   Commit the reproducing test before writing any fix. The commit message must identify the issue:
+   ```
+   git commit -m "test(issue-<NUMBER>): reproduce <description>"
+   ```
+   Then fix the bug. The test must pass without modification after the fix.
+
+5. **For features** — write tests covering the acceptance criteria, then implement.
+
+6. **Run local CI** before pushing any code: `bash scripts/local-ci.sh`
+   Fix every failure. No exceptions (docs-only changes are exempt per the CI section below).
+
+7. **Open a PR** that closes the issue:
+   ```
+   gh pr create --title "fix(issue-<NUMBER>): ..." --body "Closes #<NUMBER> ..."
+   ```
+   Remove `in-progress`, add `ready-for-review` on the issue.
+
+Full role prompt with all constraints: `.github/agents/issue-worker.agent.md`
+
 ## Before Starting Any Implementation Task
 
 1. **Read `spec/adr/README.md`** to scan the one-line decision summaries. Open and read in full any ADR whose domain overlaps with the task.
@@ -44,11 +91,20 @@ subagent; otherwise, apply the specialist instructions manually in the current s
 3. **Inspect the actual code every time** before editing. Read the relevant implementation, tests, scripts, specs, and docs for the requested slice; do not rely only on summaries or prior memory.
 4. **Keep the agent context current:** if the change affects repo layout, ownership boundaries, active roadmap guidance, required verification, architectural assumptions, or future agent gotchas, update `docs/agent-context.md` in the same PR. If no update is needed, state why in the PR description.
 5. **Use the latest stable versions** of all dependencies:
-   - **Rust crates:** check [crates.io](https://crates.io) for the current stable version before adding or updating a dependency.
-   - **npm packages:** check [npmjs.com](https://www.npmjs.com) for the current stable version before adding or updating a dependency.
+   - **Rust crates:** check [crates.io](https://crates.io) for the current stable version before adding or updating a dependency. Use `cargo` commands to add, update, or lock Rust dependencies; do not hand-edit lockfile entries.
+   - **npm packages:** check [npmjs.com](https://www.npmjs.com) for the current stable version before adding or updating a dependency. Use `npm` commands only (`npm install`, `npm update`, `npm audit`, `npm ci`); do not use yarn, pnpm, bun, or another package manager for npm work.
+   - **Python packages:** prefer `uv` for Python dependency management. If a Python dependency change is needed before the repo is fully uv-managed, plan and document the migration to `pyproject.toml` plus `uv.lock` in the PR before adding or updating packages. Do not introduce new `pip`, `requirements.txt`, Poetry, or Pipenv workflows without an ADR-backed exception.
    - **GitHub Actions:** use the latest release tag of every action (e.g. `actions/checkout@v4`); check the action's release page if uncertain.
-   - **Docker images (Compose/local):** pin to `image:major.minor` at minimum. For production Dockerfiles and base images, use `image:major.minor.patch`; SHA digest is strongly preferred.
+   - **Docker images:** prefer the latest stable version and pin Compose/local/Testcontainers images to `image:major.minor` at minimum. For production Dockerfiles and base images, use `image:major.minor.patch`; SHA digest is strongly preferred. When an image is used in both Docker Compose and Testcontainers, update every reference in the same PR and keep the versions identical unless the PR documents a deliberate compatibility exception.
    - Do not pin to an older version without a documented reason in the PR description.
+
+## Package and Image Upgrade Rules
+
+- Use the package manager native to the ecosystem. npm dependencies are updated with npm and nothing else; Rust dependencies are updated with cargo; Python dependencies are managed with uv or require a uv migration plan first.
+- Latest stable versions are the default target for all package and image updates. Older pins require a concrete compatibility, support, or rollback reason in the PR description.
+- Commit all dependency lockfiles changed by the native tool (`package-lock.json`, `Cargo.lock`, `uv.lock`). Do not manually edit lockfile package records except for conflict resolution that preserves tool output.
+- Docker image upgrades must search all runtime and test references before editing: `docker-compose*.yml`, `Dockerfile*`, Helm values/templates, scripts, and Testcontainers fixtures. Compose and Testcontainers references for PostgreSQL, ClickHouse, Redpanda/Kafka-compatible brokers, object storage, OpenFGA, and similar real dependencies must use the same image version.
+- For major package upgrades, image major upgrades, or Python uv migration work, keep the upgrade in a dedicated branch/PR with a rollback note and focused verification.
 
 ## MANDATORY: Before Pushing ANY Code
 
@@ -56,9 +112,13 @@ You **MUST** run `bash scripts/local-ci.sh` before pushing **ANY** code changes.
 
 **Note:** Pure documentation changes (files under `docs/`, `spec/`, or any `.md` files) are exempt.
 
-For any Rust code change, run `cargo fmt --all` explicitly before pushing, even though `scripts/local-ci.sh` also runs Rust formatting. Fix formatting drift before staging or pushing.
+**For any Rust code change — run this first, every time, no exceptions:**
+```
+cargo fmt --all
+```
+Run it before staging, before committing, and before local-ci. Rust formatting is enforced inside the Docker build; a format error will fail CI. Do not skip this step.
 
-`scripts/local-ci.sh` runs: Rust fmt, clippy, tests, frontend typecheck/lint/build/test, Helm lint, Docker image build, and smoke test.
+`scripts/local-ci.sh` runs: frontend typecheck/lint/build/test, Helm lint, Docker image build (which includes Rust fmt, clippy, and unit tests), and smoke test.
 
 Use flags to skip stages when Docker or Node are unavailable:
 - `--skip-docker` — skip image build and smoke test

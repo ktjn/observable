@@ -35,6 +35,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# shellcheck source=scripts/lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
 CLUSTER_NAME="observable-test"
 NAMESPACE="observable"
 RELEASE_NAME="observable"
@@ -84,17 +87,8 @@ done
 # Helpers
 # ---------------------------------------------------------------------------
 
-log()  { echo ""; echo "==> [$(date +%H:%M:%S)] $*"; }
-info() { echo "    $*"; }
-
 current_revision() {
   helm history "$1" --namespace "$2" | awk 'NR > 1 { rev = $1 } END { print rev }'
-}
-
-show_pods() {
-  local ns="${1:-$NAMESPACE}"
-  echo ""
-  kubectl get pods --namespace "$ns" -o wide 2>/dev/null || true
 }
 
 watch_pods() {
@@ -112,64 +106,6 @@ watch_pods() {
   done
 }
 
-dump_pod_events() {
-  local ns="${1:-$NAMESPACE}"
-  echo ""
-  info "--- Pod status (namespace: $ns) ---"
-  kubectl get pods --namespace "$ns" -o wide 2>/dev/null || true
-  echo ""
-  info "--- Recent events ---"
-  kubectl get events --namespace "$ns" --sort-by='.lastTimestamp' 2>/dev/null | tail -20 || true
-  echo ""
-  info "--- Non-running pods ---"
-  kubectl get pods --namespace "$ns" --field-selector='status.phase!=Running' -o wide 2>/dev/null || true
-}
-
-deployment_ready_now() {
-  local resource="$1"
-  local json
-  json="$(kubectl get "$resource" --namespace "$NAMESPACE" -o json 2>/dev/null)" || return 1
-
-  local generation observed replicas updated ready available unavailable
-  generation="$(jq -r '.metadata.generation // 0' <<<"$json")"
-  observed="$(jq -r '.status.observedGeneration // 0' <<<"$json")"
-  replicas="$(jq -r '.spec.replicas // 1' <<<"$json")"
-  updated="$(jq -r '.status.updatedReplicas // 0' <<<"$json")"
-  ready="$(jq -r '.status.readyReplicas // 0' <<<"$json")"
-  available="$(jq -r '.status.availableReplicas // 0' <<<"$json")"
-  unavailable="$(jq -r '.status.unavailableReplicas // 0' <<<"$json")"
-
-  [[ "$observed" == "$generation" ]] \
-    && [[ "$updated" == "$replicas" ]] \
-    && [[ "$ready" == "$replicas" ]] \
-    && [[ "$available" == "$replicas" ]] \
-    && [[ "$unavailable" == "0" ]]
-}
-
-wait_for_rollout() {
-  local resource="$1"
-  local timeout="${2:-180s}"
-  local name="${resource##*/}"
-  if deployment_ready_now "$resource"; then
-    info "$resource already ready at current generation"
-    return 0
-  fi
-  info "waiting for $resource (timeout: $timeout)"
-  kubectl rollout status "$resource" \
-    --namespace "$NAMESPACE" \
-    --timeout "$timeout" &
-  local pid=$!
-  local elapsed=0
-  while kill -0 "$pid" 2>/dev/null; do
-    sleep 15
-    elapsed=$((elapsed + 15))
-    info "  [${elapsed}s] pods matching '$name':"
-    kubectl get pods --namespace "$NAMESPACE" --no-headers 2>/dev/null \
-      | grep "$name" | sed 's/^/    /' || true
-  done
-  wait "$pid"
-}
-
 cleanup() {
   if [[ "$KEEP_CLUSTER" == "true" ]]; then
     log "Keeping cluster '$CLUSTER_NAME' (--keep-cluster set)"
@@ -180,6 +116,7 @@ cleanup() {
   kind delete cluster --name "$CLUSTER_NAME" || true
 }
 trap cleanup EXIT
+trap 'echo ""; echo "ERROR: command failed at line $LINENO: $BASH_COMMAND" >&2' ERR
 
 # ---------------------------------------------------------------------------
 # Prerequisite checks
@@ -271,9 +208,15 @@ log "Deploying namespace and infrastructure"
 kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
 log "Installing infrastructure dependencies"
-helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
-helm repo add openfga https://openfga.github.io/helm-charts
-helm repo add zitadel https://charts.zitadel.com
+helm repo add --force-update cloudnative-pg https://cloudnative-pg.github.io/charts &
+PID_REPO_CNP=$!
+helm repo add --force-update openfga https://openfga.github.io/helm-charts &
+PID_REPO_OPENFGA=$!
+helm repo add --force-update zitadel https://charts.zitadel.com &
+PID_REPO_ZITADEL=$!
+wait "$PID_REPO_CNP"     || { echo "ERROR: helm repo add cloudnative-pg failed" >&2; exit 1; }
+wait "$PID_REPO_OPENFGA" || { echo "ERROR: helm repo add openfga failed" >&2; exit 1; }
+wait "$PID_REPO_ZITADEL" || { echo "ERROR: helm repo add zitadel failed" >&2; exit 1; }
 helm repo update
 
 # Create migration ConfigMaps now — namespace exists and files are local,
@@ -311,19 +254,45 @@ show_pods "$NAMESPACE"
 
 log "Waiting for PostgreSQL cluster to become ready"
 kubectl wait cluster/postgres \
-  --for=condition=Ready --namespace "$NAMESPACE" --timeout=180s \
-  || { dump_pod_events "$NAMESPACE"; exit 1; }
+  --for=condition=Ready --namespace "$NAMESPACE" --timeout=300s \
+  || { KEEP_CLUSTER=true; dump_pod_events "$NAMESPACE"; exit 1; }
 
 log "Waiting for Redpanda topic setup Job to complete"
 kubectl wait job/redpanda-setup \
-  --for=condition=complete --namespace "$NAMESPACE" --timeout=120s \
-  || { dump_pod_events "$NAMESPACE"; exit 1; }
+  --for=condition=complete --namespace "$NAMESPACE" --timeout=300s \
+  || { KEEP_CLUSTER=true; dump_pod_events "$NAMESPACE"; exit 1; }
+
+# ---------------------------------------------------------------------------
+# Install Kubernetes Gateway API CRDs (required by the Observable chart)
+# ---------------------------------------------------------------------------
+
+GATEWAY_API_VERSION="v1.2.1"
+log "Installing Kubernetes Gateway API CRDs (${GATEWAY_API_VERSION})"
+kubectl apply -f \
+  "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/standard-install.yaml"
+kubectl wait --for=condition=Established \
+  crd/gateways.gateway.networking.k8s.io \
+  crd/httproutes.gateway.networking.k8s.io \
+  --timeout=60s
 
 # ---------------------------------------------------------------------------
 # Install the Observable chart
 # ---------------------------------------------------------------------------
 
 log "Installing Observable chart"
+# Reset any release left in a stuck state from a previous failed install.
+_rel_status=$(helm status "$RELEASE_NAME" --namespace "$NAMESPACE" 2>/dev/null | awk '/^STATUS:/ {print $2}') || true
+case "${_rel_status}" in
+  pending-install|pending-upgrade|pending-rollback|failed)
+    log "Removing stale Helm release '$RELEASE_NAME' (status: ${_rel_status})"
+    helm uninstall "$RELEASE_NAME" --namespace "$NAMESPACE" || true
+    ;;
+esac
+
+# Install without --wait: the zitadel-bootstrap post-install hook must run
+# before auth-service can become ready (it writes the OIDC client_id secret).
+# Using --wait creates a deadlock — helm would block on auth-service readiness
+# forever because the hook that unblocks it runs only after --wait completes.
 watch_pods "$NAMESPACE" 20 &
 WATCH_APP=$!
 helm upgrade --install "$RELEASE_NAME" "$APP_CHART" \
@@ -335,10 +304,14 @@ helm upgrade --install "$RELEASE_NAME" "$APP_CHART" \
   --set global.frontendImage.tag=local \
   --set global.frontendImage.pullPolicy=Never \
   --set selfObservability.bearerToken=observable-api-key-0000 \
-  --wait \
   --timeout 10m \
-  || { kill "$WATCH_APP" 2>/dev/null || true; dump_pod_events "$NAMESPACE"; exit 1; }
+  || { KEEP_CLUSTER=true; kill "$WATCH_APP" 2>/dev/null || true; dump_pod_events "$NAMESPACE"; exit 1; }
 kill "$WATCH_APP" 2>/dev/null || true
+
+log "Waiting for Zitadel bootstrap job to complete (writes OIDC client_id secret)"
+kubectl wait job/zitadel-bootstrap \
+  --for=condition=complete --namespace "$NAMESPACE" --timeout=300s \
+  || { KEEP_CLUSTER=true; dump_pod_events "$NAMESPACE"; exit 1; }
 
 log "Helm release status"
 helm status "$RELEASE_NAME" --namespace "$NAMESPACE"
@@ -348,12 +321,18 @@ show_pods "$NAMESPACE"
 # Wait for all service Deployments
 # ---------------------------------------------------------------------------
 
-log "Verifying all service Deployments are ready"
-for svc in observable-zitadel auth-service ingest-gateway stream-processor storage-writer query-api alert-evaluator frontend; do
-  wait_for_rollout "deployment/$svc" \
-    || { info "FAILED: $svc did not become ready"; dump_pod_events "$NAMESPACE"; exit 1; }
-  info "$svc: ready"
-done
+log "Verifying all service Deployments are ready (parallel)"
+wait_for_rollouts_parallel "$NAMESPACE" 300s \
+  deployment/observable-zitadel \
+  deployment/auth-service \
+  deployment/ingest-gateway \
+  deployment/stream-processor \
+  deployment/storage-writer \
+  deployment/query-api \
+  deployment/alert-evaluator \
+  deployment/frontend \
+  || { KEEP_CLUSTER=true; exit 1; }
+info "All service Deployments ready"
 
 # ---------------------------------------------------------------------------
 # Smoke checks via port-forward
@@ -383,7 +362,7 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
     --namespace "$NAMESPACE" &
   PF_AUTH=$!
   # Port-forward Zitadel
-  kubectl port-forward service/observable-zitadel 18082:8080 \
+  kubectl port-forward service/observable-zitadel 8082:8080 \
     --namespace "$NAMESPACE" &
   PF_ZITADEL=$!
 
@@ -403,7 +382,7 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
   curl -sf http://localhost:18090/health | grep -q "ok" && info "query-api /health OK"
   curl -sf http://localhost:15173/ | grep -q "<!doctype html" && info "frontend / OK"
   curl -sf http://localhost:14319/health | grep -q "ok" && info "auth-service /health OK"
-  curl -sf http://localhost:18082/debug/ready | grep -q "" && info "zitadel /debug/ready OK" || info "WARN: zitadel /debug/ready did not respond"
+  curl -sf http://localhost:8082/debug/ready | grep -q "" && info "zitadel /debug/ready OK" || info "WARN: zitadel /debug/ready did not respond"
 
   # Send a trace
   info "Sending test trace to ingest-gateway"

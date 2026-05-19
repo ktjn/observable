@@ -1,25 +1,29 @@
+import { GridLayout, useContainerWidth, type LayoutItem } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useState } from "react";
 import {
   getDashboard,
   updateDashboard,
   type DashboardPanel,
-  type DashboardPanelLayout,
+  type DashboardPanelKind,
   type DashboardPanelTimeRange,
+  type DashboardQueryKind,
   type UpdateDashboardRequest,
 } from "../api/dashboards";
 import { submitNlqQuery } from "../api/nlq";
 import { VisualizationPanel } from "../features/nlq/VisualizationPanel";
+import { PanelTemplateLibrary, type PanelTemplate } from "../features/dashboards/PanelTemplateLibrary";
 import type { NlqIrLike } from "../features/nlq/queryFilters";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Select, SelectOption } from "../components/ui/select";
 import { LoadingState } from "../components/ui/loading-state";
 import { Panel } from "../components/ui/panel";
 import { presetToMs, useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
-
-const DASHBOARD_GRID_COLUMNS = 12;
-const RESIZE_COLUMN_PX = 80;
-const RESIZE_ROW_PX = 80;
 
 function msToNsString(ms: number): string {
   return String(BigInt(Math.floor(ms)) * 1_000_000n);
@@ -55,30 +59,11 @@ function panelToUpdate(panel: DashboardPanel): UpdateDashboardRequest["panels"][
   };
 }
 
-function resizeFromLeft(layout: DashboardPanelLayout, columns: number): DashboardPanelLayout {
-  if (columns === 0) return layout;
-  if (columns > 0) {
-    const growBy = Math.min(columns, layout.x);
-    return { ...layout, x: layout.x - growBy, w: layout.w + growBy };
-  }
-  const shrinkBy = Math.min(-columns, layout.w - 1);
-  return { ...layout, x: layout.x + shrinkBy, w: layout.w - shrinkBy };
+function nextRowAfterPanels(panels: DashboardPanel[]): number {
+  if (panels.length === 0) return 0;
+  return Math.max(...panels.map((p) => p.layout.y + p.layout.h));
 }
 
-function resizeFromBottom(layout: DashboardPanelLayout, rows: number): DashboardPanelLayout {
-  if (rows === 0) return layout;
-  return { ...layout, h: Math.max(1, layout.h + rows) };
-}
-
-function resizeFromRight(layout: DashboardPanelLayout, columns: number): DashboardPanelLayout {
-  if (columns === 0) return layout;
-  if (columns > 0) {
-    const growBy = Math.min(columns, DASHBOARD_GRID_COLUMNS - layout.x - layout.w);
-    return { ...layout, w: layout.w + growBy };
-  }
-  const shrinkBy = Math.min(-columns, layout.w - 1);
-  return { ...layout, w: layout.w - shrinkBy };
-}
 function dashboardFiltersToNlqFilters(filters: Record<string, unknown>): NonNullable<NlqIrLike["filters"]> {
   const result: NonNullable<NlqIrLike["filters"]> = [];
   const name = stringFilter(filters.name);
@@ -104,6 +89,12 @@ export default function DashboardDetailPage() {
   const { tenantId } = useTenantContext();
   const globalDateRange = useGlobalDateRange();
   const queryClient = useQueryClient();
+  const [addPanelMode, setAddPanelMode] = useState<null | "templates" | "custom">(null);
+  const [editingPanelId, setEditingPanelId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [stagedLayout, setStagedLayout] = useState<LayoutItem[] | null>(null);
+  const { width, containerRef, mounted } = useContainerWidth({ initialWidth: 1200 });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["dashboard", tenantId, dashboardId],
@@ -117,20 +108,130 @@ export default function DashboardDetailPage() {
     },
   });
 
-  function resizePanel(panelId: string, updateLayout: (layout: DashboardPanelLayout) => DashboardPanelLayout) {
-    if (!data) return;
-    const panels = data.panels.map((panel) => {
-      if (panel.panel_id !== panelId) return panel;
-      return {
-        ...panel,
-        layout: updateLayout(panel.layout),
-      };
-    });
+  function enterEditMode() {
+    setEditMode(true);
+  }
 
+  function saveLayout() {
+    if (!data) { setEditMode(false); return; }
+    const panels = data.panels.map((panel) => {
+      const staged = stagedLayout?.find((l) => l.i === panel.panel_id);
+      if (!staged) return panelToUpdate(panel);
+      return { ...panelToUpdate(panel), layout: { x: staged.x, y: staged.y, w: staged.w, h: staged.h } };
+    });
+    updateMutation.mutate(
+      { name: data.name, panels },
+      {
+        onSuccess: () => {
+          setStagedLayout(null);
+          setEditMode(false);
+        },
+      },
+    );
+  }
+
+  function cancelEdit() {
+    setStagedLayout(null);
+    setEditMode(false);
+  }
+
+  function deletePanel(panelId: string) {
+    if (!data) return;
     updateMutation.mutate({
       name: data.name,
-      panels: panels.map(panelToUpdate),
+      panels: data.panels.filter((p) => p.panel_id !== panelId).map(panelToUpdate),
     });
+  }
+
+  function addPanel(newPanel: {
+    title: string;
+    panel_kind: DashboardPanelKind;
+    query_kind: DashboardQueryKind | null;
+    service: string | null;
+    query_text: string | null;
+    content: string | null;
+  }) {
+    if (!data) return;
+    const y = nextRowAfterPanels(data.panels);
+    const panel: UpdateDashboardRequest["panels"][number] = {
+      title: newPanel.title,
+      panel_kind: newPanel.panel_kind,
+      query_kind: newPanel.query_kind,
+      service: newPanel.service,
+      preset: null,
+      filters: {},
+      query_text: newPanel.query_text,
+      content: newPanel.content,
+      layout: { x: 0, y, w: 12, h: 4 },
+      time_range: { mode: "global" },
+    };
+    updateMutation.mutate({
+      name: data.name,
+      panels: [...data.panels.map(panelToUpdate), panel],
+    });
+    setAddPanelMode(null);
+  }
+
+  function addTemplatePanel(template: PanelTemplate) {
+    if (!data) return;
+    const y = nextRowAfterPanels(data.panels);
+    const panel: UpdateDashboardRequest["panels"][number] = {
+      title: template.title,
+      panel_kind: template.panel_kind,
+      query_kind: template.query_kind,
+      service: template.service,
+      preset: null,
+      filters: {},
+      query_text: template.query_text,
+      content: template.content,
+      layout: { x: 0, y, w: 12, h: 4 },
+      time_range: { mode: "global" },
+    };
+    updateMutation.mutate({
+      name: data.name,
+      panels: [...data.panels.map(panelToUpdate), panel],
+    });
+    setAddPanelMode(null);
+  }
+
+  function editPanel(
+    panelId: string,
+    changes: {
+      title: string;
+      panel_kind: DashboardPanelKind;
+      query_kind: DashboardQueryKind | null;
+      service: string | null;
+      query_text: string | null;
+      content: string | null;
+    },
+  ) {
+    if (!data) return;
+    updateMutation.mutate({
+      name: data.name,
+      panels: data.panels.map((p) =>
+        p.panel_id !== panelId
+          ? panelToUpdate(p)
+          : {
+              ...panelToUpdate(p),
+              title: changes.title,
+              panel_kind: changes.panel_kind,
+              query_kind: changes.query_kind,
+              service: changes.service,
+              query_text: changes.query_text,
+              content: changes.content,
+            },
+      ),
+    });
+    setEditingPanelId(null);
+  }
+
+  function renameDashboard(name: string) {
+    if (!data || !name.trim() || name.trim() === data.name) {
+      setEditingName(false);
+      return;
+    }
+    updateMutation.mutate({ name: name.trim(), panels: data.panels.map(panelToUpdate) });
+    setEditingName(false);
   }
 
   if (isLoading) return <LoadingState>Loading dashboard...</LoadingState>;
@@ -143,24 +244,352 @@ export default function DashboardDetailPage() {
       <div className="page-header">
         <div>
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Dashboard</div>
-          <h1>{data.name}</h1>
+          {editingName ? (
+            <InlineNameEditor
+              initialValue={data.name}
+              onSave={renameDashboard}
+              onCancel={() => setEditingName(false)}
+            />
+          ) : (
+            <h1
+              className="cursor-pointer hover:opacity-70"
+              title="Click to rename"
+              onClick={() => setEditingName(true)}
+            >
+              {data.name}
+            </h1>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {editMode ? (
+            <>
+              <Button variant="primary" onClick={saveLayout} disabled={updateMutation.isPending}>
+                {updateMutation.isPending ? "Saving…" : "Done"}
+              </Button>
+              <Button variant="secondary" onClick={cancelEdit}>
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="secondary" onClick={enterEditMode}>
+                Edit layout
+              </Button>
+              <Button variant="primary" onClick={() => setAddPanelMode("templates")}>
+                Add panel
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-3">
-        {data.panels.map((panel) => (
-          <DashboardPanelView
-            key={panel.panel_id}
-            dashboardId={data.dashboard_id}
-            panel={panel}
-            globalRange={{ fromMs: globalDateRange.fromMs, toMs: globalDateRange.toMs }}
-            onResizeLeft={(columns) => resizePanel(panel.panel_id, (layout) => resizeFromLeft(layout, columns))}
-            onResizeRight={(columns) => resizePanel(panel.panel_id, (layout) => resizeFromRight(layout, columns))}
-            onResizeBottom={(rows) => resizePanel(panel.panel_id, (layout) => resizeFromBottom(layout, rows))}
-          />
-        ))}
+      {addPanelMode === "templates" && (
+        <PanelTemplateLibrary
+          onSelectTemplate={addTemplatePanel}
+          onCustomPanel={() => setAddPanelMode("custom")}
+        />
+      )}
+
+      {addPanelMode === "custom" && (
+        <AddPanelForm
+          onAdd={addPanel}
+          onCancel={() => setAddPanelMode(null)}
+          isPending={updateMutation.isPending}
+        />
+      )}
+
+      <div ref={containerRef}>
+        {mounted && (
+          <GridLayout
+            width={width}
+            className="dashboard-grid"
+            gridConfig={{ cols: 12, rowHeight: 100, margin: [12, 12] as [number, number] }}
+            dragConfig={{ enabled: editMode, handle: ".panel-drag-handle" }}
+            resizeConfig={{ enabled: editMode, handles: ["s", "e", "se"] }}
+            layout={
+              stagedLayout ??
+              data.panels.map((p) => ({
+                i: p.panel_id,
+                x: p.layout.x,
+                y: p.layout.y,
+                w: p.layout.w,
+                h: p.layout.h,
+                minW: 2,
+                minH: 1,
+              }))
+            }
+            onLayoutChange={(layout) => {
+              if (editMode) setStagedLayout([...layout]);
+            }}
+          >
+            {data.panels.map((panel) =>
+              editingPanelId === panel.panel_id ? (
+                <div key={panel.panel_id} className="min-w-0">
+                  <EditPanelForm
+                    panel={panel}
+                    onSave={(changes) => editPanel(panel.panel_id, changes)}
+                    onCancel={() => setEditingPanelId(null)}
+                    isPending={updateMutation.isPending}
+                  />
+                </div>
+              ) : (
+                <div key={panel.panel_id} className="min-w-0">
+                  <DashboardPanelView
+                    dashboardId={data.dashboard_id}
+                    panel={panel}
+                    globalRange={{ fromMs: globalDateRange.fromMs, toMs: globalDateRange.toMs }}
+                    editMode={editMode}
+                    onDelete={() => deletePanel(panel.panel_id)}
+                    onEdit={() => setEditingPanelId(panel.panel_id)}
+                  />
+                </div>
+              ),
+            )}
+          </GridLayout>
+        )}
       </div>
     </section>
+  );
+}
+
+function AddPanelForm({
+  onAdd,
+  onCancel,
+  isPending,
+}: {
+  onAdd: (panel: {
+    title: string;
+    panel_kind: DashboardPanelKind;
+    query_kind: DashboardQueryKind | null;
+    service: string | null;
+    query_text: string | null;
+    content: string | null;
+  }) => void;
+  onCancel: () => void;
+  isPending: boolean;
+}) {
+  const [title, setTitle] = useState("");
+  const [panelKind, setPanelKind] = useState<DashboardPanelKind>("query");
+  const [queryKind, setQueryKind] = useState<DashboardQueryKind>("logs");
+  const [service, setService] = useState("");
+  const [queryText, setQueryText] = useState("");
+  const [content, setContent] = useState("");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    onAdd({
+      title: title.trim(),
+      panel_kind: panelKind,
+      query_kind: panelKind === "query" ? queryKind : null,
+      service: panelKind === "query" && service.trim() ? service.trim() : null,
+      query_text: panelKind === "query" && queryText.trim() ? queryText.trim() : null,
+      content: panelKind === "text" ? content : null,
+    });
+  }
+
+  return (
+    <Panel title="New panel" eyebrow="Add">
+      <form onSubmit={handleSubmit} className="grid gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-[var(--muted)]">Title</span>
+            <Input
+              required
+              placeholder="Panel title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-[var(--muted)]">Kind</span>
+            <Select value={panelKind} onChange={(e) => setPanelKind(e.target.value as DashboardPanelKind)}>
+              <SelectOption value="query">Query</SelectOption>
+              <SelectOption value="text">Text</SelectOption>
+            </Select>
+          </label>
+          {panelKind === "query" && (
+            <>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-semibold uppercase text-[var(--muted)]">Signal</span>
+                <Select value={queryKind} onChange={(e) => setQueryKind(e.target.value as DashboardQueryKind)}>
+                  <SelectOption value="logs">Logs</SelectOption>
+                  <SelectOption value="traces">Traces</SelectOption>
+                  <SelectOption value="metrics">Metrics</SelectOption>
+                </Select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-semibold uppercase text-[var(--muted)]">Service</span>
+                <Input
+                  placeholder="Optional"
+                  value={service}
+                  onChange={(e) => setService(e.target.value)}
+                />
+              </label>
+            </>
+          )}
+        </div>
+        {panelKind === "query" ? (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-[var(--muted)]">Query</span>
+            <Input
+              placeholder="Natural language question, e.g. error rate over time"
+              value={queryText}
+              onChange={(e) => setQueryText(e.target.value)}
+            />
+          </label>
+        ) : (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-[var(--muted)]">Content</span>
+            <textarea
+              className="min-h-[80px] w-full resize-y border border-[var(--border-strong)] bg-[var(--surface-raised)] px-2 py-1 font-[family-name:'IBM_Plex_Mono',monospace] text-[11px] text-[var(--text)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--focus-ring)]"
+              placeholder="Panel text content"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+            />
+          </label>
+        )}
+        <div className="flex gap-2">
+          <Button type="submit" variant="primary" disabled={!title.trim() || isPending}>
+            {isPending ? "Saving…" : "Add panel"}
+          </Button>
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </Panel>
+  );
+}
+
+function EditPanelForm({
+  panel,
+  onSave,
+  onCancel,
+  isPending,
+}: {
+  panel: DashboardPanel;
+  onSave: (changes: {
+    title: string;
+    panel_kind: DashboardPanelKind;
+    query_kind: DashboardQueryKind | null;
+    service: string | null;
+    query_text: string | null;
+    content: string | null;
+  }) => void;
+  onCancel: () => void;
+  isPending: boolean;
+}) {
+  const [title, setTitle] = useState(panel.title);
+  const [panelKind, setPanelKind] = useState<DashboardPanelKind>(panel.panel_kind);
+  const [queryKind, setQueryKind] = useState<DashboardQueryKind>((panel.query_kind as DashboardQueryKind) ?? "logs");
+  const [service, setService] = useState(panel.service ?? "");
+  const [queryText, setQueryText] = useState(panel.query_text ?? "");
+  const [content, setContent] = useState(panel.content ?? "");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    onSave({
+      title: title.trim(),
+      panel_kind: panelKind,
+      query_kind: panelKind === "query" ? queryKind : null,
+      service: panelKind === "query" && service.trim() ? service.trim() : null,
+      query_text: panelKind === "query" && queryText.trim() ? queryText.trim() : null,
+      content: panelKind === "text" ? content : null,
+    });
+  }
+
+  return (
+    <Panel title={panel.title} eyebrow="Edit">
+      <form onSubmit={handleSubmit} className="grid gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-[var(--muted)]">Title</span>
+            <Input required placeholder="Panel title" value={title} onChange={(e) => setTitle(e.target.value)} />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-[var(--muted)]">Kind</span>
+            <Select value={panelKind} onChange={(e) => setPanelKind(e.target.value as DashboardPanelKind)}>
+              <SelectOption value="query">Query</SelectOption>
+              <SelectOption value="text">Text</SelectOption>
+            </Select>
+          </label>
+          {panelKind === "query" && (
+            <>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-semibold uppercase text-[var(--muted)]">Signal</span>
+                <Select value={queryKind} onChange={(e) => setQueryKind(e.target.value as DashboardQueryKind)}>
+                  <SelectOption value="logs">Logs</SelectOption>
+                  <SelectOption value="traces">Traces</SelectOption>
+                  <SelectOption value="metrics">Metrics</SelectOption>
+                </Select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-semibold uppercase text-[var(--muted)]">Service</span>
+                <Input placeholder="Optional" value={service} onChange={(e) => setService(e.target.value)} />
+              </label>
+            </>
+          )}
+        </div>
+        {panelKind === "query" ? (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-[var(--muted)]">Query</span>
+            <Input
+              placeholder="Natural language question, e.g. error rate over time"
+              value={queryText}
+              onChange={(e) => setQueryText(e.target.value)}
+            />
+          </label>
+        ) : (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-[var(--muted)]">Content</span>
+            <textarea
+              className="min-h-[80px] w-full resize-y border border-[var(--border-strong)] bg-[var(--surface-raised)] px-2 py-1 font-[family-name:'IBM_Plex_Mono',monospace] text-[11px] text-[var(--text)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--focus-ring)]"
+              placeholder="Panel text content"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+            />
+          </label>
+        )}
+        <div className="flex gap-2">
+          <Button type="submit" variant="primary" disabled={!title.trim() || isPending}>
+            {isPending ? "Saving…" : "Save"}
+          </Button>
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </Panel>
+  );
+}
+
+function InlineNameEditor({
+  initialValue,
+  onSave,
+  onCancel,
+}: {
+  initialValue: string;
+  onSave: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initialValue);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") onSave(value);
+    if (e.key === "Escape") onCancel();
+  }
+
+  return (
+    <Input
+      autoFocus
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => onSave(value)}
+      onKeyDown={handleKeyDown}
+      className="text-xl font-bold"
+    />
   );
 }
 
@@ -168,185 +597,59 @@ function DashboardPanelView({
   dashboardId,
   panel,
   globalRange,
-  onResizeLeft,
-  onResizeRight,
-  onResizeBottom,
+  editMode,
+  onDelete,
+  onEdit,
 }: {
   dashboardId: string;
   panel: DashboardPanel;
   globalRange: { fromMs: number; toMs: number };
-  onResizeLeft: (columns: number) => void;
-  onResizeRight: (columns: number) => void;
-  onResizeBottom: (rows: number) => void;
+  editMode: boolean;
+  onDelete: () => void;
+  onEdit: () => void;
 }) {
-  const [previewLayout, setPreviewLayout] = useState<DashboardPanelLayout | null>(null);
-  const cleanupRef = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    return () => {
-      cleanupRef.current?.();
-    };
-  }, []);
-
-  const layout = previewLayout ?? panel.layout;
-  const x = Math.max(0, Math.min(DASHBOARD_GRID_COLUMNS - 1, layout.x));
-  const w = Math.max(1, Math.min(DASHBOARD_GRID_COLUMNS - x, layout.w));
-  const h = Math.max(1, layout.h);
-  const minHeight = Math.max(160, h * RESIZE_ROW_PX);
-
-  function startLeftResize(event: ReactPointerEvent<HTMLDivElement>) {
-    event.preventDefault();
-    cleanupRef.current?.();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const startEdgeX = rect.width > 0 ? rect.left : event.clientX;
-    const startLayout = panel.layout;
-
-    const onPointerMove = (moveEvent: PointerEvent) => {
-      const columns = (startEdgeX - moveEvent.clientX) / RESIZE_COLUMN_PX;
-      setPreviewLayout(resizeFromLeft(startLayout, columns));
-    };
-
-    const onPointerUp = (upEvent: PointerEvent) => {
-      const columns = Math.round((startEdgeX - upEvent.clientX) / RESIZE_COLUMN_PX);
-      onResizeLeft(columns);
-      setPreviewLayout(null);
-      cleanup();
-    };
-
-    const cleanup = () => {
-      document.removeEventListener("pointermove", onPointerMove);
-      document.removeEventListener("pointerup", onPointerUp);
-      document.removeEventListener("pointercancel", onPointerUp);
-      cleanupRef.current = null;
-    };
-
-    cleanupRef.current = cleanup;
-    document.addEventListener("pointermove", onPointerMove);
-    document.addEventListener("pointerup", onPointerUp);
-    document.addEventListener("pointercancel", onPointerUp);
-  }
-
-  function startRightResize(event: ReactPointerEvent<HTMLDivElement>) {
-    event.preventDefault();
-    cleanupRef.current?.();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const startEdgeX = rect.width > 0 ? rect.right : event.clientX;
-    const startLayout = panel.layout;
-
-    const onPointerMove = (moveEvent: PointerEvent) => {
-      const columns = (moveEvent.clientX - startEdgeX) / RESIZE_COLUMN_PX;
-      setPreviewLayout(resizeFromRight(startLayout, columns));
-    };
-
-    const onPointerUp = (upEvent: PointerEvent) => {
-      const columns = Math.round((upEvent.clientX - startEdgeX) / RESIZE_COLUMN_PX);
-      onResizeRight(columns);
-      setPreviewLayout(null);
-      cleanup();
-    };
-
-    const cleanup = () => {
-      document.removeEventListener("pointermove", onPointerMove);
-      document.removeEventListener("pointerup", onPointerUp);
-      document.removeEventListener("pointercancel", onPointerUp);
-      cleanupRef.current = null;
-    };
-
-    cleanupRef.current = cleanup;
-    document.addEventListener("pointermove", onPointerMove);
-    document.addEventListener("pointerup", onPointerUp);
-    document.addEventListener("pointercancel", onPointerUp);
-  }
-
-  function startBottomResize(event: ReactPointerEvent<HTMLDivElement>) {
-    event.preventDefault();
-    cleanupRef.current?.();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const startEdgeY = rect.height > 0 ? rect.bottom : event.clientY;
-    const startLayout = panel.layout;
-
-    const onPointerMove = (moveEvent: PointerEvent) => {
-      const rows = (moveEvent.clientY - startEdgeY) / RESIZE_ROW_PX;
-      setPreviewLayout(resizeFromBottom(startLayout, rows));
-    };
-
-    const onPointerUp = (upEvent: PointerEvent) => {
-      const rows = Math.round((upEvent.clientY - startEdgeY) / RESIZE_ROW_PX);
-      onResizeBottom(rows);
-      setPreviewLayout(null);
-      cleanup();
-    };
-
-    const cleanup = () => {
-      document.removeEventListener("pointermove", onPointerMove);
-      document.removeEventListener("pointerup", onPointerUp);
-      document.removeEventListener("pointercancel", onPointerUp);
-      cleanupRef.current = null;
-    };
-
-    cleanupRef.current = cleanup;
-    document.addEventListener("pointermove", onPointerMove);
-    document.addEventListener("pointerup", onPointerUp);
-    document.addEventListener("pointercancel", onPointerUp);
-  }
-
   return (
-    <div
-      className="min-w-0"
-      style={{
-        gridColumnStart: x + 1,
-        gridColumnEnd: `span ${w}`,
-        gridRowStart: layout.y + 1,
-        gridRowEnd: `span ${h}`,
-      }}
-    >
-      <Panel
-        title={panel.title}
-        eyebrow={panel.panel_kind === "text" ? "Text" : panel.query_kind ?? "Query"}
-        className="relative"
-      >
-        <div
-          aria-label={`Resize ${panel.title} from left border`}
-          className="group absolute top-0 bottom-0 left-0 z-10 w-3 cursor-ew-resize touch-none border-l-2 border-transparent hover:border-[var(--brand)] focus:border-[var(--brand)] focus:outline-none"
-          role="separator"
-          tabIndex={0}
-          onPointerDown={startLeftResize}
-        >
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="h-5 w-0.5 rounded-full bg-[var(--brand)] opacity-0 transition-opacity group-hover:opacity-100" />
-          </div>
-        </div>
-        <div
-          aria-label={`Resize ${panel.title} from right border`}
-          className="group absolute top-0 right-0 bottom-0 z-10 w-3 cursor-ew-resize touch-none border-r-2 border-transparent hover:border-[var(--brand)] focus:border-[var(--brand)] focus:outline-none"
-          role="separator"
-          tabIndex={0}
-          onPointerDown={startRightResize}
-        >
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="h-5 w-0.5 rounded-full bg-[var(--brand)] opacity-0 transition-opacity group-hover:opacity-100" />
-          </div>
-        </div>
-        <div
-          aria-label={`Resize ${panel.title} from bottom border`}
-          className="group absolute right-0 bottom-0 left-0 z-10 h-3 cursor-ns-resize touch-none border-b-2 border-transparent hover:border-[var(--brand)] focus:border-[var(--brand)] focus:outline-none"
-          role="separator"
-          tabIndex={0}
-          onPointerDown={startBottomResize}
-        >
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="h-0.5 w-5 rounded-full bg-[var(--brand)] opacity-0 transition-opacity group-hover:opacity-100" />
-          </div>
-        </div>
-        <div style={{ minHeight }}>
-          {panel.panel_kind === "text" ? (
-            <TextPanel panel={panel} />
-          ) : (
-            <QueryPanel dashboardId={dashboardId} panel={panel} globalRange={globalRange} />
+    <Panel
+      title={panel.title}
+      eyebrow={panel.panel_kind === "text" ? "Text" : (panel.query_kind ?? "Query")}
+      className="h-full"
+      actions={
+        <>
+          {editMode && (
+            <div
+              className="panel-drag-handle flex h-7 w-7 cursor-grab items-center justify-center touch-none text-[var(--muted)] hover:text-[var(--text)] active:cursor-grabbing select-none"
+              title="Drag to move"
+            >
+              ⠿
+            </div>
           )}
-        </div>
-      </Panel>
-    </div>
+          <button
+            type="button"
+            aria-label={`Edit panel ${panel.title}`}
+            className="flex h-7 items-center px-2 text-xs text-[var(--muted)] hover:text-[var(--text)] focus:outline-none"
+            onClick={onEdit}
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            aria-label={`Delete panel ${panel.title}`}
+            className="flex h-7 w-7 items-center justify-center text-[var(--muted)] hover:text-[var(--bad)] focus:outline-none"
+            onClick={onDelete}
+          >
+            ×
+          </button>
+        </>
+      }
+    >
+      <div className="h-full min-h-[100px]">
+        {panel.panel_kind === "text" ? (
+          <TextPanel panel={panel} />
+        ) : (
+          <QueryPanel dashboardId={dashboardId} panel={panel} globalRange={globalRange} />
+        )}
+      </div>
+    </Panel>
   );
 }
 

@@ -1,9 +1,9 @@
 use anyhow::Result;
 use axum::{
-    extract::{Query, State},
-    http::{header, StatusCode},
-    response::Response,
     Json,
+    extract::{Query, State},
+    http::{StatusCode, header},
+    response::Response,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
@@ -92,7 +92,7 @@ pub async fn create_session(
     tenant_id: Uuid,
     environment: &str,
 ) -> Result<Uuid> {
-    let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
+    let expires_at = chrono::Utc::now() + chrono::Duration::days(7);
     let row = sqlx::query(
         r#"
         INSERT INTO user_sessions (user_id, tenant_id, environment, expires_at)
@@ -170,19 +170,46 @@ pub struct CallbackParams {
     pub state: String,
 }
 
+// Redirect the browser to /login with an error code so the user can retry.
+fn login_error_redirect(code: &str) -> Response {
+    Response::builder()
+        .status(StatusCode::FOUND)
+        .header(
+            header::LOCATION,
+            format!("/login?error={}", urlencoding(code)),
+        )
+        .header(header::SET_COOKIE, "pkce_cv=; Max-Age=0; Path=/")
+        .header(header::SET_COOKIE, "oauth_state=; Max-Age=0; Path=/")
+        .body(axum::body::Body::empty())
+        .unwrap()
+}
+
 /// GET /v1/auth/callback
 /// Exchanges the authorization code, upserts the user, issues a session JWT.
 pub async fn callback_handler(
     State(state): State<OidcState>,
     Query(params): Query<CallbackParams>,
     headers: axum::http::HeaderMap,
-) -> Result<Response, StatusCode> {
-    let verifier = extract_cookie(&headers, "pkce_cv").ok_or(StatusCode::BAD_REQUEST)?;
+) -> Response {
+    let verifier = match extract_cookie(&headers, "pkce_cv") {
+        Some(v) => v,
+        None => {
+            tracing::warn!("callback: missing pkce_cv cookie — session may have expired");
+            return login_error_redirect("session_expired");
+        }
+    };
 
-    let cookie_state = extract_cookie(&headers, "oauth_state").ok_or(StatusCode::BAD_REQUEST)?;
+    let cookie_state = match extract_cookie(&headers, "oauth_state") {
+        Some(s) => s,
+        None => {
+            tracing::warn!("callback: missing oauth_state cookie — session may have expired");
+            return login_error_redirect("session_expired");
+        }
+    };
 
     if cookie_state != params.state {
-        return Err(StatusCode::BAD_REQUEST);
+        tracing::warn!("callback: oauth_state mismatch (possible CSRF or stale session)");
+        return login_error_redirect("session_expired");
     }
 
     // Exchange code for tokens at Zitadel (server-to-server, internal URL).
@@ -196,7 +223,7 @@ pub async fn callback_handler(
         .next()
         .unwrap_or("localhost")
         .to_owned();
-    let token_resp = reqwest::Client::new()
+    let token_resp = match reqwest::Client::new()
         .post(format!("{}/oauth/v2/token", state.config.api_base))
         .header("Host", &zitadel_host)
         .form(&[
@@ -208,67 +235,136 @@ pub async fn callback_handler(
         ])
         .send()
         .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?
-        .json::<serde_json::Value>()
-        .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+    {
+        Ok(r) => match r.json::<serde_json::Value>().await {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!("callback: failed to parse Zitadel token response: {e}");
+                return login_error_redirect("provider_error");
+            }
+        },
+        Err(e) => {
+            tracing::warn!("callback: could not reach Zitadel token endpoint: {e}");
+            return login_error_redirect("provider_error");
+        }
+    };
 
-    let access_token = token_resp["access_token"]
-        .as_str()
-        .ok_or(StatusCode::UNAUTHORIZED)?
-        .to_owned();
+    let access_token = match token_resp["access_token"].as_str() {
+        Some(t) => t.to_owned(),
+        None => {
+            tracing::warn!(
+                "callback: Zitadel token exchange did not return access_token: {}",
+                token_resp
+            );
+            return login_error_redirect("auth_failed");
+        }
+    };
 
     // Fetch user info from Zitadel (server-to-server, internal URL).
-    let userinfo = reqwest::Client::new()
+    let userinfo = match reqwest::Client::new()
         .get(format!("{}/oidc/v1/userinfo", state.config.api_base))
         .header("Host", &zitadel_host)
         .bearer_auth(&access_token)
         .send()
         .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?
-        .json::<serde_json::Value>()
-        .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+    {
+        Ok(r) => match r.json::<serde_json::Value>().await {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!("callback: failed to parse Zitadel userinfo response: {e}");
+                return login_error_redirect("provider_error");
+            }
+        },
+        Err(e) => {
+            tracing::warn!("callback: could not reach Zitadel userinfo endpoint: {e}");
+            return login_error_redirect("provider_error");
+        }
+    };
 
-    let sub = userinfo["sub"]
-        .as_str()
-        .ok_or(StatusCode::UNAUTHORIZED)?
-        .to_owned();
+    let sub = match userinfo["sub"].as_str() {
+        Some(s) => s.to_owned(),
+        None => {
+            tracing::warn!("callback: Zitadel userinfo missing 'sub': {}", userinfo);
+            return login_error_redirect("auth_failed");
+        }
+    };
     let email = userinfo["email"].as_str().unwrap_or("").to_owned();
     let name = userinfo["name"].as_str().map(ToOwned::to_owned);
 
-    let user_id = upsert_user(&state.db, &sub, &email, name.as_deref())
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_id = match upsert_user(&state.db, &sub, &email, name.as_deref()).await {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!("callback: failed to upsert user: {e}");
+            return login_error_redirect("server_error");
+        }
+    };
 
-    let mut tenants = list_user_tenants(&state.db, user_id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let mut tenants = match list_user_tenants(&state.db, user_id).await {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!("callback: failed to list user tenants: {e}");
+            return login_error_redirect("server_error");
+        }
+    };
 
-    // Dev mode: first login has no role yet — seed tenant_admin on dev-tenant automatically.
+    // Dev mode: first login has no role yet — seed tenant_admin on both the
+    // observable tenant and dev-tenant so the admin can switch between them.
     if tenants.is_empty() && state.config.dev_mode {
-        let dev_tenant = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002")
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        upsert_user_tenant_role(&state.db, user_id, dev_tenant, "tenant_admin")
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        tenants = vec![(dev_tenant, "tenant_admin".to_string())];
+        for tenant_str in [
+            "00000000-0000-0000-0000-000000000001", // observable
+            "00000000-0000-0000-0000-000000000002", // dev-tenant
+        ] {
+            let tid = match uuid::Uuid::parse_str(tenant_str) {
+                Ok(id) => id,
+                Err(e) => {
+                    tracing::error!("callback: invalid hardcoded tenant UUID: {e}");
+                    return login_error_redirect("server_error");
+                }
+            };
+            if let Err(e) = upsert_user_tenant_role(&state.db, user_id, tid, "tenant_admin").await {
+                tracing::error!("callback: failed to upsert tenant role: {e}");
+                return login_error_redirect("server_error");
+            }
+        }
+        tenants = match list_user_tenants(&state.db, user_id).await {
+            Ok(t) => t,
+            Err(e) => {
+                tracing::error!("callback: failed to list user tenants after seeding: {e}");
+                return login_error_redirect("server_error");
+            }
+        };
     }
 
-    let (tenant_id, role) = tenants.into_iter().next().ok_or(StatusCode::FORBIDDEN)?;
+    let (tenant_id, role) = match tenants.into_iter().next() {
+        Some(pair) => pair,
+        None => {
+            tracing::warn!("callback: user {} has no tenant memberships", sub);
+            return login_error_redirect("no_access");
+        }
+    };
 
-    let env_row = sqlx::query_scalar::<_, String>(
+    let env_row = match sqlx::query_scalar::<_, String>(
         "SELECT DISTINCT environment FROM api_keys WHERE tenant_id = $1 AND environment != '' LIMIT 1",
     )
     .bind(tenant_id)
     .fetch_optional(&state.db)
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!("callback: failed to query environment: {e}");
+            return login_error_redirect("server_error");
+        }
+    };
     let environment = env_row.unwrap_or_else(|| "default".to_string());
 
-    let session_id = create_session(&state.db, user_id, tenant_id, &environment)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let session_id = match create_session(&state.db, user_id, tenant_id, &environment).await {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!("callback: failed to create session: {e}");
+            return login_error_redirect("server_error");
+        }
+    };
 
     crate::audit::write(
         &state.db,
@@ -276,15 +372,20 @@ pub async fn callback_handler(
     )
     .await;
 
-    let jwt = sign_session_jwt(
+    let jwt = match sign_session_jwt(
         &state.config.session_secret,
         user_id,
         tenant_id,
         &role,
         &environment,
         session_id,
-    )
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    ) {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!("callback: failed to sign session JWT: {e}");
+            return login_error_redirect("server_error");
+        }
+    };
 
     let secure_attr = if state.config.dev_mode {
         String::new()
@@ -292,18 +393,18 @@ pub async fn callback_handler(
         "; Secure".to_string()
     };
     let set_session = format!(
-        "session={}; HttpOnly{}; SameSite=Strict; Path=/; Max-Age=3600",
+        "session={}; HttpOnly{}; SameSite=Lax; Path=/; Max-Age=604800",
         jwt, secure_attr
     );
 
-    Ok(Response::builder()
+    Response::builder()
         .status(StatusCode::FOUND)
         .header(header::LOCATION, "/")
         .header(header::SET_COOKIE, set_session)
         .header(header::SET_COOKIE, "pkce_cv=; Max-Age=0; Path=/")
         .header(header::SET_COOKIE, "oauth_state=; Max-Age=0; Path=/")
         .body(axum::body::Body::empty())
-        .unwrap())
+        .unwrap()
 }
 
 /// POST /v1/auth/logout
@@ -312,27 +413,25 @@ pub async fn logout_handler(
     State(state): State<OidcState>,
     headers: axum::http::HeaderMap,
 ) -> Response {
-    if let Some(token) = extract_cookie(&headers, "session") {
-        if let Ok(claims) = verify_session_jwt(&state.config.session_secret, &token) {
-            if let (Ok(user_id), Ok(tenant_id)) =
-                (Uuid::parse_str(&claims.sub), Uuid::parse_str(&claims.tid))
-            {
-                let _ = sqlx::query(
-                    "UPDATE user_sessions SET revoked_at = now() \
-                     WHERE user_id = $1 AND tenant_id = $2 AND revoked_at IS NULL",
-                )
-                .bind(user_id)
-                .bind(tenant_id)
-                .execute(&state.db)
-                .await;
+    if let Some(token) = extract_cookie(&headers, "session")
+        && let Ok(claims) = verify_session_jwt(&state.config.session_secret, &token)
+        && let (Ok(user_id), Ok(tenant_id)) =
+            (Uuid::parse_str(&claims.sub), Uuid::parse_str(&claims.tid))
+    {
+        let _ = sqlx::query(
+            "UPDATE user_sessions SET revoked_at = now() \
+             WHERE user_id = $1 AND tenant_id = $2 AND revoked_at IS NULL",
+        )
+        .bind(user_id)
+        .bind(tenant_id)
+        .execute(&state.db)
+        .await;
 
-                crate::audit::write(
-                    &state.db,
-                    &crate::audit::AuditEntry::logout(claims.sub.clone(), tenant_id),
-                )
-                .await;
-            }
-        }
+        crate::audit::write(
+            &state.db,
+            &crate::audit::AuditEntry::logout(claims.sub.clone(), tenant_id),
+        )
+        .await;
     }
 
     Response::builder()

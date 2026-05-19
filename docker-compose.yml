@@ -6,7 +6,7 @@ x-platform-self-observability-env: &platform-self-observability-env
 services:
   # --- INFRASTRUCTURE ---
   clickhouse:
-    image: clickhouse/clickhouse-server:24.3
+    image: clickhouse/clickhouse-server:25.12
     ports: ["8123:8123", "9000:9000"]
     environment:
       CLICKHOUSE_DB: observable
@@ -14,13 +14,13 @@ services:
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
     volumes: [clickhouse_data:/var/lib/clickhouse]
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
       interval: 2s
-      timeout: 1s
-      retries: 20
+      timeout: 2s
+      retries: 30
 
   redpanda:
-    image: redpandadata/redpanda:v23.3.1
+    image: redpandadata/redpanda:v25.2.7
     command:
       - redpanda
       - start
@@ -38,7 +38,7 @@ services:
       retries: 20
 
   postgres:
-    image: postgres:16
+    image: postgres:17
     ports: ["5432:5432"]
     environment:
       POSTGRES_DB: ${PG_DB:-observable}
@@ -52,7 +52,7 @@ services:
       retries: 20
 
   openfga:
-    image: openfga/openfga:v1.5
+    image: openfga/openfga:v1.15.1
     command: run
     ports: ["8080:8080", "8081:8081"]
     environment:
@@ -63,13 +63,13 @@ services:
 
   # Makes /bootstrap writable by Zitadel's nonroot user (uid 65532) before Zitadel starts.
   zitadel-volume-init:
-    image: alpine:3.20
+    image: alpine:3.23
     command: ["sh", "-c", "chmod 777 /bootstrap"]
     volumes:
       - zitadel-bootstrap:/bootstrap
 
   zitadel:
-    image: ghcr.io/zitadel/zitadel:v2.71.0
+    image: ghcr.io/zitadel/zitadel:v4.15.0
     command: start-from-init --masterkeyFromEnv --tlsMode disabled --steps /zitadel-steps.yaml
     environment:
       ZITADEL_DATABASE_POSTGRES_HOST: postgres
@@ -98,7 +98,7 @@ services:
         condition: service_completed_successfully
 
   zitadel-bootstrap:
-    image: alpine:3.20
+    image: alpine:3.23
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -117,7 +117,7 @@ services:
 
   # --- SETUP & MIGRATIONS ---
   clickhouse-setup:
-    image: clickhouse/clickhouse-server:24.3
+    image: clickhouse/clickhouse-server:25.12
     entrypoint:
       - /bin/bash
       - -c
@@ -133,7 +133,7 @@ services:
       clickhouse: { condition: service_healthy }
 
   postgres-setup:
-    image: postgres:16
+    image: postgres:17
     entrypoint:
       - /bin/bash
       - -c
@@ -150,7 +150,7 @@ services:
       postgres: { condition: service_healthy }
 
   redpanda-setup:
-    image: redpandadata/redpanda:v23.3.1
+    image: redpandadata/redpanda:v25.2.7
     entrypoint:
       - /bin/bash
       - -c
@@ -318,7 +318,7 @@ services:
 
   # --- TESTBENCH ---
   shop-db:
-    image: postgres:16
+    image: postgres:17
     ports: ["5433:5432"]
     environment:
       POSTGRES_DB: shop
@@ -334,7 +334,7 @@ services:
       retries: 20
 
   shop-queue:
-    image: rabbitmq:3.13-management
+    image: rabbitmq:4.1-management
     ports: ["5672:5672", "15672:15672"]
     environment:
       RABBITMQ_DEFAULT_USER: shop

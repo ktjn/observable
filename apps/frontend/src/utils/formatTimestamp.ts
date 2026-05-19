@@ -62,3 +62,4 @@ export function formatTimestamp(nanos: string | number, format: TimeFormat): str
     }
   }
 }
+

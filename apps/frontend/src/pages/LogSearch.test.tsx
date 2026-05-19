@@ -188,6 +188,7 @@ test("selecting a log opens context properties in the right sidebar", async () =
   expect(within(sidebar).getByText("prod")).toBeInTheDocument();
   expect(within(sidebar).getByText("trace_id")).toBeInTheDocument();
   expect(within(sidebar).getByText("trace-1")).toBeInTheDocument();
+  expect(sidebar).toHaveClass("overflow-y-auto");
 });
 
 test("maps OpenTelemetry severity numbers into stable level labels and tones", () => {

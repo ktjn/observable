@@ -1,9 +1,9 @@
 use crate::middleware::auth::TenantContext;
 use crate::traces::AppState;
 use axum::{
+    Json,
     extract::{Extension, Path, State},
     http::StatusCode,
-    Json,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

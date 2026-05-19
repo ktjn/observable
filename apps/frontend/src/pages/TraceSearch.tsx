@@ -13,6 +13,7 @@ import type { NlqIrLike } from "../features/nlq/queryFilters";
 import { FacetSidebar } from "../components/FacetSidebar";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
+import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
@@ -34,6 +35,20 @@ const TRACE_BASE_IR: NlqIrLike = {
   time_range: { from: "now-1h", to: "now" },
 };
 const ROW_LIMIT = 500;
+
+type StatusFilter = "all" | "ok" | "error";
+
+const STATUS_PILLS: { key: StatusFilter; label: string; test: (status: string) => boolean }[] = [
+  { key: "all", label: "All", test: () => true },
+  { key: "error", label: "Error", test: (s) => s === "ERROR" },
+  { key: "ok", label: "OK", test: (s) => s !== "ERROR" },
+];
+
+const STATUS_PILL_ACTIVE_COLOR: Record<StatusFilter, string> = {
+  all: "var(--brand)",
+  error: "var(--bad)",
+  ok: "var(--good)",
+};
 
 /** Shape of a row returned by the NLQ trace execute query. */
 interface NlqTraceRow {
@@ -120,6 +135,7 @@ export function TraceExplorer({
 
   const [userQuery, setUserQuery] = useState<string | null>(initialQuery);
   const [service, setService] = useState(initialService);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   const from = String(BigInt(Math.floor(fromMs)) * 1_000_000n);
   const to = String(BigInt(Math.floor(toMs)) * 1_000_000n);
@@ -156,6 +172,27 @@ export function TraceExplorer({
   const rawTraces = data ?? [];
   const traces = rawTraces.slice(0, ROW_LIMIT);
   const isCapped = rawTraces.length > ROW_LIMIT;
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<StatusFilter, number> = { all: traces.length, ok: 0, error: 0 };
+    for (const t of traces) {
+      const root = t.spans[0];
+      if (!root) continue;
+      if (root.status_code === "ERROR") counts.error++;
+      else counts.ok++;
+    }
+    return counts;
+  }, [traces]);
+
+  const displayedTraces = useMemo(() => {
+    if (statusFilter === "all") return traces;
+    const pill = STATUS_PILLS.find((p) => p.key === statusFilter);
+    return pill ? traces.filter((t) => {
+      const root = t.spans[0];
+      return root ? pill.test(root.status_code) : false;
+    }) : traces;
+  }, [traces, statusFilter]);
+
   const canRenderHistogram = Boolean(histogramData) || traces.length > 0;
   const histogram = useMemo(
     () =>
@@ -226,7 +263,7 @@ export function TraceExplorer({
         )
       }
       renderTable={(selectedId, onSelect) => (
-        <>
+        <div className="flex flex-col flex-1 min-h-0 gap-2">
           {showFacets && (
             <FacetSidebar
               facets={undefined}
@@ -234,17 +271,50 @@ export function TraceExplorer({
               ariaLabel="Trace facets"
             />
           )}
+
+          {/* Status pills */}
+          <div className="flex items-center gap-1 flex-wrap" aria-label="Filter by status">
+            {STATUS_PILLS.map((pill) => {
+              const isActive = statusFilter === pill.key;
+              const activeColor = STATUS_PILL_ACTIVE_COLOR[pill.key];
+              return (
+                <button
+                  key={pill.key}
+                  type="button"
+                  onClick={() => setStatusFilter(pill.key)}
+                  style={isActive ? { borderColor: activeColor, color: activeColor } : undefined}
+                  className={[
+                    "flex items-center gap-1 px-2.5 py-1 text-xs font-bold border transition-colors",
+                    isActive
+                      ? ""
+                      : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--brand)] hover:text-[var(--text)]",
+                  ].join(" ")}
+                >
+                  {pill.label}
+                  <span aria-hidden="true" className="opacity-70">({statusCounts[pill.key]})</span>
+                </button>
+              );
+            })}
+          </div>
+
           <TablePanel className="flex-1 min-h-0 flex flex-col">
             {isLoading ? (
               <LoadingState>Loading traces…</LoadingState>
             ) : error ? (
               <LoadingState className="text-[var(--bad)]">Error loading traces: {String(error)}</LoadingState>
-            ) : traces.length === 0 ? (
-              <LoadingState>No traces found.</LoadingState>
+            ) : displayedTraces.length === 0 ? (
+              <EmptyState
+                title="No traces found"
+                description={
+                  statusFilter !== "all"
+                    ? "No traces match the current status filter. Try selecting a different status."
+                    : "No traces in the selected time range. Try widening the time window or checking your service filter."
+                }
+              />
             ) : (
               <>
                 <TraceResultsTable
-                  traces={traces}
+                  traces={displayedTraces}
                   selectedTraceId={selectedId ?? undefined}
                   onSelectTrace={(id) => onSelect(id)}
                   mode={tableMode}
@@ -260,7 +330,7 @@ export function TraceExplorer({
               </>
             )}
           </TablePanel>
-        </>
+        </div>
       )}
       renderPanel={(selectedId, onClose) => {
         const trace = traces.find((t) => t.trace_id === selectedId);
@@ -286,7 +356,7 @@ function TraceContextSidebar({
   return (
     <aside
       aria-label="Selected trace context"
-      className="w-full border border-[var(--border)] bg-[var(--surface)] p-4"
+      className="w-full h-full max-[900px]:max-h-[calc(100vh-200px)] overflow-y-auto border border-[var(--border)] bg-[var(--surface)] p-4"
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>

@@ -414,29 +414,29 @@ async fn record_firing(db: &sqlx::PgPool, rule: &AlertRuleRow, value: f64) -> an
     .fetch_optional(db)
     .await?;
 
-    if let Some((firing_id, state)) = res {
-        if state == "active" {
-            enqueue_notifications(
-                db,
-                rule.tenant_id,
-                firing_id,
-                &rule.notification_channels,
-                "active",
-            )
-            .await?;
+    if let Some((firing_id, state)) = res
+        && state == "active"
+    {
+        enqueue_notifications(
+            db,
+            rule.tenant_id,
+            firing_id,
+            &rule.notification_channels,
+            "active",
+        )
+        .await?;
 
-            if rule.auto_trigger_incident {
-                let dedup_key = rule.rule_id.to_string();
-                if let Err(e) =
-                    upsert_incident_from_firing(db, rule, firing_id, &dedup_key, value).await
-                {
-                    tracing::warn!(
-                        rule_id = %rule.rule_id,
-                        firing_id = %firing_id,
-                        error = %e,
-                        "failed to upsert incident from firing"
-                    );
-                }
+        if rule.auto_trigger_incident {
+            let dedup_key = rule.rule_id.to_string();
+            if let Err(e) =
+                upsert_incident_from_firing(db, rule, firing_id, &dedup_key, value).await
+            {
+                tracing::warn!(
+                    rule_id = %rule.rule_id,
+                    firing_id = %firing_id,
+                    error = %e,
+                    "failed to upsert incident from firing"
+                );
             }
         }
     }

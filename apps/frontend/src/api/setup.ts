@@ -56,6 +56,7 @@ export interface PlatformConfig {
 
 export async function getConfig(tenantId: string): Promise<PlatformConfig> {
   const res = await fetch("/v1/config", {
+    credentials: "include",
     headers: {
       "x-api-key": LOCAL_DEV_API_KEY,
       "X-Tenant-ID": tenantId,
@@ -79,6 +80,7 @@ export async function saveLlmConfig(tenantId: string, params: SaveLlmConfigParam
   if (params.model !== undefined) body.model = params.model;
 
   const res = await fetch("/v1/config/llm", {
+    credentials: "include",
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -121,6 +123,7 @@ export async function fetchAvailableModels(
     if (apiKey) body.api_key = apiKey;
 
     const res = await fetch("/v1/config/llm/models", {
+      credentials: "include",
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.24
 
 # --- Rust Build ---
 FROM lukemathwalker/cargo-chef:0.1.77-rust-1.95.0-bookworm AS chef
@@ -12,34 +12,31 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         libcurl4-openssl-dev \
         libssl-dev \
         pkg-config \
-        zlib1g-dev
-RUN rustup component add clippy rustfmt
-
+        zlib1g-dev \
+    && rustup component add rustfmt clippy
 FROM chef AS planner
-COPY . .
+COPY Cargo.toml Cargo.lock ./
+COPY libs libs
+COPY services services
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS cacher
 COPY --from=planner /app/recipe.json recipe.json
 RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
     cargo chef cook --release --all-targets --recipe-path recipe.json
 
 FROM cacher AS rust-ci
-COPY . .
-RUN cargo fmt --check
+COPY Cargo.toml Cargo.lock ./
+COPY libs libs
+COPY services services
+COPY proto proto
 RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
-    cargo clippy --workspace --all-targets -- -D warnings
-# Integration tests use Testcontainers and require a Docker daemon — nested
-# Docker is unavailable during image builds. Run `bash scripts/local-ci.sh`
-# locally to execute the full integration test suite.
-RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
-    cargo test --workspace --lib --bins
+    cargo fmt --check \
+    && cargo clippy --workspace --all-targets -- -D warnings \
+    && cargo test --workspace --lib --bins
 
 FROM rust-ci AS rust-builder
 RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \

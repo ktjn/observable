@@ -1,10 +1,10 @@
 use query_api::mcp_tools::{
-    get_metric_schema, list_signal_fields, resolve_label_to_column, ResolveLabelResult,
+    ResolveLabelResult, get_metric_schema, list_signal_fields, resolve_label_to_column,
 };
-use query_api::schemas::{upsert_annotation, UpsertAnnotationRequest};
+use query_api::schemas::{UpsertAnnotationRequest, upsert_annotation};
 use sqlx::PgPool;
 use std::path::Path;
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
 use uuid::Uuid;
 
@@ -36,7 +36,7 @@ async fn apply_migrations(pool: &PgPool) {
 
 async fn start_pool() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
     let container = Postgres::default()
-        .with_tag("16")
+        .with_tag("17")
         .start()
         .await
         .expect("postgres container started");

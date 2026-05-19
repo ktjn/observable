@@ -57,9 +57,31 @@ export function ServiceMetricsWorkspace({
   });
 
   const metrics = data?.metrics ?? [];
+
+  // Apply name and environment filters first, then compute type counts,
+  // then apply type filter. This follows the design-guide §12.1 count
+  // semantics: type pills show counts that respect all other active filters.
+  const baseMetrics = useMemo(() => {
+    const name = filters.name.trim().toLowerCase();
+    return metrics.filter((item) => {
+      const environment = item.environment || "default";
+      const matchesName = !name || item.metric_name.toLowerCase().includes(name);
+      const matchesEnvironment = filters.environment === "all" || environment === filters.environment;
+      return matchesName && matchesEnvironment;
+    });
+  }, [metrics, filters.name, filters.environment]);
+
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: baseMetrics.length };
+    for (const m of baseMetrics) {
+      counts[m.metric_type] = (counts[m.metric_type] || 0) + 1;
+    }
+    return counts;
+  }, [baseMetrics]);
+
   const filteredMetrics = useMemo(
-    () => filterMetrics(metrics, filters),
-    [metrics, filters],
+    () => (filters.type === "all" ? baseMetrics : baseMetrics.filter((m) => m.metric_type === filters.type)),
+    [baseMetrics, filters.type],
   );
 
   const metricTypes = useMemo(() => uniqueValues(metrics.map((item) => item.metric_type)), [metrics]);
@@ -170,8 +192,43 @@ export function ServiceMetricsWorkspace({
                     setSelectedMetricId(null);
                   }}
                 />
-
               </div>
+
+              {/* Type filter pills + name search */}
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <div className="flex items-center gap-1 flex-wrap" aria-label="Filter by metric type">
+                  {["all", ...metricTypes].map((type) => {
+                    const isActive = filters.type === type;
+                    const count = typeCounts[type] ?? 0;
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setFilters((f) => ({ ...f, type }))}
+                        style={isActive ? { borderColor: "var(--brand)", color: "var(--brand)" } : undefined}
+                        className={[
+                          "flex items-center gap-1 px-2.5 py-1 text-xs font-bold border transition-colors",
+                          isActive
+                            ? ""
+                            : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--brand)] hover:text-[var(--text)]",
+                        ].join(" ")}
+                      >
+                        <span className="capitalize">{type === "all" ? "All types" : type}</span>
+                        <span aria-hidden="true" className="opacity-70">({count})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <input
+                  type="search"
+                  value={filters.name}
+                  onChange={(e) => setFilters((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="Search metric names…"
+                  aria-label="Search metric names"
+                  className="min-w-[180px] flex-1 border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--brand)] focus:outline-none"
+                />
+              </div>
+
               {filteredMetrics.length > 0 ? (
                 <MetricCatalogTable
                   metrics={filteredMetrics}
@@ -179,9 +236,15 @@ export function ServiceMetricsWorkspace({
                   onSelect={onSelect}
                 />
               ) : (
-                <EmptyState 
-                  title="No metrics found" 
-                  description={serviceName ? `No metrics for service ${serviceName} match filters.` : "No global metrics found matching filters."}
+                <EmptyState
+                  title="No metrics found"
+                  description={
+                    filters.name || filters.type !== "all" || filters.environment !== "all"
+                      ? "No metrics match the current filters. Try clearing the search or selecting a different type."
+                      : serviceName
+                        ? `No metrics for service ${serviceName}.`
+                        : "No metrics available."
+                  }
                 />
               )}
             </Panel>
@@ -355,17 +418,6 @@ function MetricDetailSidebar({
       </dl>
     </aside>
   );
-}
-
-function filterMetrics(metrics: MetricCatalogEntry[], filters: FilterState): MetricCatalogEntry[] {
-  const name = filters.name.trim().toLowerCase();
-  return metrics.filter((item) => {
-    const environment = item.environment || "default";
-    const matchesName = !name || item.metric_name.toLowerCase().includes(name);
-    const matchesType = filters.type === "all" || item.metric_type === filters.type;
-    const matchesEnvironment = filters.environment === "all" || environment === filters.environment;
-    return matchesName && matchesType && matchesEnvironment;
-  });
 }
 
 function uniqueValues(values: string[]): string[] {

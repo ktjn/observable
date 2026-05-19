@@ -1,9 +1,9 @@
 use axum::{
+    Json,
     body::Bytes,
     extract::{Extension, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    Json,
 };
 
 use crate::auth::TenantContext;
@@ -72,8 +72,8 @@ mod tests {
     use axum::http::StatusCode;
     use axum_test::TestServer;
 
-    use crate::http_json::build_router;
     use crate::AppState;
+    use crate::http_json::build_router;
 
     const TENANT: &str = "00000000-0000-0000-0000-000000000001";
 
@@ -113,7 +113,7 @@ mod tests {
     #[tokio::test]
     async fn logs_export_returns_200() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/logs")
             .add_header(auth_header().0, auth_header().1)
@@ -125,7 +125,7 @@ mod tests {
     #[tokio::test]
     async fn protobuf_logs_export_returns_415() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/logs")
             .add_header(auth_header().0, auth_header().1)
@@ -141,7 +141,7 @@ mod tests {
     #[tokio::test]
     async fn gzip_compressed_logs_payload_returns_200() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let resp = server
             .post("/v1/logs")
             .add_header(auth_header().0, auth_header().1)
@@ -161,7 +161,7 @@ mod tests {
     #[tokio::test]
     async fn exceeding_rate_limit_returns_429() {
         let app = build_router(AppState::with_stub_auth_and_rate_limit(TENANT, 1));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
 
         let first = server
             .post("/v1/logs")
@@ -188,7 +188,7 @@ mod tests {
     #[tokio::test]
     async fn numeric_time_unix_nano_returns_200() {
         let app = build_router(AppState::with_stub_auth(TENANT));
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let payload = serde_json::json!({
             "resourceLogs": [{
                 "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "test-svc"}}]},

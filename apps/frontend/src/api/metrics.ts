@@ -44,7 +44,7 @@ export async function listMetrics(tenantId: string, params: {
   const url = new URL("/v1/metrics", window.location.origin);
   if (params.service) url.searchParams.set("service", params.service);
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }
@@ -57,7 +57,7 @@ export async function getMetricGroupPoints(tenantId: string, metric: MetricCatal
   url.searchParams.set("metric_type", metric.metric_type);
   url.searchParams.set("unit", metric.unit || "");
 
-  const res = await fetch(url.toString(), { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   return res.json();
 }

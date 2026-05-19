@@ -42,7 +42,7 @@ export async function listIncidents(
   status?: string,
 ): Promise<IncidentListResponse> {
   const url = status ? `/v1/incidents?status=${status}` : "/v1/incidents";
-  const res = await fetch(url, { headers: tenantHeaders(tenantId) });
+  const res = await fetch(url, { credentials: "include", headers: tenantHeaders(tenantId) });
   if (!res.ok) throw new Error(`Failed to list incidents: ${res.status}`);
   return res.json();
 }
@@ -52,6 +52,7 @@ export async function getIncident(
   incidentId: string,
 ): Promise<IncidentDetailResponse> {
   const res = await fetch(`/v1/incidents/${incidentId}`, {
+    credentials: "include",
     headers: tenantHeaders(tenantId),
   });
   if (!res.ok) throw new Error(`Failed to get incident: ${res.status}`);

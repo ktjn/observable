@@ -1,28 +1,28 @@
 // HTTP integration tests for ingestion token management endpoints:
 //   GET    /v1/tokens
 //   POST   /v1/tokens
-//   DELETE /v1/tokens/:id              (soft-revoke)
-//   POST   /v1/tokens/:id/renew
-//   POST   /v1/tokens/:id/restore
-//   DELETE /v1/tokens/:id/permanent    (hard-delete)
+//   DELETE /v1/tokens/{id}              (soft-revoke)
+//   POST   /v1/tokens/{id}/renew
+//   POST   /v1/tokens/{id}/restore
+//   DELETE /v1/tokens/{id}/permanent    (hard-delete)
 //
 // All tests use a real Postgres instance via Testcontainers and exercise the
 // full handler path via tower::ServiceExt::oneshot.
 
 use axum::{
+    Router,
     body::Body,
     http::{Request, StatusCode},
     middleware as axum_middleware,
     response::Response,
     routing::{delete, get, post},
-    Router,
 };
 use http_body_util::BodyExt;
 use query_api::{middleware::auth::TenantContext, tokens, traces::AppState};
 use serde_json::Value;
 use sqlx::PgPool;
 use std::path::Path;
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -55,7 +55,7 @@ async fn apply_migrations(pool: &PgPool) {
 
 async fn start_pool() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
     let container = Postgres::default()
-        .with_tag("16")
+        .with_tag("17")
         .start()
         .await
         .expect("postgres container started");
@@ -78,6 +78,7 @@ async fn inject_tenant_ctx(mut req: Request<Body>, next: axum_middleware::Next) 
         .unwrap_or_default();
     req.extensions_mut().insert(TenantContext {
         tenant_id,
+        user_id: None,
         role: "member".into(),
     });
     next.run(req).await
@@ -97,10 +98,10 @@ fn build_tokens_app(pool: PgPool) -> Router {
     Router::new()
         .route("/v1/tokens", get(tokens::list_tokens))
         .route("/v1/tokens", post(tokens::create_token))
-        .route("/v1/tokens/:id", delete(tokens::revoke_token))
-        .route("/v1/tokens/:id/renew", post(tokens::renew_token))
-        .route("/v1/tokens/:id/restore", post(tokens::restore_token))
-        .route("/v1/tokens/:id/permanent", delete(tokens::delete_token))
+        .route("/v1/tokens/{id}", delete(tokens::revoke_token))
+        .route("/v1/tokens/{id}/renew", post(tokens::renew_token))
+        .route("/v1/tokens/{id}/restore", post(tokens::restore_token))
+        .route("/v1/tokens/{id}/permanent", delete(tokens::delete_token))
         .layer(axum_middleware::from_fn(inject_tenant_ctx))
         .with_state(state)
 }

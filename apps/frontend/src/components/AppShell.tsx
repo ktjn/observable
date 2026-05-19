@@ -1,5 +1,4 @@
 import { Outlet } from "@tanstack/react-router";
-import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme, type ThemePreference } from "../lib/theme";
 import { useTimeDisplay, TIME_FORMAT_OPTIONS } from "../lib/timeDisplay";
@@ -8,23 +7,46 @@ import { UserMenu } from "./UserMenu";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { listTenants, listEnvironments } from "../api/tenants";
 import { useEffect } from "react";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import { useAuth } from "../hooks/useAuth";
+import { initiateLogin } from "../api/auth";
+import { TreeNav, type NavTreeItem } from "./TreeNav";
 
-const navItems = [
-  { label: "Setup", to: "/setup" },
-  { label: "Ask (NLQ)", to: "/nlq" },
-  { label: "Services", to: "/services" },
-  { label: "Traces", to: "/traces" },
-  { label: "Logs", to: "/logs" },
-  { label: "Metrics", to: "/metrics" },
-  { label: "Infrastructure", to: "/infrastructure" },
-  { label: "Service Overview", to: "/service-overview" },
-  { label: "Dashboards", to: "/dashboards" },
-  { label: "Alerts & SLOs", to: "/alerts" },
-  { label: "Incidents", to: "/incidents" },
-  { label: "Admin / Fleet / Billing", to: "/admin" },
-] as const;
+const navTree: NavTreeItem[] = [
+  { id: "home", label: "Home", to: "/" },
+  {
+    id: "setup",
+    label: "Setup",
+    children: [
+      { id: "setup-ingest", label: "Ingest", to: "/setup" },
+      { id: "setup-llm", label: "LLM", to: "/setup/llm" },
+      { id: "setup-tokens", label: "Tokens", to: "/setup/tokens" },
+    ],
+  },
+  { id: "nlq", label: "Ask (NLQ)", to: "/nlq" },
+  { id: "services", label: "Services", to: "/services" },
+  {
+    id: "signals",
+    label: "Signals",
+    children: [
+      { id: "traces", label: "Traces", to: "/traces" },
+      { id: "logs", label: "Logs", to: "/logs" },
+      { id: "metrics", label: "Metrics", to: "/metrics" },
+    ],
+  },
+  { id: "infrastructure", label: "Infrastructure", to: "/infrastructure" },
+  { id: "dashboards", label: "Dashboards", to: "/dashboards" },
+  { id: "alerts", label: "Alerts & SLOs", to: "/alerts" },
+  { id: "incidents", label: "Incidents", to: "/incidents" },
+  {
+    id: "admin",
+    label: "Administration",
+    children: [
+      { id: "admin-fleet", label: "Fleet / Billing", to: "/admin" },
+      { id: "admin-identity", label: "Identity", to: "/admin/identity" },
+    ],
+  },
+];
 
 const themeOptions: { label: string; value: ThemePreference }[] = [
   { label: "Light", value: "light" },
@@ -54,34 +76,34 @@ export function AppShell() {
 
   const { data: user, isLoading: authLoading } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
 
   useEffect(() => {
     const pathname = location.pathname;
     if (!authLoading && !user && !/^\/(login|auth\/callback)$/.test(pathname)) {
-      navigate({ to: "/login" });
+      initiateLogin();
     }
-  }, [authLoading, user, location.pathname, navigate]);
+  }, [authLoading, user, location.pathname]);
+
+  // After login the session is filtered to only the tenants the user has access
+  // to.  If the current context (from localStorage) is no longer in that list,
+  // switch to the first available tenant so all API calls use a valid tenant.
+  useEffect(() => {
+    const available = tenantsData?.tenants;
+    if (!user || !available || available.length === 0) return;
+    const isValid = available.some((t) => t.id === tenantId);
+    if (!isValid) {
+      setTenant({ id: available[0].id, name: available[0].name });
+    }
+  }, [user, tenantsData, tenantId, setTenant]);
 
   return (
     <div className="app-shell">
-      <aside className="sidebar" aria-label="Primary navigation">
+      <aside className="sidebar" aria-label="Application sidebar">
         <div className="brand-lockup">
           <div className="brand-mark" aria-label="Observable">OBSERVABLE</div>
         </div>
 
-        <nav className="nav-list">
-          {navItems.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className="nav-link"
-              activeProps={{ className: "nav-link active" }}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <TreeNav items={navTree} />
 
         <div className="sidebar-footer">
           <div className="field-label">Theme</div>

@@ -11,14 +11,14 @@ export function UserMenu() {
     mutationFn: logout,
     onSuccess: () => {
       queryClient.clear();
-      window.location.href = "/login";
+      window.location.href = "/v1/auth/login";
     },
   });
 
   if (isLoading) return null;
   if (!user) {
     return (
-      <a href="/login" style={{ color: "var(--text-muted, #888)", fontSize: "0.85rem" }}>
+      <a href="/v1/auth/login" style={{ color: "var(--text-muted, #888)", fontSize: "0.85rem" }}>
         Sign in
       </a>
     );

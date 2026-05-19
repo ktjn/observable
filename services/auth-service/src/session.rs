@@ -1,6 +1,6 @@
 use anyhow::Result;
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -20,7 +20,7 @@ pub struct SessionClaims {
     pub exp: i64,
 }
 
-const SESSION_TTL_SECS: i64 = 3600;
+const SESSION_TTL_SECS: i64 = 604_800; // 7 days
 
 pub fn sign_session_jwt(
     secret: &str,

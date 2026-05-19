@@ -1,18 +1,16 @@
 import { useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  deleteDashboard,
   exportDashboard,
   importDashboard,
   listDashboards,
   type Dashboard,
   type DashboardExport,
-  type DashboardPanel,
 } from "../api/dashboards";
-import { PRESET_OPTIONS } from "../hooks/useGlobalDateRange";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
-import { Panel } from "../components/ui/panel";
 import { useTenantContext } from "../hooks/useTenantContext";
 
 export default function DashboardsPage() {
@@ -24,6 +22,11 @@ export default function DashboardsPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["dashboards", tenantId],
     queryFn: () => listDashboards(tenantId),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (dashboardId: string) => deleteDashboard(tenantId, dashboardId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["dashboards", tenantId] }),
   });
 
   async function handleExport(dashboard: Dashboard) {
@@ -92,52 +95,67 @@ export default function DashboardsPage() {
       ) : data?.items.length === 0 ? (
         <EmptyState
           title="No dashboards yet"
-          description="Promote a query from Logs or Traces to create the first fixed-layout dashboard."
+          description="Create your first dashboard by promoting a query from Logs, Traces, or Metrics."
         />
       ) : (
-        data?.items.map((dashboard) => (
-          <Panel
-            key={dashboard.dashboard_id}
-            title={dashboard.name}
-            eyebrow="Dashboard"
-            actions={
-              <>
-                <a
-                  href={`/dashboards/${dashboard.dashboard_id}`}
-                  className="inline-flex min-h-9 items-center border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] no-underline hover:border-[var(--brand)]"
-                >
-                  Open
-                </a>
-                <Button variant="secondary" onClick={() => handleExport(dashboard)}>
-                  Export
-                </Button>
-              </>
-            }
-          >
-            <div className="grid gap-3 md:grid-cols-2">
-              {dashboard.panels.map((panel) => (
-                <DashboardPanelCard key={panel.panel_id} panel={panel} />
-              ))}
-            </div>
-          </Panel>
-        ))
+        <div
+          className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+          aria-label="Dashboard cards"
+        >
+          {data?.items.map((dashboard) => (
+            <DashboardCard
+              key={dashboard.dashboard_id}
+              dashboard={dashboard}
+              onExport={() => handleExport(dashboard)}
+              onDelete={() => {
+                if (confirm(`Delete dashboard "${dashboard.name}"?`)) {
+                  deleteMutation.mutate(dashboard.dashboard_id);
+                }
+              }}
+              deletePending={deleteMutation.isPending}
+            />
+          ))}
+        </div>
       )}
     </section>
   );
 }
 
-function DashboardPanelCard({ panel }: { panel: DashboardPanel }) {
-  const service = panel.service || "all services";
-  const timeLabel = panel.preset
-    ? (PRESET_OPTIONS.find((o) => o.value === panel.preset)?.label ?? panel.preset)
-    : "Global date range";
-  const kind = panel.panel_kind === "text" ? "text" : (panel.query_kind ?? "query");
+function DashboardCard({
+  dashboard,
+  onExport,
+  onDelete,
+  deletePending,
+}: {
+  dashboard: Dashboard;
+  onExport: () => void;
+  onDelete: () => void;
+  deletePending: boolean;
+}) {
+  const panelCount = dashboard.panels.length;
   return (
-    <div className="border border-[var(--border)] bg-[var(--surface)] p-4">
-      <div className="text-xs font-bold uppercase text-[var(--muted)]">
-        {kind} · {service} · {timeLabel}
+    <div className="flex flex-col border border-[var(--border)] bg-[var(--surface)] p-4">
+      <div className="mb-1">
+        <div className="text-xs font-bold uppercase text-[var(--muted)]">
+          {panelCount} {panelCount === 1 ? "panel" : "panels"}
+        </div>
+        <h2 className="m-0 text-base font-bold text-[var(--text-strong)]">{dashboard.name}</h2>
       </div>
-      <h2 className="mt-2 mb-0 text-base font-bold text-[var(--text-strong)]">{panel.title}</h2>
+
+      <div className="mt-auto flex items-center gap-2 pt-4">
+        <a
+          href={`/dashboards/${dashboard.dashboard_id}`}
+          className="inline-flex min-h-9 items-center border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] no-underline hover:border-[var(--brand)]"
+        >
+          Open
+        </a>
+        <Button variant="secondary" onClick={onExport}>
+          Export
+        </Button>
+        <Button variant="secondary" onClick={onDelete} disabled={deletePending}>
+          Delete
+        </Button>
+      </div>
     </div>
   );
 }

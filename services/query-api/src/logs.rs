@@ -1,7 +1,7 @@
 use axum::{
+    Json,
     extract::{Extension, Path, Query, State},
     http::StatusCode,
-    Json,
 };
 use chrono::{DateTime, Utc};
 use domain::{LogRecord, LogRow};

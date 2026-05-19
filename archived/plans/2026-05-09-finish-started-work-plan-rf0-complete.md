@@ -189,7 +189,7 @@ These items come from a direct implementation review, not from the roadmap text 
 
 ## SW-0: Out-Of-Band Risk Remediation Superseded By RF Items
 
-**Detailed plan:** `docs/superpowers/plans/2026-05-05-out-of-band-risk-remediation.md`
+**Detailed plan:** `archived/plans/2026-05-05-out-of-band-risk-remediation.md`
 
 **Why this is started:** A complete risk-remediation plan exists and names concrete security, correctness, regression-gate, and governance issues found during a whole-repo scan.
 

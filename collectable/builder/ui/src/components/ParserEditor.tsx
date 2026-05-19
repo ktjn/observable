@@ -83,6 +83,9 @@ export function ParserEditor({ definition, onChange, onNext }: Props) {
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const parserPattern = parser.pattern;
+  const parserSeparator = parser.separator;
+  const parserDelimiter = parser.delimiter;
 
   // Keep a ref to the latest definition to avoid stale closure in async callbacks
   const definitionRef = useRef(definition);
@@ -147,10 +150,7 @@ export function ParserEditor({ definition, onChange, onNext }: Props) {
 
     return () => { clearTimeout(timer); controller.abort(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sample, includeRaw, parser.type,
-    (parser as Record<string, unknown>).pattern,
-    (parser as Record<string, unknown>).separator,
-    (parser as Record<string, unknown>).delimiter]);
+  }, [sample, includeRaw, parser.type, parserPattern, parserSeparator, parserDelimiter]);
 
   const previewCols = rows.length ? [...new Set(rows.flatMap(r => Object.keys(r)))] : [];
 

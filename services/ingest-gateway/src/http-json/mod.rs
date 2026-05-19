@@ -4,11 +4,11 @@ pub mod metrics;
 pub mod traces;
 
 use axum::{
+    Router,
     body::Bytes,
-    http::{header, HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode, header},
     middleware,
     routing::{get, post},
-    Router,
 };
 use flate2::read::GzDecoder;
 use serde_json::Value;
@@ -16,7 +16,7 @@ use std::io::Read;
 use tower_http::trace::TraceLayer;
 use tracing::Level;
 
-use crate::{auth, deployments, AppState};
+use crate::{AppState, auth, deployments};
 
 pub fn decode_json_otlp_request(headers: &HeaderMap, body: Bytes) -> Result<Value, StatusCode> {
     let content_type = get_content_type(headers);
@@ -94,7 +94,7 @@ pub fn build_platform_router(state: AppState) -> Router {
     Router::new()
         .route("/v1/deployments", post(deployments::create_deployment))
         .route(
-            "/v1/deployments/:deployment_id",
+            "/v1/deployments/{deployment_id}",
             axum::routing::patch(deployments::finish_deployment),
         )
         .layer(middleware::from_fn_with_state(

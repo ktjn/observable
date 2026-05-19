@@ -1,11 +1,7 @@
 [package]
 name    = "storage-writer"
 version = "0.1.0"
-edition = "2021"
-
-[[bin]]
-name = "storage-writer"
-path = "src/main.rs"
+edition.workspace = true
 
 [dependencies]
 domain             = { path = "../../libs/domain", features = ["storage"] }

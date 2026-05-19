@@ -2,7 +2,7 @@ use alert_evaluator::evaluator::eval_threshold_rules;
 use domain::MetricPointRow;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::path::Path;
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::{clickhouse::ClickHouse, postgres::Postgres};
 use uuid::Uuid;
 
@@ -32,7 +32,7 @@ async fn apply_pg_migrations(pool: &PgPool) {
 
 async fn start_postgres() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
     let container = Postgres::default()
-        .with_tag("16")
+        .with_tag("17")
         .start()
         .await
         .expect("postgres container started");
@@ -97,7 +97,7 @@ async fn start_clickhouse() -> (
     testcontainers::ContainerAsync<ClickHouse>,
 ) {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()

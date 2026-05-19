@@ -10,7 +10,7 @@
 use domain::MetricSeriesRow;
 use query_api::mcp_tools::fetch_label_keys;
 use std::path::Path;
-use testcontainers::{runners::AsyncRunner, ImageExt};
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::clickhouse::ClickHouse;
 use uuid::Uuid;
 
@@ -25,7 +25,7 @@ async fn start_ch() -> (
     testcontainers::ContainerAsync<ClickHouse>,
 ) {
     let container = ClickHouse::default()
-        .with_tag("24.3")
+        .with_tag("25.3")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
