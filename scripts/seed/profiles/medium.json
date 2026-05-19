@@ -1,0 +1,28 @@
+{
+  "tenants": 15,
+  "services_per_tenant": 20,
+  "days": 30,
+  "stories_per_tenant": 4,
+  "service_catalog": [
+    {"service_name": "order-api", "service_type": "api", "service_version": "1.2.0", "rps": 12.0, "operations": [{"name": "POST /orders", "p50_ms": 80, "p99_ms": 400, "error_rate": 0.02}, {"name": "GET /orders/{id}", "p50_ms": 30, "p99_ms": 150, "error_rate": 0.01}], "downstream": ["product-api", "user-api"]},
+    {"service_name": "product-api", "service_type": "api", "service_version": "2.0.1", "rps": 20.0, "operations": [{"name": "GET /products", "p50_ms": 20, "p99_ms": 100, "error_rate": 0.005}, {"name": "GET /products/{id}", "p50_ms": 15, "p99_ms": 80, "error_rate": 0.005}, {"name": "POST /products", "p50_ms": 50, "p99_ms": 200, "error_rate": 0.01}], "downstream": []},
+    {"service_name": "user-api", "service_type": "api", "service_version": "1.0.5", "rps": 8.0, "operations": [{"name": "GET /users/{id}", "p50_ms": 25, "p99_ms": 120, "error_rate": 0.01}, {"name": "POST /users", "p50_ms": 60, "p99_ms": 300, "error_rate": 0.015}], "downstream": []},
+    {"service_name": "payment-api", "service_type": "api", "service_version": "1.5.2", "rps": 6.0, "operations": [{"name": "POST /payments", "p50_ms": 300, "p99_ms": 2000, "error_rate": 0.03}, {"name": "GET /payments/{id}", "p50_ms": 40, "p99_ms": 200, "error_rate": 0.01}], "downstream": []},
+    {"service_name": "inventory-api", "service_type": "api", "service_version": "1.0.0", "rps": 15.0, "operations": [{"name": "GET /inventory", "p50_ms": 35, "p99_ms": 180, "error_rate": 0.008}, {"name": "PUT /inventory/{id}", "p50_ms": 60, "p99_ms": 300, "error_rate": 0.012}], "downstream": []},
+    {"service_name": "search-api", "service_type": "api", "service_version": "2.1.0", "rps": 25.0, "operations": [{"name": "GET /search", "p50_ms": 50, "p99_ms": 300, "error_rate": 0.003}], "downstream": ["product-api"]},
+    {"service_name": "cart-api", "service_type": "api", "service_version": "1.3.0", "rps": 18.0, "operations": [{"name": "GET /cart", "p50_ms": 20, "p99_ms": 100, "error_rate": 0.005}, {"name": "POST /cart/items", "p50_ms": 40, "p99_ms": 200, "error_rate": 0.01}], "downstream": ["product-api", "inventory-api"]},
+    {"service_name": "notification-worker", "service_type": "worker", "service_version": "1.1.0", "rps": 4.0, "operations": [{"name": "worker.send_email", "p50_ms": 200, "p99_ms": 1500, "error_rate": 0.03}], "downstream": []},
+    {"service_name": "order-worker", "service_type": "worker", "service_version": "1.0.2", "rps": 5.0, "operations": [{"name": "worker.process_order", "p50_ms": 500, "p99_ms": 3000, "error_rate": 0.025}], "downstream": ["inventory-api", "payment-api"]},
+    {"service_name": "report-worker", "service_type": "worker", "service_version": "1.0.0", "rps": 0.5, "operations": [{"name": "worker.generate_report", "p50_ms": 2000, "p99_ms": 10000, "error_rate": 0.01}], "downstream": []},
+    {"service_name": "audit-consumer", "service_type": "consumer", "service_version": "1.0.0", "rps": 8.0, "operations": [{"name": "consumer.audit_event", "p50_ms": 30, "p99_ms": 150, "error_rate": 0.005}], "downstream": []},
+    {"service_name": "event-consumer", "service_type": "consumer", "service_version": "1.1.0", "rps": 10.0, "operations": [{"name": "consumer.process_event", "p50_ms": 50, "p99_ms": 250, "error_rate": 0.01}], "downstream": ["notification-worker"]},
+    {"service_name": "web-frontend", "service_type": "frontend", "service_version": "3.1.0", "rps": 30.0, "operations": [{"name": "GET /", "p50_ms": 45, "p99_ms": 250, "error_rate": 0.008}, {"name": "GET /checkout", "p50_ms": 90, "p99_ms": 500, "error_rate": 0.02}], "downstream": ["order-api", "product-api", "cart-api"]},
+    {"service_name": "mobile-bff", "service_type": "frontend", "service_version": "2.0.0", "rps": 20.0, "operations": [{"name": "GET /api/home", "p50_ms": 60, "p99_ms": 350, "error_rate": 0.01}, {"name": "POST /api/order", "p50_ms": 100, "p99_ms": 600, "error_rate": 0.02}], "downstream": ["order-api", "product-api"]},
+    {"service_name": "analytics-api", "service_type": "api", "service_version": "1.0.0", "rps": 5.0, "operations": [{"name": "GET /analytics/dashboard", "p50_ms": 500, "p99_ms": 3000, "error_rate": 0.02}], "downstream": []},
+    {"service_name": "recommendation-api", "service_type": "api", "service_version": "1.2.0", "rps": 15.0, "operations": [{"name": "GET /recommendations", "p50_ms": 80, "p99_ms": 400, "error_rate": 0.01}], "downstream": ["product-api"]},
+    {"service_name": "pricing-api", "service_type": "api", "service_version": "1.0.3", "rps": 10.0, "operations": [{"name": "GET /prices", "p50_ms": 25, "p99_ms": 120, "error_rate": 0.005}], "downstream": []},
+    {"service_name": "review-api", "service_type": "api", "service_version": "1.0.0", "rps": 7.0, "operations": [{"name": "GET /reviews/{product_id}", "p50_ms": 40, "p99_ms": 200, "error_rate": 0.007}, {"name": "POST /reviews", "p50_ms": 70, "p99_ms": 350, "error_rate": 0.015}], "downstream": []},
+    {"service_name": "shipping-api", "service_type": "api", "service_version": "2.0.0", "rps": 6.0, "operations": [{"name": "GET /shipping/estimate", "p50_ms": 150, "p99_ms": 800, "error_rate": 0.02}], "downstream": []},
+    {"service_name": "auth-service", "service_type": "api", "service_version": "1.4.0", "rps": 22.0, "operations": [{"name": "POST /auth/login", "p50_ms": 100, "p99_ms": 500, "error_rate": 0.05}, {"name": "POST /auth/refresh", "p50_ms": 30, "p99_ms": 150, "error_rate": 0.01}], "downstream": []}
+  ]
+}

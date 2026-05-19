@@ -122,3 +122,54 @@ def test_apply_stories_wrong_service_no_effect():
     tenant = Tenant("tid", "acme", "production", "key", [], [story])
     lat, _, _ = apply_stories(tenant, base + timedelta(minutes=5), "product-api", 0.01)
     assert lat == 1.0
+
+
+from seed.world import load_profile, build_world
+
+
+def test_small_profile_tenant_count():
+    world = load_profile("small", seed=42)
+    assert len(world.tenants) == 3
+
+
+def test_small_profile_days():
+    world = load_profile("small", seed=42)
+    assert (world.end_time - world.start_time).days == 7
+
+
+def test_medium_profile_tenant_count():
+    world = load_profile("medium", seed=42)
+    assert len(world.tenants) == 15
+
+
+def test_tenant_ids_are_unique():
+    world = load_profile("medium", seed=42)
+    ids = [t.tenant_id for t in world.tenants]
+    assert len(ids) == len(set(ids))
+
+
+def test_api_keys_are_unique():
+    world = load_profile("small", seed=42)
+    keys = [t.api_key_plaintext for t in world.tenants]
+    assert len(keys) == len(set(keys))
+
+
+def test_build_world_override_tenants():
+    world = build_world(profile="small", tenants=7, services_per_tenant=3, days=14, seed=99)
+    assert len(world.tenants) == 7
+    assert (world.end_time - world.start_time).days == 14
+
+
+def test_services_have_operations():
+    world = load_profile("small", seed=42)
+    for tenant in world.tenants:
+        for svc in tenant.services:
+            assert len(svc.operations) >= 1, f"{svc.service_name} has no operations"
+
+
+def test_stories_windows_are_within_range():
+    world = load_profile("small", seed=42)
+    for tenant in world.tenants:
+        for story in tenant.stories:
+            assert story.window_start >= world.start_time
+            assert story.window_end <= world.end_time
