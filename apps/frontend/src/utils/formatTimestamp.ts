@@ -1,5 +1,10 @@
 import type { TimeFormat } from "../lib/timeDisplay";
 
+/** Convert an ISO-8601 timestamp string to nanoseconds (as a number). */
+export function isoToNs(iso: string): number {
+  return Date.parse(iso) * 1_000_000;
+}
+
 export function formatTimestamp(nanos: string | number, format: TimeFormat): string {
   const nanosStr = String(nanos);
   const ms = Math.floor(Number(nanosStr) / 1_000_000);
@@ -58,6 +63,3 @@ export function formatTimestamp(nanos: string | number, format: TimeFormat): str
   }
 }
 
-export function isoToNs(iso: string): number {
-  return new Date(iso).getTime() * 1_000_000;
-}

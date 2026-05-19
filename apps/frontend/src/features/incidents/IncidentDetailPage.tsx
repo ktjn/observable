@@ -1,4 +1,4 @@
-import { useParams } from "@tanstack/react-router";
+import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getIncident, type IncidentEventItem } from "../../api/incidents";
 import { Badge } from "../../components/ui/badge";
@@ -38,6 +38,8 @@ function eventGlyph(eventType: string): string {
   }
 }
 
+const LINKED_EVENT_TYPES = new Set(["alert_fired", "alert_resolved"]);
+
 export function IncidentDetailPage() {
   const { tenantId } = useTenantContext();
   const { format } = useTimeDisplay();
@@ -65,7 +67,9 @@ export function IncidentDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           <Badge tone={severityColor(data.severity)}>{data.severity}</Badge>
-          <Badge tone={statusColor(data.status)}>{data.status}</Badge>
+          <Badge tone={statusColor(data.status)}>
+            {data.status.charAt(0).toUpperCase() + data.status.slice(1)}
+          </Badge>
         </div>
       </div>
 
@@ -83,33 +87,64 @@ export function IncidentDetailPage() {
                 : "—"}
             </div>
           </div>
+          {data.runbook_url && (
+            <div className="col-span-2">
+              <div className="field-label">Runbook</div>
+              <div className="mt-1">
+                <a
+                  href={data.runbook_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[var(--brand)] hover:underline"
+                >
+                  {data.runbook_url}
+                </a>
+              </div>
+            </div>
+          )}
         </div>
       </Panel>
 
       <Panel>
         <h3 className="text-sm font-semibold mb-3">Timeline</h3>
         <div className="space-y-3">
-          {data.timeline.map((event: IncidentEventItem, idx: number) => (
-            <div key={idx} className="flex gap-3">
-              <div className="font-mono text-base leading-none text-[var(--muted)] w-4 flex-shrink-0">
-                {eventGlyph(event.event_type)}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium capitalize">
-                    {event.event_type.replace(/_/g, " ")}
-                  </span>
-                  <span className="text-xs text-[var(--muted)]">
-                    {formatTimestamp(isoToNs(event.event_time), format)}
-                  </span>
+          {data.timeline.map((event: IncidentEventItem, idx: number) => {
+            const showLink =
+              LINKED_EVENT_TYPES.has(event.event_type) &&
+              data.triggered_by_rule_id !== null;
+            return (
+              <div key={idx} className="flex gap-3">
+                <div className="font-mono text-base leading-none text-[var(--muted)] w-4 flex-shrink-0">
+                  {eventGlyph(event.event_type)}
                 </div>
-                {event.message && (
-                  <p className="text-sm text-[var(--muted)] mt-0.5">{event.message}</p>
-                )}
-                <p className="text-xs text-[var(--muted)]">by {event.actor}</p>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium capitalize">
+                      {event.event_type.replace(/_/g, " ")}
+                    </span>
+                    <span className="text-xs text-[var(--muted)]">
+                      {formatTimestamp(isoToNs(event.event_time), format)}
+                    </span>
+                  </div>
+                  {event.message && (
+                    <p className="text-sm text-[var(--muted)] mt-0.5">{event.message}</p>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <p className="text-xs text-[var(--muted)]">by {event.actor}</p>
+                    {showLink && (
+                      <Link
+                        to="/alerts/$ruleId"
+                        params={{ ruleId: data.triggered_by_rule_id! }}
+                        className="text-xs text-[var(--brand)] hover:underline"
+                      >
+                        → View rule
+                      </Link>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {data.timeline.length === 0 && (
             <p className="text-sm text-[var(--muted)]">No timeline events.</p>
           )}

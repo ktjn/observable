@@ -14,7 +14,7 @@ services:
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
     volumes: [clickhouse_data:/var/lib/clickhouse]
     healthcheck:
-      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      test: ["CMD-SHELL", "clickhouse-client --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} --query 'SELECT 1'"]
       interval: 2s
       timeout: 2s
       retries: 30
@@ -133,6 +133,17 @@ services:
           done
         }
         ch_run --query "CREATE DATABASE IF NOT EXISTS observable"
+        for i in {1..30}; do
+          if clickhouse-client --host clickhouse --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} --query "SELECT 1" >/dev/null 2>&1; then
+            break
+          fi
+          if [ "$$i" -eq 30 ]; then
+            echo "ClickHouse did not become reachable in time" >&2
+            exit 1
+          fi
+          sleep 1
+        done
+        clickhouse-client --host clickhouse --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} --query "CREATE DATABASE IF NOT EXISTS observable"
         for f in /migrations/clickhouse/*.sql; do
           echo "Applying ClickHouse migration: $$f"
           ch_run --database observable --multiquery < "$$f"
