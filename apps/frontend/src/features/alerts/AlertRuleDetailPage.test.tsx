@@ -87,3 +87,29 @@ test("renders empty state when no firings", async () => {
   renderPage();
   await waitFor(() => screen.getByText("No firings recorded."));
 });
+
+test("renders runbook URL as a link when present", async () => {
+  vi.spyOn(alertsApi, "getAlertRule").mockResolvedValue({
+    ...sampleRule,
+    runbook_url: "https://runbooks.example.com/high-cpu",
+  });
+  renderPage();
+  await waitFor(() =>
+    screen.getByRole("link", { name: "https://runbooks.example.com/high-cpu" }),
+  );
+  expect(
+    screen.getByRole("link", { name: "https://runbooks.example.com/high-cpu" }),
+  ).toHaveAttribute("href", "https://runbooks.example.com/high-cpu");
+});
+
+test("renders dash when runbook URL is null", async () => {
+  vi.spyOn(alertsApi, "getAlertRule").mockResolvedValue({
+    ...sampleRule,
+    runbook_url: null,
+  });
+  renderPage();
+  await waitFor(() =>
+    screen.getByRole("heading", { level: 1, name: "High CPU Alert" }),
+  );
+  expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1);
+});

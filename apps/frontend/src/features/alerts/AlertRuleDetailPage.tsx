@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { useParams } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { getAlertRule, type FiringItem } from "../../api/alerts";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getAlertRule, setAlertRuleRunbook, type FiringItem } from "../../api/alerts";
 import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
 import { EmptyState } from "../../components/ui/empty-state";
+import { Input } from "../../components/ui/input";
 import { LoadingState } from "../../components/ui/loading-state";
 import { Panel } from "../../components/ui/panel";
 import { useTenantContext } from "../../hooks/useTenantContext";
@@ -48,6 +51,18 @@ export function AlertRuleDetailPage() {
     queryFn: () => getAlertRule(tenantId, ruleId),
   });
 
+  const queryClient = useQueryClient();
+  const [editingRunbook, setEditingRunbook] = useState(false);
+  const [runbookDraft, setRunbookDraft] = useState("");
+
+  const runbookMutation = useMutation({
+    mutationFn: (url: string | null) => setAlertRuleRunbook(tenantId, ruleId, url),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alertRule", tenantId, ruleId] });
+      setEditingRunbook(false);
+    },
+  });
+
   if (isLoading) {
     return <LoadingState>Loading alert rule...</LoadingState>;
   }
@@ -79,6 +94,64 @@ export function AlertRuleDetailPage() {
           <div>
             <div className="field-label">Condition</div>
             <div className="mt-1 font-mono">{conditionSummary(data.condition)}</div>
+          </div>
+          <div className="col-span-2">
+            <div className="field-label">Runbook</div>
+            <div className="mt-1 flex items-center gap-2">
+              {editingRunbook ? (
+                <>
+                  <Input
+                    type="url"
+                    className="flex-1"
+                    value={runbookDraft}
+                    onChange={(e) => setRunbookDraft(e.target.value)}
+                    placeholder="https://..."
+                    aria-label="Runbook URL"
+                  />
+                  <Button
+                    onClick={() => runbookMutation.mutate(runbookDraft || null)}
+                    disabled={runbookMutation.isPending}
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setRunbookDraft(data.runbook_url ?? "");
+                      setEditingRunbook(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {data.runbook_url ? (
+                    <a
+                      href={data.runbook_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[var(--brand)] hover:underline"
+                    >
+                      {data.runbook_url}
+                    </a>
+                  ) : (
+                    <span className="text-[var(--muted)]">—</span>
+                  )}
+                  <button
+                    type="button"
+                    aria-label="Edit runbook URL"
+                    onClick={() => {
+                      setRunbookDraft(data.runbook_url ?? "");
+                      setEditingRunbook(true);
+                    }}
+                    className="text-xs text-[var(--muted)] hover:text-[var(--text)]"
+                  >
+                    ✎
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </Panel>
