@@ -14,7 +14,7 @@ services:
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
     volumes: [clickhouse_data:/var/lib/clickhouse]
     healthcheck:
-      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      test: ["CMD-SHELL", "clickhouse-client --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} --query 'SELECT 1'"]
       interval: 2s
       timeout: 2s
       retries: 30
@@ -123,10 +123,30 @@ services:
       - -c
       - |
         set -euo pipefail
+        ch_run() {
+          local n=0
+          until clickhouse-client --host clickhouse --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} "$@"; do
+            n=$$((n+1))
+            [ $$n -ge 10 ] && echo "clickhouse-client failed after 10 retries" && exit 1
+            echo "Retry $$n/10 in 3s..."
+            sleep 3
+          done
+        }
+        ch_run --query "CREATE DATABASE IF NOT EXISTS observable"
+        for i in {1..30}; do
+          if clickhouse-client --host clickhouse --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} --query "SELECT 1" >/dev/null 2>&1; then
+            break
+          fi
+          if [ "$$i" -eq 30 ]; then
+            echo "ClickHouse did not become reachable in time" >&2
+            exit 1
+          fi
+          sleep 1
+        done
         clickhouse-client --host clickhouse --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} --query "CREATE DATABASE IF NOT EXISTS observable"
         for f in /migrations/clickhouse/*.sql; do
           echo "Applying ClickHouse migration: $$f"
-          clickhouse-client --host clickhouse --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} --multiquery < "$$f"
+          ch_run --database observable --multiquery < "$$f"
         done
     volumes: ["./migrations:/migrations:ro"]
     depends_on:
@@ -417,6 +437,30 @@ services:
       ingest-gateway: { condition: service_healthy }
       query-api: { condition: service_healthy }
       stream-processor: { condition: service_started }
+
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile.seed
+    profiles: ["seed"]
+    environment:
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: "8123"
+      CLICKHOUSE_USER: ${CH_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
+      POSTGRES_URL: postgresql://${PG_USER:-observable}:${PG_PASSWORD:-observable}@postgres:5432/${PG_DB:-observable}
+      SEED_PROFILE: ${SEED_PROFILE:-small}
+    command: >
+      python -m seed
+      --profile ${SEED_PROFILE:-small}
+      --clickhouse-host clickhouse
+      --clickhouse-port 8123
+      --clickhouse-user ${CH_USER:-default}
+      --clickhouse-password ${CH_PASSWORD:-observable}
+      --postgres-url postgresql://${PG_USER:-observable}:${PG_PASSWORD:-observable}@postgres:5432/${PG_DB:-observable}
+    depends_on:
+      clickhouse: { condition: service_healthy }
+      postgres: { condition: service_healthy }
 
 volumes:
   clickhouse_data:
