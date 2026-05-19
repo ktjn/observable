@@ -123,6 +123,16 @@ services:
       - -c
       - |
         set -euo pipefail
+        for i in {1..30}; do
+          if clickhouse-client --host clickhouse --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} --query "SELECT 1" >/dev/null 2>&1; then
+            break
+          fi
+          if [ "$$i" -eq 30 ]; then
+            echo "ClickHouse did not become reachable in time" >&2
+            exit 1
+          fi
+          sleep 1
+        done
         clickhouse-client --host clickhouse --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} --query "CREATE DATABASE IF NOT EXISTS observable"
         for f in /migrations/clickhouse/*.sql; do
           echo "Applying ClickHouse migration: $$f"
