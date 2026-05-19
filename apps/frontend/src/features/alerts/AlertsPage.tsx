@@ -40,6 +40,7 @@ export function AlertsPage() {
   const [formThreshold, setFormThreshold] = useState("");
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [autoTriggerIncident, setAutoTriggerIncident] = useState(true);
+  const [formRunbookUrl, setFormRunbookUrl] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [isCreatingSlo, setIsCreatingSlo] = useState(false);
   const [sloService, setSloService] = useState("");
@@ -80,6 +81,7 @@ export function AlertsPage() {
       setFormThreshold("");
       setSelectedChannels([]);
       setAutoTriggerIncident(true);
+      setFormRunbookUrl("");
       setFormError(null);
     },
     onError: (e: Error) => setFormError(e.message),
@@ -114,6 +116,7 @@ export function AlertsPage() {
       threshold,
       notification_channels: selectedChannels,
       auto_trigger_incident: autoTriggerIncident,
+      runbook_url: formRunbookUrl || undefined,
     });
   };
 
@@ -295,6 +298,23 @@ export function AlertsPage() {
                   />
                   Auto-trigger incident on firing
                 </label>
+
+                <div className="space-y-1">
+                  <label
+                    className="text-xs font-bold uppercase text-[var(--muted)]"
+                    htmlFor="runbook-url"
+                  >
+                    Runbook URL{" "}
+                    <span className="font-normal normal-case text-[var(--muted)]">(optional)</span>
+                  </label>
+                  <Input
+                    id="runbook-url"
+                    type="url"
+                    placeholder="https://..."
+                    value={formRunbookUrl}
+                    onChange={(e) => setFormRunbookUrl(e.target.value)}
+                  />
+                </div>
 
                 {formError && (
                   <div role="alert" className="text-sm font-bold text-[var(--bad)]">
