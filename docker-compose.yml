@@ -123,10 +123,19 @@ services:
       - -c
       - |
         set -euo pipefail
-        clickhouse-client --host clickhouse --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} --query "CREATE DATABASE IF NOT EXISTS observable"
+        ch_run() {
+          local n=0
+          until clickhouse-client --host clickhouse --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} "$@"; do
+            n=$$((n+1))
+            [ $$n -ge 10 ] && echo "clickhouse-client failed after 10 retries" && exit 1
+            echo "Retry $$n/10 in 3s..."
+            sleep 3
+          done
+        }
+        ch_run --query "CREATE DATABASE IF NOT EXISTS observable"
         for f in /migrations/clickhouse/*.sql; do
           echo "Applying ClickHouse migration: $$f"
-          clickhouse-client --host clickhouse --user ${CH_USER:-default} --password ${CH_PASSWORD:-observable} --multiquery < "$$f"
+          ch_run --database observable --multiquery < "$$f"
         done
     volumes: ["./migrations:/migrations:ro"]
     depends_on:
