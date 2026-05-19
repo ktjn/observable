@@ -370,10 +370,11 @@ pub async fn get_alert_rule(
 }
 
 fn validate_runbook_url(url: &Option<String>) -> Result<(), String> {
-    if let Some(u) = url {
-        if !u.starts_with("http://") && !u.starts_with("https://") {
-            return Err("runbook_url must start with http:// or https://".into());
-        }
+    if let Some(u) = url
+        && !u.starts_with("http://")
+        && !u.starts_with("https://")
+    {
+        return Err("runbook_url must start with http:// or https://".into());
     }
     Ok(())
 }
