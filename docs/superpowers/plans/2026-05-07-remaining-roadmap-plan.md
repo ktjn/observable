@@ -237,10 +237,8 @@ Before Phase 5 starts, answer:
 
 ### Priority Slice Order
 
-- [ ] **P5-S1: Add incident timeline for one alert source**
-  - Direct prerequisite: at least one stable alert source, preferably P4-S5 burn-rate alerts.
-  - Completion signal: one alert source can produce a durable timeline with source links.
-  - Missing clarity: decide whether incident objects are created automatically from alert firings or manually from the Alerts UI for the first slice.
+- [x] **P5-S1: Add incident timeline for one alert source** (COMPLETED 2026-05-18)
+  - `IncidentDetailResponse` includes `rule_name` via LEFT JOIN; alert evaluator writes human-readable messages (`{name} fired: value={value:.2}`); `GET /v1/alerts/rules/:rule_id` returns rule detail + 20 recent firings; `AlertRuleDetailPage` at `/alerts/$ruleId`; incident timeline links to rule detail on `alert_fired`/`alert_resolved` events.
 
 - [x] **P5-S2: Add one notification routing integration** (COMPLETED 2026-05-10)
   - Direct prerequisite: at least one stable alert source.

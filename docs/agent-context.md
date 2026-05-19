@@ -30,6 +30,7 @@ making changes.
   - `archived/plans/2026-05-05-out-of-band-risk-remediation.md` — query-api auth hardening, NLQ SQL safety, CI integration-test gate, governance drift cleanup
   - `archived/plans/2026-05-10-p5-s2-notification-routing-webhook-complete.md` for P5-S2
   - `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
+  - `docs/superpowers/plans/2026-05-18-p5-s1-incident-timeline.md` — P5-S1 incident timeline with source links (COMPLETED 2026-05-18)
 - Historical Phase 1 plan: `archived/plans/2026-04-17-phase1-internal-mvp.md`; do not treat it as an active backlog.
 - Historical Phases 2-8 plan: merged into the active roadmap above. The old `2026-04-18-phases2-8-iteration-plan.md` file has been removed.
 - Architecture decisions: `spec/adr/`.
@@ -87,14 +88,18 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 - `ingest-gateway` is now a dual lib+bin crate (`src/lib.rs` re-exports `deployment_registry`
   for Testcontainers integration tests in `services/ingest-gateway/tests/`).
 
-## Incident Timeline (P5-S1, completed 2026-05-10)
+## Incident Timeline (P5-S1, completed 2026-05-18)
 
 - `alert_rules` now has `auto_trigger_incident` (boolean, default `true`) and `auto_trigger_delay_secs`.
 - `incidents` table stores structured incidents with `dedup_key`, `status`, `severity`, and `triggered_by_rule_id`.
 - `incident_events` table stores the immutable timeline (`triggered`, `alert_fired`, `alert_resolved`, etc.).
 - `services/alert-evaluator/src/evaluator.rs` automatically creates incidents when threshold/SLO alert firings transition to `active` (if `auto_trigger_incident = true`) and resolves them when the alert clears.
 - `services/query-api/src/incidents.rs` exposes `GET /v1/incidents` and `GET /v1/incidents/:id`.
+- `GET /v1/alerts/rules/:rule_id` — returns `AlertRuleDetailResponse` with rule metadata and up to 20 recent firings. Added in P5-S1 (commit fa33bca).
+- `IncidentDetailResponse` now includes `rule_name: Option<String>` via LEFT JOIN on `alert_rules`. Added in P5-S1.
 - Frontend: `apps/frontend/src/features/incidents/` contains `IncidentsPage.tsx` (list with status filters) and `IncidentDetailPage.tsx` (timeline view).
+- Frontend route `/alerts/$ruleId` renders `AlertRuleDetailPage` (rule metadata + firing history). Added in P5-S1.
+- Alert evaluator `alert_fired`/`alert_resolved` incident event messages now include rule name and value (e.g. `"High CPU Alert fired: value=95.30"`). Added in P5-S1.
 - Known simplification: `dedup_key` currently uses `rule_id` only because `alert_rules` lacks `service_name`/`environment`. The spec (`spec/14-domain-model.md`) defines `rule_id + service_name + environment`.
 
 ## Dev Environment Gotchas
