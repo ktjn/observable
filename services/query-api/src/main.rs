@@ -118,7 +118,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .route("/v1/alerts/rules", post(alerts::handle_create_rule))
-        .route("/v1/alerts/rules/:rule_id", get(alerts::handle_get_rule))
+        .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
         .route(
             "/v1/alerts/rules/{rule_id}/silence",
             patch(alerts::handle_silence_rule),
