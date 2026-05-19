@@ -1,0 +1,63 @@
+{
+  "tenants": 3,
+  "services_per_tenant": 5,
+  "days": 7,
+  "stories_per_tenant": 2,
+  "service_catalog": [
+    {
+      "service_name": "order-api",
+      "service_type": "api",
+      "service_version": "1.2.0",
+      "rps": 12.0,
+      "operations": [
+        {"name": "POST /orders", "p50_ms": 80, "p99_ms": 400, "error_rate": 0.02},
+        {"name": "GET /orders/{id}", "p50_ms": 30, "p99_ms": 150, "error_rate": 0.01}
+      ],
+      "downstream": ["product-api", "user-api"]
+    },
+    {
+      "service_name": "product-api",
+      "service_type": "api",
+      "service_version": "2.0.1",
+      "rps": 20.0,
+      "operations": [
+        {"name": "GET /products", "p50_ms": 20, "p99_ms": 100, "error_rate": 0.005},
+        {"name": "GET /products/{id}", "p50_ms": 15, "p99_ms": 80, "error_rate": 0.005}
+      ],
+      "downstream": []
+    },
+    {
+      "service_name": "user-api",
+      "service_type": "api",
+      "service_version": "1.0.5",
+      "rps": 8.0,
+      "operations": [
+        {"name": "GET /users/{id}", "p50_ms": 25, "p99_ms": 120, "error_rate": 0.01},
+        {"name": "POST /users", "p50_ms": 60, "p99_ms": 300, "error_rate": 0.015}
+      ],
+      "downstream": []
+    },
+    {
+      "service_name": "notification-worker",
+      "service_type": "worker",
+      "service_version": "1.1.0",
+      "rps": 4.0,
+      "operations": [
+        {"name": "worker.send_email", "p50_ms": 200, "p99_ms": 1500, "error_rate": 0.03},
+        {"name": "worker.send_sms", "p50_ms": 150, "p99_ms": 800, "error_rate": 0.02}
+      ],
+      "downstream": []
+    },
+    {
+      "service_name": "web-frontend",
+      "service_type": "frontend",
+      "service_version": "3.1.0",
+      "rps": 30.0,
+      "operations": [
+        {"name": "GET /", "p50_ms": 45, "p99_ms": 250, "error_rate": 0.008},
+        {"name": "GET /checkout", "p50_ms": 90, "p99_ms": 500, "error_rate": 0.02}
+      ],
+      "downstream": ["order-api", "product-api"]
+    }
+  ]
+}
