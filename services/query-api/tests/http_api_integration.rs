@@ -154,7 +154,7 @@ fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
             put(dashboards::handle_update_dashboard),
         )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
-        .route("/v1/alerts/rules/:rule_id", get(alerts::handle_get_rule))
+        .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
         .route("/v1/slos", get(slos::handle_list_slos))
         .route("/v1/slos", post(slos::handle_create_slo))
         .route("/v1/incidents", get(incidents::handle_list_incidents))
@@ -700,7 +700,11 @@ async fn metric_group_points_sum_label_specific_series_at_same_timestamp() {
     let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
     let first_series = Uuid::new_v4();
     let second_series = Uuid::new_v4();
-    let ts_ns = 1_777_819_009_493_000_000;
+    // Use current time so the points are always within the 14-day TTL window.
+    let ts_ns = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
 
     insert_metric_series(
         &ch,
