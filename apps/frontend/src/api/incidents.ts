@@ -33,6 +33,7 @@ export interface IncidentDetailResponse {
   resolved_at: string | null;
   triggered_by_rule_id: string | null;
   runbook_url: string | null;
+  rule_name: string | null;
   timeline: IncidentEventItem[];
 }
 
