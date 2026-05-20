@@ -7,6 +7,8 @@ import { Panel } from "../../components/ui/panel";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import { useTimeDisplay } from "../../lib/timeDisplay";
 import { formatTimestamp, isoToNs } from "../../utils/formatTimestamp";
+import { getTopology } from "../../api/services";
+import { TopologyMap } from "../../components/topology/TopologyMap";
 
 function severityColor(severity: string): "bad" | "warn" | "neutral" {
   switch (severity) {
@@ -48,6 +50,24 @@ export function IncidentDetailPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["incident", tenantId, incidentId],
     queryFn: () => getIncident(tenantId, incidentId),
+  });
+
+  const triggeredAtMs = data ? new Date(data.triggered_at).getTime() : 0;
+  const resolvedAtMs = data?.resolved_at ? new Date(data.resolved_at).getTime() : Date.now();
+
+  const {
+    data: topologyData,
+    isLoading: topoLoading,
+    isError: topoError,
+  } = useQuery({
+    queryKey: ["topology-impact", tenantId, data?.impacted_service, triggeredAtMs, resolvedAtMs],
+    queryFn: () =>
+      getTopology(tenantId, {
+        service: data!.impacted_service!,
+        from: triggeredAtMs,
+        to: resolvedAtMs,
+      }),
+    enabled: !!data?.impacted_service,
   });
 
   if (isLoading) {
@@ -150,6 +170,52 @@ export function IncidentDetailPage() {
           )}
         </div>
       </Panel>
+
+      {data.impacted_service && (
+        <Panel>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold">Impacted Services</h3>
+            <div className="flex gap-3 text-xs">
+              <Link
+                to="/services/$serviceId"
+                params={{ serviceId: data.impacted_service }}
+                className="text-[var(--brand)] hover:underline"
+              >
+                → Service Detail
+              </Link>
+              <Link to="/topology" className="text-[var(--brand)] hover:underline">
+                → View in Topology
+              </Link>
+            </div>
+          </div>
+          {topoLoading ? (
+            <LoadingState>Loading topology…</LoadingState>
+          ) : topoError ? (
+            <p className="text-sm text-[var(--muted)]">Could not load topology data.</p>
+          ) : (
+            <div style={{ height: 320 }}>
+              <TopologyMap
+                edges={topologyData?.edges ?? []}
+                allServices={Array.from(
+                  new Set([
+                    data.impacted_service,
+                    ...(topologyData?.edges.flatMap((e) => [e.caller, e.callee]) ?? []),
+                  ]),
+                )}
+                focusedService={data.impacted_service}
+                onNodeClick={() => {}}
+                onEdgeClick={() => {}}
+                onBackgroundClick={() => {}}
+              />
+              {(topologyData?.edges ?? []).length === 0 && (
+                <p className="text-xs text-[var(--muted)] mt-2">
+                  No observed call relationships during this incident.
+                </p>
+              )}
+            </div>
+          )}
+        </Panel>
+      )}
     </section>
   );
 }
