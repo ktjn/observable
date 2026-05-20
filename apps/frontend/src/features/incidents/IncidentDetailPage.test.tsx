@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, test, vi, beforeEach } from "vitest";
 import * as incidentsApi from "../../api/incidents";
+import * as servicesApi from "../../api/services";
 import { IncidentDetailPage } from "./IncidentDetailPage";
 
 vi.mock("../../hooks/useTenantContext", () => ({
@@ -116,4 +117,36 @@ test("does not render Runbook section when runbook_url is null", async () => {
   renderPage();
   await waitFor(() => screen.getByRole("heading", { level: 1 }));
   expect(screen.queryByText("Runbook")).not.toBeInTheDocument();
+});
+
+test("renders Impacted Services panel when impacted_service is set", async () => {
+  vi.spyOn(incidentsApi, "getIncident").mockResolvedValue({
+    ...baseDetail,
+    impacted_service: "payments",
+  });
+  vi.spyOn(servicesApi, "getTopology").mockResolvedValue({
+    edges: [
+      {
+        caller: "api-gateway",
+        callee: "payments",
+        request_count: 500,
+        error_rate: 0.1,
+        p95_latency_ms: 120,
+      },
+    ],
+  });
+  renderPage();
+  await waitFor(() => screen.getByText("Impacted Services"));
+  expect(screen.getByText("Impacted Services")).toBeInTheDocument();
+  expect(screen.getByText("→ Service Detail")).toBeInTheDocument();
+});
+
+test("does not render Impacted Services panel when impacted_service is null", async () => {
+  vi.spyOn(incidentsApi, "getIncident").mockResolvedValue({
+    ...baseDetail,
+    impacted_service: null,
+  });
+  renderPage();
+  await waitFor(() => screen.getByRole("heading", { level: 1 }));
+  expect(screen.queryByText("Impacted Services")).not.toBeInTheDocument();
 });
