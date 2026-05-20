@@ -46,6 +46,7 @@ pub struct IncidentDetailResponse {
     pub runbook_url: Option<String>,
     pub rule_name: Option<String>,
     pub timeline: Vec<IncidentEventItem>,
+    pub impacted_service: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -76,6 +77,7 @@ struct IncidentDetailRow {
     triggered_by_rule_id: Option<Uuid>,
     runbook_url: Option<String>,
     rule_name: Option<String>,
+    impacted_service: Option<String>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -136,9 +138,16 @@ pub async fn get_incident(
     let row: Option<IncidentDetailRow> = sqlx::query_as(
         "SELECT i.incident_id, i.title, i.severity, i.status, i.dedup_key, \
                 i.triggered_at, i.resolved_at, i.triggered_by_rule_id, i.runbook_url, \
-                r.name AS rule_name \
+                r.name AS rule_name, \
+                CASE WHEN r.alert_type = 'slo_burn_rate' \
+                     THEN s.service_name \
+                END AS impacted_service \
          FROM incidents i \
          LEFT JOIN alert_rules r ON i.triggered_by_rule_id = r.rule_id \
+         LEFT JOIN slo_definitions s \
+                ON r.alert_type = 'slo_burn_rate' \
+               AND (r.condition->>'slo_id')::uuid = s.slo_id \
+               AND s.tenant_id = i.tenant_id \
          WHERE i.incident_id = $1 AND i.tenant_id = $2",
     )
     .bind(incident_id)
@@ -182,6 +191,7 @@ pub async fn get_incident(
         runbook_url: row.runbook_url,
         rule_name: row.rule_name,
         timeline,
+        impacted_service: row.impacted_service,
     }))
 }
 
