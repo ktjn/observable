@@ -45,6 +45,7 @@ const baseDetail: incidentsApi.IncidentDetailResponse = {
   triggered_by_rule_id: "rule-abc",
   runbook_url: null,
   rule_name: "High CPU Alert",
+  impacted_service: null,
   timeline: [
     {
       event_time: "2026-05-18T10:00:01Z",

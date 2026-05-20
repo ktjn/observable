@@ -35,6 +35,7 @@ export interface IncidentDetailResponse {
   runbook_url: string | null;
   rule_name: string | null;
   timeline: IncidentEventItem[];
+  impacted_service: string | null;
 }
 
 export async function listIncidents(
