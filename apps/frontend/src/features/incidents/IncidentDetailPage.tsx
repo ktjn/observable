@@ -53,7 +53,7 @@ export function IncidentDetailPage() {
   });
 
   const triggeredAtMs = data ? new Date(data.triggered_at).getTime() : 0;
-  const resolvedAtMs = data?.resolved_at ? new Date(data.resolved_at).getTime() : Date.now();
+  const resolvedAtMs = data?.resolved_at ? new Date(data.resolved_at).getTime() : null;
 
   const {
     data: topologyData,
@@ -65,7 +65,7 @@ export function IncidentDetailPage() {
       getTopology(tenantId, {
         service: data!.impacted_service!,
         from: triggeredAtMs,
-        to: resolvedAtMs,
+        to: resolvedAtMs ?? Date.now(),
       }),
     enabled: !!data?.impacted_service,
   });
