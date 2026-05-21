@@ -46,6 +46,12 @@ pub struct SloBurnRateCondition {
     pub slow_window_minutes: u64,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct CompositeRuleCondition {
+    pub left_rule_id: Uuid,
+    pub right_rule_id: Uuid,
+}
+
 pub fn calculate_burn_rate(
     bad_events: u64,
     total_events: u64,
@@ -325,6 +331,78 @@ pub async fn eval_slo_burn_rate_rules(
     Ok(())
 }
 
+pub async fn eval_composite_rules(
+    db: &sqlx::PgPool,
+    _ch: &clickhouse::Client,
+) -> anyhow::Result<()> {
+    let rules: Vec<AlertRuleRow> = sqlx::query_as(
+        "SELECT rule_id, tenant_id, name, condition, severity, for_duration_secs, notification_channels, \
+         auto_trigger_incident, auto_trigger_delay_secs, runbook_url \
+         FROM alert_rules WHERE alert_type = 'composite' AND silenced = false",
+    )
+    .fetch_all(db)
+    .await?;
+
+    tracing::debug!(count = rules.len(), "evaluating composite rules");
+
+    for rule in rules {
+        let cond: CompositeRuleCondition = match serde_json::from_value(rule.condition.clone()) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(
+                    rule_id = %rule.rule_id,
+                    error = %e,
+                    "skipping composite rule: condition parse failed"
+                );
+                continue;
+            }
+        };
+
+        let left_active: Option<Uuid> = sqlx::query_scalar(
+            "SELECT firing_id FROM alert_firings \
+             WHERE rule_id = $1 AND tenant_id = $2 AND state = 'active' \
+             LIMIT 1",
+        )
+        .bind(cond.left_rule_id)
+        .bind(rule.tenant_id)
+        .fetch_optional(db)
+        .await?;
+
+        let right_active: Option<Uuid> = sqlx::query_scalar(
+            "SELECT firing_id FROM alert_firings \
+             WHERE rule_id = $1 AND tenant_id = $2 AND state = 'active' \
+             LIMIT 1",
+        )
+        .bind(cond.right_rule_id)
+        .bind(rule.tenant_id)
+        .fetch_optional(db)
+        .await?;
+
+        match (left_active, right_active) {
+            (Some(_), Some(_)) => {
+                if let Err(e) = record_firing(db, &rule, 1.0).await {
+                    tracing::warn!(
+                        rule_id = %rule.rule_id,
+                        error = %e,
+                        "failed to record composite alert firing"
+                    );
+                }
+            }
+            _ => {
+                if let Err(e) = resolve_open_firing(db, &rule, 0.0).await {
+                    tracing::warn!(
+                        rule_id = %rule.rule_id,
+                        error = %e,
+                        "failed to resolve composite alert firing"
+                    );
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 async fn fetch_span_counts(
     ch: &clickhouse::Client,
     tenant_id: Uuid,
@@ -365,6 +443,7 @@ async fn fetch_span_counts(
 pub async fn eval_alert_rules(db: &sqlx::PgPool, ch: &clickhouse::Client) -> anyhow::Result<()> {
     eval_threshold_rules(db, ch).await?;
     eval_slo_burn_rate_rules(db, ch).await?;
+    eval_composite_rules(db, ch).await?;
     Ok(())
 }
 
