@@ -1400,3 +1400,113 @@ async fn get_alert_rule_returns_404_for_wrong_tenant() {
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn get_incident_detail_includes_impacted_service_for_slo_rule() {
+    let (ch, _ch_container) = start_clickhouse().await;
+    let (pg, _pg_container) = start_postgres().await;
+    let app = build_app_with_pg(ch, pg.clone());
+    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+
+    // Seed an SLO definition for "payments" service
+    let slo_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO slo_definitions \
+         (tenant_id, service_name, environment, sli_type, target, window_days, \
+          burn_rate_fast_threshold, burn_rate_slow_threshold, description) \
+         VALUES ($1, 'payments', 'prod', 'availability', 0.99, 30, 14.4, 1.0, 'Payments SLO') \
+         RETURNING slo_id",
+    )
+    .bind(tenant)
+    .fetch_one(&pg)
+    .await
+    .expect("slo inserted");
+
+    // Seed an slo_burn_rate alert rule referencing the SLO
+    let rule_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO alert_rules \
+         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
+         VALUES ($1, 'Payments SLO burn', 'slo_burn_rate', 'critical', $2, '{}', true) \
+         RETURNING rule_id",
+    )
+    .bind(tenant)
+    .bind(serde_json::json!({
+        "slo_id": slo_id,
+        "fast_window_minutes": 60,
+        "slow_window_minutes": 360,
+    }))
+    .fetch_one(&pg)
+    .await
+    .expect("slo_burn_rate rule inserted");
+
+    // Seed an incident linked to that rule
+    let incident_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO incidents \
+         (incident_id, tenant_id, title, severity, status, dedup_key, triggered_by_rule_id) \
+         VALUES ($1, $2, 'Payments SLO burn', 'critical', 'triggered', 'slo-dedup-1', $3)",
+    )
+    .bind(incident_id)
+    .bind(tenant)
+    .bind(rule_id)
+    .execute(&pg)
+    .await
+    .expect("slo incident inserted");
+
+    let response = app
+        .oneshot(dev_request("GET", &format!("/v1/incidents/{incident_id}")))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_body_json(response.into_body()).await;
+    assert_eq!(
+        body["impacted_service"], "payments",
+        "slo_burn_rate incident must carry impacted_service from slo_definitions"
+    );
+}
+
+#[tokio::test]
+async fn get_incident_detail_impacted_service_null_for_threshold_rule() {
+    let (ch, _ch_container) = start_clickhouse().await;
+    let (pg, _pg_container) = start_postgres().await;
+    let app = build_app_with_pg(ch, pg.clone());
+    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+
+    let rule_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO alert_rules \
+         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
+         VALUES ($1, 'High CPU', 'threshold', 'warning', \
+                 '{\"metric_name\":\"cpu\",\"operator\":\"gt\",\"threshold\":80}', \
+                 '{}', true) \
+         RETURNING rule_id",
+    )
+    .bind(tenant)
+    .fetch_one(&pg)
+    .await
+    .expect("threshold rule inserted");
+
+    let incident_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO incidents \
+         (incident_id, tenant_id, title, severity, status, dedup_key, triggered_by_rule_id) \
+         VALUES ($1, $2, 'High CPU', 'warning', 'triggered', 'threshold-dedup-1', $3)",
+    )
+    .bind(incident_id)
+    .bind(tenant)
+    .bind(rule_id)
+    .execute(&pg)
+    .await
+    .expect("threshold incident inserted");
+
+    let response = app
+        .oneshot(dev_request("GET", &format!("/v1/incidents/{incident_id}")))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_body_json(response.into_body()).await;
+    assert!(
+        body["impacted_service"].is_null(),
+        "threshold incident must have null impacted_service"
+    );
+}

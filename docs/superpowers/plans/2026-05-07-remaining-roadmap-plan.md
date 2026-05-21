@@ -247,9 +247,8 @@ Before Phase 5 starts, answer:
 - [x] **P5-S3: Add runbook workflow attachment to an alert or incident** (COMPLETED 2026-05-19)
   - `alert_rules.runbook_url TEXT` column (migration 029); `GET /v1/alerts/rules/:id` returns it; `POST /v1/alerts/rules` accepts it; `PATCH /v1/alerts/rules/:id/runbook` sets/clears it with http/https validation; evaluator copies it to `incidents.runbook_url` on incident creation; `AlertRuleDetailPage` shows inline-editable runbook row; `AlertsPage` create form includes optional Runbook URL field.
 
-- [ ] **P5-S4: Add topology-aware impact view for one incident**
-  - Direct prerequisite: P3 service topology and P5-S1 incident timeline.
-  - Completion signal: one incident shows impacted services or dependencies from existing topology data.
+- [x] **P5-S4: Add topology-aware impact view for one incident** (COMPLETED 2026-05-21)
+  - SLO burn-rate incidents show an inline D3 topology subgraph in the incident detail page. `impacted_service` derived at query time via `alert_rules → slo_definitions`; `TopologyMap` extracted to `components/topology/`. No DB migration.
 
 - [ ] **P5-S5: Add composite alert evaluation for one rule pair**
   - Direct prerequisite: threshold/SLO evaluator stability.

@@ -96,8 +96,9 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 - `services/alert-evaluator/src/evaluator.rs` automatically creates incidents when threshold/SLO alert firings transition to `active` (if `auto_trigger_incident = true`) and resolves them when the alert clears.
 - `services/query-api/src/incidents.rs` exposes `GET /v1/incidents` and `GET /v1/incidents/:id`.
 - `GET /v1/alerts/rules/:rule_id` — returns `AlertRuleDetailResponse` with rule metadata and up to 20 recent firings. Added in P5-S1 (commit fa33bca).
-- `IncidentDetailResponse` now includes `rule_name: Option<String>` via LEFT JOIN on `alert_rules`. Added in P5-S1.
-- Frontend: `apps/frontend/src/features/incidents/` contains `IncidentsPage.tsx` (list with status filters) and `IncidentDetailPage.tsx` (timeline view).
+- `IncidentDetailResponse` now includes `rule_name: Option<String>` via LEFT JOIN on `alert_rules` (P5-S1) and `impacted_service: Option<String>` derived at query time from `slo_definitions` for `slo_burn_rate` rules (P5-S4). Threshold incidents return `null` for `impacted_service`.
+- `TopologyMap` D3 component lives at `apps/frontend/src/components/topology/TopologyMap.tsx` (extracted from `ServiceTopologyPage` in P5-S4). Import from there when reusing the force-directed graph.
+- Frontend: `apps/frontend/src/features/incidents/` contains `IncidentsPage.tsx` (list with status filters) and `IncidentDetailPage.tsx` (timeline + topology impact panel for SLO incidents).
 - Frontend route `/alerts/$ruleId` renders `AlertRuleDetailPage` (rule metadata + firing history). Added in P5-S1.
 - Alert evaluator `alert_fired`/`alert_resolved` incident event messages now include rule name and value (e.g. `"High CPU Alert fired: value=95.30"`). Added in P5-S1.
 - Known simplification: `dedup_key` currently uses `rule_id` only because `alert_rules` lacks `service_name`/`environment`. The spec (`spec/14-domain-model.md`) defines `rule_id + service_name + environment`.
