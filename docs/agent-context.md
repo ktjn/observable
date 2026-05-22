@@ -29,6 +29,7 @@ making changes.
   - `archived/plans/2026-05-12-dashboard-grid-redesign.md` — react-grid-layout edit mode + backend error surfacing
   - `archived/plans/2026-05-05-out-of-band-risk-remediation.md` — query-api auth hardening, NLQ SQL safety, CI integration-test gate, governance drift cleanup
   - `archived/plans/2026-05-21-p5-s5-composite-alert-evaluation.md` — composite alert rule-pair evaluation in the alert evaluator
+  - `archived/plans/2026-05-22-p5-s6-reliability-reporting.md` — service-scoped reliability report endpoint and frontend tab
   - `archived/plans/2026-05-10-p5-s2-notification-routing-webhook-complete.md` for P5-S2
   - `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
   - `docs/superpowers/plans/2026-05-18-p5-s1-incident-timeline.md` — P5-S1 incident timeline with source links (COMPLETED 2026-05-18)
@@ -98,6 +99,7 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 - `services/query-api/src/incidents.rs` exposes `GET /v1/incidents` and `GET /v1/incidents/:id`.
 - `GET /v1/alerts/rules/:rule_id` — returns `AlertRuleDetailResponse` with rule metadata and up to 20 recent firings. Added in P5-S1 (commit fa33bca).
 - `IncidentDetailResponse` now includes `rule_name: Option<String>` via LEFT JOIN on `alert_rules` (P5-S1) and `impacted_service: Option<String>` derived at query time from `slo_definitions` for `slo_burn_rate` rules (P5-S4). Threshold incidents return `null` for `impacted_service`.
+- `GET /v1/services/:service_name/reliability-report` renders the P5-S6 reliability tab. The service scope is derived from `incidents.triggered_by_rule_id -> alert_rules -> slo_definitions` because the incidents table in this branch does not have a `service_name` column; the endpoint also filters SLOs and deployment markers by the requested service and optional environment.
 - `TopologyMap` D3 component lives at `apps/frontend/src/components/topology/TopologyMap.tsx` (extracted from `ServiceTopologyPage` in P5-S4). Import from there when reusing the force-directed graph.
 - Frontend: `apps/frontend/src/features/incidents/` contains `IncidentsPage.tsx` (list with status filters) and `IncidentDetailPage.tsx` (timeline + topology impact panel for SLO incidents).
 - Frontend route `/alerts/$ruleId` renders `AlertRuleDetailPage` (rule metadata + firing history). Added in P5-S1.

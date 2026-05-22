@@ -254,9 +254,10 @@ Before Phase 5 starts, answer:
   - Direct prerequisite: threshold/SLO evaluator stability.
   - Completion signal: two existing signals can combine into one derived firing without duplicating evaluator architecture.
 
-- [ ] **P5-S6: Add reliability reporting for one team/service scope**
+- [x] **P5-S6: Add reliability reporting for one team/service scope** (COMPLETED 2026-05-22)
   - Direct prerequisite: SLOs and incident/alert history.
   - Completion signal: one team or service gets a reliability report over a bounded interval.
+  - Result: `GET /v1/services/$service_name/reliability-report` now returns incident, SLO, and deployment summaries for the requested service and optional environment; the frontend exposes it as the `Reliability` service tab.
 
 **Checkpoint question:** can responders complete detect → triage → notify → review inside the product for one real incident class?
 

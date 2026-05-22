@@ -13,6 +13,7 @@ mod metrics;
 mod middleware;
 mod notifications;
 mod planner;
+mod reliability;
 mod schemas;
 mod slos;
 mod sql_templates;
@@ -131,6 +132,10 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/incidents/{incident_id}",
             get(incidents::handle_get_incident),
+        )
+        .route(
+            "/v1/services/{service_name}/reliability-report",
+            get(reliability::handle_get_service_reliability_report),
         )
         .route(
             "/v1/notifications/channels",
