@@ -20,3 +20,4 @@ pub mod sql_templates;
 pub mod tenants;
 pub mod tokens;
 pub mod traces;
+pub mod usage;

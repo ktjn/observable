@@ -20,7 +20,7 @@ making changes.
   default entry role. Runtimes without subagent support should apply matching specialist `.agent.md`
   files manually as checklists.
 - Active roadmap: `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` — unified post-Phase-3 implementation plan.
-- Active detailed implementation plan: none.
+- Active detailed implementation plan: none
 - Completed / archived detailed plans:
   - `archived/plans/2026-05-06-identity-provider-zitadel.md` — Zitadel 4.x OIDC PKCE flow, session JWTs, user/role tables, frontend login/callback/me pages, Admin Console identity settings
   - `archived/plans/2026-05-05-p4-s1-warm-retention.md` — warm-retention movement path (ARCHIVED/DEFERRED; not implemented)
@@ -30,6 +30,7 @@ making changes.
   - `archived/plans/2026-05-05-out-of-band-risk-remediation.md` — query-api auth hardening, NLQ SQL safety, CI integration-test gate, governance drift cleanup
   - `archived/plans/2026-05-21-p5-s5-composite-alert-evaluation.md` — composite alert rule-pair evaluation in the alert evaluator
   - `archived/plans/2026-05-22-p5-s6-reliability-reporting.md` — service-scoped reliability report endpoint and frontend tab
+  - `archived/plans/2026-05-22-p4-s7-tenant-usage-report.md` — tenant usage and cost report for one billing interval
   - `archived/plans/2026-05-22-p4-s2-backup-restore-drill.md` — P4-S2 hot-store restore drill for the shared PostgreSQL control-plane dataset (COMPLETED 2026-05-22)
   - `archived/plans/2026-05-10-p5-s2-notification-routing-webhook-complete.md` for P5-S2
   - `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
@@ -93,6 +94,13 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 - Production runbooks now have a dedicated docs surface: `docs/runbooks/deployment-regression.md`
   covers canary and rollout regressions, with the exact `helm` and `kubectl` recovery steps used
   by the current canary flow.
+
+## Tenant Usage Report (P4-S7, completed 2026-05-22)
+
+- `services/query-api/src/usage.rs` exposes `GET /v1/tenants/usage-report?from=...&to=...` and scopes the report with `TenantContext` plus `X-Tenant-ID`.
+- The report is read-only and combines existing ClickHouse telemetry counts with PostgreSQL control-plane audit counts into a relative usage index.
+- Frontend page `apps/frontend/src/features/admin/BillingReportPage.tsx` renders the report from the global date range on `/admin`.
+- The UI uses the existing shared metric cards and panel components; no separate billing or invoicing model was added.
 
 ## Incident Timeline (P5-S1, completed 2026-05-18)
 

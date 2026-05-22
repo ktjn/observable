@@ -206,11 +206,14 @@ These gaps were identified during a direct review of `apps/frontend/src` and the
   - Outcome: one documented incident type has triage, rollback, and restore steps.
   - Closure note: `docs/runbooks/deployment-regression.md` documents the canary/rollout regression path, including release-state triage, Helm rollback, canary removal, and post-rollback verification.
   - Checkpoint: yes - the runbook is self-contained and uses the exact Helm and `kubectl` commands shipped with the current canary flow.
-  - Next slice: P4-S7 tenant usage and cost report for one billing interval.
+  - Next slice: P4-S8 load, chaos, tenant-escape, and upgrade/rollback suites.
 
-- [ ] **P4-S7: Add tenant usage and cost report for one billing interval**
-  - Outcome: operators can explain where ingest and storage cost went.
-  - Checkpoint: do we have enough signal to price or quota sanely?
+- [x] **P4-S7: Add tenant usage and cost report for one billing interval** (COMPLETED 2026-05-22)
+  - Outcome: operators can explain where ingest and storage cost went over a single billing interval from the Admin / Billing surface.
+  - Closure note: `GET /v1/tenants/usage-report?from=...&to=...` aggregates existing ClickHouse telemetry and PostgreSQL control-plane activity into a tenant-scoped relative usage index; the `/admin` page now renders that report from the global date range.
+  - Detail: [P4-S7 tenant usage and cost report implementation plan](../../../archived/plans/2026-05-22-p4-s7-tenant-usage-report.md)
+  - Checkpoint: yes - the report has enough signal for a first-pass usage index, but dollar-rate conversion and export remain a follow-up slice.
+  - Next slice: P4-S8 load, chaos, tenant-escape, and upgrade/rollback suites.
 
 - [ ] **P4-S8: Run load, chaos, tenant-escape, and upgrade/rollback suites**
   - Outcome: production-readiness claims are backed by repeatable evidence.

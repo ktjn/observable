@@ -20,6 +20,7 @@ mod sql_templates;
 mod tenants;
 mod tokens;
 mod traces;
+mod usage;
 
 use axum::{
     Router, middleware as axum_middleware,
@@ -136,6 +137,10 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/services/{service_name}/reliability-report",
             get(reliability::handle_get_service_reliability_report),
+        )
+        .route(
+            "/v1/tenants/usage-report",
+            get(usage::handle_get_tenant_usage_report),
         )
         .route(
             "/v1/notifications/channels",

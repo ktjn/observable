@@ -11,7 +11,7 @@ use http_body_util::BodyExt;
 use query_api::{
     alerts, config, dashboards, incidents, llm_adapter, logs, metrics,
     middleware::auth::TenantContext, middleware::auth::require_tenant, planner::QueryPlanner,
-    reliability, slos, traces,
+    reliability, slos, traces, usage,
 };
 use serde_json::Value;
 use sqlx::postgres::{PgPool, PgPoolOptions};
@@ -166,6 +166,10 @@ fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
             "/v1/services/{service_name}/reliability-report",
             get(reliability::handle_get_service_reliability_report),
         )
+        .route(
+            "/v1/tenants/usage-report",
+            get(usage::handle_get_tenant_usage_report),
+        )
         .layer(axum_middleware::from_fn(require_tenant))
         .layer(axum::Extension(db))
         .layer(axum::Extension(auth_service_url))
@@ -203,6 +207,10 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
         .route(
             "/v1/services/{service_name}/reliability-report",
             get(reliability::handle_get_service_reliability_report),
+        )
+        .route(
+            "/v1/tenants/usage-report",
+            get(usage::handle_get_tenant_usage_report),
         )
         .layer(axum_middleware::from_fn(require_tenant))
         .layer(axum::Extension(db))
@@ -1742,4 +1750,233 @@ async fn get_service_reliability_report_filters_service_environment_and_interval
         mean_time >= 59.0,
         "expected MTTR to reflect the resolved incident duration, got {mean_time}"
     );
+}
+
+#[tokio::test]
+async fn get_tenant_usage_report_scopes_to_tenant_and_interval() {
+    let (ch, _ch_container) = start_clickhouse().await;
+    let (pg, _pg_container) = start_postgres().await;
+    let app = build_app_with_pg(ch.clone(), pg.clone());
+    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+    let other_tenant = Uuid::new_v4();
+
+    let from = chrono::Utc::now() - chrono::Duration::hours(2);
+    let to = chrono::Utc::now() + chrono::Duration::minutes(5);
+
+    let in_window_ns = (from + chrono::Duration::minutes(15))
+        .timestamp_nanos_opt()
+        .unwrap() as u64;
+    let out_window_ns = (from - chrono::Duration::hours(4))
+        .timestamp_nanos_opt()
+        .unwrap() as u64;
+
+    let in_window_series_id = Uuid::new_v4();
+    let out_window_series_id = Uuid::new_v4();
+    let other_tenant_series_id = Uuid::new_v4();
+
+    insert_span(&ch, make_span(tenant, "trace-in", "span-in", in_window_ns)).await;
+    insert_span(
+        &ch,
+        make_span(tenant, "trace-old", "span-old", out_window_ns),
+    )
+    .await;
+    insert_span(
+        &ch,
+        make_span(other_tenant, "trace-other", "span-other", in_window_ns),
+    )
+    .await;
+
+    insert_log(&ch, make_log(tenant, "checkout", in_window_ns)).await;
+    insert_log(&ch, make_log(tenant, "checkout", out_window_ns)).await;
+    insert_log(&ch, make_log(other_tenant, "checkout", in_window_ns)).await;
+
+    insert_metric_series(
+        &ch,
+        MetricSeriesRow {
+            tenant_id: tenant,
+            metric_series_id: in_window_series_id,
+            metric_name: "checkout.requests_total".into(),
+            description: String::new(),
+            unit: "1".into(),
+            metric_type: "sum".into(),
+            is_monotonic: Some(1),
+            aggregation_temporality: Some("delta".into()),
+            attributes: "{}".into(),
+            resource_attributes: "{}".into(),
+            service_name: "checkout".into(),
+            environment: "prod".into(),
+        },
+    )
+    .await;
+    ch.query(
+        "INSERT INTO observable.metric_series \
+         (tenant_id, metric_series_id, metric_name, metric_type, service_name, created_at) \
+         VALUES (?, ?, 'checkout.requests_total', 'sum', 'checkout', toDateTime(?))",
+    )
+    .bind(tenant)
+    .bind(out_window_series_id)
+    .bind((from - chrono::Duration::hours(4)).timestamp())
+    .execute()
+    .await
+    .expect("out-of-window metric_series inserted");
+    ch.query(
+        "INSERT INTO observable.metric_series \
+         (tenant_id, metric_series_id, metric_name, metric_type, service_name, created_at) \
+         VALUES (?, ?, 'checkout.requests_total', 'sum', 'checkout', toDateTime(?))",
+    )
+    .bind(other_tenant)
+    .bind(other_tenant_series_id)
+    .bind((from + chrono::Duration::minutes(15)).timestamp())
+    .execute()
+    .await
+    .expect("other-tenant metric_series inserted");
+
+    insert_metric_point(
+        &ch,
+        make_metric_point(
+            tenant,
+            in_window_series_id,
+            "checkout.requests_total",
+            in_window_ns,
+            4,
+        ),
+    )
+    .await;
+    insert_metric_point(
+        &ch,
+        make_metric_point(
+            tenant,
+            in_window_series_id,
+            "checkout.requests_total",
+            out_window_ns,
+            9,
+        ),
+    )
+    .await;
+    insert_metric_point(
+        &ch,
+        make_metric_point(
+            other_tenant,
+            other_tenant_series_id,
+            "checkout.requests_total",
+            in_window_ns,
+            7,
+        ),
+    )
+    .await;
+
+    sqlx::query(
+        "INSERT INTO query_audit_log (occurred_at, action, tenant_id, result_count) \
+         VALUES ($1, 'trace_get', $2, 4)",
+    )
+    .bind(from + chrono::Duration::minutes(20))
+    .bind(tenant)
+    .execute(&pg)
+    .await
+    .expect("query audit row inserted");
+    sqlx::query(
+        "INSERT INTO query_audit_log (occurred_at, action, tenant_id, result_count) \
+         VALUES ($1, 'log_search', $2, 2)",
+    )
+    .bind(from + chrono::Duration::minutes(30))
+    .bind(tenant)
+    .execute(&pg)
+    .await
+    .expect("second query audit row inserted");
+    sqlx::query(
+        "INSERT INTO query_audit_log (occurred_at, action, tenant_id, result_count) \
+         VALUES ($1, 'trace_get', $2, 8)",
+    )
+    .bind(from - chrono::Duration::hours(1))
+    .bind(tenant)
+    .execute(&pg)
+    .await
+    .expect("out-of-window query audit row inserted");
+    sqlx::query(
+        "INSERT INTO query_audit_log (occurred_at, action, tenant_id, result_count) \
+         VALUES ($1, 'trace_get', $2, 6)",
+    )
+    .bind(from + chrono::Duration::minutes(25))
+    .bind(other_tenant)
+    .execute(&pg)
+    .await
+    .expect("other-tenant query audit row inserted");
+
+    sqlx::query(
+        "INSERT INTO credential_audit_log (occurred_at, action, outcome, credential_hash, tenant_id, denial_reason) \
+         VALUES ($1, 'credential_validate', 'allow', 'hash-allow', $2, NULL)",
+    )
+    .bind(from + chrono::Duration::minutes(22))
+    .bind(tenant)
+    .execute(&pg)
+    .await
+    .expect("credential allow row inserted");
+    sqlx::query(
+        "INSERT INTO credential_audit_log (occurred_at, action, outcome, credential_hash, tenant_id, denial_reason) \
+         VALUES ($1, 'credential_validate', 'deny', 'hash-deny', $2, 'revoked')",
+    )
+    .bind(from + chrono::Duration::minutes(23))
+    .bind(tenant)
+    .execute(&pg)
+    .await
+    .expect("credential deny row inserted");
+    sqlx::query(
+        "INSERT INTO credential_audit_log (occurred_at, action, outcome, credential_hash, tenant_id, denial_reason) \
+         VALUES ($1, 'credential_validate', 'deny', 'hash-old', $2, 'expired')",
+    )
+    .bind(from - chrono::Duration::hours(1))
+    .bind(tenant)
+    .execute(&pg)
+    .await
+    .expect("out-of-window credential row inserted");
+
+    let uri = format!(
+        "/v1/tenants/usage-report?from={}&to={}",
+        from.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        to.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+    );
+    let response = app.oneshot(dev_request("GET", &uri)).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_body_json(response.into_body()).await;
+    assert_eq!(body["tenant_id"], DEV_TENANT_ID);
+    assert_eq!(body["telemetry_summary"]["spans"], 1);
+    assert_eq!(body["telemetry_summary"]["logs"], 1);
+    assert_eq!(body["telemetry_summary"]["metric_points"], 1);
+    assert_eq!(body["telemetry_summary"]["metric_series_created"], 1);
+    assert_eq!(body["control_plane_summary"]["query_reads"], 2);
+    assert_eq!(body["control_plane_summary"]["query_rows"], 6);
+    assert_eq!(body["control_plane_summary"]["credential_checks"], 2);
+    assert_eq!(body["control_plane_summary"]["credential_allows"], 1);
+    assert_eq!(body["control_plane_summary"]["credential_denies"], 1);
+    assert_eq!(body["estimated_cost_index"], 43);
+}
+
+#[tokio::test]
+async fn get_tenant_usage_report_returns_zeroes_for_empty_interval() {
+    let (ch, _ch_container) = start_clickhouse().await;
+    let (pg, _pg_container) = start_postgres().await;
+    let app = build_app_with_pg(ch, pg.clone());
+
+    let from = chrono::Utc::now() - chrono::Duration::days(3);
+    let to = chrono::Utc::now() - chrono::Duration::days(2);
+    let uri = format!(
+        "/v1/tenants/usage-report?from={}&to={}",
+        from.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        to.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+    );
+    let response = app.oneshot(dev_request("GET", &uri)).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_body_json(response.into_body()).await;
+    assert_eq!(body["telemetry_summary"]["spans"], 0);
+    assert_eq!(body["telemetry_summary"]["logs"], 0);
+    assert_eq!(body["telemetry_summary"]["metric_points"], 0);
+    assert_eq!(body["telemetry_summary"]["metric_series_created"], 0);
+    assert_eq!(body["control_plane_summary"]["query_reads"], 0);
+    assert_eq!(body["control_plane_summary"]["query_rows"], 0);
+    assert_eq!(body["control_plane_summary"]["credential_checks"], 0);
+    assert_eq!(body["control_plane_summary"]["credential_allows"], 0);
+    assert_eq!(body["control_plane_summary"]["credential_denies"], 0);
+    assert_eq!(body["estimated_cost_index"], 0);
 }
