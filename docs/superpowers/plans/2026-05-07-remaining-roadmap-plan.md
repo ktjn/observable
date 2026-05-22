@@ -250,7 +250,7 @@ Before Phase 5 starts, answer:
 - [x] **P5-S4: Add topology-aware impact view for one incident** (COMPLETED 2026-05-21)
   - SLO burn-rate incidents show an inline D3 topology subgraph in the incident detail page. `impacted_service` derived at query time via `alert_rules → slo_definitions`; `TopologyMap` extracted to `components/topology/`. No DB migration.
 
-- [x] **P5-S5: Add composite alert evaluation for one rule pair** (COMPLETED 2026-05-22)
+- [x] **P5-S5: Add composite alert evaluation for one rule pair** (COMPLETED 2026-05-21)
   - Direct prerequisite: threshold/SLO evaluator stability.
   - Completion signal: two existing signals can combine into one derived firing without duplicating evaluator architecture.
 

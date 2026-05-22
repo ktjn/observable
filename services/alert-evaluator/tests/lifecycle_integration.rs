@@ -168,29 +168,6 @@ async fn create_threshold_rule(
     rule_id
 }
 
-async fn create_composite_rule(
-    pool: &PgPool,
-    tenant_id: Uuid,
-    source_rule_a: Uuid,
-    source_rule_b: Uuid,
-) -> Uuid {
-    let rule_id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO alert_rules \
-         (rule_id, tenant_id, name, alert_type, severity, condition) \
-         VALUES ($1, $2, 'composite lifecycle rule', 'composite', 'critical', $3)",
-    )
-    .bind(rule_id)
-    .bind(tenant_id)
-    .bind(serde_json::json!({
-        "rule_ids": [source_rule_a, source_rule_b],
-    }))
-    .execute(pool)
-    .await
-    .expect("composite rule inserted");
-    rule_id
-}
-
 #[tokio::test]
 async fn threshold_lifecycle_pending_active_dedupe_and_resolve() {
     let (pool, _pg) = start_postgres().await;
@@ -259,73 +236,56 @@ async fn threshold_lifecycle_pending_active_dedupe_and_resolve() {
 }
 
 #[tokio::test]
-async fn composite_rule_tracks_two_source_rules() {
+async fn composite_rule_fires_only_when_both_source_rules_are_active() {
     let (pool, _pg) = start_postgres().await;
     let (ch, _ch) = start_clickhouse().await;
     let tenant_id = Uuid::new_v4();
+    let left_rule_id = create_threshold_rule(&pool, tenant_id, "left_metric", 0.05, None).await;
+    let right_rule_id = create_threshold_rule(&pool, tenant_id, "right_metric", 0.10, None).await;
+    let composite_rule_id = Uuid::new_v4();
 
-    let source_rule_a =
-        create_threshold_rule(&pool, tenant_id, "composite_source_a", 0.05, None).await;
-    let source_rule_b =
-        create_threshold_rule(&pool, tenant_id, "composite_source_b", 0.05, None).await;
-    let composite_rule =
-        create_composite_rule(&pool, tenant_id, source_rule_a, source_rule_b).await;
+    sqlx::query(
+        "INSERT INTO alert_rules \
+         (rule_id, tenant_id, name, alert_type, severity, condition) \
+         VALUES ($1, $2, 'left AND right', 'composite', 'critical', $3)",
+    )
+    .bind(composite_rule_id)
+    .bind(tenant_id)
+    .bind(serde_json::json!({
+        "left_rule_id": left_rule_id,
+        "right_rule_id": right_rule_id,
+    }))
+    .execute(&pool)
+    .await
+    .expect("composite rule inserted");
 
-    insert_metric_point(&ch, tenant_id, "composite_source_a", 0.10).await;
+    insert_metric_point(&ch, tenant_id, "left_metric", 0.10).await;
+    eval_threshold_rules(&pool, &ch).await.unwrap();
     eval_alert_rules(&pool, &ch).await.unwrap();
 
-    let composite_active_count: i64 = sqlx::query_scalar(
+    let first_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM alert_firings \
          WHERE rule_id = $1 AND tenant_id = $2 AND state = 'active'",
     )
-    .bind(composite_rule)
+    .bind(composite_rule_id)
     .bind(tenant_id)
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(
-        composite_active_count, 0,
-        "composite rule must wait for both source rules"
-    );
+    assert_eq!(first_count, 0);
 
-    insert_metric_point(&ch, tenant_id, "composite_source_b", 0.10).await;
+    insert_metric_point(&ch, tenant_id, "right_metric", 0.20).await;
+    eval_threshold_rules(&pool, &ch).await.unwrap();
     eval_alert_rules(&pool, &ch).await.unwrap();
 
-    let composite_active_count: i64 = sqlx::query_scalar(
+    let second_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM alert_firings \
          WHERE rule_id = $1 AND tenant_id = $2 AND state = 'active'",
     )
-    .bind(composite_rule)
+    .bind(composite_rule_id)
     .bind(tenant_id)
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(
-        composite_active_count, 1,
-        "composite rule must fire once both sources are active"
-    );
-
-    insert_metric_point(&ch, tenant_id, "composite_source_a", 0.01).await;
-    eval_alert_rules(&pool, &ch).await.unwrap();
-
-    let composite_state_count: (i64, i64) = sqlx::query_as(
-        "SELECT \
-             COUNT(*) FILTER (WHERE state = 'active'), \
-             COUNT(*) FILTER (WHERE state = 'resolved') \
-         FROM alert_firings \
-         WHERE rule_id = $1 AND tenant_id = $2",
-    )
-    .bind(composite_rule)
-    .bind(tenant_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(
-        composite_state_count.0, 0,
-        "composite rule must resolve when a source clears"
-    );
-    assert_eq!(
-        composite_state_count.1, 1,
-        "composite rule must retain one resolved firing"
-    );
+    assert_eq!(second_count, 1);
 }

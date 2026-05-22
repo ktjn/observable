@@ -47,8 +47,9 @@ pub struct SloBurnRateCondition {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct CompositeCondition {
-    pub rule_ids: Vec<Uuid>,
+pub struct CompositeRuleCondition {
+    pub left_rule_id: Uuid,
+    pub right_rule_id: Uuid,
 }
 
 pub fn calculate_burn_rate(
@@ -330,7 +331,10 @@ pub async fn eval_slo_burn_rate_rules(
     Ok(())
 }
 
-pub async fn eval_composite_rules(db: &sqlx::PgPool) -> anyhow::Result<()> {
+pub async fn eval_composite_rules(
+    db: &sqlx::PgPool,
+    _ch: &clickhouse::Client,
+) -> anyhow::Result<()> {
     let rules: Vec<AlertRuleRow> = sqlx::query_as(
         "SELECT rule_id, tenant_id, name, condition, severity, for_duration_secs, notification_channels, \
          auto_trigger_incident, auto_trigger_delay_secs, runbook_url \
@@ -342,7 +346,7 @@ pub async fn eval_composite_rules(db: &sqlx::PgPool) -> anyhow::Result<()> {
     tracing::debug!(count = rules.len(), "evaluating composite rules");
 
     for rule in rules {
-        let cond: CompositeCondition = match serde_json::from_value(rule.condition.clone()) {
+        let cond: CompositeRuleCondition = match serde_json::from_value(rule.condition.clone()) {
             Ok(c) => c,
             Err(e) => {
                 tracing::warn!(
@@ -354,46 +358,45 @@ pub async fn eval_composite_rules(db: &sqlx::PgPool) -> anyhow::Result<()> {
             }
         };
 
-        if cond.rule_ids.len() != 2 || cond.rule_ids[0] == cond.rule_ids[1] {
-            tracing::warn!(
-                rule_id = %rule.rule_id,
-                rule_ids = ?cond.rule_ids,
-                "skipping composite rule: expected exactly two unique source rule IDs"
-            );
-            continue;
-        }
+        let left_active: Option<Uuid> = sqlx::query_scalar(
+            "SELECT firing_id FROM alert_firings \
+             WHERE rule_id = $1 AND tenant_id = $2 AND state = 'active' \
+             LIMIT 1",
+        )
+        .bind(cond.left_rule_id)
+        .bind(rule.tenant_id)
+        .fetch_optional(db)
+        .await?;
 
-        let mut active_source_count = 0u64;
-        let mut source_lookup_failed = false;
-        for source_rule_id in &cond.rule_ids {
-            let is_active = match alert_rule_is_active(db, rule.tenant_id, *source_rule_id).await {
-                Ok(active) => active,
-                Err(e) => {
+        let right_active: Option<Uuid> = sqlx::query_scalar(
+            "SELECT firing_id FROM alert_firings \
+             WHERE rule_id = $1 AND tenant_id = $2 AND state = 'active' \
+             LIMIT 1",
+        )
+        .bind(cond.right_rule_id)
+        .bind(rule.tenant_id)
+        .fetch_optional(db)
+        .await?;
+
+        match (left_active, right_active) {
+            (Some(_), Some(_)) => {
+                if let Err(e) = record_firing(db, &rule, 1.0).await {
                     tracing::warn!(
                         rule_id = %rule.rule_id,
-                        source_rule_id = %source_rule_id,
                         error = %e,
-                        "skipping composite rule: source rule lookup failed"
+                        "failed to record composite alert firing"
                     );
-                    source_lookup_failed = true;
-                    break;
                 }
-            };
-            if is_active {
-                active_source_count += 1;
             }
-        }
-
-        if source_lookup_failed {
-            continue;
-        }
-
-        if active_source_count == 2 {
-            if let Err(e) = record_firing(db, &rule, active_source_count as f64).await {
-                tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to record composite alert firing");
+            _ => {
+                if let Err(e) = resolve_open_firing(db, &rule, 0.0).await {
+                    tracing::warn!(
+                        rule_id = %rule.rule_id,
+                        error = %e,
+                        "failed to resolve composite alert firing"
+                    );
+                }
             }
-        } else if let Err(e) = resolve_open_firing(db, &rule, active_source_count as f64).await {
-            tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to resolve composite alert firing");
         }
     }
 
@@ -440,27 +443,8 @@ async fn fetch_span_counts(
 pub async fn eval_alert_rules(db: &sqlx::PgPool, ch: &clickhouse::Client) -> anyhow::Result<()> {
     eval_threshold_rules(db, ch).await?;
     eval_slo_burn_rate_rules(db, ch).await?;
-    eval_composite_rules(db).await?;
+    eval_composite_rules(db, ch).await?;
     Ok(())
-}
-
-async fn alert_rule_is_active(
-    db: &sqlx::PgPool,
-    tenant_id: Uuid,
-    rule_id: Uuid,
-) -> anyhow::Result<bool> {
-    let active: Option<bool> = sqlx::query_scalar(
-        "SELECT EXISTS( \
-             SELECT 1 FROM alert_firings \
-             WHERE rule_id = $1 AND tenant_id = $2 AND state = 'active' \
-         )",
-    )
-    .bind(rule_id)
-    .bind(tenant_id)
-    .fetch_optional(db)
-    .await?;
-
-    Ok(active.unwrap_or(false))
 }
 
 async fn record_firing(db: &sqlx::PgPool, rule: &AlertRuleRow, value: f64) -> anyhow::Result<()> {
