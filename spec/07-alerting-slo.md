@@ -13,6 +13,8 @@
 - SLO burn rate
 - deployment regression
 
+Composite alerts evaluate a two-rule pair. The composite rule's `condition` payload references exactly two source rule IDs, and the composite enters Active only when both source rules are Active. If either source rule clears, the composite resolves.
+
 ### 11.2 Incident Model
 
 See `spec/14-domain-model.md §5` for the authoritative Incident entity schema and field definitions.

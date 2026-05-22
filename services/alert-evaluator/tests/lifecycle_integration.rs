@@ -1,4 +1,4 @@
-use alert_evaluator::evaluator::eval_threshold_rules;
+use alert_evaluator::evaluator::{eval_alert_rules, eval_threshold_rules};
 use domain::MetricPointRow;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::path::Path;
@@ -168,6 +168,29 @@ async fn create_threshold_rule(
     rule_id
 }
 
+async fn create_composite_rule(
+    pool: &PgPool,
+    tenant_id: Uuid,
+    source_rule_a: Uuid,
+    source_rule_b: Uuid,
+) -> Uuid {
+    let rule_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO alert_rules \
+         (rule_id, tenant_id, name, alert_type, severity, condition) \
+         VALUES ($1, $2, 'composite lifecycle rule', 'composite', 'critical', $3)",
+    )
+    .bind(rule_id)
+    .bind(tenant_id)
+    .bind(serde_json::json!({
+        "rule_ids": [source_rule_a, source_rule_b],
+    }))
+    .execute(pool)
+    .await
+    .expect("composite rule inserted");
+    rule_id
+}
+
 #[tokio::test]
 async fn threshold_lifecycle_pending_active_dedupe_and_resolve() {
     let (pool, _pg) = start_postgres().await;
@@ -233,4 +256,76 @@ async fn threshold_lifecycle_pending_active_dedupe_and_resolve() {
     .unwrap();
     assert_eq!(resolved_count, 1);
     assert_eq!(unresolved_count, 0);
+}
+
+#[tokio::test]
+async fn composite_rule_tracks_two_source_rules() {
+    let (pool, _pg) = start_postgres().await;
+    let (ch, _ch) = start_clickhouse().await;
+    let tenant_id = Uuid::new_v4();
+
+    let source_rule_a =
+        create_threshold_rule(&pool, tenant_id, "composite_source_a", 0.05, None).await;
+    let source_rule_b =
+        create_threshold_rule(&pool, tenant_id, "composite_source_b", 0.05, None).await;
+    let composite_rule =
+        create_composite_rule(&pool, tenant_id, source_rule_a, source_rule_b).await;
+
+    insert_metric_point(&ch, tenant_id, "composite_source_a", 0.10).await;
+    eval_alert_rules(&pool, &ch).await.unwrap();
+
+    let composite_active_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM alert_firings \
+         WHERE rule_id = $1 AND tenant_id = $2 AND state = 'active'",
+    )
+    .bind(composite_rule)
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        composite_active_count, 0,
+        "composite rule must wait for both source rules"
+    );
+
+    insert_metric_point(&ch, tenant_id, "composite_source_b", 0.10).await;
+    eval_alert_rules(&pool, &ch).await.unwrap();
+
+    let composite_active_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM alert_firings \
+         WHERE rule_id = $1 AND tenant_id = $2 AND state = 'active'",
+    )
+    .bind(composite_rule)
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        composite_active_count, 1,
+        "composite rule must fire once both sources are active"
+    );
+
+    insert_metric_point(&ch, tenant_id, "composite_source_a", 0.01).await;
+    eval_alert_rules(&pool, &ch).await.unwrap();
+
+    let composite_state_count: (i64, i64) = sqlx::query_as(
+        "SELECT \
+             COUNT(*) FILTER (WHERE state = 'active'), \
+             COUNT(*) FILTER (WHERE state = 'resolved') \
+         FROM alert_firings \
+         WHERE rule_id = $1 AND tenant_id = $2",
+    )
+    .bind(composite_rule)
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        composite_state_count.0, 0,
+        "composite rule must resolve when a source clears"
+    );
+    assert_eq!(
+        composite_state_count.1, 1,
+        "composite rule must retain one resolved firing"
+    );
 }

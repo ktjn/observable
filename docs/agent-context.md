@@ -28,6 +28,7 @@ making changes.
   - `archived/plans/2026-05-15-trace-detail-uplift.md` — TraceDetail page-stack, MetricCards, service legend, Panel wrappers
   - `archived/plans/2026-05-12-dashboard-grid-redesign.md` — react-grid-layout edit mode + backend error surfacing
   - `archived/plans/2026-05-05-out-of-band-risk-remediation.md` — query-api auth hardening, NLQ SQL safety, CI integration-test gate, governance drift cleanup
+  - `archived/plans/2026-05-22-p5-s5-composite-alert-evaluation.md` — composite alert rule-pair evaluation in the alert evaluator
   - `archived/plans/2026-05-10-p5-s2-notification-routing-webhook-complete.md` for P5-S2
   - `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
   - `docs/superpowers/plans/2026-05-18-p5-s1-incident-timeline.md` — P5-S1 incident timeline with source links (COMPLETED 2026-05-18)
@@ -101,6 +102,7 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 - Frontend: `apps/frontend/src/features/incidents/` contains `IncidentsPage.tsx` (list with status filters) and `IncidentDetailPage.tsx` (timeline + topology impact panel for SLO incidents).
 - Frontend route `/alerts/$ruleId` renders `AlertRuleDetailPage` (rule metadata + firing history). Added in P5-S1.
 - Alert evaluator `alert_fired`/`alert_resolved` incident event messages now include rule name and value (e.g. `"High CPU Alert fired: value=95.30"`). Added in P5-S1.
+- Composite alerts are implemented in the alert evaluator: `alert_type = 'composite'` rules now interpret `condition.rule_ids = [rule_a, rule_b]` and fire only when both source alerts are active.
 - Known simplification: `dedup_key` currently uses `rule_id` only because `alert_rules` lacks `service_name`/`environment`. The spec (`spec/14-domain-model.md`) defines `rule_id + service_name + environment`.
 
 ## Dev Environment Gotchas
