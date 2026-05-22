@@ -202,9 +202,11 @@ These gaps were identified during a direct review of `apps/frontend/src` and the
   - Detail: [P4-S5 SLO burn-rate implementation plan](../../../archived/plans/2026-05-05-p4-s5-slo-burn-rate.md)
   - Checkpoint: are error budget semantics now reliable enough for customer use? Answer: yes for service-level availability SLOs backed by hot span data and multi-window burn-rate alerts. Latency, synthetic, incident, and notification behavior remain follow-up slices.
 
-- [ ] **P4-S6: Add production runbook set for one failure class**
+- [x] **P4-S6: Add production runbook set for one failure class** (COMPLETED 2026-05-22)
   - Outcome: one documented incident type has triage, rollback, and restore steps.
-  - Checkpoint: can an operator execute this without tribal knowledge?
+  - Closure note: `docs/runbooks/deployment-regression.md` documents the canary/rollout regression path, including release-state triage, Helm rollback, canary removal, and post-rollback verification.
+  - Checkpoint: yes - the runbook is self-contained and uses the exact Helm and `kubectl` commands shipped with the current canary flow.
+  - Next slice: P4-S7 tenant usage and cost report for one billing interval.
 
 - [ ] **P4-S7: Add tenant usage and cost report for one billing interval**
   - Outcome: operators can explain where ingest and storage cost went.
