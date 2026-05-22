@@ -10,8 +10,8 @@ use domain::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use http_body_util::BodyExt;
 use query_api::{
     alerts, config, dashboards, incidents, llm_adapter, logs, metrics,
-    middleware::auth::TenantContext, middleware::auth::require_tenant, planner::QueryPlanner, slos,
-    traces,
+    middleware::auth::TenantContext, middleware::auth::require_tenant, planner::QueryPlanner,
+    reliability, slos, traces,
 };
 use serde_json::Value;
 use sqlx::postgres::{PgPool, PgPoolOptions};
@@ -162,6 +162,10 @@ fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
             "/v1/incidents/{incident_id}",
             get(incidents::handle_get_incident),
         )
+        .route(
+            "/v1/services/{service_name}/reliability-report",
+            get(reliability::handle_get_service_reliability_report),
+        )
         .layer(axum_middleware::from_fn(require_tenant))
         .layer(axum::Extension(db))
         .layer(axum::Extension(auth_service_url))
@@ -195,6 +199,10 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
         .route(
             "/v1/incidents/{incident_id}",
             get(incidents::handle_get_incident),
+        )
+        .route(
+            "/v1/services/{service_name}/reliability-report",
+            get(reliability::handle_get_service_reliability_report),
         )
         .layer(axum_middleware::from_fn(require_tenant))
         .layer(axum::Extension(db))
@@ -1508,5 +1516,230 @@ async fn get_incident_detail_impacted_service_null_for_threshold_rule() {
     assert!(
         body["impacted_service"].is_null(),
         "threshold incident must have null impacted_service"
+    );
+}
+
+#[tokio::test]
+async fn get_service_reliability_report_filters_service_environment_and_interval() {
+    let (pg, _pg_container) = start_postgres().await;
+    let ch = ChClient::default().with_url("http://127.0.0.1:19999");
+    let app = build_app_with_pg(ch, pg.clone());
+    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+    let service_name = "checkout";
+    let from = chrono::Utc::now() - chrono::Duration::hours(6);
+    let to = chrono::Utc::now();
+
+    let checkout_prod_slo_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO slo_definitions \
+         (tenant_id, service_name, environment, sli_type, target, window_days, \
+          burn_rate_fast_threshold, burn_rate_slow_threshold, description) \
+         VALUES ($1, $2, 'prod', 'availability', 0.99, 30, 14.4, 1.0, 'Checkout prod SLO') \
+         RETURNING slo_id",
+    )
+    .bind(tenant)
+    .bind(service_name)
+    .fetch_one(&pg)
+    .await
+    .expect("slo inserted");
+
+    let checkout_prod_rule_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO alert_rules \
+         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
+         VALUES ($1, 'Checkout prod SLO burn', 'slo_burn_rate', 'critical', $2, '{}', true) \
+         RETURNING rule_id",
+    )
+    .bind(tenant)
+    .bind(serde_json::json!({
+        "slo_id": checkout_prod_slo_id,
+        "fast_window_minutes": 60,
+        "slow_window_minutes": 360,
+    }))
+    .fetch_one(&pg)
+    .await
+    .expect("slo rule inserted");
+
+    sqlx::query(
+        "INSERT INTO alert_firings (rule_id, tenant_id, state, value, occurred_at) \
+         VALUES ($1, $2, 'active', 0.42, NOW())",
+    )
+    .bind(checkout_prod_rule_id)
+    .bind(tenant)
+    .execute(&pg)
+    .await
+    .expect("slo firing inserted");
+
+    let checkout_staging_slo_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO slo_definitions \
+         (tenant_id, service_name, environment, sli_type, target, window_days, \
+          burn_rate_fast_threshold, burn_rate_slow_threshold, description) \
+         VALUES ($1, $2, 'staging', 'availability', 0.99, 30, 14.4, 1.0, 'Checkout staging SLO') \
+         RETURNING slo_id",
+    )
+    .bind(tenant)
+    .bind(service_name)
+    .fetch_one(&pg)
+    .await
+    .expect("staging slo inserted");
+
+    let checkout_staging_rule_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO alert_rules \
+         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
+         VALUES ($1, 'Checkout staging SLO burn', 'slo_burn_rate', 'critical', $2, '{}', true) \
+         RETURNING rule_id",
+    )
+    .bind(tenant)
+    .bind(serde_json::json!({
+        "slo_id": checkout_staging_slo_id,
+        "fast_window_minutes": 60,
+        "slow_window_minutes": 360,
+    }))
+    .fetch_one(&pg)
+    .await
+    .expect("staging slo rule inserted");
+
+    let payments_prod_slo_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO slo_definitions \
+         (tenant_id, service_name, environment, sli_type, target, window_days, \
+          burn_rate_fast_threshold, burn_rate_slow_threshold, description) \
+         VALUES ($1, 'payments', 'prod', 'availability', 0.99, 30, 14.4, 1.0, 'Payments prod SLO') \
+         RETURNING slo_id",
+    )
+    .bind(tenant)
+    .fetch_one(&pg)
+    .await
+    .expect("payments slo inserted");
+
+    let payments_prod_rule_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO alert_rules \
+         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
+         VALUES ($1, 'Payments prod SLO burn', 'slo_burn_rate', 'critical', $2, '{}', true) \
+         RETURNING rule_id",
+    )
+    .bind(tenant)
+    .bind(serde_json::json!({
+        "slo_id": payments_prod_slo_id,
+        "fast_window_minutes": 60,
+        "slow_window_minutes": 360,
+    }))
+    .fetch_one(&pg)
+    .await
+    .expect("payments slo rule inserted");
+
+    sqlx::query(
+        "INSERT INTO incidents \
+         (incident_id, tenant_id, title, severity, status, dedup_key, triggered_by_rule_id, triggered_at, resolved_at) \
+         VALUES ($1, $2, 'Checkout prod resolved', 'critical', 'resolved', 'checkout-prod-resolved', $3, $4, $5)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant)
+    .bind(checkout_prod_rule_id)
+    .bind(from + chrono::Duration::hours(1))
+    .bind(from + chrono::Duration::hours(2))
+    .execute(&pg)
+    .await
+    .expect("resolved incident inserted");
+
+    sqlx::query(
+        "INSERT INTO incidents \
+         (incident_id, tenant_id, title, severity, status, dedup_key, triggered_by_rule_id, triggered_at) \
+         VALUES ($1, $2, 'Checkout prod open', 'warning', 'triggered', 'checkout-prod-open', $3, $4)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant)
+    .bind(checkout_prod_rule_id)
+    .bind(from + chrono::Duration::hours(3))
+    .execute(&pg)
+    .await
+    .expect("open incident inserted");
+
+    sqlx::query(
+        "INSERT INTO incidents \
+         (incident_id, tenant_id, title, severity, status, dedup_key, triggered_by_rule_id, triggered_at, resolved_at) \
+         VALUES ($1, $2, 'Checkout staging incident', 'warning', 'resolved', 'checkout-staging', $3, $4, $5)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant)
+    .bind(checkout_staging_rule_id)
+    .bind(from + chrono::Duration::hours(1))
+    .bind(from + chrono::Duration::hours(2))
+    .execute(&pg)
+    .await
+    .expect("staging incident inserted");
+
+    sqlx::query(
+        "INSERT INTO incidents \
+         (incident_id, tenant_id, title, severity, status, dedup_key, triggered_by_rule_id, triggered_at, resolved_at) \
+         VALUES ($1, $2, 'Payments prod incident', 'critical', 'resolved', 'payments-prod', $3, $4, $5)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant)
+    .bind(payments_prod_rule_id)
+    .bind(from + chrono::Duration::hours(1))
+    .bind(from + chrono::Duration::hours(2))
+    .execute(&pg)
+    .await
+    .expect("other service incident inserted");
+
+    sqlx::query(
+        "INSERT INTO deployment_markers \
+         (deployment_id, tenant_id, project_id, service_name, environment, service_version, status, started_at, finished_at, deployed_by, commit_sha, rollback_of, metadata) \
+         VALUES ($1, $2, NULL, $3, 'prod', '2026.05.22', 'success', $4, $5, 'ci-bot', 'abc123', NULL, NULL)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant)
+    .bind(service_name)
+    .bind(from + chrono::Duration::hours(4))
+    .bind(from + chrono::Duration::hours(5))
+    .execute(&pg)
+    .await
+    .expect("prod deployment inserted");
+
+    sqlx::query(
+        "INSERT INTO deployment_markers \
+         (deployment_id, tenant_id, project_id, service_name, environment, service_version, status, started_at, finished_at, deployed_by, commit_sha, rollback_of, metadata) \
+         VALUES ($1, $2, NULL, $3, 'staging', '2026.05.21', 'success', $4, $5, 'ci-bot', 'def456', NULL, NULL)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant)
+    .bind(service_name)
+    .bind(from + chrono::Duration::hours(4))
+    .bind(from + chrono::Duration::hours(5))
+    .execute(&pg)
+    .await
+    .expect("staging deployment inserted");
+
+    let uri = format!(
+        "/v1/services/{service_name}/reliability-report?from={}&to={}&environment=prod",
+        from.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        to.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+    );
+    let response = app.oneshot(dev_request("GET", &uri)).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_body_json(response.into_body()).await;
+    assert_eq!(body["service_name"], service_name);
+    assert_eq!(body["environment"], "prod");
+    assert_eq!(body["incident_summary"]["total"], 2);
+    assert_eq!(body["incident_summary"]["open"], 1);
+    assert_eq!(body["incident_summary"]["resolved"], 1);
+    assert_eq!(body["slo_summary"]["total"], 1);
+    assert_eq!(body["slo_summary"]["firing"], 1);
+    assert_eq!(body["deployments"].as_array().unwrap().len(), 1);
+
+    let incidents = body["incidents"].as_array().unwrap();
+    assert!(
+        incidents.iter().all(|incident| {
+            incident["title"] != "Checkout staging incident"
+                && incident["title"] != "Payments prod incident"
+        }),
+        "report must only include the target service and environment"
+    );
+
+    let mean_time = body["incident_summary"]["mean_time_to_resolve_minutes"]
+        .as_f64()
+        .expect("MTTR value");
+    assert!(
+        mean_time >= 59.0,
+        "expected MTTR to reflect the resolved incident duration, got {mean_time}"
     );
 }

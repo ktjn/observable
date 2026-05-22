@@ -23,6 +23,7 @@ import { ServiceMetricsWorkspace } from "../features/metrics/ServiceMetricsWorks
 import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
 import { ServiceDeploymentsTab } from "../features/services/ServiceDeploymentsTab";
 import { ServiceAlertsTab } from "../features/services/ServiceAlertsTab";
+import { ServiceReliabilityTab } from "../features/services/ServiceReliabilityTab";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
@@ -190,9 +191,10 @@ function ServiceDetailView({
   );
 }
 
-type ServiceSignalTab = "logs" | "metrics" | "traces" | "deployments" | "alerts";
+type ServiceSignalTab = "reliability" | "logs" | "metrics" | "traces" | "deployments" | "alerts";
 
 function signalTabFromPath(pathname: string): ServiceSignalTab {
+  if (pathname.endsWith("/reliability")) return "reliability";
   if (pathname.endsWith("/metrics")) return "metrics";
   if (pathname.endsWith("/traces")) return "traces";
   if (pathname.endsWith("/deployments")) return "deployments";
@@ -218,6 +220,7 @@ function ServiceSignalTabs({
 }) {
   const encodedService = encodeURIComponent(serviceName);
   const tabLinks = [
+    { tab: "reliability" as const, label: "Reliability", to: "/services/$serviceId/reliability" },
     { tab: "logs" as const,         label: "Logs",        to: "/services/$serviceId/logs" },
     { tab: "metrics" as const,      label: "Metrics",     to: "/services/$serviceId/metrics" },
     { tab: "traces" as const,       label: "Traces",      to: "/services/$serviceId/traces" },
@@ -263,6 +266,9 @@ function ServiceSignalTabs({
       )}
       {activeTab === "deployments" && (
         <ServiceDeploymentsTab serviceName={serviceName} />
+      )}
+      {activeTab === "reliability" && (
+        <ServiceReliabilityTab serviceName={serviceName} />
       )}
       {activeTab === "alerts" && <ServiceAlertsTab />}
     </Panel>

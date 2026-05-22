@@ -345,6 +345,12 @@ test("renders the service detail overview with performance entry points", async 
     "href",
     "/infrastructure?service=checkout",
   );
+
+  const tabs = screen.getByRole("navigation", { name: "Service signals" });
+  expect(within(tabs).getByRole("link", { name: "Reliability" })).toHaveAttribute(
+    "href",
+    "/services/checkout/reliability",
+  );
 });
 
 test("renders service metrics workspace with filtering and selected series points", async () => {

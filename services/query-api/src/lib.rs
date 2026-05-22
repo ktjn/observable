@@ -13,6 +13,7 @@ pub mod metrics;
 pub mod middleware;
 pub mod notifications;
 pub mod planner;
+pub mod reliability;
 pub mod schemas;
 pub mod slos;
 pub mod sql_templates;
