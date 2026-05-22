@@ -101,6 +101,7 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 - Frontend: `apps/frontend/src/features/incidents/` contains `IncidentsPage.tsx` (list with status filters) and `IncidentDetailPage.tsx` (timeline + topology impact panel for SLO incidents).
 - Frontend route `/alerts/$ruleId` renders `AlertRuleDetailPage` (rule metadata + firing history). Added in P5-S1.
 - Alert evaluator `alert_fired`/`alert_resolved` incident event messages now include rule name and value (e.g. `"High CPU Alert fired: value=95.30"`). Added in P5-S1.
+- `alert-evaluator` now supports a first composite alert slice: `alert_type = 'composite'` with `condition` fields `left_rule_id` and `right_rule_id`; the evaluator treats the pair as an `AND` and fires only when both source rules are active.
 - Known simplification: `dedup_key` currently uses `rule_id` only because `alert_rules` lacks `service_name`/`environment`. The spec (`spec/14-domain-model.md`) defines `rule_id + service_name + environment`.
 
 ## Dev Environment Gotchas
