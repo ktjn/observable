@@ -30,6 +30,7 @@ making changes.
   - `archived/plans/2026-05-05-out-of-band-risk-remediation.md` — query-api auth hardening, NLQ SQL safety, CI integration-test gate, governance drift cleanup
   - `archived/plans/2026-05-21-p5-s5-composite-alert-evaluation.md` — composite alert rule-pair evaluation in the alert evaluator
   - `archived/plans/2026-05-22-p5-s6-reliability-reporting.md` — service-scoped reliability report endpoint and frontend tab
+  - `archived/plans/2026-05-22-p4-s2-backup-restore-drill.md` — P4-S2 hot-store restore drill for the shared PostgreSQL control-plane dataset (COMPLETED 2026-05-22)
   - `archived/plans/2026-05-10-p5-s2-notification-routing-webhook-complete.md` for P5-S2
   - `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
   - `docs/superpowers/plans/2026-05-18-p5-s1-incident-timeline.md` — P5-S1 incident timeline with source links (COMPLETED 2026-05-18)
