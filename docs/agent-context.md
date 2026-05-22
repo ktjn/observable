@@ -31,6 +31,7 @@ making changes.
   - `archived/plans/2026-05-21-p5-s5-composite-alert-evaluation.md` — composite alert rule-pair evaluation in the alert evaluator
   - `archived/plans/2026-05-22-p5-s6-reliability-reporting.md` — service-scoped reliability report endpoint and frontend tab
   - `archived/plans/2026-05-22-p4-s7-tenant-usage-report.md` — tenant usage and cost report for one billing interval
+  - `archived/plans/2026-05-22-p4-s8-load-chaos-tenant-escape-upgrade-rollback.md` — release-readiness umbrella for load, chaos, tenant-escape, and upgrade/rollback evidence
   - `archived/plans/2026-05-22-p4-s2-backup-restore-drill.md` — P4-S2 hot-store restore drill for the shared PostgreSQL control-plane dataset (COMPLETED 2026-05-22)
   - `archived/plans/2026-05-10-p5-s2-notification-routing-webhook-complete.md` for P5-S2
   - `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
@@ -101,6 +102,13 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 - The report is read-only and combines existing ClickHouse telemetry counts with PostgreSQL control-plane audit counts into a relative usage index.
 - Frontend page `apps/frontend/src/features/admin/BillingReportPage.tsx` renders the report from the global date range on `/admin`.
 - The UI uses the existing shared metric cards and panel components; no separate billing or invoicing model was added.
+
+## P4-S8 Release-Readiness Suite (completed 2026-05-22)
+
+- `scripts/release-candidate-suites.sh` is the local umbrella gate for the P4-S8 readiness evidence.
+- `scripts/chaos-smoke.sh` restarts `storage-writer` in the compose stack and verifies that the pipeline recovers after a single failure injection.
+- The tenant-escape signal still comes from `docker compose run --rm smoke-test`; the load baseline still comes from `docker compose run --rm perf-smoke`; the upgrade/rollback evidence still comes from `scripts/kind-test.sh`.
+- The slice is implementation-only: no ADR or data-model change was required, and the new shell gates simply package the existing release-readiness signals into one repeatable command.
 
 ## Incident Timeline (P5-S1, completed 2026-05-18)
 

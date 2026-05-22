@@ -95,6 +95,8 @@ CI gates map the test strategy to merge and release decisions.
 
 **Performance smoke baseline** (`scripts/perf-smoke.sh`): runs 20 samples against every ingest and query endpoint, reports P50 and P95 per path, and exits non-zero if any path exceeds its threshold (ingest P50 < 500 ms / P95 < 1000 ms; query P50 < 1000 ms / P95 < 3000 ms per §18.3). Run locally with `docker compose up perf-smoke --abort-on-container-exit`. Thresholds are overridable via env vars (`P50_INGEST_MAX_MS`, `P95_INGEST_MAX_MS`, `P50_QUERY_MAX_MS`, `P95_QUERY_MAX_MS`).
 
+**Release-candidate umbrella** (`scripts/release-candidate-suites.sh`): sequences the load baseline, tenant-escape smoke, one-service chaos probe, and kind rollback gate in one local command for P4-S8 readiness evidence. The chaos probe (`scripts/chaos-smoke.sh`) restarts `storage-writer` in the local compose stack and verifies that newly ingested data becomes queryable again while the cross-tenant denial check still fails closed.
+
 Run `docker compose up perf-smoke --abort-on-container-exit` for changes that can
 affect ingest latency, query latency, dashboard load, ClickHouse query shape,
 storage writes, stream processing, Docker resource limits, or service startup
