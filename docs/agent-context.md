@@ -90,6 +90,9 @@ Tenant → Environment only (per ADR-028 + ADR-031).
   `success` or `failed` when promotion or gate-failure completes.
 - `ingest-gateway` is now a dual lib+bin crate (`src/lib.rs` re-exports `deployment_registry`
   for Testcontainers integration tests in `services/ingest-gateway/tests/`).
+- Production runbooks now have a dedicated docs surface: `docs/runbooks/deployment-regression.md`
+  covers canary and rollout regressions, with the exact `helm` and `kubectl` recovery steps used
+  by the current canary flow.
 
 ## Incident Timeline (P5-S1, completed 2026-05-18)
 
