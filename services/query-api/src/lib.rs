@@ -12,6 +12,7 @@ pub mod mcp_tools;
 pub mod metrics;
 pub mod middleware;
 pub mod notifications;
+pub mod observability;
 pub mod planner;
 pub mod reliability;
 pub mod schemas;

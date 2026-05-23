@@ -10,8 +10,8 @@ use domain::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use http_body_util::BodyExt;
 use query_api::{
     alerts, config, dashboards, incidents, llm_adapter, logs, metrics,
-    middleware::auth::TenantContext, middleware::auth::require_tenant, planner::QueryPlanner,
-    reliability, slos, traces, usage,
+    middleware::auth::TenantContext, middleware::auth::require_tenant, observability,
+    planner::QueryPlanner, reliability, slos, traces, usage,
 };
 use serde_json::Value;
 use sqlx::postgres::{PgPool, PgPoolOptions};
@@ -173,6 +173,10 @@ fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
         .layer(axum_middleware::from_fn(require_tenant))
         .layer(axum::Extension(db))
         .layer(axum::Extension(auth_service_url))
+        .route("/health", get(|| async { StatusCode::OK }))
+        .route("/readyz", get(observability::readyz))
+        .route("/metrics", get(observability::metrics))
+        .layer(axum_middleware::from_fn(observability::record_http_metrics))
         .with_state(state)
 }
 
@@ -215,6 +219,10 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
         .layer(axum_middleware::from_fn(require_tenant))
         .layer(axum::Extension(db))
         .layer(axum::Extension(auth_service_url_ext))
+        .route("/health", get(|| async { StatusCode::OK }))
+        .route("/readyz", get(observability::readyz))
+        .route("/metrics", get(observability::metrics))
+        .layer(axum_middleware::from_fn(observability::record_http_metrics))
         .with_state(state)
 }
 
@@ -232,11 +240,15 @@ fn fake_nlq_app_no_db() -> Router {
     let tenant_id = Uuid::parse_str(DEV_TENANT_ID).unwrap();
     Router::new()
         .route("/v1/nlq", post(llm_adapter::handle_nlq_query))
+        .route("/health", get(|| async { StatusCode::OK }))
+        .route("/readyz", get(observability::readyz))
+        .route("/metrics", get(observability::metrics))
         .layer(axum::Extension(TenantContext {
             tenant_id,
             user_id: None,
             role: "admin".into(),
         }))
+        .layer(axum_middleware::from_fn(observability::record_http_metrics))
         .with_state(state)
 }
 
@@ -479,6 +491,99 @@ async fn invalid_tenant_id_header_returns_400() {
     let resp = app.oneshot(req).await.unwrap();
 
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+// ── Self-observability probes ───────────────────────────────────────────────
+
+#[tokio::test]
+async fn query_api_readyz_returns_200_when_dependencies_are_up() {
+    let (ch, _ch_container) = start_clickhouse().await;
+    let (db, _pg) = start_postgres().await;
+    let app = build_app_with_pg(ch, db);
+
+    let req = Request::builder()
+        .method("GET")
+        .uri("/readyz")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn query_api_readyz_returns_503_when_dependencies_are_unavailable() {
+    let app = fake_app_no_db(None);
+
+    let req = Request::builder()
+        .method("GET")
+        .uri("/readyz")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+
+    assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test]
+async fn query_api_metrics_endpoint_exposes_prometheus_text() {
+    let app = fake_app_no_db(None);
+    let metrics_app = app.clone();
+
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/traces/histogram?buckets=10")
+        .body(Body::empty())
+        .expect("request body");
+    let resp = app.oneshot(request).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+    let metrics_resp = metrics_app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/metrics")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(metrics_resp.status(), StatusCode::OK);
+    let content_type = metrics_resp
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .expect("content type header present")
+        .to_str()
+        .expect("content type is utf-8");
+    assert!(
+        content_type.starts_with("text/plain"),
+        "expected Prometheus text format, got {content_type}"
+    );
+
+    let bytes = metrics_resp
+        .into_body()
+        .collect()
+        .await
+        .expect("metrics body collected")
+        .to_bytes();
+    let body = String::from_utf8(bytes.to_vec()).expect("metrics body is utf-8");
+    assert!(
+        body.contains("query_api_http_requests_total"),
+        "expected HTTP request counter in Prometheus payload"
+    );
+    assert!(
+        body.contains("query_api_http_request_duration_seconds"),
+        "expected HTTP duration histogram in Prometheus payload"
+    );
+    assert!(
+        body.contains("method=\"GET\""),
+        "expected method label in Prometheus payload"
+    );
+    assert!(
+        body.contains("status=\"401\""),
+        "expected auth failure status label in Prometheus payload"
+    );
 }
 
 // ── Histogram query-string parsing (regression for nanosecond timestamps) ────
