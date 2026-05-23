@@ -12,6 +12,7 @@ mod mcp_tools;
 mod metrics;
 mod middleware;
 mod notifications;
+mod observability;
 mod planner;
 mod reliability;
 mod schemas;
@@ -206,6 +207,9 @@ async fn main() -> anyhow::Result<()> {
             get(tenants::list_tenant_environments),
         )
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
+        .route("/readyz", get(observability::readyz))
+        .route("/metrics", get(observability::metrics))
+        .layer(axum_middleware::from_fn(observability::record_http_metrics))
         .layer(TraceLayer::new_for_http())
         .with_state(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
