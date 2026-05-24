@@ -94,6 +94,7 @@ fn build_tokens_app(pool: PgPool) -> Router {
         planner: std::sync::Arc::new(query_api::planner::QueryPlanner),
         llm: None,
         auth_service_url: "http://auth-service:4319".into(),
+        metrics: std::sync::Arc::new(query_api::observability::QueryApiMetrics::new()),
     };
     Router::new()
         .route("/v1/tokens", get(tokens::list_tokens))

@@ -27,9 +27,12 @@ jsonwebtoken       = { version = "10", features = ["rust_crypto"] }
 rand               = "0.8"
 base64             = "0.22"
 reqwest            = { workspace = true }
+prometheus         = { version = "0.14.0", features = ["process"] }
 
 [dev-dependencies]
 testcontainers         = "0.27.3"
 testcontainers-modules = { version = "0.15.0", features = ["postgres"] }
 tokio                  = { version = "1", features = ["full"] }
 uuid                   = { version = "1", features = ["v4"] }
+tower                  = { version = "0.4", features = ["util"] }
+http-body-util         = "0.1"

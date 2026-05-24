@@ -20,7 +20,7 @@ making changes.
   default entry role. Runtimes without subagent support should apply matching specialist `.agent.md`
   files manually as checklists.
 - Active roadmap: `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` — unified post-Phase-3 implementation plan.
-- Active detailed implementation plan: `docs/superpowers/plans/2026-05-23-rf-6-query-api-self-observability.md` — first RF-6 self-observability slice for `query-api` `/readyz` + `/metrics`
+- Active detailed implementation plan: `docs/superpowers/plans/2026-05-24-auth-service-self-observability.md` — next RF-6 self-observability slice for `auth-service` `/readyz` + `/metrics`
 - Completed / archived detailed plans:
   - `archived/plans/2026-05-06-identity-provider-zitadel.md` — Zitadel 4.x OIDC PKCE flow, session JWTs, user/role tables, frontend login/callback/me pages, Admin Console identity settings
   - `archived/plans/2026-05-05-p4-s1-warm-retention.md` — warm-retention movement path (ARCHIVED/DEFERRED; not implemented)
@@ -34,6 +34,7 @@ making changes.
   - `archived/plans/2026-05-22-p4-s8-load-chaos-tenant-escape-upgrade-rollback.md` — release-readiness umbrella for load, chaos, tenant-escape, and upgrade/rollback evidence
   - `archived/plans/2026-05-22-p4-s2-backup-restore-drill.md` — P4-S2 hot-store restore drill for the shared PostgreSQL control-plane dataset (COMPLETED 2026-05-22)
   - `archived/plans/2026-05-10-p5-s2-notification-routing-webhook-complete.md` for P5-S2
+  - `archived/plans/2026-05-23-rf-6-query-api-self-observability.md` — first RF-6 self-observability slice for `query-api` `/readyz` + `/metrics`
   - `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
   - `docs/superpowers/plans/2026-05-18-p5-s1-incident-timeline.md` — P5-S1 incident timeline with source links (COMPLETED 2026-05-18)
 - Historical Phase 1 plan: `archived/plans/2026-04-17-phase1-internal-mvp.md`; do not treat it as an active backlog.

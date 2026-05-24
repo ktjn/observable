@@ -68,6 +68,7 @@ fn build_app(db: PgPool, auth_service_url: String) -> Router {
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: auth_service_url.clone(),
+        metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
     };
     Router::new()
         .route("/v1/traces/histogram", get(|| async { StatusCode::OK }))
