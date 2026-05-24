@@ -6,8 +6,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use prometheus::{
-    Encoder, HistogramVec, IntCounterVec, IntGauge, TextEncoder, histogram_opts, linear_buckets,
-    opts, register_histogram_vec, register_int_counter_vec, register_int_gauge,
+    Encoder, HistogramVec, IntCounterVec, IntGauge, Registry, TextEncoder, histogram_opts,
+    linear_buckets, opts,
 };
 use serde::Deserialize;
 use std::time::Instant;
@@ -19,82 +19,100 @@ struct ReadyCheckRow {
     ok: u8,
 }
 
-static HTTP_REQUESTS_TOTAL: std::sync::LazyLock<IntCounterVec> = std::sync::LazyLock::new(|| {
-    register_int_counter_vec!(
-        opts!(
-            "query_api_http_requests_total",
-            "Total HTTP requests handled by query-api"
-        ),
-        &["method", "status"]
-    )
-    .expect("register query_api_http_requests_total")
-});
+pub struct QueryApiMetrics {
+    pub registry: Registry,
+    pub http_requests_total: IntCounterVec,
+    pub http_request_duration_seconds: HistogramVec,
+    pub http_in_flight_requests: IntGauge,
+}
 
-static HTTP_REQUEST_DURATION_SECONDS: std::sync::LazyLock<HistogramVec> =
-    std::sync::LazyLock::new(|| {
-        register_histogram_vec!(
+impl QueryApiMetrics {
+    pub fn new() -> Self {
+        let registry = Registry::new();
+
+        let http_requests_total = IntCounterVec::new(
+            opts!(
+                "query_api_http_requests_total",
+                "Total HTTP requests handled by query-api"
+            ),
+            &["method", "status"],
+        )
+        .expect("create query_api_http_requests_total");
+
+        let http_request_duration_seconds = HistogramVec::new(
             histogram_opts!(
                 "query_api_http_request_duration_seconds",
                 "HTTP request duration in seconds for query-api",
                 linear_buckets(0.005, 0.005, 20).expect("valid histogram buckets")
             ),
-            &["method", "status"]
+            &["method", "status"],
         )
-        .expect("register query_api_http_request_duration_seconds")
-    });
+        .expect("create query_api_http_request_duration_seconds");
 
-static HTTP_IN_FLIGHT_REQUESTS: std::sync::LazyLock<IntGauge> = std::sync::LazyLock::new(|| {
-    register_int_gauge!(opts!(
-        "query_api_http_in_flight_requests",
-        "Current in-flight HTTP requests handled by query-api"
-    ))
-    .expect("register query_api_http_in_flight_requests")
-});
+        let http_in_flight_requests = IntGauge::with_opts(
+            opts!(
+                "query_api_http_in_flight_requests",
+                "Current in-flight HTTP requests handled by query-api"
+            ),
+        )
+        .expect("create query_api_http_in_flight_requests");
 
-fn http_requests_total() -> &'static IntCounterVec {
-    &HTTP_REQUESTS_TOTAL
+        registry
+            .register(Box::new(http_requests_total.clone()))
+            .expect("register http_requests_total");
+        registry
+            .register(Box::new(http_request_duration_seconds.clone()))
+            .expect("register http_request_duration_seconds");
+        registry
+            .register(Box::new(http_in_flight_requests.clone()))
+            .expect("register http_in_flight_requests");
+
+        Self {
+            registry,
+            http_requests_total,
+            http_request_duration_seconds,
+            http_in_flight_requests,
+        }
+    }
 }
 
-fn http_request_duration_seconds() -> &'static HistogramVec {
-    &HTTP_REQUEST_DURATION_SECONDS
+impl Default for QueryApiMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
-fn http_in_flight_requests() -> &'static IntGauge {
-    &HTTP_IN_FLIGHT_REQUESTS
-}
-
-fn init_http_metrics() {
-    let _ = &*HTTP_REQUESTS_TOTAL;
-    let _ = &*HTTP_REQUEST_DURATION_SECONDS;
-    let _ = &*HTTP_IN_FLIGHT_REQUESTS;
-}
-
-pub async fn record_http_metrics(req: Request, next: Next) -> Response {
-    init_http_metrics();
+pub async fn record_http_metrics(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Response {
     let method = req.method().as_str().to_owned();
     let start = Instant::now();
-    http_in_flight_requests().inc();
+    state.metrics.http_in_flight_requests.inc();
 
     let response = next.run(req).await;
 
-    http_in_flight_requests().dec();
+    state.metrics.http_in_flight_requests.dec();
     let status = response.status().as_u16().to_string();
-    http_requests_total()
+    state
+        .metrics
+        .http_requests_total
         .with_label_values(&[method.as_str(), &status])
         .inc();
-    http_request_duration_seconds()
+    state
+        .metrics
+        .http_request_duration_seconds
         .with_label_values(&[method.as_str(), &status])
         .observe(start.elapsed().as_secs_f64());
 
     response
 }
 
-pub async fn metrics() -> Response {
-    init_http_metrics();
-
+pub async fn metrics(State(state): State<AppState>) -> Response {
     let encoder = TextEncoder::new();
     let mut buffer = Vec::new();
-    let metric_families = prometheus::gather();
+    let metric_families = state.metrics.registry.gather();
     if encoder.encode(&metric_families, &mut buffer).is_err() {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
@@ -135,11 +153,32 @@ mod tests {
     use super::*;
     use axum::{Router, routing::get};
     use sqlx::postgres::PgPoolOptions;
+    use std::sync::Arc;
     use tower::ServiceExt;
+
+    fn setup_test_state() -> AppState {
+        let db = PgPoolOptions::new()
+            .max_connections(1)
+            .connect_lazy("postgres://user:pass@127.0.0.1:5432/db")
+            .expect("lazy postgres pool");
+        let ch = clickhouse::Client::default()
+            .with_url("http://127.0.0.1:1")
+            .with_user("default")
+            .with_database("observable");
+        AppState {
+            ch,
+            db,
+            planner: Arc::new(crate::planner::QueryPlanner),
+            llm: None,
+            auth_service_url: "http://auth-service:4319".into(),
+            metrics: Arc::new(QueryApiMetrics::new()),
+        }
+    }
 
     #[tokio::test]
     async fn metrics_endpoint_renders_prometheus_text() {
-        let response = metrics().await;
+        let state = setup_test_state();
+        let response = metrics(State(state)).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let content_type = response
@@ -163,9 +202,14 @@ mod tests {
 
     #[tokio::test]
     async fn metrics_middleware_records_request_status() {
+        let state = setup_test_state();
         let app = Router::new()
             .route("/ok", get(|| async { StatusCode::OK }))
-            .layer(axum::middleware::from_fn(record_http_metrics));
+            .layer(axum::middleware::from_fn_with_state(
+                state.clone(),
+                record_http_metrics,
+            ))
+            .with_state(state.clone());
 
         let response = app
             .oneshot(
@@ -179,7 +223,7 @@ mod tests {
             .expect("router responded");
         assert_eq!(response.status(), StatusCode::OK);
 
-        let metrics_response = metrics().await;
+        let metrics_response = metrics(State(state)).await;
         let bytes = http_body_util::BodyExt::collect(metrics_response.into_body())
             .await
             .expect("metrics body collected")
@@ -191,22 +235,7 @@ mod tests {
 
     #[tokio::test]
     async fn readyz_returns_503_when_clickhouse_is_unavailable() {
-        let db = PgPoolOptions::new()
-            .max_connections(1)
-            .connect_lazy("postgres://user:pass@127.0.0.1:5432/db")
-            .expect("lazy postgres pool");
-        let ch = clickhouse::Client::default()
-            .with_url("http://127.0.0.1:1")
-            .with_user("default")
-            .with_database("observable");
-        let state = AppState {
-            ch,
-            db,
-            planner: std::sync::Arc::new(crate::planner::QueryPlanner),
-            llm: None,
-            auth_service_url: "http://auth-service:4319".into(),
-        };
-
+        let state = setup_test_state();
         assert_eq!(readyz(State(state)).await, StatusCode::SERVICE_UNAVAILABLE);
     }
 }

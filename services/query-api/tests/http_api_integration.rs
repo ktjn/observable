@@ -140,6 +140,7 @@ fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: "http://auth-service:4319".into(),
+        metrics: Arc::new(observability::QueryApiMetrics::new()),
     };
     let auth_service_url = Arc::new(state.auth_service_url.clone());
     Router::new()
@@ -176,7 +177,10 @@ fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))
-        .layer(axum_middleware::from_fn(observability::record_http_metrics))
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            observability::record_http_metrics,
+        ))
         .with_state(state)
 }
 
@@ -194,6 +198,7 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: auth_service_url.clone(),
+        metrics: Arc::new(observability::QueryApiMetrics::new()),
     };
     let auth_service_url_ext = Arc::new(auth_service_url);
     Router::new()
@@ -222,7 +227,10 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))
-        .layer(axum_middleware::from_fn(observability::record_http_metrics))
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            observability::record_http_metrics,
+        ))
         .with_state(state)
 }
 
@@ -236,6 +244,7 @@ fn fake_nlq_app_no_db() -> Router {
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: "http://auth-service:4319".into(),
+        metrics: Arc::new(observability::QueryApiMetrics::new()),
     };
     let tenant_id = Uuid::parse_str(DEV_TENANT_ID).unwrap();
     Router::new()
@@ -248,7 +257,10 @@ fn fake_nlq_app_no_db() -> Router {
             user_id: None,
             role: "admin".into(),
         }))
-        .layer(axum_middleware::from_fn(observability::record_http_metrics))
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            observability::record_http_metrics,
+        ))
         .with_state(state)
 }
 
@@ -1118,6 +1130,7 @@ async fn llm_models_returns_ok_false_when_unreachable() {
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: String::new(),
+        metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
     };
     let app = Router::new()
         .route("/v1/config/llm/models", post(config::list_llm_models))
@@ -1236,6 +1249,7 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: "http://auth-service:4319".to_string(),
+        metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
     };
 
     let app = Router::new()

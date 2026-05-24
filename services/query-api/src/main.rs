@@ -68,6 +68,7 @@ async fn main() -> anyhow::Result<()> {
         planner: Arc::new(planner::QueryPlanner),
         llm,
         auth_service_url,
+        metrics: Arc::new(observability::QueryApiMetrics::new()),
     };
     let app = Router::new()
         .route("/v1/traces", get(traces::search_traces))
@@ -209,7 +210,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))
-        .layer(axum_middleware::from_fn(observability::record_http_metrics))
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            observability::record_http_metrics,
+        ))
         .layer(TraceLayer::new_for_http())
         .with_state(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
