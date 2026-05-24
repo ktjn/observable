@@ -6,10 +6,8 @@ import random
 import sys
 from datetime import datetime, timedelta, timezone
 
-from seed.inserter import Inserter
 from seed.logs import LOG_COLS, generate_background_log, generate_request_log
 from seed.metrics import POINT_COLS, SERIES_COLS, generate_metric_points, make_series_rows
-from seed.pg_seeder import seed_postgres
 from seed.traces import EVENT_COLS, SPAN_COLS, generate_trace
 from seed.world import WorldModel, build_world, load_profile, traffic_multiplier
 
@@ -55,11 +53,15 @@ def run(argv: list[str] | None = None) -> None:
     print(f"Window: {world.start_time.isoformat()} -> {world.end_time.isoformat()}")
 
     if not args.no_postgres:
+        from seed.pg_seeder import seed_postgres
+
         seed_postgres(world.tenants, args.postgres_url, dry_run=args.dry_run)
 
     if args.dry_run:
         print("[dry-run] Skipping ClickHouse inserts.")
         return
+
+    from seed.inserter import Inserter
 
     inserter = Inserter(
         host=args.clickhouse_host,
