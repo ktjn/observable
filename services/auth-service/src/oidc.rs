@@ -7,6 +7,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::session::{
@@ -33,6 +34,7 @@ pub struct OidcConfig {
 pub struct OidcState {
     pub db: PgPool,
     pub config: OidcConfig,
+    pub metrics: Arc<crate::observability::AuthServiceMetrics>,
 }
 
 // ── DB helpers ────────────────────────────────────────────────────────────────

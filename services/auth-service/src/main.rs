@@ -1,7 +1,7 @@
 mod dev_bootstrap;
 
 use auth_service::{
-    audit, lookup_api_key,
+    audit, lookup_api_key, observability,
     oidc::{OidcConfig, OidcState},
     validate,
 };
@@ -13,6 +13,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use std::sync::Arc;
 use tower_http::trace::TraceLayer;
 use tracing::{Instrument as _, Level};
 use uuid::Uuid;
@@ -92,6 +93,7 @@ async fn main() -> anyhow::Result<()> {
     let state = OidcState {
         db: db.clone(),
         config: oidc_config,
+        metrics: Arc::new(observability::AuthServiceMetrics::new()),
     };
 
     if std::env::var("OBSERVABLE_ENV").as_deref() == Ok("dev") {
@@ -104,6 +106,8 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
+        .route("/readyz", get(observability::readyz))
+        .route("/metrics", get(observability::metrics))
         .route("/internal/validate", post(validate_handler))
         .route(
             "/internal/validate-session",
@@ -116,6 +120,10 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/v1/auth/logout", post(auth_service::oidc::logout_handler))
         .route("/v1/auth/me", get(auth_service::oidc::me_handler))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            observability::record_http_metrics,
+        ))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(domain::telemetry::OtelMakeSpan::new(Level::INFO)),

@@ -16,7 +16,7 @@ use crate::traces::AppState;
 
 #[derive(Debug, Deserialize, clickhouse::Row)]
 struct ReadyCheckRow {
-    ok: u8,
+    ok: i64,
 }
 
 pub struct QueryApiMetrics {
@@ -49,12 +49,10 @@ impl QueryApiMetrics {
         )
         .expect("create query_api_http_request_duration_seconds");
 
-        let http_in_flight_requests = IntGauge::with_opts(
-            opts!(
-                "query_api_http_in_flight_requests",
-                "Current in-flight HTTP requests handled by query-api"
-            ),
-        )
+        let http_in_flight_requests = IntGauge::with_opts(opts!(
+            "query_api_http_in_flight_requests",
+            "Current in-flight HTTP requests handled by query-api"
+        ))
         .expect("create query_api_http_in_flight_requests");
 
         registry
@@ -128,13 +126,22 @@ pub async fn metrics(State(state): State<AppState>) -> Response {
 }
 
 pub async fn readyz(State(state): State<AppState>) -> StatusCode {
-    let postgres_ready = sqlx::query_scalar::<_, i64>("SELECT 1")
+    let postgres_ready = sqlx::query_scalar::<_, i32>("SELECT 1")
         .fetch_one(&state.db)
         .await
-        .is_ok();
+        .map(|_| true)
+        .unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "query-api readiness postgres check failed");
+            false
+        });
 
-    let clickhouse_ready = match state.ch.query("SELECT 1 AS ok").fetch_all().await {
-        Ok(rows) => rows.into_iter().any(|row: ReadyCheckRow| row.ok == 1),
+    let clickhouse_ready = match state
+        .ch
+        .query("SELECT toInt64(1) AS ok")
+        .fetch_one::<ReadyCheckRow>()
+        .await
+    {
+        Ok(row) => row.ok == 1,
         Err(e) => {
             tracing::warn!(error = %e, "query-api readiness clickhouse check failed");
             false
