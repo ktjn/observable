@@ -35,6 +35,15 @@ def test_series_tenant_id_stamped():
         assert row[SERIES_COLS.index("tenant_id")] == "tid-001"
 
 
+def test_series_created_at_is_datetime():
+    tenant = _tenant()
+    svc = tenant.services[0]
+    rows = make_series_rows(tenant, svc)
+    for row in rows:
+        assert isinstance(row[SERIES_COLS.index("created_at")], datetime)
+        assert row[SERIES_COLS.index("created_at")].tzinfo == timezone.utc
+
+
 def test_point_row_length():
     tenant = _tenant()
     svc = tenant.services[0]
