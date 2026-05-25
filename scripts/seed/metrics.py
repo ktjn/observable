@@ -37,7 +37,7 @@ def make_series_rows(tenant: Tenant, service: Service) -> list[list]:
     so repeated calls produce the same UUIDs (idempotent for ReplacingMergeTree).
     """
     rows = []
-    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.now(timezone.utc)
     for name, desc, unit, mtype, is_mono, temporality in _METRIC_DEFS:
         series_id = str(uuid.uuid5(
             uuid.NAMESPACE_OID,
@@ -56,7 +56,7 @@ def make_series_rows(tenant: Tenant, service: Service) -> list[list]:
             json.dumps({"service.name": service.service_name}),
             service.service_name,
             tenant.environment,
-            now_str,
+            now,
         ])
     return rows
 
