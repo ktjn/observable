@@ -3,6 +3,14 @@ name    = "storage-writer"
 version = "0.1.0"
 edition.workspace = true
 
+[lib]
+name = "storage_writer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "storage-writer"
+path = "src/main.rs"
+
 [dependencies]
 domain             = { path = "../../libs/domain", features = ["storage"] }
 opentelemetry      = { workspace = true }
@@ -17,9 +25,13 @@ anyhow             = { workspace = true }
 tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 clickhouse         = { workspace = true }
+prometheus         = { version = "0.14.0", features = ["process"] }
 
 [dev-dependencies]
 testcontainers         = "0.27.3"
 testcontainers-modules = { version = "0.15.0", features = ["clickhouse"] }
 tokio                  = { workspace = true, features = ["rt-multi-thread", "macros"] }
 uuid                   = { workspace = true }
+axum                   = { workspace = true }
+tower                  = { version = "0.5", features = ["util"] }
+http-body-util         = "0.1"

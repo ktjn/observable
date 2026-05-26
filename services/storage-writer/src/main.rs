@@ -11,12 +11,9 @@ use axum::{
 };
 use clickhouse::Client;
 use serde::Deserialize;
+use std::sync::Arc;
+use storage_writer::{AppState, observability};
 use tower_http::trace::TraceLayer;
-
-#[derive(Clone)]
-struct AppState {
-    ch: Client,
-}
 
 async fn write_spans(
     State(state): State<AppState>,
@@ -79,12 +76,21 @@ async fn main() -> anyhow::Result<()> {
         ch.clone(),
         retention_config,
     ));
-    let state = AppState { ch };
+    let state = AppState {
+        ch,
+        metrics: Arc::new(observability::StorageWriterMetrics::new()),
+    };
     let app = Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
+        .route("/readyz", get(observability::readyz))
+        .route("/metrics", get(observability::metrics))
         .route("/internal/spans", post(write_spans))
         .route("/internal/logs", post(write_logs))
         .route("/internal/metrics", post(write_metrics))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            observability::record_http_metrics,
+        ))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &axum::extract::Request| {
                 use tracing_opentelemetry::OpenTelemetrySpanExt as _;
