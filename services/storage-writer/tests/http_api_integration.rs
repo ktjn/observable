@@ -134,4 +134,8 @@ async fn storage_writer_metrics_endpoint_exposes_prometheus_text() {
         body.contains("storage_writer_http_requests_total"),
         "metrics payload did not contain the storage-writer request counter: {body}"
     );
+    assert!(
+        body.contains(r#"storage_writer_http_requests_total{method="GET",status="200"} 1"#),
+        "metrics counter for GET /health was not recorded with value 1: {body}"
+    );
 }
