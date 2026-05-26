@@ -20,7 +20,7 @@ making changes.
   default entry role. Runtimes without subagent support should apply matching specialist `.agent.md`
   files manually as checklists.
 - Active roadmap: `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` — unified post-Phase-3 implementation plan.
-- Active detailed implementation plan: none — RF-6 self-observability complete across all services; next up is P4-S9 boundary-focused security review.
+- Active detailed implementation plan: none — P4-S9 boundary security review complete; Phase 4 exit gate is now satisfiable. Next: P5 pause-point review or P4-S3b/P4-S4 if required by a v1 customer.
 - Completed / archived detailed plans:
   - `archived/plans/2026-05-06-identity-provider-zitadel.md` — Zitadel 4.x OIDC PKCE flow, session JWTs, user/role tables, frontend login/callback/me pages, Admin Console identity settings
   - `archived/plans/2026-05-05-p4-s1-warm-retention.md` — warm-retention movement path (ARCHIVED/DEFERRED; not implemented)
@@ -37,6 +37,7 @@ making changes.
   - `archived/plans/2026-05-23-rf-6-query-api-self-observability.md` — first RF-6 self-observability slice for `query-api` `/readyz` + `/metrics`
   - `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
   - `docs/superpowers/plans/2026-05-18-p5-s1-incident-timeline.md` — P5-S1 incident timeline with source links (COMPLETED 2026-05-18)
+  - `archived/plans/2026-05-26-p4-s9-boundary-security-review.md` — P4-S9 boundary security review; two NLQ SQL identifier-injection fixes; findings at `docs/security-review-p4-s9.md`
 - Historical Phase 1 plan: `archived/plans/2026-04-17-phase1-internal-mvp.md`; do not treat it as an active backlog.
 - Historical Phases 2-8 plan: merged into the active roadmap above. The old `2026-04-18-phases2-8-iteration-plan.md` file has been removed.
 - Architecture decisions: `spec/adr/`.
@@ -119,6 +120,15 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 - `stream-processor` (4323 new probe port): readyz fetches Redpanda broker metadata via `spawn_blocking`; probe server runs as a background tokio task alongside the consumer loop.
 - Docker Compose: `stream-processor` now has a healthcheck; `smoke-test` and `perf-smoke` upgraded from `service_started` to `service_healthy`.
 - Helm: `streamProcessor.platformPort: 4323` added to values.yaml.
+
+## Security Review (P4-S9, completed 2026-05-26)
+
+- Full findings in `docs/security-review-p4-s9.md`.
+- Two SQL identifier-injection findings fixed in `services/query-api/src/sql_templates.rs`:
+  - `catalog_field` (NLQ catalog operation) now validated via `validate_sql_identifier()` before use as SQL alias and GROUP BY identifier.
+  - `group_by` aliases validated by the same guard; invalid entries are silently dropped with a warning rather than failing the whole query.
+- All other findings (bootstrap tenant list, cardinality observe-only, storage-writer internal no-auth) classified INFO and accepted for v1.
+- Phase 4 exit gate: all P4 mandatory slices are now complete (P4-S2, P4-S3, P4-S5, P4-S6, P4-S7, P4-S8, P4-S9). RF-6 complete. Phase 5 pause-point review should precede new P5 work.
 
 ## Incident Timeline (P5-S1, completed 2026-05-18)
 
