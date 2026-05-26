@@ -240,6 +240,13 @@ services:
       REDPANDA_BROKERS: redpanda:9092
       INGEST_TOPIC: telemetry.raw
       STORAGE_WRITER_URL: http://storage-writer:4320
+      STREAM_PROCESSOR_PLATFORM_PORT: "4323"
+    ports: ["4323:4323"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4323/health"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
     depends_on:
       redpanda-setup: { condition: service_completed_successfully }
       storage-writer: { condition: service_healthy }
@@ -421,7 +428,7 @@ services:
     depends_on:
       ingest-gateway: { condition: service_healthy }
       query-api: { condition: service_healthy }
-      stream-processor: { condition: service_started }
+      stream-processor: { condition: service_healthy }
 
   perf-smoke:
     image: observable-services:local
@@ -436,7 +443,7 @@ services:
     depends_on:
       ingest-gateway: { condition: service_healthy }
       query-api: { condition: service_healthy }
-      stream-processor: { condition: service_started }
+      stream-processor: { condition: service_healthy }
 
   seed:
     build:

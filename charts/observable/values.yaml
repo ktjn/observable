@@ -83,10 +83,10 @@ services:
         cpu: 1000m
         memory: 512Mi
 
-  # stream-processor has no HTTP listener; no Service is created.
   streamProcessor:
     enabled: true
     replicas: 1
+    platformPort: 4323
     resources:
       requests:
         cpu: 100m

@@ -90,8 +90,11 @@ pub fn build_router(state: AppState) -> Router {
 
 /// Platform API router — Observable-specific authenticated write operations.
 /// Hosted on a separate port so the OTLP port (4318) remains strictly OTLP.
-pub fn build_platform_router(state: AppState) -> Router {
-    Router::new()
+pub fn build_platform_router(
+    state: AppState,
+    probe_state: crate::readyz::IngestGatewayProbeState,
+) -> Router {
+    let authenticated = Router::new()
         .route("/v1/deployments", post(deployments::create_deployment))
         .route(
             "/v1/deployments/{deployment_id}",
@@ -101,12 +104,17 @@ pub fn build_platform_router(state: AppState) -> Router {
             state.clone(),
             auth::auth_middleware,
         ))
+        .with_state(state);
+
+    let probes = Router::new()
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(domain::telemetry::OtelMakeSpan::new(Level::INFO)),
-        )
-        .with_state(state)
+        .route("/readyz", get(crate::readyz::readyz))
+        .with_state(probe_state);
+
+    Router::new().merge(authenticated).merge(probes).layer(
+        TraceLayer::new_for_http()
+            .make_span_with(domain::telemetry::OtelMakeSpan::new(Level::INFO)),
+    )
 }
 
 pub async fn start_http_server(state: AppState, port: u16) -> anyhow::Result<()> {
@@ -118,8 +126,12 @@ pub async fn start_http_server(state: AppState, port: u16) -> anyhow::Result<()>
         .map_err(anyhow::Error::from)
 }
 
-pub async fn start_platform_server(state: AppState, port: u16) -> anyhow::Result<()> {
-    let app = build_platform_router(state);
+pub async fn start_platform_server(
+    state: AppState,
+    probe_state: crate::readyz::IngestGatewayProbeState,
+    port: u16,
+) -> anyhow::Result<()> {
+    let app = build_platform_router(state, probe_state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "ingest-gateway Platform API listening");
     axum::serve(listener, app)

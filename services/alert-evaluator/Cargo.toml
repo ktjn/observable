@@ -23,3 +23,6 @@ chrono             = { workspace = true }
 domain                  = { path = "../../libs/domain", features = ["storage"] }
 testcontainers         = "0.27.3"
 testcontainers-modules = { version = "0.15.0", features = ["clickhouse", "postgres"] }
+axum               = { workspace = true }
+tower              = { version = "0.5", features = ["util"] }
+http-body-util     = "0.1"
