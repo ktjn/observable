@@ -6,6 +6,7 @@ mod grpc;
 #[path = "http-json/mod.rs"]
 mod http_json;
 mod queue;
+mod readyz;
 
 use deployment_registry::DeploymentRegistry;
 use sqlx::postgres::PgPoolOptions;
@@ -207,9 +208,11 @@ async fn main() -> anyhow::Result<()> {
 
     let grpc_state = state.clone();
     let platform_state = state.clone();
+    let probe_state = readyz::IngestGatewayProbeState { db: db.clone() };
     let grpc_future = grpc::start_grpc_server(grpc_state, grpc_port);
     let http_future = http_json::start_http_server(state, http_port);
-    let platform_future = http_json::start_platform_server(platform_state, platform_port);
+    let platform_future =
+        http_json::start_platform_server(platform_state, probe_state, platform_port);
 
     tokio::select! {
         res = grpc_future => res?,
