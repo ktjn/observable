@@ -438,6 +438,8 @@ fn catalog_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
         .as_deref()
         .ok_or(SqlTemplateError::MissingCatalogField)?;
 
+    validate_sql_identifier(field)?;
+
     let col_expr = map_filter_field(field);
     let filters = build_filter_clauses_checked(&ctx.ir.filters)?;
 
@@ -558,6 +560,22 @@ pub fn interval_to_secs(s: &str) -> Result<f64, SqlTemplateError> {
 /// Replaces `\` with `\\` and `'` with `\'`.
 pub fn escape_string_value(s: &str) -> String {
     s.replace('\\', "\\\\").replace('\'', "\\'")
+}
+
+/// Validates that `s` is a safe SQL identifier: ASCII alphanumeric plus `_`, max 64 chars.
+///
+/// Use this for any user-supplied value that appears as a SQL identifier (column alias,
+/// GROUP BY field name, catalog field name) rather than as a quoted string value.
+/// Quoted string values go through `escape_string_value` instead.
+fn validate_sql_identifier(s: &str) -> Result<(), SqlTemplateError> {
+    if s.is_empty() || s.len() > 64 {
+        return Err(SqlTemplateError::InvalidFilterValue(s.to_string()));
+    }
+    if s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        Ok(())
+    } else {
+        Err(SqlTemplateError::InvalidFilterValue(s.to_string()))
+    }
 }
 
 // ── Log query support ─────────────────────────────────────────────────────────
@@ -841,18 +859,37 @@ fn build_log_filter_clauses_checked(filters: &[NlqFilter]) -> Result<String, Sql
 /// Returns:
 /// - `extra_select_cols`: `,\n    <col> AS <col>` fragment for SELECT
 /// - `group_by_extension`: `, <col>` fragment appended after `GROUP BY bucket`
+///
+/// Entries that fail `validate_sql_identifier` are silently dropped with a warning.
 fn build_group_by(group_by: &[String]) -> (String, String) {
     if group_by.is_empty() {
         return (String::new(), String::new());
     }
-    let select_part: String = group_by
+    let valid: Vec<&str> = group_by
+        .iter()
+        .filter(|g| {
+            if validate_sql_identifier(g).is_err() {
+                tracing::warn!(field = %g, "group_by field rejected: not a valid SQL identifier");
+                false
+            } else {
+                true
+            }
+        })
+        .map(String::as_str)
+        .collect();
+
+    if valid.is_empty() {
+        return (String::new(), String::new());
+    }
+
+    let select_part: String = valid
         .iter()
         .map(|g| {
             let col = map_filter_field(g);
             format!(",\n    {col} AS {g}")
         })
         .collect();
-    let group_part: String = group_by
+    let group_part: String = valid
         .iter()
         .map(|g| {
             let col = map_filter_field(g);
@@ -1468,6 +1505,67 @@ mod tests {
         assert!(
             sql.contains(&tenant_str),
             "catalog SQL must contain tenant_id: {sql}"
+        );
+    }
+
+    // ── Identifier injection guard ────────────────────────────────────────────
+
+    #[test]
+    fn catalog_field_with_sql_injection_is_rejected() {
+        let mut ir = catalog_ir();
+        ir.catalog_field = Some("x FROM observable.metric_series WHERE 1=1--".into());
+        let ctx = catalog_ctx_for(&ir);
+        assert!(
+            generate_sql(&ctx).is_err(),
+            "catalog_field with SQL injection must return Err"
+        );
+    }
+
+    #[test]
+    fn catalog_field_with_space_is_rejected() {
+        let mut ir = catalog_ir();
+        ir.catalog_field = Some("service name".into());
+        let ctx = catalog_ctx_for(&ir);
+        assert!(
+            generate_sql(&ctx).is_err(),
+            "catalog_field with spaces must return Err"
+        );
+    }
+
+    #[test]
+    fn catalog_field_alphanumeric_underscore_is_accepted() {
+        let mut ir = catalog_ir();
+        ir.catalog_field = Some("service_name".into());
+        let ctx = catalog_ctx_for(&ir);
+        let sql = generate_sql(&ctx).expect("valid identifier must succeed");
+        assert!(sql.contains("service_name"));
+    }
+
+    #[test]
+    fn group_by_with_sql_injection_is_silently_dropped() {
+        let mut ir = base_ir(NlqOperation::Timeseries);
+        ir.group_by = vec!["service_name".into(), "bad; DROP TABLE--".into()];
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).expect("valid fields must succeed even with bad ones present");
+        assert!(
+            sql.contains("ms.service_name AS service_name"),
+            "valid field missing: {sql}"
+        );
+        assert!(
+            !sql.contains("DROP"),
+            "injection must be stripped from SQL: {sql}"
+        );
+    }
+
+    #[test]
+    fn group_by_alphanumeric_underscore_is_accepted() {
+        let mut ir = base_ir(NlqOperation::Timeseries);
+        ir.group_by = vec!["environment".into()];
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).expect("valid group_by must succeed");
+        assert!(
+            sql.contains("ms.environment AS environment"),
+            "environment field missing: {sql}"
         );
     }
 

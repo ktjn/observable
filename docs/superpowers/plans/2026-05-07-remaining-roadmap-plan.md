@@ -220,9 +220,10 @@ These gaps were identified during a direct review of `apps/frontend/src` and the
   - Closure note: `scripts/release-candidate-suites.sh` now sequences the load baseline (`docker compose run --rm perf-smoke`), tenant-escape smoke (`docker compose run --rm smoke-test`), the new single-service chaos probe (`scripts/chaos-smoke.sh`), and the existing kind rollback gate (`scripts/kind-test.sh`).
   - Checkpoint: yes - the release-readiness gate is now repeatable locally and the chaos probe proves recovery after a single `storage-writer` restart without regressing the existing tenant-denial check.
 
-- [ ] **P4-S9: Complete boundary-focused security review**
-  - Outcome: auth, tenancy, query, and ingest boundaries have explicit review notes.
-  - Checkpoint: are any findings severe enough to block v1?
+- [x] **P4-S9: Complete boundary-focused security review** (COMPLETED 2026-05-26)
+  - Outcome: auth, tenancy, query, and ingest boundaries have explicit review notes in `docs/security-review-p4-s9.md`.
+  - Two SQL identifier-injection findings (catalog_field and group_by alias in NLQ SQL templates) were fixed with a `validate_sql_identifier()` allowlist guard.
+  - Checkpoint: No findings are severe enough to block v1. The two Medium/Low SQL findings are fixed. Remaining INFO items (bootstrap tenant list, cardinality observe-only, storage-writer no-auth) are documented with rationale.
 
 ### Phase 4 Pause Point
 
