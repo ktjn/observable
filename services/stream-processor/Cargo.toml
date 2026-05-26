@@ -3,9 +3,19 @@ name    = "stream-processor"
 version = "0.1.0"
 edition.workspace = true
 
+[lib]
+name = "stream_processor"
+path = "src/lib.rs"
+
+[[bin]]
+name = "stream-processor"
+path = "src/main.rs"
+
 [dependencies]
 domain             = { path = "../../libs/domain" }
 tokio              = { workspace = true }
+axum               = { workspace = true }
+tower-http         = { workspace = true }
 serde              = { workspace = true }
 serde_json         = { workspace = true }
 uuid               = { workspace = true }
@@ -17,3 +27,6 @@ reqwest            = { workspace = true }
 
 [dev-dependencies]
 testcontainers = "0.27.3"
+axum           = { workspace = true }
+tower          = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

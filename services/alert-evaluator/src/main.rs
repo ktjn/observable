@@ -1,7 +1,8 @@
-use alert_evaluator::evaluator;
+use alert_evaluator::{AppState, evaluator, readyz};
 use axum::{Router, routing::get};
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
+use std::sync::Arc;
 use tower_http::trace::TraceLayer;
 
 #[tokio::main]
@@ -10,10 +11,12 @@ async fn main() -> anyhow::Result<()> {
 
     let database_url =
         std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://localhost/observable".into());
-    let db = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
-        .await?;
+    let db = Arc::new(
+        PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&database_url)
+            .await?,
+    );
 
     let ch_url = std::env::var("CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".into());
     let ch_user = std::env::var("CLICKHOUSE_USER").unwrap_or_else(|_| "default".into());
@@ -34,16 +37,21 @@ async fn main() -> anyhow::Result<()> {
         .parse()?;
 
     tokio::spawn(evaluator::start_eval_worker(
-        db.clone(),
-        ch,
+        (*db).clone(),
+        ch.clone(),
         std::time::Duration::from_secs(interval_secs),
     ));
 
-    tokio::spawn(evaluator::notification_worker(db));
+    tokio::spawn(evaluator::notification_worker((*db).clone()));
+
+    let state = AppState { db, ch };
 
     let app = Router::new()
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
-        .layer(TraceLayer::new_for_http());
+        .route("/readyz", get(readyz::readyz))
+        .layer(TraceLayer::new_for_http())
+        .with_state(state);
+
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "alert-evaluator listening");
     axum::serve(listener, app).await?;

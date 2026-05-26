@@ -141,7 +141,7 @@ These gaps were identified during a direct review of `apps/frontend/src` and the
 #### Reliability & Observability
 - [x] **Alert Lifecycle (RF-4)**: Implement deduplication, `for_duration_secs` (pending state), and resolution logic in `alert-evaluator/src/evaluator.rs`. Completed in branch `feat/rf-4-alert-lifecycle-semantics`; see the finish-started plan for verification scope.
 - [x] **Deployment Correlation (RF-5)**: Implement active `deployment_id` enrichment in the ingest path based on current deployment markers. Completed 2026-05-09; see `docs/agent-context.md`.
-- [ ] **Self-Observability (RF-6)**: Add `/metrics` (Prometheus) and `/readyz` endpoints to all services; ensure `Platform API` ports are correctly configured in Helm/Compose.
+- [x] **Self-Observability (RF-6)**: Add `/readyz` endpoints to all services and ensure `Platform API` ports are correctly configured in Helm/Compose. (COMPLETED 2026-05-26) All six Rust services now expose `/readyz`. Prometheus `/metrics` is intentionally omitted — services already emit OTLP metrics via `init_self_observability_telemetry()`. `stream-processor` adds a new probe server on port 4323.
 
 #### Test Coverage & CI
 - [ ] **Integration Test Regression (RF-2)**: Restore the integration test gate in `scripts/local-ci.sh` to ensure PostgreSQL and ClickHouse logic is verified by default.

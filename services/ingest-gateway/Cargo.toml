@@ -38,3 +38,5 @@ axum-test              = "20"
 tokio-stream           = { version = "0.1", features = ["net"] }
 testcontainers         = "0.27.3"
 testcontainers-modules = { version = "0.15.0", features = ["postgres"] }
+tower              = { version = "0.5", features = ["util"] }
+http-body-util     = "0.1"

@@ -4,6 +4,7 @@ mod normalise;
 
 use domain::{EnvelopePayload, TelemetryEnvelope};
 use std::sync::Arc;
+use stream_processor::readyz::{StreamProcessorProbeState, readyz};
 use tokio::time::{self, Duration};
 use tracing::Instrument as _;
 
@@ -17,6 +18,31 @@ async fn main() -> anyhow::Result<()> {
     let http = reqwest::Client::new();
 
     let aggregator = Arc::new(metrics::SpanMetricsAggregator::new());
+
+    // Spawn the probe HTTP server
+    let probe_port: u16 = std::env::var("STREAM_PROCESSOR_PLATFORM_PORT")
+        .unwrap_or_else(|_| "4323".into())
+        .parse()?;
+    let probe_state = StreamProcessorProbeState {
+        brokers: brokers.clone(),
+    };
+    tokio::spawn(async move {
+        use axum::{Router, routing::get};
+        use tower_http::trace::TraceLayer;
+
+        let app = Router::new()
+            .route("/health", get(|| async { axum::http::StatusCode::OK }))
+            .route("/readyz", get(readyz))
+            .layer(TraceLayer::new_for_http())
+            .with_state(probe_state);
+        let listener = tokio::net::TcpListener::bind(("0.0.0.0", probe_port))
+            .await
+            .expect("bind probe server");
+        tracing::info!(port = probe_port, "stream-processor probe server listening");
+        axum::serve(listener, app)
+            .await
+            .expect("probe server error");
+    });
 
     // Background task to flush metrics
     let agg_clone = aggregator.clone();
