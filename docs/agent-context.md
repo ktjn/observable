@@ -20,7 +20,7 @@ making changes.
   default entry role. Runtimes without subagent support should apply matching specialist `.agent.md`
   files manually as checklists.
 - Active roadmap: `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` — unified post-Phase-3 implementation plan.
-- Active detailed implementation plan: none — next up is `feat/storage-writer-self-observability` (RF-6: add `/readyz` + `/metrics` to `storage-writer`)
+- Active detailed implementation plan: none — RF-6 self-observability complete across all services; next up is P4-S9 boundary-focused security review.
 - Completed / archived detailed plans:
   - `archived/plans/2026-05-06-identity-provider-zitadel.md` — Zitadel 4.x OIDC PKCE flow, session JWTs, user/role tables, frontend login/callback/me pages, Admin Console identity settings
   - `archived/plans/2026-05-05-p4-s1-warm-retention.md` — warm-retention movement path (ARCHIVED/DEFERRED; not implemented)
@@ -110,6 +110,15 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 - `scripts/chaos-smoke.sh` restarts `storage-writer` in the compose stack and verifies that the pipeline recovers after a single failure injection.
 - The tenant-escape signal still comes from `docker compose run --rm smoke-test`; the load baseline still comes from `docker compose run --rm perf-smoke`; the upgrade/rollback evidence still comes from `scripts/kind-test.sh`.
 - The slice is implementation-only: no ADR or data-model change was required, and the new shell gates simply package the existing release-readiness signals into one repeatable command.
+
+## Self-Observability (RF-6, completed 2026-05-26)
+
+- All six Rust services expose `/readyz` on their respective ports; Prometheus `/metrics` was intentionally omitted (services already emit OTLP metrics via the self-observability pipeline).
+- `alert-evaluator` (4322): readyz checks PostgreSQL + ClickHouse; AppState introduced in this slice.
+- `ingest-gateway` (4321 platform port): readyz checks PostgreSQL; `IngestGatewayProbeState` keeps probe routes independent of the full AppState.
+- `stream-processor` (4323 new probe port): readyz fetches Redpanda broker metadata via `spawn_blocking`; probe server runs as a background tokio task alongside the consumer loop.
+- Docker Compose: `stream-processor` now has a healthcheck; `smoke-test` and `perf-smoke` upgraded from `service_started` to `service_healthy`.
+- Helm: `streamProcessor.platformPort: 4323` added to values.yaml.
 
 ## Incident Timeline (P5-S1, completed 2026-05-18)
 
