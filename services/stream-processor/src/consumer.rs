@@ -21,26 +21,6 @@ impl QueueConsumer {
         Ok(Self { consumer })
     }
 
-    pub async fn run<F, Fut>(&self, mut handler: F) -> anyhow::Result<()>
-    where
-        F: FnMut(TelemetryEnvelope) -> Fut,
-        Fut: Future<Output = anyhow::Result<()>>,
-    {
-        loop {
-            let msg = self.consumer.recv().await?;
-            if let Some(payload) = msg.payload() {
-                match serde_json::from_slice::<TelemetryEnvelope>(payload) {
-                    Ok(env) => {
-                        if let Err(e) = handler(env).await {
-                            tracing::warn!(error = %e, "handler error");
-                        }
-                    }
-                    Err(e) => tracing::warn!(error = %e, "envelope deserialise failed"),
-                }
-            }
-        }
-    }
-
     pub async fn run_batch<F, Fut>(
         &self,
         max_size: usize,
@@ -128,10 +108,10 @@ where
                     }
                     None => {
                         // Channel closed — flush remaining items and return
-                        if !buf.is_empty() {
-                            if let Err(e) = handler(std::mem::take(&mut buf)).await {
-                                tracing::warn!(error = %e, "batch handler error");
-                            }
+                        if !buf.is_empty()
+                            && let Err(e) = handler(std::mem::take(&mut buf)).await
+                        {
+                            tracing::warn!(error = %e, "batch handler error");
                         }
                         return Ok(());
                     }

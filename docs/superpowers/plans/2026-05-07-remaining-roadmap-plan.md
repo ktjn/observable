@@ -134,7 +134,7 @@ These gaps were identified during a direct review of `apps/frontend/src` and the
 - [ ] **NLQ SQL Safety (RF-3)**: Implement field and type allowlisting in `query-api/src/sql_templates.rs` to prevent SQL injection and unsafe query shapes. Partial: `mcp_query.rs` has `allowed_metric_filter_fields()` and `traces.rs` has `valid_fields` allowlists; comprehensive allowlisting across all SQL template paths remains.
 
 #### Performance & Scaling
-- [ ] **Stream Processor Batching**: Refactor `stream-processor` to batch multiple telemetry envelopes before flushing to `storage-writer`. The current 1-request-per-envelope model is a high-volume bottleneck.
+- [x] **Stream Processor Batching**: Refactor `stream-processor` to batch multiple telemetry envelopes before flushing to `storage-writer`. The current 1-request-per-envelope model is a high-volume bottleneck. (COMPLETED 2026-05-27) count/timer batching via run_batch; STREAM_PROCESSOR_BATCH_SIZE (default 500) and STREAM_PROCESSOR_BATCH_INTERVAL_MS (default 200); merge_batch tested in lib and integration tests.
 - [ ] **Distributed Rate Limiting**: Move `ingest-gateway` rate limiters from in-memory to a shared store (e.g., Redis) to support horizontal scaling.
 - [ ] **ClickHouse Insert Efficiency**: Align `stream-processor` batching with `storage-writer` to ensure ClickHouse receives large, efficient blocks rather than many small inserts.
 
