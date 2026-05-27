@@ -438,6 +438,8 @@ fn catalog_sql(ctx: &SqlContext) -> Result<String, SqlTemplateError> {
         .as_deref()
         .ok_or(SqlTemplateError::MissingCatalogField)?;
 
+    validate_sql_identifier(field)?;
+
     let col_expr = map_filter_field(field);
     let filters = build_filter_clauses_checked(&ctx.ir.filters)?;
 
@@ -558,6 +560,22 @@ pub fn interval_to_secs(s: &str) -> Result<f64, SqlTemplateError> {
 /// Replaces `\` with `\\` and `'` with `\'`.
 pub fn escape_string_value(s: &str) -> String {
     s.replace('\\', "\\\\").replace('\'', "\\'")
+}
+
+/// Validates that `s` is a safe SQL identifier: ASCII alphanumeric plus `_`, max 64 chars.
+///
+/// Use this for any user-supplied value that appears as a SQL identifier (column alias,
+/// GROUP BY field name, catalog field name) rather than as a quoted string value.
+/// Quoted string values go through `escape_string_value` instead.
+fn validate_sql_identifier(s: &str) -> Result<(), SqlTemplateError> {
+    if s.is_empty() || s.len() > 64 {
+        return Err(SqlTemplateError::InvalidFilterValue(s.to_string()));
+    }
+    if s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        Ok(())
+    } else {
+        Err(SqlTemplateError::InvalidFilterValue(s.to_string()))
+    }
 }
 
 // ── Log query support ─────────────────────────────────────────────────────────
@@ -841,18 +859,37 @@ fn build_log_filter_clauses_checked(filters: &[NlqFilter]) -> Result<String, Sql
 /// Returns:
 /// - `extra_select_cols`: `,\n    <col> AS <col>` fragment for SELECT
 /// - `group_by_extension`: `, <col>` fragment appended after `GROUP BY bucket`
+///
+/// Entries that fail `validate_sql_identifier` are silently dropped with a warning.
 fn build_group_by(group_by: &[String]) -> (String, String) {
     if group_by.is_empty() {
         return (String::new(), String::new());
     }
-    let select_part: String = group_by
+    let valid: Vec<&str> = group_by
+        .iter()
+        .filter(|g| {
+            if validate_sql_identifier(g).is_err() {
+                tracing::warn!(field = %g, "group_by field rejected: not a valid SQL identifier");
+                false
+            } else {
+                true
+            }
+        })
+        .map(String::as_str)
+        .collect();
+
+    if valid.is_empty() {
+        return (String::new(), String::new());
+    }
+
+    let select_part: String = valid
         .iter()
         .map(|g| {
             let col = map_filter_field(g);
             format!(",\n    {col} AS {g}")
         })
         .collect();
-    let group_part: String = group_by
+    let group_part: String = valid
         .iter()
         .map(|g| {
             let col = map_filter_field(g);
@@ -1472,7 +1509,6 @@ mod tests {
     }
 
     // ── Identifier injection guard ────────────────────────────────────────────────
-
     #[test]
     fn catalog_field_with_sql_injection_is_rejected() {
         let mut ir = catalog_ir();
