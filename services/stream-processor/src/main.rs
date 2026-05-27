@@ -1,6 +1,6 @@
 mod consumer;
 mod metrics;
-mod normalise;
+use stream_processor::normalise;
 
 use domain::{EnvelopePayload, TelemetryEnvelope};
 use std::sync::Arc;
