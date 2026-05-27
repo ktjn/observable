@@ -144,7 +144,7 @@ These gaps were identified during a direct review of `apps/frontend/src` and the
 - [x] **Self-Observability (RF-6)**: Add `/readyz` endpoints to all services and ensure `Platform API` ports are correctly configured in Helm/Compose. (COMPLETED 2026-05-26) All six Rust services now expose `/readyz`. Prometheus `/metrics` is intentionally omitted — services already emit OTLP metrics via `init_self_observability_telemetry()`. `stream-processor` adds a new probe server on port 4323.
 
 #### Test Coverage & CI
-- [ ] **Integration Test Regression (RF-2)**: Restore the integration test gate in `scripts/local-ci.sh` to ensure PostgreSQL and ClickHouse logic is verified by default.
+- [x] **Integration Test Regression (RF-2)**: Restore the integration test gate in `scripts/local-ci.sh` to ensure PostgreSQL and ClickHouse logic is verified by default. (COMPLETED 2026-05-27) `cargo test --workspace --tests` runs inside the Docker-gated block; `cargo fmt`, `cargo clippy`, and `cargo test --lib --bins` run unconditionally. `smoke_test_unit.sh` asserts all four gates are present.
 - [ ] **Telemetry Loop Prevention**: Audit and unify the "observable" environment suppression logic across all ingest and processing paths to prevent recursive feedback loops.
 
 ---
