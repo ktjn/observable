@@ -20,7 +20,7 @@ making changes.
   default entry role. Runtimes without subagent support should apply matching specialist `.agent.md`
   files manually as checklists.
 - Active roadmap: `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` — unified post-Phase-3 implementation plan.
-- Active detailed implementation plan: none — RF-2 CI gates restored, RF-6 and P4-S9 complete; Phase 4 exit gate is satisfiable. Next: RF-3 NLQ SQL Safety (field allowlisting), P4-S4 fine-grained authorization, or stream-processor batching.
+- Active detailed implementation plan: none — RF-2 CI gates restored, RF-6, P4-S9, and stream-processor batching complete. Next: RF-3 NLQ SQL Safety (field allowlisting) or P4-S4 fine-grained authorization.
 - Completed / archived detailed plans:
   - `archived/plans/2026-05-06-identity-provider-zitadel.md` — Zitadel 4.x OIDC PKCE flow, session JWTs, user/role tables, frontend login/callback/me pages, Admin Console identity settings
   - `archived/plans/2026-05-05-p4-s1-warm-retention.md` — warm-retention movement path (ARCHIVED/DEFERRED; not implemented)
