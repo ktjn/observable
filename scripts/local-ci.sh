@@ -51,6 +51,15 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+step "Rust fmt"
+cargo fmt --all -- --check && ok "cargo fmt" || fail "cargo fmt"
+
+step "Rust clippy"
+cargo clippy --workspace --all-targets -- -D warnings && ok "cargo clippy" || fail "cargo clippy"
+
+step "Rust unit tests"
+cargo test --workspace --lib --bins && ok "cargo unit tests" || fail "cargo unit tests"
+
 if [[ $SKIP_FRONTEND -eq 0 ]]; then
   step "Frontend typecheck"
   npm run typecheck --workspace=apps/frontend && ok "typecheck" || fail "typecheck"
