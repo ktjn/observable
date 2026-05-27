@@ -233,6 +233,33 @@ test_local_ci_has_integration_test_stage() {
   fi
 }
 
+test_local_ci_has_fmt_gate() {
+  local ci_script="$SCRIPT_DIR/../../scripts/local-ci.sh"
+
+  if ! grep -q "cargo fmt --all -- --check" "$ci_script"; then
+    echo "FAIL: local-ci.sh must have a cargo fmt check gate"
+    exit 1
+  fi
+}
+
+test_local_ci_has_clippy_gate() {
+  local ci_script="$SCRIPT_DIR/../../scripts/local-ci.sh"
+
+  if ! grep -q "cargo clippy --workspace --all-targets -- -D warnings" "$ci_script"; then
+    echo "FAIL: local-ci.sh must have a cargo clippy gate"
+    exit 1
+  fi
+}
+
+test_local_ci_has_unit_test_gate() {
+  local ci_script="$SCRIPT_DIR/../../scripts/local-ci.sh"
+
+  if ! grep -q "cargo test --workspace --lib --bins" "$ci_script"; then
+    echo "FAIL: local-ci.sh must have a cargo unit test gate (--lib --bins)"
+    exit 1
+  fi
+}
+
 run_test "loads helper definitions" test_exports_wait_for_json_count_without_running_main
 run_test "retries until rows exist" test_wait_for_json_count_retries_until_rows_exist
 run_test "checks expected HTTP status" test_assert_http_status_checks_expected_code
@@ -244,5 +271,8 @@ run_test "migrate script propagates setup failures" test_migrate_script_propagat
 run_test "retries trace ingest" test_send_trace_until_queryable_retries_ingest
 run_test "verifies metric point readback" test_smoke_verifies_metric_points_after_ingest
 run_test "local-ci has integration-test stage" test_local_ci_has_integration_test_stage
+run_test "local-ci has fmt gate" test_local_ci_has_fmt_gate
+run_test "local-ci has clippy gate" test_local_ci_has_clippy_gate
+run_test "local-ci has unit-test gate" test_local_ci_has_unit_test_gate
 
 echo "PASS: smoke_test polling helper"
