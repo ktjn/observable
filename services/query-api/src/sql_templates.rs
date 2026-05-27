@@ -1471,6 +1471,67 @@ mod tests {
         );
     }
 
+    // ── Identifier injection guard ────────────────────────────────────────────────
+
+    #[test]
+    fn catalog_field_with_sql_injection_is_rejected() {
+        let mut ir = catalog_ir();
+        ir.catalog_field = Some("x FROM observable.metric_series WHERE 1=1--".into());
+        let ctx = catalog_ctx_for(&ir);
+        assert!(
+            generate_sql(&ctx).is_err(),
+            "catalog_field with SQL injection must return Err"
+        );
+    }
+
+    #[test]
+    fn catalog_field_with_space_is_rejected() {
+        let mut ir = catalog_ir();
+        ir.catalog_field = Some("service name".into());
+        let ctx = catalog_ctx_for(&ir);
+        assert!(
+            generate_sql(&ctx).is_err(),
+            "catalog_field with spaces must return Err"
+        );
+    }
+
+    #[test]
+    fn catalog_field_alphanumeric_underscore_is_accepted() {
+        let mut ir = catalog_ir();
+        ir.catalog_field = Some("service_name".into());
+        let ctx = catalog_ctx_for(&ir);
+        let sql = generate_sql(&ctx).expect("valid identifier must succeed");
+        assert!(sql.contains("service_name"));
+    }
+
+    #[test]
+    fn group_by_with_sql_injection_is_silently_dropped() {
+        let mut ir = base_ir(NlqOperation::Timeseries);
+        ir.group_by = vec!["service_name".into(), "bad; DROP TABLE--".into()];
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).expect("valid fields must succeed even with bad ones present");
+        assert!(
+            sql.contains("ms.service_name AS service_name"),
+            "valid field missing: {sql}"
+        );
+        assert!(
+            !sql.contains("DROP"),
+            "injection must be stripped from SQL: {sql}"
+        );
+    }
+
+    #[test]
+    fn group_by_alphanumeric_underscore_is_accepted() {
+        let mut ir = base_ir(NlqOperation::Timeseries);
+        ir.group_by = vec!["environment".into()];
+        let ctx = ctx_for(&ir);
+        let sql = generate_sql(&ctx).expect("valid group_by must succeed");
+        assert!(
+            sql.contains("ms.environment AS environment"),
+            "environment field missing: {sql}"
+        );
+    }
+
     // ── Log SQL tests ─────────────────────────────────────────────────────────
 
     fn log_ir(query: Option<&str>) -> NlqIr {
