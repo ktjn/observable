@@ -53,10 +53,11 @@ test_wait_for_json_count_retries_until_rows_exist() {
         attempts=$((attempts + 1))
         printf "x\n" >> "$ATTEMPTS_FILE"
         if [[ $attempts -lt 3 ]]; then
-          printf "%s" "{\"spans\":[]}"
+          printf "%s" "{\"spans\":[]}" > /tmp/smoke_body
         else
-          printf "%s" "{\"spans\":[{\"traceId\":\"abc\"}]}"
+          printf "%s" "{\"spans\":[{\"traceId\":\"abc\"}]}" > /tmp/smoke_body
         fi
+        printf "%s" "200"
       }
       jq() {
         local filter="$2"
