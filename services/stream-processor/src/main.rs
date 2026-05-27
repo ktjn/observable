@@ -1,11 +1,14 @@
 mod consumer;
 mod metrics;
-use stream_processor::normalise;
 
 use domain::{EnvelopePayload, TelemetryEnvelope};
 use std::sync::Arc;
-use stream_processor::readyz::{StreamProcessorProbeState, readyz};
-use tokio::time::{self, Duration};
+use std::time::Duration;
+use stream_processor::{
+    batch,
+    readyz::{StreamProcessorProbeState, readyz},
+};
+use tokio::time;
 use tracing::Instrument as _;
 
 #[tokio::main]
@@ -16,6 +19,17 @@ async fn main() -> anyhow::Result<()> {
     let writer_url =
         std::env::var("STORAGE_WRITER_URL").unwrap_or_else(|_| "http://localhost:4320".into());
     let http = reqwest::Client::new();
+
+    let max_size: usize = std::env::var("STREAM_PROCESSOR_BATCH_SIZE")
+        .unwrap_or_else(|_| "500".into())
+        .parse()
+        .unwrap_or(500);
+    let max_wait = Duration::from_millis(
+        std::env::var("STREAM_PROCESSOR_BATCH_INTERVAL_MS")
+            .unwrap_or_else(|_| "200".into())
+            .parse()
+            .unwrap_or(200),
+    );
 
     let aggregator = Arc::new(metrics::SpanMetricsAggregator::new());
 
@@ -44,7 +58,7 @@ async fn main() -> anyhow::Result<()> {
             .expect("probe server error");
     });
 
-    // Background task to flush metrics
+    // Background task to flush span metrics every 60 s
     let agg_clone = aggregator.clone();
     let http_clone = http.clone();
     let writer_url_clone = writer_url.clone();
@@ -69,75 +83,76 @@ async fn main() -> anyhow::Result<()> {
     });
 
     let qc = consumer::QueueConsumer::new(&brokers, "stream-processor", &topic)?;
-    qc.run(|env: TelemetryEnvelope| {
-        let http = http.clone();
-        let writer_url = writer_url.clone();
-        let tenant_id = env.tenant_id;
-        let environment = env.environment.clone();
-        let aggregator = aggregator.clone();
-        let is_observable = environment == "observable";
-        async move {
-            // Do not instrument processing of observable-environment data — those
-            // signals go through this same pipeline and would create a feedback loop.
-            let mut headers = reqwest::header::HeaderMap::new();
-            if !is_observable {
-                domain::telemetry::inject_current_context(&mut headers);
-            }
-            headers.insert(
-                "x-observable-environment",
-                environment
-                    .parse()
-                    .unwrap_or_else(|_| "unknown".parse().unwrap()),
-            );
-            match env.payload {
-                EnvelopePayload::Spans(spans) => {
-                    for span in &spans {
-                        aggregator.record_span(span, tenant_id);
+    qc.run_batch(
+        max_size,
+        max_wait,
+        move |envelopes: Vec<TelemetryEnvelope>| {
+            let http = http.clone();
+            let writer_url = writer_url.clone();
+            let aggregator = aggregator.clone();
+
+            let is_all_observable = envelopes.iter().all(|e| e.environment == "observable");
+            let first_non_obs_env = envelopes
+                .iter()
+                .find(|e| e.environment != "observable")
+                .map(|e| e.environment.clone());
+            let span = if is_all_observable {
+                tracing::Span::none()
+            } else {
+                tracing::info_span!("process_batch")
+            };
+
+            async move {
+                // Record span metrics before normalisation (needs raw span values)
+                for env in &envelopes {
+                    if let EnvelopePayload::Spans(ref spans) = env.payload {
+                        for s in spans {
+                            aggregator.record_span(s, env.tenant_id);
+                        }
                     }
-                    let normalised: Vec<_> = spans
-                        .into_iter()
-                        .map(|s| normalise::normalise_span(s, tenant_id))
-                        .collect();
+                }
+
+                let merged = batch::merge_batch(envelopes);
+
+                let mut headers = reqwest::header::HeaderMap::new();
+                if !is_all_observable {
+                    domain::telemetry::inject_current_context(&mut headers);
+                }
+                let env_val = first_non_obs_env.as_deref().unwrap_or("observable");
+                headers.insert(
+                    "x-observable-environment",
+                    env_val
+                        .parse()
+                        .unwrap_or_else(|_| "unknown".parse().unwrap()),
+                );
+
+                if !merged.spans.is_empty() {
                     http.post(format!("{writer_url}/internal/spans"))
-                        .headers(headers)
-                        .json(&normalised)
+                        .headers(headers.clone())
+                        .json(&merged.spans)
                         .send()
                         .await?;
                 }
-                EnvelopePayload::Logs(logs) => {
-                    let normalised: Vec<_> = logs
-                        .into_iter()
-                        .map(|l| normalise::normalise_log(l, tenant_id))
-                        .collect();
+                if !merged.logs.is_empty() {
                     http.post(format!("{writer_url}/internal/logs"))
-                        .headers(headers)
-                        .json(&normalised)
+                        .headers(headers.clone())
+                        .json(&merged.logs)
                         .send()
                         .await?;
                 }
-                EnvelopePayload::Metrics { series, points } => {
-                    let series: Vec<_> = series
-                        .into_iter()
-                        .map(|s| normalise::normalise_metric_series(s, tenant_id))
-                        .collect();
-                    let points: Vec<_> = points
-                        .into_iter()
-                        .map(|p| normalise::normalise_metric_point(p, tenant_id))
-                        .collect();
+                if !merged.series.is_empty() || !merged.points.is_empty() {
                     http.post(format!("{writer_url}/internal/metrics"))
                         .headers(headers)
-                        .json(&serde_json::json!({ "series": series, "points": points }))
+                        .json(
+                            &serde_json::json!({ "series": merged.series, "points": merged.points }),
+                        )
                         .send()
                         .await?;
                 }
+                Ok(())
             }
-            Ok(())
-        }
-        .instrument(if is_observable {
-            tracing::Span::none()
-        } else {
-            tracing::info_span!("process_envelope", %tenant_id)
-        })
-    })
+            .instrument(span)
+        },
+    )
     .await
 }
