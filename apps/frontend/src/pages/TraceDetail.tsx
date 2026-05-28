@@ -383,10 +383,9 @@ export function TraceDetail({ traceId, spans, events }: Props) {
       )}
 
       <Panel eyebrow="Waterfall" title="Spans">
-        <div className="overflow-x-auto">
-          <TimeRuler totalMs={totalMs} />
-          <div className="flex items-start gap-3 max-[900px]:flex-col">
-            <div className="flex-1 min-w-0">
+        <div className="flex items-start gap-3 max-[900px]:flex-col">
+          <div className="flex-1 min-w-0 overflow-x-auto">
+            <TimeRuler totalMs={totalMs} />
               {spans.map((span) => {
                 const offset =
                   ((Number(span.start_time_unix_nano) - minStart) / totalNs) * 100;
@@ -453,7 +452,6 @@ export function TraceDetail({ traceId, spans, events }: Props) {
               />
             )}
           </div>
-        </div>
       </Panel>
 
       <Panel eyebrow="Correlation" title={logPanelTitle}>

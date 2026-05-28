@@ -202,3 +202,13 @@ test("correlated logs panel shows Trace-correlated logs title when no span selec
   expect(screen.getByText("Trace-correlated logs")).toBeInTheDocument();
   expect(screen.getByText("Correlation")).toBeInTheDocument();
 });
+
+test("span context panel is not inside the horizontal scroll container", () => {
+  render(<TraceDetail traceId="abc" spans={[baseSpan]} />, { wrapper });
+  fireEvent.click(screen.getByRole("button", { name: /checkout: POST \/order/ }));
+
+  const panel = screen.getByRole("complementary", { name: "Selected span context" });
+  // If the panel is inside overflow-x-auto, opening it widens the scroll area
+  // and the panel overflows to the right instead of pushing the waterfall left.
+  expect(panel.closest(".overflow-x-auto")).toBeNull();
+});
