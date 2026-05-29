@@ -49,7 +49,11 @@ impl TraceService for OltpTraceService {
 
         let inner = request.into_inner();
         let producer = self.state.producer.clone();
-        let span = tracing::info_span!("grpc.export.traces", %tenant_id, %environment);
+        let span = if domain::telemetry::is_self_telemetry_env(&environment) {
+            tracing::Span::none()
+        } else {
+            tracing::info_span!("grpc.export.traces", %tenant_id, %environment)
+        };
         async move {
             let spans = super::convert::proto_spans_to_domain(
                 &inner.resource_spans,

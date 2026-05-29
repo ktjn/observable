@@ -45,7 +45,11 @@ impl LogsService for OltpLogService {
 
         let inner = request.into_inner();
         let producer = self.state.producer.clone();
-        let span = tracing::info_span!("grpc.export.logs", %tenant_id, %environment);
+        let span = if domain::telemetry::is_self_telemetry_env(&environment) {
+            tracing::Span::none()
+        } else {
+            tracing::info_span!("grpc.export.logs", %tenant_id, %environment)
+        };
         async move {
             let logs = super::convert::proto_logs_to_domain(
                 &inner.resource_logs,
