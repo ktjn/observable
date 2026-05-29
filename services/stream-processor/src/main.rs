@@ -91,10 +91,12 @@ async fn main() -> anyhow::Result<()> {
             let writer_url = writer_url.clone();
             let aggregator = aggregator.clone();
 
-            let is_all_observable = envelopes.iter().all(|e| e.environment == "observable");
+            let is_all_observable = envelopes
+                .iter()
+                .all(|e| domain::telemetry::is_self_telemetry_env(&e.environment));
             let first_non_obs_env = envelopes
                 .iter()
-                .find(|e| e.environment != "observable")
+                .find(|e| !domain::telemetry::is_self_telemetry_env(&e.environment))
                 .map(|e| e.environment.clone());
             let span = if is_all_observable {
                 tracing::Span::none()
@@ -118,7 +120,9 @@ async fn main() -> anyhow::Result<()> {
                 if !is_all_observable {
                     domain::telemetry::inject_current_context(&mut headers);
                 }
-                let env_val = first_non_obs_env.as_deref().unwrap_or("observable");
+                let env_val = first_non_obs_env
+                    .as_deref()
+                    .unwrap_or(domain::telemetry::SELF_TELEMETRY_ENV);
                 headers.insert(
                     "x-observable-environment",
                     env_val
