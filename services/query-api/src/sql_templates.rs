@@ -1714,4 +1714,62 @@ mod tests {
         let sql = build_filter_clauses_checked(&filters).unwrap();
         assert!(sql.contains("AND (ms.service_name = 'checkout')"));
     }
+
+    #[test]
+    fn log_filter_unknown_field_routes_to_json_extract_not_raw_sql() {
+        // An arbitrary attribute key (not a known log column) must be routed to
+        // JSONExtractString — the key is a string argument, not a SQL identifier.
+        let mut ir = log_ir(None);
+        ir.filters = vec![NlqFilter {
+            field: "request_id".into(),
+            op: NlqFilterOp::Eq,
+            value: "abc-123".into(),
+        }];
+        let ctx = LogSqlContext {
+            tenant_id: TEST_TENANT,
+            ir: &ir,
+        };
+        let sql = generate_log_sql(&ctx).unwrap();
+        assert!(
+            sql.contains("JSONExtractString(attributes, 'request_id')"),
+            "unknown field must be routed to JSONExtractString: {sql}"
+        );
+        assert!(
+            !sql.contains("request_id ="),
+            "must not appear as bare identifier: {sql}"
+        );
+    }
+
+    #[test]
+    fn log_filter_field_with_injection_attempt_is_escaped_in_json_path() {
+        // A filter field that looks like a SQL injection payload must be treated as
+        // a JSON path string argument — escape_string_value neutralises the quotes.
+        let mut ir = log_ir(None);
+        ir.filters = vec![NlqFilter {
+            field: "') UNION SELECT 1--".into(),
+            op: NlqFilterOp::Eq,
+            value: "x".into(),
+        }];
+        let ctx = LogSqlContext {
+            tenant_id: TEST_TENANT,
+            ir: &ir,
+        };
+        let sql = generate_log_sql(&ctx).unwrap();
+        // The injection payload must appear only inside a quoted JSONExtractString argument.
+        assert!(
+            sql.contains("JSONExtractString(attributes,"),
+            "injection field must be wrapped in JSONExtractString: {sql}"
+        );
+        // The quote character in the field name must be escaped (\') so it does not break the
+        // string boundary — the injection attempt stays inside the JSONExtractString argument.
+        assert!(
+            sql.contains("\\'"),
+            "single quote in field name must be escaped to \\': {sql}"
+        );
+        // The SQL must still query the correct table — the injection didn't alter query structure.
+        assert!(
+            sql.contains("FROM observable.logs"),
+            "SQL structure must be intact after injection attempt: {sql}"
+        );
+    }
 }
