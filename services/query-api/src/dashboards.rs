@@ -183,18 +183,42 @@ async fn fetch_relation(
 pub async fn list_dashboards(
     db: &sqlx::PgPool,
     tenant_id: Uuid,
+    user_id: Option<uuid::Uuid>,
 ) -> Result<Vec<DashboardItem>, sqlx::Error> {
-    let dashboards = sqlx::query_as::<_, DashboardRow>(
-        "SELECT dashboard_id, name, visibility, created_at \
-         FROM dashboards \
-         WHERE tenant_id = $1 \
-         ORDER BY created_at DESC",
-    )
-    .bind(tenant_id)
-    .fetch_all(db)
-    .await?;
+    // When user_id is None (API-key callers), all tenant dashboards are returned —
+    // API keys carry tenant-level access and bypass ReBAC visibility filters.
+    // When user_id is Some (session users), only public dashboards and dashboards
+    // the user has an explicit grant for are returned.
+    let dashboards = if let Some(uid) = user_id {
+        sqlx::query_as::<_, DashboardRow>(
+            "SELECT dashboard_id, name, visibility, created_at \
+             FROM dashboards \
+             WHERE tenant_id = $1 \
+               AND (visibility = 'public' \
+                    OR EXISTS ( \
+                        SELECT 1 FROM dashboard_grants \
+                        WHERE dashboard_grants.dashboard_id = dashboards.dashboard_id \
+                          AND user_id = $2 \
+                    )) \
+             ORDER BY created_at DESC",
+        )
+        .bind(tenant_id)
+        .bind(uid)
+        .fetch_all(db)
+        .await?
+    } else {
+        sqlx::query_as::<_, DashboardRow>(
+            "SELECT dashboard_id, name, visibility, created_at \
+             FROM dashboards \
+             WHERE tenant_id = $1 \
+             ORDER BY created_at DESC",
+        )
+        .bind(tenant_id)
+        .fetch_all(db)
+        .await?
+    };
 
-    let dashboard_ids: Vec<Uuid> = dashboards.iter().map(|d| d.dashboard_id).collect();
+    let dashboard_ids: Vec<uuid::Uuid> = dashboards.iter().map(|d| d.dashboard_id).collect();
     let panels = if dashboard_ids.is_empty() {
         Vec::new()
     } else {
@@ -279,8 +303,9 @@ pub async fn get_dashboard(
 
 pub async fn create_dashboard(
     db: &sqlx::PgPool,
-    tenant_id: Uuid,
+    tenant_id: uuid::Uuid,
     req: &CreateDashboardRequest,
+    creator_user_id: Option<uuid::Uuid>,
 ) -> Result<DashboardItem, CreateDashboardError> {
     validate_create_request(req)?;
 
@@ -294,6 +319,19 @@ pub async fn create_dashboard(
     .fetch_one(&mut *tx)
     .await
     .map_err(CreateDashboardError::Db)?;
+
+    if let Some(user_id) = creator_user_id {
+        sqlx::query(
+            "INSERT INTO dashboard_grants (dashboard_id, user_id, relation) \
+             VALUES ($1, $2, 'owner') \
+             ON CONFLICT (dashboard_id, user_id) DO UPDATE SET relation = 'owner'",
+        )
+        .bind(row.dashboard_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(CreateDashboardError::Db)?;
+    }
 
     let mut panels = Vec::with_capacity(req.panels.len());
     for (position, panel) in req.panels.iter().enumerate() {
@@ -550,8 +588,9 @@ pub async fn export_dashboard(
 
 pub async fn import_dashboard(
     db: &sqlx::PgPool,
-    tenant_id: Uuid,
+    tenant_id: uuid::Uuid,
     export: &DashboardExport,
+    creator_user_id: Option<uuid::Uuid>,
 ) -> Result<DashboardItem, CreateDashboardError> {
     let req = CreateDashboardRequest {
         name: export.name.clone(),
@@ -573,7 +612,7 @@ pub async fn import_dashboard(
             })
             .collect(),
     };
-    create_dashboard(db, tenant_id, &req).await
+    create_dashboard(db, tenant_id, &req, creator_user_id).await
 }
 
 fn validate_create_request(req: &CreateDashboardRequest) -> Result<(), CreateDashboardError> {
@@ -795,7 +834,7 @@ pub async fn handle_list_dashboards(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
 ) -> Result<Json<DashboardListResponse>, StatusCode> {
-    let items = list_dashboards(&state.db, ctx.tenant_id)
+    let items = list_dashboards(&state.db, ctx.tenant_id, ctx.user_id)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "failed to list dashboards");
@@ -809,7 +848,7 @@ pub async fn handle_create_dashboard(
     Extension(ctx): Extension<TenantContext>,
     Json(req): Json<CreateDashboardRequest>,
 ) -> Result<(StatusCode, Json<DashboardItem>), StatusCode> {
-    match create_dashboard(&state.db, ctx.tenant_id, &req).await {
+    match create_dashboard(&state.db, ctx.tenant_id, &req, ctx.user_id).await {
         Ok(item) => Ok((StatusCode::CREATED, Json(item))),
         Err(CreateDashboardError::InvalidInput(msg)) => {
             tracing::warn!(message = %msg, "invalid dashboard input");
@@ -827,14 +866,29 @@ pub async fn handle_get_dashboard(
     Extension(ctx): Extension<TenantContext>,
     Path(dashboard_id): Path<Uuid>,
 ) -> Result<Json<DashboardItem>, StatusCode> {
-    match get_dashboard(&state.db, ctx.tenant_id, dashboard_id).await {
-        Ok(Some(item)) => Ok(Json(item)),
-        Ok(None) => Err(StatusCode::NOT_FOUND),
+    let item = match get_dashboard(&state.db, ctx.tenant_id, dashboard_id).await {
+        Ok(Some(item)) => item,
+        Ok(None) => return Err(StatusCode::NOT_FOUND),
         Err(e) => {
             tracing::error!(error = %e, "failed to get dashboard");
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+    // API-key callers (user_id = None) bypass ReBAC — API keys are tenant-level
+    // credentials with full tenant access, not user-scoped. ReBAC only applies to
+    // browser/session-authenticated users who have a personal identity.
+    if let Some(user_id) = ctx.user_id {
+        let relation = fetch_relation(&state.db, user_id, dashboard_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "failed to fetch grant");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+        if !grant_satisfies_read(&item.visibility, relation.as_deref()) {
+            return Err(StatusCode::FORBIDDEN);
         }
     }
+    Ok(Json(item))
 }
 
 pub async fn handle_update_dashboard(
@@ -896,7 +950,7 @@ pub async fn handle_import_dashboard(
         tracing::warn!(schema_version = %export.schema_version, "unsupported dashboard export schema version");
         return Err(StatusCode::UNPROCESSABLE_ENTITY);
     }
-    match import_dashboard(&state.db, ctx.tenant_id, &export).await {
+    match import_dashboard(&state.db, ctx.tenant_id, &export, ctx.user_id).await {
         Ok(item) => Ok((StatusCode::CREATED, Json(item))),
         Err(CreateDashboardError::InvalidInput(msg)) => {
             tracing::warn!(message = %msg, "invalid dashboard import");
