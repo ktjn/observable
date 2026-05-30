@@ -42,6 +42,24 @@ pub struct DashboardListResponse {
     pub items: Vec<DashboardItem>,
 }
 
+#[derive(Deserialize)]
+pub struct AddGrantRequest {
+    pub user_id: Uuid,
+    pub relation: String,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct GrantItem {
+    pub user_id: Uuid,
+    pub relation: String,
+    pub granted_at: DateTime<Utc>,
+}
+
+#[derive(Serialize)]
+pub struct GrantListResponse {
+    pub grants: Vec<GrantItem>,
+}
+
 #[derive(Deserialize, Clone)]
 pub struct DashboardPanelRequest {
     #[serde(default)]
@@ -1005,6 +1023,222 @@ pub async fn handle_delete_dashboard(
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+pub async fn handle_list_grants(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(dashboard_id): Path<Uuid>,
+) -> Result<Json<GrantListResponse>, StatusCode> {
+    let user_id = ctx.user_id.ok_or(StatusCode::FORBIDDEN)?;
+
+    // verify dashboard belongs to this tenant
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM dashboards WHERE dashboard_id = $1 AND tenant_id = $2)",
+    )
+    .bind(dashboard_id)
+    .bind(ctx.tenant_id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to check dashboard");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let relation = fetch_relation(&state.db, user_id, dashboard_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to fetch grant");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let is_admin = ctx.role == "tenant_admin";
+    let is_owner = relation.as_deref() == Some("owner");
+    if !is_admin && !is_owner {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let grants = sqlx::query_as::<_, GrantItem>(
+        "SELECT user_id, relation, granted_at \
+         FROM dashboard_grants \
+         WHERE dashboard_id = $1 \
+         ORDER BY granted_at ASC",
+    )
+    .bind(dashboard_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to list grants");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(GrantListResponse { grants }))
+}
+
+pub async fn handle_add_grant(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(dashboard_id): Path<Uuid>,
+    Json(req): Json<AddGrantRequest>,
+) -> Result<StatusCode, StatusCode> {
+    if !matches!(req.relation.as_str(), "owner" | "editor" | "viewer") {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let user_id = ctx.user_id.ok_or(StatusCode::FORBIDDEN)?;
+
+    // verify dashboard belongs to this tenant
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM dashboards WHERE dashboard_id = $1 AND tenant_id = $2)",
+    )
+    .bind(dashboard_id)
+    .bind(ctx.tenant_id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to check dashboard");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let caller_relation = fetch_relation(&state.db, user_id, dashboard_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to fetch grant");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    let is_admin = ctx.role == "tenant_admin";
+    if !is_admin && caller_relation.as_deref() != Some("owner") {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // verify target user exists in this tenant
+    let target_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2)",
+    )
+    .bind(req.user_id)
+    .bind(ctx.tenant_id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to verify target user");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    if !target_exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    sqlx::query(
+        "INSERT INTO dashboard_grants (dashboard_id, user_id, relation) \
+         VALUES ($1, $2, $3) \
+         ON CONFLICT (dashboard_id, user_id) DO UPDATE SET relation = EXCLUDED.relation",
+    )
+    .bind(dashboard_id)
+    .bind(req.user_id)
+    .bind(&req.relation)
+    .execute(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to insert grant");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn handle_revoke_grant(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path((dashboard_id, target_user_id)): Path<(Uuid, Uuid)>,
+) -> Result<StatusCode, StatusCode> {
+    let user_id = ctx.user_id.ok_or(StatusCode::FORBIDDEN)?;
+
+    // verify dashboard belongs to this tenant
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM dashboards WHERE dashboard_id = $1 AND tenant_id = $2)",
+    )
+    .bind(dashboard_id)
+    .bind(ctx.tenant_id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to check dashboard");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let caller_relation = fetch_relation(&state.db, user_id, dashboard_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to fetch caller grant");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    let is_admin = ctx.role == "tenant_admin";
+    let is_owner = caller_relation.as_deref() == Some("owner");
+    if !is_admin && !is_owner {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // Check if removing this grant would leave zero owners
+    let target_relation = fetch_relation(&state.db, target_user_id, dashboard_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to fetch target grant");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    // Atomically delete the grant only if it's not the last owner.
+    // A plain DELETE would be a TOCTOU race between checking remaining owners
+    // and issuing the delete — two concurrent revokers could both pass the check.
+    let result = if target_relation.as_deref() == Some("owner") {
+        // Only delete if at least one other owner will remain.
+        sqlx::query(
+            "WITH guard AS ( \
+               SELECT COUNT(*) AS remaining \
+               FROM dashboard_grants \
+               WHERE dashboard_id = $1 AND relation = 'owner' AND user_id != $2 \
+             ) \
+             DELETE FROM dashboard_grants \
+             WHERE dashboard_id = $1 AND user_id = $2 \
+               AND (SELECT remaining FROM guard) > 0",
+        )
+        .bind(dashboard_id)
+        .bind(target_user_id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to delete grant");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+    } else {
+        sqlx::query("DELETE FROM dashboard_grants WHERE dashboard_id = $1 AND user_id = $2")
+            .bind(dashboard_id)
+            .bind(target_user_id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "failed to delete grant");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+    };
+
+    if result.rows_affected() == 0 {
+        // If the grant was an owner and rows_affected == 0, it means the guard prevented
+        // deletion (zero remaining owners). Otherwise the grant simply didn't exist.
+        if target_relation.as_deref() == Some("owner") {
+            return Err(StatusCode::CONFLICT);
+        }
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn handle_get_dashboard_export(
