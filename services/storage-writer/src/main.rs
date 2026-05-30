@@ -1,7 +1,4 @@
-mod logs;
-mod metrics;
 mod retention;
-mod spans;
 
 use axum::{
     Json, Router,
@@ -12,33 +9,23 @@ use axum::{
 use clickhouse::Client;
 use serde::Deserialize;
 use std::sync::Arc;
-use storage_writer::{AppState, observability};
+use storage_writer::{AppState, buffer, observability};
 use tower_http::trace::TraceLayer;
 
 async fn write_spans(
     State(state): State<AppState>,
     Json(batch): Json<Vec<domain::Span>>,
 ) -> StatusCode {
-    match spans::insert_spans(&state.ch, batch).await {
-        Ok(_) => StatusCode::NO_CONTENT,
-        Err(e) => {
-            tracing::error!(error = %e, "clickhouse write failed");
-            StatusCode::INTERNAL_SERVER_ERROR
-        }
-    }
+    state.buffer.send_spans(batch);
+    StatusCode::NO_CONTENT
 }
 
 async fn write_logs(
     State(state): State<AppState>,
     Json(batch): Json<Vec<domain::LogRecord>>,
 ) -> StatusCode {
-    match logs::insert_logs(&state.ch, batch).await {
-        Ok(_) => StatusCode::NO_CONTENT,
-        Err(e) => {
-            tracing::error!(error = %e, "ch write failed");
-            StatusCode::INTERNAL_SERVER_ERROR
-        }
-    }
+    state.buffer.send_logs(batch);
+    StatusCode::NO_CONTENT
 }
 
 #[derive(Deserialize)]
@@ -48,13 +35,8 @@ struct MetricsBatch {
 }
 
 async fn write_metrics(State(state): State<AppState>, Json(b): Json<MetricsBatch>) -> StatusCode {
-    let r1 = metrics::insert_metric_series(&state.ch, b.series).await;
-    let r2 = metrics::insert_metric_points(&state.ch, b.points).await;
-    if r1.is_err() || r2.is_err() {
-        StatusCode::INTERNAL_SERVER_ERROR
-    } else {
-        StatusCode::NO_CONTENT
-    }
+    state.buffer.send_metrics(b.series, b.points);
+    StatusCode::NO_CONTENT
 }
 
 #[tokio::main]
@@ -71,12 +53,28 @@ async fn main() -> anyhow::Result<()> {
     let port: u16 = std::env::var("STORAGE_WRITER_PORT")
         .unwrap_or_else(|_| "4320".into())
         .parse()?;
+    let flush_max_rows: usize = std::env::var("STORAGE_WRITER_FLUSH_MAX_ROWS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(5_000);
+    let flush_interval = std::time::Duration::from_millis(
+        std::env::var("STORAGE_WRITER_FLUSH_INTERVAL_MS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(500),
+    );
+    let buffer = Arc::new(buffer::WriteBuffer::new(
+        ch.clone(),
+        flush_max_rows,
+        flush_interval,
+    ));
     let retention_config = retention::RetentionConfig::from_env();
     tokio::spawn(retention::start_retention_worker(
         ch.clone(),
         retention_config,
     ));
     let state = AppState {
+        buffer,
         ch,
         metrics: Arc::new(observability::StorageWriterMetrics::new()),
     };
