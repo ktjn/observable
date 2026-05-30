@@ -292,6 +292,15 @@ test_storage_writer_uses_telemetry_constant() {
   fi
 }
 
+test_storage_writer_has_write_buffer() {
+  local buf="$SCRIPT_DIR/../../services/storage-writer/src/buffer.rs"
+
+  if [ ! -f "$buf" ]; then
+    echo "FAIL: services/storage-writer/src/buffer.rs must exist (async write buffer for ClickHouse insert efficiency)"
+    exit 1
+  fi
+}
+
 run_test "loads helper definitions" test_exports_wait_for_json_count_without_running_main
 run_test "retries until rows exist" test_wait_for_json_count_retries_until_rows_exist
 run_test "checks expected HTTP status" test_assert_http_status_checks_expected_code
@@ -309,5 +318,6 @@ run_test "local-ci has unit-test gate" test_local_ci_has_unit_test_gate
 run_test "grpc handlers suppress self-telemetry spans" test_grpc_handlers_suppress_self_telemetry_spans
 run_test "stream-processor uses telemetry constant" test_stream_processor_uses_telemetry_constant
 run_test "storage-writer uses telemetry constant" test_storage_writer_uses_telemetry_constant
+run_test "storage-writer has write buffer" test_storage_writer_has_write_buffer
 
 echo "PASS: smoke_test polling helper"

@@ -88,10 +88,9 @@ async fn spans_flush_loop(
                         }
                     }
                     None => {
-                        if !buf.is_empty() {
-                            if let Err(e) = crate::spans::insert_spans(&ch, buf).await {
-                                tracing::error!(error = %e, "final flush spans to clickhouse failed");
-                            }
+                        if buf.is_empty() { return; }
+                        if let Err(e) = crate::spans::insert_spans(&ch, buf).await {
+                            tracing::error!(error = %e, "final flush spans to clickhouse failed");
                         }
                         return;
                     }
@@ -134,10 +133,9 @@ async fn logs_flush_loop(
                         }
                     }
                     None => {
-                        if !buf.is_empty() {
-                            if let Err(e) = crate::logs::insert_logs(&ch, buf).await {
-                                tracing::error!(error = %e, "final flush logs to clickhouse failed");
-                            }
+                        if buf.is_empty() { return; }
+                        if let Err(e) = crate::logs::insert_logs(&ch, buf).await {
+                            tracing::error!(error = %e, "final flush logs to clickhouse failed");
                         }
                         return;
                     }

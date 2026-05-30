@@ -136,7 +136,7 @@ These gaps were identified during a direct review of `apps/frontend/src` and the
 #### Performance & Scaling
 - [x] **Stream Processor Batching**: Refactor `stream-processor` to batch multiple telemetry envelopes before flushing to `storage-writer`. The current 1-request-per-envelope model is a high-volume bottleneck. (COMPLETED 2026-05-27) count/timer batching via run_batch; STREAM_PROCESSOR_BATCH_SIZE (default 500) and STREAM_PROCESSOR_BATCH_INTERVAL_MS (default 200); merge_batch tested in lib and integration tests.
 - [ ] **Distributed Rate Limiting**: Move `ingest-gateway` rate limiters from in-memory to a shared store (e.g., Redis) to support horizontal scaling.
-- [ ] **ClickHouse Insert Efficiency**: Align `stream-processor` batching with `storage-writer` to ensure ClickHouse receives large, efficient blocks rather than many small inserts.
+- [x] **ClickHouse Insert Efficiency**: Align `stream-processor` batching with `storage-writer` to ensure ClickHouse receives large, efficient blocks rather than many small inserts. (COMPLETED 2026-05-30) `storage-writer` gains an async `WriteBuffer` (`src/buffer.rs`) with three `tokio::mpsc` channels (spans, logs, metrics). HTTP handlers push to channels and return 204 immediately; background flush tasks fire on `STORAGE_WRITER_FLUSH_MAX_ROWS` (default 5 000) or `STORAGE_WRITER_FLUSH_INTERVAL_MS` (default 500 ms). Unit tests cover count- and timeout-triggered flushes.
 
 #### Reliability & Observability
 - [x] **Alert Lifecycle (RF-4)**: Implement deduplication, `for_duration_secs` (pending state), and resolution logic in `alert-evaluator/src/evaluator.rs`. Completed in branch `feat/rf-4-alert-lifecycle-semantics`; see the finish-started plan for verification scope.
