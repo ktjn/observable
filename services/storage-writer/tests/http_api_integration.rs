@@ -10,7 +10,15 @@ use storage_writer::{AppState, observability};
 use tower::ServiceExt;
 
 fn test_state(ch: clickhouse::Client) -> AppState {
+    use std::time::Duration;
+    use storage_writer::buffer::WriteBuffer;
+    let buffer = Arc::new(WriteBuffer::new(
+        ch.clone(),
+        5_000,
+        Duration::from_millis(500),
+    ));
     AppState {
+        buffer,
         ch,
         metrics: Arc::new(observability::StorageWriterMetrics::new()),
     }
