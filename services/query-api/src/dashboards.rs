@@ -774,12 +774,14 @@ fn validate_update_request(req: &UpdateDashboardRequest) -> Result<(), CreateDas
             )));
         }
     }
-    if let Some(vis) = &req.visibility {
-        if !matches!(vis.as_str(), "public" | "private") {
-            return Err(CreateDashboardError::InvalidInput(
-                "visibility must be 'public' or 'private'".into(),
-            ));
-        }
+    if req
+        .visibility
+        .as_deref()
+        .is_some_and(|v| !matches!(v, "public" | "private"))
+    {
+        return Err(CreateDashboardError::InvalidInput(
+            "visibility must be 'public' or 'private'".into(),
+        ));
     }
     Ok(())
 }

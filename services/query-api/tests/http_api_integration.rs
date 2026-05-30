@@ -1042,6 +1042,7 @@ async fn dashboard_get_http_returns_v2_panel_shape() {
                 ..Default::default()
             }],
         },
+        None,
     )
     .await
     .expect("dashboard created");
@@ -1083,6 +1084,7 @@ async fn dashboard_put_http_updates_panel_layout() {
                 ..Default::default()
             }],
         },
+        None,
     )
     .await
     .expect("dashboard created");
