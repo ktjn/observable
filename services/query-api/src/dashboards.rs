@@ -32,6 +32,7 @@ pub struct DashboardPanelItem {
 pub struct DashboardItem {
     pub dashboard_id: Uuid,
     pub name: String,
+    pub visibility: String,
     pub panels: Vec<DashboardPanelItem>,
     pub created_at: DateTime<Utc>,
 }
@@ -124,6 +125,7 @@ impl std::error::Error for CreateDashboardError {
 struct DashboardRow {
     dashboard_id: Uuid,
     name: String,
+    visibility: String,
     created_at: DateTime<Utc>,
 }
 
@@ -143,12 +145,47 @@ struct DashboardPanelRow {
     time_range: serde_json::Value,
 }
 
+/// True if the caller is allowed to read this dashboard.
+/// Public dashboards are readable by any tenant member (RBAC already enforced by middleware).
+/// Private dashboards require an explicit grant of any relation.
+pub(crate) fn grant_satisfies_read(visibility: &str, relation: Option<&str>) -> bool {
+    visibility == "public" || relation.is_some_and(|r| matches!(r, "owner" | "editor" | "viewer"))
+}
+
+/// True if the caller is allowed to write (update) this dashboard.
+/// `tenant_admin` bypasses tuple checks.
+pub(crate) fn grant_satisfies_write(tenant_role: &str, relation: Option<&str>) -> bool {
+    tenant_role == "tenant_admin" || relation.is_some_and(|r| matches!(r, "owner" | "editor"))
+}
+
+/// True if the caller is allowed to delete this dashboard.
+/// `tenant_admin` bypasses tuple checks.
+pub(crate) fn grant_satisfies_delete(tenant_role: &str, relation: Option<&str>) -> bool {
+    tenant_role == "tenant_admin" || relation.is_some_and(|r| r == "owner")
+}
+
+/// Fetch the relation a specific user holds on a specific dashboard, if any.
+async fn fetch_relation(
+    db: &sqlx::PgPool,
+    user_id: uuid::Uuid,
+    dashboard_id: uuid::Uuid,
+) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar::<_, String>(
+        "SELECT relation FROM dashboard_grants \
+         WHERE dashboard_id = $1 AND user_id = $2",
+    )
+    .bind(dashboard_id)
+    .bind(user_id)
+    .fetch_optional(db)
+    .await
+}
+
 pub async fn list_dashboards(
     db: &sqlx::PgPool,
     tenant_id: Uuid,
 ) -> Result<Vec<DashboardItem>, sqlx::Error> {
     let dashboards = sqlx::query_as::<_, DashboardRow>(
-        "SELECT dashboard_id, name, created_at \
+        "SELECT dashboard_id, name, visibility, created_at \
          FROM dashboards \
          WHERE tenant_id = $1 \
          ORDER BY created_at DESC",
@@ -195,6 +232,7 @@ pub async fn list_dashboards(
                 .collect(),
             dashboard_id: dashboard.dashboard_id,
             name: dashboard.name,
+            visibility: dashboard.visibility,
             created_at: dashboard.created_at,
         })
         .collect())
@@ -206,7 +244,7 @@ pub async fn get_dashboard(
     dashboard_id: Uuid,
 ) -> Result<Option<DashboardItem>, sqlx::Error> {
     let dashboard = sqlx::query_as::<_, DashboardRow>(
-        "SELECT dashboard_id, name, created_at \
+        "SELECT dashboard_id, name, visibility, created_at \
          FROM dashboards \
          WHERE dashboard_id = $1 AND tenant_id = $2",
     )
@@ -233,6 +271,7 @@ pub async fn get_dashboard(
     Ok(Some(DashboardItem {
         dashboard_id: dashboard.dashboard_id,
         name: dashboard.name,
+        visibility: dashboard.visibility,
         panels: panels.into_iter().map(row_to_panel_item).collect(),
         created_at: dashboard.created_at,
     }))
@@ -248,7 +287,7 @@ pub async fn create_dashboard(
     let mut tx = db.begin().await.map_err(CreateDashboardError::Db)?;
     let row = sqlx::query_as::<_, DashboardRow>(
         "INSERT INTO dashboards (tenant_id, name) VALUES ($1, $2) \
-         RETURNING dashboard_id, name, created_at",
+         RETURNING dashboard_id, name, visibility, created_at",
     )
     .bind(tenant_id)
     .bind(req.name.trim())
@@ -311,6 +350,7 @@ pub async fn create_dashboard(
     Ok(DashboardItem {
         dashboard_id: row.dashboard_id,
         name: row.name,
+        visibility: row.visibility,
         panels,
         created_at: row.created_at,
     })
@@ -329,7 +369,7 @@ pub async fn update_dashboard(
         "UPDATE dashboards \
          SET name = $1 \
          WHERE dashboard_id = $2 AND tenant_id = $3 \
-         RETURNING dashboard_id, name, created_at",
+         RETURNING dashboard_id, name, visibility, created_at",
     )
     .bind(req.name.trim())
     .bind(dashboard_id)
@@ -405,6 +445,7 @@ pub async fn update_dashboard(
     Ok(Some(DashboardItem {
         dashboard_id: row.dashboard_id,
         name: row.name,
+        visibility: row.visibility,
         panels,
         created_at: row.created_at,
     }))
@@ -448,6 +489,7 @@ pub struct DashboardExportPanel {
 }
 
 /// Portable dashboard representation — no IDs, stable for version control.
+/// Access-control fields (`visibility`, grants) are intentionally excluded from exports.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct DashboardExport {
     pub schema_version: String,
@@ -461,7 +503,7 @@ pub async fn export_dashboard(
     dashboard_id: Uuid,
 ) -> Result<Option<DashboardExport>, sqlx::Error> {
     let dashboard = sqlx::query_as::<_, DashboardRow>(
-        "SELECT dashboard_id, name, created_at \
+        "SELECT dashboard_id, name, visibility, created_at \
          FROM dashboards \
          WHERE dashboard_id = $1 AND tenant_id = $2",
     )
@@ -974,5 +1016,72 @@ mod tests {
             }],
         };
         assert!(validate_create_request(&req).is_err());
+    }
+
+    // --- ReBAC pure-helper tests ---
+
+    #[test]
+    fn public_dashboard_visible_without_grant() {
+        assert!(grant_satisfies_read("public", None));
+    }
+
+    #[test]
+    fn private_dashboard_hidden_without_grant() {
+        assert!(!grant_satisfies_read("private", None));
+    }
+
+    #[test]
+    fn private_dashboard_visible_with_viewer_grant() {
+        assert!(grant_satisfies_read("private", Some("viewer")));
+    }
+
+    #[test]
+    fn private_dashboard_visible_with_editor_grant() {
+        assert!(grant_satisfies_read("private", Some("editor")));
+    }
+
+    #[test]
+    fn private_dashboard_visible_with_owner_grant() {
+        assert!(grant_satisfies_read("private", Some("owner")));
+    }
+
+    #[test]
+    fn viewer_grant_cannot_write() {
+        assert!(!grant_satisfies_write("member", Some("viewer")));
+    }
+
+    #[test]
+    fn editor_grant_can_write() {
+        assert!(grant_satisfies_write("member", Some("editor")));
+    }
+
+    #[test]
+    fn owner_grant_can_write() {
+        assert!(grant_satisfies_write("member", Some("owner")));
+    }
+
+    #[test]
+    fn tenant_admin_can_write_without_grant() {
+        assert!(grant_satisfies_write("tenant_admin", None));
+    }
+
+    #[test]
+    fn viewer_grant_cannot_delete() {
+        assert!(!grant_satisfies_delete("member", Some("viewer")));
+    }
+
+    #[test]
+    fn editor_grant_cannot_delete() {
+        assert!(!grant_satisfies_delete("member", Some("editor")));
+    }
+
+    #[test]
+    fn owner_grant_can_delete() {
+        assert!(grant_satisfies_delete("member", Some("owner")));
+    }
+
+    #[test]
+    fn tenant_admin_can_delete_without_grant() {
+        assert!(grant_satisfies_delete("tenant_admin", None));
     }
 }
