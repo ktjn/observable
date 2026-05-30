@@ -161,8 +161,8 @@ async fn metrics_flush_loop(
     max_rows: usize,
     flush_interval: Duration,
 ) {
-    let mut series_buf: Vec<MetricSeries> = Vec::new();
-    let mut points_buf: Vec<MetricPoint> = Vec::new();
+    let mut series_buf: Vec<MetricSeries> = Vec::with_capacity(max_rows / 2 + 1);
+    let mut points_buf: Vec<MetricPoint> = Vec::with_capacity(max_rows);
     let mut interval = tokio::time::interval(flush_interval);
     interval.tick().await;
 
@@ -176,6 +176,8 @@ async fn metrics_flush_loop(
                         if series_buf.len() + points_buf.len() >= max_rows {
                             let s = std::mem::take(&mut series_buf);
                             let p = std::mem::take(&mut points_buf);
+                            // Best-effort: flush series and points independently.
+                            // A series failure does not suppress the points flush.
                             if let Err(e) = crate::metrics::insert_metric_series(&ch, s).await {
                                 tracing::error!(error = %e, "flush metric_series to clickhouse failed");
                             }
@@ -187,6 +189,8 @@ async fn metrics_flush_loop(
                     }
                     None => {
                         if !series_buf.is_empty() || !points_buf.is_empty() {
+                            // Best-effort: flush series and points independently.
+                            // A series failure does not suppress the points flush.
                             if let Err(e) = crate::metrics::insert_metric_series(&ch, series_buf).await {
                                 tracing::error!(error = %e, "final flush metric_series failed");
                             }
@@ -202,6 +206,8 @@ async fn metrics_flush_loop(
                 if !series_buf.is_empty() || !points_buf.is_empty() {
                     let s = std::mem::take(&mut series_buf);
                     let p = std::mem::take(&mut points_buf);
+                    // Best-effort: flush series and points independently.
+                    // A series failure does not suppress the points flush.
                     if let Err(e) = crate::metrics::insert_metric_series(&ch, s).await {
                         tracing::error!(error = %e, "flush metric_series to clickhouse failed");
                     }
