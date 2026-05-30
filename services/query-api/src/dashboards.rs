@@ -95,6 +95,8 @@ pub struct CreateDashboardRequest {
 pub struct UpdateDashboardRequest {
     pub name: String,
     pub panels: Vec<DashboardPanelRequest>,
+    #[serde(default)]
+    pub visibility: Option<String>,
 }
 
 #[derive(Debug)]
@@ -396,25 +398,40 @@ pub async fn create_dashboard(
 
 pub async fn update_dashboard(
     db: &sqlx::PgPool,
-    tenant_id: Uuid,
-    dashboard_id: Uuid,
+    tenant_id: uuid::Uuid,
+    dashboard_id: uuid::Uuid,
     req: &UpdateDashboardRequest,
 ) -> Result<Option<DashboardItem>, CreateDashboardError> {
     validate_update_request(req)?;
 
     let mut tx = db.begin().await.map_err(CreateDashboardError::Db)?;
-    let row = sqlx::query_as::<_, DashboardRow>(
-        "UPDATE dashboards \
-         SET name = $1 \
-         WHERE dashboard_id = $2 AND tenant_id = $3 \
-         RETURNING dashboard_id, name, visibility, created_at",
-    )
-    .bind(req.name.trim())
-    .bind(dashboard_id)
-    .bind(tenant_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(CreateDashboardError::Db)?;
+
+    let row = if let Some(vis) = req.visibility.as_deref() {
+        sqlx::query_as::<_, DashboardRow>(
+            "UPDATE dashboards SET name = $1, visibility = $2 \
+             WHERE dashboard_id = $3 AND tenant_id = $4 \
+             RETURNING dashboard_id, name, visibility, created_at",
+        )
+        .bind(req.name.trim())
+        .bind(vis)
+        .bind(dashboard_id)
+        .bind(tenant_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(CreateDashboardError::Db)?
+    } else {
+        sqlx::query_as::<_, DashboardRow>(
+            "UPDATE dashboards SET name = $1 \
+             WHERE dashboard_id = $2 AND tenant_id = $3 \
+             RETURNING dashboard_id, name, visibility, created_at",
+        )
+        .bind(req.name.trim())
+        .bind(dashboard_id)
+        .bind(tenant_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(CreateDashboardError::Db)?
+    };
 
     let Some(row) = row else {
         tx.rollback().await.map_err(CreateDashboardError::Db)?;
@@ -739,6 +756,13 @@ fn validate_update_request(req: &UpdateDashboardRequest) -> Result<(), CreateDas
             )));
         }
     }
+    if let Some(vis) = &req.visibility {
+        if !matches!(vis.as_str(), "public" | "private") {
+            return Err(CreateDashboardError::InvalidInput(
+                "visibility must be 'public' or 'private'".into(),
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -897,6 +921,35 @@ pub async fn handle_update_dashboard(
     Path(dashboard_id): Path<Uuid>,
     Json(req): Json<UpdateDashboardRequest>,
 ) -> Result<Json<DashboardItem>, StatusCode> {
+    // Confirm the dashboard exists and belongs to this tenant before checking grants.
+    // (Prevents existence enumeration: non-existent dashboards return 404, not 403.)
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM dashboards WHERE dashboard_id = $1 AND tenant_id = $2)",
+    )
+    .bind(dashboard_id)
+    .bind(ctx.tenant_id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to check dashboard existence");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    // API-key callers (user_id = None) bypass ReBAC — tenant-level access.
+    // Session users must have owner or editor grant to update.
+    if let Some(user_id) = ctx.user_id {
+        let relation = fetch_relation(&state.db, user_id, dashboard_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "failed to fetch grant");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+        if !grant_satisfies_write(&ctx.role, relation.as_deref()) {
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
     match update_dashboard(&state.db, ctx.tenant_id, dashboard_id, &req).await {
         Ok(Some(item)) => Ok(Json(item)),
         Ok(None) => Err(StatusCode::NOT_FOUND),
@@ -916,6 +969,34 @@ pub async fn handle_delete_dashboard(
     Extension(ctx): Extension<TenantContext>,
     Path(dashboard_id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
+    // Confirm the dashboard exists and belongs to this tenant before checking grants.
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM dashboards WHERE dashboard_id = $1 AND tenant_id = $2)",
+    )
+    .bind(dashboard_id)
+    .bind(ctx.tenant_id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to check dashboard existence");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    // API-key callers (user_id = None) bypass ReBAC — tenant-level access.
+    // Session users must have owner grant (or tenant_admin role) to delete.
+    if let Some(user_id) = ctx.user_id {
+        let relation = fetch_relation(&state.db, user_id, dashboard_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "failed to fetch grant");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+        if !grant_satisfies_delete(&ctx.role, relation.as_deref()) {
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
     match delete_dashboard(&state.db, ctx.tenant_id, dashboard_id).await {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
         Ok(false) => Err(StatusCode::NOT_FOUND),
@@ -1137,5 +1218,15 @@ mod tests {
     #[test]
     fn tenant_admin_can_delete_without_grant() {
         assert!(grant_satisfies_delete("tenant_admin", None));
+    }
+
+    #[test]
+    fn no_grant_cannot_write() {
+        assert!(!grant_satisfies_write("member", None));
+    }
+
+    #[test]
+    fn no_grant_cannot_delete() {
+        assert!(!grant_satisfies_delete("member", None));
     }
 }

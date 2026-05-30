@@ -359,6 +359,7 @@ async fn update_dashboard_replaces_panel_layout_and_content() {
                 layout: Some(serde_json::json!({"x":0,"y":0,"w":8,"h":3})),
                 time_range: None,
             }],
+            visibility: None,
         },
     )
     .await
