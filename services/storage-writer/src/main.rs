@@ -102,7 +102,7 @@ async fn main() -> anyhow::Result<()> {
                     .headers()
                     .get("x-observable-environment")
                     .and_then(|v| v.to_str().ok())
-                    .map(|v| v == "observable")
+                    .map(|v| v == domain::telemetry::SELF_TELEMETRY_ENV)
                     .unwrap_or(false);
                 if is_observable {
                     return tracing::Span::none();

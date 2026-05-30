@@ -145,7 +145,7 @@ These gaps were identified during a direct review of `apps/frontend/src` and the
 
 #### Test Coverage & CI
 - [x] **Integration Test Regression (RF-2)**: Restore the integration test gate in `scripts/local-ci.sh` to ensure PostgreSQL and ClickHouse logic is verified by default. (COMPLETED 2026-05-27) `cargo test --workspace --tests` runs inside the Docker-gated block; `cargo fmt`, `cargo clippy`, and `cargo test --lib --bins` run unconditionally. `smoke_test_unit.sh` asserts all four gates are present.
-- [ ] **Telemetry Loop Prevention**: Audit and unify the "observable" environment suppression logic across all ingest and processing paths to prevent recursive feedback loops.
+- [x] **Telemetry Loop Prevention**: Audit and unify the "observable" environment suppression logic across all ingest and processing paths to prevent recursive feedback loops. (COMPLETED 2026-05-29) `domain::telemetry::SELF_TELEMETRY_ENV` constant + `is_self_telemetry_env()` helper added; `ingest-gateway` gRPC handlers now return `Span::none()` for self-telemetry env; `stream-processor` and `storage-writer` use the shared constant. `smoke_test_unit.sh` asserts all three invariants.
 
 ---
 

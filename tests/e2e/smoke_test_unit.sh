@@ -261,6 +261,37 @@ test_local_ci_has_unit_test_gate() {
   fi
 }
 
+test_grpc_handlers_suppress_self_telemetry_spans() {
+  local base="$SCRIPT_DIR/../../services/ingest-gateway/src/grpc"
+
+  for handler in log trace metric; do
+    if ! grep -q "is_self_telemetry_env" "$base/${handler}.rs"; then
+      echo "FAIL: ingest-gateway grpc/${handler}.rs must use is_self_telemetry_env() for span suppression"
+      exit 1
+    fi
+  done
+}
+
+test_stream_processor_uses_telemetry_constant() {
+  local main="$SCRIPT_DIR/../../services/stream-processor/src/main.rs"
+
+  if grep -q '"observable"' "$main"; then
+    echo "FAIL: stream-processor/main.rs must not use raw \"observable\" string (use SELF_TELEMETRY_ENV or is_self_telemetry_env)"
+    exit 1
+  fi
+}
+
+test_storage_writer_uses_telemetry_constant() {
+  local main="$SCRIPT_DIR/../../services/storage-writer/src/main.rs"
+
+  # Check that the TraceLayer span suppression uses the constant, not a raw literal.
+  # We look for SELF_TELEMETRY_ENV in the span-suppression context.
+  if ! grep -q "SELF_TELEMETRY_ENV" "$main"; then
+    echo "FAIL: storage-writer/main.rs must use SELF_TELEMETRY_ENV for span suppression (not a raw string)"
+    exit 1
+  fi
+}
+
 run_test "loads helper definitions" test_exports_wait_for_json_count_without_running_main
 run_test "retries until rows exist" test_wait_for_json_count_retries_until_rows_exist
 run_test "checks expected HTTP status" test_assert_http_status_checks_expected_code
@@ -275,5 +306,8 @@ run_test "local-ci has integration-test stage" test_local_ci_has_integration_tes
 run_test "local-ci has fmt gate" test_local_ci_has_fmt_gate
 run_test "local-ci has clippy gate" test_local_ci_has_clippy_gate
 run_test "local-ci has unit-test gate" test_local_ci_has_unit_test_gate
+run_test "grpc handlers suppress self-telemetry spans" test_grpc_handlers_suppress_self_telemetry_spans
+run_test "stream-processor uses telemetry constant" test_stream_processor_uses_telemetry_constant
+run_test "storage-writer uses telemetry constant" test_storage_writer_uses_telemetry_constant
 
 echo "PASS: smoke_test polling helper"

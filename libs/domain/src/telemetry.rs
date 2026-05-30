@@ -272,6 +272,18 @@ pub fn inject_current_context(headers: &mut reqwest::header::HeaderMap) {
     }
 }
 
+/// The environment name used by the platform's own self-ingest pipeline.
+/// All services that need to suppress tracing spans or skip trace-context
+/// propagation for self-observability data MUST compare against this constant
+/// rather than a raw string literal.
+pub const SELF_TELEMETRY_ENV: &str = "observable";
+
+/// Returns `true` when `env` identifies a self-telemetry signal that should
+/// not produce new observable spans (to prevent recursive feedback loops).
+pub fn is_self_telemetry_env(env: &str) -> bool {
+    env == SELF_TELEMETRY_ENV
+}
+
 /// A `tower_http` [`MakeSpan`] implementation that correctly propagates incoming W3C trace
 /// context into the span created for each HTTP request.
 ///
@@ -445,5 +457,23 @@ mod tests {
         let result = SelfObservabilityMode::try_from("mirror");
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn self_telemetry_env_matches_observable() {
+        assert!(is_self_telemetry_env("observable"));
+    }
+
+    #[test]
+    fn self_telemetry_env_does_not_match_other_envs() {
+        assert!(!is_self_telemetry_env("prod"));
+        assert!(!is_self_telemetry_env("staging"));
+        assert!(!is_self_telemetry_env(""));
+        assert!(!is_self_telemetry_env("OBSERVABLE"));
+    }
+
+    #[test]
+    fn self_telemetry_env_constant_value() {
+        assert_eq!(SELF_TELEMETRY_ENV, "observable");
     }
 }
