@@ -1,7 +1,4 @@
-mod logs;
-mod metrics;
 mod retention;
-mod spans;
 
 use axum::{
     Json, Router,
@@ -12,7 +9,7 @@ use axum::{
 use clickhouse::Client;
 use serde::Deserialize;
 use std::sync::Arc;
-use storage_writer::{AppState, observability};
+use storage_writer::{AppState, buffer, logs, metrics, observability, spans};
 use tower_http::trace::TraceLayer;
 
 async fn write_spans(
@@ -77,6 +74,7 @@ async fn main() -> anyhow::Result<()> {
         retention_config,
     ));
     let state = AppState {
+        buffer: Arc::new(buffer::WriteBuffer),
         ch,
         metrics: Arc::new(observability::StorageWriterMetrics::new()),
     };

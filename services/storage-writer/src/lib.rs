@@ -1,10 +1,16 @@
+pub mod buffer;
+pub mod logs;
+pub mod metrics;
 pub mod observability;
+pub mod spans;
 
-use clickhouse::Client;
 use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub ch: Client,
+    /// Async write buffer — handlers push here and return immediately.
+    pub buffer: Arc<buffer::WriteBuffer>,
+    /// Direct ClickHouse client — used by the readyz probe and retention worker only.
+    pub ch: clickhouse::Client,
     pub metrics: Arc<observability::StorageWriterMetrics>,
 }
