@@ -78,6 +78,7 @@ async fn create_dashboard_preserves_promoted_panel_filters() {
                 ..Default::default()
             }],
         },
+        None,
     )
     .await
     .unwrap();
@@ -88,7 +89,7 @@ async fn create_dashboard_preserves_promoted_panel_filters() {
     assert_eq!(created.panels[0].service.as_deref(), Some("checkout"));
     assert_eq!(created.panels[0].preset.as_deref(), Some("1h"));
 
-    let dashboards = list_dashboards(&pool, tenant).await.unwrap();
+    let dashboards = list_dashboards(&pool, tenant, None).await.unwrap();
     assert_eq!(dashboards.len(), 1);
     assert_eq!(dashboards[0].dashboard_id, created.dashboard_id);
     assert_eq!(dashboards[0].panels[0].filters["facets"][0], "service_name");
@@ -116,11 +117,12 @@ async fn list_dashboards_does_not_return_other_tenant_dashboards() {
                 ..Default::default()
             }],
         },
+        None,
     )
     .await
     .unwrap();
 
-    let tenant_b_dashboards = list_dashboards(&pool, tenant_b).await.unwrap();
+    let tenant_b_dashboards = list_dashboards(&pool, tenant_b, None).await.unwrap();
     assert!(
         tenant_b_dashboards.is_empty(),
         "tenant B must not see tenant A dashboards"
@@ -147,6 +149,7 @@ async fn export_dashboard_round_trips_panels() {
                 ..Default::default()
             }],
         },
+        None,
     )
     .await
     .unwrap();
@@ -189,7 +192,9 @@ async fn import_creates_new_dashboard_from_export() {
         }],
     };
 
-    let imported = import_dashboard(&pool, tenant, &export).await.unwrap();
+    let imported = import_dashboard(&pool, tenant, &export, None)
+        .await
+        .unwrap();
 
     assert_eq!(imported.name, "Imported dashboard");
     assert_eq!(imported.panels.len(), 1);
@@ -197,7 +202,7 @@ async fn import_creates_new_dashboard_from_export() {
     assert_eq!(imported.panels[0].query_kind.as_deref(), Some("traces"));
     assert_eq!(imported.panels[0].preset.as_deref(), Some("3h"));
 
-    let all = list_dashboards(&pool, tenant).await.unwrap();
+    let all = list_dashboards(&pool, tenant, None).await.unwrap();
     assert_eq!(all.len(), 1);
 }
 
@@ -223,6 +228,7 @@ async fn export_returns_none_for_wrong_tenant() {
                 ..Default::default()
             }],
         },
+        None,
     )
     .await
     .unwrap();
@@ -277,6 +283,7 @@ async fn dashboard_v2_persists_query_layout_time_override_and_text_panels() {
                 },
             ],
         },
+        None,
     )
     .await
     .unwrap();
@@ -328,6 +335,7 @@ async fn update_dashboard_replaces_panel_layout_and_content() {
                 time_range: None,
             }],
         },
+        None,
     )
     .await
     .unwrap();
@@ -351,6 +359,7 @@ async fn update_dashboard_replaces_panel_layout_and_content() {
                 layout: Some(serde_json::json!({"x":0,"y":0,"w":8,"h":3})),
                 time_range: None,
             }],
+            visibility: None,
         },
     )
     .await
@@ -400,7 +409,9 @@ async fn v2_export_round_trips_text_and_query_panels() {
         ],
     };
 
-    let imported = import_dashboard(&pool, tenant, &export).await.unwrap();
+    let imported = import_dashboard(&pool, tenant, &export, None)
+        .await
+        .unwrap();
     let exported = export_dashboard(&pool, tenant, imported.dashboard_id)
         .await
         .unwrap()

@@ -192,9 +192,10 @@ These gaps were identified during a direct review of `apps/frontend/src` and the
   - Verification: Testcontainers-backed PostgreSQL integration tests for provision, update, deactivate, group mapping, and idempotent replay; HTTP integration tests for tenant-admin-only management paths; frontend MSW/RTL tests for group mapping and sync-error states; manual smoke against the selected IdP's SCIM test app when available.
   - Checkpoint: is SCIM required for the first v1 customer, or can it remain deferred without blocking external launch?
 
-- [ ] **P4-S4: Add fine-grained authorization for one protected resource**
-  - Outcome: one OpenFGA-style protected object has enforceable sharing semantics.
-  - Checkpoint: is the ReBAC model additive to RBAC rather than conflicting with it?
+- [x] **P4-S4: Add fine-grained authorization for one protected resource** (COMPLETED 2026-05-30)
+  - Outcome: dashboards have enforceable visibility (`public`/`private`) and relationship tuples (`owner`, `editor`, `viewer`) stored in `dashboard_grants`. Handlers enforce read/write/delete based on grants; `tenant_admin` bypasses tuple checks; API-key callers keep existing tenant-scoped behavior.
+  - Checkpoint: ReBAC is additive to RBAC — RBAC gate is unchanged; tuple checks narrow access within it; existing dashboards remain accessible by default (`visibility = 'public'`).
+  - Detail: `docs/superpowers/specs/2026-05-30-p4-s4-dashboard-rebac-design.md`
 
 - [x] **P4-S5: Add SLO definition and one burn-rate alert** (COMPLETED 2026-05-05)
   - Outcome: one service-level availability SLO can be created/read, `alert-evaluator` evaluates an `slo_burn_rate` rule using fast and slow ClickHouse span windows, and the Alerts & SLOs UI shows SLO health.

@@ -9,7 +9,6 @@ use uuid::Uuid;
 pub struct TenantContext {
     pub tenant_id: Uuid,
     pub user_id: Option<Uuid>,
-    #[allow(dead_code)]
     pub role: String,
 }
 

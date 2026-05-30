@@ -120,6 +120,14 @@ async fn main() -> anyhow::Result<()> {
             "/v1/dashboards/{id}/export",
             get(dashboards::handle_get_dashboard_export),
         )
+        .route(
+            "/v1/dashboards/{id}/grants",
+            get(dashboards::handle_list_grants).post(dashboards::handle_add_grant),
+        )
+        .route(
+            "/v1/dashboards/{id}/grants/{user_id}",
+            axum::routing::delete(dashboards::handle_revoke_grant),
+        )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .route("/v1/alerts/rules", post(alerts::handle_create_rule))
         .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
