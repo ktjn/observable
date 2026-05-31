@@ -107,7 +107,7 @@ These gaps were identified during a direct review of `apps/frontend/src` and the
 
 #### Service Detail & Navigation
 - [x] **Tab Completion**: Add **Deployments** and **Alerts** tabs to `ServiceDetailPage.tsx` (COMPLETED 2026-05-09). The `deployments` and `alerts` tabs are present and wired. Incidents tab on service detail remains deferred; incidents are reachable via the global Incidents page.
-- [ ] **Context Preservation**: Ensure all tabs (Logs, Metrics, Traces, etc.) consistently apply the service filter and global date range from the URL.
+- [x] **Context Preservation**: Ensure all tabs (Logs, Metrics, Traces, etc.) consistently apply the service filter and global date range from the URL. (COMPLETED 2026-05-31) `service` added to `RootSearch` in `router.ts`; `useGlobalServiceFilter` hook created (mirrors `useGlobalDateRange`); `LogSearch`, `TraceSearch`, `MetricsSearch` updated to use the hook. `useGlobalDateRange` fixed to use functional navigate so `service` is preserved when the date range changes.
 
 #### Dashboard Maturity
 - [x] **Dashboard Detail View**: Create a dedicated page for viewing a single dashboard where `TimeSeriesGraph` and other visualizations are actually rendered for each panel (COMPLETED 2026-05-12). `DashboardDetailPage.tsx` exists with panel rendering, edit mode, add/edit forms, and `react-grid-layout` drag/resize.
