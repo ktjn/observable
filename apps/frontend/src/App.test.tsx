@@ -56,7 +56,7 @@ test("renders the product navigation shell", async () => {
   expect(within(navigation).getByText("Administration")).toBeInTheDocument();
   expect(within(navigation).getByText("Signals")).toBeInTheDocument();
 
-  await screen.findByRole("heading", { name: "Services" });
+  await screen.findByRole("heading", { name: "System Status" });
 });
 
 test("promotes the current log search filter to a dashboard panel", async () => {

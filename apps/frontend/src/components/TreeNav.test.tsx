@@ -106,7 +106,7 @@ describe("TreeNav", () => {
   test("marks parent with has-active-child when child route is active", () => {
     render(<TreeNav items={testItems} pathname="/admin/identity" />);
 
-    const adminLabel = screen.getByText("Administration").closest("span");
+    const adminLabel = screen.getByText("Administration").closest("button");
     expect(adminLabel).toHaveClass("has-active-child");
     expect(adminLabel).not.toHaveClass("active");
   });
@@ -125,6 +125,6 @@ describe("TreeNav", () => {
     render(<TreeNav items={testItems} pathname="/" />);
 
     expect(screen.getByText("Signals").closest("a")).toBeNull();
-    expect(screen.getByText("Signals").closest("span")).toBeInTheDocument();
+    expect(screen.getByText("Signals").closest("button")).toBeInTheDocument();
   });
 });
