@@ -1,5 +1,6 @@
 import { createRouter, createRoute, createRootRoute } from "@tanstack/react-router";
 import { AppShell } from "./components/AppShell";
+import HomePage from "./pages/HomePage";
 import AdminPage from "./pages/AdminPage";
 import InfrastructureDetailPage from "./pages/InfrastructureDetailPage";
 import InfrastructureInventoryPage from "./pages/InfrastructureInventoryPage";
@@ -58,7 +59,7 @@ const rootRoute = createRootRoute({
 const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: ServicesPage,
+  component: HomePage,
 });
 const servicesRoute = createRoute({
   getParentRoute: () => rootRoute,

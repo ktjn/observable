@@ -204,7 +204,6 @@ export function TopologyMap({
         ref={svgRef}
         width="100%"
         height="100%"
-        viewBox={`0 0 ${w} ${h}`}
         style={{ background: "#111", borderRadius: "8px", display: "block" }}
       >
         <defs>

@@ -361,6 +361,25 @@ span.tree-link {
   min-height: 0;
 }
 
+button.tree-link {
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding-top: 8px;
+  padding-bottom: 2px;
+  min-height: 0;
+  background: transparent;
+  border: none;
+  text-align: left;
+}
+
+button.tree-link:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
 .sidebar-footer {
   margin-top: auto;
   padding: 8px 8px 0;

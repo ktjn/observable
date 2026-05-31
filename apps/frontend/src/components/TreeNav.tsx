@@ -122,6 +122,14 @@ function TreeNode({
           <Link to={item.to} className={linkClass}>
             {item.label}
           </Link>
+        ) : hasChildren ? (
+          <button
+            type="button"
+            className={linkClass}
+            onClick={() => onToggle(item.id)}
+          >
+            {item.label}
+          </button>
         ) : (
           <span className={linkClass}>{item.label}</span>
         )}
