@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useGlobalServiceFilter } from "../hooks/useGlobalServiceFilter";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { createDashboard } from "../api/dashboards";
@@ -104,9 +105,10 @@ export type TraceExplorerProps = {
 };
 
 export default function TraceSearch() {
+  const { service } = useGlobalServiceFilter();
   return (
     <TraceExplorer
-      initialService={new URLSearchParams(window.location.search).get("service") ?? ""}
+      initialService={service ?? ""}
     />
   );
 }

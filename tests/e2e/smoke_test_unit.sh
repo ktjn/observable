@@ -301,6 +301,15 @@ test_storage_writer_has_write_buffer() {
   fi
 }
 
+test_frontend_has_service_filter_hook() {
+  local hook="$SCRIPT_DIR/../../apps/frontend/src/hooks/useGlobalServiceFilter.ts"
+
+  if [ ! -f "$hook" ]; then
+    echo "FAIL: apps/frontend/src/hooks/useGlobalServiceFilter.ts must exist (URL-persisted service filter hook)"
+    exit 1
+  fi
+}
+
 run_test "loads helper definitions" test_exports_wait_for_json_count_without_running_main
 run_test "retries until rows exist" test_wait_for_json_count_retries_until_rows_exist
 run_test "checks expected HTTP status" test_assert_http_status_checks_expected_code
@@ -319,5 +328,6 @@ run_test "grpc handlers suppress self-telemetry spans" test_grpc_handlers_suppre
 run_test "stream-processor uses telemetry constant" test_stream_processor_uses_telemetry_constant
 run_test "storage-writer uses telemetry constant" test_storage_writer_uses_telemetry_constant
 run_test "storage-writer has write buffer" test_storage_writer_has_write_buffer
+run_test "frontend has service filter hook" test_frontend_has_service_filter_hook
 
 echo "PASS: smoke_test polling helper"

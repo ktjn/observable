@@ -49,8 +49,10 @@ export interface GlobalDateRange {
 export function useGlobalDateRange(): GlobalDateRange {
   const search = useSearch({ strict: false }) as RootSearch;
   const navigate = useNavigate();
-  const updateSearch = (nextSearch: RootSearch) => {
-    navigate({ search: nextSearch } as unknown as Parameters<typeof navigate>[0]);
+  const updateSearch = (nextSearch: Partial<RootSearch>) => {
+    navigate({
+      search: (prev: RootSearch) => ({ ...prev, ...nextSearch }),
+    } as unknown as Parameters<typeof navigate>[0]);
   };
 
   const isCustom = search.from != null && search.to != null;
