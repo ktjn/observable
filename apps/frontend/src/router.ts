@@ -30,6 +30,7 @@ export type RootSearch = {
   preset?: Preset;
   from?: number;
   to?: number;
+  service?: string;
 };
 
 const VALID_PRESETS = new Set<string>(["5m", "15m", "30m", "1h", "3h", "12h"]);
@@ -47,7 +48,10 @@ const rootRoute = createRootRoute({
     const to = typeof search.to === "number" ? search.to
       : typeof search.to === "string" ? Number(search.to) || undefined
       : undefined;
-    return { preset, from, to };
+    const service = typeof search.service === "string" && search.service.trim()
+      ? search.service.trim()
+      : undefined;
+    return { preset, from, to, service };
   },
 });
 

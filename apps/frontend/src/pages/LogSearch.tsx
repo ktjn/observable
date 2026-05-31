@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useGlobalServiceFilter } from "../hooks/useGlobalServiceFilter";
 import { useQuery } from "@tanstack/react-query";
 import { createDashboard } from "../api/dashboards";
 import {
@@ -74,9 +75,10 @@ export type LogExplorerProps = {
 };
 
 export default function LogSearch() {
+  const { service } = useGlobalServiceFilter();
   return (
     <LogExplorer
-      initialService={new URLSearchParams(window.location.search).get("service") ?? ""}
+      initialService={service ?? ""}
     />
   );
 }
