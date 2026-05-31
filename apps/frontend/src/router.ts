@@ -14,6 +14,7 @@ import SetupPage from "./pages/SetupPage";
 import SetupLlmPage from "./pages/SetupLlmPage";
 import SetupTokensPage from "./pages/SetupTokensPage";
 import TraceSearch from "./pages/TraceSearch";
+import TraceComparePage from "./pages/TraceComparePage";
 import TraceDetailPage from "./pages/TraceDetailPage";
 import LogSearch from "./pages/LogSearch";
 import MetricsSearch from "./pages/MetricsSearch";
@@ -176,6 +177,15 @@ const traceSearchRoute = createRoute({
   path: "/traces",
   component: TraceSearch,
 });
+const traceCompareRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/traces/compare",
+  component: TraceComparePage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    left: typeof search.left === "string" && search.left.trim() ? search.left.trim() : undefined,
+    right: typeof search.right === "string" && search.right.trim() ? search.right.trim() : undefined,
+  }),
+});
 const traceDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/traces/$traceId",
@@ -240,6 +250,7 @@ export const router = createRouter({
     adminRoute,
     identitySettingsRoute,
     traceSearchRoute,
+    traceCompareRoute,
     traceDetailRoute,
     logSearchRoute,
     metricsSearchRoute,
