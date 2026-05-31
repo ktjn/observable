@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useGlobalServiceFilter } from "../hooks/useGlobalServiceFilter";
 import { useQuery } from "@tanstack/react-query";
 import { createDashboard } from "../api/dashboards";
@@ -18,6 +18,7 @@ import { useTimeDisplay } from "../lib/timeDisplay";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
+import { useLiveTail } from "../hooks/useLiveTail";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
@@ -115,6 +116,40 @@ export function LogExplorer({
   const to = String(BigInt(Math.floor(toMs)) * 1_000_000n);
   const [bucketCount, setBucketCount] = useState(60);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [isLive, setIsLive] = useState(false);
+
+  const SEVERITY_MIN: Partial<Record<SeverityFilter, number>> = {
+    error: 17,
+    warn: 13,
+    info: 9,
+  };
+
+  const liveTail = useLiveTail({
+    tenantId,
+    service: service || undefined,
+    severityMin: SEVERITY_MIN[severityFilter],
+    enabled: isLive,
+  });
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const userScrolledUp = useRef(false);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+      userScrolledUp.current = !atBottom;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    if (!isLive || userScrolledUp.current) return;
+    const el = scrollContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [liveTail.logs.length, isLive]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["logs", "nlq", tenantId, userQuery, fromMs, toMs],
@@ -143,9 +178,9 @@ export function LogExplorer({
     ...liveViewQueryOptions,
   });
 
-  const rawLogs = data ?? [];
-  const logs = rawLogs.slice(0, ROW_LIMIT);
-  const isCapped = rawLogs.length > ROW_LIMIT;
+  const rawLogs = isLive ? liveTail.logs : (data ?? []);
+  const logs = isLive ? liveTail.logs : rawLogs.slice(0, ROW_LIMIT);
+  const isCapped = !isLive && rawLogs.length > ROW_LIMIT;
 
   // Apply message search first, then compute severity counts, then apply severity filter.
   const messageFilteredLogs = useMemo(() => {
@@ -276,39 +311,75 @@ export function LogExplorer({
               aria-label="Search log messages"
               className="min-w-[180px] flex-1 border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--brand)] focus:outline-none"
             />
+            <button
+              type="button"
+              onClick={() => setIsLive((v) => !v)}
+              className={[
+                "flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold border transition-colors",
+                isLive
+                  ? "border-[var(--bad)] text-[var(--bad)]"
+                  : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--brand)] hover:text-[var(--text)]",
+              ].join(" ")}
+              aria-pressed={isLive}
+              aria-label={isLive ? "Stop live tail" : "Start live tail"}
+            >
+              {isLive && (
+                <span
+                  className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--bad)] animate-pulse"
+                  aria-hidden="true"
+                />
+              )}
+              {isLive ? "Stop" : "Live"}
+            </button>
           </div>
 
           <TablePanel className="flex-1 min-h-0 flex flex-col">
-            {isLoading ? (
-              <LoadingState>Loading logs…</LoadingState>
-            ) : error ? (
-              <LoadingState className="text-[var(--bad)]">Error loading logs: {String(error)}</LoadingState>
-            ) : displayedLogs.length === 0 ? (
-              <EmptyState
-                title="No logs found"
-                description={
-                  messageSearch || severityFilter !== "all"
-                    ? "No logs match the current filters. Try clearing the search or selecting a different severity."
-                    : "No logs in the selected time range. Try widening the time window or checking your service filter."
-                }
-              />
-            ) : (
-              <>
-                <LogResultsTable
-                  logs={displayedLogs}
-                  selectedLogId={selectedId ?? undefined}
-                  onSelectLog={(id) => onSelect(id)}
-                  timeFormat={format}
-                  showServiceColumn={showServiceColumn}
-                  ariaLabel={tableAriaLabel}
+            <div
+              ref={scrollContainerRef}
+              className="flex-1 overflow-y-auto min-h-0"
+            >
+              {!isLive && isLoading ? (
+                <LoadingState>Loading logs…</LoadingState>
+              ) : isLive && liveTail.error ? (
+                <LoadingState className="text-[var(--bad)]">
+                  Live tail error: {String(liveTail.error)}
+                </LoadingState>
+              ) : !isLive && error ? (
+                <LoadingState className="text-[var(--bad)]">Error loading logs: {String(error)}</LoadingState>
+              ) : displayedLogs.length === 0 ? (
+                <EmptyState
+                  title={isLive ? "Waiting for logs…" : "No logs found"}
+                  description={
+                    isLive
+                      ? "No log entries since live tail started. New logs will appear automatically."
+                      : messageSearch || severityFilter !== "all"
+                      ? "No logs match the current filters. Try clearing the search or selecting a different severity."
+                      : "No logs in the selected time range. Try widening the time window or checking your service filter."
+                  }
                 />
-                {isCapped && (
-                  <p className="px-3 py-2 text-xs text-[var(--muted)] border-t border-[var(--border)]">
-                    Showing {ROW_LIMIT} results — narrow the time range or add filters to see fewer.
-                  </p>
-                )}
-              </>
-            )}
+              ) : (
+                <>
+                  <LogResultsTable
+                    logs={displayedLogs}
+                    selectedLogId={selectedId ?? undefined}
+                    onSelectLog={(id) => onSelect(id)}
+                    timeFormat={format}
+                    showServiceColumn={showServiceColumn}
+                    ariaLabel={tableAriaLabel}
+                  />
+                  {isCapped && (
+                    <p className="px-3 py-2 text-xs text-[var(--muted)] border-t border-[var(--border)]">
+                      Showing {ROW_LIMIT} results — narrow the time range or add filters to see fewer.
+                    </p>
+                  )}
+                  {isLive && liveTail.logs.length >= 500 && (
+                    <p className="px-3 py-2 text-xs text-[var(--muted)] border-t border-[var(--border)]">
+                      Showing last 500 live log rows.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
           </TablePanel>
         </div>
       )}
