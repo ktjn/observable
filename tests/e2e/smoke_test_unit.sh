@@ -310,6 +310,15 @@ test_frontend_has_service_filter_hook() {
   fi
 }
 
+test_frontend_has_live_tail_hook() {
+  local hook="$SCRIPT_DIR/../../apps/frontend/src/hooks/useLiveTail.ts"
+
+  if [ ! -f "$hook" ]; then
+    echo "FAIL: apps/frontend/src/hooks/useLiveTail.ts must exist (live tail hook)"
+    exit 1
+  fi
+}
+
 run_test "loads helper definitions" test_exports_wait_for_json_count_without_running_main
 run_test "retries until rows exist" test_wait_for_json_count_retries_until_rows_exist
 run_test "checks expected HTTP status" test_assert_http_status_checks_expected_code
@@ -329,5 +338,6 @@ run_test "stream-processor uses telemetry constant" test_stream_processor_uses_t
 run_test "storage-writer uses telemetry constant" test_storage_writer_uses_telemetry_constant
 run_test "storage-writer has write buffer" test_storage_writer_has_write_buffer
 run_test "frontend has service filter hook" test_frontend_has_service_filter_hook
+run_test "frontend has live tail hook" test_frontend_has_live_tail_hook
 
 echo "PASS: smoke_test polling helper"
