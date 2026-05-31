@@ -1,9 +1,11 @@
+import { useGlobalServiceFilter } from "../hooks/useGlobalServiceFilter";
 import { ServiceMetricsWorkspace } from "../features/metrics/ServiceMetricsWorkspace";
 
 export default function MetricsSearch() {
+  const { service } = useGlobalServiceFilter();
   return (
     <ServiceMetricsWorkspace
-      initialService={new URLSearchParams(window.location.search).get("service") ?? ""}
+      initialService={service ?? ""}
       lockedService={false}
     />
   );
