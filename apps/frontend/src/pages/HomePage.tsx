@@ -297,7 +297,7 @@ export default function HomePage() {
           { label: "Metrics", to: "/metrics" },
           { label: "Dashboards", to: "/dashboards" },
           { label: "Infrastructure", to: "/infrastructure" },
-          { label: "Ask AI (NLQ)", to: "/nlq" },
+          { label: "Workbench", to: "/workbench" },
         ].map((link) => (
           <Link
             key={link.to}

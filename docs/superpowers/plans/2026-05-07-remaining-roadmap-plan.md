@@ -121,7 +121,7 @@ These gaps were identified during a direct review of `apps/frontend/src` and the
 #### Explorers & Workbench
 - [x] **Live Tail**: Add the "Live" toggle and streaming append behavior to `LogSearch.tsx` as specified in §9.18. (COMPLETED 2026-05-31) `useLiveTail` hook polls `GET /v1/logs/tail` every 5 s via cursor; `appendAndTrim` keeps the last 500 rows; `LogExplorer` shows a "Live" button with pulsing indicator, auto-scrolls to the bottom, and shows a waiting state before first rows arrive.
 - [x] **Trace Comparison**: Implement the side-by-side or diff view for comparing two traces. (COMPLETED 2026-05-31) Added `/traces/compare` with left/right trace IDs, a compare entry point from trace detail, side-by-side summary panels, and a compact diff summary for path and status changes.
-- [ ] **Query Workbench**: Implement the Monaco-based multi-signal notebook for ad-hoc exploration.
+- [x] **Query Workbench**: Implement the Monaco-based multi-signal notebook for ad-hoc exploration. (COMPLETED 2026-06-01) Added `/workbench` with URL-backed notebook state, three fixed starter blocks for metrics/logs/traces, per-block NLQ/raw editing with Monaco, and browser/unit coverage for route, codec, shell, and accessibility.
 
 #### Platform Administration
 - [ ] **Fleet Management**: Add the agent health and remote configuration UI.
