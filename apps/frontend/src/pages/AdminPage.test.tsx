@@ -41,14 +41,14 @@ beforeEach(async () => {
           JSON.stringify({
             user_id: "user-1",
             email: "alice@example.com",
-            tenants: [{ tenant_id: TENANT_ID, role: "member" }],
+            tenants: [{ tenant_id: TENANT_ID, role: "tenant_admin" }],
           }),
           { status: 200 },
         );
       }
 
       if (url.includes("/v1/tenants/") && url.includes("/environments")) {
-        return new Response(JSON.stringify({ items: [{ environment: "prod" }] }), {
+        return new Response(JSON.stringify({ environments: [{ environment: "prod" }] }), {
           status: 200,
         });
       }
@@ -79,10 +79,11 @@ afterEach(() => {
 test("renders the tenant usage report for the admin surface", async () => {
   render(<App />);
 
-  expect(
-    await screen.findByRole("heading", { name: "Tenant usage and cost report" }),
-  ).toBeInTheDocument();
-  expect(screen.getByText(/Billing interval:/)).toBeInTheDocument();
+  await screen.findByRole("heading", { name: "Admin Console" });
+  expect(screen.getByText(/Selected environment:/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Identity settings" })).toBeInTheDocument();
+  expect(screen.getByText(TENANT_ID)).toBeInTheDocument();
+  expect(within(screen.getByRole("table")).getByText("Tenant admin")).toBeInTheDocument();
 
   const usageSummary = screen.getByRole("group", { name: "Usage summary" });
   expect(within(usageSummary).getByText("Cost index")).toBeInTheDocument();
@@ -101,6 +102,8 @@ test("renders the tenant usage report for the admin surface", async () => {
   expect(within(controlPlane).getByText("17")).toBeInTheDocument();
   expect(within(controlPlane).getByText("Credential denials")).toBeInTheDocument();
   expect(within(controlPlane).getByText("2")).toBeInTheDocument();
+
+  expect(screen.getByText(/1 environment available in the selected tenant/)).toBeInTheDocument();
 });
 
 test("renders zero usage without an empty state", async () => {
@@ -114,14 +117,14 @@ test("renders zero usage without an empty state", async () => {
           JSON.stringify({
             user_id: "user-1",
             email: "alice@example.com",
-            tenants: [{ tenant_id: TENANT_ID, role: "member" }],
+            tenants: [{ tenant_id: TENANT_ID, role: "tenant_admin" }],
           }),
           { status: 200 },
         );
       }
 
       if (url.includes("/v1/tenants/") && url.includes("/environments")) {
-        return new Response(JSON.stringify({ items: [{ environment: "prod" }] }), {
+        return new Response(JSON.stringify({ environments: [{ environment: "prod" }] }), {
           status: 200,
         });
       }
@@ -166,9 +169,7 @@ test("renders zero usage without an empty state", async () => {
 
   render(<App />);
 
-  expect(
-    await screen.findByRole("heading", { name: "Tenant usage and cost report" }),
-  ).toBeInTheDocument();
+  await screen.findByRole("heading", { name: "Admin Console" });
   const usageSummary = screen.getByRole("group", { name: "Usage summary" });
   expect(within(usageSummary).getByText("Cost index")).toBeInTheDocument();
   expect(within(usageSummary).getAllByText("0")).toHaveLength(4);

@@ -20,7 +20,7 @@ making changes.
   default entry role. Runtimes without subagent support should apply matching specialist `.agent.md`
   files manually as checklists.
 - Active roadmap: `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` — unified post-Phase-3 implementation plan.
-- Active detailed implementation plan: none. Query Workbench is complete and its detailed plan has been archived. RF-2, RF-3, RF-6, P4-S9, stream-processor batching, Telemetry Loop Prevention, P4-S4 dashboard ReBAC, ClickHouse insert efficiency, Context Preservation, Live Tail, and Trace Comparison complete. Next: P4-S3b SCIM/SSO only if a v1 customer requires it.
+- Active detailed implementation plan: `docs/superpowers/plans/2026-06-01-admin-console-overview.md` — first Admin Console landing-page slice for tenant access, environment context, and usage summary. Query Workbench is complete and its detailed plan has been archived. RF-2, RF-3, RF-6, P4-S9, stream-processor batching, Telemetry Loop Prevention, P4-S4 dashboard ReBAC, ClickHouse insert efficiency, Context Preservation, Live Tail, and Trace Comparison complete. Next: P4-S3b SCIM/SSO only if a v1 customer requires it.
 - Completed / archived detailed plans:
   - `archived/plans/2026-05-06-identity-provider-zitadel.md` — Zitadel 4.x OIDC PKCE flow, session JWTs, user/role tables, frontend login/callback/me pages, Admin Console identity settings
   - `archived/plans/2026-05-05-p4-s1-warm-retention.md` — warm-retention movement path (ARCHIVED/DEFERRED; not implemented)
