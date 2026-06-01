@@ -42,7 +42,9 @@ const navTree: NavTreeItem[] = [
     id: "admin",
     label: "Administration",
     children: [
-      { id: "admin-fleet", label: "Fleet / Billing", to: "/admin" },
+      { id: "admin-overview", label: "Overview", to: "/admin" },
+      { id: "admin-config", label: "Tenant configuration", to: "/admin/config" },
+      { id: "admin-fleet", label: "Fleet management", to: "/admin/fleet" },
       { id: "admin-identity", label: "Identity", to: "/admin/identity" },
     ],
   },

@@ -2,6 +2,8 @@ import { createRouter, createRoute, createRootRoute } from "@tanstack/react-rout
 import { AppShell } from "./components/AppShell";
 import HomePage from "./pages/HomePage";
 import AdminPage from "./pages/AdminPage";
+import AdminConfigPage from "./pages/AdminConfigPage";
+import AdminFleetPage from "./pages/AdminFleetPage";
 import InfrastructureDetailPage from "./pages/InfrastructureDetailPage";
 import InfrastructureInventoryPage from "./pages/InfrastructureInventoryPage";
 import { AlertsPage } from "./features/alerts/AlertsPage";
@@ -173,6 +175,16 @@ const identitySettingsRoute = createRoute({
   path: "/admin/identity",
   component: IdentitySettingsPage,
 });
+const adminConfigRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/config",
+  component: AdminConfigPage,
+});
+const adminFleetRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/fleet",
+  component: AdminFleetPage,
+});
 const workbenchRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/workbench",
@@ -256,9 +268,11 @@ export const router = createRouter({
     alertRuleDetailRoute,
     incidentsRoute,
     incidentDetailRoute,
-  adminRoute,
-  identitySettingsRoute,
-  workbenchRoute,
+    adminRoute,
+    identitySettingsRoute,
+    adminConfigRoute,
+    adminFleetRoute,
+    workbenchRoute,
   traceSearchRoute,
   traceCompareRoute,
   traceDetailRoute,
