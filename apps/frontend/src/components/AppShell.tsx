@@ -23,7 +23,7 @@ const navTree: NavTreeItem[] = [
       { id: "setup-tokens", label: "Tokens", to: "/setup/tokens" },
     ],
   },
-  { id: "nlq", label: "Ask (NLQ)", to: "/nlq" },
+  { id: "workbench", label: "Workbench", to: "/workbench" },
   { id: "services", label: "Services", to: "/services" },
   {
     id: "signals",

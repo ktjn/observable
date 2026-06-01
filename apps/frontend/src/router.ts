@@ -20,6 +20,7 @@ import LogSearch from "./pages/LogSearch";
 import MetricsSearch from "./pages/MetricsSearch";
 import DashboardsPage from "./pages/DashboardsPage";
 import DashboardDetailPage from "./pages/DashboardDetailPage";
+import QueryWorkbenchPage from "./pages/QueryWorkbenchPage";
 import NlqQueryPage from "./pages/NlqQueryPage";
 import LoginPage from "./pages/LoginPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
@@ -172,6 +173,14 @@ const identitySettingsRoute = createRoute({
   path: "/admin/identity",
   component: IdentitySettingsPage,
 });
+const workbenchRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/workbench",
+  component: QueryWorkbenchPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    state: typeof search.state === "string" && search.state.trim() ? search.state.trim() : undefined,
+  }),
+});
 const traceSearchRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/traces",
@@ -247,11 +256,12 @@ export const router = createRouter({
     alertRuleDetailRoute,
     incidentsRoute,
     incidentDetailRoute,
-    adminRoute,
-    identitySettingsRoute,
-    traceSearchRoute,
-    traceCompareRoute,
-    traceDetailRoute,
+  adminRoute,
+  identitySettingsRoute,
+  workbenchRoute,
+  traceSearchRoute,
+  traceCompareRoute,
+  traceDetailRoute,
     logSearchRoute,
     metricsSearchRoute,
     nlqRoute,
