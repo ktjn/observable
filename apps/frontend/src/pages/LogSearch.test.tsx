@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
 import type { LogRecord } from "../api/logs";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
@@ -108,6 +109,36 @@ vi.mock("../api/dashboards", () => ({
     panels: [],
     created_at: "2026-04-29T00:00:00Z",
   })),
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    to,
+    params,
+    search,
+    children,
+  }: {
+    to: string;
+    params?: Record<string, string>;
+    search?: Record<string, string>;
+    children: ReactNode;
+  }) => {
+    let href = to;
+    for (const [key, value] of Object.entries(params ?? {})) {
+      href = href.replace(`$${key}`, value);
+    }
+    const query = search
+      ? `?${new URLSearchParams(
+          Object.entries(search).reduce<Record<string, string>>((acc, [key, value]) => {
+            acc[key] = value;
+            return acc;
+          }, {}),
+        ).toString()}`
+      : "";
+    return <a href={`${href}${query}`}>{children}</a>;
+  },
+  useNavigate: () => vi.fn(),
+  useSearch: () => ({}),
 }));
 
 const { fetchLogHistogram } = await import("../api/logs");

@@ -340,12 +340,23 @@ export function TraceDetail({ traceId, spans, events }: Props) {
 
   return (
     <section className="page-stack">
-      <div className="page-header">
+      <div className="page-header items-start gap-3">
         <div>
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Traces</div>
           <h1>{traceId.substring(0, 16)}…</h1>
         </div>
-        <Link to="/traces" className="secondary-link">Back to traces</Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/traces/compare"
+            search={{ left: traceId }}
+            className="inline-flex min-h-7 items-center justify-center border border-[var(--border-strong)] bg-[var(--surface)] px-3 text-[11px] font-semibold text-[var(--text)] transition-colors hover:bg-[var(--surface-subtle)]"
+          >
+            Compare trace
+          </Link>
+          <Link to="/traces" className="secondary-link">
+            Back to traces
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-4 gap-3 max-[700px]:grid-cols-2">

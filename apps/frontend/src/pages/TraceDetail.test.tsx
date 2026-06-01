@@ -13,10 +13,29 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
     Link: ({
       children,
       to,
+      params,
+      search,
       ...props
-    }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { to?: string; children?: React.ReactNode }) => (
-      <a href={to} {...props}>{children}</a>
-    ),
+    }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+      to?: string;
+      params?: Record<string, string>;
+      search?: Record<string, string>;
+      children?: React.ReactNode;
+    }) => {
+      const resolvedTo = Object.entries(params ?? {}).reduce(
+        (href, [key, value]) => href.replace(`$${key}`, value),
+        to ?? "",
+      );
+      const query = search
+        ? `?${new URLSearchParams(
+            Object.entries(search).reduce<Record<string, string>>((acc, [key, value]) => {
+              acc[key] = value;
+              return acc;
+            }, {}),
+          ).toString()}`
+        : "";
+      return <a href={`${resolvedTo}${query}`} {...props}>{children}</a>;
+    },
   };
 });
 
@@ -154,6 +173,13 @@ test("renders Back to traces link", () => {
   const link = screen.getByRole("link", { name: "Back to traces" });
   expect(link).toBeInTheDocument();
   expect(link).toHaveAttribute("href", "/traces");
+});
+
+test("renders Compare trace link that preloads the current trace id", () => {
+  render(<TraceDetail traceId="abc" spans={[baseSpan]} />, { wrapper });
+  const link = screen.getByRole("link", { name: "Compare trace" });
+  expect(link).toBeInTheDocument();
+  expect(link).toHaveAttribute("href", "/traces/compare?left=abc");
 });
 
 test("renders MetricCard row with span count, duration, services, and errors", () => {

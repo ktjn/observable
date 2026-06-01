@@ -86,6 +86,8 @@ vi.mock("@tanstack/react-router", () => ({
     }
     return <a href={href}>{children}</a>;
   },
+  useNavigate: () => vi.fn(),
+  useSearch: () => ({}),
 }));
 
 const { fetchTraceHistogram } = await import("../api/traces");
