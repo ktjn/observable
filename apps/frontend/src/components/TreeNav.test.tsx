@@ -17,7 +17,9 @@ const testItems: NavTreeItem[] = [
     id: "admin",
     label: "Administration",
     children: [
-      { id: "fleet", label: "Fleet", to: "/admin" },
+      { id: "overview", label: "Overview", to: "/admin" },
+      { id: "config", label: "Tenant configuration", to: "/admin/config" },
+      { id: "fleet", label: "Fleet management", to: "/admin/fleet" },
       { id: "identity", label: "Identity", to: "/admin/identity" },
     ],
   },
@@ -59,7 +61,9 @@ describe("TreeNav", () => {
 
     expect(screen.queryByText("Traces")).not.toBeInTheDocument();
     expect(screen.queryByText("Logs")).not.toBeInTheDocument();
-    expect(screen.queryByText("Fleet")).not.toBeInTheDocument();
+    expect(screen.queryByText("Overview")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tenant configuration")).not.toBeInTheDocument();
+    expect(screen.queryByText("Fleet management")).not.toBeInTheDocument();
     expect(screen.queryByText("Identity")).not.toBeInTheDocument();
   });
 
@@ -104,7 +108,7 @@ describe("TreeNav", () => {
   });
 
   test("marks parent with has-active-child when child route is active", () => {
-    render(<TreeNav items={testItems} pathname="/admin/identity" />);
+    render(<TreeNav items={testItems} pathname="/admin/config" />);
 
     const adminLabel = screen.getByText("Administration").closest("button");
     expect(adminLabel).toHaveClass("has-active-child");

@@ -76,7 +76,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-test("renders the tenant usage report for the admin surface", async () => {
+test("renders the tenant usage report for the admin overview", async () => {
   render(<App />);
 
   await screen.findByRole("heading", { name: "Admin Console" });
@@ -179,4 +179,29 @@ test("renders zero usage without an empty state", async () => {
 
   const controlPlane = screen.getByRole("group", { name: "Control-plane activity" });
   expect(within(controlPlane).getAllByText("0")).toHaveLength(5);
+});
+
+test("renders the tenant configuration page at /admin/config", async () => {
+  window.history.pushState({}, "", "/admin/config");
+
+  render(<App />);
+
+  await screen.findByRole("heading", { name: "Tenant configuration" });
+  expect(screen.getByRole("link", { name: "Identity settings" })).toBeInTheDocument();
+  expect(screen.getByText("Tenant admin", { selector: "span" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Quota posture" })).toBeInTheDocument();
+  expect(screen.getByText(/Usage window:/)).toBeInTheDocument();
+  expect(screen.getByText("prod", { selector: "span" })).toBeInTheDocument();
+});
+
+test("renders the fleet management contract page at /admin/fleet", async () => {
+  window.history.pushState({}, "", "/admin/fleet");
+
+  render(<App />);
+
+  await screen.findByRole("heading", { name: "Fleet management" });
+  expect(screen.getByText("Contract view")).toBeInTheDocument();
+  expect(screen.getByText("agent.up", { selector: "td" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Remote configuration and upgrades" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Live agent inventory is not wired yet" })).toBeInTheDocument();
 });

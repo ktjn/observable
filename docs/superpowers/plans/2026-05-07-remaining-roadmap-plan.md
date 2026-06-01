@@ -126,6 +126,7 @@ These gaps were identified during a direct review of `apps/frontend/src` and the
 #### Platform Administration
 - [ ] **Fleet Management**: Add the agent health and remote configuration UI.
 - [ ] **Admin Console**: Implement the tenant configuration, RBAC, and quota management views.
+  - Current state: `/admin` remains the overview, and `/admin/config` plus `/admin/fleet` now expose read-only tenant-configuration and fleet-contract surfaces. Live agent inventory, quota editing, and RBAC mutation controls remain future backend work.
 
 ### Backend Gaps & Performance Issues
 
