@@ -1,6 +1,6 @@
 # 2026-06-01 Admin Console Overview
 
-**Status:** Draft
+**Status:** Completed
 
 **Goal:** Turn the existing `/admin` surface into a real Admin Console landing page that summarizes tenant access, environment scope, identity entry points, and the current usage/cost view without adding backend endpoints.
 
@@ -55,3 +55,5 @@
 **Checkpoint question:** after the landing page is in place, is the next admin slice tenant configuration, RBAC, quota management, or fleet health?
 
 **Next smallest slice:** add a dedicated tenant-configuration read view or split the fleet health summary into its own `/admin/fleet` page, depending on which data/API surface is already available.
+
+**Closure note:** Implemented on `feat/admin-console-overview`; `/admin` now composes tenant access, environment scope, identity entry points, and the usage summary without adding backend endpoints.
