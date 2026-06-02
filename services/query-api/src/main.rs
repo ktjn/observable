@@ -1,3 +1,4 @@
+mod admin_members;
 mod alerts;
 mod audit;
 mod config;
@@ -127,6 +128,20 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/dashboards/{id}/grants/{user_id}",
             axum::routing::delete(dashboards::handle_revoke_grant),
+        )
+        .route("/v1/admin/members", get(admin_members::handle_list_members))
+        .route("/v1/admin/members", post(admin_members::handle_add_member))
+        .route(
+            "/v1/admin/members/{user_id}/role",
+            axum::routing::put(admin_members::handle_update_role),
+        )
+        .route(
+            "/v1/admin/members/{user_id}",
+            delete(admin_members::handle_remove_member),
+        )
+        .route(
+            "/v1/admin/members/{user_id}/revoke-sessions",
+            post(admin_members::handle_revoke_sessions),
         )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .route("/v1/alerts/rules", post(alerts::handle_create_rule))
