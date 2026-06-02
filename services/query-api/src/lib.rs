@@ -1,3 +1,4 @@
+pub mod admin_members;
 pub mod alerts;
 pub mod audit;
 pub mod config;

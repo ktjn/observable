@@ -2101,3 +2101,104 @@ async fn get_tenant_usage_report_returns_zeroes_for_empty_interval() {
     assert_eq!(body["control_plane_summary"]["credential_denies"], 0);
     assert_eq!(body["estimated_cost_index"], 0);
 }
+
+// ── Admin members API ───────────────────────────────────────────────────────
+
+fn build_admin_members_app(db: PgPool) -> (Router, Uuid, Uuid) {
+    let ch = ChClient::default().with_url("http://127.0.0.1:19999");
+    let state = traces::AppState {
+        ch,
+        db: db.clone(),
+        planner: Arc::new(QueryPlanner),
+        llm: None,
+        auth_service_url: "http://auth-service:4319".into(),
+        metrics: Arc::new(observability::QueryApiMetrics::new()),
+    };
+    let tenant_id = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+    let caller_id = Uuid::new_v4();
+    let app = Router::new()
+        .route(
+            "/v1/admin/members",
+            get(query_api::admin_members::handle_list_members),
+        )
+        .route(
+            "/v1/admin/members",
+            post(query_api::admin_members::handle_add_member),
+        )
+        .route(
+            "/v1/admin/members/{user_id}/role",
+            axum::routing::put(query_api::admin_members::handle_update_role),
+        )
+        .route(
+            "/v1/admin/members/{user_id}",
+            axum::routing::delete(query_api::admin_members::handle_remove_member),
+        )
+        .route(
+            "/v1/admin/members/{user_id}/revoke-sessions",
+            post(query_api::admin_members::handle_revoke_sessions),
+        )
+        .layer(axum::Extension(TenantContext {
+            tenant_id,
+            user_id: Some(caller_id),
+            role: "tenant_admin".into(),
+        }))
+        .layer(axum::Extension(db))
+        .with_state(state);
+    (app, tenant_id, caller_id)
+}
+
+async fn seed_user(db: &PgPool, email: &str) -> Uuid {
+    let user_id = Uuid::new_v4();
+    seed_user_with_id(db, user_id, email).await;
+    user_id
+}
+
+async fn seed_user_with_id(db: &PgPool, user_id: Uuid, email: &str) {
+    sqlx::query("INSERT INTO users (id, idp_subject, email, name) VALUES ($1, $2, $3, $4)")
+        .bind(user_id)
+        .bind(format!("idp|{email}"))
+        .bind(email)
+        .bind(email.split('@').next().unwrap_or("user"))
+        .execute(db)
+        .await
+        .expect("user inserted");
+}
+
+async fn seed_member(db: &PgPool, user_id: Uuid, tenant_id: Uuid, role: &str) {
+    sqlx::query("INSERT INTO user_tenant_roles (user_id, tenant_id, role) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(tenant_id)
+        .bind(role)
+        .execute(db)
+        .await
+        .expect("member inserted");
+}
+
+#[tokio::test]
+async fn list_members_returns_tenant_members() {
+    let (_ch_container, pg, _pg_container) = {
+        let (_ch, ch_c) = start_clickhouse().await;
+        let (pg, pg_c) = start_postgres().await;
+        (ch_c, pg, pg_c)
+    };
+    let (app, tenant_id, caller_id) = build_admin_members_app(pg.clone());
+
+    seed_user_with_id(&pg, caller_id, "admin@example.com").await;
+    seed_member(&pg, caller_id, tenant_id, "tenant_admin").await;
+    let bob_id = seed_user(&pg, "bob@example.com").await;
+    seed_member(&pg, bob_id, tenant_id, "member").await;
+
+    let req = Request::builder()
+        .method("GET")
+        .uri("/v1/admin/members")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = response_body_json(resp.into_body()).await;
+    let members = body["members"].as_array().unwrap();
+    assert_eq!(members.len(), 2);
+    assert!(members.iter().any(|m| m["email"] == "bob@example.com"));
+    assert!(members.iter().any(|m| m["role"] == "member"));
+}
