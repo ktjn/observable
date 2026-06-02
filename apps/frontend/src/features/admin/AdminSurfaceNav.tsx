@@ -8,6 +8,7 @@ type AdminSection = {
 const sections: AdminSection[] = [
   { to: "/admin", label: "Overview" },
   { to: "/admin/config", label: "Tenant configuration" },
+  { to: "/admin/members", label: "Members" },
   { to: "/admin/fleet", label: "Fleet management" },
   { to: "/admin/identity", label: "Identity" },
 ];
