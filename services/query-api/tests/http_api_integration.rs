@@ -2202,3 +2202,55 @@ async fn list_members_returns_tenant_members() {
     assert!(members.iter().any(|m| m["email"] == "bob@example.com"));
     assert!(members.iter().any(|m| m["role"] == "member"));
 }
+
+#[tokio::test]
+async fn add_member_by_email_succeeds_for_known_user() {
+    let (_ch_c, pg, _pg_c) = {
+        let (_ch, ch_c) = start_clickhouse().await;
+        let (pg, pg_c) = start_postgres().await;
+        (ch_c, pg, pg_c)
+    };
+    let (app, tenant_id, caller_id) = build_admin_members_app(pg.clone());
+    seed_user_with_id(&pg, caller_id, "admin@example.com").await;
+    seed_member(&pg, caller_id, tenant_id, "tenant_admin").await;
+
+    // A user exists in the `users` table but is NOT yet a member of this tenant.
+    seed_user(&pg, "newuser@example.com").await;
+
+    let body = serde_json::json!({ "email": "newuser@example.com", "role": "member" });
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/admin/members")
+        .header("Content-Type", "application/json")
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let body = response_body_json(resp.into_body()).await;
+    assert_eq!(body["email"], "newuser@example.com");
+    assert_eq!(body["role"], "member");
+}
+
+#[tokio::test]
+async fn add_member_returns_404_for_unknown_email() {
+    let (_ch_c, pg, _pg_c) = {
+        let (_ch, ch_c) = start_clickhouse().await;
+        let (pg, pg_c) = start_postgres().await;
+        (ch_c, pg, pg_c)
+    };
+    let (app, tenant_id, caller_id) = build_admin_members_app(pg.clone());
+    seed_user_with_id(&pg, caller_id, "admin@example.com").await;
+    seed_member(&pg, caller_id, tenant_id, "tenant_admin").await;
+
+    let body = serde_json::json!({ "email": "nobody@example.com", "role": "member" });
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/admin/members")
+        .header("Content-Type", "application/json")
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}

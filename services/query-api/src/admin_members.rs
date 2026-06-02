@@ -85,14 +85,69 @@ pub async fn handle_list_members(
     Ok(Json(MemberListResponse { members }))
 }
 
-/// POST /v1/admin/members — stub (implemented in Task 2)
+/// POST /v1/admin/members — add a user (by email) to the tenant
 pub async fn handle_add_member(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
-    Json(_body): Json<AddMemberRequest>,
-) -> Result<Json<MemberRecord>, StatusCode> {
+    Json(body): Json<AddMemberRequest>,
+) -> Result<(StatusCode, Json<MemberRecord>), StatusCode> {
     require_admin(&ctx)?;
-    Err(StatusCode::NOT_IMPLEMENTED)
+
+    // 1. Look up the user by email.
+    struct UserRow {
+        id: Uuid,
+        email: String,
+        name: Option<String>,
+    }
+    impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for UserRow {
+        fn from_row(row: &'r sqlx::postgres::PgRow) -> Result<Self, sqlx::Error> {
+            use sqlx::Row;
+            Ok(Self {
+                id: row.try_get("id")?,
+                email: row.try_get("email")?,
+                name: row.try_get("name")?,
+            })
+        }
+    }
+
+    let user = sqlx::query_as::<_, UserRow>("SELECT id, email, name FROM users WHERE email = $1")
+        .bind(&body.email)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = ?e, "failed to look up user by email");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // 2. Upsert into user_tenant_roles; return the created_at timestamp.
+    let joined_at: chrono::DateTime<chrono::Utc> = sqlx::query_scalar(
+        r#"
+        INSERT INTO user_tenant_roles (user_id, tenant_id, role)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (user_id, tenant_id) DO UPDATE SET role = EXCLUDED.role
+        RETURNING created_at
+        "#,
+    )
+    .bind(user.id)
+    .bind(ctx.tenant_id)
+    .bind(&body.role)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = ?e, "failed to upsert member");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let record = MemberRecord {
+        user_id: user.id,
+        email: user.email,
+        name: user.name,
+        role: body.role,
+        joined_at,
+    };
+
+    Ok((StatusCode::CREATED, Json(record)))
 }
 
 /// PUT /v1/admin/members/:user_id/role — stub (implemented in Task 3)
