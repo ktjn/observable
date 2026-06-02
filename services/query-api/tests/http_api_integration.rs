@@ -2254,3 +2254,59 @@ async fn add_member_returns_404_for_unknown_email() {
 
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn update_role_changes_member_role() {
+    let (_ch_c, pg, _pg_c) = {
+        let (_ch, ch_c) = start_clickhouse().await;
+        let (pg, pg_c) = start_postgres().await;
+        (ch_c, pg, pg_c)
+    };
+    let (app, tenant_id, caller_id) = build_admin_members_app(pg.clone());
+    seed_user_with_id(&pg, caller_id, "admin@example.com").await;
+    seed_member(&pg, caller_id, tenant_id, "tenant_admin").await;
+    let bob_id = seed_user(&pg, "bob@example.com").await;
+    seed_member(&pg, bob_id, tenant_id, "member").await;
+
+    let body = serde_json::json!({ "role": "viewer" });
+    let req = Request::builder()
+        .method("PUT")
+        .uri(format!("/v1/admin/members/{bob_id}/role"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+    let row = sqlx::query!(
+        "SELECT role FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2",
+        bob_id,
+        tenant_id
+    )
+    .fetch_one(&pg)
+    .await
+    .unwrap();
+    assert_eq!(row.role, "viewer");
+}
+
+#[tokio::test]
+async fn update_role_returns_403_for_self() {
+    let (_ch_c, pg, _pg_c) = {
+        let (_ch, ch_c) = start_clickhouse().await;
+        let (pg, pg_c) = start_postgres().await;
+        (ch_c, pg, pg_c)
+    };
+    let (app, tenant_id, caller_id) = build_admin_members_app(pg.clone());
+    seed_user_with_id(&pg, caller_id, "admin@example.com").await;
+    seed_member(&pg, caller_id, tenant_id, "tenant_admin").await;
+
+    let body = serde_json::json!({ "role": "member" });
+    let req = Request::builder()
+        .method("PUT")
+        .uri(format!("/v1/admin/members/{caller_id}/role"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}

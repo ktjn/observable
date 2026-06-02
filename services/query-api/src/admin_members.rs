@@ -141,15 +141,38 @@ pub async fn handle_add_member(
     Ok((StatusCode::CREATED, Json(record)))
 }
 
-/// PUT /v1/admin/members/:user_id/role — stub (implemented in Task 3)
+/// PUT /v1/admin/members/:user_id/role — update a member's role
 pub async fn handle_update_role(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
-    Path(_user_id): Path<Uuid>,
-    Json(_body): Json<UpdateRoleRequest>,
+    Path(user_id): Path<Uuid>,
+    Json(body): Json<UpdateRoleRequest>,
 ) -> Result<StatusCode, StatusCode> {
     require_admin(&ctx)?;
-    Err(StatusCode::NOT_IMPLEMENTED)
+
+    // Prevent self-demotion.
+    if ctx.user_id == Some(user_id) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let rows_affected =
+        sqlx::query("UPDATE user_tenant_roles SET role = $1 WHERE user_id = $2 AND tenant_id = $3")
+            .bind(&body.role)
+            .bind(user_id)
+            .bind(ctx.tenant_id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = ?e, "failed to update member role");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+            .rows_affected();
+
+    if rows_affected == 0 {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// DELETE /v1/admin/members/:user_id — stub (implemented in Task 4)
