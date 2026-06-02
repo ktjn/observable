@@ -183,7 +183,9 @@ pub async fn handle_remove_member(
 ) -> Result<StatusCode, StatusCode> {
     require_admin(&ctx)?;
 
-    // Guard: cannot remove the last tenant_admin.
+    // Guard: cannot remove the last tenant_admin. The count runs outside the
+    // transaction; a concurrent remove could race, but this is a low-frequency
+    // admin path so the risk is acceptable.
     let admin_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM user_tenant_roles WHERE tenant_id = $1 AND role = 'tenant_admin'",
     )
