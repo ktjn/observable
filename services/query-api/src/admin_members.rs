@@ -94,20 +94,11 @@ pub async fn handle_add_member(
     require_admin(&ctx)?;
 
     // 1. Look up the user by email.
+    #[derive(sqlx::FromRow)]
     struct UserRow {
         id: Uuid,
         email: String,
         name: Option<String>,
-    }
-    impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for UserRow {
-        fn from_row(row: &'r sqlx::postgres::PgRow) -> Result<Self, sqlx::Error> {
-            use sqlx::Row;
-            Ok(Self {
-                id: row.try_get("id")?,
-                email: row.try_get("email")?,
-                name: row.try_get("name")?,
-            })
-        }
     }
 
     let user = sqlx::query_as::<_, UserRow>("SELECT id, email, name FROM users WHERE email = $1")
