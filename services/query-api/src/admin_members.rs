@@ -17,12 +17,11 @@ use axum::{
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 use uuid::Uuid;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-#[derive(Serialize, FromRow)]
+#[derive(Serialize, sqlx::FromRow)]
 pub struct MemberRecord {
     pub user_id: Uuid,
     pub email: String,
