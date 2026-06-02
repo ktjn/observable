@@ -57,6 +57,10 @@ beforeEach(async () => {
         return new Response(JSON.stringify(buildUsageReportResponse()), { status: 200 });
       }
 
+      if (url.includes("/v1/admin/members")) {
+        return new Response(JSON.stringify({ members: [] }), { status: 200 });
+      }
+
       if (url.includes("/v1/tenants")) {
         return new Response(
           JSON.stringify({
@@ -204,4 +208,13 @@ test("renders the fleet management contract page at /admin/fleet", async () => {
   expect(screen.getByText("agent.up", { selector: "td" })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Remote configuration and upgrades" })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Live agent inventory is not wired yet" })).toBeInTheDocument();
+});
+
+test("renders the members management page at /admin/members", async () => {
+  window.history.pushState({}, "", "/admin/members");
+
+  render(<App />);
+
+  await screen.findByRole("heading", { name: "Members" });
+  await screen.findByText("No members");
 });
