@@ -2399,3 +2399,87 @@ async fn remove_last_admin_returns_403() {
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn revoke_sessions_marks_all_active_sessions_revoked() {
+    let (_ch_c, pg, _pg_c) = {
+        let (_ch, ch_c) = start_clickhouse().await;
+        let (pg, pg_c) = start_postgres().await;
+        (ch_c, pg, pg_c)
+    };
+    let (app, tenant_id, caller_id) = build_admin_members_app(pg.clone());
+    seed_user_with_id(&pg, caller_id, "admin@example.com").await;
+    seed_member(&pg, caller_id, tenant_id, "tenant_admin").await;
+    let bob_id = seed_user(&pg, "bob@example.com").await;
+    seed_member(&pg, bob_id, tenant_id, "member").await;
+
+    // Two active sessions for bob.
+    for _ in 0..2 {
+        sqlx::query(
+            "INSERT INTO user_sessions (user_id, tenant_id, environment, issued_at, expires_at) \
+             VALUES ($1, $2, 'prod', now(), now() + interval '1 hour')",
+        )
+        .bind(bob_id)
+        .bind(tenant_id)
+        .execute(&pg)
+        .await
+        .unwrap();
+    }
+
+    let req = Request::builder()
+        .method("POST")
+        .uri(format!("/v1/admin/members/{bob_id}/revoke-sessions"))
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+    let revoked: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM user_sessions WHERE user_id = $1 AND revoked_at IS NOT NULL",
+    )
+    .bind(bob_id)
+    .fetch_one(&pg)
+    .await
+    .unwrap();
+    assert_eq!(revoked, 2);
+}
+
+#[tokio::test]
+async fn admin_members_returns_403_for_non_admin() {
+    let (_ch_c, pg, _pg_c) = {
+        let (_ch, ch_c) = start_clickhouse().await;
+        let (pg, pg_c) = start_postgres().await;
+        (ch_c, pg, pg_c)
+    };
+    let tenant_id = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+    let caller_id = Uuid::new_v4();
+    let ch = ChClient::default().with_url("http://127.0.0.1:19999");
+    let state = traces::AppState {
+        ch,
+        db: pg.clone(),
+        planner: Arc::new(QueryPlanner),
+        llm: None,
+        auth_service_url: "http://auth-service:4319".into(),
+        metrics: Arc::new(observability::QueryApiMetrics::new()),
+    };
+    let app = Router::new()
+        .route(
+            "/v1/admin/members",
+            get(query_api::admin_members::handle_list_members),
+        )
+        .layer(axum::Extension(TenantContext {
+            tenant_id,
+            user_id: Some(caller_id),
+            role: "member".into(), // non-admin
+        }))
+        .layer(axum::Extension(pg))
+        .with_state(state);
+
+    let req = Request::builder()
+        .method("GET")
+        .uri("/v1/admin/members")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}

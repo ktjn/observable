@@ -256,12 +256,26 @@ pub async fn handle_remove_member(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// POST /v1/admin/members/:user_id/revoke-sessions — stub (implemented in Task 5)
+/// POST /v1/admin/members/:user_id/revoke-sessions
 pub async fn handle_revoke_sessions(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
-    Path(_user_id): Path<Uuid>,
+    Path(user_id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
     require_admin(&ctx)?;
-    Err(StatusCode::NOT_IMPLEMENTED)
+
+    sqlx::query(
+        "UPDATE user_sessions SET revoked_at = now() \
+         WHERE user_id = $1 AND tenant_id = $2 AND revoked_at IS NULL AND expires_at > now()",
+    )
+    .bind(user_id)
+    .bind(ctx.tenant_id)
+    .execute(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = ?e, "failed to revoke sessions");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
