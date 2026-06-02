@@ -2310,3 +2310,92 @@ async fn update_role_returns_403_for_self() {
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn remove_member_deletes_row_and_revokes_sessions() {
+    let (_ch_c, pg, _pg_c) = {
+        let (_ch, ch_c) = start_clickhouse().await;
+        let (pg, pg_c) = start_postgres().await;
+        (ch_c, pg, pg_c)
+    };
+    let (app, tenant_id, caller_id) = build_admin_members_app(pg.clone());
+    seed_user_with_id(&pg, caller_id, "admin@example.com").await;
+    seed_member(&pg, caller_id, tenant_id, "tenant_admin").await;
+    let bob_id = seed_user(&pg, "bob@example.com").await;
+    seed_member(&pg, bob_id, tenant_id, "member").await;
+
+    // Seed a session for bob.
+    sqlx::query(
+        "INSERT INTO user_sessions (user_id, tenant_id, environment, issued_at, expires_at) \
+         VALUES ($1, $2, 'prod', now(), now() + interval '1 hour')",
+    )
+    .bind(bob_id)
+    .bind(tenant_id)
+    .execute(&pg)
+    .await
+    .unwrap();
+
+    let req = Request::builder()
+        .method("DELETE")
+        .uri(format!("/v1/admin/members/{bob_id}"))
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+    // Membership row removed.
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2",
+    )
+    .bind(bob_id)
+    .bind(tenant_id)
+    .fetch_one(&pg)
+    .await
+    .unwrap();
+    assert_eq!(count, 0);
+
+    // Session revoked.
+    let revoked: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM user_sessions WHERE user_id = $1 AND revoked_at IS NOT NULL",
+    )
+    .bind(bob_id)
+    .fetch_one(&pg)
+    .await
+    .unwrap();
+    assert_eq!(revoked, 1);
+}
+
+#[tokio::test]
+async fn remove_last_admin_returns_403() {
+    let (_ch_c, pg, _pg_c) = {
+        let (_ch, ch_c) = start_clickhouse().await;
+        let (pg, pg_c) = start_postgres().await;
+        (ch_c, pg, pg_c)
+    };
+    let (app, tenant_id, caller_id) = build_admin_members_app(pg.clone());
+    seed_user_with_id(&pg, caller_id, "admin@example.com").await;
+    seed_member(&pg, caller_id, tenant_id, "tenant_admin").await;
+    let bob_id = seed_user(&pg, "bob@example.com").await;
+    seed_member(&pg, bob_id, tenant_id, "member").await;
+
+    // Make bob the only admin, demote caller to member.
+    sqlx::query("UPDATE user_tenant_roles SET role = 'tenant_admin' WHERE user_id = $1")
+        .bind(bob_id)
+        .execute(&pg)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE user_tenant_roles SET role = 'member' WHERE user_id = $1")
+        .bind(caller_id)
+        .execute(&pg)
+        .await
+        .unwrap();
+
+    // Try to remove bob (the only admin). Should return 403.
+    let req = Request::builder()
+        .method("DELETE")
+        .uri(format!("/v1/admin/members/{bob_id}"))
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}

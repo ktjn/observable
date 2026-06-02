@@ -175,14 +175,83 @@ pub async fn handle_update_role(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// DELETE /v1/admin/members/:user_id — stub (implemented in Task 4)
+/// DELETE /v1/admin/members/:user_id — remove member + revoke sessions
 pub async fn handle_remove_member(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
-    Path(_user_id): Path<Uuid>,
+    Path(user_id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
     require_admin(&ctx)?;
-    Err(StatusCode::NOT_IMPLEMENTED)
+
+    // Guard: cannot remove the last tenant_admin.
+    let admin_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM user_tenant_roles WHERE tenant_id = $1 AND role = 'tenant_admin'",
+    )
+    .bind(ctx.tenant_id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = ?e, "failed to count admins");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let target_is_admin: bool = sqlx::query_scalar(
+        "SELECT role = 'tenant_admin' FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2",
+    )
+    .bind(user_id)
+    .bind(ctx.tenant_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = ?e, "failed to fetch target role");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .unwrap_or(false);
+
+    if target_is_admin && admin_count <= 1 {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // Revoke sessions and remove membership in one transaction.
+    let mut tx = state
+        .db
+        .begin()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    sqlx::query(
+        "UPDATE user_sessions SET revoked_at = now() \
+         WHERE user_id = $1 AND tenant_id = $2 AND revoked_at IS NULL AND expires_at > now()",
+    )
+    .bind(user_id)
+    .bind(ctx.tenant_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = ?e, "failed to revoke sessions on remove");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let rows = sqlx::query("DELETE FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2")
+        .bind(user_id)
+        .bind(ctx.tenant_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = ?e, "failed to delete member");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .rows_affected();
+
+    tx.commit()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if rows == 0 {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// POST /v1/admin/members/:user_id/revoke-sessions — stub (implemented in Task 5)
