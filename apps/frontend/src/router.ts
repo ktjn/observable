@@ -4,6 +4,7 @@ import HomePage from "./pages/HomePage";
 import AdminPage from "./pages/AdminPage";
 import AdminConfigPage from "./pages/AdminConfigPage";
 import AdminFleetPage from "./pages/AdminFleetPage";
+import AdminMembersPage from "./pages/AdminMembersPage";
 import InfrastructureDetailPage from "./pages/InfrastructureDetailPage";
 import InfrastructureInventoryPage from "./pages/InfrastructureInventoryPage";
 import { AlertsPage } from "./features/alerts/AlertsPage";
@@ -185,6 +186,11 @@ const adminFleetRoute = createRoute({
   path: "/admin/fleet",
   component: AdminFleetPage,
 });
+const adminMembersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/members",
+  component: AdminMembersPage,
+});
 const workbenchRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/workbench",
@@ -272,6 +278,7 @@ export const router = createRouter({
     identitySettingsRoute,
     adminConfigRoute,
     adminFleetRoute,
+    adminMembersRoute,
     workbenchRoute,
   traceSearchRoute,
   traceCompareRoute,
