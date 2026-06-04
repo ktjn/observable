@@ -238,10 +238,11 @@ function StepApiKey({ language, tenantId, onKeyReady, onNext }: StepApiKeyProps)
 
 interface StepWaitingProps {
   tenantId: string;
+  plaintext?: string | null;
   onDetected: (counts: { traces: number; logs: number; metrics: number }) => void;
 }
 
-function StepWaiting({ tenantId, onDetected }: StepWaitingProps) {
+function StepWaiting({ tenantId, plaintext, onDetected }: StepWaitingProps) {
   const { data } = useQuery({
     queryKey: ["onboarding-signal", tenantId],
     queryFn: () => getFirstSignalStatus(tenantId),
@@ -256,6 +257,14 @@ function StepWaiting({ tenantId, onDetected }: StepWaitingProps) {
 
   return (
     <div className="flex flex-col items-center gap-4 py-8 text-center">
+      {plaintext && (
+        <div className="w-full rounded border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-left" role="alert">
+          <p className="mb-1 text-xs font-semibold text-[var(--text-muted)]">
+            Your API key — copy it now. It will not be shown again.
+          </p>
+          <code className="block break-all text-xs">{plaintext}</code>
+        </div>
+      )}
       <div
         className="h-8 w-8 animate-pulse rounded-full bg-[var(--accent)]"
         aria-label="Waiting for signal"
@@ -316,6 +325,7 @@ export function OnboardingWizard() {
 
   const [step, setStep] = useState<WizardStep>(() => readOnboardingState().step);
   const [language, setLanguage] = useState<Language | null>(() => readOnboardingState().language);
+  const [tokenPlaintext, setTokenPlaintext] = useState<string | null>(null);
   const [signalCounts, setSignalCounts] = useState<{ traces: number; logs: number; metrics: number } | null>(null);
 
   function goTo(s: WizardStep) {
@@ -329,8 +339,9 @@ export function OnboardingWizard() {
     goTo("apikey");
   }
 
-  function handleKeyReady(tokenId: string, _plaintext: string) {
+  function handleKeyReady(tokenId: string, plaintext: string) {
     writeOnboardingState({ tokenId });
+    setTokenPlaintext(plaintext);
     goTo("waiting");
   }
 
@@ -406,7 +417,7 @@ export function OnboardingWizard() {
           />
         )}
         {step === "waiting" && (
-          <StepWaiting tenantId={tenantId} onDetected={handleDetected} />
+          <StepWaiting tenantId={tenantId} plaintext={tokenPlaintext} onDetected={handleDetected} />
         )}
         {step === "done" && signalCounts && (
           <StepDone counts={signalCounts} onFinish={handleFinish} />
