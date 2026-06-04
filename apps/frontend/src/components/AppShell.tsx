@@ -6,49 +6,56 @@ import { GlobalDateRangePicker } from "./GlobalDateRangePicker";
 import { UserMenu } from "./UserMenu";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { listTenants, listEnvironments } from "../api/tenants";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "@tanstack/react-router";
 import { useAuth } from "../hooks/useAuth";
 import { initiateLogin } from "../api/auth";
 import { TreeNav, type NavTreeItem } from "./TreeNav";
+import { isOnboardingComplete } from "../features/onboarding/onboardingState";
 
-const navTree: NavTreeItem[] = [
-  { id: "home", label: "Home", to: "/" },
-  {
-    id: "setup",
-    label: "Setup",
-    children: [
-      { id: "setup-ingest", label: "Ingest", to: "/setup" },
-      { id: "setup-llm", label: "LLM", to: "/setup/llm" },
-      { id: "setup-tokens", label: "Tokens", to: "/setup/tokens" },
-    ],
-  },
-  { id: "workbench", label: "Workbench", to: "/workbench" },
-  { id: "services", label: "Services", to: "/services" },
-  {
-    id: "signals",
-    label: "Signals",
-    children: [
-      { id: "traces", label: "Traces", to: "/traces" },
-      { id: "logs", label: "Logs", to: "/logs" },
-      { id: "metrics", label: "Metrics", to: "/metrics" },
-    ],
-  },
-  { id: "infrastructure", label: "Infrastructure", to: "/infrastructure" },
-  { id: "dashboards", label: "Dashboards", to: "/dashboards" },
-  { id: "alerts", label: "Alerts & SLOs", to: "/alerts" },
-  { id: "incidents", label: "Incidents", to: "/incidents" },
-  {
-    id: "admin",
-    label: "Administration",
-    children: [
-      { id: "admin-overview", label: "Overview", to: "/admin" },
-      { id: "admin-config", label: "Tenant configuration", to: "/admin/config" },
-      { id: "admin-fleet", label: "Fleet management", to: "/admin/fleet" },
-      { id: "admin-identity", label: "Identity", to: "/admin/identity" },
-    ],
-  },
-];
+function buildNavTree(showGettingStarted: boolean): NavTreeItem[] {
+  const base: NavTreeItem[] = [
+    { id: "home", label: "Home", to: "/" },
+    {
+      id: "setup",
+      label: "Setup",
+      children: [
+        { id: "setup-ingest", label: "Ingest", to: "/setup" },
+        { id: "setup-llm", label: "LLM", to: "/setup/llm" },
+        { id: "setup-tokens", label: "Tokens", to: "/setup/tokens" },
+      ],
+    },
+    { id: "workbench", label: "Workbench", to: "/workbench" },
+    { id: "services", label: "Services", to: "/services" },
+    {
+      id: "signals",
+      label: "Signals",
+      children: [
+        { id: "traces", label: "Traces", to: "/traces" },
+        { id: "logs", label: "Logs", to: "/logs" },
+        { id: "metrics", label: "Metrics", to: "/metrics" },
+      ],
+    },
+    { id: "infrastructure", label: "Infrastructure", to: "/infrastructure" },
+    { id: "dashboards", label: "Dashboards", to: "/dashboards" },
+    { id: "alerts", label: "Alerts & SLOs", to: "/alerts" },
+    { id: "incidents", label: "Incidents", to: "/incidents" },
+    {
+      id: "admin",
+      label: "Administration",
+      children: [
+        { id: "admin-overview", label: "Overview", to: "/admin" },
+        { id: "admin-config", label: "Tenant configuration", to: "/admin/config" },
+        { id: "admin-fleet", label: "Fleet management", to: "/admin/fleet" },
+        { id: "admin-identity", label: "Identity", to: "/admin/identity" },
+      ],
+    },
+  ];
+  if (showGettingStarted) {
+    return [{ id: "getting-started", label: "Getting Started ✦", to: "/getting-started" }, ...base];
+  }
+  return base;
+}
 
 const themeOptions: { label: string; value: ThemePreference }[] = [
   { label: "Light", value: "light" },
@@ -78,6 +85,14 @@ export function AppShell() {
 
   const { data: user, isLoading: authLoading } = useAuth();
   const location = useLocation();
+
+  const [navTree, setNavTree] = useState<NavTreeItem[]>(() =>
+    buildNavTree(!isOnboardingComplete()),
+  );
+
+  useEffect(() => {
+    setNavTree(buildNavTree(!isOnboardingComplete()));
+  }, [location.pathname]);
 
   useEffect(() => {
     const pathname = location.pathname;
