@@ -28,6 +28,7 @@ import NlqQueryPage from "./pages/NlqQueryPage";
 import LoginPage from "./pages/LoginPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import IdentitySettingsPage from "./pages/IdentitySettingsPage";
+import OnboardingPage from "./pages/OnboardingPage";
 
 export type Preset = "5m" | "15m" | "30m" | "1h" | "3h" | "12h";
 export const DEFAULT_PRESET: Preset = "1h";
@@ -65,6 +66,11 @@ const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   component: HomePage,
+});
+const gettingStartedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/getting-started",
+  component: OnboardingPage,
 });
 const servicesRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -252,6 +258,7 @@ const authCallbackRoute = createRoute({
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     homeRoute,
+    gettingStartedRoute,
     setupRoute,
     setupLlmRoute,
     setupTokensRoute,
