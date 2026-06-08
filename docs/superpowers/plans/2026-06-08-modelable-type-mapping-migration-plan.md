@@ -28,7 +28,12 @@ Observable hand-writes every type-mapping layer:
 
 modelable's own design-spec work for closing these gaps is tracked at github.com/ktjn/modelable PR #37 (`docs/superpowers/specs/2026-06-08-target-serialization-hints-design.md`), which documents — with concrete examples pulled from this codebase (`libs/domain/src/span.rs`, `metric.rs`) — that the mapping is **not** a 1:1 shape translation: the same field (e.g. a u64 timestamp, an enum, a UUID, a `HashMap<String, Value>`) has up to three different wire representations across domain/storage/transport layers, some mechanical (closed-vocabulary `@wire` hints) and some irregular (CEL projections / a `@manual` escape hatch).
 
-**Sequencing decision:** extend modelable first and cut a release, then migrate Observable domain-by-domain — covering Rust and TypeScript together per domain, with the full type inventory enumerated up front (below) rather than discovered incrementally.
+**Sequencing decision:** extend modelable first and cut a release, then migrate Observable domain-by-domain — covering Rust and TypeScript together per domain, with the full type inventory enumerated up front (below) rather than discovered incrementally. Steps 1.2–1.8 land as separate PRs upstream but ship to Observable as **one batched release** (1.9) — not one pin-bump per emitter feature — so Phase 2 starts from a single, fully-capable baseline instead of chasing a moving dependency.
+
+## Open Decisions to Resolve Before Phase 2 Starts
+
+1. **Generated-artifact commit strategy.** `consuming-modelable.md` advises against committing generated output "unless you have an existing convention." Plain `cargo build` has no codegen hook, and the frontend build has no `.mdl`-aware step either — so either (a) generated `.rs`/`.ts` files are committed alongside their `.mdl` sources and regeneration is a manual/CI-checked step (simplest, matches how this repo already treats most generated artifacts), or (b) a `build.rs` / pre-build script runs `modelable compile` on the fly (keeps generated code out of diffs, but adds a Python/uv runtime dependency to every `cargo build` and `npm run build`). Decide and record the choice — and the reasoning — in step 2.1, since it shapes every later step's PR diff shape.
+2. **Python/uv becomes a CI-gating toolchain dependency.** Observable already uses Python for ad-hoc tooling (`scripts/nlq-eval.py`, seed scripts under `scripts/seed/`), but `scripts/local-ci.sh` does not currently invoke Python — it's a Rust+TS build. Wiring `modelable validate`/`compile` into `local-ci.sh` (step 2.1) makes Python+uv+modelable a hard prerequisite for local CI to pass. This is a real architectural addition, not just a tooling tweak — name it explicitly in the Phase 4 ADR (and in `docs/agent-context.md`) so future agents don't treat it as incidental.
 
 ---
 
@@ -89,3 +94,4 @@ Each follows the Phase 2 template (define `.mdl` → generate → replace hand-w
 - `cargo fmt --all` before staging any `.rs` change.
 - modelable side: `uv run pytest tests/ -q` and `uv run modelable validate`/`compile` against new `.mdl` sources before tagging a release.
 - Each domain migration PR must demonstrate before/after wire-format equivalence (no behavioral change) via existing integration tests (`services/query-api/tests/http_api_integration.rs`) and frontend component tests.
+- **Lineage proof, per migrated domain:** run `modelable lineage <domain.Model@version>` (and `modelable inspect … --auto`) and paste the result in the PR description — this is the concrete evidence that "types are fully tracked" rather than just "types are generated." A domain isn't done until its lineage report shows every field tracing back to its canonical source with no `type_loss` warnings from the emitters.
