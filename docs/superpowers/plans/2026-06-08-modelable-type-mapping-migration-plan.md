@@ -30,10 +30,14 @@ modelable's own design-spec work for closing these gaps is tracked at github.com
 
 **Sequencing decision:** extend modelable first and cut a release, then migrate Observable domain-by-domain — covering Rust and TypeScript together per domain, with the full type inventory enumerated up front (below) rather than discovered incrementally. Steps 1.2–1.8 land as separate PRs upstream but ship to Observable as **one batched release** (1.9) — not one pin-bump per emitter feature — so Phase 2 starts from a single, fully-capable baseline instead of chasing a moving dependency.
 
-## Open Decisions to Resolve Before Phase 2 Starts
+## Resolved Decisions Before Phase 2 Starts
 
-1. **Generated-artifact commit strategy.** The modelable repo's `docs/consuming-modelable.md` advises against committing generated output "unless you have an existing convention." Plain `cargo build` has no codegen hook, and the frontend build has no `.mdl`-aware step either — so either (a) generated `.rs`/`.ts` files are committed alongside their `.mdl` sources and regeneration is a manual/CI-checked step (simplest, matches how this repo already treats most generated artifacts), or (b) a `build.rs` / pre-build script runs `modelable compile` on the fly (keeps generated code out of diffs, but adds a Python/uv runtime dependency to every `cargo build` and `npm run build`). Decide and record the choice — and the reasoning — in step 2.1, since it shapes every later step's PR diff shape.
-2. **Python/uv becomes a CI-gating toolchain dependency.** Observable already uses Python for ad-hoc tooling (`scripts/nlq-eval.py`, seed scripts under `scripts/seed/`), but `scripts/local-ci.sh` does not currently invoke Python — it's a Rust+TS build. Wiring `modelable validate`/`compile` into `local-ci.sh` (step 2.1) makes Python+uv+modelable a hard prerequisite for local CI to pass. This is a real architectural addition, not just a tooling tweak — name it explicitly in the Phase 4 ADR (and in `docs/agent-context.md`) so future agents don't treat it as incidental.
+1. **Generated-artifact commit strategy: Option (a) (Commit generated `.rs`/`.ts` files).**
+   - **Decision:** Generated code is committed alongside its `.mdl` sources. Regeneration is done manually/automatically via `modelable compile` and verified as clean in CI via a diff check (`git diff --exit-code`).
+   - **Reasoning:** Avoids forcing a Python+uv dependency on standard Rust/TypeScript compilation steps, keeps PR diffs inspectable for changes to generated types, and ensures IDE/LSP import resolution works out-of-the-box without requiring a pre-build.
+2. **Python/uv as a CI-gating dependency.**
+   - **Decision:** Python/uv/modelable is only a toolchain dependency for developers editing models or running local CI validations. We will add a check in `scripts/local-ci.sh` that skips or warns if python/uv is missing, unless `.mdl` files themselves are modified in the change, in which case it is a hard gate.
+   - **Reasoning:** Prevents local development friction for unrelated changes (like CSS/Rust handler updates) while maintaining strict correctness for data-model changes.
 
 ---
 
