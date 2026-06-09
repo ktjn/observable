@@ -1,0 +1,6 @@
+# modelable IDL compiler — validates and compiles .mdl source files in models/
+# Install: pip install -r models/requirements.txt
+# Usage:   modelable validate models/
+#          modelable compile models/ --target rust --out dist/generated/rust
+#          modelable compile models/ --target sql-clickhouse --out dist/generated/sql
+modelable==0.2.0
