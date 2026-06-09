@@ -38,18 +38,29 @@ trap cleanup_smoke_compose EXIT
 SKIP_DOCKER=${SKIP_DOCKER:-0}
 SKIP_FRONTEND=${SKIP_FRONTEND:-0}
 SKIP_HELM=${SKIP_HELM:-0}
+SKIP_MODELABLE=${SKIP_MODELABLE:-0}
 SKIP_SMOKE=${SKIP_SMOKE:-0}
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --skip-docker)   SKIP_DOCKER=1   ;;
-    --skip-frontend) SKIP_FRONTEND=1 ;;
-    --skip-helm)     SKIP_HELM=1     ;;
-    --skip-smoke)    SKIP_SMOKE=1    ;;
-    *) echo "Unknown flag: $1"; exit 1 ;;
+    --skip-docker)     SKIP_DOCKER=1     ;;
+    --skip-frontend)   SKIP_FRONTEND=1   ;;
+    --skip-helm)       SKIP_HELM=1       ;;
+    --skip-modelable)  SKIP_MODELABLE=1  ;;
+    --skip-smoke)      SKIP_SMOKE=1      ;;
+    *) echo "Unknown flag: $1"; exit 1   ;;
   esac
   shift
 done
+
+if [[ $SKIP_MODELABLE -eq 0 ]]; then
+  step "Modelable validate"
+  if command -v modelable >/dev/null 2>&1; then
+    modelable validate models/ && ok "modelable validate" || fail "modelable validate"
+  else
+    echo "SKIP  modelable validate (not installed — run: pip install -r models/requirements.txt)"
+  fi
+fi
 
 step "Rust fmt"
 cargo fmt --all -- --check && ok "cargo fmt" || fail "cargo fmt"
