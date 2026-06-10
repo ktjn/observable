@@ -3,4 +3,4 @@
 # Usage:   modelable validate models/
 #          modelable compile models/ --target rust --out dist/generated/rust
 #          modelable compile models/ --target sql-clickhouse --out dist/generated/sql
-modelable==0.2.0
+modelable==0.2.1
