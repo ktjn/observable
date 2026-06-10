@@ -479,6 +479,14 @@ automatically notified if the same error appears again in a future deploy."
 
 #### P9-S5: Service Health Summary in Catalog
 
+> **Status:** Partially implemented. The Service Catalog UI, RED-metric columns, and
+> error-rate-threshold health badges already ship (`apps/frontend/src/pages/ServicesPage.tsx`,
+> `services/query-api/src/discovery.rs`). `docs/superpowers/plans/2026-06-10-p9-s5-service-catalog-health-signals.md`
+> is promoted to close the remaining gaps: real `active_alert_count` (SLO-linked alerts only —
+> see that plan's documented limitation), real `latest_deployment`, and an SLO-burn-rate override
+> for `health_state`. Still open after that plan: the fast-vs-slow burn red/yellow distinction,
+> 30s background-poll refresh, and the open error-issue count (blocked on P9-S2).
+
 **User story:** "As an SRE, I want to open the service catalog and immediately see which services
 are unhealthy without clicking into each one."
 
