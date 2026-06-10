@@ -2,6 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+#[cfg(feature = "storage")]
+use crate::generated::tracing::{TracingSpanEventRowV1, TracingSpanRowV1};
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Span {
     pub tenant_id: Uuid,
@@ -29,30 +32,7 @@ pub struct Span {
 }
 
 #[cfg(feature = "storage")]
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, clickhouse::Row)]
-pub struct SpanRow {
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub tenant_id: Uuid,
-    pub trace_id: String,
-    pub span_id: String,
-    pub parent_span_id: Option<String>,
-    pub service_name: String,
-    pub service_namespace: String,
-    pub service_version: String,
-    pub operation_name: String,
-    pub span_kind: String,
-    pub start_time_unix_nano: u64,
-    pub end_time_unix_nano: u64,
-    pub duration_ns: u64,
-    pub status_code: String,
-    pub status_message: String,
-    pub attributes: String,
-    pub resource_attributes: String,
-    pub environment: String,
-    pub host_id: String,
-    pub workload: String,
-    pub deployment_id: String,
-}
+pub type SpanRow = TracingSpanRowV1;
 
 #[cfg(feature = "storage")]
 impl From<Span> for SpanRow {
@@ -169,17 +149,7 @@ pub struct SpanEvent {
 }
 
 #[cfg(feature = "storage")]
-#[derive(Debug, Clone, Serialize, Deserialize, clickhouse::Row)]
-pub struct SpanEventRow {
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub tenant_id: Uuid,
-    pub trace_id: String,
-    pub span_id: String,
-    pub event_index: u32,
-    pub name: String,
-    pub timestamp_unix_nano: u64,
-    pub attributes: String, // JSON-serialized
-}
+pub type SpanEventRow = TracingSpanEventRowV1;
 
 #[cfg(feature = "storage")]
 impl From<SpanEvent> for SpanEventRow {
