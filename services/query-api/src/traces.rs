@@ -78,11 +78,11 @@ pub struct TraceHistogramResponse {
     pub buckets: Vec<TraceHistogramBucket>,
 }
 
-pub(crate) const SELECT_COLS: &str = "tenant_id, trace_id, span_id, parent_span_id, service_name, \
+pub(crate) const SELECT_COLS: &str = "tenant_id, trace_id, span_id, service_name, \
     service_namespace, service_version, operation_name, span_kind, \
     start_time_unix_nano, end_time_unix_nano, duration_ns, \
     status_code, status_message, attributes, resource_attributes, \
-    environment, host_id, workload, deployment_id";
+    environment, host_id, workload, deployment_id, parent_span_id";
 
 pub async fn get_trace(
     State(state): State<AppState>,
