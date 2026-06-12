@@ -3,17 +3,16 @@
 // Source of truth for SpanRow / SpanEventRow (ClickHouse storage) and SQL DDL.
 // The canonical Rust domain structs (Span, SpanEvent) in libs/domain/src/span.rs
 // are hand-authored because modelable does not yet generate native Rust enum types
-// (SpanKind / StatusCode) or HashMap<String, serde_json::Value>. The entities below
-// define field names, types, and wire contracts that the hand-authored structs must
-// match; they also govern the generated storage-projection artifacts.
+// (SpanKind / StatusCode) or nested types (Span.events: Vec<SpanEvent>). The entities
+// below define field names, types, and wire contracts that the hand-authored structs
+// must match; they also govern the generated storage-projection artifacts.
 
 domain tracing {
   owner: "platform-team"
 
   // Canonical span entity. Fields are camelCase in the IDL; the Rust emitter
-  // converts to snake_case. The attributes / resourceAttributes fields are modelled
-  // as `string` (JSON-encoded) because modelable cannot express serde_json::Value
-  // map values — the hand-authored domain struct uses HashMap<String, Value>.
+  // converts to snake_case. attributes / resourceAttributes are map<string, json>,
+  // matching the hand-authored domain struct's HashMap<String, serde_json::Value>.
   entity Span @ 1 (additive) {
     @key spanId: string
     traceId: string
@@ -37,9 +36,8 @@ domain tracing {
     @wire(json.case: "SCREAMING_SNAKE_CASE")
     statusCode: enum(Unset, Ok, Error)
     statusMessage: string
-    // JSON-encoded map; domain struct holds HashMap<String, serde_json::Value>
-    attributes: string
-    resourceAttributes: string
+    attributes: map<string, json>
+    resourceAttributes: map<string, json>
     environment: string
     hostId: string
     workload: string
@@ -48,7 +46,9 @@ domain tracing {
 
   // ClickHouse storage projection for Span. Maps 1-to-1; spanKind/statusCode are
   // already String in this layer (the From<Span> impl in span.rs performs the
-  // enum→string conversion, which modelable cannot generate today).
+  // enum→string conversion, which modelable cannot generate today). attributes/
+  // resourceAttributes use @wire(clickhouse: "string") to generate as String
+  // (JSON-encoded), matching the ClickHouse column type.
   projection SpanRow @ 1
     from tracing.Span @ 1 as s
   {
@@ -67,7 +67,9 @@ domain tracing {
     durationNs <- s.durationNs
     statusCode <- s.statusCode
     statusMessage <- s.statusMessage
+    @wire(clickhouse: "string")
     attributes <- s.attributes
+    @wire(clickhouse: "string")
     resourceAttributes <- s.resourceAttributes
     environment <- s.environment
     hostId <- s.hostId
@@ -88,8 +90,7 @@ domain tracing {
     name: string
     @wire(rust.type: "u64")
     timestampUnixNano: int
-    // JSON-encoded map; domain struct holds HashMap<String, serde_json::Value>
-    attributes: string
+    attributes: map<string, json>
   }
 
   // ClickHouse storage projection for SpanEvent.
@@ -103,6 +104,7 @@ domain tracing {
     eventIndex <- e.eventIndex
     name <- e.name
     timestampUnixNano <- e.timestampUnixNano
+    @wire(clickhouse: "string")
     attributes <- e.attributes
   }
 }
