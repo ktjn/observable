@@ -4,6 +4,7 @@ import { vi } from "vitest";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
 import { TenantContextProvider } from "../hooks/useTenantContext";
 import { TraceDetail } from "./TraceDetail";
+import type { Span } from "../api/traces";
 import * as logsApi from "../api/logs";
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -53,7 +54,7 @@ function wrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
-const baseSpan = {
+const baseSpan: Span = {
   trace_id: "abc",
   tenant_id: "t1",
   span_id: "111",
@@ -67,6 +68,8 @@ const baseSpan = {
   duration_ns: 5_000_000,
   status_code: "OK",
   status_message: "",
+  attributes: {},
+  resource_attributes: {},
   environment: "prod",
   host_id: "host-1",
   workload: "checkout-service",
@@ -183,7 +186,7 @@ test("renders Compare trace link that preloads the current trace id", () => {
 });
 
 test("renders MetricCard row with span count, duration, services, and errors", () => {
-  const errorSpan = { ...baseSpan, span_id: "222", status_code: "ERROR" };
+  const errorSpan: Span = { ...baseSpan, span_id: "222", status_code: "ERROR" };
   render(<TraceDetail traceId="abc" spans={[baseSpan, errorSpan]} />, { wrapper });
   expect(screen.getByText("Total Spans")).toBeInTheDocument();
   expect(screen.getByText("Duration")).toBeInTheDocument();
@@ -192,7 +195,7 @@ test("renders MetricCard row with span count, duration, services, and errors", (
 });
 
 test("Errors MetricCard is present when there are error spans", () => {
-  const errorSpan = { ...baseSpan, span_id: "222", status_code: "ERROR" };
+  const errorSpan: Span = { ...baseSpan, span_id: "222", status_code: "ERROR" };
   render(<TraceDetail traceId="abc" spans={[baseSpan, errorSpan]} />, { wrapper });
   expect(screen.getByText("Errors")).toBeInTheDocument();
 });
