@@ -88,7 +88,7 @@ Each step below is its own small PR in the modelable repo, gated by that repo's 
 
 Each follows the Phase 2 template (define `.mdl` → generate → replace hand-written Rust+Row+API+TS → verify → delete dead code). Ordered simplest-first:
 
-- [ ] **3.1 Logs** — `libs/domain/src/log.rs:6-70` (`LogRecord`/`LogRow`), `services/query-api/src/logs.rs:16-41`, `apps/frontend/src/api/logs.ts:5-36`
+- [x] **3.1 Logs** — Generated `logs.LogRecord@1`/`logs.LogRow@1` from `models/logs.mdl` (see `docs/superpowers/specs/2026-06-13-logs-modelable-migration-design.md`). `LogRow` in `libs/domain/src/log.rs` is now `pub type LogRow = LogsLogRowV1` (generated, `libs/domain/src/generated/logs/`); `LogRecord` remains hand-written. `apps/frontend/src/api/logs.ts`'s `LogRecord` is now a re-export of `apps/frontend/src/api/generated/logs/logs.LogRecord.v1.ts`. `services/query-api/src/logs.rs`'s handler types (`FacetValue`, `LogListResponse`, `LogHistogramBucket`, `LogHistogramResponse`) remain hand-written — handler-level aggregation/wrapper types, same rationale as 2.4/2.5.
 - [ ] **3.2 Metrics** — `libs/domain/src/metric.rs:6-150` (`MetricSeries`/`MetricPoint`/Rows), `services/query-api/src/metrics.rs:14-72` (incl. `MetricCatalogRow`→`MetricCatalogEntry` and `MetricGroupPointRow`→`MetricPoint` conversions at lines 309, 326), `apps/frontend/src/api/metrics.ts:5-37`
 - [ ] **3.3 Notifications** — `services/query-api/src/notifications.rs:11-55` (incl. `From` impl at line 43), `apps/frontend/src/api/notifications.ts:5-19`
 - [ ] **3.4 Admin/Members** — `services/query-api/src/admin_members.rs:25-45`, `apps/frontend/src/api/admin-members.ts:9-21`
