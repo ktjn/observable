@@ -2,6 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+#[cfg(feature = "storage")]
+use crate::generated::logs::LogsLogRowV1;
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LogRecord {
     pub tenant_id: Uuid,
@@ -22,26 +25,7 @@ pub struct LogRecord {
 }
 
 #[cfg(feature = "storage")]
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, clickhouse::Row)]
-pub struct LogRow {
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub tenant_id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub log_id: Uuid,
-    pub timestamp_unix_nano: u64,
-    pub observed_timestamp_unix_nano: u64,
-    pub severity_number: i32,
-    pub severity_text: String,
-    pub body: String,
-    pub trace_id: Option<String>,
-    pub span_id: Option<String>,
-    pub attributes: String,
-    pub resource_attributes: String,
-    pub service_name: String,
-    pub environment: String,
-    pub host_id: String,
-    pub fingerprint: Option<u64>,
-}
+pub type LogRow = LogsLogRowV1;
 
 #[cfg(feature = "storage")]
 impl From<LogRecord> for LogRow {

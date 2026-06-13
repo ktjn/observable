@@ -1,23 +1,9 @@
+import type { LogRecord } from "./generated/logs/logs.LogRecord.v1";
+
+export type { LogRecord };
+
 function tenantHeaders(tenantId: string): HeadersInit {
   return { "X-Tenant-ID": tenantId };
-}
-
-export interface LogRecord {
-  tenant_id: string;
-  log_id: string;
-  timestamp_unix_nano: string;
-  observed_timestamp_unix_nano?: string;
-  severity_number: number;
-  severity_text: string;
-  body: unknown;
-  trace_id?: string;
-  span_id?: string;
-  service_name: string;
-  environment?: string;
-  host_id?: string;
-  fingerprint?: number | string | null;
-  attributes?: Record<string, unknown>;
-  resource_attributes?: Record<string, unknown>;
 }
 
 export interface FacetValue {

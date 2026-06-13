@@ -125,6 +125,7 @@ export function mergeLogs(current: LogRecord[], incoming: LogRecord[]): LogRecor
 }
 
 function latestTimestamp(logs: LogRecord[]): string | undefined {
-  return logs[logs.length - 1]?.timestamp_unix_nano;
+  const ts = logs[logs.length - 1]?.timestamp_unix_nano;
+  return ts === undefined ? undefined : String(ts);
 }
 

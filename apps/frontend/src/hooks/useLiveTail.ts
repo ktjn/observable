@@ -58,7 +58,7 @@ export function useLiveTail(opts: UseLiveTailOptions): UseLiveTailResult {
           const newest = res.logs.reduce(
             (max, l) =>
               BigInt(l.timestamp_unix_nano) > BigInt(max)
-                ? l.timestamp_unix_nano
+                ? String(l.timestamp_unix_nano)
                 : max,
             cursorRef.current
           );

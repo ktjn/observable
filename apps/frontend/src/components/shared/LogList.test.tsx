@@ -6,12 +6,17 @@ import { LogList } from "./LogList";
 const log: LogRecord = {
   tenant_id: "t1",
   log_id: "log-1",
-  timestamp_unix_nano: "1700000000000000000",
+  timestamp_unix_nano: 1700000000000000000,
+  observed_timestamp_unix_nano: 1700000000000000000,
   severity_number: 9,
   severity_text: "INFO",
   body: "checkout completed",
   trace_id: "trace-abc",
+  attributes: {},
+  resource_attributes: {},
   service_name: "svc",
+  environment: "prod",
+  host_id: "node-1",
 };
 
 test("renders timestamp, severity, and message for each log row", () => {

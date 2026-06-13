@@ -6,13 +6,18 @@ function makeLog(log_id: string, span_id?: string): LogRecord {
   return {
     tenant_id: "00000000-0000-0000-0000-000000000001",
     log_id,
-    timestamp_unix_nano: "100",
+    timestamp_unix_nano: 100,
+    observed_timestamp_unix_nano: 100,
     severity_number: 9,
     severity_text: "WARN",
     body: "message",
     trace_id: "trace-1",
     span_id,
+    attributes: {},
+    resource_attributes: {},
     service_name: "checkout",
+    environment: "prod",
+    host_id: "node-1",
   };
 }
 
