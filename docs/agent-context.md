@@ -148,6 +148,48 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 - `alert-evaluator` now supports composite alerts: `alert_type = 'composite'` rules use `condition.left_rule_id` and `condition.right_rule_id`; the evaluator treats the pair as an `AND` and fires only when both source rules are active.
 - Known simplification: `dedup_key` currently uses `rule_id` only because `alert_rules` lacks `service_name`/`environment`. The spec (`spec/14-domain-model.md`) defines `rule_id + service_name + environment`.
 
+## Modelable Type-Mapping Migration (Phase 2 pilot complete, completed 2026-06-13)
+
+The tracing domain (Spans/SpanEvents) is the worked template for migrating Observable's
+hand-written type-mapping layers (ClickHouse rows, domain structs, API responses, frontend TS
+interfaces) onto [modelable](https://github.com/ktjn/modelable)-generated artifacts. Full plan:
+`docs/superpowers/plans/2026-06-08-modelable-type-mapping-migration-plan.md`.
+
+- **Model sources:** `models/*.mdl`, validated/compiled with the pinned version in
+  `models/requirements.txt`. There is no local modelable install in this repo — regenerate using
+  a checkout of `modelable` itself: `cd <modelable-checkout>/cli && .venv/Scripts/python.exe -m
+  modelable compile <observable-checkout>/models --target <rust|typescript> --out <scratch-dir>`,
+  then copy the relevant generated files into this repo and commit them (generated code is
+  committed, not built in CI — see "Resolved Decisions" in the migration plan).
+- **Generated Rust artifacts:** `libs/domain/src/generated/<domain>/`, re-exported via a
+  `mod.rs` with `#![allow(dead_code)]`; hand-written domain types reference generated row types
+  via `pub type FooRow = generated::<domain>::FooRowV1;` where the shapes are 1:1.
+- **Generated TypeScript artifacts:** `apps/frontend/src/api/generated/<domain>/`. Each file is
+  copied verbatim from the compiler output plus a short "do not edit, regenerate with..." header
+  comment. Hand-written `apps/frontend/src/api/<domain>.ts` re-exports the generated types
+  (`import type { Foo } from "./generated/<domain>/<domain>.Foo.v1"; export type { Foo };`)
+  instead of declaring its own interface.
+- **`@wire(...)` hints** bridge gaps between the IDL's canonical representation and each
+  target's real wire format without affecting other targets — e.g.
+  `@wire(json.fieldCase: "snake_case")` (added in modelable v0.4.0) makes only the generated
+  TypeScript use snake_case field names to match Rust's serde output, with zero effect on the
+  Rust/JSON-Schema/SQL/lineage output. Use the narrowest hint that closes the gap; document new
+  hints with a short comment above the `entity`/`projection` they apply to.
+- **Per-domain rule:** only replace types that represent canonical domain/wire contracts.
+  Handler-level aggregation/wrapper types with no 1:1 generated equivalent (e.g.
+  `TraceResponse`, `FacetValue`, `TraceListResponse`) stay hand-written — state the reason in the
+  PR. Type-tightening from generated types (literal unions for enums, required vs. optional
+  fields) is expected fallout; fix call sites with valid enum literals/casts and `{}` defaults
+  for now-required maps, not `any`/`@ts-expect-error`.
+- **Verification:** `cargo fmt --all` + relevant `cargo test` crates for Rust changes;
+  `npm run typecheck && npm test && npm run build` for frontend changes; `bash
+  scripts/local-ci.sh`; and a `modelable lineage <Type@version>` proof in the PR description
+  showing no `type_loss` warnings.
+- Phase 3 (`docs/superpowers/plans/2026-06-08-modelable-type-mapping-migration-plan.md`, section
+  "Phase 3") lists the remaining domains in migration order (Logs, Metrics, Notifications,
+  Admin/Members, Schemas/SLOs, Incidents, Alerts, Dashboards, NLQ/Visualization) — each follows
+  this same template via its own brainstorm → spec → plan → subagent-driven-implementation cycle.
+
 ## Dev Environment Gotchas
 
 ### PostgreSQL major version upgrade requires volume reset
