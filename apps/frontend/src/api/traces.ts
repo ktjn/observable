@@ -1,33 +1,7 @@
-export interface Span {
-  tenant_id: string;
-  trace_id: string;
-  span_id: string;
-  parent_span_id?: string;
-  service_name: string;
-  service_namespace: string;
-  service_version: string;
-  operation_name: string;
-  span_kind: string;
-  start_time_unix_nano: number;
-  end_time_unix_nano: number;
-  duration_ns: number;
-  status_code: string;
-  status_message: string;
-  attributes?: Record<string, unknown>;
-  resource_attributes?: Record<string, unknown>;
-  environment: string;
-  host_id: string;
-  workload: string;
-  deployment_id: string;
-}
+import type { Span } from "./generated/tracing/tracing.Span.v1";
+import type { SpanEvent } from "./generated/tracing/tracing.SpanEvent.v1";
 
-export interface SpanEvent {
-  span_id: string;
-  event_index: number;
-  name: string;
-  timestamp_unix_nano: number;
-  attributes?: Record<string, unknown>;
-}
+export type { Span, SpanEvent };
 
 export interface TraceResponse {
   trace_id: string;
