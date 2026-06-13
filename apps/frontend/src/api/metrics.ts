@@ -1,3 +1,7 @@
+import type { MetricPoint } from "./generated/metrics/metrics.MetricPoint.v1";
+
+export type { MetricPoint };
+
 function tenantHeaders(tenantId: string): HeadersInit {
   return { "X-Tenant-ID": tenantId };
 }
@@ -17,21 +21,6 @@ export interface MetricCatalogEntry {
 
 export interface MetricCatalogResponse {
   metrics: MetricCatalogEntry[];
-}
-
-export interface MetricPoint {
-  tenant_id: string;
-  metric_series_id: string;
-  metric_name: string;
-  service_name: string;
-  time_unix_nano: number | string;
-  start_time_unix_nano?: number | string | null;
-  value_double?: number | null;
-  value_int?: number | null;
-  histogram_count?: number | null;
-  histogram_sum?: number | null;
-  histogram_bucket_counts?: number[];
-  histogram_explicit_bounds?: number[];
 }
 
 export interface MetricPointsResponse {
