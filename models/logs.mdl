@@ -1,0 +1,72 @@
+domain logs {
+  owner: "platform-team"
+
+  // Canonical log-record entity. Mirrors libs/domain/src/log.rs's LogRecord
+  // field-for-field. @wire(json.fieldCase: "snake_case") makes the generated
+  // TypeScript fields snake_case, matching the real (Rust-serialized) JSON
+  // wire format (LogRecord has no #[serde(rename_all = ...)], so serde's
+  // default snake_case applies).
+  @wire(json.fieldCase: "snake_case")
+  entity LogRecord @ 1 (additive) {
+    tenantId: uuid
+    @key logId: uuid
+    // Stored as u64 nanoseconds in Rust / UInt64 in ClickHouse
+    @wire(rust.type: "u64")
+    timestampUnixNano: int
+    @wire(rust.type: "u64")
+    observedTimestampUnixNano: int
+    @wire(rust.type: "i32")
+    severityNumber: int
+    severityText: string
+    body: json
+    traceId?: string
+    spanId?: string
+    attributes: map<string, json>
+    resourceAttributes: map<string, json>
+    serviceName: string
+    environment: string
+    hostId: string
+    @wire(rust.type: "u64")
+    fingerprint?: int
+  }
+
+  // ClickHouse storage projection for LogRecord. body/attributes/
+  // resourceAttributes use @wire(clickhouse: "string") to generate as String
+  // (JSON-encoded), matching the ClickHouse column types. tenantId/logId use
+  // @wire(clickhouse: "uuid") for #[serde(with = "clickhouse::serde::uuid")].
+  projection LogRow @ 1
+    from logs.LogRecord @ 1 as l
+  {
+    @wire(clickhouse: "uuid")
+    tenantId <- l.tenantId
+    @wire(clickhouse: "uuid")
+    logId <- l.logId
+    timestampUnixNano <- l.timestampUnixNano
+    observedTimestampUnixNano <- l.observedTimestampUnixNano
+    severityNumber <- l.severityNumber
+    severityText <- l.severityText
+    @wire(clickhouse: "string")
+    body <- l.body
+    traceId <- l.traceId
+    spanId <- l.spanId
+    @wire(clickhouse: "string")
+    attributes <- l.attributes
+    @wire(clickhouse: "string")
+    resourceAttributes <- l.resourceAttributes
+    serviceName <- l.serviceName
+    environment <- l.environment
+    hostId <- l.hostId
+    fingerprint <- l.fingerprint
+  }
+}
+
+// ClickHouse adapter — tables match the observable.* schema.
+binding ch-observable {
+  adapter: clickhouse
+}
+
+binding log-binding {
+  model: logs.LogRecord @ 1
+  adapter: ch-observable
+  table: "logs"
+}
