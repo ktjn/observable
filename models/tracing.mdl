@@ -13,6 +13,9 @@ domain tracing {
   // Canonical span entity. Fields are camelCase in the IDL; the Rust emitter
   // converts to snake_case. attributes / resourceAttributes are map<string, json>,
   // matching the hand-authored domain struct's HashMap<String, serde_json::Value>.
+  // @wire(json.fieldCase: "snake_case") makes the generated TypeScript fields
+  // snake_case too, matching the real (Rust-serialized) JSON wire format.
+  @wire(json.fieldCase: "snake_case")
   entity Span @ 1 (additive) {
     @key spanId: string
     traceId: string
@@ -79,6 +82,9 @@ domain tracing {
 
   // Canonical span-event entity. event_index is u32 in the hand-authored struct;
   // @wire(rust.type: "u32") propagates the override to generated Rust.
+  // @wire(json.fieldCase: "snake_case") makes the generated TypeScript fields
+  // snake_case too, matching the real (Rust-serialized) JSON wire format.
+  @wire(json.fieldCase: "snake_case")
   entity SpanEvent @ 1 (additive) {
     tenantId: uuid
     traceId: string
