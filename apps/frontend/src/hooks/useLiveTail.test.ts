@@ -22,15 +22,20 @@ describe("appendAndTrim", () => {
 
 // ── useLiveTail ────────────────────────────────────────────────────────────
 
-function makeLog(id: string, timestampNano: string): LogRecord {
+function makeLog(id: string, timestampNano: number): LogRecord {
   return {
     tenant_id: "t1",
     log_id: id,
     timestamp_unix_nano: timestampNano,
+    observed_timestamp_unix_nano: timestampNano,
     severity_number: 9,
     severity_text: "INFO",
     body: {},
+    attributes: {},
+    resource_attributes: {},
     service_name: "svc",
+    environment: "prod",
+    host_id: "node-1",
   };
 }
 
@@ -59,7 +64,7 @@ describe("useLiveTail", () => {
 
   it("fetches immediately on enable and accumulates rows", async () => {
     vi.spyOn(logsApi, "tailLogs").mockResolvedValue({
-      logs: [makeLog("1", "1000"), makeLog("2", "2000")],
+      logs: [makeLog("1", 1000), makeLog("2", 2000)],
       total: 2,
       facets: {},
     });
@@ -73,8 +78,8 @@ describe("useLiveTail", () => {
   });
 
   it("advances cursor to newest timestamp after fetch", async () => {
-    const ts1 = String(Date.now() * 1_000_000 + 1_000_000);
-    const ts2 = String(Date.now() * 1_000_000 + 5_000_000);
+    const ts1 = Date.now() * 1_000_000 + 1_000_000;
+    const ts2 = Date.now() * 1_000_000 + 5_000_000;
     vi.spyOn(logsApi, "tailLogs").mockResolvedValue({
       logs: [makeLog("1", ts1), makeLog("2", ts2)],
       total: 2,
@@ -87,13 +92,13 @@ describe("useLiveTail", () => {
       await Promise.resolve();
     });
     const calls = vi.mocked(logsApi.tailLogs).mock.calls;
-    expect(calls[1][1]).toMatchObject({ since_unix_nano: ts2 });
+    expect(calls[1][1]).toMatchObject({ since_unix_nano: String(ts2) });
   });
 
   it("caps accumulator at 500 rows across two ticks", async () => {
     const make300 = (offset: number) =>
       Array.from({ length: 300 }, (_, i) =>
-        makeLog(String(offset + i), String(offset + i + 1))
+        makeLog(String(offset + i), offset + i + 1)
       );
     vi.spyOn(logsApi, "tailLogs")
       .mockResolvedValueOnce({ logs: make300(0), total: 300, facets: {} })
@@ -113,7 +118,7 @@ describe("useLiveTail", () => {
 
   it("resets state when disabled", async () => {
     vi.spyOn(logsApi, "tailLogs").mockResolvedValue({
-      logs: [makeLog("1", "1000")],
+      logs: [makeLog("1", 1000)],
       total: 1,
       facets: {},
     });

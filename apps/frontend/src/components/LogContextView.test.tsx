@@ -20,33 +20,48 @@ function wrapper({ children }: { children: React.ReactNode }) {
 const pivotLog = {
   tenant_id: "t1",
   log_id: "pivot-id",
-  timestamp_unix_nano: "1000000000",
+  timestamp_unix_nano: 1000000000,
+  observed_timestamp_unix_nano: 1000000000,
   severity_number: 9,
   severity_text: "WARN",
   body: "pivot message",
+  attributes: {},
+  resource_attributes: {},
   service_name: "checkout",
+  environment: "prod",
+  host_id: "node-1",
 };
 
 const beforeLog = {
   tenant_id: "t1",
   log_id: "before-id",
-  timestamp_unix_nano: "500000000",
+  timestamp_unix_nano: 500000000,
+  observed_timestamp_unix_nano: 500000000,
   severity_number: 5,
   severity_text: "INFO",
   body: "before message",
+  attributes: {},
+  resource_attributes: {},
   service_name: "checkout",
+  environment: "prod",
+  host_id: "node-1",
 };
 
 const traceLinkedLog = {
   tenant_id: "t1",
   log_id: "trace-linked-id",
-  timestamp_unix_nano: "1500000000",
+  timestamp_unix_nano: 1500000000,
+  observed_timestamp_unix_nano: 1500000000,
   severity_number: 5,
   severity_text: "INFO",
   body: "trace linked message",
   trace_id: "trace-abc",
   span_id: "span-xyz",
+  attributes: {},
+  resource_attributes: {},
   service_name: "checkout",
+  environment: "prod",
+  host_id: "node-1",
 };
 
 beforeEach(() => {
