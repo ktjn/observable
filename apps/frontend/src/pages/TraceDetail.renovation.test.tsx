@@ -4,6 +4,7 @@ import { vi, beforeEach } from "vitest";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
 import { TenantContextProvider } from "../hooks/useTenantContext";
 import { TraceDetail } from "./TraceDetail";
+import type { Span } from "../api/traces";
 import * as logsApi from "../api/logs";
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -30,7 +31,7 @@ function wrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
-const baseSpan = {
+const baseSpan: Span = {
   trace_id: "abc",
   tenant_id: "t1",
   span_id: "111",
@@ -44,6 +45,8 @@ const baseSpan = {
   duration_ns: 5_000_000,
   status_code: "OK",
   status_message: "",
+  attributes: {},
+  resource_attributes: {},
   environment: "prod",
   host_id: "host-1",
   workload: "checkout-service",

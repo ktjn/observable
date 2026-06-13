@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { createDashboard } from "../api/dashboards";
 import {
   fetchTraceHistogram,
+  Span,
   TraceResponse,
   TraceHistogramBucket as ApiHistogramBucket,
   TraceHistogramResponse,
@@ -75,12 +76,18 @@ function nlqRowToTraceResponse(row: NlqTraceRow): TraceResponse {
         service_namespace: "",
         service_version: "",
         operation_name: row.root_operation,
-        span_kind: "",
+        // This synthetic root span has no real span kind; "INTERNAL" is an inert
+        // default since the UI doesn't read span_kind for this synthetic span.
+        span_kind: "INTERNAL",
         start_time_unix_nano: Number(row.start_time_unix_nano),
         end_time_unix_nano: Number(row.start_time_unix_nano) + row.duration_ms * 1_000_000,
         duration_ns: row.duration_ms * 1_000_000,
-        status_code: row.status_code,
+        // status_code comes from the same ClickHouse status_code enum column as
+        // Span.status_code, so it's always one of the three variants.
+        status_code: row.status_code as Span["status_code"],
         status_message: "",
+        attributes: {},
+        resource_attributes: {},
         environment: row.environment ?? "",
         host_id: "",
         workload: "",

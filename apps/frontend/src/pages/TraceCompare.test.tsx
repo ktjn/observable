@@ -49,7 +49,7 @@ function wrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
-const leftTrace = {
+const leftTrace: tracesApi.TraceResponse = {
   trace_id: "trace-left",
   spans: [
     {
@@ -66,6 +66,8 @@ const leftTrace = {
       duration_ns: 5_000_000,
       status_code: "OK",
       status_message: "",
+      attributes: {},
+      resource_attributes: {},
       environment: "prod",
       host_id: "host-1",
       workload: "checkout",
@@ -86,6 +88,8 @@ const leftTrace = {
       duration_ns: 3_000_000,
       status_code: "OK",
       status_message: "",
+      attributes: {},
+      resource_attributes: {},
       environment: "prod",
       host_id: "host-1",
       workload: "checkout",
@@ -95,7 +99,7 @@ const leftTrace = {
   events: [],
 };
 
-const rightTrace = {
+const rightTrace: tracesApi.TraceResponse = {
   trace_id: "trace-right",
   spans: [
     {
@@ -112,6 +116,8 @@ const rightTrace = {
       duration_ns: 7_500_000,
       status_code: "ERROR",
       status_message: "",
+      attributes: {},
+      resource_attributes: {},
       environment: "prod",
       host_id: "host-2",
       workload: "checkout",
@@ -132,6 +138,8 @@ const rightTrace = {
       duration_ns: 2_500_000,
       status_code: "OK",
       status_message: "",
+      attributes: {},
+      resource_attributes: {},
       environment: "prod",
       host_id: "host-2",
       workload: "checkout",
@@ -152,6 +160,8 @@ const rightTrace = {
       duration_ns: 3_000_000,
       status_code: "OK",
       status_message: "",
+      attributes: {},
+      resource_attributes: {},
       environment: "prod",
       host_id: "host-2",
       workload: "checkout",
