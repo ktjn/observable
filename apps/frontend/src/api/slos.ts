@@ -1,21 +1,8 @@
+import type { SloDefinition as SloDefinitionItem } from "./generated/slos/slos.SloDefinition.v1";
+export type { SloDefinitionItem };
+
 function tenantHeaders(tenantId: string): HeadersInit {
   return { "X-Tenant-ID": tenantId };
-}
-
-export interface SloDefinitionItem {
-  slo_id: string;
-  service_name: string;
-  environment: string;
-  sli_type: "availability";
-  target: number;
-  window_days: number;
-  burn_rate_fast_threshold: number;
-  burn_rate_slow_threshold: number;
-  description: string;
-  firing: boolean;
-  last_fired_at: string | null;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface SloListResponse {
