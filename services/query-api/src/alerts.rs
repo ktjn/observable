@@ -11,6 +11,14 @@ use uuid::Uuid;
 
 const VALID_OPERATORS: &[&str] = &["gt", "gte", "lt", "lte", "eq"];
 
+/// Canonical alert rule summary entity. Mirrors `alerts.AlertRule@1` in
+/// `models/alerts.mdl` field-for-field (see
+/// `docs/superpowers/specs/2026-06-14-alerts-modelable-migration-design.md`).
+/// `AlertRuleRow`/`AlertRuleDetailRow` (Postgres `sqlx::FromRow`
+/// projections) and `AlertRuleListResponse`/`AlertRuleDetailResponse` (list
+/// wrapper / join+firings aggregation) are NOT modeled — timestamp fields
+/// stay `chrono::DateTime<Utc>` (Phase 1 backlog item 5: modelable's
+/// `timestamp` emits as Rust `String`).
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct AlertRuleItem {
     pub rule_id: Uuid,
@@ -32,6 +40,11 @@ pub struct AlertRuleListResponse {
     pub items: Vec<AlertRuleItem>,
 }
 
+/// Canonical alert firing entity. Mirrors `alerts.Firing@1` in
+/// `models/alerts.mdl` field-for-field (see
+/// `docs/superpowers/specs/2026-06-14-alerts-modelable-migration-design.md`).
+/// `occurred_at`/`resolved_at` stay `chrono::DateTime<Utc>` (Phase 1
+/// backlog item 5).
 #[derive(Serialize)]
 pub struct FiringItem {
     pub firing_id: Uuid,
