@@ -11,6 +11,7 @@ vi.mock("../hooks/useTenantContext", () => ({
 const sampleDashboard: dashboardsApi.Dashboard = {
   dashboard_id: "dash-1",
   name: "My Dashboard",
+  visibility: "private",
   panels: [
     {
       panel_id: "panel-1",
@@ -21,7 +22,6 @@ const sampleDashboard: dashboardsApi.Dashboard = {
       preset: "1h",
       filters: {},
       query_text: "errors in checkout",
-      content: null,
       layout: { x: 0, y: 0, w: 6, h: 4 },
       time_range: { mode: "preset", preset: "1h" },
     },

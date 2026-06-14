@@ -90,6 +90,7 @@ const queryFrame = {
 const dashboard: dashboardsApi.Dashboard = {
   dashboard_id: "dash-1",
   name: "Checkout Health",
+  visibility: "private",
   created_at: "2026-05-10T00:00:00Z",
   panels: [
     {
@@ -98,10 +99,8 @@ const dashboard: dashboardsApi.Dashboard = {
       panel_kind: "query",
       query_kind: "logs",
       service: "checkout",
-      preset: null,
       filters: {},
       query_text: "errors in checkout",
-      content: null,
       layout: { x: 0, y: 0, w: 6, h: 4 },
       time_range: { mode: "global" },
     },
@@ -109,11 +108,7 @@ const dashboard: dashboardsApi.Dashboard = {
       panel_id: "text-1",
       title: "Incident notes",
       panel_kind: "text",
-      query_kind: null,
-      service: null,
-      preset: null,
       filters: {},
-      query_text: null,
       content: "Escalate after deploy verification.",
       layout: { x: 6, y: 0, w: 6, h: 2 },
       time_range: { mode: "global" },
@@ -358,8 +353,8 @@ test("metrics panels without query text execute a metric catalog base IR", async
       {
         ...dashboard.panels[0],
         query_kind: "metrics",
-        query_text: null,
-        service: null,
+        query_text: undefined,
+        service: undefined,
         filters: { name: "request", type: "histogram", environment: "prod" },
       },
     ],

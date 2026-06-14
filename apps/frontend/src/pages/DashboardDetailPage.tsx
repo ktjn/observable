@@ -13,6 +13,7 @@ import {
   type DashboardQueryKind,
   type UpdateDashboardRequest,
 } from "../api/dashboards";
+import type { Preset } from "../router";
 import { submitNlqQuery } from "../api/nlq";
 import { VisualizationPanel } from "../features/nlq/VisualizationPanel";
 import { PanelTemplateLibrary, type PanelTemplate } from "../features/dashboards/PanelTemplateLibrary";
@@ -48,14 +49,14 @@ function panelToUpdate(panel: DashboardPanel): UpdateDashboardRequest["panels"][
     panel_id: panel.panel_id,
     title: panel.title,
     panel_kind: panel.panel_kind,
-    query_kind: panel.query_kind,
+    query_kind: panel.query_kind ?? null,
     service: panel.service,
-    preset: panel.preset,
-    filters: panel.filters,
+    preset: (panel.preset as Preset | undefined) ?? null,
+    filters: panel.filters as Record<string, unknown>,
     query_text: panel.query_text,
     content: panel.content,
     layout: panel.layout,
-    time_range: panel.time_range,
+    time_range: panel.time_range as DashboardPanelTimeRange,
   };
 }
 
@@ -671,14 +672,14 @@ function QueryPanel({
   globalRange: { fromMs: number; toMs: number };
 }) {
   const { tenantId } = useTenantContext();
-  const resolved = resolvePanelTimeRange(panel.time_range, globalRange);
+  const resolved = resolvePanelTimeRange(panel.time_range as DashboardPanelTimeRange, globalRange);
   const signal = panel.query_kind ?? "logs";
   const hasQuestion = Boolean(panel.query_text?.trim());
   const baseIr: NlqIrLike = {
     operation: signal === "metrics" && !hasQuestion ? "catalog" : "table",
     signals: [signal],
     catalog_field: signal === "metrics" && !hasQuestion ? "metric_name" : undefined,
-    filters: signal === "metrics" ? dashboardFiltersToNlqFilters(panel.filters) : [],
+    filters: signal === "metrics" ? dashboardFiltersToNlqFilters(panel.filters as Record<string, unknown>) : [],
     time_range: {
       from: msToNsString(resolved.fromMs),
       to: msToNsString(resolved.toMs),
