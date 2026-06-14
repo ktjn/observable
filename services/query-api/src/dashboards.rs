@@ -13,6 +13,12 @@ const VALID_QUERY_KINDS: &[&str] = &["logs", "traces", "metrics"];
 const VALID_PANEL_KINDS: &[&str] = &["query", "text"];
 const EXPORT_SCHEMA_VERSION: &str = "2";
 
+/// Canonical dashboard panel. Mirrors `dashboards.DashboardPanel` (value) in
+/// `models/dashboards.mdl` field-for-field, except `preset` (Phase 1 backlog
+/// item 6: modelable enum members must be valid identifiers, but Preset
+/// values 5m/15m/30m/1h/3h/12h start with digits) and `filters`/`time_range`
+/// (no union/oneof construct for the 3-way discriminated union) — see
+/// `docs/superpowers/specs/2026-06-14-dashboards-modelable-migration-design.md`.
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct DashboardPanelItem {
     pub panel_id: Uuid,
@@ -28,6 +34,14 @@ pub struct DashboardPanelItem {
     pub time_range: serde_json::Value,
 }
 
+/// Canonical dashboard summary entity. Mirrors `dashboards.Dashboard@1` in
+/// `models/dashboards.mdl` field-for-field (see
+/// `docs/superpowers/specs/2026-06-14-dashboards-modelable-migration-design.md`).
+/// `GrantItem`, `DashboardRow`/`DashboardPanelRow` (Postgres `sqlx::FromRow`
+/// projections), `DashboardListResponse`, `CreateDashboardRequest`,
+/// `UpdateDashboardRequest`, and `DashboardExportPanel`/`DashboardExport` are
+/// NOT modeled — `created_at` stays `chrono::DateTime<Utc>` (Phase 1 backlog
+/// item 5: modelable's `timestamp` emits as Rust `String`).
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct DashboardItem {
     pub dashboard_id: Uuid,
