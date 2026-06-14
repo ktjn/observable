@@ -1,4 +1,7 @@
 import type { Preset } from "../router";
+import type { DashboardPanelLayout } from "./generated/dashboards/dashboards.DashboardPanelLayout.v0";
+import type { DashboardPanel } from "./generated/dashboards/dashboards.DashboardPanel.v0";
+import type { Dashboard } from "./generated/dashboards/dashboards.Dashboard.v1";
 
 function tenantHeaders(tenantId: string): HeadersInit {
   return { "X-Tenant-ID": tenantId };
@@ -6,32 +9,15 @@ function tenantHeaders(tenantId: string): HeadersInit {
 
 export type DashboardQueryKind = "logs" | "traces" | "metrics";
 export type DashboardPanelKind = "query" | "text";
-export type DashboardPanelLayout = { x: number; y: number; w: number; h: number };
+export type { DashboardPanelLayout };
 export type DashboardPanelTimeRange =
   | { mode: "global" }
   | { mode: "preset"; preset: Preset }
   | { mode: "absolute"; from_ms: number; to_ms: number };
 
-export interface DashboardPanel {
-  panel_id: string;
-  title: string;
-  panel_kind: DashboardPanelKind;
-  query_kind: DashboardQueryKind | null;
-  service?: string | null;
-  preset: Preset | null;
-  filters: Record<string, unknown>;
-  query_text?: string | null;
-  content?: string | null;
-  layout: DashboardPanelLayout;
-  time_range: DashboardPanelTimeRange;
-}
+export type { DashboardPanel };
 
-export interface Dashboard {
-  dashboard_id: string;
-  name: string;
-  panels: DashboardPanel[];
-  created_at: string;
-}
+export type { Dashboard };
 
 export interface DashboardListResponse {
   items: Dashboard[];
