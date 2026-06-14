@@ -1,0 +1,28 @@
+domain slos {
+  owner: "platform-team"
+
+  // Canonical SLO definition entity. Mirrors
+  // services/query-api/src/slos.rs's SloDefinitionItem field-for-field.
+  // SloDefinitionItem serves as both the Postgres db row (sqlx::FromRow,
+  // joined with alert_rules/alert_firings for firing/last_fired_at) and the
+  // API response shape; it is NOT modeled in Rust here — see
+  // docs/superpowers/specs/2026-06-14-slos-modelable-migration-design.md
+  // for why (timestamp -> Rust String gap, Phase 1 backlog item 5).
+  @wire(json.fieldCase: "snake_case")
+  entity SloDefinition @ 1 (additive) {
+    @key sloId: uuid
+    serviceName: string
+    environment: string
+    sliType: enum(availability)
+    target: float
+    @wire(rust.type: "i32")
+    windowDays: int
+    burnRateFastThreshold: float
+    burnRateSlowThreshold: float
+    description: string
+    firing: bool
+    lastFiredAt?: timestamp
+    createdAt: timestamp
+    updatedAt: timestamp
+  }
+}
