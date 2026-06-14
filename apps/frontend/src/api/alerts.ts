@@ -1,21 +1,11 @@
+import type { AlertRule as AlertRuleItem } from "./generated/alerts/alerts.AlertRule.v1";
+import type { Firing as FiringItem } from "./generated/alerts/alerts.Firing.v1";
+
 function tenantHeaders(tenantId: string): HeadersInit {
   return { "X-Tenant-ID": tenantId };
 }
 
-export interface AlertRuleItem {
-  rule_id: string;
-  name: string;
-  metric_name: string;
-  operator: "gt" | "gte" | "lt" | "lte" | "eq";
-  threshold: number;
-  severity: string;
-  silenced: boolean;
-  state: "ok" | "pending" | "active" | "resolved" | "silenced";
-  firing: boolean;
-  last_fired_at: string | null;
-  notification_channels: string[];
-  auto_trigger_incident: boolean;
-}
+export type { AlertRuleItem };
 
 export interface AlertRuleListResponse {
   items: AlertRuleItem[];
@@ -66,13 +56,7 @@ export async function silenceAlertRule(
   return res.json();
 }
 
-export interface FiringItem {
-  firing_id: string;
-  state: "pending" | "active" | "resolved";
-  value: number | null;
-  occurred_at: string;
-  resolved_at: string | null;
-}
+export type { FiringItem };
 
 export interface AlertRuleDetailResponse {
   rule_id: string;
