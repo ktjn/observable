@@ -1,0 +1,55 @@
+domain dashboards {
+  owner: "platform-team"
+
+  // Canonical dashboard panel layout. Mirrors the {x, y, w, h} shape of
+  // services/query-api/src/dashboards.rs's DashboardPanelItem.layout
+  // (serde_json::Value in Rust, always this shape in practice). See
+  // docs/superpowers/specs/2026-06-14-dashboards-modelable-migration-design.md.
+  @wire(json.fieldCase: "snake_case")
+  value DashboardPanelLayout {
+    x: int
+    y: int
+    w: int
+    h: int
+  }
+
+  // Canonical dashboard panel. Mirrors
+  // services/query-api/src/dashboards.rs's DashboardPanelItem field-for-field,
+  // except: `preset` is `string` not `enum(...)` (Phase 1 backlog item 6 -
+  // modelable enum members must be valid identifiers, but Preset values
+  // 5m/15m/30m/1h/3h/12h start with digits), and `filters`/`time_range` are
+  // `json` (no union/oneof construct for the 3-way DashboardPanelTimeRange
+  // discriminated union). See
+  // docs/superpowers/specs/2026-06-14-dashboards-modelable-migration-design.md.
+  @wire(json.fieldCase: "snake_case")
+  value DashboardPanel {
+    panelId: uuid
+    title: string
+    panelKind: enum(query, text)
+    queryKind?: enum(logs, traces, metrics)
+    service?: string
+    preset?: string
+    filters: json
+    queryText?: string
+    content?: string
+    layout: DashboardPanelLayout
+    timeRange: json
+  }
+
+  // Canonical dashboard summary entity. Mirrors
+  // services/query-api/src/dashboards.rs's DashboardItem field-for-field.
+  // GrantItem, DashboardRow/DashboardPanelRow (Postgres sqlx::FromRow
+  // projections), DashboardListResponse, CreateDashboardRequest,
+  // UpdateDashboardRequest, and DashboardExportPanel/DashboardExport (export
+  // file format) are NOT modeled here — see
+  // docs/superpowers/specs/2026-06-14-dashboards-modelable-migration-design.md
+  // for why (timestamp -> Rust String gap, Phase 1 backlog item 5).
+  @wire(json.fieldCase: "snake_case")
+  entity Dashboard @ 1 (additive) {
+    @key dashboardId: uuid
+    name: string
+    visibility: enum(public, private)
+    panels: array<DashboardPanel>
+    createdAt: timestamp
+  }
+}
