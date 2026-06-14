@@ -1,0 +1,39 @@
+domain alerts {
+  owner: "platform-team"
+
+  // Canonical alert rule summary entity. Mirrors
+  // services/query-api/src/alerts.rs's AlertRuleItem field-for-field.
+  // AlertRuleListResponse (list wrapper), AlertRuleDetailResponse (join +
+  // firings aggregation), AlertRuleRow/AlertRuleDetailRow (Postgres
+  // sqlx::FromRow projections), and CreateRuleRequest/SilenceRequest/
+  // UpdateRunbookRequest (request bodies) are NOT modeled here — see
+  // docs/superpowers/specs/2026-06-14-alerts-modelable-migration-design.md
+  // for why (timestamp -> Rust String gap, Phase 1 backlog item 5).
+  @wire(json.fieldCase: "snake_case")
+  entity AlertRule @ 1 (additive) {
+    @key ruleId: uuid
+    name: string
+    metricName: string
+    operator: enum(gt, gte, lt, lte, eq)
+    threshold: float
+    severity: string
+    silenced: bool
+    state: enum(ok, pending, active, resolved, silenced)
+    firing: bool
+    lastFiredAt?: timestamp
+    notificationChannels: array<uuid>
+    autoTriggerIncident: bool
+  }
+
+  // Canonical alert firing entity. Mirrors
+  // services/query-api/src/alerts.rs's FiringItem field-for-field. Embedded
+  // as AlertRuleDetailResponse.firings (hand-written, see above).
+  @wire(json.fieldCase: "snake_case")
+  entity Firing @ 1 (additive) {
+    @key firingId: uuid
+    state: enum(pending, active, resolved)
+    value?: float
+    occurredAt: timestamp
+    resolvedAt?: timestamp
+  }
+}
