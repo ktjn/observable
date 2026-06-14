@@ -1,0 +1,18 @@
+domain admin {
+  owner: "platform-team"
+
+  // Canonical tenant-member entity. Mirrors
+  // services/query-api/src/admin_members.rs's MemberRecord field-for-field.
+  // MemberRecord serves as both the Postgres db row (sqlx::FromRow) and the
+  // API response shape; it is NOT modeled in Rust here — see
+  // docs/superpowers/specs/2026-06-14-admin-members-modelable-migration-design.md
+  // for why (timestamp -> Rust String gap, Phase 1 backlog item 5).
+  @wire(json.fieldCase: "snake_case")
+  entity Member @ 1 (additive) {
+    @key userId: uuid
+    email: string
+    name?: string
+    role: enum(tenant_admin, member, viewer)
+    joinedAt: timestamp
+  }
+}
