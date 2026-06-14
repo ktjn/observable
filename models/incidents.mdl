@@ -1,0 +1,35 @@
+domain incidents {
+  owner: "platform-team"
+
+  // Canonical incident summary entity. Mirrors
+  // services/query-api/src/incidents.rs's IncidentItem field-for-field.
+  // IncidentItem is the API response shape for the incidents list;
+  // IncidentRow (Postgres sqlx::FromRow projection) and
+  // IncidentDetailResponse (join + timeline aggregation) are NOT modeled
+  // here — see
+  // docs/superpowers/specs/2026-06-14-incidents-modelable-migration-design.md
+  // for why (timestamp -> Rust String gap, Phase 1 backlog item 5).
+  @wire(json.fieldCase: "snake_case")
+  entity Incident @ 1 (additive) {
+    @key incidentId: uuid
+    title: string
+    severity: string
+    status: string
+    triggeredAt: timestamp
+    resolvedAt?: timestamp
+    triggeredByRuleId?: uuid
+  }
+
+  // Canonical incident timeline event. Mirrors
+  // services/query-api/src/incidents.rs's IncidentEventItem field-for-field.
+  // Uses the `event` model kind (no @key — IncidentEventItem has no natural
+  // unique field, and `event`/`value` kinds are the only ones that forbid
+  // @key per modelable's semantic validation).
+  @wire(json.fieldCase: "snake_case")
+  event IncidentEvent @ 1 (additive) {
+    eventTime: timestamp
+    eventType: string
+    actor: string
+    message?: string
+  }
+}
