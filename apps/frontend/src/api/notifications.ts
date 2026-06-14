@@ -1,3 +1,7 @@
+import type { NotificationChannel as NotificationChannelItem } from "./generated/notifications/notifications.NotificationChannel.v1";
+
+export type { NotificationChannelItem };
+
 function tenantHeaders(tenantId: string): HeadersInit {
   return { "X-Tenant-ID": tenantId };
 }
@@ -7,13 +11,6 @@ export type NotificationChannelType = "webhook";
 export interface NotificationChannelConfig {
   url: string;
   [key: string]: unknown;
-}
-
-export interface NotificationChannelItem {
-  channel_id: string;
-  name: string;
-  channel_type: NotificationChannelType;
-  config: NotificationChannelConfig;
 }
 
 export interface CreateChannelRequest {
