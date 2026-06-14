@@ -177,7 +177,7 @@ export function AlertRuleDetailPage() {
                       <Badge tone={stateColor(firing.state)}>{firing.state}</Badge>
                     </td>
                     <td className="py-2 pr-4 font-mono">
-                      {firing.value !== null ? firing.value.toFixed(2) : "—"}
+                      {firing.value != null ? firing.value.toFixed(2) : "—"}
                     </td>
                     <td className="py-2 pr-4 text-[var(--muted)]">
                       {formatTimestamp(isoToNs(firing.occurred_at), format)}

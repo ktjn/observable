@@ -34,7 +34,6 @@ const sampleRule: alertsApi.AlertRuleDetailResponse = {
       state: "active",
       value: 95.3,
       occurred_at: "2026-05-18T10:00:05Z",
-      resolved_at: null,
     },
     {
       firing_id: "f-2",

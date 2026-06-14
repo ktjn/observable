@@ -51,7 +51,6 @@ const okRule: alertsApi.AlertRuleItem = {
   silenced: false,
   state: "ok",
   firing: false,
-  last_fired_at: null,
   notification_channels: [],
   auto_trigger_incident: false,
 };
