@@ -28,7 +28,6 @@ const sampleIncidents: incidentsApi.IncidentItem[] = [
     severity: "critical",
     status: "triggered",
     triggered_at: "2026-05-15T10:00:00Z",
-    resolved_at: null,
     triggered_by_rule_id: "rule-1",
   },
   {
@@ -37,8 +36,6 @@ const sampleIncidents: incidentsApi.IncidentItem[] = [
     severity: "warning",
     status: "acknowledged",
     triggered_at: "2026-05-15T09:00:00Z",
-    resolved_at: null,
-    triggered_by_rule_id: null,
   },
   {
     incident_id: "inc-3",
@@ -47,7 +44,6 @@ const sampleIncidents: incidentsApi.IncidentItem[] = [
     status: "resolved",
     triggered_at: "2026-05-15T08:00:00Z",
     resolved_at: "2026-05-15T08:30:00Z",
-    triggered_by_rule_id: null,
   },
 ];
 

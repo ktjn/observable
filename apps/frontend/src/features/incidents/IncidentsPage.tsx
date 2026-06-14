@@ -45,7 +45,7 @@ export function IncidentsPage() {
   const acknowledgedCount = items.filter((i) => i.status === "acknowledged").length;
   const resolvedCount     = items.filter((i) => i.status === "resolved").length;
 
-  const resolvedItems = items.filter((i) => i.status === "resolved" && i.resolved_at !== null);
+  const resolvedItems = items.filter((i) => i.status === "resolved" && i.resolved_at != null);
   const mttrMin = resolvedItems.length
     ? Math.round(
         resolvedItems.reduce(

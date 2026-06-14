@@ -62,7 +62,6 @@ const openIncident: incidentsApi.IncidentItem = {
   severity: "critical",
   status: "triggered",
   triggered_at: "2026-05-15T09:00:00Z",
-  resolved_at: null,
   triggered_by_rule_id: "rule-1",
 };
 
