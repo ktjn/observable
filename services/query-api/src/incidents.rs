@@ -9,6 +9,13 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Canonical incident summary entity. Mirrors `incidents.Incident@1` in
+/// `models/incidents.mdl` field-for-field (see
+/// `docs/superpowers/specs/2026-06-14-incidents-modelable-migration-design.md`).
+/// `IncidentRow` (the Postgres `sqlx::FromRow` projection) and
+/// `IncidentDetailResponse` (join + timeline aggregation) are NOT modeled —
+/// timestamp fields stay `chrono::DateTime<Utc>` (Phase 1 backlog item 5:
+/// modelable's `timestamp` emits as Rust `String`).
 #[derive(Serialize)]
 pub struct IncidentItem {
     pub incident_id: Uuid,
@@ -25,6 +32,10 @@ pub struct IncidentListResponse {
     pub items: Vec<IncidentItem>,
 }
 
+/// Canonical incident timeline event. Mirrors `incidents.IncidentEvent@1` in
+/// `models/incidents.mdl` field-for-field (see
+/// `docs/superpowers/specs/2026-06-14-incidents-modelable-migration-design.md`).
+/// `event_time` stays `chrono::DateTime<Utc>` (Phase 1 backlog item 5).
 #[derive(Serialize)]
 pub struct IncidentEventItem {
     pub event_time: DateTime<Utc>,
