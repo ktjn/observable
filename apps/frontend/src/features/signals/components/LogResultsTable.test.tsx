@@ -21,8 +21,8 @@ const logs: LogRecord[] = [
   {
     tenant_id: "00000000-0000-0000-0000-000000000001",
     log_id: "log-1",
-    timestamp_unix_nano: "1700000000000000000",
-    observed_timestamp_unix_nano: "1700000000000000100",
+    timestamp_unix_nano: 1700000000000000000,
+    observed_timestamp_unix_nano: 1700000000001000000,
     severity_number: 9,
     severity_text: "INFO",
     body: "checkout completed",

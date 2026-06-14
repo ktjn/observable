@@ -2,21 +2,26 @@ import { expect, test } from "vitest";
 import type { LogRecord } from "../api/logs";
 import { mergeLogs } from "./LogLiveTail";
 
-function makeLog(log_id: string, timestamp_unix_nano: string): LogRecord {
+function makeLog(log_id: string, timestamp_unix_nano: number): LogRecord {
   return {
     tenant_id: "00000000-0000-0000-0000-000000000001",
     log_id,
     timestamp_unix_nano,
+    observed_timestamp_unix_nano: timestamp_unix_nano,
     severity_number: 9,
     severity_text: "WARN",
     body: "message",
+    attributes: {},
+    resource_attributes: {},
     service_name: "checkout",
+    environment: "prod",
+    host_id: "node-1",
   };
 }
 
 test("mergeLogs deduplicates and preserves ascending timestamp order", () => {
-  const current = [makeLog("b", "200")];
-  const incoming = [makeLog("a", "100"), makeLog("b", "200"), makeLog("c", "300")];
+  const current = [makeLog("b", 200)];
+  const incoming = [makeLog("a", 100), makeLog("b", 200), makeLog("c", 300)];
 
   const merged = mergeLogs(current, incoming);
 

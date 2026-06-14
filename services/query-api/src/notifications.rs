@@ -32,6 +32,9 @@ pub struct NotificationChannelItem {
     pub config: serde_json::Value,
 }
 
+/// Canonical notification-channel entity. Mirrors `notifications.NotificationChannel@1`
+/// in `models/notifications.mdl` field-for-field (see
+/// `docs/superpowers/specs/2026-06-14-notifications-modelable-migration-design.md`).
 #[derive(Serialize, Debug, Clone)]
 pub struct NotificationChannelResponse {
     pub channel_id: Uuid,

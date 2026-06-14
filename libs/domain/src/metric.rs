@@ -36,6 +36,9 @@ pub enum AggregationTemporality {
     Cumulative,
 }
 
+/// Canonical metric data point. Mirrors `metrics.MetricPoint@1` in
+/// `models/metrics.mdl` field-for-field (see
+/// `docs/superpowers/specs/2026-06-13-metrics-modelable-migration-design.md`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MetricPoint {
     pub tenant_id: Uuid,

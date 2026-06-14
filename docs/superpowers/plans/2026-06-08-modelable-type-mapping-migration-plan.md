@@ -88,10 +88,10 @@ Each step below is its own small PR in the modelable repo, gated by that repo's 
 
 Each follows the Phase 2 template (define `.mdl` → generate → replace hand-written Rust+Row+API+TS → verify → delete dead code). Ordered simplest-first:
 
-- [ ] **3.1 Logs** — `libs/domain/src/log.rs:6-70` (`LogRecord`/`LogRow`), `services/query-api/src/logs.rs:16-41`, `apps/frontend/src/api/logs.ts:5-36`
-- [ ] **3.2 Metrics** — `libs/domain/src/metric.rs:6-150` (`MetricSeries`/`MetricPoint`/Rows), `services/query-api/src/metrics.rs:14-72` (incl. `MetricCatalogRow`→`MetricCatalogEntry` and `MetricGroupPointRow`→`MetricPoint` conversions at lines 309, 326), `apps/frontend/src/api/metrics.ts:5-37`
-- [ ] **3.3 Notifications** — `services/query-api/src/notifications.rs:11-55` (incl. `From` impl at line 43), `apps/frontend/src/api/notifications.ts:5-19`
-- [ ] **3.4 Admin/Members** — `services/query-api/src/admin_members.rs:25-45`, `apps/frontend/src/api/admin-members.ts:9-21`
+- [x] **3.1 Logs** — Generated `logs.LogRecord@1`/`logs.LogRow@1` from `models/logs.mdl` (see `docs/superpowers/specs/2026-06-13-logs-modelable-migration-design.md`). `LogRow` in `libs/domain/src/log.rs` is now `pub type LogRow = LogsLogRowV1` (generated, `libs/domain/src/generated/logs/`); `LogRecord` remains hand-written. `apps/frontend/src/api/logs.ts`'s `LogRecord` is now a re-export of `apps/frontend/src/api/generated/logs/logs.LogRecord.v1.ts`. `services/query-api/src/logs.rs`'s handler types (`FacetValue`, `LogListResponse`, `LogHistogramBucket`, `LogHistogramResponse`) remain hand-written — handler-level aggregation/wrapper types, same rationale as 2.4/2.5.
+- [x] **3.2 Metrics** — Generated `metrics.MetricPoint@1` from `models/metrics.mdl` (see `docs/superpowers/specs/2026-06-13-metrics-modelable-migration-design.md`). `apps/frontend/src/api/metrics.ts`'s `MetricPoint` is now a re-export of `apps/frontend/src/api/generated/metrics/metrics.MetricPoint.v1.ts`. `libs/domain/src/metric.rs`'s `MetricPoint` gets a lineage doc comment only — `MetricPoint`/`MetricPointRow`/`MetricSeries`/`MetricSeriesRow` and all `From` impls remain hand-written (see Phase 1 backlog below for what's blocking their migration). `services/query-api/src/metrics.rs` handler/aggregation types (`MetricCatalogEntry`/`MetricCatalogRow`, `MetricGroupPointRow`) remain hand-written — same rationale as 3.1.
+- [x] **3.3 Notifications** — Generated `notifications.NotificationChannel@1` from `models/notifications.mdl` (see `docs/superpowers/specs/2026-06-14-notifications-modelable-migration-design.md`). `apps/frontend/src/api/notifications.ts`'s `NotificationChannelItem` is now a re-export of `apps/frontend/src/api/generated/notifications/notifications.NotificationChannel.v1.ts`. `services/query-api/src/notifications.rs`'s `NotificationChannelResponse` gets a lineage doc comment only — `NotificationChannelItem` (db row), `NotificationChannelType`, `CreateChannelRequest`, and the `From` impl remain hand-written (same `enum(...)`->`String` rationale as 3.2, Phase 1 backlog item 3). `apps/frontend/src/features/alerts/NotificationChannelsList.tsx`'s `channel.config.url` access now casts to `NotificationChannelConfig` (`config` is generated as `unknown`).
+- [x] **3.4 Admin/Members** — Generated `admin.Member@1` from `models/admin.mdl` (see `docs/superpowers/specs/2026-06-14-admin-members-modelable-migration-design.md`). `apps/frontend/src/api/admin-members.ts`'s `MemberRecord` is now a re-export of `apps/frontend/src/api/generated/admin/admin.Member.v1.ts`, and `TenantRole` is derived as `MemberRecord["role"]`. `services/query-api/src/admin_members.rs`'s `MemberRecord` (also the `sqlx::FromRow` Postgres projection) gets a lineage doc comment only — `joined_at: chrono::DateTime<Utc>` can't be generated (new Phase 1 backlog item 5: `timestamp` -> Rust `String`). `MemberListResponse`, `AddMemberRequest`, `UpdateRoleRequest` remain hand-written.
 - [ ] **3.5 Schemas/SLOs** — `services/query-api/src/schemas.rs:30-68`, `services/query-api/src/slos.rs:9-37`, `apps/frontend/src/api/slos.ts:5-25`
 - [ ] **3.6 Incidents** — `services/query-api/src/incidents.rs:13-69` (incl. `IncidentRow`/`IncidentDetailRow`), `apps/frontend/src/api/incidents.ts:5-26`
 - [ ] **3.7 Alerts** — `services/query-api/src/alerts.rs:15-95` (incl. `AlertRuleDetailRow`/`FiringRow`), `apps/frontend/src/api/alerts.ts:5-77`
@@ -99,6 +99,42 @@ Each follows the Phase 2 template (define `.mdl` → generate → replace hand-w
 - [ ] **3.9 NLQ/Visualization** — `libs/domain/src/{nlq,visualization,envelope}.rs`, `services/query-api/src/mcp_tools.rs:37-80` (incl. `From` impls at lines 120-174), `apps/frontend/src/api/nlq.ts:3-76`. Likely the most complex (CEL-computed fields, `NlqResponse` union type) — evaluate whether modelable's projection model can represent it before committing to full replacement; otherwise document as a deliberate, named exception.
 
 **Per-domain rule:** only replace types that represent canonical domain/wire contracts. Handler-local validation-only shapes (`*Params`, ad-hoc histogram buckets, etc.) may stay hand-written — state the reason in each PR rather than force-fitting them into the model.
+
+## Phase 1 backlog (modelable gaps discovered during Phase 3)
+
+Prerequisites for migrating `MetricPointRow`/`MetricSeries`/`MetricSeriesRow` (3.2) and any
+future domain with similar shapes:
+
+1. **Array-element `rust.type` hints.** `@wire(rust.type: "u64")` on an `array<int>` field is
+   currently a hard validation error ("only supports rust.type on int fields"); it should apply
+   to the element type (`Vec<u64>`). Needed for `MetricPointRow.histogram_bucket_counts: Vec<u64>`.
+2. **Non-optional, default-empty array projection fields.** A projection field mapped from an
+   optional source field should be able to declare itself non-optional with an implicit
+   empty-array default, to match ClickHouse `Array(T) DEFAULT []` columns. Needed for
+   `MetricPointRow.histogram_bucket_counts`/`histogram_explicit_bounds`.
+3. **Real Rust enum emission for `enum(...)` IDL types.** `_shape_base_annotation`
+   (`cli/src/modelable/emitters/rust.py`) currently emits all `enum(...)` shapes as `String`.
+   Needed for `MetricSeries.metric_type: MetricType` / `aggregation_temporality:
+   Option<AggregationTemporality>` to remain real enums with `#[serde(rename_all = "snake_case")]`.
+4. **Duplicate `binding` names break a from-scratch registry build.** `models/logs.mdl` and
+   `models/tracing.mdl` both declare `binding ch-observable { adapter: clickhouse }`. Compiling
+   the whole `models/` workspace from scratch (`modelable compile C:\git\Observable\models
+   --target <any> --out <dir>`, with no pre-existing `.modelable/registry.db`) fails with
+   `sqlite3.IntegrityError: UNIQUE constraint failed: adapter_bindings.name`
+   (`cli/src/modelable/registry/index.py:233-245`, `_insert_workspace` inserts one row per
+   `workspace.mdl.bindings` entry with no de-duplication for identical/equivalent bindings
+   declared in multiple files). Either de-duplicate identical `binding` declarations during
+   registry build, or make `binding ch-observable { adapter: clickhouse }` a single
+   workspace-level declaration referenced by name from each domain file. Until fixed, single-file
+   `.mdl` compiles (no `binding`/`projection` blocks, as used for `metrics.MetricPoint@1`) and
+   incrementally-built registries are unaffected, but a clean checkout's first full-workspace
+   compile is currently broken.
+5. **`timestamp` emits as Rust `String`, not a `chrono`/`sqlx`-compatible type.**
+   `_primitive_to_rust` (`cli/src/modelable/emitters/rust.py`) maps `timestamp` -> `String`, and
+   `@wire(rust.type: ...)` is validated to apply only to `int` fields
+   (`cli/src/modelable/validation/semantic.py:538`). Needed for any future Rust generation of
+   types with `sqlx::FromRow`/`clickhouse::Row`-mapped `TIMESTAMPTZ`/`DateTime64` columns, e.g.
+   `admin.Member@1`'s `joinedAt` (`MemberRecord.joined_at: chrono::DateTime<Utc>`, 3.4).
 
 ## Phase 4 — Cleanup & documentation
 

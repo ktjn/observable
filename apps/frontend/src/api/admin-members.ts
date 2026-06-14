@@ -6,19 +6,14 @@
 // DELETE /v1/admin/members/:userId            → 204
 // POST   /v1/admin/members/:userId/revoke-sessions → 204
 
-export interface MemberRecord {
-  user_id: string;
-  email: string;
-  name: string | null;
-  role: "tenant_admin" | "member" | "viewer";
-  joined_at: string;
-}
+import type { Member as MemberRecord } from "./generated/admin/admin.Member.v1";
+export type { MemberRecord };
 
 export interface MemberListResponse {
   members: MemberRecord[];
 }
 
-export type TenantRole = "tenant_admin" | "member" | "viewer";
+export type TenantRole = MemberRecord["role"];
 
 export async function listMembers(tenantId: string): Promise<MemberListResponse> {
   const res = await fetch("/v1/admin/members", {

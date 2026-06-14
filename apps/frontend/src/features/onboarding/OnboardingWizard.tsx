@@ -59,7 +59,7 @@ export function getRunCommand(language: Language, endpoint: string, apiKey: stri
     case "ruby":
       return `${envBlock} \\\nbundle exec opentelemetry-instrument ruby your_app.rb`;
     case "dotnet":
-      return `# In appsettings.json:\n# \"Otlp\": { \"Endpoint\": \"${endpoint}\", \"Headers\": \"x-api-key=${apiKey}\" }`;
+      return `# In appsettings.json:\n# "Otlp": { "Endpoint": "${endpoint}", "Headers": "x-api-key=${apiKey}" }`;
     case "other":
       return `# Configure your SDK with:\n# Endpoint: ${endpoint}\n# Header:   x-api-key: ${apiKey}`;
   }

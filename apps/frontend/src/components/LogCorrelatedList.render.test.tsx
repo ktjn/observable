@@ -20,24 +20,34 @@ function wrapper({ children }: { children: React.ReactNode }) {
 const traceLog = {
   tenant_id: "t1",
   log_id: "trace-log-1",
-  timestamp_unix_nano: "1000000000",
+  timestamp_unix_nano: 1000000000,
+  observed_timestamp_unix_nano: 1000000000,
   severity_number: 5,
   severity_text: "INFO",
   body: "trace level message",
   trace_id: "trace-abc",
+  attributes: {},
+  resource_attributes: {},
   service_name: "checkout",
+  environment: "prod",
+  host_id: "node-1",
 };
 
 const spanLog = {
   tenant_id: "t1",
   log_id: "span-log-1",
-  timestamp_unix_nano: "2000000000",
+  timestamp_unix_nano: 2000000000,
+  observed_timestamp_unix_nano: 2000000000,
   severity_number: 9,
   severity_text: "WARN",
   body: "span level message",
   trace_id: "trace-abc",
   span_id: "span-111",
+  attributes: {},
+  resource_attributes: {},
   service_name: "checkout",
+  environment: "prod",
+  host_id: "node-1",
 };
 
 beforeEach(() => {
