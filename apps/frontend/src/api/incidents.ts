@@ -1,27 +1,17 @@
+import type { Incident as IncidentItem } from "./generated/incidents/incidents.Incident.v1";
+import type { IncidentEvent as IncidentEventItem } from "./generated/incidents/incidents.IncidentEvent.v1";
+
 function tenantHeaders(tenantId: string): HeadersInit {
   return { "X-Tenant-ID": tenantId };
 }
 
-export interface IncidentItem {
-  incident_id: string;
-  title: string;
-  severity: string;
-  status: string;
-  triggered_at: string;
-  resolved_at: string | null;
-  triggered_by_rule_id: string | null;
-}
+export type { IncidentItem };
 
 export interface IncidentListResponse {
   items: IncidentItem[];
 }
 
-export interface IncidentEventItem {
-  event_time: string;
-  event_type: string;
-  actor: string;
-  message: string | null;
-}
+export type { IncidentEventItem };
 
 export interface IncidentDetailResponse {
   incident_id: string;
