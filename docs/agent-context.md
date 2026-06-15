@@ -148,12 +148,17 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 - `alert-evaluator` now supports composite alerts: `alert_type = 'composite'` rules use `condition.left_rule_id` and `condition.right_rule_id`; the evaluator treats the pair as an `AND` and fires only when both source rules are active.
 - Known simplification: `dedup_key` currently uses `rule_id` only because `alert_rules` lacks `service_name`/`environment`. The spec (`spec/14-domain-model.md`) defines `rule_id + service_name + environment`.
 
-## Modelable Type-Mapping Migration (Phase 2 pilot complete, completed 2026-06-13)
+## Modelable Type-Mapping Migration (Phase 3 complete, 2026-06-15)
 
-The tracing domain (Spans/SpanEvents) is the worked template for migrating Observable's
-hand-written type-mapping layers (ClickHouse rows, domain structs, API responses, frontend TS
-interfaces) onto [modelable](https://github.com/ktjn/modelable)-generated artifacts. Full plan:
-`docs/superpowers/plans/2026-06-08-modelable-type-mapping-migration-plan.md`.
+All 10 in-scope domains (tracing, logs, metrics, notifications, admin/members, slos,
+incidents, alerts, dashboards, nlq/visualization) have been migrated onto
+[modelable](https://github.com/ktjn/modelable)-generated TypeScript artifacts; tracing and
+logs additionally have generated Rust `db`-projection Row types. `3.5b Schemas` remains
+deliberately deferred (no frontend consumer exists for `SchemaEntry`/`SemanticAnnotation`).
+See `ADR-032: Adopt Modelable as the Type-Mapping Source of Truth` for the decision record and
+current-state table, and
+`docs/superpowers/plans/2026-06-08-modelable-type-mapping-migration-plan.md` for the Phase 1
+backlog and per-domain design specs.
 
 - **Model sources:** `models/*.mdl`, validated/compiled with the pinned version in
   `models/requirements.txt`. There is no local modelable install in this repo — regenerate using
@@ -185,10 +190,11 @@ interfaces) onto [modelable](https://github.com/ktjn/modelable)-generated artifa
   `npm run typecheck && npm test && npm run build` for frontend changes; `bash
   scripts/local-ci.sh`; and a `modelable lineage <Type@version>` proof in the PR description
   showing no `type_loss` warnings.
-- Phase 3 (`docs/superpowers/plans/2026-06-08-modelable-type-mapping-migration-plan.md`, section
-  "Phase 3") lists the remaining domains in migration order (Logs, Metrics, Notifications,
-  Admin/Members, Schemas/SLOs, Incidents, Alerts, Dashboards, NLQ/Visualization) — each follows
-  this same template via its own brainstorm → spec → plan → subagent-driven-implementation cycle.
+- **Completed domains:** tracing, logs, metrics, notifications, admin/members, slos,
+  incidents, alerts, dashboards, nlq/visualization. `3.5b Schemas` is deferred — no frontend
+  consumer exists for `SchemaEntry`/`SemanticAnnotation` yet; revisit if/when one is added.
+  Further Rust-layer migration for the 8 domains without generated Rust artifacts is blocked
+  on the Phase 1 backlog items documented in `ADR-032`'s "Known Limitations" section.
 
 ## Dev Environment Gotchas
 
