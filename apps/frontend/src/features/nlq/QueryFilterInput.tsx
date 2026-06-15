@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { submitNlqQuery } from "../../api/nlq";
+import type { NlqIr } from "../../api/nlq";
 import { SignalQueryForm } from "../../components/shared/SignalQueryForm";
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
 import { useTenantContext } from "../../hooks/useTenantContext";
@@ -46,7 +47,7 @@ export function QueryFilterInput({
     | { status: "idle" }
     | { status: "loading" }
     | { status: "error"; message: string }
-    | { status: "interpreted"; ir: Record<string, unknown> }
+    | { status: "interpreted"; ir: NlqIr }
   >({ status: "idle" });
 
   async function handleSubmit(event: React.FormEvent) {

@@ -10,7 +10,7 @@
  *   - InvalidResponse (unparseable LLM output) shows reason + raw LLM text for debugging.
  */
 import { useState } from "react";
-import type { NlqResponse, VisualizationFrame } from "../../api/nlq";
+import type { NlqIr, NlqResponse, VisualizationFrame } from "../../api/nlq";
 import { submitNlqQuery } from "../../api/nlq";
 import { SignalQueryForm } from "../../components/shared/SignalQueryForm";
 import { VisualizationPanel } from "./VisualizationPanel";
@@ -120,7 +120,7 @@ export function NlqPanel({
   );
 }
 
-function InterpretedIrPanel({ ir }: { ir: Record<string, unknown> }) {
+function InterpretedIrPanel({ ir }: { ir: NlqIr }) {
   return (
     <details className="text-xs" open>
       <summary className="cursor-pointer select-none text-[var(--text-muted)]">

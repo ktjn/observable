@@ -1,6 +1,10 @@
 import type { NlqIrLike } from "../features/nlq/queryFilters";
+import type { NlqIr as GeneratedNlqIr } from "./generated/nlq/nlq.NlqIr.v0";
+import type { NlqFilter } from "./generated/nlq/nlq.NlqFilter.v0";
+import type { NlqTimeRange } from "./generated/nlq/nlq.NlqTimeRange.v0";
+import type { FieldRole } from "./generated/nlq/nlq.FieldRole.v0";
 
-export type { NlqIrLike };
+export type { NlqIrLike, NlqFilter, NlqTimeRange, FieldRole };
 
 function tenantHeaders(tenantId: string): HeadersInit {
   return { "X-Tenant-ID": tenantId };
@@ -8,20 +12,46 @@ function tenantHeaders(tenantId: string): HeadersInit {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export interface FieldRole {
-  name: string;
-  role: "time" | "value" | "bucket" | "series" | "label";
+// Derived from the generated NlqIr/FieldRole literal unions — no duplication.
+export type NlqOperation = GeneratedNlqIr["operation"];
+export type FieldRoleKind = FieldRole["role"];
+
+// Hand-written: array<enum(...)> emits invalid TS (Phase 1 backlog item 9),
+// so NlqIr.signals is generated as string[] and NlqSignal can't be derived.
+// Mirrors libs/domain/src/nlq.rs::NlqSignal (rename_all = "lowercase").
+export type NlqSignal = "metrics" | "traces" | "logs";
+
+// Hand-written: shared by NlqIr.visualization_hint (Phase 1 backlog item 8 -
+// Option<T> without skip_serializing_if, can't be generated) and
+// VisualizationFrame.frame_type (libs/domain/src/visualization.rs's
+// `impl From<NlqVisualizationHint> for VisualizationFrameType` - identical
+// 7-variant value sets). Mirrors libs/domain/src/nlq.rs::NlqVisualizationHint
+// / libs/domain/src/visualization.rs::VisualizationFrameType
+// (both rename_all = "snake_case").
+export type NlqVisualizationHint =
+  | "timeseries"
+  | "histogram"
+  | "heatmap"
+  | "table"
+  | "topk"
+  | "flamegraph"
+  | "distribution";
+
+export type VisualizationFrameType = NlqVisualizationHint;
+
+// Adds back the 4 fields nlq.mdl's NlqIr can't represent (Phase 1 backlog
+// item 8) and narrows `signals` from string[] to NlqSignal[] (Phase 1
+// backlog item 9).
+export interface NlqIr extends GeneratedNlqIr {
+  signals: NlqSignal[];
+  metric: string | null;
+  window: string | null;
+  resolution: string | null;
+  visualization_hint: NlqVisualizationHint | null;
 }
 
 export interface VisualizationFrame {
-  frame_type:
-    | "timeseries"
-    | "histogram"
-    | "heatmap"
-    | "table"
-    | "topk"
-    | "flamegraph"
-    | "distribution";
+  frame_type: VisualizationFrameType;
   x_field: string | null;
   y_field: string | null;
   series_field: string | null;
@@ -30,10 +60,10 @@ export interface VisualizationFrame {
   field_roles: FieldRole[];
   data: Record<string, unknown>[];
   // Provenance fields (ADR-021 — always present)
-  nlq_ir: Record<string, unknown>;
+  nlq_ir: NlqIr;
   source_sql: string;
-  time_range: { from: string; to: string };
-  signal_types: string[];
+  time_range: NlqTimeRange;
+  signal_types: NlqSignal[];
   sample_rate: number | null;
   approximation_statement: string;
 }
@@ -45,7 +75,7 @@ export interface NlqFrameResponse {
 
 export interface NlqIrResponse {
   type: "ir";
-  ir: Record<string, unknown>;
+  ir: NlqIr;
 }
 
 export interface NlqDeclineResponse {

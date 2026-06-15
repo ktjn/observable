@@ -1,4 +1,4 @@
-import type { NlqResponse, VisualizationFrame } from "../../api/nlq";
+import type { NlqIr, NlqResponse, VisualizationFrame } from "../../api/nlq";
 import { VisualizationPanel } from "../nlq/VisualizationPanel";
 import type { WorkbenchQueryState } from "./workbenchRuntime";
 
@@ -58,7 +58,7 @@ export function NotebookResults({ runtime }: Props) {
   return <FrameResult response={response} question={runtime.question} />;
 }
 
-function InterpretedIrPanel({ ir }: { ir: Record<string, unknown> }) {
+function InterpretedIrPanel({ ir }: { ir: NlqIr }) {
   return (
     <details className="text-xs" open>
       <summary className="cursor-pointer select-none text-[var(--text-muted)]">
