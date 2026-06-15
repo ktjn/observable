@@ -1,0 +1,56 @@
+domain nlq {
+  owner: "platform-team"
+
+  // Canonical NLQ query time range. Mirrors libs/domain/src/nlq.rs's
+  // NlqTimeRange field-for-field. Shared by NlqIr.time_range and
+  // VisualizationFrame.time_range. See
+  // docs/superpowers/specs/2026-06-15-nlq-visualization-modelable-migration-design.md.
+  @wire(json.fieldCase: "snake_case")
+  value NlqTimeRange {
+    from: string
+    to: string
+  }
+
+  // Canonical NLQ field-level filter predicate. Mirrors
+  // libs/domain/src/nlq.rs's NlqFilter, except `op` is `string` not
+  // `enum(...)` — NlqFilterOp's variants serialize as comparison symbols
+  // (=, !=, =~, !~, >, >=, <, <=), which are not valid modelable enum
+  // identifiers (Phase 1 backlog item 6). See
+  // docs/superpowers/specs/2026-06-15-nlq-visualization-modelable-migration-design.md.
+  @wire(json.fieldCase: "snake_case")
+  value NlqFilter {
+    field: string
+    op: string
+    value: string
+  }
+
+  // Canonical visualization field-role annotation. Mirrors
+  // libs/domain/src/visualization.rs's FieldRole field-for-field.
+  @wire(json.fieldCase: "snake_case")
+  value FieldRole {
+    name: string
+    role: enum(time, value, bucket, series, label)
+  }
+
+  // Canonical NLQ intermediate representation. Mirrors
+  // libs/domain/src/nlq.rs's NlqIr, except `metric`/`window`/`resolution`/
+  // `visualization_hint` are NOT modeled here (Phase 1 backlog item 8 -
+  // these are Option<T> without skip_serializing_if, i.e. always-serialized
+  // `T | null`, which modelable's `?` (omittable) cannot represent), and
+  // `signals` is `array<string>` not `array<enum(...))` (Phase 1 backlog
+  // item 9 - array<enum(...)> emits invalid TypeScript). Both are added back
+  // in apps/frontend/src/api/nlq.ts via interface extension. See
+  // docs/superpowers/specs/2026-06-15-nlq-visualization-modelable-migration-design.md.
+  @wire(json.fieldCase: "snake_case")
+  value NlqIr {
+    operation: enum(timeseries, rate, irate, increase, histogram, topk, table, distribution, catalog, inventory)
+    signals: array<string>
+    filters: array<NlqFilter>
+    groupBy: array<string>
+    timeRange: NlqTimeRange
+    percentiles?: array<string>
+    catalogField?: string
+    limit?: int
+    query?: string
+  }
+}
