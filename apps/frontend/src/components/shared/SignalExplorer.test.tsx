@@ -100,6 +100,12 @@ test("query input calls onQuerySubmit with the raw text", async () => {
       operation: "table",
       signals: ["logs"],
       filters: [{ field: "service_name", op: "=", value: "checkout" }],
+      group_by: [],
+      time_range: { from: "now-1h", to: "now" },
+      metric: null,
+      window: null,
+      resolution: null,
+      visualization_hint: null,
     },
   });
 
