@@ -10,6 +10,13 @@
 use serde::{Deserialize, Serialize};
 
 /// Top-level NLQ intermediate representation.
+///
+/// Mirrors `nlq.NlqIr` (value) in `models/nlq.mdl` field-for-field, except
+/// `metric`/`window`/`resolution`/`visualization_hint` (Phase 1 backlog item
+/// 8: `Option<T>` without `skip_serializing_if` can't be generated) and
+/// `signals` (Phase 1 backlog item 9: `array<enum(...))` emits invalid
+/// TypeScript, modeled as `array<string>`) — see
+/// `docs/superpowers/specs/2026-06-15-nlq-visualization-modelable-migration-design.md`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NlqIr {
     /// Query operation type, e.g. timeseries, rate, histogram.
@@ -54,6 +61,9 @@ pub struct NlqIr {
 }
 
 /// Supported query operation types.
+///
+/// Mirrors the inline `enum(...)` used for `nlq.NlqIr.operation` in
+/// `models/nlq.mdl`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NlqOperation {
@@ -83,6 +93,10 @@ pub enum NlqOperation {
 }
 
 /// Signal types Observable can query.
+///
+/// Mirrors `nlq.NlqIr.signals: array<string>` in `models/nlq.mdl` (Phase 1
+/// backlog item 9 — not modeled as `array<enum(...))`, kept as a real Rust
+/// enum here).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NlqSignal {
@@ -92,6 +106,10 @@ pub enum NlqSignal {
 }
 
 /// A single field-level filter predicate.
+///
+/// Mirrors `nlq.NlqFilter` (value) in `models/nlq.mdl`, except `op` is
+/// `string` not `enum(...)` (Phase 1 backlog item 6 — comparison-symbol
+/// variants aren't valid modelable identifiers).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NlqFilter {
     /// Column or attribute name to filter on.
@@ -137,6 +155,8 @@ pub enum NlqFilterOp {
 ///
 /// ISO-8601 strings are explicitly rejected. Callers must convert to Unix nanoseconds before
 /// including in the IR (the frontend uses `String(BigInt(Math.floor(ms)) * 1_000_000n)`).
+///
+/// Mirrors `nlq.NlqTimeRange` (value) in `models/nlq.mdl` field-for-field.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NlqTimeRange {
     /// Start of the range, e.g. `"now-1h"` or `"1746274719123000000"` (Unix nanoseconds).
