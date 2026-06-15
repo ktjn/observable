@@ -139,10 +139,10 @@ future domain with similar shapes:
 
 ## Phase 4 — Cleanup & documentation
 
-- [ ] Remove dead hand-written struct/interface definitions and `From`/`Into` impls once each domain's generated code is verified in place.
-- [ ] Update `docs/agent-context.md` with the generated-types convention and where `.mdl` sources live.
-- [ ] Add an ADR documenting modelable's adoption as the type-mapping source of truth (`AGENTS.md` "ADR and Spec Synchronization" — this is an architecture/data-model change).
-- [ ] Cross-reference `spec/adr/ADR-030-timestamp-representation.md` if generated types change how that convention is expressed/enforced.
+- [x] Remove dead hand-written struct/interface definitions and `From`/`Into` impls once each domain's generated code is verified in place. (2026-06-15 audit found nothing removable: the two `#![allow(dead_code)]` blocks in `libs/domain/src/generated/{tracing,logs}.rs` are intentional per the Phase 2.3 "clean-diff regeneration" decision, and the `From`/`Into` impls in `span.rs`/`log.rs` are still actively called.)
+- [x] Update `docs/agent-context.md` with the generated-types convention and where `.mdl` sources live. (Rewrote the "Modelable Type-Mapping Migration" section to mark Phase 3 complete and point to ADR-032.)
+- [x] Add an ADR documenting modelable's adoption as the type-mapping source of truth (`AGENTS.md` "ADR and Spec Synchronization" — this is an architecture/data-model change). (`spec/adr/ADR-032-modelable-type-mapping-adoption.md`.)
+- [x] Cross-reference `spec/adr/ADR-030-timestamp-representation.md` if generated types change how that convention is expressed/enforced. (Added a "Related" entry pointing to ADR-032; the nanosecond-as-string convention is unchanged.)
 
 ---
 
