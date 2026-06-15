@@ -87,3 +87,6 @@ contract becomes dependent on the formatting library's output style.
 - `ADR-021: NLQ layer` — VisualizationFrame contract; `x_field` refers to the raw column name
 - `apps/frontend/src/utils/formatTimestamp.ts` — canonical frontend formatting utility
 - `apps/frontend/src/lib/timeDisplay.tsx` — `TimeDisplayProvider` / `useTimeDisplay` / `TimeFormat`
+- `ADR-032: Adopt Modelable as Type-Mapping Source of Truth` — the nanosecond-as-string
+  convention described here is preserved unchanged by the modelable migration; no `.mdl`
+  model overrides it.
