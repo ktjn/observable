@@ -37,7 +37,25 @@ making changes.
   - `archived/plans/2026-05-10-p5-s2-notification-routing-webhook-complete.md` for P5-S2
   - `archived/plans/2026-05-23-rf-6-query-api-self-observability.md` — first RF-6 self-observability slice for `query-api` `/readyz` + `/metrics`
   - `archived/plans/2026-04-27-testcontainers-integration-tests.md` for P3-S15.
-  - `docs/superpowers/plans/2026-05-18-p5-s1-incident-timeline.md` — P5-S1 incident timeline with source links (COMPLETED 2026-05-18)
+  - `archived/plans/2026-05-18-p5-s1-incident-timeline.md` — P5-S1 incident timeline (COMPLETED 2026-05-18)
+  - `archived/plans/2026-05-20-p5-s4-topology-impact-view.md` — P5-S4 topology-aware impact view panel in IncidentDetailPage (COMPLETED 2026-05-20)
+  - `archived/plans/2026-05-30-clickhouse-insert-efficiency.md` — stream-processor batching + storage-writer WriteBuffer (COMPLETED 2026-05-30)
+  - `archived/plans/2026-05-30-p4-s4-dashboard-rebac.md` — fine-grained dashboard ReBAC via OpenFGA (COMPLETED 2026-05-30)
+  - `archived/plans/2026-05-31-context-preservation.md` — global service filter preserved across all signal tabs (COMPLETED 2026-05-31)
+  - `archived/plans/2026-05-31-live-tail.md` — live-tail streaming toggle for LogExplorer (COMPLETED 2026-05-31)
+  - `archived/plans/2026-06-08-modelable-type-mapping-migration-plan.md` — modelable type-mapping migration master plan, all four phases (COMPLETED 2026-06-15)
+  - `archived/plans/2026-06-10-modelable-pilot-span-row-types.md` — Phase 2 pilot: SpanRow/SpanEventRow from tracing.mdl
+  - `archived/plans/2026-06-12-tracing-attributes-json-type.md` — Phase 2.4: map<string,json> attributes type
+  - `archived/plans/2026-06-13-logs-modelable-migration.md` — Phase 3.1: logs domain
+  - `archived/plans/2026-06-13-metrics-modelable-migration.md` — Phase 3.2: metrics domain
+  - `archived/plans/2026-06-13-tracing-typescript-field-case.md` — Phase 2.5: TypeScript snake_case generation
+  - `archived/plans/2026-06-14-admin-members-modelable-migration.md` — Phase 3.4: admin/members domain
+  - `archived/plans/2026-06-14-alerts-modelable-migration.md` — Phase 3.7: alerts domain
+  - `archived/plans/2026-06-14-dashboards-modelable-migration.md` — Phase 3.8: dashboards domain
+  - `archived/plans/2026-06-14-incidents-modelable-migration.md` — Phase 3.6: incidents domain
+  - `archived/plans/2026-06-14-notifications-modelable-migration.md` — Phase 3.3: notifications domain
+  - `archived/plans/2026-06-14-slos-modelable-migration.md` — Phase 3.5: slos domain
+  - `archived/plans/2026-06-15-nlq-visualization-modelable-migration.md` — Phase 3.9: nlq/visualization domain (last regular Phase 3 domain)
   - `archived/plans/2026-05-26-p4-s9-boundary-security-review.md` — P4-S9 boundary security review; two NLQ SQL identifier-injection fixes; findings at `docs/security-review-p4-s9.md`
 - Historical Phase 1 plan: `archived/plans/2026-04-17-phase1-internal-mvp.md`; do not treat it as an active backlog.
 - Historical Phases 2-8 plan: merged into the active roadmap above. The old `2026-04-18-phases2-8-iteration-plan.md` file has been removed.
@@ -148,7 +166,7 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 - `alert-evaluator` now supports composite alerts: `alert_type = 'composite'` rules use `condition.left_rule_id` and `condition.right_rule_id`; the evaluator treats the pair as an `AND` and fires only when both source rules are active.
 - Known simplification: `dedup_key` currently uses `rule_id` only because `alert_rules` lacks `service_name`/`environment`. The spec (`spec/14-domain-model.md`) defines `rule_id + service_name + environment`.
 
-## Modelable Type-Mapping Migration (Phase 3 complete, 2026-06-15)
+## Modelable Type-Mapping Migration (Phase 4 complete, 2026-06-15)
 
 All 10 in-scope domains (tracing, logs, metrics, notifications, admin/members, slos,
 incidents, alerts, dashboards, nlq/visualization) have been migrated onto
@@ -157,7 +175,7 @@ logs additionally have generated Rust `db`-projection Row types. `3.5b Schemas` 
 deliberately deferred (no frontend consumer exists for `SchemaEntry`/`SemanticAnnotation`).
 See `ADR-032: Adopt Modelable as the Type-Mapping Source of Truth` for the decision record and
 current-state table, and
-`docs/superpowers/plans/2026-06-08-modelable-type-mapping-migration-plan.md` for the Phase 1
+`archived/plans/2026-06-08-modelable-type-mapping-migration-plan.md` for the Phase 1
 backlog and per-domain design specs.
 
 - **Model sources:** `models/*.mdl`, validated/compiled with the pinned version in

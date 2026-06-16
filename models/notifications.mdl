@@ -1,3 +1,5 @@
+// Domain: notification channels. Generated: apps/frontend/src/api/generated/notifications/ (TypeScript).
+// Rust: not generated — enum-as-String gap (Phase 1 backlog item 3). See query-api/src/notifications.rs.
 domain notifications {
   owner: "platform-team"
 

@@ -1,3 +1,5 @@
+// Domain: alerts (alert rules and firings). Generated: apps/frontend/src/api/generated/alerts/ (TypeScript).
+// Rust: not generated — timestamp gap (Phase 1 backlog item 5). See services/query-api/src/alerts.rs.
 domain alerts {
   owner: "platform-team"
 

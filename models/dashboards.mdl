@@ -1,3 +1,5 @@
+// Domain: dashboards. Generated: apps/frontend/src/api/generated/dashboards/ (TypeScript).
+// Rust: not generated — timestamp gap (Phase 1 backlog item 5). See services/query-api/src/dashboards.rs.
 domain dashboards {
   owner: "platform-team"
 
