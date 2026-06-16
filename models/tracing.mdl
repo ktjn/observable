@@ -116,6 +116,10 @@ domain tracing {
 }
 
 // ClickHouse adapter — tables match the observable.* schema.
+// NOTE: this binding is also declared in logs.mdl. Duplicate bindings cause a UNIQUE
+// constraint error on a clean-workspace compile (Phase 1 backlog item 4 in
+// archived/plans/2026-06-08-modelable-type-mapping-migration-plan.md). Workaround:
+// compile single-file or use an incremental registry (existing .modelable/registry.db).
 binding ch-observable {
   adapter: clickhouse
 }
