@@ -1,3 +1,5 @@
+// Domain: NLQ (natural-language query IR) and visualization. Generated: apps/frontend/src/api/generated/nlq/ (TypeScript).
+// Rust: not generated. NlqIr is extended in nlq.ts (Option<T>|null and array<enum> gaps, items 8-9).
 domain nlq {
   owner: "platform-team"
 

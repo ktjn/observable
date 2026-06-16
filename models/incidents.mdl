@@ -1,3 +1,5 @@
+// Domain: incidents and incident events. Generated: apps/frontend/src/api/generated/incidents/ (TypeScript).
+// Rust: not generated — timestamp gap (Phase 1 backlog item 5). See services/query-api/src/incidents.rs.
 domain incidents {
   owner: "platform-team"
 
