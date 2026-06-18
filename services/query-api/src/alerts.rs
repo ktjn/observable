@@ -97,6 +97,9 @@ pub struct CreateRuleRequest {
     pub notification_channels: Option<Vec<Uuid>>,
     pub auto_trigger_incident: Option<bool>,
     pub runbook_url: Option<String>,
+    pub alert_type: Option<String>,
+    pub service_name: Option<String>,
+    pub window_secs: Option<i64>,
 }
 
 #[derive(Deserialize)]
@@ -148,10 +151,20 @@ struct AlertRuleRow {
 }
 
 fn condition_fields(condition: &serde_json::Value) -> Option<(String, String, f64)> {
-    let metric_name = condition.get("metric_name")?.as_str()?.to_string();
-    let operator = condition.get("operator")?.as_str()?.to_string();
-    let threshold = condition.get("threshold")?.as_f64()?;
-    Some((metric_name, operator, threshold))
+    if let (Some(metric_name), Some(operator), Some(threshold)) = (
+        condition.get("metric_name").and_then(|v| v.as_str()),
+        condition.get("operator").and_then(|v| v.as_str()),
+        condition.get("threshold").and_then(|v| v.as_f64()),
+    ) {
+        return Some((metric_name.to_string(), operator.to_string(), threshold));
+    }
+    if let (Some(service_name), Some(window_secs)) = (
+        condition.get("service_name").and_then(|v| v.as_str()),
+        condition.get("window_secs").and_then(|v| v.as_f64()),
+    ) {
+        return Some((service_name.to_string(), "no_data".to_string(), window_secs));
+    }
+    None
 }
 
 pub async fn list_alert_rules(
@@ -180,7 +193,7 @@ pub async fn list_alert_rules(
             AND af.state = 'active') AS last_fired_at, \
          r.notification_channels, r.auto_trigger_incident \
          FROM alert_rules r \
-         WHERE r.tenant_id = $1 AND r.alert_type = 'threshold' \
+         WHERE r.tenant_id = $1 AND r.alert_type IN ('threshold', 'deadman') \
          ORDER BY r.created_at DESC",
     )
     .bind(tenant_id)
@@ -222,62 +235,125 @@ pub async fn create_alert_rule(
     if req.name.trim().is_empty() {
         return Err(CreateRuleError::InvalidInput("name is required".into()));
     }
-    if req.metric_name.trim().is_empty() {
-        return Err(CreateRuleError::InvalidInput(
-            "metric_name is required".into(),
-        ));
+
+    let alert_type = req.alert_type.as_deref().unwrap_or("threshold");
+
+    match alert_type {
+        "threshold" => {
+            if req.metric_name.trim().is_empty() {
+                return Err(CreateRuleError::InvalidInput(
+                    "metric_name is required".into(),
+                ));
+            }
+            if !VALID_OPERATORS.contains(&req.operator.as_str()) {
+                return Err(CreateRuleError::InvalidInput(format!(
+                    "operator must be one of: {}",
+                    VALID_OPERATORS.join(", ")
+                )));
+            }
+            if !req.threshold.is_finite() {
+                return Err(CreateRuleError::InvalidInput(
+                    "threshold must be finite".into(),
+                ));
+            }
+
+            let condition = serde_json::json!({
+                "metric_name": req.metric_name,
+                "operator": req.operator,
+                "threshold": req.threshold,
+            });
+            let channels = req.notification_channels.clone().unwrap_or_default();
+            let auto_trigger = req.auto_trigger_incident.unwrap_or(true);
+
+            let rule_id: Uuid = sqlx::query_scalar(
+                "INSERT INTO alert_rules \
+                 (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident, runbook_url) \
+                 VALUES ($1, $2, 'threshold', 'warning', $3, $4, $5, $6) \
+                 RETURNING rule_id",
+            )
+            .bind(tenant_id)
+            .bind(&req.name)
+            .bind(&condition)
+            .bind(&channels)
+            .bind(auto_trigger)
+            .bind(req.runbook_url.as_deref())
+            .fetch_one(db)
+            .await
+            .map_err(CreateRuleError::Db)?;
+
+            Ok(AlertRuleItem {
+                rule_id,
+                name: req.name.clone(),
+                metric_name: req.metric_name.clone(),
+                operator: req.operator.clone(),
+                threshold: req.threshold,
+                severity: "warning".into(),
+                silenced: false,
+                state: "ok".into(),
+                firing: false,
+                last_fired_at: None,
+                notification_channels: channels,
+                auto_trigger_incident: auto_trigger,
+            })
+        }
+        "deadman" => {
+            let service_name = req
+                .service_name
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| CreateRuleError::InvalidInput("service_name is required".into()))?;
+            let window_secs = req
+                .window_secs
+                .ok_or_else(|| CreateRuleError::InvalidInput("window_secs is required".into()))?;
+            if window_secs <= 0 {
+                return Err(CreateRuleError::InvalidInput(
+                    "window_secs must be positive".into(),
+                ));
+            }
+
+            let condition = serde_json::json!({
+                "service_name": service_name,
+                "window_secs": window_secs,
+            });
+            let channels = req.notification_channels.clone().unwrap_or_default();
+            let auto_trigger = req.auto_trigger_incident.unwrap_or(true);
+
+            let rule_id: Uuid = sqlx::query_scalar(
+                "INSERT INTO alert_rules \
+                 (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident, runbook_url) \
+                 VALUES ($1, $2, 'deadman', 'warning', $3, $4, $5, $6) \
+                 RETURNING rule_id",
+            )
+            .bind(tenant_id)
+            .bind(&req.name)
+            .bind(&condition)
+            .bind(&channels)
+            .bind(auto_trigger)
+            .bind(req.runbook_url.as_deref())
+            .fetch_one(db)
+            .await
+            .map_err(CreateRuleError::Db)?;
+
+            Ok(AlertRuleItem {
+                rule_id,
+                name: req.name.clone(),
+                metric_name: service_name.to_string(),
+                operator: "no_data".into(),
+                threshold: window_secs as f64,
+                severity: "warning".into(),
+                silenced: false,
+                state: "ok".into(),
+                firing: false,
+                last_fired_at: None,
+                notification_channels: channels,
+                auto_trigger_incident: auto_trigger,
+            })
+        }
+        other => Err(CreateRuleError::InvalidInput(format!(
+            "unknown alert_type: {other}"
+        ))),
     }
-    if !VALID_OPERATORS.contains(&req.operator.as_str()) {
-        return Err(CreateRuleError::InvalidInput(format!(
-            "operator must be one of: {}",
-            VALID_OPERATORS.join(", ")
-        )));
-    }
-    if !req.threshold.is_finite() {
-        return Err(CreateRuleError::InvalidInput(
-            "threshold must be finite".into(),
-        ));
-    }
-
-    let condition = serde_json::json!({
-        "metric_name": req.metric_name,
-        "operator": req.operator,
-        "threshold": req.threshold,
-    });
-
-    let channels = req.notification_channels.clone().unwrap_or_default();
-    let auto_trigger = req.auto_trigger_incident.unwrap_or(true);
-
-    let rule_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO alert_rules \
-         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident, runbook_url) \
-         VALUES ($1, $2, 'threshold', 'warning', $3, $4, $5, $6) \
-         RETURNING rule_id",
-    )
-    .bind(tenant_id)
-    .bind(&req.name)
-    .bind(&condition)
-    .bind(&channels)
-    .bind(auto_trigger)
-    .bind(req.runbook_url.as_deref())
-    .fetch_one(db)
-    .await
-    .map_err(CreateRuleError::Db)?;
-
-    Ok(AlertRuleItem {
-        rule_id,
-        name: req.name.clone(),
-        metric_name: req.metric_name.clone(),
-        operator: req.operator.clone(),
-        threshold: req.threshold,
-        severity: "warning".into(),
-        silenced: false,
-        state: "ok".into(),
-        firing: false,
-        last_fired_at: None,
-        notification_channels: channels,
-        auto_trigger_incident: auto_trigger,
-    })
 }
 
 pub async fn silence_alert_rule(
@@ -508,6 +584,64 @@ mod tests {
     fn condition_fields_returns_none_when_threshold_not_number() {
         let cond = serde_json::json!({"metric_name": "m", "operator": "gt", "threshold": "bad"});
         assert!(condition_fields(&cond).is_none());
+    }
+
+    #[test]
+    fn condition_fields_extracts_deadman_shape_as_no_data_operator() {
+        let cond = serde_json::json!({"service_name": "checkout", "window_secs": 300});
+        let (metric_name, operator, threshold) = condition_fields(&cond).unwrap();
+        assert_eq!(metric_name, "checkout");
+        assert_eq!(operator, "no_data");
+        assert!((threshold - 300.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn condition_fields_returns_none_for_empty_object() {
+        let cond = serde_json::json!({});
+        assert!(condition_fields(&cond).is_none());
+    }
+
+    #[tokio::test]
+    async fn create_alert_rule_rejects_deadman_without_service_name() {
+        // No DB needed: validation happens before any query.
+        let pool = sqlx::PgPool::connect_lazy("postgres://invalid/invalid").unwrap();
+        let req = CreateRuleRequest {
+            name: "Silent service".into(),
+            metric_name: String::new(),
+            operator: String::new(),
+            threshold: 0.0,
+            notification_channels: None,
+            auto_trigger_incident: None,
+            runbook_url: None,
+            alert_type: Some("deadman".into()),
+            service_name: None,
+            window_secs: Some(300),
+        };
+        let err = create_alert_rule(&pool, Uuid::nil(), &req)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, CreateRuleError::InvalidInput(_)));
+    }
+
+    #[tokio::test]
+    async fn create_alert_rule_rejects_deadman_with_non_positive_window() {
+        let pool = sqlx::PgPool::connect_lazy("postgres://invalid/invalid").unwrap();
+        let req = CreateRuleRequest {
+            name: "Silent service".into(),
+            metric_name: String::new(),
+            operator: String::new(),
+            threshold: 0.0,
+            notification_channels: None,
+            auto_trigger_incident: None,
+            runbook_url: None,
+            alert_type: Some("deadman".into()),
+            service_name: Some("checkout".into()),
+            window_secs: Some(0),
+        };
+        let err = create_alert_rule(&pool, Uuid::nil(), &req)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, CreateRuleError::InvalidInput(_)));
     }
 
     #[test]
