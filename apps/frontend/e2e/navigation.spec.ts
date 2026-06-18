@@ -375,3 +375,112 @@ test.describe("panel overflow (regression)", () => {
     await page.screenshot({ path: "e2e/screenshots/panel-span-overflow-BEFORE.png", fullPage: true });
   });
 });
+
+// ── Panel screenshots (post-fix baselines) ────────────────────────────────────
+
+test.describe("panel screenshots (post-fix baselines)", () => {
+  test("log context panel open — screenshot", async ({ page }) => {
+    await mockAuth(page);
+    await page.route("**/v1/nlq", (route) =>
+      route.fulfill({
+        json: {
+          type: "frame",
+          frame: {
+            data: [
+              {
+                log_id: "log-panel-shot",
+                timestamp_unix_nano: T_NS,
+                observed_timestamp_unix_nano: T_NS,
+                severity_number: 17,
+                body: "checkout failed: timeout after 30s connecting to payments",
+                service_name: "checkout",
+                environment: "prod",
+                host_id: "prod-host-1",
+                trace_id: "abc123def456",
+                span_id: "span001",
+                fingerprint: null,
+                attributes: { "error.type": "TimeoutError", "http.method": "POST" },
+                resource_attributes: {
+                  "k8s.pod.name": "checkout-6d8f9-xkpqr",
+                  "k8s.namespace.name": "production",
+                  "k8s.node.name": "prod-node-1",
+                  "service.version": "v1.4.2",
+                },
+              },
+            ],
+          },
+        },
+      })
+    );
+    await page.route("**/v1/tenants/**/logs/histogram**", (route) =>
+      route.fulfill({ json: { buckets: [] } })
+    );
+    await page.goto("/logs");
+    await page.waitForSelector('[aria-label="Log results"]');
+    await page.locator('[aria-label="Log results"] tbody tr').first().click();
+    await page.waitForSelector('[aria-label="Selected log context"]');
+    await page.screenshot({ path: "e2e/screenshots/panel-log-open.png", fullPage: true });
+  });
+
+  test("span context panel open — screenshot", async ({ page }) => {
+    await mockAuth(page);
+    await page.route(`**/v1/traces/${TRACE_ID}`, (route) =>
+      route.fulfill({
+        json: {
+          trace_id: TRACE_ID,
+          spans: [
+            {
+              tenant_id: "00000000-0000-0000-0000-000000000001",
+              trace_id: TRACE_ID,
+              span_id: "span001",
+              parent_span_id: null,
+              service_name: "checkout",
+              operation_name: "GET /order",
+              start_time_unix_nano: 1_000_000_000,
+              end_time_unix_nano: 6_000_000_000,
+              duration_ns: 5_000_000_000,
+              status_code: "ERROR",
+              span_kind: "SERVER",
+              service_version: "v1.4.2",
+              attributes: {
+                "http.method": "GET",
+                "http.url": "https://api.internal/order/123",
+                "http.status_code": 500,
+                "error.message": "upstream timeout",
+              },
+              resource_attributes: {
+                "k8s.pod.name": "checkout-6d8f9-xkpqr",
+                "k8s.namespace.name": "production",
+                "service.version": "v1.4.2",
+              },
+            },
+            {
+              tenant_id: "00000000-0000-0000-0000-000000000001",
+              trace_id: TRACE_ID,
+              span_id: "span002",
+              parent_span_id: "span001",
+              service_name: "payments",
+              operation_name: "POST /charge",
+              start_time_unix_nano: 2_000_000_000,
+              end_time_unix_nano: 5_000_000_000,
+              duration_ns: 3_000_000_000,
+              status_code: "OK",
+              span_kind: "CLIENT",
+              service_version: null,
+              attributes: {},
+              resource_attributes: {},
+            },
+          ],
+        },
+      })
+    );
+    await page.route("**/v1/logs**", (route) =>
+      route.fulfill({ json: { logs: [], total: 0, facets: {} } })
+    );
+    await page.goto(`/traces/${TRACE_ID}`);
+    await page.waitForSelector("text=GET /order");
+    await page.locator('[role="button"]', { hasText: /checkout.*GET/ }).click();
+    await page.waitForSelector('[aria-label="Selected span context"]');
+    await page.screenshot({ path: "e2e/screenshots/panel-span-open.png", fullPage: true });
+  });
+});
