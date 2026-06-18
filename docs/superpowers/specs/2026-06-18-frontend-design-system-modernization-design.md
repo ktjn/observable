@@ -63,6 +63,16 @@ For each of the three `:root[data-theme="..."]` blocks (light, dark, vt220):
 - Visually inspect the regenerated screenshots in `apps/frontend/e2e/screenshots/` for all 6 main routes (Traces, Logs, Services, Infrastructure, Alerts, Dashboards) plus the panel-open and topology screenshots, across all three themes (the suite currently runs against whichever theme is default at test time — add a theme-loop or manually re-run with each `data-theme` value set, since the suite is not currently parameterized by theme).
 - No new automated visual-regression assertions are required beyond the existing "screenshot + eyeball" pattern already documented in `AGENTS.md`.
 
+## Follow-up
+
+Once this pass is implemented and verified, file a follow-up plan (new spec or direct entry in `docs/superpowers/plans/`) covering the items called out as out-of-scope above:
+
+- NLQ `VisualizationPanel` (currently table-only rendering, no charts).
+- Incidents/Workbench pages — give them dedicated visual-suite screenshot coverage and confirm they inherit the new chrome/tokens cleanly, since they aren't covered by `visual.spec.ts`/`navigation.spec.ts` today.
+- Any new charting dependency evaluation (recharts/react-flow) if the extended D3/SVG approach in this pass turns out to be limiting later.
+
+This is a planning step only — do not start that follow-up plan until this design's implementation plan has been executed and verified.
+
 ## Risks / open questions
 
 - The visual suite doesn't currently screenshot all three themes — verifying dark/vt220 will require either a manual theme switch + re-run, or a small addition to the test setup to loop themes. This spec assumes manual verification is sufficient; the implementation plan should flag if that proves too slow and a test parameterization is worth adding.
