@@ -459,7 +459,9 @@ Server-side filterable fields via `ir.filters`:
 | `service_name` | Related service association |
 | `name` / `display_name` | Free-text search on entity display name |
 
-The `health_state` field is computed post-query from `error_rate` and cannot be filtered server-side.
+The `health_state` field is computed post-query and cannot be filtered server-side. For service-catalog
+entities it is normally derived from `error_rate`, but is overridden to `"breach"` when the service has
+an actively-firing SLO burn-rate alert (see `spec/09-api.md` §"Service Detail Summary").
 
 Entity-table pages and all signal-browsing pages are IR-driven via the `base_ir` protocol:
 the frontend sends a page-specific `base_ir` constant and an optional `question` string to

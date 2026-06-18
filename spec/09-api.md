@@ -78,7 +78,7 @@ The Query API must support the following patterns required by the Frontend (see 
   - `GET /v1/services/summary` returns the tenant-scoped service catalog summary collection.
   - `GET /v1/services/{service_name}/summary` returns the summary for one service or `404` when the service has no data in the selected lookback.
 - **Required Fields**: Request rate, error rate, latency percentiles, active alert count, current SLO state, latest deployment marker, and links or identifiers for related logs, metrics, traces, and infrastructure entities.
-- **Current Response Fields**: `service_name`, `request_rate`, `error_rate`, `p95_latency_ms`, `health_state`, `active_alert_count`, and `latest_deployment`.
+- **Current Response Fields**: `service_name`, `request_rate`, `error_rate`, `p95_latency_ms`, `health_state`, `active_alert_count`, and `latest_deployment`. `active_alert_count` and `latest_deployment` are now populated: `active_alert_count` counts active `slo_burn_rate` alerts linked via `slo_definitions.service_name` (alert types not tied to an SLO are not counted, since `alert_rules` has no `service_name` column — see the known limitation in `archived/plans/2026-06-10-p9-s5-service-catalog-health-signals.md` §2.1), and `latest_deployment` is the most recent `deployment_markers.service_version` for that service.
 - **Filtering**: Must support project, environment, tenant, service, and time range filters. The current implementation supports tenant through `X-Tenant-ID`, `environment`, service path parameter for the single-service endpoint, and `lookback_minutes`.
 
 #### Infrastructure Views

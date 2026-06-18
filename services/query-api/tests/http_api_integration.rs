@@ -9,7 +9,7 @@ use clickhouse::Client as ChClient;
 use domain::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use http_body_util::BodyExt;
 use query_api::{
-    alerts, config, dashboards, incidents, llm_adapter, logs, metrics,
+    alerts, config, dashboards, discovery, incidents, llm_adapter, logs, metrics,
     middleware::auth::TenantContext, middleware::auth::require_tenant, observability,
     planner::QueryPlanner, reliability, slos, traces, usage,
 };
@@ -158,6 +158,10 @@ fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
         .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
         .route("/v1/slos", get(slos::handle_list_slos))
         .route("/v1/slos", post(slos::handle_create_slo))
+        .route(
+            "/v1/services/summary",
+            get(discovery::list_service_summaries),
+        )
         .route("/v1/incidents", get(incidents::handle_list_incidents))
         .route(
             "/v1/incidents/{incident_id}",
@@ -1019,6 +1023,115 @@ async fn get_slos_does_not_return_other_tenant_definitions() {
             .all(|item| item["service_name"] != "private-svc"),
         "tenant-scoped list must not include other tenant SLOs"
     );
+}
+
+// ── Service Catalog Health Signals (P9-S5) ──────────────────────────────────
+
+#[tokio::test]
+async fn service_summary_reports_slo_breach_alert_count_and_latest_deploy() {
+    let (ch, _ch_container) = start_clickhouse().await;
+    let (pg, _pg_container) = start_postgres().await;
+    let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
+    let now_ns = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+    let base = now_ns - 3_000_000_000;
+
+    // checkout: low error rate (error-rate health would be "healthy"), but has a firing
+    // SLO burn-rate alert, so health_state must be overridden to "breach".
+    insert_span(
+        &ch,
+        SpanRow {
+            service_name: "checkout".into(),
+            status_code: "OK".into(),
+            ..make_span(dev_tenant, "trace-checkout", "span-checkout", base)
+        },
+    )
+    .await;
+
+    // billing: no SLO, no alerts, no deployment — must keep the existing placeholder
+    // defaults and its error-rate-derived health state.
+    insert_span(
+        &ch,
+        SpanRow {
+            service_name: "billing".into(),
+            status_code: "OK".into(),
+            ..make_span(dev_tenant, "trace-billing", "span-billing", base)
+        },
+    )
+    .await;
+
+    let slo_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO slo_definitions \
+         (tenant_id, service_name, environment, sli_type, target, window_days, \
+          burn_rate_fast_threshold, burn_rate_slow_threshold, description) \
+         VALUES ($1, 'checkout', 'prod', 'availability', 0.99, 30, 14.4, 1.0, 'Checkout SLO') \
+         RETURNING slo_id",
+    )
+    .bind(dev_tenant)
+    .fetch_one(&pg)
+    .await
+    .expect("slo inserted");
+
+    let rule_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO alert_rules \
+         (tenant_id, name, alert_type, severity, condition) \
+         VALUES ($1, 'Checkout SLO burn', 'slo_burn_rate', 'critical', $2) \
+         RETURNING rule_id",
+    )
+    .bind(dev_tenant)
+    .bind(serde_json::json!({ "slo_id": slo_id.to_string() }))
+    .fetch_one(&pg)
+    .await
+    .expect("alert rule inserted");
+
+    sqlx::query(
+        "INSERT INTO alert_firings (rule_id, tenant_id, state, value) \
+         VALUES ($1, $2, 'active', 5.0)",
+    )
+    .bind(rule_id)
+    .bind(dev_tenant)
+    .execute(&pg)
+    .await
+    .expect("alert firing inserted");
+
+    sqlx::query(
+        "INSERT INTO deployment_markers \
+         (tenant_id, service_name, environment, service_version, status, started_at) \
+         VALUES ($1, 'checkout', 'prod', 'v2.3.1', 'success', NOW())",
+    )
+    .bind(dev_tenant)
+    .execute(&pg)
+    .await
+    .expect("deployment marker inserted");
+
+    let app = build_app_with_pg(ch, pg);
+
+    let response = app
+        .oneshot(dev_request("GET", "/v1/services/summary"))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_body_json(response.into_body()).await;
+    let items = body["items"].as_array().expect("items array");
+
+    let checkout = items
+        .iter()
+        .find(|item| item["service_name"] == "checkout")
+        .expect("checkout summary present");
+    assert_eq!(checkout["health_state"], "breach");
+    assert!(checkout["active_alert_count"].as_u64().unwrap() >= 1);
+    assert_eq!(checkout["latest_deployment"], "v2.3.1");
+
+    let billing = items
+        .iter()
+        .find(|item| item["service_name"] == "billing")
+        .expect("billing summary present");
+    assert_eq!(billing["active_alert_count"], 0);
+    assert!(billing["latest_deployment"].is_null());
+    assert_eq!(billing["health_state"], "healthy");
 }
 
 #[tokio::test]

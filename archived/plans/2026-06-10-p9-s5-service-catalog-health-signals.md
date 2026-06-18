@@ -1,6 +1,6 @@
 # P9-S5 Completion: Service Catalog Health Signals (active alerts, latest deploy, SLO-aware health)
 
-> **Status:** Proposed — promoted from `docs/superpowers/plans/2026-06-04-observability-feature-parity-plan.md` §P9-S5.
+> **Status:** COMPLETED 2026-06-18 — promoted from `docs/superpowers/plans/2026-06-04-observability-feature-parity-plan.md` §P9-S5.
 > **For agentic workers:** REQUIRED SUB-SKILL: `superpowers:subagent-driven-development` or
 > `superpowers:executing-plans`. Steps use checkbox (`- [ ]`) syntax for tracking. Each task is
 > its own commit/PR per `AGENTS.md` "Branch and PR Every Iteration".
@@ -188,7 +188,7 @@ each row.
 **Files:**
 - Modify: `services/query-api/src/discovery.rs`
 
-- [ ] **Step 1: Write failing unit tests** for:
+- [x] **Step 1: Write failing unit tests** for:
   - `apply_catalog_enrichment` overrides `health_state` to `"breach"` when `slo_breaching = true`,
     even if the error-rate-derived state was `"healthy"`.
   - `apply_catalog_enrichment` leaves `health_state` as the error-rate result when
@@ -199,18 +199,18 @@ each row.
     defined for that service — existing placeholder defaults `active_alert_count: 0,
     latest_deployment: None` remain correct in this case).
 
-- [ ] **Step 2: Run `cargo test -p query-api discovery::tests -- --nocapture`** — confirm new
+- [x] **Step 2: Run `cargo test -p query-api discovery::tests -- --nocapture`** — confirm new
   tests fail (function doesn't exist yet).
 
-- [ ] **Step 3: Implement** `ServiceCatalogEnrichment`, `fetch_service_catalog_enrichment`, and
+- [x] **Step 3: Implement** `ServiceCatalogEnrichment`, `fetch_service_catalog_enrichment`, and
   `apply_catalog_enrichment` as designed in §2.4. Wire both into `list_service_summaries` and
   `get_service_summary`, replacing the direct `service_summary_from_row(row, duration_secs)` call
   with `apply_catalog_enrichment(service_summary_from_row(row, duration_secs), enrichment.get(&row.service_name))`.
 
-- [ ] **Step 4: Run the unit tests again** — confirm pass. Run
+- [x] **Step 4: Run the unit tests again** — confirm pass. Run
   `cargo test -p query-api discovery::` to confirm no existing test broke.
 
-- [ ] **Step 5: `cargo fmt --all`**, then commit:
+- [x] **Step 5: `cargo fmt --all`**, then commit:
   ```
   git commit -m "feat(query-api): wire SLO-aware health, active alert count, and latest deploy into service summaries"
   ```
@@ -225,7 +225,7 @@ Handler Changes" this needs end-to-end coverage in
 **Files:**
 - Modify: `services/query-api/tests/http_api_integration.rs`
 
-- [ ] **Step 1: Write a failing integration test** that, against the Testcontainers
+- [x] **Step 1: Write a failing integration test** that, against the Testcontainers
   Postgres+ClickHouse stack:
   - Inserts spans for service `checkout` with a low error rate (so error-rate health = `"healthy"`).
   - Inserts an `slo_definitions` row for `checkout` (any `sli_type`/`target`).
@@ -239,13 +239,13 @@ Handler Changes" this needs end-to-end coverage in
     keeps `active_alert_count = 0`, `latest_deployment = null`, and its error-rate-derived
     `health_state`.
 
-- [ ] **Step 2: Run** `cargo test -p query-api --test http_api_integration service_summary -- --nocapture`
+- [x] **Step 2: Run** `cargo test -p query-api --test http_api_integration service_summary -- --nocapture`
   — confirm it fails before Task 1's implementation (or run before Task 1's Step 5 commit if doing
   both in one branch).
 
-- [ ] **Step 3: Confirm it passes** once Task 1 is implemented.
+- [x] **Step 3: Confirm it passes** once Task 1 is implemented.
 
-- [ ] **Step 4: Commit:**
+- [x] **Step 4: Commit:**
   ```
   git commit -m "test(query-api): cover SLO-aware health and deploy enrichment in service summary HTTP API"
   ```
@@ -256,7 +256,7 @@ Handler Changes" this needs end-to-end coverage in
 `latest_deployment`, and `health_state` (Section 1 above). No frontend code change should be
 needed.
 
-- [ ] **Step 1:** Run `npm test -- --run src/pages` (or the existing `ServicesPage` test if one
+- [x] **Step 1:** Run `npm test -- --run src/pages` (or the existing `ServicesPage` test if one
   exists) to confirm the page still renders correctly with non-zero `active_alert_count` and a
   populated `latest_deployment` — add a small assertion to an existing `ServicesPage` test if one
   exists and doesn't already cover the "Active Alerts" / "Latest Deploy" columns with non-default
@@ -264,9 +264,9 @@ needed.
   `active_alert_count: 2, latest_deployment: "v2.3.1", health_state: "breach"` and assert the
   table renders `2`, `v2.3.1`, and the `Breach` badge.
 
-- [ ] **Step 2:** `npm run lint && npm test -- --run` for the touched files.
+- [x] **Step 2:** `npm run lint && npm test -- --run` for the touched files.
 
-- [ ] **Step 3:** Commit if a test was added:
+- [x] **Step 3:** Commit if a test was added:
   ```
   git commit -m "test(services-page): cover active alert count and latest deploy columns"
   ```
@@ -276,11 +276,11 @@ needed.
 Per AGENTS.md "ADR and Spec Synchronization": this changes how documented response fields are
 computed (data-model-adjacent), so update:
 
-- [ ] `spec/08-ai-ml.md` — the line "The `health_state` field is computed post-query from
+- [x] `spec/08-ai-ml.md` — the line "The `health_state` field is computed post-query from
   `error_rate` and cannot be filtered server-side" (around line 462) is now only half true. Update
   it to describe the SLO-burn-rate override and that it's still computed post-query (not
   filterable server-side) so NLQ-side assumptions stay accurate.
-- [ ] `spec/09-api.md` §"Service Detail Summary" — add one sentence noting `active_alert_count`
+- [x] `spec/09-api.md` §"Service Detail Summary" — add one sentence noting `active_alert_count`
   and `latest_deployment` are now populated (SLO-linked alerts and `deployment_markers`
   respectively) and link to the known limitation in §2.1 of this plan (alerts not linked to an
   SLO are not counted).
@@ -290,14 +290,14 @@ data model (no migration). State this explicitly in the PR description.
 
 ### Task 5: Update `docs/agent-context.md`
 
-- [ ] Add a short note (pattern: see existing "Known simplification" note for `dedup_key`) stating:
+- [x] Add a short note (pattern: see existing "Known simplification" note for `dedup_key`) stating:
   - `GET /v1/services/summary` and `GET /v1/services/{service_name}/summary` now populate
     `active_alert_count` (active `slo_burn_rate` firings linked via `slo_definitions.service_name`
     only — not all alert types, due to `alert_rules` lacking `service_name`) and
     `latest_deployment` (latest `deployment_markers.service_version`).
   - `health_state` is `"breach"` if any linked SLO is currently breaching, else the existing
     error-rate threshold result.
-- [ ] Update the P9-S5 status note in `docs/superpowers/plans/2026-06-04-observability-feature-parity-plan.md`
+- [x] Update the P9-S5 status note in `docs/superpowers/plans/2026-06-04-observability-feature-parity-plan.md`
   to record that this plan's scope (active alert count, latest deployment, SLO-breach health
   override) is done, while the fast/slow-burn distinction, 30s polling refresh, and error-issue
   count remain open (the latter blocked on P9-S2). Do not mark P9-S5 fully complete.
