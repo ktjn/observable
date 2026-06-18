@@ -372,7 +372,7 @@ test.describe("panel overflow (regression)", () => {
     const pageScrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
     const viewportHeight = await page.evaluate(() => window.innerHeight);
     expect(pageScrollHeight).toBeLessThanOrEqual(viewportHeight + 20);
-    await page.screenshot({ path: "e2e/screenshots/panel-span-overflow-BEFORE.png", fullPage: true });
+    await page.screenshot({ path: "e2e/screenshots/panel-span-overflow-fixed.png", fullPage: true });
   });
 });
 
