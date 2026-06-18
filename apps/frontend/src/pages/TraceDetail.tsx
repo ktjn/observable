@@ -159,7 +159,7 @@ function SpanContextPanel({
   return (
     <aside
       aria-label="Selected span context"
-      className="w-[320px] shrink-0 border border-[var(--border)] bg-[var(--surface)] p-4 max-[900px]:w-full max-h-[calc(100vh-80px)] overflow-y-auto"
+      className="w-[320px] shrink-0 self-start border border-[var(--border)] bg-[var(--surface)] p-4 max-[900px]:w-full max-h-[calc(100vh-200px)] overflow-y-auto"
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>

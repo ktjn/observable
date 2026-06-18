@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest",
-    "test:a11y": "playwright test"
+    "test:a11y": "playwright test",
+    "test:visual": "playwright test e2e/visual.spec.ts e2e/navigation.spec.ts --reporter=list"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

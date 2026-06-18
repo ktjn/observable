@@ -157,3 +157,27 @@ operation reference, design rationale, and feedback loop.
 - Migrations and smoke tests are handled automatically by Docker Compose.
 - Run `docker compose up -d` to start the system and run migrations.
 - Run `docker compose up smoke-test --abort-on-container-exit` to verify.
+
+## UI Visual Verification
+
+Run the visual suite **before and after any change that touches layout, CSS classes, component structure, or page-level routing**. It is not required for backend-only or documentation changes.
+
+**Run:**
+```bash
+cd apps/frontend
+npm run test:visual
+```
+
+This runs two spec files:
+- `e2e/visual.spec.ts` — full-page screenshots of every main route (Traces, Logs, Services, Infrastructure, Alerts, Dashboards) with mocked data. No backend needed.
+- `e2e/navigation.spec.ts` — clicks sidebar links, row drilldowns (trace → detail, service → detail), view toggles (List ↔ Topology), tab switches (Alerts tabs), and panel-open states. Includes overflow regression tests.
+
+Screenshots are written to `apps/frontend/e2e/screenshots/`. Review them visually — the suite will pass even if the UI looks wrong, because it's not doing pixel-diff comparison. Use your eyes on the output images.
+
+**When to update the tests:**
+- New page or route added → add a test to `visual.spec.ts` following the existing pattern (mock auth + page data, `waitForSelector` on a stable landmark, `screenshot()`).
+- New navigation flow or interactive widget added → add a test to `navigation.spec.ts`.
+- New context panel or slide-over added → add an overflow regression test and a panel-open screenshot test to the `"panel overflow (regression)"` and `"panel screenshots"` describe blocks.
+
+**Mock data pattern:**
+All tests use `page.route()` to intercept API calls. Copy the mock structure from an existing test in the same spec file — all fixtures are at the top of each file. The auth mock (`mockAuth`) is a shared helper declared at the top of each spec. Mocked endpoints must match the glob patterns used by the real API (e.g. `**/v1/nlq`, `**/v1/tenants/**/logs/histogram**`).
