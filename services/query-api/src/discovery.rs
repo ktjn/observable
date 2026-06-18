@@ -327,9 +327,23 @@ pub async fn list_service_summaries(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
+    let enrichment =
+        fetch_service_catalog_enrichment(&state.db, ctx.tenant_id, params.environment.as_deref())
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "failed to fetch service catalog enrichment");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
     let items = rows
         .into_iter()
-        .map(|row| service_summary_from_row(row, duration_secs))
+        .map(|row| {
+            let service_name = row.service_name.clone();
+            apply_catalog_enrichment(
+                service_summary_from_row(row, duration_secs),
+                enrichment.get(&service_name),
+            )
+        })
         .collect();
 
     Ok(Json(ServiceSummaryResponse { items }))
@@ -390,8 +404,20 @@ pub async fn get_service_summary(
         })?
         .ok_or(StatusCode::NOT_FOUND)?;
 
+    let enrichment =
+        fetch_service_catalog_enrichment(&state.db, ctx.tenant_id, params.environment.as_deref())
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "failed to fetch service catalog enrichment");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+    let enrichment_entry = enrichment.get(&row.service_name);
+
     Ok(Json(ServiceDetailResponse {
-        service: service_summary_from_row(row, duration_secs),
+        service: apply_catalog_enrichment(
+            service_summary_from_row(row, duration_secs),
+            enrichment_entry,
+        ),
     }))
 }
 
@@ -609,6 +635,108 @@ pub async fn get_infrastructure_detail(
     let links = infrastructure_detail_links(&entity);
 
     Ok(Json(InfrastructureDetailResponse { entity, links }))
+}
+
+/// Per-service catalog enrichment sourced from Postgres (SLO-linked alerts and deployments).
+///
+/// `active_alert_count` and `slo_breaching` are scoped to alerts reachable via
+/// `slo_definitions.service_name` (i.e. `alert_type = 'slo_burn_rate'` rules whose
+/// `condition->>'slo_id'` matches an SLO for that service). Threshold/composite alerts not tied
+/// to an SLO are not counted, because `alert_rules` has no `service_name`/`environment` column.
+struct ServiceCatalogEnrichment {
+    active_alert_count: u64,
+    slo_breaching: bool,
+    latest_deployment: Option<String>,
+}
+
+async fn fetch_service_catalog_enrichment(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+    environment: Option<&str>,
+) -> Result<HashMap<String, ServiceCatalogEnrichment>, sqlx::Error> {
+    let mut enrichment: HashMap<String, ServiceCatalogEnrichment> = HashMap::new();
+
+    #[derive(sqlx::FromRow)]
+    struct SloAlertRow {
+        service_name: String,
+        active_alert_count: i64,
+        slo_breaching: bool,
+    }
+
+    let slo_rows: Vec<SloAlertRow> = sqlx::query_as(
+        "SELECT sd.service_name, \
+                COUNT(af.firing_id) FILTER (WHERE af.state = 'active') AS active_alert_count, \
+                COALESCE(BOOL_OR(af.state = 'active'), false) AS slo_breaching \
+         FROM slo_definitions sd \
+         LEFT JOIN alert_rules ar \
+             ON ar.tenant_id = sd.tenant_id \
+            AND ar.alert_type = 'slo_burn_rate' \
+            AND ar.condition->>'slo_id' = sd.slo_id::text \
+         LEFT JOIN alert_firings af ON af.rule_id = ar.rule_id \
+         WHERE sd.tenant_id = $1 \
+           AND ($2::TEXT IS NULL OR sd.environment = $2) \
+         GROUP BY sd.service_name",
+    )
+    .bind(tenant_id)
+    .bind(environment)
+    .fetch_all(db)
+    .await?;
+
+    for row in slo_rows {
+        enrichment.insert(
+            row.service_name,
+            ServiceCatalogEnrichment {
+                active_alert_count: row.active_alert_count.max(0) as u64,
+                slo_breaching: row.slo_breaching,
+                latest_deployment: None,
+            },
+        );
+    }
+
+    #[derive(sqlx::FromRow)]
+    struct LatestDeploymentRow {
+        service_name: String,
+        service_version: String,
+    }
+
+    let deployment_rows: Vec<LatestDeploymentRow> = sqlx::query_as(
+        "SELECT DISTINCT ON (service_name) service_name, service_version \
+         FROM deployment_markers \
+         WHERE tenant_id = $1 \
+           AND ($2::TEXT IS NULL OR environment = $2) \
+         ORDER BY service_name, started_at DESC",
+    )
+    .bind(tenant_id)
+    .bind(environment)
+    .fetch_all(db)
+    .await?;
+
+    for row in deployment_rows {
+        enrichment
+            .entry(row.service_name)
+            .or_insert(ServiceCatalogEnrichment {
+                active_alert_count: 0,
+                slo_breaching: false,
+                latest_deployment: None,
+            })
+            .latest_deployment = Some(row.service_version);
+    }
+
+    Ok(enrichment)
+}
+
+fn apply_catalog_enrichment(
+    mut summary: ServiceSummary,
+    enrichment: Option<&ServiceCatalogEnrichment>,
+) -> ServiceSummary {
+    if let Some(e) = enrichment {
+        summary.active_alert_count = e.active_alert_count;
+        summary.latest_deployment = e.latest_deployment.clone();
+        if e.slo_breaching {
+            summary.health_state = "breach".to_string();
+        }
+    }
+    summary
 }
 
 fn service_summary_from_row(row: ServiceSummaryRow, duration_secs: f64) -> ServiceSummary {
@@ -998,6 +1126,76 @@ mod tests {
         assert_eq!(health_state(0.0), "healthy");
         assert_eq!(health_state(0.02), "watch");
         assert_eq!(health_state(0.06), "breach");
+    }
+
+    fn healthy_summary() -> ServiceSummary {
+        service_summary_from_row(
+            ServiceSummaryRow {
+                service_name: "checkout".into(),
+                request_count: 120,
+                error_count: 0,
+                p95_latency_ns: 100_000_000.0,
+            },
+            60.0,
+        )
+    }
+
+    #[test]
+    fn enrichment_overrides_health_state_to_breach_when_slo_breaching() {
+        let summary = healthy_summary();
+        assert_eq!(summary.health_state, "healthy");
+
+        let enrichment = ServiceCatalogEnrichment {
+            active_alert_count: 1,
+            slo_breaching: true,
+            latest_deployment: None,
+        };
+
+        let enriched = apply_catalog_enrichment(summary, Some(&enrichment));
+
+        assert_eq!(enriched.health_state, "breach");
+    }
+
+    #[test]
+    fn enrichment_leaves_error_rate_health_state_when_slo_not_breaching() {
+        let summary = healthy_summary();
+
+        let enrichment = ServiceCatalogEnrichment {
+            active_alert_count: 0,
+            slo_breaching: false,
+            latest_deployment: None,
+        };
+
+        let enriched = apply_catalog_enrichment(summary, Some(&enrichment));
+
+        assert_eq!(enriched.health_state, "healthy");
+    }
+
+    #[test]
+    fn enrichment_passes_through_alert_count_and_latest_deployment() {
+        let summary = healthy_summary();
+
+        let enrichment = ServiceCatalogEnrichment {
+            active_alert_count: 3,
+            slo_breaching: false,
+            latest_deployment: Some("v2.3.1".to_string()),
+        };
+
+        let enriched = apply_catalog_enrichment(summary, Some(&enrichment));
+
+        assert_eq!(enriched.active_alert_count, 3);
+        assert_eq!(enriched.latest_deployment, Some("v2.3.1".to_string()));
+    }
+
+    #[test]
+    fn enrichment_none_leaves_summary_unchanged() {
+        let summary = healthy_summary();
+
+        let enriched = apply_catalog_enrichment(summary, None);
+
+        assert_eq!(enriched.health_state, "healthy");
+        assert_eq!(enriched.active_alert_count, 0);
+        assert_eq!(enriched.latest_deployment, None);
     }
 
     #[test]
