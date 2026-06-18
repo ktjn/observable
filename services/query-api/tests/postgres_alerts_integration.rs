@@ -1,5 +1,5 @@
 use query_api::alerts::{
-    CreateRuleRequest, create_alert_rule, list_alert_rules, silence_alert_rule,
+    CreateRuleError, CreateRuleRequest, create_alert_rule, list_alert_rules, silence_alert_rule,
 };
 use sqlx::PgPool;
 use std::path::Path;
@@ -83,6 +83,9 @@ async fn create_rule_appears_in_list() {
         notification_channels: None,
         auto_trigger_incident: None,
         runbook_url: None,
+        alert_type: None,
+        service_name: None,
+        window_secs: None,
     };
     let created = create_alert_rule(&pool, tenant, &req).await.unwrap();
 
@@ -115,6 +118,9 @@ async fn silence_toggle_updates_silenced_flag() {
         notification_channels: None,
         auto_trigger_incident: None,
         runbook_url: None,
+        alert_type: None,
+        service_name: None,
+        window_secs: None,
     };
     let created = create_alert_rule(&pool, tenant, &req).await.unwrap();
     assert!(!created.silenced);
@@ -146,6 +152,9 @@ async fn silence_returns_none_for_cross_tenant_rule() {
         notification_channels: None,
         auto_trigger_incident: None,
         runbook_url: None,
+        alert_type: None,
+        service_name: None,
+        window_secs: None,
     };
 
     let created = create_alert_rule(&pool, tenant_a, &req).await.unwrap();
@@ -180,6 +189,9 @@ async fn list_rules_does_not_return_other_tenant_rules() {
         notification_channels: None,
         auto_trigger_incident: None,
         runbook_url: None,
+        alert_type: None,
+        service_name: None,
+        window_secs: None,
     };
 
     create_alert_rule(&pool, tenant_a, &req).await.unwrap();
@@ -207,6 +219,9 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             notification_channels: None,
             auto_trigger_incident: None,
             runbook_url: None,
+            alert_type: None,
+            service_name: None,
+            window_secs: None,
         },
     )
     .await
@@ -232,6 +247,9 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             notification_channels: None,
             auto_trigger_incident: None,
             runbook_url: None,
+            alert_type: None,
+            service_name: None,
+            window_secs: None,
         },
     )
     .await
@@ -257,6 +275,9 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             notification_channels: None,
             auto_trigger_incident: None,
             runbook_url: None,
+            alert_type: None,
+            service_name: None,
+            window_secs: None,
         },
     )
     .await
@@ -282,6 +303,9 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             notification_channels: None,
             auto_trigger_incident: None,
             runbook_url: None,
+            alert_type: None,
+            service_name: None,
+            window_secs: None,
         },
     )
     .await
@@ -303,4 +327,57 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
     assert_eq!(state_for("Active rule"), "active");
     assert_eq!(state_for("Resolved rule"), "resolved");
     assert_eq!(state_for("Silenced rule"), "silenced");
+}
+
+#[tokio::test]
+async fn create_deadman_rule_appears_in_list_with_no_data_operator() {
+    let (pool, _container) = start_pool().await;
+    let tenant = Uuid::new_v4();
+
+    let req = CreateRuleRequest {
+        name: "Checkout silent".into(),
+        metric_name: String::new(),
+        operator: String::new(),
+        threshold: 0.0,
+        notification_channels: None,
+        auto_trigger_incident: None,
+        runbook_url: None,
+        alert_type: Some("deadman".into()),
+        service_name: Some("checkout".into()),
+        window_secs: Some(300),
+    };
+    let created = create_alert_rule(&pool, tenant, &req).await.unwrap();
+
+    assert_eq!(created.metric_name, "checkout");
+    assert_eq!(created.operator, "no_data");
+    assert!((created.threshold - 300.0).abs() < f64::EPSILON);
+
+    let rules = list_alert_rules(&pool, tenant).await.unwrap();
+    assert!(
+        rules
+            .iter()
+            .any(|r| r.rule_id == created.rule_id && r.operator == "no_data"),
+        "created deadman rule must appear in list with no_data operator"
+    );
+}
+
+#[tokio::test]
+async fn create_deadman_rule_rejects_blank_service_name() {
+    let (pool, _container) = start_pool().await;
+    let tenant = Uuid::new_v4();
+
+    let req = CreateRuleRequest {
+        name: "Checkout silent".into(),
+        metric_name: String::new(),
+        operator: String::new(),
+        threshold: 0.0,
+        notification_channels: None,
+        auto_trigger_incident: None,
+        runbook_url: None,
+        alert_type: Some("deadman".into()),
+        service_name: Some("   ".into()),
+        window_secs: Some(300),
+    };
+    let err = create_alert_rule(&pool, tenant, &req).await.unwrap_err();
+    assert!(matches!(err, CreateRuleError::InvalidInput(_)));
 }

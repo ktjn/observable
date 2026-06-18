@@ -643,7 +643,7 @@ Same pattern as P12-S1 but targeting the Opsgenie Alert API.
 
 ---
 
-#### P12-S3: Deadman Alert Type
+#### P12-S3: Deadman Alert Type — COMPLETED 2026-06-18
 
 **User story:** "As an SRE, I want to be alerted when a service stops emitting telemetry."
 
@@ -850,7 +850,7 @@ immediately.
 | Saved views in explorers | Reduces repetitive filter setup; high developer satisfaction | P9 or standalone |
 | Export APIs (CSV/JSON) | Unblocks analyst use cases; zero architectural risk | P13 or standalone |
 | PagerDuty adapter | Unblocks the most-requested alerting integration | P12-S1 (promote now) |
-| Deadman alert type | "Is my service silent?" is asked daily | P12-S3 (promote now) |
+| Deadman alert type | "Is my service silent?" is asked daily | P12-S3 (complete) |
 | Prometheus remote write | Single biggest migration enabler | P13-S1 |
 | Service health summary in catalog | Dramatically improves time-to-triage on the home screen | P9-S5 |
 | Error issue count badge on service rows | Developers see their service's error state at a glance | P9-S3 |

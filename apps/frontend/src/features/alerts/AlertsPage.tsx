@@ -38,6 +38,9 @@ export function AlertsPage() {
   const [formMetric, setFormMetric] = useState("");
   const [formOperator, setFormOperator] = useState("gt");
   const [formThreshold, setFormThreshold] = useState("");
+  const [formAlertType, setFormAlertType] = useState<"threshold" | "deadman">("threshold");
+  const [formServiceName, setFormServiceName] = useState("");
+  const [formWindowSecs, setFormWindowSecs] = useState("300");
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [autoTriggerIncident, setAutoTriggerIncident] = useState(true);
   const [formRunbookUrl, setFormRunbookUrl] = useState("");
@@ -79,6 +82,9 @@ export function AlertsPage() {
       setFormMetric("");
       setFormOperator("gt");
       setFormThreshold("");
+      setFormAlertType("threshold");
+      setFormServiceName("");
+      setFormWindowSecs("300");
       setSelectedChannels([]);
       setAutoTriggerIncident(true);
       setFormRunbookUrl("");
@@ -103,6 +109,32 @@ export function AlertsPage() {
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (formAlertType === "deadman") {
+      const windowSecs = parseInt(formWindowSecs, 10);
+      if (!formServiceName.trim()) {
+        setFormError("Service name is required");
+        return;
+      }
+      if (isNaN(windowSecs) || windowSecs <= 0) {
+        setFormError("Window must be a positive number of seconds");
+        return;
+      }
+      setFormError(null);
+      createMutation.mutate({
+        name: formName,
+        metric_name: "",
+        operator: "",
+        threshold: 0,
+        notification_channels: selectedChannels,
+        auto_trigger_incident: autoTriggerIncident,
+        runbook_url: formRunbookUrl || undefined,
+        alert_type: "deadman",
+        service_name: formServiceName.trim(),
+        window_secs: windowSecs,
+      });
+      return;
+    }
+
     const threshold = parseFloat(formThreshold);
     if (isNaN(threshold)) {
       setFormError("Threshold must be a number");
@@ -117,6 +149,7 @@ export function AlertsPage() {
       notification_channels: selectedChannels,
       auto_trigger_incident: autoTriggerIncident,
       runbook_url: formRunbookUrl || undefined,
+      alert_type: "threshold",
     });
   };
 
@@ -216,56 +249,96 @@ export function AlertsPage() {
                 aria-label="Create alert rule"
                 className="flex flex-col gap-3"
               >
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="rule-name">Rule name</label>
-                    <Input
-                      id="rule-name"
-                      placeholder="e.g. High Error Rate"
-                      value={formName}
-                      onChange={(e) => setFormName(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="metric-name">Metric name</label>
-                    <Input
-                      id="metric-name"
-                      placeholder="e.g. error_rate"
-                      value={formMetric}
-                      onChange={(e) => setFormMetric(e.target.value)}
-                      required
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="alert-type">Alert type</label>
+                  <Select
+                    id="alert-type"
+                    value={formAlertType}
+                    onChange={(e) => setFormAlertType(e.target.value as "threshold" | "deadman")}
+                  >
+                    <SelectOption value="threshold">Threshold metric</SelectOption>
+                    <SelectOption value="deadman">No data</SelectOption>
+                  </Select>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="operator">Operator</label>
-                    <Select
-                      id="operator"
-                      value={formOperator}
-                      onChange={(e) => setFormOperator(e.target.value)}
-                    >
-                      <SelectOption value="gt">&gt; (greater than)</SelectOption>
-                      <SelectOption value="gte">&ge; (greater than or equal)</SelectOption>
-                      <SelectOption value="lt">&lt; (less than)</SelectOption>
-                      <SelectOption value="lte">&le; (less than or equal)</SelectOption>
-                      <SelectOption value="eq">= (equal)</SelectOption>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="threshold">Threshold value</label>
-                    <Input
-                      id="threshold"
-                      type="number"
-                      step="any"
-                      value={formThreshold}
-                      onChange={(e) => setFormThreshold(e.target.value)}
-                      required
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="rule-name">Rule name</label>
+                  <Input
+                    id="rule-name"
+                    placeholder="e.g. High Error Rate"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    required
+                  />
                 </div>
+
+                {formAlertType === "threshold" ? (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="metric-name">Metric name</label>
+                      <Input
+                        id="metric-name"
+                        placeholder="e.g. error_rate"
+                        value={formMetric}
+                        onChange={(e) => setFormMetric(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="operator">Operator</label>
+                        <Select
+                          id="operator"
+                          value={formOperator}
+                          onChange={(e) => setFormOperator(e.target.value)}
+                        >
+                          <SelectOption value="gt">&gt; (greater than)</SelectOption>
+                          <SelectOption value="gte">&ge; (greater than or equal)</SelectOption>
+                          <SelectOption value="lt">&lt; (less than)</SelectOption>
+                          <SelectOption value="lte">&le; (less than or equal)</SelectOption>
+                          <SelectOption value="eq">= (equal)</SelectOption>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="threshold">Threshold value</label>
+                        <Input
+                          id="threshold"
+                          type="number"
+                          step="any"
+                          value={formThreshold}
+                          onChange={(e) => setFormThreshold(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="deadman-service">Service name</label>
+                      <Input
+                        id="deadman-service"
+                        placeholder="e.g. checkout"
+                        value={formServiceName}
+                        onChange={(e) => setFormServiceName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="deadman-window">Window (seconds)</label>
+                      <Input
+                        id="deadman-window"
+                        type="number"
+                        step="1"
+                        min="1"
+                        value={formWindowSecs}
+                        onChange={(e) => setFormWindowSecs(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-1">
                   <label className="text-xs font-bold uppercase text-[var(--muted)]">Notification channels</label>
@@ -586,7 +659,10 @@ function AlertRuleRow({
   channels: NotificationChannelItem[];
   onToggleSilence: () => void;
 }) {
-  const conditionLabel = `${rule.operator} ${rule.threshold}`;
+  const conditionLabel =
+    (rule.operator as string) === "no_data"
+      ? `No data for ${rule.threshold}s from ${rule.metric_name}`
+      : `${rule.operator} ${rule.threshold}`;
   const status = alertStatus(rule);
   const channelNames = (rule.notification_channels ?? [])
     .map((id) => channels.find((c) => c.channel_id === id)?.name)

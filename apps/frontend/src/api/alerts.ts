@@ -19,6 +19,9 @@ export interface CreateRuleRequest {
   notification_channels?: string[];
   auto_trigger_incident?: boolean;
   runbook_url?: string;
+  alert_type?: string;
+  service_name?: string;
+  window_secs?: number;
 }
 
 export async function listAlertRules(tenantId: string): Promise<AlertRuleListResponse> {

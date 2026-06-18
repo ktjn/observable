@@ -52,6 +52,23 @@ pub struct CompositeRuleCondition {
     pub right_rule_id: Uuid,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct DeadmanCondition {
+    pub service_name: String,
+    pub window_secs: i64,
+}
+
+pub fn evaluate_deadman(
+    last_seen_secs_ago: Option<i64>,
+    condition: &DeadmanCondition,
+) -> EvalResult {
+    match last_seen_secs_ago {
+        None => EvalResult::Firing,
+        Some(elapsed) if elapsed >= condition.window_secs => EvalResult::Firing,
+        Some(_) => EvalResult::Ok,
+    }
+}
+
 pub fn calculate_burn_rate(
     bad_events: u64,
     total_events: u64,
@@ -440,10 +457,95 @@ async fn fetch_span_counts(
     }
 }
 
+#[derive(clickhouse::Row, serde::Deserialize)]
+pub struct LastSeenRow {
+    pub last_seen_unix_nano: u64,
+}
+
+pub async fn eval_deadman_rules(db: &sqlx::PgPool, ch: &clickhouse::Client) -> anyhow::Result<()> {
+    let rules: Vec<AlertRuleRow> = sqlx::query_as(
+        "SELECT rule_id, tenant_id, name, condition, severity, for_duration_secs, notification_channels, \
+         auto_trigger_incident, auto_trigger_delay_secs, runbook_url \
+         FROM alert_rules WHERE alert_type = 'deadman' AND silenced = false",
+    )
+    .fetch_all(db)
+    .await?;
+
+    tracing::debug!(count = rules.len(), "evaluating deadman rules");
+
+    for rule in rules {
+        let cond: DeadmanCondition = match serde_json::from_value(rule.condition.clone()) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(
+                    rule_id = %rule.rule_id,
+                    error = %e,
+                    "skipping deadman rule: condition parse failed"
+                );
+                continue;
+            }
+        };
+
+        let mut cursor = ch
+            .query(
+                "SELECT max(start_time_unix_nano) AS last_seen_unix_nano \
+                 FROM observable.spans \
+                 WHERE tenant_id = ? AND service_name = ?",
+            )
+            .bind(rule.tenant_id)
+            .bind(&cond.service_name)
+            .fetch::<LastSeenRow>()
+            .map_err(|e| anyhow::anyhow!("clickhouse query error: {e}"))?;
+
+        let last_seen_unix_nano = match cursor.next().await {
+            Ok(Some(row)) if row.last_seen_unix_nano > 0 => Some(row.last_seen_unix_nano),
+            Ok(_) => None,
+            Err(e) => {
+                tracing::warn!(rule_id = %rule.rule_id, error = %e, "skipping deadman rule: span fetch failed");
+                continue;
+            }
+        };
+
+        let now_ns = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos() as u64;
+        let elapsed_secs = last_seen_unix_nano
+            .map(|seen| now_ns.saturating_sub(seen) / 1_000_000_000)
+            .map(|secs| secs as i64);
+
+        match evaluate_deadman(elapsed_secs, &cond) {
+            EvalResult::Firing => {
+                tracing::warn!(
+                    rule_id = %rule.rule_id,
+                    tenant_id = %rule.tenant_id,
+                    rule_name = %rule.name,
+                    service_name = %cond.service_name,
+                    elapsed_secs = ?elapsed_secs,
+                    window_secs = cond.window_secs,
+                    "alert firing: deadman (no telemetry)"
+                );
+                let value = elapsed_secs.unwrap_or(i64::MAX) as f64;
+                if let Err(e) = record_firing(db, &rule, value).await {
+                    tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to record deadman firing");
+                }
+            }
+            EvalResult::Ok => {
+                let value = elapsed_secs.unwrap_or(0) as f64;
+                if let Err(e) = resolve_open_firing(db, &rule, value).await {
+                    tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to resolve deadman firing");
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub async fn eval_alert_rules(db: &sqlx::PgPool, ch: &clickhouse::Client) -> anyhow::Result<()> {
     eval_threshold_rules(db, ch).await?;
     eval_slo_burn_rate_rules(db, ch).await?;
     eval_composite_rules(db, ch).await?;
+    eval_deadman_rules(db, ch).await?;
     Ok(())
 }
 
@@ -959,6 +1061,45 @@ mod tests {
         );
         assert_eq!(
             evaluate_burn_rate(15.0, 0.5, 14.4, 1.0, &cond),
+            EvalResult::Ok
+        );
+    }
+
+    fn deadman_cond(window_secs: i64) -> DeadmanCondition {
+        DeadmanCondition {
+            service_name: "checkout".into(),
+            window_secs,
+        }
+    }
+
+    #[test]
+    fn deadman_fires_when_never_seen() {
+        assert_eq!(
+            evaluate_deadman(None, &deadman_cond(300)),
+            EvalResult::Firing
+        );
+    }
+
+    #[test]
+    fn deadman_fires_when_stale() {
+        assert_eq!(
+            evaluate_deadman(Some(301), &deadman_cond(300)),
+            EvalResult::Firing
+        );
+    }
+
+    #[test]
+    fn deadman_fires_exactly_at_boundary() {
+        assert_eq!(
+            evaluate_deadman(Some(300), &deadman_cond(300)),
+            EvalResult::Firing
+        );
+    }
+
+    #[test]
+    fn deadman_ok_when_fresh() {
+        assert_eq!(
+            evaluate_deadman(Some(10), &deadman_cond(300)),
             EvalResult::Ok
         );
     }

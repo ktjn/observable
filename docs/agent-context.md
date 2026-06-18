@@ -21,7 +21,7 @@ making changes.
   files manually as checklists.
 - Active roadmap: `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` — unified post-Phase-3 implementation plan, extended by `docs/superpowers/plans/2026-06-04-observability-feature-parity-plan.md` (Phases P9-P14).
 - `archived/plans/2026-06-10-p9-s5-service-catalog-health-signals.md` — completed P9-S5's remaining scope: replaced the hardcoded `active_alert_count: 0` / `latest_deployment: None` placeholders in `services/query-api/src/discovery.rs::service_summary_from_row` with real data and made `health_state` SLO-burn-rate-aware. Housekeeping note carried from that plan, still open: issues #388 (Trace Comparison) and #389 (Query Workbench) describe already-shipped features and should be closed.
-- Next promotion candidates (per that plan's §7, not yet promoted): P12-S3 Deadman alert type (quick win, small self-contained `alert-evaluator` addition) and P14-S4 Change Event API (quick win, extends the deployment-marker model). P9-S2 Error Tracking Ingestion is the largest remaining workflow gap but needs its own multi-task plan once promoted.
+- P12-S3 Deadman alert type is complete (see "Deadman Alert Type" section below). Remaining promotion candidate (per the feature-parity plan's §7, not yet promoted): P14-S4 Change Event API (quick win, extends the deployment-marker model). P9-S2 Error Tracking Ingestion is the largest remaining workflow gap but needs its own multi-task plan once promoted.
 - Archived detailed implementation plan: `archived/plans/2026-06-01-admin-console-overview.md` — first Admin Console landing-page slice for tenant access, environment context, and usage summary. Query Workbench is complete and its detailed plan has been archived. RF-2, RF-3, RF-6, P4-S9, stream-processor batching, Telemetry Loop Prevention, P4-S4 dashboard ReBAC, ClickHouse insert efficiency, Context Preservation, Live Tail, and Trace Comparison complete. The admin area now also has read-only `/admin/config` and `/admin/fleet` surfaces; the fleet page is a contract view until a live agent inventory endpoint exists. Next: P4-S3b SCIM/SSO only if a v1 customer requires it.
 - Completed / archived detailed plans:
   - `archived/plans/2026-05-06-identity-provider-zitadel.md` — Zitadel 4.x OIDC PKCE flow, session JWTs, user/role tables, frontend login/callback/me pages, Admin Console identity settings
@@ -59,6 +59,7 @@ making changes.
   - `archived/plans/2026-06-15-nlq-visualization-modelable-migration.md` — Phase 3.9: nlq/visualization domain (last regular Phase 3 domain)
   - `archived/plans/2026-05-26-p4-s9-boundary-security-review.md` — P4-S9 boundary security review; two NLQ SQL identifier-injection fixes; findings at `docs/security-review-p4-s9.md`
   - `archived/plans/2026-06-18-frontend-design-system-modernization.md` — frontend design-system modernization across theme tokens, sidebar icons, themed selects, button/table polish, histogram SVG rendering, shared TopologyMap theming, and cross-theme visual verification (COMPLETED 2026-06-18)
+  - `archived/plans/2026-06-18-p12-s3-deadman-alert.md` — P12-S3 deadman alert type: alert-evaluator span-recency check, query-api create/list support reusing the existing AlertRuleItem shape, AlertsPage "No data" rule type (COMPLETED 2026-06-18)
   - `archived/plans/2026-06-16-consolidation-plan.md` — post-modelable-migration repo consolidation: archived 13 modelable plans/12 specs + 6 non-modelable plans/specs, removed a duplicate zitadel plan, added `.mdl` header comments, documented the `ch-observable` binding duplication (COMPLETED 2026-06-16, landed via PR #405)
 - Historical Phase 1 plan: `archived/plans/2026-04-17-phase1-internal-mvp.md`; do not treat it as an active backlog.
 - Historical Phases 2-8 plan: merged into the active roadmap above. The old `2026-04-18-phases2-8-iteration-plan.md` file has been removed.
@@ -217,6 +218,20 @@ backlog and per-domain design specs.
   consumer exists for `SchemaEntry`/`SemanticAnnotation` yet; revisit if/when one is added.
   Further Rust-layer migration for the 8 domains without generated Rust artifacts is blocked
   on the Phase 1 backlog items documented in `ADR-032`'s "Known Limitations" section.
+
+## Deadman Alert Type (P12-S3, completed 2026-06-18)
+
+- `services/alert-evaluator/src/evaluator.rs` adds `eval_deadman_rules`: fires when no span has
+  been received for a service within `window_secs` (including services never seen at all).
+  Wired into `eval_alert_rules` alongside the threshold/SLO/composite evaluators.
+- `services/query-api/src/alerts.rs` `create_alert_rule`/`list_alert_rules` support
+  `alert_type = 'deadman'` by reusing the existing `AlertRuleItem` shape: deadman conditions are
+  surfaced as `metric_name = service_name`, `operator = "no_data"`, `threshold = window_secs`.
+  This was a deliberate choice to avoid extending the modelable-generated `AlertRuleItem` schema
+  for this slice — see `docs/superpowers/specs/2026-06-18-p12-s3-deadman-alert-design.md`.
+- Frontend: `AlertsPage.tsx`'s create-rule form has an "Alert type" selector ("Threshold metric"
+  / "No data") that swaps in service-name/window fields; the rules table renders `no_data` rows
+  as `"No data for {window}s from {service}"`.
 
 ## Dev Environment Gotchas
 
