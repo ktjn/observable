@@ -326,4 +326,52 @@ test.describe("panel overflow (regression)", () => {
     expect(pageScrollHeight).toBeLessThanOrEqual(viewportHeight + 20); // 20px tolerance
     await page.screenshot({ path: "e2e/screenshots/panel-log-overflow-fixed.png", fullPage: true });
   });
+
+  test("span context panel stays within viewport when tall", async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await mockAuth(page);
+    const manyAttrs: Record<string, string> = {};
+    for (let i = 0; i < 30; i++) manyAttrs[`span.attr.${i}`] = `value-${i}`;
+    const resourceAttrs: Record<string, string> = {};
+    for (let i = 0; i < 10; i++) resourceAttrs[`resource.${i}`] = `val-${i}`;
+
+    await page.route(`**/v1/traces/${TRACE_ID}`, (route) =>
+      route.fulfill({
+        json: {
+          trace_id: TRACE_ID,
+          spans: [
+            {
+              tenant_id: "00000000-0000-0000-0000-000000000001",
+              trace_id: TRACE_ID,
+              span_id: "span001",
+              parent_span_id: null,
+              service_name: "checkout",
+              operation_name: "GET /order",
+              start_time_unix_nano: 1_000_000_000,
+              end_time_unix_nano: 6_000_000_000,
+              duration_ns: 5_000_000_000,
+              status_code: "OK",
+              span_kind: "SERVER",
+              service_version: "v1.0",
+              attributes: manyAttrs,
+              resource_attributes: resourceAttrs,
+            },
+          ],
+        },
+      })
+    );
+    await page.route("**/v1/logs**", (route) =>
+      route.fulfill({ json: { logs: [], total: 0, facets: {} } })
+    );
+
+    await page.goto(`/traces/${TRACE_ID}`);
+    await page.waitForSelector("text=GET /order");
+    await page.locator('[role="button"]', { hasText: /checkout.*GET/ }).click();
+    await page.waitForSelector('[aria-label="Selected span context"]');
+
+    const pageScrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+    const viewportHeight = await page.evaluate(() => window.innerHeight);
+    expect(pageScrollHeight).toBeLessThanOrEqual(viewportHeight + 20);
+    await page.screenshot({ path: "e2e/screenshots/panel-span-overflow-BEFORE.png", fullPage: true });
+  });
 });
