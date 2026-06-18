@@ -141,9 +141,9 @@ export function AppShell() {
           <div className="field-label">Theme</div>
           <select
             aria-label="Theme preference"
+            className="themed-select"
             value={preference}
             onChange={(e) => setPreference(e.target.value as ThemePreference)}
-            style={{ cursor: "pointer", background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border-strong)", padding: "2px 6px", fontSize: "inherit", width: "100%" }}
           >
             {themeOptions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
@@ -159,10 +159,9 @@ export function AppShell() {
             <GlobalDateRangePicker />
             <select
               aria-label="Time display format"
-              className="context-pill"
+              className="context-pill themed-select"
               value={format}
               onChange={(e) => setFormat(e.target.value as typeof format)}
-              style={{ cursor: "pointer", background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "var(--radius, 4px)", padding: "2px 6px", fontSize: "inherit" }}
             >
               {TIME_FORMAT_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -170,7 +169,7 @@ export function AppShell() {
             </select>
             <select
               aria-label="Tenant"
-              className="context-pill"
+              className="context-pill themed-select"
               value={tenantId}
               onChange={(e) => {
                 const selected = tenants.find((t) => t.id === e.target.value);
@@ -179,7 +178,6 @@ export function AppShell() {
                   window.location.reload();
                 }
               }}
-              style={{ cursor: "pointer", background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "var(--radius, 4px)", padding: "2px 6px", fontSize: "inherit", maxWidth: "10rem" }}
             >
               {tenants.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
@@ -187,13 +185,12 @@ export function AppShell() {
             </select>
             <select
               aria-label="Environment"
-              className="context-pill"
+              className="context-pill themed-select"
               value={environment ?? ""}
               onChange={(e) => {
                 setEnvironment(e.target.value === "" ? null : e.target.value);
                 window.location.reload();
               }}
-              style={{ cursor: "pointer", background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "var(--radius, 4px)", padding: "2px 6px", fontSize: "inherit", maxWidth: "9rem" }}
             >
               <option value="">All envs</option>
               {environments.map((env) => (
