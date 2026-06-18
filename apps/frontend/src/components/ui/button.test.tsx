@@ -28,3 +28,9 @@ test("renders under the light theme contract", () => {
   render(<Button>Light action</Button>);
   expect(screen.getByRole("button", { name: "Light action" })).toBeInTheDocument();
 });
+
+test("primary variant uses the accent color token", () => {
+  render(<Button variant="primary">Save</Button>);
+  const button = screen.getByRole("button", { name: "Save" });
+  expect(button.className).toContain("--accent");
+});

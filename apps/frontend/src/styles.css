@@ -620,8 +620,9 @@ table {
 }
 
 thead tr {
-  background: var(--brand);
-  color: var(--bg);
+  background: var(--surface-subtle);
+  color: var(--text-strong);
+  border-bottom: 1px solid var(--border-strong);
 }
 
 th,
@@ -719,7 +720,7 @@ th.sortable {
 }
 
 th.sortable:hover {
-  background: color-mix(in srgb, var(--brand) 80%, var(--bg));
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface-subtle));
 }
 
 .detail-grid {
