@@ -12,37 +12,52 @@ import { useAuth } from "../hooks/useAuth";
 import { initiateLogin } from "../api/auth";
 import { TreeNav, type NavTreeItem } from "./TreeNav";
 import { isOnboardingComplete } from "../features/onboarding/onboardingState";
+import {
+  Home as HomeIcon,
+  Wrench,
+  Database,
+  Workflow,
+  Network,
+  LayoutDashboard,
+  BellRing,
+  Siren,
+  Settings,
+  Server,
+} from "lucide-react";
 
 function buildNavTree(showGettingStarted: boolean): NavTreeItem[] {
   const base: NavTreeItem[] = [
-    { id: "home", label: "Home", to: "/" },
+    { id: "home", label: "Home", to: "/", icon: HomeIcon },
     {
       id: "setup",
       label: "Setup",
+      icon: Wrench,
       children: [
         { id: "setup-ingest", label: "Ingest", to: "/setup" },
         { id: "setup-llm", label: "LLM", to: "/setup/llm" },
         { id: "setup-tokens", label: "Tokens", to: "/setup/tokens" },
       ],
     },
-    { id: "workbench", label: "Workbench", to: "/workbench" },
-    { id: "services", label: "Services", to: "/services" },
+    { id: "workbench", label: "Workbench", to: "/workbench", icon: Database },
+    { id: "services", label: "Services", to: "/services", icon: Workflow },
     {
       id: "signals",
       label: "Signals",
+      icon: Network,
       children: [
         { id: "traces", label: "Traces", to: "/traces" },
         { id: "logs", label: "Logs", to: "/logs" },
         { id: "metrics", label: "Metrics", to: "/metrics" },
       ],
     },
-    { id: "infrastructure", label: "Infrastructure", to: "/infrastructure" },
-    { id: "dashboards", label: "Dashboards", to: "/dashboards" },
-    { id: "alerts", label: "Alerts & SLOs", to: "/alerts" },
-    { id: "incidents", label: "Incidents", to: "/incidents" },
+    { id: "infrastructure", label: "Infrastructure", to: "/infrastructure", icon: Server },
+    { id: "dashboards", label: "Dashboards", to: "/dashboards", icon: LayoutDashboard },
+    { id: "alerts", label: "Alerts & SLOs", to: "/alerts", icon: BellRing },
+    { id: "incidents", label: "Incidents", to: "/incidents", icon: Siren },
     {
       id: "admin",
       label: "Administration",
+      icon: Settings,
       children: [
         { id: "admin-overview", label: "Overview", to: "/admin" },
         { id: "admin-config", label: "Tenant configuration", to: "/admin/config" },

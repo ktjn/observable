@@ -1,10 +1,12 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useState, useCallback } from "react";
+import type { LucideIcon } from "lucide-react";
 
 export type NavTreeItem = {
   id: string;
   label: string;
   to?: string;
+  icon?: LucideIcon;
   children?: NavTreeItem[];
 };
 
@@ -104,6 +106,8 @@ function TreeNode({
     `${hasActiveDescendant && !isItemActive ? " has-active-child" : ""}` +
     `${depth > 0 ? " indented" : ""}`;
 
+  const Icon = item.icon;
+
   return (
     <div className="tree-node">
       <div className="tree-node-row">
@@ -120,6 +124,7 @@ function TreeNode({
         </span>
         {item.to ? (
           <Link to={item.to} className={linkClass}>
+            {Icon && <Icon className="tree-link-icon" aria-hidden="true" size={14} />}
             {item.label}
           </Link>
         ) : hasChildren ? (
@@ -128,10 +133,14 @@ function TreeNode({
             className={linkClass}
             onClick={() => onToggle(item.id)}
           >
+            {Icon && <Icon className="tree-link-icon" aria-hidden="true" size={14} />}
             {item.label}
           </button>
         ) : (
-          <span className={linkClass}>{item.label}</span>
+          <span className={linkClass}>
+            {Icon && <Icon className="tree-link-icon" aria-hidden="true" size={14} />}
+            {item.label}
+          </span>
         )}
       </div>
       {hasChildren && isExpanded && (

@@ -252,8 +252,14 @@ h1 {
   border-left: 2px solid transparent;
 }
 
-.nav-icon {
-  display: none;
+.tree-link-icon {
+  flex-shrink: 0;
+  margin-right: 6px;
+  color: var(--muted);
+}
+
+.tree-link.active .tree-link-icon {
+  color: var(--accent);
 }
 
 .nav-link:hover {
