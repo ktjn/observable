@@ -254,7 +254,7 @@ export function TraceExplorer({
           <Histogram
             buckets={histogram}
             categoryOrder={["Traces"]}
-            categoryColors={{ Traces: "bg-[var(--brand)]" }}
+            categoryColors={{ Traces: "fill-[var(--brand)]" }}
             format={(ms) => formatBucketLabel(ms, format)}
             onRangeSelect={setCustomRange}
             onBucketCountChange={setBucketCount}

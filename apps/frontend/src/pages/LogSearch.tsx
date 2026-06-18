@@ -37,12 +37,12 @@ const LOG_BASE_IR: NlqIrLike = {
 
 const levelOrder: OTelLevel[] = ["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"];
 const levelBarClasses: Record<OTelLevel, string> = {
-  TRACE: "bg-[var(--muted)]",
-  DEBUG: "bg-[var(--brand)]",
-  INFO: "bg-[var(--good)]",
-  WARN: "bg-[var(--warn)]",
-  ERROR: "bg-[var(--bad)]",
-  FATAL: "bg-[var(--bad)]",
+  TRACE: "fill-[var(--muted)]",
+  DEBUG: "fill-[var(--brand)]",
+  INFO: "fill-[var(--good)]",
+  WARN: "fill-[var(--warn)]",
+  ERROR: "fill-[var(--bad)]",
+  FATAL: "fill-[var(--bad)]",
 };
 const ROW_LIMIT = 500;
 

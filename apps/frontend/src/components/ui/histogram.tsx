@@ -19,6 +19,9 @@ export interface HistogramProps<T extends string> {
   subtitle?: string;
 }
 
+const PLOT_HEIGHT = 96;
+const GAP_PX = 2;
+
 export function Histogram<T extends string>({
   buckets,
   categoryOrder,
@@ -31,8 +34,8 @@ export function Histogram<T extends string>({
   subtitle,
 }: HistogramProps<T>) {
   const max = Math.max(1, ...buckets.map((bucket) => bucket.total));
-  const gridRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
+  const [width, setWidth] = useState(400);
 
   const onBucketCountChangeRef = useRef(onBucketCountChange);
   useEffect(() => {
@@ -44,6 +47,7 @@ export function Histogram<T extends string>({
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
       const w = entry.contentRect.width;
+      setWidth(Math.round(w));
       const count = Math.round(Math.floor(w / 10) / 5) * 5;
       onBucketCountChangeRef.current?.(Math.max(12, Math.min(100, count)));
     });
@@ -51,49 +55,55 @@ export function Histogram<T extends string>({
     return () => ro.disconnect();
   }, []);
 
-  const dragRef = useRef<{ start: number; end: number } | null>(null);
-  const [dragDisplay, setDragDisplay] = useState<{ start: number; end: number } | null>(null);
+  const dragRef = useRef<{ startX: number; endX: number; rectWidth: number } | null>(null);
+  const [dragDisplay, setDragDisplay] = useState<{ startX: number; endX: number } | null>(null);
 
-  const selStart = dragDisplay ? Math.min(dragDisplay.start, dragDisplay.end) : -1;
-  const selEnd = dragDisplay ? Math.max(dragDisplay.start, dragDisplay.end) : -1;
+  const barWidth = buckets.length > 0 ? width / buckets.length : 0;
 
-  function getBucketIndex(clientX: number): number {
-    const el = gridRef.current;
-    if (!el) return 0;
-    const rect = el.getBoundingClientRect();
-    const ratio = (clientX - rect.left) / rect.width;
-    return Math.min(buckets.length - 1, Math.max(0, Math.floor(ratio * buckets.length)));
+  function xToMs(x: number, rectWidth: number): number {
+    const bw = buckets.length > 0 ? rectWidth / buckets.length : 0;
+    if (buckets.length === 0 || bw <= 0) return buckets[0]?.startMs ?? 0;
+    const idx = Math.min(buckets.length - 1, Math.max(0, Math.floor(x / bw)));
+    return buckets[idx].startMs;
   }
 
-  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+  function handlePointerDown(e: React.PointerEvent<SVGSVGElement>) {
     if (!onRangeSelect) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {
       /* jsdom */
     }
-    const idx = getBucketIndex(e.clientX);
-    dragRef.current = { start: idx, end: idx };
-    setDragDisplay({ start: idx, end: idx });
+    dragRef.current = { startX: x, endX: x, rectWidth: rect.width };
+    setDragDisplay({ startX: x, endX: x });
   }
 
-  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+  function handlePointerMove(e: React.PointerEvent<SVGSVGElement>) {
     if (!dragRef.current) return;
-    const idx = getBucketIndex(e.clientX);
-    dragRef.current = { ...dragRef.current, end: idx };
-    setDragDisplay({ ...dragRef.current });
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    dragRef.current = { ...dragRef.current, endX: x };
+    setDragDisplay({ startX: dragRef.current.startX, endX: x });
   }
 
   function handlePointerUp() {
     const drag = dragRef.current;
-    if (drag && onRangeSelect) {
-      const start = Math.min(drag.start, drag.end);
-      const end = Math.max(drag.start, drag.end);
-      onRangeSelect(buckets[start].startMs, buckets[end].endMs);
+    if (drag && onRangeSelect && buckets.length > 0) {
+      const fromMs = xToMs(Math.min(drag.startX, drag.endX), drag.rectWidth);
+      const toMs =
+        xToMs(Math.max(drag.startX, drag.endX), drag.rectWidth) +
+        (buckets[1]?.startMs ?? buckets[0].endMs) -
+        buckets[0].startMs;
+      onRangeSelect(fromMs, toMs);
     }
     dragRef.current = null;
     setDragDisplay(null);
   }
+
+  const selStartX = dragDisplay ? Math.min(dragDisplay.startX, dragDisplay.endX) : -1;
+  const selEndX = dragDisplay ? Math.max(dragDisplay.startX, dragDisplay.endX) : -1;
 
   return (
     <section
@@ -119,11 +129,13 @@ export function Histogram<T extends string>({
         </div>
       )}
       <p className="sr-only">Drag over bars to zoom into a time range.</p>
-      <div
-        ref={gridRef}
-        className="grid h-28 items-end gap-1 select-none cursor-crosshair"
-        style={{ gridTemplateColumns: `repeat(${buckets.length}, 1fr)` }}
+      <svg
+        width="100%"
+        height={PLOT_HEIGHT}
+        viewBox={`0 0 ${width} ${PLOT_HEIGHT}`}
         aria-hidden="true"
+        className="select-none"
+        style={{ cursor: onRangeSelect ? "crosshair" : "default" }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -132,31 +144,51 @@ export function Histogram<T extends string>({
           setDragDisplay(null);
         }}
       >
+        {[0.25, 0.5, 0.75].map((r) => (
+          <line
+            key={r}
+            x1={0}
+            y1={PLOT_HEIGHT * r}
+            x2={width}
+            y2={PLOT_HEIGHT * r}
+            stroke="var(--border)"
+            strokeWidth={0.5}
+          />
+        ))}
+
         {buckets.map((bucket, i) => {
-          const isSelected = dragDisplay !== null && i >= selStart && i <= selEnd;
+          const x = i * barWidth;
+          const isSelected = dragDisplay !== null && x + barWidth / 2 >= selStartX && x + barWidth / 2 <= selEndX;
+          let stackedHeight = 0;
           return (
-            <div
-              key={bucket.startMs}
-              className={`flex h-full flex-col justify-end gap-px ${
-                isSelected ? "bg-[var(--surface-subtle)]" : "bg-[var(--surface-inset)]"
-              }`}
-            >
+            <g key={bucket.startMs}>
+              <rect
+                x={x}
+                y={0}
+                width={Math.max(0, barWidth - GAP_PX)}
+                height={PLOT_HEIGHT}
+                fill={isSelected ? "var(--surface-subtle)" : "var(--surface-inset)"}
+              />
               {categoryOrder.map((cat) => {
                 const count = bucket.categories[cat];
                 if (count === 0) return null;
-                return (
-                  <div
-                    key={cat}
-                    className={categoryColors[cat]}
-                    title={`${format(bucket.startMs)} ${cat}: ${count}`}
-                    style={{ height: `${Math.max(8, (count / max) * 100)}%` }}
-                  />
-                );
+                const segHeight = Math.max(2, (count / max) * PLOT_HEIGHT);
+                const y = PLOT_HEIGHT - stackedHeight - segHeight;
+                stackedHeight += segHeight;
+                const segmentProps = {
+                  x,
+                  y,
+                  width: Math.max(0, barWidth - GAP_PX),
+                  height: segHeight,
+                  className: categoryColors[cat],
+                  title: `${format(bucket.startMs)} ${cat}: ${count}`,
+                } satisfies React.SVGProps<SVGRectElement> & { title: string };
+                return <rect key={cat} {...segmentProps} />;
               })}
-            </div>
+            </g>
           );
         })}
-      </div>
+      </svg>
     </section>
   );
 }
