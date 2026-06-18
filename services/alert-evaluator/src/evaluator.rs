@@ -52,6 +52,23 @@ pub struct CompositeRuleCondition {
     pub right_rule_id: Uuid,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct DeadmanCondition {
+    pub service_name: String,
+    pub window_secs: i64,
+}
+
+pub fn evaluate_deadman(
+    last_seen_secs_ago: Option<i64>,
+    condition: &DeadmanCondition,
+) -> EvalResult {
+    match last_seen_secs_ago {
+        None => EvalResult::Firing,
+        Some(elapsed) if elapsed >= condition.window_secs => EvalResult::Firing,
+        Some(_) => EvalResult::Ok,
+    }
+}
+
 pub fn calculate_burn_rate(
     bad_events: u64,
     total_events: u64,
@@ -959,6 +976,45 @@ mod tests {
         );
         assert_eq!(
             evaluate_burn_rate(15.0, 0.5, 14.4, 1.0, &cond),
+            EvalResult::Ok
+        );
+    }
+
+    fn deadman_cond(window_secs: i64) -> DeadmanCondition {
+        DeadmanCondition {
+            service_name: "checkout".into(),
+            window_secs,
+        }
+    }
+
+    #[test]
+    fn deadman_fires_when_never_seen() {
+        assert_eq!(
+            evaluate_deadman(None, &deadman_cond(300)),
+            EvalResult::Firing
+        );
+    }
+
+    #[test]
+    fn deadman_fires_when_stale() {
+        assert_eq!(
+            evaluate_deadman(Some(301), &deadman_cond(300)),
+            EvalResult::Firing
+        );
+    }
+
+    #[test]
+    fn deadman_fires_exactly_at_boundary() {
+        assert_eq!(
+            evaluate_deadman(Some(300), &deadman_cond(300)),
+            EvalResult::Firing
+        );
+    }
+
+    #[test]
+    fn deadman_ok_when_fresh() {
+        assert_eq!(
+            evaluate_deadman(Some(10), &deadman_cond(300)),
             EvalResult::Ok
         );
     }
