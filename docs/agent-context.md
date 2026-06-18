@@ -57,6 +57,7 @@ making changes.
   - `archived/plans/2026-06-14-slos-modelable-migration.md` — Phase 3.5: slos domain
   - `archived/plans/2026-06-15-nlq-visualization-modelable-migration.md` — Phase 3.9: nlq/visualization domain (last regular Phase 3 domain)
   - `archived/plans/2026-05-26-p4-s9-boundary-security-review.md` — P4-S9 boundary security review; two NLQ SQL identifier-injection fixes; findings at `docs/security-review-p4-s9.md`
+  - `archived/plans/2026-06-18-frontend-design-system-modernization.md` — frontend design-system modernization across theme tokens, sidebar icons, themed selects, button/table polish, histogram SVG rendering, shared TopologyMap theming, and cross-theme visual verification (COMPLETED 2026-06-18)
 - Historical Phase 1 plan: `archived/plans/2026-04-17-phase1-internal-mvp.md`; do not treat it as an active backlog.
 - Historical Phases 2-8 plan: merged into the active roadmap above. The old `2026-04-18-phases2-8-iteration-plan.md` file has been removed.
 - Architecture decisions: `spec/adr/`.

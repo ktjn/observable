@@ -17,7 +17,7 @@ vi.mock("@tanstack/react-query", () => ({
       return { data: { tenants: [{ id: "test-tenant", name: "observable" }] } };
     }
     if (queryKey[0] === "environments") {
-      return { data: { environments: [] } };
+      return { data: { environments: [{ environment: "prod" }] } };
     }
     return { data: undefined };
   },
@@ -93,5 +93,23 @@ describe("AppShell navigation", () => {
 
     expect(screen.getByRole("link", { name: "Workbench" })).toHaveAttribute("href", "/workbench");
     expect(screen.queryByRole("link", { name: "Ask (NLQ)" })).not.toBeInTheDocument();
+  });
+
+  test("does not emit React key warnings for context selects", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      render(<AppShell />);
+
+      expect(consoleError.mock.calls).not.toEqual(
+        expect.arrayContaining([
+          expect.arrayContaining([
+            expect.stringContaining('Each child in a list should have a unique "key" prop.'),
+          ]),
+        ]),
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });

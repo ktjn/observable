@@ -28,7 +28,7 @@
 **Interfaces:**
 - Produces: new CSS custom properties `--accent`, `--accent-strong`, `--accent-bg`, `--shadow-sm`, `--shadow-md`, `--radius-sm`, `--radius-md` on `:root`, `:root[data-theme="dark"]`, and `:root[data-theme="vt220"]`. All later tasks reference these exact names.
 
-- [ ] **Step 1: Add new tokens to the light theme (`:root`)**
+- [x] **Step 1: Add new tokens to the light theme (`:root`)**
 
 In `apps/frontend/src/styles.css`, inside the `:root { ... }` block (currently ends at line 45 with `font-family: ...;`), add before the closing `}`:
 
@@ -53,7 +53,7 @@ with:
   --shadow-control: var(--shadow-sm);
 ```
 
-- [ ] **Step 2: Add matching tokens to the dark theme**
+- [x] **Step 2: Add matching tokens to the dark theme**
 
 In the `:root[data-theme="dark"] { ... }` block, add the same four new properties with dark-appropriate values, and update the two `--shadow-*` lines the same way:
 
@@ -71,7 +71,7 @@ In the `:root[data-theme="dark"] { ... }` block, add the same four new propertie
   --shadow-control: var(--shadow-sm);
 ```
 
-- [ ] **Step 3: Add matching tokens to the vt220 theme (amber accent, not blue)**
+- [x] **Step 3: Add matching tokens to the vt220 theme (amber accent, not blue)**
 
 In the `:root[data-theme="vt220"] { ... }` block, add (vt220 keeps its amber identity for `--accent` per the approved spec — do not use blue here):
 
@@ -89,7 +89,7 @@ In the `:root[data-theme="vt220"] { ... }` block, add (vt220 keeps its amber ide
   --shadow-control: var(--shadow-sm);
 ```
 
-- [ ] **Step 4: Bump the base type scale**
+- [x] **Step 4: Bump the base type scale**
 
 Replace:
 ```css
@@ -121,7 +121,7 @@ with a standard (non-condensed) UI sans stack:
 
 Leave the dark theme's font-family unset (it inherits the `:root` value) and leave the vt220 theme's `font-family: "Glass TTY VT220", "IBM Plex Mono", monospace;` line untouched — vt220 keeps its monospace identity.
 
-- [ ] **Step 4b: Re-check small label classes for the new non-condensed font**
+- [x] **Step 4b: Re-check small label classes for the new non-condensed font**
 
 `.field-label`, `.metric-label`, and `.facet-title` were sized for a condensed font at 9px (`styles.css:199-204`, `:753-760`). With the body font now non-condensed, bump these to stay legible without growing the layout too much. Replace:
 ```css
@@ -165,7 +165,7 @@ with:
 ```
 (Letter-spacing reduced slightly since the new font is wider than the condensed one at the same tracking.)
 
-- [ ] **Step 5: Apply elevation + radius to panels**
+- [x] **Step 5: Apply elevation + radius to panels**
 
 Replace:
 ```css
@@ -184,7 +184,7 @@ with:
 }
 ```
 
-- [ ] **Step 6: Apply tabular-nums to numeric table cells**
+- [x] **Step 6: Apply tabular-nums to numeric table cells**
 
 Add a new rule directly after the existing `th, td { ... }` block in `styles.css`:
 
@@ -197,7 +197,7 @@ td.numeric {
 
 (This targets the existing `.strong-cell` class already used for emphasized numeric values; `td.numeric` is a hook for any cell a later task wants to opt into tabular alignment — no caller needs to add it yet.)
 
-- [ ] **Step 7: Verify nothing broke and capture a baseline**
+- [x] **Step 7: Verify nothing broke and capture a baseline**
 
 Run:
 ```bash
@@ -207,7 +207,7 @@ npm run test:visual
 ```
 Expected: all existing Vitest and Playwright tests still pass (this task only adds/edits CSS values, no markup or class-name changes). Review the regenerated screenshots in `apps/frontend/e2e/screenshots/` — panels should now show a subtle shadow and rounded corners; body text should be visibly larger and in a non-condensed font.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/frontend/src/styles.css
@@ -229,7 +229,7 @@ git commit -m "feat(frontend): add accent/elevation/radius tokens and bump base 
 - Consumes: nothing from earlier tasks (token names from Task 1 are not required here).
 - Produces: `NavTreeItem.icon?: LucideIcon` field; later tasks do not depend on this.
 
-- [ ] **Step 1: Install lucide-react**
+- [x] **Step 1: Install lucide-react**
 
 ```bash
 cd apps/frontend
@@ -238,7 +238,7 @@ npm install lucide-react@latest
 
 Confirm the resolved version lands in `package.json` under `dependencies` and `package-lock.json` is updated.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 In `apps/frontend/src/components/TreeNav.test.tsx`, add (near the top, after the existing imports) an icon import and a new test item, then a new test:
 
@@ -268,7 +268,7 @@ Add a new test at the end of the `describe("TreeNav", ...)` block:
   });
 ```
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [x] **Step 3: Run the test to verify it fails**
 
 ```bash
 cd apps/frontend
@@ -276,7 +276,7 @@ npx vitest run src/components/TreeNav.test.tsx
 ```
 Expected: FAIL — `NavTreeItem` has no `icon` property (TypeScript) and/or `homeLink.querySelector("svg")` is null.
 
-- [ ] **Step 4: Add the `icon` field to `NavTreeItem` and render it in `TreeNode`**
+- [x] **Step 4: Add the `icon` field to `NavTreeItem` and render it in `TreeNode`**
 
 In `apps/frontend/src/components/TreeNav.tsx`, update the type and import:
 
@@ -336,7 +336,7 @@ In `TreeNode`, render the icon before the label in all three branches (`Link`, `
       </div>
 ```
 
-- [ ] **Step 5: Add the icon layout CSS**
+- [x] **Step 5: Add the icon layout CSS**
 
 In `apps/frontend/src/styles.css`, replace:
 ```css
@@ -374,7 +374,7 @@ Also update `.tree-link` (and `.nav-link`, used by the older nav-list system if 
 ```
 (This is the existing rule at `styles.css:318-329` — it's already `display: flex; align-items: center;`, so only confirm it, no change needed if so; otherwise add the two missing properties.)
 
-- [ ] **Step 6: Run the test to verify it passes**
+- [x] **Step 6: Run the test to verify it passes**
 
 ```bash
 cd apps/frontend
@@ -382,7 +382,7 @@ npx vitest run src/components/TreeNav.test.tsx
 ```
 Expected: PASS.
 
-- [ ] **Step 7: Wire real icons into the nav tree in AppShell**
+- [x] **Step 7: Wire real icons into the nav tree in AppShell**
 
 In `apps/frontend/src/components/AppShell.tsx`, add the import:
 
@@ -454,7 +454,7 @@ function buildNavTree(showGettingStarted: boolean): NavTreeItem[] {
 
 (Children items keep no icon — only top-level entries get one, matching the visual density of competitor sidebars without doubling up icons at every depth.)
 
-- [ ] **Step 8: Run the full frontend test suite and the visual suite**
+- [x] **Step 8: Run the full frontend test suite and the visual suite**
 
 ```bash
 cd apps/frontend
@@ -463,7 +463,7 @@ npm run test:visual
 ```
 Expected: all pass. Review screenshots — every top-level sidebar item should now show an icon to the left of its label.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add apps/frontend/package.json apps/frontend/package-lock.json apps/frontend/src/components/TreeNav.tsx apps/frontend/src/components/TreeNav.test.tsx apps/frontend/src/components/AppShell.tsx apps/frontend/src/styles.css
@@ -484,7 +484,7 @@ git commit -m "feat(frontend): add lucide-react sidebar icons"
 - Consumes: `--accent`, `--radius-sm`, `--shadow-control` from Task 1.
 - Produces: a `.themed-select` CSS class other tasks/pages can apply to any native `<select>` for consistent appearance (no JS API — pure class).
 
-- [ ] **Step 1: Read the existing tests so the refactor doesn't break them**
+- [x] **Step 1: Read the existing tests so the refactor doesn't break them**
 
 ```bash
 cd apps/frontend
@@ -492,7 +492,7 @@ npx vitest run src/components/AppShell.test.tsx src/components/GlobalDateRangePi
 ```
 Expected: PASS (establish the baseline before changing anything). Note which queries are used (e.g. `getByLabelText("Theme preference")`, `getByLabelText("Global time range")`) so the markup changes in this task preserve those `aria-label`s and `role="combobox"` semantics — native `<select>` stays a `<select>`, only its CSS appearance changes.
 
-- [ ] **Step 2: Add the shared `.themed-select` class**
+- [x] **Step 2: Add the shared `.themed-select` class**
 
 In `apps/frontend/src/styles.css`, replace the existing `.search-input, .select-input { ... }` block:
 
@@ -546,7 +546,7 @@ with:
 
 (This is a CSS-only chevron built from two gradients — no extra icon asset needed — so it themes automatically via `var(--muted)`/`var(--accent)` per theme.)
 
-- [ ] **Step 3: Apply `.themed-select` and remove inline style overrides in `AppShell.tsx`**
+- [x] **Step 3: Apply `.themed-select` and remove inline style overrides in `AppShell.tsx`**
 
 Replace the four `<select>` elements in `apps/frontend/src/components/AppShell.tsx` (theme preference, time display format, tenant, environment) — drop every inline `style={{...}}` prop and use the new class instead. Example for the theme select (lines 127-136):
 
@@ -575,7 +575,7 @@ Apply the same pattern (drop `style`, set `className="context-pill themed-select
 }
 ```
 
-- [ ] **Step 4: Apply the same treatment in `GlobalDateRangePicker.tsx`**
+- [x] **Step 4: Apply the same treatment in `GlobalDateRangePicker.tsx`**
 
 Replace the `<select>` at lines 26-36:
 
@@ -594,7 +594,7 @@ Replace the `<select>` at lines 26-36:
   );
 ```
 
-- [ ] **Step 5: Re-run the existing tests to confirm no regressions**
+- [x] **Step 5: Re-run the existing tests to confirm no regressions**
 
 ```bash
 cd apps/frontend
@@ -602,7 +602,7 @@ npx vitest run src/components/AppShell.test.tsx src/components/GlobalDateRangePi
 ```
 Expected: PASS — these tests query by `aria-label`/role, which is unchanged; only `className`/`style` changed.
 
-- [ ] **Step 6: Run the visual suite**
+- [x] **Step 6: Run the visual suite**
 
 ```bash
 cd apps/frontend
@@ -610,7 +610,7 @@ npm run test:visual
 ```
 Expected: all pass. Review screenshots — topbar selects and the sidebar theme picker should show a custom chevron instead of the native OS dropdown arrow, with rounded corners.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/frontend/src/styles.css apps/frontend/src/components/AppShell.tsx apps/frontend/src/components/GlobalDateRangePicker.tsx
@@ -630,7 +630,7 @@ git commit -m "feat(frontend): style native select controls with themed chevron 
 - Consumes: `--accent`, `--accent-strong` from Task 1.
 - Produces: no new exports — `Button`'s `primary` variant now visually maps to `--accent` instead of `--brand`; signature unchanged.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 In `apps/frontend/src/components/ui/button.test.tsx`, add:
 
@@ -642,7 +642,7 @@ test("primary variant uses the accent color token", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 cd apps/frontend
@@ -650,7 +650,7 @@ npx vitest run src/components/ui/button.test.tsx
 ```
 Expected: FAIL — current `primary` class string contains `--brand`, not `--accent`.
 
-- [ ] **Step 3: Update the `primary` variant**
+- [x] **Step 3: Update the `primary` variant**
 
 In `apps/frontend/src/components/ui/button.tsx`, replace:
 
@@ -666,7 +666,7 @@ with:
     "bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)] disabled:bg-[var(--surface-subtle)] disabled:text-[var(--muted)]",
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 ```bash
 cd apps/frontend
@@ -674,7 +674,7 @@ npx vitest run src/components/ui/button.test.tsx
 ```
 Expected: PASS.
 
-- [ ] **Step 5: Soften the table header**
+- [x] **Step 5: Soften the table header**
 
 In `apps/frontend/src/styles.css`, replace:
 
@@ -703,7 +703,7 @@ th.sortable:hover {
 }
 ```
 
-- [ ] **Step 6: Run the full frontend test suite and visual suite**
+- [x] **Step 6: Run the full frontend test suite and visual suite**
 
 ```bash
 cd apps/frontend
@@ -712,7 +712,7 @@ npm run test:visual
 ```
 Expected: all pass. Review screenshots — table headers should be a tinted gray (not solid black) with dark text, and primary buttons ("Apply query", "New Rule", "Promote to dashboard" wherever they use `<Button variant="primary">`) should show the new accent color. Note: if some of those buttons are currently raw `<button className="...">` rather than `<Button>`, they will not pick up this change — that's expected and out of scope for this task (flagged for the follow-up plan, not a regression).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/frontend/src/components/ui/button.tsx apps/frontend/src/components/ui/button.test.tsx apps/frontend/src/styles.css
@@ -731,7 +731,7 @@ git commit -m "feat(frontend): use accent token for primary buttons, soften tabl
 - Consumes: nothing new from earlier tasks (uses existing `--border`, `--surface`, `--muted`, `--text-strong`, `--surface-inset`, `--surface-subtle` tokens already defined).
 - Produces: same exported `Histogram<T>` component and `HistogramProps<T>`/`HistogramBucket<T>` types — signature unchanged. Internal rendering becomes SVG `<rect>` bars instead of CSS grid `<div>`s, but every per-segment element keeps a `title` attribute formatted exactly as `` `${format(bucket.startMs)} ${cat}: ${count}` `` (required by `TraceSearch.test.tsx`/`LogSearch.test.tsx`).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `apps/frontend/src/components/ui/histogram.test.tsx`:
 
@@ -798,7 +798,7 @@ describe("Histogram", () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 ```bash
 cd apps/frontend
@@ -806,7 +806,7 @@ npx vitest run src/components/ui/histogram.test.tsx
 ```
 Expected: FAIL — current implementation renders `<div>` bars with `gridTemplateColumns`, not an `<svg>`, so `group.querySelector("svg")` is null.
 
-- [ ] **Step 3: Rewrite `histogram.tsx` as SVG**
+- [x] **Step 3: Rewrite `histogram.tsx` as SVG**
 
 Replace the full contents of `apps/frontend/src/components/ui/histogram.tsx`:
 
@@ -1007,7 +1007,7 @@ export function Histogram<T extends string>({
 
 Note: `categoryColors` values are now expected to be Tailwind `fill-[var(--xxx)]` class strings (rather than `bg-[var(--xxx)]`) since they're applied to SVG `<rect>` elements — Task 5's Step 5 below updates the two real call sites (`TraceSearch.tsx`, `LogSearch.tsx`).
 
-- [ ] **Step 4: Run the histogram tests to verify they pass**
+- [x] **Step 4: Run the histogram tests to verify they pass**
 
 ```bash
 cd apps/frontend
@@ -1015,7 +1015,7 @@ npx vitest run src/components/ui/histogram.test.tsx
 ```
 Expected: PASS.
 
-- [ ] **Step 5: Update the two callers' category color classes**
+- [x] **Step 5: Update the two callers' category color classes**
 
 ```bash
 cd apps/frontend
@@ -1024,7 +1024,7 @@ grep -rn "categoryColors" src/pages/TraceSearch.tsx src/pages/LogSearch.tsx
 
 For each `categoryColors` object literal found, change every value from a `bg-[var(--x)]` string to the equivalent `fill-[var(--x)]` string (same CSS variable, just swap the Tailwind utility prefix from `bg-` to `fill-`).
 
-- [ ] **Step 6: Run the dependent page tests**
+- [x] **Step 6: Run the dependent page tests**
 
 ```bash
 cd apps/frontend
@@ -1032,7 +1032,7 @@ npx vitest run src/pages/TraceSearch.test.tsx src/pages/LogSearch.test.tsx
 ```
 Expected: PASS — `histogram.querySelector("[title*='Traces: 1']")` still matches because the `title` attribute format is unchanged.
 
-- [ ] **Step 7: Run the full frontend test suite and visual suite**
+- [x] **Step 7: Run the full frontend test suite and visual suite**
 
 ```bash
 cd apps/frontend
@@ -1041,7 +1041,7 @@ npm run test:visual
 ```
 Expected: all pass. Review the Traces/Logs page screenshots — the "over time" histogram should now render as SVG bars with visible horizontal gridlines instead of plain CSS divs (visually this preserves the same stacked-bar look but is now SVG-based, ready for future axis-label/tooltip additions).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/frontend/src/components/ui/histogram.tsx apps/frontend/src/components/ui/histogram.test.tsx apps/frontend/src/pages/TraceSearch.tsx apps/frontend/src/pages/LogSearch.tsx
@@ -1060,7 +1060,7 @@ git commit -m "feat(frontend): rebuild histogram as SVG with gridlines"
 - Consumes: `--surface`, `--surface-raised`, `--border`, `--border-strong`, `--text`, `--muted`, `--accent`, `--bad`, `--radius-md` tokens.
 - Produces: same exported `TopologyMap`/`TopologyMapProps` signature — no change. New behavior: renders a legend and an empty-state message when `services.length <= 1`; no functional change to the force simulation, drag, zoom, or click handlers.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `apps/frontend/src/components/topology/TopologyMap.test.tsx`:
 
@@ -1136,7 +1136,7 @@ describe("TopologyMap", () => {
 
 Check `apps/frontend/src/api/services.ts` for the exact `TopologyEdge` field names before running — if they differ from `caller`/`callee`/`request_count`/`error_rate`/`p95_latency_ms`, adjust the test to match the real type (the implementation file already uses these exact field names at `TopologyMap.tsx:241-295`, so they should match).
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 ```bash
 cd apps/frontend
@@ -1144,7 +1144,7 @@ npx vitest run src/components/topology/TopologyMap.test.tsx
 ```
 Expected: FAIL — no empty-state text or legend exists yet.
 
-- [ ] **Step 3: Add the empty-state and legend, and replace hardcoded colors**
+- [x] **Step 3: Add the empty-state and legend, and replace hardcoded colors**
 
 In `apps/frontend/src/components/topology/TopologyMap.tsx`:
 
@@ -1249,7 +1249,7 @@ d) Wrap the returned JSX with a legend and an empty-state branch. Replace the fi
 
 (Keep everything from the existing `<svg ref={svgRef} ...>` line through the closing `</svg>` and outer `</div>` exactly as it is today, aside from the color substitutions in steps a-c — only the opening wrapper changes, plus the new early-return branch above it.)
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 ```bash
 cd apps/frontend
@@ -1257,7 +1257,7 @@ npx vitest run src/components/topology/TopologyMap.test.tsx
 ```
 Expected: PASS.
 
-- [ ] **Step 5: Run the full frontend test suite and visual suite**
+- [x] **Step 5: Run the full frontend test suite and visual suite**
 
 ```bash
 cd apps/frontend
@@ -1266,7 +1266,7 @@ npm run test:visual
 ```
 Expected: all pass. Review the Services Topology screenshot (`nav-services-topology.png`) — with the current single-node mock data it should now show the "No service dependencies detected yet." empty state instead of a lone circle on a black canvas. If you want to see the populated graph+legend rendering, temporarily mock 2+ edges in `e2e/navigation.spec.ts`'s topology test data, screenshot, then revert the temporary mock change (do not commit a mock-data change as part of this task unless the spec is updated to require expanded topology test coverage).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/frontend/src/components/topology/TopologyMap.tsx apps/frontend/src/components/topology/TopologyMap.test.tsx
@@ -1284,7 +1284,7 @@ git commit -m "feat(frontend): theme topology map colors, add legend and empty s
 - Consumes: all visual changes from Tasks 1-6.
 - Produces: a confirmation note (no code) that all three themes render correctly; do not proceed to declare the feature done without this.
 
-- [ ] **Step 1: Run the full suite once more for the default theme**
+- [x] **Step 1: Run the full suite once more for the default theme**
 
 ```bash
 cd apps/frontend
@@ -1293,7 +1293,7 @@ npm run test:visual
 ```
 Expected: all pass.
 
-- [ ] **Step 2: Capture dark-theme screenshots**
+- [x] **Step 2: Capture dark-theme screenshots**
 
 The visual suite doesn't currently parameterize by theme. Temporarily force dark theme by adding `await page.addInitScript(() => localStorage.setItem("observable.theme", "dark"));` at the top of the `test.beforeEach` (or equivalent setup) in `apps/frontend/e2e/visual.spec.ts`, then run:
 ```bash
@@ -1302,11 +1302,11 @@ npm run test:visual
 ```
 Review all six route screenshots for the dark theme: confirm shadows/radius/icons/accent color render correctly against the dark palette, confirm text remains readable (no low-contrast regressions from the new `--accent`/`--shadow-*` values).
 
-- [ ] **Step 3: Capture vt220-theme screenshots**
+- [x] **Step 3: Capture vt220-theme screenshots**
 
 Change the same line to `localStorage.setItem("observable.theme", "vt220")`, run `npm run test:visual` again, and review all six screenshots for the vt220 theme: confirm the amber `--accent` renders correctly, the monospace font is undisturbed, and shadows/radius look intentional rather than out of place against the CRT aesthetic.
 
-- [ ] **Step 4: Revert the temporary test change**
+- [x] **Step 4: Revert the temporary test change**
 
 ```bash
 cd apps/frontend
@@ -1315,6 +1315,6 @@ npm run test:visual
 ```
 Expected: back to light-theme screenshots, all passing — confirms the temporary diagnostic edit didn't get committed.
 
-- [ ] **Step 5: Note any theme-specific follow-ups**
+- [x] **Step 5: Note any theme-specific follow-ups**
 
 If Steps 2-3 reveal a contrast or layout issue specific to dark/vt220 that isn't a quick fix, do not silently skip it — fix it now if small (e.g. a single token value), or stop and flag it to the user with the specific screenshot/issue before considering this plan complete.

@@ -12,7 +12,7 @@ async function mockAuth(page: import("@playwright/test").Page) {
     route.fulfill({ json: { tenants: [{ id: "00000000-0000-0000-0000-000000000001", name: "observable" }] } })
   );
   await page.route("**/v1/tenants/**/environments", (route) =>
-    route.fulfill({ json: { environments: ["prod"] } })
+    route.fulfill({ json: { environments: [{ environment: "prod" }] } })
   );
 }
 
