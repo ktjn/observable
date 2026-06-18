@@ -331,9 +331,9 @@ test.describe("panel overflow (regression)", () => {
     await page.setViewportSize({ width: 1600, height: 900 });
     await mockAuth(page);
     const manyAttrs: Record<string, string> = {};
-    for (let i = 0; i < 30; i++) manyAttrs[`span.attr.${i}`] = `value-${i}`;
+    for (let i = 0; i < 60; i++) manyAttrs[`span.attr.${i}`] = `value-${i}`;
     const resourceAttrs: Record<string, string> = {};
-    for (let i = 0; i < 10; i++) resourceAttrs[`resource.${i}`] = `val-${i}`;
+    for (let i = 0; i < 30; i++) resourceAttrs[`resource.${i}`] = `val-${i}`;
 
     await page.route(`**/v1/traces/${TRACE_ID}`, (route) =>
       route.fulfill({
