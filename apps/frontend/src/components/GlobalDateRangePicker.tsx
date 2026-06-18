@@ -25,10 +25,9 @@ export function GlobalDateRangePicker() {
   return (
     <select
       aria-label="Global time range"
-      className="context-pill"
+      className="context-pill themed-select"
       value={preset}
       onChange={(e) => setPreset(e.target.value as typeof preset)}
-      style={{ cursor: "pointer", background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "var(--radius, 4px)", padding: "2px 6px", fontSize: "inherit" }}
     >
       {PRESET_OPTIONS.map((opt) => (
         <option key={opt.value} value={opt.value}>{opt.label}</option>

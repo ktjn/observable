@@ -12,37 +12,52 @@ import { useAuth } from "../hooks/useAuth";
 import { initiateLogin } from "../api/auth";
 import { TreeNav, type NavTreeItem } from "./TreeNav";
 import { isOnboardingComplete } from "../features/onboarding/onboardingState";
+import {
+  Home as HomeIcon,
+  Wrench,
+  Database,
+  Workflow,
+  Network,
+  LayoutDashboard,
+  BellRing,
+  Siren,
+  Settings,
+  Server,
+} from "lucide-react";
 
 function buildNavTree(showGettingStarted: boolean): NavTreeItem[] {
   const base: NavTreeItem[] = [
-    { id: "home", label: "Home", to: "/" },
+    { id: "home", label: "Home", to: "/", icon: HomeIcon },
     {
       id: "setup",
       label: "Setup",
+      icon: Wrench,
       children: [
         { id: "setup-ingest", label: "Ingest", to: "/setup" },
         { id: "setup-llm", label: "LLM", to: "/setup/llm" },
         { id: "setup-tokens", label: "Tokens", to: "/setup/tokens" },
       ],
     },
-    { id: "workbench", label: "Workbench", to: "/workbench" },
-    { id: "services", label: "Services", to: "/services" },
+    { id: "workbench", label: "Workbench", to: "/workbench", icon: Database },
+    { id: "services", label: "Services", to: "/services", icon: Workflow },
     {
       id: "signals",
       label: "Signals",
+      icon: Network,
       children: [
         { id: "traces", label: "Traces", to: "/traces" },
         { id: "logs", label: "Logs", to: "/logs" },
         { id: "metrics", label: "Metrics", to: "/metrics" },
       ],
     },
-    { id: "infrastructure", label: "Infrastructure", to: "/infrastructure" },
-    { id: "dashboards", label: "Dashboards", to: "/dashboards" },
-    { id: "alerts", label: "Alerts & SLOs", to: "/alerts" },
-    { id: "incidents", label: "Incidents", to: "/incidents" },
+    { id: "infrastructure", label: "Infrastructure", to: "/infrastructure", icon: Server },
+    { id: "dashboards", label: "Dashboards", to: "/dashboards", icon: LayoutDashboard },
+    { id: "alerts", label: "Alerts & SLOs", to: "/alerts", icon: BellRing },
+    { id: "incidents", label: "Incidents", to: "/incidents", icon: Siren },
     {
       id: "admin",
       label: "Administration",
+      icon: Settings,
       children: [
         { id: "admin-overview", label: "Overview", to: "/admin" },
         { id: "admin-config", label: "Tenant configuration", to: "/admin/config" },
@@ -126,9 +141,9 @@ export function AppShell() {
           <div className="field-label">Theme</div>
           <select
             aria-label="Theme preference"
+            className="themed-select"
             value={preference}
             onChange={(e) => setPreference(e.target.value as ThemePreference)}
-            style={{ cursor: "pointer", background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border-strong)", padding: "2px 6px", fontSize: "inherit", width: "100%" }}
           >
             {themeOptions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
@@ -144,10 +159,9 @@ export function AppShell() {
             <GlobalDateRangePicker />
             <select
               aria-label="Time display format"
-              className="context-pill"
+              className="context-pill themed-select"
               value={format}
               onChange={(e) => setFormat(e.target.value as typeof format)}
-              style={{ cursor: "pointer", background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "var(--radius, 4px)", padding: "2px 6px", fontSize: "inherit" }}
             >
               {TIME_FORMAT_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -155,7 +169,7 @@ export function AppShell() {
             </select>
             <select
               aria-label="Tenant"
-              className="context-pill"
+              className="context-pill themed-select"
               value={tenantId}
               onChange={(e) => {
                 const selected = tenants.find((t) => t.id === e.target.value);
@@ -164,7 +178,6 @@ export function AppShell() {
                   window.location.reload();
                 }
               }}
-              style={{ cursor: "pointer", background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "var(--radius, 4px)", padding: "2px 6px", fontSize: "inherit", maxWidth: "10rem" }}
             >
               {tenants.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
@@ -172,13 +185,12 @@ export function AppShell() {
             </select>
             <select
               aria-label="Environment"
-              className="context-pill"
+              className="context-pill themed-select"
               value={environment ?? ""}
               onChange={(e) => {
                 setEnvironment(e.target.value === "" ? null : e.target.value);
                 window.location.reload();
               }}
-              style={{ cursor: "pointer", background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "var(--radius, 4px)", padding: "2px 6px", fontSize: "inherit", maxWidth: "9rem" }}
             >
               <option value="">All envs</option>
               {environments.map((env) => (

@@ -34,14 +34,21 @@
   --bad: #bb0000;
   --bad-bg: #f7f0f0;
   --info-bg: #f0f0f7;
-  --shadow-panel: none;
-  --shadow-control: none;
+  --shadow-panel: var(--shadow-sm);
+  --shadow-control: var(--shadow-sm);
   --text-muted: #666666;
   --bg-input: #ffffff;
   --danger-text: #bb0000;
   --danger-border: #e0b0b0;
   --danger-bg: #fdf0f0;
-  font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', Arial, sans-serif;
+  --accent: #4f46e5;
+  --accent-strong: #4338ca;
+  --accent-bg: #eef2ff;
+  --shadow-sm: 0 1px 2px rgba(17, 17, 17, 0.06);
+  --shadow-md: 0 4px 12px rgba(17, 17, 17, 0.12);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 :root[data-theme="dark"] {
@@ -67,13 +74,20 @@
   --bad: #ff5555;
   --bad-bg: #2a0a0a;
   --info-bg: #0a1f0a;
-  --shadow-panel: none;
-  --shadow-control: none;
+  --shadow-panel: var(--shadow-sm);
+  --shadow-control: var(--shadow-sm);
   --text-muted: #1a9a1a;
   --bg-input: #020a02;
   --danger-text: #ff5555;
   --danger-border: #5a1a1a;
   --danger-bg: #2a0a0a;
+  --accent: #0a7a5c;
+  --accent-strong: #0b8c60;
+  --accent-bg: #062a1f;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --radius-sm: 4px;
+  --radius-md: 8px;
 }
 
 :root[data-theme="vt220"] {
@@ -99,13 +113,20 @@
   --bad: #FF5533;
   --bad-bg: #2a0d00;
   --info-bg: #1a1a00;
-  --shadow-panel: none;
-  --shadow-control: none;
+  --shadow-panel: var(--shadow-sm);
+  --shadow-control: var(--shadow-sm);
   --text-muted: #AA7700;
   --bg-input: #141410;
   --danger-text: #FF5533;
   --danger-border: #5a2010;
   --danger-bg: #2a0d00;
+  --accent: #FFB000;
+  --accent-strong: #FFD050;
+  --accent-bg: #2a2200;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
+  --radius-sm: 4px;
+  --radius-md: 8px;
   font-family: "Glass TTY VT220", "IBM Plex Mono", monospace;
 }
 
@@ -146,7 +167,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-size: 11px;
+  font-size: 13px;
 }
 
 button,
@@ -200,7 +221,7 @@ h1 {
 .field-label,
 .metric-label {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .field-label {
@@ -231,8 +252,14 @@ h1 {
   border-left: 2px solid transparent;
 }
 
-.nav-icon {
-  display: none;
+.tree-link-icon {
+  flex-shrink: 0;
+  margin-right: 6px;
+  color: var(--muted);
+}
+
+.tree-link.active .tree-link-icon {
+  color: var(--accent);
 }
 
 .nav-link:hover {
@@ -485,7 +512,8 @@ button.tree-link:hover {
 }
 
 .search-input,
-.select-input {
+.select-input,
+.themed-select {
   min-height: 28px;
   border: 1px solid var(--border-strong);
   background: var(--surface-raised);
@@ -493,6 +521,33 @@ button.tree-link:hover {
   padding: 0 8px;
   font-family: 'IBM Plex Mono', 'Courier New', monospace;
   font-size: 11px;
+  border-radius: var(--radius-sm);
+}
+
+.themed-select {
+  appearance: none;
+  padding-right: 24px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) center,
+    calc(100% - 9px) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+.themed-select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
+
+.context-pill.themed-select[aria-label="Tenant"] {
+  max-width: 10rem;
+}
+
+.context-pill.themed-select[aria-label="Environment"] {
+  max-width: 9rem;
 }
 
 .search-input {
@@ -502,6 +557,8 @@ button.tree-link:hover {
 .modern-panel {
   background: var(--surface-raised);
   border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-panel);
 }
 
 .modern-panel-header {
@@ -563,8 +620,9 @@ table {
 }
 
 thead tr {
-  background: var(--brand);
-  color: var(--bg);
+  background: var(--surface-subtle);
+  color: var(--text-strong);
+  border-bottom: 1px solid var(--border-strong);
 }
 
 th,
@@ -573,6 +631,11 @@ td {
   border-bottom: 1px solid var(--border);
   text-align: left;
   white-space: nowrap;
+}
+
+.strong-cell,
+td.numeric {
+  font-variant-numeric: tabular-nums;
 }
 
 th {
@@ -588,6 +651,7 @@ tbody tr:nth-child(even) td {
 
 .strong-cell {
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .trace-explorer-page {
@@ -656,7 +720,7 @@ th.sortable {
 }
 
 th.sortable:hover {
-  background: color-mix(in srgb, var(--brand) 80%, var(--bg));
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface-subtle));
 }
 
 .detail-grid {
@@ -752,10 +816,10 @@ th.sortable:hover {
 
 .facet-title {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
   margin-bottom: 6px;
 }
 

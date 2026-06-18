@@ -1,9 +1,10 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { expect, test, vi, describe, beforeEach } from "vitest";
+import { Home } from "lucide-react";
 import { TreeNav, type NavTreeItem } from "./TreeNav";
 
 const testItems: NavTreeItem[] = [
-  { id: "home", label: "Home", to: "/" },
+  { id: "home", label: "Home", to: "/", icon: Home },
   { id: "setup", label: "Setup", to: "/setup" },
   {
     id: "signals",
@@ -130,5 +131,19 @@ describe("TreeNav", () => {
 
     expect(screen.getByText("Signals").closest("a")).toBeNull();
     expect(screen.getByText("Signals").closest("button")).toBeInTheDocument();
+  });
+
+  test("renders an icon when item.icon is provided", () => {
+    render(<TreeNav items={testItems} pathname="/" />);
+
+    const homeLink = screen.getByText("Home").closest("a")!;
+    expect(homeLink.querySelector("svg")).toBeInTheDocument();
+  });
+
+  test("renders no icon element when item.icon is omitted", () => {
+    render(<TreeNav items={testItems} pathname="/" />);
+
+    const setupLink = screen.getByText("Setup").closest("a")!;
+    expect(setupLink.querySelector("svg")).not.toBeInTheDocument();
   });
 });

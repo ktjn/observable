@@ -74,8 +74,8 @@ function DraggableNode({ svc, pos, isActive, isFocused, onClick, onDrag }: Dragg
     >
       <circle
         r={NODE_R}
-        fill={isFocused ? "#1a3a5c" : "#222"}
-        stroke={isFocused ? "#4a9edd" : "#444"}
+        fill={isFocused ? "var(--accent-bg)" : "var(--surface-raised)"}
+        stroke={isFocused ? "var(--accent)" : "var(--border-strong)"}
         strokeWidth="2"
         opacity={isActive ? 1 : 0.2}
       />
@@ -84,7 +84,7 @@ function DraggableNode({ svc, pos, isActive, isFocused, onClick, onDrag }: Dragg
         dominantBaseline="middle"
         fontSize="9"
         fontWeight="bold"
-        fill="#fff"
+        fill="var(--text)"
         opacity={isActive ? 1 : 0.2}
         style={{ pointerEvents: "none", userSelect: "none" }}
       >
@@ -198,13 +198,35 @@ export function TopologyMap({
       )
     : null;
 
+  if (services.length <= 1) {
+    return (
+      <div
+        ref={wrapperRef}
+        style={{ width: "100%", height: "100%" }}
+        className="flex items-center justify-center border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--muted)]"
+      >
+        No service dependencies detected yet.
+      </div>
+    );
+  }
+
   return (
-    <div ref={wrapperRef} style={{ width: "100%", height: "100%" }}>
+    <div ref={wrapperRef} style={{ width: "100%", height: "100%", position: "relative" }}>
+      <div className="absolute right-2 top-2 z-10 flex items-center gap-3 border border-[var(--border)] bg-[var(--surface-raised)] px-2 py-1 text-[10px] text-[var(--muted)]">
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-0.5 w-3" style={{ background: "var(--muted)" }} />
+          Normal
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-0.5 w-3" style={{ background: "var(--bad)" }} />
+          Error rate &gt; 5%
+        </span>
+      </div>
       <svg
         ref={svgRef}
         width="100%"
         height="100%"
-        style={{ background: "#111", borderRadius: "8px", display: "block" }}
+        style={{ background: "var(--surface)", borderRadius: "var(--radius-md)", display: "block" }}
       >
         <defs>
           <marker
@@ -215,7 +237,7 @@ export function TopologyMap({
             refY="3.5"
             orient="auto"
           >
-            <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+            <polygon points="0 0, 10 3.5, 0 7" fill="var(--muted)" />
           </marker>
           <marker
             id="arrowhead-error"
@@ -225,7 +247,7 @@ export function TopologyMap({
             refY="3.5"
             orient="auto"
           >
-            <polygon points="0 0, 10 3.5, 0 7" fill="#ff4d4d" />
+            <polygon points="0 0, 10 3.5, 0 7" fill="var(--bad)" />
           </marker>
         </defs>
 
@@ -279,7 +301,7 @@ export function TopologyMap({
                   y1={start.y}
                   x2={end.x}
                   y2={end.y}
-                  stroke={isError ? "#ff4d4d" : "#666"}
+                  stroke={isError ? "var(--bad)" : "var(--muted)"}
                   strokeWidth={Math.max(1, Math.min(5, 1 + Math.log10(edge.request_count + 1)))}
                   markerEnd={isError ? "url(#arrowhead-error)" : "url(#arrowhead)"}
                   opacity={isActive ? 0.6 : 0.15}

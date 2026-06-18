@@ -170,7 +170,7 @@ test.describe("services view toggle", () => {
         },
       })
     );
-    await page.route("**/v1/services", (route) => route.fulfill({ json: { items: ["checkout"] } }));
+    await page.route("**/v1/services", (route) => route.fulfill({ json: { items: ["checkout", "payments"] } }));
     await page.route("**/v1/topology**", (route) =>
       route.fulfill({ json: { edges: [{ caller: "checkout", callee: "payments", request_count: 1000, error_rate: 0.02, p95_latency_ms: 45 }] } })
     );
