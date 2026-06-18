@@ -6,12 +6,13 @@
 
 **Architecture:** Each project gets a `pyproject.toml` marked `[tool.uv] package = false` (dependency manifest only, no build/install-as-package step) plus a generated `uv.lock`. Dockerfiles copy the static `uv` binary from `ghcr.io/astral-sh/uv:latest`, then `uv sync --locked --no-dev` instead of `pip install -r requirements.txt`. `scripts/local-ci.sh`'s modelable check switches from a global `modelable` binary to `uv run --project models modelable`.
 
-**Tech Stack:** uv 0.11+, Python 3.12 (`scripts/seed`, `models`) / 3.14 (`testbench/*`), Docker.
+**Tech Stack:** uv 0.11+, Python 3.12 (`scripts/seed`) / 3.14 (`models`, `testbench/*`), Docker.
 
 ## Global Constraints
 
-- Preserve each project's existing pinning style: `testbench/*` keep exact `==` pins; `scripts/seed` and `models` keep `>=` floors. (Spec: "Pinning style preserved per project".)
-- Preserve each project's existing Python version target: `>=3.12` for `scripts/seed` and `models`, `>=3.14` for `testbench/api`, `testbench/worker`, `testbench/loadgen`. (Spec: "Python version preserved per project".)
+- Preserve each project's existing pinning style: `testbench/*` and `models` keep exact pins (`==` for PyPI deps, a git tag for `modelable`); `scripts/seed` keeps `>=` floors. (Spec: "Pinning style preserved per project"; corrected during Task 1 — `models/requirements.txt` pinned `modelable==0.5.0` exactly, not a floor.)
+- Preserve each project's existing Python version target: `>=3.12` for `scripts/seed`, `>=3.14` for `models`, `testbench/api`, `testbench/worker`, `testbench/loadgen`. (Spec: "Python version preserved per project"; `models` corrected to `>=3.14` during Task 1 — `modelable==0.5.0` itself requires Python>=3.14, so `>=3.12` is unsatisfiable.)
+- `modelable` is not published on PyPI. It must be installed as a git dependency from `github.com/ktjn/modelable`, pinned to tag `v0.5.0`, with the package located in the `cli` subdirectory of that repo (per `docs/agent-context.md`: "There is no local modelable install in this repo — regenerate using a checkout of `modelable` itself: `cd <modelable-checkout>/cli && ...`"). Verified working via `uv lock` + `uv run --project models modelable validate models/` during Task 1.
 - Do not bump Python versions or dependency versions beyond what `uv lock` resolves within the existing specifiers. (Spec: "Out of scope".)
 - Do not convert `scripts/seed` into an installable/publishable package — `package = false` is sufficient. (Spec: "Out of scope".)
 - Delete each project's `requirements.txt` only after its `pyproject.toml`/`uv.lock` replacement is verified working.
@@ -36,19 +37,21 @@
 [project]
 name = "models"
 version = "0.1.0"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
-    "modelable==0.5.0",
+    "modelable @ git+https://github.com/ktjn/modelable@v0.5.0#subdirectory=cli",
 ]
 
 [tool.uv]
 package = false
 ```
 
+`modelable` is not on PyPI — it's installed directly from its GitHub repo, pinned to tag `v0.5.0`, with `#subdirectory=cli` because the installable Python package lives in that repo's `cli/` directory, not its root. `requires-python` is `>=3.14` because `modelable==0.5.0` itself requires Python>=3.14 (verified via `uv lock` failing with `>=3.12` and succeeding with `>=3.14`).
+
 - [ ] **Step 2: Generate the lockfile**
 
 Run: `cd models && uv lock`
-Expected: creates `models/uv.lock` with no errors.
+Expected: creates `models/uv.lock` with no errors. (Confirmed working: `Resolved 26 packages in 2.19s`.)
 
 - [ ] **Step 3: Update `scripts/local-ci.sh` modelable step**
 
