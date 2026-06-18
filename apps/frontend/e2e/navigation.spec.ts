@@ -280,10 +280,11 @@ test.describe("dashboard navigation", () => {
 
 test.describe("panel overflow (regression)", () => {
   test("log context panel stays within viewport when tall", async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
     await mockAuth(page);
     // Mock a log with many resource attributes to produce a tall panel
     const manyAttrs: Record<string, string> = {};
-    for (let i = 0; i < 30; i++) manyAttrs[`resource.key.${i}`] = `value-${i}`;
+    for (let i = 0; i < 60; i++) manyAttrs[`resource.key.${i}`] = `value-${i}`;
     await page.route("**/v1/nlq", (route) =>
       route.fulfill({
         json: {
@@ -323,6 +324,6 @@ test.describe("panel overflow (regression)", () => {
     const pageScrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
     const viewportHeight = await page.evaluate(() => window.innerHeight);
     expect(pageScrollHeight).toBeLessThanOrEqual(viewportHeight + 20); // 20px tolerance
-    await page.screenshot({ path: "e2e/screenshots/panel-log-overflow-BEFORE.png", fullPage: true });
+    await page.screenshot({ path: "e2e/screenshots/panel-log-overflow-fixed.png", fullPage: true });
   });
 });
