@@ -106,7 +106,10 @@ git commit -m "build(models): migrate modelable install from pip to uv"
 - Create: `scripts/seed/pyproject.toml`
 - Create: `scripts/seed/uv.lock` (generated)
 - Modify: `Dockerfile.seed`
+- Modify: `.dockerignore`
 - Delete: `scripts/seed/requirements.txt`
+
+**Pre-existing bug discovered and fixed in this task:** root `.dockerignore` excludes `scripts/` entirely, so `Dockerfile.seed` (built with `context: .` per `docker-compose.yml`) could never `COPY scripts/seed/...` — confirmed this fails identically with the original pip-based `Dockerfile.seed`, so it predates this migration and is not something the uv switch caused. Fixed by narrowing the blanket exclusion to non-recursive (`scripts/*`) and adding `!scripts/seed/` back. User-approved fix-in-place rather than leaving the `seed` Docker profile broken.
 
 **Interfaces:**
 - Consumes: nothing from other tasks.
@@ -155,13 +158,24 @@ COPY scripts/seed/ ./seed/
 CMD ["uv", "run", "python", "-m", "seed"]
 ```
 
+- [ ] **Step 4b: Fix the pre-existing `.dockerignore` bug blocking this build**
+
+In `.dockerignore`, under the "Directories not needed in root service builds" section, replace the line `scripts/` with:
+
+```
+scripts/*
+!scripts/seed/
+```
+
+(`scripts/*` only excludes immediate children non-recursively, which makes the `!scripts/seed/` negation effective — a bare `scripts/` exclusion cannot be negated by a child pattern.)
+
 - [ ] **Step 5: Build the image and verify it runs**
 
 Run: `docker build -f Dockerfile.seed -t seed-uv-test .`
-Expected: build succeeds.
+Expected: build succeeds. (Confirmed during plan correction.)
 
 Run: `docker run --rm seed-uv-test python -c "import seed"`
-Expected: exits 0 (no `ModuleNotFoundError`, confirming the venv + `./seed/` package both resolve).
+Expected: exits 0 (no `ModuleNotFoundError`, confirming the venv + `./seed/` package both resolve). (Confirmed during plan correction.)
 
 - [ ] **Step 6: Delete the old requirements file**
 
@@ -170,7 +184,7 @@ Run: `rm scripts/seed/requirements.txt`
 - [ ] **Step 7: Commit**
 
 ```bash
-git add scripts/seed/pyproject.toml scripts/seed/uv.lock Dockerfile.seed
+git add scripts/seed/pyproject.toml scripts/seed/uv.lock Dockerfile.seed .dockerignore
 git rm scripts/seed/requirements.txt
 git commit -m "build(seed): migrate seed generator install from pip to uv"
 ```
