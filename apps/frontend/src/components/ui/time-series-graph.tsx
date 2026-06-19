@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { DeploymentMarker } from "../../api/deployments";
 import { markerColor, markerPosition } from "../DeploymentTimeline";
+import type { ChangeEvent } from "../../api/changeEvents";
 
 export interface TimeSeriesPoint {
   timestampMs: number;
@@ -19,6 +20,7 @@ export interface TimeSeriesSeries {
 export interface TimeSeriesGraphProps {
   series: TimeSeriesSeries[];
   deploymentMarkers?: DeploymentMarker[];
+  changeEvents?: ChangeEvent[];
   rangeStartMs: number;
   rangeEndMs: number;
   height?: number;
@@ -67,6 +69,16 @@ export function toY(
   return Math.round(plotBottom - ratio * (plotBottom - plotTop));
 }
 
+export function changeEventColor(eventType: ChangeEvent["event_type"]): string {
+  switch (eventType) {
+    case "incident":       return "#ef4444";
+    case "feature_flag":   return "#8b5cf6";
+    case "config_change":  return "#3b82f6";
+    case "migration":      return "#f97316";
+    default:               return "#9ca3af";
+  }
+}
+
 export function buildPolylinePoints(
   series: TimeSeriesSeries,
   rangeStartMs: number,
@@ -90,6 +102,7 @@ export function buildPolylinePoints(
 export function TimeSeriesGraph({
   series,
   deploymentMarkers = [],
+  changeEvents = [],
   rangeStartMs,
   rangeEndMs,
   height = 80,
@@ -102,6 +115,7 @@ export function TimeSeriesGraph({
   const [width, setWidth] = useState(400);
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [deployTooltip, setDeployTooltip] = useState<DeploymentMarker | null>(null);
+  const [changeEventTooltip, setChangeEventTooltip] = useState<ChangeEvent | null>(null);
   const dragRef = useRef<{ startX: number; endX: number } | null>(null);
   const [dragDisplay, setDragDisplay] = useState<{ startX: number; endX: number } | null>(null);
 
@@ -277,6 +291,36 @@ export function TimeSeriesGraph({
             );
           })}
 
+          {changeEvents.map((ev) => {
+            const x = markerPosition(
+              new Date(ev.occurred_at).getTime(),
+              rangeStartMs,
+              rangeEndMs,
+              width,
+            );
+            const color = changeEventColor(ev.event_type);
+            return (
+              <g key={ev.change_event_id}>
+                <line
+                  x1={x} y1={PLOT_TOP}
+                  x2={x} y2={plotBottom}
+                  stroke={color}
+                  strokeWidth={1}
+                  strokeDasharray="3 2"
+                  opacity={0.7}
+                />
+                <polygon
+                  points={`${x},${PLOT_TOP - 3} ${x + 3},${PLOT_TOP} ${x},${PLOT_TOP + 3} ${x - 3},${PLOT_TOP}`}
+                  fill={color}
+                  onMouseEnter={() => setChangeEventTooltip(ev)}
+                  onMouseLeave={() => setChangeEventTooltip(null)}
+                  style={{ cursor: "default" }}
+                  aria-label={`${ev.event_type}: ${ev.title}`}
+                />
+              </g>
+            );
+          })}
+
           {hoverX != null && (
             <line
               x1={hoverX} y1={PLOT_TOP}
@@ -351,6 +395,14 @@ export function TimeSeriesGraph({
                 {deployTooltip.commit_sha.slice(0, 8)}
               </div>
             )}
+          </div>
+        )}
+
+        {changeEventTooltip && (
+          <div role="tooltip" className="deployment-timeline-tooltip">
+            <div><strong>{changeEventTooltip.title}</strong></div>
+            <div>{changeEventTooltip.event_type}</div>
+            {changeEventTooltip.source && <div>via {changeEventTooltip.source}</div>}
           </div>
         )}
       </div>

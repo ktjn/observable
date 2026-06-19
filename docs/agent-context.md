@@ -68,6 +68,7 @@ making changes.
   - `archived/plans/2026-06-18-python-uv-migration.md` — migrated `models/`, `scripts/seed/`, and `testbench/{api,worker,loadgen}/` from pip/`requirements.txt` to `pyproject.toml` + `uv.lock`; Dockerfiles copy the static `uv` binary and run `uv sync --locked --no-dev`; `scripts/local-ci.sh`'s modelable step runs via `uv run --project models modelable`. Full-stack verification (Task 6) confirmed 2026-06-19: `local-ci.sh` exit 0, all four uv-based images build, `shop-api`/`shop-worker`/`shop-loadgen` stay healthy/running, no `requirements.txt` remain (COMPLETED 2026-06-19)
   - `archived/plans/2026-05-07-remaining-roadmap-plan.md` — superseded post-Phase-3 plan; full historical closure log and Phase 4-8 gap analysis retained for reference (SUPERSEDED 2026-06-19 by the unified feature roadmap)
   - `archived/plans/2026-06-04-observability-feature-parity-plan.md` — superseded Phases P9-P14 feature-parity plan; full workflow-gap analysis and success-metrics tables retained for reference (SUPERSEDED 2026-06-19 by the unified feature roadmap)
+  - `archived/plans/2026-06-19-change-event-api-dashboard-overlay.md` — P14-S4 change-event API and dashboard overlay: `change_events` table, ingest-gateway/query-api create/list split, `TimeSeriesGraph` `changeEvents` overlay, `/change-events` explorer page (COMPLETED 2026-06-19)
 - Housekeeping found during the 2026-06-19 roadmap consolidation, not yet acted on: GitHub issues #388 (Trace Comparison) and #389 (Query Workbench) describe already-shipped features and should be closed; the Trace UI Context Panel work tracked in project memory is fully merged into `main` (the `feat/trace-ui-context-panel` branch is 0 commits ahead) and that memory record is stale.
 - Historical Phase 1 plan: `archived/plans/2026-04-17-phase1-internal-mvp.md`; do not treat it as an active backlog.
 - Historical Phases 2-8 plan: merged into the active roadmap above. The old `2026-04-18-phases2-8-iteration-plan.md` file has been removed.
@@ -240,6 +241,30 @@ backlog and per-domain design specs.
 - Frontend: `AlertsPage.tsx`'s create-rule form has an "Alert type" selector ("Threshold metric"
   / "No data") that swaps in service-name/window fields; the rules table renders `no_data` rows
   as `"No data for {window}s from {service}"`.
+
+## Change Events (P14-S4, completed 2026-06-19)
+
+- New `change_events` PostgreSQL table (`migrations/postgres/032_create_change_events.sql`),
+  independent of `deployment_markers` — it covers config changes, feature-flag toggles, schema
+  migrations, and ad-hoc incident annotations, i.e. operationally-relevant changes that aren't a
+  service deploy. Unlike `deployment_markers.service_name`, `change_events.service_name` is
+  nullable to allow tenant/environment-wide events not scoped to one service.
+- Follows the same create/list split already established for deployment markers: creation is
+  `POST /v1/events/changes` on `ingest-gateway`'s platform port (4321, `auth_middleware`-gated,
+  `services/ingest-gateway/src/change_events.rs`), listing is `GET /v1/events/changes` on
+  `query-api`'s tenant-scoped read path (`services/query-api/src/change_events.rs`, with
+  `list_change_events` exposed as a plain pool-level function and covered by a Testcontainers
+  integration test mirroring the alerts one).
+- Frontend: `TimeSeriesGraph` (`apps/frontend/src/components/ui/time-series-graph.tsx`) gained a
+  `changeEvents` overlay prop rendered as dashed vertical lines with diamond markers (vs.
+  deployments' triangle) colored per `event_type`, wired into `ServiceDetailPage.tsx`'s
+  `ResponseTimeGraphSection` alongside the unchanged deployment-marker overlay.
+  **Known limitation**: that chart's change-events query filters by `service_name` for the
+  current service, so tenant/environment-wide events (`service_name = null`) never appear there —
+  only the unfiltered `/change-events` explorer page surfaces them.
+- New top-level `/change-events` explorer route (`apps/frontend/src/features/changeEvents/ChangeEventsPage.tsx`)
+  with a nav entry under Signals, offering plain service/event-type filters (not the NLQ bar —
+  this is a control-plane PostgreSQL table like deployments, not an NLQ-queryable ClickHouse signal).
 
 ## Dev Environment Gotchas
 

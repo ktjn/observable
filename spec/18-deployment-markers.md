@@ -103,3 +103,43 @@ To ensure markers are consistent and accurate, deployment tooling MUST automate 
 1.  **CI/CD Integration**: Pipelines (GitHub Actions, Argo CD hooks) SHOULD call `POST /v1/deployments` at the start of a rollout and `PATCH /v1/deployments/{id}` upon completion or failure.
 2.  **Canary Support**: The `scripts/canary-promote.sh` utility (see `spec/12-deployment.md`) SHOULD be updated to create a deployment marker when a canary is initiated and update it when promoted or reverted.
 3.  **Automatic Rollback Detection**: If a deployment is rolled back (either manually or via automated gates), a new deployment record with status `rolled_back` and `rollback_of` set to the failed deployment ID MUST be created.
+
+### 18.9 Generic Change Events
+
+Not every operationally-relevant change is a deployment. The `change_events` table
+(distinct from `deployment_markers`) covers config changes, feature-flag toggles,
+schema migrations, and ad-hoc incident annotations — anything teams want correlated
+against telemetry that isn't a service deploy.
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| change_event_id | UUID | yes | Unique identifier for the event. |
+| tenant_id | UUID | yes | Partitioning key for multi-tenancy. |
+| project_id | UUID | no | Project boundary, if applicable. |
+| event_type | enum | yes | `config_change`, `feature_flag`, `migration`, `incident`, `other`. |
+| service_name | string | no | Omitted for tenant/environment-wide events. |
+| environment | string | yes | Target environment. |
+| title | string | yes | Short human-readable summary. |
+| description | string | no | Longer free-text detail. |
+| occurred_at | timestamp | yes | When the change took effect. |
+| source | string | no | Originating system, e.g. `launchdarkly`, `ci`, `manual`. |
+| created_by | string | no | Identity of the user or system that recorded the event. |
+| metadata | JSON | no | Arbitrary key-value context. |
+
+**Ingestion API**: `POST /v1/events/changes` on the ingest-gateway Platform API port
+(4321), behind the same auth as `POST /v1/deployments`. Returns `change_event_id`.
+
+**Query API**: `GET /v1/events/changes` on the Query API, filters `service_name`,
+`environment`, `event_type`, `start_time`, `end_time`; `limit` default 50, max 200.
+
+**UI Visualization**: change events render as dashed vertical markers alongside
+deployment markers on the same service-level time-series chart
+(`apps/frontend/src/components/ui/time-series-graph.tsx`), distinguished by a
+diamond marker shape (vs. deployments' triangle) and per-`event_type` color, with
+a hover tooltip showing `title`, `event_type`, and `source`. A dedicated
+`/change-events` explorer page lists and filters events independent of any chart.
+
+**Retention**: follows the same Warm/Cold policy as deployment markers (§18.7).
+
+**RBAC**: same roles as the Deployment API (§18.6) — `Member`/`ProjectAdmin`/`TenantAdmin`
+for `POST`, all roles including `Viewer` for `GET`.

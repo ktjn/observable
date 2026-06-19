@@ -29,6 +29,7 @@ import LoginPage from "./pages/LoginPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import IdentitySettingsPage from "./pages/IdentitySettingsPage";
 import OnboardingPage from "./pages/OnboardingPage";
+import ChangeEventsPage from "./features/changeEvents/ChangeEventsPage";
 
 export type Preset = "5m" | "15m" | "30m" | "1h" | "3h" | "12h";
 export const DEFAULT_PRESET: Preset = "1h";
@@ -234,6 +235,11 @@ const metricsSearchRoute = createRoute({
   path: "/metrics",
   component: MetricsSearch,
 });
+const changeEventsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/change-events",
+  component: ChangeEventsPage,
+});
 const nlqRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/nlq",
@@ -292,6 +298,7 @@ export const router = createRouter({
   traceDetailRoute,
     logSearchRoute,
     metricsSearchRoute,
+    changeEventsRoute,
     nlqRoute,
   ]),
 });

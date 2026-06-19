@@ -116,3 +116,33 @@ describe("TimeSeriesGraph brush", () => {
     expect(to).toBe(500);
   });
 });
+
+describe("TimeSeriesGraph change events", () => {
+  it("renders a marker for each change event", () => {
+    const { container } = render(
+      <TimeSeriesGraph
+        series={[]}
+        rangeStartMs={1000}
+        rangeEndMs={2000}
+        ariaLabel="test graph"
+        changeEvents={[
+          {
+            change_event_id: "ce-1",
+            tenant_id: "t1",
+            project_id: null,
+            event_type: "feature_flag",
+            service_name: "checkout",
+            environment: "production",
+            title: "Enabled new flow",
+            description: null,
+            occurred_at: new Date(1500).toISOString(),
+            source: "launchdarkly",
+            created_by: null,
+            metadata: null,
+          },
+        ]}
+      />
+    );
+    expect(container.querySelector('[aria-label="feature_flag: Enabled new flow"]')).not.toBeNull();
+  });
+});

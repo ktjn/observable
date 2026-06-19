@@ -16,7 +16,7 @@ use std::io::Read;
 use tower_http::trace::TraceLayer;
 use tracing::Level;
 
-use crate::{AppState, auth, deployments};
+use crate::{AppState, auth, change_events, deployments};
 
 pub fn decode_json_otlp_request(headers: &HeaderMap, body: Bytes) -> Result<Value, StatusCode> {
     let content_type = get_content_type(headers);
@@ -99,6 +99,10 @@ pub fn build_platform_router(
         .route(
             "/v1/deployments/{deployment_id}",
             axum::routing::patch(deployments::finish_deployment),
+        )
+        .route(
+            "/v1/events/changes",
+            post(change_events::create_change_event),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),

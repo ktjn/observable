@@ -1,6 +1,7 @@
 pub mod admin_members;
 pub mod alerts;
 pub mod audit;
+pub mod change_events;
 pub mod config;
 pub mod dashboards;
 pub mod deployments;

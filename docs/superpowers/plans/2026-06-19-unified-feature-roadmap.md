@@ -71,7 +71,7 @@ Small, standalone, high user-value slices. Promote these first.
   service while a higher-severity alert is active; `Suppressed` state with "Suppressed by" label.
 - [ ] **Saved Views in Explorers** (was P14-S3) — save filter state + time range + columns per
   signal type; private/shared visibility.
-- [ ] **Change Event API and Dashboard Overlay** (was P14-S4) — `POST /v1/events/changes`, vertical
+- [x] **Change Event API and Dashboard Overlay** (was P14-S4) — `POST /v1/events/changes`, vertical
   dashed markers on dashboard time-series panels, filterable change-event explorer page.
 - [ ] **Export APIs** (was P13-S4) — CSV/JSON export for log, trace, and metric query results;
   100k-row sync limit, async job beyond that.
