@@ -437,28 +437,35 @@ git commit -m "build(testbench-loadgen): migrate install from pip to uv"
 - Consumes: all five migrated projects from Tasks 1-5.
 - Produces: nothing (terminal task).
 
-- [ ] **Step 1: Run the full local CI script**
+- [x] **Step 1: Run the full local CI script**
 
 Run: `bash scripts/local-ci.sh`
 Expected: the "Modelable validate" step passes via `uv run --project models modelable validate models/`; no other step regresses.
+Confirmed: full run exited 0, including the smoke-test suite (`=== ALL CHECKS PASSED ===`).
 
-- [ ] **Step 2: Bring up the testbench services via docker compose**
+- [x] **Step 2: Bring up the testbench services via docker compose**
 
-Run: `docker compose build api worker loadgen seed`
+Run: `docker compose build shop-api shop-worker shop-loadgen seed` (service names in `docker-compose.yml` are `shop-api`/`shop-worker`/`shop-loadgen`, not `api`/`worker`/`loadgen`)
 Expected: all four images build successfully using the new uv-based Dockerfiles.
+Confirmed: `observable-seed`, `testbench-api:local`, `testbench-worker:local`, `testbench-loadgen:local` all built.
 
-Run: `docker compose up -d api worker loadgen`
+Run: `docker compose up -d shop-db shop-queue shop-api shop-worker shop-loadgen`
 Expected: all three containers start and stay running (check with `docker compose ps` — no `Restarting`/`Exited` states after 10s).
+Confirmed: `shop-api` healthy, `shop-worker`/`shop-loadgen` `Up` with no restart after ~20s.
 
-- [ ] **Step 3: Tear down**
+- [x] **Step 3: Tear down**
 
 Run: `docker compose down`
+Confirmed: clean teardown, no errors.
 
-- [ ] **Step 4: Confirm no `requirements.txt` files remain in the migrated projects**
+- [x] **Step 4: Confirm no `requirements.txt` files remain in the migrated projects**
 
 Run: `git status --short` and `find models scripts/seed testbench/api testbench/worker testbench/loadgen -iname "requirements.txt"`
 Expected: the `find` command returns no output.
+Confirmed: no output, working tree clean.
 
-- [ ] **Step 5: Commit any remaining changes**
+- [x] **Step 5: Commit any remaining changes**
 
-If Steps 1-4 required no code changes, this step is a no-op — all changes were already committed in Tasks 1-5. If verification surfaced a fix, commit it with a message describing what was fixed and re-run the relevant verification step.
+No-op: verification surfaced no fixes. All changes were already committed in Tasks 1-5.
+
+**Task 6 complete (2026-06-19). Migration fully verified end-to-end.**
