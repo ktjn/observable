@@ -8,7 +8,7 @@ making changes.
 
 1. Read `AGENTS.md`.
 2. Read `spec/adr/README.md`, then read any overlapping ADRs in full.
-3. Read the active roadmap plan: `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md`.
+3. Read the active roadmap plan: `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md`.
 4. Read this file.
 5. Inspect the actual code, tests, scripts, specs, and docs touched by the task before editing.
 6. Create or switch to a dedicated short-lived branch before changing files.
@@ -19,7 +19,7 @@ making changes.
 - Agent role routing: `.github/agents/README.md`, with `.github/agents/coordinator.agent.md` as the
   default entry role. Runtimes without subagent support should apply matching specialist `.agent.md`
   files manually as checklists.
-- Active roadmap: `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` — unified post-Phase-3 implementation plan, extended by `docs/superpowers/plans/2026-06-04-observability-feature-parity-plan.md` (Phases P9-P14).
+- Active roadmap: `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md` — consolidates the former post-Phase-3 plan and the Phases P9-P14 feature-parity plan (both now archived) into one feature-first backlog. Stability/compliance/enterprise-packaging work is intentionally demoted to a Deferred tier (§7 of that document) rather than gating new feature phases.
 - `archived/plans/2026-06-10-p9-s5-service-catalog-health-signals.md` — completed P9-S5's remaining scope: replaced the hardcoded `active_alert_count: 0` / `latest_deployment: None` placeholders in `services/query-api/src/discovery.rs::service_summary_from_row` with real data and made `health_state` SLO-burn-rate-aware. Housekeeping note carried from that plan, still open: issues #388 (Trace Comparison) and #389 (Query Workbench) describe already-shipped features and should be closed.
 - P12-S3 Deadman alert type is complete (see "Deadman Alert Type" section below). Remaining promotion candidate (per the feature-parity plan's §7, not yet promoted): P14-S4 Change Event API (quick win, extends the deployment-marker model). P9-S2 Error Tracking Ingestion is the largest remaining workflow gap but needs its own multi-task plan once promoted.
 - Archived detailed implementation plan: `archived/plans/2026-06-01-admin-console-overview.md` — first Admin Console landing-page slice for tenant access, environment context, and usage summary. Query Workbench is complete and its detailed plan has been archived. RF-2, RF-3, RF-6, P4-S9, stream-processor batching, Telemetry Loop Prevention, P4-S4 dashboard ReBAC, ClickHouse insert efficiency, Context Preservation, Live Tail, and Trace Comparison complete. The admin area now also has read-only `/admin/config` and `/admin/fleet` surfaces; the fleet page is a contract view until a live agent inventory endpoint exists. Next: P4-S3b SCIM/SSO only if a v1 customer requires it.
@@ -61,6 +61,14 @@ making changes.
   - `archived/plans/2026-06-18-frontend-design-system-modernization.md` — frontend design-system modernization across theme tokens, sidebar icons, themed selects, button/table polish, histogram SVG rendering, shared TopologyMap theming, and cross-theme visual verification (COMPLETED 2026-06-18)
   - `archived/plans/2026-06-18-p12-s3-deadman-alert.md` — P12-S3 deadman alert type: alert-evaluator span-recency check, query-api create/list support reusing the existing AlertRuleItem shape, AlertsPage "No data" rule type (COMPLETED 2026-06-18)
   - `archived/plans/2026-06-16-consolidation-plan.md` — post-modelable-migration repo consolidation: archived 13 modelable plans/12 specs + 6 non-modelable plans/specs, removed a duplicate zitadel plan, added `.mdl` header comments, documented the `ch-observable` binding duplication (COMPLETED 2026-06-16, landed via PR #405)
+  - `archived/plans/2026-05-18-seed-generator.md` — bulk historical telemetry seed generator (`scripts/seed/`): world model, Postgres + ClickHouse seeders, trace/log/metric generators, CLI with `--resume`/`--dry-run`, Docker Compose `seed` profile (COMPLETED, landed via PR #350/#352)
+  - `archived/plans/2026-05-19-p5-s3-runbook-attachment.md` — P5-S3 runbook URL attachment on alert rules, copied to incidents on creation, inline-editable in `AlertRuleDetailPage` (COMPLETED 2026-05-19)
+  - `archived/plans/2026-06-01-admin-console-member-management.md` — `/admin/members` tab: list/invite/re-role/remove/revoke-sessions, `tenant_admin`-gated, self-demotion and last-admin-lockout guards (COMPLETED, landed via PR #395)
+  - `archived/plans/2026-06-18-playwright-visual-verification-suite.md` — Playwright visual regression suite (`test:visual`), log/span panel overflow fixes with screenshot baselines (COMPLETED, landed via PR #406)
+  - `archived/plans/2026-05-07-remaining-roadmap-plan.md` — superseded post-Phase-3 plan; full historical closure log and Phase 4-8 gap analysis retained for reference (SUPERSEDED 2026-06-19 by the unified feature roadmap)
+  - `archived/plans/2026-06-04-observability-feature-parity-plan.md` — superseded Phases P9-P14 feature-parity plan; full workflow-gap analysis and success-metrics tables retained for reference (SUPERSEDED 2026-06-19 by the unified feature roadmap)
+- Housekeeping found during the 2026-06-19 roadmap consolidation, not yet acted on: GitHub issues #388 (Trace Comparison) and #389 (Query Workbench) describe already-shipped features and should be closed; the Trace UI Context Panel work tracked in project memory is fully merged into `main` (the `feat/trace-ui-context-panel` branch is 0 commits ahead) and that memory record is stale.
+- Active in-progress plan: `docs/superpowers/plans/2026-06-18-python-uv-migration.md` — migrating `models/`, `scripts/seed/`, and `testbench/{api,worker,loadgen}/` from pip to uv. Tasks 1-5 (all five projects migrated, no `requirements.txt` remain) are done; only Task 6 (full-stack verification: local CI run, docker compose smoke test, final commit) is outstanding.
 - Historical Phase 1 plan: `archived/plans/2026-04-17-phase1-internal-mvp.md`; do not treat it as an active backlog.
 - Historical Phases 2-8 plan: merged into the active roadmap above. The old `2026-04-18-phases2-8-iteration-plan.md` file has been removed.
 - Architecture decisions: `spec/adr/`.
