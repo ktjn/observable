@@ -48,6 +48,7 @@ function buildNavTree(showGettingStarted: boolean): NavTreeItem[] {
         { id: "traces", label: "Traces", to: "/traces" },
         { id: "logs", label: "Logs", to: "/logs" },
         { id: "metrics", label: "Metrics", to: "/metrics" },
+        { id: "change-events", label: "Change Events", to: "/change-events" },
       ],
     },
     { id: "infrastructure", label: "Infrastructure", to: "/infrastructure", icon: Server },
