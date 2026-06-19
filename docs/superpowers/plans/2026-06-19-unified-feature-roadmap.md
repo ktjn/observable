@@ -205,6 +205,57 @@ blocked on it). This is not "never" — it's "not next."
 - [ ] Further load/chaos/tenant-escape/security-review cycles beyond what P4-S8/P4-S9 already
   established, unless a specific incident or audit demands it.
 
+### Service Layer Architecture (from 2026-06-19 architecture review)
+
+Findings and rationale: `docs/superpowers/specs/2026-06-19-service-layer-architecture-review.md`.
+Demoted per this section's standard rule — promote only on a concrete trigger — **except the
+first item, which is pre-promoted** because Tier 2's PromQL Compatibility Façade and all of Tier 4
+(Intelligence Layer) build on the coupling it addresses.
+
+- [ ] **Extract NLQ/AI from query-api** — pull `llm_adapter.rs` and the NLQ execution path into an
+  independently deployable service or a narrowly-bounded crate, decoupling LLM-provider changes
+  and AI feature iteration from the trace/log/metric read path. **Pre-promoted**: do this before
+  the PromQL façade or any Tier 4 item adds more surface area to the coupling.
+- [ ] **Repository/tenant-scoping layer for query-api** — thin data-access module wrapping
+  ClickHouse/PostgreSQL access with type-level tenant scoping (e.g., a `TenantScopedQuery` builder
+  that can't be constructed without a tenant id), replacing inline SQL-per-handler. Trigger: a
+  tenant-isolation finding in a future security review, or before further query-api domain growth.
+- [ ] **Queue-based stream-processor → storage-writer handoff** — replace the synchronous HTTP
+  POST with a Redpanda topic, matching the ingest-gateway → stream-processor pattern, so
+  storage-writer slowness can't back up Redpanda consumer lag. Trigger: observed consumer-lag
+  incident, or before ingest volume scaling work.
+- [ ] **Split alert-evaluator rule-sourcing from evaluation** — separate `RuleSource` (PostgreSQL
+  fetch, future Prometheus importer) from a pure `Evaluator` function, reducing the worker loop to
+  orchestration. Trigger: picking up the Prometheus Alert Rule Importer (Tier 2), which adds a
+  second rule source.
+- [ ] **Move threshold/condition types into models/alerts.mdl** — extend the existing Modelable
+  `.mdl` file (per ADR-032) with `ThresholdOperator`/`ThresholdCondition` and generate both
+  `alert-evaluator` and `query-api`'s Rust bindings from it, replacing JSON-serde-only
+  round-tripping. Note: inherits ADR-032's `enum(...)` → Rust `String` emitter gap (Phase 1
+  backlog item 3) until that's fixed — removes the duplication, not the type-safety gap. Low
+  effort; promote opportunistically alongside any other alerting-area slice.
+- [ ] **Extract admin-service** (members, tokens, config, usage out of query-api) — privilege
+  isolation: member/role management, API key/token lifecycle, and platform config are
+  privilege-granting operations sharing a process boundary with the high-traffic trace/log/metric
+  read path today. Design: `docs/superpowers/specs/2026-06-19-admin-service-extraction-design.md`.
+  Includes extracting a shared `observable-auth` crate (deduping session-JWT verification
+  currently copy-pasted across query-api and ingest-gateway) as part of the same slice sequence.
+  Eligible for promotion under this section's "security finding" trigger if prioritized.
+- [ ] **Shared observable-error crate** — common HTTP error mapping/problem+json shape/tracing
+  integration consumed by all services, replacing each service's independent error-to-response
+  mapping. Low effort, low coupling risk (pure utility, no tenant-scoping concerns) — unlike a
+  shared data-access crate (deliberately rejected; see the repository-layer item above, which
+  stays per-service). Promote opportunistically alongside any other cross-cutting slice.
+- [ ] **Shared observable-observability crate** — generic `HttpMetricsCollector` (Prometheus
+  registry/histogram pattern) and `ReadyzProbe` (Postgres/ClickHouse/Redpanda variants), replacing
+  ~270 lines of near-identical `/metrics`/`/readyz` scaffolding copy-pasted across auth-service,
+  storage-writer, query-api, ingest-gateway, alert-evaluator, and stream-processor. Medium effort
+  (six mechanical call-site swaps), low risk (response shape unchanged).
+- [ ] **DB client construction helpers in libs/domain** — add `create_clickhouse_client()` and
+  `create_postgres_pool()` to the existing `libs/domain` shared crate, replacing ~40 lines of
+  duplicated connection-string/env-var boilerplate across storage-writer, alert-evaluator,
+  query-api, ingest-gateway, and auth-service. Low effort, low risk, no new crate needed.
+
 ---
 
 ## 8. Sequencing and Dependencies

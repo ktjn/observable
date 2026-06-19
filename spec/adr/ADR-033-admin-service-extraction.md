@@ -1,0 +1,77 @@
+# ADR-033: Admin Service Extraction
+
+**Date:** 2026-06-19
+**Status:** Proposed
+**Authors:** Claude (architecture review), ktjn
+**Deciders:** Project Stakeholders
+**Review date:** 2026-06-19
+
+## Context
+
+Member management, API key/token lifecycle, and platform config (including LLM provider keys)
+currently live in `query-api` (`admin_members.rs`, `tokens.rs`, `config.rs`, `usage.rs`,
+~1,260 lines), sharing that service's process, `AppState`, and deployment cadence with the
+trace/log/metric read path — the platform's highest-traffic, most latency-sensitive surface.
+These admin operations are privilege-granting (they can mint API keys and assign `tenant_admin`
+roles), which is a materially different trust level than read-only telemetry queries.
+
+This was identified during a 2026-06-19 service-layer architecture review
+(`docs/superpowers/specs/2026-06-19-service-layer-architecture-review.md`, Finding 7) and detailed
+in `docs/superpowers/specs/2026-06-19-admin-service-extraction-design.md`.
+
+## Decision
+
+Extract member management, token/API-key lifecycle, platform config, and usage reporting into a
+new standalone service, `services/admin-service`, deployed and scaled independently from
+`query-api`. It becomes the sole writer of `user_tenant_roles`, `api_keys`, and `platform_config`;
+`auth-service` keeps its existing read-only role validating against those tables — no contract
+change there. URL paths are unchanged; only ingress routing targets change, so the frontend
+requires no code changes.
+
+As part of the same slice sequence, extract a shared `observable-auth` crate for session-JWT
+verification and `TenantContext`, currently duplicated independently in `query-api` and
+`ingest-gateway`, to avoid a third independent reimplementation in admin-service.
+
+## Consequences
+
+**Easier:**
+- Privilege-granting code (member/role management, key issuance) has its own process and trust
+  boundary, separate from the high-traffic read path.
+- query-api shrinks by ~1,260 lines, reducing its blast radius independent of the NLQ/AI
+  extraction also recommended by the same review.
+- Session-JWT verification has one canonical implementation instead of three independent copies.
+
+**Harder:**
+- One more service to deploy, monitor, and version; admin-service needs its own self-observability
+  wiring (readyz/metrics) matching the pattern other services already have.
+- Migration requires a two-step rollout (deploy admin-service, flip ingress routing, then remove
+  the now-dead handlers from query-api) rather than a single atomic change.
+
+**Constrained:**
+- Future admin features (e.g., the planned Fleet Management UI, Admin Console RBAC/quota views)
+  should target admin-service, not query-api, once this lands.
+
+## Alternatives Considered
+
+### Option A: Leave admin handlers in query-api, add internal isolation only
+Use a separate `AppState` sub-struct or a stricter middleware boundary within the same query-api
+binary. Rejected: this doesn't achieve actual privilege isolation — a memory-safety or
+auth-bypass bug anywhere in the same process still has the same blast radius regardless of
+internal module boundaries, since it's one trust domain at the OS/network level.
+
+### Option B: Merge admin surface into auth-service instead of a new service
+auth-service already owns sessions/roles/API key validation, so member/token/config management
+could fold into it rather than creating a new service. Rejected: auth-service's current scope is
+narrowly read-path validation (`/internal/validate`) plus session issuance; folding in
+read-write admin management would itself turn auth-service into a second oversized service and
+mix two different concerns (runtime authn/authz checks vs. privilege administration) in one
+process — the opposite of the isolation this decision is trying to achieve.
+
+## Related
+
+- `docs/superpowers/specs/2026-06-19-service-layer-architecture-review.md` (Finding 7)
+- `docs/superpowers/specs/2026-06-19-admin-service-extraction-design.md` — full design,
+  architecture diagram, rollout/rollback plan
+- `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md` §7 — backlog entry
+- ADR-008 (Authorization Model) — RBAC model is unaffected by this split, only relocated
+- ADR-004 (Rust for Data Plane Services) — admin-service is Rust/Axum, consistent
