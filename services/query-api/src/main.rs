@@ -1,6 +1,7 @@
 mod admin_members;
 mod alerts;
 mod audit;
+mod change_events;
 mod config;
 mod dashboards;
 mod deployments;
@@ -106,6 +107,10 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/v1/environments", get(discovery::list_environments))
         .route("/v1/deployments", get(deployments::list_deployments))
+        .route(
+            "/v1/events/changes",
+            get(change_events::handle_list_change_events),
+        )
         .route("/v1/dashboards", get(dashboards::handle_list_dashboards))
         .route("/v1/dashboards", post(dashboards::handle_create_dashboard))
         .route("/v1/dashboards/{id}", get(dashboards::handle_get_dashboard))
