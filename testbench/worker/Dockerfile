@@ -2,10 +2,11 @@ FROM python:3.14-slim
 
 LABEL org.opencontainers.image.version="0.1.0"
 
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml uv.lock .
+RUN uv sync --locked --no-dev
 
 COPY worker.py .
 
-CMD ["python", "worker.py"]
+CMD ["uv", "run", "python", "worker.py"]

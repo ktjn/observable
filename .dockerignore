@@ -48,7 +48,8 @@ config/
 contracts/
 docs/
 migrations/
-scripts/
+scripts/*
+!scripts/seed/
 spec/
 testbench/
 tests/
