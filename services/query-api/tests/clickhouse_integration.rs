@@ -1,7 +1,8 @@
 use clickhouse::Client;
-use domain::{LogRow, SpanRow};
+use domain::{LogRow, MetricSeriesRow, SpanRow};
 use query_api::logs::{LogSearchParams, fetch_log_rows, fetch_log_rows_since};
 use query_api::planner::QueryPlanner;
+use query_api::setup::compute_setup_status;
 use query_api::traces::fetch_trace_spans;
 use std::collections::HashSet;
 use std::path::Path;
@@ -169,6 +170,32 @@ async fn insert_log(ch: &Client, row: LogRow) {
         .expect("log insert handle created");
     ins.write(&row).await.expect("log row written");
     ins.end().await.expect("log insert committed");
+}
+
+fn make_metric_series(tenant_id: Uuid, metric_name: &str) -> MetricSeriesRow {
+    MetricSeriesRow {
+        tenant_id,
+        metric_series_id: Uuid::new_v4(),
+        metric_name: metric_name.into(),
+        description: String::new(),
+        unit: "1".into(),
+        metric_type: "sum".into(),
+        is_monotonic: Some(1),
+        aggregation_temporality: Some("delta".into()),
+        attributes: "{}".into(),
+        resource_attributes: "{}".into(),
+        service_name: "test-svc".into(),
+        environment: "test".into(),
+    }
+}
+
+async fn insert_metric_series(ch: &Client, row: MetricSeriesRow) {
+    let mut ins = ch
+        .insert::<MetricSeriesRow>("metric_series")
+        .await
+        .expect("metric_series insert handle created");
+    ins.write(&row).await.expect("metric_series row written");
+    ins.end().await.expect("metric_series insert committed");
 }
 
 #[tokio::test]
@@ -958,4 +985,141 @@ async fn response_time_histogram_buckets_latency_by_time_window() {
         p50_b1 > p50_b0,
         "bucket 1 latency ({p50_b1}) must exceed bucket 0 ({p50_b0})"
     );
+}
+
+// ─── Setup status integration tests ─────────────────────────────────────────
+
+#[tokio::test]
+async fn setup_status_reports_waiting_when_tenant_has_no_signals() {
+    let container = ClickHouse::default()
+        .with_tag("25.3")
+        .with_env_var("CLICKHOUSE_USER", "default")
+        .with_env_var("CLICKHOUSE_PASSWORD", "test")
+        .start()
+        .await
+        .expect("clickhouse container started");
+    let port = container.get_host_port_ipv4(8123).await.unwrap();
+    let base_url = format!("http://127.0.0.1:{port}");
+    let ch = apply_migrations(&base_url, "default", "test").await;
+
+    let tenant_id = Uuid::new_v4();
+    let status = compute_setup_status(&ch, tenant_id)
+        .await
+        .expect("query succeeds");
+
+    assert_eq!(status.state, "waiting");
+    assert_eq!(status.traces, 0);
+    assert_eq!(status.logs, 0);
+    assert_eq!(status.metrics, 0);
+}
+
+#[tokio::test]
+async fn setup_status_reports_detected_after_first_span() {
+    let container = ClickHouse::default()
+        .with_tag("25.3")
+        .with_env_var("CLICKHOUSE_USER", "default")
+        .with_env_var("CLICKHOUSE_PASSWORD", "test")
+        .start()
+        .await
+        .expect("clickhouse container started");
+    let port = container.get_host_port_ipv4(8123).await.unwrap();
+    let base_url = format!("http://127.0.0.1:{port}");
+    let ch = apply_migrations(&base_url, "default", "test").await;
+
+    let tenant_id = Uuid::new_v4();
+    insert_span(&ch, make_span(tenant_id, "trace-1", "span-1")).await;
+
+    let status = compute_setup_status(&ch, tenant_id)
+        .await
+        .expect("query succeeds");
+
+    assert_eq!(status.state, "detected");
+    assert_eq!(status.traces, 1);
+}
+
+#[tokio::test]
+async fn setup_status_reports_detected_from_logs_or_metrics_alone() {
+    let container = ClickHouse::default()
+        .with_tag("25.3")
+        .with_env_var("CLICKHOUSE_USER", "default")
+        .with_env_var("CLICKHOUSE_PASSWORD", "test")
+        .start()
+        .await
+        .expect("clickhouse container started");
+    let port = container.get_host_port_ipv4(8123).await.unwrap();
+    let base_url = format!("http://127.0.0.1:{port}");
+    let ch = apply_migrations(&base_url, "default", "test").await;
+
+    let tenant_id = Uuid::new_v4();
+    insert_log(&ch, make_log_row(tenant_id, "test-svc")).await;
+    insert_metric_series(&ch, make_metric_series(tenant_id, "requests_total")).await;
+
+    let status = compute_setup_status(&ch, tenant_id)
+        .await
+        .expect("query succeeds");
+
+    assert_eq!(status.state, "detected");
+    assert_eq!(status.traces, 0);
+    assert_eq!(status.logs, 1);
+    assert_eq!(status.metrics, 1);
+}
+
+#[tokio::test]
+async fn setup_status_excludes_other_tenants_signals() {
+    let container = ClickHouse::default()
+        .with_tag("25.3")
+        .with_env_var("CLICKHOUSE_USER", "default")
+        .with_env_var("CLICKHOUSE_PASSWORD", "test")
+        .start()
+        .await
+        .expect("clickhouse container started");
+    let port = container.get_host_port_ipv4(8123).await.unwrap();
+    let base_url = format!("http://127.0.0.1:{port}");
+    let ch = apply_migrations(&base_url, "default", "test").await;
+
+    let tenant_a = Uuid::new_v4();
+    let tenant_b = Uuid::new_v4();
+    insert_span(&ch, make_span(tenant_a, "trace-a", "span-a")).await;
+
+    let status_b = compute_setup_status(&ch, tenant_b)
+        .await
+        .expect("query succeeds");
+
+    assert_eq!(
+        status_b.state, "waiting",
+        "tenant B must not see tenant A's signals"
+    );
+}
+
+#[tokio::test]
+async fn setup_status_excludes_signals_outside_the_lookback_window() {
+    let container = ClickHouse::default()
+        .with_tag("25.3")
+        .with_env_var("CLICKHOUSE_USER", "default")
+        .with_env_var("CLICKHOUSE_PASSWORD", "test")
+        .start()
+        .await
+        .expect("clickhouse container started");
+    let port = container.get_host_port_ipv4(8123).await.unwrap();
+    let base_url = format!("http://127.0.0.1:{port}");
+    let ch = apply_migrations(&base_url, "default", "test").await;
+
+    let tenant_id = Uuid::new_v4();
+    let now_ns = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+    let two_hours_ago_ns = now_ns.saturating_sub(2 * 3_600_000_000_000);
+    insert_log(
+        &ch,
+        make_log_row_at(tenant_id, "test-svc", two_hours_ago_ns),
+    )
+    .await;
+
+    let status = compute_setup_status(&ch, tenant_id)
+        .await
+        .expect("query succeeds");
+
+    assert_eq!(status.state, "waiting");
+    assert_eq!(status.logs, 0);
 }
