@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "@tanstack/react-router";
 import { useState } from "react";
+import { listChangeEvents } from "../api/changeEvents";
 import { listDeployments } from "../api/deployments";
 import {
   getServiceResponseTimeHistory,
@@ -369,6 +370,18 @@ function ResponseTimeGraphSection({
     ...liveViewQueryOptions,
   });
 
+  const { data: changeEventData } = useQuery({
+    queryKey: ["change-events", tenantId, serviceName, fromMs, toMs],
+    queryFn: () =>
+      listChangeEvents(tenantId, {
+        service_name: serviceName,
+        start_time: new Date(fromMs).toISOString(),
+        end_time: new Date(toMs).toISOString(),
+        limit: 20,
+      }),
+    ...liveViewQueryOptions,
+  });
+
   if (!historyData?.buckets?.length) return null;
 
   const p95Series: TimeSeriesSeries = {
@@ -400,6 +413,7 @@ function ResponseTimeGraphSection({
     <TimeSeriesGraph
       series={[p95Series, p50Series, rateSeries]}
       deploymentMarkers={deploymentData?.items ?? []}
+      changeEvents={changeEventData?.items ?? []}
       rangeStartMs={fromMs}
       rangeEndMs={toMs}
       eyebrow="Performance"
