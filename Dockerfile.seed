@@ -1,6 +1,7 @@
 FROM python:3.12-slim
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
-COPY scripts/seed/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY scripts/seed/pyproject.toml scripts/seed/uv.lock .
+RUN uv sync --locked --no-dev
 COPY scripts/seed/ ./seed/
-CMD ["python", "-m", "seed"]
+CMD ["uv", "run", "python", "-m", "seed"]
