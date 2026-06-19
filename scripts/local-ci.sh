@@ -55,10 +55,10 @@ done
 
 if [[ $SKIP_MODELABLE -eq 0 ]]; then
   step "Modelable validate"
-  if command -v modelable >/dev/null 2>&1; then
-    modelable validate models/ && ok "modelable validate" || fail "modelable validate"
+  if command -v uv >/dev/null 2>&1; then
+    uv run --project models modelable validate models/ && ok "modelable validate" || fail "modelable validate"
   else
-    echo "SKIP  modelable validate (not installed — run: pip install -r models/requirements.txt)"
+    echo "SKIP  modelable validate (uv not installed — see https://docs.astral.sh/uv/)"
   fi
 fi
 

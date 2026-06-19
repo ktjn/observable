@@ -184,7 +184,7 @@ current-state table, and
 backlog and per-domain design specs.
 
 - **Model sources:** `models/*.mdl`, validated/compiled with the pinned version in
-  `models/requirements.txt`. There is no local modelable install in this repo — regenerate using
+  `models/pyproject.toml`. There is no local modelable install in this repo — regenerate using
   a checkout of `modelable` itself: `cd <modelable-checkout>/cli && .venv/Scripts/python.exe -m
   modelable compile <observable-checkout>/models --target <rust|typescript> --out <scratch-dir>`,
   then copy the relevant generated files into this repo and commit them (generated code is
