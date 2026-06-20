@@ -75,3 +75,35 @@ fn xor_deobfuscate(hex: &str) -> Option<String> {
         .collect();
     String::from_utf8(orig).ok()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test-only mirror of the obfuscation step (the real obfuscation helper lives in
+    /// admin-service now and isn't needed in query-api outside of round-trip testing
+    /// `xor_deobfuscate`).
+    fn xor_obfuscate(s: &str) -> String {
+        s.bytes()
+            .enumerate()
+            .map(|(i, b)| b ^ XOR_KEY[i % XOR_KEY.len()])
+            .map(|b| format!("{b:02x}"))
+            .collect()
+    }
+
+    #[test]
+    fn xor_roundtrip() {
+        let key = "sk-test-api-key-1234567890abcdef";
+        assert_eq!(xor_deobfuscate(&xor_obfuscate(key)), Some(key.to_string()));
+    }
+
+    #[test]
+    fn xor_deobfuscate_invalid_hex_returns_none() {
+        assert_eq!(xor_deobfuscate("not-hex!"), None);
+    }
+
+    #[test]
+    fn xor_deobfuscate_odd_length_returns_none() {
+        assert_eq!(xor_deobfuscate("abc"), None);
+    }
+}
