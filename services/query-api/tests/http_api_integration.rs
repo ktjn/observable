@@ -133,13 +133,45 @@ async fn apply_ch_migrations(base_url: &str, user: &str, password: &str) -> ChCl
 
 // ── App builder ──────────────────────────────────────────────────────────────
 
-fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
+/// Starts a wiremock server that stubs auth-service's `/internal/validate`
+/// endpoint to accept `DEV_API_KEY` and resolve it to `DEV_TENANT_ID` with the
+/// `tenant_admin` role. Most tests in this file authenticate with the dev API
+/// key via `require_tenant`, which (since the audit-gap fix) now calls out to
+/// auth-service over HTTP rather than querying Postgres directly — this mock
+/// stands in for that call. The returned `MockServer` must be kept alive for
+/// as long as the app built against its URI is used.
+async fn start_dev_auth_mock() -> MockServer {
+    let mock_server = MockServer::start().await;
+    let tenant_id = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+
+    Mock::given(method("POST"))
+        .and(path("/internal/validate"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "tenant_id": tenant_id,
+            "role": "tenant_admin",
+            "environment": "prod",
+        })))
+        .mount(&mock_server)
+        .await;
+
+    mock_server
+}
+
+/// Most callers in this file don't hold on to the returned `MockServer`, so
+/// leak it for the (short) lifetime of the test process rather than
+/// threading an extra return value through every call site.
+async fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
+    let mock_server = Box::leak(Box::new(start_dev_auth_mock().await));
+    build_app_with_pg_at(ch, db, mock_server.uri())
+}
+
+fn build_app_with_pg_at(ch: ChClient, db: PgPool, auth_service_url: String) -> Router {
     let state = traces::AppState {
         ch,
         db: db.clone(),
         planner: Arc::new(QueryPlanner),
         llm: None,
-        auth_service_url: "http://auth-service:4319".into(),
+        auth_service_url,
         metrics: Arc::new(observability::QueryApiMetrics::new()),
     };
     let auth_service_url = Arc::new(state.auth_service_url.clone());
@@ -429,7 +461,7 @@ async fn query_api_rejects_missing_authorization_header() {
 async fn query_api_rejects_tenant_header_not_owned_by_token() {
     let (db, _pg) = start_postgres().await;
     let ch = ChClient::default().with_url("http://127.0.0.1:19999");
-    let app = build_app_with_pg(ch, db);
+    let app = build_app_with_pg(ch, db).await;
 
     let other_tenant = Uuid::new_v4();
     let req = Request::builder()
@@ -451,7 +483,7 @@ async fn query_api_rejects_tenant_header_not_owned_by_token() {
 async fn query_api_accepts_matching_token_and_tenant_header() {
     let (db, _pg) = start_postgres().await;
     let (ch, _ch_container) = start_clickhouse().await;
-    let app = build_app_with_pg(ch, db);
+    let app = build_app_with_pg(ch, db).await;
 
     let resp = app
         .oneshot(dev_request(
@@ -515,7 +547,7 @@ async fn invalid_tenant_id_header_returns_400() {
 async fn query_api_readyz_returns_200_when_dependencies_are_up() {
     let (ch, _ch_container) = start_clickhouse().await;
     let (db, _pg) = start_postgres().await;
-    let app = build_app_with_pg(ch, db);
+    let app = build_app_with_pg(ch, db).await;
 
     let req = Request::builder()
         .method("GET")
@@ -608,7 +640,7 @@ async fn query_api_metrics_endpoint_exposes_prometheus_text() {
 async fn trace_histogram_accepts_nanosecond_u64_timestamps() {
     let (ch, _container) = start_clickhouse().await;
     let (db, _pg) = start_postgres().await;
-    let app = build_app_with_pg(ch, db);
+    let app = build_app_with_pg(ch, db).await;
 
     let resp = app
         .oneshot(dev_request(
@@ -631,7 +663,7 @@ async fn trace_histogram_accepts_nanosecond_u64_timestamps() {
 async fn log_histogram_accepts_nanosecond_u64_timestamps() {
     let (ch, _container) = start_clickhouse().await;
     let (db, _pg) = start_postgres().await;
-    let app = build_app_with_pg(ch, db);
+    let app = build_app_with_pg(ch, db).await;
 
     let resp = app
         .oneshot(dev_request(
@@ -675,7 +707,7 @@ async fn trace_histogram_counts_inserted_spans() {
     )
     .await;
 
-    let app = build_app_with_pg(ch, db);
+    let app = build_app_with_pg(ch, db).await;
     let from = base - 1;
     let to = base + 3_000_000_001;
     let uri = format!("/v1/traces/histogram?from={from}&to={to}&buckets=30");
@@ -707,7 +739,7 @@ async fn log_histogram_counts_inserted_logs() {
     insert_log(&ch, make_log(dev_tenant, "svc", base + 1_000_000_000)).await;
     insert_log(&ch, make_log(dev_tenant, "svc", base + 2_000_000_000)).await;
 
-    let app = build_app_with_pg(ch, db);
+    let app = build_app_with_pg(ch, db).await;
     let from = base - 1;
     let to = base + 3_000_000_001;
     let uri = format!("/v1/logs/histogram?from={from}&to={to}&buckets=30");
@@ -746,7 +778,7 @@ async fn trace_histogram_tenant_isolation() {
     )
     .await;
 
-    let app = build_app_with_pg(ch, db);
+    let app = build_app_with_pg(ch, db).await;
     let from = base - 1;
     let to = base + 2_000_000_001;
     let uri = format!("/v1/traces/histogram?from={from}&to={to}&buckets=30");
@@ -778,7 +810,7 @@ async fn log_histogram_service_filter() {
     insert_log(&ch, make_log(dev_tenant, "svc-a", base)).await;
     insert_log(&ch, make_log(dev_tenant, "svc-b", base + 500_000_000)).await;
 
-    let app = build_app_with_pg(ch, db);
+    let app = build_app_with_pg(ch, db).await;
     let from = base - 1;
     let to = base + 2_000_000_001;
     let uri = format!("/v1/logs/histogram?service=svc-a&from={from}&to={to}&buckets=30");
@@ -816,7 +848,7 @@ async fn metric_list_groups_label_specific_series_by_metric_identity() {
     )
     .await;
 
-    let app = build_app_with_pg(ch, db);
+    let app = build_app_with_pg(ch, db).await;
     let resp = app
         .oneshot(dev_request("GET", "/v1/metrics?service=checkout"))
         .await
@@ -864,7 +896,7 @@ async fn metric_group_points_sum_label_specific_series_at_same_timestamp() {
     )
     .await;
 
-    let app = build_app_with_pg(ch, db);
+    let app = build_app_with_pg(ch, db).await;
     let uri = "/v1/metrics/points?metric_name=span.calls_total&service=checkout&environment=prod&metric_type=sum&unit=1";
     let resp = app.oneshot(dev_request("GET", uri)).await.unwrap();
 
@@ -882,7 +914,7 @@ async fn metric_group_points_sum_label_specific_series_at_same_timestamp() {
 async fn list_alert_rules_http_returns_lifecycle_state() {
     let (ch, _ch_container) = start_clickhouse().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app_with_pg(ch, pg.clone());
+    let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
     let rule_id = Uuid::new_v4();
 
@@ -934,7 +966,7 @@ async fn list_alert_rules_http_returns_lifecycle_state() {
 async fn post_slo_creates_tenant_scoped_definition() {
     let (ch, _ch_container) = start_clickhouse().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app_with_pg(ch, pg);
+    let app = build_app_with_pg(ch, pg).await;
 
     let body = serde_json::json!({
         "service_name": "payments",
@@ -970,7 +1002,7 @@ async fn post_slo_creates_tenant_scoped_definition() {
 async fn post_slo_rejects_invalid_target() {
     let (ch, _ch_container) = start_clickhouse().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app_with_pg(ch, pg);
+    let app = build_app_with_pg(ch, pg).await;
 
     let body = serde_json::json!({
         "service_name": "payments",
@@ -998,7 +1030,7 @@ async fn post_slo_rejects_invalid_target() {
 async fn get_slos_does_not_return_other_tenant_definitions() {
     let (ch, _ch_container) = start_clickhouse().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app_with_pg(ch, pg.clone());
+    let app = build_app_with_pg(ch, pg.clone()).await;
     let other_tenant = Uuid::new_v4();
 
     sqlx::query(
@@ -1106,7 +1138,7 @@ async fn service_summary_reports_slo_breach_alert_count_and_latest_deploy() {
     .await
     .expect("deployment marker inserted");
 
-    let app = build_app_with_pg(ch, pg);
+    let app = build_app_with_pg(ch, pg).await;
 
     let response = app
         .oneshot(dev_request("GET", "/v1/services/summary"))
@@ -1138,7 +1170,7 @@ async fn service_summary_reports_slo_breach_alert_count_and_latest_deploy() {
 async fn dashboard_get_http_returns_v2_panel_shape() {
     let (ch, _ch_container) = start_clickhouse().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app_with_pg(ch, pg.clone());
+    let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
 
     let created = dashboards::create_dashboard(
@@ -1180,7 +1212,7 @@ async fn dashboard_get_http_returns_v2_panel_shape() {
 async fn dashboard_put_http_updates_panel_layout() {
     let (ch, _ch_container) = start_clickhouse().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app_with_pg(ch, pg.clone());
+    let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
 
     let created = dashboards::create_dashboard(
@@ -1239,18 +1271,20 @@ async fn dashboard_put_http_updates_panel_layout() {
 async fn llm_models_returns_ok_false_when_unreachable() {
     let (db, _pg) = start_postgres().await;
     let ch = ChClient::default().with_url("http://127.0.0.1:19999");
+    let mock_server = start_dev_auth_mock().await;
     let state = traces::AppState {
         ch,
         db: db.clone(),
         planner: Arc::new(QueryPlanner),
         llm: None,
-        auth_service_url: String::new(),
+        auth_service_url: mock_server.uri(),
         metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
     };
     let app = Router::new()
         .route("/v1/config/llm/models", post(config::list_llm_models))
         .layer(axum_middleware::from_fn(require_tenant))
         .layer(axum::Extension(db))
+        .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
         .with_state(state);
 
     // Port 1 is reserved/refused on all standard OS configurations.
@@ -1357,13 +1391,14 @@ async fn nlq_metrics_base_ir_without_metric_returns_400() {
 async fn test_mcp_query_rejects_unknown_filter_field() {
     let (db, _pg_container) = start_postgres().await;
     let (ch_client, _ch_container) = start_clickhouse().await;
+    let mock_server = start_dev_auth_mock().await;
 
     let state = query_api::traces::AppState {
         ch: ch_client,
         db: db.clone(),
         planner: Arc::new(QueryPlanner),
         llm: None,
-        auth_service_url: "http://auth-service:4319".to_string(),
+        auth_service_url: mock_server.uri(),
         metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
     };
 
@@ -1374,6 +1409,7 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
         )
         .layer(axum_middleware::from_fn(require_tenant))
         .layer(axum::Extension(db.clone()))
+        .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
         .with_state(state);
 
     let ir = serde_json::json!({
@@ -1418,7 +1454,7 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
 async fn list_incidents_returns_tenant_scoped_incidents() {
     let (ch, _ch_container) = start_clickhouse().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app_with_pg(ch, pg.clone());
+    let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
 
     sqlx::query(
@@ -1449,7 +1485,7 @@ async fn list_incidents_returns_tenant_scoped_incidents() {
 async fn get_incident_returns_detail_with_timeline() {
     let (ch, _ch_container) = start_clickhouse().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app_with_pg(ch, pg.clone());
+    let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
     let incident_id = Uuid::new_v4();
 
@@ -1491,7 +1527,7 @@ async fn get_incident_returns_detail_with_timeline() {
 async fn get_incident_returns_404_for_unknown_id() {
     let (ch, _ch_container) = start_clickhouse().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app_with_pg(ch, pg.clone());
+    let app = build_app_with_pg(ch, pg.clone()).await;
     let unknown_id = Uuid::new_v4();
 
     let response = app
@@ -1506,7 +1542,7 @@ async fn get_incident_returns_404_for_unknown_id() {
 async fn get_incident_detail_includes_rule_name() {
     let (ch, _ch_container) = start_clickhouse().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app_with_pg(ch, pg.clone());
+    let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
 
     let rule_id: Uuid = sqlx::query_scalar(
@@ -1549,7 +1585,7 @@ async fn get_incident_detail_includes_rule_name() {
 async fn get_incident_detail_rule_name_null_when_no_rule() {
     let (ch, _ch_container) = start_clickhouse().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app_with_pg(ch, pg.clone());
+    let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
 
     let incident_id = Uuid::new_v4();
@@ -1607,7 +1643,7 @@ async fn get_alert_rule_returns_detail_with_firings() {
         .expect("firing inserted");
     }
 
-    let app = build_app_with_pg(ch, pg.clone());
+    let app = build_app_with_pg(ch, pg.clone()).await;
     let response = app
         .oneshot(dev_request("GET", &format!("/v1/alerts/rules/{rule_id}")))
         .await
@@ -1642,7 +1678,7 @@ async fn get_alert_rule_returns_404_for_wrong_tenant() {
     .expect("rule inserted");
 
     // Request is authenticated as DEV_TENANT_ID
-    let app = build_app_with_pg(ch, pg.clone());
+    let app = build_app_with_pg(ch, pg.clone()).await;
     let response = app
         .oneshot(dev_request("GET", &format!("/v1/alerts/rules/{rule_id}")))
         .await
@@ -1655,7 +1691,7 @@ async fn get_alert_rule_returns_404_for_wrong_tenant() {
 async fn get_incident_detail_includes_impacted_service_for_slo_rule() {
     let (ch, _ch_container) = start_clickhouse().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app_with_pg(ch, pg.clone());
+    let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
 
     // Seed an SLO definition for "payments" service
@@ -1719,7 +1755,7 @@ async fn get_incident_detail_includes_impacted_service_for_slo_rule() {
 async fn get_incident_detail_impacted_service_null_for_threshold_rule() {
     let (ch, _ch_container) = start_clickhouse().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app_with_pg(ch, pg.clone());
+    let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
 
     let rule_id: Uuid = sqlx::query_scalar(
@@ -1765,7 +1801,7 @@ async fn get_incident_detail_impacted_service_null_for_threshold_rule() {
 async fn get_service_reliability_report_filters_service_environment_and_interval() {
     let (pg, _pg_container) = start_postgres().await;
     let ch = ChClient::default().with_url("http://127.0.0.1:19999");
-    let app = build_app_with_pg(ch, pg.clone());
+    let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
     let service_name = "checkout";
     let from = chrono::Utc::now() - chrono::Duration::hours(6);
@@ -1990,7 +2026,7 @@ async fn get_service_reliability_report_filters_service_environment_and_interval
 async fn get_tenant_usage_report_scopes_to_tenant_and_interval() {
     let (ch, _ch_container) = start_clickhouse().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app_with_pg(ch.clone(), pg.clone());
+    let app = build_app_with_pg(ch.clone(), pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
     let other_tenant = Uuid::new_v4();
 
@@ -2190,7 +2226,7 @@ async fn get_tenant_usage_report_scopes_to_tenant_and_interval() {
 async fn get_tenant_usage_report_returns_zeroes_for_empty_interval() {
     let (ch, _ch_container) = start_clickhouse().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app_with_pg(ch, pg.clone());
+    let app = build_app_with_pg(ch, pg.clone()).await;
 
     let from = chrono::Utc::now() - chrono::Duration::days(3);
     let to = chrono::Utc::now() - chrono::Duration::days(2);

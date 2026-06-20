@@ -24,22 +24,19 @@ pub async fn auth_middleware(
     mut req: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let bearer = req
-        .headers()
-        .get("Authorization")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "))
+    let bearer = observable_auth::extract_bearer_token(req.headers())
+        .map_err(StatusCode::from)?
         .ok_or(StatusCode::UNAUTHORIZED)?;
 
-    let (tenant_id, role, environment) = state
-        .validate_api_key(bearer)
+    let api_key_ctx = state
+        .validate_api_key(&bearer)
         .await
-        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+        .map_err(StatusCode::from)?;
 
     let ctx = TenantContext {
-        tenant_id,
-        role,
-        environment,
+        tenant_id: api_key_ctx.tenant_id,
+        role: api_key_ctx.role,
+        environment: api_key_ctx.environment,
     };
     if !ctx.can_ingest() {
         tracing::warn!(tenant_id = %ctx.tenant_id, role = %ctx.role, "ingest rejected: insufficient role");

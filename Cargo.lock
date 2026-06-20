@@ -2071,6 +2071,7 @@ dependencies = [
  "governor",
  "hex",
  "http-body-util",
+ "observable-auth",
  "opentelemetry",
  "opentelemetry-proto",
  "prost",
@@ -2613,6 +2614,22 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "observable-auth"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "domain",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "uuid",
+ "wiremock",
 ]
 
 [[package]]
@@ -3198,11 +3215,13 @@ dependencies = [
  "anyhow",
  "async-openai",
  "async-trait",
+ "auth-service",
  "axum",
  "chrono",
  "clickhouse",
  "domain",
  "http-body-util",
+ "observable-auth",
  "prometheus",
  "rand 0.9.4",
  "reqwest 0.12.28",

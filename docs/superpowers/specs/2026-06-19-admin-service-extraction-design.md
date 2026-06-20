@@ -58,22 +58,36 @@ URL paths are unchanged — only the routing target changes. Frontend admin page
 `apps/frontend/src/api/admin-members.ts`) require no code changes, only the ingress/nginx rule
 update.
 
-## Shared `observable-auth` crate
+## Shared `observable-auth` crate — DONE 2026-06-20
 
-Session-JWT verification and `TenantContext` extraction are currently duplicated:
-query-api's `middleware/auth.rs` and ingest-gateway's `auth.rs` each reimplement
-`verify_session_jwt`/role-claim parsing independently. Adding admin-service as a third
-reimplementation increases the chance the three drift (e.g., one service fails to check token
-expiry correctly). This design extracts a shared `observable-auth` crate (new workspace member,
-`crates/observable-auth` or `libs/observable-auth` matching existing workspace layout) providing:
+**Status: complete.** See `archived/plans/2026-06-20-observable-auth-crate.md` for the
+implementation plan and `libs/observable-auth/src/lib.rs` for the result.
 
-- `verify_session_jwt(token, secret) -> Result<TenantContext, AuthError>`
-- `TenantContext { tenant_id, user_id: Option<Uuid>, role: String }`
-- `require_admin(&TenantContext) -> Result<(), AuthError>` (the guard currently duplicated per
-  handler in `admin_members.rs`/`tokens.rs`/`config.rs`)
+**Correction to this section's original framing:** it described the duplication as each service
+"reimplementing `verify_session_jwt`/role-claim parsing independently." That premise was wrong —
+neither `query-api` nor `ingest-gateway` did local JWT verification; both already called
+`auth-service` over HTTP (`query-api`'s session-cookie path hit `/internal/validate-session`;
+`ingest-gateway`'s API-key path hit `/internal/validate`). The actual duplication was the
+bearer/cookie header-extraction boilerplate and two slightly different `TenantContext` shapes —
+and, more significantly, `query-api`'s API-key path didn't call `auth-service` at all: it queried
+`api_keys` directly, bypassing `auth-service`'s audit logging entirely.
 
-query-api and ingest-gateway migrate to the shared crate as part of this work (mechanical
-replacement, same behavior); admin-service uses it from day one.
+What was actually built in `libs/observable-auth`:
+- `verify_api_key(http, auth_service_url, api_key) -> Result<ApiKeyContext, AuthError>` — POSTs to
+  `/internal/validate`.
+- `verify_session(http, auth_service_url, session_token) -> Result<SessionContext, AuthError>` —
+  POSTs to `/internal/validate-session`.
+- `ApiKeyContext { tenant_id, role, environment }`, `SessionContext { tenant_id, user_id, role }` —
+  kept distinct rather than unified into one `TenantContext`, since the two services' own
+  `TenantContext` shapes carry genuinely different fields for genuinely different purposes.
+- `AuthError` enum with `impl From<AuthError> for axum::http::StatusCode`.
+- `extract_bearer_token`, `extract_session_cookie`, `extract_tenant_id_header` header helpers.
+- A `require_admin`-style role guard was **not** added here — it remains scoped to admin-service's
+  handlers when that slice is built (Slices 2-3 below, not yet started), since it's
+  admin-specific, not shared with query-api/ingest-gateway's read paths.
+
+`query-api` and `ingest-gateway` are migrated. As a result of this work, `query-api`'s API-key
+path now also routes through `auth-service`'s `/internal/validate`, closing the audit-trail gap.
 
 ## Data Flow
 
@@ -110,7 +124,9 @@ replacement, same behavior); admin-service uses it from day one.
 
 This is independent of the NLQ extraction and repository-layer findings in the architecture
 review — it can be promoted on its own. Suggested slice order if implemented:
-1. `observable-auth` crate extraction + migrate query-api and ingest-gateway to it (no behavior
-   change, proves the crate works).
-2. Scaffold `admin-service`, move the four handler modules, wire ingress routing.
-3. Remove the moved handlers from query-api.
+1. **DONE 2026-06-20.** `observable-auth` crate extraction + migrate query-api and ingest-gateway
+   to it. (Not fully behavior-neutral as originally planned — see the correction above: closing
+   query-api's API-key audit-trail gap was an intentional, separately-reviewed behavior change
+   within this slice, not scope creep.)
+2. Scaffold `admin-service`, move the four handler modules, wire ingress routing. Not started.
+3. Remove the moved handlers from query-api. Not started.

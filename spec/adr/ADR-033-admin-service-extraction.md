@@ -28,9 +28,15 @@ new standalone service, `services/admin-service`, deployed and scaled independen
 change there. URL paths are unchanged; only ingress routing targets change, so the frontend
 requires no code changes.
 
-As part of the same slice sequence, extract a shared `observable-auth` crate for session-JWT
-verification and `TenantContext`, currently duplicated independently in `query-api` and
-`ingest-gateway`, to avoid a third independent reimplementation in admin-service.
+As part of the same slice sequence, extract a shared `observable-auth` crate (`libs/observable-auth`,
+completed 2026-06-20, see `archived/plans/2026-06-20-observable-auth-crate.md`). **Correction to
+this ADR's original framing:** neither `query-api` nor `ingest-gateway` did local session-JWT
+verification — both already delegated to `auth-service` over HTTP. The crate instead provides
+shared HTTP-client wrappers around `auth-service`'s existing `/internal/validate` and
+`/internal/validate-session` endpoints, plus the bearer/cookie header-extraction helpers that were
+genuinely duplicated. Building this surfaced a real bug along the way: `query-api`'s API-key path
+bypassed `auth-service` entirely and queried `api_keys` directly, producing no audit trail; it now
+routes through `/internal/validate` like `ingest-gateway` already did, closing that gap.
 
 ## Consequences
 
@@ -39,13 +45,21 @@ verification and `TenantContext`, currently duplicated independently in `query-a
   boundary, separate from the high-traffic read path.
 - query-api shrinks by ~1,260 lines, reducing its blast radius independent of the NLQ/AI
   extraction also recommended by the same review.
-- Session-JWT verification has one canonical implementation instead of three independent copies.
+- Auth-service-delegated credential checks (API-key and session) have one canonical client
+  implementation (`libs/observable-auth`) instead of duplicated header-extraction and divergent
+  `TenantContext` shapes across query-api and ingest-gateway. (Not "one canonical JWT
+  implementation instead of three" as originally stated here — see the correction above.)
 
 **Harder:**
 - One more service to deploy, monitor, and version; admin-service needs its own self-observability
   wiring (readyz/metrics) matching the pattern other services already have.
 - Migration requires a two-step rollout (deploy admin-service, flip ingress routing, then remove
   the now-dead handlers from query-api) rather than a single atomic change.
+- Closing query-api's API-key audit-trail gap (see above) means every API-key-authenticated
+  query-api request now makes a network round-trip to auth-service instead of a local Postgres
+  query — an availability coupling query-api didn't previously have on this path.
+  `ingest-gateway` already has this same coupling for its own API-key checks, so this brings
+  query-api in line rather than introducing a new class of risk.
 
 **Constrained:**
 - Future admin features (e.g., the planned Fleet Management UI, Admin Console RBAC/quota views)
