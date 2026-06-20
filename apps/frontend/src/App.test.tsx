@@ -240,10 +240,11 @@ test("renders onboarding setup with OTLP endpoints and first signal success", as
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
 
-      if (url.includes("/v1/traces")) {
-        return new Response(JSON.stringify({ traces: [{ trace_id: "abc", spans: [] }], total: 1 }), {
-          status: 200,
-        });
+      if (url.includes("/v1/setup/status")) {
+        return new Response(
+          JSON.stringify({ state: "detected", traces: 1, logs: 0, metrics: 0 }),
+          { status: 200 },
+        );
       }
 
       if (url.includes("/v1/logs/histogram")) {

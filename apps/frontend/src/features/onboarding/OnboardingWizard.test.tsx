@@ -33,14 +33,11 @@ function stubFetch(
           { status: 200 },
         );
       }
-      if (url.includes("/v1/traces")) {
-        return new Response(JSON.stringify({ traces: [], total: 0 }), { status: 200 });
-      }
-      if (url.includes("/v1/logs")) {
-        return new Response(JSON.stringify({ logs: [], total: 0 }), { status: 200 });
-      }
-      if (url.includes("/v1/metrics") && !url.includes("/points")) {
-        return new Response(JSON.stringify({ metrics: [] }), { status: 200 });
+      if (url.includes("/v1/setup/status")) {
+        return new Response(
+          JSON.stringify({ state: "waiting", traces: 0, logs: 0, metrics: 0 }),
+          { status: 200 },
+        );
       }
       return new Response(JSON.stringify({}), { status: 200 });
     }),
@@ -142,10 +139,11 @@ test("shows success state when signals detected", async () => {
       }
       return new Response(JSON.stringify({ tokens: [] }), { status: 200 });
     },
-    "/v1/traces": () =>
-      new Response(JSON.stringify({ traces: [{ trace_id: "t1" }], total: 1 }), {
-        status: 200,
-      }),
+    "/v1/setup/status": () =>
+      new Response(
+        JSON.stringify({ state: "detected", traces: 1, logs: 0, metrics: 0 }),
+        { status: 200 },
+      ),
   });
   vi.resetModules();
   ({ default: App } = await import("../../App"));

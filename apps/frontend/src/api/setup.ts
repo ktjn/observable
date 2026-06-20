@@ -1,7 +1,3 @@
-import { searchLogs } from "./logs";
-import { listMetrics } from "./metrics";
-import { searchTraces } from "./traces";
-
 export const OTLP_GRPC_ENDPOINT = "http://localhost:4317";
 export const OTLP_HTTP_JSON_TRACES = "http://localhost:4318/v1/traces";
 export const OTLP_HTTP_JSON_METRICS = "http://localhost:4318/v1/metrics";
@@ -17,31 +13,21 @@ export interface FirstSignalStatus {
 }
 
 export async function getFirstSignalStatus(tenantId: string): Promise<FirstSignalStatus> {
-  const [traces, logs, metrics] = await Promise.allSettled([
-    searchTraces(tenantId, {
-      from: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-      to: new Date().toISOString(),
-      limit: 1,
-    }),
-    searchLogs(tenantId, { from: new Date(Date.now() - 60 * 60 * 1000).toISOString(), limit: 1 }),
-    listMetrics(tenantId),
-  ]);
-
-  if (traces.status === "rejected" || logs.status === "rejected" || metrics.status === "rejected") {
+  try {
+    const res = await fetch("/v1/setup/status", {
+      credentials: "include",
+      headers: {
+        "x-api-key": LOCAL_DEV_API_KEY,
+        "X-Tenant-ID": tenantId,
+      },
+    });
+    if (!res.ok) {
+      return { state: "error", traces: 0, logs: 0, metrics: 0 };
+    }
+    return (await res.json()) as FirstSignalStatus;
+  } catch {
     return { state: "error", traces: 0, logs: 0, metrics: 0 };
   }
-
-  const traceCount = traces.value.total ?? traces.value.traces.length;
-  const logCount = logs.value.total ?? logs.value.logs.length;
-  const metricCount = metrics.value.metrics.length;
-  const hasSignal = traceCount + logCount + metricCount > 0;
-
-  return {
-    state: hasSignal ? "detected" : "waiting",
-    traces: traceCount,
-    logs: logCount,
-    metrics: metricCount,
-  };
 }
 
 // ── LLM / AI config ───────────────────────────────────────────────────────────

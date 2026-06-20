@@ -18,6 +18,7 @@ mod observability;
 mod planner;
 mod reliability;
 mod schemas;
+mod setup;
 mod slos;
 mod sql_templates;
 mod tenants;
@@ -83,6 +84,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/metrics", get(metrics::list_metrics))
         .route("/v1/metrics/points", get(metrics::get_metric_group_points))
         .route("/v1/metrics/{series_id}", get(metrics::get_metric_points))
+        .route("/v1/setup/status", get(setup::get_setup_status))
         .route("/v1/topology", get(discovery::get_topology))
         .route(
             "/v1/infrastructure",
