@@ -1,5 +1,10 @@
-use admin_service::{AdminServiceAppState, observability};
-use axum::{Router, http::StatusCode, routing::get};
+use admin_service::{AdminServiceAppState, admin_members, middleware, observability};
+use axum::{
+    Router,
+    http::StatusCode,
+    middleware as axum_middleware,
+    routing::{delete, get, post},
+};
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
@@ -41,6 +46,23 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let app = Router::new()
+        .route("/v1/admin/members", get(admin_members::handle_list_members))
+        .route("/v1/admin/members", post(admin_members::handle_add_member))
+        .route(
+            "/v1/admin/members/{user_id}/role",
+            axum::routing::put(admin_members::handle_update_role),
+        )
+        .route(
+            "/v1/admin/members/{user_id}",
+            delete(admin_members::handle_remove_member),
+        )
+        .route(
+            "/v1/admin/members/{user_id}/revoke-sessions",
+            post(admin_members::handle_revoke_sessions),
+        )
+        .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
+        .layer(axum::Extension(state.db.clone()))
+        .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))
