@@ -29,7 +29,7 @@
 - Consumes: `crate::traces::AppState` (existing, has `ch: clickhouse::Client`), `crate::middleware::auth::TenantContext` (existing).
 - Produces: `pub async fn compute_setup_status(ch: &clickhouse::Client, tenant_id: Uuid) -> anyhow::Result<SetupStatusResponse>` — a plain ClickHouse-client-level function (not just the axum handler) so Task 2's integration test can call it directly without going through HTTP/auth, matching `traces::fetch_trace_spans`'s `anyhow::Result<Vec<SpanRow>>` shape. `SetupStatusResponse` is `pub` with `pub` fields.
 
-- [ ] **Step 1: Write `services/query-api/src/setup.rs`**
+- [x] **Step 1: Write `services/query-api/src/setup.rs`**
 
 ```rust
 use axum::{
@@ -153,7 +153,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Register the module and route**
+- [x] **Step 2: Register the module and route**
 
 In `services/query-api/src/main.rs`, add `mod setup;` to the `mod` list (insert after `mod schemas;`, before `mod slos;` — alphabetical order matches the existing list).
 
@@ -165,12 +165,12 @@ Add the route in the same `Router::new()` chain that has `.route("/v1/metrics/{s
         .route("/v1/setup/status", get(setup::get_setup_status))
 ```
 
-- [ ] **Step 3: Run unit tests**
+- [x] **Step 3: Run unit tests**
 
 Run: `cargo test -p query-api setup`
 Expected: 2 tests pass (`response_serializes_detected_state`, `response_serializes_waiting_state`).
 
-- [ ] **Step 4: Format and commit**
+- [x] **Step 4: Format and commit**
 
 ```bash
 cargo fmt --all
@@ -189,7 +189,7 @@ git commit -m "feat(query-api): add GET /v1/setup/status onboarding status endpo
 - Consumes: `query_api::setup::compute_setup_status` (Task 1, must be `pub`); reuses this file's existing `make_span`/`insert_span` and `make_log_row_at`/`insert_log` helpers.
 - Produces: nothing other tasks depend on.
 
-- [ ] **Step 1: Add a `metric_series` helper**
+- [x] **Step 1: Add a `metric_series` helper**
 
 In `services/query-api/tests/clickhouse_integration.rs`, add `MetricSeriesRow` to the top-level `use domain::{LogRow, SpanRow};` import (changing it to `use domain::{LogRow, MetricSeriesRow, SpanRow};`), then add this helper function immediately after the existing `insert_log` function (after line 172):
 
@@ -221,7 +221,7 @@ async fn insert_metric_series(ch: &Client, row: MetricSeriesRow) {
 }
 ```
 
-- [ ] **Step 2: Add the test module**
+- [x] **Step 2: Add the test module**
 
 Add this `use` near the top of the file (alongside the other `query_api::` imports, e.g. after `use query_api::planner::QueryPlanner;`):
 
@@ -361,12 +361,12 @@ async fn setup_status_excludes_signals_outside_the_lookback_window() {
 }
 ```
 
-- [ ] **Step 3: Run the integration tests**
+- [x] **Step 3: Run the integration tests**
 
 Run: `cargo test -p query-api --test clickhouse_integration setup_status`
 Expected: all 5 new tests pass (requires Docker running for Testcontainers).
 
-- [ ] **Step 4: Format and commit**
+- [x] **Step 4: Format and commit**
 
 ```bash
 cargo fmt --all
@@ -386,7 +386,7 @@ git commit -m "test(query-api): add Testcontainers coverage for setup_status"
 - Consumes: `GET /v1/setup/status` (Task 1).
 - Produces: `getFirstSignalStatus(tenantId)` keeps its existing signature and `FirstSignalStatus` return shape — Task 4's wizard test file and `OnboardingWizard.tsx`'s `StepWaiting` component (which calls this function) are unaffected by the internal rewrite.
 
-- [ ] **Step 1: Rewrite `getFirstSignalStatus` in `apps/frontend/src/api/setup.ts`**
+- [x] **Step 1: Rewrite `getFirstSignalStatus` in `apps/frontend/src/api/setup.ts`**
 
 Replace lines 1-45 (the `searchLogs`/`listMetrics`/`searchTraces` imports through the end of `getFirstSignalStatus`) with:
 
@@ -426,7 +426,7 @@ export async function getFirstSignalStatus(tenantId: string): Promise<FirstSigna
 
 This removes the now-unused `searchLogs`, `listMetrics`, and `searchTraces` imports (the only call site was `getFirstSignalStatus`) and replaces the 3-request `Promise.allSettled` fan-out with one call to the new backend endpoint, matching `getConfig`'s existing header/credentials pattern later in the same file.
 
-- [ ] **Step 2: Write `apps/frontend/src/api/setup.test.ts`**
+- [x] **Step 2: Write `apps/frontend/src/api/setup.test.ts`**
 
 ```typescript
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -481,12 +481,12 @@ describe("getFirstSignalStatus", () => {
 });
 ```
 
-- [ ] **Step 3: Run the frontend tests**
+- [x] **Step 3: Run the frontend tests**
 
 Run: `npm test -- setup.test`
 Expected: all 4 tests pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/frontend/src/api/setup.ts apps/frontend/src/api/setup.test.ts
@@ -506,7 +506,7 @@ git commit -m "feat(frontend): consolidate onboarding signal polling into /v1/se
 
 **Why this is needed:** `OnboardingWizard.test.tsx`'s `stubFetch` currently stubs `/v1/traces`, `/v1/logs`, and `/v1/metrics` to simulate the polling responses. After Task 3, `getFirstSignalStatus` calls `/v1/setup/status` instead, so these stubs no longer intercept the polling request — it would fall through to the catch-all `{}` response, breaking the "shows success state when signals detected" test (which currently overrides `/v1/traces` to return `total: 1`).
 
-- [ ] **Step 1: Update the default stub and the success-state test**
+- [x] **Step 1: Update the default stub and the success-state test**
 
 In `apps/frontend/src/features/onboarding/OnboardingWizard.test.tsx`, replace lines 36-44 (the `/v1/traces`, `/v1/logs`, `/v1/metrics` branches inside `stubFetch`'s default handler) with:
 
@@ -538,17 +538,17 @@ to:
       ),
 ```
 
-- [ ] **Step 2: Run the wizard tests**
+- [x] **Step 2: Run the wizard tests**
 
 Run: `npm test -- OnboardingWizard`
 Expected: all 6 existing tests still pass (`renders language picker...`, `Next button disabled...`, `advances to API key step...`, `creates token and shows waiting step`, `shows success state when signals detected`, `skip wizard sets complete flag`).
 
-- [ ] **Step 3: Run frontend typecheck and full suite**
+- [x] **Step 3: Run frontend typecheck and full suite**
 
 Run: `npm run typecheck && npm test`
 Expected: no errors; no regressions elsewhere.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/frontend/src/features/onboarding/OnboardingWizard.test.tsx
@@ -568,7 +568,7 @@ git commit -m "test(onboarding): stub /v1/setup/status instead of the old 3-quer
 - Consumes: completion of Tasks 1-4.
 - Produces: nothing (terminal documentation task).
 
-- [ ] **Step 1: Check off the roadmap item**
+- [x] **Step 1: Check off the roadmap item**
 
 In `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md`, change the Tier 1 line:
 
@@ -580,23 +580,23 @@ to
 - [x] **Onboarding Wizard** (was P9-S1) — guided zero-to-first-trace flow: language/framework
 ```
 
-- [ ] **Step 2: Add an agent-context.md entry**
+- [x] **Step 2: Add an agent-context.md entry**
 
 In `docs/agent-context.md`, add a new `## Setup Status Endpoint (P9-S1, completed 2026-06-19)` section after the most recent completed-feature section, summarizing: the Onboarding Wizard (`features/onboarding/OnboardingWizard.tsx`) was already shipped with its full 4-step flow; this slice closed the one literal gap (`GET /v1/setup/status`) by adding a consolidated backend endpoint (`services/query-api/src/setup.rs`) and rewiring `getFirstSignalStatus` to call it instead of fanning out to `/v1/traces`, `/v1/logs`, `/v1/metrics` client-side. Also append `archived/plans/2026-06-19-setup-status-endpoint.md` to the "Completed / archived detailed plans" bullet list.
 
-- [ ] **Step 3: Archive this plan**
+- [x] **Step 3: Archive this plan**
 
 ```bash
 git mv docs/superpowers/plans/2026-06-19-setup-status-endpoint.md archived/plans/2026-06-19-setup-status-endpoint.md
 ```
 Mark every checkbox above `[x]` in the archived copy before committing.
 
-- [ ] **Step 4: Final verification**
+- [x] **Step 4: Final verification**
 
 Run: `bash scripts/local-ci.sh`
 Expected: passes end-to-end (Rust fmt/clippy/tests, frontend typecheck/test/build, smoke test).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md docs/agent-context.md archived/plans/2026-06-19-setup-status-endpoint.md

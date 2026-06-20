@@ -58,7 +58,7 @@ requirement, security finding, or scaling incident forces it.
 
 Small, standalone, high user-value slices. Promote these first.
 
-- [ ] **Onboarding Wizard** (was P9-S1) — guided zero-to-first-trace flow: language/framework
+- [x] **Onboarding Wizard** (was P9-S1) — guided zero-to-first-trace flow: language/framework
   picker, copy-paste install command with pre-filled endpoint/API key, polling for first signal,
   success state linking to the first trace/log. `features/onboarding/`,
   `GET /v1/setup/status`. Leading source of trial abandonment per the parity analysis.

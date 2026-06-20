@@ -69,6 +69,7 @@ making changes.
   - `archived/plans/2026-05-07-remaining-roadmap-plan.md` — superseded post-Phase-3 plan; full historical closure log and Phase 4-8 gap analysis retained for reference (SUPERSEDED 2026-06-19 by the unified feature roadmap)
   - `archived/plans/2026-06-04-observability-feature-parity-plan.md` — superseded Phases P9-P14 feature-parity plan; full workflow-gap analysis and success-metrics tables retained for reference (SUPERSEDED 2026-06-19 by the unified feature roadmap)
   - `archived/plans/2026-06-19-change-event-api-dashboard-overlay.md` — P14-S4 change-event API and dashboard overlay: `change_events` table, ingest-gateway/query-api create/list split, `TimeSeriesGraph` `changeEvents` overlay, `/change-events` explorer page (COMPLETED 2026-06-19)
+  - `archived/plans/2026-06-19-setup-status-endpoint.md` — P9-S1 setup status endpoint: consolidated `GET /v1/setup/status` backend endpoint and onboarding wizard polling rewire (COMPLETED 2026-06-19)
 - Housekeeping found during the 2026-06-19 roadmap consolidation, not yet acted on: GitHub issues #388 (Trace Comparison) and #389 (Query Workbench) describe already-shipped features and should be closed; the Trace UI Context Panel work tracked in project memory is fully merged into `main` (the `feat/trace-ui-context-panel` branch is 0 commits ahead) and that memory record is stale.
 - Historical Phase 1 plan: `archived/plans/2026-04-17-phase1-internal-mvp.md`; do not treat it as an active backlog.
 - Historical Phases 2-8 plan: merged into the active roadmap above. The old `2026-04-18-phases2-8-iteration-plan.md` file has been removed.
@@ -265,6 +266,22 @@ backlog and per-domain design specs.
 - New top-level `/change-events` explorer route (`apps/frontend/src/features/changeEvents/ChangeEventsPage.tsx`)
   with a nav entry under Signals, offering plain service/event-type filters (not the NLQ bar —
   this is a control-plane PostgreSQL table like deployments, not an NLQ-queryable ClickHouse signal).
+
+## Setup Status Endpoint (P9-S1, completed 2026-06-19)
+
+- The Onboarding Wizard (`apps/frontend/src/features/onboarding/OnboardingWizard.tsx`) was already
+  shipped with its full 4-step flow (language/framework picker, API key creation, polling, success
+  state). This slice closed the one literal gap between that deliverable and the roadmap line: the
+  roadmap names `GET /v1/setup/status`, but the wizard's polling step previously fanned out to three
+  separate existing endpoints (`/v1/traces`, `/v1/logs`, `/v1/metrics`) client-side.
+- `services/query-api/src/setup.rs` adds a consolidated, tenant-scoped `GET /v1/setup/status`
+  endpoint (`compute_setup_status`, a plain ClickHouse-client-level function reused directly by
+  Testcontainers integration tests) that counts traces/logs/metrics within the same 60-minute
+  lookback window the frontend previously used, returning `state: "detected" | "waiting"`.
+- `apps/frontend/src/api/setup.ts`'s `getFirstSignalStatus(tenantId)` now calls the single new
+  endpoint instead of issuing three parallel requests; its external signature and `FirstSignalStatus`
+  shape are unchanged, so `OnboardingWizard.tsx` required no changes beyond its test stubs.
+- See `archived/plans/2026-06-19-setup-status-endpoint.md` for the full task breakdown.
 
 ## Dev Environment Gotchas
 
