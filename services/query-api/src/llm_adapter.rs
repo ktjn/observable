@@ -33,7 +33,6 @@ use domain::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use std::collections::BTreeSet;
 use uuid::Uuid;
 
 // ── LlmCaller trait ───────────────────────────────────────────────────────────
@@ -79,21 +78,6 @@ impl OpenAiLlmCaller {
             client: OpenAiClient::with_config(config),
             model,
         }
-    }
-    /// Lists model IDs available at the configured endpoint.
-    ///
-    /// Used both as a connectivity probe (replaces the old 1-token chat probe) and
-    /// as the data source for the setup-page model dropdown.
-    /// Returns a sorted list of model ID strings on success, or an error message.
-    pub async fn list_models(&self) -> Result<Vec<String>, String> {
-        let response = self
-            .client
-            .models()
-            .list()
-            .await
-            .map_err(|e| e.to_string())?;
-        let ids: BTreeSet<String> = response.data.into_iter().map(|m| m.id).collect();
-        Ok(ids.into_iter().collect())
     }
 }
 
