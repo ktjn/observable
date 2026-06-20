@@ -12,9 +12,9 @@ use sqlx::PgPool;
 
 /// Shared application state for admin-service handlers.
 ///
-/// `ch` (ClickHouse) and `auth_service_url` are not yet used by this scaffold but are
-/// included now so later tasks (member management, API tokens, usage reporting) don't
-/// need to touch this struct again.
+/// `auth_service_url` is used by `middleware::auth::require_tenant`; `ch` (ClickHouse) is
+/// used only by `usage.rs`'s tenant usage report — the other three handler modules
+/// (`admin_members`, `tokens`, `config`) use `db` only.
 #[derive(Clone)]
 pub struct AdminServiceAppState {
     pub db: PgPool,
