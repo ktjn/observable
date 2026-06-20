@@ -1,6 +1,4 @@
 use axum::{extract::Request, http::StatusCode, middleware::Next, response::Response};
-use chrono::{DateTime, Utc};
-use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -12,23 +10,18 @@ pub struct TenantContext {
     pub role: String,
 }
 
-/// Row returned from the api_keys lookup.
-#[derive(sqlx::FromRow)]
-struct ApiKeyRow {
-    tenant_id: Uuid,
-    role: String,
-    revoked_at: Option<DateTime<Utc>>,
-}
-
 /// Middleware that accepts either:
-///   1. `Authorization: Bearer <api-key>` + `X-Tenant-ID` — verified against
-///      the `api_keys` table (existing SDK / CLI path).
+///   1. `Authorization: Bearer <api-key>` + `X-Tenant-ID` — forwarded to
+///      auth-service `POST /internal/validate` (existing SDK / CLI path).
 ///   2. `Cookie: session=<jwt>` — forwarded to auth-service
 ///      `POST /internal/validate-session` (browser / UI path after OIDC login).
 ///
+/// Both paths now route through auth-service so that every credential check
+/// gains an entry in auth-service's `credential_audit_log` table.
+///
 /// Extensions required in the tower stack (via `.layer(axum::Extension(...))`):
-///   - `PgPool`          — for API-key lookups
-///   - `Arc<String>`     — the auth-service base URL (for session validation)
+///   - `PgPool`          — for the cross-tenant-switch lookup on the session path
+///   - `Arc<String>`     — the auth-service base URL (for API-key + session validation)
 pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, StatusCode> {
     // --- Synchronous extraction (no await) ---
     let db = req.extensions().get::<PgPool>().cloned().ok_or_else(|| {
@@ -45,7 +38,12 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
 
     // Path 1: API key — bearer token + X-Tenant-ID header.
     if let (Some(token), Some(tenant_id)) = (bearer.as_ref(), tenant_id_hdr) {
-        match verify_credentials(token.clone(), tenant_id, &db).await {
+        let auth_url = auth_service_url.as_deref().ok_or_else(|| {
+            tracing::error!("auth_service_url extension missing — misconfigured middleware stack");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+        match verify_credentials(token.clone(), tenant_id, auth_url).await {
             Ok(ctx) => {
                 req.extensions_mut().insert(ctx);
                 return Ok(next.run(req).await);
@@ -131,42 +129,23 @@ async fn validate_session(auth_url: &str, token: &str) -> Result<TenantContext, 
     })
 }
 
-/// Verify the bearer token against the `api_keys` table and check tenant
-/// ownership. Returns a `TenantContext` on success.
+/// Verify the bearer token against auth-service's `/internal/validate`
+/// endpoint and check tenant ownership. Returns a `TenantContext` on success.
+///
+/// `auth-service`'s `/internal/validate` doesn't take a requested tenant_id,
+/// so it will happily return whatever tenant the key actually belongs to —
+/// the tenant-ownership check below must stay here in query-api.
 async fn verify_credentials(
     token: String,
     tenant_id: Uuid,
-    db: &PgPool,
+    auth_url: &str,
 ) -> Result<TenantContext, StatusCode> {
-    // Compute SHA-256 hex of the raw token — never log the raw value.
-    let key_hash = {
-        let mut hasher = Sha256::new();
-        hasher.update(token.as_bytes());
-        format!("{:x}", hasher.finalize())
-    };
-
-    // Look up the api_key; reject if not found or revoked.
-    let row: ApiKeyRow =
-        sqlx::query_as("SELECT tenant_id, role, revoked_at FROM api_keys WHERE key_hash = $1")
-            .bind(&key_hash)
-            .fetch_optional(db)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "database error during auth");
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?
-            .ok_or_else(|| {
-                tracing::warn!(reason = "key_not_found", "auth rejected");
-                StatusCode::UNAUTHORIZED
-            })?;
-
-    if row.revoked_at.is_some() {
-        tracing::warn!(reason = "key_revoked", "auth rejected");
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    let ctx = observable_auth::verify_api_key(&reqwest::Client::new(), auth_url, &token)
+        .await
+        .map_err(StatusCode::from)?;
 
     // Verify the key belongs to the requested tenant.
-    if row.tenant_id != tenant_id {
+    if ctx.tenant_id != tenant_id {
         tracing::warn!(reason = "tenant_mismatch", "auth rejected");
         return Err(StatusCode::FORBIDDEN);
     }
@@ -174,21 +153,6 @@ async fn verify_credentials(
     Ok(TenantContext {
         tenant_id,
         user_id: None,
-        role: row.role,
+        role: ctx.role,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn sha256_hex_of_dev_key_matches_seed() {
-        use sha2::{Digest, Sha256};
-        let mut h = Sha256::new();
-        h.update(b"dev-api-key-0000");
-        let hex = format!("{:x}", h.finalize());
-        assert_eq!(
-            hex,
-            "e18f3d8fb3eb31a042e4a55877e0276960294d0980b8076efaac30dabdbbf67b"
-        );
-    }
 }
