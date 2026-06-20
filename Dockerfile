@@ -50,6 +50,7 @@ RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/regi
           /app/target/release/ingest-gateway \
           /app/target/release/query-api \
           /app/target/release/alert-evaluator \
+          /app/target/release/admin-service \
           /app/bin/
 
 # --- grpcurl downloader ---
@@ -72,6 +73,7 @@ COPY --from=rust-builder /app/bin/stream-processor /usr/local/bin/stream-process
 COPY --from=rust-builder /app/bin/ingest-gateway /usr/local/bin/ingest-gateway
 COPY --from=rust-builder /app/bin/query-api /usr/local/bin/query-api
 COPY --from=rust-builder /app/bin/alert-evaluator /usr/local/bin/alert-evaluator
+COPY --from=rust-builder /app/bin/admin-service /usr/local/bin/admin-service
 COPY proto/otlp /proto/otlp
 
 USER 65532:65532
