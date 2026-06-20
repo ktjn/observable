@@ -79,8 +79,12 @@ pub async fn verify_api_key(
     auth_service_url: &str,
     api_key: &str,
 ) -> Result<ApiKeyContext, AuthError> {
+    let mut headers = reqwest::header::HeaderMap::new();
+    domain::telemetry::inject_current_context(&mut headers);
+
     let resp = http
         .post(format!("{auth_service_url}/internal/validate"))
+        .headers(headers)
         .json(&ValidateApiKeyRequest { api_key })
         .send()
         .await

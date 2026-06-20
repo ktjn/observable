@@ -10,6 +10,7 @@ serde              = { workspace = true }
 uuid               = { workspace = true }
 anyhow             = { workspace = true }
 tracing            = { workspace = true }
+domain             = { path = "../domain" }
 
 [dev-dependencies]
 tokio      = { workspace = true }
