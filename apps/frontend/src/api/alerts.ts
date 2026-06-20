@@ -19,9 +19,11 @@ export interface CreateRuleRequest {
   notification_channels?: string[];
   auto_trigger_incident?: boolean;
   runbook_url?: string;
-  alert_type?: string;
+  alert_type?: "threshold" | "deadman" | "change_detection";
   service_name?: string;
   window_secs?: number;
+  baseline_offset_secs?: number;
+  threshold_percent?: number;
 }
 
 export async function listAlertRules(tenantId: string): Promise<AlertRuleListResponse> {

@@ -130,3 +130,100 @@ test("No data form rejects a blank service name", async () => {
   );
   expect(createSpy).not.toHaveBeenCalled();
 });
+
+test("submitting the Change detection form sends a change_detection create request", async () => {
+  vi.spyOn(alertsApi, "listAlertRules").mockResolvedValue({ items: [] });
+  const createSpy = vi
+    .spyOn(alertsApi, "createAlertRule")
+    .mockResolvedValue({
+      rule_id: "rule-3",
+      name: "Error rate shift",
+      metric_name: "error_rate",
+      operator: "" as alertsApi.AlertRuleItem["operator"],
+      threshold: 0,
+      severity: "warning",
+      silenced: false,
+      state: "ok",
+      firing: false,
+      last_fired_at: undefined,
+      notification_channels: [],
+      auto_trigger_incident: true,
+    });
+
+  renderPage();
+
+  await waitFor(() => screen.getByRole("button", { name: "New Rule" }));
+  fireEvent.click(screen.getByRole("button", { name: "New Rule" }));
+
+  fireEvent.change(screen.getByLabelText("Alert type"), {
+    target: { value: "change_detection" },
+  });
+  fireEvent.change(screen.getByLabelText("Rule name"), {
+    target: { value: "Error rate shift" },
+  });
+  fireEvent.change(screen.getByLabelText("Metric name"), {
+    target: { value: "error_rate" },
+  });
+  fireEvent.change(screen.getByLabelText("Window (seconds)"), {
+    target: { value: "600" },
+  });
+  fireEvent.change(screen.getByLabelText("Baseline offset (seconds)"), {
+    target: { value: "3600" },
+  });
+  fireEvent.change(screen.getByLabelText("Threshold (%)"), {
+    target: { value: "25" },
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Create Rule" }));
+
+  await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+  expect(createSpy).toHaveBeenCalledWith(
+    "test-tenant",
+    expect.objectContaining({
+      name: "Error rate shift",
+      metric_name: "error_rate",
+      alert_type: "change_detection",
+      window_secs: 600,
+      baseline_offset_secs: 3600,
+      threshold_percent: 25,
+    }),
+  );
+});
+
+test("Change detection form rejects a blank metric name", async () => {
+  vi.spyOn(alertsApi, "listAlertRules").mockResolvedValue({ items: [] });
+  const createSpy = vi.spyOn(alertsApi, "createAlertRule");
+
+  renderPage();
+
+  await waitFor(() => screen.getByRole("button", { name: "New Rule" }));
+  fireEvent.click(screen.getByRole("button", { name: "New Rule" }));
+  fireEvent.change(screen.getByLabelText("Alert type"), {
+    target: { value: "change_detection" },
+  });
+  fireEvent.change(screen.getByLabelText("Rule name"), {
+    target: { value: "Error rate shift" },
+  });
+  fireEvent.change(screen.getByLabelText("Window (seconds)"), {
+    target: { value: "600" },
+  });
+  fireEvent.change(screen.getByLabelText("Baseline offset (seconds)"), {
+    target: { value: "3600" },
+  });
+  fireEvent.change(screen.getByLabelText("Threshold (%)"), {
+    target: { value: "25" },
+  });
+
+  // The Metric name field carries an HTML `required` attribute, so a plain
+  // click on the submit button is intercepted by jsdom's native constraint
+  // validation before React's onSubmit handler ever runs. Dispatching the
+  // submit event directly exercises the form's own validation logic
+  // (handleCreateSubmit's "Metric name is required" check) instead.
+  const form = screen.getByRole("form", { name: "Create alert rule" });
+  fireEvent.submit(form);
+
+  await waitFor(() =>
+    expect(screen.getByText("Metric name is required")).toBeInTheDocument(),
+  );
+  expect(createSpy).not.toHaveBeenCalled();
+});
