@@ -365,6 +365,7 @@ services:
       retries: 10
     depends_on:
       query-api: { condition: service_healthy }
+      admin-service: { condition: service_healthy }
 
   # --- TESTBENCH ---
   shop-db:
