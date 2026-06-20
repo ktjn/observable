@@ -69,6 +69,39 @@ pub fn evaluate_deadman(
     }
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct ChangeDetectionCondition {
+    pub metric_name: String,
+    pub window_secs: i64,
+    pub baseline_offset_secs: i64,
+    pub threshold_percent: f64,
+}
+
+pub fn evaluate_change_detection(
+    current_avg: f64,
+    baseline_avg: f64,
+    condition: &ChangeDetectionCondition,
+) -> EvalResult {
+    let percent_change = if baseline_avg == 0.0 {
+        // If baseline is 0, treat any non-zero current as 100%+ change (fires)
+        if current_avg == 0.0 {
+            0.0 // Both 0, don't fire
+        } else {
+            101.0 // Non-zero current with zero baseline fires
+        }
+    } else {
+        // Normal percent change formula: ((current - baseline) / baseline) * 100
+        // Use absolute value to detect both increases and decreases (bidirectional)
+        (((current_avg - baseline_avg) / baseline_avg) * 100.0).abs()
+    };
+
+    if percent_change >= condition.threshold_percent {
+        EvalResult::Firing
+    } else {
+        EvalResult::Ok
+    }
+}
+
 pub fn calculate_burn_rate(
     bad_events: u64,
     total_events: u64,
@@ -1100,6 +1133,60 @@ mod tests {
     fn deadman_ok_when_fresh() {
         assert_eq!(
             evaluate_deadman(Some(10), &deadman_cond(300)),
+            EvalResult::Ok
+        );
+    }
+
+    fn change_detection_cond(threshold_percent: f64) -> ChangeDetectionCondition {
+        ChangeDetectionCondition {
+            metric_name: "error_rate".into(),
+            window_secs: 300,
+            baseline_offset_secs: 86400,
+            threshold_percent,
+        }
+    }
+
+    #[test]
+    fn change_detection_fires_on_spike() {
+        // 100 to 150 is 50% increase, should fire with 50% threshold
+        assert_eq!(
+            evaluate_change_detection(150.0, 100.0, &change_detection_cond(50.0)),
+            EvalResult::Firing
+        );
+    }
+
+    #[test]
+    fn change_detection_fires_on_drop() {
+        // 100 to 50 is 50% decrease, should fire with 50% threshold (bidirectional)
+        assert_eq!(
+            evaluate_change_detection(50.0, 100.0, &change_detection_cond(50.0)),
+            EvalResult::Firing
+        );
+    }
+
+    #[test]
+    fn change_detection_ok_within_threshold() {
+        // 100 to 110 is 10% increase, should not fire with 50% threshold
+        assert_eq!(
+            evaluate_change_detection(110.0, 100.0, &change_detection_cond(50.0)),
+            EvalResult::Ok
+        );
+    }
+
+    #[test]
+    fn change_detection_fires_baseline_zero_with_nonzero_current() {
+        // baseline 0 with current 10 should fire (treat as 100%+ change)
+        assert_eq!(
+            evaluate_change_detection(10.0, 0.0, &change_detection_cond(50.0)),
+            EvalResult::Firing
+        );
+    }
+
+    #[test]
+    fn change_detection_ok_baseline_zero_with_zero_current() {
+        // baseline 0 with current 0 should not fire
+        assert_eq!(
+            evaluate_change_detection(0.0, 0.0, &change_detection_cond(50.0)),
             EvalResult::Ok
         );
     }
