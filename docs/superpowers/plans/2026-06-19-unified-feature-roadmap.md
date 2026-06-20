@@ -68,8 +68,11 @@ Small, standalone, high user-value slices. Promote these first.
 - [x] ~~**Opsgenie Notification Channel Adapter** (was P12-S2)~~ — **Retired 2026-06-20**: dropped
   from the backlog per user direction, not building this adapter. The generic `webhook` channel
   type remains the only outbound integration path.
-- [ ] **Change-Detection Alert Type** (was P12-S4) — compares a current window average against a
-  baseline window N days/hours back; configurable threshold percent.
+- [x] **Change-Detection Alert Type** (was P12-S4) — compares a current window average against a
+  baseline window N days/hours back; configurable threshold percent. `change_detection` alert_type
+  with `evaluate_change_detection` in `services/alert-evaluator/src/evaluator.rs`, CRUD in
+  `services/query-api/src/alerts.rs`, frontend form in `AlertsPage.tsx`. See
+  `docs/superpowers/specs/2026-06-20-change-detection-alert-design.md`.
 - [ ] **Alert Inhibition Rules** (was P12-S5) — suppress lower-severity alerts for the same
   service while a higher-severity alert is active; `Suppressed` state with "Suppressed by" label.
 - [ ] **Saved Views in Explorers** (was P14-S3) — save filter state + time range + columns per
@@ -266,7 +269,7 @@ first item, which is pre-promoted** because Tier 2's PromQL Compatibility Façad
 
 ```
 Tier 1 (promote immediately, any order)
-  Onboarding wizard (done), change-detection alert, alert inhibition,
+  Onboarding wizard (done), change-detection alert (done), alert inhibition,
   saved views, change event API (done), export APIs, Prometheus remote write,
   fleet management UI, admin RBAC/quota UI
   (PagerDuty/Opsgenie retired 2026-06-20)
