@@ -86,6 +86,8 @@ async fn create_rule_appears_in_list() {
         alert_type: None,
         service_name: None,
         window_secs: None,
+        baseline_offset_secs: None,
+        threshold_percent: None,
     };
     let created = create_alert_rule(&pool, tenant, &req).await.unwrap();
 
@@ -121,6 +123,8 @@ async fn silence_toggle_updates_silenced_flag() {
         alert_type: None,
         service_name: None,
         window_secs: None,
+        baseline_offset_secs: None,
+        threshold_percent: None,
     };
     let created = create_alert_rule(&pool, tenant, &req).await.unwrap();
     assert!(!created.silenced);
@@ -155,6 +159,8 @@ async fn silence_returns_none_for_cross_tenant_rule() {
         alert_type: None,
         service_name: None,
         window_secs: None,
+        baseline_offset_secs: None,
+        threshold_percent: None,
     };
 
     let created = create_alert_rule(&pool, tenant_a, &req).await.unwrap();
@@ -192,6 +198,8 @@ async fn list_rules_does_not_return_other_tenant_rules() {
         alert_type: None,
         service_name: None,
         window_secs: None,
+        baseline_offset_secs: None,
+        threshold_percent: None,
     };
 
     create_alert_rule(&pool, tenant_a, &req).await.unwrap();
@@ -222,6 +230,8 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             alert_type: None,
             service_name: None,
             window_secs: None,
+            baseline_offset_secs: None,
+            threshold_percent: None,
         },
     )
     .await
@@ -250,6 +260,8 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             alert_type: None,
             service_name: None,
             window_secs: None,
+            baseline_offset_secs: None,
+            threshold_percent: None,
         },
     )
     .await
@@ -278,6 +290,8 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             alert_type: None,
             service_name: None,
             window_secs: None,
+            baseline_offset_secs: None,
+            threshold_percent: None,
         },
     )
     .await
@@ -306,6 +320,8 @@ async fn list_rules_reports_pending_active_resolved_and_silenced_states() {
             alert_type: None,
             service_name: None,
             window_secs: None,
+            baseline_offset_secs: None,
+            threshold_percent: None,
         },
     )
     .await
@@ -345,6 +361,8 @@ async fn create_deadman_rule_appears_in_list_with_no_data_operator() {
         alert_type: Some("deadman".into()),
         service_name: Some("checkout".into()),
         window_secs: Some(300),
+        baseline_offset_secs: None,
+        threshold_percent: None,
     };
     let created = create_alert_rule(&pool, tenant, &req).await.unwrap();
 
@@ -377,6 +395,65 @@ async fn create_deadman_rule_rejects_blank_service_name() {
         alert_type: Some("deadman".into()),
         service_name: Some("   ".into()),
         window_secs: Some(300),
+        baseline_offset_secs: None,
+        threshold_percent: None,
+    };
+    let err = create_alert_rule(&pool, tenant, &req).await.unwrap_err();
+    assert!(matches!(err, CreateRuleError::InvalidInput(_)));
+}
+
+#[tokio::test]
+async fn create_change_detection_rule_appears_in_list_with_change_detection_operator() {
+    let (pool, _container) = start_pool().await;
+    let tenant = Uuid::new_v4();
+
+    let req = CreateRuleRequest {
+        name: "Error rate change".into(),
+        metric_name: "error_rate".into(),
+        operator: String::new(),
+        threshold: 0.0,
+        notification_channels: None,
+        auto_trigger_incident: None,
+        runbook_url: None,
+        alert_type: Some("change_detection".into()),
+        service_name: None,
+        window_secs: Some(300),
+        baseline_offset_secs: Some(86400),
+        threshold_percent: Some(50.0),
+    };
+    let created = create_alert_rule(&pool, tenant, &req).await.unwrap();
+
+    assert_eq!(created.metric_name, "error_rate");
+    assert_eq!(created.operator, "change_detection");
+    assert!((created.threshold - 50.0).abs() < f64::EPSILON);
+
+    let rules = list_alert_rules(&pool, tenant).await.unwrap();
+    assert!(
+        rules
+            .iter()
+            .any(|r| r.rule_id == created.rule_id && r.operator == "change_detection"),
+        "created change_detection rule must appear in list with change_detection operator"
+    );
+}
+
+#[tokio::test]
+async fn create_change_detection_rule_rejects_missing_threshold_percent() {
+    let (pool, _container) = start_pool().await;
+    let tenant = Uuid::new_v4();
+
+    let req = CreateRuleRequest {
+        name: "Error rate change".into(),
+        metric_name: "error_rate".into(),
+        operator: String::new(),
+        threshold: 0.0,
+        notification_channels: None,
+        auto_trigger_incident: None,
+        runbook_url: None,
+        alert_type: Some("change_detection".into()),
+        service_name: None,
+        window_secs: Some(300),
+        baseline_offset_secs: Some(86400),
+        threshold_percent: None,
     };
     let err = create_alert_rule(&pool, tenant, &req).await.unwrap_err();
     assert!(matches!(err, CreateRuleError::InvalidInput(_)));

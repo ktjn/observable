@@ -100,6 +100,8 @@ pub struct CreateRuleRequest {
     pub alert_type: Option<String>,
     pub service_name: Option<String>,
     pub window_secs: Option<i64>,
+    pub baseline_offset_secs: Option<i64>,
+    pub threshold_percent: Option<f64>,
 }
 
 #[derive(Deserialize)]
@@ -158,6 +160,16 @@ fn condition_fields(condition: &serde_json::Value) -> Option<(String, String, f6
     ) {
         return Some((metric_name.to_string(), operator.to_string(), threshold));
     }
+    if let (Some(metric_name), Some(threshold_percent)) = (
+        condition.get("metric_name").and_then(|v| v.as_str()),
+        condition.get("threshold_percent").and_then(|v| v.as_f64()),
+    ) {
+        return Some((
+            metric_name.to_string(),
+            "change_detection".to_string(),
+            threshold_percent,
+        ));
+    }
     if let (Some(service_name), Some(window_secs)) = (
         condition.get("service_name").and_then(|v| v.as_str()),
         condition.get("window_secs").and_then(|v| v.as_f64()),
@@ -193,7 +205,7 @@ pub async fn list_alert_rules(
             AND af.state = 'active') AS last_fired_at, \
          r.notification_channels, r.auto_trigger_incident \
          FROM alert_rules r \
-         WHERE r.tenant_id = $1 AND r.alert_type IN ('threshold', 'deadman') \
+         WHERE r.tenant_id = $1 AND r.alert_type IN ('threshold', 'deadman', 'change_detection') \
          ORDER BY r.created_at DESC",
     )
     .bind(tenant_id)
@@ -341,6 +353,82 @@ pub async fn create_alert_rule(
                 metric_name: service_name.to_string(),
                 operator: "no_data".into(),
                 threshold: window_secs as f64,
+                severity: "warning".into(),
+                silenced: false,
+                state: "ok".into(),
+                firing: false,
+                last_fired_at: None,
+                notification_channels: channels,
+                auto_trigger_incident: auto_trigger,
+            })
+        }
+        "change_detection" => {
+            if req.metric_name.trim().is_empty() {
+                return Err(CreateRuleError::InvalidInput(
+                    "metric_name is required".into(),
+                ));
+            }
+            let window_secs = req
+                .window_secs
+                .ok_or_else(|| CreateRuleError::InvalidInput("window_secs is required".into()))?;
+            if window_secs <= 0 {
+                return Err(CreateRuleError::InvalidInput(
+                    "window_secs must be positive".into(),
+                ));
+            }
+            let baseline_offset_secs = req.baseline_offset_secs.ok_or_else(|| {
+                CreateRuleError::InvalidInput("baseline_offset_secs is required".into())
+            })?;
+            if baseline_offset_secs <= 0 {
+                return Err(CreateRuleError::InvalidInput(
+                    "baseline_offset_secs must be positive".into(),
+                ));
+            }
+            let threshold_percent = req.threshold_percent.ok_or_else(|| {
+                CreateRuleError::InvalidInput("threshold_percent is required".into())
+            })?;
+            if !threshold_percent.is_finite() {
+                return Err(CreateRuleError::InvalidInput(
+                    "threshold_percent must be finite".into(),
+                ));
+            }
+            if threshold_percent < 0.0 {
+                return Err(CreateRuleError::InvalidInput(
+                    "threshold_percent must be non-negative".into(),
+                ));
+            }
+
+            let condition = serde_json::json!({
+                "metric_name": req.metric_name,
+                "window_secs": window_secs,
+                "baseline_offset_secs": baseline_offset_secs,
+                "threshold_percent": threshold_percent,
+            });
+            let channels = req.notification_channels.clone().unwrap_or_default();
+            let auto_trigger = req.auto_trigger_incident.unwrap_or(true);
+
+            let rule_id: Uuid = sqlx::query_scalar(
+                "INSERT INTO alert_rules \
+                 (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident, runbook_url) \
+                 VALUES ($1, $2, 'change_detection', 'warning', $3, $4, $5, $6) \
+                 RETURNING rule_id",
+            )
+            .bind(tenant_id)
+            .bind(&req.name)
+            .bind(&condition)
+            .bind(&channels)
+            .bind(auto_trigger)
+            .bind(req.runbook_url.as_deref())
+            .fetch_one(db)
+            .await
+            .map_err(CreateRuleError::Db)?;
+
+            Ok(AlertRuleItem {
+                rule_id,
+                name: req.name.clone(),
+                metric_name: req.metric_name.clone(),
+                operator: "change_detection".into(),
+                threshold: threshold_percent,
                 severity: "warning".into(),
                 silenced: false,
                 state: "ok".into(),
@@ -587,6 +675,20 @@ mod tests {
     }
 
     #[test]
+    fn condition_fields_extracts_change_detection_shape_as_change_detection_operator() {
+        let cond = serde_json::json!({
+            "metric_name": "error_rate",
+            "window_secs": 300,
+            "baseline_offset_secs": 86400,
+            "threshold_percent": 50.0
+        });
+        let (metric_name, operator, threshold) = condition_fields(&cond).unwrap();
+        assert_eq!(metric_name, "error_rate");
+        assert_eq!(operator, "change_detection");
+        assert!((threshold - 50.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
     fn condition_fields_extracts_deadman_shape_as_no_data_operator() {
         let cond = serde_json::json!({"service_name": "checkout", "window_secs": 300});
         let (metric_name, operator, threshold) = condition_fields(&cond).unwrap();
@@ -616,6 +718,8 @@ mod tests {
             alert_type: Some("deadman".into()),
             service_name: None,
             window_secs: Some(300),
+            baseline_offset_secs: None,
+            threshold_percent: None,
         };
         let err = create_alert_rule(&pool, Uuid::nil(), &req)
             .await
@@ -637,6 +741,32 @@ mod tests {
             alert_type: Some("deadman".into()),
             service_name: Some("checkout".into()),
             window_secs: Some(0),
+            baseline_offset_secs: None,
+            threshold_percent: None,
+        };
+        let err = create_alert_rule(&pool, Uuid::nil(), &req)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, CreateRuleError::InvalidInput(_)));
+    }
+
+    #[tokio::test]
+    async fn create_alert_rule_rejects_change_detection_without_threshold_percent() {
+        // No DB needed: validation happens before any query.
+        let pool = sqlx::PgPool::connect_lazy("postgres://invalid/invalid").unwrap();
+        let req = CreateRuleRequest {
+            name: "Error rate change".into(),
+            metric_name: "error_rate".into(),
+            operator: String::new(),
+            threshold: 0.0,
+            notification_channels: None,
+            auto_trigger_incident: None,
+            runbook_url: None,
+            alert_type: Some("change_detection".into()),
+            service_name: None,
+            window_secs: Some(300),
+            baseline_offset_secs: Some(86400),
+            threshold_percent: None,
         };
         let err = create_alert_rule(&pool, Uuid::nil(), &req)
             .await
