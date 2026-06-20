@@ -301,6 +301,29 @@ services:
       postgres-setup: { condition: service_completed_successfully }
       ingest-gateway: { condition: service_healthy }
 
+  admin-service:
+    image: observable-services:local
+    build: { context: ., dockerfile: Dockerfile }
+    command: ["admin-service"]
+    environment:
+      <<: *platform-self-observability-env
+      ADMIN_SERVICE_PORT: "4324"
+      DATABASE_URL: postgres://observable:observable@postgres:5432/observable
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CH_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
+      AUTH_SERVICE_URL: http://auth-service:4319
+    ports: ["4324:4324"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4324/health"]
+      interval: 2s
+      timeout: 1s
+      retries: 10
+    depends_on:
+      clickhouse-setup: { condition: service_completed_successfully }
+      postgres-setup: { condition: service_completed_successfully }
+      auth-service: { condition: service_healthy }
+
   alert-evaluator:
     image: observable-services:local
     build: { context: ., dockerfile: Dockerfile }
@@ -342,6 +365,7 @@ services:
       retries: 10
     depends_on:
       query-api: { condition: service_healthy }
+      admin-service: { condition: service_healthy }
 
   # --- TESTBENCH ---
   shop-db:

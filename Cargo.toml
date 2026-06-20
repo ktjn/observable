@@ -9,6 +9,7 @@ members = [
     "services/storage-writer",
     "services/query-api",
     "services/alert-evaluator",
+    "services/admin-service",
 ]
 
 [workspace.package]

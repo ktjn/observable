@@ -128,5 +128,13 @@ review — it can be promoted on its own. Suggested slice order if implemented:
    to it. (Not fully behavior-neutral as originally planned — see the correction above: closing
    query-api's API-key audit-trail gap was an intentional, separately-reviewed behavior change
    within this slice, not scope creep.)
-2. Scaffold `admin-service`, move the four handler modules, wire ingress routing. Not started.
-3. Remove the moved handlers from query-api. Not started.
+2. **DONE 2026-06-20.** Scaffold `admin-service`, move the four handler modules, wire ingress
+   routing. See `archived/plans/2026-06-20-admin-service-scaffold.md`. As built, this slice was
+   additive — query-api's original copies of the four handlers still exist and compile, now
+   unreachable in production since nginx routes their paths to admin-service. One scope correction
+   found during implementation: this design doc's URL scheme said `/v1/tenants/config` for the
+   platform-config endpoint; the actual route (carried over unchanged from query-api, both before
+   and after this slice) is `/v1/config`, no `/tenants/` prefix. Routing was wired to the real path.
+3. Remove the moved (now-dead) handlers from query-api. Not started — this is the cleanup step
+   that completes the two-step rollout; do it once admin-service has run in production for at
+   least one deploy cycle without rollback.

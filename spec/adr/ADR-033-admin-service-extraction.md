@@ -1,7 +1,8 @@
 # ADR-033: Admin Service Extraction
 
 **Date:** 2026-06-19
-**Status:** Proposed
+**Status:** Partially Implemented (Slices 1-2 of 3 complete, 2026-06-20; Slice 3 — removing the
+now-dead handlers from query-api — not started)
 **Authors:** Claude (architecture review), ktjn
 **Deciders:** Project Stakeholders
 **Review date:** 2026-06-19
