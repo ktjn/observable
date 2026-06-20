@@ -69,6 +69,41 @@ pub fn evaluate_deadman(
     }
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct ChangeDetectionCondition {
+    pub metric_name: String,
+    pub window_secs: i64,
+    pub baseline_offset_secs: i64,
+    pub threshold_percent: f64,
+}
+
+pub fn evaluate_change_detection(
+    current_avg: f64,
+    baseline_avg: f64,
+    condition: &ChangeDetectionCondition,
+) -> EvalResult {
+    if baseline_avg == 0.0 {
+        // No sentinel percent-change value can be guaranteed to exceed an
+        // arbitrary configured threshold_percent (e.g. 150), so fire directly
+        // instead of comparing a stand-in number against the threshold.
+        return if current_avg == 0.0 {
+            EvalResult::Ok
+        } else {
+            EvalResult::Firing
+        };
+    }
+
+    // Normal percent change formula: ((current - baseline) / baseline) * 100
+    // Use absolute value to detect both increases and decreases (bidirectional)
+    let percent_change = (((current_avg - baseline_avg) / baseline_avg) * 100.0).abs();
+
+    if percent_change >= condition.threshold_percent {
+        EvalResult::Firing
+    } else {
+        EvalResult::Ok
+    }
+}
+
 pub fn calculate_burn_rate(
     bad_events: u64,
     total_events: u64,
@@ -541,11 +576,158 @@ pub async fn eval_deadman_rules(db: &sqlx::PgPool, ch: &clickhouse::Client) -> a
     Ok(())
 }
 
+#[derive(clickhouse::Row, serde::Deserialize)]
+pub struct WindowAvgRow {
+    pub avg_value: Option<f64>,
+}
+
+async fn fetch_window_avg(
+    ch: &clickhouse::Client,
+    tenant_id: Uuid,
+    metric_name: &str,
+    start_ns: u64,
+    end_ns: u64,
+) -> anyhow::Result<Option<f64>> {
+    let mut cursor = ch
+        .query(
+            "SELECT avg(value_double) AS avg_value \
+             FROM observable.metric_points \
+             WHERE tenant_id = ? AND metric_name = ? \
+               AND time_unix_nano BETWEEN ? AND ?",
+        )
+        .bind(tenant_id)
+        .bind(metric_name)
+        .bind(start_ns)
+        .bind(end_ns)
+        .fetch::<WindowAvgRow>()
+        .map_err(|e| anyhow::anyhow!("clickhouse query error: {e}"))?;
+
+    match cursor.next().await {
+        Ok(Some(row)) => Ok(row.avg_value),
+        Ok(None) => Ok(None),
+        Err(e) => Err(anyhow::anyhow!("clickhouse query error: {e}")),
+    }
+}
+
+pub async fn eval_change_detection_rules(
+    db: &sqlx::PgPool,
+    ch: &clickhouse::Client,
+) -> anyhow::Result<()> {
+    let rules: Vec<AlertRuleRow> = sqlx::query_as(
+        "SELECT rule_id, tenant_id, name, condition, severity, for_duration_secs, notification_channels, \
+         auto_trigger_incident, auto_trigger_delay_secs, runbook_url \
+         FROM alert_rules WHERE alert_type = 'change_detection' AND silenced = false",
+    )
+    .fetch_all(db)
+    .await?;
+
+    tracing::debug!(count = rules.len(), "evaluating change detection rules");
+
+    for rule in rules {
+        let cond: ChangeDetectionCondition = match serde_json::from_value(rule.condition.clone()) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(
+                    rule_id = %rule.rule_id,
+                    error = %e,
+                    "skipping change detection rule: condition parse failed"
+                );
+                continue;
+            }
+        };
+
+        let now_ns = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos() as u64;
+        let window_ns = (cond.window_secs.max(0) as u64) * 1_000_000_000;
+        let baseline_offset_ns = (cond.baseline_offset_secs.max(0) as u64) * 1_000_000_000;
+
+        let current_end_ns = now_ns;
+        let current_start_ns = now_ns.saturating_sub(window_ns);
+        let baseline_end_ns = now_ns.saturating_sub(baseline_offset_ns);
+        let baseline_start_ns = baseline_end_ns.saturating_sub(window_ns);
+
+        let current_avg = match fetch_window_avg(
+            ch,
+            rule.tenant_id,
+            &cond.metric_name,
+            current_start_ns,
+            current_end_ns,
+        )
+        .await
+        {
+            Ok(avg) => avg,
+            Err(e) => {
+                tracing::warn!(rule_id = %rule.rule_id, error = %e, "skipping change detection rule: current window metric fetch failed");
+                continue;
+            }
+        };
+
+        let Some(current_avg) = current_avg else {
+            tracing::warn!(
+                rule_id = %rule.rule_id,
+                "skipping change detection rule: current window has no data"
+            );
+            continue;
+        };
+
+        let baseline_avg = match fetch_window_avg(
+            ch,
+            rule.tenant_id,
+            &cond.metric_name,
+            baseline_start_ns,
+            baseline_end_ns,
+        )
+        .await
+        {
+            Ok(avg) => avg,
+            Err(e) => {
+                tracing::warn!(rule_id = %rule.rule_id, error = %e, "skipping change detection rule: baseline window metric fetch failed");
+                continue;
+            }
+        };
+
+        let Some(baseline_avg) = baseline_avg else {
+            tracing::warn!(
+                rule_id = %rule.rule_id,
+                "skipping change detection rule: baseline window has no data"
+            );
+            continue;
+        };
+
+        match evaluate_change_detection(current_avg, baseline_avg, &cond) {
+            EvalResult::Firing => {
+                tracing::warn!(
+                    rule_id = %rule.rule_id,
+                    tenant_id = %rule.tenant_id,
+                    rule_name = %rule.name,
+                    metric_name = %cond.metric_name,
+                    current_avg,
+                    baseline_avg,
+                    threshold_percent = cond.threshold_percent,
+                    "alert firing: change detected"
+                );
+                if let Err(e) = record_firing(db, &rule, current_avg).await {
+                    tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to record change detection firing");
+                }
+            }
+            EvalResult::Ok => {
+                if let Err(e) = resolve_open_firing(db, &rule, current_avg).await {
+                    tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to resolve change detection firing");
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub async fn eval_alert_rules(db: &sqlx::PgPool, ch: &clickhouse::Client) -> anyhow::Result<()> {
     eval_threshold_rules(db, ch).await?;
     eval_slo_burn_rate_rules(db, ch).await?;
     eval_composite_rules(db, ch).await?;
     eval_deadman_rules(db, ch).await?;
+    eval_change_detection_rules(db, ch).await?;
     Ok(())
 }
 
@@ -1101,6 +1283,71 @@ mod tests {
         assert_eq!(
             evaluate_deadman(Some(10), &deadman_cond(300)),
             EvalResult::Ok
+        );
+    }
+
+    fn change_detection_cond(threshold_percent: f64) -> ChangeDetectionCondition {
+        ChangeDetectionCondition {
+            metric_name: "error_rate".into(),
+            window_secs: 300,
+            baseline_offset_secs: 86400,
+            threshold_percent,
+        }
+    }
+
+    #[test]
+    fn change_detection_fires_on_spike() {
+        // 100 to 150 is 50% increase, should fire with 50% threshold
+        assert_eq!(
+            evaluate_change_detection(150.0, 100.0, &change_detection_cond(50.0)),
+            EvalResult::Firing
+        );
+    }
+
+    #[test]
+    fn change_detection_fires_on_drop() {
+        // 100 to 50 is 50% decrease, should fire with 50% threshold (bidirectional)
+        assert_eq!(
+            evaluate_change_detection(50.0, 100.0, &change_detection_cond(50.0)),
+            EvalResult::Firing
+        );
+    }
+
+    #[test]
+    fn change_detection_ok_within_threshold() {
+        // 100 to 110 is 10% increase, should not fire with 50% threshold
+        assert_eq!(
+            evaluate_change_detection(110.0, 100.0, &change_detection_cond(50.0)),
+            EvalResult::Ok
+        );
+    }
+
+    #[test]
+    fn change_detection_fires_baseline_zero_with_nonzero_current() {
+        // baseline 0 with current 10 should fire (treat as 100%+ change)
+        assert_eq!(
+            evaluate_change_detection(10.0, 0.0, &change_detection_cond(50.0)),
+            EvalResult::Firing
+        );
+    }
+
+    #[test]
+    fn change_detection_ok_baseline_zero_with_zero_current() {
+        // baseline 0 with current 0 should not fire
+        assert_eq!(
+            evaluate_change_detection(0.0, 0.0, &change_detection_cond(50.0)),
+            EvalResult::Ok
+        );
+    }
+
+    #[test]
+    fn change_detection_fires_baseline_zero_even_with_threshold_above_100() {
+        // Regression: a sentinel percent-change value could fail to exceed a
+        // configured threshold_percent above 100; firing must not depend on
+        // comparing against any specific numeric stand-in.
+        assert_eq!(
+            evaluate_change_detection(10.0, 0.0, &change_detection_cond(150.0)),
+            EvalResult::Firing
         );
     }
 }

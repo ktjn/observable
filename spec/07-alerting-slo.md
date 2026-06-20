@@ -15,6 +15,16 @@
 
 Composite alerts evaluate a two-rule pair. The composite rule's `condition` payload references exactly two source rule IDs, stored as `left_rule_id` and `right_rule_id` in the first implementation, and the composite enters Active only when both source rules are Active. If either source rule clears, the composite resolves.
 
+Change-detection alerts compare a current window's metric average against a baseline window
+offset N seconds back, firing when the absolute percent change exceeds a configured threshold
+(bidirectional — fires on either a spike or a drop). The `condition` payload is
+`{metric_name, window_secs, baseline_offset_secs, threshold_percent}`: `window_secs` sizes both the
+current window (`[now - window_secs, now]`) and the baseline window
+(`[now - baseline_offset_secs - window_secs, now - baseline_offset_secs]`); percent change is
+`((current_avg - baseline_avg) / baseline_avg) * 100`. If the baseline window's average is zero,
+any non-zero current average fires; if both are zero, the rule does not fire. See
+`docs/superpowers/specs/2026-06-20-change-detection-alert-design.md` for the full design rationale.
+
 ### 11.2 Incident Model
 
 See `spec/14-domain-model.md §5` for the authoritative Incident entity schema and field definitions.

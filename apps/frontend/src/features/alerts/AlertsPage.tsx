@@ -38,9 +38,12 @@ export function AlertsPage() {
   const [formMetric, setFormMetric] = useState("");
   const [formOperator, setFormOperator] = useState("gt");
   const [formThreshold, setFormThreshold] = useState("");
-  const [formAlertType, setFormAlertType] = useState<"threshold" | "deadman">("threshold");
+  const [formAlertType, setFormAlertType] = useState<"threshold" | "deadman" | "change_detection">("threshold");
   const [formServiceName, setFormServiceName] = useState("");
   const [formWindowSecs, setFormWindowSecs] = useState("300");
+  const [formCdMetric, setFormCdMetric] = useState("");
+  const [formBaselineOffsetSecs, setFormBaselineOffsetSecs] = useState("3600");
+  const [formThresholdPercent, setFormThresholdPercent] = useState("");
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [autoTriggerIncident, setAutoTriggerIncident] = useState(true);
   const [formRunbookUrl, setFormRunbookUrl] = useState("");
@@ -85,6 +88,9 @@ export function AlertsPage() {
       setFormAlertType("threshold");
       setFormServiceName("");
       setFormWindowSecs("300");
+      setFormCdMetric("");
+      setFormBaselineOffsetSecs("3600");
+      setFormThresholdPercent("");
       setSelectedChannels([]);
       setAutoTriggerIncident(true);
       setFormRunbookUrl("");
@@ -109,6 +115,43 @@ export function AlertsPage() {
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (formAlertType === "change_detection") {
+      const windowSecs = parseInt(formWindowSecs, 10);
+      const baselineOffsetSecs = parseInt(formBaselineOffsetSecs, 10);
+      const thresholdPercent = parseFloat(formThresholdPercent);
+      if (!formCdMetric.trim()) {
+        setFormError("Metric name is required");
+        return;
+      }
+      if (!Number.isFinite(windowSecs) || windowSecs <= 0) {
+        setFormError("Window must be a positive number of seconds");
+        return;
+      }
+      if (!Number.isFinite(baselineOffsetSecs) || baselineOffsetSecs <= 0) {
+        setFormError("Baseline offset must be a positive number of seconds");
+        return;
+      }
+      if (!Number.isFinite(thresholdPercent) || thresholdPercent <= 0) {
+        setFormError("Threshold percent must be a positive number");
+        return;
+      }
+      setFormError(null);
+      createMutation.mutate({
+        name: formName,
+        metric_name: formCdMetric.trim(),
+        operator: "",
+        threshold: 0,
+        notification_channels: selectedChannels,
+        auto_trigger_incident: autoTriggerIncident,
+        runbook_url: formRunbookUrl || undefined,
+        alert_type: "change_detection",
+        window_secs: windowSecs,
+        baseline_offset_secs: baselineOffsetSecs,
+        threshold_percent: thresholdPercent,
+      });
+      return;
+    }
+
     if (formAlertType === "deadman") {
       const windowSecs = parseInt(formWindowSecs, 10);
       if (!formServiceName.trim()) {
@@ -254,10 +297,13 @@ export function AlertsPage() {
                   <Select
                     id="alert-type"
                     value={formAlertType}
-                    onChange={(e) => setFormAlertType(e.target.value as "threshold" | "deadman")}
+                    onChange={(e) =>
+                      setFormAlertType(e.target.value as "threshold" | "deadman" | "change_detection")
+                    }
                   >
                     <SelectOption value="threshold">Threshold metric</SelectOption>
                     <SelectOption value="deadman">No data</SelectOption>
+                    <SelectOption value="change_detection">Change detection</SelectOption>
                   </Select>
                 </div>
 
@@ -313,7 +359,7 @@ export function AlertsPage() {
                       </div>
                     </div>
                   </>
-                ) : (
+                ) : formAlertType === "deadman" ? (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1">
                       <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="deadman-service">Service name</label>
@@ -338,6 +384,59 @@ export function AlertsPage() {
                       />
                     </div>
                   </div>
+                ) : (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="cd-metric">Metric name</label>
+                      <Input
+                        id="cd-metric"
+                        placeholder="e.g. error_rate"
+                        value={formCdMetric}
+                        onChange={(e) => setFormCdMetric(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="cd-window">Window (seconds)</label>
+                        <Input
+                          id="cd-window"
+                          type="number"
+                          step="1"
+                          min="1"
+                          value={formWindowSecs}
+                          onChange={(e) => setFormWindowSecs(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="cd-baseline-offset">Baseline offset (seconds)</label>
+                        <Input
+                          id="cd-baseline-offset"
+                          type="number"
+                          step="1"
+                          min="1"
+                          value={formBaselineOffsetSecs}
+                          onChange={(e) => setFormBaselineOffsetSecs(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="cd-threshold-percent">Threshold (%)</label>
+                      <Input
+                        id="cd-threshold-percent"
+                        type="number"
+                        step="any"
+                        min="0"
+                        value={formThresholdPercent}
+                        onChange={(e) => setFormThresholdPercent(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </>
                 )}
 
                 <div className="space-y-1">
