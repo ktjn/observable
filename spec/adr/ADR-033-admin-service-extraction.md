@@ -45,13 +45,21 @@ routes through `/internal/validate` like `ingest-gateway` already did, closing t
   boundary, separate from the high-traffic read path.
 - query-api shrinks by ~1,260 lines, reducing its blast radius independent of the NLQ/AI
   extraction also recommended by the same review.
-- Session-JWT verification has one canonical implementation instead of three independent copies.
+- Auth-service-delegated credential checks (API-key and session) have one canonical client
+  implementation (`libs/observable-auth`) instead of duplicated header-extraction and divergent
+  `TenantContext` shapes across query-api and ingest-gateway. (Not "one canonical JWT
+  implementation instead of three" as originally stated here — see the correction above.)
 
 **Harder:**
 - One more service to deploy, monitor, and version; admin-service needs its own self-observability
   wiring (readyz/metrics) matching the pattern other services already have.
 - Migration requires a two-step rollout (deploy admin-service, flip ingress routing, then remove
   the now-dead handlers from query-api) rather than a single atomic change.
+- Closing query-api's API-key audit-trail gap (see above) means every API-key-authenticated
+  query-api request now makes a network round-trip to auth-service instead of a local Postgres
+  query — an availability coupling query-api didn't previously have on this path.
+  `ingest-gateway` already has this same coupling for its own API-key checks, so this brings
+  query-api in line rather than introducing a new class of risk.
 
 **Constrained:**
 - Future admin features (e.g., the planned Fleet Management UI, Admin Console RBAC/quota views)
