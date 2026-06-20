@@ -28,9 +28,15 @@ new standalone service, `services/admin-service`, deployed and scaled independen
 change there. URL paths are unchanged; only ingress routing targets change, so the frontend
 requires no code changes.
 
-As part of the same slice sequence, extract a shared `observable-auth` crate for session-JWT
-verification and `TenantContext`, currently duplicated independently in `query-api` and
-`ingest-gateway`, to avoid a third independent reimplementation in admin-service.
+As part of the same slice sequence, extract a shared `observable-auth` crate (`libs/observable-auth`,
+completed 2026-06-20, see `archived/plans/2026-06-20-observable-auth-crate.md`). **Correction to
+this ADR's original framing:** neither `query-api` nor `ingest-gateway` did local session-JWT
+verification — both already delegated to `auth-service` over HTTP. The crate instead provides
+shared HTTP-client wrappers around `auth-service`'s existing `/internal/validate` and
+`/internal/validate-session` endpoints, plus the bearer/cookie header-extraction helpers that were
+genuinely duplicated. Building this surfaced a real bug along the way: `query-api`'s API-key path
+bypassed `auth-service` entirely and queried `api_keys` directly, producing no audit trail; it now
+routes through `/internal/validate` like `ingest-gateway` already did, closing that gap.
 
 ## Consequences
 
