@@ -574,11 +574,158 @@ pub async fn eval_deadman_rules(db: &sqlx::PgPool, ch: &clickhouse::Client) -> a
     Ok(())
 }
 
+#[derive(clickhouse::Row, serde::Deserialize)]
+pub struct WindowAvgRow {
+    pub avg_value: Option<f64>,
+}
+
+async fn fetch_window_avg(
+    ch: &clickhouse::Client,
+    tenant_id: Uuid,
+    metric_name: &str,
+    start_ns: u64,
+    end_ns: u64,
+) -> anyhow::Result<Option<f64>> {
+    let mut cursor = ch
+        .query(
+            "SELECT avg(value_double) AS avg_value \
+             FROM observable.metric_points \
+             WHERE tenant_id = ? AND metric_name = ? \
+               AND time_unix_nano BETWEEN ? AND ?",
+        )
+        .bind(tenant_id)
+        .bind(metric_name)
+        .bind(start_ns)
+        .bind(end_ns)
+        .fetch::<WindowAvgRow>()
+        .map_err(|e| anyhow::anyhow!("clickhouse query error: {e}"))?;
+
+    match cursor.next().await {
+        Ok(Some(row)) => Ok(row.avg_value),
+        Ok(None) => Ok(None),
+        Err(e) => Err(anyhow::anyhow!("clickhouse query error: {e}")),
+    }
+}
+
+pub async fn eval_change_detection_rules(
+    db: &sqlx::PgPool,
+    ch: &clickhouse::Client,
+) -> anyhow::Result<()> {
+    let rules: Vec<AlertRuleRow> = sqlx::query_as(
+        "SELECT rule_id, tenant_id, name, condition, severity, for_duration_secs, notification_channels, \
+         auto_trigger_incident, auto_trigger_delay_secs, runbook_url \
+         FROM alert_rules WHERE alert_type = 'change_detection' AND silenced = false",
+    )
+    .fetch_all(db)
+    .await?;
+
+    tracing::debug!(count = rules.len(), "evaluating change detection rules");
+
+    for rule in rules {
+        let cond: ChangeDetectionCondition = match serde_json::from_value(rule.condition.clone()) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(
+                    rule_id = %rule.rule_id,
+                    error = %e,
+                    "skipping change detection rule: condition parse failed"
+                );
+                continue;
+            }
+        };
+
+        let now_ns = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos() as u64;
+        let window_ns = (cond.window_secs.max(0) as u64) * 1_000_000_000;
+        let baseline_offset_ns = (cond.baseline_offset_secs.max(0) as u64) * 1_000_000_000;
+
+        let current_end_ns = now_ns;
+        let current_start_ns = now_ns.saturating_sub(window_ns);
+        let baseline_end_ns = now_ns.saturating_sub(baseline_offset_ns);
+        let baseline_start_ns = baseline_end_ns.saturating_sub(window_ns);
+
+        let current_avg = match fetch_window_avg(
+            ch,
+            rule.tenant_id,
+            &cond.metric_name,
+            current_start_ns,
+            current_end_ns,
+        )
+        .await
+        {
+            Ok(avg) => avg,
+            Err(e) => {
+                tracing::warn!(rule_id = %rule.rule_id, error = %e, "skipping change detection rule: current window metric fetch failed");
+                continue;
+            }
+        };
+
+        let Some(current_avg) = current_avg else {
+            tracing::warn!(
+                rule_id = %rule.rule_id,
+                "skipping change detection rule: current window has no data"
+            );
+            continue;
+        };
+
+        let baseline_avg = match fetch_window_avg(
+            ch,
+            rule.tenant_id,
+            &cond.metric_name,
+            baseline_start_ns,
+            baseline_end_ns,
+        )
+        .await
+        {
+            Ok(avg) => avg,
+            Err(e) => {
+                tracing::warn!(rule_id = %rule.rule_id, error = %e, "skipping change detection rule: baseline window metric fetch failed");
+                continue;
+            }
+        };
+
+        let Some(baseline_avg) = baseline_avg else {
+            tracing::warn!(
+                rule_id = %rule.rule_id,
+                "skipping change detection rule: baseline window has no data"
+            );
+            continue;
+        };
+
+        match evaluate_change_detection(current_avg, baseline_avg, &cond) {
+            EvalResult::Firing => {
+                tracing::warn!(
+                    rule_id = %rule.rule_id,
+                    tenant_id = %rule.tenant_id,
+                    rule_name = %rule.name,
+                    metric_name = %cond.metric_name,
+                    current_avg,
+                    baseline_avg,
+                    threshold_percent = cond.threshold_percent,
+                    "alert firing: change detected"
+                );
+                if let Err(e) = record_firing(db, &rule, current_avg).await {
+                    tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to record change detection firing");
+                }
+            }
+            EvalResult::Ok => {
+                if let Err(e) = resolve_open_firing(db, &rule, current_avg).await {
+                    tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to resolve change detection firing");
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub async fn eval_alert_rules(db: &sqlx::PgPool, ch: &clickhouse::Client) -> anyhow::Result<()> {
     eval_threshold_rules(db, ch).await?;
     eval_slo_burn_rate_rules(db, ch).await?;
     eval_composite_rules(db, ch).await?;
     eval_deadman_rules(db, ch).await?;
+    eval_change_detection_rules(db, ch).await?;
     Ok(())
 }
 
