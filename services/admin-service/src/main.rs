@@ -1,4 +1,4 @@
-use admin_service::{AdminServiceAppState, admin_members, middleware, observability};
+use admin_service::{AdminServiceAppState, admin_members, middleware, observability, tokens};
 use axum::{
     Router,
     http::StatusCode,
@@ -60,6 +60,12 @@ async fn main() -> anyhow::Result<()> {
             "/v1/admin/members/{user_id}/revoke-sessions",
             post(admin_members::handle_revoke_sessions),
         )
+        .route("/v1/tokens", get(tokens::list_tokens))
+        .route("/v1/tokens", post(tokens::create_token))
+        .route("/v1/tokens/{id}", delete(tokens::revoke_token))
+        .route("/v1/tokens/{id}/renew", post(tokens::renew_token))
+        .route("/v1/tokens/{id}/restore", post(tokens::restore_token))
+        .route("/v1/tokens/{id}/permanent", delete(tokens::delete_token))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))
         .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))

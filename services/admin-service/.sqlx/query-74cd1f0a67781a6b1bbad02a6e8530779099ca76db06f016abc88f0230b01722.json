@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT DISTINCT environment\n        FROM api_keys\n        WHERE tenant_id = $1\n          AND revoked_at IS NULL\n          AND environment != ''\n        ORDER BY environment ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "environment",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "74cd1f0a67781a6b1bbad02a6e8530779099ca76db06f016abc88f0230b01722"
+}

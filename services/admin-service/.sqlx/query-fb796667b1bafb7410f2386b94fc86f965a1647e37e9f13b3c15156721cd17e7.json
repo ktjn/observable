@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE api_keys\n        SET revoked_at = now()\n        WHERE id = $1\n          AND tenant_id = $2\n          AND revoked_at IS NULL\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fb796667b1bafb7410f2386b94fc86f965a1647e37e9f13b3c15156721cd17e7"
+}

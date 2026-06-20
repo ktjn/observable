@@ -1,6 +1,7 @@
 pub mod admin_members;
 pub mod middleware;
 pub mod observability;
+pub mod tokens;
 
 use std::sync::Arc;
 
