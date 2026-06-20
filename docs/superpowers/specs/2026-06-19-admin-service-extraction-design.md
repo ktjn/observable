@@ -135,6 +135,11 @@ review — it can be promoted on its own. Suggested slice order if implemented:
    found during implementation: this design doc's URL scheme said `/v1/tenants/config` for the
    platform-config endpoint; the actual route (carried over unchanged from query-api, both before
    and after this slice) is `/v1/config`, no `/tenants/` prefix. Routing was wired to the real path.
-3. Remove the moved (now-dead) handlers from query-api. Not started — this is the cleanup step
-   that completes the two-step rollout; do it once admin-service has run in production for at
-   least one deploy cycle without rollback.
+3. **DONE 2026-06-20.** Remove the moved (now-dead) handlers from query-api, completing the
+   two-step rollout. Promoted ahead of the original "wait one deploy cycle" guidance per explicit
+   user request — this repo has no live production deployment yet, so the caveat didn't apply.
+   See `archived/plans/2026-06-20-admin-service-cleanup.md`. One real dependency the prior slices'
+   plans missed: `config.rs` (deleted) held 4 helper functions
+   (`env_llm_model`/`env_llm_url`/`fetch_db_key`/`fetch_db_value`) that query-api's still-live
+   `/v1/nlq` chat path needed — extracted into a new `services/query-api/src/llm_config.rs` rather
+   than lost.

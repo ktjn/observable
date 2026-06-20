@@ -241,16 +241,16 @@ first item, which is pre-promoted** because Tier 2's PromQL Compatibility Façad
   round-tripping. Note: inherits ADR-032's `enum(...)` → Rust `String` emitter gap (Phase 1
   backlog item 3) until that's fixed — removes the duplication, not the type-safety gap. Low
   effort; promote opportunistically alongside any other alerting-area slice.
-- [~] **Extract admin-service** (members, tokens, config, usage out of query-api) — privilege
+- [x] **Extract admin-service** (members, tokens, config, usage out of query-api) — privilege
   isolation: member/role management, API key/token lifecycle, and platform config are
   privilege-granting operations sharing a process boundary with the high-traffic trace/log/metric
-  read path today. **Promoted 2026-06-20 per explicit user request; Slices 1-2 of 3 complete**
-  (`libs/observable-auth` crate, `services/admin-service` scaffold + ingress routing — see
-  `archived/plans/2026-06-20-observable-auth-crate.md` and
-  `archived/plans/2026-06-20-admin-service-scaffold.md`). Design:
+  read path today. **Promoted 2026-06-20 per explicit user request; all 3 slices complete**
+  (`libs/observable-auth` crate, `services/admin-service` scaffold + ingress routing, removal of
+  the now-dead handler copies from query-api — see `archived/plans/2026-06-20-observable-auth-crate.md`,
+  `archived/plans/2026-06-20-admin-service-scaffold.md`, and
+  `archived/plans/2026-06-20-admin-service-cleanup.md`). Design:
   `docs/superpowers/specs/2026-06-19-admin-service-extraction-design.md`; status tracked in
-  `spec/adr/ADR-033-admin-service-extraction.md`. Remaining: Slice 3, removing the now-dead
-  handler copies from query-api, once admin-service has run in production for a deploy cycle.
+  `spec/adr/ADR-033-admin-service-extraction.md`.
 - [ ] **Shared observable-error crate** — common HTTP error mapping/problem+json shape/tracing
   integration consumed by all services, replacing each service's independent error-to-response
   mapping. Low effort, low coupling risk (pure utility, no tenant-scoping concerns) — unlike a
