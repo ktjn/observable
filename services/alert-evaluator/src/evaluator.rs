@@ -82,18 +82,20 @@ pub fn evaluate_change_detection(
     baseline_avg: f64,
     condition: &ChangeDetectionCondition,
 ) -> EvalResult {
-    let percent_change = if baseline_avg == 0.0 {
-        // If baseline is 0, treat any non-zero current as 100%+ change (fires)
-        if current_avg == 0.0 {
-            0.0 // Both 0, don't fire
+    if baseline_avg == 0.0 {
+        // No sentinel percent-change value can be guaranteed to exceed an
+        // arbitrary configured threshold_percent (e.g. 150), so fire directly
+        // instead of comparing a stand-in number against the threshold.
+        return if current_avg == 0.0 {
+            EvalResult::Ok
         } else {
-            101.0 // Non-zero current with zero baseline fires
-        }
-    } else {
-        // Normal percent change formula: ((current - baseline) / baseline) * 100
-        // Use absolute value to detect both increases and decreases (bidirectional)
-        (((current_avg - baseline_avg) / baseline_avg) * 100.0).abs()
-    };
+            EvalResult::Firing
+        };
+    }
+
+    // Normal percent change formula: ((current - baseline) / baseline) * 100
+    // Use absolute value to detect both increases and decreases (bidirectional)
+    let percent_change = (((current_avg - baseline_avg) / baseline_avg) * 100.0).abs();
 
     if percent_change >= condition.threshold_percent {
         EvalResult::Firing
@@ -1335,6 +1337,17 @@ mod tests {
         assert_eq!(
             evaluate_change_detection(0.0, 0.0, &change_detection_cond(50.0)),
             EvalResult::Ok
+        );
+    }
+
+    #[test]
+    fn change_detection_fires_baseline_zero_even_with_threshold_above_100() {
+        // Regression: a sentinel percent-change value could fail to exceed a
+        // configured threshold_percent above 100; firing must not depend on
+        // comparing against any specific numeric stand-in.
+        assert_eq!(
+            evaluate_change_detection(10.0, 0.0, &change_detection_cond(150.0)),
+            EvalResult::Firing
         );
     }
 }

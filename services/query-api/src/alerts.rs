@@ -160,6 +160,10 @@ fn condition_fields(condition: &serde_json::Value) -> Option<(String, String, f6
     ) {
         return Some((metric_name.to_string(), operator.to_string(), threshold));
     }
+    // Disambiguates from the deadman shape below by checking threshold_percent's
+    // presence; must stay ordered before the deadman check (and after the
+    // threshold check above) since the three condition shapes are mutually
+    // exclusive only by which of operator/threshold_percent/service_name they carry.
     if let (Some(metric_name), Some(threshold_percent)) = (
         condition.get("metric_name").and_then(|v| v.as_str()),
         condition.get("threshold_percent").and_then(|v| v.as_f64()),
