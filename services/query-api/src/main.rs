@@ -1,13 +1,12 @@
-mod admin_members;
 mod alerts;
 mod audit;
 mod change_events;
-mod config;
 mod dashboards;
 mod deployments;
 mod discovery;
 mod incidents;
 mod llm_adapter;
+mod llm_config;
 mod logs;
 mod mcp_query;
 mod mcp_tools;
@@ -22,9 +21,7 @@ mod setup;
 mod slos;
 mod sql_templates;
 mod tenants;
-mod tokens;
 mod traces;
-mod usage;
 
 use axum::{
     Router, middleware as axum_middleware,
@@ -136,20 +133,6 @@ async fn main() -> anyhow::Result<()> {
             "/v1/dashboards/{id}/grants/{user_id}",
             axum::routing::delete(dashboards::handle_revoke_grant),
         )
-        .route("/v1/admin/members", get(admin_members::handle_list_members))
-        .route("/v1/admin/members", post(admin_members::handle_add_member))
-        .route(
-            "/v1/admin/members/{user_id}/role",
-            axum::routing::put(admin_members::handle_update_role),
-        )
-        .route(
-            "/v1/admin/members/{user_id}",
-            delete(admin_members::handle_remove_member),
-        )
-        .route(
-            "/v1/admin/members/{user_id}/revoke-sessions",
-            post(admin_members::handle_revoke_sessions),
-        )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .route("/v1/alerts/rules", post(alerts::handle_create_rule))
         .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
@@ -169,10 +152,6 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/services/{service_name}/reliability-report",
             get(reliability::handle_get_service_reliability_report),
-        )
-        .route(
-            "/v1/tenants/usage-report",
-            get(usage::handle_get_tenant_usage_report),
         )
         .route(
             "/v1/notifications/channels",
@@ -214,19 +193,6 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/mcp/query", post(mcp_query::handle_mcp_query))
         .route("/v1/nlq", post(llm_adapter::handle_nlq_query))
         .route("/v1/nlq/metadata", get(llm_adapter::handle_nlq_metadata))
-        .route("/v1/config", get(config::get_config))
-        .route("/v1/config/llm", axum::routing::put(config::put_llm_config))
-        .route("/v1/config/llm/models", post(config::list_llm_models))
-        .route(
-            "/v1/config/llm-key",
-            axum::routing::put(config::put_llm_key),
-        )
-        .route("/v1/tokens", get(tokens::list_tokens))
-        .route("/v1/tokens", post(tokens::create_token))
-        .route("/v1/tokens/{id}", delete(tokens::revoke_token))
-        .route("/v1/tokens/{id}/renew", post(tokens::renew_token))
-        .route("/v1/tokens/{id}/restore", post(tokens::restore_token))
-        .route("/v1/tokens/{id}/permanent", delete(tokens::delete_token))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))
         .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))

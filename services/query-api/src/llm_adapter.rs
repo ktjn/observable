@@ -68,10 +68,10 @@ impl OpenAiLlmCaller {
     /// If `url` or `model` are None, falls back to env vars then hardcoded defaults.
     pub fn from_key(api_key: String, url: Option<String>, model: Option<String>) -> Self {
         let model = model
-            .or_else(crate::config::env_llm_model)
+            .or_else(crate::llm_config::env_llm_model)
             .unwrap_or_else(|| "gpt-4o-mini".into());
         let mut config = OpenAIConfig::new().with_api_key(api_key);
-        let base_url = url.or_else(crate::config::env_llm_url);
+        let base_url = url.or_else(crate::llm_config::env_llm_url);
         if let Some(base_url) = base_url {
             config = config.with_api_base(base_url);
         }
@@ -1644,18 +1644,20 @@ pub async fn handle_nlq_query(
     let llm: &dyn LlmCaller = if let Some(ref arc) = state.llm {
         arc.as_ref()
     } else {
-        let api_key = crate::config::fetch_db_key(&state.db).await.map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "database error resolving LLM config"})),
-            )
-        })?;
-        let url = crate::config::fetch_db_value(&state.db, "llm_url")
+        let api_key = crate::llm_config::fetch_db_key(&state.db)
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": "database error resolving LLM config"})),
+                )
+            })?;
+        let url = crate::llm_config::fetch_db_value(&state.db, "llm_url")
             .await
             .ok()
             .flatten()
             .filter(|v| !v.is_empty());
-        let model = crate::config::fetch_db_value(&state.db, "llm_model")
+        let model = crate::llm_config::fetch_db_value(&state.db, "llm_model")
             .await
             .ok()
             .flatten()
