@@ -1,4 +1,6 @@
 pub mod admin_members;
+pub mod config;
+pub mod llm_probe;
 pub mod middleware;
 pub mod observability;
 pub mod tokens;

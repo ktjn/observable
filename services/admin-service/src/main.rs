@@ -1,4 +1,6 @@
-use admin_service::{AdminServiceAppState, admin_members, middleware, observability, tokens};
+use admin_service::{
+    AdminServiceAppState, admin_members, config, middleware, observability, tokens,
+};
 use axum::{
     Router,
     http::StatusCode,
@@ -66,6 +68,13 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/tokens/{id}/renew", post(tokens::renew_token))
         .route("/v1/tokens/{id}/restore", post(tokens::restore_token))
         .route("/v1/tokens/{id}/permanent", delete(tokens::delete_token))
+        .route("/v1/config", get(config::get_config))
+        .route("/v1/config/llm", axum::routing::put(config::put_llm_config))
+        .route("/v1/config/llm/models", post(config::list_llm_models))
+        .route(
+            "/v1/config/llm-key",
+            axum::routing::put(config::put_llm_key),
+        )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))
         .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
