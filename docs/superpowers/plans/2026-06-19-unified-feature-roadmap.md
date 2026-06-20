@@ -62,9 +62,12 @@ Small, standalone, high user-value slices. Promote these first.
   picker, copy-paste install command with pre-filled endpoint/API key, polling for first signal,
   success state linking to the first trace/log. `features/onboarding/`,
   `GET /v1/setup/status`. Leading source of trial abandonment per the parity analysis.
-- [ ] **PagerDuty Notification Channel Adapter** (was P12-S1) — `pagerduty` channel type,
-  Events API v2 dedup/resolve, test-connection button. Most-requested alerting integration.
-- [ ] **Opsgenie Notification Channel Adapter** (was P12-S2) — same pattern, Opsgenie Alert API.
+- [x] ~~**PagerDuty Notification Channel Adapter** (was P12-S1)~~ — **Retired 2026-06-20**: dropped
+  from the backlog per user direction, not building this adapter. The generic `webhook` channel
+  type remains the only outbound integration path.
+- [x] ~~**Opsgenie Notification Channel Adapter** (was P12-S2)~~ — **Retired 2026-06-20**: dropped
+  from the backlog per user direction, not building this adapter. The generic `webhook` channel
+  type remains the only outbound integration path.
 - [ ] **Change-Detection Alert Type** (was P12-S4) — compares a current window average against a
   baseline window N days/hours back; configurable threshold percent.
 - [ ] **Alert Inhibition Rules** (was P12-S5) — suppress lower-severity alerts for the same
@@ -119,8 +122,9 @@ parallel if reviewer bandwidth allows.
 
 ### Alerting Depth
 - [ ] **Escalation Policy Builder** (was P12-S6) — `escalation_policies` with timed steps;
-  evaluator tracks acknowledgement and dispatches the next step if unacked. Depends on the
-  PagerDuty/Opsgenie adapters (Tier 1) existing as escalation targets.
+  evaluator tracks acknowledgement and dispatches the next step if unacked. The PagerDuty/Opsgenie
+  adapters this previously depended on were retired 2026-06-20 (see Tier 1); escalation steps
+  target the generic `webhook` channel type instead.
 - [ ] **Prometheus Alert Rule Importer** (was P13-S2) — upload Prometheus alerting YAML, translate
   to threshold/change-detection rules, dry-run mapping report, `?apply=true` to create. Depends on
   Prometheus Remote Write (Tier 1).
@@ -262,14 +266,15 @@ first item, which is pre-promoted** because Tier 2's PromQL Compatibility Façad
 
 ```
 Tier 1 (promote immediately, any order)
-  Onboarding wizard, PagerDuty, Opsgenie, change-detection alert, alert inhibition,
-  saved views, change event API, export APIs, Prometheus remote write,
+  Onboarding wizard (done), change-detection alert, alert inhibition,
+  saved views, change event API (done), export APIs, Prometheus remote write,
   fleet management UI, admin RBAC/quota UI
+  (PagerDuty/Opsgenie retired 2026-06-20)
 
 Tier 2
   Error tracking ingestion → Error issues UI → Regression detection → Service health completion
   Infra catalog model → Infra explorer UI → K8s operator Helm deployment
-  (PagerDuty/Opsgenie) → Escalation policy builder
+  Escalation policy builder (now targets the generic webhook channel type)
   (Prometheus remote write) → Prometheus alert importer
   (P8-S6 NLQ, done) → PromQL façade
   DORA metrics, Database monitoring  ← standalone, no new infra
