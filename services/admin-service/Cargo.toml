@@ -8,7 +8,7 @@ name = "admin_service"
 path = "src/lib.rs"
 
 [dependencies]
-domain             = { path = "../../libs/domain" }
+domain             = { path = "../../libs/domain", features = ["storage"] }
 observable-auth    = { path = "../../libs/observable-auth" }
 chrono             = { workspace = true }
 tokio              = { workspace = true }

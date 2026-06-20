@@ -4,6 +4,7 @@ pub mod llm_probe;
 pub mod middleware;
 pub mod observability;
 pub mod tokens;
+pub mod usage;
 
 use std::sync::Arc;
 

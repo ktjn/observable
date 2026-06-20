@@ -1,5 +1,5 @@
 use admin_service::{
-    AdminServiceAppState, admin_members, config, middleware, observability, tokens,
+    AdminServiceAppState, admin_members, config, middleware, observability, tokens, usage,
 };
 use axum::{
     Router,
@@ -74,6 +74,10 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/config/llm-key",
             axum::routing::put(config::put_llm_key),
+        )
+        .route(
+            "/v1/tenants/usage-report",
+            get(usage::handle_get_tenant_usage_report),
         )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))
