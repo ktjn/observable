@@ -11,8 +11,6 @@
   "prHourlyLimit": 1,
   "branchPrefix": "renovate/",
   "rebaseWhen": "behind-base-branch",
-  "platformAutomerge": false,
-  "automerge": false,
 
   "enabledManagers": [
     "cargo",
@@ -21,15 +19,14 @@
     "docker-compose",
     "helm-requirements",
     "helm-values",
-    "pip_requirements",
+    "uv",
     "github-actions",
     "custom.regex"
   ],
 
   "cargo": {
     "managerFilePatterns": [
-      "/(^|/)Cargo\\.toml$/",
-      "/(^|/)Cargo\\.lock$/"
+      "/(^|/)Cargo\\.toml$/"
     ]
   },
 
@@ -90,23 +87,39 @@
       ],
       "datasourceTemplate": "docker",
       "depNameTemplate": "docker/dockerfile"
+    },
+    {
+      "customType": "regex",
+      "description": "Update Rust CI image in build workflow docker run command",
+      "managerFilePatterns": [
+        "/(^|/)\\.github/workflows/build\\.yml$/"
+      ],
+      "matchStrings": [
+        "rust:(?<currentValue>[a-zA-Z0-9][a-zA-Z0-9._-]+)\\s+bash"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "rust"
+    },
+    {
+      "customType": "regex",
+      "description": "Update hardcoded Docker images in Helm template files",
+      "managerFilePatterns": [
+        "/(^|/)charts/[^/]+/templates/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "image:\\s+(?<depName>[a-zA-Z0-9_.\\-\\/]+):(?<currentValue>[a-zA-Z0-9_.\\-]+)\\s*$"
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
 
   "packageRules": [
     {
-      "description": "Group everything into a single PR",
+      "description": "Group non-major dependencies into a single PR",
       "groupName": "all-dependencies",
       "groupSlug": "all-dependencies",
-      "matchPackageNames": [
-        "/.*/"
-      ]
-    },
-    {
-      "description": "Pin Docker digests for production base images",
-      "matchManagers": ["dockerfile"],
-      "matchUpdateTypes": ["digest"],
-      "pinDigests": true
+      "matchPackageNames": ["/.*/"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"]
     },
     {
       "description": "Require manual approval for major Rust version bumps",
@@ -134,6 +147,12 @@
       "matchPackageNames": ["rust", "lukemathwalker/cargo-chef"],
       "matchUpdateTypes": ["major"],
       "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Pin Docker digests for production base images",
+      "matchManagers": ["dockerfile"],
+      "matchUpdateTypes": ["digest"],
+      "pinDigests": true
     },
     {
       "description": "Tag testcontainer images with manual-update label",
