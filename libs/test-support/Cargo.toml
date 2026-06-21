@@ -14,7 +14,7 @@ clickhouse             = { workspace = true }
 testcontainers         = "0.27.3"
 testcontainers-modules  = { version = "0.15.0", features = ["postgres", "clickhouse"] }
 uuid                   = { workspace = true }
-ctor                   = "0.4"
+ctor                   = "0.13"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }

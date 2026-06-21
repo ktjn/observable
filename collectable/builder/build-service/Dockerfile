@@ -1,5 +1,5 @@
 # Build stage — compile the build-service binary
-FROM rust:1.95-bookworm AS builder
+FROM rust:1.96-bookworm AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake pkg-config libssl-dev \
@@ -11,7 +11,7 @@ COPY builder/build-service/src ./src
 RUN cargo build --release
 
 # Runtime stage — full Rust toolchain kept for on-demand mediator compilation
-FROM rust:1.95-bookworm
+FROM rust:1.96-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc-aarch64-linux-gnu \

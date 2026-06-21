@@ -27,7 +27,7 @@ bytes              = { workspace = true }
 flate2             = "1"
 prost              = { workspace = true }
 tonic              = { workspace = true }
-opentelemetry-proto = { version = "0.31", features = ["gen-tonic", "trace", "logs", "metrics"] }
+opentelemetry-proto = { version = "0.32", features = ["gen-tonic", "trace", "logs", "metrics"] }
 rdkafka            = { workspace = true }
 config             = { workspace = true }
 reqwest            = { workspace = true }
