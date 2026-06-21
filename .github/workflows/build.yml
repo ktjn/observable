@@ -54,6 +54,7 @@ jobs:
           path: |
             ~/.cargo-ci/registry
             ~/.cargo-ci/git
+            ~/.cargo-ci/target
             ~/.cache/sccache
           key: cargo-sccache-${{ hashFiles('Cargo.lock') }}
           restore-keys: cargo-sccache-
@@ -67,18 +68,25 @@ jobs:
       # old cache service API and silently fails every write against the
       # current one (0 hits, all "Cache write errors") — use sccache's local
       # disk cache instead, persisted across runs via actions/cache above.
+      #
+      # target/ must ALSO persist across runs (not just registry/sccache):
+      # a fresh checkout has no target/, so every build-script crate (most
+      # of the dependency tree) gets a fresh OUT_DIR hash, which leaks into
+      # its rustc invocation and busts sccache's cache key even when the
+      # source is byte-identical to the previous run.
       - name: Build, lint, test
         env:
           RUSTC_WRAPPER: sccache
           SCCACHE_DIR: /sccache
           CARGO_INCREMENTAL: "0"
         run: |
-          mkdir -p ~/.cargo-ci/registry ~/.cargo-ci/git ~/.cache/sccache
+          mkdir -p ~/.cargo-ci/registry ~/.cargo-ci/git ~/.cargo-ci/target ~/.cache/sccache
           docker run --rm \
             -v "$PWD":/app -w /app \
             -v "$(command -v sccache)":/usr/local/bin/sccache:ro \
             -v "$HOME/.cargo-ci/registry":/usr/local/cargo/registry \
             -v "$HOME/.cargo-ci/git":/usr/local/cargo/git \
+            -v "$HOME/.cargo-ci/target":/app/target \
             -v "$HOME/.cache/sccache":/sccache \
             -e RUSTC_WRAPPER -e SCCACHE_DIR -e CARGO_INCREMENTAL \
             -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
