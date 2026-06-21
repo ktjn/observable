@@ -287,6 +287,22 @@ backlog and per-domain design specs.
   shape are unchanged, so `OnboardingWizard.tsx` required no changes beyond its test stubs.
 - See `archived/plans/2026-06-19-setup-status-endpoint.md` for the full task breakdown.
 
+- **2026-06-21**: `query-api`'s Testcontainers integration tests now share one Postgres and one
+  ClickHouse container per `cargo test` run (`libs/test-support`'s `postgres::shared_pool()` /
+  `clickhouse::shared_client()`), consolidated into a single `tests/it/main.rs` binary (15 files
+  migrated across Tasks 4-10), instead of spinning up a fresh container per test function.
+  Postgres isolation is a fresh migrated database per test; ClickHouse isolation is per-test
+  random tenant IDs against one shared `observable` database (production SQL hardcodes that
+  name). `http_api_integration.rs`'s ClickHouse-touching tests are deliberately exempt — they key
+  off a fixed `DEV_TENANT_ID` for the auth header path and the production histogram endpoints
+  have no per-test query discriminator finer than tenant + time window, so sharing would require
+  sacrificing test parallelism. See
+  `docs/superpowers/specs/2026-06-21-testcontainers-shared-container-design.md` for the full
+  design and `archived/plans/2026-06-21-testcontainers-shared-container-pilot.md` for this
+  pilot's implementation. Follow-up slices (same pattern, one per service) remain for
+  `admin-service`, `alert-evaluator`, `auth-service`, `storage-writer`, `ingest-gateway`, and
+  `stream-processor` (the last needs a new `test_support::redpanda` module, not yet built).
+
 ## Dev Environment Gotchas
 
 ### PostgreSQL major version upgrade requires volume reset
