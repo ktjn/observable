@@ -1,1 +1,8 @@
+mod postgres_alerts_integration;
+mod postgres_change_events_integration;
+mod postgres_dashboard_rebac_integration;
+mod postgres_dashboards_integration;
+mod postgres_mcp_tools_integration;
+mod postgres_schemas_integration;
+mod postgres_slos_integration;
 mod postgres_tenants_integration;

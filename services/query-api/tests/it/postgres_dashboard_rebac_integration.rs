@@ -6,47 +6,7 @@ use query_api::dashboards::{
     get_dashboard, list_dashboards, update_dashboard,
 };
 use sqlx::PgPool;
-use std::path::Path;
-use testcontainers::{ImageExt, runners::AsyncRunner};
-use testcontainers_modules::postgres::Postgres;
 use uuid::Uuid;
-
-async fn apply_migrations(pool: &PgPool) {
-    let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/postgres");
-
-    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
-        .expect("migrations/postgres must exist")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        sqlx::raw_sql(&sql)
-            .execute(pool)
-            .await
-            .expect("migration applied");
-    }
-}
-
-async fn start_pool() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
-    let container = Postgres::default()
-        .with_tag("17")
-        .start()
-        .await
-        .expect("postgres container started");
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-    let pool = PgPool::connect(&url).await.expect("pool connected");
-    apply_migrations(&pool).await;
-    (pool, container)
-}
 
 async fn insert_tenant(pool: &PgPool, tenant_id: Uuid) {
     sqlx::query("INSERT INTO tenants (id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING")
@@ -89,7 +49,7 @@ fn one_panel() -> Vec<DashboardPanelRequest> {
 
 #[tokio::test]
 async fn create_dashboard_assigns_owner_grant_to_creator() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let tenant = Uuid::new_v4();
     insert_tenant(&pool, tenant).await;
     let user = insert_user(&pool, tenant).await;
@@ -122,7 +82,7 @@ async fn create_dashboard_assigns_owner_grant_to_creator() {
 
 #[tokio::test]
 async fn public_dashboard_visible_to_any_member() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let tenant = Uuid::new_v4();
     insert_tenant(&pool, tenant).await;
     let creator = insert_user(&pool, tenant).await;
@@ -163,7 +123,7 @@ async fn public_dashboard_visible_to_any_member() {
 
 #[tokio::test]
 async fn private_dashboard_hidden_from_non_granted_user() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let tenant = Uuid::new_v4();
     insert_tenant(&pool, tenant).await;
     let creator = insert_user(&pool, tenant).await;
@@ -219,7 +179,7 @@ async fn private_dashboard_hidden_from_non_granted_user() {
 
 #[tokio::test]
 async fn private_dashboard_visible_after_viewer_grant() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let tenant = Uuid::new_v4();
     insert_tenant(&pool, tenant).await;
     let creator = insert_user(&pool, tenant).await;
@@ -275,7 +235,7 @@ async fn private_dashboard_visible_after_viewer_grant() {
 
 #[tokio::test]
 async fn flip_to_public_restores_member_access() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let tenant = Uuid::new_v4();
     insert_tenant(&pool, tenant).await;
     let creator = insert_user(&pool, tenant).await;
@@ -344,7 +304,7 @@ async fn flip_to_public_restores_member_access() {
 
 #[tokio::test]
 async fn revoke_last_owner_is_blocked_by_cte_guard() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let tenant = Uuid::new_v4();
     insert_tenant(&pool, tenant).await;
     let user = insert_user(&pool, tenant).await;
@@ -404,7 +364,7 @@ async fn revoke_last_owner_is_blocked_by_cte_guard() {
 
 #[tokio::test]
 async fn api_key_caller_sees_all_dashboards_regardless_of_visibility() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let tenant = Uuid::new_v4();
     insert_tenant(&pool, tenant).await;
     let user = insert_user(&pool, tenant).await;

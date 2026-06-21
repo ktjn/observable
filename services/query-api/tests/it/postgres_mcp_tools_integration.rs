@@ -3,49 +3,9 @@ use query_api::mcp_tools::{
 };
 use query_api::schemas::{UpsertAnnotationRequest, upsert_annotation};
 use sqlx::PgPool;
-use std::path::Path;
-use testcontainers::{ImageExt, runners::AsyncRunner};
-use testcontainers_modules::postgres::Postgres;
 use uuid::Uuid;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-
-async fn apply_migrations(pool: &PgPool) {
-    let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/postgres");
-
-    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
-        .expect("migrations/postgres must exist")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        sqlx::raw_sql(&sql)
-            .execute(pool)
-            .await
-            .expect("migration applied");
-    }
-}
-
-async fn start_pool() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
-    let container = Postgres::default()
-        .with_tag("17")
-        .start()
-        .await
-        .expect("postgres container started");
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-    let pool = PgPool::connect(&url).await.expect("pool connected");
-    apply_migrations(&pool).await;
-    (pool, container)
-}
 
 const TENANT_A: Uuid = Uuid::from_u128(0xAAAA_0000_0000_0000_0000_0000_0000_0001);
 const TENANT_B: Uuid = Uuid::from_u128(0xBBBB_0000_0000_0000_0000_0000_0000_0002);
@@ -68,7 +28,7 @@ async fn insert_schema_entry(pool: &PgPool, signal_type: &str, field_name: &str,
 
 #[tokio::test]
 async fn get_metric_schema_returns_none_for_unknown_metric() {
-    let (pool, _c) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let result = get_metric_schema(&pool, TENANT_A, "nonexistent_metric")
         .await
         .unwrap();
@@ -77,7 +37,7 @@ async fn get_metric_schema_returns_none_for_unknown_metric() {
 
 #[tokio::test]
 async fn get_metric_schema_returns_structural_data_without_annotation() {
-    let (pool, _c) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     insert_schema_entry(&pool, "metrics", "cpu_usage", "float64").await;
 
     let result = get_metric_schema(&pool, TENANT_A, "cpu_usage")
@@ -95,7 +55,7 @@ async fn get_metric_schema_returns_structural_data_without_annotation() {
 
 #[tokio::test]
 async fn get_metric_schema_includes_tenant_annotation_overlay() {
-    let (pool, _c) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     insert_schema_entry(&pool, "metrics", "error_rate", "float64").await;
 
     upsert_annotation(
@@ -138,7 +98,7 @@ async fn get_metric_schema_includes_tenant_annotation_overlay() {
 
 #[tokio::test]
 async fn get_metric_schema_tenant_scoped_annotation_not_visible_to_other_tenant() {
-    let (pool, _c) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     insert_schema_entry(&pool, "metrics", "tenant_metric", "float64").await;
 
     upsert_annotation(
@@ -172,7 +132,7 @@ async fn get_metric_schema_tenant_scoped_annotation_not_visible_to_other_tenant(
 
 #[tokio::test]
 async fn get_metric_schema_uses_seeded_data() {
-    let (pool, _c) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     // The migration seeds tenant 00000000-0000-0000-0000-000000000001 with request_duration_ms
     let seed_tenant = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
 
@@ -194,7 +154,7 @@ async fn get_metric_schema_uses_seeded_data() {
 
 #[tokio::test]
 async fn list_signal_fields_returns_empty_for_unknown_signal_type() {
-    let (pool, _c) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     // "profiles" signal type has no seeded schema_entries
     let fields = list_signal_fields(&pool, TENANT_A, "profiles")
         .await
@@ -204,7 +164,7 @@ async fn list_signal_fields_returns_empty_for_unknown_signal_type() {
 
 #[tokio::test]
 async fn list_signal_fields_returns_seeded_metrics_fields() {
-    let (pool, _c) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let fields = list_signal_fields(&pool, TENANT_A, "metrics")
         .await
         .unwrap();
@@ -216,7 +176,7 @@ async fn list_signal_fields_returns_seeded_metrics_fields() {
 
 #[tokio::test]
 async fn list_signal_fields_merges_tenant_annotation() {
-    let (pool, _c) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     insert_schema_entry(&pool, "metrics", "heap_used", "float64").await;
 
     upsert_annotation(
@@ -247,7 +207,7 @@ async fn list_signal_fields_merges_tenant_annotation() {
 
 #[tokio::test]
 async fn list_signal_fields_annotation_absent_for_other_tenant() {
-    let (pool, _c) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     insert_schema_entry(&pool, "metrics", "disk_writes", "float64").await;
 
     upsert_annotation(
@@ -282,7 +242,7 @@ async fn list_signal_fields_annotation_absent_for_other_tenant() {
 
 #[tokio::test]
 async fn resolve_label_exact_field_name_match() {
-    let (pool, _c) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     // "request_duration_ms" is in schema_entries (seeded)
     let result = resolve_label_to_column(&pool, TENANT_A, "metrics", "request_duration_ms")
         .await
@@ -296,7 +256,7 @@ async fn resolve_label_exact_field_name_match() {
 
 #[tokio::test]
 async fn resolve_label_not_found_for_unknown_label() {
-    let (pool, _c) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let result =
         resolve_label_to_column(&pool, TENANT_A, "metrics", "completely_unknown_label_xyz")
             .await
@@ -306,7 +266,7 @@ async fn resolve_label_not_found_for_unknown_label() {
 
 #[tokio::test]
 async fn resolve_label_display_name_case_insensitive_match() {
-    let (pool, _c) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     insert_schema_entry(&pool, "metrics", "net_rx_bytes", "float64").await;
 
     upsert_annotation(
@@ -335,7 +295,7 @@ async fn resolve_label_display_name_case_insensitive_match() {
 
 #[tokio::test]
 async fn resolve_label_display_name_not_visible_to_other_tenant() {
-    let (pool, _c) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     insert_schema_entry(&pool, "metrics", "auth_failures", "float64").await;
 
     upsert_annotation(
@@ -364,7 +324,7 @@ async fn resolve_label_display_name_not_visible_to_other_tenant() {
 
 #[tokio::test]
 async fn resolve_label_ambiguous_when_multiple_fields_share_display_name() {
-    let (pool, _c) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     insert_schema_entry(&pool, "metrics", "field_alpha", "float64").await;
     insert_schema_entry(&pool, "metrics", "field_beta", "float64").await;
 
