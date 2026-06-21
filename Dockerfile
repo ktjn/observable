@@ -59,6 +59,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
     && curl -fsSL https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz \
        | tar -xz -C /usr/local/bin grpcurl
 
+# --- Final Runtime Image (CI variant: binaries built natively on the runner via sccache) ---
+FROM debian:bookworm-slim AS runtime-ci
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates libssl3 curl jq
+
+COPY --from=grpcurl-downloader /usr/local/bin/grpcurl /usr/local/bin/grpcurl
+COPY bin/auth-service /usr/local/bin/auth-service
+COPY bin/storage-writer /usr/local/bin/storage-writer
+COPY bin/stream-processor /usr/local/bin/stream-processor
+COPY bin/ingest-gateway /usr/local/bin/ingest-gateway
+COPY bin/query-api /usr/local/bin/query-api
+COPY bin/alert-evaluator /usr/local/bin/alert-evaluator
+COPY bin/admin-service /usr/local/bin/admin-service
+COPY proto/otlp /proto/otlp
+
+USER 65532:65532
+
 # --- Final Runtime Image ---
 FROM debian:bookworm-slim AS runtime
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \

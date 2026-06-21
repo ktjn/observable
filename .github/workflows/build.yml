@@ -46,16 +46,86 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+
+      - uses: mozilla-actions/sccache-action@v0.0.10
+
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo-ci/registry
+            ~/.cargo-ci/git
+            ~/.cargo-ci/target
+            ~/.cache/sccache
+          key: cargo-sccache-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-sccache-
+
+      # Build/lint/test inside rust:1.95.0-bookworm (same glibc as the
+      # debian:bookworm-slim runtime image) rather than natively on the
+      # ubuntu-latest runner — ubuntu-latest's glibc is newer than bookworm's,
+      # and binaries built against it fail to load in the runtime image.
+      #
+      # sccache's GHA cache backend (SCCACHE_GHA_ENABLED) targets GitHub's
+      # old cache service API and silently fails every write against the
+      # current one (0 hits, all "Cache write errors") — use sccache's local
+      # disk cache instead, persisted across runs via actions/cache above.
+      #
+      # target/ must ALSO persist across runs (not just registry/sccache):
+      # a fresh checkout has no target/, so every build-script crate (most
+      # of the dependency tree) gets a fresh OUT_DIR hash, which leaks into
+      # its rustc invocation and busts sccache's cache key even when the
+      # source is byte-identical to the previous run.
+      - name: Build, lint, test
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_DIR: /sccache
+          CARGO_INCREMENTAL: "0"
+        run: |
+          mkdir -p ~/.cargo-ci/registry ~/.cargo-ci/git ~/.cargo-ci/target ~/.cache/sccache
+          docker run --rm \
+            -v "$PWD":/app -w /app \
+            -v "$(command -v sccache)":/usr/local/bin/sccache:ro \
+            -v "$HOME/.cargo-ci/registry":/usr/local/cargo/registry \
+            -v "$HOME/.cargo-ci/git":/usr/local/cargo/git \
+            -v "$HOME/.cargo-ci/target":/app/target \
+            -v "$HOME/.cache/sccache":/sccache \
+            -e RUSTC_WRAPPER -e SCCACHE_DIR -e CARGO_INCREMENTAL \
+            -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
+            rust:1.95.0-bookworm bash -c '
+              set -euo pipefail
+              rustup component add rustfmt clippy
+              apt-get update -qq
+              apt-get install -y -qq --no-install-recommends \
+                build-essential cmake libcurl4-openssl-dev libssl-dev pkg-config zlib1g-dev
+              cargo fmt --check
+              cargo clippy --workspace --all-targets -- -D warnings
+              cargo test --workspace --lib --bins
+              cargo build --release --workspace
+              sccache --show-stats
+              # Container runs as root, so cache files end up root-owned on the
+              # host mounts; chown back to the runner user or actions/cache'\''s
+              # post-job tar step cannot read them to persist the cache.
+              chown -R "$HOST_UID:$HOST_GID" /usr/local/cargo/registry /usr/local/cargo/git /sccache /app/target
+            '
+
+      - name: Stage release binaries for Docker context
+        run: |
+          mkdir -p bin
+          cp ~/.cargo-ci/target/release/auth-service ~/.cargo-ci/target/release/storage-writer \
+             ~/.cargo-ci/target/release/stream-processor ~/.cargo-ci/target/release/ingest-gateway \
+             ~/.cargo-ci/target/release/query-api ~/.cargo-ci/target/release/alert-evaluator \
+             ~/.cargo-ci/target/release/admin-service bin/
+
       - uses: docker/setup-buildx-action@v4
 
-      - name: Build and load final image
+      - name: Build and load final image (prebuilt-binary stage)
         uses: docker/build-push-action@v7
         with:
           context: .
+          target: runtime-ci
           load: true
           tags: observable-services:local
-          cache-from: type=gha,scope=observable-services
-          cache-to: type=gha,mode=max,scope=observable-services
+          cache-from: type=gha,scope=observable-services-runtime
+          cache-to: type=gha,mode=max,scope=observable-services-runtime
 
       - name: Export image
         run: docker save observable-services:local | gzip > /tmp/image.tar.gz
