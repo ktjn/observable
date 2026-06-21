@@ -14,10 +14,10 @@ use query_api::{
     planner::QueryPlanner, reliability, slos, traces,
 };
 use serde_json::Value;
-use sqlx::postgres::{PgPool, PgPoolOptions};
+use sqlx::postgres::PgPool;
 use std::{path::Path, sync::Arc};
 use testcontainers::{ImageExt, runners::AsyncRunner};
-use testcontainers_modules::{clickhouse::ClickHouse, postgres::Postgres};
+use testcontainers_modules::clickhouse::ClickHouse;
 use tower::ServiceExt;
 use uuid::Uuid;
 use wiremock::{
@@ -46,47 +46,6 @@ async fn start_clickhouse() -> (ChClient, testcontainers::ContainerAsync<ClickHo
     let base_url = format!("http://127.0.0.1:{port}");
     let ch = apply_ch_migrations(&base_url, "default", "test").await;
     (ch, container)
-}
-
-async fn start_postgres() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
-    let container = Postgres::default()
-        .with_tag("17")
-        .start()
-        .await
-        .expect("postgres container started");
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&url)
-        .await
-        .expect("postgres pool connected");
-    apply_pg_migrations(&pool).await;
-    (pool, container)
-}
-
-async fn apply_pg_migrations(pool: &PgPool) {
-    let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/postgres");
-
-    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
-        .expect("migrations/postgres must exist")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        sqlx::raw_sql(&sql)
-            .execute(pool)
-            .await
-            .expect("pg migration applied");
-    }
 }
 
 async fn apply_ch_migrations(base_url: &str, user: &str, password: &str) -> ChClient {
@@ -451,7 +410,7 @@ async fn query_api_rejects_missing_authorization_header() {
 /// Valid token for tenant 0001 but X-Tenant-ID is a different UUID → 403.
 #[tokio::test]
 async fn query_api_rejects_tenant_header_not_owned_by_token() {
-    let (db, _pg) = start_postgres().await;
+    let db = test_support::postgres::shared_pool().await;
     let ch = ChClient::default().with_url("http://127.0.0.1:19999");
     let app = build_app_with_pg(ch, db).await;
 
@@ -473,7 +432,7 @@ async fn query_api_rejects_tenant_header_not_owned_by_token() {
 /// any non-401/403 status).
 #[tokio::test]
 async fn query_api_accepts_matching_token_and_tenant_header() {
-    let (db, _pg) = start_postgres().await;
+    let db = test_support::postgres::shared_pool().await;
     let (ch, _ch_container) = start_clickhouse().await;
     let app = build_app_with_pg(ch, db).await;
 
@@ -538,7 +497,7 @@ async fn invalid_tenant_id_header_returns_400() {
 #[tokio::test]
 async fn query_api_readyz_returns_200_when_dependencies_are_up() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (db, _pg) = start_postgres().await;
+    let db = test_support::postgres::shared_pool().await;
     let app = build_app_with_pg(ch, db).await;
 
     let req = Request::builder()
@@ -631,7 +590,7 @@ async fn query_api_metrics_endpoint_exposes_prometheus_text() {
 #[tokio::test]
 async fn trace_histogram_accepts_nanosecond_u64_timestamps() {
     let (ch, _container) = start_clickhouse().await;
-    let (db, _pg) = start_postgres().await;
+    let db = test_support::postgres::shared_pool().await;
     let app = build_app_with_pg(ch, db).await;
 
     let resp = app
@@ -654,7 +613,7 @@ async fn trace_histogram_accepts_nanosecond_u64_timestamps() {
 #[tokio::test]
 async fn log_histogram_accepts_nanosecond_u64_timestamps() {
     let (ch, _container) = start_clickhouse().await;
-    let (db, _pg) = start_postgres().await;
+    let db = test_support::postgres::shared_pool().await;
     let app = build_app_with_pg(ch, db).await;
 
     let resp = app
@@ -679,7 +638,7 @@ async fn log_histogram_accepts_nanosecond_u64_timestamps() {
 #[tokio::test]
 async fn trace_histogram_counts_inserted_spans() {
     let (ch, _container) = start_clickhouse().await;
-    let (db, _pg) = start_postgres().await;
+    let db = test_support::postgres::shared_pool().await;
     let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
     let now_ns = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -719,7 +678,7 @@ async fn trace_histogram_counts_inserted_spans() {
 #[tokio::test]
 async fn log_histogram_counts_inserted_logs() {
     let (ch, _container) = start_clickhouse().await;
-    let (db, _pg) = start_postgres().await;
+    let db = test_support::postgres::shared_pool().await;
     let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
     let now_ns = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -753,7 +712,7 @@ async fn log_histogram_counts_inserted_logs() {
 #[tokio::test]
 async fn trace_histogram_tenant_isolation() {
     let (ch, _container) = start_clickhouse().await;
-    let (db, _pg) = start_postgres().await;
+    let db = test_support::postgres::shared_pool().await;
     let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
     // tenant_b is a different UUID; we insert its spans but query as dev_tenant
     let tenant_b = Uuid::new_v4();
@@ -791,7 +750,7 @@ async fn trace_histogram_tenant_isolation() {
 #[tokio::test]
 async fn log_histogram_service_filter() {
     let (ch, _container) = start_clickhouse().await;
-    let (db, _pg) = start_postgres().await;
+    let db = test_support::postgres::shared_pool().await;
     let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
     let now_ns = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -827,7 +786,7 @@ async fn log_histogram_service_filter() {
 #[tokio::test]
 async fn metric_list_groups_label_specific_series_by_metric_identity() {
     let (ch, _container) = start_clickhouse().await;
-    let (db, _pg) = start_postgres().await;
+    let db = test_support::postgres::shared_pool().await;
     let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
     insert_metric_series(
         &ch,
@@ -857,7 +816,7 @@ async fn metric_list_groups_label_specific_series_by_metric_identity() {
 #[tokio::test]
 async fn metric_group_points_sum_label_specific_series_at_same_timestamp() {
     let (ch, _container) = start_clickhouse().await;
-    let (db, _pg) = start_postgres().await;
+    let db = test_support::postgres::shared_pool().await;
     let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
     let first_series = Uuid::new_v4();
     let second_series = Uuid::new_v4();
@@ -905,7 +864,7 @@ async fn metric_group_points_sum_label_specific_series_at_same_timestamp() {
 #[tokio::test]
 async fn list_alert_rules_http_returns_lifecycle_state() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
     let rule_id = Uuid::new_v4();
@@ -957,7 +916,7 @@ async fn list_alert_rules_http_returns_lifecycle_state() {
 #[tokio::test]
 async fn post_slo_creates_tenant_scoped_definition() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let app = build_app_with_pg(ch, pg).await;
 
     let body = serde_json::json!({
@@ -993,7 +952,7 @@ async fn post_slo_creates_tenant_scoped_definition() {
 #[tokio::test]
 async fn post_slo_rejects_invalid_target() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let app = build_app_with_pg(ch, pg).await;
 
     let body = serde_json::json!({
@@ -1021,7 +980,7 @@ async fn post_slo_rejects_invalid_target() {
 #[tokio::test]
 async fn get_slos_does_not_return_other_tenant_definitions() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let app = build_app_with_pg(ch, pg.clone()).await;
     let other_tenant = Uuid::new_v4();
 
@@ -1054,7 +1013,7 @@ async fn get_slos_does_not_return_other_tenant_definitions() {
 #[tokio::test]
 async fn service_summary_reports_slo_breach_alert_count_and_latest_deploy() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
     let now_ns = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1161,7 +1120,7 @@ async fn service_summary_reports_slo_breach_alert_count_and_latest_deploy() {
 #[tokio::test]
 async fn dashboard_get_http_returns_v2_panel_shape() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
 
@@ -1203,7 +1162,7 @@ async fn dashboard_get_http_returns_v2_panel_shape() {
 #[tokio::test]
 async fn dashboard_put_http_updates_panel_layout() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
 
@@ -1333,7 +1292,7 @@ async fn nlq_metrics_base_ir_without_metric_returns_400() {
 
 #[tokio::test]
 async fn test_mcp_query_rejects_unknown_filter_field() {
-    let (db, _pg_container) = start_postgres().await;
+    let db = test_support::postgres::shared_pool().await;
     let (ch_client, _ch_container) = start_clickhouse().await;
     let mock_server = start_dev_auth_mock().await;
 
@@ -1397,7 +1356,7 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
 #[tokio::test]
 async fn list_incidents_returns_tenant_scoped_incidents() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
 
@@ -1428,7 +1387,7 @@ async fn list_incidents_returns_tenant_scoped_incidents() {
 #[tokio::test]
 async fn get_incident_returns_detail_with_timeline() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
     let incident_id = Uuid::new_v4();
@@ -1470,7 +1429,7 @@ async fn get_incident_returns_detail_with_timeline() {
 #[tokio::test]
 async fn get_incident_returns_404_for_unknown_id() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let app = build_app_with_pg(ch, pg.clone()).await;
     let unknown_id = Uuid::new_v4();
 
@@ -1485,7 +1444,7 @@ async fn get_incident_returns_404_for_unknown_id() {
 #[tokio::test]
 async fn get_incident_detail_includes_rule_name() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
 
@@ -1528,7 +1487,7 @@ async fn get_incident_detail_includes_rule_name() {
 #[tokio::test]
 async fn get_incident_detail_rule_name_null_when_no_rule() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
 
@@ -1557,7 +1516,7 @@ async fn get_incident_detail_rule_name_null_when_no_rule() {
 #[tokio::test]
 async fn get_alert_rule_returns_detail_with_firings() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
 
     let rule_id: Uuid = sqlx::query_scalar(
@@ -1605,7 +1564,7 @@ async fn get_alert_rule_returns_detail_with_firings() {
 #[tokio::test]
 async fn get_alert_rule_returns_404_for_wrong_tenant() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let _tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
 
     let rule_id: Uuid = sqlx::query_scalar(
@@ -1634,7 +1593,7 @@ async fn get_alert_rule_returns_404_for_wrong_tenant() {
 #[tokio::test]
 async fn get_incident_detail_includes_impacted_service_for_slo_rule() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
 
@@ -1698,7 +1657,7 @@ async fn get_incident_detail_includes_impacted_service_for_slo_rule() {
 #[tokio::test]
 async fn get_incident_detail_impacted_service_null_for_threshold_rule() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
 
@@ -1743,7 +1702,7 @@ async fn get_incident_detail_impacted_service_null_for_threshold_rule() {
 
 #[tokio::test]
 async fn get_service_reliability_report_filters_service_environment_and_interval() {
-    let (pg, _pg_container) = start_postgres().await;
+    let pg = test_support::postgres::shared_pool().await;
     let ch = ChClient::default().with_url("http://127.0.0.1:19999");
     let app = build_app_with_pg(ch, pg.clone()).await;
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();

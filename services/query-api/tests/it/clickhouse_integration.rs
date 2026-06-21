@@ -5,57 +5,7 @@ use query_api::planner::QueryPlanner;
 use query_api::setup::compute_setup_status;
 use query_api::traces::fetch_trace_spans;
 use std::collections::HashSet;
-use std::path::Path;
-use testcontainers::{ImageExt, runners::AsyncRunner};
-use testcontainers_modules::clickhouse::ClickHouse;
 use uuid::Uuid;
-
-/// Applies ClickHouse migrations and returns a client scoped to the `observable` database.
-async fn apply_migrations(base_url: &str, user: &str, password: &str) -> Client {
-    let root = Client::default()
-        .with_url(base_url)
-        .with_user(user)
-        .with_password(password);
-
-    root.query("CREATE DATABASE IF NOT EXISTS observable")
-        .execute()
-        .await
-        .expect("create database");
-
-    let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/clickhouse");
-
-    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
-        .expect("migrations/clickhouse must exist")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        for stmt in sql.split(';') {
-            let stmt = stmt.trim();
-            if !stmt.is_empty() {
-                root.query(stmt)
-                    .execute()
-                    .await
-                    .expect("migration statement applied");
-            }
-        }
-    }
-
-    // Return a client scoped to `observable` for DML operations.
-    Client::default()
-        .with_url(base_url)
-        .with_user(user)
-        .with_password(password)
-        .with_database("observable")
-}
 
 fn make_span(tenant_id: Uuid, trace_id: &str, span_id: &str) -> SpanRow {
     let now_ns = std::time::SystemTime::now()
@@ -98,17 +48,7 @@ async fn insert_span(ch: &Client, row: SpanRow) {
 
 #[tokio::test]
 async fn clickhouse_container_applies_migrations_and_enforces_tenant_filter() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
@@ -200,17 +140,7 @@ async fn insert_metric_series(ch: &Client, row: MetricSeriesRow) {
 
 #[tokio::test]
 async fn clickhouse_container_enforces_tenant_filter_on_logs() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
@@ -235,17 +165,7 @@ async fn clickhouse_container_enforces_tenant_filter_on_logs() {
 
 #[tokio::test]
 async fn clickhouse_container_filters_logs_by_timestamp_cutoff() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant = Uuid::new_v4();
 
@@ -326,17 +246,7 @@ async fn run_trace_histogram(
 /// paths (the latter matches the exact query shape from the production error).
 #[tokio::test]
 async fn planner_count_query_resolves_unqualified_logs_via_database_context() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant = Uuid::new_v4();
     let now_ns = std::time::SystemTime::now()
@@ -397,16 +307,7 @@ async fn planner_count_query_resolves_unqualified_logs_via_database_context() {
 
 #[tokio::test]
 async fn log_histogram_empty_range_returns_no_rows() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant = Uuid::new_v4();
     let now_ns = std::time::SystemTime::now()
@@ -423,16 +324,7 @@ async fn log_histogram_empty_range_returns_no_rows() {
 
 #[tokio::test]
 async fn log_histogram_counts_logs_in_correct_buckets() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant = Uuid::new_v4();
     // Use recent timestamps to avoid ClickHouse TTL expiry (TTL = 60 days).
@@ -455,16 +347,7 @@ async fn log_histogram_counts_logs_in_correct_buckets() {
 
 #[tokio::test]
 async fn log_histogram_service_filter_excludes_other_services() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant = Uuid::new_v4();
     let now_ns = std::time::SystemTime::now()
@@ -492,16 +375,7 @@ async fn log_histogram_service_filter_excludes_other_services() {
 
 #[tokio::test]
 async fn log_histogram_tenant_isolation() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
@@ -535,16 +409,7 @@ async fn log_histogram_tenant_isolation() {
 
 #[tokio::test]
 async fn log_histogram_bucket_count_param_changes_granularity() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant = Uuid::new_v4();
     // Use recent timestamps spaced 1 second apart to avoid TTL expiry.
@@ -583,16 +448,7 @@ async fn log_histogram_bucket_count_param_changes_granularity() {
 
 #[tokio::test]
 async fn log_histogram_severity_distribution() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant = Uuid::new_v4();
     let now_ns = std::time::SystemTime::now()
@@ -638,16 +494,7 @@ async fn log_histogram_severity_distribution() {
 
 #[tokio::test]
 async fn trace_histogram_dummy_column_decodes_as_i32() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant = Uuid::new_v4();
     let now_ns = std::time::SystemTime::now()
@@ -679,16 +526,7 @@ async fn trace_histogram_dummy_column_decodes_as_i32() {
 
 #[tokio::test]
 async fn log_search_service_filter() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant = Uuid::new_v4();
     let now_ns = std::time::SystemTime::now()
@@ -737,16 +575,7 @@ async fn log_search_service_filter() {
 
 #[tokio::test]
 async fn log_search_severity_filter() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant = Uuid::new_v4();
     let now_ns = std::time::SystemTime::now()
@@ -793,16 +622,7 @@ async fn log_search_severity_filter() {
 
 #[tokio::test]
 async fn log_context_returns_surrounding_logs() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant = Uuid::new_v4();
     // Use recent timestamps spaced 1 second apart to avoid ClickHouse TTL expiry.
@@ -933,17 +753,7 @@ async fn run_response_time_histogram(
 
 #[tokio::test]
 async fn response_time_histogram_buckets_latency_by_time_window() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant = Uuid::new_v4();
     let now_ns = std::time::SystemTime::now()
@@ -991,16 +801,7 @@ async fn response_time_histogram_buckets_latency_by_time_window() {
 
 #[tokio::test]
 async fn setup_status_reports_waiting_when_tenant_has_no_signals() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_id = Uuid::new_v4();
     let status = compute_setup_status(&ch, tenant_id)
@@ -1015,16 +816,7 @@ async fn setup_status_reports_waiting_when_tenant_has_no_signals() {
 
 #[tokio::test]
 async fn setup_status_reports_detected_after_first_span() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_id = Uuid::new_v4();
     insert_span(&ch, make_span(tenant_id, "trace-1", "span-1")).await;
@@ -1039,16 +831,7 @@ async fn setup_status_reports_detected_after_first_span() {
 
 #[tokio::test]
 async fn setup_status_reports_detected_from_logs_or_metrics_alone() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_id = Uuid::new_v4();
     insert_log(&ch, make_log_row(tenant_id, "test-svc")).await;
@@ -1066,16 +849,7 @@ async fn setup_status_reports_detected_from_logs_or_metrics_alone() {
 
 #[tokio::test]
 async fn setup_status_excludes_other_tenants_signals() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
@@ -1093,16 +867,7 @@ async fn setup_status_excludes_other_tenants_signals() {
 
 #[tokio::test]
 async fn setup_status_excludes_signals_outside_the_lookback_window() {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_migrations(&base_url, "default", "test").await;
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_id = Uuid::new_v4();
     let now_ns = std::time::SystemTime::now()

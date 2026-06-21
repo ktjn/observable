@@ -22,9 +22,7 @@ use http_body_util::BodyExt;
 use query_api::{llm_adapter, middleware::auth::TenantContext, planner::QueryPlanner, traces};
 use serde_json::Value;
 use sqlx::postgres::PgPool;
-use std::{path::Path, sync::Arc};
-use testcontainers::{ImageExt, runners::AsyncRunner};
-use testcontainers_modules::postgres::Postgres;
+use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -83,44 +81,6 @@ fn nlq_post(tenant_id: Uuid, body: &str) -> Request<Body> {
 async fn body_json(body: axum::body::Body) -> Value {
     let bytes = body.collect().await.expect("body").to_bytes();
     serde_json::from_slice(&bytes).expect("valid JSON")
-}
-
-async fn start_postgres() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
-    let container = Postgres::default()
-        .with_tag("17")
-        .start()
-        .await
-        .expect("postgres container started");
-    let host = container.get_host().await.expect("host");
-    let port = container.get_host_port_ipv4(5432).await.expect("port");
-    let url = format!("postgres://postgres:postgres@{host}:{port}/postgres");
-    let pool = PgPool::connect(&url).await.expect("pool connected");
-    apply_pg_migrations(&pool).await;
-    (pool, container)
-}
-
-async fn apply_pg_migrations(pool: &PgPool) {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/postgres");
-
-    let mut entries: Vec<_> = std::fs::read_dir(&dir)
-        .expect("migrations/postgres must exist")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        sqlx::raw_sql(&sql)
-            .execute(pool)
-            .await
-            .expect("migration applied");
-    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -208,7 +168,7 @@ async fn nlq_slash_prefix_with_base_ir_merges_shorthand_filters() {
 /// container is required so the DB config lookup can legitimately find nothing.
 #[tokio::test]
 async fn nlq_no_llm_configured_falls_back_to_shorthand_interpret() {
-    let (db, _container) = start_postgres().await;
+    let db = test_support::postgres::shared_pool().await;
     let app = build_nlq_app(fake_ch(), db);
     let tenant = Uuid::new_v4();
 

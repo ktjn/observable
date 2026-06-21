@@ -1,0 +1,20 @@
+[package]
+name    = "test-support"
+version = "0.1.0"
+edition.workspace = true
+
+[lib]
+name = "test_support"
+path = "src/lib.rs"
+
+[dependencies]
+tokio                  = { workspace = true }
+sqlx                   = { workspace = true }
+clickhouse             = { workspace = true }
+testcontainers         = "0.27.3"
+testcontainers-modules  = { version = "0.15.0", features = ["postgres", "clickhouse"] }
+uuid                   = { workspace = true }
+ctor                   = "0.4"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }

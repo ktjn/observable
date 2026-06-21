@@ -23,57 +23,14 @@ use clickhouse::Client as ChClient;
 use http_body_util::BodyExt as _;
 use query_api::{middleware::auth::require_tenant, planner::QueryPlanner, traces};
 use serde::{Deserialize, Serialize};
-use sqlx::postgres::{PgPool, PgPoolOptions};
-use std::{path::Path, sync::Arc};
-use testcontainers::{ImageExt, runners::AsyncRunner};
-use testcontainers_modules::postgres::Postgres;
+use sqlx::postgres::PgPool;
+use std::sync::Arc;
 use tower::ServiceExt;
 use tracing::Instrument as _;
 use uuid::Uuid;
 
 const DEV_TENANT_ID: &str = "00000000-0000-0000-0000-000000000002";
 const DEV_API_KEY: &str = "dev-api-key-0000";
-
-async fn start_postgres() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
-    let container = Postgres::default()
-        .with_tag("17")
-        .start()
-        .await
-        .expect("postgres container started");
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&url)
-        .await
-        .expect("postgres pool connected");
-    apply_pg_migrations(&pool).await;
-    (pool, container)
-}
-
-async fn apply_pg_migrations(pool: &PgPool) {
-    let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/postgres");
-
-    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
-        .expect("migrations/postgres must exist")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        sqlx::raw_sql(&sql)
-            .execute(pool)
-            .await
-            .expect("pg migration applied");
-    }
-}
 
 // ── Minimal real auth-service, mirroring main.rs's /internal/validate ───────
 //
@@ -187,7 +144,7 @@ async fn body_to_bytes(body: axum::body::Body) -> Vec<u8> {
 
 #[tokio::test]
 async fn api_key_auth_through_query_api_writes_audit_log_row() {
-    let (db, _pg) = start_postgres().await;
+    let db = test_support::postgres::shared_pool().await;
     let auth_service_url = start_real_auth_service(db.clone()).await;
     let app = build_app(db.clone(), auth_service_url);
 
@@ -227,7 +184,7 @@ async fn api_key_auth_through_query_api_writes_audit_log_row() {
 
 #[tokio::test]
 async fn api_key_auth_failure_through_query_api_writes_deny_audit_log_row() {
-    let (db, _pg) = start_postgres().await;
+    let db = test_support::postgres::shared_pool().await;
     let auth_service_url = start_real_auth_service(db.clone()).await;
     let app = build_app(db.clone(), auth_service_url);
 

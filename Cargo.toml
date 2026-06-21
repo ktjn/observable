@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "libs/domain",
     "libs/observable-auth",
+    "libs/test-support",
     "services/ingest-gateway",
     "services/auth-service",
     "services/stream-processor",
