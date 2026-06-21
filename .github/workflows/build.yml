@@ -110,10 +110,10 @@ jobs:
       - name: Stage release binaries for Docker context
         run: |
           mkdir -p bin
-          cp target/release/auth-service target/release/storage-writer \
-             target/release/stream-processor target/release/ingest-gateway \
-             target/release/query-api target/release/alert-evaluator \
-             target/release/admin-service bin/
+          cp ~/.cargo-ci/target/release/auth-service ~/.cargo-ci/target/release/storage-writer \
+             ~/.cargo-ci/target/release/stream-processor ~/.cargo-ci/target/release/ingest-gateway \
+             ~/.cargo-ci/target/release/query-api ~/.cargo-ci/target/release/alert-evaluator \
+             ~/.cargo-ci/target/release/admin-service bin/
 
       - uses: docker/setup-buildx-action@v4
 
