@@ -2,54 +2,13 @@ use query_api::schemas::{
     PatchAnnotationRequest, UpsertAnnotationRequest, delete_annotation, get_annotation,
     list_schema_attributes, patch_annotation, upsert_annotation,
 };
-use sqlx::PgPool;
-use std::path::Path;
-use testcontainers::{ImageExt, runners::AsyncRunner};
-use testcontainers_modules::postgres::Postgres;
 use uuid::Uuid;
-
-async fn apply_migrations(pool: &PgPool) {
-    let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/postgres");
-
-    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
-        .expect("migrations/postgres must exist")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        sqlx::raw_sql(&sql)
-            .execute(pool)
-            .await
-            .expect("migration applied");
-    }
-}
-
-async fn start_pool() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
-    let container = Postgres::default()
-        .with_tag("17")
-        .start()
-        .await
-        .expect("postgres container started");
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-    let pool = PgPool::connect(&url).await.expect("pool connected");
-    apply_migrations(&pool).await;
-    (pool, container)
-}
 
 // ── schema_entries: structural catalog ───────────────────────────────────────
 
 #[tokio::test]
 async fn list_attributes_returns_seeded_metrics_entry() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
 
     let entries = list_schema_attributes(&pool, "metrics").await.unwrap();
 
@@ -69,7 +28,7 @@ async fn list_attributes_returns_seeded_metrics_entry() {
 
 #[tokio::test]
 async fn list_attributes_for_unknown_signal_type_returns_empty() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
 
     // 'traces' has no seeded entries in migration 011
     let entries = list_schema_attributes(&pool, "traces").await.unwrap();
@@ -83,7 +42,7 @@ async fn list_attributes_for_unknown_signal_type_returns_empty() {
 
 #[tokio::test]
 async fn seeded_annotation_is_readable_for_dev_tenant() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let dev_tenant = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
 
     let ann = get_annotation(&pool, dev_tenant, "metrics", "request_duration_ms")
@@ -102,7 +61,7 @@ async fn seeded_annotation_is_readable_for_dev_tenant() {
 
 #[tokio::test]
 async fn seeded_annotation_is_not_visible_to_other_tenant() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let other_tenant = Uuid::new_v4();
 
     let ann = get_annotation(&pool, other_tenant, "metrics", "request_duration_ms")
@@ -117,7 +76,7 @@ async fn seeded_annotation_is_not_visible_to_other_tenant() {
 
 #[tokio::test]
 async fn upsert_creates_new_annotation() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let tenant = Uuid::new_v4();
 
     let req = UpsertAnnotationRequest {
@@ -148,7 +107,7 @@ async fn upsert_creates_new_annotation() {
 
 #[tokio::test]
 async fn upsert_replaces_existing_annotation() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let tenant = Uuid::new_v4();
 
     let initial = UpsertAnnotationRequest {
@@ -180,7 +139,7 @@ async fn upsert_replaces_existing_annotation() {
 
 #[tokio::test]
 async fn patch_updates_only_provided_fields() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let tenant = Uuid::new_v4();
 
     let initial = UpsertAnnotationRequest {
@@ -214,7 +173,7 @@ async fn patch_updates_only_provided_fields() {
 
 #[tokio::test]
 async fn patch_returns_none_for_nonexistent_annotation() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let tenant = Uuid::new_v4();
 
     let result = patch_annotation(
@@ -232,7 +191,7 @@ async fn patch_returns_none_for_nonexistent_annotation() {
 
 #[tokio::test]
 async fn delete_removes_annotation() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let tenant = Uuid::new_v4();
 
     upsert_annotation(
@@ -261,7 +220,7 @@ async fn delete_removes_annotation() {
 
 #[tokio::test]
 async fn delete_returns_false_for_nonexistent_annotation() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let tenant = Uuid::new_v4();
 
     let deleted = delete_annotation(&pool, tenant, "metrics", "ghost_field")
@@ -272,7 +231,7 @@ async fn delete_returns_false_for_nonexistent_annotation() {
 
 #[tokio::test]
 async fn annotations_are_isolated_between_tenants() {
-    let (pool, _container) = start_pool().await;
+    let pool = test_support::postgres::shared_pool().await;
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
 

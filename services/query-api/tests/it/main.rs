@@ -1,0 +1,15 @@
+mod api_key_audit_integration;
+mod clickhouse_fetch_label_keys_integration;
+mod clickhouse_integration;
+mod clickhouse_mcp_query_integration;
+mod http_api_integration;
+mod nlq_shorthand_integration;
+mod postgres_alerts_integration;
+mod postgres_change_events_integration;
+mod postgres_dashboard_rebac_integration;
+mod postgres_dashboards_integration;
+mod postgres_mcp_tools_integration;
+mod postgres_schemas_integration;
+mod postgres_slos_integration;
+mod postgres_tenants_integration;
+mod session_auth_integration;

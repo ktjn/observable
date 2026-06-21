@@ -12,53 +12,13 @@ use clickhouse::Client as ChClient;
 use domain::{MetricPointRow, MetricSeriesRow, NlqIr, NlqOperation, NlqSignal, NlqTimeRange};
 use query_api::mcp_query::execute_mcp_query;
 use sqlx::PgPool;
-use std::path::Path;
-use testcontainers::{ImageExt, runners::AsyncRunner};
-use testcontainers_modules::{clickhouse::ClickHouse, postgres::Postgres};
 use uuid::Uuid;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const TENANT_A: Uuid = Uuid::from_u128(0xAAAA_0000_0000_0000_0000_0000_0000_0001);
-const TENANT_B: Uuid = Uuid::from_u128(0xBBBB_0000_0000_0000_0000_0000_0000_0002);
 const METRIC: &str = "latency_ms";
 
 // ── PostgreSQL helpers ────────────────────────────────────────────────────────
-
-async fn start_pg() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
-    let container = Postgres::default()
-        .with_tag("17")
-        .start()
-        .await
-        .expect("postgres container started");
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-    let pool = PgPool::connect(&url).await.expect("pool connected");
-    apply_pg_migrations(&pool).await;
-    (pool, container)
-}
-
-async fn apply_pg_migrations(pool: &PgPool) {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/postgres");
-    let mut entries: Vec<_> = std::fs::read_dir(&dir)
-        .expect("migrations/postgres must exist")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable");
-        sqlx::raw_sql(&sql)
-            .execute(pool)
-            .await
-            .expect("pg migration applied");
-    }
-}
 
 async fn seed_schema_registry(pool: &PgPool, tenant_id: Uuid) {
     // Insert global schema entry
@@ -86,65 +46,6 @@ async fn seed_schema_registry(pool: &PgPool, tenant_id: Uuid) {
 }
 
 // ── ClickHouse helpers ────────────────────────────────────────────────────────
-
-async fn start_ch() -> (ChClient, testcontainers::ContainerAsync<ClickHouse>) {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_ch_migrations(&base_url, "default", "test").await;
-    (ch, container)
-}
-
-async fn apply_ch_migrations(base_url: &str, user: &str, password: &str) -> ChClient {
-    let root = ChClient::default()
-        .with_url(base_url)
-        .with_user(user)
-        .with_password(password);
-
-    root.query("CREATE DATABASE IF NOT EXISTS observable")
-        .execute()
-        .await
-        .expect("create database");
-
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/clickhouse");
-
-    let mut entries: Vec<_> = std::fs::read_dir(&dir)
-        .expect("migrations/clickhouse must exist")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        for stmt in sql.split(';') {
-            let stmt = stmt.trim();
-            if !stmt.is_empty() {
-                root.query(stmt)
-                    .execute()
-                    .await
-                    .expect("ch migration applied");
-            }
-        }
-    }
-
-    ChClient::default()
-        .with_url(base_url)
-        .with_user(user)
-        .with_password(password)
-        .with_database("observable")
-}
 
 async fn insert_metric_series(ch: &ChClient, row: MetricSeriesRow) {
     let mut ins = ch
@@ -231,20 +132,22 @@ fn base_ir(op: NlqOperation) -> NlqIr {
 
 #[tokio::test]
 async fn timeseries_query_returns_data_with_all_provenance_fields() {
-    let (db, _pg) = start_pg().await;
-    let (ch, _ch_container) = start_ch().await;
+    let db = test_support::postgres::shared_pool().await;
+    let ch = test_support::clickhouse::shared_client().await;
 
-    seed_schema_registry(&db, TENANT_A).await;
+    let tenant_a = Uuid::new_v4();
+
+    seed_schema_registry(&db, tenant_a).await;
 
     let series_id = Uuid::new_v4();
-    insert_metric_series(&ch, make_series(TENANT_A, series_id)).await;
+    insert_metric_series(&ch, make_series(tenant_a, series_id)).await;
     // Insert 3 data points at 5m, 10m, 15m ago
-    insert_metric_point(&ch, make_point(TENANT_A, series_id, 100.0, 5 * 60 * 1000)).await;
-    insert_metric_point(&ch, make_point(TENANT_A, series_id, 150.0, 10 * 60 * 1000)).await;
-    insert_metric_point(&ch, make_point(TENANT_A, series_id, 200.0, 15 * 60 * 1000)).await;
+    insert_metric_point(&ch, make_point(tenant_a, series_id, 100.0, 5 * 60 * 1000)).await;
+    insert_metric_point(&ch, make_point(tenant_a, series_id, 150.0, 10 * 60 * 1000)).await;
+    insert_metric_point(&ch, make_point(tenant_a, series_id, 200.0, 15 * 60 * 1000)).await;
 
     let ir = base_ir(NlqOperation::Timeseries);
-    let frame = execute_mcp_query(&db, &ch, TENANT_A, &ir)
+    let frame = execute_mcp_query(&db, &ch, tenant_a, &ir)
         .await
         .expect("execute_mcp_query succeeded");
 
@@ -282,21 +185,23 @@ async fn timeseries_query_returns_data_with_all_provenance_fields() {
 
 #[tokio::test]
 async fn source_sql_contains_tenant_id_for_tenant_isolation() {
-    let (db, _pg) = start_pg().await;
-    let (ch, _ch_container) = start_ch().await;
+    let db = test_support::postgres::shared_pool().await;
+    let ch = test_support::clickhouse::shared_client().await;
 
-    seed_schema_registry(&db, TENANT_A).await;
+    let tenant_a = Uuid::new_v4();
+
+    seed_schema_registry(&db, tenant_a).await;
 
     let series_id = Uuid::new_v4();
-    insert_metric_series(&ch, make_series(TENANT_A, series_id)).await;
-    insert_metric_point(&ch, make_point(TENANT_A, series_id, 42.0, 60_000)).await;
+    insert_metric_series(&ch, make_series(tenant_a, series_id)).await;
+    insert_metric_point(&ch, make_point(tenant_a, series_id, 42.0, 60_000)).await;
 
     let ir = base_ir(NlqOperation::Timeseries);
-    let frame = execute_mcp_query(&db, &ch, TENANT_A, &ir)
+    let frame = execute_mcp_query(&db, &ch, tenant_a, &ir)
         .await
         .expect("execute_mcp_query succeeded");
 
-    let tenant_str = TENANT_A.to_string();
+    let tenant_str = tenant_a.to_string();
     assert!(
         frame.source_sql.contains(&tenant_str),
         "source_sql must contain tenant_id ({tenant_str}) for tenant isolation: {}",
@@ -306,17 +211,19 @@ async fn source_sql_contains_tenant_id_for_tenant_isolation() {
 
 #[tokio::test]
 async fn generated_sql_is_select_only_advisory_invariant() {
-    let (db, _pg) = start_pg().await;
-    let (ch, _ch_container) = start_ch().await;
+    let db = test_support::postgres::shared_pool().await;
+    let ch = test_support::clickhouse::shared_client().await;
 
-    seed_schema_registry(&db, TENANT_A).await;
+    let tenant_a = Uuid::new_v4();
+
+    seed_schema_registry(&db, tenant_a).await;
 
     let series_id = Uuid::new_v4();
-    insert_metric_series(&ch, make_series(TENANT_A, series_id)).await;
-    insert_metric_point(&ch, make_point(TENANT_A, series_id, 99.0, 60_000)).await;
+    insert_metric_series(&ch, make_series(tenant_a, series_id)).await;
+    insert_metric_point(&ch, make_point(tenant_a, series_id, 99.0, 60_000)).await;
 
     let ir = base_ir(NlqOperation::Timeseries);
-    let frame = execute_mcp_query(&db, &ch, TENANT_A, &ir)
+    let frame = execute_mcp_query(&db, &ch, tenant_a, &ir)
         .await
         .expect("execute_mcp_query succeeded");
 
@@ -340,17 +247,19 @@ async fn generated_sql_is_select_only_advisory_invariant() {
 
 #[tokio::test]
 async fn approximation_statement_is_non_empty_and_advisory() {
-    let (db, _pg) = start_pg().await;
-    let (ch, _ch_container) = start_ch().await;
+    let db = test_support::postgres::shared_pool().await;
+    let ch = test_support::clickhouse::shared_client().await;
 
-    seed_schema_registry(&db, TENANT_A).await;
+    let tenant_a = Uuid::new_v4();
+
+    seed_schema_registry(&db, tenant_a).await;
 
     let series_id = Uuid::new_v4();
-    insert_metric_series(&ch, make_series(TENANT_A, series_id)).await;
-    insert_metric_point(&ch, make_point(TENANT_A, series_id, 1.0, 60_000)).await;
+    insert_metric_series(&ch, make_series(tenant_a, series_id)).await;
+    insert_metric_point(&ch, make_point(tenant_a, series_id, 1.0, 60_000)).await;
 
     let ir = base_ir(NlqOperation::Timeseries);
-    let frame = execute_mcp_query(&db, &ch, TENANT_A, &ir)
+    let frame = execute_mcp_query(&db, &ch, tenant_a, &ir)
         .await
         .expect("execute_mcp_query succeeded");
 
@@ -363,18 +272,20 @@ async fn approximation_statement_is_non_empty_and_advisory() {
 
 #[tokio::test]
 async fn table_operation_returns_data_rows() {
-    let (db, _pg) = start_pg().await;
-    let (ch, _ch_container) = start_ch().await;
+    let db = test_support::postgres::shared_pool().await;
+    let ch = test_support::clickhouse::shared_client().await;
 
-    seed_schema_registry(&db, TENANT_A).await;
+    let tenant_a = Uuid::new_v4();
+
+    seed_schema_registry(&db, tenant_a).await;
 
     let series_id = Uuid::new_v4();
-    insert_metric_series(&ch, make_series(TENANT_A, series_id)).await;
-    insert_metric_point(&ch, make_point(TENANT_A, series_id, 77.0, 5 * 60 * 1000)).await;
-    insert_metric_point(&ch, make_point(TENANT_A, series_id, 88.0, 10 * 60 * 1000)).await;
+    insert_metric_series(&ch, make_series(tenant_a, series_id)).await;
+    insert_metric_point(&ch, make_point(tenant_a, series_id, 77.0, 5 * 60 * 1000)).await;
+    insert_metric_point(&ch, make_point(tenant_a, series_id, 88.0, 10 * 60 * 1000)).await;
 
     let ir = base_ir(NlqOperation::Table);
-    let frame = execute_mcp_query(&db, &ch, TENANT_A, &ir)
+    let frame = execute_mcp_query(&db, &ch, tenant_a, &ir)
         .await
         .expect("execute_mcp_query succeeded for table op");
 
@@ -392,21 +303,24 @@ async fn table_operation_returns_data_rows() {
 
 #[tokio::test]
 async fn tenant_b_sees_no_data_from_tenant_a_series() {
-    let (db, _pg) = start_pg().await;
-    let (ch, _ch_container) = start_ch().await;
+    let db = test_support::postgres::shared_pool().await;
+    let ch = test_support::clickhouse::shared_client().await;
+
+    let tenant_a = Uuid::new_v4();
+    let tenant_b = Uuid::new_v4();
 
     // Register metric for both tenants (tenant_b has annotation too)
-    seed_schema_registry(&db, TENANT_A).await;
-    seed_schema_registry(&db, TENANT_B).await;
+    seed_schema_registry(&db, tenant_a).await;
+    seed_schema_registry(&db, tenant_b).await;
 
     // Only insert data for tenant_a
     let series_id_a = Uuid::new_v4();
-    insert_metric_series(&ch, make_series(TENANT_A, series_id_a)).await;
-    insert_metric_point(&ch, make_point(TENANT_A, series_id_a, 55.0, 5 * 60 * 1000)).await;
+    insert_metric_series(&ch, make_series(tenant_a, series_id_a)).await;
+    insert_metric_point(&ch, make_point(tenant_a, series_id_a, 55.0, 5 * 60 * 1000)).await;
 
     // Query as tenant_b — must get empty data set
     let ir = base_ir(NlqOperation::Timeseries);
-    let frame = execute_mcp_query(&db, &ch, TENANT_B, &ir)
+    let frame = execute_mcp_query(&db, &ch, tenant_b, &ir)
         .await
         .expect("execute_mcp_query succeeded for tenant_b");
 
@@ -417,15 +331,17 @@ async fn tenant_b_sees_no_data_from_tenant_a_series() {
 
     // tenant_b's source_sql must NOT contain tenant_a's uuid
     assert!(
-        !frame.source_sql.contains(&TENANT_A.to_string()),
+        !frame.source_sql.contains(&tenant_a.to_string()),
         "tenant_b source_sql must not reference tenant_a"
     );
 }
 
 #[tokio::test]
 async fn unknown_metric_returns_error() {
-    let (db, _pg) = start_pg().await;
-    let (_ch, _ch_container) = start_ch().await;
+    let db = test_support::postgres::shared_pool().await;
+    let _ch = test_support::clickhouse::shared_client().await;
+
+    let tenant_a = Uuid::new_v4();
 
     // Do not seed schema registry — metric is unknown
     let ir = NlqIr {
@@ -433,7 +349,7 @@ async fn unknown_metric_returns_error() {
         ..base_ir(NlqOperation::Timeseries)
     };
 
-    let result = execute_mcp_query(&db, &_ch, TENANT_A, &ir).await;
+    let result = execute_mcp_query(&db, &_ch, tenant_a, &ir).await;
 
     assert!(
         matches!(
@@ -446,15 +362,17 @@ async fn unknown_metric_returns_error() {
 
 #[tokio::test]
 async fn missing_metric_field_returns_error() {
-    let (db, _pg) = start_pg().await;
-    let (_ch, _ch_container) = start_ch().await;
+    let db = test_support::postgres::shared_pool().await;
+    let _ch = test_support::clickhouse::shared_client().await;
+
+    let tenant_a = Uuid::new_v4();
 
     let ir = NlqIr {
         metric: None,
         ..base_ir(NlqOperation::Timeseries)
     };
 
-    let result = execute_mcp_query(&db, &_ch, TENANT_A, &ir).await;
+    let result = execute_mcp_query(&db, &_ch, tenant_a, &ir).await;
 
     assert!(
         matches!(
@@ -473,17 +391,19 @@ async fn missing_metric_field_returns_error() {
 
 #[tokio::test]
 async fn provenance_gate_all_six_fields_non_empty() {
-    let (db, _pg) = start_pg().await;
-    let (ch, _ch_container) = start_ch().await;
+    let db = test_support::postgres::shared_pool().await;
+    let ch = test_support::clickhouse::shared_client().await;
 
-    seed_schema_registry(&db, TENANT_A).await;
+    let tenant_a = Uuid::new_v4();
+
+    seed_schema_registry(&db, tenant_a).await;
 
     let series_id = Uuid::new_v4();
-    insert_metric_series(&ch, make_series(TENANT_A, series_id)).await;
-    insert_metric_point(&ch, make_point(TENANT_A, series_id, 42.0, 5 * 60 * 1000)).await;
+    insert_metric_series(&ch, make_series(tenant_a, series_id)).await;
+    insert_metric_point(&ch, make_point(tenant_a, series_id, 42.0, 5 * 60 * 1000)).await;
 
     let ir = base_ir(NlqOperation::Timeseries);
-    let frame = execute_mcp_query(&db, &ch, TENANT_A, &ir)
+    let frame = execute_mcp_query(&db, &ch, tenant_a, &ir)
         .await
         .expect("execute_mcp_query must succeed");
 
@@ -523,14 +443,16 @@ async fn provenance_gate_all_six_fields_non_empty() {
 
 #[tokio::test]
 async fn provenance_gate_query_is_read_only_no_row_mutations() {
-    let (db, _pg) = start_pg().await;
-    let (ch, _ch_container) = start_ch().await;
+    let db = test_support::postgres::shared_pool().await;
+    let ch = test_support::clickhouse::shared_client().await;
 
-    seed_schema_registry(&db, TENANT_A).await;
+    let tenant_a = Uuid::new_v4();
+
+    seed_schema_registry(&db, tenant_a).await;
 
     let series_id = Uuid::new_v4();
-    insert_metric_series(&ch, make_series(TENANT_A, series_id)).await;
-    insert_metric_point(&ch, make_point(TENANT_A, series_id, 99.0, 5 * 60 * 1000)).await;
+    insert_metric_series(&ch, make_series(tenant_a, series_id)).await;
+    insert_metric_point(&ch, make_point(tenant_a, series_id, 99.0, 5 * 60 * 1000)).await;
 
     // Count rows BEFORE query
     let pg_series_count_before: i64 =
@@ -541,14 +463,14 @@ async fn provenance_gate_query_is_read_only_no_row_mutations() {
 
     let pg_annotations_count_before: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM semantic_annotations WHERE tenant_id = $1")
-            .bind(TENANT_A)
+            .bind(tenant_a)
             .fetch_one(&db)
             .await
             .expect("pre-query annotations count");
 
     // Execute the NLQ query
     let ir = base_ir(NlqOperation::Timeseries);
-    execute_mcp_query(&db, &ch, TENANT_A, &ir)
+    execute_mcp_query(&db, &ch, tenant_a, &ir)
         .await
         .expect("execute_mcp_query must succeed");
 
@@ -561,7 +483,7 @@ async fn provenance_gate_query_is_read_only_no_row_mutations() {
 
     let pg_annotations_count_after: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM semantic_annotations WHERE tenant_id = $1")
-            .bind(TENANT_A)
+            .bind(tenant_a)
             .fetch_one(&db)
             .await
             .expect("post-query annotations count");

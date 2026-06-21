@@ -9,78 +9,9 @@
 
 use domain::MetricSeriesRow;
 use query_api::mcp_tools::fetch_label_keys;
-use std::path::Path;
-use testcontainers::{ImageExt, runners::AsyncRunner};
-use testcontainers_modules::clickhouse::ClickHouse;
 use uuid::Uuid;
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const TENANT: Uuid = Uuid::from_u128(0xCCCC_0000_0000_0000_0000_0000_0000_0003);
-
 // ── ClickHouse helpers ────────────────────────────────────────────────────────
-
-async fn start_ch() -> (
-    clickhouse::Client,
-    testcontainers::ContainerAsync<ClickHouse>,
-) {
-    let container = ClickHouse::default()
-        .with_tag("25.3")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_ch_migrations(&base_url, "default", "test").await;
-    (ch, container)
-}
-
-async fn apply_ch_migrations(base_url: &str, user: &str, password: &str) -> clickhouse::Client {
-    let root = clickhouse::Client::default()
-        .with_url(base_url)
-        .with_user(user)
-        .with_password(password);
-
-    root.query("CREATE DATABASE IF NOT EXISTS observable")
-        .execute()
-        .await
-        .expect("create database");
-
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/clickhouse");
-
-    let mut entries: Vec<_> = std::fs::read_dir(&dir)
-        .expect("migrations/clickhouse must exist")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        for stmt in sql.split(';') {
-            let stmt = stmt.trim();
-            if !stmt.is_empty() {
-                root.query(stmt)
-                    .execute()
-                    .await
-                    .expect("ch migration applied");
-            }
-        }
-    }
-
-    clickhouse::Client::default()
-        .with_url(base_url)
-        .with_user(user)
-        .with_password(password)
-        .with_database("observable")
-}
 
 async fn insert_metric_series(ch: &clickhouse::Client, row: MetricSeriesRow) {
     let mut ins = ch
@@ -112,13 +43,14 @@ fn make_series_with_attrs(tenant_id: Uuid, attrs: &str) -> MetricSeriesRow {
 
 #[tokio::test]
 async fn fetch_label_keys_returns_native_columns() {
-    let (ch, _container) = start_ch().await;
+    let ch = test_support::clickhouse::shared_client().await;
+    let tenant = Uuid::new_v4();
 
     // Insert a row with JSON attributes containing pod and region.
-    let row = make_series_with_attrs(TENANT, r#"{"pod":"web-1","region":"eu"}"#);
+    let row = make_series_with_attrs(tenant, r#"{"pod":"web-1","region":"eu"}"#);
     insert_metric_series(&ch, row).await;
 
-    let keys = fetch_label_keys(&ch, TENANT, 20)
+    let keys = fetch_label_keys(&ch, tenant, 20)
         .await
         .expect("fetch_label_keys must succeed");
 
@@ -149,13 +81,14 @@ async fn fetch_label_keys_returns_native_columns() {
 
 #[tokio::test]
 async fn fetch_label_keys_no_attributes_returns_only_native() {
-    let (ch, _container) = start_ch().await;
+    let ch = test_support::clickhouse::shared_client().await;
+    let tenant = Uuid::new_v4();
 
     // Insert a row with empty attributes — ClickHouse query should return nothing.
-    let row = make_series_with_attrs(TENANT, "{}");
+    let row = make_series_with_attrs(tenant, "{}");
     insert_metric_series(&ch, row).await;
 
-    let keys = fetch_label_keys(&ch, TENANT, 20)
+    let keys = fetch_label_keys(&ch, tenant, 20)
         .await
         .expect("fetch_label_keys must succeed");
 
@@ -167,16 +100,17 @@ async fn fetch_label_keys_no_attributes_returns_only_native() {
 
 #[tokio::test]
 async fn fetch_label_keys_deduplicates_native_columns() {
-    let (ch, _container) = start_ch().await;
+    let ch = test_support::clickhouse::shared_client().await;
+    let tenant = Uuid::new_v4();
 
     // Attributes that contain a key matching a native column name.
     let row = make_series_with_attrs(
-        TENANT,
+        tenant,
         r#"{"service_name":"should-not-duplicate","pod":"x"}"#,
     );
     insert_metric_series(&ch, row).await;
 
-    let keys = fetch_label_keys(&ch, TENANT, 20)
+    let keys = fetch_label_keys(&ch, tenant, 20)
         .await
         .expect("fetch_label_keys must succeed");
 
