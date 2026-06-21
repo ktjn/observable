@@ -10,12 +10,10 @@ use axum::{
     Router,
     body::Body,
     http::{Request, StatusCode},
-    middleware::Next,
-    response::Response,
-    routing::{get, post},
+    routing::get,
 };
 use http_body_util::BodyExt;
-use query_api::{middleware::auth::TenantContext, tenants, tokens, traces::AppState};
+use query_api::{tenants, traces::AppState};
 use serde_json::Value;
 use sqlx::PgPool;
 use std::path::Path;
@@ -64,25 +62,6 @@ async fn start_pool() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
     (pool, container)
 }
 
-// ── Test middleware ───────────────────────────────────────────────────────────
-
-/// Injects TenantContext from X-Tenant-ID without verifying an API key.
-/// Used for routes that need a TenantContext but where auth is not under test.
-async fn inject_tenant_ctx(mut req: Request<Body>, next: Next) -> Response {
-    let tenant_id: Uuid = req
-        .headers()
-        .get("X-Tenant-ID")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.parse().ok())
-        .unwrap_or_default();
-    req.extensions_mut().insert(TenantContext {
-        tenant_id,
-        user_id: None,
-        role: "member".into(),
-    });
-    next.run(req).await
-}
-
 // ── App builder ──────────────────────────────────────────────────────────────
 
 fn build_tenants_app(pool: PgPool) -> Router {
@@ -102,12 +81,27 @@ fn build_tenants_app(pool: PgPool) -> Router {
             "/v1/tenants/{id}/environments",
             get(tenants::list_tenant_environments),
         )
-        // Tokens route seeds environments in tests; auth is not under test here.
-        .route(
-            "/v1/tokens",
-            post(tokens::create_token).layer(axum::middleware::from_fn(inject_tenant_ctx)),
-        )
         .with_state(state)
+}
+
+/// Seeds an `api_keys` row directly (token issuance now lives in admin-service,
+/// out of scope for query-api's test app; we only need the row's side effect of
+/// making an environment visible to `list_tenant_environments`).
+async fn seed_token_environment(pool: &PgPool, tenant_id: Uuid, name: &str, environment: &str) {
+    let hash = format!("{name}-{environment}-test-hash");
+    sqlx::query(
+        r#"
+        INSERT INTO api_keys (tenant_id, key_hash, name, environment, role)
+        VALUES ($1, $2, $3, $4, 'member')
+        "#,
+    )
+    .bind(tenant_id)
+    .bind(hash)
+    .bind(name)
+    .bind(environment)
+    .execute(pool)
+    .await
+    .unwrap();
 }
 
 // ── Seed constants ────────────────────────────────────────────────────────────
@@ -125,16 +119,6 @@ fn plain_get(uri: &str) -> Request<Body> {
         .method("GET")
         .uri(uri)
         .body(Body::empty())
-        .unwrap()
-}
-
-fn tenant_post_json(uri: &str, tenant_id: Uuid, value: &serde_json::Value) -> Request<Body> {
-    Request::builder()
-        .method("POST")
-        .uri(uri)
-        .header("X-Tenant-ID", tenant_id.to_string())
-        .header("Content-Type", "application/json")
-        .body(Body::from(serde_json::to_vec(value).unwrap()))
         .unwrap()
 }
 
@@ -210,16 +194,12 @@ async fn list_tenant_environments_returns_seeded_environments() {
 async fn list_tenant_environments_includes_newly_created_token_environment() {
     let (pool, _container) = start_pool().await;
     let tenant_id = dev_tenant_id();
-    let app = build_tenants_app(pool);
 
-    // Create a token for a new environment.
-    let create_req = tenant_post_json(
-        "/v1/tokens",
-        tenant_id,
-        &serde_json::json!({"name": "ci-token", "environment": "ci-unique-env"}),
-    );
-    let create_resp = app.clone().oneshot(create_req).await.unwrap();
-    assert_eq!(create_resp.status(), StatusCode::OK);
+    // Seed a token for a new environment (token issuance itself is exercised
+    // in admin-service's own test suite; here we only need the side effect).
+    seed_token_environment(&pool, tenant_id, "ci-token", "ci-unique-env").await;
+
+    let app = build_tenants_app(pool);
 
     // The new environment should now appear in the list.
     let resp = app
