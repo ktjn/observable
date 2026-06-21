@@ -1,4 +1,5 @@
 mod api_key_audit_integration;
+mod clickhouse_integration;
 mod nlq_shorthand_integration;
 mod postgres_alerts_integration;
 mod postgres_change_events_integration;
