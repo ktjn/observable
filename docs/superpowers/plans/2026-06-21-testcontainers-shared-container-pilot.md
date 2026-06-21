@@ -15,7 +15,7 @@ that starts its container once per process. Postgres isolation is a fresh, migra
 `test_<uuid>` database per call. ClickHouse isolation stays on the single `observable` database
 (production SQL hardcodes that name) with per-test random tenant IDs as the existing isolation
 boundary. All of `query-api`'s Testcontainers-using test files move from separate `tests/*.rs`
-binaries into one `tests/it.rs` binary (via `mod` declarations under `tests/it/`) so the
+binaries into one `tests/it/main.rs` binary (via `mod` declarations under `tests/it/`) so the
 in-process singleton is actually shared across them.
 
 **Tech Stack:** Rust, Cargo workspaces, `testcontainers` 0.27.3, `testcontainers-modules` 0.15.0
@@ -442,14 +442,14 @@ git commit -m "feat(test-support): implement shared ClickHouse container with on
 
 **Files:**
 - Modify: `services/query-api/Cargo.toml` (`[dev-dependencies]`)
-- Create: `services/query-api/tests/it.rs`
+- Create: `services/query-api/tests/it/main.rs`
 - Create: `services/query-api/tests/it/postgres_tenants_integration.rs` (moved + edited from
   `services/query-api/tests/postgres_tenants_integration.rs`)
 - Delete: `services/query-api/tests/postgres_tenants_integration.rs`
 
 **Interfaces:**
 - Consumes: `test_support::postgres::shared_pool() -> sqlx::PgPool` (Task 2).
-- Produces: the `tests/it.rs` + `tests/it/` structure later tasks add `mod` lines and files to.
+- Produces: the `tests/it/main.rs` + `tests/it/` structure later tasks add `mod` lines and files to.
 
 - [ ] **Step 1: Add the dev-dependency**
 
@@ -462,7 +462,7 @@ test-support = { path = "../../libs/test-support" }
 - [ ] **Step 2: Create the consolidated test binary entry point**
 
 ```rust
-// services/query-api/tests/it.rs
+// services/query-api/tests/it/main.rs
 mod postgres_tenants_integration;
 ```
 
@@ -507,7 +507,7 @@ Expected: PASS (all 6 tests from this file run as part of the `it` binary).
 
 ```bash
 git add services/query-api/Cargo.toml services/query-api/tests
-git commit -m "test(query-api): consolidate tests into tests/it.rs, migrate tenants tests to shared pool"
+git commit -m "test(query-api): consolidate tests into tests/it/main.rs, migrate tenants tests to shared pool"
 ```
 
 ---
@@ -522,7 +522,7 @@ and N call sites of the shape `let (pool, _container) = start_pool().await;` or
 `let (pool, _c) = start_pool().await;`.
 
 **Files (move each from `tests/<name>.rs` to `tests/it/<name>.rs`, add a `mod <name>;` line to
-`tests/it.rs`):**
+`tests/it/main.rs`):**
 - `postgres_alerts_integration.rs` — delete lines 1-37 down through `start_pool`'s closing brace
   (keep the `use query_api::alerts::{...}` import at the top); replace all 10 call sites of
   `let (pool, _container) = start_pool().await;`.
@@ -552,7 +552,7 @@ let pool = test_support::postgres::shared_pool().await;
 ```
 
 - [ ] **Step 1: Move and edit `postgres_alerts_integration.rs`** (per the rule above), then add
-  `mod postgres_alerts_integration;` to `tests/it.rs`.
+  `mod postgres_alerts_integration;` to `tests/it/main.rs`.
 
 - [ ] **Step 2: Run `cargo test -p query-api --test it`** — expect all alerts tests PASS, no
   unused-import warnings for this file.
@@ -620,7 +620,7 @@ instead of bare `PgPool::connect`.
   `let pool = test_support::postgres::shared_pool().await;`.
 
 - [ ] **Step 1: Move and edit `api_key_audit_integration.rs`** into `tests/it/`, add its `mod`
-  line to `tests/it.rs`.
+  line to `tests/it/main.rs`.
 
 - [ ] **Step 2: Run `cargo test -p query-api --test it`** — expect PASS.
 
@@ -649,7 +649,7 @@ git commit -m "test(query-api): migrate remaining Postgres-only integration test
 **Files:**
 - Move: `services/query-api/tests/clickhouse_integration.rs` →
   `services/query-api/tests/it/clickhouse_integration.rs`
-- Modify: `services/query-api/tests/it.rs` (add `mod clickhouse_integration;`)
+- Modify: `services/query-api/tests/it/main.rs` (add `mod clickhouse_integration;`)
 
 This file's 20 tests each start their own ClickHouse container **inline** (no shared helper
 function — `let container = ClickHouse::default()...start().await...` directly inside each test
@@ -690,7 +690,7 @@ imports (`std::path::Path`, `testcontainers::{ImageExt, runners::AsyncRunner}`,
 
 - [ ] **Step 2: Delete the `apply_migrations` function and the three now-unused imports.**
 
-- [ ] **Step 3: Add `mod clickhouse_integration;` to `tests/it.rs`.**
+- [ ] **Step 3: Add `mod clickhouse_integration;` to `tests/it/main.rs`.**
 
 - [ ] **Step 4: Run test to verify**
 
@@ -711,7 +711,7 @@ git commit -m "test(query-api): migrate clickhouse_integration.rs to shared Clic
 **Files:**
 - Move: `services/query-api/tests/clickhouse_fetch_label_keys_integration.rs` →
   `services/query-api/tests/it/clickhouse_fetch_label_keys_integration.rs`
-- Modify: `services/query-api/tests/it.rs`
+- Modify: `services/query-api/tests/it/main.rs`
 
 This file's `const TENANT: Uuid = Uuid::from_u128(0xCCCC_..._0003);` is reused by all 3 tests.
 Under a shared ClickHouse database, this must become a per-test local variable so each test's
@@ -749,7 +749,7 @@ let ch = test_support::clickhouse::shared_client().await;
   `testcontainers::{ImageExt, runners::AsyncRunner}`,
   `testcontainers_modules::clickhouse::ClickHouse`).
 
-- [ ] **Step 6: Add `mod clickhouse_fetch_label_keys_integration;` to `tests/it.rs`.**
+- [ ] **Step 6: Add `mod clickhouse_fetch_label_keys_integration;` to `tests/it/main.rs`.**
 
 - [ ] **Step 7: Run test to verify**
 
@@ -770,7 +770,7 @@ git commit -m "test(query-api): migrate clickhouse_fetch_label_keys_integration.
 **Files:**
 - Move: `services/query-api/tests/clickhouse_mcp_query_integration.rs` →
   `services/query-api/tests/it/clickhouse_mcp_query_integration.rs`
-- Modify: `services/query-api/tests/it.rs`
+- Modify: `services/query-api/tests/it/main.rs`
 
 This file's `const TENANT_A` / `const TENANT_B` are reused across 9 test functions. Each is passed
 directly as a function argument to `execute_mcp_query(&db, &ch, TENANT_A, &ir)` (a plain Rust
@@ -824,7 +824,7 @@ let _ch = test_support::clickhouse::shared_client().await;
   (`std::path::Path`, `testcontainers::{ImageExt, runners::AsyncRunner}`,
   `testcontainers_modules::{clickhouse::ClickHouse, postgres::Postgres}`).
 
-- [ ] **Step 7: Add `mod clickhouse_mcp_query_integration;` to `tests/it.rs`.**
+- [ ] **Step 7: Add `mod clickhouse_mcp_query_integration;` to `tests/it/main.rs`.**
 
 - [ ] **Step 8: Run test to verify**
 
@@ -848,7 +848,7 @@ git commit -m "test(query-api): migrate clickhouse_mcp_query_integration.rs, ran
 **Files:**
 - Move: `services/query-api/tests/http_api_integration.rs` →
   `services/query-api/tests/it/http_api_integration.rs`
-- Modify: `services/query-api/tests/it.rs`
+- Modify: `services/query-api/tests/it/main.rs`
 
 Per the Global Constraints, `start_clickhouse()` and every one of its call sites are **left
 untouched** in this task — only the Postgres half is migrated.
@@ -887,7 +887,7 @@ let db = test_support::postgres::shared_pool().await;
   `testcontainers_modules::clickhouse::ClickHouse`. Keep
   `testcontainers::{ImageExt, runners::AsyncRunner}` since `start_clickhouse` still needs it.
 
-- [ ] **Step 7: Add `mod http_api_integration;` to `tests/it.rs`.**
+- [ ] **Step 7: Add `mod http_api_integration;` to `tests/it/main.rs`.**
 
 - [ ] **Step 8: Run test to verify**
 
@@ -911,7 +911,7 @@ git commit -m "test(query-api): migrate http_api_integration.rs Postgres calls t
 - Modify: `services/query-api/Cargo.toml`
 - Modify: `docs/agent-context.md`
 
-**Files now fully migrated and consolidated into `tests/it.rs`:** all 13 files from Tasks
+**Files now fully migrated and consolidated into `tests/it/main.rs`:** all 13 files from Tasks
 4-10 (`postgres_tenants_integration`, the 7 from Task 5, the 3 from Task 6,
 `clickhouse_integration`, `clickhouse_fetch_label_keys_integration`,
 `clickhouse_mcp_query_integration`, `http_api_integration` — 14 total). `nlq_sql_safety_integration.rs`
@@ -930,7 +930,7 @@ testcontainers         = "0.27.3"
 testcontainers-modules = { version = "0.15.0", features = ["clickhouse", "postgres"] }
 ```
 
-remove them (the consolidated `tests/it.rs` binary's `http_api_integration` module still uses
+remove them (the consolidated `tests/it/main.rs` binary's `http_api_integration` module still uses
 `testcontainers`/`testcontainers-modules` directly for its exempted ClickHouse path, so this will
 likely **fail** and the two lines must stay — confirm either way and keep whichever the build
 requires).
@@ -966,7 +966,7 @@ Add a dated bullet near the existing Testcontainers-related entries:
 ```markdown
 - **2026-06-21**: `query-api`'s Testcontainers integration tests now share one Postgres and one
   ClickHouse container per `cargo test` run (`libs/test-support`'s `postgres::shared_pool()` /
-  `clickhouse::shared_client()`), consolidated into a single `tests/it.rs` binary, instead of
+  `clickhouse::shared_client()`), consolidated into a single `tests/it/main.rs` binary, instead of
   spinning up a fresh container per test function. Postgres isolation is a fresh migrated
   database per test; ClickHouse isolation is per-test random tenant IDs against one shared
   `observable` database (production SQL hardcodes that name). `http_api_integration.rs`'s
