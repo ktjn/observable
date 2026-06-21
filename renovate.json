@@ -95,7 +95,7 @@
         "/(^|/)\\.github/workflows/build\\.yml$/"
       ],
       "matchStrings": [
-        "rust:(?<currentValue>[a-zA-Z0-9][a-zA-Z0-9._-]+)(?=\\s+bash)"
+        "rust:(?<currentValue>[a-zA-Z0-9][a-zA-Z0-9._-]+)\\s+bash"
       ],
       "datasourceTemplate": "docker",
       "depNameTemplate": "rust"
