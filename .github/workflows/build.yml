@@ -81,6 +81,7 @@ jobs:
             -v "$HOME/.cargo-ci/git":/usr/local/cargo/git \
             -v "$HOME/.cache/sccache":/sccache \
             -e RUSTC_WRAPPER -e SCCACHE_DIR -e CARGO_INCREMENTAL \
+            -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
             rust:1.95.0-bookworm bash -c '
               set -euo pipefail
               rustup component add rustfmt clippy
@@ -92,6 +93,10 @@ jobs:
               cargo test --workspace --lib --bins
               cargo build --release --workspace
               sccache --show-stats
+              # Container runs as root, so cache files end up root-owned on the
+              # host mounts; chown back to the runner user or actions/cache'\''s
+              # post-job tar step cannot read them to persist the cache.
+              chown -R "$HOST_UID:$HOST_GID" /usr/local/cargo/registry /usr/local/cargo/git /sccache /app/target
             '
 
       - name: Stage release binaries for Docker context
