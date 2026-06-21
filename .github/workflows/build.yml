@@ -44,31 +44,49 @@ jobs:
     needs: [changes]
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.backend == '1'
     runs-on: ubuntu-latest
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      CARGO_INCREMENTAL: "0"
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install native build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential cmake libcurl4-openssl-dev libssl-dev pkg-config zlib1g-dev
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.95.0"
-          components: rustfmt, clippy
-
       - uses: mozilla-actions/sccache-action@v0.0.10
 
-      - run: cargo fmt --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace --lib --bins
-      - run: cargo build --release --workspace
-      - run: sccache --show-stats
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo-ci/registry
+            ~/.cargo-ci/git
+          key: cargo-registry-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-registry-
+
+      # Build/lint/test inside rust:1.95.0-bookworm (same glibc as the
+      # debian:bookworm-slim runtime image) rather than natively on the
+      # ubuntu-latest runner — ubuntu-latest's glibc is newer than bookworm's,
+      # and binaries built against it fail to load in the runtime image.
+      - name: Build, lint, test
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
+          CARGO_INCREMENTAL: "0"
+        run: |
+          mkdir -p ~/.cargo-ci/registry ~/.cargo-ci/git
+          docker run --rm \
+            -v "$PWD":/app -w /app \
+            -v "$(command -v sccache)":/usr/local/bin/sccache:ro \
+            -v "$HOME/.cargo-ci/registry":/usr/local/cargo/registry \
+            -v "$HOME/.cargo-ci/git":/usr/local/cargo/git \
+            -e RUSTC_WRAPPER -e SCCACHE_GHA_ENABLED -e CARGO_INCREMENTAL \
+            -e ACTIONS_CACHE_URL -e ACTIONS_RUNTIME_TOKEN -e ACTIONS_RESULTS_URL \
+            rust:1.95.0-bookworm bash -lc '
+              set -euo pipefail
+              rustup component add rustfmt clippy
+              apt-get update -qq
+              apt-get install -y -qq --no-install-recommends \
+                build-essential cmake libcurl4-openssl-dev libssl-dev pkg-config zlib1g-dev
+              cargo fmt --check
+              cargo clippy --workspace --all-targets -- -D warnings
+              cargo test --workspace --lib --bins
+              cargo build --release --workspace
+              sccache --show-stats
+            '
 
       - name: Stage release binaries for Docker context
         run: |
