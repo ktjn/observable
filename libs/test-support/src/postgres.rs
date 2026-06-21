@@ -1,19 +1,38 @@
 use sqlx::PgPool;
 use std::path::Path;
+use std::sync::OnceLock;
 use testcontainers::{ContainerAsync, ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
 use tokio::sync::OnceCell;
 
 static CONTAINER: OnceCell<ContainerAsync<Postgres>> = OnceCell::const_new();
 
+// `ContainerAsync`'s `Drop` impl is the only cleanup mechanism this crate version
+// has (no Ryuk/reaper sidecar) -- but `Drop` never runs for `static` values at
+// normal process exit, so the container above would leak on every test run.
+// This records the container id so `cleanup_on_exit` (below) can remove it
+// directly via the `docker` CLI, bypassing Rust's Drop entirely.
+static CONTAINER_ID: OnceLock<String> = OnceLock::new();
+
+#[ctor::dtor]
+fn cleanup_on_exit() {
+    if let Some(id) = CONTAINER_ID.get() {
+        let _ = std::process::Command::new("docker")
+            .args(["rm", "-f", id])
+            .output();
+    }
+}
+
 async fn admin_url() -> String {
     let container = CONTAINER
         .get_or_init(|| async {
-            Postgres::default()
+            let container = Postgres::default()
                 .with_tag("17")
                 .start()
                 .await
-                .expect("postgres container started")
+                .expect("postgres container started");
+            let _ = CONTAINER_ID.set(container.id().to_string());
+            container
         })
         .await;
     let host = container.get_host().await.expect("host");

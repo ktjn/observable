@@ -1,5 +1,6 @@
 use clickhouse::Client;
 use std::path::Path;
+use std::sync::OnceLock;
 use testcontainers::{ContainerAsync, ImageExt, runners::AsyncRunner};
 use testcontainers_modules::clickhouse::ClickHouse;
 use tokio::sync::OnceCell;
@@ -7,19 +8,35 @@ use tokio::sync::OnceCell;
 static CONTAINER: OnceCell<ContainerAsync<ClickHouse>> = OnceCell::const_new();
 static MIGRATED: OnceCell<()> = OnceCell::const_new();
 
+// See the matching comment in postgres.rs: `Drop` never runs for `static`
+// values at normal process exit, so this records the container id for
+// `cleanup_on_exit` to remove directly via the `docker` CLI.
+static CONTAINER_ID: OnceLock<String> = OnceLock::new();
+
+#[ctor::dtor]
+fn cleanup_on_exit() {
+    if let Some(id) = CONTAINER_ID.get() {
+        let _ = std::process::Command::new("docker")
+            .args(["rm", "-f", id])
+            .output();
+    }
+}
+
 const USER: &str = "default";
 const PASSWORD: &str = "test";
 
 async fn base_url() -> String {
     let container = CONTAINER
         .get_or_init(|| async {
-            ClickHouse::default()
+            let container = ClickHouse::default()
                 .with_tag("25.3")
                 .with_env_var("CLICKHOUSE_USER", USER)
                 .with_env_var("CLICKHOUSE_PASSWORD", PASSWORD)
                 .start()
                 .await
-                .expect("clickhouse container started")
+                .expect("clickhouse container started");
+            let _ = CONTAINER_ID.set(container.id().to_string());
+            container
         })
         .await;
     let port = container.get_host_port_ipv4(8123).await.expect("port");
