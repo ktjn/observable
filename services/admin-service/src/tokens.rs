@@ -19,7 +19,7 @@ use axum::{
     extract::{Extension, Path, State},
     http::StatusCode,
 };
-use rand::RngCore;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
