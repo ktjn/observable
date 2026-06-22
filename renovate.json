@@ -19,7 +19,7 @@
     "docker-compose",
     "helm-requirements",
     "helm-values",
-    "uv",
+    "pep621",
     "github-actions",
     "custom.regex"
   ],
