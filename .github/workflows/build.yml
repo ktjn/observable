@@ -47,6 +47,18 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
+      # ubuntu-latest ships ~20-30GB of preinstalled toolchains we don't use
+      # (Android SDK, .NET, GHC, unused Docker images). A full cold rebuild
+      # after a Cargo.lock-changing dependency bump (new cache key, so no
+      # warm target/ to reuse) plus the rust:bookworm build image and the
+      # runtime image build can otherwise exhaust the runner's free space
+      # mid-build. Reclaim that space up front.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker image prune -af
+          df -h /
+
       - uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
 
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
