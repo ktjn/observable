@@ -51,7 +51,7 @@ postgres:
     database: shop
 
 rabbitmq:
-  image: rabbitmq:3.13-management
+  image: rabbitmq:4.3-management
   storageSize: 1Gi
   credentials:
     user: shop
