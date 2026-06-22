@@ -1,6 +1,6 @@
 dependencies:
 - name: openfga
   repository: https://openfga.github.io/helm-charts
-  version: 0.3.4
-digest: sha256:45c41b0dcbdcdb11afa63ddaeab0376c033ecbe5a34d10bc4e807c96c86031c2
-generated: "2026-05-14T16:56:37.6466802+02:00"
+  version: 0.3.9
+digest: sha256:68d0bad41e65b9e7107dd9e30d6144be5e8472b6cae076406732f1944093aab2
+generated: "2026-06-22T17:08:43.8981731+02:00"
