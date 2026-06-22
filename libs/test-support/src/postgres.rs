@@ -51,10 +51,12 @@ pub async fn shared_pool() -> PgPool {
         .await
         .expect("admin pool connected");
     let db_name = format!("test_{}", uuid::Uuid::new_v4().simple());
-    sqlx::query(sqlx::AssertSqlSafe(format!(r#"CREATE DATABASE "{db_name}""#)))
-        .execute(&admin_pool)
-        .await
-        .expect("test database created");
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        r#"CREATE DATABASE "{db_name}""#
+    )))
+    .execute(&admin_pool)
+    .await
+    .expect("test database created");
     admin_pool.close().await;
 
     let pool = PgPool::connect(&format!("{base_url}/{db_name}"))
