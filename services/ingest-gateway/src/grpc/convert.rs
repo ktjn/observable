@@ -34,6 +34,9 @@ pub fn any_value_to_json(v: &AnyValue) -> serde_json::Value {
             serde_json::Value::Object(map)
         }
         None => serde_json::Value::Null,
+        // String-table dictionary encoding is not supported; we don't have
+        // access to the dictionary table at this point.
+        _ => serde_json::Value::Null,
     }
 }
 
@@ -411,6 +414,7 @@ mod tests {
             value: Some(AnyValue {
                 value: Some(any_value::Value::StringValue(value.to_string())),
             }),
+            key_strindex: 0,
         }
     }
 

@@ -25,19 +25,19 @@ uuid               = { version = "1", features = ["v4", "serde"] }
 anyhow             = "1"
 tracing              = "0.1"
 tracing-subscriber   = { version = "0.3", features = ["env-filter", "json"] }
-opentelemetry        = { version = "0.31", features = ["logs"] }
-opentelemetry_sdk    = { version = "0.31", features = ["rt-tokio", "logs"] }
-opentelemetry-otlp   = { version = "0.31", features = ["grpc-tonic", "logs"] }
-opentelemetry-appender-tracing = "0.31"
-tracing-opentelemetry = "0.32"
+opentelemetry        = { version = "0.32", features = ["logs"] }
+opentelemetry_sdk    = { version = "0.32", features = ["rt-tokio", "logs"] }
+opentelemetry-otlp   = { version = "0.32", features = ["grpc-tonic", "logs"] }
+opentelemetry-appender-tracing = "0.32"
+tracing-opentelemetry = "0.33"
 bytes              = "1"
 prost              = "0.14"
 tonic              = "0.14"
-sqlx               = { version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono", "json"] }
+sqlx               = { version = "0.9", features = ["postgres", "runtime-tokio", "uuid", "chrono", "json"] }
 clickhouse         = { version = "0.15", features = ["uuid"] }
 rdkafka            = { version = "0.39", features = ["tokio", "cmake-build"] }
 chrono             = { version = "0.4", features = ["serde"] }
-config             = "0.14"
-governor           = { version = "0.8", features = [] }
-reqwest            = { version = "0.12", features = ["json", "blocking"] }
-tower-http         = { version = "0.6", features = ["trace"] }
+config             = "0.15"
+governor           = { version = "0.10", features = [] }
+reqwest            = { version = "0.13", features = ["json", "blocking", "form"] }
+tower-http         = { version = "0.7", features = ["trace"] }

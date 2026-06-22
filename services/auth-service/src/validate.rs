@@ -13,7 +13,11 @@ pub struct ApiKeyEntry {
 pub fn sha256_hex(key: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(key.as_bytes());
-    format!("{:x}", hasher.finalize())
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 pub fn validate_key_against_entry(key: &str, entry: &ApiKeyEntry) -> Result<(Uuid, String)> {

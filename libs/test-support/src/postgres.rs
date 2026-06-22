@@ -14,7 +14,7 @@ static CONTAINER: OnceCell<ContainerAsync<Postgres>> = OnceCell::const_new();
 // directly via the `docker` CLI, bypassing Rust's Drop entirely.
 static CONTAINER_ID: OnceLock<String> = OnceLock::new();
 
-#[ctor::dtor]
+#[dtor::dtor(unsafe)]
 fn cleanup_on_exit() {
     if let Some(id) = CONTAINER_ID.get() {
         let _ = std::process::Command::new("docker")
@@ -51,10 +51,12 @@ pub async fn shared_pool() -> PgPool {
         .await
         .expect("admin pool connected");
     let db_name = format!("test_{}", uuid::Uuid::new_v4().simple());
-    sqlx::query(&format!(r#"CREATE DATABASE "{db_name}""#))
-        .execute(&admin_pool)
-        .await
-        .expect("test database created");
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        r#"CREATE DATABASE "{db_name}""#
+    )))
+    .execute(&admin_pool)
+    .await
+    .expect("test database created");
     admin_pool.close().await;
 
     let pool = PgPool::connect(&format!("{base_url}/{db_name}"))
@@ -81,7 +83,7 @@ async fn apply_migrations(pool: &PgPool) {
 
     for entry in entries {
         let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        sqlx::raw_sql(&sql)
+        sqlx::raw_sql(sqlx::AssertSqlSafe(sql))
             .execute(pool)
             .await
             .expect("migration applied");

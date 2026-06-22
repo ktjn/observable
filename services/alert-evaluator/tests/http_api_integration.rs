@@ -83,7 +83,7 @@ async fn alert_evaluator_readyz_returns_200_when_dependencies_reachable() {
     entries.sort_by_key(|e| e.file_name());
     for entry in entries {
         let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        sqlx::raw_sql(&sql)
+        sqlx::raw_sql(sqlx::AssertSqlSafe(sql))
             .execute(&pool)
             .await
             .expect("migration applied");

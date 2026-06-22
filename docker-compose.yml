@@ -20,7 +20,7 @@ services:
       retries: 30
 
   redpanda:
-    image: redpandadata/redpanda:v25.2.7
+    image: redpandadata/redpanda:v25.3.15
     command:
       - redpanda
       - start
@@ -52,7 +52,7 @@ services:
       retries: 20
 
   openfga:
-    image: openfga/openfga:v1.15.1
+    image: openfga/openfga:v1.18.0
     command: run
     ports: ["8080:8080", "8081:8081"]
     environment:
@@ -63,13 +63,13 @@ services:
 
   # Makes /bootstrap writable by Zitadel's nonroot user (uid 65532) before Zitadel starts.
   zitadel-volume-init:
-    image: alpine:3.23
+    image: alpine:3.24
     command: ["sh", "-c", "chmod 777 /bootstrap"]
     volumes:
       - zitadel-bootstrap:/bootstrap
 
   zitadel:
-    image: ghcr.io/zitadel/zitadel:v4.15.0
+    image: ghcr.io/zitadel/zitadel:v4.15.2
     command: start-from-init --masterkeyFromEnv --tlsMode disabled --steps /zitadel-steps.yaml
     environment:
       ZITADEL_DATABASE_POSTGRES_HOST: postgres
@@ -98,7 +98,7 @@ services:
         condition: service_completed_successfully
 
   zitadel-bootstrap:
-    image: alpine:3.23
+    image: alpine:3.24
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -170,7 +170,7 @@ services:
       postgres: { condition: service_healthy }
 
   redpanda-setup:
-    image: redpandadata/redpanda:v25.2.7
+    image: redpandadata/redpanda:v25.3.15
     entrypoint:
       - /bin/bash
       - -c
@@ -385,7 +385,7 @@ services:
       retries: 20
 
   shop-queue:
-    image: rabbitmq:4.1-management
+    image: rabbitmq:4.3-management
     ports: ["5672:5672", "15672:15672"]
     environment:
       RABBITMQ_DEFAULT_USER: shop

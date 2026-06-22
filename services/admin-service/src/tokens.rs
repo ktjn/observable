@@ -19,7 +19,7 @@ use axum::{
     extract::{Extension, Path, State},
     http::StatusCode,
 };
-use rand::RngCore;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
@@ -118,7 +118,10 @@ pub async fn create_token(
     let plaintext: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
 
     // SHA-256 hash for storage — same scheme as seeded dev tokens.
-    let hash = format!("{:x}", Sha256::digest(plaintext.as_bytes()));
+    let hash: String = Sha256::digest(plaintext.as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
 
     let row = sqlx::query!(
         r#"
@@ -200,7 +203,10 @@ pub async fn renew_token(
     let mut bytes = [0u8; 32];
     rand::rng().fill_bytes(&mut bytes);
     let plaintext: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-    let hash = format!("{:x}", Sha256::digest(plaintext.as_bytes()));
+    let hash: String = Sha256::digest(plaintext.as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
 
     let row = sqlx::query!(
         r#"

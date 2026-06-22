@@ -23,7 +23,7 @@ tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 clickhouse         = { workspace = true }
 sqlx               = { workspace = true }
-async-openai       = { version = "0.36", features = ["chat-completion", "model"] }
+async-openai       = { version = "0.41", features = ["chat-completion", "model"] }
 async-trait        = "0.1"
 prometheus         = { version = "0.14.0", features = ["process"] }
 
@@ -33,7 +33,7 @@ testcontainers-modules = { version = "0.15.0", features = ["clickhouse", "postgr
 tokio                  = { version = "1", features = ["full"] }
 uuid                   = { version = "1", features = ["v4"] }
 chrono                 = { workspace = true }
-tower                  = { version = "0.4", features = ["util"] }
+tower                  = { version = "0.5", features = ["util"] }
 http-body-util         = "0.1"
 serde_json             = { workspace = true }
 wiremock               = "0.6"

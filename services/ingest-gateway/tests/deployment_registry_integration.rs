@@ -23,7 +23,7 @@ async fn apply_migrations(pool: &PgPool) {
 
     for entry in entries {
         let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        sqlx::raw_sql(&sql)
+        sqlx::raw_sql(sqlx::AssertSqlSafe(sql))
             .execute(pool)
             .await
             .expect("migration applied");
