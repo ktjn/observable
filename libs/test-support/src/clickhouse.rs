@@ -13,7 +13,7 @@ static MIGRATED: OnceCell<()> = OnceCell::const_new();
 // `cleanup_on_exit` to remove directly via the `docker` CLI.
 static CONTAINER_ID: OnceLock<String> = OnceLock::new();
 
-#[ctor::dtor]
+#[dtor::dtor(unsafe)]
 fn cleanup_on_exit() {
     if let Some(id) = CONTAINER_ID.get() {
         let _ = std::process::Command::new("docker")
