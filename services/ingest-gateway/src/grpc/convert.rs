@@ -414,6 +414,7 @@ mod tests {
             value: Some(AnyValue {
                 value: Some(any_value::Value::StringValue(value.to_string())),
             }),
+            key_strindex: 0,
         }
     }
 
