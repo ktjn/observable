@@ -739,7 +739,7 @@ test("renders empty state when infrastructure inventory has no items", async () 
 
   expect(await screen.findByRole("heading", { name: "Infrastructure" })).toBeInTheDocument();
   expect(
-    await screen.findByText("No infrastructure entities matched the current filters."),
+    await screen.findByRole("heading", { name: "No infrastructure entities found" }),
   ).toBeInTheDocument();
 });
 

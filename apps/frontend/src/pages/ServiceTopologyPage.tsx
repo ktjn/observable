@@ -5,6 +5,8 @@ import { getTopology, listServices } from "../api/services";
 import { TopologyMap } from "../components/topology/TopologyMap";
 import type { TopologyEdge } from "../api/services";
 import { Button } from "../components/ui/button";
+import { EmptyState } from "../components/ui/empty-state";
+import { ErrorState } from "../components/ui/error-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { TablePanel } from "../components/ui/table-panel";
 import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
@@ -80,7 +82,7 @@ export default function ServiceTopologyPage() {
         {isLoading ? (
           <LoadingState>Loading topology…</LoadingState>
         ) : error ? (
-          <div className="signal-empty">Error loading topology: {String(error)}</div>
+          <ErrorState title="Failed to load topology" description={String(error)} />
         ) : (
           <div className="relative h-full w-full flex flex-col">
             {/* Popover uses SVG midpoint coordinates transformed by zoom. */}
@@ -113,7 +115,7 @@ export default function ServiceTopologyPage() {
               </div>
             )}
             {allServiceNames.length === 0 ? (
-              <div className="signal-empty">No services found in the selected time range.</div>
+              <EmptyState title="No services found" description="No services found in the selected time range." />
             ) : (
               <div className="flex flex-col flex-1 gap-2 min-h-0">
                 {(!data || data.edges.length === 0) && (

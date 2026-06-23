@@ -10,8 +10,11 @@ import {
 } from "../api/services";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import { EmptyState } from "../components/ui/empty-state";
+import { ErrorState } from "../components/ui/error-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
+import { PillFilter } from "../components/ui/pill-filter";
 import { TablePanel } from "../components/ui/table-panel";
 import { TopologyMap } from "../components/topology/TopologyMap";
 import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
@@ -158,40 +161,21 @@ export default function ServicesPage() {
       {view === "list" && (
         <>
           <div className="toolbar-row flex-wrap gap-y-2">
-            <div className="flex items-center gap-1">
-              {(["all", "healthy", "watch", "breach"] as const).map((health) => {
+            <PillFilter
+              pills={(["all", "healthy", "watch", "breach"] as const).map((health) => {
                 const count =
                   health === "all"
                     ? healthCounts.healthy + healthCounts.watch + healthCounts.breach
                     : healthCounts[health];
-                const isActive = healthFilter === health;
                 const activeColor =
-                  health === "breach"
-                    ? "var(--bad)"
-                    : health === "watch"
-                      ? "var(--warn)"
-                      : health === "healthy"
-                        ? "var(--good)"
-                        : "var(--brand)";
-                return (
-                  <button
-                    key={health}
-                    type="button"
-                    onClick={() => setHealthFilter(health)}
-                    className={[
-                      "flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold border rounded transition-colors",
-                      isActive
-                        ? ""
-                        : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--brand)] hover:text-[var(--text)]",
-                    ].join(" ")}
-                    style={isActive ? { borderColor: activeColor, color: activeColor } : undefined}
-                  >
-                    <span className="capitalize">{health === "all" ? "All health" : health}</span>
-                    <span aria-hidden="true">({count})</span>
-                  </button>
-                );
+                  health === "breach" ? "var(--bad)" : health === "watch" ? "var(--warn)" : health === "healthy" ? "var(--good)" : "var(--brand)";
+                return { key: health, label: health === "all" ? "All health" : health, count, activeColor };
               })}
-            </div>
+              activeKey={healthFilter}
+              onSelect={(key) => setHealthFilter(key)}
+              rounded
+              ariaLabel="Filter by health"
+            />
 
             <input
               type="search"
@@ -221,7 +205,7 @@ export default function ServicesPage() {
             {isLoading ? (
               <LoadingState>Loading services…</LoadingState>
             ) : filteredAndSorted.length === 0 ? (
-              <div className="signal-empty">No services matched the current filters.</div>
+              <EmptyState title="No services found" description="No services matched the current filters." />
             ) : (
               <table aria-label="Service catalog">
                 <thead>
@@ -370,7 +354,7 @@ function TopologyView({ tenantId, environment }: { tenantId: string; environment
         {isLoading ? (
           <LoadingState>Loading topology…</LoadingState>
         ) : error ? (
-          <div className="signal-empty">Error loading topology: {String(error)}</div>
+          <ErrorState title="Failed to load topology" description={String(error)} />
         ) : (
           <div className="relative h-full w-full flex flex-col">
             {edgePopover && (
@@ -398,7 +382,7 @@ function TopologyView({ tenantId, environment }: { tenantId: string; environment
               </div>
             )}
             {allServiceNames.length === 0 ? (
-              <div className="signal-empty">No services found in the selected time range.</div>
+              <EmptyState title="No services found" description="No services found in the selected time range." />
             ) : (
               <div className="flex flex-col flex-1 gap-2 min-h-0">
                 {(!data || data.edges.length === 0) && (

@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { listInfrastructure, type InfrastructureEntitySummary } from "../api/infrastructure";
 import { Badge, HealthDot } from "./ui/badge";
+import { EmptyState } from "./ui/empty-state";
+import { ErrorState } from "./ui/error-state";
 import { LoadingState } from "./ui/loading-state";
 import { Panel } from "./ui/panel";
 import { useTenantContext } from "../hooks/useTenantContext";
@@ -17,12 +19,10 @@ export function ServiceInfraPanel({ serviceName }: Props) {
   });
 
   if (isLoading) return <LoadingState>Loading infrastructure…</LoadingState>;
-  if (isError) return <div className="signal-empty">Could not load infrastructure.</div>;
-  if (!data?.items.length) {
+if (isError) return <ErrorState title="Could not load infrastructure" />;
+if (!data?.items.length) {
     return (
-      <div className="signal-empty">
-        No infrastructure entities observed for this service.
-      </div>
+      <EmptyState title="No infrastructure entities" description="No infrastructure entities observed for this service." />
     );
   }
 

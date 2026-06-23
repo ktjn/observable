@@ -794,15 +794,6 @@ th.sortable:hover {
   margin-top: 12px;
 }
 
-.signal-empty {
-  min-height: 80px;
-  display: grid;
-  place-items: center;
-  padding: 16px;
-  color: var(--muted);
-  text-align: center;
-}
-
 .facet-sidebar {
   width: 220px;
   flex-shrink: 0;

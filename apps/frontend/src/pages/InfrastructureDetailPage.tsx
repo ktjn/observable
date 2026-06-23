@@ -117,7 +117,7 @@ export default function InfrastructureDetailPage() {
               ))}
             </div>
           ) : (
-            <div className="signal-empty">Unavailable</div>
+            <EmptyState title="Unavailable" />
           )}
         </Panel>
 
