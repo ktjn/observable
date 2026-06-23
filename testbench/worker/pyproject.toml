@@ -3,10 +3,10 @@ name = "testbench-worker"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
-    "pika==1.4.0",
+    "pika==1.4.1",
     "psycopg2-binary==2.9.12",
-    "opentelemetry-sdk==1.41.1",
-    "opentelemetry-exporter-otlp-proto-grpc==1.41.1",
+    "opentelemetry-sdk==1.42.1",
+    "opentelemetry-exporter-otlp-proto-grpc==1.42.1",
     "opentelemetry-instrumentation-pika==0.62b1",
     "opentelemetry-instrumentation-psycopg2==0.62b1",
     "opentelemetry-instrumentation-logging==0.62b1",

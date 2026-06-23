@@ -38,7 +38,7 @@ services:
       retries: 20
 
   postgres:
-    image: postgres:17
+    image: postgres:18
     ports: ["5432:5432"]
     environment:
       POSTGRES_DB: ${PG_DB:-observable}
@@ -69,7 +69,7 @@ services:
       - zitadel-bootstrap:/bootstrap
 
   zitadel:
-    image: ghcr.io/zitadel/zitadel:v4.15.2
+    image: ghcr.io/zitadel/zitadel:v4.15.3
     command: start-from-init --masterkeyFromEnv --tlsMode disabled --steps /zitadel-steps.yaml
     environment:
       ZITADEL_DATABASE_POSTGRES_HOST: postgres
@@ -153,7 +153,7 @@ services:
       clickhouse: { condition: service_healthy }
 
   postgres-setup:
-    image: postgres:17
+    image: postgres:18
     entrypoint:
       - /bin/bash
       - -c
@@ -369,7 +369,7 @@ services:
 
   # --- TESTBENCH ---
   shop-db:
-    image: postgres:17
+    image: postgres:18
     ports: ["5433:5432"]
     environment:
       POSTGRES_DB: shop
