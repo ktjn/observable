@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { listChangeEvents, type ChangeEvent, type ChangeEventType } from "../../api/changeEvents";
 import { Badge } from "../../components/ui/badge";
 import { EmptyState } from "../../components/ui/empty-state";
+import { ErrorState } from "../../components/ui/error-state";
 import { LoadingState } from "../../components/ui/loading-state";
 import { Select, SelectOption } from "../../components/ui/select";
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
@@ -43,7 +44,7 @@ export default function ChangeEventsPage() {
   const items = useMemo(() => data?.items ?? [], [data]);
 
   if (isLoading) return <LoadingState>Loading change events...</LoadingState>;
-  if (error) return <div className="signal-empty">Change events could not be loaded.</div>;
+  if (error) return <ErrorState title="Failed to load change events" description={String(error)} />;
 
   return (
     <section className="page-stack">

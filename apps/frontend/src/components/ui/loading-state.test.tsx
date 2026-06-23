@@ -1,4 +1,3 @@
-// apps/frontend/src/components/ui/loading-state.test.tsx
 import { render, screen } from "@testing-library/react";
 import { LoadingState } from "./loading-state";
 
@@ -7,9 +6,18 @@ test("renders children as content", () => {
   expect(screen.getByText("Loading data…")).toBeInTheDocument();
 });
 
-test("applies muted text styling", () => {
-  render(<LoadingState>Loading…</LoadingState>);
-  expect(screen.getByText("Loading…").parentElement ?? screen.getByText("Loading…")).toBeTruthy();
+test("renders skeleton with animate-pulse class", () => {
+  const { container } = render(<LoadingState variant="skeleton" className="h-[168px]" />);
+  const div = container.firstChild as HTMLElement;
+  expect(div.className).toContain("animate-pulse");
+  expect(div.getAttribute("aria-hidden")).toBe("true");
+});
+
+test("renders spinner variant with spinning element", () => {
+  const { container } = render(<LoadingState variant="spinner">Connecting…</LoadingState>);
+  expect(screen.getByText("Connecting…")).toBeInTheDocument();
+  const spinner = container.querySelector(".animate-spin");
+  expect(spinner).toBeInTheDocument();
 });
 
 test("merges additional className via prop", () => {

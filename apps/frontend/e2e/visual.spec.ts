@@ -166,3 +166,131 @@ test("visual: dashboards page", async ({ page }) => {
   await page.waitForSelector("[aria-label='Dashboard cards']");
   await page.screenshot({ path: "e2e/screenshots/dashboards.png", fullPage: true });
 });
+
+// ── Home ───────────────────────────────────────────────────────────────────────
+
+test("visual: home page", async ({ page }) => {
+  await mockAuth(page);
+  await page.route("**/v1/services/summary**", (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          { service_name: "checkout", request_rate: 42.5, error_rate: 0.001, p95_latency_ms: 85, health_state: "healthy", active_alert_count: 0, latest_deployment: "v1.4.2" },
+          { service_name: "payments", request_rate: 18.2, error_rate: 0.065, p95_latency_ms: 620, health_state: "breach", active_alert_count: 3, latest_deployment: null },
+          { service_name: "notifications", request_rate: 5.1, error_rate: 0.012, p95_latency_ms: 210, health_state: "watch", active_alert_count: 1, latest_deployment: "v2.0.1" },
+        ],
+      },
+    })
+  );
+  await page.route("**/v1/alerts/rules**", (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          { rule_id: "r1", name: "High Error Rate", metric_name: "error_rate", operator: "gt", threshold: 0.05, severity: "critical", silenced: false, state: "active", firing: true, last_fired_at: "2026-05-15T10:00:00Z", notification_channels: [], auto_trigger_incident: true },
+        ],
+      },
+    })
+  );
+  await page.route("**/v1/incidents", (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          { incident_id: "inc-1", title: "Payments outage", severity: "critical", status: "open", dedup_key: "", triggered_at: "2026-05-15T10:00:00Z", resolved_at: null, triggered_by_rule_id: "r1", runbook_url: null, rule_name: "High Error Rate", impacted_service: "payments" },
+        ],
+      },
+    })
+  );
+  await page.goto("/");
+  await page.waitForSelector("text=System Status");
+  await page.screenshot({ path: "e2e/screenshots/home.png", fullPage: true });
+});
+
+// ── Metrics ────────────────────────────────────────────────────────────────────
+
+test("visual: metrics page", async ({ page }) => {
+  await mockAuth(page);
+  await page.route("**/v1/metrics", (route) =>
+    route.fulfill({
+      json: {
+        metrics: [
+          { tenant_id: "t1", metric_name: "http_requests_total", description: "Total HTTP requests", unit: "count", metric_type: "counter", is_monotonic: true, service_name: "checkout", environment: "prod", series_count: 4 },
+          { tenant_id: "t1", metric_name: "request_duration_ms", description: "Request duration", unit: "ms", metric_type: "histogram", is_monotonic: null, service_name: "checkout", environment: "prod", series_count: 12 },
+          { tenant_id: "t1", metric_name: "memory_usage_bytes", description: "Memory usage", unit: "bytes", metric_type: "gauge", is_monotonic: null, service_name: "payments", environment: "prod", series_count: 2 },
+        ],
+      },
+    })
+  );
+  await page.goto("/metrics");
+  await page.waitForSelector("text=Metrics");
+  await page.screenshot({ path: "e2e/screenshots/metrics.png", fullPage: true });
+});
+
+// ── Change Events ──────────────────────────────────────────────────────────────
+
+test("visual: change events page", async ({ page }) => {
+  await mockAuth(page);
+  await page.route("**/v1/events/changes*", (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          { change_event_id: "ce1", tenant_id: "t1", project_id: null, event_type: "config_change", service_name: "checkout", environment: "prod", title: "Updated rate limit config", description: "Increased rate limit from 100 to 200 RPS", occurred_at: "2026-05-15T10:00:00Z", source: "terraform", created_by: null, metadata: null },
+          { change_event_id: "ce2", tenant_id: "t1", project_id: null, event_type: "feature_flag", service_name: "payments", environment: "prod", title: "Enabled new payment gateway", description: "Rolling out stripe-v3 integration", occurred_at: "2026-05-15T09:00:00Z", source: "launchdarkly", created_by: null, metadata: null },
+          { change_event_id: "ce3", tenant_id: "t1", project_id: null, event_type: "migration", service_name: null, environment: "prod", title: "Database migration v042", description: "Add index on orders.created_at", occurred_at: "2026-05-15T08:00:00Z", source: "github-actions", created_by: null, metadata: null },
+        ],
+      },
+    })
+  );
+  await page.goto("/change-events");
+  await page.waitForSelector("text=Change Events");
+  await page.screenshot({ path: "e2e/screenshots/change-events.png", fullPage: true });
+});
+
+// ── Incidents ──────────────────────────────────────────────────────────────────
+
+test("visual: incidents page", async ({ page }) => {
+  await mockAuth(page);
+  await page.route("**/v1/incidents", (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          { incident_id: "inc-1", title: "Payments outage", severity: "critical", status: "triggered", dedup_key: "dedup-1", triggered_at: "2026-05-15T10:00:00Z", resolved_at: null, triggered_by_rule_id: "r1", runbook_url: null, rule_name: "High Error Rate", impacted_service: "payments" },
+          { incident_id: "inc-2", title: "Checkout latency spike", severity: "warning", status: "acknowledged", dedup_key: "dedup-2", triggered_at: "2026-05-15T09:00:00Z", resolved_at: null, triggered_by_rule_id: "r2", runbook_url: null, rule_name: "Latency Alert", impacted_service: "checkout" },
+          { incident_id: "inc-3", title: "Notification queue backlog", severity: "info", status: "resolved", dedup_key: "dedup-3", triggered_at: "2026-05-14T08:00:00Z", resolved_at: "2026-05-14T09:30:00Z", triggered_by_rule_id: "r3", runbook_url: null, rule_name: "Queue Depth", impacted_service: "notifications" },
+        ],
+      },
+    })
+  );
+  await page.goto("/incidents");
+  await page.waitForSelector("text=Incidents");
+  await page.screenshot({ path: "e2e/screenshots/incidents.png", fullPage: true });
+});
+
+// ── Service Detail ─────────────────────────────────────────────────────────────
+
+test("visual: service detail page", async ({ page }) => {
+  await mockAuth(page);
+  await page.route("**/v1/services/checkout/summary**", (route) =>
+    route.fulfill({
+      json: {
+        service: {
+          service_name: "checkout",
+          request_rate: 42.5,
+          error_rate: 0.001,
+          p95_latency_ms: 85,
+          health_state: "healthy",
+          active_alert_count: 0,
+          latest_deployment: "v1.4.2",
+        },
+      },
+    })
+  );
+  await page.route("**/v1/nlq", (route) => route.fulfill({ json: { type: "frame", frame: { data: [] } } }));
+  await page.route("**/v1/services", (route) => route.fulfill({ json: { items: [] } }));
+  await page.route("**/v1/services/summary**", (route) => route.fulfill({ json: { items: [] } }));
+  await page.route("**/v1/deployments**", (route) => route.fulfill({ json: { items: [] } }));
+  await page.route("**/v1/infrastructure**", (route) => route.fulfill({ json: { items: [] } }));
+  await page.route("**/v1/alerts/rules**", (route) => route.fulfill({ json: { items: [] } }));
+  await page.goto("/services/checkout");
+  await page.waitForSelector("text=checkout");
+  await page.screenshot({ path: "e2e/screenshots/service-detail.png", fullPage: true });
+});

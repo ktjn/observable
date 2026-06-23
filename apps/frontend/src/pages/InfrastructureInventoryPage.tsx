@@ -13,8 +13,11 @@ import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
 import { Badge } from "../components/ui/badge";
+import { EmptyState } from "../components/ui/empty-state";
+import { ErrorState } from "../components/ui/error-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
+import { PillFilter } from "../components/ui/pill-filter";
 import { TablePanel } from "../components/ui/table-panel";
 import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
 
@@ -175,56 +178,34 @@ export default function InfrastructureInventoryPage() {
       </div>
 
       <div className="toolbar-row flex-wrap gap-y-2">
-        <div className="flex items-center gap-1 flex-wrap">
-          {(["all", ...ENTITY_TYPES] as InfrastructureTypeFilter[]).map((type) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => setEntityTypeFilter(type)}
-              className={[
-                "flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold border rounded transition-colors",
-                entityTypeFilter === type
-                  ? "border-[var(--brand)] text-[var(--text-strong)]"
-                  : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--brand)] hover:text-[var(--text)]",
-              ].join(" ")}
-            >
-              {type !== "all" && (
-                <span className="opacity-70">{ENTITY_TYPE_ICONS[type]}</span>
-              )}
-              <span className="capitalize">{type === "all" ? "All types" : type}</span>
-              <span aria-hidden="true">({typeCounts[type] ?? 0})</span>
-            </button>
-          ))}
-        </div>
+        <PillFilter
+          pills={(["all", ...ENTITY_TYPES] as InfrastructureTypeFilter[]).map((type) => ({
+            key: type,
+            label: type === "all" ? "All types" : type,
+            count: typeCounts[type] ?? 0,
+            icon: type !== "all" ? ENTITY_TYPE_ICONS[type] : undefined,
+          }))}
+          activeKey={entityTypeFilter}
+          onSelect={(key) => setEntityTypeFilter(key as InfrastructureTypeFilter)}
+          rounded
+          ariaLabel="Filter by entity type"
+        />
 
-        <div className="flex items-center gap-1">
-          {(["all", "healthy", "watch", "breach"] as const).map((health) => {
+        <PillFilter
+          pills={(["all", "healthy", "watch", "breach"] as const).map((health) => {
             const count =
               health === "all"
                 ? healthCounts.healthy + healthCounts.watch + healthCounts.breach
                 : healthCounts[health];
-            const isActive = healthFilter === health;
             const activeColor =
               health === "breach" ? "var(--bad)" : health === "watch" ? "var(--warn)" : health === "healthy" ? "var(--good)" : "var(--brand)";
-            return (
-              <button
-                key={health}
-                type="button"
-                onClick={() => setHealthFilter(health)}
-                className={[
-                  "flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold border rounded transition-colors",
-                  isActive
-                    ? ""
-                    : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--brand)] hover:text-[var(--text)]",
-                ].join(" ")}
-                style={isActive ? { borderColor: activeColor, color: activeColor } : undefined}
-              >
-                <span className="capitalize">{health === "all" ? "All health" : health}</span>
-                <span aria-hidden="true">({count})</span>
-              </button>
-            );
+            return { key: health, label: health === "all" ? "All health" : health, count, activeColor };
           })}
-        </div>
+          activeKey={healthFilter}
+          onSelect={(key) => setHealthFilter(key)}
+          rounded
+          ariaLabel="Filter by health status"
+        />
 
         <input
           type="search"
@@ -250,9 +231,9 @@ export default function InfrastructureInventoryPage() {
         {isLoading ? (
           <LoadingState>Loading infrastructure…</LoadingState>
         ) : isError ? (
-          <div className="signal-empty">Infrastructure inventory could not be loaded.</div>
+          <ErrorState title="Failed to load infrastructure" description="Infrastructure inventory could not be loaded." />
         ) : filteredItems.length === 0 ? (
-          <div className="signal-empty">No infrastructure entities matched the current filters.</div>
+          <EmptyState title="No infrastructure entities found" description="No entities matched the current filters." />
         ) : (
           <table aria-label="Infrastructure inventory">
             <thead>

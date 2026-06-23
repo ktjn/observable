@@ -16,7 +16,9 @@ import { FacetSidebar } from "../components/FacetSidebar";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
+import { ErrorState } from "../components/ui/error-state";
 import { LoadingState } from "../components/ui/loading-state";
+import { PillFilter } from "../components/ui/pill-filter";
 import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
 import { useTimeDisplay } from "../lib/timeDisplay";
@@ -263,10 +265,7 @@ export function TraceExplorer({
             subtitle="Volume"
           />
         ) : !isHistogramError ? (
-          <div
-            aria-hidden="true"
-            className="border border-[var(--border)] bg-[var(--surface)] p-3 h-[168px] animate-pulse"
-          />
+          <LoadingState variant="skeleton" className="h-[168px]" />
         ) : (
           <p className="text-xs text-[var(--muted)]">Histogram unavailable</p>
         )
@@ -282,35 +281,23 @@ export function TraceExplorer({
           )}
 
           {/* Status pills */}
-          <div className="flex items-center gap-1 flex-wrap" aria-label="Filter by status">
-            {STATUS_PILLS.map((pill) => {
-              const isActive = statusFilter === pill.key;
-              const activeColor = STATUS_PILL_ACTIVE_COLOR[pill.key];
-              return (
-                <button
-                  key={pill.key}
-                  type="button"
-                  onClick={() => setStatusFilter(pill.key)}
-                  style={isActive ? { borderColor: activeColor, color: activeColor } : undefined}
-                  className={[
-                    "flex items-center gap-1 px-2.5 py-1 text-xs font-bold border transition-colors",
-                    isActive
-                      ? ""
-                      : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--brand)] hover:text-[var(--text)]",
-                  ].join(" ")}
-                >
-                  {pill.label}
-                  <span aria-hidden="true" className="opacity-70">({statusCounts[pill.key]})</span>
-                </button>
-              );
-            })}
-          </div>
+          <PillFilter
+            pills={STATUS_PILLS.map((pill) => ({
+              key: pill.key,
+              label: pill.label,
+              count: statusCounts[pill.key],
+              activeColor: STATUS_PILL_ACTIVE_COLOR[pill.key],
+            }))}
+            activeKey={statusFilter}
+            onSelect={(key) => setStatusFilter(key as StatusFilter)}
+            ariaLabel="Filter by status"
+          />
 
           <TablePanel className="flex-1 min-h-0 flex flex-col">
             {isLoading ? (
               <LoadingState>Loading traces…</LoadingState>
             ) : error ? (
-              <LoadingState className="text-[var(--bad)]">Error loading traces: {String(error)}</LoadingState>
+              <ErrorState title="Failed to load traces" description={String(error)} />
             ) : displayedTraces.length === 0 ? (
               <EmptyState
                 title="No traces found"

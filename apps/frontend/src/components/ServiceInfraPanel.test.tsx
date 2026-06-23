@@ -108,7 +108,7 @@ describe("ServiceInfraPanel", () => {
     render(<ServiceInfraPanel serviceName="checkout" />, { wrapper });
 
     await waitFor(() =>
-      expect(screen.getByText("Could not load infrastructure.")).toBeInTheDocument()
+      expect(screen.getByText("Could not load infrastructure")).toBeInTheDocument()
     );
   });
 

@@ -4,9 +4,11 @@ import { getMetricGroupPoints, listMetrics, type MetricCatalogEntry } from "../.
 import { createDashboard } from "../../api/dashboards";
 import { Button } from "../../components/ui/button";
 import { EmptyState } from "../../components/ui/empty-state";
+import { ErrorState } from "../../components/ui/error-state";
 import { LoadingState } from "../../components/ui/loading-state";
 import { MetricCard } from "../../components/ui/metric-card";
 import { Panel } from "../../components/ui/panel";
+import { PillFilter } from "../../components/ui/pill-filter";
 import { TablePanel } from "../../components/ui/table-panel";
 import { TimeSeriesGraph, type TimeSeriesSeries } from "../../components/ui/time-series-graph";
 import { SignalExplorer, type SaveStatus } from "../../components/shared/SignalExplorer";
@@ -121,7 +123,7 @@ export function ServiceMetricsWorkspace({
   };
 
   if (isLoading) return <LoadingState>Loading service metrics...</LoadingState>;
-  if (error) return <div className="signal-empty">Metrics could not be loaded.</div>;
+  if (error) return <ErrorState title="Failed to load metrics" description={String(error)} />;
 
   return (
     <div className="space-y-4">
@@ -196,29 +198,16 @@ export function ServiceMetricsWorkspace({
 
               {/* Type filter pills + name search */}
               <div className="flex flex-wrap items-center gap-2 mb-4">
-                <div className="flex items-center gap-1 flex-wrap" aria-label="Filter by metric type">
-                  {["all", ...metricTypes].map((type) => {
-                    const isActive = filters.type === type;
-                    const count = typeCounts[type] ?? 0;
-                    return (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => setFilters((f) => ({ ...f, type }))}
-                        style={isActive ? { borderColor: "var(--brand)", color: "var(--brand)" } : undefined}
-                        className={[
-                          "flex items-center gap-1 px-2.5 py-1 text-xs font-bold border transition-colors",
-                          isActive
-                            ? ""
-                            : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--brand)] hover:text-[var(--text)]",
-                        ].join(" ")}
-                      >
-                        <span className="capitalize">{type === "all" ? "All types" : type}</span>
-                        <span aria-hidden="true" className="opacity-70">({count})</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                <PillFilter
+                  pills={["all", ...metricTypes].map((type) => ({
+                    key: type,
+                    label: type === "all" ? "All types" : type,
+                    count: typeCounts[type] ?? 0,
+                  }))}
+                  activeKey={filters.type}
+                  onSelect={(key) => setFilters((f) => ({ ...f, type: key }))}
+                  ariaLabel="Filter by metric type"
+                />
                 <input
                   type="search"
                   value={filters.name}
@@ -284,15 +273,16 @@ function MetricGraphContainer({
 
   if (!selectedMetric) {
     return (
-      <div className="signal-empty border border-[var(--border)] bg-[var(--surface)] h-[168px] flex items-center justify-center text-sm text-[var(--muted)]">
-        Select a metric below to visualize data.
-      </div>
+      <EmptyState
+        title="No metric selected"
+        description="Select a metric below to visualize data."
+      />
     );
   }
 
   if (isLoading) {
     return (
-      <div className="border border-[var(--border)] bg-[var(--surface)] h-[168px] animate-pulse" />
+      <LoadingState variant="skeleton" className="h-[168px]" />
     );
   }
 

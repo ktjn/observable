@@ -5,6 +5,7 @@ import { listServiceSummaries } from "../api/services";
 import { listAlertRules } from "../api/alerts";
 import { listIncidents } from "../api/incidents";
 import { Badge } from "../components/ui/badge";
+import { EmptyState } from "../components/ui/empty-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { TablePanel } from "../components/ui/table-panel";
 import { LoadingState } from "../components/ui/loading-state";
@@ -142,7 +143,7 @@ export default function HomePage() {
             {servicesLoading ? (
               <LoadingState>Loading…</LoadingState>
             ) : unhealthyServices.length === 0 ? (
-              <div className="signal-empty text-[var(--good)]">All services healthy</div>
+              <EmptyState title="All services healthy" />
             ) : (
               <table aria-label="Unhealthy services">
                 <thead>
@@ -200,7 +201,7 @@ export default function HomePage() {
             </div>
             <TablePanel>
               {firingAlerts.length === 0 ? (
-                <div className="signal-empty text-[var(--good)]">No active alerts</div>
+                <EmptyState title="No active alerts" />
               ) : (
                 <table aria-label="Firing alerts">
                   <thead>
@@ -248,7 +249,7 @@ export default function HomePage() {
             </div>
             <TablePanel>
               {recentIncidents.length === 0 ? (
-                <div className="signal-empty text-[var(--good)]">No open incidents</div>
+                <EmptyState title="No open incidents" />
               ) : (
                 <table aria-label="Open incidents">
                   <thead>
