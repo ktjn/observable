@@ -38,7 +38,7 @@ services:
       retries: 20
 
   postgres:
-    image: postgres:18
+    image: postgres:17
     ports: ["5432:5432"]
     environment:
       POSTGRES_DB: ${PG_DB:-observable}
@@ -153,7 +153,7 @@ services:
       clickhouse: { condition: service_healthy }
 
   postgres-setup:
-    image: postgres:18
+    image: postgres:17
     entrypoint:
       - /bin/bash
       - -c
@@ -369,7 +369,7 @@ services:
 
   # --- TESTBENCH ---
   shop-db:
-    image: postgres:18
+    image: postgres:17
     ports: ["5433:5432"]
     environment:
       POSTGRES_DB: shop
