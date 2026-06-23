@@ -7,9 +7,9 @@ dependencies = [
     "psycopg2-binary==2.9.12",
     "opentelemetry-sdk==1.42.1",
     "opentelemetry-exporter-otlp-proto-grpc==1.42.1",
-    "opentelemetry-instrumentation-pika==0.62b1",
-    "opentelemetry-instrumentation-psycopg2==0.62b1",
-    "opentelemetry-instrumentation-logging==0.62b1",
+    "opentelemetry-instrumentation-pika==0.63b1",
+    "opentelemetry-instrumentation-psycopg2==0.63b1",
+    "opentelemetry-instrumentation-logging==0.63b1",
 ]
 
 [tool.uv]
