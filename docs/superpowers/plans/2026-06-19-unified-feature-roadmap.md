@@ -9,18 +9,11 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development`
 > (recommended) or `superpowers:executing-plans` to implement promoted slices task-by-task.
 
-**Goal:** Sequence the remaining backlog so that user-visible feature work is promoted ahead of
-stability, hardening, and production-readiness work, except where a feature has a hard technical
-prerequisite (e.g., profiling needs object storage) or a real customer is blocked. Phase-gate
-discipline from the historical plan is relaxed: gates that exist purely to prove stability
-(load/chaos drills, distributed rate limiting, enterprise compliance packaging) are demoted to a
-deferred tier rather than treated as entry gates for new feature phases.
+## 0. Prioritization Principle
 
-**Scope:** Phases 2 and 3 (governed MVP, correlation/service-ops) and Phase 4's customer-facing
-items (SSO, ReBAC, SLOs, runbooks, usage reporting) are complete — see the Historical Closure Log
-in the archived predecessor documents. P5 (reliability product), the seed generator, runbook
-attachment, admin member management, and the Playwright visual suite are also complete (see
-`docs/agent-context.md`). What remains is almost entirely net-new feature surface area.
+Items within each tier are ordered by **user value** — breadth of audience, frequency of use, and
+adoption impact — not by any historical phase numbering. Higher-value slices within a tier are
+recommended to be picked first.
 
 ---
 
@@ -56,48 +49,48 @@ requirement, security finding, or scaling incident forces it.
 
 ## 3. Tier 1 — Ready Now (no blocking prerequisites)
 
-Small, standalone, high user-value slices. Promote these first.
+Small, standalone, high user-value slices. Ordered by user impact.
 
-- [x] **Onboarding Wizard** (was P9-S1) — guided zero-to-first-trace flow: language/framework
-  picker, copy-paste install command with pre-filled endpoint/API key, polling for first signal,
-  success state linking to the first trace/log. `features/onboarding/`,
-  `GET /v1/setup/status`. Leading source of trial abandonment per the parity analysis.
-- [x] ~~**PagerDuty Notification Channel Adapter** (was P12-S1)~~ — **Retired 2026-06-20**: dropped
-  from the backlog per user direction, not building this adapter. The generic `webhook` channel
-  type remains the only outbound integration path.
-- [x] ~~**Opsgenie Notification Channel Adapter** (was P12-S2)~~ — **Retired 2026-06-20**: dropped
-  from the backlog per user direction, not building this adapter. The generic `webhook` channel
-  type remains the only outbound integration path.
-- [x] **Change-Detection Alert Type** (was P12-S4) — compares a current window average against a
-  baseline window N days/hours back; configurable threshold percent. `change_detection` alert_type
-  with `evaluate_change_detection` in `services/alert-evaluator/src/evaluator.rs`, CRUD in
-  `services/query-api/src/alerts.rs`, frontend form in `AlertsPage.tsx`. See
-  `docs/superpowers/specs/2026-06-20-change-detection-alert-design.md`.
-- [ ] **Alert Inhibition Rules** (was P12-S5) — suppress lower-severity alerts for the same
-  service while a higher-severity alert is active; `Suppressed` state with "Suppressed by" label.
-- [ ] **Saved Views in Explorers** (was P14-S3) — save filter state + time range + columns per
-  signal type; private/shared visibility.
-- [x] **Change Event API and Dashboard Overlay** (was P14-S4) — `POST /v1/events/changes`, vertical
-  dashed markers on dashboard time-series panels, filterable change-event explorer page.
-- [ ] **Export APIs** (was P13-S4) — CSV/JSON export for log, trace, and metric query results;
-  100k-row sync limit, async job beyond that.
 - [ ] **Prometheus Remote Write Receiver** (was P13-S1) — `POST /api/v1/write`, snappy-compressed
   protobuf, label-to-attribute mapping, tenant routing via `X-Tenant-ID`. Single biggest migration
-  enabler per the parity analysis.
+  enabler — users keep their existing Prometheus/otel-collector agent stack and point it at
+  Observable. Every organization running Prometheus today has this data; receiving it is the
+  fastest path to showing value.
+- [ ] **Alert Inhibition Rules** (was P12-S5) — suppress lower-severity alerts for the same
+  service while a higher-severity alert is active; `Suppressed` state with "Suppressed by" label.
+  Directly reduces alert fatigue for every user with alert rules configured.
+- [ ] **Saved Views in Explorers** (was P14-S3) — save filter state + time range + columns per
+  signal type; private/shared visibility. High-frequency daily UX improvement for all users.
+- [ ] **Export APIs** (was P13-S4) — CSV/JSON export for log, trace, and metric query results;
+  100k-row sync limit, async job beyond that. Users need to get data out for external analysis
+  and reporting.
 - [ ] **Fleet Management UI** — agent health and remote configuration UI (carried from the
   post-Phase-3 plan's Platform Administration gap; `/admin/fleet` is currently a read-only
-  contract view pending a live agent-inventory endpoint).
+  contract view pending a live agent-inventory endpoint). Essential for operators managing
+  distributed agent deployments.
 - [ ] **Admin Console RBAC and Quota Management Views** — `/admin/config` is read-only today;
-  add RBAC mutation controls and quota editing (carried from the post-Phase-3 plan).
+  add RBAC mutation controls and quota editing (carried from the post-Phase-3 plan). Important
+  for multi-tenant administrators.
+
+### Previously completed (Tier 1)
+- [x] **Onboarding Wizard** (was P9-S1) — guided zero-to-first-trace flow.
+- [x] **Change-Detection Alert Type** (was P12-S4) — window-comparison alert rules.
+- [x] **Change Event API and Dashboard Overlay** (was P14-S4) — change-event markers on dashboards.
+- [x] ~~**PagerDuty Notification Channel Adapter** (was P12-S1)~~ — **Retired 2026-06-20**.
+- [x] ~~**Opsgenie Notification Channel Adapter** (was P12-S2)~~ — **Retired 2026-06-20**.
 
 ---
 
 ## 4. Tier 2 — Core Feature Builds (multi-slice, sequenced within the tier)
 
-Larger feature areas requiring 2+ ordered slices. Promote after exhausting easy Tier 1 wins, or in
-parallel if reviewer bandwidth allows.
+Larger feature areas requiring 2+ ordered slices. Items within this tier are also ordered by user
+value. Promote after exhausting easy Tier 1 wins, or in parallel if reviewer bandwidth allows.
 
-### Error Tracking (Sentry-equivalent workflow)
+### Error Tracking (Sentry-equivalent workflow) — highest user-value gap
+The single most requested competitive parity feature. Every development team familiar with
+Sentry expects error tracking as table stakes. No hard prerequisites other than implementation
+effort. **Recommended for early promotion to Tier 1 if Tier 1 items are completed or blocked.**
+
 - [ ] **Error Tracking Ingestion and Fingerprinting** (was P9-S2) — extract fingerprints from span
   events with `exception.type`/`exception.stacktrace` on error-status spans; normalize (strip line
   numbers/addresses, truncate module paths); new `error_issues` ClickHouse table; `GET /v1/errors`.
@@ -108,13 +101,10 @@ parallel if reviewer bandwidth allows.
   a later deploy flips status to `regressed` and notifies; new `error_regression` evaluator rule
   type. Depends on the two items above.
 
-### Service Health (finish what's partially shipped)
-- [ ] **Service Health Summary completion** (remaining scope of P9-S5) — fast-vs-slow burn
-  red/yellow distinction, 30s background-poll refresh, open error-issue count badge (depends on
-  Error Tracking above). The base catalog UI, RED metrics, and SLO-burn health badges already
-  ship; see `archived/plans/2026-06-10-p9-s5-service-catalog-health-signals.md`.
-
 ### Infrastructure Monitoring
+Kubernetes-native infrastructure visibility. High value for platform teams running Observable
+alongside their k8s workloads.
+
 - [ ] **Infrastructure Catalog Data Model** (was P10-S1) — new `k8s-operator` service upserting
   `infrastructure_resources` (host/pod/container/namespace/cluster) every 30s; stale/terminated
   lifecycle; `GET /v1/infrastructure/resources`.
@@ -123,11 +113,15 @@ parallel if reviewer bandwidth allows.
 - [ ] **K8s Operator Deployment** (was P10-S3) — Helm chart, ClusterRole/Binding, service-account
   auth, operator self-observability.
 
+### Service Health
+- [ ] **Service Health Summary completion** (remaining scope of P9-S5) — fast-vs-slow burn
+  red/yellow distinction, 30s background-poll refresh, open error-issue count badge (depends on
+  Error Tracking above). Base catalog UI, RED metrics, and SLO-burn health badges already ship.
+
 ### Alerting Depth
 - [ ] **Escalation Policy Builder** (was P12-S6) — `escalation_policies` with timed steps;
-  evaluator tracks acknowledgement and dispatches the next step if unacked. The PagerDuty/Opsgenie
-  adapters this previously depended on were retired 2026-06-20 (see Tier 1); escalation steps
-  target the generic `webhook` channel type instead.
+  evaluator tracks acknowledgement and dispatches the next step if unacked. Steps target the
+  generic `webhook` channel type since PagerDuty/Opsgenie adapters were retired.
 - [ ] **Prometheus Alert Rule Importer** (was P13-S2) — upload Prometheus alerting YAML, translate
   to threshold/change-detection rules, dry-run mapping report, `?apply=true` to create. Depends on
   Prometheus Remote Write (Tier 1).
@@ -271,16 +265,16 @@ first item, which is pre-promoted** because Tier 2's PromQL Compatibility Façad
 ## 8. Sequencing and Dependencies
 
 ```
-Tier 1 (promote immediately, any order)
-  Onboarding wizard (done), change-detection alert (done), alert inhibition,
-  saved views, change event API (done), export APIs, Prometheus remote write,
-  fleet management UI, admin RBAC/quota UI
-  (PagerDuty/Opsgenie retired 2026-06-20)
+Tier 1 (user-value order, promote immediately)
+  Prometheus remote write → Alert inhibition → Saved views → Export APIs
+  → Fleet management UI → Admin RBAC/quota UI
+  (Onboarding wizard, change-detection alert, change event API — done)
+  (PagerDuty/Opsgenie — retired)
 
-Tier 2
+Tier 2 (user-value order)
   Error tracking ingestion → Error issues UI → Regression detection → Service health completion
   Infra catalog model → Infra explorer UI → K8s operator Helm deployment
-  Escalation policy builder (now targets the generic webhook channel type)
+  Escalation policy builder (targets the generic webhook channel type)
   (Prometheus remote write) → Prometheus alert importer
   (P8-S6 NLQ, done) → PromQL façade
   DORA metrics, Database monitoring  ← standalone, no new infra
