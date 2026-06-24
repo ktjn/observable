@@ -84,7 +84,9 @@ test("renders selectable trace rows for the global explorer", () => {
   expect(within(table).getByRole("columnheader", { name: "Service" })).toBeInTheDocument();
   expect(within(table).getByText("GET /checkout")).toBeInTheDocument();
 
-  fireEvent.click(within(table).getByRole("button", { name: "trace-abc-123456…" }));
+  // The link itself stops propagation (it navigates to the full trace page),
+  // so clicking elsewhere in the row exercises the row-level select handler.
+  fireEvent.click(within(table).getByText("checkout"));
 
   expect(onSelect).toHaveBeenCalledWith("trace-abc-1234567890");
 });

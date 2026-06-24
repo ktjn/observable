@@ -164,7 +164,9 @@ test("selecting a trace opens context sidebar that scrolls internally", async ()
   renderTraceSearch();
 
   await screen.findByRole("table", { name: "Trace results" });
-  fireEvent.click(screen.getByRole("button", { name: "trace-abc-123456…" }));
+  // The trace-id link stops propagation (it navigates to the full trace
+  // page), so click another cell in the row to exercise row selection.
+  fireEvent.click(screen.getByText("GET /checkout"));
 
   const sidebar = screen.getByRole("complementary", { name: "Selected trace context" });
   expect(within(sidebar).getByText("Root Span Details")).toBeInTheDocument();
