@@ -43,7 +43,7 @@ export function VirtualTable<T>({
   const visibleRows = rows.slice(0, visibleCount);
 
   return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+    <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}>
       <table aria-label={ariaLabel}>
         <thead className="sticky top-0 z-10 bg-[var(--surface)]">{renderHead()}</thead>
         <tbody>

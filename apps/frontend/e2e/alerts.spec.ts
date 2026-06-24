@@ -190,11 +190,11 @@ test.describe("alert rule row tinting", () => {
     await expect(firingRow).toHaveClass(/border-l-\[var\(--bad\)\]/);
   });
 
-  test("silenced rules have warn border and are dimmed", async ({ page }) => {
+  test("silenced rules have warn border and an Unsilence action", async ({ page }) => {
     const table = page.locator("table[aria-label='Alert rules']");
     const silencedRow = table.locator("tr", { hasText: "Memory Pressure" });
     await expect(silencedRow).toHaveClass(/border-l-\[var\(--warn\)\]/);
-    await expect(silencedRow).toHaveClass(/opacity-60/);
+    await expect(silencedRow.getByRole("button", { name: "Unsilence" })).toBeVisible();
   });
 
   test("ok rules have transparent border", async ({ page }) => {

@@ -1,6 +1,24 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
+// ── Shared auth mocks ─────────────────────────────────────────────────────────
+
+const MOCK_USER = {
+  user_id: "00000000-0000-0000-0000-000000000001",
+  email: "test@example.com",
+  tenants: [{ tenant_id: "00000000-0000-0000-0000-000000000001", role: "admin" }],
+};
+
+async function mockAuth(page: import("@playwright/test").Page) {
+  await page.route("**/v1/auth/me", (route) => route.fulfill({ json: MOCK_USER }));
+  await page.route("**/v1/tenants", (route) =>
+    route.fulfill({ json: { tenants: [{ id: "00000000-0000-0000-0000-000000000001", name: "observable" }] } })
+  );
+  await page.route("**/v1/tenants/**/environments", (route) =>
+    route.fulfill({ json: { environments: [{ environment: "prod" }] } })
+  );
+}
+
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 const TRACE_ID = "aaaa000000000000000000000000001a";
@@ -98,20 +116,18 @@ const FIXTURE_SERVICE_SUMMARY = {
 };
 
 const FIXTURE_METRICS = {
-  series: [
+  metrics: [
     {
       tenant_id: "00000000-0000-0000-0000-000000000001",
-      metric_series_id: "00000000-0000-0000-0000-000000000222",
       metric_name: "checkout.requests",
       description: "",
       unit: "1",
       metric_type: "sum",
       is_monotonic: true,
       aggregation_temporality: "cumulative",
-      attributes: { route: "/checkout" },
-      resource_attributes: {},
       service_name: "checkout",
       environment: "prod",
+      series_count: 1,
     },
   ],
 };
@@ -158,6 +174,7 @@ const FIXTURE_INFRASTRUCTURE_ENTITY = {
 
 test.describe("trace detail waterfall", () => {
   test.beforeEach(async ({ page }) => {
+    await mockAuth(page);
     await page.route(`**/v1/traces/${TRACE_ID}`, (route) =>
       route.fulfill({ json: FIXTURE_TRACE })
     );
@@ -178,8 +195,9 @@ test.describe("trace detail waterfall", () => {
 
 test.describe("log search", () => {
   test.beforeEach(async ({ page }) => {
-    await page.route("**/v1/logs**", (route) =>
-      route.fulfill({ json: FIXTURE_LOGS })
+    await mockAuth(page);
+    await page.route("**/v1/nlq", (route) =>
+      route.fulfill({ json: { type: "frame", frame: { data: FIXTURE_LOGS.logs } } })
     );
     await page.route("**/v1/logs/histogram**", (route) =>
       route.fulfill({ json: EMPTY_LOG_HISTOGRAM })
@@ -198,6 +216,7 @@ test.describe("log search", () => {
 
 test.describe("services catalog", () => {
   test.beforeEach(async ({ page }) => {
+    await mockAuth(page);
     await page.route("**/v1/environments**", (route) =>
       route.fulfill({ json: FIXTURE_ENVIRONMENTS })
     );
@@ -208,7 +227,8 @@ test.describe("services catalog", () => {
 
   test("has no axe violations", async ({ page }) => {
     await page.goto("/services");
-    await page.waitForSelector("text=checkout");
+    await page.waitForSelector("table[aria-label='Service catalog']");
+    await page.waitForSelector("a[href='/services/checkout']");
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
   });
@@ -218,6 +238,7 @@ test.describe("services catalog", () => {
 
 test.describe("service and infrastructure detail", () => {
   test.beforeEach(async ({ page }) => {
+    await mockAuth(page);
     await page.route("**/v1/services/checkout/summary**", (route) =>
       route.fulfill({ json: FIXTURE_SERVICE_SUMMARY })
     );
@@ -239,11 +260,11 @@ test.describe("service and infrastructure detail", () => {
         },
       })
     );
-    await page.route("**/v1/metrics/00000000-0000-0000-0000-000000000222", (route) =>
-      route.fulfill({ json: FIXTURE_METRIC_POINTS })
-    );
     await page.route("**/v1/metrics**", (route) =>
       route.fulfill({ json: FIXTURE_METRICS })
+    );
+    await page.route("**/v1/metrics/points**", (route) =>
+      route.fulfill({ json: FIXTURE_METRIC_POINTS })
     );
   });
 
@@ -272,8 +293,9 @@ test.describe("service and infrastructure detail", () => {
 // ── Negative proof ────────────────────────────────────────────────────────────
 
 test("detects injected violation (harness proof)", async ({ page }) => {
-  await page.route("**/v1/logs**", (route) =>
-    route.fulfill({ json: EMPTY_LOGS })
+  await mockAuth(page);
+  await page.route("**/v1/nlq", (route) =>
+    route.fulfill({ json: { type: "frame", frame: { data: [] } } })
   );
   await page.route("**/v1/logs/histogram**", (route) =>
     route.fulfill({ json: EMPTY_LOG_HISTOGRAM })

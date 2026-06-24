@@ -119,7 +119,7 @@ export function SignalExplorer({
       {histogram}
 
       <div className="flex flex-1 min-h-0 gap-3 overflow-hidden max-[900px]:flex-col">
-        <div className="flex flex-1 min-h-0">
+        <div className="flex flex-1 min-h-0 min-w-0">
           {renderTable(selectedId, handleSelect)}
         </div>
         {selectedId !== null && (

@@ -3,6 +3,20 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
+/*
+ * Tailwind's preflight (which normally sets this) isn't imported here, so
+ * elements default to the browser's content-box model. That means `w-full`
+ * on a padded/bordered element (e.g. context panels) computes to parent
+ * width + padding + border, overflowing its slot to the right.
+ */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    box-sizing: border-box;
+  }
+}
+
 @font-face {
   font-family: "Glass TTY VT220";
   src: url("/fonts/Glass_TTY_VT220.ttf") format("truetype");
@@ -614,35 +628,44 @@ button.tree-link:hover {
   background: var(--surface-subtle);
 }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
+/*
+ * Wrapped in @layer base so Tailwind utility classes (e.g. whitespace-normal,
+ * break-all) on individual cells can override these defaults — unlayered CSS
+ * always beats layered CSS regardless of selector specificity, so without
+ * this layer a `td` with `whitespace-normal break-all` would still render
+ * nowrap and overflow the table to the right instead of wrapping.
+ */
+@layer base {
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
 
-thead tr {
-  background: var(--surface-subtle);
-  color: var(--text-strong);
-  border-bottom: 1px solid var(--border-strong);
-}
+  thead tr {
+    background: var(--surface-subtle);
+    color: var(--text-strong);
+    border-bottom: 1px solid var(--border-strong);
+  }
 
-th,
-td {
-  padding: 3px 6px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  white-space: nowrap;
-}
+  th,
+  td {
+    padding: 3px 6px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+  }
 
-.strong-cell,
-td.numeric {
-  font-variant-numeric: tabular-nums;
-}
+  .strong-cell,
+  td.numeric {
+    font-variant-numeric: tabular-nums;
+  }
 
-th {
-  font-size: 9px;
-  font-weight: 400;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
+  th {
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
 }
 
 tbody tr:nth-child(even) td {
