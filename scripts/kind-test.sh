@@ -325,6 +325,7 @@ log "Verifying all service Deployments are ready (parallel)"
 wait_for_rollouts_parallel "$NAMESPACE" 300s \
   deployment/observable-zitadel \
   deployment/auth-service \
+  deployment/admin-service \
   deployment/ingest-gateway \
   deployment/stream-processor \
   deployment/storage-writer \
