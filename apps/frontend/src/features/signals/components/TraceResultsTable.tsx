@@ -90,19 +90,17 @@ function TraceResultsRow({
       ? "border-l-2 border-l-[var(--warn)]"
       : "";
 
+  // The row nests a real <Link> to the trace's full detail page, so it can't
+  // also carry role="button"/tabIndex (nested-interactive a11y violation —
+  // assistive tech can't handle a focusable control inside another one).
+  // Row click remains a mouse-only convenience; keyboard/SR users select via
+  // the link's Enter/click, which navigates straight to the same trace.
   return (
     <tr
       ref={measureRef}
       data-index={index}
       className={`modern-table-row ${accentClass} ${mode === "select" ? "cursor-pointer" : ""} ${selected ? "bg-[var(--surface-subtle)]" : ""}`}
       onClick={mode === "select" ? onSelect : undefined}
-      onKeyDown={
-        mode === "select" ? (e) => (e.key === "Enter" || e.key === " ") && onSelect() : undefined
-      }
-      tabIndex={mode === "select" ? 0 : undefined}
-      role={mode === "select" ? "button" : undefined}
-      aria-label={mode === "select" ? `${trace.trace_id.substring(0, 16)}…` : undefined}
-      aria-pressed={mode === "select" ? selected : undefined}
     >
       <td className="whitespace-nowrap">{formatTimestamp(root.start_time_unix_nano, timeFormat)}</td>
       <td className="strong-cell">

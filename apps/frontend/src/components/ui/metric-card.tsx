@@ -3,7 +3,7 @@ import { cn } from "./cn";
 
 type MetricTone = "good" | "warn" | "bad" | "info";
 
-export interface MetricCardProps extends HTMLAttributes<HTMLDivElement> {
+export interface MetricCardProps extends HTMLAttributes<HTMLElement> {
   label: string;
   value: ReactNode;
   tone?: MetricTone;
@@ -24,12 +24,12 @@ export function MetricCard({
   ...props
 }: MetricCardProps) {
   return (
-    <div
+    <article
       className={cn("modern-panel border-t-[3px] p-3", toneClasses[tone], className)}
       {...props}
     >
       <div className="metric-label">{label}</div>
       <div className="mt-1.5 text-2xl font-extrabold">{value}</div>
-    </div>
+    </article>
   );
 }

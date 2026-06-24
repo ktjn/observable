@@ -773,7 +773,7 @@ function AlertRuleRow({
     rule.state === "active"
       ? "border-l-[var(--bad)]"
       : rule.silenced
-        ? "border-l-[var(--warn)] opacity-60"
+        ? "border-l-[var(--warn)]"
         : "border-l-transparent",
   ].join(" ");
 

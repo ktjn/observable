@@ -279,6 +279,57 @@ test.describe("dashboard navigation", () => {
 // ── Panel overflow regression ─────────────────────────────────────────────────
 
 test.describe("panel overflow (regression)", () => {
+  test("long unbroken log message wraps instead of overflowing the page horizontally", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await mockAuth(page);
+    const longMessage = "verylongunbrokentokenwithnospacesatallthatcouldcauseoverflow".repeat(5);
+    await page.route("**/v1/nlq", (route) =>
+      route.fulfill({
+        json: {
+          type: "frame",
+          frame: {
+            data: [
+              {
+                log_id: "log-long-message",
+                timestamp_unix_nano: T_NS,
+                observed_timestamp_unix_nano: T_NS,
+                severity_number: 9,
+                body: longMessage,
+                service_name: "checkout",
+                environment: "prod",
+                host_id: "h1",
+                trace_id: null,
+                span_id: null,
+                fingerprint: null,
+                attributes: {},
+                resource_attributes: {},
+              },
+            ],
+          },
+        },
+      })
+    );
+    await page.route("**/v1/tenants/**/logs/histogram**", (route) =>
+      route.fulfill({ json: { buckets: [] } })
+    );
+    await page.goto("/logs");
+    await page.waitForSelector('[aria-label="Log results"]');
+    await page.locator('[aria-label="Log results"] tbody tr').first().click();
+    await page.waitForSelector('[aria-label="Selected log context"]');
+    // A long, unbroken token must wrap within its column, not force the table
+    // (and the context panel beside it) wider than the viewport.
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    const viewportWidth = await page.evaluate(() => window.innerWidth);
+    expect(scrollWidth).toBeLessThanOrEqual(viewportWidth + 20);
+    const panelRight = await page.evaluate(() => {
+      const aside = document.querySelector('[aria-label="Selected log context"]');
+      return aside?.getBoundingClientRect().right ?? 0;
+    });
+    expect(panelRight).toBeLessThanOrEqual(viewportWidth + 1);
+  });
+
   test("log context panel stays within viewport when tall", async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 900 });
     await mockAuth(page);

@@ -49,7 +49,7 @@ export function PillFilter({
           >
             {pill.icon && <span className="opacity-70">{pill.icon}</span>}
             <span className={cn(pill.icon && "capitalize")}>{pill.label}</span>
-            <span aria-hidden="true" className="opacity-70">({pill.count})</span>
+            <span aria-hidden="true">({pill.count})</span>
           </button>
         );
       })}
