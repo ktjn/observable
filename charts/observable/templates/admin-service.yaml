@@ -1,0 +1,24 @@
+{{- if .Values.services.adminService.enabled -}}
+{{- $env := list
+    (dict "name" "DATABASE_URL"              "value" .Values.postgres.url)
+    (dict "name" "CLICKHOUSE_URL"            "value" .Values.clickhouse.url)
+    (dict "name" "CLICKHOUSE_USER"           "value" .Values.clickhouse.user)
+    (dict "name" "CLICKHOUSE_PASSWORD"       "value" .Values.clickhouse.password)
+    (dict "name" "ADMIN_SERVICE_PORT"        "value" (toString .Values.services.adminService.port))
+    (dict "name" "AUTH_SERVICE_URL"          "value" .Values.services.adminService.authServiceUrl)
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT" "value" .Values.selfObservability.otlpEndpoint)
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN" "value" .Values.selfObservability.bearerToken) -}}
+{{- $ctx := dict
+    "name"    "admin-service"
+    "command" "admin-service"
+    "port"    .Values.services.adminService.port
+    "service" .Values.services.adminService
+    "env"     $env
+    "Values"  .Values
+    "Chart"   .Chart
+    "Release" .Release -}}
+{{ include "observable-common.deployment" $ctx }}
+---
+{{ include "observable-common.service" $ctx }}
+{{- end }}
