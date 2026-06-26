@@ -1,0 +1,88 @@
+// Domain: pipeline (crypto live-data demo).
+// Generated: apps/crypto-demo/backend/src/generated/ (TypeScript),
+//            apps/crypto-demo/frontend/src/generated/ (TypeScript).
+//
+// Three canonical event types flow through the demo pipeline:
+//   DexPaprika / Coinbase → PriceEvent
+//   Blockchain.com        → TxEvent
+//   Correlator            → CorrelatedEvent  (derives from PriceEvent + TxEvent)
+//
+// PipelineMetrics captures OTel-reported health counters; it is exposed by the
+// backend /metrics endpoint and read by the PipelineHealth UI panel.
+
+domain pipeline {
+  owner: "crypto-demo-team"
+
+  // Raw price tick from a data source.
+  // @wire(json.fieldCase: "snake_case") matches the SSE JSON wire format.
+  @wire(json.fieldCase: "snake_case")
+  entity PriceEvent @ 1 (additive) {
+    @key eventId: uuid
+    asset: string
+    chain: string
+    priceUsd: float
+    // Identifies which upstream feed produced this event.
+    @wire(json.case: "lowercase")
+    source: enum(DexPaprika, Coinbase)
+    tsUnixMs: int
+  }
+
+  // Raw blockchain transaction from Blockchain.com WebSocket feed.
+  @wire(json.fieldCase: "snake_case")
+  entity TxEvent @ 1 (additive) {
+    @key txHash: string
+    valueUsd: float
+    blockHeight?: int
+    tsUnixMs: int
+  }
+
+  // Correlated event produced by the Correlator when a TxEvent arrives within
+  // the sliding window of a matching PriceEvent.  Field lineage is declared
+  // through the projection below; this entity is the canonical wire contract.
+  @wire(json.fieldCase: "snake_case")
+  entity CorrelatedEvent @ 1 (additive) {
+    @key correlationId: uuid
+    asset: string
+    txHash: string
+    priceUsd: float
+    // Milliseconds between the price tick timestamp and the transaction timestamp.
+    lagMs: int
+    // Source feed that supplied the price leg of this correlation.
+    @wire(json.case: "lowercase")
+    priceSource: enum(DexPaprika, Coinbase)
+    tsUnixMs: int
+  }
+
+  // Pipeline health snapshot exposed by the /metrics endpoint.
+  // Updated every second by the OTel SDK push interval.
+  @wire(json.fieldCase: "snake_case")
+  entity PipelineMetrics @ 1 (additive) {
+    @key snapshotId: uuid
+    // Events received per second across all ingest adapters.
+    ingestRate: float
+    // Rolling average lag between matched price and tx events (ms).
+    correlationLagMs: float
+    // Correlator ring-buffer fill level: 0.0 = empty, 1.0 = full.
+    bufferFillRatio: float
+    // Round-trip time to the OTel Collector exporter (ms).
+    exporterLatencyMs: float
+    // Cumulative normalisation and correlation errors since startup.
+    errorCount: int
+    tsUnixMs: int
+  }
+}
+
+// Lineage projection: maps CorrelatedEvent fields back to their source entities.
+// Joined on asset matching (runtime pairing by the Correlator); the projection
+// captures field-level lineage so modelable can render the lineage SVG used
+// by the LineageDiagram UI component.
+projection CorrelatedEventLineage @ 1
+  from pipeline.PriceEvent @ 1 as p
+  join pipeline.TxEvent @ 1 as t on p.asset == t.txHash
+{
+  asset       <- p.asset
+  priceUsd    <- p.priceUsd
+  priceSource <- p.source
+  txHash      <- t.txHash
+  valueUsd    <- t.valueUsd
+}
