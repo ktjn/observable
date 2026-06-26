@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import type { PriceEvent } from "../generated/pipeline.PriceEvent.v1";
 
@@ -7,25 +7,53 @@ interface Props {
 }
 
 const MARGIN = { top: 12, right: 16, bottom: 36, left: 60 };
-const MAX_POINTS = 60;
+
+const INTERVALS = [
+  { label: "1s",  ms: 1_000 },
+  { label: "10s", ms: 10_000 },
+  { label: "30s", ms: 30_000 },
+  { label: "1m",  ms: 60_000 },
+] as const;
+
+type IntervalMs = (typeof INTERVALS)[number]["ms"];
+
+interface Bucket {
+  ts: number;      // bucket start time (ms)
+  price: number;   // average price_usd in bucket
+}
+
+function aggregate(prices: PriceEvent[], intervalMs: IntervalMs): Bucket[] {
+  const map = new Map<number, number[]>();
+  for (const p of prices) {
+    const bucket = Math.floor(p.ts_unix_ms / intervalMs) * intervalMs;
+    const arr = map.get(bucket) ?? [];
+    arr.push(p.price_usd);
+    map.set(bucket, arr);
+  }
+  return Array.from(map.entries())
+    .map(([ts, vals]) => ({ ts, price: vals.reduce((a, b) => a + b, 0) / vals.length }))
+    .sort((a, b) => a.ts - b.ts);
+}
 
 /**
- * Line chart showing price_usd over time for the most recent price events.
+ * Line chart showing price_usd aggregated over a selectable time interval.
+ * A combobox above-right controls the bucket width (1s / 10s / 30s / 1m).
  */
 export function PriceChart({ prices }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const [intervalMs, setIntervalMs] = useState<IntervalMs>(10_000);
 
   useEffect(() => {
     if (!svgRef.current || prices.length === 0) return;
+
+    const pts = aggregate(prices, intervalMs);
+    if (pts.length < 2) return;
 
     const el = svgRef.current;
     const W = el.clientWidth || 500;
     const H = el.clientHeight || 200;
     const innerW = W - MARGIN.left - MARGIN.right;
     const innerH = H - MARGIN.top - MARGIN.bottom;
-
-    // Take last MAX_POINTS sorted by ts ascending for left-to-right timeline
-    const pts = prices.slice(0, MAX_POINTS).reverse();
 
     const svg = d3.select(el);
     svg.selectAll("*").remove();
@@ -36,10 +64,10 @@ export function PriceChart({ prices }: Props) {
 
     const x = d3
       .scaleTime()
-      .domain(d3.extent(pts, (d) => new Date(d.ts_unix_ms)) as [Date, Date])
+      .domain(d3.extent(pts, (d) => new Date(d.ts)) as [Date, Date])
       .range([0, innerW]);
 
-    const [minP, maxP] = d3.extent(pts, (d) => d.price_usd) as [number, number];
+    const [minP, maxP] = d3.extent(pts, (d) => d.price) as [number, number];
     const pad = (maxP - minP) * 0.1 || 100;
     const y = d3
       .scaleLinear()
@@ -49,7 +77,6 @@ export function PriceChart({ prices }: Props) {
 
     // Grid lines
     g.append("g")
-      .attr("class", "grid")
       .call(
         d3.axisLeft(y)
           .ticks(4)
@@ -60,9 +87,12 @@ export function PriceChart({ prices }: Props) {
       .call((ax) => ax.selectAll("line").attr("stroke", "#1e293b").attr("stroke-dasharray", "3,3"));
 
     // Axes
+    const fmt = intervalMs >= 60_000
+      ? d3.timeFormat("%H:%M")
+      : d3.timeFormat("%H:%M:%S");
     g.append("g")
       .attr("transform", `translate(0,${innerH})`)
-      .call(d3.axisBottom(x).ticks(5).tickFormat(d3.timeFormat("%H:%M:%S") as (d: Date | d3.NumberValue) => string))
+      .call(d3.axisBottom(x).ticks(5).tickFormat(fmt as (d: Date | d3.NumberValue) => string))
       .call((ax) => ax.select(".domain").attr("stroke", "#334155"))
       .call((ax) => ax.selectAll("text").attr("fill", "#94a3b8").attr("font-size", 10));
 
@@ -81,19 +111,18 @@ export function PriceChart({ prices }: Props) {
       .attr("font-size", 11)
       .text("Price (USD)");
 
-    // Line
+    // Area + line
     const line = d3
-      .line<PriceEvent>()
-      .x((d) => x(new Date(d.ts_unix_ms)))
-      .y((d) => y(d.price_usd))
+      .line<Bucket>()
+      .x((d) => x(new Date(d.ts)))
+      .y((d) => y(d.price))
       .curve(d3.curveMonotoneX);
 
-    // Area fill
     const area = d3
-      .area<PriceEvent>()
-      .x((d) => x(new Date(d.ts_unix_ms)))
+      .area<Bucket>()
+      .x((d) => x(new Date(d.ts)))
       .y0(innerH)
-      .y1((d) => y(d.price_usd))
+      .y1((d) => y(d.price))
       .curve(d3.curveMonotoneX);
 
     const gradId = "price-area-grad";
@@ -105,26 +134,33 @@ export function PriceChart({ prices }: Props) {
     grad.append("stop").attr("offset", "0%").attr("stop-color", "#22d3ee").attr("stop-opacity", 0.25);
     grad.append("stop").attr("offset", "100%").attr("stop-color", "#22d3ee").attr("stop-opacity", 0.01);
 
-    g.append("path")
-      .datum(pts)
-      .attr("fill", `url(#${gradId})`)
-      .attr("d", area);
-
-    g.append("path")
-      .datum(pts)
-      .attr("fill", "none")
-      .attr("stroke", "#22d3ee")
-      .attr("stroke-width", 1.5)
-      .attr("d", line);
-  }, [prices]);
+    g.append("path").datum(pts).attr("fill", `url(#${gradId})`).attr("d", area);
+    g.append("path").datum(pts).attr("fill", "none").attr("stroke", "#22d3ee").attr("stroke-width", 1.5).attr("d", line);
+  }, [prices, intervalMs]);
 
   return (
-    <div data-testid="price-chart" className="h-full w-full">
-      {prices.length === 0 ? (
-        <p className="text-sm text-muted animate-pulse p-4">Waiting for price events…</p>
-      ) : (
-        <svg ref={svgRef} className="h-full w-full" />
-      )}
+    <div data-testid="price-chart" className="flex h-full w-full flex-col gap-1">
+      {/* Interval selector */}
+      <div className="flex justify-end">
+        <select
+          value={intervalMs}
+          onChange={(e) => setIntervalMs(Number(e.target.value) as IntervalMs)}
+          className="rounded border border-slate-700 bg-card px-2 py-0.5 text-xs text-muted focus:outline-none focus:ring-1 focus:ring-accent"
+          aria-label="Aggregation interval"
+        >
+          {INTERVALS.map(({ label, ms }) => (
+            <option key={ms} value={ms}>{label}</option>
+          ))}
+        </select>
+      </div>
+      {/* Chart */}
+      <div className="min-h-0 flex-1">
+        {prices.length === 0 ? (
+          <p className="text-sm text-muted animate-pulse p-4">Waiting for price events…</p>
+        ) : (
+          <svg ref={svgRef} className="h-full w-full" />
+        )}
+      </div>
     </div>
   );
 }
