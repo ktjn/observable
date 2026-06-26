@@ -51,9 +51,9 @@ Generated TypeScript types live in `backend/src/generated/` and
 
 ```bash
 cd ../../models
-uv run modelable compile crypto.mdl --target typescript --out ../apps/crypto-demo/backend/src/generated
-uv run modelable compile crypto.mdl --target typescript --out ../apps/crypto-demo/frontend/src/generated
-uv run modelable compile crypto.mdl --target markdown   --out ../apps/crypto-demo/frontend/public
+uv run modelable compile crypto.mdl --target typescript --out ../demos/crypto-aggregator/backend/src/generated
+uv run modelable compile crypto.mdl --target typescript --out ../demos/crypto-aggregator/frontend/src/generated
+uv run modelable compile crypto.mdl --target markdown   --out ../demos/crypto-aggregator/frontend/public
 ```
 
 ---
@@ -148,7 +148,7 @@ npm run typecheck
 ## Project Structure
 
 ```
-apps/crypto-demo/
+demos/crypto-aggregator/
 ├── backend/               # Node.js/TypeScript ingest pipeline
 │   └── src/
 │       ├── ingest/        # DexPaprika, Coinbase, Blockchain.com adapters

@@ -440,7 +440,7 @@ services:
 
   crypto-demo:
     image: crypto-demo:local
-    build: { context: apps/crypto-demo }
+    build: { context: demos/crypto-aggregator }
     ports:
       - "3100:3100"
       - "3101:80"

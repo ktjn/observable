@@ -1,6 +1,6 @@
 // Domain: pipeline (crypto live-data demo).
-// Generated: apps/crypto-demo/backend/src/generated/ (TypeScript),
-//            apps/crypto-demo/frontend/src/generated/ (TypeScript).
+// Generated: demos/crypto-aggregator/backend/src/generated/ (TypeScript),
+//            demos/crypto-aggregator/frontend/src/generated/ (TypeScript).
 //
 // Three canonical event types flow through the demo pipeline:
 //   DexPaprika / Coinbase → PriceEvent
