@@ -67,8 +67,8 @@ export function PriceChart({ prices }: Props) {
       .domain(d3.extent(pts, (d) => new Date(d.ts)) as [Date, Date])
       .range([0, innerW]);
 
-    const [minP, maxP] = d3.extent(pts, (d) => d.price) as [number, number];
-    const pad = (maxP - minP) * 0.1 || 100;
+    const [minP, maxP] = d3.extent(prices, (d) => d.price_usd) as [number, number];
+    const pad = (maxP - minP) * 0.1 || 500;
     const y = d3
       .scaleLinear()
       .domain([minP - pad, maxP + pad])
