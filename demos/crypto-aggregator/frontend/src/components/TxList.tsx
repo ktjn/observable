@@ -10,7 +10,7 @@ export function TxList({ txs }: Props) {
       {txs.length === 0 && (
         <p className="text-sm text-muted animate-pulse">Waiting for transactions…</p>
       )}
-      {txs.slice(0, 8).map((tx) => (
+      {txs.slice(0, 13).map((tx) => (
         <div
           key={tx.tx_hash}
           className="flex items-center justify-between rounded-lg bg-card px-3 py-1.5 text-sm"

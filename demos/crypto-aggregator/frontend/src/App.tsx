@@ -78,24 +78,18 @@ export function App() {
         </div>
       </header>
 
-      {/* Top grid — capped height so everything fits on one page */}
+      {/* Top grid — shortened by ~1/3 via item count */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <SectionCard title="Live Prices" testId="section-live-prices">
-          <div className="max-h-52 overflow-y-auto">
-            <PriceTicker prices={prices} />
-          </div>
+          <PriceTicker prices={prices} />
         </SectionCard>
 
         <SectionCard title="Live Transactions" testId="section-live-txs">
-          <div className="max-h-52 overflow-y-auto">
-            <TxList txs={txs} />
-          </div>
+          <TxList txs={txs} />
         </SectionCard>
 
         <SectionCard title="Data Lineage" testId="section-lineage">
-          <div className="max-h-52 overflow-y-auto">
-            <LineageDiagram />
-          </div>
+          <LineageDiagram />
         </SectionCard>
       </div>
 

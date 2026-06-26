@@ -18,7 +18,7 @@ export function PriceTicker({ prices }: Props) {
       {prices.length === 0 && (
         <p className="text-sm text-muted animate-pulse">Waiting for price events…</p>
       )}
-      {prices.slice(0, 8).map((p) => (
+      {prices.slice(0, 13).map((p) => (
         <div
           key={p.event_id}
           className="flex items-center justify-between rounded-lg bg-card px-3 py-1.5 text-sm"
