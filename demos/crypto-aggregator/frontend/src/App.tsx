@@ -78,18 +78,24 @@ export function App() {
         </div>
       </header>
 
-      {/* Top grid */}
+      {/* Top grid — capped height so everything fits on one page */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <SectionCard title="Live Prices" testId="section-live-prices">
-          <PriceTicker prices={prices} />
+          <div className="max-h-52 overflow-y-auto">
+            <PriceTicker prices={prices} />
+          </div>
         </SectionCard>
 
         <SectionCard title="Live Transactions" testId="section-live-txs">
-          <TxList txs={txs} />
+          <div className="max-h-52 overflow-y-auto">
+            <TxList txs={txs} />
+          </div>
         </SectionCard>
 
         <SectionCard title="Data Lineage" testId="section-lineage">
-          <LineageDiagram />
+          <div className="max-h-52 overflow-y-auto">
+            <LineageDiagram />
+          </div>
         </SectionCard>
       </div>
 
@@ -99,13 +105,13 @@ export function App() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <p className="mb-1 text-xs font-medium text-muted uppercase tracking-wider">Price over Time</p>
-              <div className="h-52">
+              <div className="h-36">
                 <PriceChart prices={prices} />
               </div>
             </div>
             <div>
               <p className="mb-1 text-xs font-medium text-muted uppercase tracking-wider">Correlation Lag over Time</p>
-              <div className="h-52">
+              <div className="h-36">
                 <CorrelationScatter correlations={correlations} />
               </div>
             </div>
