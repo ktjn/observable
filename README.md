@@ -24,11 +24,16 @@ backend, which typically takes **3–10 minutes** depending on your machine; sub
 starts reuse the Docker layer cache and are nearly instant.
 
 ```bash
-# Start the full local stack (builds images on first run, then uses cache)
+# Recommended: build images then start (required on first run or after pulling new code)
+make dev
+# Equivalent:
+docker compose up -d --build
+
+# Start only (if images are already built from a previous run)
 docker compose up -d
 
-# Force a full rebuild (e.g. after pulling new code)
-docker compose up -d --build
+# Force a full rebuild from scratch
+docker compose up -d --build --no-cache
 ```
 
 A `Makefile` wraps the most common commands:

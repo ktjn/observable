@@ -182,7 +182,6 @@ services:
   # --- SERVICES ---
   auth-service:
     image: observable-services:local
-    pull_policy: build
     build: { context: ., dockerfile: Dockerfile }
     entrypoint: ["/bin/sh", "-c"]
     command:
@@ -214,7 +213,6 @@ services:
 
   storage-writer:
     image: observable-services:local
-    pull_policy: build
     build: { context: ., dockerfile: Dockerfile }
     command: ["storage-writer"]
     environment:
@@ -235,7 +233,6 @@ services:
 
   stream-processor:
     image: observable-services:local
-    pull_policy: build
     build: { context: ., dockerfile: Dockerfile }
     command: ["stream-processor"]
     environment:
@@ -257,7 +254,6 @@ services:
 
   ingest-gateway:
     image: observable-services:local
-    pull_policy: build
     build: { context: ., dockerfile: Dockerfile }
     command: ["ingest-gateway"]
     environment:
@@ -282,7 +278,6 @@ services:
 
   query-api:
     image: observable-services:local
-    pull_policy: build
     build: { context: ., dockerfile: Dockerfile }
     command: ["query-api"]
     environment:
@@ -308,7 +303,6 @@ services:
 
   admin-service:
     image: observable-services:local
-    pull_policy: build
     build: { context: ., dockerfile: Dockerfile }
     command: ["admin-service"]
     environment:
@@ -332,7 +326,6 @@ services:
 
   alert-evaluator:
     image: observable-services:local
-    pull_policy: build
     build: { context: ., dockerfile: Dockerfile }
     command: ["alert-evaluator"]
     environment:
@@ -355,7 +348,6 @@ services:
 
   frontend:
     image: observable-frontend:local
-    pull_policy: build
     build:
       context: .
       dockerfile: apps/frontend/Dockerfile
@@ -406,7 +398,6 @@ services:
 
   shop-api:
     image: testbench-api:local
-    pull_policy: build
     build: { context: testbench/api }
     ports: ["8000:8000"]
     environment:
@@ -426,7 +417,6 @@ services:
 
   shop-worker:
     image: testbench-worker:local
-    pull_policy: build
     build: { context: testbench/worker }
     environment:
       DATABASE_URL: postgresql://shop:shop@shop-db:5432/shop
@@ -439,7 +429,6 @@ services:
 
   shop-loadgen:
     image: testbench-loadgen:local
-    pull_policy: build
     build: { context: testbench/loadgen }
     environment:
       SHOP_API_URL: http://shop-api:8000
@@ -451,7 +440,6 @@ services:
 
   crypto-demo:
     image: crypto-demo:local
-    pull_policy: build
     build: { context: demos/crypto-aggregator }
     ports:
       - "3100:3100"
@@ -468,7 +456,6 @@ services:
   # --- VERIFICATION ---
   smoke-test:
     image: observable-services:local
-    pull_policy: build
     build: { context: ., dockerfile: Dockerfile }
     environment:
       INGEST_URL: http://ingest-gateway:4318
@@ -484,7 +471,6 @@ services:
 
   perf-smoke:
     image: observable-services:local
-    pull_policy: build
     build: { context: ., dockerfile: Dockerfile }
     environment:
       INGEST_URL: http://ingest-gateway:4318
