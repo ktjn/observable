@@ -39,13 +39,17 @@ docker compose up -d --build --no-cache
 A `Makefile` wraps the most common commands:
 
 ```bash
-make dev            # docker compose up -d
+make dev            # remove setup containers, then docker compose up -d --build
 make dev-down       # docker compose down
+make db-migrate     # re-run postgres/clickhouse setup to apply any new migrations
 make reset-volumes  # wipe all persistent volumes and start fresh
 make smoke-test     # run end-to-end smoke tests
 make lint           # cargo fmt/clippy + npm lint
 make test           # cargo test + frontend typecheck
 ```
+
+> **After pulling new code that adds migrations**, run `make db-migrate` to apply them
+> without a full restart.
 
 ### Service URLs
 
