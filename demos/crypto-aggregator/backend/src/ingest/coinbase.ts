@@ -1,5 +1,6 @@
 import WebSocket from "ws";
 import { EventEmitter } from "node:events";
+import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 
 export interface RawPriceEvent {
   source: "coinbase";
@@ -11,6 +12,8 @@ export interface RawPriceEvent {
 
 // BTC and ETH product IDs to subscribe to
 const PRODUCTS = ["BTC-USD", "ETH-USD", "SOL-USD"];
+
+const logger = logs.getLogger("crypto-demo-pipeline", "0.1.0");
 
 /**
  * Connects to the Coinbase Advanced Trade WebSocket feed and emits price
@@ -27,6 +30,12 @@ export function startCoinbaseIngest(emitter: EventEmitter): () => void {
     ws = new WebSocket(WS_URL);
 
     ws.on("open", () => {
+      logger.emit({
+        severityNumber: SeverityNumber.INFO,
+        severityText: "INFO",
+        body: "Coinbase WebSocket connected",
+        attributes: { "coinbase.products": PRODUCTS.join(",") },
+      });
       ws!.send(
         JSON.stringify({
           type: "subscribe",
@@ -69,11 +78,22 @@ export function startCoinbaseIngest(emitter: EventEmitter): () => void {
       }
     });
 
-    ws.on("error", () => {
+    ws.on("error", (err) => {
+      logger.emit({
+        severityNumber: SeverityNumber.WARN,
+        severityText: "WARN",
+        body: "Coinbase WebSocket error",
+        attributes: { "error": String(err) },
+      });
       emitter.emit("ingest_error", { source: "coinbase" });
     });
 
     ws.on("close", () => {
+      logger.emit({
+        severityNumber: SeverityNumber.INFO,
+        severityText: "INFO",
+        body: "Coinbase WebSocket closed — reconnecting in 5s",
+      });
       reconnectTimeout = setTimeout(connect, 5_000);
     });
   }

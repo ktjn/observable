@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
+import { trace } from "@opentelemetry/api";
+import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import type { PriceEvent, TxEvent } from "../normalize/normalizer.js";
 import type { CorrelatedEvent } from "../generated/pipeline.CorrelatedEvent.v1.js";
 
@@ -11,6 +13,9 @@ interface WindowEntry {
   event: PriceEvent;
   expiresAt: number;
 }
+
+const tracer = trace.getTracer("crypto-demo-pipeline", "0.1.0");
+const logger = logs.getLogger("crypto-demo-pipeline", "0.1.0");
 
 /**
  * The Correlator maintains a sliding time-window of recent PriceEvents keyed
@@ -46,6 +51,14 @@ export function startCorrelator(emitter: EventEmitter): {
   });
 
   emitter.on("tx_event", (tx: TxEvent) => {
+    const span = tracer.startSpan("correlator.correlate_tx", {
+      attributes: {
+        "correlator.tx_hash": tx.tx_hash,
+        "correlator.value_usd": tx.value_usd,
+        "correlator.window_size": priceWindow.size,
+      },
+    });
+
     evict();
 
     // Match against BTC first (most transactions are BTC), then any asset
@@ -57,7 +70,10 @@ export function startCorrelator(emitter: EventEmitter): {
           )[0]
         : undefined);
 
-    if (!entry) return;
+    if (!entry) {
+      span.end();
+      return;
+    }
 
     const lagMs = Math.max(0, tx.ts_unix_ms - entry.event.ts_unix_ms);
     latestLagMs = lagMs;
@@ -71,6 +87,25 @@ export function startCorrelator(emitter: EventEmitter): {
       price_source: entry.event.source,
       ts_unix_ms: Date.now(),
     };
+
+    span.setAttributes({
+      "correlator.asset": correlated.asset,
+      "correlator.lag_ms": lagMs,
+      "correlator.price_source": correlated.price_source,
+    });
+    span.end();
+
+    logger.emit({
+      severityNumber: SeverityNumber.DEBUG,
+      severityText: "DEBUG",
+      body: "Correlated price+tx",
+      attributes: {
+        "correlator.asset": correlated.asset,
+        "correlator.tx_hash": correlated.tx_hash,
+        "correlator.lag_ms": lagMs,
+        "correlator.price_usd": correlated.price_usd,
+      },
+    });
 
     emitter.emit("correlated_event", correlated);
   });

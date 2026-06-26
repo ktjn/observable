@@ -1,5 +1,6 @@
 import WebSocket from "ws";
 import { EventEmitter } from "node:events";
+import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 
 export interface RawTxEvent {
   source: "blockchain";
@@ -8,6 +9,8 @@ export interface RawTxEvent {
   block_height?: number;
   ts_unix_ms: number;
 }
+
+const logger = logs.getLogger("crypto-demo-pipeline", "0.1.0");
 
 /**
  * Connects to the Blockchain.com WebSocket feed and emits unconfirmed
@@ -33,6 +36,11 @@ export function startBlockchainIngest(emitter: EventEmitter): () => void {
     ws = new WebSocket(WS_URL);
 
     ws.on("open", () => {
+      logger.emit({
+        severityNumber: SeverityNumber.INFO,
+        severityText: "INFO",
+        body: "Blockchain.com WebSocket connected",
+      });
       ws!.send(JSON.stringify({ op: "unconfirmed_sub" }));
     });
 
@@ -70,11 +78,22 @@ export function startBlockchainIngest(emitter: EventEmitter): () => void {
       }
     });
 
-    ws.on("error", () => {
+    ws.on("error", (err) => {
+      logger.emit({
+        severityNumber: SeverityNumber.WARN,
+        severityText: "WARN",
+        body: "Blockchain.com WebSocket error",
+        attributes: { "error": String(err) },
+      });
       emitter.emit("ingest_error", { source: "blockchain" });
     });
 
     ws.on("close", () => {
+      logger.emit({
+        severityNumber: SeverityNumber.INFO,
+        severityText: "INFO",
+        body: "Blockchain.com WebSocket closed — reconnecting in 5s",
+      });
       reconnectTimeout = setTimeout(connect, 5_000);
     });
   }

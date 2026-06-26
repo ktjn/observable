@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
+import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import type { PriceEvent } from "../generated/pipeline.PriceEvent.v1.js";
 import type { TxEvent } from "../generated/pipeline.TxEvent.v1.js";
 
@@ -11,6 +12,8 @@ import type { RawPriceEvent as CoinbaseRawPrice } from "../ingest/coinbase.js";
 import type { RawTxEvent } from "../ingest/blockchain.js";
 
 type RawPrice = DexRawPrice | CoinbaseRawPrice;
+
+const logger = logs.getLogger("crypto-demo-pipeline", "0.1.0");
 
 /**
  * Normalizer subscribes to raw ingest events from the EventEmitter and emits
@@ -31,6 +34,15 @@ export function startNormalizer(
         raw.price_usd <= 0
       ) {
         errors++;
+        logger.emit({
+          severityNumber: SeverityNumber.WARN,
+          severityText: "WARN",
+          body: "Price event failed validation",
+          attributes: {
+            "normalizer.source": raw.source,
+            "normalizer.asset": raw.asset,
+          },
+        });
         return;
       }
 
@@ -48,8 +60,14 @@ export function startNormalizer(
       if (event.asset === "BTC") {
         emitter.emit("btc_price_update", event.price_usd);
       }
-    } catch {
+    } catch (err) {
       errors++;
+      logger.emit({
+        severityNumber: SeverityNumber.ERROR,
+        severityText: "ERROR",
+        body: "Unexpected error normalizing price event",
+        attributes: { "error": String(err) },
+      });
     }
   });
 
@@ -61,6 +79,12 @@ export function startNormalizer(
         !isFinite(raw.value_usd)
       ) {
         errors++;
+        logger.emit({
+          severityNumber: SeverityNumber.WARN,
+          severityText: "WARN",
+          body: "Tx event failed validation",
+          attributes: { "normalizer.tx_hash": raw.tx_hash },
+        });
         return;
       }
 
@@ -71,8 +95,14 @@ export function startNormalizer(
         ts_unix_ms: raw.ts_unix_ms,
       };
       emitter.emit("tx_event", event);
-    } catch {
+    } catch (err) {
       errors++;
+      logger.emit({
+        severityNumber: SeverityNumber.ERROR,
+        severityText: "ERROR",
+        body: "Unexpected error normalizing tx event",
+        attributes: { "error": String(err) },
+      });
     }
   });
 

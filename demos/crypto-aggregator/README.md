@@ -2,9 +2,9 @@
 
 A real-time dashboard that ingests live cryptocurrency prices and blockchain
 transactions, correlates them, and visualises the result in a modern web UI.
-Pipeline health is emitted as OpenTelemetry metrics to the Observable
+The pipeline emits OpenTelemetry **traces, logs, and metrics** to the Observable
 [ingest-gateway](../../services/ingest-gateway) so the Observable platform
-itself can observe how well the demo pipeline is performing.
+itself can observe all aspects of how the demo pipeline is performing.
 
 ---
 
@@ -13,14 +13,16 @@ itself can observe how well the demo pipeline is performing.
 ```
 DexPaprika REST   ──┐
 Coinbase WS       ──┤──► Normalizer ──► Correlator ──► SSE /events ──► Frontend UI
-Blockchain.com WS ──┘                       │
-                                           └──► OTel Metrics ──► ingest-gateway:4317 ──► Observable
+Blockchain.com WS ──┘         │              │
+                               │              └──► OTel Traces ──────┐
+                               └──────────────────► OTel Logs ───────┤──► ingest-gateway:4317 ──► Observable
+                                                    OTel Metrics ────┘
 ```
 
 | Layer | Responsibility |
 |-------|---------------|
-| **Frontend UI** | Shows live prices, transactions, correlations, and lineage |
-| **Observable** | Shows pipeline health via OTel metrics from `crypto-demo-pipeline` |
+| **Frontend UI** | Shows live prices, transactions, correlations, lineage, and pipeline health |
+| **Observable** | Shows traces, logs, and metrics from `crypto-demo-pipeline`; host visible in Infrastructure |
 
 ---
 
@@ -44,7 +46,7 @@ the [modelable](https://github.com/ktjn/modelable) compiler.
 | `PriceEvent` | A price tick from DexPaprika or Coinbase |
 | `TxEvent` | An unconfirmed blockchain transaction |
 | `CorrelatedEvent` | A paired price+tx event produced by the Correlator |
-| `PipelineMetrics` | Pipeline health snapshot (ingest rate, lag, buffer, errors) |
+| `PipelineMetrics` | Pipeline health snapshot (ingest rate, lag, buffer, errors, Observable status) |
 
 Generated TypeScript types live in `backend/src/generated/` and
 `frontend/src/generated/`. Regenerate after editing `crypto.mdl`:
@@ -60,8 +62,12 @@ uv run modelable compile crypto.mdl --target markdown   --out ../demos/crypto-ag
 
 ## OTel Instrumentation
 
-The backend emits these metrics to Observable under service name
-`crypto-demo-pipeline` and tenant `crypto-demo`:
+The backend emits traces, logs, and metrics to Observable under service name
+`crypto-demo-pipeline` and tenant `crypto-demo`. The OTel Resource includes
+`host.name` (from `os.hostname()`) so the container appears in
+`/infrastructure` as a host entity.
+
+### Metrics
 
 | Metric | Unit | Description |
 |--------|------|-------------|
@@ -70,6 +76,25 @@ The backend emits these metrics to Observable under service name
 | `pipeline.buffer_fill_ratio` | 0–1 | Correlator window fill level |
 | `pipeline.exporter_latency_ms` | ms | OTel export round-trip |
 | `pipeline.error_count` | count | Cumulative normalisation errors |
+
+### Traces
+
+| Span | Attributes |
+|------|-----------|
+| `dexpaprika.poll_token` | `dexpaprika.chain`, `dexpaprika.symbol`, `dexpaprika.price_usd` |
+| `correlator.correlate_tx` | `correlator.tx_hash`, `correlator.value_usd`, `correlator.lag_ms`, `correlator.asset` |
+
+### Logs
+
+| Event | Severity | Attributes |
+|-------|----------|-----------|
+| Startup | INFO | `otel.endpoint`, `service.name` |
+| Coinbase/Blockchain WS connected | INFO | — |
+| Coinbase/Blockchain WS closed | INFO | — |
+| Coinbase/Blockchain WS error | WARN | `error` |
+| DexPaprika poll failed | WARN | `dexpaprika.chain`, `dexpaprika.symbol`, `error` |
+| Price/tx validation failure | WARN | `normalizer.source`, `normalizer.asset` |
+| Correlation match | DEBUG | `correlator.asset`, `correlator.lag_ms`, `correlator.price_usd` |
 
 The tenant and API key are seeded by
 [`migrations/postgres/033_add_crypto_demo_tenant.sql`](../../migrations/postgres/033_add_crypto_demo_tenant.sql).

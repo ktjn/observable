@@ -66,6 +66,7 @@ async function mockMetrics(page: Page) {
         buffer_fill_ratio: 0.35,
         exporter_latency_ms: 18,
         error_count: 0,
+        observable_status: "Ok",
         ts_unix_ms: Date.now(),
       }),
     });
