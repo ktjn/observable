@@ -80,15 +80,21 @@ The tenant and API key are seeded by
 
 ### With Docker Compose (recommended)
 
+The image is built locally from source — no registry login required. The first run
+builds the image automatically; subsequent starts reuse the Docker layer cache.
+
 ```bash
-# From the repository root
+# From the repository root — starts only the crypto-demo and its dependencies
 docker compose up crypto-demo -d
+
+# Force a rebuild after pulling new code
+docker compose up crypto-demo -d --build
 
 # Frontend: http://localhost:3101
 # Backend API: http://localhost:3100
 ```
 
-The full stack (including Observable) is started with:
+The full stack (including Observable and all other services) is started with:
 
 ```bash
 docker compose up -d
