@@ -10,25 +10,65 @@ export type StreamEvent =
 
 const MAX_ITEMS = 100;
 
+/** Age thresholds for source health classification */
+const OK_MS = 30_000;
+const STALE_MS = 90_000;
+
+export type SourceStatus = "ok" | "stale" | "offline";
+
+export type SourceName = "DexPaprika" | "Coinbase" | "Blockchain";
+
 export interface EventStreamState {
   prices: PriceEvent[];
   txs: TxEvent[];
   correlations: CorrelatedEvent[];
   connected: boolean;
+  sourceStatus: Record<SourceName, SourceStatus>;
+}
+
+function deriveStatus(lastSeen: number | null, now: number): SourceStatus {
+  if (lastSeen === null) return "offline";
+  const age = now - lastSeen;
+  if (age < OK_MS) return "ok";
+  if (age < STALE_MS) return "stale";
+  return "offline";
 }
 
 /**
  * Subscribes to the backend /events SSE stream and maintains rolling buffers
  * of the last MAX_ITEMS events for each type. Reconnects automatically on
- * disconnection.
+ * disconnection. Tracks per-source last-seen timestamps to derive health status.
  */
 export function useEventStream(url = "/events"): EventStreamState {
   const [prices, setPrices] = useState<PriceEvent[]>([]);
   const [txs, setTxs] = useState<TxEvent[]>([]);
   const [correlations, setCorrelations] = useState<CorrelatedEvent[]>([]);
   const [connected, setConnected] = useState(false);
+  const [sourceStatus, setSourceStatus] = useState<Record<SourceName, SourceStatus>>({
+    DexPaprika: "offline",
+    Coinbase: "offline",
+    Blockchain: "offline",
+  });
 
   const esRef = useRef<EventSource | null>(null);
+  const lastSeenRef = useRef<Record<SourceName, number | null>>({
+    DexPaprika: null,
+    Coinbase: null,
+    Blockchain: null,
+  });
+
+  // Poll source status every 5 s so stale/offline transitions appear promptly
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setSourceStatus({
+        DexPaprika: deriveStatus(lastSeenRef.current.DexPaprika, now),
+        Coinbase: deriveStatus(lastSeenRef.current.Coinbase, now),
+        Blockchain: deriveStatus(lastSeenRef.current.Blockchain, now),
+      });
+    }, 5_000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -42,6 +82,9 @@ export function useEventStream(url = "/events"): EventStreamState {
       es.addEventListener("price", (e: MessageEvent) => {
         try {
           const data = JSON.parse(e.data as string) as PriceEvent;
+          const source = data.source === "DexPaprika" ? "DexPaprika" : "Coinbase";
+          lastSeenRef.current[source] = Date.now();
+          setSourceStatus((prev) => ({ ...prev, [source]: "ok" }));
           setPrices((prev) => [data, ...prev].slice(0, MAX_ITEMS));
         } catch { /* ignore malformed events */ }
       });
@@ -49,6 +92,8 @@ export function useEventStream(url = "/events"): EventStreamState {
       es.addEventListener("tx", (e: MessageEvent) => {
         try {
           const data = JSON.parse(e.data as string) as TxEvent;
+          lastSeenRef.current.Blockchain = Date.now();
+          setSourceStatus((prev) => ({ ...prev, Blockchain: "ok" }));
           setTxs((prev) => [data, ...prev].slice(0, MAX_ITEMS));
         } catch { /* ignore malformed events */ }
       });
@@ -75,5 +120,5 @@ export function useEventStream(url = "/events"): EventStreamState {
     };
   }, [url]);
 
-  return { prices, txs, correlations, connected };
+  return { prices, txs, correlations, connected, sourceStatus };
 }

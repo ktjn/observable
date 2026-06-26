@@ -1,16 +1,33 @@
 import { useEventStream } from "./hooks/useEventStream";
+import type { SourceName, SourceStatus } from "./hooks/useEventStream";
 import { PriceTicker } from "./components/PriceTicker";
 import { TxList } from "./components/TxList";
 import { CorrelationScatter } from "./components/CorrelationScatter";
+import { PriceChart } from "./components/PriceChart";
 import { LineageDiagram } from "./components/LineageDiagram";
 import { PipelineHealth } from "./components/PipelineHealth";
 
-function StatusDot({ connected }: { connected: boolean }) {
+const STATUS_COLORS: Record<SourceStatus, string> = {
+  ok: "bg-positive animate-pulse",
+  stale: "bg-amber-400",
+  offline: "bg-negative",
+};
+
+const STATUS_LABEL: Record<SourceStatus, string> = {
+  ok: "Live",
+  stale: "Stale",
+  offline: "Offline",
+};
+
+function SourceIndicator({ name, status }: { name: SourceName; status: SourceStatus }) {
   return (
-    <span
-      className={`inline-block size-2 rounded-full ${connected ? "bg-positive animate-pulse" : "bg-negative"}`}
-      title={connected ? "Connected" : "Disconnected"}
-    />
+    <div className="flex items-center gap-1.5 text-xs" data-testid={`source-status-${name.toLowerCase()}`}>
+      <span className={`inline-block size-2 rounded-full ${STATUS_COLORS[status]}`} title={STATUS_LABEL[status]} />
+      <span className="text-muted">{name}</span>
+      <span className={status === "ok" ? "text-positive" : status === "stale" ? "text-amber-400" : "text-negative"}>
+        {STATUS_LABEL[status]}
+      </span>
+    </div>
   );
 }
 
@@ -37,7 +54,7 @@ function SectionCard({
 }
 
 export function App() {
-  const { prices, txs, correlations, connected } = useEventStream();
+  const { prices, txs, correlations, connected, sourceStatus } = useEventStream();
 
   return (
     <div className="min-h-screen bg-surface px-4 py-6">
@@ -51,14 +68,18 @@ export function App() {
             Powered by DexPaprika · Coinbase · Blockchain.com
           </p>
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          <StatusDot connected={connected} />
-          <span className="text-muted">{connected ? "Live" : "Reconnecting…"}</span>
+        <div className="flex items-center gap-4">
+          <SourceIndicator name="DexPaprika" status={sourceStatus.DexPaprika} />
+          <SourceIndicator name="Coinbase" status={sourceStatus.Coinbase} />
+          <SourceIndicator name="Blockchain" status={sourceStatus.Blockchain} />
+          {!connected && (
+            <span className="text-xs text-negative">Reconnecting…</span>
+          )}
         </div>
       </header>
 
-      {/* Dashboard grid */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {/* Top grid */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <SectionCard title="Live Prices" testId="section-live-prices">
           <PriceTicker prices={prices} />
         </SectionCard>
@@ -67,14 +88,28 @@ export function App() {
           <TxList txs={txs} />
         </SectionCard>
 
-        <SectionCard title="Correlation" testId="section-correlation">
-          <div className="h-56">
-            <CorrelationScatter correlations={correlations} />
-          </div>
-        </SectionCard>
-
         <SectionCard title="Data Lineage" testId="section-lineage">
           <LineageDiagram />
+        </SectionCard>
+      </div>
+
+      {/* Landscape chart widget */}
+      <div className="mt-4">
+        <SectionCard title="Charts" testId="section-charts">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <p className="mb-1 text-xs font-medium text-muted uppercase tracking-wider">Price over Time</p>
+              <div className="h-52">
+                <PriceChart prices={prices} />
+              </div>
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-medium text-muted uppercase tracking-wider">Correlation Lag over Time</p>
+              <div className="h-52">
+                <CorrelationScatter correlations={correlations} />
+              </div>
+            </div>
+          </div>
         </SectionCard>
       </div>
 

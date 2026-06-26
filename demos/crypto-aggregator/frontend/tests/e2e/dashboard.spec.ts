@@ -82,13 +82,13 @@ test.describe("Crypto Demo Dashboard", () => {
     await mockMetrics(page);
   });
 
-  test("renders all four dashboard sections", async ({ page }) => {
+  test("renders all dashboard sections", async ({ page }) => {
     await page.goto("/");
 
     await expect(page.getByTestId("section-live-prices")).toBeVisible();
     await expect(page.getByTestId("section-live-txs")).toBeVisible();
-    await expect(page.getByTestId("section-correlation")).toBeVisible();
     await expect(page.getByTestId("section-lineage")).toBeVisible();
+    await expect(page.getByTestId("section-charts")).toBeVisible();
     await expect(page.getByTestId("section-pipeline-health")).toBeVisible();
   });
 
@@ -155,5 +155,33 @@ test.describe("Crypto Demo Dashboard", () => {
     await expect(health).toBeVisible();
     // Ingest rate from mock: 4.2 ev/s
     await expect(health.getByText(/4\.2/)).toBeVisible({ timeout: 5_000 });
+  });
+
+  test("header shows per-source status indicators", async ({ page }) => {
+    await page.goto("/");
+
+    // All three source indicators should be in the header
+    await expect(page.getByTestId("source-status-dexpaprika")).toBeVisible();
+    await expect(page.getByTestId("source-status-coinbase")).toBeVisible();
+    await expect(page.getByTestId("source-status-blockchain")).toBeVisible();
+
+    // After SSE events arrive, Coinbase and Blockchain should show "Live"
+    await expect(
+      page.getByTestId("source-status-coinbase").getByText("Live"),
+    ).toBeVisible({ timeout: 5_000 });
+    await expect(
+      page.getByTestId("source-status-blockchain").getByText("Live"),
+    ).toBeVisible({ timeout: 5_000 });
+  });
+
+  test("Charts section renders price and correlation lag charts", async ({ page }) => {
+    await page.goto("/");
+
+    const charts = page.getByTestId("section-charts");
+    await expect(charts).toBeVisible();
+
+    // After events arrive both SVG charts should render
+    await expect(page.getByTestId("price-chart").locator("svg")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId("correlation-scatter").locator("svg")).toBeVisible({ timeout: 5_000 });
   });
 });
