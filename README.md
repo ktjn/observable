@@ -71,3 +71,13 @@ kind delete cluster --name observable-test
 ```
 
 See [spec/10-process.md](spec/10-process.md) for the official development process and engineering standards.
+
+## Demos
+
+The `demos/` directory contains standalone example applications that showcase Observable in action.
+Each demo is a self-contained app with its own README, Dockerfile entry in `docker-compose.yml`,
+and OTel instrumentation that feeds pipeline-health metrics into the Observable platform.
+
+| Demo | Description |
+|------|-------------|
+| [crypto-aggregator](demos/crypto-aggregator/README.md) | Real-time crypto live-data dashboard: ingests prices from DexPaprika and Coinbase, blockchain transactions from Blockchain.com, correlates them, and emits pipeline health as OTel metrics. |
