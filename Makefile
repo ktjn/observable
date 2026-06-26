@@ -1,7 +1,7 @@
 .PHONY: dev dev-down reset-volumes test lint smoke-test ci
 
 dev:
-	docker compose up -d
+	docker compose up -d --build
 	@echo "Stack ready. Run 'docker compose up smoke-test' to verify."
 
 dev-down:

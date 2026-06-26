@@ -16,17 +16,82 @@ Mandatory instructions for any AI agent interacting with this repository can be 
 
 ## Development
 
-The entire stack can be started with Docker Compose. This will build the services, run migrations, and start the system.
+### Quick start
+
+The entire stack is started with a single command. All service images are built
+locally from source — no registry login needed. The first run compiles the Rust
+backend, which typically takes **3–10 minutes** depending on your machine; subsequent
+starts reuse the Docker layer cache and are nearly instant.
 
 ```bash
-# Start the full local stack
+# Recommended: build images then start (required on first run or after pulling new code)
+make dev
+# Equivalent:
+docker compose up -d --build
+
+# Start only (if images are already built from a previous run)
 docker compose up -d
 
-# Open the frontend
-# http://localhost:5173
+# Force a full rebuild from scratch
+docker compose up -d --build --no-cache
+```
 
-# Run smoke tests
+A `Makefile` wraps the most common commands:
+
+```bash
+make dev            # docker compose up -d
+make dev-down       # docker compose down
+make reset-volumes  # wipe all persistent volumes and start fresh
+make smoke-test     # run end-to-end smoke tests
+make lint           # cargo fmt/clippy + npm lint
+make test           # cargo test + frontend typecheck
+```
+
+### Service URLs
+
+| Service | URL |
+|---------|-----|
+| **Frontend** | http://localhost:5173 |
+| **Ingest gateway** (HTTP/OTLP) | http://localhost:4318 |
+| **Ingest gateway** (gRPC/OTLP) | grpc://localhost:4317 |
+| **Query API** | http://localhost:8090 |
+| **Auth service** | http://localhost:4319 |
+| **Admin service** | http://localhost:4324 |
+| **OpenFGA** (authorization) | http://localhost:8083 |
+| **Zitadel** (identity provider) | http://localhost:8082 |
+| **ClickHouse** (HTTP) | http://localhost:8123 |
+| **Redpanda** (Kafka-compatible) | localhost:9092 |
+| **Testbench shop API** | http://localhost:8000 |
+| **Crypto demo backend** | http://localhost:3100 |
+| **Crypto demo frontend** | http://localhost:3101 |
+
+### Stopping and resetting
+
+> **⚠️ Port conflict with the kind testbench cluster**
+> The kind testbench (`bash scripts/testbench.sh`) binds host port **8080** for the
+> Observable frontend ingress. Docker Compose binds **8083** for OpenFGA. These don't
+> overlap, but if a stale kind cluster is running it may hold other ports too. Stop it
+> before running `docker compose up -d`:
+> ```bash
+> kind delete cluster --name observable-test
+> ```
+
+```bash
+# Stop all containers (keeps volumes)
+docker compose down
+
+# Stop and delete all data volumes (full reset)
+docker compose down -v
+# or
+make reset-volumes
+```
+
+### Smoke tests
+
+```bash
 docker compose up smoke-test --abort-on-container-exit
+# or
+make smoke-test
 ```
 
 ### Kubernetes testbench (kind)
