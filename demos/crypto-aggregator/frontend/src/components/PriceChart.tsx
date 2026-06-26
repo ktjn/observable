@@ -38,12 +38,28 @@ function aggregate(prices: PriceEvent[], intervalMs: IntervalMs): Bucket[] {
 /**
  * Line chart showing price_usd aggregated over a selectable time interval.
  * A combobox above-right controls the bucket width (1s / 10s / 30s / 1m).
+ * The chart only redraws at the cadence of the selected interval.
  */
 export function PriceChart({ prices }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [intervalMs, setIntervalMs] = useState<IntervalMs>(10_000);
+  const [tick, setTick] = useState(0);
+
+  // Keep a ref to prices so the interval callback always has the latest data
+  // without needing to be recreated on every render.
+  const pricesRef = useRef(prices);
+  useEffect(() => { pricesRef.current = prices; }, [prices]);
+
+  // Fire a redraw tick at the cadence of the selected interval.
+  useEffect(() => {
+    // Immediate draw when interval changes
+    setTick((t) => t + 1);
+    const id = setInterval(() => setTick((t) => t + 1), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
 
   useEffect(() => {
+    const prices = pricesRef.current;
     if (!svgRef.current || prices.length === 0) return;
 
     const pts = aggregate(prices, intervalMs);
@@ -136,7 +152,7 @@ export function PriceChart({ prices }: Props) {
 
     g.append("path").datum(pts).attr("fill", `url(#${gradId})`).attr("d", area);
     g.append("path").datum(pts).attr("fill", "none").attr("stroke", "#22d3ee").attr("stroke-width", 1.5).attr("d", line);
-  }, [prices, intervalMs]);
+  }, [tick, intervalMs]);
 
   return (
     <div data-testid="price-chart" className="flex h-full w-full flex-col gap-1">
