@@ -42,7 +42,7 @@ function aggregate(prices: PriceEvent[], intervalMs: IntervalMs): Bucket[] {
  */
 export function PriceChart({ prices }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [intervalMs, setIntervalMs] = useState<IntervalMs>(10_000);
+  const [intervalMs, setIntervalMs] = useState<IntervalMs>(1_000);
   const [tick, setTick] = useState(0);
 
   // Keep a ref to prices so the interval callback always has the latest data

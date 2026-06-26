@@ -1,4 +1,3 @@
-import { EventSource } from "eventsource";
 import { EventEmitter } from "node:events";
 
 export interface RawPriceEvent {
@@ -9,48 +8,56 @@ export interface RawPriceEvent {
   ts_unix_ms: number;
 }
 
+const BASE_URL = "https://api.dexpaprika.com";
+
+/** Tokens to poll: [chain, token_address, symbol] */
+const TOKENS: [string, string, string][] = [
+  ["ethereum", "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599", "WBTC"],
+  ["ethereum", "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", "WETH"],
+  ["solana",   "So11111111111111111111111111111111111111112", "SOL"],
+];
+
+const POLL_INTERVAL_MS = 5_000;
+
+interface TokenResponse {
+  symbol: string;
+  chain: string;
+  summary: { price_usd: number };
+}
+
 /**
- * Connects to the DexPaprika SSE price feed and emits raw price events.
- * DexPaprika provides a public SSE endpoint for real-time DEX prices.
+ * Polls the DexPaprika REST API for token prices and emits raw price events.
+ * DexPaprika does not offer an SSE/WebSocket stream; REST polling is the
+ * supported integration method.
  */
 export function startDexPaprikaIngest(emitter: EventEmitter): () => void {
-  const ENDPOINT =
-    process.env.DEXPAPRIKA_SSE_URL ??
-    "https://api.dexpaprika.com/v1/prices/stream";
+  let stopped = false;
 
-  let es: EventSource | null = null;
-
-  function connect() {
-    es = new EventSource(ENDPOINT);
-
-    es.addEventListener("price", (event: MessageEvent) => {
-      try {
-        const raw = JSON.parse(event.data as string) as {
-          token_symbol?: string;
-          chain_id?: string;
-          price_usd?: number;
-        };
-        const evt: RawPriceEvent = {
-          source: "dexpaprika",
-          asset: raw.token_symbol ?? "UNKNOWN",
-          chain: raw.chain_id ?? "unknown",
-          price_usd: raw.price_usd ?? 0,
-          ts_unix_ms: Date.now(),
-        };
-        emitter.emit("raw_price", evt);
-      } catch {
-        emitter.emit("ingest_error", { source: "dexpaprika" });
-      }
-    });
-
-    es.onerror = () => {
+  async function pollToken(chain: string, address: string, symbol: string) {
+    try {
+      const res = await fetch(`${BASE_URL}/networks/${chain}/tokens/${address}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as TokenResponse;
+      const evt: RawPriceEvent = {
+        source: "dexpaprika",
+        asset: data.symbol ?? symbol,
+        chain: data.chain ?? chain,
+        price_usd: data.summary?.price_usd ?? 0,
+        ts_unix_ms: Date.now(),
+      };
+      emitter.emit("raw_price", evt);
+    } catch {
       emitter.emit("ingest_error", { source: "dexpaprika" });
-      // Reconnect after 5 seconds on error
-      setTimeout(connect, 5_000);
-    };
+    }
   }
 
-  connect();
+  async function pollAll() {
+    if (stopped) return;
+    await Promise.all(TOKENS.map(([chain, addr, sym]) => pollToken(chain, addr, sym)));
+    if (!stopped) setTimeout(pollAll, POLL_INTERVAL_MS);
+  }
 
-  return () => es?.close();
+  void pollAll();
+
+  return () => { stopped = true; };
 }

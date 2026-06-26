@@ -11,9 +11,9 @@ itself can observe how well the demo pipeline is performing.
 ## Architecture
 
 ```
-DexPaprika SSE   ──┐
-Coinbase WS      ──┤──► Normalizer ──► Correlator ──► SSE /events ──► Frontend UI
-Blockchain.com WS ─┘                       │
+DexPaprika REST   ──┐
+Coinbase WS       ──┤──► Normalizer ──► Correlator ──► SSE /events ──► Frontend UI
+Blockchain.com WS ──┘                       │
                                            └──► OTel Metrics ──► ingest-gateway:4317 ──► Observable
 ```
 
@@ -28,7 +28,7 @@ Blockchain.com WS ─┘                       │
 
 | Source | Protocol | What it provides |
 |--------|----------|-----------------|
-| [DexPaprika](https://dexpaprika.com) | SSE | On-chain DEX token prices |
+| [DexPaprika](https://dexpaprika.com) | REST (polling) | On-chain DEX token prices (WBTC, WETH, SOL) |
 | [Coinbase Advanced Trade](https://docs.cdp.coinbase.com/advanced-trade/docs/ws-overview) | WebSocket | Spot prices for BTC, ETH, SOL |
 | [Blockchain.com](https://www.blockchain.com/api/api_websocket) | WebSocket | Unconfirmed BTC transactions |
 
@@ -118,7 +118,7 @@ npm run dev          # starts on :3101, proxies /events and /metrics to :3100
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4317` | OTel Collector gRPC endpoint |
 | `OTEL_EXPORTER_OTLP_HEADERS` | *(empty)* | Auth header, e.g. `authorization=Bearer <key>` |
 | `OTEL_SERVICE_NAME` | `crypto-demo-pipeline` | OTel service name |
-| `DEXPAPRIKA_SSE_URL` | DexPaprika public URL | Override SSE endpoint |
+| `DEXPAPRIKA_BASE_URL` | `https://api.dexpaprika.com` | Override DexPaprika REST base URL |
 | `COINBASE_WS_URL` | Coinbase public WSS URL | Override WebSocket endpoint |
 | `BLOCKCHAIN_WS_URL` | Blockchain.com public WSS URL | Override WebSocket endpoint |
 
