@@ -9,10 +9,10 @@ dependencies = [
     "aio-pika==9.6.2",
     "opentelemetry-sdk==1.43.0",
     "opentelemetry-exporter-otlp-proto-grpc==1.43.0",
-    "opentelemetry-instrumentation-fastapi==0.63b1",
-    "opentelemetry-instrumentation-asyncpg==0.63b1",
-    "opentelemetry-instrumentation-aio-pika==0.63b1",
-    "opentelemetry-instrumentation-logging==0.63b1",
+    "opentelemetry-instrumentation-fastapi==0.64b0",
+    "opentelemetry-instrumentation-asyncpg==0.64b0",
+    "opentelemetry-instrumentation-aio-pika==0.64b0",
+    "opentelemetry-instrumentation-logging==0.64b0",
 ]
 
 [tool.uv]
