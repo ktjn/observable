@@ -1,0 +1,44 @@
+# demos/otel-demo/otelcol-config.yml
+# Minimal collector: accepts OTLP from all demo services, forwards to Observable ingest-gateway.
+# Replaces the upstream config that routes to Jaeger/Prometheus/OpenSearch.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+        cors:
+          allowed_origins:
+            - "http://*"
+            - "https://*"
+
+processors:
+  memory_limiter:
+    check_interval: 5s
+    limit_percentage: 80
+    spike_limit_percentage: 25
+  batch:
+
+exporters:
+  otlp/observable:
+    endpoint: "ingest-gateway:4317"
+    headers:
+      authorization: "Bearer otel-demo-api-key-0000"
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/observable]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/observable]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/observable]
