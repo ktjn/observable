@@ -4,8 +4,9 @@ import { startCoinbaseIngest } from "./ingest/coinbase.js";
 import { startBlockchainIngest } from "./ingest/blockchain.js";
 import { startNormalizer } from "./normalize/normalizer.js";
 import { startCorrelator } from "./correlate/correlator.js";
-import { startOtelMetrics } from "./otel/metrics.js";
+import { startOtelSetup } from "./otel/setup.js";
 import { startServer } from "./server.js";
+import { logs } from "@opentelemetry/api-logs";
 
 const emitter = new EventEmitter();
 emitter.setMaxListeners(50);
@@ -29,8 +30,19 @@ const ingestTotal = () => {
 
 const stats = { errorCount, latestLagMs, bufferSize, bufferCapacity, ingestTotal };
 
-// OTel instrumentation (must start before ingest adapters)
-startOtelMetrics(emitter, stats);
+// OTel instrumentation — initialise traces, logs, and metrics before adapters start.
+startOtelSetup(emitter, stats);
+
+// Startup log record
+const startupLogger = logs.getLogger("crypto-demo-pipeline", "0.1.0");
+startupLogger.emit({
+  severityText: "INFO",
+  body: "crypto-demo-pipeline started",
+  attributes: {
+    "otel.endpoint": process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? "http://localhost:4317",
+    "service.name": process.env.OTEL_SERVICE_NAME ?? "crypto-demo-pipeline",
+  },
+});
 
 // Start all three ingest adapters
 const stopDex = startDexPaprikaIngest(emitter);

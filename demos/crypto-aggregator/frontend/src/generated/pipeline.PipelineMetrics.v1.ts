@@ -14,5 +14,6 @@ export interface PipelinePipelineMetricsV1 {
   exporter_latency_ms: number;
   error_count: number;
   ts_unix_ms: number;
+  observable_status: 'Ok' | 'Degraded' | 'Offline';
 }
 export type PipelineMetrics = PipelinePipelineMetricsV1;

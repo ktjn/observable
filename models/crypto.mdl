@@ -69,6 +69,10 @@ domain pipeline {
     // Cumulative normalisation and correlation errors since startup.
     errorCount: int
     tsUnixMs: int
+    // Observable ingestion connection status derived from live OTLP export results.
+    // ok = last export succeeded; degraded = non-connection failure; offline = unreachable.
+    @wire(json.case: "lowercase")
+    observableStatus: enum(Ok, Degraded, Offline)
   }
 }
 

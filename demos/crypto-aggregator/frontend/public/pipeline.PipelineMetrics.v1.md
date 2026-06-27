@@ -20,3 +20,4 @@
 | exporterLatencyMs | float | yes | — | — | — |
 | errorCount | int | yes | — | — | — |
 | tsUnixMs | int | yes | — | — | — |
+| observableStatus | enum(Ok, Degraded, Offline) | yes | — | @wire(json.case: "lowercase") | — |

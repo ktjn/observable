@@ -3,6 +3,26 @@ import type { PipelineMetrics } from "../generated/pipeline.PipelineMetrics.v1";
 
 const POLL_MS = 2_000;
 
+type ObsStatus = PipelineMetrics["observable_status"];
+
+const OBS_STATUS_COLOR: Record<ObsStatus, string> = {
+  Ok: "text-positive",
+  Degraded: "text-yellow-400",
+  Offline: "text-negative",
+};
+
+const OBS_STATUS_DOT: Record<ObsStatus, string> = {
+  Ok: "bg-positive animate-pulse",
+  Degraded: "bg-yellow-400",
+  Offline: "bg-negative",
+};
+
+const OBS_STATUS_LABEL: Record<ObsStatus, string> = {
+  Ok: "Connected",
+  Degraded: "Degraded",
+  Offline: "Offline",
+};
+
 function Gauge({ label, value, unit, warn = 0.7, danger = 0.9 }: {
   label: string;
   value: number;
@@ -51,6 +71,8 @@ export function PipelineHealth() {
     return () => clearTimeout(timeout);
   }, []);
 
+  const obsStatus: ObsStatus = metrics?.observable_status ?? "Offline";
+
   return (
     <div data-testid="pipeline-health" className="space-y-3">
       {error && (
@@ -92,6 +114,15 @@ export function PipelineHealth() {
           />
         </div>
       )}
+
+      {/* Observable ingestion connection status */}
+      <div className="pt-2 border-t border-slate-800 flex items-center gap-2">
+        <span className={`inline-block size-2 rounded-full flex-shrink-0 ${OBS_STATUS_DOT[obsStatus]}`} />
+        <span className="text-xs text-muted">Observable</span>
+        <span className={`text-xs font-medium ${OBS_STATUS_COLOR[obsStatus]}`}>
+          {OBS_STATUS_LABEL[obsStatus]}
+        </span>
+      </div>
     </div>
   );
 }

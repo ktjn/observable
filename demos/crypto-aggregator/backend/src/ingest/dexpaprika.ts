@@ -1,4 +1,6 @@
 import { EventEmitter } from "node:events";
+import { trace, SpanStatusCode } from "@opentelemetry/api";
+import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 
 export interface RawPriceEvent {
   source: "dexpaprika";
@@ -8,7 +10,8 @@ export interface RawPriceEvent {
   ts_unix_ms: number;
 }
 
-const BASE_URL = "https://api.dexpaprika.com";
+const BASE_URL =
+  process.env.DEXPAPRIKA_BASE_URL ?? "https://api.dexpaprika.com";
 
 /** Tokens to poll: [chain, token_address, symbol] */
 const TOKENS: [string, string, string][] = [
@@ -25,6 +28,9 @@ interface TokenResponse {
   summary: { price_usd: number };
 }
 
+const tracer = trace.getTracer("crypto-demo-pipeline", "0.1.0");
+const logger = logs.getLogger("crypto-demo-pipeline", "0.1.0");
+
 /**
  * Polls the DexPaprika REST API for token prices and emits raw price events.
  * DexPaprika does not offer an SSE/WebSocket stream; REST polling is the
@@ -34,20 +40,38 @@ export function startDexPaprikaIngest(emitter: EventEmitter): () => void {
   let stopped = false;
 
   async function pollToken(chain: string, address: string, symbol: string) {
+    const span = tracer.startSpan("dexpaprika.poll_token", {
+      attributes: {
+        "dexpaprika.chain": chain,
+        "dexpaprika.symbol": symbol,
+        "dexpaprika.address": address,
+      },
+    });
     try {
       const res = await fetch(`${BASE_URL}/networks/${chain}/tokens/${address}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as TokenResponse;
+      const price = data.summary?.price_usd ?? 0;
+      span.setAttributes({ "dexpaprika.price_usd": price });
       const evt: RawPriceEvent = {
         source: "dexpaprika",
         asset: data.symbol ?? symbol,
         chain: data.chain ?? chain,
-        price_usd: data.summary?.price_usd ?? 0,
+        price_usd: price,
         ts_unix_ms: Date.now(),
       };
       emitter.emit("raw_price", evt);
-    } catch {
+    } catch (err) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+      logger.emit({
+        severityNumber: SeverityNumber.WARN,
+        severityText: "WARN",
+        body: "DexPaprika poll failed",
+        attributes: { "dexpaprika.chain": chain, "dexpaprika.symbol": symbol, "error": String(err) },
+      });
       emitter.emit("ingest_error", { source: "dexpaprika" });
+    } finally {
+      span.end();
     }
   }
 

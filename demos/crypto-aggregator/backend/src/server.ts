@@ -5,6 +5,7 @@ import type { PriceEvent } from "./normalize/normalizer.js";
 import type { CorrelatedEvent } from "./correlate/correlator.js";
 import type { TxEvent } from "./generated/pipeline.TxEvent.v1.js";
 import type { PipelineMetrics } from "./generated/pipeline.PipelineMetrics.v1.js";
+import { getObservableStatus } from "./otel/setup.js";
 import { randomUUID } from "node:crypto";
 
 interface PipelineStats {
@@ -76,6 +77,7 @@ export function startServer(
       buffer_fill_ratio: stats.bufferSize() / stats.bufferCapacity,
       exporter_latency_ms: 0, // filled in by OTel module via emitter
       error_count: stats.errorCount(),
+      observable_status: getObservableStatus(),
       ts_unix_ms: Date.now(),
     };
     res.json(snapshot);
