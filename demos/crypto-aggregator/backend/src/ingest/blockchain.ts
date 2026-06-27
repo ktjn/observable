@@ -83,6 +83,7 @@ export function startBlockchainIngest(emitter: EventEmitter): () => void {
   // ---------------------------------------------------------------------------
 
   async function pollRest(): Promise<void> {
+    restPollTimer = null; // cleared now that the timer has fired
     if (stopped || mode !== "rest-polling") return;
 
     const span = tracer.startSpan("blockchain.poll_unconfirmed");
