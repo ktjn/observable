@@ -115,6 +115,12 @@
 
   "packageRules": [
     {
+      "description": "Group vite and @vitejs/plugin-react together — plugin-react major requires matching vite major",
+      "matchPackageNames": ["vite", "@vitejs/plugin-react"],
+      "groupName": "vite",
+      "groupSlug": "vite"
+    },
+    {
       "description": "Group non-major dependencies into a single PR",
       "groupName": "all-dependencies",
       "groupSlug": "all-dependencies",
