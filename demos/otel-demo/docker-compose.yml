@@ -291,6 +291,7 @@ services:
       flagd-ui:
         condition: service_started
     dns_search: ""
+    logging: *logging
 
   image-provider:
     image: ghcr.io/open-telemetry/demo:2.2.0-image-provider
@@ -528,7 +529,7 @@ services:
       resources:
         limits:
           memory: 200M
-    restart: always
+    restart: unless-stopped
     environment:
       FLAGD_UI_PORT: "4000"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
@@ -546,6 +547,7 @@ services:
         condition: service_started
     volumes:
       - ./src/flagd:/app/data
+    logging: *logging
 
   kafka:
     image: ghcr.io/open-telemetry/demo:2.2.0-kafka
