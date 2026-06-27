@@ -62,6 +62,7 @@ export function PipelineHealth() {
         setMetrics(data);
         setError(false);
       } catch {
+        setMetrics(null);
         setError(true);
       }
       timeout = setTimeout(poll, POLL_MS);
