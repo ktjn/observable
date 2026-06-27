@@ -6,7 +6,7 @@ x-platform-self-observability-env: &platform-self-observability-env
 services:
   # --- INFRASTRUCTURE ---
   clickhouse:
-    image: clickhouse/clickhouse-server:26.5
+    image: clickhouse/clickhouse-server:26.6
     ports: ["8123:8123", "9000:9000"]
     environment:
       CLICKHOUSE_DB: observable
@@ -20,7 +20,7 @@ services:
       retries: 30
 
   redpanda:
-    image: redpandadata/redpanda:v26.1.10
+    image: redpandadata/redpanda:v26.1.11
     command:
       - redpanda
       - start
@@ -117,7 +117,7 @@ services:
 
   # --- SETUP & MIGRATIONS ---
   clickhouse-setup:
-    image: clickhouse/clickhouse-server:26.5
+    image: clickhouse/clickhouse-server:26.6
     entrypoint:
       - /bin/bash
       - -c
@@ -170,7 +170,7 @@ services:
       postgres: { condition: service_healthy }
 
   redpanda-setup:
-    image: redpandadata/redpanda:v26.1.10
+    image: redpandadata/redpanda:v26.1.11
     entrypoint:
       - /bin/bash
       - -c
