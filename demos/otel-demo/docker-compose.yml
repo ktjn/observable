@@ -1,0 +1,644 @@
+# Vendored from opentelemetry-demo v2.2.0
+# Modifications: removed build blocks, removed jaeger/grafana/prometheus/opensearch,
+# otel-collector routes to ingest-gateway, networks block removed to join main project network.
+
+x-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "5m"
+    max-file: "2"
+
+x-otel-env: &otel-env
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: cumulative
+  OTEL_RESOURCE_ATTRIBUTES: "service.namespace=opentelemetry-demo,service.version=2.2.0"
+
+services:
+  accounting:
+    image: ghcr.io/open-telemetry/demo:2.2.0-accounting
+    deploy:
+      resources:
+        limits:
+          memory: 160M
+    restart: unless-stopped
+    environment:
+      <<: *otel-env
+      KAFKA_ADDR: kafka:9092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: accounting
+      DB_CONNECTION_STRING: "Host=postgresql;Username=otelu;Password=otelp;Database=otel"
+      OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED: "false"
+    depends_on:
+      otel-collector:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+    logging: *logging
+
+  ad:
+    image: ghcr.io/open-telemetry/demo:2.2.0-ad
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+    restart: unless-stopped
+    ports:
+      - "9555"
+    environment:
+      AD_PORT: "9555"
+      FLAGD_HOST: flagd
+      FLAGD_PORT: "8013"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: cumulative
+      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=opentelemetry-demo,service.version=2.2.0"
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_SERVICE_NAME: ad
+    depends_on:
+      otel-collector:
+        condition: service_started
+      flagd:
+        condition: service_started
+    logging: *logging
+
+  cart:
+    image: ghcr.io/open-telemetry/demo:2.2.0-cart
+    deploy:
+      resources:
+        limits:
+          memory: 160M
+    restart: unless-stopped
+    ports:
+      - "7070"
+    environment:
+      <<: *otel-env
+      CART_PORT: "7070"
+      FLAGD_HOST: flagd
+      FLAGD_PORT: "8013"
+      VALKEY_ADDR: valkey-cart:6379
+      OTEL_SERVICE_NAME: cart
+      ASPNETCORE_URLS: "http://*:7070"
+    depends_on:
+      valkey-cart:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+      flagd:
+        condition: service_started
+    logging: *logging
+
+  checkout:
+    image: ghcr.io/open-telemetry/demo:2.2.0-checkout
+    deploy:
+      resources:
+        limits:
+          memory: 20M
+    restart: unless-stopped
+    ports:
+      - "5050"
+    environment:
+      <<: *otel-env
+      FLAGD_HOST: flagd
+      FLAGD_PORT: "8013"
+      CHECKOUT_PORT: "5050"
+      CART_ADDR: cart:7070
+      CURRENCY_ADDR: currency:7001
+      EMAIL_ADDR: http://email:6060
+      PAYMENT_ADDR: payment:50051
+      PRODUCT_CATALOG_ADDR: product-catalog:3550
+      SHIPPING_ADDR: http://shipping:50050
+      KAFKA_ADDR: kafka:9092
+      GOMEMLIMIT: 16MiB
+      OTEL_SERVICE_NAME: checkout
+    depends_on:
+      cart:
+        condition: service_started
+      currency:
+        condition: service_started
+      email:
+        condition: service_started
+      payment:
+        condition: service_started
+      product-catalog:
+        condition: service_started
+      shipping:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+      flagd:
+        condition: service_started
+    logging: *logging
+
+  currency:
+    image: ghcr.io/open-telemetry/demo:2.2.0-currency
+    deploy:
+      resources:
+        limits:
+          memory: 20M
+    restart: unless-stopped
+    ports:
+      - "7001"
+    environment:
+      <<: *otel-env
+      CURRENCY_PORT: "7001"
+      IPV6_ENABLED: "false"
+      VERSION: "2.2.0"
+      OTEL_SERVICE_NAME: currency
+    depends_on:
+      otel-collector:
+        condition: service_started
+    logging: *logging
+
+  email:
+    image: ghcr.io/open-telemetry/demo:2.2.0-email
+    deploy:
+      resources:
+        limits:
+          memory: 100M
+    restart: unless-stopped
+    ports:
+      - "6060"
+    environment:
+      APP_ENV: production
+      EMAIL_PORT: "6060"
+      FLAGD_HOST: flagd
+      FLAGD_PORT: "8013"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: cumulative
+      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=opentelemetry-demo,service.version=2.2.0"
+      OTEL_SERVICE_NAME: email
+    depends_on:
+      otel-collector:
+        condition: service_started
+    logging: *logging
+
+  fraud-detection:
+    image: ghcr.io/open-telemetry/demo:2.2.0-fraud-detection
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+    restart: unless-stopped
+    environment:
+      FLAGD_HOST: flagd
+      FLAGD_PORT: "8013"
+      KAFKA_ADDR: kafka:9092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: cumulative
+      OTEL_INSTRUMENTATION_KAFKA_EXPERIMENTAL_SPAN_ATTRIBUTES: "true"
+      OTEL_INSTRUMENTATION_MESSAGING_EXPERIMENTAL_RECEIVE_TELEMETRY_ENABLED: "true"
+      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=opentelemetry-demo,service.version=2.2.0"
+      OTEL_SERVICE_NAME: fraud-detection
+    depends_on:
+      otel-collector:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+    logging: *logging
+
+  otel-demo-frontend:
+    image: ghcr.io/open-telemetry/demo:2.2.0-frontend
+    deploy:
+      resources:
+        limits:
+          memory: 250M
+    restart: unless-stopped
+    ports:
+      - "8080"
+    environment:
+      <<: *otel-env
+      PORT: "8080"
+      FRONTEND_ADDR: otel-demo-frontend:8080
+      AD_ADDR: ad:9555
+      CART_ADDR: cart:7070
+      CHECKOUT_ADDR: checkout:5050
+      CURRENCY_ADDR: currency:7001
+      PRODUCT_CATALOG_ADDR: product-catalog:3550
+      PRODUCT_REVIEWS_ADDR: product-reviews:3551
+      RECOMMENDATION_ADDR: recommendation:9001
+      SHIPPING_ADDR: http://shipping:50050
+      ENV_PLATFORM: local
+      OTEL_SERVICE_NAME: frontend
+      PUBLIC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://localhost:8080/otlp-http/v1/traces
+      WEB_OTEL_SERVICE_NAME: frontend-web
+      OTEL_COLLECTOR_HOST: otel-collector
+      FLAGD_HOST: flagd
+      FLAGD_PORT: "8013"
+    depends_on:
+      ad:
+        condition: service_started
+      cart:
+        condition: service_started
+      checkout:
+        condition: service_started
+      currency:
+        condition: service_started
+      product-catalog:
+        condition: service_started
+      quote:
+        condition: service_started
+      recommendation:
+        condition: service_started
+      shipping:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+      image-provider:
+        condition: service_started
+      flagd:
+        condition: service_started
+    logging: *logging
+
+  frontend-proxy:
+    image: ghcr.io/open-telemetry/demo:2.2.0-frontend-proxy
+    deploy:
+      resources:
+        limits:
+          memory: 65M
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "10000:10000"
+    environment:
+      FRONTEND_PORT: "8080"
+      FRONTEND_HOST: otel-demo-frontend
+      LOCUST_WEB_HOST: load-generator
+      LOCUST_WEB_PORT: "8089"
+      GRAFANA_PORT: "3000"
+      GRAFANA_HOST: "localhost"
+      JAEGER_UI_PORT: "16686"
+      JAEGER_HOST: "localhost"
+      OTEL_COLLECTOR_HOST: otel-collector
+      IMAGE_PROVIDER_HOST: image-provider
+      IMAGE_PROVIDER_PORT: "8081"
+      OTEL_COLLECTOR_PORT_GRPC: "4317"
+      OTEL_COLLECTOR_PORT_HTTP: "4318"
+      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=opentelemetry-demo,service.version=2.2.0"
+      OTEL_SERVICE_NAME: frontend-proxy
+      ENVOY_PORT: "8080"
+      ENVOY_ADDR: "0.0.0.0"
+      ENVOY_ADMIN_PORT: "10000"
+      FLAGD_HOST: flagd
+      FLAGD_PORT: "8013"
+      FLAGD_UI_HOST: flagd-ui
+      FLAGD_UI_PORT: "4000"
+    depends_on:
+      otel-demo-frontend:
+        condition: service_started
+      load-generator:
+        condition: service_started
+      flagd-ui:
+        condition: service_started
+    dns_search: ""
+    logging: *logging
+
+  image-provider:
+    image: ghcr.io/open-telemetry/demo:2.2.0-image-provider
+    deploy:
+      resources:
+        limits:
+          memory: 120M
+    restart: unless-stopped
+    ports:
+      - "8081"
+    environment:
+      IMAGE_PROVIDER_PORT: "8081"
+      OTEL_COLLECTOR_HOST: otel-collector
+      OTEL_COLLECTOR_PORT_GRPC: "4317"
+      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=opentelemetry-demo,service.version=2.2.0"
+      OTEL_SERVICE_NAME: image-provider
+    depends_on:
+      otel-collector:
+        condition: service_started
+    logging: *logging
+
+  load-generator:
+    image: ghcr.io/open-telemetry/demo:2.2.0-load-generator
+    deploy:
+      resources:
+        limits:
+          memory: 1500M
+    restart: unless-stopped
+    ports:
+      - "8089"
+    environment:
+      <<: *otel-env
+      LOCUST_WEB_PORT: "8089"
+      LOCUST_USERS: "5"
+      LOCUST_HOST: http://frontend-proxy:8080
+      LOCUST_HEADLESS: "false"
+      LOCUST_AUTOSTART: "true"
+      LOCUST_BROWSER_TRAFFIC_ENABLED: "true"
+      OTEL_SERVICE_NAME: load-generator
+      PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
+      LOCUST_WEB_HOST: "0.0.0.0"
+      FLAGD_HOST: flagd
+      FLAGD_PORT: "8013"
+      FLAGD_OFREP_PORT: "8016"
+    depends_on:
+      otel-demo-frontend:
+        condition: service_started
+      flagd:
+        condition: service_started
+    logging: *logging
+
+  payment:
+    image: ghcr.io/open-telemetry/demo:2.2.0-payment
+    deploy:
+      resources:
+        limits:
+          memory: 140M
+    restart: unless-stopped
+    ports:
+      - "50051"
+    environment:
+      <<: *otel-env
+      IPV6_ENABLED: "false"
+      PAYMENT_PORT: "50051"
+      FLAGD_HOST: flagd
+      FLAGD_PORT: "8013"
+      OTEL_SERVICE_NAME: payment
+    depends_on:
+      otel-collector:
+        condition: service_started
+      flagd:
+        condition: service_started
+    logging: *logging
+
+  product-catalog:
+    image: ghcr.io/open-telemetry/demo:2.2.0-product-catalog
+    deploy:
+      resources:
+        limits:
+          memory: 20M
+    restart: unless-stopped
+    ports:
+      - "3550"
+    environment:
+      <<: *otel-env
+      PRODUCT_CATALOG_PORT: "3550"
+      FLAGD_HOST: flagd
+      FLAGD_PORT: "8013"
+      GOMEMLIMIT: 16MiB
+      OTEL_SERVICE_NAME: product-catalog
+      OTEL_SEMCONV_STABILITY_OPT_IN: database
+      DB_CONNECTION_STRING: "postgres://otelu:otelp@postgresql/otel?sslmode=disable"
+    depends_on:
+      otel-collector:
+        condition: service_started
+      flagd:
+        condition: service_started
+      postgresql:
+        condition: service_started
+    logging: *logging
+
+  product-reviews:
+    image: ghcr.io/open-telemetry/demo:2.2.0-product-reviews
+    deploy:
+      resources:
+        limits:
+          memory: 100M
+    restart: unless-stopped
+    ports:
+      - "3551"
+    environment:
+      <<: *otel-env
+      PRODUCT_REVIEWS_PORT: "3551"
+      OTEL_PYTHON_LOG_CORRELATION: "true"
+      OTEL_SERVICE_NAME: product-reviews
+      OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: "true"
+      PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
+      DB_CONNECTION_STRING: "host=postgresql user=otelu password=otelp dbname=otel"
+      LLM_BASE_URL: http://llm:8000/v1
+      OPENAI_API_KEY: dummy
+      LLM_MODEL: astronomy-llm
+      PRODUCT_CATALOG_ADDR: product-catalog:3550
+      FLAGD_HOST: flagd
+      FLAGD_PORT: "8013"
+      LLM_HOST: llm
+      LLM_PORT: "8000"
+    depends_on:
+      product-catalog:
+        condition: service_started
+      llm:
+        condition: service_started
+      postgresql:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+    logging: *logging
+
+  quote:
+    image: ghcr.io/open-telemetry/demo:2.2.0-quote
+    deploy:
+      resources:
+        limits:
+          memory: 40M
+    restart: unless-stopped
+    ports:
+      - "8090"
+    environment:
+      IPV6_ENABLED: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: cumulative
+      OTEL_PHP_AUTOLOAD_ENABLED: "true"
+      QUOTE_PORT: "8090"
+      OTEL_PHP_INTERNAL_METRICS_ENABLED: "true"
+      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=opentelemetry-demo,service.version=2.2.0"
+      OTEL_SERVICE_NAME: quote
+    depends_on:
+      otel-collector:
+        condition: service_started
+    logging: *logging
+
+  recommendation:
+    image: ghcr.io/open-telemetry/demo:2.2.0-recommendation
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+    restart: unless-stopped
+    ports:
+      - "9001"
+    environment:
+      <<: *otel-env
+      RECOMMENDATION_PORT: "9001"
+      PRODUCT_CATALOG_ADDR: product-catalog:3550
+      FLAGD_HOST: flagd
+      FLAGD_PORT: "8013"
+      OTEL_PYTHON_LOG_CORRELATION: "true"
+      OTEL_SERVICE_NAME: recommendation
+      PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
+    depends_on:
+      product-catalog:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+      flagd:
+        condition: service_started
+    logging: *logging
+
+  shipping:
+    image: ghcr.io/open-telemetry/demo:2.2.0-shipping
+    deploy:
+      resources:
+        limits:
+          memory: 20M
+    restart: unless-stopped
+    ports:
+      - "50050"
+    environment:
+      <<: *otel-env
+      IPV6_ENABLED: "false"
+      SHIPPING_PORT: "50050"
+      QUOTE_ADDR: http://quote:8090
+      OTEL_SERVICE_NAME: shipping
+    depends_on:
+      otel-collector:
+        condition: service_started
+    logging: *logging
+
+  flagd:
+    image: ghcr.io/open-feature/flagd:v0.12.9
+    deploy:
+      resources:
+        limits:
+          memory: 75M
+    restart: unless-stopped
+    environment:
+      FLAGD_OTEL_COLLECTOR_URI: otel-collector:4317
+      FLAGD_METRICS_EXPORTER: otel
+      GOMEMLIMIT: 60MiB
+      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=opentelemetry-demo,service.version=2.2.0"
+      OTEL_SERVICE_NAME: flagd
+    command:
+      - start
+      - --uri
+      - file:./etc/flagd/demo.flagd.json
+    ports:
+      - "8013"
+      - "8016"
+    volumes:
+      - ./src/flagd:/etc/flagd
+    logging: *logging
+
+  flagd-ui:
+    image: ghcr.io/open-telemetry/demo:2.2.0-flagd-ui
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+    restart: unless-stopped
+    environment:
+      FLAGD_UI_PORT: "4000"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: cumulative
+      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=opentelemetry-demo,service.version=2.2.0"
+      OTEL_SERVICE_NAME: flagd-ui
+      SECRET_KEY_BASE: yYrECL4qbNwleYInGJYvVnSkwJuSQJ4ijPTx5tirGUXrbznFIBFVJdPl5t6O9ASw
+      PHX_HOST: localhost
+    ports:
+      - "4000"
+    depends_on:
+      otel-collector:
+        condition: service_started
+      flagd:
+        condition: service_started
+    volumes:
+      - ./src/flagd:/app/data
+    logging: *logging
+
+  kafka:
+    image: ghcr.io/open-telemetry/demo:2.2.0-kafka
+    deploy:
+      resources:
+        limits:
+          memory: 620M
+    restart: unless-stopped
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://kafka:9092,CONTROLLER://kafka:9093
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: cumulative
+      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=opentelemetry-demo,service.version=2.2.0"
+      OTEL_SERVICE_NAME: kafka
+      KAFKA_HEAP_OPTS: "-Xmx400m -Xms400m"
+    healthcheck:
+      test: nc -z kafka 9092
+      start_period: 10s
+      interval: 5s
+      timeout: 10s
+      retries: 10
+    logging: *logging
+
+  llm:
+    image: ghcr.io/open-telemetry/demo:2.2.0-llm
+    deploy:
+      resources:
+        limits:
+          memory: 50M
+    restart: unless-stopped
+    environment:
+      FLAGD_HOST: flagd
+      FLAGD_PORT: "8013"
+    ports:
+      - "8000"
+    depends_on:
+      flagd:
+        condition: service_started
+    logging: *logging
+
+  postgresql:
+    image: postgres:17.6
+    deploy:
+      resources:
+        limits:
+          memory: 80M
+    restart: unless-stopped
+    ports:
+      - "5432"
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: otel
+      POSTGRES_DB: otel
+    volumes:
+      - ./src/postgresql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - otel_demo_postgresql_data:/var/lib/postgresql/data
+    logging: *logging
+
+  valkey-cart:
+    image: valkey/valkey:9.0.1-alpine3.23
+    user: valkey
+    deploy:
+      resources:
+        limits:
+          memory: 20M
+    restart: unless-stopped
+    ports:
+      - "6379"
+    logging: *logging
+
+  otel-collector:
+    image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.142.0
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol-config.yml"]
+    volumes:
+      - ./otelcol-config.yml:/etc/otelcol-config.yml
+    ports:
+      - "4317"
+      - "4318"
+    depends_on:
+      ingest-gateway:
+        condition: service_healthy
+    environment:
+      GOMEMLIMIT: 160MiB
+    logging: *logging
+
+volumes:
+  otel_demo_postgresql_data:
