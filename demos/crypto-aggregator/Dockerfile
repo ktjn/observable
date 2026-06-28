@@ -7,7 +7,8 @@ WORKDIR /app/backend
 COPY backend/package.json backend/package-lock.json* ./
 RUN npm ci --ignore-scripts
 
-COPY backend/ ./
+COPY backend/src ./src
+COPY backend/tsconfig.json ./
 RUN npm run build
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -19,7 +20,9 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci --ignore-scripts
 
-COPY frontend/ ./
+COPY frontend/src ./src
+COPY frontend/public ./public
+COPY frontend/index.html frontend/vite.config.ts frontend/tsconfig.json frontend/tsconfig.node.json frontend/postcss.config.js frontend/tailwind.config.js ./
 RUN npm run build
 
 # ──────────────────────────────────────────────────────────────────────────────
