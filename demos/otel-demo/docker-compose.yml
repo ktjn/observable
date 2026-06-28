@@ -498,7 +498,7 @@ services:
     logging: *logging
 
   flagd:
-    image: ghcr.io/open-feature/flagd:v0.12.9
+    image: ghcr.io/open-feature/flagd:v0.16.0
     deploy:
       resources:
         limits:
@@ -589,7 +589,7 @@ services:
     logging: *logging
 
   postgresql:
-    image: postgres:17.6
+    image: postgres:17.10
     deploy:
       resources:
         limits:
@@ -607,7 +607,7 @@ services:
     logging: *logging
 
   valkey-cart:
-    image: valkey/valkey:9.0.1-alpine3.23
+    image: valkey/valkey:9.1.0-alpine3.23
     user: valkey
     deploy:
       resources:
@@ -619,7 +619,7 @@ services:
     logging: *logging
 
   otel-collector:
-    image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.142.0
+    image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.155.0
     deploy:
       resources:
         limits:
