@@ -73,7 +73,7 @@ mod tests {
             ..Default::default()
         };
         let row = SpanRow::from(span);
-        assert_eq!(row.status_code, "ERROR");
+        assert_eq!(row.status_code, "ERROR".into());
     }
 
     #[test]
@@ -149,7 +149,7 @@ mod tests {
                 status_code: status.clone(),
                 ..Default::default()
             });
-            assert_eq!(row.status_code, expected_str);
+            assert_eq!(row.status_code, expected_str.into());
             let recovered = Span::from(row);
             assert_eq!(recovered.status_code, status);
         }
@@ -168,7 +168,7 @@ mod tests {
                 span_kind: kind.clone(),
                 ..Default::default()
             });
-            assert_eq!(row.span_kind, expected_str);
+            assert_eq!(row.span_kind, expected_str.into());
             let recovered = Span::from(row);
             assert_eq!(recovered.span_kind, kind);
         }
