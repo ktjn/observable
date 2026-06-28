@@ -197,7 +197,7 @@ services:
         condition: service_healthy
     logging: *logging
 
-  frontend:
+  otel-demo-frontend:
     image: ghcr.io/open-telemetry/demo:2.2.0-frontend
     deploy:
       resources:
@@ -209,7 +209,7 @@ services:
     environment:
       <<: *otel-env
       PORT: "8080"
-      FRONTEND_ADDR: frontend:8080
+      FRONTEND_ADDR: otel-demo-frontend:8080
       AD_ADDR: ad:9555
       CART_ADDR: cart:7070
       CHECKOUT_ADDR: checkout:5050
@@ -262,7 +262,7 @@ services:
       - "10000:10000"
     environment:
       FRONTEND_PORT: "8080"
-      FRONTEND_HOST: frontend
+      FRONTEND_HOST: otel-demo-frontend
       LOCUST_WEB_HOST: load-generator
       LOCUST_WEB_PORT: "8089"
       GRAFANA_PORT: "3000"
@@ -284,7 +284,7 @@ services:
       FLAGD_UI_HOST: flagd-ui
       FLAGD_UI_PORT: "4000"
     depends_on:
-      frontend:
+      otel-demo-frontend:
         condition: service_started
       load-generator:
         condition: service_started
@@ -337,7 +337,7 @@ services:
       FLAGD_PORT: "8013"
       FLAGD_OFREP_PORT: "8016"
     depends_on:
-      frontend:
+      otel-demo-frontend:
         condition: service_started
       flagd:
         condition: service_started
