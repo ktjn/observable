@@ -3,9 +3,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 #[cfg(feature = "storage")]
-use crate::generated::tracing::{
-    TracingSpanEventRowV1, TracingSpanRowV1, TracingSpanRowV1SpanKind, TracingSpanRowV1StatusCode,
-};
+use crate::generated::tracing::{TracingSpanEventRowV1, TracingSpanRowV1};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Span {
@@ -39,18 +37,6 @@ pub type SpanRow = TracingSpanRowV1;
 #[cfg(feature = "storage")]
 impl From<Span> for SpanRow {
     fn from(s: Span) -> Self {
-        let span_kind = match s.span_kind {
-            SpanKind::Internal => TracingSpanRowV1SpanKind::Internal,
-            SpanKind::Server => TracingSpanRowV1SpanKind::Server,
-            SpanKind::Client => TracingSpanRowV1SpanKind::Client,
-            SpanKind::Producer => TracingSpanRowV1SpanKind::Producer,
-            SpanKind::Consumer => TracingSpanRowV1SpanKind::Consumer,
-        };
-        let status_code = match s.status_code {
-            StatusCode::Unset => TracingSpanRowV1StatusCode::Unset,
-            StatusCode::Ok => TracingSpanRowV1StatusCode::Ok,
-            StatusCode::Error => TracingSpanRowV1StatusCode::Error,
-        };
         Self {
             tenant_id: s.tenant_id,
             trace_id: s.trace_id,
@@ -60,11 +46,21 @@ impl From<Span> for SpanRow {
             service_namespace: s.service_namespace,
             service_version: s.service_version,
             operation_name: s.operation_name,
-            span_kind,
+            span_kind: match s.span_kind {
+                SpanKind::Internal => "INTERNAL".to_string(),
+                SpanKind::Server => "SERVER".to_string(),
+                SpanKind::Client => "CLIENT".to_string(),
+                SpanKind::Producer => "PRODUCER".to_string(),
+                SpanKind::Consumer => "CONSUMER".to_string(),
+            },
             start_time_unix_nano: s.start_time_unix_nano,
             end_time_unix_nano: s.end_time_unix_nano,
             duration_ns: s.duration_ns,
-            status_code,
+            status_code: match s.status_code {
+                StatusCode::Unset => "UNSET".to_string(),
+                StatusCode::Ok => "OK".to_string(),
+                StatusCode::Error => "ERROR".to_string(),
+            },
             status_message: s.status_message,
             attributes: serde_json::to_string(&s.attributes).unwrap_or_default(),
             resource_attributes: serde_json::to_string(&s.resource_attributes).unwrap_or_default(),
@@ -79,18 +75,6 @@ impl From<Span> for SpanRow {
 #[cfg(feature = "storage")]
 impl From<SpanRow> for Span {
     fn from(row: SpanRow) -> Self {
-        let span_kind = match row.span_kind {
-            TracingSpanRowV1SpanKind::Server => SpanKind::Server,
-            TracingSpanRowV1SpanKind::Client => SpanKind::Client,
-            TracingSpanRowV1SpanKind::Producer => SpanKind::Producer,
-            TracingSpanRowV1SpanKind::Consumer => SpanKind::Consumer,
-            TracingSpanRowV1SpanKind::Internal => SpanKind::Internal,
-        };
-        let status_code = match row.status_code {
-            TracingSpanRowV1StatusCode::Ok => StatusCode::Ok,
-            TracingSpanRowV1StatusCode::Error => StatusCode::Error,
-            TracingSpanRowV1StatusCode::Unset => StatusCode::Unset,
-        };
         Self {
             tenant_id: row.tenant_id,
             trace_id: row.trace_id,
@@ -100,11 +84,21 @@ impl From<SpanRow> for Span {
             service_namespace: row.service_namespace,
             service_version: row.service_version,
             operation_name: row.operation_name,
-            span_kind,
+            span_kind: match row.span_kind.as_str() {
+                "SERVER" => SpanKind::Server,
+                "CLIENT" => SpanKind::Client,
+                "PRODUCER" => SpanKind::Producer,
+                "CONSUMER" => SpanKind::Consumer,
+                _ => SpanKind::Internal,
+            },
             start_time_unix_nano: row.start_time_unix_nano,
             end_time_unix_nano: row.end_time_unix_nano,
             duration_ns: row.duration_ns,
-            status_code,
+            status_code: match row.status_code.as_str() {
+                "OK" => StatusCode::Ok,
+                "ERROR" => StatusCode::Error,
+                _ => StatusCode::Unset,
+            },
             status_message: row.status_message,
             attributes: serde_json::from_str(&row.attributes).unwrap_or_default(),
             resource_attributes: serde_json::from_str(&row.resource_attributes).unwrap_or_default(),

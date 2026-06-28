@@ -81,63 +81,49 @@ sed -i '/^ \*\/$/a\
 import type { DashboardPanelLayout } from "./dashboards.DashboardPanelLayout.v0";' "$DASHBOARD_PANEL"
 
 echo ""
-echo "==> Patching: add From impls for generated Rust enums"
+echo "==> Patching: fix TracingSpanRowV1 enum fields to String for ClickHouse compatibility"
 
-# tracing_span_row_v1.rs — modelable v1.0.0 switched from String to typed enums
-# but doesn't generate From<&str> or cross-record From<...> impls.
+# tracing_span_row_v1.rs — modelable v1.0.0 generates typed enums for span_kind/status_code,
+# but clickhouse-rs 0.15 panics when serializing unit-variant enums for String columns.
+# Patch: replace typed enum fields with String, update From<TracingSpanV1> to produce
+# SCREAMING_SNAKE_CASE strings, and update the file header comment.
 # See: https://github.com/ktjn/modelable/issues/119
 SPAN_ROW_RS="libs/domain/src/generated/tracing/tracing_span_row_v1.rs"
 if [ -f "$SPAN_ROW_RS" ]; then
-  # Remove any previous manual patch blocks (marked by comment markers)
-  sed -i '/^# -- modelable patch: cross-enum From impls --$/,/^# -- end modelable patch --$/d' "$SPAN_ROW_RS"
-  cat >> "$SPAN_ROW_RS" << 'RSPATCH'
-// -- modelable patch: cross-enum From impls --
-#[cfg(feature = "storage")]
-impl From<TracingSpanV1SpanKind> for TracingSpanRowV1SpanKind {
-    fn from(src: TracingSpanV1SpanKind) -> Self {
-        match src {
-            TracingSpanV1SpanKind::Internal => Self::Internal,
-            TracingSpanV1SpanKind::Server => Self::Server,
-            TracingSpanV1SpanKind::Client => Self::Client,
-            TracingSpanV1SpanKind::Producer => Self::Producer,
-            TracingSpanV1SpanKind::Consumer => Self::Consumer,
-        }
-    }
-}
-#[cfg(feature = "storage")]
-impl From<TracingSpanV1StatusCode> for TracingSpanRowV1StatusCode {
-    fn from(src: TracingSpanV1StatusCode) -> Self {
-        match src {
-            TracingSpanV1StatusCode::Unset => Self::Unset,
-            TracingSpanV1StatusCode::Ok => Self::Ok,
-            TracingSpanV1StatusCode::Error => Self::Error,
-        }
-    }
-}
-impl From<&str> for TracingSpanRowV1SpanKind {
-    fn from(src: &str) -> Self {
-        match src.to_uppercase().as_str() {
-            "INTERNAL" => Self::Internal,
-            "SERVER" => Self::Server,
-            "CLIENT" => Self::Client,
-            "PRODUCER" => Self::Producer,
-            "CONSUMER" => Self::Consumer,
-            _ => Self::Internal,
-        }
-    }
-}
-impl From<&str> for TracingSpanRowV1StatusCode {
-    fn from(src: &str) -> Self {
-        match src.to_uppercase().as_str() {
-            "UNSET" => Self::Unset,
-            "OK" => Self::Ok,
-            "ERROR" => Self::Error,
-            _ => Self::Unset,
-        }
-    }
-}
-// -- end modelable patch --
-RSPATCH
+  # Replace typed enum field declarations with String in the struct
+  sed -i \
+    -e 's/pub span_kind: TracingSpanRowV1SpanKind,/pub span_kind: String,/' \
+    -e 's/pub status_code: TracingSpanRowV1StatusCode,/pub status_code: String,/' \
+    "$SPAN_ROW_RS"
+
+  # Replace .into() enum conversions in From<TracingSpanV1> with explicit match-to-string
+  python3 - "$SPAN_ROW_RS" << 'PYEOF'
+import re, sys
+
+path = sys.argv[1]
+src = open(path).read()
+
+src = src.replace(
+    "span_kind: src.span_kind.into(),",
+    """span_kind: match src.span_kind {
+                TracingSpanV1SpanKind::Internal => "INTERNAL".to_string(),
+                TracingSpanV1SpanKind::Server => "SERVER".to_string(),
+                TracingSpanV1SpanKind::Client => "CLIENT".to_string(),
+                TracingSpanV1SpanKind::Producer => "PRODUCER".to_string(),
+                TracingSpanV1SpanKind::Consumer => "CONSUMER".to_string(),
+            },""",
+)
+src = src.replace(
+    "status_code: src.status_code.into(),",
+    """status_code: match src.status_code {
+                TracingSpanV1StatusCode::Unset => "UNSET".to_string(),
+                TracingSpanV1StatusCode::Ok => "OK".to_string(),
+                TracingSpanV1StatusCode::Error => "ERROR".to_string(),
+            },""",
+)
+
+open(path, "w").write(src)
+PYEOF
 fi
 
 echo ""

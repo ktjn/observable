@@ -2,9 +2,9 @@
 // requires: serde_json (https://docs.rs/serde_json)
 // requires: uuid (https://docs.rs/uuid)
 // requires: clickhouse (https://docs.rs/clickhouse)
-// TEMPORARY: From impls below for TracingSpanV1SpanKind→TracingSpanRowV1SpanKind and
-// TracingSpanV1StatusCode→TracingSpanRowV1StatusCode are hand-added until modelable's
-// Rust emitter generates them. If regenerating this file, re-add them.
+// PATCH: span_kind and status_code are String (not typed enums). clickhouse-rs 0.15
+// panics in serialize_unit_variant for String columns — enums cannot be used directly
+// as ClickHouse String fields. See: https://github.com/ktjn/modelable/issues/119
 use std::collections::HashMap;
 
 #[cfg(feature = "storage")]
@@ -18,11 +18,11 @@ pub struct TracingSpanRowV1 {
     pub service_namespace: String,
     pub service_version: String,
     pub operation_name: String,
-    pub span_kind: TracingSpanRowV1SpanKind,
+    pub span_kind: String,
     pub start_time_unix_nano: u64,
     pub end_time_unix_nano: u64,
     pub duration_ns: u64,
-    pub status_code: TracingSpanRowV1StatusCode,
+    pub status_code: String,
     pub status_message: String,
     pub attributes: String,
     pub resource_attributes: String,
@@ -65,11 +65,21 @@ impl From<TracingSpanV1> for TracingSpanRowV1 {
             service_namespace: src.service_namespace.into(),
             service_version: src.service_version.into(),
             operation_name: src.operation_name.into(),
-            span_kind: src.span_kind.into(),
+            span_kind: match src.span_kind {
+                TracingSpanV1SpanKind::Internal => "INTERNAL".to_string(),
+                TracingSpanV1SpanKind::Server => "SERVER".to_string(),
+                TracingSpanV1SpanKind::Client => "CLIENT".to_string(),
+                TracingSpanV1SpanKind::Producer => "PRODUCER".to_string(),
+                TracingSpanV1SpanKind::Consumer => "CONSUMER".to_string(),
+            },
             start_time_unix_nano: src.start_time_unix_nano.into(),
             end_time_unix_nano: src.end_time_unix_nano.into(),
             duration_ns: src.duration_ns.into(),
-            status_code: src.status_code.into(),
+            status_code: match src.status_code {
+                TracingSpanV1StatusCode::Unset => "UNSET".to_string(),
+                TracingSpanV1StatusCode::Ok => "OK".to_string(),
+                TracingSpanV1StatusCode::Error => "ERROR".to_string(),
+            },
             status_message: src.status_message.into(),
             attributes: serde_json::to_string(&src.attributes).unwrap_or_default(),
             resource_attributes: serde_json::to_string(&src.resource_attributes)
@@ -81,50 +91,3 @@ impl From<TracingSpanV1> for TracingSpanRowV1 {
         }
     }
 }
-
-// -- modelable patch: cross-enum From impls --
-#[cfg(feature = "storage")]
-impl From<TracingSpanV1SpanKind> for TracingSpanRowV1SpanKind {
-    fn from(src: TracingSpanV1SpanKind) -> Self {
-        match src {
-            TracingSpanV1SpanKind::Internal => Self::Internal,
-            TracingSpanV1SpanKind::Server => Self::Server,
-            TracingSpanV1SpanKind::Client => Self::Client,
-            TracingSpanV1SpanKind::Producer => Self::Producer,
-            TracingSpanV1SpanKind::Consumer => Self::Consumer,
-        }
-    }
-}
-#[cfg(feature = "storage")]
-impl From<TracingSpanV1StatusCode> for TracingSpanRowV1StatusCode {
-    fn from(src: TracingSpanV1StatusCode) -> Self {
-        match src {
-            TracingSpanV1StatusCode::Unset => Self::Unset,
-            TracingSpanV1StatusCode::Ok => Self::Ok,
-            TracingSpanV1StatusCode::Error => Self::Error,
-        }
-    }
-}
-impl From<&str> for TracingSpanRowV1SpanKind {
-    fn from(src: &str) -> Self {
-        match src.to_uppercase().as_str() {
-            "INTERNAL" => Self::Internal,
-            "SERVER" => Self::Server,
-            "CLIENT" => Self::Client,
-            "PRODUCER" => Self::Producer,
-            "CONSUMER" => Self::Consumer,
-            _ => Self::Internal,
-        }
-    }
-}
-impl From<&str> for TracingSpanRowV1StatusCode {
-    fn from(src: &str) -> Self {
-        match src.to_uppercase().as_str() {
-            "UNSET" => Self::Unset,
-            "OK" => Self::Ok,
-            "ERROR" => Self::Error,
-            _ => Self::Unset,
-        }
-    }
-}
-// -- end modelable patch --

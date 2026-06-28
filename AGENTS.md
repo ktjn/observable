@@ -27,9 +27,7 @@ The modelable codegen emitter (PyPI v1.0.0) has known limitations that require m
   - `dashboards.Dashboard.v1.ts` — add `import type { DashboardPanel }`
   - `dashboards.DashboardPanel.v0.ts` — add `import type { DashboardPanelLayout }`
 
-- **Rust cross-enum From impls** (issue #119): When separate records define enums with identical variant sets, no `From` impls are generated between them. Currently worked around manually in `tracing_span_row_v1.rs` — `From<TracingSpanV1SpanKind>` and `From<TracingSpanV1StatusCode>`.
-
-- **Rust From&lt;str&gt; for typed enums** (related to #119): modelable v1.0.0 switched from String-based to typed enums for `span_kind`/`status_code`, but generated enums lack `From<&str>`, breaking call sites using `.into()` from string literals. Manual `From<&str>` impls are in `tracing_span_row_v1.rs`.
+- **Rust ClickHouse enum serialization** (issue #119): clickhouse-rs 0.15 panics on `serialize_unit_variant` for String columns — typed enums cannot be used directly as `String` ClickHouse column fields. `TracingSpanRowV1.span_kind` and `.status_code` are kept as `String` (SCREAMING\_SNAKE\_CASE values) rather than the typed enums that modelable generates. The `From<TracingSpanV1>` impl in `tracing_span_row_v1.rs` converts enum values to strings via explicit match. `scripts/regenerate-models.sh` applies this patch automatically after regeneration.
 
 - **Rust NamedType references** (issue #120): Unlike the TS emitter, the Rust emitter silently emits Pascal-cased type names for NamedType references without any warning or import.
 
