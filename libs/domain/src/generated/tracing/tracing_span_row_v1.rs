@@ -72,7 +72,8 @@ impl From<TracingSpanV1> for TracingSpanRowV1 {
             status_code: src.status_code.into(),
             status_message: src.status_message.into(),
             attributes: serde_json::to_string(&src.attributes).unwrap_or_default(),
-            resource_attributes: serde_json::to_string(&src.resource_attributes).unwrap_or_default(),
+            resource_attributes: serde_json::to_string(&src.resource_attributes)
+                .unwrap_or_default(),
             environment: src.environment.into(),
             host_id: src.host_id.into(),
             workload: src.workload.into(),
