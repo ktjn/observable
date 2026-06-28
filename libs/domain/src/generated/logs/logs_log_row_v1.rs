@@ -42,8 +42,7 @@ impl From<LogsLogRecordV1> for LogsLogRowV1 {
             trace_id: src.trace_id.into(),
             span_id: src.span_id.into(),
             attributes: serde_json::to_string(&src.attributes).unwrap_or_default(),
-            resource_attributes: serde_json::to_string(&src.resource_attributes)
-                .unwrap_or_default(),
+            resource_attributes: serde_json::to_string(&src.resource_attributes).unwrap_or_default(),
             service_name: src.service_name.into(),
             environment: src.environment.into(),
             host_id: src.host_id.into(),

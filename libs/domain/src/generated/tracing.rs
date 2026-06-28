@@ -17,3 +17,5 @@ mod tracing_span_v1;
 pub(crate) use tracing_span_event_row_v1::TracingSpanEventRowV1;
 #[cfg(feature = "storage")]
 pub(crate) use tracing_span_row_v1::TracingSpanRowV1;
+#[cfg(feature = "storage")]
+pub(crate) use tracing_span_row_v1::{TracingSpanRowV1SpanKind, TracingSpanRowV1StatusCode};

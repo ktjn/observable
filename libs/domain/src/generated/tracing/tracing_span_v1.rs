@@ -12,11 +12,11 @@ pub struct TracingSpanV1 {
     pub service_namespace: String,
     pub service_version: String,
     pub operation_name: String,
-    pub span_kind: String,
+    pub span_kind: TracingSpanV1SpanKind,
     pub start_time_unix_nano: u64,
     pub end_time_unix_nano: u64,
     pub duration_ns: u64,
-    pub status_code: String,
+    pub status_code: TracingSpanV1StatusCode,
     pub status_message: String,
     pub attributes: HashMap<String, serde_json::Value>,
     pub resource_attributes: HashMap<String, serde_json::Value>,
@@ -25,4 +25,20 @@ pub struct TracingSpanV1 {
     pub workload: String,
     pub deployment_id: String,
     pub parent_span_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum TracingSpanV1SpanKind {
+    Internal,
+    Server,
+    Client,
+    Producer,
+    Consumer,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum TracingSpanV1StatusCode {
+    Unset,
+    Ok,
+    Error,
 }

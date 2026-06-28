@@ -126,8 +126,8 @@ wheels = [
 
 [[package]]
 name = "modelable"
-version = "0.5.0"
-source = { git = "https://github.com/ktjn/modelable?subdirectory=cli&rev=v0.5.0#590f922237fb33aee46dd5972f1ffda687c685bc" }
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "jsonschema" },
@@ -139,6 +139,10 @@ dependencies = [
     { name = "referencing" },
     { name = "rich" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/0f/53/4c806aee0b3155674ff99e104b7ce984e8385e6b3670e14dc51d73373e5d/modelable-1.0.0.tar.gz", hash = "sha256:47a84c6419d111c8ebf1a7ece01f6813f9c16ab93ac2fa006150aac7014aab6a", size = 266410, upload-time = "2026-06-28T14:00:26.786Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/21/2d/0da117fdb429bc890f681ed336b7e49cb7339dbcabd1dab451537c57bf1a/modelable-1.0.0-py3-none-any.whl", hash = "sha256:d36179cf4786aa8f2eab10767eb8cb5577e6082d79444247488c98d8d32bf4ef", size = 198337, upload-time = "2026-06-28T14:00:25.225Z" },
+]
 
 [[package]]
 name = "models"
@@ -149,7 +153,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "modelable", git = "https://github.com/ktjn/modelable?subdirectory=cli&rev=v0.5.0" }]
+requires-dist = [{ name = "modelable", specifier = ">=1.0.0" }]
 
 [[package]]
 name = "psycopg"

@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 #[cfg(feature = "storage")]
-use crate::generated::tracing::{TracingSpanEventRowV1, TracingSpanRowV1};
+use crate::generated::tracing::{
+    TracingSpanEventRowV1, TracingSpanRowV1, TracingSpanRowV1SpanKind, TracingSpanRowV1StatusCode,
+};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Span {
@@ -38,19 +40,17 @@ pub type SpanRow = TracingSpanRowV1;
 impl From<Span> for SpanRow {
     fn from(s: Span) -> Self {
         let span_kind = match s.span_kind {
-            SpanKind::Internal => "INTERNAL",
-            SpanKind::Server => "SERVER",
-            SpanKind::Client => "CLIENT",
-            SpanKind::Producer => "PRODUCER",
-            SpanKind::Consumer => "CONSUMER",
-        }
-        .into();
+            SpanKind::Internal => TracingSpanRowV1SpanKind::Internal,
+            SpanKind::Server => TracingSpanRowV1SpanKind::Server,
+            SpanKind::Client => TracingSpanRowV1SpanKind::Client,
+            SpanKind::Producer => TracingSpanRowV1SpanKind::Producer,
+            SpanKind::Consumer => TracingSpanRowV1SpanKind::Consumer,
+        };
         let status_code = match s.status_code {
-            StatusCode::Unset => "UNSET",
-            StatusCode::Ok => "OK",
-            StatusCode::Error => "ERROR",
-        }
-        .into();
+            StatusCode::Unset => TracingSpanRowV1StatusCode::Unset,
+            StatusCode::Ok => TracingSpanRowV1StatusCode::Ok,
+            StatusCode::Error => TracingSpanRowV1StatusCode::Error,
+        };
         Self {
             tenant_id: s.tenant_id,
             trace_id: s.trace_id,
@@ -79,17 +79,17 @@ impl From<Span> for SpanRow {
 #[cfg(feature = "storage")]
 impl From<SpanRow> for Span {
     fn from(row: SpanRow) -> Self {
-        let span_kind = match row.span_kind.as_str() {
-            "SERVER" => SpanKind::Server,
-            "CLIENT" => SpanKind::Client,
-            "PRODUCER" => SpanKind::Producer,
-            "CONSUMER" => SpanKind::Consumer,
-            _ => SpanKind::Internal,
+        let span_kind = match row.span_kind {
+            TracingSpanRowV1SpanKind::Server => SpanKind::Server,
+            TracingSpanRowV1SpanKind::Client => SpanKind::Client,
+            TracingSpanRowV1SpanKind::Producer => SpanKind::Producer,
+            TracingSpanRowV1SpanKind::Consumer => SpanKind::Consumer,
+            TracingSpanRowV1SpanKind::Internal => SpanKind::Internal,
         };
-        let status_code = match row.status_code.as_str() {
-            "OK" => StatusCode::Ok,
-            "ERROR" => StatusCode::Error,
-            _ => StatusCode::Unset,
+        let status_code = match row.status_code {
+            TracingSpanRowV1StatusCode::Ok => StatusCode::Ok,
+            TracingSpanRowV1StatusCode::Error => StatusCode::Error,
+            TracingSpanRowV1StatusCode::Unset => StatusCode::Unset,
         };
         Self {
             tenant_id: row.tenant_id,

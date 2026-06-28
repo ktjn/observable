@@ -2,6 +2,9 @@
 // requires: serde_json (https://docs.rs/serde_json)
 // requires: uuid (https://docs.rs/uuid)
 // requires: clickhouse (https://docs.rs/clickhouse)
+// TEMPORARY: From impls below for TracingSpanV1SpanKind→TracingSpanRowV1SpanKind and
+// TracingSpanV1StatusCode→TracingSpanRowV1StatusCode are hand-added until modelable's
+// Rust emitter generates them. If regenerating this file, re-add them.
 use std::collections::HashMap;
 
 #[cfg(feature = "storage")]
@@ -15,11 +18,11 @@ pub struct TracingSpanRowV1 {
     pub service_namespace: String,
     pub service_version: String,
     pub operation_name: String,
-    pub span_kind: String,
+    pub span_kind: TracingSpanRowV1SpanKind,
     pub start_time_unix_nano: u64,
     pub end_time_unix_nano: u64,
     pub duration_ns: u64,
-    pub status_code: String,
+    pub status_code: TracingSpanRowV1StatusCode,
     pub status_message: String,
     pub attributes: String,
     pub resource_attributes: String,
@@ -30,8 +33,26 @@ pub struct TracingSpanRowV1 {
     pub parent_span_id: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum TracingSpanRowV1SpanKind {
+    Internal,
+    Server,
+    Client,
+    Producer,
+    Consumer,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum TracingSpanRowV1StatusCode {
+    Unset,
+    Ok,
+    Error,
+}
+
 #[cfg(feature = "storage")]
 use super::tracing_span_v1::TracingSpanV1;
+#[cfg(feature = "storage")]
+use super::tracing_span_v1::{TracingSpanV1SpanKind, TracingSpanV1StatusCode};
 #[cfg(feature = "storage")]
 impl From<TracingSpanV1> for TracingSpanRowV1 {
     fn from(src: TracingSpanV1) -> Self {
@@ -51,12 +72,35 @@ impl From<TracingSpanV1> for TracingSpanRowV1 {
             status_code: src.status_code.into(),
             status_message: src.status_message.into(),
             attributes: serde_json::to_string(&src.attributes).unwrap_or_default(),
-            resource_attributes: serde_json::to_string(&src.resource_attributes)
-                .unwrap_or_default(),
+            resource_attributes: serde_json::to_string(&src.resource_attributes).unwrap_or_default(),
             environment: src.environment.into(),
             host_id: src.host_id.into(),
             workload: src.workload.into(),
             deployment_id: src.deployment_id.into(),
+        }
+    }
+}
+
+#[cfg(feature = "storage")]
+impl From<TracingSpanV1SpanKind> for TracingSpanRowV1SpanKind {
+    fn from(src: TracingSpanV1SpanKind) -> Self {
+        match src {
+            TracingSpanV1SpanKind::Internal => Self::Internal,
+            TracingSpanV1SpanKind::Server => Self::Server,
+            TracingSpanV1SpanKind::Client => Self::Client,
+            TracingSpanV1SpanKind::Producer => Self::Producer,
+            TracingSpanV1SpanKind::Consumer => Self::Consumer,
+        }
+    }
+}
+
+#[cfg(feature = "storage")]
+impl From<TracingSpanV1StatusCode> for TracingSpanRowV1StatusCode {
+    fn from(src: TracingSpanV1StatusCode) -> Self {
+        match src {
+            TracingSpanV1StatusCode::Unset => Self::Unset,
+            TracingSpanV1StatusCode::Ok => Self::Ok,
+            TracingSpanV1StatusCode::Error => Self::Error,
         }
     }
 }
