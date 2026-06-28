@@ -54,4 +54,32 @@ for domain_dir in "$TMP_RS"/*/; do
 done
 echo ""
 
+#
+# Post-processing patches for modelable emitter limitations
+# See: https://github.com/ktjn/modelable/issues/118 (TS imports)
+#      https://github.com/ktjn/modelable/issues/119 (Rust From impls)
+#      https://github.com/ktjn/modelable/issues/120 (Rust NamedType warning)
+#
+
+echo ""
+echo "==> Patching: add missing TS import statements for NamedType references"
+
+# nlq.NlqIr.v0.ts — NlqIr references NlqFilter and NlqTimeRange
+NLQ_IR="apps/frontend/src/api/generated/nlq/nlq.NlqIr.v0.ts"
+sed -i '/^ \*\/$/a\
+import type { NlqFilter } from "./nlq.NlqFilter.v0";\
+import type { NlqTimeRange } from "./nlq.NlqTimeRange.v0";' "$NLQ_IR"
+
+# dashboards.Dashboard.v1.ts — Dashboard references DashboardPanel
+DASHBOARD_V1="apps/frontend/src/api/generated/dashboards/dashboards.Dashboard.v1.ts"
+sed -i '/^ \*\/$/a\
+import type { DashboardPanel } from "./dashboards.DashboardPanel.v0";' "$DASHBOARD_V1"
+
+# dashboards.DashboardPanel.v0.ts — DashboardPanel references DashboardPanelLayout
+DASHBOARD_PANEL="apps/frontend/src/api/generated/dashboards/dashboards.DashboardPanel.v0.ts"
+sed -i '/^ \*\/$/a\
+import type { DashboardPanelLayout } from "./dashboards.DashboardPanelLayout.v0";' "$DASHBOARD_PANEL"
+
+echo ""
+echo "==> All patches applied."
 echo "==> Done. Run 'git diff --stat' to review changes."

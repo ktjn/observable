@@ -18,6 +18,21 @@ These instructions are foundational mandates for any AI agent interacting with t
 
 Refer to `spec/10-process.md` for the official development process and AI agent guidance.
 
+## Modelable Emitter Limitations (Manual Patches Required)
+
+The modelable codegen emitter (PyPI v1.0.0) has known limitations that require manual post-processing after regeneration:
+
+- **TypeScript NamedType imports** (issue #118): The TS emitter does not generate `import type` for NamedType field references. Three files need manual import patches:
+  - `nlq.NlqIr.v0.ts` — add `import type { NlqFilter, NlqTimeRange }`
+  - `dashboards.Dashboard.v1.ts` — add `import type { DashboardPanel }`
+  - `dashboards.DashboardPanel.v0.ts` — add `import type { DashboardPanelLayout }`
+
+- **Rust cross-enum From impls** (issue #119): When seperate records define enums with identical variant sets, no `From` impls are generated between them. Currently worked around manually in `tracing_span_row_v1.rs`.
+
+- **Rust NamedType references** (issue #120): Unlike the TS emitter, the Rust emitter silently emits Pascal-cased type names for NamedType references without any warning or import.
+
+The `scripts/regenerate-models.sh` script applies all the TS import patches automatically. After running it, always run `git diff --stat` and verify the Rust side compiles with `cargo check --lib`.
+
 ## Agent Role Model
 
 This repository uses a coordinator-plus-specialists advisory role model to reduce context noise.
