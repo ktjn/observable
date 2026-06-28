@@ -1,5 +1,3 @@
-import type { DashboardsDashboardPanelLayoutV0 } from "./dashboards.DashboardPanelLayout.v0";
-
 /**
  * @modelable domain: dashboards
  * @modelable name: DashboardPanel
@@ -8,6 +6,8 @@ import type { DashboardsDashboardPanelLayoutV0 } from "./dashboards.DashboardPan
  * @modelable version: 0
  * @modelable changeKind: additive
  */
+import type { DashboardPanelLayout } from "./dashboards.DashboardPanelLayout.v0";
+
 export interface DashboardsDashboardPanelV0 {
   panel_id: string;
   title: string;
@@ -18,7 +18,7 @@ export interface DashboardsDashboardPanelV0 {
   filters: unknown;
   query_text?: string;
   content?: string;
-  layout: DashboardsDashboardPanelLayoutV0;
+  layout: DashboardPanelLayout;
   time_range: unknown;
 }
 export type DashboardPanel = DashboardsDashboardPanelV0;

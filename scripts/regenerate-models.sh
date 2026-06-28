@@ -56,9 +56,11 @@ echo ""
 
 #
 # Post-processing patches for modelable emitter limitations
-# See: https://github.com/ktjn/modelable/issues/123 (TS imports placed before docblock)
-#      https://github.com/ktjn/modelable/issues/124 (skip_serializing_if on clickhouse::Row)
-#      https://github.com/ktjn/modelable/issues/125 (reverse From impls in domain files)
+#
+# Fixed in prerelease (no longer patched):
+#   #123 TS imports placed before docblock — imports now follow meta block
+#   #124 skip_serializing_if on clickhouse::Row — omitted natively for projections
+#   #125 reverse From impls in domain files — From impls now only in projection files
 #
 # Fixed in 1.0.1 (no longer patched):
 #   #118 TS NamedType imports — now auto-generated
@@ -108,20 +110,6 @@ src = src.replace(
 open(path, "w").write(src)
 PYEOF
 fi
-
-echo ""
-echo "==> Patching: remove skip_serializing_if from clickhouse::Row struct fields"
-
-# modelable 1.0.1 adds #[serde(skip_serializing_if = "Option::is_none")] to all optional
-# fields, but clickhouse-rs expects all columns to be present (NULL for absent values).
-# Omitting a field breaks column alignment. See: https://github.com/ktjn/modelable/issues/124
-for ROW_RS in \
-  "libs/domain/src/generated/logs/logs_log_row_v1.rs" \
-  "libs/domain/src/generated/tracing/tracing_span_row_v1.rs"; do
-  if [ -f "$ROW_RS" ]; then
-    sed -i '/#\[serde(skip_serializing_if = "Option::is_none")\]/d' "$ROW_RS"
-  fi
-done
 
 echo ""
 echo "==> Rust: cargo fmt generated files to match project style"
