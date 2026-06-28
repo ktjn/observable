@@ -204,8 +204,6 @@ services:
         limits:
           memory: 250M
     restart: unless-stopped
-    ports:
-      - "8080"
     environment:
       <<: *otel-env
       PORT: "8080"
