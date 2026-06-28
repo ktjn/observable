@@ -105,3 +105,27 @@ impl From<TracingSpanV1StatusCode> for TracingSpanRowV1StatusCode {
         }
     }
 }
+
+impl From<&str> for TracingSpanRowV1SpanKind {
+    fn from(src: &str) -> Self {
+        match src.to_uppercase().as_str() {
+            "INTERNAL" => Self::Internal,
+            "SERVER" => Self::Server,
+            "CLIENT" => Self::Client,
+            "PRODUCER" => Self::Producer,
+            "CONSUMER" => Self::Consumer,
+            _ => Self::Internal,
+        }
+    }
+}
+
+impl From<&str> for TracingSpanRowV1StatusCode {
+    fn from(src: &str) -> Self {
+        match src.to_uppercase().as_str() {
+            "UNSET" => Self::Unset,
+            "OK" => Self::Ok,
+            "ERROR" => Self::Error,
+            _ => Self::Unset,
+        }
+    }
+}

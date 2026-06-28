@@ -81,5 +81,46 @@ sed -i '/^ \*\/$/a\
 import type { DashboardPanelLayout } from "./dashboards.DashboardPanelLayout.v0";' "$DASHBOARD_PANEL"
 
 echo ""
+echo "==> Patching: add From<&str> impls for generated Rust enums"
+
+# tracing_span_row_v1.rs — add From<&str> for span_kind and status_code enums
+# (modelable v1.0.0 uses typed enums; many call sites use .into() from &str)
+SPAN_ROW_RS="libs/domain/src/generated/tracing/tracing_span_row_v1.rs"
+if [ -f "$SPAN_ROW_RS" ]; then
+  # Remove any previous manual From<&str> impls (marked by comment marker)
+  sed -i '/^# -- From<&str> impls for enum backward compat --$/,/^# -- end From<&str> impls --$/d' "$SPAN_ROW_RS"
+  cat >> "$SPAN_ROW_RS" << 'RSPATCH'
+# -- From<&str> impls for enum backward compat --
+impl From<&str> for TracingSpanRowV1SpanKind {
+    fn from(src: &str) -> Self {
+        match src.to_uppercase().as_str() {
+            "INTERNAL" => Self::Internal,
+            "SERVER" => Self::Server,
+            "CLIENT" => Self::Client,
+            "PRODUCER" => Self::Producer,
+            "CONSUMER" => Self::Consumer,
+            _ => Self::Internal,
+        }
+    }
+}
+impl From<&str> for TracingSpanRowV1StatusCode {
+    fn from(src: &str) -> Self {
+        match src.to_uppercase().as_str() {
+            "UNSET" => Self::Unset,
+            "OK" => Self::Ok,
+            "ERROR" => Self::Error,
+            _ => Self::Unset,
+        }
+    }
+}
+# -- end From<&str> impls --
+RSPATCH
+fi
+
+echo ""
+echo "==> Rust: cargo fmt generated files to match project style"
+cargo fmt --all 2>/dev/null || true
+
+echo ""
 echo "==> All patches applied."
 echo "==> Done. Run 'git diff --stat' to review changes."
