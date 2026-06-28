@@ -27,6 +27,7 @@ exporters:
       authorization: "Bearer otel-demo-api-key-0000"
     tls:
       insecure: true
+    compression: none
 
 service:
   pipelines:
