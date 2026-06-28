@@ -76,6 +76,19 @@ Small, standalone, high user-value slices. Ordered by user impact.
   gzip, zstd, and snappy on both gRPC and HTTP receivers. Any default otel-collector-contrib config
   compresses by default; this is a compatibility gap that forces `compression: none` workarounds in
   every sender. Low effort, broad compatibility improvement.
+- [ ] **OTLP Partial-Success Response Envelope** — `ingest-gateway` returns HTTP 429 /
+  gRPC `RESOURCE_EXHAUSTED` on rate-limit or validation errors instead of `200 OK` with
+  `partial_success { rejected_count }`. This causes otel-collector-contrib to retry the entire
+  batch or log "Dropping data" (the error seen in the OTel demo). Fix: return 200 with correct
+  partial-success payload so the collector can selectively drop only rejected items.
+- [ ] **ExponentialHistogram and Summary Metric Types** — both are silently discarded in
+  `ingest-gateway`'s convert functions (`_ => {}`). OTel SDK instrumentation defaults to
+  ExponentialHistogram for latency measurements; dropping them means histogram data is missing
+  entirely. Add storage-model support and wire up the convert path for both types.
+- [ ] **gRPC Max Message Size** — tonic's default 4 MB cap is not overridden; large batches from
+  multi-service deployments (e.g. 21-service OTel demo) can silently exceed the limit and be
+  dropped. Add `INGEST_GRPC_MAX_MESSAGE_BYTES` env var (default 64 MB) wired to
+  `Server::max_receive_message_size`.
 
 ### 3.5 UI Usability Remediation (cross-cutting workstream)
 
