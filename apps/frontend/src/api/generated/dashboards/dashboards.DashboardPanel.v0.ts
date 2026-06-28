@@ -6,6 +6,7 @@
  * @modelable version: 0
  * @modelable changeKind: additive
  */
+import type { DashboardPanelLayout } from "./dashboards.DashboardPanelLayout.v0";
 export interface DashboardsDashboardPanelV0 {
   panel_id: string;
   title: string;
