@@ -81,16 +81,39 @@ sed -i '/^ \*\/$/a\
 import type { DashboardPanelLayout } from "./dashboards.DashboardPanelLayout.v0";' "$DASHBOARD_PANEL"
 
 echo ""
-echo "==> Patching: add From<&str> impls for generated Rust enums"
+echo "==> Patching: add From impls for generated Rust enums"
 
-# tracing_span_row_v1.rs — add From<&str> for span_kind and status_code enums
-# (modelable v1.0.0 uses typed enums; many call sites use .into() from &str)
+# tracing_span_row_v1.rs — modelable v1.0.0 switched from String to typed enums
+# but doesn't generate From<&str> or cross-record From<...> impls.
+# See: https://github.com/ktjn/modelable/issues/119
 SPAN_ROW_RS="libs/domain/src/generated/tracing/tracing_span_row_v1.rs"
 if [ -f "$SPAN_ROW_RS" ]; then
-  # Remove any previous manual From<&str> impls (marked by comment marker)
-  sed -i '/^# -- From<&str> impls for enum backward compat --$/,/^# -- end From<&str> impls --$/d' "$SPAN_ROW_RS"
+  # Remove any previous manual patch blocks (marked by comment markers)
+  sed -i '/^# -- modelable patch: cross-enum From impls --$/,/^# -- end modelable patch --$/d' "$SPAN_ROW_RS"
   cat >> "$SPAN_ROW_RS" << 'RSPATCH'
-# -- From<&str> impls for enum backward compat --
+// -- modelable patch: cross-enum From impls --
+#[cfg(feature = "storage")]
+impl From<TracingSpanV1SpanKind> for TracingSpanRowV1SpanKind {
+    fn from(src: TracingSpanV1SpanKind) -> Self {
+        match src {
+            TracingSpanV1SpanKind::Internal => Self::Internal,
+            TracingSpanV1SpanKind::Server => Self::Server,
+            TracingSpanV1SpanKind::Client => Self::Client,
+            TracingSpanV1SpanKind::Producer => Self::Producer,
+            TracingSpanV1SpanKind::Consumer => Self::Consumer,
+        }
+    }
+}
+#[cfg(feature = "storage")]
+impl From<TracingSpanV1StatusCode> for TracingSpanRowV1StatusCode {
+    fn from(src: TracingSpanV1StatusCode) -> Self {
+        match src {
+            TracingSpanV1StatusCode::Unset => Self::Unset,
+            TracingSpanV1StatusCode::Ok => Self::Ok,
+            TracingSpanV1StatusCode::Error => Self::Error,
+        }
+    }
+}
 impl From<&str> for TracingSpanRowV1SpanKind {
     fn from(src: &str) -> Self {
         match src.to_uppercase().as_str() {
@@ -113,7 +136,7 @@ impl From<&str> for TracingSpanRowV1StatusCode {
         }
     }
 }
-# -- end From<&str> impls --
+// -- end modelable patch --
 RSPATCH
 fi
 

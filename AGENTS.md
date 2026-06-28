@@ -27,11 +27,16 @@ The modelable codegen emitter (PyPI v1.0.0) has known limitations that require m
   - `dashboards.Dashboard.v1.ts` — add `import type { DashboardPanel }`
   - `dashboards.DashboardPanel.v0.ts` — add `import type { DashboardPanelLayout }`
 
-- **Rust cross-enum From impls** (issue #119): When seperate records define enums with identical variant sets, no `From` impls are generated between them. Currently worked around manually in `tracing_span_row_v1.rs`.
+- **Rust cross-enum From impls** (issue #119): When separate records define enums with identical variant sets, no `From` impls are generated between them. Currently worked around manually in `tracing_span_row_v1.rs` — `From<TracingSpanV1SpanKind>` and `From<TracingSpanV1StatusCode>`.
+
+- **Rust From&lt;str&gt; for typed enums** (related to #119): modelable v1.0.0 switched from String-based to typed enums for `span_kind`/`status_code`, but generated enums lack `From<&str>`, breaking call sites using `.into()` from string literals. Manual `From<&str>` impls are in `tracing_span_row_v1.rs`.
 
 - **Rust NamedType references** (issue #120): Unlike the TS emitter, the Rust emitter silently emits Pascal-cased type names for NamedType references without any warning or import.
 
-The `scripts/regenerate-models.sh` script applies all the TS import patches automatically. After running it, always run `git diff --stat` and verify the Rust side compiles with `cargo check --lib`.
+The `scripts/regenerate-models.sh` script applies all the TS import patches and Rust `From<&str>` impls automatically. After running it:
+1. Run `cargo fmt --all` to fix generated Rust formatting (included in the script)
+2. Run `cargo check --lib` to verify the Rust side compiles
+3. Run `git diff --stat` to review all changes
 
 ## Agent Role Model
 

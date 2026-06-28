@@ -82,6 +82,7 @@ impl From<TracingSpanV1> for TracingSpanRowV1 {
     }
 }
 
+// -- modelable patch: cross-enum From impls --
 #[cfg(feature = "storage")]
 impl From<TracingSpanV1SpanKind> for TracingSpanRowV1SpanKind {
     fn from(src: TracingSpanV1SpanKind) -> Self {
@@ -94,7 +95,6 @@ impl From<TracingSpanV1SpanKind> for TracingSpanRowV1SpanKind {
         }
     }
 }
-
 #[cfg(feature = "storage")]
 impl From<TracingSpanV1StatusCode> for TracingSpanRowV1StatusCode {
     fn from(src: TracingSpanV1StatusCode) -> Self {
@@ -105,7 +105,6 @@ impl From<TracingSpanV1StatusCode> for TracingSpanRowV1StatusCode {
         }
     }
 }
-
 impl From<&str> for TracingSpanRowV1SpanKind {
     fn from(src: &str) -> Self {
         match src.to_uppercase().as_str() {
@@ -118,7 +117,6 @@ impl From<&str> for TracingSpanRowV1SpanKind {
         }
     }
 }
-
 impl From<&str> for TracingSpanRowV1StatusCode {
     fn from(src: &str) -> Self {
         match src.to_uppercase().as_str() {
@@ -129,3 +127,4 @@ impl From<&str> for TracingSpanRowV1StatusCode {
         }
     }
 }
+// -- end modelable patch --
