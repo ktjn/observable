@@ -17,7 +17,10 @@ pub struct LogsLogRecordV1 {
     pub service_name: String,
     pub environment: String,
     pub host_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub trace_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub span_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub fingerprint: Option<u64>,
 }
