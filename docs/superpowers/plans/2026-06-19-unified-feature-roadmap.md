@@ -71,6 +71,11 @@ Small, standalone, high user-value slices. Ordered by user impact.
 - [ ] **Admin Console RBAC and Quota Management Views** — `/admin/config` is read-only today;
   add RBAC mutation controls and quota editing (carried from the post-Phase-3 plan). Important
   for multi-tenant administrators.
+- [ ] **OTLP gRPC/HTTP Compression Support** — `ingest-gateway`'s OTLP receivers currently reject
+  gzip-compressed payloads (`"Content is compressed with 'gzip' which isn't supported"`). Enable
+  gzip, zstd, and snappy on both gRPC and HTTP receivers. Any default otel-collector-contrib config
+  compresses by default; this is a compatibility gap that forces `compression: none` workarounds in
+  every sender. Low effort, broad compatibility improvement.
 
 ### 3.5 UI Usability Remediation (cross-cutting workstream)
 
