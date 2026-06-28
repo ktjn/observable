@@ -2,9 +2,6 @@
 // requires: serde_json (https://docs.rs/serde_json)
 // requires: uuid (https://docs.rs/uuid)
 // requires: clickhouse (https://docs.rs/clickhouse)
-// PATCH: span_kind and status_code are String (not typed enums). clickhouse-rs 0.15
-// panics in serialize_unit_variant for String columns — enums cannot be used directly
-// as ClickHouse String fields. See: https://github.com/ktjn/modelable/issues/119
 use std::collections::HashMap;
 
 #[cfg(feature = "storage")]
@@ -52,8 +49,6 @@ pub enum TracingSpanRowV1StatusCode {
 #[cfg(feature = "storage")]
 use super::tracing_span_v1::TracingSpanV1;
 #[cfg(feature = "storage")]
-use super::tracing_span_v1::{TracingSpanV1SpanKind, TracingSpanV1StatusCode};
-#[cfg(feature = "storage")]
 impl From<TracingSpanV1> for TracingSpanRowV1 {
     fn from(src: TracingSpanV1) -> Self {
         Self {
@@ -88,6 +83,30 @@ impl From<TracingSpanV1> for TracingSpanRowV1 {
             host_id: src.host_id.into(),
             workload: src.workload.into(),
             deployment_id: src.deployment_id.into(),
+        }
+    }
+}
+
+use super::tracing_span_v1::TracingSpanV1SpanKind;
+impl From<TracingSpanV1SpanKind> for TracingSpanRowV1SpanKind {
+    fn from(src: TracingSpanV1SpanKind) -> Self {
+        match src {
+            TracingSpanV1SpanKind::Client => TracingSpanRowV1SpanKind::Client,
+            TracingSpanV1SpanKind::Consumer => TracingSpanRowV1SpanKind::Consumer,
+            TracingSpanV1SpanKind::Internal => TracingSpanRowV1SpanKind::Internal,
+            TracingSpanV1SpanKind::Producer => TracingSpanRowV1SpanKind::Producer,
+            TracingSpanV1SpanKind::Server => TracingSpanRowV1SpanKind::Server,
+        }
+    }
+}
+
+use super::tracing_span_v1::TracingSpanV1StatusCode;
+impl From<TracingSpanV1StatusCode> for TracingSpanRowV1StatusCode {
+    fn from(src: TracingSpanV1StatusCode) -> Self {
+        match src {
+            TracingSpanV1StatusCode::Error => TracingSpanRowV1StatusCode::Error,
+            TracingSpanV1StatusCode::Ok => TracingSpanRowV1StatusCode::Ok,
+            TracingSpanV1StatusCode::Unset => TracingSpanRowV1StatusCode::Unset,
         }
     }
 }

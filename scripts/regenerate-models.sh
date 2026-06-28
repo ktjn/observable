@@ -56,38 +56,21 @@ echo ""
 
 #
 # Post-processing patches for modelable emitter limitations
-# See: https://github.com/ktjn/modelable/issues/118 (TS imports)
-#      https://github.com/ktjn/modelable/issues/119 (Rust From impls)
-#      https://github.com/ktjn/modelable/issues/120 (Rust NamedType warning)
+# See: https://github.com/ktjn/modelable/issues/123 (TS imports placed before docblock)
+#      https://github.com/ktjn/modelable/issues/124 (skip_serializing_if on clickhouse::Row)
+#      https://github.com/ktjn/modelable/issues/125 (reverse From impls in domain files)
 #
-
-echo ""
-echo "==> Patching: add missing TS import statements for NamedType references"
-
-# nlq.NlqIr.v0.ts — NlqIr references NlqFilter and NlqTimeRange
-NLQ_IR="apps/frontend/src/api/generated/nlq/nlq.NlqIr.v0.ts"
-sed -i '/^ \*\/$/a\
-import type { NlqFilter } from "./nlq.NlqFilter.v0";\
-import type { NlqTimeRange } from "./nlq.NlqTimeRange.v0";' "$NLQ_IR"
-
-# dashboards.Dashboard.v1.ts — Dashboard references DashboardPanel
-DASHBOARD_V1="apps/frontend/src/api/generated/dashboards/dashboards.Dashboard.v1.ts"
-sed -i '/^ \*\/$/a\
-import type { DashboardPanel } from "./dashboards.DashboardPanel.v0";' "$DASHBOARD_V1"
-
-# dashboards.DashboardPanel.v0.ts — DashboardPanel references DashboardPanelLayout
-DASHBOARD_PANEL="apps/frontend/src/api/generated/dashboards/dashboards.DashboardPanel.v0.ts"
-sed -i '/^ \*\/$/a\
-import type { DashboardPanelLayout } from "./dashboards.DashboardPanelLayout.v0";' "$DASHBOARD_PANEL"
+# Fixed in 1.0.1 (no longer patched):
+#   #118 TS NamedType imports — now auto-generated
+#   #119 Rust From impls for cross-record enums — now auto-generated
+#   #120 Rust NamedType warning — EMIT003 now emitted
 
 echo ""
 echo "==> Patching: fix TracingSpanRowV1 enum fields to String for ClickHouse compatibility"
 
-# tracing_span_row_v1.rs — modelable v1.0.0 generates typed enums for span_kind/status_code,
-# but clickhouse-rs 0.15 panics when serializing unit-variant enums for String columns.
-# Patch: replace typed enum fields with String, update From<TracingSpanV1> to produce
-# SCREAMING_SNAKE_CASE strings, and update the file header comment.
-# See: https://github.com/ktjn/modelable/issues/119
+# tracing_span_row_v1.rs — clickhouse-rs 0.15 panics on serialize_unit_variant for String
+# columns; typed enums cannot be used directly as ClickHouse String fields. Keep span_kind
+# and status_code as String (SCREAMING_SNAKE_CASE). See: https://github.com/ktjn/modelable/issues/119
 SPAN_ROW_RS="libs/domain/src/generated/tracing/tracing_span_row_v1.rs"
 if [ -f "$SPAN_ROW_RS" ]; then
   # Replace typed enum field declarations with String in the struct
@@ -125,6 +108,20 @@ src = src.replace(
 open(path, "w").write(src)
 PYEOF
 fi
+
+echo ""
+echo "==> Patching: remove skip_serializing_if from clickhouse::Row struct fields"
+
+# modelable 1.0.1 adds #[serde(skip_serializing_if = "Option::is_none")] to all optional
+# fields, but clickhouse-rs expects all columns to be present (NULL for absent values).
+# Omitting a field breaks column alignment. See: https://github.com/ktjn/modelable/issues/124
+for ROW_RS in \
+  "libs/domain/src/generated/logs/logs_log_row_v1.rs" \
+  "libs/domain/src/generated/tracing/tracing_span_row_v1.rs"; do
+  if [ -f "$ROW_RS" ]; then
+    sed -i '/#\[serde(skip_serializing_if = "Option::is_none")\]/d' "$ROW_RS"
+  fi
+done
 
 echo ""
 echo "==> Rust: cargo fmt generated files to match project style"

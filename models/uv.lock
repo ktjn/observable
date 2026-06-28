@@ -126,7 +126,7 @@ wheels = [
 
 [[package]]
 name = "modelable"
-version = "1.0.0"
+version = "1.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -139,9 +139,9 @@ dependencies = [
     { name = "referencing" },
     { name = "rich" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0f/53/4c806aee0b3155674ff99e104b7ce984e8385e6b3670e14dc51d73373e5d/modelable-1.0.0.tar.gz", hash = "sha256:47a84c6419d111c8ebf1a7ece01f6813f9c16ab93ac2fa006150aac7014aab6a", size = 266410, upload-time = "2026-06-28T14:00:26.786Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e6/c3/587a8ab478b92970dd40dc11018926e08d9cc6108bba159c7a29305c7612/modelable-1.0.1.tar.gz", hash = "sha256:08eacc0728f01d2588485c1c511a9fd01519a434c5e8c26bdeed9a055aa66cbb", size = 270712, upload-time = "2026-06-28T16:26:59.571Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/21/2d/0da117fdb429bc890f681ed336b7e49cb7339dbcabd1dab451537c57bf1a/modelable-1.0.0-py3-none-any.whl", hash = "sha256:d36179cf4786aa8f2eab10767eb8cb5577e6082d79444247488c98d8d32bf4ef", size = 198337, upload-time = "2026-06-28T14:00:25.225Z" },
+    { url = "https://files.pythonhosted.org/packages/6f/14/7868cdc569d091319992e635b413dc5a256d653797e1b970e1c5319d85f0/modelable-1.0.1-py3-none-any.whl", hash = "sha256:36a32ba463b00484209d811b8669eedd542d8b9b75dc3d743f59903c5e9aad6c", size = 200442, upload-time = "2026-06-28T16:26:57.754Z" },
 ]
 
 [[package]]
