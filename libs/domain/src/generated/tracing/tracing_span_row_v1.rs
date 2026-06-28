@@ -2,6 +2,9 @@
 // requires: serde_json (https://docs.rs/serde_json)
 // requires: uuid (https://docs.rs/uuid)
 // requires: clickhouse (https://docs.rs/clickhouse)
+// PATCH: span_kind and status_code are String (not typed enums). clickhouse-rs 0.15
+// panics in serialize_unit_variant for String columns — enums cannot be used directly
+// as ClickHouse String fields. See: https://github.com/ktjn/modelable/issues/119
 use std::collections::HashMap;
 
 #[cfg(feature = "storage")]
@@ -30,8 +33,26 @@ pub struct TracingSpanRowV1 {
     pub parent_span_id: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum TracingSpanRowV1SpanKind {
+    Internal,
+    Server,
+    Client,
+    Producer,
+    Consumer,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum TracingSpanRowV1StatusCode {
+    Unset,
+    Ok,
+    Error,
+}
+
 #[cfg(feature = "storage")]
 use super::tracing_span_v1::TracingSpanV1;
+#[cfg(feature = "storage")]
+use super::tracing_span_v1::{TracingSpanV1SpanKind, TracingSpanV1StatusCode};
 #[cfg(feature = "storage")]
 impl From<TracingSpanV1> for TracingSpanRowV1 {
     fn from(src: TracingSpanV1) -> Self {
@@ -44,11 +65,21 @@ impl From<TracingSpanV1> for TracingSpanRowV1 {
             service_namespace: src.service_namespace.into(),
             service_version: src.service_version.into(),
             operation_name: src.operation_name.into(),
-            span_kind: src.span_kind.into(),
+            span_kind: match src.span_kind {
+                TracingSpanV1SpanKind::Internal => "INTERNAL".to_string(),
+                TracingSpanV1SpanKind::Server => "SERVER".to_string(),
+                TracingSpanV1SpanKind::Client => "CLIENT".to_string(),
+                TracingSpanV1SpanKind::Producer => "PRODUCER".to_string(),
+                TracingSpanV1SpanKind::Consumer => "CONSUMER".to_string(),
+            },
             start_time_unix_nano: src.start_time_unix_nano.into(),
             end_time_unix_nano: src.end_time_unix_nano.into(),
             duration_ns: src.duration_ns.into(),
-            status_code: src.status_code.into(),
+            status_code: match src.status_code {
+                TracingSpanV1StatusCode::Unset => "UNSET".to_string(),
+                TracingSpanV1StatusCode::Ok => "OK".to_string(),
+                TracingSpanV1StatusCode::Error => "ERROR".to_string(),
+            },
             status_message: src.status_message.into(),
             attributes: serde_json::to_string(&src.attributes).unwrap_or_default(),
             resource_attributes: serde_json::to_string(&src.resource_attributes)

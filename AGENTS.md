@@ -18,6 +18,24 @@ These instructions are foundational mandates for any AI agent interacting with t
 
 Refer to `spec/10-process.md` for the official development process and AI agent guidance.
 
+## Modelable Emitter Limitations (Manual Patches Required)
+
+The modelable codegen emitter (PyPI v1.0.0) has known limitations that require manual post-processing after regeneration:
+
+- **TypeScript NamedType imports** (issue #118): The TS emitter does not generate `import type` for NamedType field references. Three files need manual import patches:
+  - `nlq.NlqIr.v0.ts` — add `import type { NlqFilter, NlqTimeRange }`
+  - `dashboards.Dashboard.v1.ts` — add `import type { DashboardPanel }`
+  - `dashboards.DashboardPanel.v0.ts` — add `import type { DashboardPanelLayout }`
+
+- **Rust ClickHouse enum serialization** (issue #119): clickhouse-rs 0.15 panics on `serialize_unit_variant` for String columns — typed enums cannot be used directly as `String` ClickHouse column fields. `TracingSpanRowV1.span_kind` and `.status_code` are kept as `String` (SCREAMING\_SNAKE\_CASE values) rather than the typed enums that modelable generates. The `From<TracingSpanV1>` impl in `tracing_span_row_v1.rs` converts enum values to strings via explicit match. `scripts/regenerate-models.sh` applies this patch automatically after regeneration.
+
+- **Rust NamedType references** (issue #120): Unlike the TS emitter, the Rust emitter silently emits Pascal-cased type names for NamedType references without any warning or import.
+
+The `scripts/regenerate-models.sh` script applies all the TS import patches and Rust `From<&str>` impls automatically. After running it:
+1. Run `cargo fmt --all` to fix generated Rust formatting (included in the script)
+2. Run `cargo check --lib` to verify the Rust side compiles
+3. Run `git diff --stat` to review all changes
+
 ## Agent Role Model
 
 This repository uses a coordinator-plus-specialists advisory role model to reduce context noise.
