@@ -30,16 +30,16 @@ pub struct TracingSpanV1 {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TracingSpanV1SpanKind {
-    Internal,
-    Server,
-    Client,
-    Producer,
-    Consumer,
+    INTERNAL,
+    SERVER,
+    CLIENT,
+    PRODUCER,
+    CONSUMER,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TracingSpanV1StatusCode {
-    Unset,
-    Ok,
-    Error,
+    UNSET,
+    OK,
+    ERROR,
 }

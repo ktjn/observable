@@ -15,11 +15,11 @@ export interface TracingSpanRowV1 {
   serviceNamespace: string;
   serviceVersion: string;
   operationName: string;
-  spanKind: 'Internal' | 'Server' | 'Client' | 'Producer' | 'Consumer';
+  spanKind: 'INTERNAL' | 'SERVER' | 'CLIENT' | 'PRODUCER' | 'CONSUMER';
   startTimeUnixNano: number;
   endTimeUnixNano: number;
   durationNs: number;
-  statusCode: 'Unset' | 'Ok' | 'Error';
+  statusCode: 'UNSET' | 'OK' | 'ERROR';
   statusMessage: string;
   attributes: Record<string, unknown>;
   resourceAttributes: Record<string, unknown>;

@@ -55,61 +55,17 @@ done
 echo ""
 
 #
-# Post-processing patches for modelable emitter limitations
+# All post-processing patches have been eliminated.
 #
-# Fixed in prerelease (no longer patched):
-#   #123 TS imports placed before docblock — imports now follow meta block
-#   #124 skip_serializing_if on clickhouse::Row — omitted natively for projections
-#   #125 reverse From impls in domain files — From impls now only in projection files
+# Fixed natively in the prerelease emitter:
+#   #119 ClickHouse Row enum fields → String (with explicit match arms using raw wire values)
+#   #123 TS imports placed before docblock → imports now follow meta block
+#   #124 skip_serializing_if on clickhouse::Row → omitted natively for projections
+#   #125 reverse From impls in domain files → From impls now only in projection files
+#   #120 NamedType in same workspace resolved → use super:: imports, no EMIT003
 #
 # Fixed in 1.0.1 (no longer patched):
-#   #118 TS NamedType imports — now auto-generated
-#   #119 Rust From impls for cross-record enums — now auto-generated
-#   #120 Rust NamedType warning — EMIT003 now emitted
-
-echo ""
-echo "==> Patching: fix TracingSpanRowV1 enum fields to String for ClickHouse compatibility"
-
-# tracing_span_row_v1.rs — clickhouse-rs 0.15 panics on serialize_unit_variant for String
-# columns; typed enums cannot be used directly as ClickHouse String fields. Keep span_kind
-# and status_code as String (SCREAMING_SNAKE_CASE). See: https://github.com/ktjn/modelable/issues/119
-SPAN_ROW_RS="libs/domain/src/generated/tracing/tracing_span_row_v1.rs"
-if [ -f "$SPAN_ROW_RS" ]; then
-  # Replace typed enum field declarations with String in the struct
-  sed -i \
-    -e 's/pub span_kind: TracingSpanRowV1SpanKind,/pub span_kind: String,/' \
-    -e 's/pub status_code: TracingSpanRowV1StatusCode,/pub status_code: String,/' \
-    "$SPAN_ROW_RS"
-
-  # Replace .into() enum conversions in From<TracingSpanV1> with explicit match-to-string
-  python3 - "$SPAN_ROW_RS" << 'PYEOF'
-import re, sys
-
-path = sys.argv[1]
-src = open(path).read()
-
-src = src.replace(
-    "span_kind: src.span_kind.into(),",
-    """span_kind: match src.span_kind {
-                TracingSpanV1SpanKind::Internal => "INTERNAL".to_string(),
-                TracingSpanV1SpanKind::Server => "SERVER".to_string(),
-                TracingSpanV1SpanKind::Client => "CLIENT".to_string(),
-                TracingSpanV1SpanKind::Producer => "PRODUCER".to_string(),
-                TracingSpanV1SpanKind::Consumer => "CONSUMER".to_string(),
-            },""",
-)
-src = src.replace(
-    "status_code: src.status_code.into(),",
-    """status_code: match src.status_code {
-                TracingSpanV1StatusCode::Unset => "UNSET".to_string(),
-                TracingSpanV1StatusCode::Ok => "OK".to_string(),
-                TracingSpanV1StatusCode::Error => "ERROR".to_string(),
-            },""",
-)
-
-open(path, "w").write(src)
-PYEOF
-fi
+#   #118 TS NamedType imports → now auto-generated
 
 echo ""
 echo "==> Rust: cargo fmt generated files to match project style"

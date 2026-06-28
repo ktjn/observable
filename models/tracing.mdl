@@ -25,9 +25,7 @@ domain tracing {
     serviceNamespace: string
     serviceVersion: string
     operationName: string
-    // Serialises as "INTERNAL" | "SERVER" | "CLIENT" | "PRODUCER" | "CONSUMER"
-    @wire(json.case: "SCREAMING_SNAKE_CASE")
-    spanKind: enum(Internal, Server, Client, Producer, Consumer)
+    spanKind: enum(INTERNAL, SERVER, CLIENT, PRODUCER, CONSUMER)
     // Stored as u64 nanoseconds in Rust / UInt64 in ClickHouse
     @wire(rust.type: "u64")
     startTimeUnixNano: int
@@ -35,9 +33,7 @@ domain tracing {
     endTimeUnixNano: int
     @wire(rust.type: "u64")
     durationNs: int
-    // Serialises as "UNSET" | "OK" | "ERROR"
-    @wire(json.case: "SCREAMING_SNAKE_CASE")
-    statusCode: enum(Unset, Ok, Error)
+    statusCode: enum(UNSET, OK, ERROR)
     statusMessage: string
     attributes: map<string, json>
     resourceAttributes: map<string, json>
