@@ -23,7 +23,7 @@ services:
       retries: 30
 
   redpanda:
-    image: redpandadata/redpanda:v26.1.11
+    image: redpandadata/redpanda:v26.1.12
     command:
       - redpanda
       - start
@@ -173,7 +173,7 @@ services:
       postgres: { condition: service_healthy }
 
   redpanda-setup:
-    image: redpandadata/redpanda:v26.1.11
+    image: redpandadata/redpanda:v26.1.12
     entrypoint:
       - /bin/bash
       - -c
