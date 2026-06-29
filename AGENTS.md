@@ -24,6 +24,8 @@ The modelable codegen emitter (PyPI v1.0.2) has known limitations that require m
 
 - **Rust ClickHouse enum serialization** (issue #119, partially fixed): clickhouse-rs 0.15 panics on `serialize_unit_variant` for String columns — typed enums cannot be used directly as `String` ClickHouse column fields. `TracingSpanRowV1.span_kind` and `.status_code` are kept as `String` (SCREAMING\_SNAKE\_CASE values) rather than the typed enums that modelable generates. The `From<TracingSpanV1>` impl in `tracing_span_row_v1.rs` converts enum values to strings via explicit match. `scripts/regenerate-models.sh` applies this patch automatically after regeneration.
 
+- **Rust enum variant casing**: The emitter emits enum variants verbatim from `.mdl` source (SCREAMING\_SNAKE\_CASE), which triggers `clippy::upper_case_acronyms`. Suppressed via `#![allow(clippy::upper_case_acronyms)]` in `libs/domain/src/generated/tracing.rs`. Do not remove that allow — re-add it after any regeneration that touches the tracing module file.
+
 - **Rust NamedType warnings** (issue #120, partially fixed): The Rust emitter now emits `WARN [EMIT003]` for NamedType field references lacking `rust.type` adapter annotations. The warning fires even for models not targeting Rust (e.g., `nlq`, `dashboards`). The underlying field is still emitted as a bare Pascal-cased type name without an import — see the warning output when running `scripts/regenerate-models.sh`.
 
 Fixed in 1.0.2 (no longer patched):

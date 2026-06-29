@@ -55,9 +55,12 @@ done
 echo ""
 
 #
-# All post-processing patches have been eliminated.
+# Remaining known limitations (not patched here — suppressed at the module level):
+#   Enum variants are emitted verbatim from .mdl (SCREAMING_SNAKE_CASE), which triggers
+#   clippy::upper_case_acronyms. Suppressed via #![allow(clippy::upper_case_acronyms)]
+#   in libs/domain/src/generated/tracing.rs.
 #
-# Fixed natively in the prerelease emitter:
+# Fixed natively in 1.0.2:
 #   #119 ClickHouse Row enum fields → String (with explicit match arms using raw wire values)
 #   #123 TS imports placed before docblock → imports now follow meta block
 #   #124 skip_serializing_if on clickhouse::Row → omitted natively for projections

@@ -4,7 +4,7 @@
 // then copy tracing.SpanRow.v1.rs / tracing.SpanEventRow.v1.rs / tracing.Span.v1.rs /
 // tracing.SpanEvent.v1.rs from <tmp>/tracing/ into this directory, renaming to
 // snake_case file names. Do not hand-edit the generated files themselves.
-#![allow(dead_code, unused_imports, clippy::useless_conversion)]
+#![allow(dead_code, unused_imports, clippy::useless_conversion, clippy::upper_case_acronyms)]
 
 #[cfg(feature = "storage")]
 mod tracing_span_event_row_v1;
