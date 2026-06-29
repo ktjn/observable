@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import { Histogram, type HistogramBucket } from "./histogram";
 
@@ -141,5 +141,94 @@ describe("Histogram", () => {
     );
     const texts = Array.from(container.querySelectorAll("text")).map((el) => el.textContent ?? "");
     expect(texts).not.toContain("1");
+  });
+
+  // Slice 2: Discoverable brush-to-zoom tests
+  test("renders 'Drag to zoom' hint when onRangeSelect is provided", () => {
+    renderHistogram(vi.fn());
+    expect(screen.getByText("Drag to zoom")).toBeInTheDocument();
+  });
+
+  test("does not render 'Drag to zoom' hint when onRangeSelect is not provided", () => {
+    renderHistogram();
+    expect(screen.queryByText("Drag to zoom")).not.toBeInTheDocument();
+  });
+
+  test("renders 'Reset zoom' button when selectedRange and onRangeSelect are provided", () => {
+    const onRangeSelect = vi.fn();
+    render(
+      <Histogram
+        buckets={buckets}
+        categoryOrder={["ok", "error"]}
+        categoryColors={categoryColors}
+        format={(ms) => String(ms)}
+        onRangeSelect={onRangeSelect}
+        selectedRange={{ fromMs: 0, toMs: 1000 }}
+        ariaLabel="Test histogram"
+      />,
+    );
+    expect(screen.getByText("Reset zoom")).toBeInTheDocument();
+  });
+
+  test("does not render 'Reset zoom' button when selectedRange is not provided", () => {
+    renderHistogram(vi.fn());
+    expect(screen.queryByText("Reset zoom")).not.toBeInTheDocument();
+  });
+
+  test("clicking 'Reset zoom' calls onRangeSelect with full bucket range", () => {
+    const onRangeSelect = vi.fn();
+    render(
+      <Histogram
+        buckets={buckets}
+        categoryOrder={["ok", "error"]}
+        categoryColors={categoryColors}
+        format={(ms) => String(ms)}
+        onRangeSelect={onRangeSelect}
+        selectedRange={{ fromMs: 0, toMs: 1000 }}
+        ariaLabel="Test histogram"
+      />,
+    );
+    fireEvent.click(screen.getByText("Reset zoom"));
+    // fullStart = buckets[0].startMs = 0, fullEnd = buckets[last].endMs = 2000
+    expect(onRangeSelect).toHaveBeenCalledWith(0, 2000);
+  });
+
+  test("does not render 'Reset zoom' when buckets is empty even if selectedRange is provided", () => {
+    const onRangeSelect = vi.fn();
+    render(
+      <Histogram
+        buckets={[]}
+        categoryOrder={["ok", "error"]}
+        categoryColors={categoryColors}
+        format={(ms) => String(ms)}
+        onRangeSelect={onRangeSelect}
+        selectedRange={{ fromMs: 0, toMs: 1000 }}
+        ariaLabel="Empty histogram"
+      />,
+    );
+    expect(screen.queryByText("Reset zoom")).not.toBeInTheDocument();
+  });
+
+  test("shows tooltip with time label and total count on bar mouseenter", () => {
+    renderHistogram(vi.fn());
+    const group = screen.getByRole("group", { name: "Test histogram" });
+    const gElements = group.querySelectorAll("svg g");
+    expect(gElements.length).toBeGreaterThan(0);
+    fireEvent.mouseEnter(gElements[0]);
+    const tooltip = screen.getByTestId("histogram-tooltip");
+    expect(tooltip).toBeInTheDocument();
+    // format(bucket[0].startMs) = "0" and total = 5
+    expect(tooltip.textContent).toContain("0");
+    expect(tooltip.textContent).toContain("5");
+  });
+
+  test("tooltip disappears on bar mouseleave", () => {
+    renderHistogram(vi.fn());
+    const group = screen.getByRole("group", { name: "Test histogram" });
+    const gElements = group.querySelectorAll("svg g");
+    fireEvent.mouseEnter(gElements[0]);
+    expect(screen.getByTestId("histogram-tooltip")).toBeInTheDocument();
+    fireEvent.mouseLeave(gElements[0]);
+    expect(screen.queryByTestId("histogram-tooltip")).not.toBeInTheDocument();
   });
 });

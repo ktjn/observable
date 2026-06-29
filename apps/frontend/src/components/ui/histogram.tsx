@@ -17,6 +17,8 @@ export interface HistogramProps<T extends string> {
   ariaLabel?: string;
   title?: string;
   subtitle?: string;
+  /** When provided, indicates a zoom is active; shows a Reset zoom control. Display-only — callers manage zoom state. */
+  selectedRange?: { fromMs: number; toMs: number };
 }
 
 const PLOT_HEIGHT = 96;
@@ -33,6 +35,7 @@ export function Histogram<T extends string>({
   ariaLabel = "Data volume histogram",
   title,
   subtitle,
+  selectedRange,
 }: HistogramProps<T>) {
   const max = Math.max(1, ...buckets.map((bucket) => bucket.total));
 
@@ -76,6 +79,7 @@ export function Histogram<T extends string>({
 
   const dragRef = useRef<{ startX: number; endX: number; rectWidth: number } | null>(null);
   const [dragDisplay, setDragDisplay] = useState<{ startX: number; endX: number } | null>(null);
+  const [hoverTooltip, setHoverTooltip] = useState<{ bucketIdx: number } | null>(null);
 
   const barWidth = buckets.length > 0 ? width / buckets.length : 0;
 
@@ -129,21 +133,31 @@ export function Histogram<T extends string>({
       ref={sectionRef}
       role="group"
       aria-label={ariaLabel}
-      className="border border-[var(--border)] bg-[var(--surface)] p-3"
+      className="relative border border-[var(--border)] bg-[var(--surface)] p-3"
     >
-      {(title || subtitle || categoryOrder.length > 0) && (
+      {(title || subtitle || categoryOrder.length > 0 || onRangeSelect) && (
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             {subtitle && <div className="text-xs font-bold uppercase text-[var(--muted)]">{subtitle}</div>}
             {title && <h2 className="m-0 text-sm font-bold text-[var(--text-strong)]">{title}</h2>}
           </div>
-          <div className="flex flex-wrap gap-2 text-xs text-[var(--muted)]">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
             {categoryOrder.map((cat) => (
               <span key={cat} className="inline-flex items-center gap-1">
                 <span className={`h-2 w-2 ${categoryColors[cat]}`} />
                 {cat}
               </span>
             ))}
+            {onRangeSelect && <span className="text-xs text-[var(--muted)]">Drag to zoom</span>}
+            {onRangeSelect && selectedRange && buckets.length > 0 && (
+              <button
+                type="button"
+                className="cursor-pointer text-xs text-[var(--muted)] underline hover:text-[var(--text)]"
+                onClick={() => onRangeSelect(buckets[0].startMs, buckets[buckets.length - 1].endMs)}
+              >
+                Reset zoom
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -180,7 +194,11 @@ export function Histogram<T extends string>({
           const isSelected = dragDisplay !== null && x + barWidth / 2 >= selStartX && x + barWidth / 2 <= selEndX;
           let stackedHeight = 0;
           return (
-            <g key={bucket.startMs}>
+            <g
+              key={bucket.startMs}
+              onMouseEnter={() => setHoverTooltip({ bucketIdx: i })}
+              onMouseLeave={() => setHoverTooltip(null)}
+            >
               <rect
                 x={x}
                 y={0}
@@ -240,6 +258,19 @@ export function Histogram<T extends string>({
           );
         })}
       </svg>
+      {hoverTooltip !== null && buckets[hoverTooltip.bucketIdx] && (
+        <div
+          data-testid="histogram-tooltip"
+          className="pointer-events-none absolute z-10 -translate-x-1/2 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text)]"
+          style={{
+            left: `${((hoverTooltip.bucketIdx + 0.5) / buckets.length) * 100}%`,
+            bottom: `calc(${X_AXIS_HEIGHT}px + 1.5rem)`,
+          }}
+        >
+          <div>{format(buckets[hoverTooltip.bucketIdx].startMs)}</div>
+          <div>{buckets[hoverTooltip.bucketIdx].total}</div>
+        </div>
+      )}
     </section>
   );
 }
