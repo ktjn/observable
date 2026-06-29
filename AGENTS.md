@@ -20,13 +20,13 @@ Refer to `spec/10-process.md` for the official development process and AI agent 
 
 ## Modelable Emitter Limitations (Manual Patches Required)
 
-The modelable codegen emitter (PyPI v1.0.1) has known limitations that require manual post-processing after regeneration:
+The modelable codegen emitter (PyPI v1.0.2) has known limitations that require manual post-processing after regeneration:
 
 - **Rust ClickHouse enum serialization** (issue #119, partially fixed): clickhouse-rs 0.15 panics on `serialize_unit_variant` for String columns — typed enums cannot be used directly as `String` ClickHouse column fields. `TracingSpanRowV1.span_kind` and `.status_code` are kept as `String` (SCREAMING\_SNAKE\_CASE values) rather than the typed enums that modelable generates. The `From<TracingSpanV1>` impl in `tracing_span_row_v1.rs` converts enum values to strings via explicit match. `scripts/regenerate-models.sh` applies this patch automatically after regeneration.
 
 - **Rust NamedType warnings** (issue #120, partially fixed): The Rust emitter now emits `WARN [EMIT003]` for NamedType field references lacking `rust.type` adapter annotations. The warning fires even for models not targeting Rust (e.g., `nlq`, `dashboards`). The underlying field is still emitted as a bare Pascal-cased type name without an import — see the warning output when running `scripts/regenerate-models.sh`.
 
-Fixed in prerelease (no longer patched — `models/pyproject.toml` pins to local path):
+Fixed in 1.0.2 (no longer patched):
 - **TypeScript imports placed before docblock** (issue #123): Imports now follow the `@modelable` JSDoc meta block instead of preceding it.
 - **Rust `skip_serializing_if` on ClickHouse Row structs** (issue #124): The Rust emitter now omits `#[serde(skip_serializing_if = "Option::is_none")]` from `#[derive(clickhouse::Row)]` projection structs natively. No manual strip needed.
 - **Rust reverse From impls in domain type files** (issue #125): Bidirectional enum `From` impls are now placed only in projection (Row) files, not in domain model files. The domain→storage coupling is gone.
