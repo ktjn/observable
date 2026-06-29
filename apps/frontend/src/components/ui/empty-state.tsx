@@ -6,6 +6,7 @@ export interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
   description?: string;
   metadata?: string[];
   actions?: ReactNode;
+  compact?: boolean;
 }
 
 export function EmptyState({
@@ -14,17 +15,19 @@ export function EmptyState({
   metadata = [],
   actions,
   className,
+  compact = false,
   ...props
 }: EmptyStateProps) {
   return (
     <div
       className={cn(
-        "modern-panel grid min-h-[240px] content-center justify-items-center gap-3 p-7 text-center",
+        "modern-panel grid content-center justify-items-center gap-3 text-center",
+        compact ? "min-h-0 p-4" : "min-h-[240px] p-7",
         className
       )}
       {...props}
     >
-      <h2 className="text-[22px] font-extrabold">{title}</h2>
+      <h2 className={cn("font-extrabold", compact ? "text-base" : "text-[22px]")}>{title}</h2>
       {description && <p className="m-0 max-w-xl text-sm text-[var(--muted)]">{description}</p>}
       {metadata.length > 0 && (
         <div className="flex flex-wrap justify-center gap-2 text-[13px] text-[var(--muted)]">

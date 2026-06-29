@@ -92,7 +92,7 @@ export function SignalExplorer({
         {!lockedService && baseIr && onQuerySubmit && (
           <QueryFilterInput
             baseIr={baseIr}
-            placeholder={`Filter ${title.toLowerCase()} with natural language`}
+            placeholder={`Filter ${title.toLowerCase()} with NLQ or raw NLQ IR JSON`}
             onSubmit={onQuerySubmit}
           />
         )}
@@ -103,7 +103,7 @@ export function SignalExplorer({
         )}
         {showPromote && (
           <>
-            <Button onClick={onPromote} disabled={saveStatus === "saving"}>
+            <Button variant="secondary" onClick={onPromote} disabled={saveStatus === "saving"}>
               Promote to dashboard
             </Button>
             {saveStatus === "saved" && (

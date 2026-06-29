@@ -143,7 +143,7 @@ export default function HomePage() {
             {servicesLoading ? (
               <LoadingState>Loading…</LoadingState>
             ) : unhealthyServices.length === 0 ? (
-              <EmptyState title="All services healthy" />
+              <EmptyState title="All services healthy" compact />
             ) : (
               <table aria-label="Unhealthy services">
                 <thead>
@@ -201,7 +201,7 @@ export default function HomePage() {
             </div>
             <TablePanel>
               {firingAlerts.length === 0 ? (
-                <EmptyState title="No active alerts" />
+                <EmptyState title="No active alerts" compact />
               ) : (
                 <table aria-label="Firing alerts">
                   <thead>
@@ -249,7 +249,7 @@ export default function HomePage() {
             </div>
             <TablePanel>
               {recentIncidents.length === 0 ? (
-                <EmptyState title="No open incidents" />
+                <EmptyState title="No open incidents" compact />
               ) : (
                 <table aria-label="Open incidents">
                   <thead>
