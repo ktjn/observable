@@ -29,6 +29,7 @@ import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
 import { SignalExplorer, SaveStatus } from "../components/shared/SignalExplorer";
 import { LogResultsTable } from "../features/signals/components/LogResultsTable";
+import { MetricCard } from "../components/ui/metric-card";
 
 const LOG_BASE_IR: NlqIrLike = {
   operation: "table",
@@ -277,6 +278,17 @@ export function LogExplorer({
       }
       renderTable={(selectedId, onSelect) => (
         <div className="flex flex-col flex-1 min-h-0 gap-2">
+          <div
+            className="grid gap-3"
+            style={{ gridTemplateColumns: "repeat(4, minmax(100px, 1fr))" }}
+            aria-label="Log summary"
+          >
+            <MetricCard label="Total Logs" value={String(severityCounts.all)} tone="info" />
+            <MetricCard label="Errors" value={String(severityCounts.error)} tone={severityCounts.error > 0 ? "bad" : "good"} />
+            <MetricCard label="Warnings" value={String(severityCounts.warn)} tone={severityCounts.warn > 0 ? "warn" : "good"} />
+            <MetricCard label="Info" value={String(severityCounts.info)} tone="info" />
+          </div>
+
           {/* Severity pills + message search */}
           <div className="flex flex-wrap items-center gap-2">
             <PillFilter

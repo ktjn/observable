@@ -183,3 +183,10 @@ test("keeps a visible trace histogram when the histogram query fails", async () 
 
   expect(traceBar).toBeInTheDocument();
 });
+
+test("renders the trace summary stat-card row", async () => {
+  renderTraceSearch();
+
+  const summary = await screen.findByLabelText("Trace summary");
+  expect(summary).toBeInTheDocument();
+});
