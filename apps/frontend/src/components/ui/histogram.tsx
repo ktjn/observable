@@ -21,6 +21,7 @@ export interface HistogramProps<T extends string> {
 
 const PLOT_HEIGHT = 96;
 const GAP_PX = 2;
+const X_AXIS_HEIGHT = 18;
 
 export function Histogram<T extends string>({
   buckets,
@@ -34,6 +35,24 @@ export function Histogram<T extends string>({
   subtitle,
 }: HistogramProps<T>) {
   const max = Math.max(1, ...buckets.map((bucket) => bucket.total));
+
+  // Compute x-axis tick positions: first, last, and 1-3 evenly-spaced middle buckets
+  const xTicks: { index: number; ms: number }[] = (() => {
+    if (buckets.length === 0) return [];
+    if (buckets.length === 1) return [{ index: 0, ms: buckets[0].startMs }];
+    const last = buckets.length - 1;
+    const result: { index: number; ms: number }[] = [{ index: 0, ms: buckets[0].startMs }];
+    // Add 1-3 middle ticks (targeting ~3-5 total ticks)
+    const numMiddle = Math.min(3, buckets.length - 2);
+    for (let m = 1; m <= numMiddle; m++) {
+      const idx = Math.round((m * last) / (numMiddle + 1));
+      if (idx > 0 && idx < last) {
+        result.push({ index: idx, ms: buckets[idx].startMs });
+      }
+    }
+    result.push({ index: last, ms: buckets[last].startMs });
+    return result;
+  })();
   const sectionRef = useRef<HTMLElement>(null);
   const [width, setWidth] = useState(400);
 
@@ -131,8 +150,8 @@ export function Histogram<T extends string>({
       <p className="sr-only">Drag over bars to zoom into a time range.</p>
       <svg
         width="100%"
-        height={PLOT_HEIGHT}
-        viewBox={`0 0 ${width} ${PLOT_HEIGHT}`}
+        height={PLOT_HEIGHT + X_AXIS_HEIGHT}
+        viewBox={`0 0 ${width} ${PLOT_HEIGHT + X_AXIS_HEIGHT}`}
         aria-hidden="true"
         className="select-none"
         style={{ cursor: onRangeSelect ? "crosshair" : "default" }}
@@ -186,6 +205,38 @@ export function Histogram<T extends string>({
                 return <rect key={cat} {...segmentProps} />;
               })}
             </g>
+          );
+        })}
+        {/* Y-axis max label */}
+        {buckets.length > 0 && max > 1 && (
+          <text
+            x={4}
+            y={10}
+            fontSize={10}
+            fill="var(--muted)"
+            textAnchor="start"
+          >
+            {max}
+          </text>
+        )}
+
+        {/* X-axis time tick labels */}
+        {xTicks.map(({ index, ms }, tickIdx) => {
+          const isFirst = tickIdx === 0;
+          const isLast = tickIdx === xTicks.length - 1;
+          const anchor = isFirst ? "start" : isLast ? "end" : "middle";
+          const x = isFirst ? 0 : isLast ? width : (index + 0.5) * barWidth;
+          return (
+            <text
+              key={ms}
+              x={x}
+              y={PLOT_HEIGHT + 13}
+              fontSize={10}
+              fill="var(--muted)"
+              textAnchor={anchor}
+            >
+              {format(ms)}
+            </text>
           );
         })}
       </svg>
