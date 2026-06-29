@@ -15,6 +15,7 @@ import { ErrorState } from "../components/ui/error-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { PillFilter } from "../components/ui/pill-filter";
+import { ErrorRateCell, LatencyCell } from "../components/ui/metric-cells";
 import { TablePanel } from "../components/ui/table-panel";
 import { TopologyMap } from "../components/topology/TopologyMap";
 import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
@@ -286,26 +287,6 @@ function ServiceRow({ row }: { row: ServiceSummary }) {
   );
 }
 
-function ErrorRateCell({ value }: { value: number }) {
-  const pct = value * 100;
-  const color =
-    pct >= 5 ? "var(--bad)" : pct >= 1 ? "var(--warn)" : "var(--good)";
-  return (
-    <span className="tabular-nums" style={{ color }}>
-      {pct.toFixed(2)}%
-    </span>
-  );
-}
-
-function LatencyCell({ valueMs }: { valueMs: number }) {
-  const color =
-    valueMs >= 500 ? "var(--bad)" : valueMs >= 100 ? "var(--warn)" : "var(--good)";
-  return (
-    <span className="tabular-nums" style={{ color }}>
-      {Math.round(valueMs)}ms
-    </span>
-  );
-}
 
 function HealthStatus({ healthState }: { healthState: ServiceSummary["health_state"] }) {
   const tone = healthState === "breach" ? "bad" : healthState === "watch" ? "warn" : "good";

@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { TraceResponse } from "../../../api/traces";
 import { Badge } from "../../../components/ui/badge";
+import { DurationCell } from "../../../components/ui/metric-cells";
 import { VirtualTable } from "../../../components/ui/VirtualTable";
 import { formatTimestamp } from "../../../utils/formatTimestamp";
 import type { TimeFormat } from "../../../lib/timeDisplay";
@@ -53,12 +54,6 @@ export function TraceResultsTable({
   );
 }
 
-function durationToneClass(durationNs: number): string {
-  const ms = durationNs / 1_000_000;
-  if (ms > 500) return "text-[var(--bad)]";
-  if (ms > 100) return "text-[var(--warn)]";
-  return "text-[var(--good)]";
-}
 
 function TraceResultsRow({
   trace,
@@ -120,8 +115,8 @@ function TraceResultsRow({
       </td>
       {showServiceColumn && <td>{root.service_name}</td>}
       <td className="whitespace-normal break-all">{root.operation_name}</td>
-      <td className={`whitespace-nowrap font-mono ${durationToneClass(root.duration_ns)}`}>
-        {(root.duration_ns / 1e6).toFixed(2)}ms
+      <td className="whitespace-nowrap font-mono">
+        <DurationCell durationNs={root.duration_ns} />
       </td>
       <td>
         <Badge tone={isError ? "bad" : "good"}>{root.status_code}</Badge>
