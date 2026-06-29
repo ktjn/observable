@@ -30,24 +30,12 @@ pub struct TracingSpanRowV1 {
     pub parent_span_id: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum TracingSpanRowV1SpanKind {
-    Internal,
-    Server,
-    Client,
-    Producer,
-    Consumer,
-}
-
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum TracingSpanRowV1StatusCode {
-    Unset,
-    Ok,
-    Error,
-}
-
 #[cfg(feature = "storage")]
 use super::tracing_span_v1::TracingSpanV1;
+#[cfg(feature = "storage")]
+use super::tracing_span_v1::TracingSpanV1SpanKind;
+#[cfg(feature = "storage")]
+use super::tracing_span_v1::TracingSpanV1StatusCode;
 #[cfg(feature = "storage")]
 impl From<TracingSpanV1> for TracingSpanRowV1 {
     fn from(src: TracingSpanV1) -> Self {
@@ -61,19 +49,19 @@ impl From<TracingSpanV1> for TracingSpanRowV1 {
             service_version: src.service_version.into(),
             operation_name: src.operation_name.into(),
             span_kind: match src.span_kind {
-                TracingSpanV1SpanKind::Internal => "INTERNAL".to_string(),
-                TracingSpanV1SpanKind::Server => "SERVER".to_string(),
-                TracingSpanV1SpanKind::Client => "CLIENT".to_string(),
-                TracingSpanV1SpanKind::Producer => "PRODUCER".to_string(),
-                TracingSpanV1SpanKind::Consumer => "CONSUMER".to_string(),
+                TracingSpanV1SpanKind::INTERNAL => "INTERNAL".to_string(),
+                TracingSpanV1SpanKind::SERVER => "SERVER".to_string(),
+                TracingSpanV1SpanKind::CLIENT => "CLIENT".to_string(),
+                TracingSpanV1SpanKind::PRODUCER => "PRODUCER".to_string(),
+                TracingSpanV1SpanKind::CONSUMER => "CONSUMER".to_string(),
             },
             start_time_unix_nano: src.start_time_unix_nano.into(),
             end_time_unix_nano: src.end_time_unix_nano.into(),
             duration_ns: src.duration_ns.into(),
             status_code: match src.status_code {
-                TracingSpanV1StatusCode::Unset => "UNSET".to_string(),
-                TracingSpanV1StatusCode::Ok => "OK".to_string(),
-                TracingSpanV1StatusCode::Error => "ERROR".to_string(),
+                TracingSpanV1StatusCode::UNSET => "UNSET".to_string(),
+                TracingSpanV1StatusCode::OK => "OK".to_string(),
+                TracingSpanV1StatusCode::ERROR => "ERROR".to_string(),
             },
             status_message: src.status_message.into(),
             attributes: serde_json::to_string(&src.attributes).unwrap_or_default(),
@@ -83,30 +71,6 @@ impl From<TracingSpanV1> for TracingSpanRowV1 {
             host_id: src.host_id.into(),
             workload: src.workload.into(),
             deployment_id: src.deployment_id.into(),
-        }
-    }
-}
-
-use super::tracing_span_v1::TracingSpanV1SpanKind;
-impl From<TracingSpanV1SpanKind> for TracingSpanRowV1SpanKind {
-    fn from(src: TracingSpanV1SpanKind) -> Self {
-        match src {
-            TracingSpanV1SpanKind::Client => TracingSpanRowV1SpanKind::Client,
-            TracingSpanV1SpanKind::Consumer => TracingSpanRowV1SpanKind::Consumer,
-            TracingSpanV1SpanKind::Internal => TracingSpanRowV1SpanKind::Internal,
-            TracingSpanV1SpanKind::Producer => TracingSpanRowV1SpanKind::Producer,
-            TracingSpanV1SpanKind::Server => TracingSpanRowV1SpanKind::Server,
-        }
-    }
-}
-
-use super::tracing_span_v1::TracingSpanV1StatusCode;
-impl From<TracingSpanV1StatusCode> for TracingSpanRowV1StatusCode {
-    fn from(src: TracingSpanV1StatusCode) -> Self {
-        match src {
-            TracingSpanV1StatusCode::Error => TracingSpanRowV1StatusCode::Error,
-            TracingSpanV1StatusCode::Ok => TracingSpanRowV1StatusCode::Ok,
-            TracingSpanV1StatusCode::Unset => TracingSpanRowV1StatusCode::Unset,
         }
     }
 }

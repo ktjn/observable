@@ -1,6 +1,3 @@
-import type { NlqNlqFilterV0 } from "./nlq.NlqFilter.v0";
-import type { NlqNlqTimeRangeV0 } from "./nlq.NlqTimeRange.v0";
-
 /**
  * @modelable domain: nlq
  * @modelable name: NlqIr
@@ -9,12 +6,15 @@ import type { NlqNlqTimeRangeV0 } from "./nlq.NlqTimeRange.v0";
  * @modelable version: 0
  * @modelable changeKind: additive
  */
+import type { NlqFilter } from "./nlq.NlqFilter.v0";
+import type { NlqTimeRange } from "./nlq.NlqTimeRange.v0";
+
 export interface NlqNlqIrV0 {
   operation: 'timeseries' | 'rate' | 'irate' | 'increase' | 'histogram' | 'topk' | 'table' | 'distribution' | 'catalog' | 'inventory';
   signals: string[];
-  filters: NlqNlqFilterV0[];
+  filters: NlqFilter[];
   group_by: string[];
-  time_range: NlqNlqTimeRangeV0;
+  time_range: NlqTimeRange;
   percentiles?: string[];
   catalog_field?: string;
   limit?: number;

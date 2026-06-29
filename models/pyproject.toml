@@ -3,7 +3,7 @@ name = "models"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
-    "modelable>=1.0.0",
+    "modelable==1.0.2",
 ]
 
 [tool.uv]

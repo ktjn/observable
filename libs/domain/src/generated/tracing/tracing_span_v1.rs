@@ -30,40 +30,16 @@ pub struct TracingSpanV1 {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TracingSpanV1SpanKind {
-    Internal,
-    Server,
-    Client,
-    Producer,
-    Consumer,
+    INTERNAL,
+    SERVER,
+    CLIENT,
+    PRODUCER,
+    CONSUMER,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TracingSpanV1StatusCode {
-    Unset,
-    Ok,
-    Error,
-}
-
-use super::tracing_span_row_v1::TracingSpanRowV1SpanKind;
-impl From<TracingSpanRowV1SpanKind> for TracingSpanV1SpanKind {
-    fn from(src: TracingSpanRowV1SpanKind) -> Self {
-        match src {
-            TracingSpanRowV1SpanKind::Client => TracingSpanV1SpanKind::Client,
-            TracingSpanRowV1SpanKind::Consumer => TracingSpanV1SpanKind::Consumer,
-            TracingSpanRowV1SpanKind::Internal => TracingSpanV1SpanKind::Internal,
-            TracingSpanRowV1SpanKind::Producer => TracingSpanV1SpanKind::Producer,
-            TracingSpanRowV1SpanKind::Server => TracingSpanV1SpanKind::Server,
-        }
-    }
-}
-
-use super::tracing_span_row_v1::TracingSpanRowV1StatusCode;
-impl From<TracingSpanRowV1StatusCode> for TracingSpanV1StatusCode {
-    fn from(src: TracingSpanRowV1StatusCode) -> Self {
-        match src {
-            TracingSpanRowV1StatusCode::Error => TracingSpanV1StatusCode::Error,
-            TracingSpanRowV1StatusCode::Ok => TracingSpanV1StatusCode::Ok,
-            TracingSpanRowV1StatusCode::Unset => TracingSpanV1StatusCode::Unset,
-        }
-    }
+    UNSET,
+    OK,
+    ERROR,
 }
