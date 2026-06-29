@@ -167,7 +167,7 @@ export default function InfrastructureInventoryPage() {
       <div className="toolbar-row">
         <QueryFilterInput
           baseIr={INFRA_BASE_IR}
-          placeholder='Filter infrastructure, e.g. "prod pods for checkout in breach" or raw NLQ IR JSON'
+          placeholder='Filter infrastructure, e.g. "prod pods for checkout in breach"'
           onSubmit={(text) => {
             setUserQuery(text);
             setEntityTypeFilter("all");

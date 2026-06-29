@@ -10,12 +10,12 @@ export type TimeFormat =
   | "unix-ns";
 
 export const TIME_FORMAT_OPTIONS: { value: TimeFormat; label: string }[] = [
-  { value: "iso-local-ms", label: "ISO8601 Client TZ [ms]" },
-  { value: "iso-utc-ms",   label: "ISO8601 UTC [ms]" },
-  { value: "iso-local-ns", label: "ISO8601 Client TZ [ns]" },
-  { value: "iso-utc-ns",   label: "ISO8601 UTC [ns]" },
-  { value: "unix-ms",      label: "Unix time [ms]" },
-  { value: "unix-ns",      label: "Unix time [ns]" },
+  { value: "iso-local-ms", label: "Local time (ms)" },
+  { value: "iso-utc-ms",   label: "UTC (ms)" },
+  { value: "iso-local-ns", label: "Local time (ns)" },
+  { value: "iso-utc-ns",   label: "UTC (ns)" },
+  { value: "unix-ms",      label: "Unix timestamp (ms)" },
+  { value: "unix-ns",      label: "Unix timestamp (ns)" },
 ];
 
 export const TIME_FORMAT_STORAGE_KEY = "observable.time-format";

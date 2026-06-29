@@ -67,7 +67,7 @@ export function LogLiveTail() {
         </Button>
         <QueryFilterInput
           baseIr={LIVE_LOGS_BASE_IR}
-          placeholder='Filter live logs, e.g. "checkout service" or raw NLQ IR JSON'
+          placeholder='Filter live logs, e.g. "checkout service"'
           onIr={(ir) => {
             const filters = deriveViewFiltersFromIr(ir, "live-logs");
             setService(filters.service ?? filters.text ?? "");

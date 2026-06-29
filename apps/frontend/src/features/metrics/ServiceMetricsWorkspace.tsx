@@ -174,7 +174,7 @@ export function ServiceMetricsWorkspace({
                 <QueryFilterInput
                   baseIr={METRICS_BASE_IR}
                   serviceName={serviceName}
-                  placeholder='Filter metric series, e.g. "histogram latency metrics in prod" or raw NLQ IR JSON'
+                  placeholder='Filter metric series, e.g. "histogram latency metrics in prod"'
                   onSubmit={(_rawText) => {
                     // Need to derive IR and apply filters based on rawText here?
                     // Actually, the previous implementation used `onIr`.

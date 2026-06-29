@@ -92,7 +92,7 @@ export function SignalExplorer({
         {!lockedService && baseIr && onQuerySubmit && (
           <QueryFilterInput
             baseIr={baseIr}
-            placeholder={`Filter ${title.toLowerCase()} with NLQ or raw NLQ IR JSON`}
+            placeholder={`Filter ${title.toLowerCase()} with natural language`}
             onSubmit={onQuerySubmit}
           />
         )}
