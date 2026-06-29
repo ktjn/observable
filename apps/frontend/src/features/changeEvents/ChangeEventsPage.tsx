@@ -84,14 +84,14 @@ export default function ChangeEventsPage() {
       >
         <MetricCard label="Total Events" value={String(items.length)} tone="info" />
         <MetricCard
-          label="Deploy Events"
-          value={String(items.filter((e: ChangeEvent) => (e.event_type as string) === "deploy").length)}
+          label="Config Changes"
+          value={String(items.filter((e: ChangeEvent) => e.event_type === "config_change").length)}
           tone="info"
         />
         <MetricCard
-          label="Config Changes"
-          value={String(items.filter((e: ChangeEvent) => (e.event_type as string) === "config").length)}
-          tone="info"
+          label="Incidents"
+          value={String(items.filter((e: ChangeEvent) => e.event_type === "incident").length)}
+          tone={items.some((e: ChangeEvent) => e.event_type === "incident") ? "bad" : "good"}
         />
       </div>
 
