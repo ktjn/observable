@@ -10,6 +10,7 @@ import {
 } from "../api/services";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import { DataFreshness } from "../components/ui/data-freshness";
 import { EmptyState } from "../components/ui/empty-state";
 import { ErrorState } from "../components/ui/error-state";
 import { LoadingState } from "../components/ui/loading-state";
@@ -43,7 +44,7 @@ export default function ServicesPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const { tenantId } = useTenantContext();
 
-  const { data: servicesData, isLoading } = useQuery({
+  const { data: servicesData, isLoading, dataUpdatedAt } = useQuery({
     queryKey: ["services-summary", tenantId, environment],
     queryFn: () =>
       listServiceSummaries(tenantId, {
@@ -118,6 +119,8 @@ export default function ServicesPage() {
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Catalog</div>
           <h1>Services</h1>
         </div>
+        <div className="flex items-center gap-3">
+          <DataFreshness dataUpdatedAt={dataUpdatedAt} />
         <div className="flex items-center gap-1 border border-[var(--border)] rounded p-0.5">
           <button
             type="button"
@@ -143,6 +146,7 @@ export default function ServicesPage() {
           >
             Topology
           </button>
+        </div>
         </div>
       </div>
 

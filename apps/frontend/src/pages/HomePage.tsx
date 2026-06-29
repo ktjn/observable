@@ -5,6 +5,7 @@ import { listServiceSummaries } from "../api/services";
 import { listAlertRules } from "../api/alerts";
 import { listIncidents } from "../api/incidents";
 import { Badge } from "../components/ui/badge";
+import { DataFreshness } from "../components/ui/data-freshness";
 import { EmptyState } from "../components/ui/empty-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { TablePanel } from "../components/ui/table-panel";
@@ -14,7 +15,7 @@ import { useTenantContext } from "../hooks/useTenantContext";
 export default function HomePage() {
   const { tenantId } = useTenantContext();
 
-  const { data: servicesData, isLoading: servicesLoading } = useQuery({
+  const { data: servicesData, isLoading: servicesLoading, dataUpdatedAt } = useQuery({
     queryKey: ["services-summary", tenantId, "all"],
     queryFn: () => listServiceSummaries(tenantId),
   });
@@ -65,12 +66,15 @@ export default function HomePage() {
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Overview</div>
           <h1>System Status</h1>
         </div>
-        <Link
-          to="/services"
-          className="text-xs text-[var(--brand)] hover:underline"
-        >
-          All services →
-        </Link>
+        <div className="flex items-center gap-3">
+          <DataFreshness dataUpdatedAt={dataUpdatedAt} />
+          <Link
+            to="/services"
+            className="text-xs text-[var(--brand)] hover:underline"
+          >
+            All services →
+          </Link>
+        </div>
       </div>
 
       {/* System status banner */}

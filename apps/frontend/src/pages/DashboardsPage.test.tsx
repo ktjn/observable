@@ -8,6 +8,14 @@ vi.mock("../hooks/useTenantContext", () => ({
   useTenantContext: () => ({ tenantId: "test-tenant" }),
 }));
 
+const { mockNavigate } = vi.hoisted(() => ({
+  mockNavigate: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  useRouter: () => ({ navigate: mockNavigate }),
+}));
+
 const sampleDashboard: dashboardsApi.Dashboard = {
   dashboard_id: "dash-1",
   name: "My Dashboard",
@@ -40,6 +48,7 @@ function renderPage() {
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  mockNavigate.mockClear();
 });
 
 test("renders dashboard list when data loads", async () => {
@@ -122,4 +131,72 @@ test("Import shows error message on failure", async () => {
   await waitFor(() =>
     expect(screen.getByRole("alert")).toHaveTextContent("Import failed: Dashboard import failed: 422"),
   );
+});
+
+// ── Slice 9: create-affordance, card metadata ─────────────────────────────────
+
+test('"New dashboard" button appears in header', async () => {
+  vi.spyOn(dashboardsApi, "listDashboards").mockResolvedValue({ items: [] });
+
+  renderPage();
+
+  await waitFor(() => screen.getByText("No dashboards yet"));
+  expect(screen.getByRole("button", { name: "New dashboard" })).toBeInTheDocument();
+});
+
+test('clicking "New dashboard" shows inline name input', async () => {
+  vi.spyOn(dashboardsApi, "listDashboards").mockResolvedValue({ items: [] });
+
+  renderPage();
+
+  await waitFor(() => screen.getByText("No dashboards yet"));
+  fireEvent.click(screen.getByRole("button", { name: "New dashboard" }));
+
+  expect(screen.getByRole("textbox", { name: "New dashboard name" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+});
+
+test("submitting with a name calls createDashboard", async () => {
+  vi.spyOn(dashboardsApi, "listDashboards").mockResolvedValue({ items: [] });
+  const createSpy = vi.spyOn(dashboardsApi, "createDashboard").mockResolvedValue({
+    ...sampleDashboard,
+    dashboard_id: "dash-new",
+    name: "Alpha",
+  });
+
+  renderPage();
+
+  await waitFor(() => screen.getByText("No dashboards yet"));
+  fireEvent.click(screen.getByRole("button", { name: "New dashboard" }));
+
+  const input = screen.getByRole("textbox", { name: "New dashboard name" });
+  fireEvent.change(input, { target: { value: "Alpha" } });
+  fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+  await waitFor(() =>
+    expect(createSpy).toHaveBeenCalledWith("test-tenant", { name: "Alpha", panels: [] }),
+  );
+  await waitFor(() =>
+    expect(mockNavigate).toHaveBeenCalledWith({ to: "/dashboards/dash-new" }),
+  );
+});
+
+test("dashboard card shows created_at date", async () => {
+  vi.spyOn(dashboardsApi, "listDashboards").mockResolvedValue({ items: [sampleDashboard] });
+
+  renderPage();
+
+  await waitFor(() => screen.getByText("My Dashboard"));
+  const expectedDate = new Date("2026-05-05T00:00:00Z").toLocaleDateString();
+  expect(screen.getByText(`Created ${expectedDate}`)).toBeInTheDocument();
+});
+
+test("dashboard card shows visibility badge", async () => {
+  vi.spyOn(dashboardsApi, "listDashboards").mockResolvedValue({ items: [sampleDashboard] });
+
+  renderPage();
+
+  await waitFor(() => screen.getByText("My Dashboard"));
+  expect(screen.getByText("private")).toBeInTheDocument();
 });
