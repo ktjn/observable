@@ -51,11 +51,11 @@ requirement, security finding, or scaling incident forces it.
 
 Small, standalone, high user-value slices. Ordered by user impact.
 
-- [ ] **Prometheus Remote Write Receiver** (was P13-S1) — `POST /api/v1/write`, snappy-compressed
+- [x] **Prometheus Remote Write Receiver** (was P13-S1) — `POST /api/v1/write`, snappy-compressed
   protobuf, label-to-attribute mapping, tenant routing via `X-Tenant-ID`. Single biggest migration
   enabler — users keep their existing Prometheus/otel-collector agent stack and point it at
   Observable. Every organization running Prometheus today has this data; receiving it is the
-  fastest path to showing value.
+  fastest path to showing value. _(shipped PR #477)_
 - [ ] **Alert Inhibition Rules** (was P12-S5) — suppress lower-severity alerts for the same
   service while a higher-severity alert is active; `Suppressed` state with "Suppressed by" label.
   Directly reduces alert fatigue for every user with alert rules configured.
