@@ -16,3 +16,26 @@ test("renders title, description, metadata, and actions", () => {
   expect(screen.getByText("Tenant: local-dev")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Open setup" })).toBeInTheDocument();
 });
+
+test("default (non-compact) still has min-h-[240px]", () => {
+  const { container } = render(<EmptyState title="Test" />);
+  expect(container.firstChild).toHaveClass("min-h-[240px]");
+});
+
+test("compact prop removes min-height class", () => {
+  const { container } = render(<EmptyState title="Test" compact />);
+  expect(container.firstChild).not.toHaveClass("min-h-[240px]");
+});
+
+test("compact prop uses smaller padding class", () => {
+  const { container } = render(<EmptyState title="Test" compact />);
+  expect(container.firstChild).toHaveClass("p-4");
+  expect(container.firstChild).not.toHaveClass("p-7");
+});
+
+test("compact prop uses smaller title font class", () => {
+  const { container } = render(<EmptyState title="Test" compact />);
+  const heading = container.querySelector("h2");
+  expect(heading).toHaveClass("text-base");
+  expect(heading).not.toHaveClass("text-[22px]");
+});

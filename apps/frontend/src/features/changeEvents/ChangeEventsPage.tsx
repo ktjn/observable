@@ -10,6 +10,7 @@ import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import { useTimeDisplay } from "../../lib/timeDisplay";
 import { formatTimestamp } from "../../utils/formatTimestamp";
+import { MetricCard } from "../../components/ui/metric-card";
 
 const EVENT_TYPES: ChangeEventType[] = ["config_change", "feature_flag", "migration", "incident", "other"];
 
@@ -74,6 +75,24 @@ export default function ChangeEventsPage() {
             <SelectOption key={t} value={t}>{t}</SelectOption>
           ))}
         </Select>
+      </div>
+
+      <div
+        className="grid gap-3"
+        style={{ gridTemplateColumns: "repeat(3, minmax(100px, 1fr))" }}
+        aria-label="Change events summary"
+      >
+        <MetricCard label="Total Events" value={String(items.length)} tone="info" />
+        <MetricCard
+          label="Config Changes"
+          value={String(items.filter((e: ChangeEvent) => e.event_type === "config_change").length)}
+          tone="info"
+        />
+        <MetricCard
+          label="Incidents"
+          value={String(items.filter((e: ChangeEvent) => e.event_type === "incident").length)}
+          tone={items.some((e: ChangeEvent) => e.event_type === "incident") ? "bad" : "good"}
+        />
       </div>
 
       {items.length === 0 ? (

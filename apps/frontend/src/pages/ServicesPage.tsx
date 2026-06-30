@@ -10,11 +10,13 @@ import {
 } from "../api/services";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import { DataFreshness } from "../components/ui/data-freshness";
 import { EmptyState } from "../components/ui/empty-state";
 import { ErrorState } from "../components/ui/error-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { PillFilter } from "../components/ui/pill-filter";
+import { ErrorRateCell, LatencyCell } from "../components/ui/metric-cells";
 import { TablePanel } from "../components/ui/table-panel";
 import { TopologyMap } from "../components/topology/TopologyMap";
 import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
@@ -42,7 +44,7 @@ export default function ServicesPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const { tenantId } = useTenantContext();
 
-  const { data: servicesData, isLoading } = useQuery({
+  const { data: servicesData, isLoading, dataUpdatedAt } = useQuery({
     queryKey: ["services-summary", tenantId, environment],
     queryFn: () =>
       listServiceSummaries(tenantId, {
@@ -117,6 +119,8 @@ export default function ServicesPage() {
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Catalog</div>
           <h1>Services</h1>
         </div>
+        <div className="flex items-center gap-3">
+          <DataFreshness dataUpdatedAt={dataUpdatedAt} />
         <div className="flex items-center gap-1 border border-[var(--border)] rounded p-0.5">
           <button
             type="button"
@@ -143,12 +147,13 @@ export default function ServicesPage() {
             Topology
           </button>
         </div>
+        </div>
       </div>
 
       <div className="toolbar-row">
         <QueryFilterInput
           baseIr={SERVICES_BASE_IR}
-          placeholder='Filter services, e.g. "prod checkout services in watch" or raw NLQ IR JSON'
+          placeholder='Filter services, e.g. "prod checkout services in watch"'
           onIr={(ir) => {
             const filters = deriveViewFiltersFromIr(ir, "services");
             setSearch(filters.text ?? "");
@@ -286,26 +291,6 @@ function ServiceRow({ row }: { row: ServiceSummary }) {
   );
 }
 
-function ErrorRateCell({ value }: { value: number }) {
-  const pct = value * 100;
-  const color =
-    pct >= 5 ? "var(--bad)" : pct >= 1 ? "var(--warn)" : "var(--good)";
-  return (
-    <span className="tabular-nums" style={{ color }}>
-      {pct.toFixed(2)}%
-    </span>
-  );
-}
-
-function LatencyCell({ valueMs }: { valueMs: number }) {
-  const color =
-    valueMs >= 500 ? "var(--bad)" : valueMs >= 100 ? "var(--warn)" : "var(--good)";
-  return (
-    <span className="tabular-nums" style={{ color }}>
-      {Math.round(valueMs)}ms
-    </span>
-  );
-}
 
 function HealthStatus({ healthState }: { healthState: ServiceSummary["health_state"] }) {
   const tone = healthState === "breach" ? "bad" : healthState === "watch" ? "warn" : "good";

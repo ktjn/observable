@@ -17,10 +17,13 @@ export interface HistogramProps<T extends string> {
   ariaLabel?: string;
   title?: string;
   subtitle?: string;
+  /** When provided, indicates a zoom is active; shows a Reset zoom control. Display-only — callers manage zoom state. */
+  selectedRange?: { fromMs: number; toMs: number };
 }
 
 const PLOT_HEIGHT = 96;
 const GAP_PX = 2;
+const X_AXIS_HEIGHT = 18;
 
 export function Histogram<T extends string>({
   buckets,
@@ -32,8 +35,27 @@ export function Histogram<T extends string>({
   ariaLabel = "Data volume histogram",
   title,
   subtitle,
+  selectedRange,
 }: HistogramProps<T>) {
   const max = Math.max(1, ...buckets.map((bucket) => bucket.total));
+
+  // Compute x-axis tick positions: first, last, and 1-3 evenly-spaced middle buckets
+  const xTicks: { index: number; ms: number }[] = (() => {
+    if (buckets.length === 0) return [];
+    if (buckets.length === 1) return [{ index: 0, ms: buckets[0].startMs }];
+    const last = buckets.length - 1;
+    const result: { index: number; ms: number }[] = [{ index: 0, ms: buckets[0].startMs }];
+    // Add 1-3 middle ticks (targeting ~3-5 total ticks)
+    const numMiddle = Math.min(3, buckets.length - 2);
+    for (let m = 1; m <= numMiddle; m++) {
+      const idx = Math.round((m * last) / (numMiddle + 1));
+      if (idx > 0 && idx < last) {
+        result.push({ index: idx, ms: buckets[idx].startMs });
+      }
+    }
+    result.push({ index: last, ms: buckets[last].startMs });
+    return result;
+  })();
   const sectionRef = useRef<HTMLElement>(null);
   const [width, setWidth] = useState(400);
 
@@ -57,6 +79,7 @@ export function Histogram<T extends string>({
 
   const dragRef = useRef<{ startX: number; endX: number; rectWidth: number } | null>(null);
   const [dragDisplay, setDragDisplay] = useState<{ startX: number; endX: number } | null>(null);
+  const [hoverTooltip, setHoverTooltip] = useState<{ bucketIdx: number } | null>(null);
 
   const barWidth = buckets.length > 0 ? width / buckets.length : 0;
 
@@ -110,29 +133,39 @@ export function Histogram<T extends string>({
       ref={sectionRef}
       role="group"
       aria-label={ariaLabel}
-      className="border border-[var(--border)] bg-[var(--surface)] p-3"
+      className="relative border border-[var(--border)] bg-[var(--surface)] p-3"
     >
-      {(title || subtitle || categoryOrder.length > 0) && (
+      {(title || subtitle || categoryOrder.length > 0 || onRangeSelect) && (
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             {subtitle && <div className="text-xs font-bold uppercase text-[var(--muted)]">{subtitle}</div>}
             {title && <h2 className="m-0 text-sm font-bold text-[var(--text-strong)]">{title}</h2>}
           </div>
-          <div className="flex flex-wrap gap-2 text-xs text-[var(--muted)]">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
             {categoryOrder.map((cat) => (
               <span key={cat} className="inline-flex items-center gap-1">
                 <span className={`h-2 w-2 ${categoryColors[cat]}`} />
                 {cat}
               </span>
             ))}
+            {onRangeSelect && <span className="text-xs text-[var(--muted)]">Drag to zoom</span>}
+            {onRangeSelect && selectedRange && buckets.length > 0 && (
+              <button
+                type="button"
+                className="cursor-pointer text-xs text-[var(--muted)] underline hover:text-[var(--text)]"
+                onClick={() => onRangeSelect(buckets[0].startMs, buckets[buckets.length - 1].endMs)}
+              >
+                Reset zoom
+              </button>
+            )}
           </div>
         </div>
       )}
       <p className="sr-only">Drag over bars to zoom into a time range.</p>
       <svg
         width="100%"
-        height={PLOT_HEIGHT}
-        viewBox={`0 0 ${width} ${PLOT_HEIGHT}`}
+        height={PLOT_HEIGHT + X_AXIS_HEIGHT}
+        viewBox={`0 0 ${width} ${PLOT_HEIGHT + X_AXIS_HEIGHT}`}
         aria-hidden="true"
         className="select-none"
         style={{ cursor: onRangeSelect ? "crosshair" : "default" }}
@@ -161,7 +194,11 @@ export function Histogram<T extends string>({
           const isSelected = dragDisplay !== null && x + barWidth / 2 >= selStartX && x + barWidth / 2 <= selEndX;
           let stackedHeight = 0;
           return (
-            <g key={bucket.startMs}>
+            <g
+              key={bucket.startMs}
+              onMouseEnter={() => setHoverTooltip({ bucketIdx: i })}
+              onMouseLeave={() => setHoverTooltip(null)}
+            >
               <rect
                 x={x}
                 y={0}
@@ -188,7 +225,52 @@ export function Histogram<T extends string>({
             </g>
           );
         })}
+        {/* Y-axis max label */}
+        {buckets.length > 0 && max > 1 && (
+          <text
+            x={4}
+            y={10}
+            fontSize={10}
+            fill="var(--muted)"
+            textAnchor="start"
+          >
+            {max}
+          </text>
+        )}
+
+        {/* X-axis time tick labels */}
+        {xTicks.map(({ index, ms }, tickIdx) => {
+          const isFirst = tickIdx === 0;
+          const isLast = tickIdx === xTicks.length - 1;
+          const anchor = isFirst ? "start" : isLast ? "end" : "middle";
+          const x = isFirst ? 0 : isLast ? width : (index + 0.5) * barWidth;
+          return (
+            <text
+              key={ms}
+              x={x}
+              y={PLOT_HEIGHT + 13}
+              fontSize={10}
+              fill="var(--muted)"
+              textAnchor={anchor}
+            >
+              {format(ms)}
+            </text>
+          );
+        })}
       </svg>
+      {hoverTooltip !== null && buckets[hoverTooltip.bucketIdx] && (
+        <div
+          data-testid="histogram-tooltip"
+          className="pointer-events-none absolute z-10 -translate-x-1/2 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text)]"
+          style={{
+            left: `${((hoverTooltip.bucketIdx + 0.5) / buckets.length) * 100}%`,
+            bottom: `calc(${X_AXIS_HEIGHT}px + 1.5rem)`,
+          }}
+        >
+          <div>{format(buckets[hoverTooltip.bucketIdx].startMs)}</div>
+          <div>{buckets[hoverTooltip.bucketIdx].total}</div>
+        </div>
+      )}
     </section>
   );
 }

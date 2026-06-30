@@ -71,6 +71,21 @@ export default function ServiceDetailPage() {
   );
 }
 
+function computeDelta<T>(
+  buckets: T[] | undefined,
+  getValue: (b: T) => number,
+): number | undefined {
+  if (!buckets || buckets.length < 4) return undefined;
+  const half = Math.floor(buckets.length / 2);
+  const prevAvg =
+    buckets.slice(0, half).reduce((s, b) => s + getValue(b), 0) / half;
+  const currAvg =
+    buckets.slice(half).reduce((s, b) => s + getValue(b), 0) /
+    (buckets.length - half);
+  if (prevAvg === 0) return undefined;
+  return (currAvg - prevAvg) / prevAvg;
+}
+
 function ServiceDetailView({
   service,
   activeTab,
@@ -85,6 +100,24 @@ function ServiceDetailView({
   const [nlqFrame, setNlqFrame] = useState<VisualizationFrame | null>(null);
   const [nlqTab, setNlqTab] = useState<ServiceSignalTab | null>(null);
   const displayedTab = nlqTab ?? activeTab;
+  const { tenantId } = useTenantContext();
+
+  const { data: historyData } = useQuery({
+    queryKey: [
+      "service-response-time",
+      tenantId,
+      service.service_name,
+      fromMs,
+      toMs,
+    ],
+    queryFn: () =>
+      getServiceResponseTimeHistory(tenantId, service.service_name, {
+        from: fromMs,
+        to: toMs,
+        buckets: 60,
+      }),
+    ...liveViewQueryOptions,
+  });
 
   return (
     <section className="page-stack">
@@ -100,13 +133,27 @@ function ServiceDetailView({
         className="grid grid-cols-[repeat(4,minmax(140px,1fr))] gap-3 max-[860px]:grid-cols-2 max-[560px]:grid-cols-1"
         aria-label="Service performance summary"
       >
-        <MetricCard label="Request Rate" value={`${service.request_rate.toFixed(2)} rps`} tone="info" />
+        <MetricCard
+          label="Request Rate"
+          value={`${service.request_rate.toFixed(2)} rps`}
+          tone="info"
+          sparkline={historyData?.buckets?.map((b) => b.request_rate)}
+          delta={computeDelta(historyData?.buckets, (b) => b.request_rate)}
+          deltaPositiveTone="good"
+        />
         <MetricCard
           label="Error Rate"
           value={`${(service.error_rate * 100).toFixed(2)}%`}
           tone={service.health_state === "breach" ? "bad" : service.health_state === "watch" ? "warn" : "good"}
         />
-        <MetricCard label="P95 Latency" value={`${Math.round(service.p95_latency_ms)}ms`} tone="good" />
+        <MetricCard
+          label="P95 Latency"
+          value={`${Math.round(service.p95_latency_ms)}ms`}
+          tone={service.p95_latency_ms >= 500 ? "bad" : service.p95_latency_ms >= 100 ? "warn" : "good"}
+          sparkline={historyData?.buckets?.map((b) => b.p95_ms)}
+          delta={computeDelta(historyData?.buckets, (b) => b.p95_ms)}
+          deltaPositiveTone="bad"
+        />
         <MetricCard label="Active Alerts" value={String(service.active_alert_count)} tone={service.active_alert_count > 0 ? "warn" : "good"} />
       </div>
 

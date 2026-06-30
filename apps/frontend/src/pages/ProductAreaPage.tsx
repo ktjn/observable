@@ -104,7 +104,7 @@ export function ProductAreaPage() {
       <Toolbar aria-label="Service filters">
         <QueryFilterInput
           baseIr={SERVICES_BASE_IR}
-          placeholder='Filter services, e.g. "prod checkout services in watch" or raw NLQ IR JSON'
+          placeholder='Filter services, e.g. "prod checkout services in watch"'
           onIr={(ir) => {
             const filters = deriveViewFiltersFromIr(ir, "services");
             setSearch(filters.text ?? "");

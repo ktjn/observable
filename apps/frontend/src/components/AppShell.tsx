@@ -12,6 +12,7 @@ import { useAuth } from "../hooks/useAuth";
 import { initiateLogin } from "../api/auth";
 import { TreeNav, type NavTreeItem } from "./TreeNav";
 import { isOnboardingComplete } from "../features/onboarding/onboardingState";
+import { CommandPalette } from "./ui/command-palette";
 import {
   Home as HomeIcon,
   Wrench,
@@ -84,6 +85,7 @@ export function AppShell() {
   const { preference, setPreference } = useTheme();
   const { format, setFormat } = useTimeDisplay();
   const { tenantId, tenantName, environment, setTenant, setEnvironment } = useTenantContext();
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const { data: tenantsData } = useQuery({
     queryKey: ["tenants"],
@@ -128,6 +130,17 @@ export function AppShell() {
       setTenant({ id: available[0].id, name: available[0].name });
     }
   }, [user, tenantsData, tenantId, setTenant]);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setPaletteOpen(true);
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   return (
     <div className="app-shell">
@@ -206,6 +219,8 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );
 }

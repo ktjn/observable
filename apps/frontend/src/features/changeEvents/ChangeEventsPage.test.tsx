@@ -34,6 +34,30 @@ describe("ChangeEventsPage", () => {
     await waitFor(() => expect(screen.getByText("No change events found")).toBeInTheDocument());
   });
 
+  it("renders the change events summary stat-card row", async () => {
+    vi.spyOn(changeEventsApi, "listChangeEvents").mockResolvedValue({
+      items: [
+        {
+          change_event_id: "ce-2",
+          tenant_id: "tenant-1",
+          project_id: null,
+          event_type: "deploy" as import("../../api/changeEvents").ChangeEventType,
+          service_name: "api",
+          environment: "production",
+          title: "Deploy v1.2.3",
+          description: null,
+          occurred_at: new Date(500).toISOString(),
+          source: "ci",
+          created_by: "bot",
+          metadata: null,
+        },
+      ],
+    });
+    renderPage();
+    const summary = await screen.findByLabelText("Change events summary");
+    expect(summary).toBeInTheDocument();
+  });
+
   it("renders a row for each returned event", async () => {
     vi.spyOn(changeEventsApi, "listChangeEvents").mockResolvedValue({
       items: [

@@ -97,7 +97,7 @@ export function QueryFilterInput({
         isLoading={state.status === "loading"}
         inputLabel="Query current view input"
         formLabel="Query current view"
-        placeholder={placeholder ?? "Filter this view with natural language or raw NLQ IR JSON"}
+        placeholder={placeholder ?? "Filter this view with natural language"}
         idleLabel="Apply query"
         loadingLabel="Interpreting..."
       />

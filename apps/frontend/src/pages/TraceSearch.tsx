@@ -31,6 +31,7 @@ import { formatContextValue } from "../utils/logFormatting";
 import { infraLinks } from "../utils/infraLinks";
 import { SignalExplorer, SaveStatus } from "../components/shared/SignalExplorer";
 import { TraceResultsTable } from "../features/signals/components/TraceResultsTable";
+import { MetricCard } from "../components/ui/metric-card";
 
 const TRACE_BASE_IR: NlqIrLike = {
   operation: "table",
@@ -279,6 +280,21 @@ export function TraceExplorer({
               ariaLabel="Trace facets"
             />
           )}
+
+          <div
+            className="grid gap-3"
+            style={{ gridTemplateColumns: "repeat(4, minmax(100px, 1fr))" }}
+            aria-label="Trace summary"
+          >
+            <MetricCard label="Total Traces" value={String(statusCounts.all)} tone="info" />
+            <MetricCard label="OK" value={String(statusCounts.ok)} tone="good" />
+            <MetricCard label="Errors" value={String(statusCounts.error)} tone={statusCounts.error > 0 ? "bad" : "good"} />
+            <MetricCard
+              label="Error Rate"
+              value={statusCounts.all > 0 ? `${((statusCounts.error / statusCounts.all) * 100).toFixed(1)}%` : "—"}
+              tone={statusCounts.all > 0 && statusCounts.error / statusCounts.all >= 0.05 ? "bad" : statusCounts.all > 0 && statusCounts.error / statusCounts.all >= 0.01 ? "warn" : "good"}
+            />
+          </div>
 
           {/* Status pills */}
           <PillFilter

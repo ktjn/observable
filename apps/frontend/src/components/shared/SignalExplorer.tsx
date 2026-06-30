@@ -103,7 +103,7 @@ export function SignalExplorer({
         )}
         {showPromote && (
           <>
-            <Button onClick={onPromote} disabled={saveStatus === "saving"}>
+            <Button variant="secondary" onClick={onPromote} disabled={saveStatus === "saving"}>
               Promote to dashboard
             </Button>
             {saveStatus === "saved" && (

@@ -303,6 +303,13 @@ test("span_id in log context sidebar links to the parent trace", async () => {
   expect(spanLink).toHaveAttribute("title", "View parent trace");
 });
 
+test("renders the log summary stat-card row", async () => {
+  renderLogSearch();
+
+  const summary = await screen.findByLabelText("Log summary");
+  expect(summary).toBeInTheDocument();
+});
+
 test("shows 'Histogram unavailable' when histogram query fails", async () => {
   vi.mocked(fetchLogHistogram).mockRejectedValueOnce(new Error("histogram backend error"));
 

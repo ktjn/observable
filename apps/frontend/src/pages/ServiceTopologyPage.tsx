@@ -56,7 +56,7 @@ export default function ServiceTopologyPage() {
       <div className="toolbar-row">
         <QueryFilterInput
           baseIr={TOPOLOGY_BASE_IR}
-          placeholder='Focus topology, e.g. "prod payments service" or raw NLQ IR JSON'
+          placeholder='Focus topology, e.g. "prod payments service"'
           onIr={(ir) => {
             const filters = deriveViewFiltersFromIr(ir, "topology");
             setEnvironment(filters.environment ?? "all");
