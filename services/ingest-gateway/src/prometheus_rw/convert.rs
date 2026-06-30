@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::prometheus_rw::proto::{Label, Sample, TimeSeries, WriteRequest};
+type HistoKey = (String, Vec<(String, String)>);
+
+use crate::prometheus_rw::proto::{Label, TimeSeries, WriteRequest};
 use domain::{
     AggregationTemporality, MetricPoint, MetricSeries, MetricType, deterministic_metric_series_id,
 };
@@ -15,8 +17,7 @@ pub fn write_request_to_metrics(
     // from simple series (gauge, sum, skip).
     let mut simple: Vec<TimeSeries> = Vec::new();
     // Key: (base_name, sorted non-le/non-name labels as vec of (name,value))
-    let mut histo_groups: HashMap<(String, Vec<(String, String)>), Vec<TimeSeries>> =
-        HashMap::new();
+    let mut histo_groups: HashMap<HistoKey, Vec<TimeSeries>> = HashMap::new();
 
     for ts in req.timeseries {
         let label_map: HashMap<String, String> = labels_to_map(&ts.labels);
@@ -339,6 +340,7 @@ fn base_name(metric_name: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prometheus_rw::proto::Sample;
 
     const TENANT: &str = "00000000-0000-0000-0000-000000000001";
     const ENV: &str = "production";
