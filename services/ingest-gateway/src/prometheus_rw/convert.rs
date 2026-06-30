@@ -211,7 +211,7 @@ fn convert_histogram_group(
         base.to_string(),
         MetricType::Histogram,
         None,
-        None,
+        Some(AggregationTemporality::Cumulative),
         tenant_id,
         environment,
     );
@@ -230,7 +230,17 @@ fn convert_histogram_group(
             .filter(|(le, _)| !le.is_infinite())
             .map(|(le, _)| *le)
             .collect();
-        let counts: Vec<u64> = bkts.iter().map(|(_, v)| *v as u64).collect();
+        let counts: Vec<u64> = {
+            let mut prev = 0u64;
+            bkts.iter()
+                .map(|(_, v)| {
+                    let cum = *v as u64;
+                    let interval = cum.saturating_sub(prev);
+                    prev = cum;
+                    interval
+                })
+                .collect()
+        };
 
         let point = MetricPoint {
             tenant_id,
@@ -504,7 +514,7 @@ mod tests {
         let bounds = points[0].histogram_explicit_bounds.as_ref().unwrap();
         assert_eq!(bounds, &[0.1, 0.5]); // +Inf excluded
         let counts = points[0].histogram_bucket_counts.as_ref().unwrap();
-        assert_eq!(counts, &[5, 10, 12]); // all three including +Inf
+        assert_eq!(counts, &[5, 5, 2]); // per-interval: 5, (10-5)=5, (12-10)=2
         assert_eq!(points[0].histogram_count, Some(12));
         assert_eq!(points[0].histogram_sum, Some(3.5));
     }

@@ -34,12 +34,24 @@ pub async fn write(
         return StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response();
     }
 
+    // Compressed body size cap — prevents allocate-on-header OOM attack
+    const MAX_COMPRESSED_BODY_BYTES: usize = 4 * 1024 * 1024; // 4 MB
+    if body.len() > MAX_COMPRESSED_BODY_BYTES {
+        return StatusCode::PAYLOAD_TOO_LARGE.into_response();
+    }
+
     // Snappy decompress
     let mut decoder = snap::raw::Decoder::new();
     let proto_bytes = match decoder.decompress_vec(&body) {
         Ok(b) => b,
         Err(_) => return StatusCode::BAD_REQUEST.into_response(),
     };
+
+    // Post-decompress size guard
+    const MAX_DECOMPRESSED_BYTES: usize = 32 * 1024 * 1024; // 32 MB
+    if proto_bytes.len() > MAX_DECOMPRESSED_BYTES {
+        return StatusCode::PAYLOAD_TOO_LARGE.into_response();
+    }
 
     // Proto decode
     let req = match proto::WriteRequest::decode(proto_bytes.as_slice()) {
@@ -221,6 +233,20 @@ mod tests {
             .await;
         assert_eq!(second.status_code(), StatusCode::TOO_MANY_REQUESTS);
         assert_eq!(second.headers()["retry-after"], "1");
+    }
+
+    #[tokio::test]
+    async fn oversized_body_returns_413() {
+        let server = platform_server();
+        // Body larger than 4 MB compressed cap
+        let big_body = vec![0u8; 5 * 1024 * 1024];
+        let resp = server
+            .post("/api/v1/write")
+            .add_header(auth_header().0, auth_header().1)
+            .add_header(prom_content_type().0, prom_content_type().1)
+            .bytes(big_body.into())
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::PAYLOAD_TOO_LARGE);
     }
 
     #[tokio::test]
