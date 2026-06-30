@@ -223,3 +223,61 @@ The Query API and Ingest API must support the deployment marker schema and logic
 - **Behavior**: Enables management of threshold-based alert rules.
 - **Filtering**: `GET` returns rules for the authenticated tenant.
 - **Auth**: Requires `Member` role for create/silence.
+
+### 14.3 Prometheus Remote Write Ingest
+
+**ADR:** ADR-017-prometheus-remote-write.md
+
+#### Endpoint
+
+`POST /api/v1/write`
+
+Hosted on the ingest-gateway **platform port** (default `4321`). The OTLP port (`4318`) is not affected.
+
+#### Authentication
+
+```
+Authorization: Bearer <api-key>
+```
+
+Same API key used for OTLP ingest. `X-Tenant-ID` is ignored — tenant is derived from the key.
+
+#### Request
+
+- `Content-Type: application/x-protobuf`
+- Body: Prometheus remote_write v1 `WriteRequest` message, snappy-compressed (raw format)
+
+#### Response codes
+
+| Code | Meaning |
+|---|---|
+| `204 No Content` | Accepted |
+| `400 Bad Request` | Snappy or protobuf decode failure |
+| `401 Unauthorized` | Missing or invalid API key |
+| `403 Forbidden` | API key lacks ingest role |
+| `415 Unsupported Media Type` | Wrong Content-Type (including remote_write v2) |
+| `429 Too Many Requests` | Rate limit exceeded; retry after `Retry-After` seconds |
+| `500 Internal Server Error` | Queue publish failure |
+
+#### Label mapping
+
+| Prometheus label | Observable field |
+|---|---|
+| `__name__` | metric name |
+| `job` | `service_name` |
+| `instance` | `resource_attributes["host.name"]` |
+| `observable.service_name` | overrides `job` as `service_name` |
+| all other labels | `attributes` |
+
+All ingested series carry `resource_attributes["observable.ingest_source"] = "prometheus_remote_write"`.
+
+#### Metric type mapping
+
+| Prometheus pattern | Observable type |
+|---|---|
+| `_total` suffix | `sum` (monotonic, cumulative) |
+| `_bucket` / `_count` / `_sum` group | `histogram` |
+| `_created` suffix | dropped |
+| everything else | `gauge` |
+
+Remote_write v2 is not supported in this version.

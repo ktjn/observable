@@ -96,14 +96,13 @@ A full-surface UI review (2026-06-26) of the operator jobs **find errors fast** 
 platform at a glance**, driven by the Playwright visual suite, produced a sliced remediation plan:
 `docs/superpowers/plans/2026-06-26-ui-usability-remediation.md`. Highest-impact items:
 
-- [ ] **Histogram axes & scale** (P0) — Traces/Logs/Service-Detail volume charts have no time or
-  count axis, so operators can't read *when* or *how many* for a spike.
-- [ ] **De-jargon explorer filters** (P1) — remove "raw NLQ IR JSON" from 8 user-facing placeholders.
-- [ ] **Discoverable brush-to-zoom** (P1) — histogram range-select is `sr-only`-hinted today.
-- [ ] **Outlier emphasis in tables** (P1) — color/threshold cues on latency/error-rate columns.
-- [ ] **Trend/threshold context on stat cards** (P1) — sparkline + delta so numbers are interpretable.
-- [ ] Consistency follow-ups (P2): summary-row parity, button hierarchy, compact empty states,
-  command palette, dashboard create-affordance + freshness indicators.
+- [x] **Histogram axes & scale** (P0) — time + count axes added to histogram component.
+- [x] **De-jargon explorer filters** (P1) — "raw NLQ IR JSON" removed from all user-facing placeholders.
+- [x] **Discoverable brush-to-zoom** (P1) — "Drag to zoom" hint + hover tooltip + Reset zoom control.
+- [x] **Outlier emphasis in tables** (P1) — shared metric cell components with threshold color ramp.
+- [x] **Trend/threshold context on stat cards** (P1) — sparkline + delta wired to MetricCard.
+- [x] Consistency follow-ups (P2): summary-row parity, button hierarchy, compact empty states,
+  command palette, dashboard create-affordance + freshness indicators. *(All shipped in PR #475.)*
 
 ### Previously completed (Tier 1)
 - [x] **Onboarding Wizard** (was P9-S1) — guided zero-to-first-trace flow.
