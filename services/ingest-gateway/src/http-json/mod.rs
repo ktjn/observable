@@ -16,7 +16,7 @@ use std::io::Read;
 use tower_http::trace::TraceLayer;
 use tracing::Level;
 
-use crate::{AppState, auth, change_events, deployments};
+use crate::{AppState, auth, change_events, deployments, prometheus_rw};
 
 pub fn decode_json_otlp_request(headers: &HeaderMap, body: Bytes) -> Result<Value, StatusCode> {
     let content_type = get_content_type(headers);
@@ -104,6 +104,7 @@ pub fn build_platform_router(
             "/v1/events/changes",
             post(change_events::create_change_event),
         )
+        .route("/api/v1/write", post(prometheus_rw::write))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::auth_middleware,
