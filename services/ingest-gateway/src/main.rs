@@ -6,6 +6,7 @@ mod deployments;
 mod grpc;
 #[path = "http-json/mod.rs"]
 mod http_json;
+mod prometheus_rw;
 mod queue;
 mod readyz;
 

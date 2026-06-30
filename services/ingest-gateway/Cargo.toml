@@ -25,6 +25,7 @@ tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 bytes              = { workspace = true }
 flate2             = "1"
+snap               = "1"
 prost              = { workspace = true }
 tonic              = { workspace = true }
 opentelemetry-proto = { version = "0.32", features = ["gen-tonic", "trace", "logs", "metrics"] }
