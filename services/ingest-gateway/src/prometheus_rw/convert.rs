@@ -155,14 +155,48 @@ fn convert_histogram_group(
         .values()
         .any(|bkts| bkts.iter().any(|(le, _)| le.is_infinite()));
     if !has_inf && !buckets_by_ts.is_empty() {
-        // Missing +Inf bucket — emit each _bucket TimeSeries as a Gauge
+        // Missing +Inf bucket — emit each _bucket TimeSeries as a Gauge.
+        // Bug 2 fix: skip _count and _sum; only _bucket series carry useful data here.
+        // Bug 1 fix: build the series manually so we can re-insert `le` into attributes
+        // before computing the deterministic ID — otherwise two bucket series with different
+        // `le` values (e.g. 0.1 and 0.5) would produce identical attributes and collide.
         let mut fallback_series: Vec<MetricSeries> = Vec::new();
         let mut fallback_points: Vec<MetricPoint> = Vec::new();
         for ts in &group_ts {
-            if let Some((s, pts)) = convert_simple(ts, tenant_id, environment) {
-                fallback_series.push(s);
-                fallback_points.extend(pts);
+            let label_map: HashMap<String, String> = labels_to_map(&ts.labels);
+            let name = label_map.get("__name__").cloned().unwrap_or_default();
+            if !name.ends_with("_bucket") {
+                continue;
             }
+            let mut series = build_series(
+                &label_map,
+                name.clone(),
+                MetricType::Gauge,
+                None,
+                None,
+                tenant_id,
+                environment,
+            );
+            // Re-insert `le` so each bucket gets a distinct deterministic ID.
+            if let Some(le_val) = label_map.get("le") {
+                series.attributes.insert("le".to_string(), le_val.clone());
+            }
+            series.metric_series_id = deterministic_metric_series_id(&series);
+            let pts: Vec<MetricPoint> = ts
+                .samples
+                .iter()
+                .map(|s| MetricPoint {
+                    tenant_id,
+                    metric_series_id: series.metric_series_id,
+                    metric_name: name.clone(),
+                    service_name: series.service_name.clone(),
+                    time_unix_nano: (s.timestamp as u64) * 1_000_000,
+                    value_double: Some(s.value),
+                    ..Default::default()
+                })
+                .collect();
+            fallback_series.push(series);
+            fallback_points.extend(pts);
         }
         return (fallback_series, fallback_points);
     }
@@ -494,6 +528,52 @@ mod tests {
         assert_eq!(series[0].metric_type, MetricType::Gauge);
         assert_eq!(points.len(), 1);
         assert_eq!(points[0].value_double, Some(3.0));
+    }
+
+    #[test]
+    fn histogram_fallback_includes_le_in_attributes_for_multi_bucket() {
+        // Two _bucket series with different le values, no +Inf → fallback Gauge path
+        // Must produce TWO distinct MetricSeries (not one colliding series)
+        let req = WriteRequest {
+            timeseries: vec![
+                make_series(
+                    vec![
+                        ("__name__", "req_duration_seconds_bucket"),
+                        ("job", "svc"),
+                        ("le", "0.1"),
+                    ],
+                    2.0,
+                    1_000,
+                ),
+                make_series(
+                    vec![
+                        ("__name__", "req_duration_seconds_bucket"),
+                        ("job", "svc"),
+                        ("le", "0.5"),
+                    ],
+                    5.0,
+                    1_000,
+                ),
+            ],
+        };
+        let (series, points) = write_request_to_metrics(req, tenant(), ENV);
+        assert_eq!(
+            series.len(),
+            2,
+            "each le bucket must produce a distinct series"
+        );
+        assert_eq!(points.len(), 2);
+        // Each series should have le in attributes
+        let les: std::collections::HashSet<_> = series
+            .iter()
+            .filter_map(|s| s.attributes.get("le"))
+            .collect();
+        assert!(les.contains(&"0.1".to_string()));
+        assert!(les.contains(&"0.5".to_string()));
+        // All points are Gauge
+        for s in &series {
+            assert_eq!(s.metric_type, domain::MetricType::Gauge);
+        }
     }
 
     #[test]
