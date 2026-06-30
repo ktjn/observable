@@ -40,18 +40,18 @@ pub async fn write(
         return StatusCode::PAYLOAD_TOO_LARGE.into_response();
     }
 
+    // Check snappy header-declared decompressed size before allocating
+    const MAX_DECOMPRESSED_BYTES: usize = 32 * 1024 * 1024; // 32 MB
+    if snap::raw::decompress_len(&body).unwrap_or(0) > MAX_DECOMPRESSED_BYTES {
+        return StatusCode::PAYLOAD_TOO_LARGE.into_response();
+    }
+
     // Snappy decompress
     let mut decoder = snap::raw::Decoder::new();
     let proto_bytes = match decoder.decompress_vec(&body) {
         Ok(b) => b,
         Err(_) => return StatusCode::BAD_REQUEST.into_response(),
     };
-
-    // Post-decompress size guard
-    const MAX_DECOMPRESSED_BYTES: usize = 32 * 1024 * 1024; // 32 MB
-    if proto_bytes.len() > MAX_DECOMPRESSED_BYTES {
-        return StatusCode::PAYLOAD_TOO_LARGE.into_response();
-    }
 
     // Proto decode
     let req = match proto::WriteRequest::decode(proto_bytes.as_slice()) {
