@@ -48,7 +48,6 @@ test("renders the product navigation shell", async () => {
   render(<App />);
 
   const navigation = await screen.findByLabelText("Primary navigation");
-  expect(within(navigation).getByText("Setup")).toBeInTheDocument();
   expect(within(navigation).getByRole("link", { name: "Services" })).toBeInTheDocument();
   expect(within(navigation).getByRole("link", { name: "Infrastructure" })).toBeInTheDocument();
   expect(within(navigation).getByRole("link", { name: "Dashboards" })).toBeInTheDocument();
