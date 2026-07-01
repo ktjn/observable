@@ -192,16 +192,15 @@ test("renders zero usage without an empty state", async () => {
   expect(within(controlPlane).getAllByText("0")).toHaveLength(5);
 });
 
-test("renders the fleet management contract page at /admin/fleet", async () => {
+test("renders the fleet management page at /admin/fleet", async () => {
   window.history.pushState({}, "", "/admin/fleet");
 
   render(<App />);
 
   await screen.findByRole("heading", { name: "Fleet management" });
-  expect(screen.getByText("Contract view")).toBeInTheDocument();
-  expect(screen.getByText("agent.up", { selector: "td" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Remote configuration and upgrades" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Live agent inventory is not wired yet" })).toBeInTheDocument();
+  expect(screen.getByText("Fleet management is not yet available")).toBeInTheDocument();
+  // contract tables should be gone
+  expect(screen.queryByText("agent.up", { selector: "td" })).not.toBeInTheDocument();
 });
 
 test("renders the members management page at /admin/members", async () => {
