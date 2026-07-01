@@ -85,7 +85,6 @@ test("renders the tenant usage report for the admin overview", async () => {
 
   await screen.findByRole("heading", { name: "Admin Console" });
   expect(screen.getByText(/Selected environment:/)).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Identity settings" })).toBeInTheDocument();
   expect(screen.getByText(TENANT_ID)).toBeInTheDocument();
   expect(within(screen.getByRole("table")).getByText("Tenant admin")).toBeInTheDocument();
 
@@ -108,6 +107,14 @@ test("renders the tenant usage report for the admin overview", async () => {
   expect(within(controlPlane).getByText("2")).toBeInTheDocument();
 
   expect(screen.getByText(/1 environment available in the selected tenant/)).toBeInTheDocument();
+
+  // Quota posture panel
+  const quotaPosture = screen.getByRole("heading", { name: "Quota posture" });
+  expect(quotaPosture).toBeInTheDocument();
+
+  // Environment scope panel
+  const envScope = screen.getByRole("heading", { name: "Environment scope" });
+  expect(envScope).toBeInTheDocument();
 });
 
 test("renders zero usage without an empty state", async () => {
@@ -183,19 +190,6 @@ test("renders zero usage without an empty state", async () => {
 
   const controlPlane = screen.getByRole("group", { name: "Control-plane activity" });
   expect(within(controlPlane).getAllByText("0")).toHaveLength(5);
-});
-
-test("renders the tenant configuration page at /admin/config", async () => {
-  window.history.pushState({}, "", "/admin/config");
-
-  render(<App />);
-
-  await screen.findByRole("heading", { name: "Tenant configuration" });
-  expect(screen.getByRole("link", { name: "Identity settings" })).toBeInTheDocument();
-  expect(screen.getByText("Tenant admin", { selector: "span" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Quota posture" })).toBeInTheDocument();
-  expect(screen.getByText(/Usage window:/)).toBeInTheDocument();
-  expect(screen.getByText("prod", { selector: "span" })).toBeInTheDocument();
 });
 
 test("renders the fleet management contract page at /admin/fleet", async () => {

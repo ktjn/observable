@@ -2,7 +2,6 @@ import { createRouter, createRoute, createRootRoute } from "@tanstack/react-rout
 import { AppShell } from "./components/AppShell";
 import HomePage from "./pages/HomePage";
 import AdminPage from "./pages/AdminPage";
-import AdminConfigPage from "./pages/AdminConfigPage";
 import AdminFleetPage from "./pages/AdminFleetPage";
 import AdminMembersPage from "./pages/AdminMembersPage";
 import InfrastructureDetailPage from "./pages/InfrastructureDetailPage";
@@ -183,11 +182,6 @@ const identitySettingsRoute = createRoute({
   path: "/admin/identity",
   component: IdentitySettingsPage,
 });
-const adminConfigRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/admin/config",
-  component: AdminConfigPage,
-});
 const adminFleetRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin/fleet",
@@ -289,7 +283,6 @@ export const router = createRouter({
     incidentDetailRoute,
     adminRoute,
     identitySettingsRoute,
-    adminConfigRoute,
     adminFleetRoute,
     adminMembersRoute,
     workbenchRoute,
