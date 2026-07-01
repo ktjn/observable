@@ -67,7 +67,7 @@ test("submitting the No data form sends a deadman create request", async () => {
   fireEvent.change(screen.getByLabelText("Rule name"), {
     target: { value: "Checkout silent" },
   });
-  fireEvent.change(screen.getByLabelText("Service name"), {
+  fireEvent.change(screen.getByLabelText(/service name/i), {
     target: { value: "checkout" },
   });
   fireEvent.change(screen.getByLabelText("Window (seconds)"), {
@@ -88,9 +88,11 @@ test("submitting the No data form sends a deadman create request", async () => {
   );
 });
 
-test("No data form rejects a blank service name", async () => {
+test("No data form with blank service name succeeds and passes empty string to createAlertRule", async () => {
   vi.spyOn(alertsApi, "listAlertRules").mockResolvedValue({ items: [] });
-  const createSpy = vi.spyOn(alertsApi, "createAlertRule");
+  const createSpy = vi
+    .spyOn(alertsApi, "createAlertRule")
+    .mockResolvedValue({ rule_id: "rule-blank-svc" });
 
   renderPage();
 
@@ -103,19 +105,20 @@ test("No data form rejects a blank service name", async () => {
   fireEvent.change(screen.getByLabelText("Window (seconds)"), {
     target: { value: "300" },
   });
+  // Service name intentionally left blank — it is now optional.
 
-  // The Service name field carries an HTML `required` attribute, so a plain
-  // click on the submit button is intercepted by jsdom's native constraint
-  // validation before React's onSubmit handler ever runs. Dispatching the
-  // submit event directly exercises the form's own validation logic
-  // (handleCreateSubmit's "Service name is required" check) instead.
-  const form = screen.getByRole("form", { name: "Create alert rule" });
-  fireEvent.submit(form);
+  fireEvent.click(screen.getByRole("button", { name: "Create Rule" }));
 
-  await waitFor(() =>
-    expect(screen.getByText("Service name is required")).toBeInTheDocument(),
+  await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+  expect(createSpy).toHaveBeenCalledWith(
+    "test-tenant",
+    expect.objectContaining({
+      name: "Checkout silent",
+      alert_type: "deadman",
+      service_name: "",
+      window_secs: 300,
+    }),
   );
-  expect(createSpy).not.toHaveBeenCalled();
 });
 
 test("submitting the Change detection form sends a change_detection create request", async () => {
