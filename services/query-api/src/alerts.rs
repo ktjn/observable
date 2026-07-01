@@ -33,6 +33,8 @@ pub struct AlertRuleItem {
     pub last_fired_at: Option<DateTime<Utc>>,
     pub notification_channels: Vec<Uuid>,
     pub auto_trigger_incident: bool,
+    pub service_name: Option<String>,
+    pub suppressed: bool,
 }
 
 #[derive(Serialize)]
@@ -52,6 +54,7 @@ pub struct FiringItem {
     pub value: Option<f64>,
     pub occurred_at: DateTime<Utc>,
     pub resolved_at: Option<DateTime<Utc>>,
+    pub suppressed_by_rule_name: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -86,6 +89,7 @@ struct FiringRow {
     value: Option<f64>,
     occurred_at: DateTime<Utc>,
     resolved_at: Option<DateTime<Utc>>,
+    suppressed_by_rule_name: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -150,6 +154,8 @@ struct AlertRuleRow {
     last_fired_at: Option<DateTime<Utc>>,
     notification_channels: Vec<Uuid>,
     auto_trigger_incident: bool,
+    service_name: Option<String>,
+    suppressed: bool,
 }
 
 fn condition_fields(condition: &serde_json::Value) -> Option<(String, String, f64)> {
@@ -188,13 +194,13 @@ pub async fn list_alert_rules(
     tenant_id: Uuid,
 ) -> Result<Vec<AlertRuleItem>, sqlx::Error> {
     let rows = sqlx::query_as::<_, AlertRuleRow>(
-        "SELECT r.rule_id, r.name, r.condition, r.severity, r.silenced, \
+        "SELECT r.rule_id, r.name, r.condition, r.severity, r.silenced, r.service_name, \
          CASE \
              WHEN r.silenced THEN 'silenced' \
              ELSE COALESCE(( \
                  SELECT af.state FROM alert_firings af \
                  WHERE af.rule_id = r.rule_id AND af.tenant_id = r.tenant_id \
-                 ORDER BY CASE WHEN af.state IN ('pending', 'active') THEN 0 ELSE 1 END, \
+                 ORDER BY CASE WHEN af.state IN ('pending', 'active', 'suppressed') THEN 0 ELSE 1 END, \
                           af.occurred_at DESC \
                  LIMIT 1 \
              ), 'ok') \
@@ -207,7 +213,12 @@ pub async fn list_alert_rules(
          (SELECT MAX(occurred_at) FROM alert_firings af \
           WHERE af.rule_id = r.rule_id AND af.tenant_id = r.tenant_id \
             AND af.state = 'active') AS last_fired_at, \
-         r.notification_channels, r.auto_trigger_incident \
+         r.notification_channels, r.auto_trigger_incident, \
+         EXISTS( \
+             SELECT 1 FROM alert_firings af \
+             WHERE af.rule_id = r.rule_id AND af.tenant_id = r.tenant_id \
+               AND af.state = 'suppressed' \
+         ) AS suppressed \
          FROM alert_rules r \
          WHERE r.tenant_id = $1 AND r.alert_type IN ('threshold', 'deadman', 'change_detection') \
          ORDER BY r.created_at DESC",
@@ -233,6 +244,8 @@ pub async fn list_alert_rules(
                     last_fired_at: row.last_fired_at,
                     notification_channels: row.notification_channels,
                     auto_trigger_incident: row.auto_trigger_incident,
+                    service_name: row.service_name,
+                    suppressed: row.suppressed,
                 }),
                 None => {
                     tracing::warn!(rule_id = %row.rule_id, "skipping alert rule with malformed condition JSONB");
@@ -283,8 +296,8 @@ pub async fn create_alert_rule(
 
             let rule_id: Uuid = sqlx::query_scalar(
                 "INSERT INTO alert_rules \
-                 (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident, runbook_url) \
-                 VALUES ($1, $2, 'threshold', 'warning', $3, $4, $5, $6) \
+                 (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident, runbook_url, service_name) \
+                 VALUES ($1, $2, 'threshold', 'warning', $3, $4, $5, $6, $7) \
                  RETURNING rule_id",
             )
             .bind(tenant_id)
@@ -293,6 +306,7 @@ pub async fn create_alert_rule(
             .bind(&channels)
             .bind(auto_trigger)
             .bind(req.runbook_url.as_deref())
+            .bind(req.service_name.as_deref())
             .fetch_one(db)
             .await
             .map_err(CreateRuleError::Db)?;
@@ -310,6 +324,8 @@ pub async fn create_alert_rule(
                 last_fired_at: None,
                 notification_channels: channels,
                 auto_trigger_incident: auto_trigger,
+                service_name: req.service_name.clone(),
+                suppressed: false,
             })
         }
         "deadman" => {
@@ -337,8 +353,8 @@ pub async fn create_alert_rule(
 
             let rule_id: Uuid = sqlx::query_scalar(
                 "INSERT INTO alert_rules \
-                 (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident, runbook_url) \
-                 VALUES ($1, $2, 'deadman', 'warning', $3, $4, $5, $6) \
+                 (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident, runbook_url, service_name) \
+                 VALUES ($1, $2, 'deadman', 'warning', $3, $4, $5, $6, $7) \
                  RETURNING rule_id",
             )
             .bind(tenant_id)
@@ -347,6 +363,7 @@ pub async fn create_alert_rule(
             .bind(&channels)
             .bind(auto_trigger)
             .bind(req.runbook_url.as_deref())
+            .bind(req.service_name.as_deref())
             .fetch_one(db)
             .await
             .map_err(CreateRuleError::Db)?;
@@ -364,6 +381,8 @@ pub async fn create_alert_rule(
                 last_fired_at: None,
                 notification_channels: channels,
                 auto_trigger_incident: auto_trigger,
+                service_name: req.service_name.clone(),
+                suppressed: false,
             })
         }
         "change_detection" => {
@@ -413,8 +432,8 @@ pub async fn create_alert_rule(
 
             let rule_id: Uuid = sqlx::query_scalar(
                 "INSERT INTO alert_rules \
-                 (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident, runbook_url) \
-                 VALUES ($1, $2, 'change_detection', 'warning', $3, $4, $5, $6) \
+                 (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident, runbook_url, service_name) \
+                 VALUES ($1, $2, 'change_detection', 'warning', $3, $4, $5, $6, $7) \
                  RETURNING rule_id",
             )
             .bind(tenant_id)
@@ -423,6 +442,7 @@ pub async fn create_alert_rule(
             .bind(&channels)
             .bind(auto_trigger)
             .bind(req.runbook_url.as_deref())
+            .bind(req.service_name.as_deref())
             .fetch_one(db)
             .await
             .map_err(CreateRuleError::Db)?;
@@ -440,6 +460,8 @@ pub async fn create_alert_rule(
                 last_fired_at: None,
                 notification_channels: channels,
                 auto_trigger_incident: auto_trigger,
+                service_name: req.service_name.clone(),
+                suppressed: false,
             })
         }
         other => Err(CreateRuleError::InvalidInput(format!(
@@ -517,10 +539,13 @@ pub async fn get_alert_rule(
     };
 
     let firings: Vec<FiringRow> = sqlx::query_as(
-        "SELECT firing_id, state, value, occurred_at, resolved_at \
-         FROM alert_firings \
-         WHERE rule_id = $1 AND tenant_id = $2 \
-         ORDER BY occurred_at DESC \
+        "SELECT f.firing_id, f.state, f.value, f.occurred_at, f.resolved_at, \
+         r_by.name AS suppressed_by_rule_name \
+         FROM alert_firings f \
+         LEFT JOIN alert_firings f_by ON f.suppressed_by_firing_id = f_by.firing_id \
+         LEFT JOIN alert_rules r_by ON f_by.rule_id = r_by.rule_id \
+         WHERE f.rule_id = $1 AND f.tenant_id = $2 \
+         ORDER BY f.occurred_at DESC \
          LIMIT 20",
     )
     .bind(rule_id)
@@ -545,6 +570,7 @@ pub async fn get_alert_rule(
                 value: f.value,
                 occurred_at: f.occurred_at,
                 resolved_at: f.resolved_at,
+                suppressed_by_rule_name: f.suppressed_by_rule_name,
             })
             .collect(),
     }))
@@ -847,6 +873,8 @@ mod tests {
             last_fired_at: None,
             notification_channels: vec![],
             auto_trigger_incident: true,
+            service_name: None,
+            suppressed: false,
         };
         let v = serde_json::to_value(&item).unwrap();
         assert_eq!(v["name"], "High error rate");
@@ -855,5 +883,43 @@ mod tests {
         assert_eq!(v["state"], "active");
         assert_eq!(v["firing"], true);
         assert!(v["last_fired_at"].is_null());
+    }
+
+    #[test]
+    fn alert_rule_item_has_service_name_field() {
+        let item = AlertRuleItem {
+            rule_id: Uuid::nil(),
+            name: "test".into(),
+            metric_name: "cpu".into(),
+            operator: "gt".into(),
+            threshold: 90.0,
+            severity: "warning".into(),
+            silenced: false,
+            state: "ok".into(),
+            firing: false,
+            last_fired_at: None,
+            notification_channels: vec![],
+            auto_trigger_incident: false,
+            service_name: Some("payments".into()),
+            suppressed: false,
+        };
+        assert_eq!(item.service_name, Some("payments".into()));
+        assert!(!item.suppressed);
+    }
+
+    #[test]
+    fn firing_item_has_suppressed_by_rule_name_field() {
+        let item = FiringItem {
+            firing_id: Uuid::nil(),
+            state: "suppressed".into(),
+            value: Some(1.0),
+            occurred_at: chrono::Utc::now(),
+            resolved_at: None,
+            suppressed_by_rule_name: Some("CPU critical \u{2013} payments".into()),
+        };
+        assert_eq!(
+            item.suppressed_by_rule_name,
+            Some("CPU critical \u{2013} payments".into())
+        );
     }
 }
