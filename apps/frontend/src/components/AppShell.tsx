@@ -15,7 +15,6 @@ import { isOnboardingComplete } from "../features/onboarding/onboardingState";
 import { CommandPalette } from "./ui/command-palette";
 import {
   Home as HomeIcon,
-  Wrench,
   Database,
   Workflow,
   Network,
@@ -29,16 +28,6 @@ import {
 function buildNavTree(showGettingStarted: boolean): NavTreeItem[] {
   const base: NavTreeItem[] = [
     { id: "home", label: "Home", to: "/", icon: HomeIcon },
-    {
-      id: "setup",
-      label: "Setup",
-      icon: Wrench,
-      children: [
-        { id: "setup-ingest", label: "Ingest", to: "/setup" },
-        { id: "setup-llm", label: "LLM", to: "/setup/llm" },
-        { id: "setup-tokens", label: "Tokens", to: "/setup/tokens" },
-      ],
-    },
     { id: "workbench", label: "Workbench", to: "/workbench", icon: Database },
     { id: "services", label: "Services", to: "/services", icon: Workflow },
     {
@@ -62,9 +51,11 @@ function buildNavTree(showGettingStarted: boolean): NavTreeItem[] {
       icon: Settings,
       children: [
         { id: "admin-overview", label: "Overview", to: "/admin" },
-        { id: "admin-config", label: "Tenant configuration", to: "/admin/config" },
+        { id: "admin-members", label: "Members", to: "/admin/members" },
         { id: "admin-fleet", label: "Fleet management", to: "/admin/fleet" },
-        { id: "admin-identity", label: "Identity", to: "/admin/identity" },
+        { id: "setup-ingest", label: "Ingest", to: "/setup" },
+        { id: "setup-llm", label: "LLM", to: "/setup/llm" },
+        { id: "setup-tokens", label: "Tokens", to: "/setup/tokens" },
       ],
     },
   ];
