@@ -755,15 +755,11 @@ pub async fn run_suppression_pass(db: &sqlx::PgPool) -> anyhow::Result<()> {
     struct UnsuppressRow {
         firing_id: Uuid,
         tenant_id: Uuid,
-        value: Option<f64>,
-        occurred_at: chrono::DateTime<chrono::Utc>,
         notification_channels: Vec<Uuid>,
-        auto_trigger_incident: bool,
     }
 
     let rows: Vec<UnsuppressRow> = sqlx::query_as(
-        "SELECT f.firing_id, f.tenant_id, f.value, f.occurred_at, \
-                r.notification_channels, r.auto_trigger_incident \
+        "SELECT f.firing_id, f.tenant_id, r.notification_channels \
          FROM alert_firings f \
          JOIN alert_firings inhibitor ON f.suppressed_by_firing_id = inhibitor.firing_id \
          JOIN alert_rules r ON f.rule_id = r.rule_id \
