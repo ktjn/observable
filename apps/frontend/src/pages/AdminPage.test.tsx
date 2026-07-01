@@ -86,7 +86,7 @@ test("renders the tenant usage report for the admin overview", async () => {
   await screen.findByRole("heading", { name: "Admin Console" });
   expect(screen.getByText(/Selected environment:/)).toBeInTheDocument();
   expect(screen.getByText(TENANT_ID)).toBeInTheDocument();
-  expect(within(screen.getByRole("table")).getByText("Tenant admin")).toBeInTheDocument();
+  expect(within(screen.getAllByRole("table")[0]).getByText("Tenant admin")).toBeInTheDocument();
 
   const usageSummary = screen.getByRole("group", { name: "Usage summary" });
   expect(within(usageSummary).getByText("Cost index")).toBeInTheDocument();
@@ -115,6 +115,10 @@ test("renders the tenant usage report for the admin overview", async () => {
   // Environment scope panel
   const envScope = screen.getByRole("heading", { name: "Environment scope" });
   expect(envScope).toBeInTheDocument();
+
+  // Identity panel inlined in Overview
+  expect(screen.getByRole("heading", { name: "Identity provider" })).toBeInTheDocument();
+  expect(screen.getByText("Zitadel 2.71.x")).toBeInTheDocument();
 });
 
 test("renders zero usage without an empty state", async () => {

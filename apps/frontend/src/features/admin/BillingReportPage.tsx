@@ -51,6 +51,11 @@ export function BillingReportPage() {
   const telemetry = data.telemetry_summary;
   const control = data.control_plane_summary;
 
+  const issuer =
+    typeof window !== "undefined"
+      ? (window as Window & { __OBSERVABLE_ZITADEL_ISSUER__?: string }).__OBSERVABLE_ZITADEL_ISSUER__ ?? "http://localhost:8082"
+      : "http://localhost:8082";
+
   return (
     <section className="page-stack">
       <div className="page-header">
@@ -203,6 +208,53 @@ export function BillingReportPage() {
           </div>
         </Panel>
       </div>
+
+      <Panel title="Identity provider" eyebrow="Auth">
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse text-left text-sm">
+            <tbody>
+              <tr>
+                <td className="py-1.5 pr-6 font-semibold text-[var(--text-strong)] whitespace-nowrap">Provider</td>
+                <td className="py-1.5 text-[var(--text)]">Zitadel 2.71.x</td>
+              </tr>
+              <tr>
+                <td className="py-1.5 pr-6 font-semibold text-[var(--text-strong)] whitespace-nowrap">Issuer URL</td>
+                <td className="py-1.5">
+                  <code className="font-mono text-xs text-[var(--text)]">{issuer}</code>
+                </td>
+              </tr>
+              <tr>
+                <td className="py-1.5 pr-6 font-semibold text-[var(--text-strong)] whitespace-nowrap">OIDC Discovery</td>
+                <td className="py-1.5">
+                  <a
+                    href={`${issuer}/.well-known/openid-configuration`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-mono text-xs text-[var(--brand)] hover:text-[var(--text)]"
+                  >
+                    {issuer}/.well-known/openid-configuration
+                  </a>
+                </td>
+              </tr>
+              <tr>
+                <td className="py-1.5 pr-6 font-semibold text-[var(--text-strong)] whitespace-nowrap">Redirect URI</td>
+                <td className="py-1.5">
+                  <code className="font-mono text-xs text-[var(--text)]">
+                    {typeof window !== "undefined" ? window.location.origin : ""}/auth/callback
+                  </code>
+                </td>
+              </tr>
+              <tr>
+                <td className="py-1.5 pr-6 font-semibold text-[var(--text-strong)] whitespace-nowrap">SCIM 2.0 (planned)</td>
+                <td className="py-1.5">
+                  <code className="font-mono text-xs text-[var(--text)]">{issuer}/scim/v2/&lt;org-id&gt;/</code>
+                  <span className="ml-2 text-xs text-[var(--muted)]">— enable per-org in Zitadel Admin Console</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Panel>
     </section>
   );
 }
