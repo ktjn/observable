@@ -155,10 +155,6 @@ export function AlertsPage() {
 
     if (formAlertType === "deadman") {
       const windowSecs = parseInt(formWindowSecs, 10);
-      if (!formServiceName.trim()) {
-        setFormError("Service name is required");
-        return;
-      }
       if (isNaN(windowSecs) || windowSecs <= 0) {
         setFormError("Window must be a positive number of seconds");
         return;
@@ -325,6 +321,19 @@ export function AlertsPage() {
                   />
                 </div>
 
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="rule-service-name">
+                    Service name{" "}
+                    <span className="font-normal normal-case text-[var(--muted)]">(optional)</span>
+                  </label>
+                  <Input
+                    id="rule-service-name"
+                    placeholder="e.g. payments"
+                    value={formServiceName}
+                    onChange={(e) => setFormServiceName(e.target.value)}
+                  />
+                </div>
+
                 {formAlertType === "threshold" ? (
                   <>
                     <div className="space-y-1">
@@ -367,29 +376,17 @@ export function AlertsPage() {
                     </div>
                   </>
                 ) : formAlertType === "deadman" ? (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="deadman-service">Service name</label>
-                      <Input
-                        id="deadman-service"
-                        placeholder="e.g. checkout"
-                        value={formServiceName}
-                        onChange={(e) => setFormServiceName(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="deadman-window">Window (seconds)</label>
-                      <Input
-                        id="deadman-window"
-                        type="number"
-                        step="1"
-                        min="1"
-                        value={formWindowSecs}
-                        onChange={(e) => setFormWindowSecs(e.target.value)}
-                        required
-                      />
-                    </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="deadman-window">Window (seconds)</label>
+                    <Input
+                      id="deadman-window"
+                      type="number"
+                      step="1"
+                      min="1"
+                      value={formWindowSecs}
+                      onChange={(e) => setFormWindowSecs(e.target.value)}
+                      required
+                    />
                   </div>
                 ) : (
                   <>
