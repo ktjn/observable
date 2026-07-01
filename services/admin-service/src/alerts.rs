@@ -105,13 +105,12 @@ pub async fn handle_create_rule(
                 .as_deref()
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
-                .ok_or(StatusCode::BAD_REQUEST)?;
+                .map(str::to_string);
             let window_secs = req.window_secs.ok_or(StatusCode::BAD_REQUEST)?;
             if window_secs <= 0 {
                 return Err(StatusCode::BAD_REQUEST);
             }
             let condition = serde_json::json!({
-                "service_name": service_name,
                 "window_secs": window_secs,
             });
             let channels = req.notification_channels.clone().unwrap_or_default();
@@ -129,7 +128,7 @@ pub async fn handle_create_rule(
             .bind(&channels)
             .bind(auto_trigger)
             .bind(req.runbook_url.as_deref())
-            .bind(service_name)
+            .bind(service_name.as_deref())
             .fetch_one(&state.db)
             .await
         }

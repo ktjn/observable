@@ -724,9 +724,10 @@ pub async fn eval_change_detection_rules(
 
 pub async fn run_suppression_pass(db: &sqlx::PgPool) -> anyhow::Result<()> {
     // Phase 1: suppress active/pending lower-severity firings whose service
-    // has an active critical firing. Phase 1 always runs before Phase 2 so
-    // that if two criticals share the same service and one resolves, Phase 1
-    // re-suppresses before Phase 2 can incorrectly un-suppress.
+    // has an active critical firing. Note: Phase 1 only touches firings in
+    // pending/active state — it does not update suppressed firings to point at
+    // a different inhibitor. Phase 2 must therefore guard against un-suppressing
+    // a firing that is still covered by another active critical.
     sqlx::query(
         "UPDATE alert_firings \
          SET state = 'suppressed', \
@@ -764,7 +765,16 @@ pub async fn run_suppression_pass(db: &sqlx::PgPool) -> anyhow::Result<()> {
          JOIN alert_firings inhibitor ON f.suppressed_by_firing_id = inhibitor.firing_id \
          JOIN alert_rules r ON f.rule_id = r.rule_id \
          WHERE inhibitor.state = 'resolved' \
-           AND f.state         = 'suppressed'",
+           AND f.state         = 'suppressed' \
+           AND NOT EXISTS ( \
+               SELECT 1 FROM alert_firings f2 \
+               JOIN alert_rules r2 ON f2.rule_id = r2.rule_id \
+               WHERE f2.tenant_id = f.tenant_id \
+                 AND f2.state = 'active' \
+                 AND r2.severity = 'critical' \
+                 AND r2.service_name IS NOT NULL \
+                 AND r2.service_name = r.service_name \
+           )",
     )
     .fetch_all(db)
     .await?;
