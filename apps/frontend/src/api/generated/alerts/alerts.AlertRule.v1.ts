@@ -14,10 +14,12 @@ export interface AlertsAlertRuleV1 {
   threshold: number;
   severity: string;
   silenced: boolean;
-  state: 'ok' | 'pending' | 'active' | 'resolved' | 'silenced';
+  state: 'ok' | 'pending' | 'active' | 'resolved' | 'silenced' | 'suppressed';
   firing: boolean;
   last_fired_at?: string;
   notification_channels: string[];
   auto_trigger_incident: boolean;
+  service_name?: string;
+  suppressed?: boolean;
 }
 export type AlertRule = AlertsAlertRuleV1;

@@ -1,4 +1,5 @@
 pub mod admin_members;
+pub mod alerts;
 pub mod config;
 pub mod llm_probe;
 pub mod middleware;

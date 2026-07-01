@@ -1466,19 +1466,10 @@ test("alerts page create form submits POST and closes panel", async () => {
     const url = String(input);
     const method = init?.method ?? "GET";
 
-    if (url.includes("/v1/alerts/rules") && method === "POST") {
+    if (url.includes("/v1/admin/alerts/rules") && method === "POST") {
       return new Response(
         JSON.stringify({
           rule_id: "20000000-0000-0000-0000-000000000001",
-          name: "High latency",
-          metric_name: "p95_latency_ms",
-          operator: "gt",
-          threshold: 500,
-          severity: "warning",
-          silenced: false,
-          state: "ok",
-          firing: false,
-          last_fired_at: null,
         }),
         { status: 201 },
       );
@@ -1512,7 +1503,7 @@ test("alerts page create form submits POST and closes panel", async () => {
   await waitFor(() => {
     const postCall = fetchMock.mock.calls.find(
       ([url, init]) =>
-        String(url).includes("/v1/alerts/rules") && (init as RequestInit)?.method === "POST",
+        String(url).includes("/v1/admin/alerts/rules") && (init as RequestInit)?.method === "POST",
     );
     expect(postCall).toBeDefined();
     const body = JSON.parse((postCall![1] as RequestInit).body as string);
