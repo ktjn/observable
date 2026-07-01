@@ -6,5 +6,11 @@ export function formatBucketLabel(ms: number, format: TimeFormat): string {
     format === "iso-utc-ns" ||
     format === "unix-ms" ||
     format === "unix-ns";
-  return utc ? new Date(ms).toISOString() : new Date(ms).toLocaleTimeString();
+  const d = new Date(ms);
+  if (utc) {
+    const hh = d.getUTCHours().toString().padStart(2, "0");
+    const mm = d.getUTCMinutes().toString().padStart(2, "0");
+    return `${hh}:${mm} UTC`;
+  }
+  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
