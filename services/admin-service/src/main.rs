@@ -1,11 +1,11 @@
 use admin_service::{
-    AdminServiceAppState, admin_members, config, middleware, observability, tokens, usage,
+    AdminServiceAppState, admin_members, alerts, config, middleware, observability, tokens, usage,
 };
 use axum::{
     Router,
     http::StatusCode,
     middleware as axum_middleware,
-    routing::{delete, get, post},
+    routing::{delete, get, patch, post},
 };
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
@@ -78,6 +78,19 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/tenants/usage-report",
             get(usage::handle_get_tenant_usage_report),
+        )
+        .route("/v1/admin/alerts/rules", post(alerts::handle_create_rule))
+        .route(
+            "/v1/admin/alerts/rules/{rule_id}/silence",
+            patch(alerts::handle_silence_rule),
+        )
+        .route(
+            "/v1/admin/alerts/rules/{rule_id}/runbook",
+            patch(alerts::handle_update_rule_runbook),
+        )
+        .route(
+            "/v1/admin/alerts/rules/{rule_id}",
+            patch(alerts::handle_update_rule),
         )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))

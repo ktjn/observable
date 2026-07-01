@@ -25,7 +25,7 @@ mod traces;
 
 use axum::{
     Router, middleware as axum_middleware,
-    routing::{delete, get, patch, post, put},
+    routing::{delete, get, post, put},
 };
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
@@ -134,16 +134,7 @@ async fn main() -> anyhow::Result<()> {
             axum::routing::delete(dashboards::handle_revoke_grant),
         )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
-        .route("/v1/alerts/rules", post(alerts::handle_create_rule))
         .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
-        .route(
-            "/v1/alerts/rules/{rule_id}/silence",
-            patch(alerts::handle_silence_rule),
-        )
-        .route(
-            "/v1/alerts/rules/{rule_id}/runbook",
-            patch(alerts::handle_update_rule_runbook),
-        )
         .route("/v1/incidents", get(incidents::handle_list_incidents))
         .route(
             "/v1/incidents/{incident_id}",
