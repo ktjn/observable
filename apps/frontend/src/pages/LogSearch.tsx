@@ -320,7 +320,7 @@ export function LogExplorer({
                   : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--brand)] hover:text-[var(--text)]",
               ].join(" ")}
               aria-pressed={isLive}
-              aria-label={isLive ? "Stop live tail" : "Start live tail"}
+              aria-label={isLive ? "Stop tail mode" : "Start tail mode"}
             >
               {isLive && (
                 <span
@@ -328,9 +328,15 @@ export function LogExplorer({
                   aria-hidden="true"
                 />
               )}
-              {isLive ? "Stop" : "Live"}
+              {isLive ? "Stop" : "Tail"}
             </button>
           </div>
+
+          {isLive && userQuery?.trim() && (
+            <p className="text-[10px] text-[var(--warn)] px-1">
+              NLQ query not applied in tail mode — service and severity filters are active.
+            </p>
+          )}
 
           <TablePanel className="flex-1 min-h-0 flex flex-col">
             <div
