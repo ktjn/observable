@@ -215,10 +215,11 @@ pub async fn handle_update_rule_runbook(
     Path(rule_id): Path<Uuid>,
     Json(req): Json<UpdateRunbookRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    if let Some(url) = &req.runbook_url {
-        if !url.starts_with("http://") && !url.starts_with("https://") {
-            return Err(StatusCode::BAD_REQUEST);
-        }
+    if let Some(url) = &req.runbook_url
+        && !url.starts_with("http://")
+        && !url.starts_with("https://")
+    {
+        return Err(StatusCode::BAD_REQUEST);
     }
     let updated: Option<Uuid> = sqlx::query_scalar(
         "UPDATE alert_rules SET runbook_url = $1 \
