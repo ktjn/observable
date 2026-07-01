@@ -11,6 +11,10 @@ export interface AlertRuleListResponse {
   items: AlertRuleItem[];
 }
 
+export interface CreateRuleResponse {
+  rule_id: string;
+}
+
 export interface CreateRuleRequest {
   name: string;
   metric_name: string;
@@ -35,8 +39,8 @@ export async function listAlertRules(tenantId: string): Promise<AlertRuleListRes
 export async function createAlertRule(
   tenantId: string,
   req: CreateRuleRequest,
-): Promise<AlertRuleItem> {
-  const res = await fetch("/v1/alerts/rules", {
+): Promise<CreateRuleResponse> {
+  const res = await fetch("/v1/admin/alerts/rules", {
     credentials: "include",
     method: "POST",
     headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
@@ -50,15 +54,14 @@ export async function silenceAlertRule(
   tenantId: string,
   ruleId: string,
   silenced: boolean,
-): Promise<AlertRuleItem> {
-  const res = await fetch(`/v1/alerts/rules/${ruleId}/silence`, {
+): Promise<void> {
+  const res = await fetch(`/v1/admin/alerts/rules/${ruleId}/silence`, {
     credentials: "include",
     method: "PATCH",
     headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
     body: JSON.stringify({ silenced }),
   });
   if (!res.ok) throw new Error(`Failed to update alert rule: ${res.status}`);
-  return res.json();
 }
 
 export type { FiringItem };
@@ -92,11 +95,25 @@ export async function setAlertRuleRunbook(
   ruleId: string,
   runbookUrl: string | null,
 ): Promise<void> {
-  const res = await fetch(`/v1/alerts/rules/${ruleId}/runbook`, {
+  const res = await fetch(`/v1/admin/alerts/rules/${ruleId}/runbook`, {
     credentials: "include",
     method: "PATCH",
     headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
     body: JSON.stringify({ runbook_url: runbookUrl }),
   });
   if (!res.ok) throw new Error(`Failed to update runbook URL: ${res.status}`);
+}
+
+export async function updateAlertRuleServiceName(
+  tenantId: string,
+  ruleId: string,
+  serviceName: string | null,
+): Promise<void> {
+  const res = await fetch(`/v1/admin/alerts/rules/${ruleId}`, {
+    credentials: "include",
+    method: "PATCH",
+    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
+    body: JSON.stringify({ service_name: serviceName }),
+  });
+  if (!res.ok) throw new Error(`Failed to update alert rule: ${res.status}`);
 }

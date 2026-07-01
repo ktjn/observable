@@ -6,6 +6,7 @@ import {
   silenceAlertRule,
   type AlertRuleItem,
   type CreateRuleRequest,
+  type CreateRuleResponse,
 } from "../../api/alerts";
 import {
   createSlo,
@@ -32,7 +33,7 @@ import { NotificationChannelsList } from "./NotificationChannelsList";
 export function AlertsPage() {
   const queryClient = useQueryClient();
   const { tenantId } = useTenantContext();
-  const [ruleFilter, setRuleFilter] = useState<"all" | "firing" | "silenced">("all");
+  const [ruleFilter, setRuleFilter] = useState<"all" | "firing" | "silenced" | "suppressed">("all");
   const [isCreating, setIsCreating] = useState(false);
   const [formName, setFormName] = useState("");
   const [formMetric, setFormMetric] = useState("");
@@ -76,7 +77,7 @@ export function AlertsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alert-rules", tenantId] }),
   });
 
-  const createMutation = useMutation({
+  const createMutation = useMutation<CreateRuleResponse, Error, CreateRuleRequest>({
     mutationFn: (req: CreateRuleRequest) => createAlertRule(tenantId, req),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["alert-rules", tenantId] });
@@ -220,13 +221,16 @@ export function AlertsPage() {
   const channels = Array.isArray(channelsData) ? channelsData : [];
   const firingCount = rules.filter((r) => r.state === "active").length;
   const silencedCount = rules.filter((r) => r.silenced).length;
+  const suppressedCount = rules.filter((r) => r.suppressed).length;
   const sloBreachCount = slos.filter((slo) => slo.firing).length;
   const filteredRules =
     ruleFilter === "firing"
       ? rules.filter((r) => r.state === "active")
       : ruleFilter === "silenced"
         ? rules.filter((r) => r.silenced)
-        : rules;
+        : ruleFilter === "suppressed"
+          ? rules.filter((r) => r.suppressed)
+          : rules;
 
   return (
     <section className="page-stack">
@@ -254,10 +258,13 @@ export function AlertsPage() {
         <Tabs.Panel value="rules" className="space-y-4 pt-4">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1" role="group" aria-label="Filter alert rules">
-              {(["all", "firing", "silenced"] as const).map((f) => {
+              {(["all", "firing", "silenced", "suppressed"] as const).map((f) => {
                 const count =
-                  f === "all" ? rules.length : f === "firing" ? firingCount : silencedCount;
-                const activeColor = f === "firing" ? "var(--bad)" : f === "silenced" ? "var(--warn)" : "var(--brand)";
+                  f === "all" ? rules.length :
+                  f === "firing" ? firingCount :
+                  f === "silenced" ? silencedCount :
+                  suppressedCount;
+                const activeColor = f === "firing" ? "var(--bad)" : f === "silenced" ? "var(--warn)" : f === "suppressed" ? "var(--muted)" : "var(--brand)";
                 const isActive = ruleFilter === f;
                 return (
                   <button
@@ -789,7 +796,12 @@ function AlertRuleRow({
         <Badge tone={severityTone(rule.severity)}>{rule.severity}</Badge>
       </td>
       <td className="py-3 pr-4">
-        <Badge tone={status.tone}>{status.label}</Badge>
+        <div className="flex items-center gap-1">
+          <Badge tone={status.tone}>{status.label}</Badge>
+          {rule.suppressed && (
+            <Badge tone="neutral">Suppressed</Badge>
+          )}
+        </div>
       </td>
       <td className="py-3">
         <Button variant="ghost" onClick={onToggleSilence} className="h-8 py-0">
@@ -827,6 +839,8 @@ function alertStatus(rule: AlertRuleItem): {
       return { label: "Resolved", tone: "good" };
     case "silenced":
       return { label: "Silenced", tone: "neutral" };
+    case "suppressed":
+      return { label: "Suppressed", tone: "neutral" };
     case "ok":
     default:
       return { label: "OK", tone: "good" };

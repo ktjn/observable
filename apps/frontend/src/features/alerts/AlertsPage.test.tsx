@@ -56,20 +56,7 @@ test("submitting the No data form sends a deadman create request", async () => {
   vi.spyOn(alertsApi, "listAlertRules").mockResolvedValue({ items: [] });
   const createSpy = vi
     .spyOn(alertsApi, "createAlertRule")
-    .mockResolvedValue({
-      rule_id: "rule-2",
-      name: "Checkout silent",
-      metric_name: "checkout",
-      operator: "no_data" as alertsApi.AlertRuleItem["operator"],
-      threshold: 300,
-      severity: "warning",
-      silenced: false,
-      state: "ok",
-      firing: false,
-      last_fired_at: undefined,
-      notification_channels: [],
-      auto_trigger_incident: true,
-    });
+    .mockResolvedValue({ rule_id: "rule-2" });
 
   renderPage();
 
@@ -135,20 +122,7 @@ test("submitting the Change detection form sends a change_detection create reque
   vi.spyOn(alertsApi, "listAlertRules").mockResolvedValue({ items: [] });
   const createSpy = vi
     .spyOn(alertsApi, "createAlertRule")
-    .mockResolvedValue({
-      rule_id: "rule-3",
-      name: "Error rate shift",
-      metric_name: "error_rate",
-      operator: "" as alertsApi.AlertRuleItem["operator"],
-      threshold: 0,
-      severity: "warning",
-      silenced: false,
-      state: "ok",
-      firing: false,
-      last_fired_at: undefined,
-      notification_channels: [],
-      auto_trigger_incident: true,
-    });
+    .mockResolvedValue({ rule_id: "rule-3" });
 
   renderPage();
 
@@ -226,4 +200,32 @@ test("Change detection form rejects a blank metric name", async () => {
     expect(screen.getByText("Metric name is required")).toBeInTheDocument(),
   );
   expect(createSpy).not.toHaveBeenCalled();
+});
+
+test("shows Suppressed badge for suppressed rules", async () => {
+  vi.spyOn(alertsApi, "listAlertRules").mockResolvedValue({
+    items: [
+      {
+        rule_id: "rule-1",
+        name: "CPU warning",
+        metric_name: "cpu",
+        operator: "gt" as const,
+        threshold: 80,
+        severity: "warning",
+        silenced: false,
+        state: "suppressed" as const,
+        firing: false,
+        last_fired_at: undefined,
+        notification_channels: [],
+        auto_trigger_incident: false,
+        service_name: "payments",
+        suppressed: true,
+      },
+    ],
+  });
+
+  renderPage();
+
+  await waitFor(() => expect(screen.getByText("CPU warning")).toBeInTheDocument());
+  expect(screen.getAllByText("Suppressed").length).toBeGreaterThan(0);
 });

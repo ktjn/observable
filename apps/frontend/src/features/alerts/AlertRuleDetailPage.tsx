@@ -174,7 +174,14 @@ export function AlertRuleDetailPage() {
                 {data.firings.map((firing: FiringItem) => (
                   <tr key={firing.firing_id} className="modern-table-row">
                     <td className="py-2 pr-4">
-                      <Badge tone={stateColor(firing.state)}>{firing.state}</Badge>
+                      <div className="flex flex-col gap-0.5">
+                        <Badge tone={stateColor(firing.state)}>{firing.state}</Badge>
+                        {firing.suppressed_by_rule_name && (
+                          <span className="text-xs text-[var(--muted)]">
+                            Suppressed by: {firing.suppressed_by_rule_name}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-2 pr-4 font-mono">
                       {firing.value != null ? firing.value.toFixed(2) : "—"}
