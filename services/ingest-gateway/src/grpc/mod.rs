@@ -22,13 +22,19 @@ pub async fn start_grpc_server(state: AppState, port: u16, max_message_bytes: us
 
     Server::builder()
         .add_service(
-            TraceServiceServer::new(trace_service).accept_compressed(CompressionEncoding::Gzip),
+            TraceServiceServer::new(trace_service)
+                .accept_compressed(CompressionEncoding::Gzip)
+                .max_decoding_message_size(max_message_bytes),
         )
         .add_service(
-            LogsServiceServer::new(log_service).accept_compressed(CompressionEncoding::Gzip),
+            LogsServiceServer::new(log_service)
+                .accept_compressed(CompressionEncoding::Gzip)
+                .max_decoding_message_size(max_message_bytes),
         )
         .add_service(
-            MetricsServiceServer::new(metric_service).accept_compressed(CompressionEncoding::Gzip),
+            MetricsServiceServer::new(metric_service)
+                .accept_compressed(CompressionEncoding::Gzip)
+                .max_decoding_message_size(max_message_bytes),
         )
         .serve(addr)
         .await?;
