@@ -174,6 +174,10 @@ async fn main() -> anyhow::Result<()> {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(10_000);
+    let grpc_max_message_bytes: usize = std::env::var("INGEST_GRPC_MAX_MESSAGE_BYTES")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(4_194_304);
 
     let database_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgres://observable:observable@localhost:5432/observable".into());
@@ -202,7 +206,7 @@ async fn main() -> anyhow::Result<()> {
     let grpc_state = state.clone();
     let platform_state = state.clone();
     let probe_state = readyz::IngestGatewayProbeState { db: db.clone() };
-    let grpc_future = grpc::start_grpc_server(grpc_state, grpc_port);
+    let grpc_future = grpc::start_grpc_server(grpc_state, grpc_port, grpc_max_message_bytes);
     let http_future = http_json::start_http_server(state, http_port);
     let platform_future =
         http_json::start_platform_server(platform_state, probe_state, platform_port);
@@ -215,3 +219,34 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn grpc_max_message_bytes_defaults_to_4mib() {
+        unsafe {
+            std::env::remove_var("INGEST_GRPC_MAX_MESSAGE_BYTES");
+        }
+        let val: usize = std::env::var("INGEST_GRPC_MAX_MESSAGE_BYTES")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(4_194_304);
+        assert_eq!(val, 4_194_304);
+    }
+
+    #[test]
+    fn grpc_max_message_bytes_parses_env_var() {
+        unsafe {
+            std::env::set_var("INGEST_GRPC_MAX_MESSAGE_BYTES", "8388608");
+        }
+        let val: usize = std::env::var("INGEST_GRPC_MAX_MESSAGE_BYTES")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(4_194_304);
+        unsafe {
+            std::env::remove_var("INGEST_GRPC_MAX_MESSAGE_BYTES");
+        }
+        assert_eq!(val, 8_388_608);
+    }
+}
+

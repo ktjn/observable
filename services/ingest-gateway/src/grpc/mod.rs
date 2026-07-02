@@ -11,14 +11,14 @@ use tonic::transport::Server;
 
 use crate::AppState;
 
-pub async fn start_grpc_server(state: AppState, port: u16) -> anyhow::Result<()> {
+pub async fn start_grpc_server(state: AppState, port: u16, max_message_bytes: usize) -> anyhow::Result<()> {
     let addr = format!("0.0.0.0:{}", port).parse()?;
 
     let trace_service = trace::OltpTraceService::new(state.clone());
     let log_service = log::OltpLogService::new(state.clone());
     let metric_service = metric::OltpMetricService::new(state.clone());
 
-    tracing::info!(port, "ingest-gateway gRPC listening");
+    tracing::info!(port, max_message_bytes, "ingest-gateway gRPC listening");
 
     Server::builder()
         .add_service(
