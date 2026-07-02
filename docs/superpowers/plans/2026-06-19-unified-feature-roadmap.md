@@ -56,9 +56,9 @@ Small, standalone, high user-value slices. Ordered by user impact.
   enabler — users keep their existing Prometheus/otel-collector agent stack and point it at
   Observable. Every organization running Prometheus today has this data; receiving it is the
   fastest path to showing value. _(shipped PR #477)_
-- [ ] **Alert Inhibition Rules** (was P12-S5) — suppress lower-severity alerts for the same
+- [x] **Alert Inhibition Rules** (was P12-S5) — suppress lower-severity alerts for the same
   service while a higher-severity alert is active; `Suppressed` state with "Suppressed by" label.
-  Directly reduces alert fatigue for every user with alert rules configured.
+  Directly reduces alert fatigue for every user with alert rules configured. _(shipped PR #481)_
 - [ ] **Saved Views in Explorers** (was P14-S3) — save filter state + time range + columns per
   signal type; private/shared visibility. High-frequency daily UX improvement for all users.
 - [ ] **Export APIs** (was P13-S4) — CSV/JSON export for log, trace, and metric query results;
@@ -104,7 +104,15 @@ platform at a glance**, driven by the Playwright visual suite, produced a sliced
 - [x] Consistency follow-ups (P2): summary-row parity, button hierarchy, compact empty states,
   command palette, dashboard create-affordance + freshness indicators. *(All shipped in PR #475.)*
 
+- [ ] **SLO Burn Rate Alerting** — fast-burn / slow-burn alert rules using existing SLO budget
+  tables. Both Datadog and New Relic support burn-rate alerting as a first-class type alongside
+  threshold alerts; Observable has threshold and deadman but no burn-rate concept. Self-contained
+  evaluator extension; no new data dependencies. _(gap identified 2026-07-02)_
+
 ### Previously completed (Tier 1)
+- [x] **Admin UI Cleanup** — merged Setup nav into Administration, deleted duplicate `/admin/config`
+  (content folded into Overview), simplified Fleet Management to coming-soon, inlined Identity
+  provider info into Overview, renamed Live→Tail in log search. _(shipped PR #483)_
 - [x] **Onboarding Wizard** (was P9-S1) — guided zero-to-first-trace flow.
 - [x] **Change-Detection Alert Type** (was P12-S4) — window-comparison alert rules.
 - [x] **Change Event API and Dashboard Overlay** (was P14-S4) — change-event markers on dashboards.
@@ -149,6 +157,38 @@ alongside their k8s workloads.
 - [ ] **Service Health Summary completion** (remaining scope of P9-S5) — fast-vs-slow burn
   red/yellow distinction, 30s background-poll refresh, open error-issue count badge (depends on
   Error Tracking above). Base catalog UI, RED metrics, and SLO-burn health badges already ship.
+
+### APM Service Map — visual dependency graph
+Both Datadog and New Relic lead with a visual service map as their primary APM entry point.
+Observable has a Services list and trace explorer but no dependency graph. Derivable from existing
+span data (`peer.service` / caller service name from client+server span pairs).
+
+- [ ] **Service Topology Endpoint** — `GET /v1/services/topology` aggregating service-to-service
+  call edges from hot-path spans over the selected time window; returns nodes (service, error rate,
+  P99) and directed edges (call count, error rate). No new storage. _(gap identified 2026-07-02)_
+- [ ] **Service Map UI** — `/services/map` route, force-directed graph, node health color, edge
+  weight by call volume, click-through to service detail. Depends on the item above.
+
+### Log Pattern Clustering
+Datadog "Log Patterns" and New Relic log clustering surface anomalous message families without
+users needing to write queries. Observable has full-text search but no automatic pattern grouping.
+
+- [ ] **Log Pattern Clustering Backend** — periodic regex-template clustering of log bodies per
+  service per time bucket; store representative samples and counts in ClickHouse;
+  `GET /v1/logs/patterns`. _(gap identified 2026-07-02)_
+- [ ] **Log Patterns Explorer UI** — pattern list with occurrence sparklines and representative
+  examples, click-to-filter into log search. Depends on the item above.
+
+### Investigation Notebooks
+Datadog Notebooks and New Relic Workloads give users a narrative scratchpad combining charts, log
+excerpts, and text in a single shareable document — essential during incident investigation.
+Observable has dashboards but no narrative layer.
+
+- [ ] **Notebook Data Model and API** — `notebooks` table (cells: markdown | chart-ref |
+  log-query | trace-query), CRUD at `/v1/notebooks`; cells reference query params, not stored
+  results. _(gap identified 2026-07-02)_
+- [ ] **Notebook Editor UI** — `/notebooks` route, cell-based editor, promote-from-explorer flow,
+  share link. Depends on the item above.
 
 ### Alerting Depth
 - [ ] **Escalation Policy Builder** (was P12-S6) — `escalation_policies` with timed steps;
