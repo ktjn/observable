@@ -160,12 +160,14 @@ export function ServiceMetricsWorkspace({
         selectedId={selectedMetricId}
         onSelect={setSelectedMetricId}
         histogram={
-          <MetricGraphContainer
-            selectedMetric={selectedMetric}
-            fromMs={fromMs}
-            toMs={toMs}
-            onRangeSelect={setCustomRange}
-          />
+          <div className="min-h-[240px]">
+            <MetricGraphContainer
+              selectedMetric={selectedMetric}
+              fromMs={fromMs}
+              toMs={toMs}
+              onRangeSelect={setCustomRange}
+            />
+          </div>
         }
         renderTable={(selectedId, onSelect) => (
           <div className="flex flex-col flex-1 min-h-0 gap-4">
@@ -320,7 +322,7 @@ function MetricCatalogTable({
 }) {
   return (
     <TablePanel className="flex-1 min-h-0 flex flex-col">
-        <div className="flex-1 overflow-y-auto min-h-0" style={{ overflowAnchor: "none" }}>
+        <div className="flex-1 overflow-y-auto min-h-0">
         {metrics.length > 0 ? (
           <table aria-label="Service metrics">
             <thead className="sticky top-0 z-10 bg-[var(--surface)]">
