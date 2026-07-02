@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { listEnvironments, listTenants } from "../../api/tenants";
 import { getTenantUsageReport } from "../../api/usage";
@@ -52,6 +51,11 @@ export function BillingReportPage() {
   const telemetry = data.telemetry_summary;
   const control = data.control_plane_summary;
 
+  const issuer =
+    typeof window !== "undefined"
+      ? (window as Window & { __OBSERVABLE_ZITADEL_ISSUER__?: string }).__OBSERVABLE_ZITADEL_ISSUER__ ?? "http://localhost:8082"
+      : "http://localhost:8082";
+
   return (
     <section className="page-stack">
       <div className="page-header">
@@ -63,12 +67,6 @@ export function BillingReportPage() {
             Selected environment: {environment ?? "All envs"}. Billing interval: {formatInterval(fromMs, toMs, format)}.
           </p>
         </div>
-        <Link
-          to="/admin/identity"
-          className="text-xs font-bold uppercase tracking-wide text-[var(--brand)] transition-colors hover:text-[var(--text)]"
-        >
-          Identity settings
-        </Link>
       </div>
 
       <AdminSurfaceNav />
@@ -89,14 +87,6 @@ export function BillingReportPage() {
       <Panel
         title="Tenant access"
         eyebrow="RBAC"
-        actions={
-          <Link
-            to="/admin/identity"
-            className="text-xs font-semibold uppercase tracking-wide text-[var(--brand)] transition-colors hover:text-[var(--text)]"
-          >
-            Open identity settings
-          </Link>
-        }
       >
         <TablePanel>
           <table className="min-w-full border-collapse text-left text-sm">
@@ -142,11 +132,27 @@ export function BillingReportPage() {
         </div>
       </Panel>
 
-      <Panel title="Identity and access" eyebrow="Settings">
-        <p className="max-w-3xl text-sm text-[var(--muted)]">
-          Identity provider settings live in the dedicated identity page. This console only
-          summarizes the current tenant and role context.
-        </p>
+      <Panel title="Quota posture" eyebrow="Usage">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <MetricCard label="Cost index" value={data.estimated_cost_index} tone={countTone(data.estimated_cost_index)} />
+          <MetricCard label="Query reads" value={control.query_reads} tone={countTone(control.query_reads)} />
+          <MetricCard label="Telemetry spans" value={telemetry.spans} tone={countTone(telemetry.spans)} />
+          <MetricCard label="Metric series" value={telemetry.metric_series_created} tone={countTone(telemetry.metric_series_created)} />
+          <MetricCard label="Credential denials" value={control.credential_denies} tone={control.credential_denies > 0 ? "warn" : "good"} />
+        </div>
+      </Panel>
+
+      <Panel title="Environment scope" eyebrow="Discovery">
+        <div className="flex flex-wrap gap-2">
+          {environments.map((entry) => (
+            <Badge key={entry.environment} tone={entry.environment === environment ? "good" : "neutral"}>
+              {entry.environment}
+            </Badge>
+          ))}
+          {environments.length === 0 && (
+            <span className="text-sm text-[var(--muted)]">No environments returned for the selected tenant.</span>
+          )}
+        </div>
       </Panel>
 
       <Panel title="Usage summary" eyebrow={`Tenant: ${tenantName}`}>
@@ -202,6 +208,53 @@ export function BillingReportPage() {
           </div>
         </Panel>
       </div>
+
+      <Panel title="Identity provider" eyebrow="Auth">
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse text-left text-sm">
+            <tbody>
+              <tr>
+                <td className="py-1.5 pr-6 font-semibold text-[var(--text-strong)] whitespace-nowrap">Provider</td>
+                <td className="py-1.5 text-[var(--text)]">Zitadel 2.71.x</td>
+              </tr>
+              <tr>
+                <td className="py-1.5 pr-6 font-semibold text-[var(--text-strong)] whitespace-nowrap">Issuer URL</td>
+                <td className="py-1.5">
+                  <code className="font-mono text-xs text-[var(--text)]">{issuer}</code>
+                </td>
+              </tr>
+              <tr>
+                <td className="py-1.5 pr-6 font-semibold text-[var(--text-strong)] whitespace-nowrap">OIDC Discovery</td>
+                <td className="py-1.5">
+                  <a
+                    href={`${issuer}/.well-known/openid-configuration`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-mono text-xs text-[var(--brand)] hover:text-[var(--text)]"
+                  >
+                    {issuer}/.well-known/openid-configuration
+                  </a>
+                </td>
+              </tr>
+              <tr>
+                <td className="py-1.5 pr-6 font-semibold text-[var(--text-strong)] whitespace-nowrap">Redirect URI</td>
+                <td className="py-1.5">
+                  <code className="font-mono text-xs text-[var(--text)]">
+                    {typeof window !== "undefined" ? window.location.origin : ""}/auth/callback
+                  </code>
+                </td>
+              </tr>
+              <tr>
+                <td className="py-1.5 pr-6 font-semibold text-[var(--text-strong)] whitespace-nowrap">SCIM 2.0 (planned)</td>
+                <td className="py-1.5">
+                  <code className="font-mono text-xs text-[var(--text)]">{issuer}/scim/v2/&lt;org-id&gt;/</code>
+                  <span className="ml-2 text-xs text-[var(--muted)]">— enable per-org in Zitadel Admin Console</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Panel>
     </section>
   );
 }

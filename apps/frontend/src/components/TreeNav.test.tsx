@@ -19,7 +19,6 @@ const testItems: NavTreeItem[] = [
     label: "Administration",
     children: [
       { id: "overview", label: "Overview", to: "/admin" },
-      { id: "config", label: "Tenant configuration", to: "/admin/config" },
       { id: "fleet", label: "Fleet management", to: "/admin/fleet" },
       { id: "identity", label: "Identity", to: "/admin/identity" },
     ],
@@ -109,7 +108,7 @@ describe("TreeNav", () => {
   });
 
   test("marks parent with has-active-child when child route is active", () => {
-    render(<TreeNav items={testItems} pathname="/admin/config" />);
+    render(<TreeNav items={testItems} pathname="/admin/fleet" />);
 
     const adminLabel = screen.getByText("Administration").closest("button");
     expect(adminLabel).toHaveClass("has-active-child");

@@ -1,8 +1,7 @@
 import type { LogRecord } from "../../../api/logs";
-import { Badge } from "../../../components/ui/badge";
 import { VirtualTable } from "../../../components/ui/VirtualTable";
 import { formatTimestamp } from "../../../utils/formatTimestamp";
-import { formatLogMessage, otelSeverity } from "../../../utils/logFormatting";
+import { formatLogMessage, getSeverityColor, otelSeverity } from "../../../utils/logFormatting";
 import type { TimeFormat } from "../../../lib/timeDisplay";
 
 export function LogResultsTable({
@@ -89,7 +88,12 @@ function LogResultsRow({
     >
       <td className="whitespace-nowrap">{formatTimestamp(log.timestamp_unix_nano, timeFormat)}</td>
       <td>
-        <Badge tone={severity.tone}>{severity.label}</Badge>
+        <span
+          className="text-[9px] font-bold uppercase tracking-wide"
+          style={{ color: getSeverityColor(log.severity_number) }}
+        >
+          {severity.label}
+        </span>
       </td>
       {showServiceColumn && <td>{log.service_name}</td>}
       <td className="whitespace-normal break-all">{message}</td>

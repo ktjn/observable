@@ -112,4 +112,14 @@ describe("AppShell navigation", () => {
       consoleError.mockRestore();
     }
   });
+
+  test("shows Ingest, LLM and Tokens under Administration, not under a separate Setup group", () => {
+    render(<AppShell />);
+
+    expect(screen.getByRole("link", { name: "Ingest" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "LLM" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Tokens" })).toBeInTheDocument();
+    // No top-level "Setup" parent link should appear
+    expect(screen.queryByRole("link", { name: "Setup" })).not.toBeInTheDocument();
+  });
 });

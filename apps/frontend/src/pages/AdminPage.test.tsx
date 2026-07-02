@@ -85,9 +85,8 @@ test("renders the tenant usage report for the admin overview", async () => {
 
   await screen.findByRole("heading", { name: "Admin Console" });
   expect(screen.getByText(/Selected environment:/)).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Identity settings" })).toBeInTheDocument();
   expect(screen.getByText(TENANT_ID)).toBeInTheDocument();
-  expect(within(screen.getByRole("table")).getByText("Tenant admin")).toBeInTheDocument();
+  expect(within(screen.getAllByRole("table")[0]).getByText("Tenant admin")).toBeInTheDocument();
 
   const usageSummary = screen.getByRole("group", { name: "Usage summary" });
   expect(within(usageSummary).getByText("Cost index")).toBeInTheDocument();
@@ -108,6 +107,18 @@ test("renders the tenant usage report for the admin overview", async () => {
   expect(within(controlPlane).getByText("2")).toBeInTheDocument();
 
   expect(screen.getByText(/1 environment available in the selected tenant/)).toBeInTheDocument();
+
+  // Quota posture panel
+  const quotaPosture = screen.getByRole("heading", { name: "Quota posture" });
+  expect(quotaPosture).toBeInTheDocument();
+
+  // Environment scope panel
+  const envScope = screen.getByRole("heading", { name: "Environment scope" });
+  expect(envScope).toBeInTheDocument();
+
+  // Identity panel inlined in Overview
+  expect(screen.getByRole("heading", { name: "Identity provider" })).toBeInTheDocument();
+  expect(screen.getByText("Zitadel 2.71.x")).toBeInTheDocument();
 });
 
 test("renders zero usage without an empty state", async () => {
@@ -185,29 +196,15 @@ test("renders zero usage without an empty state", async () => {
   expect(within(controlPlane).getAllByText("0")).toHaveLength(5);
 });
 
-test("renders the tenant configuration page at /admin/config", async () => {
-  window.history.pushState({}, "", "/admin/config");
-
-  render(<App />);
-
-  await screen.findByRole("heading", { name: "Tenant configuration" });
-  expect(screen.getByRole("link", { name: "Identity settings" })).toBeInTheDocument();
-  expect(screen.getByText("Tenant admin", { selector: "span" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Quota posture" })).toBeInTheDocument();
-  expect(screen.getByText(/Usage window:/)).toBeInTheDocument();
-  expect(screen.getByText("prod", { selector: "span" })).toBeInTheDocument();
-});
-
-test("renders the fleet management contract page at /admin/fleet", async () => {
+test("renders the fleet management page at /admin/fleet", async () => {
   window.history.pushState({}, "", "/admin/fleet");
 
   render(<App />);
 
   await screen.findByRole("heading", { name: "Fleet management" });
-  expect(screen.getByText("Contract view")).toBeInTheDocument();
-  expect(screen.getByText("agent.up", { selector: "td" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Remote configuration and upgrades" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Live agent inventory is not wired yet" })).toBeInTheDocument();
+  expect(screen.getByText("Fleet management is not yet available")).toBeInTheDocument();
+  // contract tables should be gone
+  expect(screen.queryByText("agent.up", { selector: "td" })).not.toBeInTheDocument();
 });
 
 test("renders the members management page at /admin/members", async () => {
