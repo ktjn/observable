@@ -320,7 +320,7 @@ function MetricCatalogTable({
 }) {
   return (
     <TablePanel className="flex-1 min-h-0 flex flex-col">
-      <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="flex-1 overflow-y-auto min-h-0" style={{ overflowAnchor: "none" }}>
         {metrics.length > 0 ? (
           <table aria-label="Service metrics">
             <thead className="sticky top-0 z-10 bg-[var(--surface)]">
