@@ -230,7 +230,6 @@ mod tests {
 
     #[tokio::test]
     async fn zstd_compressed_metrics_payload_returns_200() {
-        use std::io::Write as _;
         let json = serde_json::to_vec(&two_series_payload()).unwrap();
         let compressed = zstd::encode_all(std::io::Cursor::new(&json), 0).unwrap();
 

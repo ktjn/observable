@@ -439,7 +439,6 @@ pub fn proto_metrics_to_domain(
                             });
                         }
                     }
-                    _ => {}
                 }
             }
         }
