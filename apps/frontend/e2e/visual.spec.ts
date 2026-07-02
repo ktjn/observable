@@ -209,19 +209,25 @@ test("visual: home page", async ({ page }) => {
 
 test("visual: metrics page", async ({ page }) => {
   await mockAuth(page);
+  const metrics = [];
+  for (let i = 0; i < 40; i++) {
+    metrics.push({
+      tenant_id: "t1",
+      metric_name: "service_metric_" + String(i).padStart(3, "0") + "_requests_total",
+      description: "Metric " + i,
+      unit: i % 2 === 0 ? "count" : "ms",
+      metric_type: i % 3 === 0 ? "counter" : i % 3 === 1 ? "histogram" : "gauge",
+      is_monotonic: i % 3 === 0 ? true : null,
+      service_name: ["checkout", "payments", "notifications"][i % 3],
+      environment: "prod",
+      series_count: (i + 1) * 2,
+    });
+  }
   await page.route("**/v1/metrics", (route) =>
-    route.fulfill({
-      json: {
-        metrics: [
-          { tenant_id: "t1", metric_name: "http_requests_total", description: "Total HTTP requests", unit: "count", metric_type: "counter", is_monotonic: true, service_name: "checkout", environment: "prod", series_count: 4 },
-          { tenant_id: "t1", metric_name: "request_duration_ms", description: "Request duration", unit: "ms", metric_type: "histogram", is_monotonic: null, service_name: "checkout", environment: "prod", series_count: 12 },
-          { tenant_id: "t1", metric_name: "memory_usage_bytes", description: "Memory usage", unit: "bytes", metric_type: "gauge", is_monotonic: null, service_name: "payments", environment: "prod", series_count: 2 },
-        ],
-      },
-    })
+    route.fulfill({ json: { metrics } })
   );
   await page.goto("/metrics");
-  await page.waitForSelector("text=Metrics");
+  await page.waitForSelector("table[aria-label='Service metrics']");
   await page.screenshot({ path: "e2e/screenshots/metrics.png", fullPage: true });
 });
 
