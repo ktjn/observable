@@ -32,7 +32,7 @@ opentelemetry-appender-tracing = "0.32"
 tracing-opentelemetry = "0.33"
 bytes              = "1"
 prost              = "0.14"
-tonic              = "0.14"
+tonic              = { version = "0.14", features = ["gzip"] }
 sqlx               = { version = "0.9", features = ["postgres", "runtime-tokio", "uuid", "chrono", "json"] }
 clickhouse         = { version = "0.15", features = ["uuid"] }
 rdkafka            = { version = "0.39", features = ["tokio", "cmake-build"] }
