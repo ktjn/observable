@@ -125,9 +125,9 @@ export function ServiceMetricsWorkspace({
   if (error) return <ErrorState title="Failed to load metrics" description={String(error)} />;
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col h-full min-h-0 gap-4">
       {showHeader && (
-        <div className="page-header">
+        <div className="shrink-0 page-header">
           <div>
             <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
             <h1>Metrics</h1>
@@ -136,7 +136,7 @@ export function ServiceMetricsWorkspace({
       )}
       {metrics.length > 0 && (
         <div
-          className="grid grid-cols-[repeat(4,minmax(140px,1fr))] gap-3 max-[860px]:grid-cols-2 max-[560px]:grid-cols-1"
+          className="shrink-0 grid grid-cols-[repeat(4,minmax(140px,1fr))] gap-3 max-[860px]:grid-cols-2 max-[560px]:grid-cols-1"
           aria-label="Service metrics summary"
         >
           <MetricCard label="Metrics" value={`${metrics.length} ${plural(metrics.length, "metric")}`} tone="info" />
@@ -146,7 +146,8 @@ export function ServiceMetricsWorkspace({
         </div>
       )}
 
-      <SignalExplorer
+      <div className="flex-1 min-h-0">
+        <SignalExplorer
         title="Metrics"
         service={serviceName}
         onServiceChange={setServiceName}
@@ -239,6 +240,7 @@ export function ServiceMetricsWorkspace({
           ) : null
         )}
       />
+    </div>
     </div>
   );
 }
