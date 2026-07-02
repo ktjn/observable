@@ -295,7 +295,7 @@ function MetricGraphContainer({
     );
   })();
 
-  return <div className="h-[140px]">{content}</div>;
+  return <div className="h-[192px]">{content}</div>;
 }
 
 function MetricCatalogTable({
