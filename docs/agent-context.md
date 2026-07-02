@@ -20,6 +20,16 @@ making changes.
   default entry role. Runtimes without subagent support should apply matching specialist `.agent.md`
   files manually as checklists.
 - Active roadmap: `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md` — consolidates the former post-Phase-3 plan and the Phases P9-P14 feature-parity plan (both now archived) into one feature-first backlog. Stability/compliance/enterprise-packaging work is intentionally demoted to a Deferred tier (§7 of that document) rather than gating new feature phases.
+- **2026-07-02**: Whole-repo code-level review (`docs/analysis/2026-07-02-repo-review.md`) added a
+  new roadmap §3.6 "Security, Observability & Reliability Hardening" with 9 findings, highest
+  severity first: `auth-service` ships a hardcoded default session-signing secret in both code
+  (`main.rs:88`) and the Helm chart default (`values.yaml:270`) — forgeable session JWTs against
+  any default install; the OIDC login/callback flow (`oidc.rs`) and both `query-api`/`admin-service`
+  tenant-scoping middleware have zero tests; `alert-evaluator`, `ingest-gateway`, and
+  `stream-processor` have no `/metrics` endpoint at all (only `query-api`, `storage-writer`,
+  `auth-service`, `admin-service` do — this corrects §7's "shared observable-observability crate"
+  item, which previously and incorrectly listed all six as already having this scaffolding). None
+  of these have been fixed yet; treat §3.6 as the current highest-value backlog alongside Tier 1.
 - `archived/plans/2026-06-10-p9-s5-service-catalog-health-signals.md` — completed P9-S5's remaining scope: replaced the hardcoded `active_alert_count: 0` / `latest_deployment: None` placeholders in `services/query-api/src/discovery.rs::service_summary_from_row` with real data and made `health_state` SLO-burn-rate-aware. Housekeeping note carried from that plan, still open: issues #388 (Trace Comparison) and #389 (Query Workbench) describe already-shipped features and should be closed.
 - **2026-06-20**: PagerDuty and Opsgenie Notification Channel Adapters (were P12-S1/P12-S2) were retired from the Tier 1 backlog per explicit user direction — not building either integration. The generic `webhook` channel type remains the only outbound notification path; the Escalation Policy Builder (Tier 2) now targets it instead.
 - **2026-06-20**: P12-S4 Change-Detection Alert Type is complete — `change_detection` alert_type with `evaluate_change_detection`/`eval_change_detection_rules` in `services/alert-evaluator/src/evaluator.rs`, CRUD support in `services/query-api/src/alerts.rs`, and a third form branch in `apps/frontend/src/features/alerts/AlertsPage.tsx`. See `archived/plans/2026-06-20-change-detection-alert.md` and `docs/superpowers/specs/2026-06-20-change-detection-alert-design.md`.

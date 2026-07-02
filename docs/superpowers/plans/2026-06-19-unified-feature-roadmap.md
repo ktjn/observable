@@ -109,6 +109,55 @@ platform at a glance**, driven by the Playwright visual suite, produced a sliced
   threshold alerts; Observable has threshold and deadman but no burn-rate concept. Self-contained
   evaluator extension; no new data dependencies. _(gap identified 2026-07-02)_
 
+### 3.6 Security, Observability & Reliability Hardening (cross-cutting workstream)
+
+A whole-repo, code-level review (2026-07-02) of auth surfaces, self-observability coverage, dead
+code, and test debt — full findings and verification detail in
+`docs/analysis/2026-07-02-repo-review.md`. Ordered by risk; the first two are the highest-severity
+items in this document.
+
+- [ ] **Fail closed on missing session signing secret** (security, P0) — `auth-service` falls back
+  to a hardcoded default HS256 secret (`services/auth-service/src/main.rs:88`) and the Helm chart
+  ships the same default (`charts/observable/values.yaml:270`, `identity.sessionSecret`). Anyone
+  who reads this public repo has the key used by default installs and can forge a valid session
+  JWT for any tenant/role/user, bypassing auth entirely. Refuse to start without an explicit
+  secret in non-dev environments, or generate+persist a random one at install time.
+- [ ] **Test the OIDC login/callback/session flow** — `services/auth-service/src/oidc.rs` (573
+  lines: PKCE, CSRF state check, token exchange, session issuance) and `session.rs` (JWT
+  sign/verify) have zero tests. This is the highest-value attack surface in the codebase with no
+  automated regression coverage.
+- [ ] **Test tenant-scoping middleware** — `services/query-api/src/middleware/auth.rs` and
+  `services/admin-service/src/middleware/auth.rs` (the API-key/session dispatch and cross-tenant
+  access check gating every request) have no `#[cfg(test)]` module in either service. A single
+  inverted comparison here is an unguarded cross-tenant data leak.
+- [ ] **Add self-metrics to alert-evaluator, ingest-gateway, and stream-processor** — these three
+  services expose `/health`/`/readyz` but no `/metrics` endpoint, unlike `query-api`,
+  `storage-writer`, `auth-service`, and `admin-service`. No visibility into alert-eval latency,
+  ingest throughput/rejection rate, or stream-processor batching on Observable's own dogfooding
+  dashboards. Natural first real consumer for the planned shared `observable-observability` crate
+  (§7) — see the correction noted there.
+- [ ] **Delete dead unchecked SQL-builder functions** — `sql_templates.rs:664,743,824` and
+  `logs.rs:344,363` keep `#[allow(dead_code)]` manual-string-escaping SQL builders "for reference"
+  next to the safe `_checked` variants actually used. A landmine for a future contributor reaching
+  for the wrong one; delete rather than keep.
+- [ ] **Reuse the HTTP client in the auth middleware hot path** — `query-api` and `admin-service`
+  `middleware/auth.rs` construct a new `reqwest::Client` per request inside
+  `validate_session`/`verify_credentials` — every authenticated API call — losing connection-pool
+  reuse to auth-service. Hoist into shared app state.
+- [ ] **Test privilege-mutating admin-service handlers** — `tokens.rs` (API token issue/revoke),
+  `admin_members.rs` (member add/remove/re-role), and `usage.rs` have no test module, unlike most
+  of query-api/ingest-gateway.
+- [ ] **Fix stale "GitHub CI is disabled" claim in `AGENTS.md`** — `.github/workflows/build.yml`
+  now runs real PR/push/schedule-triggered backend/frontend/helm/smoke/perf-smoke jobs, kept
+  current by Renovate; the doc still tells agents to disregard a CI signal that actually runs.
+- [ ] **Document `scripts/nlq-multi-model.py`** — flagged in the 2026-05-01 repo review, still
+  unresolved: the script exists and works but isn't mentioned in `spec/08-ai-ml.md`,
+  `spec/10-process.md`'s NLQ Quality Gate section, `AGENTS.md`, or `README.md`.
+- [ ] **Test `libs/test-support` and admin billing/fleet frontend pages** (small, low priority) —
+  the shared Testcontainers fixture crate (194 lines) has no tests of its own; `BillingReportPage.tsx`
+  and `FleetManagementPage.tsx` have no test file while sibling `MemberManagementPage.tsx` does.
+  Bundle with whichever of the above touches the same area.
+
 ### Previously completed (Tier 1)
 - [x] **Admin UI Cleanup** — merged Setup nav into Administration, deleted duplicate `/admin/config`
   (content folded into Overview), simplified Fleet Management to coming-soon, inlined Identity
@@ -325,8 +374,11 @@ first item, which is pre-promoted** because Tier 2's PromQL Compatibility Façad
 - [ ] **Shared observable-observability crate** — generic `HttpMetricsCollector` (Prometheus
   registry/histogram pattern) and `ReadyzProbe` (Postgres/ClickHouse/Redpanda variants), replacing
   ~270 lines of near-identical `/metrics`/`/readyz` scaffolding copy-pasted across auth-service,
-  storage-writer, query-api, ingest-gateway, alert-evaluator, and stream-processor. Medium effort
-  (six mechanical call-site swaps), low risk (response shape unchanged).
+  storage-writer, query-api, and admin-service. **Correction (2026-07-02):** this item previously
+  also listed ingest-gateway, alert-evaluator, and stream-processor as already having this
+  scaffolding — verified false; those three have `/readyz` but no `/metrics` at all (see §3.6).
+  Add `/metrics` to those three first (§3.6), then this extraction covers all seven services.
+  Medium effort, low risk (response shape unchanged).
 - [ ] **DB client construction helpers in libs/domain** — add `create_clickhouse_client()` and
   `create_postgres_pool()` to the existing `libs/domain` shared crate, replacing ~40 lines of
   duplicated connection-string/env-var boilerplate across storage-writer, alert-evaluator,
@@ -409,11 +461,18 @@ feature:
   is fully merged into `main` (0 commits ahead, branch is stale) — the corresponding context panel
   exists in `apps/frontend/src/pages/TraceDetail.tsx`. That memory record should be updated or
   removed.
+- **2026-07-02 review** (`docs/analysis/2026-07-02-repo-review.md`): two low-priority items from
+  the 2026-05-01 repo review are still open two months later — `scripts/nlq-multi-model.py` remains
+  undocumented (now tracked in §3.6), and `tests/nlq/cases.json` still has no schema/version marker
+  (38 cases now, up from 27; not promoted to the roadmap, still low priority — see the analysis doc
+  §5.3). `scripts/local-ci.sh` also leaks `mktemp` temp directories on modelable-compile failure
+  (analysis doc §5.4) — small enough to bundle with any other `local-ci.sh` touch.
 
 ---
 
 ## 12. Source Documents
 
+- Security/observability/test-debt hardening backlog (§3.6): `docs/analysis/2026-07-02-repo-review.md`
 - Predecessor active plans (now archived, retain full historical closure log and workflow-gap
   analysis): `archived/plans/2026-05-07-remaining-roadmap-plan.md`,
   `archived/plans/2026-06-04-observability-feature-parity-plan.md`
