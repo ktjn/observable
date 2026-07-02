@@ -21,9 +21,15 @@ pub async fn start_grpc_server(state: AppState, port: u16) -> anyhow::Result<()>
     tracing::info!(port, "ingest-gateway gRPC listening");
 
     Server::builder()
-        .add_service(TraceServiceServer::new(trace_service).accept_compressed(CompressionEncoding::Gzip))
-        .add_service(LogsServiceServer::new(log_service).accept_compressed(CompressionEncoding::Gzip))
-        .add_service(MetricsServiceServer::new(metric_service).accept_compressed(CompressionEncoding::Gzip))
+        .add_service(
+            TraceServiceServer::new(trace_service).accept_compressed(CompressionEncoding::Gzip),
+        )
+        .add_service(
+            LogsServiceServer::new(log_service).accept_compressed(CompressionEncoding::Gzip),
+        )
+        .add_service(
+            MetricsServiceServer::new(metric_service).accept_compressed(CompressionEncoding::Gzip),
+        )
         .serve(addr)
         .await?;
 
