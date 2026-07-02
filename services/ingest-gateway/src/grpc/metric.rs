@@ -102,3 +102,70 @@ impl MetricsService for OltpMetricService {
         .await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::AppState;
+    use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsServiceRequest;
+    use opentelemetry_proto::tonic::metrics::v1::{
+        ExponentialHistogram, ExponentialHistogramDataPoint, Metric, ResourceMetrics, ScopeMetrics,
+        exponential_histogram_data_point, metric,
+    };
+    use opentelemetry_proto::tonic::collector::metrics::v1::metrics_service_server::MetricsService;
+
+    #[tokio::test]
+    async fn grpc_metrics_partial_success() {
+        let payload = ExportMetricsServiceRequest {
+            resource_metrics: vec![ResourceMetrics {
+                resource: None,
+                scope_metrics: vec![ScopeMetrics {
+                    scope: None,
+                    metrics: vec![Metric {
+                        name: "latency".to_string(),
+                        description: String::new(),
+                        unit: "ms".to_string(),
+                        data: Some(metric::Data::ExponentialHistogram(ExponentialHistogram {
+                            data_points: vec![ExponentialHistogramDataPoint {
+                                attributes: vec![],
+                                start_time_unix_nano: 0,
+                                time_unix_nano: 1_000_000,
+                                count: 5,
+                                sum: Some(250.0),
+                                scale: 0,
+                                zero_count: 0,
+                                positive: Some(exponential_histogram_data_point::Buckets {
+                                    offset: 0,
+                                    bucket_counts: vec![1, 2, 2],
+                                }),
+                                negative: None,
+                                flags: 0,
+                                exemplars: vec![],
+                                min: None,
+                                max: None,
+                                zero_threshold: 0.0,
+                            }],
+                            aggregation_temporality: 2,
+                        })),
+                        metadata: vec![],
+                    }],
+                    schema_url: String::new(),
+                }],
+                schema_url: String::new(),
+            }],
+        };
+
+        let mut req = Request::new(payload);
+        req.metadata_mut().insert(
+            "authorization",
+            "Bearer dev-api-key-0000".parse().unwrap(),
+        );
+
+        let svc = OltpMetricService::new(AppState::with_stub_auth(
+            "00000000-0000-0000-0000-000000000001",
+        ));
+        let resp = svc.export(req).await.unwrap().into_inner();
+        assert!(resp.partial_success.is_some());
+        assert!(resp.partial_success.unwrap().rejected_data_points >= 1);
+    }
+}
