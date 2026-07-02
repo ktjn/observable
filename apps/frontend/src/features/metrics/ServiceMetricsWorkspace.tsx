@@ -288,14 +288,14 @@ function MetricGraphContainer({
         series={seriesData}
         rangeStartMs={fromMs}
         rangeEndMs={toMs}
-        height={100}
+        height={140}
         onRangeSelect={onRangeSelect}
         ariaLabel={`Graph for ${selectedMetric.metric_name}`}
       />
     );
   })();
 
-  return <div className="h-[100px]">{content}</div>;
+  return <div className="h-[140px]">{content}</div>;
 }
 
 function MetricCatalogTable({
