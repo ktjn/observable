@@ -160,14 +160,12 @@ export function ServiceMetricsWorkspace({
         selectedId={selectedMetricId}
         onSelect={setSelectedMetricId}
         histogram={
-          <div className="min-h-[240px]">
-            <MetricGraphContainer
-              selectedMetric={selectedMetric}
-              fromMs={fromMs}
-              toMs={toMs}
-              onRangeSelect={setCustomRange}
-            />
-          </div>
+          <MetricGraphContainer
+            selectedMetric={selectedMetric}
+            fromMs={fromMs}
+            toMs={toMs}
+            onRangeSelect={setCustomRange}
+          />
         }
         renderTable={(selectedId, onSelect) => (
           <div className="flex flex-col flex-1 min-h-0 gap-4">
@@ -266,45 +264,43 @@ function MetricGraphContainer({
     ...liveViewQueryOptions,
   });
 
-  if (!selectedMetric) {
+  const content = !selectedMetric ? (
+    <EmptyState
+      compact
+      className="h-full"
+      title="No metric selected"
+      description="Select a metric below to visualize data."
+    />
+  ) : isLoading ? (
+    <LoadingState variant="skeleton" className="h-full" />
+  ) : (() => {
+    const points = data?.points ?? [];
+    const seriesData: TimeSeriesSeries[] = [
+      {
+        key: metricIdentity(selectedMetric),
+        label: selectedMetric.metric_name,
+        color: "var(--brand)",
+        points: points.map((p) => ({
+          timestampMs: Number(p.time_unix_nano) / 1_000_000,
+          value: p.value_double ?? p.value_int ?? 0,
+        })),
+        formatY: (v) => `${v}${selectedMetric.unit ? ` ${selectedMetric.unit}` : ""}`,
+      },
+    ];
+
     return (
-      <EmptyState
-        title="No metric selected"
-        description="Select a metric below to visualize data."
+      <TimeSeriesGraph
+        series={seriesData}
+        rangeStartMs={fromMs}
+        rangeEndMs={toMs}
+        height={140}
+        onRangeSelect={onRangeSelect}
+        ariaLabel={`Graph for ${selectedMetric.metric_name}`}
       />
     );
-  }
+  })();
 
-  if (isLoading) {
-    return (
-      <LoadingState variant="skeleton" className="h-[168px]" />
-    );
-  }
-
-  const points = data?.points ?? [];
-  const seriesData: TimeSeriesSeries[] = [
-    {
-      key: metricIdentity(selectedMetric),
-      label: selectedMetric.metric_name,
-      color: "var(--brand)",
-      points: points.map((p) => ({
-        timestampMs: Number(p.time_unix_nano) / 1_000_000,
-        value: p.value_double ?? p.value_int ?? 0,
-      })),
-      formatY: (v) => `${v}${selectedMetric.unit ? ` ${selectedMetric.unit}` : ""}`,
-    },
-  ];
-
-  return (
-    <TimeSeriesGraph
-      series={seriesData}
-      rangeStartMs={fromMs}
-      rangeEndMs={toMs}
-      height={140}
-      onRangeSelect={onRangeSelect}
-      ariaLabel={`Graph for ${selectedMetric.metric_name}`}
-    />
-  );
+  return <div className="h-[140px]">{content}</div>;
 }
 
 function MetricCatalogTable({
