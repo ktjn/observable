@@ -227,4 +227,48 @@ mod tests {
         let resp = server.post("/v1/metrics").json(&two_series_payload()).await;
         assert_eq!(resp.status_code(), StatusCode::UNAUTHORIZED);
     }
+
+    #[tokio::test]
+    async fn zstd_compressed_metrics_payload_returns_200() {
+        use std::io::Write as _;
+        let json = serde_json::to_vec(&two_series_payload()).unwrap();
+        let compressed = zstd::encode_all(std::io::Cursor::new(&json), 0).unwrap();
+
+        let app = build_router(AppState::with_stub_auth(TENANT));
+        let server = TestServer::new(app);
+        let resp = server
+            .post("/v1/metrics")
+            .add_header(auth_header().0, auth_header().1)
+            .add_header(
+                axum::http::header::CONTENT_TYPE,
+                axum::http::HeaderValue::from_static("application/json"),
+            )
+            .add_header(
+                axum::http::header::CONTENT_ENCODING,
+                axum::http::HeaderValue::from_static("zstd"),
+            )
+            .bytes(compressed.into())
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn zstd_corrupt_payload_returns_400() {
+        let app = build_router(AppState::with_stub_auth(TENANT));
+        let server = TestServer::new(app);
+        let resp = server
+            .post("/v1/metrics")
+            .add_header(auth_header().0, auth_header().1)
+            .add_header(
+                axum::http::header::CONTENT_TYPE,
+                axum::http::HeaderValue::from_static("application/json"),
+            )
+            .add_header(
+                axum::http::header::CONTENT_ENCODING,
+                axum::http::HeaderValue::from_static("zstd"),
+            )
+            .bytes(vec![0xDE, 0xAD, 0xBE, 0xEF].into())
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::BAD_REQUEST);
+    }
 }

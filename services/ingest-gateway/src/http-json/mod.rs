@@ -40,6 +40,8 @@ fn decode_request_body(headers: &HeaderMap, body: Bytes) -> Result<Vec<u8>, Stat
                 .map_err(|_| StatusCode::BAD_REQUEST)?;
             Ok(decoded)
         }
+        "zstd" => zstd::decode_all(std::io::Cursor::new(body.as_ref()))
+            .map_err(|_| StatusCode::BAD_REQUEST),
         _ => Err(StatusCode::UNSUPPORTED_MEDIA_TYPE),
     }
 }
