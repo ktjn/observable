@@ -91,12 +91,16 @@ impl MetricsService for OltpMetricService {
                 use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsPartialSuccess;
                 Some(ExportMetricsPartialSuccess {
                     rejected_data_points: rejected_data_points as i64,
-                    error_message: "ExponentialHistogram bucket detail and Summary quantile values not stored".to_string(),
+                    error_message:
+                        "ExponentialHistogram bucket detail and Summary quantile values not stored"
+                            .to_string(),
                 })
             } else {
                 None
             };
-            Ok(Response::new(ExportMetricsServiceResponse { partial_success }))
+            Ok(Response::new(ExportMetricsServiceResponse {
+                partial_success,
+            }))
         }
         .instrument(span)
         .await
@@ -108,11 +112,11 @@ mod tests {
     use super::*;
     use crate::AppState;
     use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsServiceRequest;
+    use opentelemetry_proto::tonic::collector::metrics::v1::metrics_service_server::MetricsService;
     use opentelemetry_proto::tonic::metrics::v1::{
         ExponentialHistogram, ExponentialHistogramDataPoint, Metric, ResourceMetrics, ScopeMetrics,
         exponential_histogram_data_point, metric,
     };
-    use opentelemetry_proto::tonic::collector::metrics::v1::metrics_service_server::MetricsService;
 
     #[tokio::test]
     async fn grpc_metrics_partial_success() {
@@ -156,10 +160,8 @@ mod tests {
         };
 
         let mut req = Request::new(payload);
-        req.metadata_mut().insert(
-            "authorization",
-            "Bearer dev-api-key-0000".parse().unwrap(),
-        );
+        req.metadata_mut()
+            .insert("authorization", "Bearer dev-api-key-0000".parse().unwrap());
 
         let svc = OltpMetricService::new(AppState::with_stub_auth(
             "00000000-0000-0000-0000-000000000001",

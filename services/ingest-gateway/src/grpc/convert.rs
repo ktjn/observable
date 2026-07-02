@@ -351,7 +351,9 @@ pub fn proto_metrics_to_domain(
                     metric::Data::ExponentialHistogram(eh) => {
                         let agg = proto_temporality_to_domain(eh.aggregation_temporality);
                         if !exp_hist_logged {
-                            tracing::debug!("ExponentialHistogram: storing count+sum only, bucket detail dropped");
+                            tracing::debug!(
+                                "ExponentialHistogram: storing count+sum only, bucket detail dropped"
+                            );
                             exp_hist_logged = true;
                         }
                         for dp in &eh.data_points {
@@ -400,7 +402,9 @@ pub fn proto_metrics_to_domain(
                     }
                     metric::Data::Summary(s) => {
                         if !summary_logged {
-                            tracing::debug!("Summary: storing count+sum only, quantile values dropped");
+                            tracing::debug!(
+                                "Summary: storing count+sum only, quantile values dropped"
+                            );
                             summary_logged = true;
                         }
                         for dp in &s.data_points {
@@ -546,8 +550,10 @@ mod tests {
         let tenant = Uuid::nil();
         let payload = gauge_resource_metrics();
 
-        let (first_series, first_points, _) = proto_metrics_to_domain(&payload, tenant, "testbench");
-        let (second_series, second_points, _) = proto_metrics_to_domain(&payload, tenant, "testbench");
+        let (first_series, first_points, _) =
+            proto_metrics_to_domain(&payload, tenant, "testbench");
+        let (second_series, second_points, _) =
+            proto_metrics_to_domain(&payload, tenant, "testbench");
 
         assert_eq!(
             first_series[0].metric_series_id,
@@ -609,7 +615,10 @@ mod tests {
         let (series, points, rejected) = proto_metrics_to_domain(&payload, tenant, "testbench");
 
         assert_eq!(series.len(), 1);
-        assert_eq!(series[0].metric_type, domain::MetricType::ExponentialHistogram);
+        assert_eq!(
+            series[0].metric_type,
+            domain::MetricType::ExponentialHistogram
+        );
         assert_eq!(points.len(), 1);
         assert_eq!(points[0].histogram_count, Some(42));
         assert_eq!(points[0].histogram_sum, Some(1000.0));
@@ -722,8 +731,8 @@ mod tests {
     #[test]
     fn summary_with_quantiles_increments_rejected() {
         use opentelemetry_proto::tonic::metrics::v1::{
-            Metric, ResourceMetrics, ScopeMetrics, Summary, SummaryDataPoint,
-            metric, summary_data_point,
+            Metric, ResourceMetrics, ScopeMetrics, Summary, SummaryDataPoint, metric,
+            summary_data_point,
         };
         use opentelemetry_proto::tonic::resource::v1::Resource;
 
@@ -747,8 +756,14 @@ mod tests {
                             count: 99,
                             sum: 4950.0,
                             quantile_values: vec![
-                                summary_data_point::ValueAtQuantile { quantile: 0.5, value: 50.0 },
-                                summary_data_point::ValueAtQuantile { quantile: 0.99, value: 99.0 },
+                                summary_data_point::ValueAtQuantile {
+                                    quantile: 0.5,
+                                    value: 50.0,
+                                },
+                                summary_data_point::ValueAtQuantile {
+                                    quantile: 0.99,
+                                    value: 99.0,
+                                },
                             ],
                             flags: 0,
                         }],

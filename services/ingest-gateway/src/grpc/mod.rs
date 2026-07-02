@@ -11,7 +11,11 @@ use tonic::transport::Server;
 
 use crate::AppState;
 
-pub async fn start_grpc_server(state: AppState, port: u16, max_message_bytes: usize) -> anyhow::Result<()> {
+pub async fn start_grpc_server(
+    state: AppState,
+    port: u16,
+    max_message_bytes: usize,
+) -> anyhow::Result<()> {
     let addr = format!("0.0.0.0:{}", port).parse()?;
 
     let trace_service = trace::OltpTraceService::new(state.clone());

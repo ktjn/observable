@@ -249,4 +249,3 @@ mod tests {
         assert_eq!(val, 8_388_608);
     }
 }
-
