@@ -65,7 +65,7 @@ impl MetricsService for OltpMetricService {
             tracing::info_span!("grpc.export.metrics", %tenant_id, %environment)
         };
         async move {
-            let (series, points) = super::convert::proto_metrics_to_domain(
+            let (series, points, rejected_data_points) = super::convert::proto_metrics_to_domain(
                 &inner.resource_metrics,
                 tenant_id,
                 &environment,
@@ -87,9 +87,16 @@ impl MetricsService for OltpMetricService {
                     .await
                     .map_err(|_| Status::internal("failed to publish metrics"))?;
             }
-            Ok(Response::new(ExportMetricsServiceResponse {
-                partial_success: None,
-            }))
+            let partial_success = if rejected_data_points > 0 {
+                use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsPartialSuccess;
+                Some(ExportMetricsPartialSuccess {
+                    rejected_data_points: rejected_data_points as i64,
+                    error_message: "ExponentialHistogram bucket detail and Summary quantile values not stored".to_string(),
+                })
+            } else {
+                None
+            };
+            Ok(Response::new(ExportMetricsServiceResponse { partial_success }))
         }
         .instrument(span)
         .await

@@ -218,10 +218,13 @@ pub fn proto_metrics_to_domain(
     resource_metrics: &[ResourceMetrics],
     tenant_id: Uuid,
     environment: &str,
-) -> (Vec<domain::MetricSeries>, Vec<domain::MetricPoint>) {
+) -> (Vec<domain::MetricSeries>, Vec<domain::MetricPoint>, u64) {
     let mut series_list = Vec::new();
     let mut points_list = Vec::new();
     let mut seen_series = HashSet::new();
+    let mut rejected_data_points: u64 = 0;
+    let mut exp_hist_logged = false;
+    let mut summary_logged = false;
 
     for rm in resource_metrics {
         let resource_attrs = rm
@@ -345,13 +348,103 @@ pub fn proto_metrics_to_domain(
                             });
                         }
                     }
-                    // ExponentialHistogram and Summary: emit as-is with minimal mapping
+                    metric::Data::ExponentialHistogram(eh) => {
+                        let agg = proto_temporality_to_domain(eh.aggregation_temporality);
+                        if !exp_hist_logged {
+                            tracing::debug!("ExponentialHistogram: storing count+sum only, bucket detail dropped");
+                            exp_hist_logged = true;
+                        }
+                        for dp in &eh.data_points {
+                            let mut series = domain::MetricSeries {
+                                tenant_id,
+                                metric_name: m.name.clone(),
+                                description: m.description.clone(),
+                                unit: m.unit.clone(),
+                                metric_type: domain::MetricType::ExponentialHistogram,
+                                is_monotonic: None,
+                                aggregation_temporality: agg.clone(),
+                                attributes: kv_str_map(&dp.attributes),
+                                resource_attributes: resource_attributes.clone(),
+                                service_name: service_name.clone(),
+                                environment: environment.to_string(),
+                                ..Default::default()
+                            };
+                            series.metric_series_id =
+                                domain::deterministic_metric_series_id(&series);
+                            if seen_series.insert(series.metric_series_id) {
+                                series_list.push(series.clone());
+                            }
+                            let has_buckets = dp
+                                .positive
+                                .as_ref()
+                                .is_some_and(|b| !b.bucket_counts.is_empty())
+                                || dp
+                                    .negative
+                                    .as_ref()
+                                    .is_some_and(|b| !b.bucket_counts.is_empty());
+                            if has_buckets {
+                                rejected_data_points += 1;
+                            }
+                            points_list.push(domain::MetricPoint {
+                                tenant_id,
+                                metric_series_id: series.metric_series_id,
+                                metric_name: m.name.clone(),
+                                service_name: service_name.clone(),
+                                time_unix_nano: dp.time_unix_nano,
+                                start_time_unix_nano: Some(dp.start_time_unix_nano),
+                                histogram_count: Some(dp.count),
+                                histogram_sum: dp.sum,
+                                ..Default::default()
+                            });
+                        }
+                    }
+                    metric::Data::Summary(s) => {
+                        if !summary_logged {
+                            tracing::debug!("Summary: storing count+sum only, quantile values dropped");
+                            summary_logged = true;
+                        }
+                        for dp in &s.data_points {
+                            let mut series = domain::MetricSeries {
+                                tenant_id,
+                                metric_name: m.name.clone(),
+                                description: m.description.clone(),
+                                unit: m.unit.clone(),
+                                metric_type: domain::MetricType::Summary,
+                                is_monotonic: None,
+                                aggregation_temporality: None,
+                                attributes: kv_str_map(&dp.attributes),
+                                resource_attributes: resource_attributes.clone(),
+                                service_name: service_name.clone(),
+                                environment: environment.to_string(),
+                                ..Default::default()
+                            };
+                            series.metric_series_id =
+                                domain::deterministic_metric_series_id(&series);
+                            if seen_series.insert(series.metric_series_id) {
+                                series_list.push(series.clone());
+                            }
+                            if !dp.quantile_values.is_empty() {
+                                rejected_data_points += 1;
+                            }
+                            points_list.push(domain::MetricPoint {
+                                tenant_id,
+                                metric_series_id: series.metric_series_id,
+                                metric_name: m.name.clone(),
+                                service_name: service_name.clone(),
+                                time_unix_nano: dp.time_unix_nano,
+                                start_time_unix_nano: Some(dp.start_time_unix_nano),
+                                histogram_count: Some(dp.count),
+                                histogram_sum: Some(dp.sum),
+                                ..Default::default()
+                            });
+                        }
+                    }
                     _ => {}
                 }
             }
         }
     }
-    (series_list, points_list)
+    (series_list, points_list, rejected_data_points)
 }
 
 fn number_data_point_to_domain(
@@ -454,8 +547,8 @@ mod tests {
         let tenant = Uuid::nil();
         let payload = gauge_resource_metrics();
 
-        let (first_series, first_points) = proto_metrics_to_domain(&payload, tenant, "testbench");
-        let (second_series, second_points) = proto_metrics_to_domain(&payload, tenant, "testbench");
+        let (first_series, first_points, _) = proto_metrics_to_domain(&payload, tenant, "testbench");
+        let (second_series, second_points, _) = proto_metrics_to_domain(&payload, tenant, "testbench");
 
         assert_eq!(
             first_series[0].metric_series_id,
@@ -465,5 +558,211 @@ mod tests {
             first_points[0].metric_series_id,
             second_points[0].metric_series_id
         );
+    }
+
+    #[test]
+    fn exponential_histogram_data_point_maps_count_and_sum() {
+        use opentelemetry_proto::tonic::metrics::v1::{
+            ExponentialHistogram, ExponentialHistogramDataPoint, Metric, ResourceMetrics,
+            ScopeMetrics, metric,
+        };
+        use opentelemetry_proto::tonic::resource::v1::Resource;
+
+        let payload = vec![ResourceMetrics {
+            resource: Some(Resource {
+                attributes: vec![string_kv("service.name", "svc-exp")],
+                dropped_attributes_count: 0,
+                entity_refs: Vec::new(),
+            }),
+            scope_metrics: vec![ScopeMetrics {
+                scope: None,
+                metrics: vec![Metric {
+                    name: "latency".to_string(),
+                    description: String::new(),
+                    unit: "ms".to_string(),
+                    data: Some(metric::Data::ExponentialHistogram(ExponentialHistogram {
+                        data_points: vec![ExponentialHistogramDataPoint {
+                            attributes: vec![],
+                            start_time_unix_nano: 100,
+                            time_unix_nano: 200,
+                            count: 42,
+                            sum: Some(1000.0),
+                            scale: 3,
+                            zero_count: 0,
+                            positive: None,
+                            negative: None,
+                            flags: 0,
+                            exemplars: vec![],
+                            min: None,
+                            max: None,
+                            zero_threshold: 0.0,
+                        }],
+                        aggregation_temporality: 2,
+                    })),
+                    metadata: Vec::new(),
+                }],
+                schema_url: String::new(),
+            }],
+            schema_url: String::new(),
+        }];
+
+        let tenant = Uuid::nil();
+        let (series, points, rejected) = proto_metrics_to_domain(&payload, tenant, "testbench");
+
+        assert_eq!(series.len(), 1);
+        assert_eq!(series[0].metric_type, domain::MetricType::ExponentialHistogram);
+        assert_eq!(points.len(), 1);
+        assert_eq!(points[0].histogram_count, Some(42));
+        assert_eq!(points[0].histogram_sum, Some(1000.0));
+        // No non-empty buckets in this data point → rejected_data_points = 0
+        assert_eq!(rejected, 0);
+    }
+
+    #[test]
+    fn exponential_histogram_with_buckets_increments_rejected() {
+        use opentelemetry_proto::tonic::metrics::v1::{
+            ExponentialHistogram, ExponentialHistogramDataPoint, Metric, ResourceMetrics,
+            ScopeMetrics, exponential_histogram_data_point, metric,
+        };
+        use opentelemetry_proto::tonic::resource::v1::Resource;
+
+        let payload = vec![ResourceMetrics {
+            resource: Some(Resource {
+                attributes: vec![string_kv("service.name", "svc-exp")],
+                dropped_attributes_count: 0,
+                entity_refs: Vec::new(),
+            }),
+            scope_metrics: vec![ScopeMetrics {
+                scope: None,
+                metrics: vec![Metric {
+                    name: "latency".to_string(),
+                    description: String::new(),
+                    unit: "ms".to_string(),
+                    data: Some(metric::Data::ExponentialHistogram(ExponentialHistogram {
+                        data_points: vec![ExponentialHistogramDataPoint {
+                            attributes: vec![],
+                            start_time_unix_nano: 100,
+                            time_unix_nano: 200,
+                            count: 10,
+                            sum: Some(500.0),
+                            scale: 3,
+                            zero_count: 1,
+                            positive: Some(exponential_histogram_data_point::Buckets {
+                                offset: 0,
+                                bucket_counts: vec![1, 2, 3],
+                            }),
+                            negative: None,
+                            flags: 0,
+                            exemplars: vec![],
+                            min: None,
+                            max: None,
+                            zero_threshold: 0.0,
+                        }],
+                        aggregation_temporality: 2,
+                    })),
+                    metadata: Vec::new(),
+                }],
+                schema_url: String::new(),
+            }],
+            schema_url: String::new(),
+        }];
+
+        let tenant = Uuid::nil();
+        let (_series, _points, rejected) = proto_metrics_to_domain(&payload, tenant, "testbench");
+        assert_eq!(rejected, 1);
+    }
+
+    #[test]
+    fn summary_data_point_maps_count_and_sum() {
+        use opentelemetry_proto::tonic::metrics::v1::{
+            Metric, ResourceMetrics, ScopeMetrics, Summary, SummaryDataPoint, metric,
+        };
+        use opentelemetry_proto::tonic::resource::v1::Resource;
+
+        let payload = vec![ResourceMetrics {
+            resource: Some(Resource {
+                attributes: vec![string_kv("service.name", "svc-sum")],
+                dropped_attributes_count: 0,
+                entity_refs: Vec::new(),
+            }),
+            scope_metrics: vec![ScopeMetrics {
+                scope: None,
+                metrics: vec![Metric {
+                    name: "response_time".to_string(),
+                    description: String::new(),
+                    unit: "ms".to_string(),
+                    data: Some(metric::Data::Summary(Summary {
+                        data_points: vec![SummaryDataPoint {
+                            attributes: vec![],
+                            start_time_unix_nano: 100,
+                            time_unix_nano: 200,
+                            count: 99,
+                            sum: 4950.0,
+                            quantile_values: vec![],
+                            flags: 0,
+                        }],
+                    })),
+                    metadata: Vec::new(),
+                }],
+                schema_url: String::new(),
+            }],
+            schema_url: String::new(),
+        }];
+
+        let tenant = Uuid::nil();
+        let (series, points, rejected) = proto_metrics_to_domain(&payload, tenant, "testbench");
+
+        assert_eq!(series.len(), 1);
+        assert_eq!(series[0].metric_type, domain::MetricType::Summary);
+        assert_eq!(points.len(), 1);
+        assert_eq!(points[0].histogram_count, Some(99));
+        assert_eq!(points[0].histogram_sum, Some(4950.0));
+        assert_eq!(rejected, 0);
+    }
+
+    #[test]
+    fn summary_with_quantiles_increments_rejected() {
+        use opentelemetry_proto::tonic::metrics::v1::{
+            Metric, ResourceMetrics, ScopeMetrics, Summary, SummaryDataPoint,
+            metric, summary_data_point,
+        };
+        use opentelemetry_proto::tonic::resource::v1::Resource;
+
+        let payload = vec![ResourceMetrics {
+            resource: Some(Resource {
+                attributes: vec![string_kv("service.name", "svc-sum")],
+                dropped_attributes_count: 0,
+                entity_refs: Vec::new(),
+            }),
+            scope_metrics: vec![ScopeMetrics {
+                scope: None,
+                metrics: vec![Metric {
+                    name: "response_time".to_string(),
+                    description: String::new(),
+                    unit: "ms".to_string(),
+                    data: Some(metric::Data::Summary(Summary {
+                        data_points: vec![SummaryDataPoint {
+                            attributes: vec![],
+                            start_time_unix_nano: 100,
+                            time_unix_nano: 200,
+                            count: 99,
+                            sum: 4950.0,
+                            quantile_values: vec![
+                                summary_data_point::ValueAtQuantile { quantile: 0.5, value: 50.0 },
+                                summary_data_point::ValueAtQuantile { quantile: 0.99, value: 99.0 },
+                            ],
+                            flags: 0,
+                        }],
+                    })),
+                    metadata: Vec::new(),
+                }],
+                schema_url: String::new(),
+            }],
+            schema_url: String::new(),
+        }];
+
+        let tenant = Uuid::nil();
+        let (_series, _points, rejected) = proto_metrics_to_domain(&payload, tenant, "testbench");
+        assert_eq!(rejected, 1);
     }
 }
