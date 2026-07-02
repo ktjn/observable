@@ -7,7 +7,6 @@ import { EmptyState } from "../../components/ui/empty-state";
 import { ErrorState } from "../../components/ui/error-state";
 import { LoadingState } from "../../components/ui/loading-state";
 import { MetricCard } from "../../components/ui/metric-card";
-import { Panel } from "../../components/ui/panel";
 import { PillFilter } from "../../components/ui/pill-filter";
 import { TablePanel } from "../../components/ui/table-panel";
 import { TimeSeriesGraph, type TimeSeriesSeries } from "../../components/ui/time-series-graph";
@@ -168,75 +167,67 @@ export function ServiceMetricsWorkspace({
           />
         }
         renderTable={(selectedId, onSelect) => (
-          <div className="flex flex-col gap-4 w-full">
-            <Panel eyebrow="Browse" title="Metric Series">
-              <div className="mb-4">
-                <QueryFilterInput
-                  baseIr={METRICS_BASE_IR}
-                  serviceName={serviceName}
-                  placeholder='Filter metric series, e.g. "histogram latency metrics in prod"'
-                  onSubmit={(_rawText) => {
-                    // Need to derive IR and apply filters based on rawText here?
-                    // Actually, the previous implementation used `onIr`.
-                    // Let's keep `onIr` and add `baseIr` as required.
-                  }}
+          <div className="flex flex-col flex-1 min-h-0 gap-4">
+            <div>
+              <div className="field-label">Browse</div>
+              <h2 className="m-0 text-[13px] font-semibold text-[var(--text-strong)]">Metric Series</h2>
+            </div>
 
-                  onIr={(ir) => {
-                    const next = deriveViewFiltersFromIr(ir, "metrics");
-                    setFilters({
-                      name: next.metricName ?? "",
-                      type: next.metricType ?? "all",
-                      environment: next.environment ?? "all",
-                    });
-                    if (next.service && !lockedService) {
-                      setServiceName(next.service);
-                    }
-                    setSelectedMetricId(null);
-                  }}
-                />
-              </div>
+            <div>
+              <QueryFilterInput
+                baseIr={METRICS_BASE_IR}
+                serviceName={serviceName}
+                placeholder='Filter metric series, e.g. "histogram latency metrics in prod"'
+                onSubmit={(_rawText) => {
+                  // Need to derive IR and apply filters based on rawText here?
+                  // Actually, the previous implementation used `onIr`.
+                  // Let's keep `onIr` and add `baseIr` as required.
+                }}
 
-              {/* Type filter pills + name search */}
-              <div className="flex flex-wrap items-center gap-2 mb-4">
-                <PillFilter
-                  pills={["all", ...metricTypes].map((type) => ({
-                    key: type,
-                    label: type === "all" ? "All types" : type,
-                    count: typeCounts[type] ?? 0,
-                  }))}
-                  activeKey={filters.type}
-                  onSelect={(key) => setFilters((f) => ({ ...f, type: key }))}
-                  ariaLabel="Filter by metric type"
-                />
-                <input
-                  type="search"
-                  value={filters.name}
-                  onChange={(e) => setFilters((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="Search metric names…"
-                  aria-label="Search metric names"
-                  className="min-w-[180px] flex-1 border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--brand)] focus:outline-none"
-                />
-              </div>
-
-              {filteredMetrics.length > 0 ? (
-                <MetricCatalogTable
-                  metrics={filteredMetrics}
-                  selectedSeriesId={selectedId}
-                  onSelect={onSelect}
-                />
-              ) : (
-                <EmptyState
-                  title="No metrics found"
-                  description={
-                    filters.name || filters.type !== "all" || filters.environment !== "all"
-                      ? "No metrics match the current filters. Try clearing the search or selecting a different type."
-                      : serviceName
-                        ? `No metrics for service ${serviceName}.`
-                        : "No metrics available."
+                onIr={(ir) => {
+                  const next = deriveViewFiltersFromIr(ir, "metrics");
+                  setFilters({
+                    name: next.metricName ?? "",
+                    type: next.metricType ?? "all",
+                    environment: next.environment ?? "all",
+                  });
+                  if (next.service && !lockedService) {
+                    setServiceName(next.service);
                   }
-                />
-              )}
-            </Panel>
+                  setSelectedMetricId(null);
+                }}
+              />
+            </div>
+
+            {/* Type filter pills + name search */}
+            <div className="flex flex-wrap items-center gap-2">
+              <PillFilter
+                pills={["all", ...metricTypes].map((type) => ({
+                  key: type,
+                  label: type === "all" ? "All types" : type,
+                  count: typeCounts[type] ?? 0,
+                }))}
+                activeKey={filters.type}
+                onSelect={(key) => setFilters((f) => ({ ...f, type: key }))}
+                ariaLabel="Filter by metric type"
+              />
+              <input
+                type="search"
+                value={filters.name}
+                onChange={(e) => setFilters((f) => ({ ...f, name: e.target.value }))}
+                placeholder="Search metric names…"
+                aria-label="Search metric names"
+                className="min-w-[180px] flex-1 border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--brand)] focus:outline-none"
+              />
+            </div>
+
+            <MetricCatalogTable
+              metrics={filteredMetrics}
+              selectedSeriesId={selectedId}
+              onSelect={onSelect}
+              filters={filters}
+              serviceName={serviceName}
+            />
           </div>
         )}
         renderPanel={(_selectedId, onClose) => (
@@ -316,48 +307,67 @@ function MetricCatalogTable({
   metrics,
   selectedSeriesId,
   onSelect,
+  filters,
+  serviceName,
 }: {
   metrics: MetricCatalogEntry[];
   selectedSeriesId: string | null;
   onSelect: (seriesId: string | null) => void;
+  filters: FilterState;
+  serviceName: string;
 }) {
   return (
-    <TablePanel>
-      <table aria-label="Service metrics">
-        <thead>
-          <tr>
-            <th>Metric</th>
-            <th>Type</th>
-            <th>Unit</th>
-            <th>Environment</th>
-            <th>Series</th>
-          </tr>
-        </thead>
-        <tbody>
-          {metrics.map((item) => {
-            const id = metricIdentity(item);
-            return (
-            <tr
-              key={id}
-              role="button"
-              aria-label={`Select ${item.metric_name}`}
-              className={selectedSeriesId === id ? "selected" : "hoverable"}
-              onClick={() => onSelect(id)}
-              style={{ cursor: "pointer" }}
-            >
-              <td>
-                <div className="font-semibold text-[var(--text-strong)]">{item.metric_name}</div>
-                <div className="text-xs text-[var(--muted)]">{item.service_name}</div>
-              </td>
-              <td>{item.metric_type}</td>
-              <td>{item.unit || "none"}</td>
-              <td>{item.environment || "default"}</td>
-              <td>{`${item.series_count} ${plural(item.series_count, "series", "series")}`}</td>
-            </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <TablePanel className="flex-1 min-h-0 flex flex-col">
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {metrics.length > 0 ? (
+          <table aria-label="Service metrics">
+            <thead className="sticky top-0 z-10 bg-[var(--surface)]">
+              <tr>
+                <th>Metric</th>
+                <th>Type</th>
+                <th>Unit</th>
+                <th>Environment</th>
+                <th>Series</th>
+              </tr>
+            </thead>
+            <tbody>
+              {metrics.map((item) => {
+                const id = metricIdentity(item);
+                return (
+                <tr
+                  key={id}
+                  role="button"
+                  aria-label={`Select ${item.metric_name}`}
+                  className={selectedSeriesId === id ? "selected" : "hoverable"}
+                  onClick={() => onSelect(id)}
+                  style={{ cursor: "pointer" }}
+                >
+                  <td>
+                    <div className="font-semibold text-[var(--text-strong)]">{item.metric_name}</div>
+                    <div className="text-xs text-[var(--muted)]">{item.service_name}</div>
+                  </td>
+                  <td>{item.metric_type}</td>
+                  <td>{item.unit || "none"}</td>
+                  <td>{item.environment || "default"}</td>
+                  <td>{`${item.series_count} ${plural(item.series_count, "series", "series")}`}</td>
+                </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <EmptyState
+            title="No metrics found"
+            description={
+              filters.name || filters.type !== "all" || filters.environment !== "all"
+                ? "No metrics match the current filters. Try clearing the search or selecting a different type."
+                : serviceName
+                  ? `No metrics for service ${serviceName}.`
+                  : "No metrics available."
+            }
+          />
+        )}
+      </div>
     </TablePanel>
   );
 }
