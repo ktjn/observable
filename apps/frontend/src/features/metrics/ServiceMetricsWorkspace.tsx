@@ -170,11 +170,6 @@ export function ServiceMetricsWorkspace({
         renderTable={(selectedId, onSelect) => (
           <div className="flex flex-col flex-1 min-h-0 gap-4">
             <div>
-              <div className="field-label">Browse</div>
-              <h2 className="m-0 text-[13px] font-semibold text-[var(--text-strong)]">Metric Series</h2>
-            </div>
-
-            <div>
               <QueryFilterInput
                 baseIr={METRICS_BASE_IR}
                 serviceName={serviceName}
@@ -293,14 +288,14 @@ function MetricGraphContainer({
         series={seriesData}
         rangeStartMs={fromMs}
         rangeEndMs={toMs}
-        height={140}
+        height={100}
         onRangeSelect={onRangeSelect}
         ariaLabel={`Graph for ${selectedMetric.metric_name}`}
       />
     );
   })();
 
-  return <div className="h-[140px]">{content}</div>;
+  return <div className="h-[100px]">{content}</div>;
 }
 
 function MetricCatalogTable({
