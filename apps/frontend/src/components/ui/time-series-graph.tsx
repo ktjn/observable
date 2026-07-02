@@ -250,6 +250,24 @@ export function TimeSeriesGraph({
             />
           ))}
 
+          {/* Y-axis max label */}
+          {series.length > 0 && (() => {
+            const allValues = series.flatMap((s) => s.points.map((p) => p.value));
+            const max = allValues.length > 0 ? Math.max(...allValues) : 0;
+            const label = series[0].formatY ? series[0].formatY(max) : String(max);
+            return (
+              <text
+                x={4}
+                y={PLOT_TOP + 8}
+                fontSize={10}
+                fill="var(--muted)"
+                textAnchor="start"
+              >
+                {label}
+              </text>
+            );
+          })()}
+
           {series.map((s) => (
             <polyline
               key={s.key}
