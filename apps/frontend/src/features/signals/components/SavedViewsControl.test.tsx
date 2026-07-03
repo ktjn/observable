@@ -30,6 +30,10 @@ vi.mock("../../../api/savedViews", async () => {
     fetchSavedViews: vi.fn(async () => ({ items: [savedView] })),
     createSavedView: vi.fn(async () => savedView),
     deleteSavedView: vi.fn(async () => undefined),
+    updateSavedView: vi.fn(async () => ({ ...savedView, visibility: "public" })),
+    fetchSavedViewGrants: vi.fn(async () => ({ grants: [] })),
+    addSavedViewGrant: vi.fn(async () => undefined),
+    revokeSavedViewGrant: vi.fn(async () => undefined),
   };
 });
 
@@ -71,5 +75,40 @@ test("saving the current view calls createSavedView with the current config", as
       signal_kind: "logs",
       config: baseConfig,
     }),
+  );
+});
+
+test("toggling visibility calls updateSavedView with the flipped value", async () => {
+  const { updateSavedView } = await import("../../../api/savedViews");
+  render(<SavedViewsControl tenantId="tenant-1" currentConfig={baseConfig} onLoad={vi.fn()} />, { wrapper });
+
+  fireEvent.click(screen.getByRole("button", { name: /saved views/i }));
+  await waitFor(() => screen.getByText("Errors in checkout"));
+  fireEvent.click(screen.getByRole("button", { name: /manage errors in checkout/i }));
+  await waitFor(() => screen.getByRole("button", { name: /make public/i }));
+  fireEvent.click(screen.getByRole("button", { name: /make public/i }));
+
+  await waitFor(() =>
+    expect(updateSavedView).toHaveBeenCalledWith("tenant-1", savedView.saved_view_id, {
+      name: savedView.name,
+      config: savedView.config,
+      visibility: "public",
+    }),
+  );
+});
+
+test("adding a grant calls addSavedViewGrant with the entered user id and relation", async () => {
+  const { addSavedViewGrant } = await import("../../../api/savedViews");
+  render(<SavedViewsControl tenantId="tenant-1" currentConfig={baseConfig} onLoad={vi.fn()} />, { wrapper });
+
+  fireEvent.click(screen.getByRole("button", { name: /saved views/i }));
+  await waitFor(() => screen.getByText("Errors in checkout"));
+  fireEvent.click(screen.getByRole("button", { name: /manage errors in checkout/i }));
+  await waitFor(() => screen.getByPlaceholderText("User ID"));
+  fireEvent.change(screen.getByPlaceholderText("User ID"), { target: { value: "user-42" } });
+  fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
+
+  await waitFor(() =>
+    expect(addSavedViewGrant).toHaveBeenCalledWith("tenant-1", savedView.saved_view_id, "user-42", "viewer"),
   );
 });
