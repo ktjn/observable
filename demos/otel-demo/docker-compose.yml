@@ -589,7 +589,7 @@ services:
     logging: *logging
 
   postgresql:
-    image: postgres:17.10
+    image: postgres:18.4
     deploy:
       resources:
         limits:
