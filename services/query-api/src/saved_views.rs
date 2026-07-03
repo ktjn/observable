@@ -320,6 +320,306 @@ pub async fn delete_saved_view(
     Ok(result.rows_affected() > 0)
 }
 
+pub async fn handle_list_saved_views(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Query(params): Query<ListSavedViewsQuery>,
+) -> Result<Json<SavedViewListResponse>, StatusCode> {
+    if !VALID_SIGNAL_KINDS.contains(&params.signal_kind.as_str()) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let items = list_saved_views(&state.db, ctx.tenant_id, ctx.user_id, &params.signal_kind)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to list saved views");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    Ok(Json(SavedViewListResponse { items }))
+}
+
+pub async fn handle_create_saved_view(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Json(req): Json<CreateSavedViewRequest>,
+) -> Result<(StatusCode, Json<SavedViewItem>), StatusCode> {
+    match create_saved_view(&state.db, ctx.tenant_id, &req, ctx.user_id).await {
+        Ok(item) => Ok((StatusCode::CREATED, Json(item))),
+        Err(SavedViewError::InvalidInput(msg)) => {
+            tracing::warn!(message = %msg, "invalid saved view input");
+            Err(StatusCode::BAD_REQUEST)
+        }
+        Err(SavedViewError::Db(e)) => {
+            tracing::error!(error = %e, "failed to create saved view");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+pub async fn handle_get_saved_view(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(saved_view_id): Path<Uuid>,
+) -> Result<Json<SavedViewItem>, StatusCode> {
+    let item = match get_saved_view(&state.db, ctx.tenant_id, saved_view_id).await {
+        Ok(Some(item)) => item,
+        Ok(None) => return Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            tracing::error!(error = %e, "failed to get saved view");
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+    if let Some(user_id) = ctx.user_id {
+        let relation = fetch_relation(&state.db, user_id, saved_view_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "failed to fetch grant");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+        if !grant_satisfies_read(&item.visibility, relation.as_deref()) {
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
+    Ok(Json(item))
+}
+
+async fn saved_view_exists(
+    db: &sqlx::PgPool,
+    saved_view_id: Uuid,
+    tenant_id: Uuid,
+) -> Result<bool, StatusCode> {
+    sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM saved_views WHERE saved_view_id = $1 AND tenant_id = $2)",
+    )
+    .bind(saved_view_id)
+    .bind(tenant_id)
+    .fetch_one(db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to check saved view existence");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })
+}
+
+pub async fn handle_update_saved_view(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(saved_view_id): Path<Uuid>,
+    Json(req): Json<UpdateSavedViewRequest>,
+) -> Result<Json<SavedViewItem>, StatusCode> {
+    if !saved_view_exists(&state.db, saved_view_id, ctx.tenant_id).await? {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    if let Some(user_id) = ctx.user_id {
+        let relation = fetch_relation(&state.db, user_id, saved_view_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "failed to fetch grant");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+        if !grant_satisfies_write(&ctx.role, relation.as_deref()) {
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
+    match update_saved_view(&state.db, ctx.tenant_id, saved_view_id, &req).await {
+        Ok(Some(item)) => Ok(Json(item)),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(SavedViewError::InvalidInput(msg)) => {
+            tracing::warn!(message = %msg, "invalid saved view update");
+            Err(StatusCode::BAD_REQUEST)
+        }
+        Err(SavedViewError::Db(e)) => {
+            tracing::error!(error = %e, "failed to update saved view");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+pub async fn handle_delete_saved_view(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(saved_view_id): Path<Uuid>,
+) -> Result<StatusCode, StatusCode> {
+    if !saved_view_exists(&state.db, saved_view_id, ctx.tenant_id).await? {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    if let Some(user_id) = ctx.user_id {
+        let relation = fetch_relation(&state.db, user_id, saved_view_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "failed to fetch grant");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+        if !grant_satisfies_delete(&ctx.role, relation.as_deref()) {
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
+    match delete_saved_view(&state.db, ctx.tenant_id, saved_view_id).await {
+        Ok(true) => Ok(StatusCode::NO_CONTENT),
+        Ok(false) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            tracing::error!(error = %e, "failed to delete saved view");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+pub async fn handle_list_saved_view_grants(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(saved_view_id): Path<Uuid>,
+) -> Result<Json<GrantListResponse>, StatusCode> {
+    let user_id = ctx.user_id.ok_or(StatusCode::FORBIDDEN)?;
+    if !saved_view_exists(&state.db, saved_view_id, ctx.tenant_id).await? {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    let relation = fetch_relation(&state.db, user_id, saved_view_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to fetch grant");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    let is_admin = ctx.role == "tenant_admin";
+    let is_owner = relation.as_deref() == Some("owner");
+    if !is_admin && !is_owner {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let grants = sqlx::query_as::<_, GrantItem>(
+        "SELECT user_id, relation, granted_at \
+         FROM saved_view_grants \
+         WHERE saved_view_id = $1 \
+         ORDER BY granted_at ASC",
+    )
+    .bind(saved_view_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to list grants");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    Ok(Json(GrantListResponse { grants }))
+}
+
+pub async fn handle_add_saved_view_grant(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(saved_view_id): Path<Uuid>,
+    Json(req): Json<AddGrantRequest>,
+) -> Result<StatusCode, StatusCode> {
+    if !matches!(req.relation.as_str(), "owner" | "editor" | "viewer") {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let user_id = ctx.user_id.ok_or(StatusCode::FORBIDDEN)?;
+    if !saved_view_exists(&state.db, saved_view_id, ctx.tenant_id).await? {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    let caller_relation = fetch_relation(&state.db, user_id, saved_view_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to fetch grant");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    let is_admin = ctx.role == "tenant_admin";
+    if !is_admin && caller_relation.as_deref() != Some("owner") {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let target_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2)",
+    )
+    .bind(req.user_id)
+    .bind(ctx.tenant_id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to verify target user");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    if !target_exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    sqlx::query(
+        "INSERT INTO saved_view_grants (saved_view_id, user_id, relation) \
+         VALUES ($1, $2, $3) \
+         ON CONFLICT (saved_view_id, user_id) DO UPDATE SET relation = EXCLUDED.relation",
+    )
+    .bind(saved_view_id)
+    .bind(req.user_id)
+    .bind(&req.relation)
+    .execute(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to insert grant");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn handle_revoke_saved_view_grant(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path((saved_view_id, target_user_id)): Path<(Uuid, Uuid)>,
+) -> Result<StatusCode, StatusCode> {
+    let user_id = ctx.user_id.ok_or(StatusCode::FORBIDDEN)?;
+    if !saved_view_exists(&state.db, saved_view_id, ctx.tenant_id).await? {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    let caller_relation = fetch_relation(&state.db, user_id, saved_view_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to fetch caller grant");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    let is_admin = ctx.role == "tenant_admin";
+    let is_owner = caller_relation.as_deref() == Some("owner");
+    if !is_admin && !is_owner {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let target_relation = fetch_relation(&state.db, target_user_id, saved_view_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to fetch target grant");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    // Atomic guard against deleting the last owner — see dashboards::handle_revoke_grant
+    // for the identical TOCTOU-race rationale.
+    let result = if target_relation.as_deref() == Some("owner") {
+        sqlx::query(
+            "WITH guard AS ( \
+               SELECT COUNT(*) AS remaining \
+               FROM saved_view_grants \
+               WHERE saved_view_id = $1 AND relation = 'owner' AND user_id != $2 \
+             ) \
+             DELETE FROM saved_view_grants \
+             WHERE saved_view_id = $1 AND user_id = $2 \
+               AND (SELECT remaining FROM guard) > 0",
+        )
+        .bind(saved_view_id)
+        .bind(target_user_id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to delete grant");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+    } else {
+        sqlx::query("DELETE FROM saved_view_grants WHERE saved_view_id = $1 AND user_id = $2")
+            .bind(saved_view_id)
+            .bind(target_user_id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "failed to delete grant");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+    };
+    if result.rows_affected() == 0 {
+        if target_relation.as_deref() == Some("owner") {
+            return Err(StatusCode::CONFLICT);
+        }
+        return Err(StatusCode::NOT_FOUND);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
