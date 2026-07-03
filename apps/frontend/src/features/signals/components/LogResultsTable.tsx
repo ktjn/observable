@@ -4,12 +4,15 @@ import { formatTimestamp } from "../../../utils/formatTimestamp";
 import { formatLogMessage, getSeverityColor, otelSeverity } from "../../../utils/logFormatting";
 import type { TimeFormat } from "../../../lib/timeDisplay";
 
+export type LogTableColumn = "level" | "service";
+
 export function LogResultsTable({
   logs,
   selectedLogId,
   onSelectLog,
   timeFormat,
   showServiceColumn = true,
+  visibleColumns,
   ariaLabel = showServiceColumn ? "Log results" : "Service logs",
 }: {
   logs: LogRecord[];
@@ -17,8 +20,13 @@ export function LogResultsTable({
   onSelectLog: (logId: string) => void;
   timeFormat: TimeFormat;
   showServiceColumn?: boolean;
+  /** When set, restricts optional columns (Level, Service) to this list. Time and Message always show. */
+  visibleColumns?: LogTableColumn[];
   ariaLabel?: string;
 }) {
+  const showLevel = visibleColumns === undefined || visibleColumns.includes("level");
+  const showService = showServiceColumn && (visibleColumns === undefined || visibleColumns.includes("service"));
+
   return (
     <VirtualTable
       rows={logs}
@@ -26,8 +34,8 @@ export function LogResultsTable({
       renderHead={() => (
         <tr>
           <th aria-label="Time">Time</th>
-          <th>Level</th>
-          {showServiceColumn && <th>Service</th>}
+          {showLevel && <th>Level</th>}
+          {showService && <th>Service</th>}
           <th>Message</th>
         </tr>
       )}
@@ -38,7 +46,8 @@ export function LogResultsTable({
           timeFormat={timeFormat}
           selected={selectedLogId === log.log_id}
           onSelect={() => onSelectLog(log.log_id)}
-          showServiceColumn={showServiceColumn}
+          showLevel={showLevel}
+          showServiceColumn={showService}
           measureRef={ref}
           index={index}
         />
@@ -52,6 +61,7 @@ function LogResultsRow({
   timeFormat,
   selected,
   onSelect,
+  showLevel,
   showServiceColumn,
   measureRef,
   index,
@@ -60,6 +70,7 @@ function LogResultsRow({
   timeFormat: TimeFormat;
   selected: boolean;
   onSelect: () => void;
+  showLevel: boolean;
   showServiceColumn: boolean;
   measureRef: (el: Element | null) => void;
   index: number;
@@ -87,14 +98,16 @@ function LogResultsRow({
       aria-pressed={selected}
     >
       <td className="whitespace-nowrap">{formatTimestamp(log.timestamp_unix_nano, timeFormat)}</td>
-      <td>
-        <span
-          className="text-[9px] font-bold uppercase tracking-wide"
-          style={{ color: getSeverityColor(log.severity_number) }}
-        >
-          {severity.label}
-        </span>
-      </td>
+      {showLevel && (
+        <td>
+          <span
+            className="text-[9px] font-bold uppercase tracking-wide"
+            style={{ color: getSeverityColor(log.severity_number) }}
+          >
+            {severity.label}
+          </span>
+        </td>
+      )}
       {showServiceColumn && <td>{log.service_name}</td>}
       <td className="whitespace-normal break-all">{message}</td>
     </tr>

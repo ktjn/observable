@@ -25,6 +25,7 @@ export interface SignalExplorerProps {
   onQuerySubmit?: (text: string) => void;
   saveStatus: SaveStatus;
   onPromote: () => void;
+  savedViewsControl?: ReactNode;
   histogram: ReactNode;
   renderTable: (selectedId: string | null, onSelect: (id: string | null) => void) => ReactNode;
   renderPanel: (selectedId: string, onClose: () => void) => ReactNode;
@@ -43,6 +44,7 @@ export function SignalExplorer({
   onQuerySubmit,
   saveStatus,
   onPromote,
+  savedViewsControl,
   histogram,
   renderTable,
   renderPanel,
@@ -101,6 +103,7 @@ export function SignalExplorer({
             Clear filters
           </Button>
         )}
+        {savedViewsControl}
         {showPromote && (
           <>
             <Button variant="secondary" onClick={onPromote} disabled={saveStatus === "saving"}>

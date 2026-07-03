@@ -29,6 +29,9 @@ import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
 import { SignalExplorer, SaveStatus } from "../components/shared/SignalExplorer";
 import { LogResultsTable } from "../features/signals/components/LogResultsTable";
+import { SavedViewsControl } from "../features/signals/components/SavedViewsControl";
+import { ColumnPickerControl } from "../features/signals/components/ColumnPickerControl";
+import type { LogViewConfig } from "../api/savedViews";
 import { MetricCard } from "../components/ui/metric-card";
 
 const LOG_BASE_IR: NlqIrLike = {
@@ -97,7 +100,7 @@ export function LogExplorer({
   serviceName,
 }: LogExplorerProps) {
   const { format } = useTimeDisplay();
-  const { fromMs, toMs, setCustomRange } = useGlobalDateRange();
+  const { preset, fromMs, toMs, setPreset, setCustomRange } = useGlobalDateRange();
   const { tenantId } = useTenantContext();
 
   // userQuery is the raw text (NLQ or raw IR JSON) submitted by the user.
@@ -120,6 +123,7 @@ export function LogExplorer({
   const [bucketCount, setBucketCount] = useState(60);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [isLive, setIsLive] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<("level" | "service")[]>(["level", "service"]);
 
   const SEVERITY_MIN: Partial<Record<SeverityFilter, number>> = {
     error: 17,
@@ -240,6 +244,30 @@ export function LogExplorer({
     }
   };
 
+  const currentViewConfig: LogViewConfig = {
+    query: userQuery,
+    severity_filter: severityFilter,
+    message_search: messageSearch,
+    time_range:
+      preset != null
+        ? { mode: "preset", preset }
+        : { mode: "absolute", from_ms: fromMs, to_ms: toMs },
+    visible_columns: visibleColumns,
+  };
+
+  const handleLoadView = (config: LogViewConfig) => {
+    setUserQuery(config.query);
+    setService("");
+    setSeverityFilter(config.severity_filter as SeverityFilter);
+    setMessageSearch(config.message_search);
+    if (config.time_range.mode === "preset") {
+      setPreset(config.time_range.preset as Parameters<typeof setPreset>[0]);
+    } else {
+      setCustomRange(config.time_range.from_ms, config.time_range.to_ms);
+    }
+    setVisibleColumns(config.visible_columns.filter((c): c is "level" | "service" => c === "level" || c === "service"));
+  };
+
   return (
     <SignalExplorer
       title="Logs"
@@ -257,6 +285,12 @@ export function LogExplorer({
       }}
       saveStatus={saveStatus}
       onPromote={handlePromote}
+      savedViewsControl={
+        <>
+          <ColumnPickerControl visibleColumns={visibleColumns} onChange={setVisibleColumns} />
+          <SavedViewsControl tenantId={tenantId} currentConfig={currentViewConfig} onLoad={handleLoadView} />
+        </>
+      }
       histogram={
         histogramData ? (
           <Histogram
@@ -368,6 +402,7 @@ export function LogExplorer({
                     onSelectLog={(id) => onSelect(id)}
                     timeFormat={format}
                     showServiceColumn={showServiceColumn}
+                    visibleColumns={visibleColumns}
                     ariaLabel={tableAriaLabel}
                   />
                   {isCapped && (

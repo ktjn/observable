@@ -111,6 +111,32 @@ vi.mock("../api/dashboards", () => ({
   })),
 }));
 
+vi.mock("../api/savedViews", async () => {
+  const actual = await vi.importActual<typeof import("../api/savedViews")>("../api/savedViews");
+  return {
+    ...actual,
+    fetchSavedViews: vi.fn(async () => ({
+      items: [
+        {
+          saved_view_id: "view-1",
+          name: "Only errors",
+          signal_kind: "logs",
+          visibility: "private",
+          config: {
+            query: null,
+            severity_filter: "error",
+            message_search: "timeout",
+            time_range: { mode: "preset", preset: "1h" },
+            visible_columns: ["level"],
+          },
+          created_at: "2026-07-01T00:00:00Z",
+          updated_at: "2026-07-01T00:00:00Z",
+        },
+      ],
+    })),
+  };
+});
+
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
     to,
@@ -317,6 +343,18 @@ test("shows 'Histogram unavailable' when histogram query fails", async () => {
 
   await waitFor(() => {
     expect(screen.getByText("Histogram unavailable")).toBeInTheDocument();
+  });
+});
+
+test("loading a saved view applies its severity filter and message search", async () => {
+  renderLogSearch();
+
+  fireEvent.click(screen.getByRole("button", { name: /saved views/i }));
+  await waitFor(() => screen.getByText("Only errors"));
+  fireEvent.click(screen.getByText("Only errors"));
+
+  await waitFor(() => {
+    expect(screen.getByLabelText("Search log messages")).toHaveValue("timeout");
   });
 });
 

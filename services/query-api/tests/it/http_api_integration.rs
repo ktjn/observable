@@ -11,7 +11,7 @@ use http_body_util::BodyExt;
 use query_api::{
     alerts, dashboards, discovery, incidents, llm_adapter, logs, metrics,
     middleware::auth::TenantContext, middleware::auth::require_tenant, observability,
-    planner::QueryPlanner, reliability, slos, traces,
+    planner::QueryPlanner, reliability, saved_views, slos, traces,
 };
 use serde_json::Value;
 use sqlx::postgres::PgPool;
@@ -144,6 +144,14 @@ fn build_app_with_pg_at(ch: ChClient, db: PgPool, auth_service_url: String) -> R
         .route(
             "/v1/dashboards/{id}",
             put(dashboards::handle_update_dashboard),
+        )
+        .route(
+            "/v1/saved-views",
+            get(saved_views::handle_list_saved_views).post(saved_views::handle_create_saved_view),
+        )
+        .route(
+            "/v1/saved-views/{id}",
+            get(saved_views::handle_get_saved_view).put(saved_views::handle_update_saved_view),
         )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
@@ -1923,4 +1931,58 @@ async fn get_service_reliability_report_filters_service_environment_and_interval
         mean_time >= 59.0,
         "expected MTTR to reflect the resolved incident duration, got {mean_time}"
     );
+}
+
+#[tokio::test]
+async fn saved_view_create_then_list_then_get_round_trips_config() {
+    let (ch, _ch_container) = start_clickhouse().await;
+    let pg = test_support::postgres::shared_pool().await;
+    let app = build_app_with_pg(ch, pg.clone()).await;
+    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+
+    let created = saved_views::create_saved_view(
+        &pg,
+        tenant,
+        &saved_views::CreateSavedViewRequest {
+            name: "Errors in checkout".into(),
+            signal_kind: "logs".into(),
+            config: serde_json::json!({
+                "query": null,
+                "severity_filter": "error",
+                "message_search": "",
+                "time_range": {"mode": "preset", "preset": "1h"},
+                "visible_columns": ["level", "service"]
+            }),
+        },
+        None,
+    )
+    .await
+    .expect("saved view created");
+
+    let list_response = app
+        .clone()
+        .oneshot(dev_request("GET", "/v1/saved-views?signal_kind=logs"))
+        .await
+        .unwrap();
+    assert_eq!(list_response.status(), StatusCode::OK);
+    let list_body = response_body_json(list_response.into_body()).await;
+    let items = list_body["items"].as_array().expect("items array");
+    assert!(
+        items
+            .iter()
+            .any(|item| item["saved_view_id"] == created.saved_view_id.to_string())
+    );
+
+    let get_response = app
+        .oneshot(dev_request(
+            "GET",
+            &format!("/v1/saved-views/{}", created.saved_view_id),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(get_response.status(), StatusCode::OK);
+    let get_body = response_body_json(get_response.into_body()).await;
+    assert_eq!(get_body["name"], "Errors in checkout");
+    assert_eq!(get_body["config"]["severity_filter"], "error");
+    assert_eq!(get_body["config"]["visible_columns"][0], "level");
 }

@@ -16,6 +16,7 @@ mod notifications;
 mod observability;
 mod planner;
 mod reliability;
+mod saved_views;
 mod schemas;
 mod setup;
 mod slos;
@@ -132,6 +133,25 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/dashboards/{id}/grants/{user_id}",
             axum::routing::delete(dashboards::handle_revoke_grant),
+        )
+        .route(
+            "/v1/saved-views",
+            get(saved_views::handle_list_saved_views).post(saved_views::handle_create_saved_view),
+        )
+        .route(
+            "/v1/saved-views/{id}",
+            get(saved_views::handle_get_saved_view)
+                .put(saved_views::handle_update_saved_view)
+                .delete(saved_views::handle_delete_saved_view),
+        )
+        .route(
+            "/v1/saved-views/{id}/grants",
+            get(saved_views::handle_list_saved_view_grants)
+                .post(saved_views::handle_add_saved_view_grant),
+        )
+        .route(
+            "/v1/saved-views/{id}/grants/{user_id}",
+            axum::routing::delete(saved_views::handle_revoke_saved_view_grant),
         )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))

@@ -74,3 +74,30 @@ test("can hide the service column for already scoped service log views", () => {
   expect(within(table).queryByRole("columnheader", { name: "Service" })).not.toBeInTheDocument();
   expect(within(table).getByText("checkout completed")).toBeInTheDocument();
 });
+
+test("hides the Level column when visibleColumns omits it", () => {
+  render(
+    <LogResultsTable
+      logs={logs}
+      selectedLogId={undefined}
+      onSelectLog={vi.fn()}
+      timeFormat="iso-utc-ms"
+      visibleColumns={["service"]}
+    />,
+  );
+  expect(screen.queryByRole("columnheader", { name: "Level" })).not.toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: "Service" })).toBeInTheDocument();
+});
+
+test("shows all columns when visibleColumns is omitted", () => {
+  render(
+    <LogResultsTable
+      logs={logs}
+      selectedLogId={undefined}
+      onSelectLog={vi.fn()}
+      timeFormat="iso-utc-ms"
+    />,
+  );
+  expect(screen.getByRole("columnheader", { name: "Level" })).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: "Service" })).toBeInTheDocument();
+});
