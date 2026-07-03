@@ -30,6 +30,7 @@ import { Histogram, HistogramBucket } from "../components/ui/histogram";
 import { SignalExplorer, SaveStatus } from "../components/shared/SignalExplorer";
 import { LogResultsTable } from "../features/signals/components/LogResultsTable";
 import { SavedViewsControl } from "../features/signals/components/SavedViewsControl";
+import { ColumnPickerControl } from "../features/signals/components/ColumnPickerControl";
 import type { LogViewConfig } from "../api/savedViews";
 import { MetricCard } from "../components/ui/metric-card";
 
@@ -256,6 +257,7 @@ export function LogExplorer({
 
   const handleLoadView = (config: LogViewConfig) => {
     setUserQuery(config.query);
+    setService("");
     setSeverityFilter(config.severity_filter as SeverityFilter);
     setMessageSearch(config.message_search);
     if (config.time_range.mode === "preset") {
@@ -284,7 +286,10 @@ export function LogExplorer({
       saveStatus={saveStatus}
       onPromote={handlePromote}
       savedViewsControl={
-        <SavedViewsControl tenantId={tenantId} currentConfig={currentViewConfig} onLoad={handleLoadView} />
+        <>
+          <ColumnPickerControl visibleColumns={visibleColumns} onChange={setVisibleColumns} />
+          <SavedViewsControl tenantId={tenantId} currentConfig={currentViewConfig} onLoad={handleLoadView} />
+        </>
       }
       histogram={
         histogramData ? (
