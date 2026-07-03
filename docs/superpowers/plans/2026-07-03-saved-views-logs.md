@@ -41,6 +41,8 @@
 | `apps/frontend/src/pages/LogSearch.test.tsx` | Test loading a saved view rehydrates state |
 | `spec/05-frontend.md` | §9.11: mark Saved Views shipped (logs-only) |
 | `spec/09-api.md` | Add `/v1/saved-views` REST resource section |
+| `apps/frontend/src/features/signals/components/ColumnPickerControl.tsx` | New (Task 10): column show/hide popover |
+| `apps/frontend/src/features/signals/components/SavedViewsControl.tsx` | Extended (Task 11): visibility toggle + grant management panel |
 
 ---
 
@@ -1854,6 +1856,508 @@ identical to dashboards.
 ```bash
 git add spec/05-frontend.md spec/09-api.md
 git commit -m "docs(spec): document Saved Views (logs slice) API and frontend behavior"
+```
+
+---
+
+### Task 10: Column-picker UI
+
+**Added after final review** (`docs/superpowers/plans/2026-07-03-saved-views-logs.md` final whole-branch review): Task 6 added the `visibleColumns` prop to `LogResultsTable` but no UI ever changed it, so the "column selection" capability from the design doc was inert end-to-end. This task closes that gap. It also fixes a real bug found in the same review: `handleLoadView` (Task 8) never resets `service`, so a stale service filter can linger after loading a saved view.
+
+**Files:**
+- Create: `apps/frontend/src/features/signals/components/ColumnPickerControl.tsx`
+- Create: `apps/frontend/src/features/signals/components/ColumnPickerControl.test.tsx`
+- Modify: `apps/frontend/src/pages/LogSearch.tsx` — render `ColumnPickerControl` alongside `SavedViewsControl`; fix `handleLoadView` to reset `service`
+
+**Interfaces:**
+- Consumes: `LogTableColumn` type already exported from `apps/frontend/src/features/signals/components/LogResultsTable.tsx` (Task 6).
+- Produces: `ColumnPickerControl` component — consumed only by `LogSearch.tsx` in this task.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `apps/frontend/src/features/signals/components/ColumnPickerControl.test.tsx`:
+
+```typescript
+import { fireEvent, render, screen } from "@testing-library/react";
+import { expect, test, vi } from "vitest";
+import { ColumnPickerControl } from "./ColumnPickerControl";
+
+test("toggling an unchecked column adds it to visibleColumns", () => {
+  const onChange = vi.fn();
+  render(<ColumnPickerControl visibleColumns={["service"]} onChange={onChange} />);
+
+  fireEvent.click(screen.getByRole("button", { name: /columns/i }));
+  fireEvent.click(screen.getByLabelText("Level"));
+
+  expect(onChange).toHaveBeenCalledWith(["service", "level"]);
+});
+
+test("toggling a checked column removes it from visibleColumns", () => {
+  const onChange = vi.fn();
+  render(<ColumnPickerControl visibleColumns={["level", "service"]} onChange={onChange} />);
+
+  fireEvent.click(screen.getByRole("button", { name: /columns/i }));
+  fireEvent.click(screen.getByLabelText("Service"));
+
+  expect(onChange).toHaveBeenCalledWith(["level"]);
+});
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `cd apps/frontend && npx vitest run src/features/signals/components/ColumnPickerControl.test.tsx 2>&1 | tail -40`
+Expected: FAIL — module doesn't exist.
+
+- [ ] **Step 3: Implement the component**
+
+Create `apps/frontend/src/features/signals/components/ColumnPickerControl.tsx`:
+
+```typescript
+import { useState } from "react";
+import { Button } from "../../../components/ui/button";
+import type { LogTableColumn } from "./LogResultsTable";
+
+const COLUMN_LABELS: Record<LogTableColumn, string> = {
+  level: "Level",
+  service: "Service",
+};
+
+const ALL_COLUMNS: LogTableColumn[] = ["level", "service"];
+
+export interface ColumnPickerControlProps {
+  visibleColumns: LogTableColumn[];
+  onChange: (columns: LogTableColumn[]) => void;
+}
+
+export function ColumnPickerControl({ visibleColumns, onChange }: ColumnPickerControlProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  function toggle(column: LogTableColumn) {
+    if (visibleColumns.includes(column)) {
+      onChange(visibleColumns.filter((c) => c !== column));
+    } else {
+      onChange([...visibleColumns, column]);
+    }
+  }
+
+  return (
+    <div className="relative">
+      <Button variant="secondary" onClick={() => setIsOpen((v) => !v)}>
+        Columns
+      </Button>
+      {isOpen && (
+        <div className="absolute z-10 mt-1 w-40 border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg">
+          {ALL_COLUMNS.map((column) => (
+            <label key={column} className="flex items-center gap-2 py-1 text-sm">
+              <input
+                type="checkbox"
+                checked={visibleColumns.includes(column)}
+                onChange={() => toggle(column)}
+              />
+              {COLUMN_LABELS[column]}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `cd apps/frontend && npx vitest run src/features/signals/components/ColumnPickerControl.test.tsx 2>&1 | tail -40`
+Expected: both tests pass.
+
+- [ ] **Step 5: Wire it into `LogSearch.tsx` and fix the stale-`service` bug**
+
+In `apps/frontend/src/pages/LogSearch.tsx`, add to the imports (after the `SavedViewsControl` import):
+
+```typescript
+import { ColumnPickerControl } from "../features/signals/components/ColumnPickerControl";
+```
+
+Replace the `savedViewsControl` prop value passed to `<SignalExplorer>`:
+
+```typescript
+      savedViewsControl={
+        <SavedViewsControl tenantId={tenantId} currentConfig={currentViewConfig} onLoad={handleLoadView} />
+      }
+```
+
+with:
+
+```typescript
+      savedViewsControl={
+        <>
+          <ColumnPickerControl visibleColumns={visibleColumns} onChange={setVisibleColumns} />
+          <SavedViewsControl tenantId={tenantId} currentConfig={currentViewConfig} onLoad={handleLoadView} />
+        </>
+      }
+```
+
+Fix the stale-`service` bug in `handleLoadView` — replace:
+
+```typescript
+  const handleLoadView = (config: LogViewConfig) => {
+    setUserQuery(config.query);
+    setSeverityFilter(config.severity_filter as SeverityFilter);
+    setMessageSearch(config.message_search);
+```
+
+with:
+
+```typescript
+  const handleLoadView = (config: LogViewConfig) => {
+    setUserQuery(config.query);
+    setService("");
+    setSeverityFilter(config.severity_filter as SeverityFilter);
+    setMessageSearch(config.message_search);
+```
+
+- [ ] **Step 6: Run the full frontend suite and typecheck**
+
+Run: `cd apps/frontend && npx vitest run 2>&1 | tail -60`
+Expected: no regressions.
+
+Run: `cd apps/frontend && npm run typecheck 2>&1 | tail -30`
+Expected: clean.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add apps/frontend/src/features/signals/components/ColumnPickerControl.tsx apps/frontend/src/features/signals/components/ColumnPickerControl.test.tsx apps/frontend/src/pages/LogSearch.tsx
+git commit -m "feat(frontend): add column-picker UI and fix stale service filter on view load"
+```
+
+---
+
+### Task 11: Sharing UI (visibility + grants) in `SavedViewsControl`
+
+**Added after final review**: the backend already supports `visibility` toggling and per-user grants (Tasks 2-3), and the frontend API client already has `updateSavedView`/`fetchSavedViewGrants`/`addSavedViewGrant`/`revokeSavedViewGrant` (Task 5), but nothing in the UI called them — every saved view was permanently private. This task adds a "Manage" panel per view: a visibility toggle and a minimal grant list with an add-by-user-id form, per the design doc's documented fallback ("a minimal list+add-user-by-id form").
+
+**Files:**
+- Modify: `apps/frontend/src/features/signals/components/SavedViewsControl.tsx`
+- Modify: `apps/frontend/src/features/signals/components/SavedViewsControl.test.tsx`
+
+**Interfaces:**
+- Consumes: `updateSavedView`, `fetchSavedViewGrants`, `addSavedViewGrant`, `revokeSavedViewGrant` from `apps/frontend/src/api/savedViews.ts` (Task 5, already present, currently unused).
+- Produces: nothing new for later tasks — this is the final UI surface for this slice.
+
+- [ ] **Step 1: Write the failing tests**
+
+Add to `apps/frontend/src/features/signals/components/SavedViewsControl.test.tsx`, extending the existing `vi.mock("../../../api/savedViews", ...)` block to also mock the grants functions:
+
+```typescript
+vi.mock("../../../api/savedViews", async () => {
+  const actual = await vi.importActual<typeof import("../../../api/savedViews")>("../../../api/savedViews");
+  return {
+    ...actual,
+    fetchSavedViews: vi.fn(async () => ({ items: [savedView] })),
+    createSavedView: vi.fn(async () => savedView),
+    deleteSavedView: vi.fn(async () => undefined),
+    updateSavedView: vi.fn(async () => ({ ...savedView, visibility: "public" })),
+    fetchSavedViewGrants: vi.fn(async () => ({ grants: [] })),
+    addSavedViewGrant: vi.fn(async () => undefined),
+    revokeSavedViewGrant: vi.fn(async () => undefined),
+  };
+});
+```
+
+Then add two new tests to the same file:
+
+```typescript
+test("toggling visibility calls updateSavedView with the flipped value", async () => {
+  const { updateSavedView } = await import("../../../api/savedViews");
+  render(<SavedViewsControl tenantId="tenant-1" currentConfig={baseConfig} onLoad={vi.fn()} />, { wrapper });
+
+  fireEvent.click(screen.getByRole("button", { name: /saved views/i }));
+  await waitFor(() => screen.getByText("Errors in checkout"));
+  fireEvent.click(screen.getByRole("button", { name: /manage errors in checkout/i }));
+  await waitFor(() => screen.getByRole("button", { name: /make public/i }));
+  fireEvent.click(screen.getByRole("button", { name: /make public/i }));
+
+  await waitFor(() =>
+    expect(updateSavedView).toHaveBeenCalledWith("tenant-1", savedView.saved_view_id, {
+      name: savedView.name,
+      config: savedView.config,
+      visibility: "public",
+    }),
+  );
+});
+
+test("adding a grant calls addSavedViewGrant with the entered user id and relation", async () => {
+  const { addSavedViewGrant } = await import("../../../api/savedViews");
+  render(<SavedViewsControl tenantId="tenant-1" currentConfig={baseConfig} onLoad={vi.fn()} />, { wrapper });
+
+  fireEvent.click(screen.getByRole("button", { name: /saved views/i }));
+  await waitFor(() => screen.getByText("Errors in checkout"));
+  fireEvent.click(screen.getByRole("button", { name: /manage errors in checkout/i }));
+  await waitFor(() => screen.getByPlaceholderText("User ID"));
+  fireEvent.change(screen.getByPlaceholderText("User ID"), { target: { value: "user-42" } });
+  fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
+
+  await waitFor(() =>
+    expect(addSavedViewGrant).toHaveBeenCalledWith("tenant-1", savedView.saved_view_id, "user-42", "viewer"),
+  );
+});
+```
+
+- [ ] **Step 2: Run tests to verify the new ones fail**
+
+Run: `cd apps/frontend && npx vitest run src/features/signals/components/SavedViewsControl.test.tsx 2>&1 | tail -60`
+Expected: FAIL — no "Manage" button rendered yet.
+
+- [ ] **Step 3: Implement the Manage panel**
+
+Replace the full content of `apps/frontend/src/features/signals/components/SavedViewsControl.tsx` with:
+
+```typescript
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button } from "../../../components/ui/button";
+import {
+  addSavedViewGrant,
+  createSavedView,
+  deleteSavedView,
+  fetchSavedViewGrants,
+  fetchSavedViews,
+  revokeSavedViewGrant,
+  updateSavedView,
+  type LogViewConfig,
+  type SavedView,
+} from "../../../api/savedViews";
+
+export interface SavedViewsControlProps {
+  tenantId: string;
+  currentConfig: LogViewConfig;
+  onLoad: (config: LogViewConfig) => void;
+}
+
+export function SavedViewsControl({ tenantId, currentConfig, onLoad }: SavedViewsControlProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [newViewName, setNewViewName] = useState("");
+  const [managingViewId, setManagingViewId] = useState<string | null>(null);
+  const [newGrantUserId, setNewGrantUserId] = useState("");
+  const [newGrantRelation, setNewGrantRelation] = useState<"owner" | "editor" | "viewer">("viewer");
+  const queryClient = useQueryClient();
+
+  const { data } = useQuery({
+    queryKey: ["saved-views", tenantId, "logs"],
+    queryFn: () => fetchSavedViews(tenantId, "logs"),
+    enabled: isOpen,
+  });
+  const views = data?.items ?? [];
+  const managingView = views.find((v) => v.saved_view_id === managingViewId) ?? null;
+
+  const { data: grantsData } = useQuery({
+    queryKey: ["saved-view-grants", tenantId, managingViewId],
+    queryFn: () => fetchSavedViewGrants(tenantId, managingViewId as string),
+    enabled: managingViewId !== null,
+  });
+  const grants = grantsData?.grants ?? [];
+
+  const createMutation = useMutation({
+    mutationFn: (name: string) =>
+      createSavedView(tenantId, { name, signal_kind: "logs", config: currentConfig }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-views", tenantId, "logs"] });
+      setIsSaving(false);
+      setNewViewName("");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (savedViewId: string) => deleteSavedView(tenantId, savedViewId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-views", tenantId, "logs"] });
+    },
+  });
+
+  const visibilityMutation = useMutation({
+    mutationFn: (view: SavedView) =>
+      updateSavedView(tenantId, view.saved_view_id, {
+        name: view.name,
+        config: view.config,
+        visibility: view.visibility === "private" ? "public" : "private",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-views", tenantId, "logs"] });
+    },
+  });
+
+  const addGrantMutation = useMutation({
+    mutationFn: () =>
+      addSavedViewGrant(tenantId, managingViewId as string, newGrantUserId.trim(), newGrantRelation),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-view-grants", tenantId, managingViewId] });
+      setNewGrantUserId("");
+    },
+  });
+
+  const revokeGrantMutation = useMutation({
+    mutationFn: (userId: string) => revokeSavedViewGrant(tenantId, managingViewId as string, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-view-grants", tenantId, managingViewId] });
+    },
+  });
+
+  return (
+    <div className="relative">
+      <Button variant="secondary" onClick={() => setIsOpen((v) => !v)}>
+        Saved Views
+      </Button>
+      {isOpen && (
+        <div className="absolute z-10 mt-1 w-80 border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg">
+          <ul className="max-h-72 overflow-y-auto">
+            {views.map((view) => (
+              <li key={view.saved_view_id} className="flex flex-col gap-1 border-b border-[var(--border)] py-1 last:border-0">
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    className="flex-1 text-left text-sm hover:text-[var(--brand)]"
+                    onClick={() => {
+                      onLoad(view.config);
+                      setIsOpen(false);
+                    }}
+                  >
+                    {view.name}
+                  </button>
+                  <span className="text-[10px] uppercase text-[var(--muted)]">{view.visibility}</span>
+                  <button
+                    type="button"
+                    aria-label={`Manage ${view.name}`}
+                    className="text-xs text-[var(--muted)] hover:text-[var(--brand)]"
+                    onClick={() =>
+                      setManagingViewId(managingViewId === view.saved_view_id ? null : view.saved_view_id)
+                    }
+                  >
+                    Manage
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete ${view.name}`}
+                    className="text-xs text-[var(--muted)] hover:text-[var(--bad)]"
+                    onClick={() => deleteMutation.mutate(view.saved_view_id)}
+                  >
+                    Delete
+                  </button>
+                </div>
+                {managingViewId === view.saved_view_id && managingView && (
+                  <div className="ml-2 flex flex-col gap-2 border-l border-[var(--border)] py-1 pl-2">
+                    <Button
+                      variant="secondary"
+                      disabled={visibilityMutation.isPending}
+                      onClick={() => visibilityMutation.mutate(managingView)}
+                    >
+                      Make {managingView.visibility === "private" ? "Public" : "Private"}
+                    </Button>
+                    <ul className="flex flex-col gap-1">
+                      {grants.map((grant) => (
+                        <li key={grant.user_id} className="flex items-center justify-between gap-2 text-xs">
+                          <span>
+                            {grant.user_id} ({grant.relation})
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={`Remove ${grant.user_id}`}
+                            className="text-[var(--muted)] hover:text-[var(--bad)]"
+                            onClick={() => revokeGrantMutation.mutate(grant.user_id)}
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        placeholder="User ID"
+                        value={newGrantUserId}
+                        onChange={(e) => setNewGrantUserId(e.target.value)}
+                        className="min-w-0 flex-1 border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs"
+                      />
+                      <select
+                        aria-label="Relation"
+                        value={newGrantRelation}
+                        onChange={(e) =>
+                          setNewGrantRelation(e.target.value as "owner" | "editor" | "viewer")
+                        }
+                        className="border border-[var(--border)] bg-[var(--surface)] px-1 py-1 text-xs"
+                      >
+                        <option value="viewer">Viewer</option>
+                        <option value="editor">Editor</option>
+                        <option value="owner">Owner</option>
+                      </select>
+                      <Button
+                        variant="primary"
+                        disabled={!newGrantUserId.trim() || addGrantMutation.isPending}
+                        onClick={() => addGrantMutation.mutate()}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            ))}
+            {views.length === 0 && (
+              <li className="py-1 text-xs text-[var(--muted)]">No saved views yet.</li>
+            )}
+          </ul>
+          <div className="mt-2 border-t border-[var(--border)] pt-2">
+            {isSaving ? (
+              <div className="flex flex-col gap-2">
+                <label className="text-xs text-[var(--muted)]" htmlFor="saved-view-name">
+                  View name
+                </label>
+                <input
+                  id="saved-view-name"
+                  type="text"
+                  value={newViewName}
+                  onChange={(e) => setNewViewName(e.target.value)}
+                  className="border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs"
+                />
+                <Button
+                  variant="primary"
+                  disabled={!newViewName.trim() || createMutation.isPending}
+                  onClick={() => createMutation.mutate(newViewName.trim())}
+                >
+                  Save
+                </Button>
+              </div>
+            ) : (
+              <Button variant="secondary" onClick={() => setIsSaving(true)}>
+                Save current view
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `cd apps/frontend && npx vitest run src/features/signals/components/SavedViewsControl.test.tsx 2>&1 | tail -60`
+Expected: all tests pass, including the 2 existing ones (load, save) and the 2 new ones (visibility toggle, add grant).
+
+- [ ] **Step 5: Run the full frontend suite and typecheck**
+
+Run: `cd apps/frontend && npx vitest run 2>&1 | tail -60`
+Expected: no regressions (in particular, `LogSearch.test.tsx`'s existing saved-views test should still pass since the "load" flow is unchanged).
+
+Run: `cd apps/frontend && npm run typecheck 2>&1 | tail -30`
+Expected: clean.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add apps/frontend/src/features/signals/components/SavedViewsControl.tsx apps/frontend/src/features/signals/components/SavedViewsControl.test.tsx
+git commit -m "feat(frontend): add visibility toggle and grant management to SavedViewsControl"
 ```
 
 ---
