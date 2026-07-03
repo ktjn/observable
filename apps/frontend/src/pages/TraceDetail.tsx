@@ -407,6 +407,7 @@ export function TraceDetail({ traceId, spans, events }: Props) {
                   span.status_code === "ERROR"
                     ? "var(--bad)"
                     : serviceColor(span.service_name);
+                const isErrorSpan = span.status_code === "ERROR";
                 return (
                   <div
                     key={span.span_id}
@@ -423,7 +424,7 @@ export function TraceDetail({ traceId, spans, events }: Props) {
                     }}
                     className={`flex items-center mb-1 cursor-pointer px-0 py-0.5 ${
                       isSelected ? "bg-[var(--surface-subtle)]" : "bg-transparent"
-                    }`}
+                    } ${isErrorSpan ? "border-l-2 border-l-[var(--bad)]" : ""}`}
                   >
                     <span
                       className="w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-xs shrink-0"
@@ -433,6 +434,11 @@ export function TraceDetail({ traceId, spans, events }: Props) {
                       <span className="ml-1 text-[10px] text-[var(--muted)] font-mono">
                         [{span.span_kind}]
                       </span>
+                      {isErrorSpan && (
+                        <Badge tone="bad" className="ml-1.5">
+                          ERROR
+                        </Badge>
+                      )}
                     </span>
                     <div className="flex-1 relative h-4 bg-[var(--surface-inset)]">
                       <div
