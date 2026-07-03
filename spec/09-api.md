@@ -224,7 +224,22 @@ The Query API and Ingest API must support the deployment marker schema and logic
 - **Filtering**: `GET` returns rules for the authenticated tenant.
 - **Auth**: Requires `Member` role for create/silence.
 
-### 14.3 Prometheus Remote Write Ingest
+### 14.3 Saved Views API
+
+Endpoints: `GET/POST /v1/saved-views`, `GET/PUT/DELETE /v1/saved-views/{id}`,
+`GET/POST /v1/saved-views/{id}/grants`, `DELETE /v1/saved-views/{id}/grants/{user_id}`.
+
+Behavior: Mirrors the Dashboards API's visibility/grant model exactly —
+`visibility` is `private` (default) or `public`; grants carry `owner`/`editor`/`viewer`
+relations. `signal_kind` is currently restricted to `logs` (widens to `traces`/`metrics`
+in follow-up slices). `config` is an opaque JSON object interpreted only by the
+frontend — the backend validates it is a JSON object and stores/returns it verbatim.
+
+Auth: Requires `require_tenant` middleware (tenant-scoped). API-key callers see all
+tenant saved views; session users see public views plus views they hold a grant on,
+identical to dashboards.
+
+### 14.4 Prometheus Remote Write Ingest
 
 **ADR:** ADR-017-prometheus-remote-write.md
 
