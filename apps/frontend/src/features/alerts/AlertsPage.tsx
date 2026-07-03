@@ -27,6 +27,7 @@ import { MetricCard } from "../../components/ui/metric-card";
 import { Panel } from "../../components/ui/panel";
 import { Toolbar } from "../../components/ui/toolbar";
 import { Tabs } from "../../components/ui/tabs";
+import { CopyableText } from "../../components/ui/copy-button";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import { NotificationChannelsList } from "./NotificationChannelsList";
 
@@ -702,12 +703,15 @@ function SloHealthCard({ slo }: { slo: SloDefinitionItem }) {
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-bold text-[var(--text-strong)]">
-            {slo.description || `${slo.service_name} availability`}
+            <CopyableText
+              value={slo.description || `${slo.service_name} availability`}
+              label="Copy description"
+            />
           </div>
-          <div className="mt-1 flex flex-wrap gap-1 text-xs text-[var(--muted)]">
-            <span>{slo.service_name}</span>
+          <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-[var(--muted)]">
+            <CopyableText value={slo.service_name} label="Copy service name" />
             <span aria-hidden="true">·</span>
-            <span>{slo.environment}</span>
+            <CopyableText value={slo.environment} label="Copy environment" />
           </div>
         </div>
         <Badge tone={status.tone}>{status.label}</Badge>
@@ -783,8 +787,12 @@ function AlertRuleRow({
 
   return (
     <tr className={rowClass}>
-      <td className="py-3 pr-4 font-bold text-[var(--text-strong)]">{rule.name}</td>
-      <td className="py-3 pr-4">{rule.metric_name}</td>
+      <td className="py-3 pr-4 font-bold text-[var(--text-strong)]">
+        <CopyableText value={rule.name} label="Copy rule name" />
+      </td>
+      <td className="py-3 pr-4">
+        <CopyableText value={rule.metric_name} label="Copy metric name" mono />
+      </td>
       <td className="py-3 pr-4">{conditionLabel}</td>
       <td className="py-3 pr-4 text-xs text-[var(--muted)]">
         {channelNames || "None"}

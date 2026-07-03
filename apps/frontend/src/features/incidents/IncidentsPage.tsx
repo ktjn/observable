@@ -7,6 +7,7 @@ import { EmptyState } from "../../components/ui/empty-state";
 import { LoadingState } from "../../components/ui/loading-state";
 import { MetricCard } from "../../components/ui/metric-card";
 import { Panel } from "../../components/ui/panel";
+import { CopyButton } from "../../components/ui/copy-button";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import { useTimeDisplay } from "../../lib/timeDisplay";
 import { formatTimestamp, isoToNs } from "../../utils/formatTimestamp";
@@ -140,14 +141,17 @@ export function IncidentsPage() {
                   ].join(" ");
                   return (
                     <tr key={incident.incident_id} className={rowClass}>
-                      <td className="py-2 pr-4">
-                        <Link
-                          to="/incidents/$incidentId"
-                          params={{ incidentId: incident.incident_id }}
-                          className="font-medium hover:underline"
-                        >
-                          {incident.title}
-                        </Link>
+                      <td className="py-2 pr-4 group">
+                        <span className="inline-flex items-center gap-1">
+                          <Link
+                            to="/incidents/$incidentId"
+                            params={{ incidentId: incident.incident_id }}
+                            className="font-medium hover:underline"
+                          >
+                            {incident.title}
+                          </Link>
+                          <CopyButton value={incident.title} label="Copy incident title" />
+                        </span>
                       </td>
                       <td className="py-2 pr-4">
                         <Badge tone={severityColor(incident.severity)}>{incident.severity}</Badge>

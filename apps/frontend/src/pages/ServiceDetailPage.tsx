@@ -9,6 +9,7 @@ import {
   ServiceSummary,
 } from "../api/services";
 import { Badge } from "../components/ui/badge";
+import { CopyableText } from "../components/ui/copy-button";
 import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
@@ -176,7 +177,13 @@ function ServiceDetailView({
             </div>
             <div>
               <dt>Latest deployment</dt>
-              <dd>{service.latest_deployment ?? "No deployment marker"}</dd>
+              <dd>
+                {service.latest_deployment ? (
+                  <CopyableText value={service.latest_deployment} label="Copy deployment version" mono />
+                ) : (
+                  "No deployment marker"
+                )}
+              </dd>
             </div>
             <div>
               <dt>Time window</dt>

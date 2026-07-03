@@ -12,6 +12,8 @@ import { Input } from "../components/ui/input";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
+import { CopyableText } from "../components/ui/copy-button";
+import { DlRow } from "../components/ui/dl-row";
 
 export interface TraceCompareProps {
   initialLeftTraceId?: string;
@@ -298,7 +300,11 @@ function TraceSummaryPanel({
   return (
     <Panel
       eyebrow={label}
-      title={`${trace.trace_id.substring(0, 16)}…`}
+      title={
+        <CopyableText value={trace.trace_id} label="Copy trace id" mono>
+          <span title={trace.trace_id}>{trace.trace_id.substring(0, 16)}…</span>
+        </CopyableText>
+      }
       actions={
         <Link
           to="/traces/$traceId"
@@ -322,24 +328,18 @@ function TraceSummaryPanel({
       </div>
 
       <dl className="mt-4 grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
-        <div className="contents">
-          <dt className="break-all font-bold text-[var(--muted)]">root service</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{summary.rootService}</dd>
-        </div>
-        <div className="contents">
-          <dt className="break-all font-bold text-[var(--muted)]">root operation</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{summary.rootOperation}</dd>
-        </div>
-        <div className="contents">
-          <dt className="break-all font-bold text-[var(--muted)]">start time</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">
-            {root ? formatTimestamp(root.start_time_unix_nano, format) : "Unknown"}
-          </dd>
-        </div>
-        <div className="contents">
-          <dt className="break-all font-bold text-[var(--muted)]">trace id</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{trace.trace_id}</dd>
-        </div>
+        <DlRow label="root service" copyValue={summary.rootService}>
+          {summary.rootService}
+        </DlRow>
+        <DlRow label="root operation" copyValue={summary.rootOperation}>
+          {summary.rootOperation}
+        </DlRow>
+        <DlRow label="start time">
+          {root ? formatTimestamp(root.start_time_unix_nano, format) : "Unknown"}
+        </DlRow>
+        <DlRow label="trace id" copyValue={trace.trace_id}>
+          {trace.trace_id}
+        </DlRow>
       </dl>
     </Panel>
   );

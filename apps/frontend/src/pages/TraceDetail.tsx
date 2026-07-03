@@ -7,6 +7,8 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
+import { CopyButton, CopyableText } from "../components/ui/copy-button";
+import { DlRow } from "../components/ui/dl-row";
 
 interface Props {
   traceId: string;
@@ -80,43 +82,11 @@ function TimeRuler({ totalMs }: { totalMs: number }) {
   );
 }
 
-function CopyButton({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      className="ml-1 text-[10px] text-[var(--muted)] hover:text-[var(--brand)]"
-      onClick={() => {
-        navigator.clipboard.writeText(value);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      }}
-      title="Copy"
-    >
-      {copied ? "✓" : "⎘"}
-    </button>
-  );
-}
-
 function SectionHeader({ children }: { children: ReactNode }) {
   return (
     <h3 className="m-0 mt-4 mb-2 text-xs font-bold uppercase text-[var(--muted)] border-b border-[var(--border)] pb-1">
       {children}
     </h3>
-  );
-}
-
-function DlRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="contents">
-      <dt className="break-all font-bold text-[var(--muted)]">{label}</dt>
-      <dd className="m-0 min-w-0 break-all text-[var(--text)]">{children}</dd>
-    </div>
   );
 }
 
@@ -180,17 +150,15 @@ function SpanContextPanel({
       </div>
 
       <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
-        <DlRow label="trace_id">
+        <DlRow label="trace_id" copyValue={span.trace_id}>
           <span title={span.trace_id}>
             {span.trace_id.substring(0, 16)}…
           </span>
-          <CopyButton value={span.trace_id} />
         </DlRow>
-        <DlRow label="span_id">
+        <DlRow label="span_id" copyValue={span.span_id}>
           <span title={span.span_id}>
             {span.span_id.substring(0, 16)}
           </span>
-          <CopyButton value={span.span_id} />
         </DlRow>
         <DlRow label="service">{span.service_name}</DlRow>
         {span.service_version && (
@@ -218,9 +186,17 @@ function SpanContextPanel({
             {dbOp && <DlRow label="operation">{dbOp}</DlRow>}
           </dl>
           {dbStatement && (
-            <pre className="mt-2 text-[11px] p-2 bg-[var(--surface-inset)] border border-[var(--border)] overflow-x-auto whitespace-pre-wrap break-all">
-              {dbStatement}
-            </pre>
+            <div className="relative mt-2">
+              <pre className="text-[11px] p-2 pr-6 bg-[var(--surface-inset)] border border-[var(--border)] overflow-x-auto whitespace-pre-wrap break-all">
+                {dbStatement}
+              </pre>
+              <CopyButton
+                value={dbStatement}
+                label="Copy statement"
+                visibility="always"
+                className="absolute right-1 top-1"
+              />
+            </div>
           )}
         </>
       )}
@@ -282,7 +258,7 @@ function SpanContextPanel({
           <SectionHeader>Attributes</SectionHeader>
           <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
             {remainingAttrs.map(([k, v]) => (
-              <DlRow key={k} label={k}>
+              <DlRow key={k} label={k} copyValue={String(v)}>
                 {String(v)}
               </DlRow>
             ))}
@@ -296,7 +272,7 @@ function SpanContextPanel({
           {Object.keys(span.resource_attributes ?? {}).length > 0 && (
             <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
               {Object.entries(span.resource_attributes ?? {}).map(([k, v]) => (
-                <DlRow key={k} label={k}>
+                <DlRow key={k} label={k} copyValue={String(v)}>
                   {String(v)}
                 </DlRow>
               ))}
@@ -343,7 +319,11 @@ export function TraceDetail({ traceId, spans, events }: Props) {
       <div className="page-header items-start gap-3">
         <div>
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Traces</div>
-          <h1>{traceId.substring(0, 16)}…</h1>
+          <h1>
+            <CopyableText value={traceId} label="Copy trace id" mono>
+              <span title={traceId}>{traceId.substring(0, 16)}…</span>
+            </CopyableText>
+          </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link

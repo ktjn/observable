@@ -8,6 +8,7 @@ import { EmptyState } from "../../components/ui/empty-state";
 import { Input } from "../../components/ui/input";
 import { LoadingState } from "../../components/ui/loading-state";
 import { Panel } from "../../components/ui/panel";
+import { CopyButton, CopyableText } from "../../components/ui/copy-button";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import { useTimeDisplay } from "../../lib/timeDisplay";
 import { formatTimestamp, isoToNs } from "../../utils/formatTimestamp";
@@ -29,16 +30,22 @@ function stateColor(state: string): "bad" | "warn" | "good" | "neutral" {
   }
 }
 
-function conditionSummary(condition: Record<string, unknown>): string {
+function ConditionSummary({ condition }: { condition: Record<string, unknown> }) {
   const { metric_name, operator, threshold, slo_id } = condition;
-  if (slo_id) return `SLO burn-rate (${slo_id})`;
+  if (slo_id) {
+    return (
+      <>
+        SLO burn-rate (<CopyableText value={String(slo_id)} label="Copy SLO id" mono />)
+      </>
+    );
+  }
   if (metric_name && operator && threshold !== undefined) {
     const opSymbol: Record<string, string> = {
       gt: ">", gte: "≥", lt: "<", lte: "≤", eq: "=",
     };
-    return `${metric_name} ${opSymbol[operator as string] ?? operator} ${threshold}`;
+    return <>{`${metric_name} ${opSymbol[operator as string] ?? operator} ${threshold}`}</>;
   }
-  return JSON.stringify(condition);
+  return <>{JSON.stringify(condition)}</>;
 }
 
 export function AlertRuleDetailPage() {
@@ -93,7 +100,9 @@ export function AlertRuleDetailPage() {
           </div>
           <div>
             <div className="field-label">Condition</div>
-            <div className="mt-1 font-mono">{conditionSummary(data.condition)}</div>
+            <div className="mt-1 font-mono">
+              <ConditionSummary condition={data.condition} />
+            </div>
           </div>
           <div className="col-span-2">
             <div className="field-label">Runbook</div>
@@ -127,14 +136,17 @@ export function AlertRuleDetailPage() {
               ) : (
                 <>
                   {data.runbook_url ? (
-                    <a
-                      href={data.runbook_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[var(--brand)] hover:underline"
-                    >
-                      {data.runbook_url}
-                    </a>
+                    <span className="group inline-flex items-center gap-1">
+                      <a
+                        href={data.runbook_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[var(--brand)] hover:underline"
+                      >
+                        {data.runbook_url}
+                      </a>
+                      <CopyButton value={data.runbook_url} label="Copy runbook URL" />
+                    </span>
                   ) : (
                     <span className="text-[var(--muted)]">—</span>
                   )}

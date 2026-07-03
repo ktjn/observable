@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { me } from "../api/auth";
+import { CopyButton } from "../components/ui/copy-button";
 
 export default function IdentitySettingsPage() {
   const { data: user, isLoading } = useQuery({
@@ -37,7 +38,10 @@ export default function IdentitySettingsPage() {
           <tr>
             <td style={{ padding: "0.4rem 1rem 0.4rem 0", fontWeight: 600, whiteSpace: "nowrap" }}>Issuer URL</td>
             <td>
-              <code style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>{issuer}</code>
+              <span className="group" style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+                <code style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>{issuer}</code>
+                <CopyButton value={issuer} label="Copy issuer URL" />
+              </span>
             </td>
           </tr>
           <tr>
@@ -56,17 +60,26 @@ export default function IdentitySettingsPage() {
           <tr>
             <td style={{ padding: "0.4rem 1rem 0.4rem 0", fontWeight: 600, whiteSpace: "nowrap" }}>Redirect URI</td>
             <td>
-              <code style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
-                {typeof window !== "undefined" ? window.location.origin : ""}/auth/callback
-              </code>
+              <span className="group" style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+                <code style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
+                  {typeof window !== "undefined" ? window.location.origin : ""}/auth/callback
+                </code>
+                <CopyButton
+                  value={`${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback`}
+                  label="Copy redirect URI"
+                />
+              </span>
             </td>
           </tr>
           <tr>
             <td style={{ padding: "0.4rem 1rem 0.4rem 0", fontWeight: 600, whiteSpace: "nowrap" }}>SCIM 2.0 (planned)</td>
             <td>
-              <code style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
-                {issuer}/scim/v2/&lt;org-id&gt;/
-              </code>
+              <span className="group" style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+                <code style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
+                  {issuer}/scim/v2/&lt;org-id&gt;/
+                </code>
+                <CopyButton value={`${issuer}/scim/v2/<org-id>/`} label="Copy SCIM URL" />
+              </span>
               <span style={{ marginLeft: "0.5rem", color: "var(--text-muted, #888)", fontSize: "0.8rem" }}>
                 — enable per-org in Zitadel Admin Console
               </span>

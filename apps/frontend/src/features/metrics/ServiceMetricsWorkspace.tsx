@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { getMetricGroupPoints, listMetrics, type MetricCatalogEntry } from "../../api/metrics";
 import { createDashboard } from "../../api/dashboards";
 import { Button } from "../../components/ui/button";
+import { CopyableText } from "../../components/ui/copy-button";
+import { DlRow } from "../../components/ui/dl-row";
 import { EmptyState } from "../../components/ui/empty-state";
 import { ErrorState } from "../../components/ui/error-state";
 import { LoadingState } from "../../components/ui/loading-state";
@@ -338,8 +340,12 @@ function MetricCatalogTable({
                   style={{ cursor: "pointer" }}
                 >
                   <td>
-                    <div className="font-semibold text-[var(--text-strong)]">{item.metric_name}</div>
-                    <div className="text-xs text-[var(--muted)]">{item.service_name}</div>
+                    <div className="font-semibold text-[var(--text-strong)]">
+                      <CopyableText value={item.metric_name} label="Copy metric name" mono />
+                    </div>
+                    <div className="text-xs text-[var(--muted)]">
+                      <CopyableText value={item.service_name} label="Copy service name" />
+                    </div>
                   </td>
                   <td>{item.metric_type}</td>
                   <td>{item.unit || "none"}</td>
@@ -382,7 +388,9 @@ function MetricDetailSidebar({
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Selected Metric</div>
-          <h2 className="m-0 text-base font-bold text-[var(--text-strong)]">{metric.metric_name}</h2>
+          <h2 className="m-0 text-base font-bold text-[var(--text-strong)]">
+            <CopyableText value={metric.metric_name} label="Copy metric name" mono />
+          </h2>
         </div>
         <Button variant="secondary" className="min-h-8 px-2 text-xs" onClick={onClose}>
           Close
@@ -390,26 +398,13 @@ function MetricDetailSidebar({
       </div>
 
       <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
-        <div className="contents">
-          <dt className="break-all font-bold text-[var(--muted)]">series_count</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{metric.series_count}</dd>
-        </div>
-        <div className="contents">
-          <dt className="break-all font-bold text-[var(--muted)]">type</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{metric.metric_type}</dd>
-        </div>
-        <div className="contents">
-          <dt className="break-all font-bold text-[var(--muted)]">unit</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{metric.unit || "none"}</dd>
-        </div>
-        <div className="contents">
-          <dt className="break-all font-bold text-[var(--muted)]">service</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{metric.service_name}</dd>
-        </div>
-        <div className="contents">
-          <dt className="break-all font-bold text-[var(--muted)]">environment</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{metric.environment || "default"}</dd>
-        </div>
+        <DlRow label="series_count">{metric.series_count}</DlRow>
+        <DlRow label="type">{metric.metric_type}</DlRow>
+        <DlRow label="unit">{metric.unit || "none"}</DlRow>
+        <DlRow label="service" copyValue={metric.service_name}>
+          {metric.service_name}
+        </DlRow>
+        <DlRow label="environment">{metric.environment || "default"}</DlRow>
       </dl>
     </aside>
   );

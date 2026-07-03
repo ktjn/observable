@@ -7,6 +7,7 @@
 import type { VisualizationFrame } from "../../api/nlq";
 import { useTimeDisplay } from "../../lib/timeDisplay";
 import { formatTimestamp } from "../../utils/formatTimestamp";
+import { CopyableText } from "../../components/ui/copy-button";
 
 interface Props {
   frame: VisualizationFrame;
@@ -272,6 +273,9 @@ const TIMESTAMP_COLS = new Set([
   "event_time_unix_nano",
 ]);
 
+/** Columns holding opaque identifiers users typically paste elsewhere — get a copy affordance. */
+const ID_COLS = new Set(["log_id", "trace_id", "span_id", "entity_id", "tenant_id"]);
+
 /** Sort columns so that timestamp fields come first, then the rest in backend order. */
 function sortColumns(cols: string[]): string[] {
   const ts = cols.filter((c) => TIMESTAMP_COLS.has(c));
@@ -301,14 +305,18 @@ function GenericTable({ frame }: Props) {
             <tr key={i} className="border-b border-[var(--border-subtle)]">
               {cols.map((c) => (
                 <td key={c} className="py-1 pr-4 font-mono whitespace-nowrap">
-                  {TIMESTAMP_COLS.has(c) && row[c] != null
-                    ? formatTimestamp(
-                        typeof row[c] === "string" && (row[c] as string).includes(" ")
-                          ? parseCHDatetime(row[c] as string)
-                          : (row[c] as string | number),
-                        format,
-                      )
-                    : formatValue(row[c])}
+                  {TIMESTAMP_COLS.has(c) && row[c] != null ? (
+                    formatTimestamp(
+                      typeof row[c] === "string" && (row[c] as string).includes(" ")
+                        ? parseCHDatetime(row[c] as string)
+                        : (row[c] as string | number),
+                      format,
+                    )
+                  ) : ID_COLS.has(c) && row[c] != null ? (
+                    <CopyableText value={formatValue(row[c])} label={`Copy ${COLUMN_LABEL[c] ?? c}`} />
+                  ) : (
+                    formatValue(row[c])
+                  )}
                 </td>
               ))}
             </tr>

@@ -8,6 +8,7 @@ import {
   type NotificationChannelConfig,
 } from "../../api/notifications";
 import { Button } from "../../components/ui/button";
+import { CopyableText } from "../../components/ui/copy-button";
 import { Input } from "../../components/ui/input";
 import { Panel } from "../../components/ui/panel";
 import { Toolbar } from "../../components/ui/toolbar";
@@ -123,7 +124,11 @@ export function NotificationChannelsList() {
           {channels.map((channel) => (
             <Panel key={channel.channel_id} title={channel.name} eyebrow={channel.channel_type}>
               <div className="flex flex-col gap-2">
-                <div className="truncate text-xs text-[var(--muted)]">{(channel.config as NotificationChannelConfig).url}</div>
+                <CopyableText
+                  value={(channel.config as NotificationChannelConfig).url}
+                  label="Copy webhook URL"
+                  className="text-xs text-[var(--muted)]"
+                />
                 <div className="flex justify-end pt-2">
                   <Button
                     variant="ghost"
