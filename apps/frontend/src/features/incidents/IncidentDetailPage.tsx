@@ -4,6 +4,7 @@ import { getIncident, type IncidentEventItem } from "../../api/incidents";
 import { Badge } from "../../components/ui/badge";
 import { LoadingState } from "../../components/ui/loading-state";
 import { Panel } from "../../components/ui/panel";
+import { CopyableText } from "../../components/ui/copy-button";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import { useTimeDisplay } from "../../lib/timeDisplay";
 import { formatTimestamp, isoToNs } from "../../utils/formatTimestamp";
@@ -83,7 +84,9 @@ export function IncidentDetailPage() {
       <div className="page-header">
         <div>
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Incident</div>
-          <h1>{data.title}</h1>
+          <h1>
+            <CopyableText value={data.title} label="Copy incident title" />
+          </h1>
         </div>
         <div className="flex items-center gap-2">
           <Badge tone={severityColor(data.severity)}>{data.severity}</Badge>
@@ -174,7 +177,14 @@ export function IncidentDetailPage() {
       {data.impacted_service && (
         <Panel>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold">Impacted Services</h3>
+            <div>
+              <h3 className="text-sm font-semibold">Impacted Services</h3>
+              <CopyableText
+                value={data.impacted_service}
+                label="Copy impacted service"
+                className="mt-0.5 text-xs text-[var(--muted)]"
+              />
+            </div>
             <div className="flex gap-3 text-xs">
               <Link
                 to="/services/$serviceId"

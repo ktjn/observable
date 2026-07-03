@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../../components/ui/button";
 import { Panel } from "../../components/ui/panel";
 import { Badge } from "../../components/ui/badge";
+import { CopyButton } from "../../components/ui/copy-button";
 import { createToken } from "../../api/tokens";
 import { getFirstSignalStatus } from "../../api/setup";
 import { useTenantContext } from "../../hooks/useTenantContext";
@@ -121,7 +122,6 @@ function StepApiKey({ language, tenantId, onKeyReady, onNext }: StepApiKeyProps)
   const [envName, setEnvName] = useState("production");
   const [formError, setFormError] = useState<string | null>(null);
   const [plaintext, setPlaintext] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -133,16 +133,6 @@ function StepApiKey({ language, tenantId, onKeyReady, onNext }: StepApiKeyProps)
     },
     onError: () => setFormError("Failed to create API key. Please try again."),
   });
-
-  async function copyText(text: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* ignore */
-    }
-  }
 
   const installCmd = getInstallCommand(language);
   const runCmd = plaintext
@@ -188,9 +178,12 @@ function StepApiKey({ language, tenantId, onKeyReady, onNext }: StepApiKeyProps)
           </p>
           <div className="flex items-center gap-2">
             <code className="flex-1 break-all text-xs">{plaintext}</code>
-            <Button variant="secondary" onClick={() => void copyText(plaintext)}>
-              {copied ? "Copied!" : "Copy"}
-            </Button>
+            <CopyButton
+              value={plaintext}
+              label="Copy API key"
+              visibility="always"
+              size="sm"
+            />
           </div>
         </div>
       )}
@@ -199,14 +192,12 @@ function StepApiKey({ language, tenantId, onKeyReady, onNext }: StepApiKeyProps)
         <p className="mb-1 text-xs font-semibold text-[var(--text-muted)]">1. Install the SDK</p>
         <div className="relative rounded border border-[var(--border)] bg-[var(--surface-raised)] p-3">
           <pre className="overflow-x-auto text-xs">{installCmd}</pre>
-          <button
-            type="button"
-            aria-label="Copy install command"
-            className="absolute right-2 top-2 text-xs text-[var(--accent)] hover:underline"
-            onClick={() => void copyText(installCmd)}
-          >
-            Copy
-          </button>
+          <CopyButton
+            value={installCmd}
+            label="Copy install command"
+            visibility="always"
+            className="absolute right-2 top-2"
+          />
         </div>
       </div>
 
@@ -216,14 +207,12 @@ function StepApiKey({ language, tenantId, onKeyReady, onNext }: StepApiKeyProps)
         </p>
         <div className="relative rounded border border-[var(--border)] bg-[var(--surface-raised)] p-3">
           <pre className="overflow-x-auto text-xs">{runCmd}</pre>
-          <button
-            type="button"
-            aria-label="Copy run command"
-            className="absolute right-2 top-2 text-xs text-[var(--accent)] hover:underline"
-            onClick={() => void copyText(runCmd)}
-          >
-            Copy
-          </button>
+          <CopyButton
+            value={runCmd}
+            label="Copy run command"
+            visibility="always"
+            className="absolute right-2 top-2"
+          />
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../../../components/ui/button";
+import { CopyableText } from "../../../components/ui/copy-button";
 import {
   addSavedViewGrant,
   createSavedView,
@@ -143,7 +144,7 @@ export function SavedViewsControl({ tenantId, currentConfig, onLoad }: SavedView
                       {grants.map((grant) => (
                         <li key={grant.user_id} className="flex items-center justify-between gap-2 text-xs">
                           <span>
-                            {grant.user_id} ({grant.relation})
+                            <CopyableText value={grant.user_id} label="Copy user id" mono /> ({grant.relation})
                           </span>
                           <button
                             type="button"

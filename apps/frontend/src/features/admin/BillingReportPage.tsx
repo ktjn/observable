@@ -6,6 +6,7 @@ import { MetricCard } from "../../components/ui/metric-card";
 import { LoadingState } from "../../components/ui/loading-state";
 import { Panel } from "../../components/ui/panel";
 import { TablePanel } from "../../components/ui/table-panel";
+import { CopyButton, CopyableText } from "../../components/ui/copy-button";
 import { useAuth } from "../../hooks/useAuth";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
@@ -119,7 +120,7 @@ export function BillingReportPage() {
                       <Badge tone={roleTone(membership.role)}>{roleLabel(membership.role)}</Badge>
                     </td>
                     <td className="px-3 py-2 text-[var(--muted)]">
-                      {membership.tenant_id}
+                      <CopyableText value={membership.tenant_id} label="Copy tenant id" mono />
                     </td>
                   </tr>
                 );
@@ -220,7 +221,10 @@ export function BillingReportPage() {
               <tr>
                 <td className="py-1.5 pr-6 font-semibold text-[var(--text-strong)] whitespace-nowrap">Issuer URL</td>
                 <td className="py-1.5">
-                  <code className="font-mono text-xs text-[var(--text)]">{issuer}</code>
+                  <span className="group inline-flex items-center gap-1.5">
+                    <code className="font-mono text-xs text-[var(--text)]">{issuer}</code>
+                    <CopyButton value={issuer} label="Copy issuer URL" />
+                  </span>
                 </td>
               </tr>
               <tr>
@@ -239,15 +243,24 @@ export function BillingReportPage() {
               <tr>
                 <td className="py-1.5 pr-6 font-semibold text-[var(--text-strong)] whitespace-nowrap">Redirect URI</td>
                 <td className="py-1.5">
-                  <code className="font-mono text-xs text-[var(--text)]">
-                    {typeof window !== "undefined" ? window.location.origin : ""}/auth/callback
-                  </code>
+                  <span className="group inline-flex items-center gap-1.5">
+                    <code className="font-mono text-xs text-[var(--text)]">
+                      {typeof window !== "undefined" ? window.location.origin : ""}/auth/callback
+                    </code>
+                    <CopyButton
+                      value={`${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback`}
+                      label="Copy redirect URI"
+                    />
+                  </span>
                 </td>
               </tr>
               <tr>
                 <td className="py-1.5 pr-6 font-semibold text-[var(--text-strong)] whitespace-nowrap">SCIM 2.0 (planned)</td>
                 <td className="py-1.5">
-                  <code className="font-mono text-xs text-[var(--text)]">{issuer}/scim/v2/&lt;org-id&gt;/</code>
+                  <span className="group inline-flex items-center gap-1.5">
+                    <code className="font-mono text-xs text-[var(--text)]">{issuer}/scim/v2/&lt;org-id&gt;/</code>
+                    <CopyButton value={`${issuer}/scim/v2/<org-id>/`} label="Copy SCIM URL" />
+                  </span>
                   <span className="ml-2 text-xs text-[var(--muted)]">— enable per-org in Zitadel Admin Console</span>
                 </td>
               </tr>

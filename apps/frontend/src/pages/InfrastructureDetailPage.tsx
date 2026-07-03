@@ -8,6 +8,7 @@ import {
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { Badge } from "../components/ui/badge";
+import { CopyableText } from "../components/ui/copy-button";
 import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
@@ -93,7 +94,9 @@ export default function InfrastructureDetailPage() {
             </div>
             <div>
               <dt>Entity ID</dt>
-              <dd>{entity.entity_id}</dd>
+              <dd>
+                <CopyableText value={entity.entity_id} label="Copy entity id" mono />
+              </dd>
             </div>
             <div>
               <dt>Last seen</dt>

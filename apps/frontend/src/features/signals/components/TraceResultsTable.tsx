@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { TraceResponse } from "../../../api/traces";
 import { Badge } from "../../../components/ui/badge";
+import { CopyButton } from "../../../components/ui/copy-button";
 import { DurationCell } from "../../../components/ui/metric-cells";
 import { VirtualTable } from "../../../components/ui/VirtualTable";
 import { formatTimestamp } from "../../../utils/formatTimestamp";
@@ -98,20 +99,23 @@ function TraceResultsRow({
       onClick={mode === "select" ? onSelect : undefined}
     >
       <td className="whitespace-nowrap">{formatTimestamp(root.start_time_unix_nano, timeFormat)}</td>
-      <td className="strong-cell">
-        {mode === "link" ? (
-          <Link to="/traces/$traceId" params={{ traceId: trace.trace_id }}>
-            {trace.trace_id.substring(0, 16)}
-          </Link>
-        ) : (
-          <Link
-            to="/traces/$traceId"
-            params={{ traceId: trace.trace_id }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {trace.trace_id.substring(0, 16)}…
-          </Link>
-        )}
+      <td className="strong-cell group">
+        <span className="inline-flex items-center gap-1">
+          {mode === "link" ? (
+            <Link to="/traces/$traceId" params={{ traceId: trace.trace_id }}>
+              {trace.trace_id.substring(0, 16)}
+            </Link>
+          ) : (
+            <Link
+              to="/traces/$traceId"
+              params={{ traceId: trace.trace_id }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {trace.trace_id.substring(0, 16)}…
+            </Link>
+          )}
+          <CopyButton value={trace.trace_id} label="Copy trace id" />
+        </span>
       </td>
       {showServiceColumn && <td>{root.service_name}</td>}
       <td className="whitespace-normal break-all">{root.operation_name}</td>

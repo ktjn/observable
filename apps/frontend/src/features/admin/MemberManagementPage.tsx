@@ -14,6 +14,7 @@ import { EmptyState } from "../../components/ui/empty-state";
 import { LoadingState } from "../../components/ui/loading-state";
 import { Panel } from "../../components/ui/panel";
 import { TablePanel } from "../../components/ui/table-panel";
+import { CopyableText } from "../../components/ui/copy-button";
 import { useAuth } from "../../hooks/useAuth";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import { roleLabel, roleTone } from "./admin-utils";
@@ -219,6 +220,9 @@ export function MemberManagementPage() {
                         {member.name && (
                           <div className="text-xs text-[var(--muted)]">{member.email}</div>
                         )}
+                        <div className="text-xs text-[var(--muted)]">
+                          <CopyableText value={member.user_id} label="Copy user id" mono />
+                        </div>
                       </td>
                       <td className="px-3 py-2">
                         {isAdmin && !isSelf ? (

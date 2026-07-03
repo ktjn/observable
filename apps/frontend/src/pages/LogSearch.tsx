@@ -27,6 +27,8 @@ import { LoadingState } from "../components/ui/loading-state";
 import { PillFilter } from "../components/ui/pill-filter";
 import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
+import { CopyButton } from "../components/ui/copy-button";
+import { DlRow } from "../components/ui/dl-row";
 import { SignalExplorer, SaveStatus } from "../components/shared/SignalExplorer";
 import { LogResultsTable } from "../features/signals/components/LogResultsTable";
 import { SavedViewsControl } from "../features/signals/components/SavedViewsControl";
@@ -497,29 +499,27 @@ function LogContextSidebar({
       </Badge>
       <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
         {entries.map(([key, value]) => (
-          <div key={key} className="contents">
-            <dt className="break-all font-bold text-[var(--muted)]">{key}</dt>
-            <dd className="m-0 min-w-0 break-all text-[var(--text)]">
-              {key === "trace_id" && log.trace_id ? (
-                <a
-                  href={`/traces/${log.trace_id}`}
-                  className="text-[var(--brand)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
-                >
-                  {value}
-                </a>
-              ) : key === "span_id" && log.trace_id ? (
-                <a
-                  href={`/traces/${log.trace_id}`}
-                  title="View parent trace"
-                  className="text-[var(--brand)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
-                >
-                  {value}
-                </a>
-              ) : (
-                value
-              )}
-            </dd>
-          </div>
+          <DlRow key={key} label={key}>
+            {key === "trace_id" && log.trace_id ? (
+              <a
+                href={`/traces/${log.trace_id}`}
+                className="text-[var(--brand)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+              >
+                {value}
+              </a>
+            ) : key === "span_id" && log.trace_id ? (
+              <a
+                href={`/traces/${log.trace_id}`}
+                title="View parent trace"
+                className="text-[var(--brand)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+              >
+                {value}
+              </a>
+            ) : (
+              value
+            )}
+            <CopyButton value={value} label={`Copy ${key}`} />
+          </DlRow>
         ))}
       </dl>
       {badges.length > 0 && (

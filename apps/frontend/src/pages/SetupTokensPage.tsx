@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Panel } from "../components/ui/panel";
+import { CopyButton } from "../components/ui/copy-button";
 import { createToken, deleteToken, listTokens, renewToken, restoreToken, revokeToken, type TokenRecord, type CreateTokenRequest } from "../api/tokens";
 import { useTenantContext } from "../hooks/useTenantContext";
 
@@ -18,7 +19,6 @@ export default function SetupTokensPage() {
   const [name, setName] = useState("");
   const [environment, setEnvironment] = useState("");
   const [newPlaintext, setNewPlaintext] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -77,17 +77,6 @@ export default function SetupTokensPage() {
     setTimeout(() => nameRef.current?.focus(), 50);
   }
 
-  async function copyPlaintext() {
-    if (!newPlaintext) return;
-    try {
-      await navigator.clipboard.writeText(newPlaintext);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* ignore */
-    }
-  }
-
   return (
     <section className="page-stack" aria-labelledby="setup-tokens-heading">
       <div className="page-header">
@@ -113,9 +102,12 @@ export default function SetupTokensPage() {
             </p>
             <div className="flex items-center gap-2">
               <code className="flex-1 break-all text-xs">{newPlaintext}</code>
-              <Button variant="secondary" onClick={() => void copyPlaintext()}>
-                {copied ? "Copied!" : "Copy"}
-              </Button>
+              <CopyButton
+                value={newPlaintext}
+                label="Copy token"
+                visibility="always"
+                size="sm"
+              />
               <Button variant="ghost" onClick={() => setNewPlaintext(null)}>
                 Dismiss
               </Button>

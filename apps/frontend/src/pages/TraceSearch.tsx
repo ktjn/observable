@@ -21,6 +21,7 @@ import { LoadingState } from "../components/ui/loading-state";
 import { PillFilter } from "../components/ui/pill-filter";
 import { TablePanel } from "../components/ui/table-panel";
 import { Histogram, HistogramBucket } from "../components/ui/histogram";
+import { DlRow } from "../components/ui/dl-row";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
@@ -395,37 +396,25 @@ function TraceContextSidebar({
       </Badge>
 
       <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
-        <div className="contents">
-          <dt className="break-all font-bold text-[var(--muted)]">trace_id</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{trace.trace_id}</dd>
-        </div>
-        <div className="contents">
-          <dt className="break-all font-bold text-[var(--muted)]">start_time</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">
-            {formatTimestamp(root.start_time_unix_nano, format)}
-          </dd>
-        </div>
-        <div className="contents">
-          <dt className="break-all font-bold text-[var(--muted)]">service.name</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{root.service_name}</dd>
-        </div>
-        <div className="contents">
-          <dt className="break-all font-bold text-[var(--muted)]">operation</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">{root.operation_name}</dd>
-        </div>
-        <div className="contents">
-          <dt className="break-all font-bold text-[var(--muted)]">duration</dt>
-          <dd className="m-0 min-w-0 break-all text-[var(--text)]">
-            {(root.duration_ns / 1e6).toFixed(2)}ms
-          </dd>
-        </div>
+        <DlRow label="trace_id" copyValue={trace.trace_id}>
+          {trace.trace_id}
+        </DlRow>
+        <DlRow label="start_time">
+          {formatTimestamp(root.start_time_unix_nano, format)}
+        </DlRow>
+        <DlRow label="service.name" copyValue={root.service_name}>
+          {root.service_name}
+        </DlRow>
+        <DlRow label="operation" copyValue={root.operation_name}>
+          {root.operation_name}
+        </DlRow>
+        <DlRow label="duration">{(root.duration_ns / 1e6).toFixed(2)}ms</DlRow>
         {Object.entries(root.resource_attributes ?? {})
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([key, value]) => (
-            <div key={key} className="contents">
-              <dt className="break-all font-bold text-[var(--muted)]">{key}</dt>
-              <dd className="m-0 min-w-0 break-all text-[var(--text)]">{formatContextValue(value)}</dd>
-            </div>
+            <DlRow key={key} label={key} copyValue={formatContextValue(value)}>
+              {formatContextValue(value)}
+            </DlRow>
           ))}
       </dl>
 

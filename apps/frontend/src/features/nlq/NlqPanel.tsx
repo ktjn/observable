@@ -13,6 +13,7 @@ import { useState } from "react";
 import type { NlqIr, NlqResponse, VisualizationFrame } from "../../api/nlq";
 import { submitNlqQuery } from "../../api/nlq";
 import { SignalQueryForm } from "../../components/shared/SignalQueryForm";
+import { CopyButton } from "../../components/ui/copy-button";
 import { VisualizationPanel } from "./VisualizationPanel";
 import { useTenantContext } from "../../hooks/useTenantContext";
 
@@ -249,9 +250,17 @@ function FrameResult({
           </div>
           <div>
             <span className="font-medium">SQL:</span>
-            <pre className="mt-1 overflow-x-auto rounded bg-[var(--bg-code)] p-2 text-[0.7rem]">
-              {frame.source_sql}
-            </pre>
+            <div className="relative mt-1">
+              <pre className="overflow-x-auto rounded bg-[var(--bg-code)] p-2 pr-6 text-[0.7rem]">
+                {frame.source_sql}
+              </pre>
+              <CopyButton
+                value={frame.source_sql}
+                label="Copy SQL"
+                visibility="always"
+                className="absolute right-1 top-1"
+              />
+            </div>
           </div>
           <div>
             <span className="font-medium">Time range: </span>

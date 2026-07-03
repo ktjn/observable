@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { listDeployments, type DeploymentMarker } from "../../api/deployments";
 import { Badge } from "../../components/ui/badge";
+import { CopyableText } from "../../components/ui/copy-button";
 import { EmptyState } from "../../components/ui/empty-state";
 import { LoadingState } from "../../components/ui/loading-state";
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
@@ -66,7 +67,9 @@ export function ServiceDeploymentsTab({ serviceName }: { serviceName: string }) 
         <tbody>
           {items.map((dep) => (
             <tr key={dep.deployment_id} className="modern-table-row">
-              <td className="py-2 pr-4 font-mono text-xs">{dep.service_version}</td>
+              <td className="py-2 pr-4 font-mono text-xs">
+                <CopyableText value={dep.service_version} label="Copy version" mono />
+              </td>
               <td className="py-2 pr-4">{dep.environment}</td>
               <td className="py-2 pr-4">
                 <Badge tone={deploymentStatusTone(dep.status)}>{dep.status}</Badge>
@@ -81,7 +84,13 @@ export function ServiceDeploymentsTab({ serviceName }: { serviceName: string }) 
                 {dep.deployed_by ?? "—"}
               </td>
               <td className="py-2 pr-4 font-mono text-xs text-[var(--muted)]">
-                {dep.commit_sha ? dep.commit_sha.slice(0, 8) : "—"}
+                {dep.commit_sha ? (
+                  <CopyableText value={dep.commit_sha} label="Copy commit SHA" mono>
+                    {dep.commit_sha.slice(0, 8)}
+                  </CopyableText>
+                ) : (
+                  "—"
+                )}
               </td>
             </tr>
           ))}

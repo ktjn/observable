@@ -10,6 +10,7 @@ import {
 } from "../api/services";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import { CopyableText } from "../components/ui/copy-button";
 import { DataFreshness } from "../components/ui/data-freshness";
 import { EmptyState } from "../components/ui/empty-state";
 import { ErrorState } from "../components/ui/error-state";
@@ -285,7 +286,11 @@ function ServiceRow({ row }: { row: ServiceSummary }) {
         )}
       </td>
       <td>
-        {row.latest_deployment ?? <span className="text-[var(--muted)]">--</span>}
+        {row.latest_deployment ? (
+          <CopyableText value={row.latest_deployment} label="Copy deployment version" mono />
+        ) : (
+          <span className="text-[var(--muted)]">--</span>
+        )}
       </td>
     </tr>
   );

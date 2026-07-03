@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getServiceReliabilityReport } from "../../api/reliability";
 import { Badge } from "../../components/ui/badge";
+import { CopyableText } from "../../components/ui/copy-button";
 import { EmptyState } from "../../components/ui/empty-state";
 import { LoadingState } from "../../components/ui/loading-state";
 import { MetricCard } from "../../components/ui/metric-card";
@@ -203,7 +204,9 @@ export function ServiceReliabilityTab({ serviceName }: { serviceName: string }) 
               <tbody>
                 {deployments.map((deployment) => (
                   <tr key={deployment.deployment_id} className="modern-table-row">
-                    <td className="py-2 pr-4 font-mono text-xs">{deployment.service_version}</td>
+                    <td className="py-2 pr-4 font-mono text-xs">
+                      <CopyableText value={deployment.service_version} label="Copy version" mono />
+                    </td>
                     <td className="py-2 pr-4 text-[var(--muted)]">{deployment.environment}</td>
                     <td className="py-2 pr-4">
                       <Badge tone={deploymentTone(deployment.status)}>{deployment.status}</Badge>
@@ -213,7 +216,13 @@ export function ServiceReliabilityTab({ serviceName }: { serviceName: string }) 
                     </td>
                     <td className="py-2 pr-4 text-[var(--muted)]">{deployment.deployed_by ?? "—"}</td>
                     <td className="py-2 pr-4 font-mono text-xs text-[var(--muted)]">
-                      {deployment.commit_sha ? deployment.commit_sha.slice(0, 8) : "—"}
+                      {deployment.commit_sha ? (
+                        <CopyableText value={deployment.commit_sha} label="Copy commit SHA" mono>
+                          {deployment.commit_sha.slice(0, 8)}
+                        </CopyableText>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                   </tr>
                 ))}
