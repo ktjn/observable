@@ -90,7 +90,7 @@ export function SavedViewsControl({ tenantId, currentConfig, onLoad }: SavedView
 
   return (
     <div className="relative">
-      <Button variant="secondary" onClick={() => setIsOpen((v) => !v)}>
+      <Button variant="secondary" onClick={() => { if (isOpen) setManagingViewId(null); setIsOpen((v) => !v); }}>
         Saved Views
       </Button>
       {isOpen && (
@@ -105,6 +105,7 @@ export function SavedViewsControl({ tenantId, currentConfig, onLoad }: SavedView
                     onClick={() => {
                       onLoad(view.config);
                       setIsOpen(false);
+                      setManagingViewId(null);
                     }}
                   >
                     {view.name}
@@ -159,6 +160,7 @@ export function SavedViewsControl({ tenantId, currentConfig, onLoad }: SavedView
                       <input
                         type="text"
                         placeholder="User ID"
+                        aria-label="User ID"
                         value={newGrantUserId}
                         onChange={(e) => setNewGrantUserId(e.target.value)}
                         className="min-w-0 flex-1 border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs"
