@@ -16,6 +16,7 @@ mod notifications;
 mod observability;
 mod planner;
 mod reliability;
+mod saved_views;
 mod schemas;
 mod setup;
 mod slos;
