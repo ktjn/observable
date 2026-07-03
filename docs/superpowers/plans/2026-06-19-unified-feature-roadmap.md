@@ -71,24 +71,28 @@ Small, standalone, high user-value slices. Ordered by user impact.
 - [ ] **Admin Console RBAC and Quota Management Views** — `/admin/config` is read-only today;
   add RBAC mutation controls and quota editing (carried from the post-Phase-3 plan). Important
   for multi-tenant administrators.
-- [ ] **OTLP gRPC/HTTP Compression Support** — `ingest-gateway`'s OTLP receivers currently reject
+- [x] **OTLP gRPC/HTTP Compression Support** — `ingest-gateway`'s OTLP receivers currently reject
   gzip-compressed payloads (`"Content is compressed with 'gzip' which isn't supported"`). Enable
   gzip, zstd, and snappy on both gRPC and HTTP receivers. Any default otel-collector-contrib config
   compresses by default; this is a compatibility gap that forces `compression: none` workarounds in
-  every sender. Low effort, broad compatibility improvement.
-- [ ] **OTLP Partial-Success Response Envelope** — `ingest-gateway` returns HTTP 429 /
+  every sender. Low effort, broad compatibility improvement. _(shipped PR #486: HTTP zstd decode
+  + gRPC gzip `accept_compressed`; snappy not added — no observed sender requires it)_
+- [x] **OTLP Partial-Success Response Envelope** — `ingest-gateway` returns HTTP 429 /
   gRPC `RESOURCE_EXHAUSTED` on rate-limit or validation errors instead of `200 OK` with
   `partial_success { rejected_count }`. This causes otel-collector-contrib to retry the entire
   batch or log "Dropping data" (the error seen in the OTel demo). Fix: return 200 with correct
-  partial-success payload so the collector can selectively drop only rejected items.
-- [ ] **ExponentialHistogram and Summary Metric Types** — both are silently discarded in
+  partial-success payload so the collector can selectively drop only rejected items. _(shipped
+  PR #486, scoped to the metrics path alongside ExponentialHistogram/Summary conversion)_
+- [x] **ExponentialHistogram and Summary Metric Types** — both are silently discarded in
   `ingest-gateway`'s convert functions (`_ => {}`). OTel SDK instrumentation defaults to
   ExponentialHistogram for latency measurements; dropping them means histogram data is missing
-  entirely. Add storage-model support and wire up the convert path for both types.
-- [ ] **gRPC Max Message Size** — tonic's default 4 MB cap is not overridden; large batches from
+  entirely. Add storage-model support and wire up the convert path for both types. _(shipped
+  PR #486: count+sum stored, bucket/quantile detail dropped with partial_success reporting)_
+- [x] **gRPC Max Message Size** — tonic's default 4 MB cap is not overridden; large batches from
   multi-service deployments (e.g. 21-service OTel demo) can silently exceed the limit and be
   dropped. Add `INGEST_GRPC_MAX_MESSAGE_BYTES` env var (default 64 MB) wired to
-  `Server::max_receive_message_size`.
+  `Server::max_receive_message_size`. _(shipped PR #486 with a 4 MiB default, matching tonic's
+  prior implicit cap, instead of 64 MB — no default-behavior change; operators can raise it)_
 
 ### 3.5 UI Usability Remediation (cross-cutting workstream)
 
