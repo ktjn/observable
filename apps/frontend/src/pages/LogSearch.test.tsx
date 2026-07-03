@@ -358,6 +358,45 @@ test("loading a saved view applies its severity filter and message search", asyn
   });
 });
 
+test("plain-mode quick filter matches substrings as before", async () => {
+  renderLogSearch();
+
+  const input = await screen.findByLabelText("Search log messages");
+  fireEvent.change(input, { target: { value: "failed" } });
+
+  await waitFor(() => {
+    expect(screen.getByText("payment failed")).toBeInTheDocument();
+    expect(screen.queryByText("checkout completed")).not.toBeInTheDocument();
+  });
+});
+
+test("regex-mode quick filter matches a pattern against log messages", async () => {
+  renderLogSearch();
+
+  fireEvent.click(await screen.findByRole("button", { name: /enable regex quick filter/i }));
+  const input = screen.getByLabelText("Search log messages");
+  fireEvent.change(input, { target: { value: "^payment" } });
+
+  await waitFor(() => {
+    expect(screen.getByText("payment failed")).toBeInTheDocument();
+    expect(screen.queryByText("checkout completed")).not.toBeInTheDocument();
+  });
+});
+
+test("invalid regex in regex mode shows all rows with an inline notice", async () => {
+  renderLogSearch();
+
+  fireEvent.click(await screen.findByRole("button", { name: /enable regex quick filter/i }));
+  const input = screen.getByLabelText("Search log messages");
+  fireEvent.change(input, { target: { value: "(unterminated" } });
+
+  await waitFor(() => {
+    expect(screen.getByText("payment failed")).toBeInTheDocument();
+    expect(screen.getByText("checkout completed")).toBeInTheDocument();
+    expect(screen.getByText("Invalid regex — showing all results.")).toBeInTheDocument();
+  });
+});
+
 test("histogram renders visible bars when API returns non-zero severity counts", async () => {
   vi.mocked(fetchLogHistogram).mockResolvedValueOnce({
     buckets: [

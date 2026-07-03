@@ -124,6 +124,7 @@ export function LogExplorer({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [isLive, setIsLive] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<("level" | "service")[]>(["level", "service"]);
+  const [isRegexMode, setIsRegexMode] = useState(false);
 
   const SEVERITY_MIN: Partial<Record<SeverityFilter, number>> = {
     error: 17,
@@ -189,12 +190,27 @@ export function LogExplorer({
   const logs = isLive ? liveTail.logs : rawLogs.slice(0, ROW_LIMIT);
   const isCapped = !isLive && rawLogs.length > ROW_LIMIT;
 
+  const regexPattern = useMemo(() => {
+    if (!isRegexMode || !messageSearch.trim()) return null;
+    try {
+      return new RegExp(messageSearch, "i");
+    } catch {
+      return undefined; // undefined marks an invalid pattern, distinct from null (no pattern requested)
+    }
+  }, [isRegexMode, messageSearch]);
+
+  const isRegexInvalid = isRegexMode && messageSearch.trim() !== "" && regexPattern === undefined;
+
   // Apply message search first, then compute severity counts, then apply severity filter.
   const messageFilteredLogs = useMemo(() => {
     if (!messageSearch.trim()) return logs;
+    if (isRegexMode) {
+      if (!regexPattern) return logs; // invalid pattern: show everything rather than nothing
+      return logs.filter((l) => regexPattern.test(formatLogMessage(l.body)));
+    }
     const needle = messageSearch.toLowerCase();
     return logs.filter((l) => formatLogMessage(l.body).toLowerCase().includes(needle));
-  }, [logs, messageSearch]);
+  }, [logs, messageSearch, isRegexMode, regexPattern]);
 
   const severityCounts = useMemo(() => {
     const counts: Record<SeverityFilter, number> = { all: messageFilteredLogs.length, error: 0, warn: 0, info: 0, debug: 0 };
@@ -340,10 +356,25 @@ export function LogExplorer({
               type="search"
               value={messageSearch}
               onChange={(e) => setMessageSearch(e.target.value)}
-              placeholder="Search messages…"
+              placeholder="Quick filter — plain text or regex"
               aria-label="Search log messages"
               className="min-w-[180px] flex-1 border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--brand)] focus:outline-none"
             />
+            <button
+              type="button"
+              onClick={() => setIsRegexMode((v) => !v)}
+              aria-pressed={isRegexMode}
+              aria-label={isRegexMode ? "Disable regex quick filter" : "Enable regex quick filter"}
+              title="Toggle regex matching for the quick filter"
+              className={[
+                "px-2 py-1 text-xs font-mono font-bold border transition-colors",
+                isRegexMode
+                  ? "border-[var(--brand)] text-[var(--brand)]"
+                  : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--brand)] hover:text-[var(--text)]",
+              ].join(" ")}
+            >
+              .*
+            </button>
             <button
               type="button"
               onClick={() => setIsLive((v) => !v)}
@@ -369,6 +400,11 @@ export function LogExplorer({
           {isLive && userQuery?.trim() && (
             <p className="text-[10px] text-[var(--warn)] px-1">
               NLQ query not applied in tail mode — service and severity filters are active.
+            </p>
+          )}
+          {isRegexInvalid && (
+            <p className="text-[10px] text-[var(--warn)] px-1">
+              Invalid regex — showing all results.
             </p>
           )}
 
