@@ -200,6 +200,27 @@ test("Errors MetricCard is present when there are error spans", () => {
   expect(screen.getByText("Errors")).toBeInTheDocument();
 });
 
+test("waterfall row for an error span has the error border accent and an ERROR badge", () => {
+  const errorSpan: Span = { ...baseSpan, span_id: "222", status_code: "ERROR" };
+  render(<TraceDetail traceId="abc" spans={[baseSpan, errorSpan]} />, { wrapper });
+
+  // baseSpan and errorSpan share the same service/operation text, so scope the
+  // assertion to the row containing the ERROR badge rather than by row text.
+  const errorBadges = screen.getAllByText("ERROR");
+  expect(errorBadges.length).toBeGreaterThanOrEqual(1);
+  const errorRow = errorBadges[0].closest('[role="button"]');
+  expect(errorRow).not.toBeNull();
+  expect(errorRow).toHaveClass("border-l-[var(--bad)]");
+});
+
+test("waterfall row for a non-error span has no error border accent or ERROR badge", () => {
+  render(<TraceDetail traceId="abc" spans={[baseSpan]} />, { wrapper });
+
+  const row = screen.getByRole("button", { name: /POST \/order/ });
+  expect(row).not.toHaveClass("border-l-[var(--bad)]");
+  expect(screen.queryByText("ERROR")).not.toBeInTheDocument();
+});
+
 test("renders service color legend with unique service names", () => {
   const paymentSpan = {
     ...baseSpan,

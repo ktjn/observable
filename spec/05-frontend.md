@@ -229,6 +229,14 @@ The global date/time range remains a separate global control. Sorting, navigatio
 remain explicit controls. Service detail NLQ execution routes returned `VisualizationFrame` data to
 the matching Logs, Metrics, or Traces tab below the input.
 
+### 9.3.2 Log Explorer UX
+
+The Log Explorer's **quick filter** (the "Search messages" input next to severity filter pills) supports a regex mode (toggled via the `.*` button next to the input) for pattern matching against log messages, in addition to the default plain-substring mode. This is a client-side filter over already-loaded rows, distinct from the NLQ/shorthand query box above it.
+
+### 9.3.3 Trace Detail Waterfall UX
+
+Each waterfall row shows an explicit "ERROR" badge and a red left-border accent when the span's `status_code` is `ERROR`, independent of the row's service-color-coded bar fill — so error status is legible without relying on color alone.
+
 ### 9.4 Cross-Signal Correlation Patterns
 
 Correlation is a first-class UI concern. The following patterns must be implemented consistently across all signal explorers.
