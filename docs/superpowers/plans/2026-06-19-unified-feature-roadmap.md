@@ -59,8 +59,11 @@ Small, standalone, high user-value slices. Ordered by user impact.
 - [x] **Alert Inhibition Rules** (was P12-S5) — suppress lower-severity alerts for the same
   service while a higher-severity alert is active; `Suppressed` state with "Suppressed by" label.
   Directly reduces alert fatigue for every user with alert rules configured. _(shipped PR #481)_
-- [ ] **Saved Views in Explorers** (was P14-S3) — save filter state + time range + columns per
+- [x] **Saved Views in Explorers** (was P14-S3) — save filter state + time range + columns per
   signal type; private/shared visibility. High-frequency daily UX improvement for all users.
+  _(shipped PR #494 for the logs explorer only — save/load/delete, visibility toggle, per-user
+  grants, and column show/hide, all reachable through the UI. Traces and metrics explorers are
+  still open follow-up slices; `signal_kind` is constrained to `'logs'` in the migration.)_
 - [ ] **Export APIs** (was P13-S4) — CSV/JSON export for log, trace, and metric query results;
   100k-row sync limit, async job beyond that. Users need to get data out for external analysis
   and reporting.
