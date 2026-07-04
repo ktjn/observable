@@ -13,7 +13,7 @@ import type { NlqIrLike } from "../features/nlq/queryFilters";
 import { infraLinks } from "../utils/infraLinks";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { formatBucketLabel } from "../utils/formatBucketLabel";
-import { OTelLevel, otelSeverity, formatLogMessage, formatContextValue } from "../utils/logFormatting";
+import { OTelLevel, otelSeverity, severityTextClass, formatLogMessage, formatContextValue } from "../utils/logFormatting";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
@@ -40,14 +40,6 @@ const LOG_BASE_IR: NlqIrLike = {
   signals: ["logs"],
   filters: [],
   time_range: { from: "now-1h", to: "now" },
-};
-
-const TONE_TEXT_CLASS: Record<ReturnType<typeof otelSeverity>["tone"], string> = {
-  good: "text-[var(--good)]",
-  warn: "text-[var(--warn)]",
-  bad: "text-[var(--bad)]",
-  info: "text-[var(--brand)]",
-  neutral: "text-[var(--muted)]",
 };
 
 const levelOrder: OTelLevel[] = ["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"];
@@ -503,7 +495,7 @@ function LogContextSidebar({
       </div>
       <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
         <DlRow label="level">
-          <span className={`font-bold uppercase ${TONE_TEXT_CLASS[severity.tone]}`}>
+          <span className={`font-bold uppercase ${severityTextClass(log.severity_number)}`}>
             {severity.label}
           </span>
         </DlRow>
