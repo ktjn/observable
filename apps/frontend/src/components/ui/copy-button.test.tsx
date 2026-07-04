@@ -30,6 +30,21 @@ test("click copies the value and shows a Copied state that reverts", async () =>
   ).toBeInTheDocument();
 });
 
+test("blurs itself after a click so it doesn't stay visible via :focus-within forever", async () => {
+  render(
+    <div className="group">
+      <CopyButton value="trace-123" label="Copy trace id" />
+    </div>
+  );
+  const button = screen.getByRole("button", { name: "Copy trace id" });
+  button.focus();
+  expect(button).toHaveFocus();
+
+  fireEvent.click(button);
+
+  expect(button).not.toHaveFocus();
+});
+
 test("is a real button, activatable via keyboard", () => {
   render(<CopyButton value="abc" />);
   const button = screen.getByRole("button", { name: "Copy" });

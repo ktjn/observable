@@ -83,6 +83,12 @@ export function CopyButton({
         e.stopPropagation();
         e.preventDefault();
         void copy(value);
+        // A mouse click leaves the button natively :focus'd (though not
+        // :focus-visible), which keeps an ancestor's :focus-within true and
+        // the hover-only button visible indefinitely. Blur so it returns to
+        // hover-only visibility once the click is handled; keyboard users
+        // still get :focus-visible when tabbing to it.
+        e.currentTarget.blur();
       }}
       className={cn(
         "inline-flex shrink-0 items-center justify-center text-[var(--muted)] outline-none transition-opacity hover:text-[var(--brand)]",

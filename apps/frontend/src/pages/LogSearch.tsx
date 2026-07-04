@@ -13,13 +13,12 @@ import type { NlqIrLike } from "../features/nlq/queryFilters";
 import { infraLinks } from "../utils/infraLinks";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { formatBucketLabel } from "../utils/formatBucketLabel";
-import { OTelLevel, otelSeverity, formatLogMessage, formatContextValue } from "../utils/logFormatting";
+import { OTelLevel, otelSeverity, severityTextClass, formatLogMessage, formatContextValue } from "../utils/logFormatting";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
 import { useLiveTail } from "../hooks/useLiveTail";
-import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
 import { ErrorState } from "../components/ui/error-state";
@@ -494,10 +493,12 @@ function LogContextSidebar({
           Close
         </Button>
       </div>
-      <Badge tone={severity.tone} className="mb-3">
-        {severity.label}
-      </Badge>
       <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
+        <DlRow label="level">
+          <span className={`font-bold uppercase ${severityTextClass(log.severity_number)}`}>
+            {severity.label}
+          </span>
+        </DlRow>
         {entries.map(([key, value]) => (
           <DlRow key={key} label={key}>
             {key === "trace_id" && log.trace_id ? (
