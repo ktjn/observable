@@ -1,7 +1,8 @@
 import type { LogRecord } from "../../api/logs";
 import { formatTimestamp } from "../../utils/formatTimestamp";
-import { formatLogMessage, getSeverityColor } from "../../utils/logFormatting";
+import { formatLogMessage, otelSeverity } from "../../utils/logFormatting";
 import type { TimeFormat } from "../../lib/timeDisplay";
+import { Badge } from "../ui/badge";
 import { CopyButton } from "../ui/copy-button";
 
 export interface LogListProps {
@@ -62,8 +63,10 @@ export function LogList({
             <span className="text-[var(--muted)] shrink-0">
               {formatTimestamp(log.timestamp_unix_nano, timeFormat)}
             </span>
-            <span className="w-[50px] shrink-0" style={{ color: getSeverityColor(log.severity_number) }}>
-              {log.severity_text || `LVL ${log.severity_number}`}
+            <span className="w-[50px] shrink-0">
+              <Badge tone={otelSeverity(log.severity_number).tone}>
+                {log.severity_text || `LVL ${log.severity_number}`}
+              </Badge>
             </span>
             <span className="flex-1 min-w-0 break-all inline-flex items-start gap-1">
               <span className="min-w-0 break-all">{formatLogMessage(log.body)}</span>

@@ -3,7 +3,6 @@ import {
   otelSeverity,
   formatLogMessage,
   formatContextValue,
-  getSeverityColor,
 } from "./logFormatting";
 
 describe("otelSeverity", () => {
@@ -122,29 +121,5 @@ describe("formatContextValue", () => {
 
   it("JSON-serialises an array", () => {
     expect(formatContextValue([1, 2, 3])).toBe("[1,2,3]");
-  });
-});
-
-describe("getSeverityColor", () => {
-  it("returns --bad for severity >= 13 (WARN and above)", () => {
-    expect(getSeverityColor(13)).toBe("var(--bad)");
-    expect(getSeverityColor(17)).toBe("var(--bad)");
-    expect(getSeverityColor(21)).toBe("var(--bad)");
-    expect(getSeverityColor(100)).toBe("var(--bad)");
-  });
-
-  it("returns --warn for severity 9–12 (INFO range)", () => {
-    expect(getSeverityColor(9)).toBe("var(--warn)");
-    expect(getSeverityColor(12)).toBe("var(--warn)");
-  });
-
-  it("returns --brand for severity 5–8 (DEBUG range)", () => {
-    expect(getSeverityColor(5)).toBe("var(--brand)");
-    expect(getSeverityColor(8)).toBe("var(--brand)");
-  });
-
-  it("returns --muted for severity < 5 (TRACE range)", () => {
-    expect(getSeverityColor(0)).toBe("var(--muted)");
-    expect(getSeverityColor(4)).toBe("var(--muted)");
   });
 });
