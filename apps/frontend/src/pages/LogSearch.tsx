@@ -494,10 +494,10 @@ function LogContextSidebar({
           Close
         </Button>
       </div>
-      <Badge tone={severity.tone} className="mb-3">
-        {severity.label}
-      </Badge>
       <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
+        <DlRow label="level">
+          <Badge tone={severity.tone}>{severity.label}</Badge>
+        </DlRow>
         {entries.map(([key, value]) => (
           <DlRow key={key} label={key}>
             {key === "trace_id" && log.trace_id ? (
