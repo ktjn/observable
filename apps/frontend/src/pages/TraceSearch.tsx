@@ -28,6 +28,7 @@ import { useTenantContext } from "../hooks/useTenantContext";
 import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
 import { formatBucketLabel } from "../utils/formatBucketLabel";
 import { formatTimestamp } from "../utils/formatTimestamp";
+import { formatStatusLabel } from "../utils/traceStatus";
 import { formatContextValue } from "../utils/logFormatting";
 import { infraLinks } from "../utils/infraLinks";
 import { SignalExplorer, SaveStatus } from "../components/shared/SignalExplorer";
@@ -392,7 +393,7 @@ function TraceContextSidebar({
       </div>
 
       <Badge tone={root.status_code === "ERROR" ? "bad" : "good"} className="mb-3">
-        {root.status_code}
+        {formatStatusLabel(root.status_code)}
       </Badge>
 
       <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">

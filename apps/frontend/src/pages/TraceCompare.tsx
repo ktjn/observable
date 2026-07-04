@@ -5,6 +5,7 @@ import { getTrace, type Span, type TraceResponse } from "../api/traces";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { useTimeDisplay, type TimeFormat } from "../lib/timeDisplay";
 import { formatTimestamp } from "../utils/formatTimestamp";
+import { formatStatusLabel } from "../utils/traceStatus";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
@@ -73,7 +74,7 @@ export function summarizeTrace(trace: TraceResponse): TraceSummary {
     durationMs: durationNs / 1e6,
     rootService: root?.service_name ?? "Unknown service",
     rootOperation: root?.operation_name ?? "Unknown operation",
-    statusCode: root?.status_code ?? "UNKNOWN",
+    statusCode: root ? formatStatusLabel(root.status_code) : "UNKNOWN",
     startTimeNs: root ? Number(root.start_time_unix_nano) : 0,
     path: collectTracePath(trace),
   };
