@@ -32,7 +32,8 @@ import { formatStatusLabel } from "../utils/traceStatus";
 import { formatContextValue } from "../utils/logFormatting";
 import { infraLinks } from "../utils/infraLinks";
 import { SignalExplorer, SaveStatus } from "../components/shared/SignalExplorer";
-import { TraceResultsTable } from "../features/signals/components/TraceResultsTable";
+import { TraceResultsTable, type TraceTableColumn } from "../features/signals/components/TraceResultsTable";
+import { ColumnPickerControl } from "../features/signals/components/ColumnPickerControl";
 import { MetricCard } from "../components/ui/metric-card";
 
 const TRACE_BASE_IR: NlqIrLike = {
@@ -150,6 +151,12 @@ export function TraceExplorer({
   const [userQuery, setUserQuery] = useState<string | null>(initialQuery);
   const [service, setService] = useState(initialService);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [visibleColumns, setVisibleColumns] = useState<TraceTableColumn[]>([
+    "service",
+    "operation",
+    "duration",
+    "status",
+  ]);
 
   const from = String(BigInt(Math.floor(fromMs)) * 1_000_000n);
   const to = String(BigInt(Math.floor(toMs)) * 1_000_000n);
@@ -254,6 +261,18 @@ export function TraceExplorer({
       }}
       saveStatus={saveStatus}
       onPromote={handlePromote}
+      savedViewsControl={
+        <ColumnPickerControl
+          columns={[
+            { key: "service", label: "Service" },
+            { key: "operation", label: "Operation" },
+            { key: "duration", label: "Duration" },
+            { key: "status", label: "Status" },
+          ]}
+          visibleColumns={visibleColumns}
+          onChange={setVisibleColumns}
+        />
+      }
       histogram={
         canRenderHistogram ? (
           <Histogram
@@ -333,6 +352,7 @@ export function TraceExplorer({
                   onSelectTrace={(id) => onSelect(id)}
                   mode={tableMode}
                   showServiceColumn={showServiceColumn}
+                  visibleColumns={visibleColumns}
                   timeFormat={format}
                   ariaLabel={tableAriaLabel}
                 />

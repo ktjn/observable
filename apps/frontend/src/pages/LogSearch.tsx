@@ -11,9 +11,9 @@ import {
 import { submitNlqQuery } from "../api/nlq";
 import type { NlqIrLike } from "../features/nlq/queryFilters";
 import { infraLinks } from "../utils/infraLinks";
-import { formatTimestamp } from "../utils/formatTimestamp";
 import { formatBucketLabel } from "../utils/formatBucketLabel";
-import { OTelLevel, otelSeverity, severityTextClass, formatLogMessage, formatContextValue } from "../utils/logFormatting";
+import { OTelLevel, otelSeverity, severityTextClass, formatLogMessage } from "../utils/logFormatting";
+import { logContextEntries, isPromotableLogKey } from "../utils/logContext";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
@@ -125,6 +125,7 @@ export function LogExplorer({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [isLive, setIsLive] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<("level" | "service")[]>(["level", "service"]);
+  const [promotedColumns, setPromotedColumns] = useState<string[]>([]);
   const [isRegexMode, setIsRegexMode] = useState(false);
 
   const SEVERITY_MIN: Partial<Record<SeverityFilter, number>> = {
@@ -269,7 +270,7 @@ export function LogExplorer({
       preset != null
         ? { mode: "preset", preset }
         : { mode: "absolute", from_ms: fromMs, to_ms: toMs },
-    visible_columns: visibleColumns,
+    visible_columns: [...visibleColumns, ...promotedColumns],
   };
 
   const handleLoadView = (config: LogViewConfig) => {
@@ -283,6 +284,7 @@ export function LogExplorer({
       setCustomRange(config.time_range.from_ms, config.time_range.to_ms);
     }
     setVisibleColumns(config.visible_columns.filter((c): c is "level" | "service" => c === "level" || c === "service"));
+    setPromotedColumns(config.visible_columns.filter((c) => c !== "level" && c !== "service"));
   };
 
   return (
@@ -304,7 +306,18 @@ export function LogExplorer({
       onPromote={handlePromote}
       savedViewsControl={
         <>
-          <ColumnPickerControl visibleColumns={visibleColumns} onChange={setVisibleColumns} />
+          <ColumnPickerControl
+            columns={[
+              { key: "level", label: "Level" },
+              { key: "service", label: "Service" },
+              ...promotedColumns.map((key) => ({ key, label: key })),
+            ]}
+            visibleColumns={[...visibleColumns, ...promotedColumns]}
+            onChange={(next) => {
+              setVisibleColumns(next.filter((c): c is "level" | "service" => c === "level" || c === "service"));
+              setPromotedColumns(next.filter((c) => c !== "level" && c !== "service"));
+            }}
+          />
           <SavedViewsControl tenantId={tenantId} currentConfig={currentViewConfig} onLoad={handleLoadView} />
         </>
       }
@@ -440,6 +453,7 @@ export function LogExplorer({
                     timeFormat={format}
                     showServiceColumn={showServiceColumn}
                     visibleColumns={visibleColumns}
+                    promotedColumns={promotedColumns}
                     ariaLabel={tableAriaLabel}
                   />
                   {isCapped && (
@@ -460,7 +474,17 @@ export function LogExplorer({
       )}
       renderPanel={(selectedId, onClose) => {
         const log = logs.find((l) => l.log_id === selectedId);
-        return log ? <LogContextSidebar log={log} format={format} onClose={onClose} /> : null;
+        return log ? (
+          <LogContextSidebar
+            log={log}
+            format={format}
+            onClose={onClose}
+            promotedColumns={promotedColumns}
+            onPromoteColumn={(key) =>
+              setPromotedColumns((prev) => (prev.includes(key) ? prev : [...prev, key]))
+            }
+          />
+        ) : null;
       }}
     />
   );
@@ -470,10 +494,14 @@ function LogContextSidebar({
   log,
   format,
   onClose,
+  promotedColumns,
+  onPromoteColumn,
 }: {
   log: LogRecord;
   format: import("../lib/timeDisplay").TimeFormat;
   onClose: () => void;
+  promotedColumns: string[];
+  onPromoteColumn: (key: string) => void;
 }) {
   const severity = otelSeverity(log.severity_number);
   const entries = logContextEntries(log, format);
@@ -500,7 +528,12 @@ function LogContextSidebar({
           </span>
         </DlRow>
         {entries.map(([key, value]) => (
-          <DlRow key={key} label={key}>
+          <DlRow
+            key={key}
+            label={key}
+            onPromote={isPromotableLogKey(key) ? () => onPromoteColumn(key) : undefined}
+            promoted={promotedColumns.includes(key)}
+          >
             {key === "trace_id" && log.trace_id ? (
               <a
                 href={`/traces/${log.trace_id}`}
@@ -576,31 +609,6 @@ export function buildLogHistogram(logs: LogRecord[], fromMs: number, toMs: numbe
 
 function emptyLevels(): Record<OTelLevel, number> {
   return { TRACE: 0, DEBUG: 0, INFO: 0, WARN: 0, ERROR: 0, FATAL: 0 };
-}
-
-function logContextEntries(
-  log: LogRecord,
-  format: import("../lib/timeDisplay").TimeFormat,
-): [string, string][] {
-  const entries: [string, string][] = [
-    ["time", formatTimestamp(log.timestamp_unix_nano, format)],
-    ["service.name", log.service_name],
-    ["severity_number", String(log.severity_number)],
-    ["message", formatLogMessage(log.body)],
-  ];
-  if (log.observed_timestamp_unix_nano)
-    entries.push(["observed_time", formatTimestamp(log.observed_timestamp_unix_nano, format)]);
-  if (log.environment) entries.push(["environment", log.environment]);
-  if (log.host_id) entries.push(["host_id", log.host_id]);
-  if (log.trace_id) entries.push(["trace_id", log.trace_id]);
-  if (log.span_id) entries.push(["span_id", log.span_id]);
-  if (log.fingerprint !== null && log.fingerprint !== undefined)
-    entries.push(["fingerprint", String(log.fingerprint)]);
-  for (const [k, v] of Object.entries(log.attributes ?? {}).sort(([a], [b]) => a.localeCompare(b)))
-    entries.push([`log.${k}`, formatContextValue(v)]);
-  for (const [k, v] of Object.entries(log.resource_attributes ?? {}).sort(([a], [b]) => a.localeCompare(b)))
-    entries.push([k, formatContextValue(v)]);
-  return entries;
 }
 
 export { otelSeverity, formatLogMessage } from "../utils/logFormatting";

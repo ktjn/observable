@@ -8,12 +8,17 @@ import { formatTimestamp } from "../../../utils/formatTimestamp";
 import { formatStatusLabel } from "../../../utils/traceStatus";
 import type { TimeFormat } from "../../../lib/timeDisplay";
 
+export type TraceTableColumn = "service" | "operation" | "duration" | "status";
+
+const ALL_TRACE_COLUMNS: TraceTableColumn[] = ["service", "operation", "duration", "status"];
+
 export function TraceResultsTable({
   traces,
   selectedTraceId,
   onSelectTrace,
   mode = "select",
   showServiceColumn = true,
+  visibleColumns,
   timeFormat = "iso-local-ms",
   ariaLabel = showServiceColumn ? "Trace results" : "Service traces",
 }: {
@@ -22,9 +27,17 @@ export function TraceResultsTable({
   onSelectTrace: (traceId: string) => void;
   mode?: "select" | "link";
   showServiceColumn?: boolean;
+  /** When set, restricts optional columns to this list. Time and Trace ID always show. */
+  visibleColumns?: TraceTableColumn[];
   timeFormat?: TimeFormat;
   ariaLabel?: string;
 }) {
+  const columns = visibleColumns ?? ALL_TRACE_COLUMNS;
+  const showService = showServiceColumn && columns.includes("service");
+  const showOperation = columns.includes("operation");
+  const showDuration = columns.includes("duration");
+  const showStatus = columns.includes("status");
+
   return (
     <VirtualTable
       rows={traces}
@@ -33,10 +46,10 @@ export function TraceResultsTable({
         <tr>
           <th aria-label="Time">Time</th>
           <th>Trace ID</th>
-          {showServiceColumn && <th>Service</th>}
-          <th>Operation</th>
-          <th>Duration</th>
-          <th>Status</th>
+          {showService && <th>Service</th>}
+          {showOperation && <th>Operation</th>}
+          {showDuration && <th>Duration</th>}
+          {showStatus && <th>Status</th>}
         </tr>
       )}
       renderRow={(trace, ref, index) => (
@@ -46,7 +59,10 @@ export function TraceResultsTable({
           selected={selectedTraceId === trace.trace_id}
           onSelect={() => onSelectTrace(trace.trace_id)}
           mode={mode}
-          showServiceColumn={showServiceColumn}
+          showServiceColumn={showService}
+          showOperation={showOperation}
+          showDuration={showDuration}
+          showStatus={showStatus}
           timeFormat={timeFormat}
           measureRef={ref}
           index={index}
@@ -63,6 +79,9 @@ function TraceResultsRow({
   onSelect,
   mode,
   showServiceColumn,
+  showOperation,
+  showDuration,
+  showStatus,
   timeFormat,
   measureRef,
   index,
@@ -72,6 +91,9 @@ function TraceResultsRow({
   onSelect: () => void;
   mode: "select" | "link";
   showServiceColumn: boolean;
+  showOperation: boolean;
+  showDuration: boolean;
+  showStatus: boolean;
   timeFormat: TimeFormat;
   measureRef: (el: Element | null) => void;
   index: number;
@@ -119,13 +141,17 @@ function TraceResultsRow({
         </span>
       </td>
       {showServiceColumn && <td>{root.service_name}</td>}
-      <td className="whitespace-normal break-all">{root.operation_name}</td>
-      <td className="whitespace-nowrap font-mono">
-        <DurationCell durationNs={root.duration_ns} />
-      </td>
-      <td>
-        <Badge tone={isError ? "bad" : "good"}>{formatStatusLabel(root.status_code)}</Badge>
-      </td>
+      {showOperation && <td className="whitespace-normal break-all">{root.operation_name}</td>}
+      {showDuration && (
+        <td className="whitespace-nowrap font-mono">
+          <DurationCell durationNs={root.duration_ns} />
+        </td>
+      )}
+      {showStatus && (
+        <td>
+          <Badge tone={isError ? "bad" : "good"}>{formatStatusLabel(root.status_code)}</Badge>
+        </td>
+      )}
     </tr>
   );
 }

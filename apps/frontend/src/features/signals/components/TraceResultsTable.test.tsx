@@ -111,6 +111,26 @@ test("renders linked trace rows for scoped service views", () => {
   );
 });
 
+test("visibleColumns restricts which optional columns render", () => {
+  render(
+    <TraceResultsTable
+      traces={traces}
+      selectedTraceId={undefined}
+      onSelectTrace={vi.fn()}
+      visibleColumns={["status"]}
+    />,
+  );
+
+  const table = screen.getByRole("table", { name: "Trace results" });
+  expect(within(table).getByRole("columnheader", { name: "Time" })).toBeInTheDocument();
+  expect(within(table).getByRole("columnheader", { name: "Trace ID" })).toBeInTheDocument();
+  expect(within(table).getByRole("columnheader", { name: "Status" })).toBeInTheDocument();
+  expect(within(table).queryByRole("columnheader", { name: "Service" })).not.toBeInTheDocument();
+  expect(within(table).queryByRole("columnheader", { name: "Operation" })).not.toBeInTheDocument();
+  expect(within(table).queryByRole("columnheader", { name: "Duration" })).not.toBeInTheDocument();
+  expect(within(table).queryByText("GET /checkout")).not.toBeInTheDocument();
+});
+
 test("renders a Time column using the provided timeFormat", () => {
   render(
     <TraceResultsTable
