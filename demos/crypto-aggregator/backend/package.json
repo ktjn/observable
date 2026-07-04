@@ -23,7 +23,7 @@
     "@opentelemetry/semantic-conventions": "^1.30.0",
     "cors": "^2.8.5",
     "eventsource": "^4.0.0",
-    "express": "^4.21.2",
+    "express": "^5.0.0",
     "uuid": "^11.1.0",
     "ws": "^8.18.0"
   },
