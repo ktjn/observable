@@ -17,6 +17,7 @@ ensure_prereqs() {
 
 INGEST="${INGEST_URL:-http://localhost:4318}"
 GRPC_INGEST="${GRPC_INGEST_URL:-http://localhost:4317}"
+PLATFORM="${PLATFORM_URL:-http://localhost:4321}"
 QUERY="${QUERY_URL:-http://localhost:8090}"
 TOKEN="dev-api-key-0000"
 TENANT_ID="00000000-0000-0000-0000-000000000002"
@@ -222,6 +223,31 @@ main() {
     "discovery" \
     "$QUERY/v1/services" \
     "[.items[] | select(. == \"$SERVICE_NAME\")] | length"
+
+  echo "7. Creating deployment marker..."
+  DEPLOYMENT_CREATE_RESULT=$(curl -sf -X POST "$PLATFORM/v1/deployments" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"service_name\":\"$SERVICE_NAME\",\"environment\":\"prod\",\"service_version\":\"smoke-$RUN_ID\"}")
+  DEPLOYMENT_ID=$(echo "$DEPLOYMENT_CREATE_RESULT" | jq -r '.deployment_id // empty')
+  if [ -z "$DEPLOYMENT_ID" ]; then
+    echo " FAIL: deployment creation did not return a deployment_id"
+    echo " Result: $DEPLOYMENT_CREATE_RESULT"
+    exit 1
+  fi
+  echo " OK (created) - $DEPLOYMENT_ID"
+
+  echo "7a. Finishing deployment marker..."
+  assert_http_status "finish deployment" "204" -X PATCH "$PLATFORM/v1/deployments/$DEPLOYMENT_ID" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"status\":\"success\"}"
+
+  echo "7b. Verifying deployment is queryable..."
+  wait_for_json_count \
+    "deployments" \
+    "$QUERY/v1/deployments?service_name=$SERVICE_NAME" \
+    '.items | length'
 
   echo ""
   echo "=== ALL CHECKS PASSED ==="
