@@ -28,7 +28,6 @@ import {
 function buildNavTree(showGettingStarted: boolean): NavTreeItem[] {
   const base: NavTreeItem[] = [
     { id: "home", label: "Home", to: "/", icon: HomeIcon },
-    { id: "workbench", label: "Workbench", to: "/workbench", icon: Database },
     { id: "services", label: "Services", to: "/services", icon: Workflow },
     {
       id: "signals",
@@ -45,6 +44,7 @@ function buildNavTree(showGettingStarted: boolean): NavTreeItem[] {
     { id: "dashboards", label: "Dashboards", to: "/dashboards", icon: LayoutDashboard },
     { id: "alerts", label: "Alerts & SLOs", to: "/alerts", icon: BellRing },
     { id: "incidents", label: "Incidents", to: "/incidents", icon: Siren },
+    { id: "workbench", label: "Workbench", to: "/workbench", icon: Database },
     {
       id: "admin",
       label: "Administration",

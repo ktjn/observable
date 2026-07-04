@@ -101,9 +101,19 @@ export function NotebookBlock({
             >
               {runtime.status === "loading" ? "Running…" : "Run"}
             </Button>
-            <span className="text-xs text-[var(--text-muted)]">
-              {placeholderForSignal(signal)}
-            </span>
+            {!draft.trim() ? (
+              <Button
+                variant="ghost"
+                className="min-h-7 px-2 text-xs text-[var(--text-muted)]"
+                onClick={() => {
+                  onActivate();
+                  onDraftChange(exampleQueryForSignal(signal));
+                }}
+                data-testid={`workbench-example-${id}`}
+              >
+                Try: {exampleQueryForSignal(signal)}
+              </Button>
+            ) : null}
           </div>
           <NotebookResults runtime={runtime} />
         </div>
@@ -112,13 +122,13 @@ export function NotebookBlock({
   );
 }
 
-function placeholderForSignal(signal: WorkbenchSignal): string {
+function exampleQueryForSignal(signal: WorkbenchSignal): string {
   switch (signal) {
     case "metrics":
-      return "Ask about metrics, e.g. p95 latency by service";
+      return "p95 latency by service over the last hour";
     case "logs":
-      return "Ask about logs, e.g. error logs for checkout";
+      return "error logs for checkout in the last hour";
     case "traces":
-      return "Ask about traces, e.g. slow traces for checkout";
+      return "slow traces for checkout over 2s";
   }
 }
