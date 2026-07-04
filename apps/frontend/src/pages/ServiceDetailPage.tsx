@@ -398,7 +398,7 @@ function ResponseTimeGraphSection({
   fromMs: number;
   toMs: number;
 }) {
-  const { setCustomRange } = useGlobalDateRange();
+  const { preset, setCustomRange, clearCustomRange } = useGlobalDateRange();
   const { tenantId } = useTenantContext();
 
   const { data: historyData } = useQuery({
@@ -474,6 +474,8 @@ function ResponseTimeGraphSection({
       title="Response Time & Throughput"
       ariaLabel="Service response time and throughput graph"
       onRangeSelect={setCustomRange}
+      isZoomed={preset === null}
+      onResetZoom={clearCustomRange}
     />
   );
 }

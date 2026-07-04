@@ -28,6 +28,9 @@ export interface TimeSeriesGraphProps {
   eyebrow?: string;
   ariaLabel?: string;
   onRangeSelect?: (fromMs: number, toMs: number) => void;
+  /** When true and onRangeSelect/onResetZoom are provided, shows a Reset zoom control. */
+  isZoomed?: boolean;
+  onResetZoom?: () => void;
 }
 
 const PLOT_TOP = 10;
@@ -110,6 +113,8 @@ export function TimeSeriesGraph({
   eyebrow,
   ariaLabel = "Time series graph",
   onRangeSelect,
+  isZoomed = false,
+  onResetZoom,
 }: TimeSeriesGraphProps) {
   const wrapperRef = useRef<HTMLElement>(null);
   const [width, setWidth] = useState(400);
@@ -203,7 +208,7 @@ export function TimeSeriesGraph({
               <h2 className="m-0 text-sm font-bold text-[var(--text-strong)]">{title}</h2>
             )}
           </div>
-          <div className="flex flex-wrap gap-3 text-xs text-[var(--muted)]">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
             {series.map((s) => (
               <span key={s.key} className="inline-flex items-center gap-1">
                 <svg width="12" height="4" aria-hidden="true">
@@ -217,6 +222,16 @@ export function TimeSeriesGraph({
                 {s.label}
               </span>
             ))}
+            {onRangeSelect && <span className="text-xs text-[var(--muted)]">Drag to zoom</span>}
+            {onRangeSelect && onResetZoom && isZoomed && (
+              <button
+                type="button"
+                className="cursor-pointer text-xs text-[var(--muted)] underline hover:text-[var(--text)]"
+                onClick={onResetZoom}
+              >
+                Reset zoom
+              </button>
+            )}
           </div>
         </div>
       )}

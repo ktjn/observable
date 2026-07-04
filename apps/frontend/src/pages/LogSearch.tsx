@@ -235,7 +235,7 @@ export function LogExplorer({
 
   const histogram = useMemo(
     () =>
-      histogramData?.buckets
+      histogramData?.buckets?.length
         ? histogramFromApi(histogramData.buckets)
         : buildLogHistogram([], fromMs, toMs),
     [histogramData, fromMs, toMs],
