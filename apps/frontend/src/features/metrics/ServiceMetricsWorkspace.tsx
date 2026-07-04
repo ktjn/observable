@@ -41,7 +41,7 @@ export function ServiceMetricsWorkspace({
   lockedService?: boolean;
   showHeader?: boolean;
 }) {
-  const { fromMs, toMs, setCustomRange } = useGlobalDateRange();
+  const { fromMs, toMs, preset, setCustomRange, clearCustomRange } = useGlobalDateRange();
   const { tenantId } = useTenantContext();
   const [serviceName, setServiceName] = useState(initialService);
   const [filters, setFilters] = useState<FilterState>({
@@ -167,6 +167,8 @@ export function ServiceMetricsWorkspace({
             fromMs={fromMs}
             toMs={toMs}
             onRangeSelect={setCustomRange}
+            isZoomed={preset === null}
+            onResetZoom={clearCustomRange}
           />
         }
         renderTable={(selectedId, onSelect) => (
@@ -247,11 +249,15 @@ function MetricGraphContainer({
   fromMs,
   toMs,
   onRangeSelect,
+  isZoomed,
+  onResetZoom,
 }: {
   selectedMetric: MetricCatalogEntry | null;
   fromMs: number;
   toMs: number;
   onRangeSelect: (fromMs: number, toMs: number) => void;
+  isZoomed: boolean;
+  onResetZoom: () => void;
 }) {
   const { tenantId } = useTenantContext();
   const { data, isLoading } = useQuery({
@@ -292,6 +298,8 @@ function MetricGraphContainer({
         rangeEndMs={toMs}
         height={140}
         onRangeSelect={onRangeSelect}
+        isZoomed={isZoomed}
+        onResetZoom={onResetZoom}
         ariaLabel={`Graph for ${selectedMetric.metric_name}`}
       />
     );

@@ -397,6 +397,20 @@ test("invalid regex in regex mode shows all rows with an inline notice", async (
   });
 });
 
+test("histogram resets to a zero-filled range when the API returns no buckets", async () => {
+  vi.mocked(fetchLogHistogram).mockResolvedValueOnce({ buckets: [] });
+
+  renderLogSearch();
+  await screen.findByRole("group", { name: "Log volume histogram" });
+
+  const histogram = screen.getByRole("group", { name: "Log volume histogram" });
+  // Each of the 30 zero-filled fallback buckets renders a background bar rect,
+  // even with zero counts — an empty `buckets: []` response must not leave the
+  // histogram with no bars at all (i.e. it must reset, not go blank/broken).
+  const bars = histogram.querySelectorAll("rect");
+  expect(bars.length).toBe(30);
+});
+
 test("histogram renders visible bars when API returns non-zero severity counts", async () => {
   vi.mocked(fetchLogHistogram).mockResolvedValueOnce({
     buckets: [
