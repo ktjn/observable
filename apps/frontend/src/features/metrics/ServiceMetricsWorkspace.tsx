@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getMetricGroupPoints, listMetrics, type MetricCatalogEntry } from "../../api/metrics";
 import { createDashboard } from "../../api/dashboards";
@@ -101,6 +101,15 @@ export function ServiceMetricsWorkspace({
     () => metrics.find((metric) => metricIdentity(metric) === selectedMetricId) ?? null,
     [metrics, selectedMetricId],
   );
+
+  // Default to the metric with the most backing series (the catalog is
+  // already ordered that way) instead of showing an empty graph until the
+  // user manually picks one.
+  useEffect(() => {
+    if (selectedMetricId === null && metrics.length > 0) {
+      setSelectedMetricId(metricIdentity(metrics[0]));
+    }
+  }, [metrics, selectedMetricId]);
 
   const handlePromote = async () => {
     setSaveStatus("saving");

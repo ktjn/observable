@@ -105,7 +105,7 @@ pub async fn list_metrics(
             aggregation_temporality,
             service_name,
             environment
-         ORDER BY metric_name ASC"
+         ORDER BY series_count DESC, metric_name ASC"
     } else {
         "SELECT
             tenant_id,
@@ -129,7 +129,7 @@ pub async fn list_metrics(
             aggregation_temporality,
             service_name,
             environment
-         ORDER BY service_name ASC, metric_name ASC"
+         ORDER BY series_count DESC, service_name ASC, metric_name ASC"
     };
     let mut query = state.ch.query(sql).bind(ctx.tenant_id);
     if let Some(service) = &params.service {
