@@ -88,7 +88,10 @@ export function CopyButton({
         "inline-flex shrink-0 items-center justify-center text-[var(--muted)] outline-none transition-opacity hover:text-[var(--brand)]",
         "focus-visible:ring-1 focus-visible:ring-[var(--focus-ring)]",
         visibility === "hover" &&
-          "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100",
+          cn(
+            "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100",
+            copied && "opacity-100"
+          ),
         className
       )}
       {...props}

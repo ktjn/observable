@@ -1,5 +1,6 @@
 import type { LogRecord } from "../../../api/logs";
 import { VirtualTable } from "../../../components/ui/VirtualTable";
+import { CopyButton } from "../../../components/ui/copy-button";
 import { formatTimestamp } from "../../../utils/formatTimestamp";
 import { formatLogMessage, getSeverityColor, otelSeverity } from "../../../utils/logFormatting";
 import type { TimeFormat } from "../../../lib/timeDisplay";
@@ -89,7 +90,7 @@ function LogResultsRow({
     <tr
       ref={measureRef}
       data-index={index}
-      className={`modern-table-row cursor-pointer ${accentClass} ${selected ? "bg-[var(--surface-subtle)]" : ""}`}
+      className={`modern-table-row group cursor-pointer ${accentClass} ${selected ? "bg-[var(--surface-subtle)]" : ""}`}
       onClick={onSelect}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelect()}
       tabIndex={0}
@@ -109,7 +110,12 @@ function LogResultsRow({
         </td>
       )}
       {showServiceColumn && <td>{log.service_name}</td>}
-      <td className="whitespace-normal break-all">{message}</td>
+      <td className="whitespace-normal break-all">
+        <span className="inline-flex min-w-0 max-w-full items-start gap-1">
+          <span className="min-w-0 break-all">{message}</span>
+          <CopyButton value={message} label="Copy message" />
+        </span>
+      </td>
     </tr>
   );
 }
