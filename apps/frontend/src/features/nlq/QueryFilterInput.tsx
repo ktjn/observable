@@ -50,6 +50,12 @@ export function QueryFilterInput({
     | { status: "interpreted"; ir: NlqIr }
   >({ status: "idle" });
 
+  function handleReset() {
+    setQuery("");
+    setState({ status: "idle" });
+    onSubmit?.("");
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const question = query.trim();
@@ -100,6 +106,7 @@ export function QueryFilterInput({
         placeholder={placeholder ?? "Filter this view with natural language"}
         idleLabel="Apply query"
         loadingLabel="Interpreting..."
+        onReset={handleReset}
       />
 
       {state.status === "error" && (
