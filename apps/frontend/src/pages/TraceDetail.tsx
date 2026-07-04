@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Span, SpanEvent } from "../api/traces";
 import { LogCorrelatedList } from "../components/LogCorrelatedList";
 import { infraLinks, InfraLink } from "../utils/infraLinks";
+import { formatStatusLabel } from "../utils/traceStatus";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { MetricCard } from "../components/ui/metric-card";
@@ -168,7 +169,7 @@ function SpanContextPanel({
         <DlRow label="kind">{span.span_kind}</DlRow>
         <DlRow label="status">
           <Badge tone={span.status_code === "ERROR" ? "bad" : "good"}>
-            {span.status_code}
+            {formatStatusLabel(span.status_code)}
           </Badge>
         </DlRow>
         <DlRow label="duration">

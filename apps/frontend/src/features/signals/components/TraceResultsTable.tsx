@@ -5,6 +5,7 @@ import { CopyButton } from "../../../components/ui/copy-button";
 import { DurationCell } from "../../../components/ui/metric-cells";
 import { VirtualTable } from "../../../components/ui/VirtualTable";
 import { formatTimestamp } from "../../../utils/formatTimestamp";
+import { formatStatusLabel } from "../../../utils/traceStatus";
 import type { TimeFormat } from "../../../lib/timeDisplay";
 
 export function TraceResultsTable({
@@ -123,7 +124,7 @@ function TraceResultsRow({
         <DurationCell durationNs={root.duration_ns} />
       </td>
       <td>
-        <Badge tone={isError ? "bad" : "good"}>{root.status_code}</Badge>
+        <Badge tone={isError ? "bad" : "good"}>{formatStatusLabel(root.status_code)}</Badge>
       </td>
     </tr>
   );
