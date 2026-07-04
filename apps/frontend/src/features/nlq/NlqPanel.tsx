@@ -44,6 +44,11 @@ export function NlqPanel({
   const [state, setState] = useState<QueryState>({ status: "idle" });
   const { tenantId } = useTenantContext();
 
+  function handleReset() {
+    setQuestion("");
+    setState({ status: "idle" });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const q = question.trim();
@@ -81,6 +86,8 @@ export function NlqPanel({
         loadingLabel="Querying…"
         inputTestId="nlq-input"
         submitTestId="nlq-submit"
+        onReset={handleReset}
+        resetTestId="nlq-reset"
       />
 
       {/* Results */}

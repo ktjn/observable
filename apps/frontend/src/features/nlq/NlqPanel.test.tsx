@@ -296,4 +296,23 @@ describe("NlqPanel", () => {
       '"type": "unknown"'
     );
   });
+
+  test("reset button clears the query text and result", async () => {
+    mockSubmit.mockResolvedValue(FRAME_RESPONSE);
+    render(<NlqPanel />, { wrapper });
+
+    expect(screen.queryByTestId("nlq-reset")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("nlq-input"), {
+      target: { value: "p99 latency" },
+    });
+    fireEvent.submit(screen.getByTestId("nlq-input").closest("form")!);
+    await waitFor(() => expect(screen.getByTestId("nlq-result")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("nlq-reset"));
+
+    expect(screen.getByTestId("nlq-input")).toHaveValue("");
+    expect(screen.queryByTestId("nlq-result")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nlq-reset")).not.toBeInTheDocument();
+  });
 });

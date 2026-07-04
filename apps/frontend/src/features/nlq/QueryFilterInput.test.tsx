@@ -116,4 +116,37 @@ describe("QueryFilterInput", () => {
     fireEvent.click(screen.getByText("Show interpreted IR"));
     expect(screen.getByTestId("query-filter-ir")).toHaveTextContent("environment");
   });
+
+  test("reset button clears the query text and notifies onSubmit with an empty string", async () => {
+    const onSubmit = vi.fn();
+    mockSubmit.mockResolvedValue({
+      type: "ir",
+      ir: {
+        operation: "catalog",
+        signals: ["metrics"],
+        filters: [],
+        group_by: [],
+        time_range: { from: "now-1h", to: "now" },
+        metric: null,
+        window: null,
+        resolution: null,
+        visualization_hint: null,
+      },
+    });
+
+    render(<QueryFilterInput onSubmit={onSubmit} baseIr={SERVICES_BASE_IR} />, { wrapper });
+    const input = screen.getByRole("textbox", { name: "Query current view input" }) as HTMLInputElement;
+
+    expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "show checkout services" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Query current view" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith("show checkout services"));
+
+    fireEvent.click(screen.getByRole("button", { name: /reset/i }));
+
+    expect(input.value).toBe("");
+    expect(onSubmit).toHaveBeenCalledWith("");
+    expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
+  });
 });

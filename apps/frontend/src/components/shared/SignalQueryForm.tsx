@@ -15,6 +15,9 @@ interface SignalQueryFormProps {
   loadingLabel: string;
   inputTestId?: string;
   submitTestId?: string;
+  /** Clears the query text and any submitted results. Shown only when there's something to reset. */
+  onReset?: () => void;
+  resetTestId?: string;
 }
 
 export function SignalQueryForm({
@@ -29,6 +32,8 @@ export function SignalQueryForm({
   loadingLabel,
   inputTestId,
   submitTestId,
+  onReset,
+  resetTestId,
 }: SignalQueryFormProps) {
   return (
     <form
@@ -55,6 +60,18 @@ export function SignalQueryForm({
       >
         {isLoading ? loadingLabel : idleLabel}
       </Button>
+      {onReset && value.trim() && (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onReset}
+          disabled={isLoading}
+          aria-label={`Reset ${inputLabel.toLowerCase()}`}
+          data-testid={resetTestId}
+        >
+          Reset
+        </Button>
+      )}
     </form>
   );
 }
