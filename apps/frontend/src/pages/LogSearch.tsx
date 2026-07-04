@@ -19,7 +19,6 @@ import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
 import { useLiveTail } from "../hooks/useLiveTail";
-import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
 import { ErrorState } from "../components/ui/error-state";
@@ -41,6 +40,14 @@ const LOG_BASE_IR: NlqIrLike = {
   signals: ["logs"],
   filters: [],
   time_range: { from: "now-1h", to: "now" },
+};
+
+const TONE_TEXT_CLASS: Record<ReturnType<typeof otelSeverity>["tone"], string> = {
+  good: "text-[var(--good)]",
+  warn: "text-[var(--warn)]",
+  bad: "text-[var(--bad)]",
+  info: "text-[var(--brand)]",
+  neutral: "text-[var(--muted)]",
 };
 
 const levelOrder: OTelLevel[] = ["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"];
@@ -496,7 +503,9 @@ function LogContextSidebar({
       </div>
       <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
         <DlRow label="level">
-          <Badge tone={severity.tone}>{severity.label}</Badge>
+          <span className={`font-bold uppercase ${TONE_TEXT_CLASS[severity.tone]}`}>
+            {severity.label}
+          </span>
         </DlRow>
         {entries.map(([key, value]) => (
           <DlRow key={key} label={key}>
