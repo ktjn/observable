@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { tailLogs } from "../api/logs";
 import type { LogRecord } from "../api/logs";
+import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { formatLogMessage, getSeverityColor } from "../utils/logFormatting";
+import { formatLogMessage, otelSeverity } from "../utils/logFormatting";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
@@ -94,11 +95,10 @@ export function LogLiveTail() {
             style={{ gridTemplateColumns: "100px 80px minmax(120px, 180px) 1fr" }}
           >
             <span className="text-[var(--muted)]">{formatTimestamp(log.timestamp_unix_nano, format)}</span>
-            <span
-              className="font-bold"
-              style={{ color: getSeverityColor(log.severity_number) }}
-            >
-              {log.severity_text || `L${log.severity_number}`}
+            <span>
+              <Badge tone={otelSeverity(log.severity_number).tone}>
+                {log.severity_text || `L${log.severity_number}`}
+              </Badge>
             </span>
             <span>{log.service_name || "unknown"}</span>
             <span>{formatLogMessage(log.body)}</span>

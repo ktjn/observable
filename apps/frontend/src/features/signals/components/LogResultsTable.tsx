@@ -1,8 +1,9 @@
 import type { LogRecord } from "../../../api/logs";
 import { VirtualTable } from "../../../components/ui/VirtualTable";
+import { Badge } from "../../../components/ui/badge";
 import { CopyButton } from "../../../components/ui/copy-button";
 import { formatTimestamp } from "../../../utils/formatTimestamp";
-import { formatLogMessage, getSeverityColor, otelSeverity } from "../../../utils/logFormatting";
+import { formatLogMessage, otelSeverity } from "../../../utils/logFormatting";
 import type { TimeFormat } from "../../../lib/timeDisplay";
 
 export type LogTableColumn = "level" | "service";
@@ -101,12 +102,7 @@ function LogResultsRow({
       <td className="whitespace-nowrap">{formatTimestamp(log.timestamp_unix_nano, timeFormat)}</td>
       {showLevel && (
         <td>
-          <span
-            className="text-[9px] font-bold uppercase tracking-wide"
-            style={{ color: getSeverityColor(log.severity_number) }}
-          >
-            {severity.label}
-          </span>
+          <Badge tone={severity.tone}>{severity.label}</Badge>
         </td>
       )}
       {showServiceColumn && <td>{log.service_name}</td>}
