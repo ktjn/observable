@@ -3,6 +3,7 @@ import { VirtualTable } from "../../../components/ui/VirtualTable";
 import { CopyButton } from "../../../components/ui/copy-button";
 import { formatTimestamp } from "../../../utils/formatTimestamp";
 import { formatLogMessage, otelSeverity, severityTextClass } from "../../../utils/logFormatting";
+import { getLogFieldValue } from "../../../utils/logContext";
 import type { TimeFormat } from "../../../lib/timeDisplay";
 
 export type LogTableColumn = "level" | "service";
@@ -14,6 +15,8 @@ export function LogResultsTable({
   timeFormat,
   showServiceColumn = true,
   visibleColumns,
+  /** Additional promoted attribute/resource columns, e.g. "log.error.type" or "k8s.pod.name". */
+  promotedColumns = [],
   ariaLabel = showServiceColumn ? "Log results" : "Service logs",
 }: {
   logs: LogRecord[];
@@ -23,6 +26,7 @@ export function LogResultsTable({
   showServiceColumn?: boolean;
   /** When set, restricts optional columns (Level, Service) to this list. Time and Message always show. */
   visibleColumns?: LogTableColumn[];
+  promotedColumns?: string[];
   ariaLabel?: string;
 }) {
   const showLevel = visibleColumns === undefined || visibleColumns.includes("level");
@@ -37,6 +41,9 @@ export function LogResultsTable({
           <th aria-label="Time">Time</th>
           {showLevel && <th>Level</th>}
           {showService && <th>Service</th>}
+          {promotedColumns.map((key) => (
+            <th key={key}>{key}</th>
+          ))}
           <th>Message</th>
         </tr>
       )}
@@ -49,6 +56,7 @@ export function LogResultsTable({
           onSelect={() => onSelectLog(log.log_id)}
           showLevel={showLevel}
           showServiceColumn={showService}
+          promotedColumns={promotedColumns}
           measureRef={ref}
           index={index}
         />
@@ -64,6 +72,7 @@ function LogResultsRow({
   onSelect,
   showLevel,
   showServiceColumn,
+  promotedColumns,
   measureRef,
   index,
 }: {
@@ -73,6 +82,7 @@ function LogResultsRow({
   onSelect: () => void;
   showLevel: boolean;
   showServiceColumn: boolean;
+  promotedColumns: string[];
   measureRef: (el: Element | null) => void;
   index: number;
 }) {
@@ -107,6 +117,11 @@ function LogResultsRow({
         </td>
       )}
       {showServiceColumn && <td>{log.service_name}</td>}
+      {promotedColumns.map((key) => (
+        <td key={key} className="whitespace-normal break-all">
+          {getLogFieldValue(log, key, timeFormat)}
+        </td>
+      ))}
       <td className="whitespace-normal break-all">
         <span className="inline-flex min-w-0 max-w-full items-start gap-1">
           <span className="min-w-0 break-all">{message}</span>

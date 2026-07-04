@@ -248,6 +248,25 @@ test("selecting a log opens context properties in the right sidebar", async () =
   expect(sidebar).toHaveClass("overflow-y-auto");
 });
 
+test("promoting a log attribute adds it as a table column with per-row values", async () => {
+  renderLogSearch();
+
+  fireEvent.click(await screen.findByRole("button", { name: "Open log context for checkout completed" }));
+  const sidebar = screen.getByRole("complementary", { name: "Selected log context" });
+
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Add log.http.route as a column" }));
+
+  const table = screen.getByRole("table", { name: "Log results" });
+  expect(within(table).getByRole("columnheader", { name: "log.http.route" })).toBeInTheDocument();
+  // log-1 has http.route set; log-2's attributes are empty, so its cell is blank.
+  expect(within(table).getByText("/checkout")).toBeInTheDocument();
+
+  // The promote button is now disabled for that property, on the still-open sidebar.
+  expect(
+    within(sidebar).getByRole("button", { name: "log.http.route is already a column" })
+  ).toBeDisabled();
+});
+
 test("maps OpenTelemetry severity numbers into stable level labels and tones", () => {
   expect(otelSeverity(1)).toMatchObject({ label: "TRACE", tone: "neutral" });
   expect(otelSeverity(5)).toMatchObject({ label: "DEBUG", tone: "info" });
