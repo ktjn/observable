@@ -822,6 +822,43 @@ async fn metric_list_groups_label_specific_series_by_metric_identity() {
 }
 
 #[tokio::test]
+async fn metric_list_orders_by_series_count_desc_not_alphabetically() {
+    let (ch, _container) = start_clickhouse().await;
+    let db = test_support::postgres::shared_pool().await;
+    let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
+
+    // "a.low_count" sorts first alphabetically but has only one series;
+    // "b.high_count" sorts second alphabetically but has three series and
+    // should surface first once ordering is by series_count DESC.
+    insert_metric_series(
+        &ch,
+        make_metric_series(dev_tenant, Uuid::new_v4(), "a.low_count", "/checkout"),
+    )
+    .await;
+    for _ in 0..3 {
+        insert_metric_series(
+            &ch,
+            make_metric_series(dev_tenant, Uuid::new_v4(), "b.high_count", "/checkout"),
+        )
+        .await;
+    }
+
+    let app = build_app_with_pg(ch, db).await;
+    let resp = app
+        .oneshot(dev_request("GET", "/v1/metrics"))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json = response_body_json(resp.into_body()).await;
+    let metrics = json["metrics"].as_array().expect("metrics array");
+    assert_eq!(metrics[0]["metric_name"], "b.high_count");
+    assert_eq!(metrics[0]["series_count"], 3);
+    assert_eq!(metrics[1]["metric_name"], "a.low_count");
+    assert_eq!(metrics[1]["series_count"], 1);
+}
+
+#[tokio::test]
 async fn metric_group_points_sum_label_specific_series_at_same_timestamp() {
     let (ch, _container) = start_clickhouse().await;
     let db = test_support::postgres::shared_pool().await;
