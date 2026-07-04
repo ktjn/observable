@@ -2,6 +2,7 @@ import type { LogRecord } from "../../api/logs";
 import { formatTimestamp } from "../../utils/formatTimestamp";
 import { formatLogMessage, getSeverityColor } from "../../utils/logFormatting";
 import type { TimeFormat } from "../../lib/timeDisplay";
+import { CopyButton } from "../ui/copy-button";
 
 export interface LogListProps {
   logs: LogRecord[];
@@ -51,7 +52,7 @@ export function LogList({
                 : undefined
             }
             className={[
-              "flex gap-3 py-1 border-b border-[var(--border)] last:border-b-0",
+              "group flex gap-3 py-1 border-b border-[var(--border)] last:border-b-0",
               isPivot ? "bg-[var(--warn-bg)] font-bold" : "",
               onRowClick ? "cursor-pointer hover:bg-[var(--surface-subtle)]" : "",
             ]
@@ -64,7 +65,10 @@ export function LogList({
             <span className="w-[50px] shrink-0" style={{ color: getSeverityColor(log.severity_number) }}>
               {log.severity_text || `LVL ${log.severity_number}`}
             </span>
-            <span className="flex-1 min-w-0 break-all">{formatLogMessage(log.body)}</span>
+            <span className="flex-1 min-w-0 break-all inline-flex items-start gap-1">
+              <span className="min-w-0 break-all">{formatLogMessage(log.body)}</span>
+              <CopyButton value={formatLogMessage(log.body)} label="Copy message" />
+            </span>
             {showTraceLink && log.trace_id && (
               <a
                 href={`/traces/${log.trace_id}`}
