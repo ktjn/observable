@@ -391,6 +391,44 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Seed example alert rules (non-fatal — the demo is still usable without
+# them, this just gives the Alerts & SLOs view something to show).
+# Alert-rule writes go through admin-service, not query-api.
+# ---------------------------------------------------------------------------
+
+log "Seeding example alert rules via admin-service"
+ADMIN_SERVICE_PORT_LOCAL=14324
+DEV_KEY="dev-api-key-0000"
+DEV_TENANT="00000000-0000-0000-0000-000000000002"
+
+kubectl port-forward svc/admin-service "${ADMIN_SERVICE_PORT_LOCAL}:4324" \
+  --namespace "$OBSERVABLE_NS" >/tmp/testbench-admin-port-forward.log 2>&1 &
+ADMIN_PF_PID=$!
+
+seed_alert_rule() {
+  local body="$1"
+  curl -sf --max-time 10 -X POST "http://localhost:${ADMIN_SERVICE_PORT_LOCAL}/v1/admin/alerts/rules" \
+    -H "Authorization: Bearer ${DEV_KEY}" \
+    -H "X-Tenant-ID: ${DEV_TENANT}" \
+    -H "Content-Type: application/json" \
+    -d "$body" >/dev/null
+}
+
+if timeout 15 bash -c "until curl -sf --max-time 2 http://localhost:${ADMIN_SERVICE_PORT_LOCAL}/health >/dev/null 2>&1; do sleep 1; done"; then
+  if seed_alert_rule '{"name":"Checkout high error rate","alert_type":"threshold","metric_name":"http.server.errors","operator":"gt","threshold":0.05,"service_name":"shop-api"}' \
+    && seed_alert_rule '{"name":"Checkout high latency","alert_type":"threshold","metric_name":"http.server.duration","operator":"gt","threshold":500,"service_name":"shop-api"}'; then
+    info "PASS: seeded 2 example alert rules"
+  else
+    info "WARN: failed to seed one or more example alert rules — continuing without them"
+  fi
+else
+  info "WARN: admin-service not reachable via port-forward — skipping alert rule seeding"
+fi
+
+kill "$ADMIN_PF_PID" 2>/dev/null || true
+wait "$ADMIN_PF_PID" 2>/dev/null || true
+
+# ---------------------------------------------------------------------------
 # Ready — print access information and block until Ctrl+C
 # ---------------------------------------------------------------------------
 
