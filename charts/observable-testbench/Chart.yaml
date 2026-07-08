@@ -8,11 +8,11 @@ appVersion: "0.1.0"
 dependencies:
   # Gateway: Deployment — receives OTLP + runs cluster-level k8s receivers
   - name: opentelemetry-collector
-    version: "0.162.0"
+    version: "0.164.0"
     repository: https://open-telemetry.github.io/opentelemetry-helm-charts
     alias: otelGateway
   # Agent: DaemonSet — kubeletstats + filelog per node
   - name: opentelemetry-collector
-    version: "0.162.0"
+    version: "0.164.0"
     repository: https://open-telemetry.github.io/opentelemetry-helm-charts
     alias: otelAgent
