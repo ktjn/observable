@@ -39,6 +39,7 @@ const firingRule: alertsApi.AlertRuleItem = {
   last_fired_at: "2026-05-15T10:00:00Z",
   notification_channels: [],
   auto_trigger_incident: false,
+  suppressed: false,
 };
 
 const okRule: alertsApi.AlertRuleItem = {
@@ -53,6 +54,7 @@ const okRule: alertsApi.AlertRuleItem = {
   firing: false,
   notification_channels: [],
   auto_trigger_incident: false,
+  suppressed: false,
 };
 
 const openIncident: incidentsApi.IncidentItem = {

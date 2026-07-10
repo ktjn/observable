@@ -20,11 +20,13 @@ domain alerts {
     threshold: float
     severity: string
     silenced: bool
-    state: enum(ok, pending, active, resolved, silenced)
+    state: enum(ok, pending, active, resolved, silenced, suppressed)
     firing: bool
     lastFiredAt?: timestamp
     notificationChannels: array<uuid>
     autoTriggerIncident: bool
+    serviceName?: string
+    suppressed: bool
   }
 
   // Canonical alert firing entity. Mirrors
@@ -33,9 +35,10 @@ domain alerts {
   @wire(json.fieldCase: "snake_case")
   entity Firing @ 1 (additive) {
     @key firingId: uuid
-    state: enum(pending, active, resolved)
+    state: enum(pending, active, resolved, suppressed)
     value?: float
     occurredAt: timestamp
     resolvedAt?: timestamp
+    suppressedByRuleName?: string
   }
 }
