@@ -115,6 +115,11 @@ platform at a glance**, driven by the Playwright visual suite, produced a sliced
   tables. Both Datadog and New Relic support burn-rate alerting as a first-class type alongside
   threshold alerts; Observable has threshold and deadman but no burn-rate concept. Self-contained
   evaluator extension; no new data dependencies. _(gap identified 2026-07-02)_
+- [x] **Log Quick-Filter Regex Mode + Trace Waterfall Error Indicator** — `.*` regex toggle for
+  the logs explorer's quick-filter box (client-side, over already-loaded rows); red left-border
+  accent + "ERROR" badge on trace waterfall rows with `status_code === "ERROR"`, independent of
+  the existing fill-color override which had no legend entry. _(shipped PR #497; design in
+  `docs/superpowers/specs/2026-07-03-log-quick-filter-and-span-error-visibility-design.md`)_
 
 ### 3.6 Security, Observability & Reliability Hardening (cross-cutting workstream)
 
@@ -462,12 +467,11 @@ feature:
 
 ## 11. Housekeeping Notes Found During This Consolidation
 
-- GitHub issues **#388** (Trace Comparison) and **#389** (Query Workbench) describe already-shipped
-  features and should be closed.
+- GitHub issues **#388** (Trace Comparison) and **#389** (Query Workbench) described already-shipped
+  features. **Resolved 2026-07-10** — both confirmed closed.
 - The Trace UI Context Panel work tracked in project memory (`feat/trace-ui-context-panel` branch)
-  is fully merged into `main` (0 commits ahead, branch is stale) — the corresponding context panel
-  exists in `apps/frontend/src/pages/TraceDetail.tsx`. That memory record should be updated or
-  removed.
+  is fully merged into `main`. **Resolved 2026-07-10** — the branch no longer exists (locally or on
+  the remote); the context panel exists in `apps/frontend/src/pages/TraceDetail.tsx`.
 - **2026-07-02 review** (`docs/analysis/2026-07-02-repo-review.md`): two low-priority items from
   the 2026-05-01 repo review are still open two months later — `scripts/nlq-multi-model.py` remains
   undocumented (now tracked in §3.6), and `tests/nlq/cases.json` still has no schema/version marker
