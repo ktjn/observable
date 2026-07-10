@@ -41,6 +41,7 @@ test("renders a no_data rule with a deadman condition label", async () => {
         last_fired_at: undefined,
         notification_channels: [],
         auto_trigger_incident: true,
+        suppressed: false,
       },
     ],
   });

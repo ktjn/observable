@@ -20,6 +20,6 @@ export interface AlertsAlertRuleV1 {
   notification_channels: string[];
   auto_trigger_incident: boolean;
   service_name?: string;
-  suppressed?: boolean;
+  suppressed: boolean;
 }
 export type AlertRule = AlertsAlertRuleV1;

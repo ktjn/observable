@@ -20,13 +20,17 @@ Refer to `spec/10-process.md` for the official development process and AI agent 
 
 ## Modelable Emitter Limitations (Manual Patches Required)
 
-The modelable codegen emitter (PyPI v1.0.2) has known limitations that require manual post-processing after regeneration:
+**Never hand-edit a file under a `generated/` directory.** Files generated from `.mdl` sources (e.g. `apps/frontend/src/api/generated/`, `libs/domain/src/generated/`) are overwritten by `scripts/regenerate-models.sh` and must never be edited directly to add or change fields — doing so silently drifts the generated code from its `.mdl` source of truth, and the next regeneration silently reverts the hand-edit, breaking anything that depended on it (this happened to `alerts.AlertRule`/`alerts.Firing`: a hand-edit added `suppressed`/`service_name`/`suppressed_by_rule_name` directly to the generated TypeScript without updating `models/alerts.mdl`, and running the regen script would have deleted those fields out from under the frontend and Rust backend that depend on them). To add or change a field, edit the relevant `models/*.mdl` file and run `scripts/regenerate-models.sh`; the only edits allowed directly in a `generated/` file are the documented manual patches listed below, which the script is not yet able to apply automatically.
+
+The modelable codegen emitter (PyPI v1.1.0) has known limitations that require manual post-processing after regeneration:
 
 - **Rust ClickHouse enum serialization** (issue #119, partially fixed): clickhouse-rs 0.15 panics on `serialize_unit_variant` for String columns — typed enums cannot be used directly as `String` ClickHouse column fields. `TracingSpanRowV1.span_kind` and `.status_code` are kept as `String` (SCREAMING\_SNAKE\_CASE values) rather than the typed enums that modelable generates. The `From<TracingSpanV1>` impl in `tracing_span_row_v1.rs` converts enum values to strings via explicit match. `scripts/regenerate-models.sh` applies this patch automatically after regeneration.
 
 - **Rust enum variant casing**: The emitter emits enum variants verbatim from `.mdl` source (SCREAMING\_SNAKE\_CASE), which triggers `clippy::upper_case_acronyms`. Suppressed via `#![allow(clippy::upper_case_acronyms)]` in `libs/domain/src/generated/tracing.rs`. Do not remove that allow — re-add it after any regeneration that touches the tracing module file.
 
 - **Rust NamedType warnings** (issue #120, partially fixed): The Rust emitter now emits `WARN [EMIT003]` for NamedType field references lacking `rust.type` adapter annotations. The warning fires even for models not targeting Rust (e.g., `nlq`, `dashboards`). The underlying field is still emitted as a bare Pascal-cased type name without an import — see the warning output when running `scripts/regenerate-models.sh`.
+
+New in 1.1.0: the compiler writes `registry-ids.lock` at the repo root (via `modelable compile --registry-ids`, invoked by `scripts/regenerate-models.sh`), allocating stable small-integer ids for any `.mdl` semantic type declared `registry: true`. It is a tracked file, not gitignored — commit it alongside `.mdl` changes so ids are never silently reassigned. It is currently empty (`{}`) since no domain yet declares a `registry: true` type.
 
 Fixed in 1.0.2 (no longer patched):
 - **TypeScript imports placed before docblock** (issue #123): Imports now follow the `@modelable` JSDoc meta block instead of preceding it.
