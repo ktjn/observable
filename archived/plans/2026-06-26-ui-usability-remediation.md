@@ -1,6 +1,6 @@
 # UI Usability Remediation — Error Finding & Platform Monitoring
 
-> **Status:** Active. Workstream plan. Source of findings: a full-surface UI review conducted
+> **Status:** Completed and archived. Source of findings: a full-surface UI review conducted
 > 2026-06-26 using the Playwright visual-verification suite (`apps/frontend/e2e/visual.spec.ts`,
 > 11 full-page screenshots covering Home, Services, Service Detail, Traces, Logs, Metrics,
 > Infrastructure, Alerts & SLOs, Incidents, Change Events, Dashboards).
@@ -164,4 +164,5 @@ together minimizes rework.
 2. Unit/interaction tests for the changed primitive; accessibility test for any new/changed view.
 3. Visual-suite screenshot refreshed and eyeballed for the affected page(s).
 4. This document's finding row checked off and the unified roadmap §3.5 entry updated.
-5. Detailed slice notes appended here; move this plan to `archived/plans/` when all P0/P1 slices ship.
+5. Detailed slice notes were appended here; this plan was moved to `archived/plans/` after all
+   P0/P1 slices shipped.

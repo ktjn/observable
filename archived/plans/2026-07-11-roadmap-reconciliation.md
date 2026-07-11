@@ -30,7 +30,7 @@
 - Consumes: implementation evidence recorded in the approved design
 - Produces: the authoritative corrected backlog and near-term sequence
 
-- [ ] **Step 1: Replace the selection rule**
+- [x] **Step 1: Replace the selection rule**
 
 Replace the mechanical highest-tier rule with this decision order:
 
@@ -39,7 +39,7 @@ Replace the mechanical highest-tier rule with this decision order:
 2. Otherwise pick the highest-value ready slice that is independently reviewable and has resolved prerequisites and architecture decisions.
 ```
 
-- [ ] **Step 2: Correct shipped and partial statuses**
+- [x] **Step 2: Correct shipped and partial statuses**
 
 Make these exact semantic changes:
 
@@ -52,7 +52,7 @@ Tenant middleware tests: query-api coverage exists; focused admin-service middle
 Self-observability: OTLP initialization exists; /metrics endpoints and service-specific instruments remain open.
 ```
 
-- [ ] **Step 3: Decompose oversized or blocked entries**
+- [x] **Step 3: Decompose oversized or blocked entries**
 
 Represent these as sequenced slices:
 
@@ -62,7 +62,7 @@ Fleet: inventory contract/data source; inventory UI; remote-configuration protoc
 Quota: backend mutation/audit contract; frontend controls.
 ```
 
-- [ ] **Step 4: Update sequencing**
+- [x] **Step 4: Update sequencing**
 
 Set the near-term sequence to:
 
@@ -74,7 +74,7 @@ Set the near-term sequence to:
 5. Complete Saved Views for metrics.
 ```
 
-- [ ] **Step 5: Verify the corrected roadmap**
+- [x] **Step 5: Verify the corrected roadmap**
 
 Run:
 
@@ -100,11 +100,11 @@ Expected: no statement says Saved Views or SLO burn-rate evaluation is wholly un
 - Consumes: corrected roadmap from Task 1
 - Produces: one active-roadmap pointer and one canonical finished-plan archive
 
-- [ ] **Step 1: Move the five completed plans with `git mv`**
+- [x] **Step 1: Move the five completed plans with `git mv`**
 
 Run each exact source/destination pair listed above. Do not move the active unified roadmap.
 
-- [ ] **Step 2: Correct repository guidance**
+- [x] **Step 2: Correct repository guidance**
 
 Change `AGENTS.md` Phase Plan Status so follow-on work uses:
 
@@ -114,7 +114,7 @@ docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md
 
 Update `docs/agent-context.md` to name the security-first selection rule and the session-secret slice as next.
 
-- [ ] **Step 3: Fix moved-plan references**
+- [x] **Step 3: Fix moved-plan references**
 
 Run:
 
@@ -124,7 +124,7 @@ rg -n "docs/superpowers/plans/" . -g "*.md" | rg "2026-06-26-ui-usability-remedi
 
 Expected after edits: zero matches.
 
-- [ ] **Step 4: Verify active-plan inventory**
+- [x] **Step 4: Verify active-plan inventory**
 
 Run:
 
@@ -144,7 +144,7 @@ Expected: only `2026-06-19-unified-feature-roadmap.md` and this in-progress reco
 - Consumes: five-slice order from Task 1
 - Produces: claimable backlog entries for future iterations
 
-- [ ] **Step 1: Create five issues**
+- [x] **Step 1: Create five issues**
 
 Use `gh issue create` with one issue for each exact slice:
 
@@ -158,11 +158,11 @@ feat(saved-views): support metrics explorer configurations
 
 Each body must link #528, quote its roadmap acceptance criterion, and state that the issue is not claimed until implementation starts. Do not add `in-progress` or an assignee.
 
-- [ ] **Step 2: Link issue numbers from the roadmap**
+- [x] **Step 2: Link issue numbers from the roadmap**
 
 Add each created issue number beside its corresponding near-term slice.
 
-- [ ] **Step 3: Verify issue state**
+- [x] **Step 3: Verify issue state**
 
 Run:
 
@@ -182,11 +182,11 @@ Expected: #528 remains assigned and in progress; the five implementation issues 
 - Consumes: completed Tasks 1–3
 - Produces: reviewed documentation and a PR that closes #528
 
-- [ ] **Step 1: Mark this plan complete and archive it**
+- [x] **Step 1: Mark this plan complete and archive it**
 
 Check every task box, move the file to root `archived/plans/`, and update references.
 
-- [ ] **Step 2: Run structural checks**
+- [x] **Step 2: Run structural checks**
 
 Run:
 
@@ -197,11 +197,11 @@ rg -n "T[B]D|T[O]DO|implement l[a]ter|fill in d[e]tails" AGENTS.md docs/superpow
 
 Expected: `git diff --check` succeeds; the placeholder search finds no new placeholder in changed files.
 
-- [ ] **Step 3: Run the four-phase doc review**
+- [x] **Step 3: Run the four-phase doc review**
 
 Apply `doc-review` to every changed or moved Markdown file. Fix any FAIL and restart at Phase 1.
 
-- [ ] **Step 4: Obtain specialist review**
+- [x] **Step 4: Obtain specialist review**
 
 Invoke planning-steward and spec-steward on the final diff. Fix every blocking issue they report.
 
