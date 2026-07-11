@@ -207,7 +207,7 @@ Apply `doc-review` to every changed or moved Markdown file. Fix any FAIL and res
 
 Invoke planning-steward and spec-steward on the final diff. Fix every blocking issue they report.
 
-- [ ] **Step 5: Commit and push**
+- [x] **Step 5: Commit and push**
 
 Stage only intended Markdown files and moves, excluding `scripts/seed/**/__pycache__/`, then commit:
 
@@ -216,7 +216,11 @@ git commit -m "docs(issue-528): reconcile roadmap and archive completed plans"
 git push
 ```
 
-- [ ] **Step 6: Open the pull request**
+Completed on branch `docs/issue-528-roadmap-reconciliation`; the reviewed documentation commits
+were pushed to GitHub before PR creation, and this publication-bookkeeping commit is pushed to the
+same branch.
+
+- [x] **Step 6: Open the pull request**
 
 Create a PR whose body includes:
 
@@ -229,4 +233,8 @@ Regression gates unchanged.
 Doc/spec review: all phases passed.
 ```
 
-Remove `in-progress` from #528 and add `ready-for-review`, creating that label if absent.
+Opened [PR #534](https://github.com/ktjn/observable/pull/534) against `main`.
+
+Coordinator follow-up after PR creation: remove `in-progress` from #528 and add
+`ready-for-review`, creating that label if absent. This issue-label transition is not part of the
+completed PR-creation checkbox above and remains pending at the time of this bookkeeping update.
