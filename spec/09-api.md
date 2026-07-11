@@ -121,9 +121,9 @@ The Query API must support the following patterns required by the Frontend (see 
     series for one grouped metric identity. Numeric sum metrics are summed per timestamp; gauges
     are averaged per timestamp.
   - `GET /v1/metrics/{series_id}` returns tenant-scoped points for one metric series, ordered by `time_unix_nano ASC`.
-- **Ingest compatibility**: `POST /v1/metrics` accepts OTLP/HTTP JSON gauges, sums, and explicit histograms. The gRPC MetricsService maps the same supported metric families into the same internal model.
+- **Ingest compatibility**: `POST /v1/metrics` accepts OTLP/HTTP JSON gauges, sums, and explicit histograms. The gRPC MetricsService maps those families into the same internal model and also accepts exponential histograms and summaries.
 - **Series identity**: Metric series IDs are deterministic for a stable tenant, metric name, metric type, point attributes, resource attributes, monotonicity, temporality, service, and environment. Repeated exports for the same series must append points to the same series ID rather than creating a new random series per point.
-- **Current unsupported families**: Exponential histograms and summaries remain out of scope for the current customer OTLP metrics path. They must be ignored safely until implemented, not misclassified as gauges or sums.
+- **Reduced-detail families**: OTLP exponential histograms and summaries retain count and optional sum in the internal metric model. Exponential-histogram bucket detail and summary quantile values are not stored; when those details are present, the gRPC MetricsService reports the affected data-point count through OTLP partial success.
 - **Verification**: The smoke test must prove readback by posting `smoke.counter`, waiting for the metric catalog entry through `GET /v1/metrics?service=...`, and then waiting for points through `GET /v1/metrics/points` or the raw-series compatibility endpoint `GET /v1/metrics/{series_id}`.
 
 ### Resolved Query API Bugs
@@ -168,8 +168,10 @@ technology choice.
 
 ### Query Tenant Context Contract
 
-**Status:** Active for trace, log, and metric query endpoints as of Phase 2 slices P2-S1a through P2-S1c
-(`docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`).
+**Status:** Active for trace, log, and metric query endpoints. The completed Phase 2 slices P2-S1a
+through P2-S1c are recorded as historical closure evidence in
+`archived/plans/2026-05-07-remaining-roadmap-plan.md`; current follow-on backlog tracking lives in
+`docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md`.
 
 **Affected endpoints:**
 - `GET /v1/traces`

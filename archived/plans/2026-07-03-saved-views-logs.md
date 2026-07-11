@@ -1827,7 +1827,7 @@ Find the line:
 Replace with:
 
 ```
-**Saved views**: Named bookmarks for search configurations (filter set + time range + column selection), scoped per user or shared within project. **Shipped for the logs explorer** (`LogSearch.tsx`) — see `docs/superpowers/plans/2026-07-03-saved-views-logs.md` and `docs/superpowers/specs/2026-07-03-saved-views-logs-design.md`. Traces and metrics explorers are follow-up slices.
+**Saved views**: Named bookmarks for search configurations (filter set + time range + column selection), scoped per user or shared within project. **Shipped for the logs explorer** (`LogSearch.tsx`) — see `archived/plans/2026-07-03-saved-views-logs.md` and `docs/superpowers/specs/2026-07-03-saved-views-logs-design.md`. Traces and metrics explorers are follow-up slices.
 ```
 
 - [ ] **Step 2: Add the API section to `spec/09-api.md`**
@@ -1862,7 +1862,7 @@ git commit -m "docs(spec): document Saved Views (logs slice) API and frontend be
 
 ### Task 10: Column-picker UI
 
-**Added after final review** (`docs/superpowers/plans/2026-07-03-saved-views-logs.md` final whole-branch review): Task 6 added the `visibleColumns` prop to `LogResultsTable` but no UI ever changed it, so the "column selection" capability from the design doc was inert end-to-end. This task closes that gap. It also fixes a real bug found in the same review: `handleLoadView` (Task 8) never resets `service`, so a stale service filter can linger after loading a saved view.
+**Added after final review** (`archived/plans/2026-07-03-saved-views-logs.md` final whole-branch review): Task 6 added the `visibleColumns` prop to `LogResultsTable` but no UI ever changed it, so the "column selection" capability from the design doc was inert end-to-end. This task closes that gap. It also fixes a real bug found in the same review: `handleLoadView` (Task 8) never resets `service`, so a stale service filter can linger after loading a saved view.
 
 **Files:**
 - Create: `apps/frontend/src/features/signals/components/ColumnPickerControl.tsx`

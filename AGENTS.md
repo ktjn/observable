@@ -62,8 +62,8 @@ subagent; otherwise, apply the specialist instructions manually in the current s
 ## Phase Plan Status
 
 - **Phase 1 is closed:** treat `archived/plans/2026-04-17-phase1-internal-mvp.md` as a historical implementation record, not as an active backlog to reopen or continue.
-- **Active roadmap work starts after Phase 1:** use `docs/superpowers/plans/2026-05-07-remaining-roadmap-plan.md` for follow-on slices unless the user explicitly asks to revise the historical Phase 1 document. Keep `docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md` as the historical Phases 2-8 closure reference and `archived/plans/2026-05-09-finish-started-work-plan-rf0-complete.md` as the started-work closure record.
-- If a Phase 1 item appears unfinished in the old plan text, check the reconciliation notes in that document and the follow-on slices in the Phases 2–8 plan before proposing or making changes.
+- **Active roadmap work starts after Phase 1:** use `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md` for follow-on slices unless the user explicitly asks to revise the historical Phase 1 document. Keep `archived/plans/2026-05-07-remaining-roadmap-plan.md` as the full historical closure record and `archived/plans/2026-05-09-finish-started-work-plan-rf0-complete.md` as the started-work closure record.
+- If a Phase 1 item appears unfinished in the old plan text, check its reconciliation notes, the full historical closure record, and the active unified roadmap before proposing or making changes.
 
 ## GitHub Issues Workflow
 
