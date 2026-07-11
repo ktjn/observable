@@ -36,11 +36,13 @@ Every iteration must:
 ## 2. How To Use This Document
 
 Treat this as a feature-first backlog driver:
-1. Pick the next unchecked slice in the **highest tier that has a ready item**.
-2. Write a detailed implementation plan in `docs/superpowers/plans/YYYY-MM-DD-<slice>.md` before
+1. Address a ready **P0 security or correctness risk** before discretionary feature work.
+2. Otherwise pick the highest-value ready slice that is independently reviewable and has resolved
+   prerequisites and architecture decisions.
+3. Write a detailed implementation plan in `docs/superpowers/plans/YYYY-MM-DD-<slice>.md` before
    implementing (per Promotion Rules, §7).
-3. Implement only that slice; verify locally; update this document and `docs/agent-context.md`.
-4. Move the detailed plan to `archived/plans/` when the slice ships.
+4. Implement only that slice; verify locally; update this document and `docs/agent-context.md`.
+5. Move the detailed plan to `archived/plans/` when the slice ships.
 
 Do not pull an item from the **Deferred** tier (§6) forward unless a concrete customer
 requirement, security finding, or scaling incident forces it.
@@ -59,21 +61,34 @@ Small, standalone, high user-value slices. Ordered by user impact.
 - [x] **Alert Inhibition Rules** (was P12-S5) — suppress lower-severity alerts for the same
   service while a higher-severity alert is active; `Suppressed` state with "Suppressed by" label.
   Directly reduces alert fatigue for every user with alert rules configured. _(shipped PR #481)_
-- [x] **Saved Views in Explorers** (was P14-S3) — save filter state + time range + columns per
-  signal type; private/shared visibility. High-frequency daily UX improvement for all users.
-  _(shipped PR #494 for the logs explorer only — save/load/delete, visibility toggle, per-user
-  grants, and column show/hide, all reachable through the UI. Traces and metrics explorers are
-  still open follow-up slices; `signal_kind` is constrained to `'logs'` in the migration.)_
-- [ ] **Export APIs** (was P13-S4) — CSV/JSON export for log, trace, and metric query results;
-  100k-row sync limit, async job beyond that. Users need to get data out for external analysis
-  and reporting.
-- [ ] **Fleet Management UI** — agent health and remote configuration UI (carried from the
-  post-Phase-3 plan's Platform Administration gap; `/admin/fleet` is currently a read-only
-  contract view pending a live agent-inventory endpoint). Essential for operators managing
-  distributed agent deployments.
-- [ ] **Admin Console RBAC and Quota Management Views** — `/admin/config` is read-only today;
-  add RBAC mutation controls and quota editing (carried from the post-Phase-3 plan). Important
-  for multi-tenant administrators.
+- [x] **Saved Views for logs** (was P14-S3) — save/load/delete, private/shared visibility,
+  per-user grants, and column show/hide are reachable through the logs explorer. _(shipped PR
+  #494; `signal_kind` is currently constrained to `'logs'` in the migration.)_
+- [ ] **Saved Views for traces** — extend the shipped Saved Views contract and explorer workflow
+  to traces.
+- [ ] **Saved Views for metrics** — extend the shipped Saved Views contract and explorer workflow
+  to metrics.
+- [ ] **Logs synchronous CSV/JSON export** (was P13-S4) — bounded export of log query results.
+- [ ] **Traces synchronous CSV/JSON export** (was P13-S4) — bounded export of trace query results.
+- [ ] **Metrics synchronous CSV/JSON export** (was P13-S4) — bounded export of metric query results.
+- [ ] **Export OTLP contract decision** — resolve the required OTLP export shape and signal
+  coverage before promoting the first synchronous export implementation slice.
+- [ ] **Asynchronous export architecture and implementation** — separately design the job,
+  retention, authorization, and download-storage model before implementing exports beyond the
+  synchronous limit.
+- [ ] **Fleet inventory contract and data source** — define and implement the live agent-inventory
+  endpoint that replaces `/admin/fleet`'s current read-only placeholder contract.
+- [ ] **Fleet inventory UI** — present live agent health and inventory after the contract and data
+  source exist.
+- [ ] **Fleet remote-configuration protocol** — make an architecture-backed protocol decision and
+  implement its backend contract after inventory exists.
+- [ ] **Fleet remote-configuration UI** — expose remote configuration only after its protocol and
+  authorization model are implemented.
+- [x] **Admin Console RBAC mutations** — member role mutation controls and supporting privileged
+  backend operations ship in the Administration experience.
+- [ ] **Quota mutation and audit contract** — define and implement privileged quota updates with
+  an auditable backend contract.
+- [ ] **Quota frontend controls** — add quota editing after the mutation and audit contract ships.
 - [x] **OTLP gRPC/HTTP Compression Support** — `ingest-gateway`'s OTLP receivers currently reject
   gzip-compressed payloads (`"Content is compressed with 'gzip' which isn't supported"`). Enable
   gzip, zstd, and snappy on both gRPC and HTTP receivers. Any default otel-collector-contrib config
@@ -111,10 +126,9 @@ platform at a glance**, driven by the Playwright visual suite, produced a sliced
 - [x] Consistency follow-ups (P2): summary-row parity, button hierarchy, compact empty states,
   command palette, dashboard create-affordance + freshness indicators. *(All shipped in PR #475.)*
 
-- [ ] **SLO Burn Rate Alerting** — fast-burn / slow-burn alert rules using existing SLO budget
-  tables. Both Datadog and New Relic support burn-rate alerting as a first-class type alongside
-  threshold alerts; Observable has threshold and deadman but no burn-rate concept. Self-contained
-  evaluator extension; no new data dependencies. _(gap identified 2026-07-02)_
+- [x] **SLO Burn Rate Alerting** — burn-rate evaluation, API/UI integration, health badges, and
+  Testcontainers coverage ship. Remaining fast/slow presentation refinements are tracked under
+  Service Health rather than keeping this implementation slice open.
 - [x] **Log Quick-Filter Regex Mode + Trace Waterfall Error Indicator** — `.*` regex toggle for
   the logs explorer's quick-filter box (client-side, over already-loaded rows); red left-border
   accent + "ERROR" badge on trace waterfall rows with `status_code === "ERROR"`, independent of
@@ -134,20 +148,18 @@ items in this document.
   who reads this public repo has the key used by default installs and can forge a valid session
   JWT for any tenant/role/user, bypassing auth entirely. Refuse to start without an explicit
   secret in non-dev environments, or generate+persist a random one at install time.
-- [ ] **Test the OIDC login/callback/session flow** — `services/auth-service/src/oidc.rs` (573
-  lines: PKCE, CSRF state check, token exchange, session issuance) and `session.rs` (JWT
-  sign/verify) have zero tests. This is the highest-value attack surface in the codebase with no
-  automated regression coverage.
-- [ ] **Test tenant-scoping middleware** — `services/query-api/src/middleware/auth.rs` and
-  `services/admin-service/src/middleware/auth.rs` (the API-key/session dispatch and cross-tenant
-  access check gating every request) have no `#[cfg(test)]` module in either service. A single
-  inverted comparison here is an unguarded cross-tenant data leak.
-- [ ] **Add self-metrics to alert-evaluator, ingest-gateway, and stream-processor** — these three
-  services expose `/health`/`/readyz` but no `/metrics` endpoint, unlike `query-api`,
-  `storage-writer`, `auth-service`, and `admin-service`. No visibility into alert-eval latency,
-  ingest throughput/rejection rate, or stream-processor batching on Observable's own dogfooding
-  dashboards. Natural first real consumer for the planned shared `observable-observability` crate
-  (§7) — see the correction noted there.
+- [ ] **Test the remaining OIDC login/callback/session paths** — JWT sign/verify and session
+  persistence already have coverage. Add focused regression coverage for login and callback
+  behavior, provider/token-exchange failures, and cookie issuance and attributes.
+- [x] **Query-api authentication and tenant-scoping middleware coverage** — focused coverage exists
+  for query-api's API-key/session dispatch and tenant checks.
+- [ ] **Test admin-service authentication and tenant-scoping middleware** — add focused coverage
+  for admin-service's credential dispatch and cross-tenant access checks.
+- [ ] **Complete service self-observability** — OTLP tracing initialization already exists. Add
+  missing `/metrics` endpoints to alert-evaluator, ingest-gateway, and stream-processor, plus
+  service-specific instruments for alert-evaluation latency, ingest throughput/rejections, and
+  stream-processing batches. This is the natural first real consumer for the planned shared
+  `observable-observability` crate (§7).
 - [ ] **Delete dead unchecked SQL-builder functions** — `sql_templates.rs:664,743,824` and
   `logs.rs:344,363` keep `#[allow(dead_code)]` manual-string-escaping SQL builders "for reference"
   next to the safe `_checked` variants actually used. A landmine for a future contributor reaching
@@ -400,10 +412,29 @@ first item, which is pre-promoted** because Tier 2's PromQL Compatibility Façad
 
 ## 8. Sequencing and Dependencies
 
+### Recommended near-term sequence
+
+1. **Fail closed on missing session-signing secret**, with an explicit local-development exception
+   and Helm installation strategy.
+2. **Test OIDC login/callback behavior**, including provider failure and cookie issuance paths.
+3. **Add focused admin-service auth/tenant middleware coverage**.
+4. **Complete Saved Views for traces**.
+5. **Complete Saved Views for metrics**.
+
+Each promoted slice must have a GitHub issue before implementation begins. After these five slices,
+reassess synchronous exports against Error Tracking and Service Topology using the same readiness
+and user-value criteria.
+
 ```
-Tier 1 (user-value order, promote immediately)
-  Prometheus remote write → Alert inhibition → Saved views → Export APIs
-  → Fleet management UI → Admin RBAC/quota UI
+Tier 1 (ready slices, selected by P0 precedence then readiness and user value)
+  Session-secret P0 → OIDC callback tests → admin middleware tests
+  → Saved views (traces) → Saved views (metrics)
+  Export OTLP decision → logs/traces/metrics synchronous exports
+  Export async architecture → asynchronous export implementation
+  Fleet inventory contract/data source → inventory UI
+  → remote-configuration protocol → remote-configuration UI
+  Quota mutation/audit contract → quota frontend controls
+  (Prometheus remote write, alert inhibition, logs saved views, Admin RBAC mutations — done)
   (Onboarding wizard, change-detection alert, change event API — done)
   (PagerDuty/Opsgenie — retired)
 
