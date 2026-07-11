@@ -15,9 +15,11 @@ This document provides the product and competitive context that explains *why* O
 3. What capabilities are **in the spec but lack a delivery plan** (Tier 2 gaps)?
 4. What capabilities are **not in the spec at all** but competitors offer (Tier 3 gaps)?
 
-Tier 1 gaps (features planned in Phases 3–8 with named slices) are tracked in
-[`docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`](../docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md)
-and are not duplicated here.
+Current backlog status and named follow-on slices are tracked in the
+[`unified feature roadmap`](../docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md) and are
+not duplicated here. The superseded
+[`remaining roadmap plan`](../archived/plans/2026-05-07-remaining-roadmap-plan.md) is retained only as
+historical closure evidence for the earlier phase-based backlog.
 
 ---
 

@@ -168,8 +168,10 @@ technology choice.
 
 ### Query Tenant Context Contract
 
-**Status:** Active for trace, log, and metric query endpoints as of Phase 2 slices P2-S1a through P2-S1c
-(`docs/superpowers/plans/2026-04-18-phases2-8-iteration-plan.md`).
+**Status:** Active for trace, log, and metric query endpoints. The completed Phase 2 slices P2-S1a
+through P2-S1c are recorded as historical closure evidence in
+`archived/plans/2026-05-07-remaining-roadmap-plan.md`; current follow-on backlog tracking lives in
+`docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md`.
 
 **Affected endpoints:**
 - `GET /v1/traces`
