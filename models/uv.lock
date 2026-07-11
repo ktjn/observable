@@ -126,7 +126,7 @@ wheels = [
 
 [[package]]
 name = "modelable"
-version = "1.1.0"
+version = "1.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -139,9 +139,9 @@ dependencies = [
     { name = "referencing" },
     { name = "rich" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5a/bc/d61dab513581394e868cdfc9b010b1a2ae559be64391b741e4b20eee0070/modelable-1.1.0.tar.gz", hash = "sha256:100670e13f630ce46f8e420f1291d78f5930bfb43cff853dba4f5289684f3fbb", size = 304642, upload-time = "2026-07-10T15:57:01.451Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c7/a8/3a9cd1dc3b2d52c3dbfca801166141db27f52f1903ac66b8b749c1a76846/modelable-1.2.0.tar.gz", hash = "sha256:03aae1b3e8646661d324acd684e0b2e35e1bd219969ee479fd65419c0aa192c2", size = 307064, upload-time = "2026-07-11T06:13:32.527Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/44/01/efe427d8b579a825b623ac2ea97e0527e7bfecd7e6cfe69b19f7da22306c/modelable-1.1.0-py3-none-any.whl", hash = "sha256:1c940b3381fb5445d2904b17457da9bc4752d2c762cb624a8be26f935e90401e", size = 217363, upload-time = "2026-07-10T15:56:59.795Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/c6/5329f4d430bfbd5fc5552ed7eb8c25a6f9428ce316c81607763de6b7417b/modelable-1.2.0-py3-none-any.whl", hash = "sha256:05e47655ef11a20e543ce61d01bd73e2bea704e0808a50f06d3a327ef54496f3", size = 218787, upload-time = "2026-07-11T06:13:31.009Z" },
 ]
 
 [[package]]
@@ -153,7 +153,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "modelable", specifier = "==1.1.0" }]
+requires-dist = [{ name = "modelable", specifier = "==1.2.0" }]
 
 [[package]]
 name = "psycopg"
