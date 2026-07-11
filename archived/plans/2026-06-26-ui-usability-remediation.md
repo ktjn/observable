@@ -165,4 +165,3 @@ together minimizes rework.
 3. Visual-suite screenshot refreshed and eyeballed for the affected page(s).
 4. This document's finding row checked off and the unified roadmap §3.5 entry updated.
 5. Detailed slice notes appended here; move this plan to `archived/plans/` when all P0/P1 slices ship.
-```

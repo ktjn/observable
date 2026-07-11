@@ -98,7 +98,7 @@ and readiness/value rule in §2, not by list position alone.
 
 A full-surface UI review (2026-06-26) of the operator jobs **find errors fast** and **monitor the
 platform at a glance**, driven by the Playwright visual suite, produced a sliced remediation plan:
-`docs/superpowers/plans/2026-06-26-ui-usability-remediation.md`. Highest-impact items:
+`archived/plans/2026-06-26-ui-usability-remediation.md`. Highest-impact items:
 
 - [x] **Histogram axes & scale** (P0) — time + count axes added to histogram component.
 - [x] **De-jargon explorer filters** (P1) — "raw NLQ IR JSON" removed from all user-facing placeholders.
@@ -448,7 +448,7 @@ Tier 1 (ready slices, selected by P0 precedence then readiness and user value)
   (Onboarding wizard, change-detection alert, change event API — done)
   (PagerDuty/Opsgenie — retired)
 
-Tier 2 (user-value order)
+Tier 2 (prerequisite-aware feature sequence)
   Export OTLP decision → logs/traces/metrics synchronous exports
   Export async architecture decision → asynchronous export implementation
   Fleet inventory contract/data source → inventory UI

@@ -87,11 +87,11 @@ Expected: no statement says Saved Views or SLO burn-rate evaluation is wholly un
 ### Task 2: Repair plan archive and governance pointers
 
 **Files:**
-- Move: `docs/superpowers/plans/2026-06-27-otel-demo-integration.md` → `archived/plans/2026-06-27-otel-demo-integration.md`
-- Move: `docs/superpowers/plans/2026-06-30-prometheus-remote-write.md` → `archived/plans/2026-06-30-prometheus-remote-write.md`
-- Move: `docs/superpowers/plans/2026-07-01-admin-ui-cleanup.md` → `archived/plans/2026-07-01-admin-ui-cleanup.md`
-- Move: `docs/superpowers/plans/2026-07-01-alert-inhibition-rules.md` → `archived/plans/2026-07-01-alert-inhibition-rules.md`
-- Move: `docs/superpowers/plans/archived/plans/2026-06-26-ui-usability-remediation.md` → `archived/plans/2026-06-26-ui-usability-remediation.md`
+- Archive completed plan: `archived/plans/2026-06-27-otel-demo-integration.md`
+- Archive completed plan: `archived/plans/2026-06-30-prometheus-remote-write.md`
+- Archive completed plan: `archived/plans/2026-07-01-admin-ui-cleanup.md`
+- Archive completed plan: `archived/plans/2026-07-01-alert-inhibition-rules.md`
+- Normalize completed plan archive: `archived/plans/2026-06-26-ui-usability-remediation.md`
 - Modify: `AGENTS.md`
 - Modify: `docs/agent-context.md`
 - Modify: affected Markdown references found by `rg`
@@ -119,7 +119,7 @@ Update `docs/agent-context.md` to name the security-first selection rule and the
 Run:
 
 ```bash
-rg -n "docs/superpowers/plans/(2026-06-26-ui-usability-remediation|2026-06-27-otel-demo-integration|2026-06-30-prometheus-remote-write|2026-07-01-admin-ui-cleanup|2026-07-01-alert-inhibition-rules)" . -g "*.md"
+rg -n "docs/superpowers/plans/" . -g "*.md" | rg "2026-06-26-ui-usability-remediation|2026-06-27-otel-demo-integration|2026-06-30-prometheus-remote-write|2026-07-01-admin-ui-cleanup|2026-07-01-alert-inhibition-rules"
 ```
 
 Expected after edits: zero matches.

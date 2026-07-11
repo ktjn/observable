@@ -19,12 +19,12 @@ making changes.
 - Agent role routing: `.github/agents/README.md`, with `.github/agents/coordinator.agent.md` as the
   default entry role. Runtimes without subagent support should apply matching specialist `.agent.md`
   files manually as checklists.
-- Active roadmap: `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md` — consolidates the former post-Phase-3 plan and the Phases P9-P14 feature-parity plan (both now archived) into one feature-first backlog. Stability/compliance/enterprise-packaging work is intentionally demoted to a Deferred tier (§7 of that document) rather than gating new feature phases.
+- Active roadmap: `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md` — consolidates the former post-Phase-3 plan and the Phases P9-P14 feature-parity plan (both now archived) into one feature-first backlog. Select work security-first: P0 security findings take precedence, then choose by dependency readiness and user value; stability/compliance/enterprise-packaging work otherwise remains in the Deferred tier (§7). The next slice is to fail closed when the session-signing secret is missing, with an explicit local-development exception and Helm installation strategy.
 - **2026-07-02**: Whole-repo code-level review (`docs/analysis/2026-07-02-repo-review.md`) added a
   new roadmap §3.6 "Security, Observability & Reliability Hardening" with 9 findings, highest
   severity first: `auth-service` ships a hardcoded default session-signing secret in both code
   (`main.rs:88`) and the Helm chart default (`values.yaml:270`) — forgeable session JWTs against
-  any default install; the OIDC login/callback flow (`oidc.rs`) and both `query-api`/`admin-service`
+  any default install; this session-secret hardening is the next roadmap slice. The OIDC login/callback flow (`oidc.rs`) and both `query-api`/`admin-service`
   tenant-scoping middleware have zero tests; `alert-evaluator`, `ingest-gateway`, and
   `stream-processor` have no `/metrics` endpoint at all (only `query-api`, `storage-writer`,
   `auth-service`, `admin-service` do — this corrects §7's "shared observable-observability crate"
