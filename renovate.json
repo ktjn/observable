@@ -141,6 +141,13 @@
       "dependencyDashboardApproval": true
     },
     {
+      "description": "Require manual approval for TypeScript major bumps so eslint peer ranges stay compatible",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["typescript"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
       "description": "Require manual approval for major Python image bumps",
       "matchManagers": ["dockerfile"],
       "matchPackageNames": ["python"],
