@@ -429,12 +429,14 @@ first item, which is pre-promoted** because Tier 2's PromQL Compatibility Façad
 
 ### Recommended near-term sequence
 
-1. **Fail closed on missing session-signing secret**, with an explicit local-development exception
-   and Helm installation strategy.
-2. **Test OIDC login/callback behavior**, including provider failure and cookie issuance paths.
-3. **Add focused admin-service auth/tenant middleware coverage**.
-4. **Complete Saved Views for traces**.
-5. **Complete Saved Views for metrics**.
+1. **Fail closed on missing session-signing secret** ([#529](https://github.com/ktjn/observable/issues/529)),
+   with an explicit local-development exception and Helm installation strategy.
+2. **Test OIDC login/callback behavior** ([#530](https://github.com/ktjn/observable/issues/530)),
+   including provider failure and cookie issuance paths.
+3. **Add focused admin-service auth/tenant middleware coverage**
+   ([#531](https://github.com/ktjn/observable/issues/531)).
+4. **Complete Saved Views for traces** ([#532](https://github.com/ktjn/observable/issues/532)).
+5. **Complete Saved Views for metrics** ([#533](https://github.com/ktjn/observable/issues/533)).
 
 Each promoted slice must have a GitHub issue before implementation begins. After these five slices,
 reassess synchronous exports against Error Tracking and Service Topology using the same readiness
