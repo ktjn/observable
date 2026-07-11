@@ -182,9 +182,11 @@ Expected: #528 remains assigned and in progress; the five implementation issues 
 - Consumes: completed Tasks 1–3
 - Produces: reviewed documentation and a PR that closes #528
 
-- [x] **Step 1: Mark this plan complete and archive it**
+- [x] **Step 1: Mark completed implementation and pre-publication work, then archive the plan**
 
-Check every task box, move the file to root `archived/plans/`, and update references.
+Check Tasks 1-3 and Task 4's completed pre-publication boxes, move the file to root
+`archived/plans/`, and update references. Leave publication Steps 5-6 unchecked until their
+commit/push and pull-request actions have actually been performed.
 
 - [x] **Step 2: Run structural checks**
 
