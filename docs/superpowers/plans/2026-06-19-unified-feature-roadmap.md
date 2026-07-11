@@ -51,7 +51,8 @@ requirement, security finding, or scaling incident forces it.
 
 ## 3. Tier 1 — Ready Now (no blocking prerequisites)
 
-Small, standalone, high user-value slices. Ordered by user impact.
+Small, standalone slices with no unresolved prerequisites. Select among them using the P0 precedence
+and readiness/value rule in §2, not by list position alone.
 
 - [x] **Prometheus Remote Write Receiver** (was P13-S1) — `POST /api/v1/write`, snappy-compressed
   protobuf, label-to-attribute mapping, tenant routing via `X-Tenant-ID`. Single biggest migration
@@ -68,27 +69,8 @@ Small, standalone, high user-value slices. Ordered by user impact.
   to traces.
 - [ ] **Saved Views for metrics** — extend the shipped Saved Views contract and explorer workflow
   to metrics.
-- [ ] **Logs synchronous CSV/JSON export** (was P13-S4) — bounded export of log query results.
-- [ ] **Traces synchronous CSV/JSON export** (was P13-S4) — bounded export of trace query results.
-- [ ] **Metrics synchronous CSV/JSON export** (was P13-S4) — bounded export of metric query results.
-- [ ] **Export OTLP contract decision** — resolve the required OTLP export shape and signal
-  coverage before promoting the first synchronous export implementation slice.
-- [ ] **Asynchronous export architecture and implementation** — separately design the job,
-  retention, authorization, and download-storage model before implementing exports beyond the
-  synchronous limit.
-- [ ] **Fleet inventory contract and data source** — define and implement the live agent-inventory
-  endpoint that replaces `/admin/fleet`'s current read-only placeholder contract.
-- [ ] **Fleet inventory UI** — present live agent health and inventory after the contract and data
-  source exist.
-- [ ] **Fleet remote-configuration protocol** — make an architecture-backed protocol decision and
-  implement its backend contract after inventory exists.
-- [ ] **Fleet remote-configuration UI** — expose remote configuration only after its protocol and
-  authorization model are implemented.
 - [x] **Admin Console RBAC mutations** — member role mutation controls and supporting privileged
   backend operations ship in the Administration experience.
-- [ ] **Quota mutation and audit contract** — define and implement privileged quota updates with
-  an auditable backend contract.
-- [ ] **Quota frontend controls** — add quota editing after the mutation and audit contract ships.
 - [x] **OTLP gRPC/HTTP Compression Support** — `ingest-gateway`'s OTLP receivers currently reject
   gzip-compressed payloads (`"Content is compressed with 'gzip' which isn't supported"`). Enable
   gzip, zstd, and snappy on both gRPC and HTTP receivers. Any default otel-collector-contrib config
@@ -196,8 +178,41 @@ items in this document.
 
 ## 4. Tier 2 — Core Feature Builds (multi-slice, sequenced within the tier)
 
-Larger feature areas requiring 2+ ordered slices. Items within this tier are also ordered by user
-value. Promote after exhausting easy Tier 1 wins, or in parallel if reviewer bandwidth allows.
+Larger feature areas requiring 2+ ordered slices or unresolved contract and architecture decisions.
+Promote an independently reviewable slice only after its stated prerequisites are resolved, using
+the readiness and user-value rule in §2.
+
+### Export
+
+- [ ] **Export OTLP contract decision** — resolve the required OTLP export shape and signal
+  coverage before promoting the first synchronous export implementation slice.
+- [ ] **Logs synchronous CSV/JSON export** (was P13-S4) — bounded export of log query results;
+  depends on the OTLP contract decision.
+- [ ] **Traces synchronous CSV/JSON export** (was P13-S4) — bounded export of trace query results;
+  depends on the OTLP contract decision.
+- [ ] **Metrics synchronous CSV/JSON export** (was P13-S4) — bounded export of metric query results;
+  depends on the OTLP contract decision.
+- [ ] **Asynchronous export architecture decision** — design the job, retention, authorization,
+  and download-storage model for exports beyond the synchronous limit.
+- [ ] **Asynchronous export implementation** — implement large exports after the asynchronous
+  architecture decision is accepted.
+
+### Fleet Management
+
+- [ ] **Fleet inventory contract and data source** — define and implement the live agent-inventory
+  endpoint that replaces `/admin/fleet`'s current read-only placeholder contract.
+- [ ] **Fleet inventory UI** — present live agent health and inventory after the contract and data
+  source exist.
+- [ ] **Fleet remote-configuration protocol** — make an architecture-backed protocol decision and
+  implement its backend contract after inventory exists.
+- [ ] **Fleet remote-configuration UI** — expose remote configuration only after its protocol and
+  authorization model are implemented.
+
+### Quota Management
+
+- [ ] **Quota mutation and audit contract** — define and implement privileged quota updates with
+  an auditable backend contract.
+- [ ] **Quota frontend controls** — add quota editing after the mutation and audit contract ships.
 
 ### Error Tracking (Sentry-equivalent workflow) — highest user-value gap
 The single most requested competitive parity feature. Every development team familiar with
@@ -429,16 +444,16 @@ and user-value criteria.
 Tier 1 (ready slices, selected by P0 precedence then readiness and user value)
   Session-secret P0 → OIDC callback tests → admin middleware tests
   → Saved views (traces) → Saved views (metrics)
-  Export OTLP decision → logs/traces/metrics synchronous exports
-  Export async architecture → asynchronous export implementation
-  Fleet inventory contract/data source → inventory UI
-  → remote-configuration protocol → remote-configuration UI
-  Quota mutation/audit contract → quota frontend controls
   (Prometheus remote write, alert inhibition, logs saved views, Admin RBAC mutations — done)
   (Onboarding wizard, change-detection alert, change event API — done)
   (PagerDuty/Opsgenie — retired)
 
 Tier 2 (user-value order)
+  Export OTLP decision → logs/traces/metrics synchronous exports
+  Export async architecture decision → asynchronous export implementation
+  Fleet inventory contract/data source → inventory UI
+  → remote-configuration protocol → remote-configuration UI
+  Quota mutation/audit contract → quota frontend controls
   Error tracking ingestion → Error issues UI → Regression detection → Service health completion
   Infra catalog model → Infra explorer UI → K8s operator Helm deployment
   Escalation policy builder (targets the generic webhook channel type)
