@@ -12,8 +12,8 @@ import { submitNlqQuery } from "../api/nlq";
 import type { NlqIrLike } from "../features/nlq/queryFilters";
 import { infraLinks } from "../utils/infraLinks";
 import { formatBucketLabel } from "../utils/formatBucketLabel";
-import { OTelLevel, otelSeverity, severityTextClass, formatLogMessage } from "../utils/logFormatting";
-import { logContextEntries, isPromotableLogKey } from "../utils/logContext";
+import { OTelLevel, otelSeverity, formatLogMessage } from "../utils/logFormatting";
+import { DEFAULT_LOG_COLUMNS, logContextEntries, normalizeLogColumnKeys } from "../utils/logContext";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
@@ -124,8 +124,9 @@ export function LogExplorer({
   const [bucketCount, setBucketCount] = useState(60);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [isLive, setIsLive] = useState(false);
-  const [visibleColumns, setVisibleColumns] = useState<("level" | "service")[]>(["level", "service"]);
-  const [promotedColumns, setPromotedColumns] = useState<string[]>([]);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() =>
+    showServiceColumn ? [...DEFAULT_LOG_COLUMNS] : DEFAULT_LOG_COLUMNS.filter((key) => key !== "service.name"),
+  );
   const [isRegexMode, setIsRegexMode] = useState(false);
 
   const SEVERITY_MIN: Partial<Record<SeverityFilter, number>> = {
@@ -270,7 +271,7 @@ export function LogExplorer({
       preset != null
         ? { mode: "preset", preset }
         : { mode: "absolute", from_ms: fromMs, to_ms: toMs },
-    visible_columns: [...visibleColumns, ...promotedColumns],
+    visible_columns: visibleColumns,
   };
 
   const handleLoadView = (config: LogViewConfig) => {
@@ -283,9 +284,13 @@ export function LogExplorer({
     } else {
       setCustomRange(config.time_range.from_ms, config.time_range.to_ms);
     }
-    setVisibleColumns(config.visible_columns.filter((c): c is "level" | "service" => c === "level" || c === "service"));
-    setPromotedColumns(config.visible_columns.filter((c) => c !== "level" && c !== "service"));
+    setVisibleColumns(normalizeLogColumnKeys(config.visible_columns));
   };
+
+  const toggleColumn = (key: string) =>
+    setVisibleColumns((current) =>
+      current.includes(key) ? current.filter((column) => column !== key) : [...current, key],
+    );
 
   return (
     <SignalExplorer
@@ -308,15 +313,13 @@ export function LogExplorer({
         <>
           <ColumnPickerControl
             columns={[
-              { key: "level", label: "Level" },
-              { key: "service", label: "Service" },
-              ...promotedColumns.map((key) => ({ key, label: key })),
+              ...DEFAULT_LOG_COLUMNS.map((key) => ({ key, label: key })),
+              ...visibleColumns
+                .filter((key) => !DEFAULT_LOG_COLUMNS.includes(key as (typeof DEFAULT_LOG_COLUMNS)[number]))
+                .map((key) => ({ key, label: key })),
             ]}
-            visibleColumns={[...visibleColumns, ...promotedColumns]}
-            onChange={(next) => {
-              setVisibleColumns(next.filter((c): c is "level" | "service" => c === "level" || c === "service"));
-              setPromotedColumns(next.filter((c) => c !== "level" && c !== "service"));
-            }}
+            visibleColumns={visibleColumns}
+            onChange={setVisibleColumns}
           />
           <SavedViewsControl tenantId={tenantId} currentConfig={currentViewConfig} onLoad={handleLoadView} />
         </>
@@ -451,9 +454,7 @@ export function LogExplorer({
                     selectedLogId={selectedId ?? undefined}
                     onSelectLog={(id) => onSelect(id)}
                     timeFormat={format}
-                    showServiceColumn={showServiceColumn}
                     visibleColumns={visibleColumns}
-                    promotedColumns={promotedColumns}
                     ariaLabel={tableAriaLabel}
                   />
                   {isCapped && (
@@ -479,10 +480,8 @@ export function LogExplorer({
             log={log}
             format={format}
             onClose={onClose}
-            promotedColumns={promotedColumns}
-            onPromoteColumn={(key) =>
-              setPromotedColumns((prev) => (prev.includes(key) ? prev : [...prev, key]))
-            }
+            visibleColumns={visibleColumns}
+            onToggleColumn={toggleColumn}
           />
         ) : null;
       }}
@@ -494,16 +493,15 @@ function LogContextSidebar({
   log,
   format,
   onClose,
-  promotedColumns,
-  onPromoteColumn,
+  visibleColumns,
+  onToggleColumn,
 }: {
   log: LogRecord;
   format: import("../lib/timeDisplay").TimeFormat;
   onClose: () => void;
-  promotedColumns: string[];
-  onPromoteColumn: (key: string) => void;
+  visibleColumns: string[];
+  onToggleColumn: (key: string) => void;
 }) {
-  const severity = otelSeverity(log.severity_number);
   const entries = logContextEntries(log, format);
   const badges = infraLinks(log.resource_attributes ?? {});
 
@@ -521,18 +519,13 @@ function LogContextSidebar({
           Close
         </Button>
       </div>
-      <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
-        <DlRow label="level">
-          <span className={`font-bold uppercase ${severityTextClass(log.severity_number)}`}>
-            {severity.label}
-          </span>
-        </DlRow>
+      <dl className="grid grid-cols-[minmax(88px,45%)_1fr] gap-x-3 gap-y-2 text-xs">
         {entries.map(([key, value]) => (
           <DlRow
             key={key}
             label={key}
-            onPromote={isPromotableLogKey(key) ? () => onPromoteColumn(key) : undefined}
-            promoted={promotedColumns.includes(key)}
+            onToggleColumn={() => onToggleColumn(key)}
+            columnVisible={visibleColumns.includes(key)}
           >
             {key === "trace_id" && log.trace_id ? (
               <a

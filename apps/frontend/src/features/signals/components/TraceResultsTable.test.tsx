@@ -80,8 +80,11 @@ test("renders selectable trace rows for the global explorer", () => {
   );
 
   const table = screen.getByRole("table", { name: "Trace results" });
+  expect(within(table).getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
+    "Time", "Trace ID", "service.name", "Operation", "Duration", "Status",
+  ]);
   expect(within(table).getByRole("columnheader", { name: "Trace ID" })).toBeInTheDocument();
-  expect(within(table).getByRole("columnheader", { name: "Service" })).toBeInTheDocument();
+  expect(within(table).getByRole("columnheader", { name: "service.name" })).toBeInTheDocument();
   expect(within(table).getByText("GET /checkout")).toBeInTheDocument();
 
   // The link itself stops propagation (it navigates to the full trace page),
@@ -104,7 +107,7 @@ test("renders linked trace rows for scoped service views", () => {
   );
 
   const table = screen.getByRole("table", { name: "Service traces" });
-  expect(within(table).queryByRole("columnheader", { name: "Service" })).not.toBeInTheDocument();
+  expect(within(table).queryByRole("columnheader", { name: "service.name" })).not.toBeInTheDocument();
   expect(within(table).getByRole("link", { name: "trace-abc-123456" })).toHaveAttribute(
     "href",
     "/traces/trace-abc-1234567890",
@@ -122,10 +125,10 @@ test("visibleColumns restricts which optional columns render", () => {
   );
 
   const table = screen.getByRole("table", { name: "Trace results" });
-  expect(within(table).getByRole("columnheader", { name: "Time" })).toBeInTheDocument();
-  expect(within(table).getByRole("columnheader", { name: "Trace ID" })).toBeInTheDocument();
   expect(within(table).getByRole("columnheader", { name: "Status" })).toBeInTheDocument();
-  expect(within(table).queryByRole("columnheader", { name: "Service" })).not.toBeInTheDocument();
+  expect(within(table).queryByRole("columnheader", { name: "Time" })).not.toBeInTheDocument();
+  expect(within(table).queryByRole("columnheader", { name: "Trace ID" })).not.toBeInTheDocument();
+  expect(within(table).queryByRole("columnheader", { name: "service.name" })).not.toBeInTheDocument();
   expect(within(table).queryByRole("columnheader", { name: "Operation" })).not.toBeInTheDocument();
   expect(within(table).queryByRole("columnheader", { name: "Duration" })).not.toBeInTheDocument();
   expect(within(table).queryByText("GET /checkout")).not.toBeInTheDocument();
@@ -144,4 +147,41 @@ test("renders a Time column using the provided timeFormat", () => {
   const table = screen.getByRole("table", { name: "Trace results" });
   expect(within(table).getByRole("columnheader", { name: "Time" })).toBeInTheDocument();
   expect(within(table).getByText("1970-01-01 00:00:00.000Z")).toBeInTheDocument();
+});
+
+test("renders ordered canonical built-in and attribute columns through the shared resolver", () => {
+  const attributed = structuredClone(traces);
+  attributed[0].spans[0].attributes = { "http.route": "/checkout" };
+  attributed[0].spans[0].resource_attributes = { "k8s.pod.name": "checkout-7f9" };
+  render(
+    <TraceResultsTable
+      traces={attributed}
+      selectedTraceId={undefined}
+      onSelectTrace={vi.fn()}
+      visibleColumns={["resource.k8s.pod.name", "span.http.route"]}
+    />,
+  );
+  const table = screen.getByRole("table", { name: "Trace results" });
+  expect(within(table).getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
+    "resource.k8s.pod.name", "span.http.route",
+  ]);
+  expect(within(table).getByText("checkout-7f9")).toBeInTheDocument();
+  expect(within(table).getByText("/checkout")).toBeInTheDocument();
+});
+
+test("keeps heterogeneous rows aligned when a dynamic field is missing", () => {
+  const first = structuredClone(traces[0]);
+  first.spans[0].attributes = { "http.route": "/checkout" };
+  const second = structuredClone(traces[0]);
+  second.trace_id = "trace-without-route";
+  second.spans[0].trace_id = second.trace_id;
+  render(
+    <TraceResultsTable traces={[first, second]} selectedTraceId={undefined} onSelectTrace={vi.fn()}
+      visibleColumns={["trace_id", "span.http.route", "operation"]} />,
+  );
+  const rows = within(screen.getByRole("table", { name: "Trace results" })).getAllByRole("row");
+  expect(within(rows[1]).getAllByRole("cell")).toHaveLength(3);
+  expect(within(rows[2]).getAllByRole("cell")).toHaveLength(3);
+  expect(within(rows[2]).getAllByRole("cell")[1]).toHaveTextContent("");
+  expect(within(rows[2]).getAllByRole("cell")[2]).toHaveTextContent("GET /checkout");
 });

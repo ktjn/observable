@@ -36,7 +36,7 @@ const logs: LogRecord[] = [
   },
 ];
 
-test("renders the canonical log result columns and selection action", () => {
+test("renders canonical values with severity presentation and message copy", () => {
   const onSelect = vi.fn();
 
   render(
@@ -49,10 +49,12 @@ test("renders the canonical log result columns and selection action", () => {
   );
 
   const table = screen.getByRole("table", { name: "Log results" });
-  expect(within(table).getByRole("columnheader", { name: "Time" })).toBeInTheDocument();
-  expect(within(table).getByRole("columnheader", { name: "Level" })).toBeInTheDocument();
-  expect(within(table).getByRole("columnheader", { name: "Service" })).toBeInTheDocument();
-  expect(within(table).getByRole("columnheader", { name: "Message" })).toBeInTheDocument();
+  expect(within(table).getByRole("columnheader", { name: "time" })).toBeInTheDocument();
+  expect(within(table).getByRole("columnheader", { name: "severity_number" })).toBeInTheDocument();
+  expect(within(table).getByRole("columnheader", { name: "service.name" })).toBeInTheDocument();
+  expect(within(table).getByRole("columnheader", { name: "message" })).toBeInTheDocument();
+  expect(within(table).getByText("INFO")).toHaveClass("text-[var(--good)]");
+  expect(within(table).getByRole("button", { name: "Copy message" })).toBeInTheDocument();
 
   fireEvent.click(within(table).getByRole("button", { name: "Open log context for checkout completed" }));
 
@@ -66,27 +68,30 @@ test("can hide the service column for already scoped service log views", () => {
       selectedLogId="log-1"
       onSelectLog={vi.fn()}
       timeFormat="iso-utc-ms"
-      showServiceColumn={false}
+      visibleColumns={["time", "severity_number", "message"]}
+      ariaLabel="Service logs"
     />,
   );
 
   const table = screen.getByRole("table", { name: "Service logs" });
-  expect(within(table).queryByRole("columnheader", { name: "Service" })).not.toBeInTheDocument();
+  expect(within(table).queryByRole("columnheader", { name: "service.name" })).not.toBeInTheDocument();
   expect(within(table).getByText("checkout completed")).toBeInTheDocument();
 });
 
-test("hides the Level column when visibleColumns omits it", () => {
+test("renders only the ordered selected field keys", () => {
   render(
     <LogResultsTable
       logs={logs}
       selectedLogId={undefined}
       onSelectLog={vi.fn()}
       timeFormat="iso-utc-ms"
-      visibleColumns={["service"]}
+      visibleColumns={["message", "service.name"]}
     />,
   );
-  expect(screen.queryByRole("columnheader", { name: "Level" })).not.toBeInTheDocument();
-  expect(screen.getByRole("columnheader", { name: "Service" })).toBeInTheDocument();
+  expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
+    "message",
+    "service.name",
+  ]);
 });
 
 test("shows all columns when visibleColumns is omitted", () => {
@@ -98,6 +103,20 @@ test("shows all columns when visibleColumns is omitted", () => {
       timeFormat="iso-utc-ms"
     />,
   );
-  expect(screen.getByRole("columnheader", { name: "Level" })).toBeInTheDocument();
-  expect(screen.getByRole("columnheader", { name: "Service" })).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: "severity_number" })).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: "service.name" })).toBeInTheDocument();
+});
+
+test("renders an accessible state when no columns are selected", () => {
+  render(
+    <LogResultsTable
+      logs={logs}
+      selectedLogId={undefined}
+      onSelectLog={vi.fn()}
+      timeFormat="iso-utc-ms"
+      visibleColumns={[]}
+    />,
+  );
+  expect(screen.getByRole("columnheader", { name: "No columns selected" })).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "No columns selected" })).toBeInTheDocument();
 });

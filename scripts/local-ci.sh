@@ -64,6 +64,7 @@ if [[ $SKIP_MODELABLE -eq 0 ]]; then
   step "Modelable regenerate diff-check"
   TMP_TS="$(mktemp -d)"
   TMP_RS="$(mktemp -d)"
+  TMP_RS_FILES="$TMP_RS/.rust-files"
   FAILED=0
 
   uv run --project models modelable compile models/ --target typescript --out "$TMP_TS" >/dev/null 2>&1 || fail "modelable compile (typescript)"
@@ -96,6 +97,15 @@ if [[ $SKIP_MODELABLE -eq 0 ]]; then
       FAILED=1
     fi
   done < <(find demos/crypto-aggregator -path '*/generated/*.ts' -print0)
+
+  # Match the official regeneration path, which formats generated Rust via
+  # workspace cargo fmt before committing it. Formatting the temporary output
+  # preserves the byte-for-byte drift check while avoiding raw-emitter noise.
+  find "$TMP_RS" -name '*.rs' -print0 > "$TMP_RS_FILES" || fail "enumerate generated Rust files"
+  while IFS= read -r -d '' f; do
+    rustfmt --edition 2024 "$f" || fail "rustfmt temporary Modelable Rust: $f"
+  done < "$TMP_RS_FILES"
+  rm -f "$TMP_RS_FILES"
 
   # Rust — only subdirectory files, not hand-maintained module files
   while IFS= read -r -d '' f; do

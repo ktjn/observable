@@ -243,6 +243,40 @@ test_local_ci_has_fmt_gate() {
   fi
 }
 
+test_local_ci_formats_temporary_modelable_rust_before_diff() {
+  local ci_script="$SCRIPT_DIR/../../scripts/local-ci.sh"
+  local compile_line
+  local enumerate_line
+  local loop_line
+  local format_line
+  local format_end_line
+  local comparison_marker_line
+  local comparison_loop_line
+
+  compile_line="$(grep -nF 'modelable compile models/ --target rust --out "$TMP_RS"' "$ci_script" | head -n 1 | cut -d: -f1 || true)"
+  enumerate_line="$(grep -nF 'find "$TMP_RS" -name '\''*.rs'\'' -print0 > "$TMP_RS_FILES" || fail "enumerate generated Rust files"' "$ci_script" | head -n 1 | cut -d: -f1 || true)"
+  loop_line="$(grep -nF 'while IFS= read -r -d '\'''\'' f; do' "$ci_script" | awk -F: -v after="$enumerate_line" '$1 > after { print $1; exit }' || true)"
+  format_line="$(grep -nF 'rustfmt --edition 2024 "$f" || fail' "$ci_script" | head -n 1 | cut -d: -f1 || true)"
+  format_end_line="$(grep -nF 'done < "$TMP_RS_FILES"' "$ci_script" | head -n 1 | cut -d: -f1 || true)"
+  comparison_marker_line="$(grep -nF '# Rust — only subdirectory files, not hand-maintained module files' "$ci_script" | head -n 1 | cut -d: -f1 || true)"
+  comparison_loop_line="$(grep -nF 'while IFS= read -r -d '\'''\'' f; do' "$ci_script" | awk -F: -v after="$comparison_marker_line" '$1 > after { print $1; exit }' || true)"
+
+  if [[ -z "$compile_line" || -z "$enumerate_line" ]]; then
+    echo "FAIL: local-ci.sh must fail if null-delimited temporary Rust enumeration fails after compile"
+    exit 1
+  fi
+
+  if [[ -z "$loop_line" || -z "$format_line" || -z "$format_end_line" ]]; then
+    echo "FAIL: local-ci.sh must rustfmt each null-delimited temporary Rust path from the explicit list with failure propagation"
+    exit 1
+  fi
+
+  if [[ -z "$comparison_marker_line" || -z "$comparison_loop_line" || "$compile_line" -ge "$enumerate_line" || "$enumerate_line" -ge "$loop_line" || "$loop_line" -ge "$format_line" || "$format_line" -ge "$format_end_line" || "$format_end_line" -ge "$comparison_marker_line" || "$comparison_marker_line" -ge "$comparison_loop_line" ]]; then
+    echo "FAIL: temporary Modelable Rust formatting must occur after compile and before the generated Rust diff loop"
+    exit 1
+  fi
+}
+
 test_local_ci_has_clippy_gate() {
   local ci_script="$SCRIPT_DIR/../../scripts/local-ci.sh"
 
@@ -331,6 +365,7 @@ run_test "retries trace ingest" test_send_trace_until_queryable_retries_ingest
 run_test "verifies metric point readback" test_smoke_verifies_metric_points_after_ingest
 run_test "local-ci has integration-test stage" test_local_ci_has_integration_test_stage
 run_test "local-ci has fmt gate" test_local_ci_has_fmt_gate
+run_test "local-ci formats temporary Modelable Rust before diff" test_local_ci_formats_temporary_modelable_rust_before_diff
 run_test "local-ci has clippy gate" test_local_ci_has_clippy_gate
 run_test "local-ci has unit-test gate" test_local_ci_has_unit_test_gate
 run_test "grpc handlers suppress self-telemetry spans" test_grpc_handlers_suppress_self_telemetry_spans

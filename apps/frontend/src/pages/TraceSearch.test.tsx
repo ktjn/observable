@@ -4,7 +4,8 @@ import type { ReactNode } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
 import { TenantContextProvider } from "../hooks/useTenantContext";
-import TraceSearch from "./TraceSearch";
+import type { TraceResponse } from "../api/traces";
+import TraceSearch, { TraceContextSidebar } from "./TraceSearch";
 
 const FIXED_TO_MS   = 1_700_100_000_000;
 const FIXED_FROM_MS = FIXED_TO_MS - 60 * 60 * 1000;
@@ -171,6 +172,65 @@ test("selecting a trace opens context sidebar that scrolls internally", async ()
   const sidebar = screen.getByRole("complementary", { name: "Selected trace context" });
   expect(within(sidebar).getByText("Root Span Details")).toBeInTheDocument();
   expect(sidebar).toHaveClass("overflow-y-auto");
+});
+
+test("toggles trace fields as table columns from the context panel", async () => {
+  renderTraceSearch();
+  const table = await screen.findByRole("table", { name: "Trace results" });
+  fireEvent.click(screen.getByText("GET /checkout"));
+  const sidebar = screen.getByRole("complementary", { name: "Selected trace context" });
+
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Remove operation column" }));
+  expect(within(table).queryByRole("columnheader", { name: "Operation" })).not.toBeInTheDocument();
+  expect(within(table).queryByText("GET /checkout")).not.toBeInTheDocument();
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Add operation as a column" }));
+  expect(within(table).getByRole("columnheader", { name: "Operation" })).toBeInTheDocument();
+  expect(within(table).getByText("GET /checkout")).toBeInTheDocument();
+
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Remove service.name column" }));
+  expect(within(table).queryByRole("columnheader", { name: "service.name" })).not.toBeInTheDocument();
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Add service.name as a column" }));
+  expect(within(table).getByRole("columnheader", { name: "service.name" })).toBeInTheDocument();
+
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Remove status column" }));
+  expect(within(table).queryByRole("columnheader", { name: "Status" })).not.toBeInTheDocument();
+  expect(within(sidebar).getByRole("status")).toHaveTextContent("OK");
+});
+
+test("removing trace_id still allows row selection and full-trace navigation", async () => {
+  renderTraceSearch();
+  await screen.findByRole("table", { name: "Trace results" });
+  fireEvent.click(screen.getByText("GET /checkout"));
+  let sidebar = screen.getByRole("complementary", { name: "Selected trace context" });
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Remove trace_id column" }));
+  expect(screen.queryByRole("columnheader", { name: "Trace ID" })).not.toBeInTheDocument();
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Close" }));
+  fireEvent.click(screen.getByText("GET /checkout"));
+  sidebar = screen.getByRole("complementary", { name: "Selected trace context" });
+  expect(within(sidebar).getByRole("link", { name: "View Full Trace Explorer" })).toHaveAttribute(
+    "href", "/traces/trace-abc-1234567890",
+  );
+});
+
+test("toggles an arbitrary resolvable trace attribute from the context sidebar", () => {
+  const trace: TraceResponse = {
+    trace_id: "trace-attribute", events: [], spans: [{
+      tenant_id: "tenant", trace_id: "trace-attribute", span_id: "span", service_name: "checkout",
+      service_namespace: "", service_version: "", operation_name: "GET /checkout", span_kind: "SERVER",
+      start_time_unix_nano: 1, end_time_unix_nano: 2, duration_ns: 1, status_code: "OK",
+      status_message: "", attributes: { "http.route": "/checkout" },
+      resource_attributes: { "k8s.pod.name": "checkout-7f9" }, environment: "", host_id: "",
+      workload: "", deployment_id: "",
+    }],
+  };
+  const onToggleColumn = vi.fn();
+  render(<TimeDisplayProvider><TraceContextSidebar trace={trace} onClose={vi.fn()}
+    visibleColumns={[]} onToggleColumn={onToggleColumn} /></TimeDisplayProvider>);
+  const sidebar = screen.getByRole("complementary", { name: "Selected trace context" });
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Add span.http.route as a column" }));
+  expect(onToggleColumn).toHaveBeenCalledWith("span.http.route");
+  expect(within(sidebar).getByText("/checkout")).toBeInTheDocument();
+  expect(within(sidebar).getByRole("button", { name: "Add resource.k8s.pod.name as a column" })).toBeEnabled();
 });
 
 test("keeps a visible trace histogram when the histogram query fails", async () => {

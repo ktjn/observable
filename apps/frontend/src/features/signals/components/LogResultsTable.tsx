@@ -1,50 +1,36 @@
 import type { LogRecord } from "../../../api/logs";
 import { VirtualTable } from "../../../components/ui/VirtualTable";
 import { CopyButton } from "../../../components/ui/copy-button";
-import { formatTimestamp } from "../../../utils/formatTimestamp";
 import { formatLogMessage, otelSeverity, severityTextClass } from "../../../utils/logFormatting";
-import { getLogFieldValue } from "../../../utils/logContext";
+import { DEFAULT_LOG_COLUMNS, getLogFieldValue } from "../../../utils/logContext";
 import type { TimeFormat } from "../../../lib/timeDisplay";
-
-export type LogTableColumn = "level" | "service";
 
 export function LogResultsTable({
   logs,
   selectedLogId,
   onSelectLog,
   timeFormat,
-  showServiceColumn = true,
-  visibleColumns,
-  /** Additional promoted attribute/resource columns, e.g. "log.error.type" or "k8s.pod.name". */
-  promotedColumns = [],
-  ariaLabel = showServiceColumn ? "Log results" : "Service logs",
+  visibleColumns = DEFAULT_LOG_COLUMNS,
+  ariaLabel = "Log results",
 }: {
   logs: LogRecord[];
   selectedLogId: string | undefined;
   onSelectLog: (logId: string) => void;
   timeFormat: TimeFormat;
-  showServiceColumn?: boolean;
-  /** When set, restricts optional columns (Level, Service) to this list. Time and Message always show. */
-  visibleColumns?: LogTableColumn[];
-  promotedColumns?: string[];
+  visibleColumns?: readonly string[];
   ariaLabel?: string;
 }) {
-  const showLevel = visibleColumns === undefined || visibleColumns.includes("level");
-  const showService = showServiceColumn && (visibleColumns === undefined || visibleColumns.includes("service"));
-
   return (
     <VirtualTable
       rows={logs}
       ariaLabel={ariaLabel}
       renderHead={() => (
         <tr>
-          <th aria-label="Time">Time</th>
-          {showLevel && <th>Level</th>}
-          {showService && <th>Service</th>}
-          {promotedColumns.map((key) => (
-            <th key={key}>{key}</th>
-          ))}
-          <th>Message</th>
+          {visibleColumns.length === 0 ? (
+            <th aria-label="No columns selected">No columns selected</th>
+          ) : (
+            visibleColumns.map((key) => <th key={key}>{key}</th>)
+          )}
         </tr>
       )}
       renderRow={(log, ref, index) => (
@@ -54,9 +40,7 @@ export function LogResultsTable({
           timeFormat={timeFormat}
           selected={selectedLogId === log.log_id}
           onSelect={() => onSelectLog(log.log_id)}
-          showLevel={showLevel}
-          showServiceColumn={showService}
-          promotedColumns={promotedColumns}
+          columns={visibleColumns}
           measureRef={ref}
           index={index}
         />
@@ -70,9 +54,7 @@ function LogResultsRow({
   timeFormat,
   selected,
   onSelect,
-  showLevel,
-  showServiceColumn,
-  promotedColumns,
+  columns,
   measureRef,
   index,
 }: {
@@ -80,9 +62,7 @@ function LogResultsRow({
   timeFormat: TimeFormat;
   selected: boolean;
   onSelect: () => void;
-  showLevel: boolean;
-  showServiceColumn: boolean;
-  promotedColumns: string[];
+  columns: readonly string[];
   measureRef: (el: Element | null) => void;
   index: number;
 }) {
@@ -108,26 +88,29 @@ function LogResultsRow({
       aria-label={`Open log context for ${message}`}
       aria-pressed={selected}
     >
-      <td className="whitespace-nowrap">{formatTimestamp(log.timestamp_unix_nano, timeFormat)}</td>
-      {showLevel && (
-        <td>
-          <span className={`text-[9px] font-bold uppercase tracking-wide ${severityTextClass(log.severity_number)}`}>
-            {severity.label}
-          </span>
-        </td>
+      {columns.length === 0 ? (
+        <td aria-label="No columns selected">No columns selected</td>
+      ) : (
+        columns.map((key) => {
+          const value = getLogFieldValue(log, key, timeFormat);
+          return (
+            <td key={key} className="whitespace-normal break-all">
+              {key === "severity_number" ? (
+                <span className={`text-[9px] font-bold uppercase tracking-wide ${severityTextClass(Number(value))}`}>
+                  {otelSeverity(Number(value)).label}
+                </span>
+              ) : key === "message" ? (
+                <span className="inline-flex min-w-0 max-w-full items-start gap-1">
+                  <span className="min-w-0 break-all">{value}</span>
+                  <CopyButton value={value} label="Copy message" />
+                </span>
+              ) : (
+                value
+              )}
+            </td>
+          );
+        })
       )}
-      {showServiceColumn && <td>{log.service_name}</td>}
-      {promotedColumns.map((key) => (
-        <td key={key} className="whitespace-normal break-all">
-          {getLogFieldValue(log, key, timeFormat)}
-        </td>
-      ))}
-      <td className="whitespace-normal break-all">
-        <span className="inline-flex min-w-0 max-w-full items-start gap-1">
-          <span className="min-w-0 break-all">{message}</span>
-          <CopyButton value={message} label="Copy message" />
-        </span>
-      </td>
     </tr>
   );
 }
