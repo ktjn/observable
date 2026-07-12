@@ -26,32 +26,34 @@ test("renders a copy button when copyValue is provided", () => {
   ).toBeInTheDocument();
 });
 
-test("clicking the promote button calls onPromote once", () => {
-  const onPromote = vi.fn();
+test("clicking the add-column button calls onToggleColumn once", () => {
+  const onToggleColumn = vi.fn();
   render(
     <dl>
-      <DlRow label="log.error.type" onPromote={onPromote}>
+      <DlRow label="log.error.type" onToggleColumn={onToggleColumn} columnVisible={false}>
         TimeoutError
       </DlRow>
     </dl>
   );
 
-  fireEvent.click(screen.getByRole("button", { name: "Add log.error.type as a column" }));
-  expect(onPromote).toHaveBeenCalledTimes(1);
+  const button = screen.getByRole("button", { name: "Add log.error.type as a column" });
+  expect(button.querySelector(".lucide-plus")).toBeInTheDocument();
+  fireEvent.click(button);
+  expect(onToggleColumn).toHaveBeenCalledTimes(1);
 });
 
-test("promoted rows disable the promote button and don't call onPromote again", () => {
-  const onPromote = vi.fn();
+test("clicking the remove-column button calls onToggleColumn once", () => {
+  const onToggleColumn = vi.fn();
   render(
     <dl>
-      <DlRow label="log.error.type" onPromote={onPromote} promoted>
+      <DlRow label="log.error.type" onToggleColumn={onToggleColumn} columnVisible={true}>
         TimeoutError
       </DlRow>
     </dl>
   );
 
-  const button = screen.getByRole("button", { name: "log.error.type is already a column" });
-  expect(button).toBeDisabled();
+  const button = screen.getByRole("button", { name: "Remove log.error.type column" });
+  expect(button.querySelector(".lucide-minus")).toBeInTheDocument();
   fireEvent.click(button);
-  expect(onPromote).not.toHaveBeenCalled();
+  expect(onToggleColumn).toHaveBeenCalledTimes(1);
 });
