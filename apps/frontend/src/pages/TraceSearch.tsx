@@ -421,7 +421,7 @@ export function TraceContextSidebar({
         </Link>
       </div>
 
-      <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
+      <dl className="grid grid-cols-[minmax(88px,45%)_1fr] gap-x-3 gap-y-2 text-xs">
         {entries.map(([key, value]) => (
           <DlRow key={key} label={key} copyValue={key === "start_time" || key === "duration" ? undefined : value}
             onToggleColumn={() => onToggleColumn(key)} columnVisible={visibleColumns.includes(key)}>

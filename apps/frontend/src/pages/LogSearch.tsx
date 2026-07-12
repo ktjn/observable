@@ -519,7 +519,7 @@ function LogContextSidebar({
           Close
         </Button>
       </div>
-      <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
+      <dl className="grid grid-cols-[minmax(88px,45%)_1fr] gap-x-3 gap-y-2 text-xs">
         {entries.map(([key, value]) => (
           <DlRow
             key={key}
