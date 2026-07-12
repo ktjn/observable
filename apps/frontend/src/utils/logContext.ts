@@ -17,9 +17,34 @@ export const FIXED_LOG_KEYS = [
   "fingerprint",
 ] as const;
 
+/** Default table columns, using the same canonical keys as the context panel and saved views. */
+export const DEFAULT_LOG_COLUMNS = ["time", "severity_number", "service.name", "message"] as const;
+
+const FIXED_LOG_KEY_SET = new Set<string>(FIXED_LOG_KEYS);
+
+export function normalizeLogColumnKeys(keys: readonly string[]): string[] {
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+  for (const key of keys) {
+    const canonical =
+      key === "level"
+        ? "severity_number"
+        : key === "service"
+          ? "service.name"
+          : FIXED_LOG_KEY_SET.has(key) || key.startsWith("log.") || key.startsWith("resource.")
+            ? key
+            : `resource.${key}`;
+    if (!seen.has(canonical)) {
+      seen.add(canonical);
+      normalized.push(canonical);
+    }
+  }
+  return normalized;
+}
+
 /**
  * Resolves the formatted display value for a log context key — either a
- * fixed field, a `log.<attr>` attribute, or a bare resource attribute key.
+ * fixed field, a `log.<attr>` attribute, or a `resource.<attr>` resource attribute key.
  * Shared between the log context sidebar (per-selected-log) and the results
  * table (per-row, for promoted columns) so both stay in sync.
  */
@@ -51,7 +76,9 @@ export function getLogFieldValue(log: LogRecord, key: string, format: TimeFormat
         : "";
     default:
       if (key.startsWith("log.")) return formatContextValue(log.attributes?.[key.slice(4)]);
-      return formatContextValue(log.resource_attributes?.[key]);
+      if (key.startsWith("resource."))
+        return formatContextValue(log.resource_attributes?.[key.slice("resource.".length)]);
+      return "";
   }
 }
 
@@ -73,11 +100,6 @@ export function logContextEntries(log: LogRecord, format: TimeFormat): [string, 
   for (const [k, v] of Object.entries(log.attributes ?? {}).sort(([a], [b]) => a.localeCompare(b)))
     entries.push([`log.${k}`, formatContextValue(v)]);
   for (const [k, v] of Object.entries(log.resource_attributes ?? {}).sort(([a], [b]) => a.localeCompare(b)))
-    entries.push([k, formatContextValue(v)]);
+    entries.push([`resource.${k}`, formatContextValue(v)]);
   return entries;
-}
-
-/** Whether a log context key can be promoted to a table column (fixed fields like `message`/`time` are already always shown). */
-export function isPromotableLogKey(key: string): boolean {
-  return !(FIXED_LOG_KEYS as readonly string[]).includes(key);
 }

@@ -8,6 +8,7 @@ import { TenantContextProvider } from "../hooks/useTenantContext";
 import LogSearch, {
   buildLogHistogram,
   formatLogMessage,
+  LogExplorer,
   otelSeverity,
 } from "./LogSearch";
 
@@ -127,7 +128,16 @@ vi.mock("../api/savedViews", async () => {
             severity_filter: "error",
             message_search: "timeout",
             time_range: { mode: "preset", preset: "1h" },
-            visible_columns: ["level"],
+            visible_columns: [
+              "level",
+              "severity_number",
+              "service",
+              "service.name",
+              "k8s.pod.name",
+              "resource.k8s.pod.name",
+              "log.http.route",
+              "message",
+            ],
           },
           created_at: "2026-07-01T00:00:00Z",
           updated_at: "2026-07-01T00:00:00Z",
@@ -189,7 +199,7 @@ beforeEach(() => {
   mockSetCustomRange.mockClear();
 });
 
-function renderLogSearch() {
+function renderLogSearch(content: ReactNode = <LogSearch />) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -198,12 +208,24 @@ function renderLogSearch() {
     <TenantContextProvider>
       <QueryClientProvider client={client}>
         <TimeDisplayProvider>
-          <LogSearch />
+          {content}
         </TimeDisplayProvider>
       </QueryClientProvider>
     </TenantContextProvider>,
   );
 }
+
+test("scoped log views share one service-column state across table and context", async () => {
+  renderLogSearch(<LogExplorer showServiceColumn={false} tableAriaLabel="Service logs" />);
+
+  const table = await screen.findByRole("table", { name: "Service logs" });
+  expect(within(table).queryByRole("columnheader", { name: "service.name" })).not.toBeInTheDocument();
+  fireEvent.click(within(table).getByRole("button", { name: "Open log context for checkout completed" }));
+  const sidebar = screen.getByRole("complementary", { name: "Selected log context" });
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Add service.name as a column" }));
+  expect(within(table).getByRole("columnheader", { name: "service.name" })).toBeInTheDocument();
+  expect(within(sidebar).getByRole("button", { name: "Remove service.name column" })).toBeInTheDocument();
+});
 
 test("queries logs via NLQ execute on load", async () => {
   const { submitNlqQuery } = await import("../api/nlq");
@@ -217,16 +239,16 @@ test("queries logs via NLQ execute on load", async () => {
   );
 });
 
-test("renders histogram and primary Time Level Message columns", async () => {
+test("renders histogram and primary canonical log columns", async () => {
   renderLogSearch();
 
   expect(await screen.findByRole("group", { name: "Log volume histogram" })).toBeInTheDocument();
 
   const table = screen.getByRole("table", { name: "Log results" });
-  expect(within(table).getByRole("columnheader", { name: "Time" })).toBeInTheDocument();
-  expect(within(table).getByRole("columnheader", { name: "Level" })).toBeInTheDocument();
-  expect(within(table).getByRole("columnheader", { name: "Service" })).toBeInTheDocument();
-  expect(within(table).getByRole("columnheader", { name: "Message" })).toBeInTheDocument();
+  expect(within(table).getByRole("columnheader", { name: "time" })).toBeInTheDocument();
+  expect(within(table).getByRole("columnheader", { name: "severity_number" })).toBeInTheDocument();
+  expect(within(table).getByRole("columnheader", { name: "service.name" })).toBeInTheDocument();
+  expect(within(table).getByRole("columnheader", { name: "message" })).toBeInTheDocument();
   expect(within(table).getByText("checkout completed")).toBeInTheDocument();
 });
 
@@ -237,7 +259,7 @@ test("selecting a log opens context properties in the right sidebar", async () =
 
   const sidebar = screen.getByRole("complementary", { name: "Selected log context" });
   expect(within(sidebar).getByText("Context Properties")).toBeInTheDocument();
-  expect(within(sidebar).getByText("host.name")).toBeInTheDocument();
+  expect(within(sidebar).getByText("resource.host.name")).toBeInTheDocument();
   expect(within(sidebar).getAllByText("node-1").length).toBeGreaterThanOrEqual(1);
   expect(within(sidebar).getByText("log.http.route")).toBeInTheDocument();
   expect(within(sidebar).getByText("/checkout")).toBeInTheDocument();
@@ -255,11 +277,10 @@ test("toggles log fields as table columns from the context panel", async () => {
   const sidebar = screen.getByRole("complementary", { name: "Selected log context" });
   const table = screen.getByRole("table", { name: "Log results" });
 
-  fireEvent.click(within(sidebar).getByRole("button", { name: "Add service.name as a column" }));
-  expect(within(table).getByRole("columnheader", { name: "service.name" })).toBeInTheDocument();
-  expect(within(sidebar).getByRole("button", { name: "Remove service.name column" })).toBeEnabled();
   fireEvent.click(within(sidebar).getByRole("button", { name: "Remove service.name column" }));
   expect(within(table).queryByRole("columnheader", { name: "service.name" })).not.toBeInTheDocument();
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Add service.name as a column" }));
+  expect(within(table).getByRole("columnheader", { name: "service.name" })).toBeInTheDocument();
 
   fireEvent.click(within(sidebar).getByRole("button", { name: "Add log.http.route as a column" }));
   expect(within(table).getByRole("columnheader", { name: "log.http.route" })).toBeInTheDocument();
@@ -376,6 +397,18 @@ test("loading a saved view applies its severity filter and message search", asyn
   await waitFor(() => {
     expect(screen.getByLabelText("Search log messages")).toHaveValue("timeout");
   });
+  fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+  expect(screen.getAllByRole("checkbox").map((checkbox) => ({
+    name: checkbox.parentElement?.textContent,
+    checked: (checkbox as HTMLInputElement).checked,
+  }))).toEqual([
+    { name: "time", checked: false },
+    { name: "severity_number", checked: true },
+    { name: "service.name", checked: true },
+    { name: "message", checked: true },
+    { name: "resource.k8s.pod.name", checked: true },
+    { name: "log.http.route", checked: true },
+  ]);
 });
 
 test("plain-mode quick filter matches substrings as before", async () => {
