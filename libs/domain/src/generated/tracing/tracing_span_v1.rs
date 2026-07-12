@@ -30,16 +30,24 @@ pub struct TracingSpanV1 {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TracingSpanV1SpanKind {
-    INTERNAL,
-    SERVER,
-    CLIENT,
-    PRODUCER,
-    CONSUMER,
+    #[serde(rename = "INTERNAL")]
+    Internal,
+    #[serde(rename = "SERVER")]
+    Server,
+    #[serde(rename = "CLIENT")]
+    Client,
+    #[serde(rename = "PRODUCER")]
+    Producer,
+    #[serde(rename = "CONSUMER")]
+    Consumer,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TracingSpanV1StatusCode {
-    UNSET,
-    OK,
-    ERROR,
+    #[serde(rename = "UNSET")]
+    Unset,
+    #[serde(rename = "OK")]
+    Ok,
+    #[serde(rename = "ERROR")]
+    Error,
 }
