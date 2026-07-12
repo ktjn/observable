@@ -173,6 +173,25 @@ test("selecting a trace opens context sidebar that scrolls internally", async ()
   expect(sidebar).toHaveClass("overflow-y-auto");
 });
 
+test("toggles trace fields as table columns from the context panel", async () => {
+  renderTraceSearch();
+  const table = await screen.findByRole("table", { name: "Trace results" });
+  fireEvent.click(screen.getByText("GET /checkout"));
+  const sidebar = screen.getByRole("complementary", { name: "Selected trace context" });
+
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Remove operation column" }));
+  expect(within(table).queryByRole("columnheader", { name: "Operation" })).not.toBeInTheDocument();
+  expect(within(table).queryByText("GET /checkout")).not.toBeInTheDocument();
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Add operation as a column" }));
+  expect(within(table).getByRole("columnheader", { name: "Operation" })).toBeInTheDocument();
+  expect(within(table).getByText("GET /checkout")).toBeInTheDocument();
+
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Add service.name as a column" }));
+  expect(within(table).getByRole("columnheader", { name: "service.name" })).toBeInTheDocument();
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Remove service.name column" }));
+  expect(within(table).queryByRole("columnheader", { name: "service.name" })).not.toBeInTheDocument();
+});
+
 test("keeps a visible trace histogram when the histogram query fails", async () => {
   vi.mocked(fetchTraceHistogram).mockRejectedValueOnce(new Error("histogram backend error"));
 

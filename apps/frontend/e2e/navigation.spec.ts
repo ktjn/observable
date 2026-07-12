@@ -276,7 +276,57 @@ test.describe("dashboard navigation", () => {
   });
 });
 
-// ── Panel overflow regression ─────────────────────────────────────────────────
+// ── Explorer field ↔ table-column synchronization ────────────────────────────
+
+test.describe("field column toggles", () => {
+  test("log field action toggles a synchronized table column", async ({ page }) => {
+    await mockAuth(page);
+    await page.route("**/v1/nlq", (route) => route.fulfill({ json: { type: "frame", frame: { data: [{
+      log_id: "log-field-column", timestamp_unix_nano: T_NS, observed_timestamp_unix_nano: T_NS,
+      severity_number: 9, body: "unique log column row", service_name: "log-column-service-536",
+      environment: "prod", host_id: "host-field-column", trace_id: null, span_id: null,
+      fingerprint: null, attributes: {}, resource_attributes: {},
+    }] } } }));
+    await page.route("**/v1/tenants/**/logs/histogram**", (route) => route.fulfill({ json: { buckets: [] } }));
+
+    await page.goto("/logs");
+    const table = page.getByRole("table", { name: "Log results" });
+    await page.getByRole("button", { name: "Open log context for unique log column row" }).click();
+    const addServiceColumn = page.getByRole("button", { name: "Add service.name as a column" });
+    await expect(addServiceColumn).toBeVisible();
+    await addServiceColumn.click();
+    await expect(table.getByRole("columnheader", { name: "service.name" })).toBeVisible();
+    await expect(table.getByText("log-column-service-536")).toBeVisible();
+    await page.getByRole("button", { name: "Remove service.name column" }).click();
+    await expect(table.getByRole("columnheader", { name: "service.name" })).toHaveCount(0);
+  });
+
+  test("trace field action toggles a synchronized table column", async ({ page }) => {
+    await mockAuth(page);
+    await page.route("**/v1/nlq", (route) => route.fulfill({ json: { type: "frame", frame: { data: [{
+      trace_id: "trace-field-column-536", root_service: "trace-column-service-536",
+      root_operation: "GET /unique-trace-column-536", duration_ms: 25, status_code: "OK",
+      environment: "prod", start_time_unix_nano: T_NS,
+    }] } } }));
+    await page.route("**/v1/tenants/**/traces/histogram**", (route) => route.fulfill({ json: { buckets: [] } }));
+
+    await page.goto("/traces");
+    const table = page.getByRole("table", { name: "Trace results" });
+    await table.getByRole("row").nth(1).click();
+    const removeOperationColumn = page.getByRole("button", { name: "Remove operation column" });
+    await expect(removeOperationColumn).toBeVisible();
+    await removeOperationColumn.click();
+    await expect(table.getByRole("columnheader", { name: "Operation" })).toHaveCount(0);
+    await expect(table.getByText("GET /unique-trace-column-536")).toHaveCount(0);
+    const addOperationColumn = page.getByRole("button", { name: "Add operation as a column" });
+    await expect(addOperationColumn).toBeVisible();
+    await addOperationColumn.click();
+    await expect(table.getByRole("columnheader", { name: "Operation" })).toBeVisible();
+    await expect(table.getByText("GET /unique-trace-column-536")).toBeVisible();
+  });
+});
+
+// ── Panel overflow regression ────────────────────────────────────────────────
 
 test.describe("panel overflow (regression)", () => {
   test("long unbroken log message wraps instead of overflowing the page horizontally", async ({
