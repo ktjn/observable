@@ -27,10 +27,8 @@ import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
 import { formatBucketLabel } from "../utils/formatBucketLabel";
-import { formatTimestamp } from "../utils/formatTimestamp";
-import { formatStatusLabel } from "../utils/traceStatus";
-import { formatContextValue } from "../utils/logFormatting";
 import { infraLinks } from "../utils/infraLinks";
+import { DEFAULT_TRACE_COLUMNS, FIXED_TRACE_KEYS, traceContextEntries } from "../utils/traceContext";
 import { SignalExplorer, SaveStatus } from "../components/shared/SignalExplorer";
 import { TraceResultsTable, type TraceTableColumn } from "../features/signals/components/TraceResultsTable";
 import { ColumnPickerControl } from "../features/signals/components/ColumnPickerControl";
@@ -151,12 +149,21 @@ export function TraceExplorer({
   const [userQuery, setUserQuery] = useState<string | null>(initialQuery);
   const [service, setService] = useState(initialService);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [visibleColumns, setVisibleColumns] = useState<TraceTableColumn[]>([
-    "service",
-    "operation",
-    "duration",
-    "status",
-  ]);
+  const [visibleColumns, setVisibleColumns] = useState<TraceTableColumn[]>(() =>
+    showServiceColumn
+      ? [...DEFAULT_TRACE_COLUMNS]
+      : DEFAULT_TRACE_COLUMNS.filter((key) => key !== "service.name"),
+  );
+  const toggleTraceColumn = (key: string) => {
+    setVisibleColumns((current) =>
+      current.includes(key) ? current.filter((column) => column !== key) : [...current, key],
+    );
+  };
+  const pickerColumns = useMemo(() => {
+    const keys: string[] = [...FIXED_TRACE_KEYS];
+    for (const key of visibleColumns) if (!keys.includes(key)) keys.push(key);
+    return keys.map((key) => ({ key, label: key }));
+  }, [visibleColumns]);
 
   const from = String(BigInt(Math.floor(fromMs)) * 1_000_000n);
   const to = String(BigInt(Math.floor(toMs)) * 1_000_000n);
@@ -263,12 +270,7 @@ export function TraceExplorer({
       onPromote={handlePromote}
       savedViewsControl={
         <ColumnPickerControl
-          columns={[
-            { key: "service", label: "Service" },
-            { key: "operation", label: "Operation" },
-            { key: "duration", label: "Duration" },
-            { key: "status", label: "Status" },
-          ]}
+          columns={pickerColumns}
           visibleColumns={visibleColumns}
           onChange={setVisibleColumns}
         />
@@ -368,24 +370,31 @@ export function TraceExplorer({
       )}
       renderPanel={(selectedId, onClose) => {
         const trace = traces.find((t) => t.trace_id === selectedId);
-        return trace ? <TraceContextSidebar trace={trace} onClose={onClose} /> : null;
+        return trace ? (
+          <TraceContextSidebar trace={trace} onClose={onClose} visibleColumns={visibleColumns} onToggleColumn={toggleTraceColumn} />
+        ) : null;
       }}
     />
   );
 }
 
-function TraceContextSidebar({
+export function TraceContextSidebar({
   trace,
   onClose,
+  visibleColumns,
+  onToggleColumn,
 }: {
   trace: TraceResponse;
   onClose: () => void;
+  visibleColumns: readonly string[];
+  onToggleColumn: (key: string) => void;
 }) {
   const root = trace.spans[0];
   if (!root) return null;
 
   const { format } = useTimeDisplay();
   const badges = infraLinks(root.resource_attributes ?? {});
+  const entries = traceContextEntries(trace, format);
 
   return (
     <aside
@@ -412,31 +421,13 @@ function TraceContextSidebar({
         </Link>
       </div>
 
-      <Badge tone={root.status_code === "ERROR" ? "bad" : "good"} className="mb-3">
-        {formatStatusLabel(root.status_code)}
-      </Badge>
-
       <dl className="grid grid-cols-[minmax(88px,auto)_1fr] gap-x-3 gap-y-2 text-xs">
-        <DlRow label="trace_id" copyValue={trace.trace_id}>
-          {trace.trace_id}
-        </DlRow>
-        <DlRow label="start_time">
-          {formatTimestamp(root.start_time_unix_nano, format)}
-        </DlRow>
-        <DlRow label="service.name" copyValue={root.service_name}>
-          {root.service_name}
-        </DlRow>
-        <DlRow label="operation" copyValue={root.operation_name}>
-          {root.operation_name}
-        </DlRow>
-        <DlRow label="duration">{(root.duration_ns / 1e6).toFixed(2)}ms</DlRow>
-        {Object.entries(root.resource_attributes ?? {})
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([key, value]) => (
-            <DlRow key={key} label={key} copyValue={formatContextValue(value)}>
-              {formatContextValue(value)}
-            </DlRow>
-          ))}
+        {entries.map(([key, value]) => (
+          <DlRow key={key} label={key} copyValue={key === "start_time" || key === "duration" ? undefined : value}
+            onToggleColumn={() => onToggleColumn(key)} columnVisible={visibleColumns.includes(key)}>
+            {key === "status" ? <Badge tone={root.status_code === "ERROR" ? "bad" : "good"}>{value}</Badge> : value}
+          </DlRow>
+        ))}
       </dl>
 
       {badges.length > 0 && (
