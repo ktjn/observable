@@ -8,7 +8,7 @@ Started: 2026-07-13
 
 - [x] Task 1: Move the +/- toggle button into the <dt> label cell
 - [x] Task 2: Add drag-and-drop reordering to ColumnPickerControl
-- [ ] Task 3: useColumnPreferences hook (localStorage-backed order + visibility)
+- [x] Task 3: useColumnPreferences hook (localStorage-backed order + visibility)
 - [ ] Task 4: Wire useColumnPreferences into the log explorer
 - [ ] Task 5: Wire useColumnPreferences into the trace explorer
 - [ ] Task 6: Full verification, roadmap entry, and final gate
@@ -17,3 +17,4 @@ Started: 2026-07-13
 
 Task 1: complete (commits ec76bde..acbb3cd, review clean)
 Task 2: complete (commits acbb3cd..456c65c, review clean; minor: no onDragEnd to clear stale dragKey on aborted drag, self-correcting, not a blocker)
+Task 3: complete (commits 456c65c..f6e5b8b, review clean after one fix for stale-hidden-column re-append bug; plus follow-up cleanup commit 35f27f3 removing stray __pycache__ files the fix subagent accidentally committed)
