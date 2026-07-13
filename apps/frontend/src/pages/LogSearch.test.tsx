@@ -439,6 +439,38 @@ test("loading a saved view applies its severity filter and message search", asyn
   ]);
 });
 
+test("loading a saved view reinstates a column hidden earlier this session", async () => {
+  renderLogSearch();
+  await screen.findByRole("table", { name: "Log results" });
+
+  fireEvent.click(await screen.findByRole("button", { name: "Open log context for checkout completed" }));
+  const sidebar = screen.getByRole("complementary", { name: "Selected log context" });
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Remove service.name column" }));
+  expect(
+    within(screen.getByRole("table", { name: "Log results" })).queryByRole("columnheader", {
+      name: "service.name",
+    }),
+  ).not.toBeInTheDocument();
+
+  // The saved view's own severity/message filters match zero of the fixture logs, so the
+  // table renders an empty state rather than rows after loading it — check column visibility
+  // via the column picker's checkboxes instead of the (absent) table headers.
+  fireEvent.click(screen.getByRole("button", { name: /saved views/i }));
+  await waitFor(() => screen.getByText("Only errors"));
+  fireEvent.click(screen.getByText("Only errors"));
+
+  await waitFor(() => {
+    expect(screen.getByLabelText("Search log messages")).toHaveValue("timeout");
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+  const serviceNameCheckbox = screen
+    .getAllByRole("checkbox")
+    .find((checkbox) => checkbox.parentElement?.textContent === "service.name") as HTMLInputElement;
+  expect(serviceNameCheckbox).toBeDefined();
+  expect(serviceNameCheckbox.checked).toBe(true);
+});
+
 test("plain-mode quick filter matches substrings as before", async () => {
   renderLogSearch();
 

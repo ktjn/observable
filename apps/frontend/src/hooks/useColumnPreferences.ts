@@ -10,6 +10,7 @@ export interface ColumnPreferences {
   visibleColumns: string[];
   toggleColumn: (key: string) => void;
   reorderColumns: (order: string[]) => void;
+  applyColumns: (order: string[]) => void;
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -75,10 +76,17 @@ export function useColumnPreferences(storageKey: string, defaultOrder: readonly 
     [persist, state.hiddenColumns],
   );
 
+  const applyColumns = useCallback(
+    (order: string[]) => {
+      persist({ columnOrder: order, hiddenColumns: [] });
+    },
+    [persist],
+  );
+
   const visibleColumns = useMemo(
     () => state.columnOrder.filter((key) => !state.hiddenColumns.includes(key)),
     [state],
   );
 
-  return { columnOrder: state.columnOrder, visibleColumns, toggleColumn, reorderColumns };
+  return { columnOrder: state.columnOrder, visibleColumns, toggleColumn, reorderColumns, applyColumns };
 }

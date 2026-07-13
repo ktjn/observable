@@ -125,7 +125,7 @@ export function LogExplorer({
   const [bucketCount, setBucketCount] = useState(60);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [isLive, setIsLive] = useState(false);
-  const { columnOrder, visibleColumns, toggleColumn, reorderColumns } = useColumnPreferences(
+  const { columnOrder, visibleColumns, toggleColumn, reorderColumns, applyColumns } = useColumnPreferences(
     "observable.log-columns",
     showServiceColumn ? DEFAULT_LOG_COLUMNS : DEFAULT_LOG_COLUMNS.filter((key) => key !== "service.name"),
   );
@@ -286,7 +286,7 @@ export function LogExplorer({
     } else {
       setCustomRange(config.time_range.from_ms, config.time_range.to_ms);
     }
-    reorderColumns(normalizeLogColumnKeys(config.visible_columns));
+    applyColumns(normalizeLogColumnKeys(config.visible_columns));
   };
 
   return (

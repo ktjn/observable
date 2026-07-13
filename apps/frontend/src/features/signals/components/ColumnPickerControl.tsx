@@ -51,6 +51,7 @@ export function ColumnPickerControl<T extends string>({
               onDragStart={() => setDragKey(key)}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => handleDrop(key)}
+              onDragEnd={() => setDragKey(null)}
               className="flex items-center gap-1.5 py-1 text-sm"
             >
               <GripVertical
