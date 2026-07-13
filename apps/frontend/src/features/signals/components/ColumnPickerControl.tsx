@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { GripVertical } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 
 export interface ColumnDef<T extends string> {
@@ -9,22 +10,31 @@ export interface ColumnDef<T extends string> {
 export interface ColumnPickerControlProps<T extends string> {
   columns: ColumnDef<T>[];
   visibleColumns: T[];
-  onChange: (columns: T[]) => void;
+  onToggle: (column: T) => void;
+  onReorder: (order: T[]) => void;
 }
 
 export function ColumnPickerControl<T extends string>({
   columns,
   visibleColumns,
-  onChange,
+  onToggle,
+  onReorder,
 }: ColumnPickerControlProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
+  const [dragKey, setDragKey] = useState<T | null>(null);
 
-  function toggle(column: T) {
-    if (visibleColumns.includes(column)) {
-      onChange(visibleColumns.filter((c) => c !== column));
-    } else {
-      onChange([...visibleColumns, column]);
+  function handleDrop(targetKey: T) {
+    if (dragKey === null || dragKey === targetKey) {
+      setDragKey(null);
+      return;
     }
+    const order = columns.map((c) => c.key);
+    const fromIndex = order.indexOf(dragKey);
+    const toIndex = order.indexOf(targetKey);
+    order.splice(fromIndex, 1);
+    order.splice(toIndex, 0, dragKey);
+    onReorder(order);
+    setDragKey(null);
   }
 
   return (
@@ -35,14 +45,23 @@ export function ColumnPickerControl<T extends string>({
       {isOpen && (
         <div className="absolute z-10 mt-1 w-48 border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg">
           {columns.map(({ key, label }) => (
-            <label key={key} className="flex items-center gap-2 py-1 text-sm">
-              <input
-                type="checkbox"
-                checked={visibleColumns.includes(key)}
-                onChange={() => toggle(key)}
+            <div
+              key={key}
+              draggable
+              onDragStart={() => setDragKey(key)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => handleDrop(key)}
+              className="flex items-center gap-1.5 py-1 text-sm"
+            >
+              <GripVertical
+                className="size-3.5 shrink-0 cursor-grab text-[var(--muted)]"
+                aria-hidden="true"
               />
-              {label}
-            </label>
+              <label className="flex flex-1 items-center gap-2">
+                <input type="checkbox" checked={visibleColumns.includes(key)} onChange={() => onToggle(key)} />
+                {label}
+              </label>
+            </div>
           ))}
         </div>
       )}
