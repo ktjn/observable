@@ -1,54 +1,141 @@
-# Task 3 Report: Unified Log Field Columns
+# Task 3: useColumnPreferences Hook - Implementation Report
 
-## Status
+## Changes Made
 
-Complete. Log table columns now use one ordered `visibleColumns: string[]` state, canonical context keys, and the shared `getLogFieldValue` resolver.
+Created two new files as per the task brief:
 
-## Changes
+1. **`apps/frontend/src/hooks/useColumnPreferences.test.ts`** (81 lines)
+   - Test suite with 8 comprehensive test cases
+   - Tests localStorage persistence, column visibility toggling, and error handling
+   - All tests passing
 
-- Added `DEFAULT_LOG_COLUMNS` with canonical keys for the existing default table shape: `time`, `severity_number`, `service.name`, and `message`.
-- Removed the split built-in/promoted rendering path and `isPromotableLogKey`.
-- Made every displayed log context entry toggleable through `DlRow`, including built-ins and arbitrary log/resource attributes.
-- Kept the column picker synchronized with built-ins plus selected arbitrary fields.
-- Preserved legacy saved-view compatibility by mapping `level` to `severity_number` and `service` to `service.name` when loading.
-- Used functional state updates for context-panel toggles.
-- Updated focused table and page tests for canonical keys, ordered rendering, built-in removal/addition, and arbitrary-field addition/removal.
+2. **`apps/frontend/src/hooks/useColumnPreferences.ts`** (85 lines)
+   - React hook for persisting column order and visibility to localStorage
+   - Exports `useColumnPreferences` function and `ColumnPreferences` interface
+   - Implements state management with React hooks (useState, useCallback, useMemo)
+   - Includes robust error handling for corrupt/malformed stored data
 
-## Verification
+## Implementation Details
 
-- RED confirmed before implementation: focused suite failed because `Add service.name as a column` was unavailable.
-- `npm test -- --run src/utils/logContext.test.ts src/features/signals/components/LogResultsTable.test.tsx src/pages/LogSearch.test.tsx` — PASS, 3 files / 28 tests.
-- `npm run typecheck` — PASS.
-- `npm run lint` — PASS.
-- `git diff --check` — PASS.
+The hook provides:
+- **columnOrder**: Array of column keys in display order
+- **visibleColumns**: Array of currently visible columns (subset of columnOrder)
+- **toggleColumn(key)**: Toggle visibility of a column (or append new columns)
+- **reorderColumns(order)**: Replace column order while preserving hidden state
 
-## Self-review
+Key features:
+- localStorage-backed persistence under a configurable storage key
+- Fallback to defaultOrder when no data is stored or data is malformed
+- Automatic synchronization across remounts using the same storage key
+- Type-safe validation of stored data structure
 
-- No trace files were changed.
-- No generated files, dependencies, architecture, specs, regression gates, or real dependency boundaries were changed.
-- Testcontainers, NLQ eval, cargo checks, and ADR updates are not applicable to this frontend-only focused slice.
-- `docs/agent-context.md` does not need an update because repository layout, ownership, verification guidance, and architectural assumptions are unchanged.
-- Unrelated `.superpowers/sdd/progress.md` and Python cache changes were left untouched.
+## Test Execution
+
+### Test Run 1 (Failing Test - Before Implementation)
+```
+npm --prefix apps/frontend test -- useColumnPreferences.test.ts
+
+FAIL  src/hooks/useColumnPreferences.test.ts
+Error: Failed to resolve import "./useColumnPreferences" from "src/hooks/useColumnPreferences.test.ts". Does the file exist?
+```
+
+### Test Run 2 (Passing Tests - After Implementation)
+```
+npm --prefix apps/frontend test -- useColumnPreferences.test.ts
+
+Test Files  1 passed (1)
+Tests  8 passed (8)
+Duration  980ms
+```
+
+All 8 test cases passed:
+1. Seeds from defaultOrder when nothing is stored
+2. Toggling a known column hides it without changing order
+3. Toggling a hidden column shows it again
+4. Toggling an unknown column appends it and shows it
+5. reorderColumns replaces columnOrder and preserves hidden state
+6. Persists across remounts under the same storage key
+7. Falls back to defaultOrder when stored data is corrupt
+8. Falls back to defaultOrder when stored data has the wrong shape
+
+## Code Review Against Brief
+
+- Implementation matches the brief exactly (line-for-line)
+- Test suite matches the brief exactly (line-for-line)
+- No deviations from specified interfaces or behavior
+- All TypeScript types properly exported for consumer use
+- Callback dependency arrays correctly specified for proper memoization
+
+## Commit
+
+```
+[feat/column-key-toggle-and-reorder f082cf8] feat: add useColumnPreferences hook for persisted column order/visibility
+ 2 files changed, 164 insertions(+)
+ create mode 100644 apps/frontend/src/hooks/useColumnPreferences.test.ts
+ create mode 100644 apps/frontend/src/hooks/useColumnPreferences.ts
+```
+
+Commit SHA: `f082cf8`
 
 ## Concerns
 
-- The table now intentionally displays canonical field values and key labels, so `severity_number` is numeric rather than the former derived OTel level label. This follows the task requirement that every selected key render through `getLogFieldValue` and that context labels match headers.
-- Full `scripts/local-ci.sh` and visual verification remain for the coordinator's integrated pre-push gate; this task ran the requested focused log suite plus typecheck and lint.
+None. The implementation:
+- Passes all 8 test cases
+- Matches the brief specification exactly
+- Has proper TypeScript typing
+- Handles edge cases (corrupt data, unknown columns, remounting)
+- Uses appropriate React hooks patterns (useState for state, useCallback for memoized callbacks, useMemo for derived state)
 
-## Important Review Correction Pass
+## Fix
 
-- Preserved canonical `severity_number` identity while restoring the derived, colored OTel label presentation.
-- Restored the Message cell's `CopyButton`; both special presentations still source their raw value through `getLogFieldValue`.
-- Namespaced resource attributes as `resource.<key>` across context entries, table columns, toggles, and the picker so fixed/log/resource collisions cannot alias.
-- Added `normalizeLogColumnKeys` for legacy saved views: maps `level`/`service`, upgrades legacy bare resource keys, and removes mixed canonical/legacy duplicates while preserving first occurrence order.
-- Removed the table's independent `showServiceColumn` filtering. `LogExplorer` now derives the initial canonical state once; scoped views initially omit `service.name` but can add it normally from context.
-- Added an accessible `No columns selected` header/cell when the ordered selection is empty.
-- Added collision, saved-view alias/dedup/order, scoped-view synchronization, severity styling, message-copy, and empty-column tests.
+### Code Review Issue Fixed
 
-### Correction Verification
+**Bug**: In `toggleColumn(key)`, when `key` was not in `state.columnOrder`, the function would append it to `columnOrder` but leave `state.hiddenColumns` unchanged. If that key had been previously hidden and then dropped from `columnOrder` via `reorderColumns`, it would remain hidden even after being re-appended, contradicting the intended contract.
 
-- RED confirmed for resource namespace lookup, collision-safe context identities, normalization, restored presentation, and empty-column semantics before implementation.
-- `npm test -- --run src/utils/logContext.test.ts src/features/signals/components/LogResultsTable.test.tsx src/pages/LogSearch.test.tsx` — PASS, 3 files / 32 tests.
-- `npm run typecheck` — PASS.
-- `npm run lint` — PASS.
-- `git diff --check` — PASS.
+**Fix Applied**: Modified line 65 in `apps/frontend/src/hooks/useColumnPreferences.ts`:
+```ts
+// Before:
+: { columnOrder: [...state.columnOrder, key], hiddenColumns: state.hiddenColumns },
+
+// After:
+: { columnOrder: [...state.columnOrder, key], hiddenColumns: state.hiddenColumns.filter((k) => k !== key) },
+```
+
+### Test Added
+
+Added new test case to `apps/frontend/src/hooks/useColumnPreferences.test.ts`:
+```ts
+test("re-appending a key that was hidden before being dropped from columnOrder makes it visible", () => {
+  const { result } = renderHook(() => useColumnPreferences("test.columns", ["a", "b", "c"]));
+
+  act(() => result.current.toggleColumn("b")); // hide "b"
+  act(() => result.current.reorderColumns(["a", "c"])); // drop "b" from columnOrder entirely
+  act(() => result.current.toggleColumn("b")); // re-add "b"
+
+  expect(result.current.columnOrder).toEqual(["a", "c", "b"]);
+  expect(result.current.visibleColumns).toEqual(["a", "c", "b"]);
+});
+```
+
+This test reproduces the exact scenario: seed `hiddenColumns` to include a key that's then dropped from `columnOrder`, then call `toggleColumn` on that key, and assert it appears in both `columnOrder` and `visibleColumns`.
+
+### Test Run Results
+
+```
+npm --prefix apps/frontend test -- useColumnPreferences.test.ts
+
+Test Files  1 passed (1)
+     Tests  9 passed (9)
+   Start at  20:36:52
+   Duration  987ms (transform 28ms, setup 91ms, import 74ms, tests 18ms, environment 687ms)
+```
+
+All tests passing: 9/9 (8 pre-existing + 1 new)
+
+### Commit
+
+```
+[feat/column-key-toggle-and-reorder f6e5b8b] fix: clear stale hidden-column state when re-appending a dropped column
+```
+
+Commit SHA: `f6e5b8b`

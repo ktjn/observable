@@ -14,6 +14,7 @@ import { infraLinks } from "../utils/infraLinks";
 import { formatBucketLabel } from "../utils/formatBucketLabel";
 import { OTelLevel, otelSeverity, formatLogMessage } from "../utils/logFormatting";
 import { DEFAULT_LOG_COLUMNS, logContextEntries, normalizeLogColumnKeys } from "../utils/logContext";
+import { useColumnPreferences } from "../hooks/useColumnPreferences";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
@@ -124,8 +125,9 @@ export function LogExplorer({
   const [bucketCount, setBucketCount] = useState(60);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [isLive, setIsLive] = useState(false);
-  const [visibleColumns, setVisibleColumns] = useState<string[]>(() =>
-    showServiceColumn ? [...DEFAULT_LOG_COLUMNS] : DEFAULT_LOG_COLUMNS.filter((key) => key !== "service.name"),
+  const { columnOrder, visibleColumns, toggleColumn, reorderColumns, applyColumns } = useColumnPreferences(
+    "observable.log-columns",
+    showServiceColumn ? DEFAULT_LOG_COLUMNS : DEFAULT_LOG_COLUMNS.filter((key) => key !== "service.name"),
   );
   const [isRegexMode, setIsRegexMode] = useState(false);
 
@@ -284,13 +286,8 @@ export function LogExplorer({
     } else {
       setCustomRange(config.time_range.from_ms, config.time_range.to_ms);
     }
-    setVisibleColumns(normalizeLogColumnKeys(config.visible_columns));
+    applyColumns(normalizeLogColumnKeys(config.visible_columns));
   };
-
-  const toggleColumn = (key: string) =>
-    setVisibleColumns((current) =>
-      current.includes(key) ? current.filter((column) => column !== key) : [...current, key],
-    );
 
   return (
     <SignalExplorer
@@ -312,14 +309,10 @@ export function LogExplorer({
       savedViewsControl={
         <>
           <ColumnPickerControl
-            columns={[
-              ...DEFAULT_LOG_COLUMNS.map((key) => ({ key, label: key })),
-              ...visibleColumns
-                .filter((key) => !DEFAULT_LOG_COLUMNS.includes(key as (typeof DEFAULT_LOG_COLUMNS)[number]))
-                .map((key) => ({ key, label: key })),
-            ]}
+            columns={columnOrder.map((key) => ({ key, label: key }))}
             visibleColumns={visibleColumns}
-            onChange={setVisibleColumns}
+            onToggle={toggleColumn}
+            onReorder={reorderColumns}
           />
           <SavedViewsControl tenantId={tenantId} currentConfig={currentViewConfig} onLoad={handleLoadView} />
         </>

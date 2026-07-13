@@ -365,6 +365,11 @@ blocked on it). This is not "never" — it's "not next."
   Every item here is explicitly conditional on a named target-customer requirement.
 - [ ] Further load/chaos/tenant-escape/security-review cycles beyond what P4-S8/P4-S9 already
   established, unless a specific incident or audit demands it.
+- [ ] **Server-side per-user log/trace column preferences** — migrate the localStorage-only column
+  order/visibility persistence added in `docs/superpowers/specs/2026-07-13-column-key-toggle-and-reorder-design.md`
+  to per-user server-side storage (likely alongside or reusing the Saved Views persistence path),
+  so preferences follow a user across browsers/devices. Only urgent if users report losing their
+  column setup when switching machines.
 
 ### Service Layer Architecture (from 2026-06-19 architecture review)
 
