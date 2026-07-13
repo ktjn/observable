@@ -85,3 +85,57 @@ None. The implementation:
 - Has proper TypeScript typing
 - Handles edge cases (corrupt data, unknown columns, remounting)
 - Uses appropriate React hooks patterns (useState for state, useCallback for memoized callbacks, useMemo for derived state)
+
+## Fix
+
+### Code Review Issue Fixed
+
+**Bug**: In `toggleColumn(key)`, when `key` was not in `state.columnOrder`, the function would append it to `columnOrder` but leave `state.hiddenColumns` unchanged. If that key had been previously hidden and then dropped from `columnOrder` via `reorderColumns`, it would remain hidden even after being re-appended, contradicting the intended contract.
+
+**Fix Applied**: Modified line 65 in `apps/frontend/src/hooks/useColumnPreferences.ts`:
+```ts
+// Before:
+: { columnOrder: [...state.columnOrder, key], hiddenColumns: state.hiddenColumns },
+
+// After:
+: { columnOrder: [...state.columnOrder, key], hiddenColumns: state.hiddenColumns.filter((k) => k !== key) },
+```
+
+### Test Added
+
+Added new test case to `apps/frontend/src/hooks/useColumnPreferences.test.ts`:
+```ts
+test("re-appending a key that was hidden before being dropped from columnOrder makes it visible", () => {
+  const { result } = renderHook(() => useColumnPreferences("test.columns", ["a", "b", "c"]));
+
+  act(() => result.current.toggleColumn("b")); // hide "b"
+  act(() => result.current.reorderColumns(["a", "c"])); // drop "b" from columnOrder entirely
+  act(() => result.current.toggleColumn("b")); // re-add "b"
+
+  expect(result.current.columnOrder).toEqual(["a", "c", "b"]);
+  expect(result.current.visibleColumns).toEqual(["a", "c", "b"]);
+});
+```
+
+This test reproduces the exact scenario: seed `hiddenColumns` to include a key that's then dropped from `columnOrder`, then call `toggleColumn` on that key, and assert it appears in both `columnOrder` and `visibleColumns`.
+
+### Test Run Results
+
+```
+npm --prefix apps/frontend test -- useColumnPreferences.test.ts
+
+Test Files  1 passed (1)
+     Tests  9 passed (9)
+   Start at  20:36:52
+   Duration  987ms (transform 28ms, setup 91ms, import 74ms, tests 18ms, environment 687ms)
+```
+
+All tests passing: 9/9 (8 pre-existing + 1 new)
+
+### Commit
+
+```
+[feat/column-key-toggle-and-reorder f6e5b8b] fix: clear stale hidden-column state when re-appending a dropped column
+```
+
+Commit SHA: `f6e5b8b`
