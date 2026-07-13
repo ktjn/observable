@@ -37,6 +37,7 @@ test("clicking the add-column button calls onToggleColumn once", () => {
   );
 
   const button = screen.getByRole("button", { name: "Add log.error.type as a column" });
+  expect(button.closest("dt")).not.toBeNull();
   expect(button.querySelector(".lucide-plus")).toBeInTheDocument();
   fireEvent.click(button);
   expect(onToggleColumn).toHaveBeenCalledTimes(1);
@@ -53,6 +54,7 @@ test("clicking the remove-column button calls onToggleColumn once", () => {
   );
 
   const button = screen.getByRole("button", { name: "Remove log.error.type column" });
+  expect(button.closest("dt")).not.toBeNull();
   expect(button.querySelector(".lucide-minus")).toBeInTheDocument();
   fireEvent.click(button);
   expect(onToggleColumn).toHaveBeenCalledTimes(1);
