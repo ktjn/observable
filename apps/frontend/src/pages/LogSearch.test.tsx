@@ -197,6 +197,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   window.history.pushState({}, "", "/logs");
   mockSetCustomRange.mockClear();
+  window.localStorage.clear();
 });
 
 function renderLogSearch(content: ReactNode = <LogSearch />) {
@@ -287,6 +288,34 @@ test("toggles log fields as table columns from the context panel", async () => {
   expect(within(table).getByText("/checkout")).toBeInTheDocument();
   fireEvent.click(within(sidebar).getByRole("button", { name: "Remove log.http.route column" }));
   expect(within(table).queryByRole("columnheader", { name: "log.http.route" })).not.toBeInTheDocument();
+});
+
+test("persists column visibility across remounts", async () => {
+  const { unmount } = renderLogSearch();
+  fireEvent.click(await screen.findByRole("button", { name: "Open log context for checkout completed" }));
+  const sidebar = screen.getByRole("complementary", { name: "Selected log context" });
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Remove service.name column" }));
+  unmount();
+
+  renderLogSearch();
+  const table = await screen.findByRole("table", { name: "Log results" });
+  expect(within(table).queryByRole("columnheader", { name: "service.name" })).not.toBeInTheDocument();
+});
+
+test("reordering columns via the picker changes the table header order", async () => {
+  renderLogSearch();
+  const table = await screen.findByRole("table", { name: "Log results" });
+
+  fireEvent.click(screen.getByRole("button", { name: /columns/i }));
+  const severityRow = screen.getByLabelText("severity_number").closest("[draggable]") as HTMLElement;
+  const timeRow = screen.getByLabelText("time").closest("[draggable]") as HTMLElement;
+  fireEvent.dragStart(severityRow);
+  fireEvent.dragOver(timeRow);
+  fireEvent.drop(timeRow);
+
+  const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent);
+  expect(headers[0]).toBe("severity_number");
+  expect(headers[1]).toBe("time");
 });
 
 test("maps OpenTelemetry severity numbers into stable level labels and tones", () => {
@@ -402,12 +431,11 @@ test("loading a saved view applies its severity filter and message search", asyn
     name: checkbox.parentElement?.textContent,
     checked: (checkbox as HTMLInputElement).checked,
   }))).toEqual([
-    { name: "time", checked: false },
     { name: "severity_number", checked: true },
     { name: "service.name", checked: true },
-    { name: "message", checked: true },
     { name: "resource.k8s.pod.name", checked: true },
     { name: "log.http.route", checked: true },
+    { name: "message", checked: true },
   ]);
 });
 
