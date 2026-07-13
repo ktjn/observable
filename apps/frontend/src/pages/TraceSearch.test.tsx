@@ -110,6 +110,7 @@ vi.mock("@tanstack/react-virtual", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   window.history.pushState({}, "", "/traces");
+  window.localStorage.clear();
 });
 
 function renderTraceSearch() {
@@ -195,6 +196,35 @@ test("toggles trace fields as table columns from the context panel", async () =>
   fireEvent.click(within(sidebar).getByRole("button", { name: "Remove status column" }));
   expect(within(table).queryByRole("columnheader", { name: "Status" })).not.toBeInTheDocument();
   expect(within(sidebar).getByRole("status")).toHaveTextContent("OK");
+});
+
+test("persists column visibility across remounts", async () => {
+  const { unmount } = renderTraceSearch();
+  await screen.findByRole("table", { name: "Trace results" });
+  fireEvent.click(screen.getByText("GET /checkout"));
+  const sidebar = screen.getByRole("complementary", { name: "Selected trace context" });
+  fireEvent.click(within(sidebar).getByRole("button", { name: "Remove service.name column" }));
+  unmount();
+
+  renderTraceSearch();
+  const table = await screen.findByRole("table", { name: "Trace results" });
+  expect(within(table).queryByRole("columnheader", { name: "service.name" })).not.toBeInTheDocument();
+});
+
+test("reordering columns via the picker changes the table header order", async () => {
+  renderTraceSearch();
+  const table = await screen.findByRole("table", { name: "Trace results" });
+
+  fireEvent.click(screen.getByRole("button", { name: /columns/i }));
+  const durationRow = screen.getByLabelText("duration").closest("[draggable]") as HTMLElement;
+  const startTimeRow = screen.getByLabelText("start_time").closest("[draggable]") as HTMLElement;
+  fireEvent.dragStart(durationRow);
+  fireEvent.dragOver(startTimeRow);
+  fireEvent.drop(startTimeRow);
+
+  const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent);
+  expect(headers[0]).toBe("Duration");
+  expect(headers[1]).toBe("Time");
 });
 
 test("removing trace_id still allows row selection and full-trace navigation", async () => {

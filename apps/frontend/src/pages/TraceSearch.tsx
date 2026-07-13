@@ -28,9 +28,10 @@ import { useTenantContext } from "../hooks/useTenantContext";
 import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
 import { formatBucketLabel } from "../utils/formatBucketLabel";
 import { infraLinks } from "../utils/infraLinks";
-import { DEFAULT_TRACE_COLUMNS, FIXED_TRACE_KEYS, traceContextEntries } from "../utils/traceContext";
+import { DEFAULT_TRACE_COLUMNS, traceContextEntries } from "../utils/traceContext";
+import { useColumnPreferences } from "../hooks/useColumnPreferences";
 import { SignalExplorer, SaveStatus } from "../components/shared/SignalExplorer";
-import { TraceResultsTable, type TraceTableColumn } from "../features/signals/components/TraceResultsTable";
+import { TraceResultsTable } from "../features/signals/components/TraceResultsTable";
 import { ColumnPickerControl } from "../features/signals/components/ColumnPickerControl";
 import { MetricCard } from "../components/ui/metric-card";
 
@@ -149,21 +150,11 @@ export function TraceExplorer({
   const [userQuery, setUserQuery] = useState<string | null>(initialQuery);
   const [service, setService] = useState(initialService);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [visibleColumns, setVisibleColumns] = useState<TraceTableColumn[]>(() =>
-    showServiceColumn
-      ? [...DEFAULT_TRACE_COLUMNS]
-      : DEFAULT_TRACE_COLUMNS.filter((key) => key !== "service.name"),
+  const { columnOrder, visibleColumns, toggleColumn: toggleTraceColumn, reorderColumns } = useColumnPreferences(
+    "observable.trace-columns",
+    showServiceColumn ? DEFAULT_TRACE_COLUMNS : DEFAULT_TRACE_COLUMNS.filter((key) => key !== "service.name"),
   );
-  const toggleTraceColumn = (key: string) => {
-    setVisibleColumns((current) =>
-      current.includes(key) ? current.filter((column) => column !== key) : [...current, key],
-    );
-  };
-  const pickerColumns = useMemo(() => {
-    const keys: string[] = [...FIXED_TRACE_KEYS];
-    for (const key of visibleColumns) if (!keys.includes(key)) keys.push(key);
-    return keys.map((key) => ({ key, label: key }));
-  }, [visibleColumns]);
+  const pickerColumns = useMemo(() => columnOrder.map((key) => ({ key, label: key })), [columnOrder]);
 
   const from = String(BigInt(Math.floor(fromMs)) * 1_000_000n);
   const to = String(BigInt(Math.floor(toMs)) * 1_000_000n);
@@ -272,7 +263,8 @@ export function TraceExplorer({
         <ColumnPickerControl
           columns={pickerColumns}
           visibleColumns={visibleColumns}
-          onChange={setVisibleColumns}
+          onToggle={toggleTraceColumn}
+          onReorder={reorderColumns}
         />
       }
       histogram={
