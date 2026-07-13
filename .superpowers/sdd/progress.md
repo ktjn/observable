@@ -11,7 +11,7 @@ Started: 2026-07-13
 - [x] Task 3: useColumnPreferences hook (localStorage-backed order + visibility)
 - [x] Task 4: Wire useColumnPreferences into the log explorer
 - [x] Task 5: Wire useColumnPreferences into the trace explorer
-- [ ] Task 6: Full verification, roadmap entry, and final gate
+- [x] Task 6: Full verification, roadmap entry, and final gate
 
 ## Log
 
@@ -20,3 +20,4 @@ Task 2: complete (commits acbb3cd..456c65c, review clean; minor: no onDragEnd to
 Task 3: complete (commits 456c65c..f6e5b8b, review clean after one fix for stale-hidden-column re-append bug; plus follow-up cleanup commit 35f27f3 removing stray __pycache__ files the fix subagent accidentally committed)
 Task 4: complete (commits e7f67dd..c20695c, review clean; minor design note: shared localStorage key means all LogExplorer instances -- main page and per-service embeds -- share one persisted column set, inherent to the plan, not a defect)
 Task 5: complete (commits e4bbc19..b0f5edd, review clean)
+Task 6: complete (roadmap doc commit 8ee0f03; 583/583 frontend tests pass; local-ci.sh fails only at pre-existing Modelable Rust-codegen drift, unrelated to this branch and reproduced on main; browser verification done as a static code trace since Playwright had no network path to the local dev server in this environment, corroborated by existing passing tests)
