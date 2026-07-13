@@ -62,7 +62,7 @@ export function useColumnPreferences(storageKey: string, defaultOrder: readonly 
                 ? state.hiddenColumns.filter((k) => k !== key)
                 : [...state.hiddenColumns, key],
             }
-          : { columnOrder: [...state.columnOrder, key], hiddenColumns: state.hiddenColumns },
+          : { columnOrder: [...state.columnOrder, key], hiddenColumns: state.hiddenColumns.filter((k) => k !== key) },
       );
     },
     [persist, state],

@@ -78,3 +78,14 @@ test("falls back to defaultOrder when stored data has the wrong shape", () => {
 
   expect(result.current.columnOrder).toEqual(["a", "b"]);
 });
+
+test("re-appending a key that was hidden before being dropped from columnOrder makes it visible", () => {
+  const { result } = renderHook(() => useColumnPreferences("test.columns", ["a", "b", "c"]));
+
+  act(() => result.current.toggleColumn("b")); // hide "b"
+  act(() => result.current.reorderColumns(["a", "c"])); // drop "b" from columnOrder entirely
+  act(() => result.current.toggleColumn("b")); // re-add "b"
+
+  expect(result.current.columnOrder).toEqual(["a", "c", "b"]);
+  expect(result.current.visibleColumns).toEqual(["a", "c", "b"]);
+});
