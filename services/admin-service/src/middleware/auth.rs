@@ -23,7 +23,6 @@ pub struct TenantContext {
 ///   - `PgPool`          — for the cross-tenant-switch lookup on the session path
 ///   - `Arc<String>`     — the auth-service base URL (for API-key + session validation)
 pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, StatusCode> {
-    // --- Synchronous extraction (no await) ---
     let db = req.extensions().get::<PgPool>().cloned().ok_or_else(|| {
         tracing::error!("PgPool not found in request extensions — misconfigured middleware stack");
         StatusCode::INTERNAL_SERVER_ERROR
@@ -34,9 +33,7 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
     let session_cookie = observable_auth::extract_session_cookie(req.headers());
     let tenant_id_res = observable_auth::extract_tenant_id_header(req.headers());
     let tenant_id_hdr = tenant_id_res.as_ref().ok().cloned();
-    // --- End of synchronous extraction ---
 
-    // Path 1: API key — bearer token + X-Tenant-ID header.
     if let (Some(token), Some(tenant_id)) = (bearer.as_ref(), tenant_id_hdr) {
         let auth_url = auth_service_url.as_deref().ok_or_else(|| {
             tracing::error!("auth_service_url extension missing — misconfigured middleware stack");
@@ -48,7 +45,6 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
                 req.extensions_mut().insert(ctx);
                 return Ok(next.run(req).await);
             }
-            // key_not_found → fall through to session path
             Err(StatusCode::UNAUTHORIZED) => {}
             Err(e) => return Err(e),
         }
@@ -56,7 +52,6 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    // Path 2: OIDC session cookie (UI after login).
     let session_token = session_cookie.or(bearer).ok_or_else(|| {
         tracing::warn!(reason = "no_credentials", "auth rejected");
         StatusCode::UNAUTHORIZED
@@ -69,9 +64,6 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
 
     let ctx = validate_session(&auth_url, &session_token).await?;
 
-    // If X-Tenant-ID is provided and matches the session tenant, proceed as usual.
-    // If it differs, check whether the user actually has a role on the requested
-    // tenant (multi-tenant users can switch without re-login).
     if let Some(requested_tenant_id) = tenant_id_hdr
         && requested_tenant_id != ctx.tenant_id
     {
@@ -102,7 +94,6 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
             return Err(StatusCode::FORBIDDEN);
         }
 
-        // User has access — override the tenant context to the requested tenant.
         let ctx = TenantContext {
             tenant_id: requested_tenant_id,
             user_id: Some(user_id),
@@ -116,7 +107,6 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
     Ok(next.run(req).await)
 }
 
-/// Call auth-service to validate a session JWT and return a TenantContext.
 async fn validate_session(auth_url: &str, token: &str) -> Result<TenantContext, StatusCode> {
     let session = observable_auth::verify_session(&reqwest::Client::new(), auth_url, token)
         .await
@@ -129,12 +119,6 @@ async fn validate_session(auth_url: &str, token: &str) -> Result<TenantContext, 
     })
 }
 
-/// Verify the bearer token against auth-service's `/internal/validate`
-/// endpoint and check tenant ownership. Returns a `TenantContext` on success.
-///
-/// `auth-service`'s `/internal/validate` doesn't take a requested tenant_id,
-/// so it will happily return whatever tenant the key actually belongs to —
-/// the tenant-ownership check below must stay here in admin-service.
 async fn verify_credentials(
     token: String,
     tenant_id: Uuid,
@@ -144,7 +128,6 @@ async fn verify_credentials(
         .await
         .map_err(StatusCode::from)?;
 
-    // Verify the key belongs to the requested tenant.
     if ctx.tenant_id != tenant_id {
         tracing::warn!(reason = "tenant_mismatch", "auth rejected");
         return Err(StatusCode::FORBIDDEN);
@@ -155,4 +138,190 @@ async fn verify_credentials(
         user_id: None,
         role: ctx.role,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+        middleware,
+        routing::get,
+        Extension, Router,
+    };
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+    use wiremock::{
+        matchers::{method, path},
+        Mock, MockServer, ResponseTemplate,
+    };
+
+    fn test_pool() -> PgPool {
+        PgPool::connect_lazy("postgres://postgres:postgres@127.0.0.1:1/observable").unwrap()
+    }
+
+    fn app(auth_service_url: String) -> Router {
+        Router::new()
+            .route(
+                "/",
+                get(|Extension(ctx): Extension<TenantContext>| async move {
+                    ctx.tenant_id.to_string()
+                }),
+            )
+            .layer(middleware::from_fn(require_tenant))
+            .layer(Extension(test_pool()))
+            .layer(Extension(Arc::new(auth_service_url)))
+    }
+
+    async fn body_text(response: Response) -> String {
+        String::from_utf8(
+            response
+                .into_body()
+                .collect()
+                .await
+                .unwrap()
+                .to_bytes()
+                .to_vec(),
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn missing_credentials_are_rejected() {
+        let response = app("http://127.0.0.1:1".to_string())
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn malformed_tenant_header_is_bad_request() {
+        let response = app("http://127.0.0.1:1".to_string())
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header("authorization", "Bearer token")
+                    .header("x-tenant-id", "not-a-uuid")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn api_key_for_requested_tenant_is_accepted() {
+        let mock_server = MockServer::start().await;
+        let tenant_id = Uuid::new_v4();
+
+        Mock::given(method("POST"))
+            .and(path("/internal/validate"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "tenant_id": tenant_id,
+                "role": "admin",
+                "environment": "production"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let response = app(mock_server.uri())
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header("authorization", "Bearer valid-key")
+                    .header("x-tenant-id", tenant_id.to_string())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_text(response).await, tenant_id.to_string());
+    }
+
+    #[tokio::test]
+    async fn api_key_for_other_tenant_is_forbidden() {
+        let mock_server = MockServer::start().await;
+        let key_tenant_id = Uuid::new_v4();
+        let requested_tenant_id = Uuid::new_v4();
+
+        Mock::given(method("POST"))
+            .and(path("/internal/validate"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "tenant_id": key_tenant_id,
+                "role": "admin",
+                "environment": "production"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let response = app(mock_server.uri())
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header("authorization", "Bearer valid-key")
+                    .header("x-tenant-id", requested_tenant_id.to_string())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn session_cookie_is_accepted() {
+        let mock_server = MockServer::start().await;
+        let tenant_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+
+        Mock::given(method("POST"))
+            .and(path("/internal/validate-session"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "user_id": user_id.to_string(),
+                "tenant_id": tenant_id.to_string(),
+                "role": "admin"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let response = app(mock_server.uri())
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header("cookie", "session=valid-session")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_text(response).await, tenant_id.to_string());
+    }
+
+    #[tokio::test]
+    async fn auth_service_outage_fails_closed() {
+        let tenant_id = Uuid::new_v4();
+        let response = app("http://127.0.0.1:1".to_string())
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header("authorization", "Bearer key")
+                    .header("x-tenant-id", tenant_id.to_string())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
 }
