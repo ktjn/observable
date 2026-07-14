@@ -1,12 +1,39 @@
-# Observable Platform
+# Observable
 
-Full-stack observability platform specification.
+A full-stack, self-hosted observability platform built on OpenTelemetry — traces, logs,
+metrics, alerting, dashboards, and natural-language querying, in one product.
+
+- **OTLP-native ingestion** — the ingest gateway accepts OTLP (gRPC and HTTP) only; other
+  sources are handled by the standalone [Collectable](https://github.com/ktjn/collectable)
+  edge-pipeline tool.
+- **Unified query experience** — traces, logs, and metrics are correlated through shared
+  identities (tenant, service, environment, trace/span IDs) and explorable from one frontend,
+  including a natural-language query layer and a Monaco-based multi-signal query workbench.
+- **Alerting and SLOs** — threshold, composite, and burn-rate alert rules with a webhook
+  notification channel.
+- **Multi-tenant by design** — tenant/environment scoping, OpenFGA-backed authorization, and
+  Zitadel-backed identity out of the box.
+- **Rust data plane, React frontend** — see [spec/02-architecture.md](spec/02-architecture.md)
+  for the full architecture and [spec/adr/README.md](spec/adr/README.md) for the decision log.
+
+This project is at an early (0.x) release stage — see
+[docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md](docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md)
+for what's shipped, in progress, and deliberately deferred.
 
 ## Documentation
 
-The full specification is located in the [spec/](spec/) directory.
+The full specification is located in the [spec/](spec/) directory, indexed in
+[spec/README.md](spec/README.md).
 
 Implementation plans and iteration documents can be found in [docs/superpowers/plans/](docs/superpowers/plans/).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow, and
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations. Report security issues per
+[SECURITY.md](SECURITY.md), not as public issues.
+
+This project is licensed under the [MIT License](LICENSE).
 
 ## AI Agent Instructions
 
@@ -149,6 +176,7 @@ and OTel instrumentation that feeds pipeline-health metrics into the Observable 
 | Demo | Description |
 |------|-------------|
 | [crypto-aggregator](demos/crypto-aggregator/README.md) | Real-time crypto live-data dashboard: ingests prices from DexPaprika and Coinbase, blockchain transactions from Blockchain.com, correlates them, and emits pipeline health as OTel metrics. |
+| [otel-demo](demos/otel-demo/) | The [OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo) microservices app, vendored and reconfigured to route through the Observable ingest gateway instead of Jaeger/Grafana/Prometheus. |
 
 ## Related Projects
 
