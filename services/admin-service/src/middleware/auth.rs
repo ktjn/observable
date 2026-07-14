@@ -144,17 +144,17 @@ async fn verify_credentials(
 mod tests {
     use super::*;
     use axum::{
-        Extension, Router,
         body::Body,
         http::{Request, StatusCode},
         middleware,
         routing::get,
+        Extension, Router,
     };
     use http_body_util::BodyExt;
     use tower::ServiceExt;
     use wiremock::{
-        Mock, MockServer, ResponseTemplate,
         matchers::{method, path},
+        Mock, MockServer, ResponseTemplate,
     };
 
     fn test_pool() -> PgPool {
@@ -175,7 +175,16 @@ mod tests {
     }
 
     async fn body_text(response: Response) -> String {
-        String::from_utf8(response.into_body().collect().await.unwrap().to_bytes().to_vec()).unwrap()
+        String::from_utf8(
+            response
+                .into_body()
+                .collect()
+                .await
+                .unwrap()
+                .to_bytes()
+                .to_vec(),
+        )
+        .unwrap()
     }
 
     #[tokio::test]
