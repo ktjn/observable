@@ -58,7 +58,12 @@ async fn login_redirect_contains_pkce_state_and_hardened_transient_cookies() {
 
     assert_eq!(response.status(), StatusCode::FOUND);
 
-    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap();
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap();
     assert!(location.starts_with("https://identity.example.com/oauth/v2/authorize?"));
     assert!(location.contains("client_id=observable-client"));
     assert!(location.contains("response_type=code"));
@@ -68,8 +73,16 @@ async fn login_redirect_contains_pkce_state_and_hardened_transient_cookies() {
 
     let cookies = cookies(&response);
     assert_eq!(cookies.len(), 2);
-    assert!(cookies.iter().any(|cookie| cookie.starts_with("pkce_cv=")));
-    assert!(cookies.iter().any(|cookie| cookie.starts_with("oauth_state=")));
+    assert!(
+        cookies
+            .iter()
+            .any(|cookie| cookie.starts_with("pkce_cv="))
+    );
+    assert!(
+        cookies
+            .iter()
+            .any(|cookie| cookie.starts_with("oauth_state="))
+    );
     for cookie in cookies {
         assert!(cookie.contains("HttpOnly"));
         assert!(cookie.contains("SameSite=Lax"));
@@ -95,7 +108,11 @@ async fn callback_without_pkce_cookie_redirects_without_issuing_session() {
         response.headers().get(header::LOCATION).unwrap(),
         "/login?error=session_expired"
     );
-    assert!(!cookies(&response).iter().any(|cookie| cookie.starts_with("session=")));
+    assert!(
+        !cookies(&response)
+            .iter()
+            .any(|cookie| cookie.starts_with("session="))
+    );
 }
 
 #[tokio::test]
@@ -116,7 +133,11 @@ async fn callback_state_mismatch_redirects_without_issuing_session() {
         response.headers().get(header::LOCATION).unwrap(),
         "/login?error=session_expired"
     );
-    assert!(!cookies(&response).iter().any(|cookie| cookie.starts_with("session=")));
+    assert!(
+        !cookies(&response)
+            .iter()
+            .any(|cookie| cookie.starts_with("session="))
+    );
 }
 
 #[tokio::test]
@@ -137,5 +158,9 @@ async fn token_endpoint_outage_redirects_without_issuing_session() {
         response.headers().get(header::LOCATION).unwrap(),
         "/login?error=provider_error"
     );
-    assert!(!cookies(&response).iter().any(|cookie| cookie.starts_with("session=")));
+    assert!(
+        !cookies(&response)
+            .iter()
+            .any(|cookie| cookie.starts_with("session="))
+    );
 }
