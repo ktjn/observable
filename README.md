@@ -7,7 +7,6 @@ Full-stack observability platform specification.
 The full specification is located in the [spec/](spec/) directory.
 
 Implementation plans and iteration documents can be found in [docs/superpowers/plans/](docs/superpowers/plans/).
-Historical plans are archived in [archived/plans/](archived/plans/).
 
 ## AI Agent Instructions
 
@@ -150,3 +149,10 @@ and OTel instrumentation that feeds pipeline-health metrics into the Observable 
 | Demo | Description |
 |------|-------------|
 | [crypto-aggregator](demos/crypto-aggregator/README.md) | Real-time crypto live-data dashboard: ingests prices from DexPaprika and Coinbase, blockchain transactions from Blockchain.com, correlates them, and emits pipeline health as OTel metrics. |
+
+## Related Projects
+
+[Collectable](https://github.com/ktjn/collectable) is a standalone edge-pipeline tool that
+compiles legacy log/metric sources (syslog, log4j2, MQTT, webhooks, etc.) into static Rust
+binaries emitting OTLP. It has no runtime coupling to Observable and works with any
+OTLP-compatible backend; it used to live in this repository but now has its own home.

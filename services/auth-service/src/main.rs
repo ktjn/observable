@@ -78,6 +78,10 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "4319".into())
         .parse()?;
 
+    let dev_mode = std::env::var("OBSERVABLE_ENV").as_deref() == Ok("dev");
+    let session_secret =
+        auth_service::resolve_session_secret(std::env::var("SESSION_SECRET").ok(), dev_mode)?;
+
     let oidc_config = OidcConfig {
         issuer: std::env::var("ZITADEL_ISSUER").unwrap_or_else(|_| "http://localhost:8082".into()),
         api_base: std::env::var("ZITADEL_API_BASE")
@@ -85,9 +89,8 @@ async fn main() -> anyhow::Result<()> {
         client_id: std::env::var("ZITADEL_CLIENT_ID").unwrap_or_else(|_| "dev-client-id".into()),
         redirect_uri: std::env::var("ZITADEL_REDIRECT_URI")
             .unwrap_or_else(|_| "http://localhost:5173/auth/callback".into()),
-        session_secret: std::env::var("SESSION_SECRET")
-            .unwrap_or_else(|_| "dev-session-secret-change-in-prod!!".into()),
-        dev_mode: std::env::var("OBSERVABLE_ENV").as_deref() == Ok("dev"),
+        session_secret,
+        dev_mode,
     };
 
     let state = OidcState {
@@ -96,7 +99,7 @@ async fn main() -> anyhow::Result<()> {
         metrics: Arc::new(observability::AuthServiceMetrics::new()),
     };
 
-    if std::env::var("OBSERVABLE_ENV").as_deref() == Ok("dev") {
+    if dev_mode {
         let dev_email =
             std::env::var("DEV_ADMIN_EMAIL").unwrap_or_else(|_| "admin@dev.observable".into());
         if let Err(e) = dev_bootstrap::seed_dev_admin_role(&db, &dev_email).await {

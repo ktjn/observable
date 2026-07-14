@@ -1,10 +1,14 @@
 # ADR-016: Grafana Visualization Strategy
 
 **Date:** 2026-04-16  
-**Status:** Accepted  
+**Status:** Accepted — not yet implemented  
 **Authors:** Claude Code  
 **Deciders:** Project Stakeholders  
 **Review date:** 2026-10-16  
+
+> **0.1 release note:** `apps/frontend` does not currently depend on `@grafana/ui` or
+> `@grafana/scenes` — visualizations are built with other charting libraries. Treat this ADR as
+> forward design guidance, not as a description of the current frontend implementation.
 
 ## Context
 

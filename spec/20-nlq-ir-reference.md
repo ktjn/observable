@@ -11,7 +11,7 @@ architecture, and the metadata injection contract.
 **Related ADRs:** [ADR-021](adr/ADR-021-nl-query-layer.md) (NL query layer),
 [ADR-026](adr/ADR-026-no-proprietary-query-dsl.md) (no proprietary DSL),
 [ADR-027](adr/ADR-027-local-llm-backend.md) (LLM backend config),
-[ADR-029](adr/ADR-029-simple-ir-shorthand.md) (shorthand / deterministic fallback),
+[ADR-034](adr/ADR-034-simple-ir-shorthand.md) (shorthand / deterministic fallback),
 [ADR-030](adr/ADR-030-timestamp-representation.md) (timestamp format)
 
 ---
@@ -483,7 +483,7 @@ base_ir: { ...PAGE_BASE_IR, time_range: { from, to } }
 
 ---
 
-## §6  Simple IR Shorthand (ADR-029)
+## §6  Simple IR Shorthand (ADR-034)
 
 A deterministic, zero-latency path that constructs `NlqIr` without calling the LLM.
 Implemented in `parse_shorthand_ir()` in `llm_adapter.rs`.

@@ -15,16 +15,28 @@ making changes.
 
 ## Current Source Of Truth
 
+> **Note (0.1 open source release cleanup):** this changelog contains historical entries that
+> link to `archived/plans/*.md` and `archived/specs/*.md` documents. Those directories were
+> removed from the repository as part of preparing the 0.1 open source release (internal
+> planning history, not needed by external contributors). The prose summaries below remain
+> accurate; only the linked source documents are gone. Going forward, do not restore a public
+> `archived/` directory — see `AGENTS.md`'s "Finished Plan Archiving" note.
+
 - Repository process: `AGENTS.md` and `spec/10-process.md`.
 - Agent role routing: `.github/agents/README.md`, with `.github/agents/coordinator.agent.md` as the
   default entry role. Runtimes without subagent support should apply matching specialist `.agent.md`
   files manually as checklists.
-- Active roadmap: `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md` — consolidates the former post-Phase-3 plan and the Phases P9-P14 feature-parity plan (both now archived) into one feature-first backlog. Select work security-first: P0 security findings take precedence, then choose by dependency readiness and user value; stability/compliance/enterprise-packaging work otherwise remains in the Deferred tier (§7). The next slice is to fail closed when the session-signing secret is missing, with an explicit local-development exception and Helm installation strategy.
+- Active roadmap: `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md` — consolidates the former post-Phase-3 plan and the Phases P9-P14 feature-parity plan (both now archived) into one feature-first backlog. Select work security-first: P0 security findings take precedence, then choose by dependency readiness and user value; stability/compliance/enterprise-packaging work otherwise remains in the Deferred tier (§7).
+- **0.1 release cleanup**: `auth-service` no longer falls back to a hardcoded default
+  session-signing secret outside dev mode. `resolve_session_secret()` (`services/auth-service/src/lib.rs`)
+  fails closed with an explicit error when `SESSION_SECRET` is unset/empty and `OBSERVABLE_ENV` is
+  not `dev`; the dev-mode default is unchanged. `charts/observable/values.yaml`'s
+  `identity.sessionSecret` default was changed from a fixed literal to `""` so installs must set a
+  real secret explicitly.
 - **2026-07-02**: Whole-repo code-level review (`docs/analysis/2026-07-02-repo-review.md`) added a
   new roadmap §3.6 "Security, Observability & Reliability Hardening" with 9 findings, highest
-  severity first: `auth-service` ships a hardcoded default session-signing secret in both code
-  (`main.rs:88`) and the Helm chart default (`values.yaml:270`) — forgeable session JWTs against
-  any default install; this session-secret hardening remains the next roadmap slice. JWT validation,
+  severity first: `auth-service` shipped a hardcoded default session-signing secret in both code
+  and the Helm chart default — **resolved, see the 0.1 release cleanup entry above.** JWT validation,
   session persistence, and `query-api` authentication/tenant middleware already have regression
   coverage. The remaining focused gaps are OIDC callback/provider-failure/cookie-issuance paths and
   direct `admin-service` authentication/tenant middleware coverage. `alert-evaluator`, `ingest-gateway`, and

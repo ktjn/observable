@@ -22,7 +22,7 @@ Full-stack observability platform specification — Dynatrace / New Relic class,
 | [13-risks-roadmap.md](13-risks-roadmap.md) | Risks, initial deliverables, v1 scope, final recommendation |
 | [14-domain-model.md](14-domain-model.md) | Data models, entities, and relationships |
 | [15-frontend-local-dev.md](15-frontend-local-dev.md) | Frontend local development, storybook, mock data, and developer experience |
-| [16-collectable.md](16-collectable.md) | Multi-tenant OTel collector mediator (Collectable) |
+| [16-collectable.md](16-collectable.md) | Collectable — now developed in its own repository, [github.com/ktjn/collectable](https://github.com/ktjn/collectable) |
 | [17-self-observability.md](17-self-observability.md) | Platform self-observability, monitoring, and health checks |
 | [18-deployment-markers.md](18-deployment-markers.md) | Deployment markers and release correlation |
 | [19-testbench.md](19-testbench.md) | Test bench: kind-based synthetic workload with full OTel + k8s cluster monitoring |
@@ -33,4 +33,3 @@ Full-stack observability platform specification — Dynatrace / New Relic class,
 ## Implementation Plans
 
 Active implementation plans and iteration documents are located in the [docs/superpowers/plans/](../docs/superpowers/plans/) directory.
-Historical plans are archived in the [archived/plans/](../archived/plans/) directory.

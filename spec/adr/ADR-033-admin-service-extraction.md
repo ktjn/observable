@@ -29,7 +29,7 @@ change there. URL paths are unchanged; only ingress routing targets change, so t
 requires no code changes.
 
 As part of the same slice sequence, extract a shared `observable-auth` crate (`libs/observable-auth`,
-completed 2026-06-20, see `archived/plans/2026-06-20-observable-auth-crate.md`). **Correction to
+completed 2026-06-20). **Correction to
 this ADR's original framing:** neither `query-api` nor `ingest-gateway` did local session-JWT
 verification — both already delegated to `auth-service` over HTTP. The crate instead provides
 shared HTTP-client wrappers around `auth-service`'s existing `/internal/validate` and
