@@ -1,0 +1,141 @@
+use std::sync::Arc;
+
+use auth_service::{
+    observability::AuthServiceMetrics,
+    oidc::{OidcConfig, OidcState, callback_handler, login_handler},
+};
+use axum::{
+    Router,
+    body::Body,
+    http::{Request, StatusCode, header},
+    routing::get,
+};
+use sqlx::PgPool;
+use tower::ServiceExt;
+
+fn state(api_base: &str, dev_mode: bool) -> OidcState {
+    OidcState {
+        db: PgPool::connect_lazy("postgres://postgres:postgres@127.0.0.1:1/observable").unwrap(),
+        config: OidcConfig {
+            issuer: "https://identity.example.com".to_string(),
+            api_base: api_base.to_string(),
+            client_id: "observable-client".to_string(),
+            redirect_uri: "https://observable.example.com/v1/auth/callback".to_string(),
+            session_secret: "test-session-secret-with-at-least-32-bytes".to_string(),
+            dev_mode,
+        },
+        metrics: Arc::new(AuthServiceMetrics::new()),
+    }
+}
+
+fn app(state: OidcState) -> Router {
+    Router::new()
+        .route("/v1/auth/login", get(login_handler))
+        .route("/v1/auth/callback", get(callback_handler))
+        .with_state(state)
+}
+
+fn cookies(response: &axum::response::Response) -> Vec<&str> {
+    response
+        .headers()
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .map(|value| value.to_str().unwrap())
+        .collect()
+}
+
+#[tokio::test]
+async fn login_redirect_contains_pkce_state_and_hardened_transient_cookies() {
+    let response = app(state("http://127.0.0.1:1", false))
+        .oneshot(
+            Request::builder()
+                .uri("/v1/auth/login")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FOUND);
+
+    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap();
+    assert!(location.starts_with("https://identity.example.com/oauth/v2/authorize?"));
+    assert!(location.contains("client_id=observable-client"));
+    assert!(location.contains("response_type=code"));
+    assert!(location.contains("code_challenge_method=S256"));
+    assert!(location.contains("code_challenge="));
+    assert!(location.contains("state="));
+
+    let cookies = cookies(&response);
+    assert_eq!(cookies.len(), 2);
+    assert!(cookies.iter().any(|cookie| cookie.starts_with("pkce_cv=")));
+    assert!(cookies.iter().any(|cookie| cookie.starts_with("oauth_state=")));
+    for cookie in cookies {
+        assert!(cookie.contains("HttpOnly"));
+        assert!(cookie.contains("SameSite=Lax"));
+        assert!(cookie.contains("Path=/"));
+        assert!(cookie.contains("Max-Age=300"));
+    }
+}
+
+#[tokio::test]
+async fn callback_without_pkce_cookie_redirects_without_issuing_session() {
+    let response = app(state("http://127.0.0.1:1", false))
+        .oneshot(
+            Request::builder()
+                .uri("/v1/auth/callback?code=code&state=expected")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FOUND);
+    assert_eq!(
+        response.headers().get(header::LOCATION).unwrap(),
+        "/login?error=session_expired"
+    );
+    assert!(!cookies(&response).iter().any(|cookie| cookie.starts_with("session=")));
+}
+
+#[tokio::test]
+async fn callback_state_mismatch_redirects_without_issuing_session() {
+    let response = app(state("http://127.0.0.1:1", false))
+        .oneshot(
+            Request::builder()
+                .uri("/v1/auth/callback?code=code&state=received")
+                .header(header::COOKIE, "pkce_cv=verifier; oauth_state=expected")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FOUND);
+    assert_eq!(
+        response.headers().get(header::LOCATION).unwrap(),
+        "/login?error=session_expired"
+    );
+    assert!(!cookies(&response).iter().any(|cookie| cookie.starts_with("session=")));
+}
+
+#[tokio::test]
+async fn token_endpoint_outage_redirects_without_issuing_session() {
+    let response = app(state("http://127.0.0.1:1", false))
+        .oneshot(
+            Request::builder()
+                .uri("/v1/auth/callback?code=code&state=expected")
+                .header(header::COOKIE, "pkce_cv=verifier; oauth_state=expected")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FOUND);
+    assert_eq!(
+        response.headers().get(header::LOCATION).unwrap(),
+        "/login?error=provider_error"
+    );
+    assert!(!cookies(&response).iter().any(|cookie| cookie.starts_with("session=")));
+}
