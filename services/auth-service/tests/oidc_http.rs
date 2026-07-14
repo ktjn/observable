@@ -44,6 +44,12 @@ fn cookies(response: &axum::response::Response) -> Vec<&str> {
         .collect()
 }
 
+fn has_no_session_cookie(response: &axum::response::Response) -> bool {
+    cookies(response)
+        .iter()
+        .all(|cookie| !cookie.starts_with("session="))
+}
+
 #[tokio::test]
 async fn login_redirect_contains_pkce_state_and_hardened_transient_cookies() {
     let response = app(state("http://127.0.0.1:1", false))
@@ -108,11 +114,7 @@ async fn callback_without_pkce_cookie_redirects_without_issuing_session() {
         response.headers().get(header::LOCATION).unwrap(),
         "/login?error=session_expired"
     );
-    assert!(
-        !cookies(&response)
-            .iter()
-            .any(|cookie| cookie.starts_with("session="))
-    );
+    assert!(has_no_session_cookie(&response));
 }
 
 #[tokio::test]
@@ -133,11 +135,7 @@ async fn callback_state_mismatch_redirects_without_issuing_session() {
         response.headers().get(header::LOCATION).unwrap(),
         "/login?error=session_expired"
     );
-    assert!(
-        !cookies(&response)
-            .iter()
-            .any(|cookie| cookie.starts_with("session="))
-    );
+    assert!(has_no_session_cookie(&response));
 }
 
 #[tokio::test]
@@ -158,9 +156,5 @@ async fn token_endpoint_outage_redirects_without_issuing_session() {
         response.headers().get(header::LOCATION).unwrap(),
         "/login?error=provider_error"
     );
-    assert!(
-        !cookies(&response)
-            .iter()
-            .any(|cookie| cookie.starts_with("session="))
-    );
+    assert!(has_no_session_cookie(&response));
 }
