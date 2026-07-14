@@ -13,7 +13,7 @@ These instructions are foundational mandates for any AI agent interacting with t
 - **Clarity Above All:** Nothing can be left unclear. If instructions, requirements, or code changes are ambiguous, the agent must seek clarification before proceeding.
 - **Specification Alignment:** All changes must align with the core architectural principles and specifications defined in the `spec/` directory.
 - **Implementation Plan Adherence:** All tasks must follow the latest implementation plans and iteration documents located in `docs/superpowers/plans/`.
-- **Finished Plan Archiving:** When a detailed task plan is completed, move that finished plan from `docs/superpowers/plans/` to `archived/plans/` in the same iteration and update all active-plan and agent-context links that pointed at it.
+- **Finished Plan Archiving:** When a detailed task plan is completed, remove it from `docs/superpowers/plans/` (or move it to a private archive outside this repository) in the same iteration, and update all active-plan and agent-context links that pointed at it. Do not reintroduce a public `archived/` directory of internal plan history — that content was intentionally removed for the 0.1 open source release.
 - **ADR and Spec Synchronization:** Any change to architecture, technology choices, deployment model, data model, security model, or roadmap scope must update both the relevant ADRs and the affected specs in the same iteration. If no ADR change is needed, state why in the PR.
 
 Refer to `spec/10-process.md` for the official development process and AI agent guidance.
@@ -61,9 +61,11 @@ subagent; otherwise, apply the specialist instructions manually in the current s
 
 ## Phase Plan Status
 
-- **Phase 1 is closed:** treat `archived/plans/2026-04-17-phase1-internal-mvp.md` as a historical implementation record, not as an active backlog to reopen or continue.
-- **Active roadmap work starts after Phase 1:** use `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md` for follow-on slices unless the user explicitly asks to revise the historical Phase 1 document. Keep `archived/plans/2026-05-07-remaining-roadmap-plan.md` as the full historical closure record and `archived/plans/2026-05-09-finish-started-work-plan-rf0-complete.md` as the started-work closure record.
-- If a Phase 1 item appears unfinished in the old plan text, check its reconciliation notes, the full historical closure record, and the active unified roadmap before proposing or making changes.
+- **Phase 1 is closed.** Active roadmap work starts after Phase 1: use
+  `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md` for follow-on slices.
+- Pre-0.1 historical plan and design documents (previously kept under `archived/`) were
+  removed as part of the 0.1 open source release cleanup; the active roadmap document is
+  the source of truth for backlog status going forward.
 
 ## GitHub Issues Workflow
 

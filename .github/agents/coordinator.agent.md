@@ -33,8 +33,8 @@ spec-steward when the task surface calls for them.
 4. **Validate closure.** Before opening a PR, confirm all of the following:
    - `bash scripts/local-ci.sh` passed (or change is docs-only and exempt per AGENTS.md).
    - `cargo fmt --all` ran explicitly before push for any Rust code change.
-   - completed detailed task plans were moved from `docs/superpowers/plans/` to `archived/plans/`
-     and active links were updated.
+   - completed detailed task plans were removed from `docs/superpowers/plans/` and active links
+     were updated.
    - ADR sync requirement satisfied (new ADR opened, or PR states why none is needed).
    - Testcontainers requirement satisfied for any DB/queue boundary change (or PR states why not).
    - No regression gate weakened without replacement signal.
@@ -64,7 +64,7 @@ After completing a task, report:
 ## Governance checks
 - [ ] local-ci.sh: <passed / docs-only exempt>
 - [ ] cargo fmt: <passed / docs-only exempt / not applicable>
-- [ ] finished plans archived: <done / not applicable>
+- [ ] finished plans cleaned up: <done / not applicable>
 - [ ] ADR sync: <ADR updated / not required — reason>
 - [ ] Testcontainers: <test added / not required — reason>
 - [ ] Regression gates: <unchanged / changed — replacement signal>

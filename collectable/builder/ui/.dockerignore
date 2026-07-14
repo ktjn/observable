@@ -1,8 +1,0 @@
-node_modules/
-dist/
-.vite/
-.env*
-*.log
-npm-debug.log*
-Dockerfile*
-.dockerignore

@@ -109,8 +109,12 @@ hardwired to Observable.
 
 ## Implementation Notes
 
-- `collectable/mediator/` is a **standalone Rust workspace** and is not added
-  to the root `Cargo.toml` workspace members.
+- Collectable has been extracted to its own repository,
+  [github.com/ktjn/collectable](https://github.com/ktjn/collectable), reflecting its
+  status as a generic tool with no runtime coupling to Observable. It is no longer
+  part of this repository's source tree.
+- `collectable/mediator/` was a **standalone Rust workspace** and was never added
+  to the root `Cargo.toml` workspace members, even before extraction.
 - MQTT transport uses `rumqttc` (pure Rust, musl-compatible). `paho-mqtt` is
   excluded because it links to a C library, which breaks static musl builds.
 - The pipeline definition schema is versioned (`"version": "1"`) from day one.

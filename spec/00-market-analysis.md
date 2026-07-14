@@ -17,9 +17,7 @@ This document provides the product and competitive context that explains *why* O
 
 Current backlog status and named follow-on slices are tracked in the
 [`unified feature roadmap`](../docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md) and are
-not duplicated here. The superseded
-[`remaining roadmap plan`](../archived/plans/2026-05-07-remaining-roadmap-plan.md) is retained only as
-historical closure evidence for the earlier phase-based backlog.
+not duplicated here.
 
 ---
 
@@ -167,7 +165,6 @@ These features are described in the spec or ADRs but have no named implementatio
 | **Kubernetes operator** | [spec/06 §10.9](06-agents.md) | DaemonSet management, mutating admission webhook for auto-instrumentation injection, CRD exposure. Fully specced. No build slice. |
 | **OpAMP remote config for agents** | [spec/06 §10.6](06-agents.md) | Fully specced (push config, signed/versioned payloads, rollback on failure). No build slice. |
 | **Fleet management UI** | [spec/06 §10.7](06-agents.md), [spec/05 §9.2](05-frontend.md) | Agent health dashboard, buffer state, version, last export time. Listed as Phase 4+ frontend module but no backend service or UI slice. |
-| **Query workbench (Monaco-based)** | [spec/05 §9.3](05-frontend.md) Phase 2–3 | Multi-signal notebook, shareable query URLs. No frontend or backend slice. |
 | **Dashboard builder (drag-and-drop)** | [spec/05 §9.3](05-frontend.md) Phase 2–3 | Panel library, query editor, variable management UI. P3-S8 covers dashboard-as-code API only, not the builder UI. |
 | **Trace comparison view** | [spec/05 §9.3](05-frontend.md) Phase 2–3 | Side-by-side comparison of two traces. No frontend or query slice. |
 | **BubbleUp-style comparison UI** | [spec/05 §9.5](05-frontend.md) | Attribute distribution comparison over anomalous vs baseline window. Specced as a query operation. No UI slice. |

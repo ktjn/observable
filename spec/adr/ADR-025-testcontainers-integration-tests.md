@@ -1,7 +1,7 @@
 # ADR-025: Testcontainers for Service Integration Tests
 
 **Date:** 2026-04-27
-**Status:** Proposed
+**Status:** Accepted — implemented across all backend services
 **Authors:** Tommy Alander
 **Deciders:** Tommy Alander
 **Review date:** 2027-04-27

@@ -30,8 +30,8 @@ For every doc/spec change, check:
 5. **Wording quality** — is the intent unambiguous? Could an agent misread this and take a wrong action?
 6. **Phase plan consistency** — if the doc references a phase or iteration, does it match the active
    split roadmap plans in `docs/superpowers/plans/`?
-7. **Finished plan archiving** — if the change completes a detailed task plan, does it move that
-   plan to `archived/plans/` and update active links?
+7. **Finished plan cleanup** — if the change completes a detailed task plan, does it remove that
+   plan from `docs/superpowers/plans/` and update active links?
 
 ## Escalation
 

@@ -1,10 +1,14 @@
 # ADR-018: RUM / Browser and Mobile Ingestion
 
 **Date:** 2026-04-16
-**Status:** Accepted
+**Status:** Accepted — not yet implemented
 **Authors:** Claude Code
 **Deciders:** Project Stakeholders
 **Review date:** 2026-10-16
+
+> **0.1 release note:** this decision has no corresponding implementation as of the 0.1 release —
+> `services/ingest-gateway` has no browser/mobile RUM ingestion route. Treat this ADR as forward
+> design guidance for whenever RUM ingestion is picked up, not as a description of shipped behavior.
 
 ## Context
 

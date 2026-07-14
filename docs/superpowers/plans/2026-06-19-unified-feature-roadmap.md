@@ -2,9 +2,8 @@
 
 > **Status:** Active. This document replaces and consolidates `2026-05-07-remaining-roadmap-plan.md`
 > (post-Phase-3 plan) and `2026-06-04-observability-feature-parity-plan.md` (Phases P9-P14 gap
-> analysis), both now in `archived/plans/` for historical reference. Read those archived documents
-> for full historical closure evidence and the original competitive-parity workflow analysis —
-> this document carries forward only the open backlog, reorganized and reprioritized.
+> analysis) — both since removed as part of the 0.1 open source release cleanup. This document
+> carries forward the open backlog, reorganized and reprioritized.
 >
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development`
 > (recommended) or `superpowers:executing-plans` to implement promoted slices task-by-task.
@@ -42,7 +41,8 @@ Treat this as a feature-first backlog driver:
 3. Write a detailed implementation plan in `docs/superpowers/plans/YYYY-MM-DD-<slice>.md` before
    implementing (per Promotion Rules, §7).
 4. Implement only that slice; verify locally; update this document and `docs/agent-context.md`.
-5. Move the detailed plan to `archived/plans/` when the slice ships.
+5. Remove the detailed plan from `docs/superpowers/plans/` when the slice ships (keep it out of
+   this repository; store it privately if you want to retain the history).
 
 Do not pull an item from the **Deferred** tier (§6) forward unless a concrete customer
 requirement, security finding, or scaling incident forces it.
@@ -97,8 +97,8 @@ and readiness/value rule in §2, not by list position alone.
 ### 3.5 UI Usability Remediation (cross-cutting workstream)
 
 A full-surface UI review (2026-06-26) of the operator jobs **find errors fast** and **monitor the
-platform at a glance**, driven by the Playwright visual suite, produced a sliced remediation plan:
-`archived/plans/2026-06-26-ui-usability-remediation.md`. Highest-impact items:
+platform at a glance**, driven by the Playwright visual suite, produced a sliced remediation plan
+(document since removed as part of the 0.1 release cleanup). Highest-impact items:
 
 - [x] **Histogram axes & scale** (P0) — time + count axes added to histogram component.
 - [x] **De-jargon explorer filters** (P1) — "raw NLQ IR JSON" removed from all user-facing placeholders.
@@ -405,11 +405,9 @@ first item, which is pre-promoted** because Tier 2's PromQL Compatibility Façad
   privilege-granting operations sharing a process boundary with the high-traffic trace/log/metric
   read path today. **Promoted 2026-06-20 per explicit user request; all 3 slices complete**
   (`libs/observable-auth` crate, `services/admin-service` scaffold + ingress routing, removal of
-  the now-dead handler copies from query-api — see `archived/plans/2026-06-20-observable-auth-crate.md`,
-  `archived/plans/2026-06-20-admin-service-scaffold.md`, and
-  `archived/plans/2026-06-20-admin-service-cleanup.md`). Design:
-  `docs/superpowers/specs/2026-06-19-admin-service-extraction-design.md`; status tracked in
-  `spec/adr/ADR-033-admin-service-extraction.md`.
+  the now-dead handler copies from query-api; detailed slice plans since removed as part of the
+  0.1 release cleanup). Design: `docs/superpowers/specs/2026-06-19-admin-service-extraction-design.md`;
+  status tracked in `spec/adr/ADR-033-admin-service-extraction.md`.
 - [ ] **Shared observable-error crate** — common HTTP error mapping/problem+json shape/tracing
   integration consumed by all services, replacing each service's independent error-to-response
   mapping. Low effort, low coupling risk (pure utility, no tenant-scoping concerns) — unlike a
@@ -499,7 +497,7 @@ feature:
 | Prometheus remote write | `ADR-017` already accepted — add the implementation section to `spec/09-api.md` |
 | Export APIs / Saved views | Add to `spec/05-frontend.md` §9.11 |
 | Escalation policies | Extend `spec/07-alerting-slo.md` §11.4 |
-| Deadman + change-detection alerts | Already in `spec/07-alerting-slo.md` §11.1; implementation spec needed in `spec/09-api.md` (deadman done — see `archived/plans/2026-06-18-p12-s3-deadman-alert.md`) |
+| Deadman + change-detection alerts | Already in `spec/07-alerting-slo.md` §11.1; implementation spec needed in `spec/09-api.md` (deadman done) |
 
 ---
 
@@ -512,7 +510,7 @@ feature:
 3. Keep the PR below the repo's tiny-iteration size target unless the reviewer accepts a larger
    slice.
 4. Update this document and `docs/agent-context.md` when a slice is promoted, completed, or
-   deferred; move the detailed plan to `archived/plans/` when it ships.
+   deferred; remove the detailed plan from `docs/superpowers/plans/` when it ships.
 5. Pulling a Tier-4-or-higher item ahead of an unfinished lower-tier item is fine if it's smaller
    and ready; pulling a §7 Deferred item forward requires stating the concrete trigger in the PR.
 
@@ -537,10 +535,8 @@ feature:
 ## 12. Source Documents
 
 - Security/observability/test-debt hardening backlog (§3.6): `docs/analysis/2026-07-02-repo-review.md`
-- Predecessor active plans (now archived, retain full historical closure log and workflow-gap
-  analysis): `archived/plans/2026-05-07-remaining-roadmap-plan.md`,
-  `archived/plans/2026-06-04-observability-feature-parity-plan.md`
-- Finish-started closure record: `archived/plans/2026-05-09-finish-started-work-plan-rf0-complete.md`
+- Predecessor plans and closure records that fed this document's consolidation have been removed
+  as part of the 0.1 open source release cleanup.
 - Roadmap scope: `spec/10-process.md §17`, `spec/13-risks-roadmap.md §24`
 - Architecture decisions: `spec/adr/`
 - Product and platform specs: `spec/`

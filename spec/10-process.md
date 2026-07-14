@@ -138,7 +138,7 @@ When utilizing AI agents for development, the following mandates apply:
 - **Clarity Above All:** Nothing can be left unclear. If instructions, requirements, or code changes are ambiguous, the agent must seek clarification before proceeding.
 - **Specification Alignment:** All changes must align with the core architectural principles and specifications defined in the `spec/` directory.
 - **Implementation Plan Adherence:** All tasks must follow the latest implementation plans and iteration documents located in `docs/superpowers/plans/`.
-- **Finished Plan Archiving:** When a detailed task plan is completed, move that finished plan from `docs/superpowers/plans/` to `archived/plans/` in the same iteration and update all active-plan and agent-context links that pointed at it.
+- **Finished Plan Archiving:** When a detailed task plan is completed, remove it from `docs/superpowers/plans/` (or store it privately) in the same iteration and update all active-plan and agent-context links that pointed at it. Do not reintroduce a public `archived/` directory of internal plan history.
 - **ADR and Spec Synchronization:** Architecture, technology, deployment, data model, security, and roadmap changes must update both the relevant ADRs and affected specs in the same iteration. If an ADR change is not required, the PR must explain why.
 
 - **NLQ Quality Gate:** Any change that affects the NLQ→IR→SQL pipeline — including the system
@@ -199,7 +199,7 @@ Agents must move from specification to final product through small, reviewable v
 5. **Implement the smallest coherent change:** prefer a thin end-to-end path over a broad partial subsystem.
 6. **Verify locally:** run the narrowest useful checks first, then the required local/CI-equivalent checks for the touched area. Compare results with the known baseline and fix any new failure before opening the PR.
 7. **Update docs/specs/ADRs:** keep implementation, specs, and architectural decisions aligned in the same branch.
-8. **Archive completed detailed plans:** when the slice completes a detailed task plan, move the finished plan from `docs/superpowers/plans/` to `archived/plans/` and update active roadmap and `docs/agent-context.md` links in the same PR.
+8. **Retire completed detailed plans:** when the slice completes a detailed task plan, remove the finished plan from `docs/superpowers/plans/` (store it privately if you want to retain the history) and update active roadmap and `docs/agent-context.md` links in the same PR.
 9. **Open a PR:** include source spec links, acceptance criteria, verification output, known gaps, rollback notes, and the next suggested tiny slice.
 10. **Wait for review or CI signal:** only stack follow-up work when the dependency is explicit and the new branch targets the previous PR branch.
 

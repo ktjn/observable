@@ -12,11 +12,10 @@ subagent to review iteration plans, phase sequencing, and task alignment with th
 1. `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md` — active feature-first roadmap,
    organized into priority tiers (Tier 1 ready-now, Tier 2 core builds, Tier 3 advanced signals,
    Tier 4 AI/intelligence, and a Deferred tier for stability/compliance/enterprise work).
-2. Load historical plan documents (`archived/plans/`) only if the task explicitly references
-   them or if there is a suspected conflict with the active plan — this includes the superseded
-   `archived/plans/2026-05-07-remaining-roadmap-plan.md` and
-   `archived/plans/2026-06-04-observability-feature-parity-plan.md`, which retain the full
-   historical closure log and workflow-gap analysis behind the current roadmap.
+2. Historical plan documents that predate the 0.1 open source release (including the superseded
+   `2026-05-07-remaining-roadmap-plan.md` and `2026-06-04-observability-feature-parity-plan.md`)
+   were removed from this repository as part of that release; the active roadmap document is the
+   sole source of truth going forward.
 
 Do **not** pre-load Phase 1 historical documents unless explicitly asked.
 
@@ -36,8 +35,8 @@ Do **not** pre-load Phase 1 historical documents unless explicitly asked.
    describes? Flag any out-of-scope additions so they can be tracked as follow-up slices.
 6. **Plan update required?** If the task changes planning assumptions (new slice, revised scope,
    closed slice), flag that the plan document should be updated in the same PR.
-7. **Finished plan archive check** — if a detailed task plan is complete, confirm it is moved from
-   `docs/superpowers/plans/` to `archived/plans/` and every active link is updated.
+7. **Finished plan cleanup check** — if a detailed task plan is complete, confirm it is removed
+   from `docs/superpowers/plans/` and every active link is updated.
 
 ## Constraints
 

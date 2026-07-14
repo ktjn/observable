@@ -267,7 +267,10 @@ identity:
   apiBase: ""
   clientId: ""
   redirectUri: "http://localhost:8080/v1/auth/callback"
-  sessionSecret: "dev-session-secret-for-observable-00"
+  # REQUIRED for any non-dev install: a random, unique session-signing secret
+  # (e.g. `openssl rand -base64 32`). Left empty by default so auth-service
+  # fails closed instead of starting with a guessable default secret.
+  sessionSecret: ""
   env: "dev"
 
 # Kubernetes Gateway API — attaches Zitadel browser paths to the shared
