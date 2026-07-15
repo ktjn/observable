@@ -40,13 +40,26 @@ Other sources (syslog, log4j2, MQTT, webhooks) are handled by the standalone
 | Gauge | Supported | Supported | |
 | Sum (counter) | Supported | Supported | |
 | Histogram | Supported | Supported | Bucket boundaries preserved |
-| ExponentialHistogram | Modeled | Not ingested | Present in domain model but no ingest-path conversion yet |
-| Summary | Modeled | Not ingested | Present in domain model but no ingest-path conversion yet |
+| ExponentialHistogram | Modeled | Not ingested | Present in domain model but silently dropped during ingestion |
+| Summary | Modeled | Not ingested | Present in domain model but silently dropped during ingestion |
+
+### Histogram fidelity
+
+OTLP explicit-bucket histograms are fully supported. Each bucket's `explicitBounds`,
+`bucketCounts`, `count`, `sum`, `min`, and `max` fields are preserved through ingestion
+and stored in ClickHouse. Querying returns the original bucket structure.
+
+**ExponentialHistogram** and **Summary** metric types have Rust domain-model structs but
+no conversion path in either the OTLP/gRPC or OTLP/HTTP ingest pipelines. Data points
+of these types are silently dropped — no error is returned to the sender and no data is
+stored. This is a known data-loss scenario (see below).
 
 ### Prometheus Remote Write
 
 Prometheus timeseries are converted to Observable's metric model on ingestion. Histogram
-buckets are grouped and preserved. Native histograms are not yet supported.
+buckets (distinguished by the `le` label) are grouped into a single histogram series with
+explicit bounds. The `+Inf` bucket is required; timeseries without it are emitted as
+individual gauge series instead. Native histograms are not yet supported.
 
 ## Alerting
 

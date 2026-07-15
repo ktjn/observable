@@ -33,6 +33,7 @@ jobs:
       frontend: ${{ steps.surfaces.outputs.frontend }}
       helm: ${{ steps.surfaces.outputs.helm }}
       smoke: ${{ steps.surfaces.outputs.smoke }}
+      models: ${{ steps.surfaces.outputs.models }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -198,3 +199,16 @@ jobs:
       - run: docker load < /tmp/image.tar.gz
       - run: docker compose up smoke-test --abort-on-container-exit
       - run: docker compose up perf-smoke --abort-on-container-exit
+
+  generated-code:
+    needs: [changes]
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.models == '1'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Verify generated code matches .mdl sources
+        run: bash scripts/check-generated-drift.sh

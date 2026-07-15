@@ -120,15 +120,15 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 
 - [ ] Add black-box OTLP gRPC tests using a pinned OpenTelemetry Collector image.
 - [ ] Add black-box OTLP HTTP/protobuf tests.
-- [ ] Test gzip and supported compression behavior.
-- [ ] Test malformed protobuf, request-size limits, rate limiting, and partial-success responses.
-- [ ] Test Prometheus Remote Write compatibility and tenant routing.
-- [ ] Test resource, scope, and signal attribute preservation.
-- [ ] Document histogram, exponential-histogram, and summary fidelity.
-- [ ] Test trace/log/metric correlation identifiers end to end.
-- [ ] Define and document public API stability expectations.
+- [x] Test gzip and supported compression behavior.
+- [x] Test malformed protobuf, request-size limits, rate limiting, and partial-success responses.
+- [x] Test Prometheus Remote Write compatibility and tenant routing.
+- [x] Test resource, scope, and signal attribute preservation.
+- [x] Document histogram, exponential-histogram, and summary fidelity.
+- [x] Test trace/log/metric correlation identifiers end to end.
+- [x] Define and document public API stability expectations.
 - [ ] Ensure public HTTP endpoints have machine-readable contracts where practical.
-- [ ] Add deterministic generated-code verification that fails on regeneration drift.
+- [x] Add deterministic generated-code verification that fails on regeneration drift.
 
 ### Exit criteria
 
@@ -206,13 +206,12 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 
 ## Current work
 
-The current implementation priority is **Milestone 1 — Release blockers**.
+The current implementation priority is **Milestone 4 — Protocol and data correctness**.
 
-The fail-closed session-secret code is present and tested. The next tasks are:
+Milestones 1–3 are complete. The remaining M4 items are:
 
-1. Verify all Helm and Compose secret paths and eliminate deployable non-development defaults.
-2. Scan current content and Git history for secrets and local/private configuration.
-3. Complete OIDC callback/session and admin-service tenant-isolation regression coverage.
-4. Reconcile CI documentation with the active GitHub Actions workflow.
+1. Add black-box OTLP gRPC tests using a pinned OpenTelemetry Collector image.
+2. Add black-box OTLP HTTP/protobuf tests.
+3. Ensure public HTTP endpoints have machine-readable contracts where practical.
 
 The detailed feature backlog remains useful for post-0.1 planning but does not override this roadmap.
