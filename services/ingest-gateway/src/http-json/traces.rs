@@ -254,6 +254,97 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn malformed_json_returns_400() {
+        let app = build_router(AppState::with_stub_auth(TENANT));
+        let server = TestServer::new(app);
+        let resp = server
+            .post("/v1/traces")
+            .add_header(auth_header().0, auth_header().1)
+            .add_header(
+                axum::http::header::CONTENT_TYPE,
+                axum::http::HeaderValue::from_static("application/json"),
+            )
+            .bytes(b"not valid json".to_vec().into())
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn missing_resource_spans_key_returns_400() {
+        let app = build_router(AppState::with_stub_auth(TENANT));
+        let server = TestServer::new(app);
+        let resp = server
+            .post("/v1/traces")
+            .add_header(auth_header().0, auth_header().1)
+            .json(&serde_json::json!({"wrong": "key"}))
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn invalid_gzip_payload_returns_400() {
+        let app = build_router(AppState::with_stub_auth(TENANT));
+        let server = TestServer::new(app);
+        let resp = server
+            .post("/v1/traces")
+            .add_header(auth_header().0, auth_header().1)
+            .add_header(
+                axum::http::header::CONTENT_TYPE,
+                axum::http::HeaderValue::from_static("application/json"),
+            )
+            .add_header(
+                axum::http::header::CONTENT_ENCODING,
+                axum::http::HeaderValue::from_static("gzip"),
+            )
+            .bytes(vec![0xDE, 0xAD, 0xBE, 0xEF].into())
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn unsupported_content_encoding_returns_415() {
+        let app = build_router(AppState::with_stub_auth(TENANT));
+        let server = TestServer::new(app);
+        let resp = server
+            .post("/v1/traces")
+            .add_header(auth_header().0, auth_header().1)
+            .add_header(
+                axum::http::header::CONTENT_TYPE,
+                axum::http::HeaderValue::from_static("application/json"),
+            )
+            .add_header(
+                axum::http::header::CONTENT_ENCODING,
+                axum::http::HeaderValue::from_static("br"),
+            )
+            .bytes(b"{}".to_vec().into())
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    }
+
+    #[tokio::test]
+    async fn zstd_compressed_trace_payload_returns_200() {
+        let json = serde_json::to_vec(&serde_json::json!({"resourceSpans": []})).unwrap();
+        let compressed = zstd::encode_all(std::io::Cursor::new(&json), 0).unwrap();
+
+        let app = build_router(AppState::with_stub_auth(TENANT));
+        let server = TestServer::new(app);
+        let resp = server
+            .post("/v1/traces")
+            .add_header(auth_header().0, auth_header().1)
+            .add_header(
+                axum::http::header::CONTENT_TYPE,
+                axum::http::HeaderValue::from_static("application/json"),
+            )
+            .add_header(
+                axum::http::header::CONTENT_ENCODING,
+                axum::http::HeaderValue::from_static("zstd"),
+            )
+            .bytes(compressed.into())
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::OK);
+    }
+
+    #[tokio::test]
     async fn viewer_role_cannot_ingest_traces() {
         let app = build_router(AppState::with_stub_auth(TENANT));
         let server = TestServer::new(app);

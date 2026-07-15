@@ -157,6 +157,16 @@ pub fn parse_otlp_logs(
                         .get("body")
                         .map(extract_otlp_any_value)
                         .unwrap_or(Value::Null),
+                    trace_id: lr
+                        .get("traceId")
+                        .and_then(|v| v.as_str())
+                        .filter(|s| !s.is_empty())
+                        .map(String::from),
+                    span_id: lr
+                        .get("spanId")
+                        .and_then(|v| v.as_str())
+                        .filter(|s| !s.is_empty())
+                        .map(String::from),
                     service_name: service_name.clone(),
                     environment: environment.to_string(),
                     attributes: lr
@@ -801,6 +811,188 @@ mod tests {
 
         let spans = parse_otlp_traces(&body, tenant, "testbench").unwrap();
         assert_eq!(spans[0].parent_span_id, None);
+    }
+
+    #[test]
+    fn parse_otlp_metrics_histogram_preserves_buckets() {
+        let tenant = Uuid::nil();
+        let body = json!({
+            "resourceMetrics": [{
+                "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "api"}}]},
+                "scopeMetrics": [{
+                    "metrics": [{
+                        "name": "http.server.duration",
+                        "unit": "ms",
+                        "histogram": {
+                            "aggregationTemporality": 2,
+                            "dataPoints": [{
+                                "attributes": [],
+                                "startTimeUnixNano": "100",
+                                "timeUnixNano": "200",
+                                "count": "42",
+                                "sum": 1234.5,
+                                "bucketCounts": ["5", "10", "15", "7", "3", "2"],
+                                "explicitBounds": [10.0, 25.0, 50.0, 100.0, 250.0]
+                            }]
+                        }
+                    }]
+                }]
+            }]
+        });
+
+        let (series, points) = parse_otlp_metrics(&body, tenant, "prod").unwrap();
+        assert_eq!(series.len(), 1);
+        assert_eq!(series[0].metric_type, domain::MetricType::Histogram);
+        assert_eq!(
+            series[0].aggregation_temporality,
+            Some(domain::AggregationTemporality::Cumulative)
+        );
+
+        assert_eq!(points.len(), 1);
+        assert_eq!(points[0].histogram_count, Some(42));
+        assert_eq!(points[0].histogram_sum, Some(1234.5));
+        assert_eq!(
+            points[0].histogram_bucket_counts,
+            Some(vec![5, 10, 15, 7, 3, 2])
+        );
+        assert_eq!(
+            points[0].histogram_explicit_bounds,
+            Some(vec![10.0, 25.0, 50.0, 100.0, 250.0])
+        );
+    }
+
+    #[test]
+    fn parse_otlp_metrics_skips_unknown_metric_types() {
+        let tenant = Uuid::nil();
+        let body = json!({
+            "resourceMetrics": [{
+                "resource": {"attributes": []},
+                "scopeMetrics": [{
+                    "metrics": [{
+                        "name": "unknown.metric",
+                        "exponentialHistogram": {
+                            "dataPoints": [{"timeUnixNano": "100"}]
+                        }
+                    }]
+                }]
+            }]
+        });
+
+        let (series, points) = parse_otlp_metrics(&body, tenant, "prod").unwrap();
+        assert!(series.is_empty());
+        assert!(points.is_empty());
+    }
+
+    #[test]
+    fn parse_otlp_logs_preserves_trace_correlation() {
+        let tenant = Uuid::nil();
+        let body = json!({
+            "resourceLogs": [{
+                "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "svc"}}]},
+                "scopeLogs": [{
+                    "logRecords": [{
+                        "timeUnixNano": "1000",
+                        "severityText": "ERROR",
+                        "body": {"stringValue": "something failed"},
+                        "traceId": "aabbccddaabbccddaabbccddaabbccdd",
+                        "spanId": "1122334411223344",
+                        "attributes": [
+                            {"key": "error.type", "value": {"stringValue": "TimeoutError"}}
+                        ]
+                    }]
+                }]
+            }]
+        });
+
+        let logs = parse_otlp_logs(&body, tenant, "testbench").unwrap();
+        assert_eq!(logs.len(), 1);
+        assert_eq!(
+            logs[0].trace_id.as_deref(),
+            Some("aabbccddaabbccddaabbccddaabbccdd")
+        );
+        assert_eq!(logs[0].span_id.as_deref(), Some("1122334411223344"));
+        assert_eq!(logs[0].severity_text, "ERROR");
+        assert_eq!(
+            logs[0].attributes.get("error.type"),
+            Some(&json!("TimeoutError"))
+        );
+    }
+
+    #[test]
+    fn parse_otlp_traces_preserves_span_events() {
+        let tenant = Uuid::nil();
+        let body = json!({
+            "resourceSpans": [{
+                "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "svc"}}]},
+                "scopeSpans": [{
+                    "spans": [{
+                        "traceId": "aabb",
+                        "spanId": "ccdd",
+                        "name": "op",
+                        "startTimeUnixNano": "0",
+                        "endTimeUnixNano": "1000",
+                        "events": [
+                            {
+                                "name": "exception",
+                                "timeUnixNano": "500",
+                                "attributes": [
+                                    {"key": "exception.message", "value": {"stringValue": "null ref"}}
+                                ]
+                            },
+                            {
+                                "name": "log",
+                                "timeUnixNano": "600",
+                                "attributes": []
+                            }
+                        ]
+                    }]
+                }]
+            }]
+        });
+
+        let spans = parse_otlp_traces(&body, tenant, "testbench").unwrap();
+        assert_eq!(spans[0].events.len(), 2);
+        assert_eq!(spans[0].events[0].name, "exception");
+        assert_eq!(spans[0].events[0].timestamp_unix_nano, 500);
+        assert_eq!(
+            spans[0].events[0].attributes.get("exception.message"),
+            Some(&json!("null ref"))
+        );
+        assert_eq!(spans[0].events[1].name, "log");
+        assert_eq!(spans[0].events[1].event_index, 1);
+    }
+
+    #[test]
+    fn parse_otlp_traces_resource_attributes_preserved() {
+        let tenant = Uuid::nil();
+        let body = json!({
+            "resourceSpans": [{
+                "resource": {"attributes": [
+                    {"key": "service.name", "value": {"stringValue": "checkout"}},
+                    {"key": "service.version", "value": {"stringValue": "1.2.3"}},
+                    {"key": "telemetry.sdk.language", "value": {"stringValue": "java"}},
+                    {"key": "custom.tag", "value": {"intValue": "42"}}
+                ]},
+                "scopeSpans": [{
+                    "spans": [{
+                        "traceId": "aa", "spanId": "bb", "name": "op",
+                        "startTimeUnixNano": "0", "endTimeUnixNano": "0"
+                    }]
+                }]
+            }]
+        });
+
+        let spans = parse_otlp_traces(&body, tenant, "test").unwrap();
+        assert_eq!(spans[0].service_name, "checkout");
+        assert_eq!(spans[0].service_version, "1.2.3");
+        assert_eq!(
+            spans[0].resource_attributes.get("telemetry.sdk.language"),
+            Some(&json!("java"))
+        );
+        assert_eq!(
+            spans[0].resource_attributes.get("custom.tag"),
+            Some(&json!(42))
+        );
     }
 
     #[test]

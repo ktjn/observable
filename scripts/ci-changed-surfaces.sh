@@ -9,12 +9,14 @@ backend=0
 frontend=0
 helm=0
 smoke=0
+models=0
 
 mark_all() {
   backend=1
   frontend=1
   helm=1
   smoke=1
+  models=1
 }
 
 write_output() {
@@ -30,6 +32,7 @@ write_output() {
 
 if [[ -z "$BASE_REF" || -z "$HEAD_REF" || "$BASE_REF" =~ ^0+$ ]]; then
   mark_all
+  models=1
 else
   while IFS= read -r path; do
     case "$path" in
@@ -50,6 +53,9 @@ else
       charts/*|charts/**|scripts/helm-lint.sh)
         helm=1
         ;;
+      models/*|models/**|libs/domain/src/generated/*|libs/domain/src/generated/**|apps/frontend/src/api/generated/*|apps/frontend/src/api/generated/**|demos/crypto-aggregator/*/src/generated/*)
+        models=1
+        ;;
     esac
   done < <(git diff --name-only "$BASE_REF" "$HEAD_REF")
 fi
@@ -58,3 +64,4 @@ write_output backend "$backend"
 write_output frontend "$frontend"
 write_output helm "$helm"
 write_output smoke "$smoke"
+write_output models "$models"
