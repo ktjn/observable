@@ -71,7 +71,7 @@ jobs:
           key: cargo-sccache-${{ hashFiles('Cargo.lock') }}
           restore-keys: cargo-sccache-
 
-      # Build/lint/test inside rust:1.95.0-bookworm (same glibc as the
+      # Build/lint/test inside rust:1.97.0-bookworm (same glibc as the
       # debian:bookworm-slim runtime image) rather than natively on the
       # ubuntu-latest runner — ubuntu-latest's glibc is newer than bookworm's,
       # and binaries built against it fail to load in the runtime image.
