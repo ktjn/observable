@@ -2,11 +2,11 @@ use std::{path::Path, sync::Arc};
 
 use admin_service::middleware::auth::{TenantContext, require_tenant};
 use axum::{
-    Extension, Router,
     body::Body,
     http::{Request, StatusCode},
     middleware,
     routing::get,
+    Extension, Router,
 };
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use testcontainers::{ImageExt, runners::AsyncRunner};
@@ -14,8 +14,8 @@ use testcontainers_modules::postgres::Postgres;
 use tower::ServiceExt;
 use uuid::Uuid;
 use wiremock::{
-    Mock, MockServer, ResponseTemplate,
     matchers::{method, path},
+    Mock, MockServer, ResponseTemplate,
 };
 
 async fn start_postgres() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
@@ -64,7 +64,7 @@ fn app(db: PgPool, auth_service_url: String) -> Router {
         .route(
             "/",
             get(|Extension(ctx): Extension<TenantContext>| async move {
-                ctx.tenant_id.to_string()
+                format!("{}:{}", ctx.tenant_id, ctx.role)
             }),
         )
         .layer(middleware::from_fn(require_tenant))
@@ -114,7 +114,7 @@ async fn session_cannot_switch_to_unrelated_tenant() {
 }
 
 #[tokio::test]
-async fn session_can_switch_to_tenant_with_membership() {
+async fn session_switch_rebinds_role_from_requested_tenant() {
     let (db, _container) = start_postgres().await;
     let mock_server = MockServer::start().await;
     let user_id = Uuid::new_v4();
@@ -152,4 +152,9 @@ async fn session_can_switch_to_tenant_with_membership() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
+    let body = http_body_util::BodyExt::collect(response.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    assert_eq!(body.as_ref(), format!("{requested_tenant_id}:member").as_bytes());
 }
