@@ -98,17 +98,17 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 
 ## Milestone 3 — Supported installation and upgrades
 
-- [ ] Define an `evaluation` Compose profile with the minimum required components.
-- [ ] Define one supported production-like Helm configuration.
-- [ ] Document required and optional services, ports, trust boundaries, and TLS assumptions.
-- [ ] Validate all required configuration at startup with actionable errors.
-- [ ] Document minimum CPU, memory, disk, and expected idle resource use.
+- [x] Define an `evaluation` Compose profile with the minimum required components.
+- [x] Define one supported production-like Helm configuration.
+- [x] Document required and optional services, ports, trust boundaries, and TLS assumptions.
+- [x] Validate all required configuration at startup with actionable errors.
+- [x] Document minimum CPU, memory, disk, and expected idle resource use.
 - [ ] Test a clean Compose installation from released artifacts.
 - [ ] Test a clean Helm installation from released artifacts.
 - [ ] Test migration idempotency and restart during migration.
 - [ ] Create and test a synthetic pre-0.1 upgrade fixture.
-- [ ] Document and verify backup and restore.
-- [ ] Document unsupported downgrade behavior.
+- [x] Document and verify backup and restore.
+- [x] Document unsupported downgrade behavior.
 
 ### Exit criteria
 

@@ -42,9 +42,9 @@ async fn write_metrics(State(state): State<AppState>, Json(b): Json<MetricsBatch
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _telemetry = domain::telemetry::init_self_observability_telemetry("storage-writer")?;
-    let ch_url = std::env::var("CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".into());
-    let ch_user = std::env::var("CLICKHOUSE_USER").unwrap_or_else(|_| "default".into());
-    let ch_password = std::env::var("CLICKHOUSE_PASSWORD").unwrap_or_default();
+    let ch_url = domain::config::require_env("CLICKHOUSE_URL")?;
+    let ch_user = domain::config::require_env("CLICKHOUSE_USER")?;
+    let ch_password = domain::config::require_env_or("CLICKHOUSE_PASSWORD", "");
     let ch = Client::default()
         .with_url(ch_url)
         .with_user(ch_user)

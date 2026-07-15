@@ -1,6 +1,3 @@
-include:
-  - demos/otel-demo/docker-compose.yml
-
 x-platform-self-observability-env: &platform-self-observability-env
   OBSERVABLE_SELF_OBSERVABILITY_MODE: ${OBSERVABLE_SELF_OBSERVABILITY_MODE:-self}
   OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT: ${OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT:-http://ingest-gateway:4317}
@@ -220,6 +217,7 @@ services:
     command: ["storage-writer"]
     environment:
       <<: *platform-self-observability-env
+      OBSERVABLE_ENV: dev
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CH_USER:-default}
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
@@ -240,6 +238,7 @@ services:
     command: ["stream-processor"]
     environment:
       <<: *platform-self-observability-env
+      OBSERVABLE_ENV: dev
       REDPANDA_BROKERS: redpanda:9092
       INGEST_TOPIC: telemetry.raw
       STORAGE_WRITER_URL: http://storage-writer:4320
@@ -261,6 +260,7 @@ services:
     command: ["ingest-gateway"]
     environment:
       <<: *platform-self-observability-env
+      OBSERVABLE_ENV: dev
       INGEST_GATEWAY_HTTP_JSON_PORT: "4318"
       INGEST_GATEWAY_GRPC_PORT: "4317"
       INGEST_GATEWAY_PLATFORM_PORT: "4321"
@@ -285,11 +285,13 @@ services:
     command: ["query-api"]
     environment:
       <<: *platform-self-observability-env
+      OBSERVABLE_ENV: dev
       QUERY_API_PORT: "8090"
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CH_USER:-default}
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
       DATABASE_URL: postgres://observable:observable@postgres:5432/observable
+      AUTH_SERVICE_URL: http://auth-service:4319
       LLM_API_KEY: ${LLM_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
@@ -310,6 +312,7 @@ services:
     command: ["admin-service"]
     environment:
       <<: *platform-self-observability-env
+      OBSERVABLE_ENV: dev
       ADMIN_SERVICE_PORT: "4324"
       DATABASE_URL: postgres://observable:observable@postgres:5432/observable
       CLICKHOUSE_URL: http://clickhouse:8123
@@ -333,6 +336,7 @@ services:
     command: ["alert-evaluator"]
     environment:
       <<: *platform-self-observability-env
+      OBSERVABLE_ENV: dev
       DATABASE_URL: postgres://observable:observable@postgres:5432/observable
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CH_USER:-default}
@@ -373,6 +377,7 @@ services:
   crypto-demo:
     image: crypto-demo:local
     build: { context: demos/crypto-aggregator }
+    profiles: ["demos"]
     ports:
       - "3100:3100"
       - "3101:80"
@@ -389,6 +394,7 @@ services:
   smoke-test:
     image: observable-services:local
     build: { context: ., dockerfile: Dockerfile }
+    profiles: ["verification"]
     environment:
       INGEST_URL: http://ingest-gateway:4318
       GRPC_INGEST_URL: http://ingest-gateway:4317
@@ -405,6 +411,7 @@ services:
   perf-smoke:
     image: observable-services:local
     build: { context: ., dockerfile: Dockerfile }
+    profiles: ["verification"]
     environment:
       INGEST_URL: http://ingest-gateway:4318
       QUERY_URL: http://query-api:8090

@@ -1,0 +1,2 @@
+include:
+  - demos/otel-demo/docker-compose.yml
