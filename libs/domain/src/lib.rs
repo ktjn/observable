@@ -1,5 +1,6 @@
 mod generated;
 
+pub mod config;
 pub mod envelope;
 pub mod log;
 pub mod metric;

@@ -14,10 +14,9 @@ use tracing::Instrument as _;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _telemetry = domain::telemetry::init_self_observability_telemetry("stream-processor")?;
-    let brokers = std::env::var("REDPANDA_BROKERS")?;
-    let topic = std::env::var("INGEST_TOPIC")?;
-    let writer_url =
-        std::env::var("STORAGE_WRITER_URL").unwrap_or_else(|_| "http://localhost:4320".into());
+    let brokers = domain::config::require_env("REDPANDA_BROKERS")?;
+    let topic = domain::config::require_env("INGEST_TOPIC")?;
+    let writer_url = domain::config::require_env("STORAGE_WRITER_URL")?;
     let http = reqwest::Client::new();
 
     let max_size: usize = std::env::var("STREAM_PROCESSOR_BATCH_SIZE")

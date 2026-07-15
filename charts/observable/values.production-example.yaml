@@ -1,0 +1,140 @@
+# Production-like Helm values example for Observable.
+#
+# Copy this file and fill in the placeholders before deploying:
+#   cp values.production-example.yaml values.production.yaml
+#   # Edit values.production.yaml with real values
+#   helm install observable ./charts/observable -f values.production.yaml
+#
+# IMPORTANT: Never commit values.production.yaml with real credentials.
+
+global:
+  image:
+    repository: ghcr.io/ktjn/observable
+    tag: "0.1.0"          # Pin to a release tag
+    pullPolicy: IfNotPresent
+  frontendImage:
+    repository: ghcr.io/ktjn/observable-frontend
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+
+# Infrastructure — replace with your actual connection details.
+# For secrets, prefer ExternalSecret or sealed-secrets over inline values.
+clickhouse:
+  url: "http://clickhouse.infra.svc.cluster.local:8123"
+  user: "observable"
+  password: "REPLACE_WITH_CLICKHOUSE_PASSWORD"
+  database: "observable"
+
+postgres:
+  url: "postgres://observable:REPLACE_WITH_PG_PASSWORD@postgres.infra.svc.cluster.local:5432/observable"
+  user: "observable"
+  password: "REPLACE_WITH_PG_PASSWORD"
+
+redpanda:
+  brokers: "redpanda.infra.svc.cluster.local:9093"
+  ingestTopic: "telemetry.raw"
+
+selfObservability:
+  mode: "self"
+  otlpEndpoint: "http://ingest-gateway:4317"
+  bearerToken: ""   # Set to the API key for the observable-internal tenant
+
+# Identity — MUST be configured for production.
+identity:
+  # Do NOT set to "dev" in production. Leave empty or omit entirely.
+  env: ""
+  issuer: "https://auth.example.com"
+  apiBase: "http://zitadel:8080"
+  clientId: "REPLACE_WITH_OIDC_CLIENT_ID"
+  redirectUri: "https://observable.example.com/auth/callback"
+  # Generate with: openssl rand -base64 32
+  sessionSecret: "REPLACE_WITH_RANDOM_SECRET"
+
+services:
+  authService:
+    replicas: 2
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 512Mi
+
+  adminService:
+    replicas: 2
+    authServiceUrl: "http://auth-service:4319"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 512Mi
+
+  ingestGateway:
+    replicas: 3
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: 2000m
+        memory: 1Gi
+
+  streamProcessor:
+    replicas: 2
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 512Mi
+
+  storageWriter:
+    replicas: 2
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: 2000m
+        memory: 1Gi
+
+  queryApi:
+    replicas: 2
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: 2000m
+        memory: 1Gi
+
+  alertEvaluator:
+    replicas: 1
+    evalIntervalSeconds: "60"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  frontend:
+    replicas: 2
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+gateway:
+  enabled: true
+  port: 443
+  zitadel:
+    hostname: "auth.example.com"
