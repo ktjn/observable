@@ -1,4 +1,7 @@
 {{- if .Values.services.authService.enabled -}}
+{{- if and (ne .Values.identity.env "dev") (empty .Values.identity.sessionSecret) -}}
+{{- fail "identity.sessionSecret must be set when identity.env is not \"dev\". Generate one with: openssl rand -base64 32" -}}
+{{- end -}}
 {{- $zitadelApiBase := printf "http://%s-zitadel:8080" .Release.Name -}}
 {{- $zitadelIssuer := include "observable-common.httpOrigin" (dict
     "domain" .Values.zitadel.zitadel.configmapConfig.ExternalDomain

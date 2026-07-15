@@ -11,5 +11,8 @@ scripts/__pycache__/
 __pycache__/
 **/__pycache__/
 
+# Local Claude Code settings (user-specific, not shared)
+.claude/settings.local.json
+
 # modelable runtime — registry and compiled plans (generated, not committed)
 .modelable/

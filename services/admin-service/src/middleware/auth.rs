@@ -28,6 +28,11 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
     let auth_service_url = req.extensions().get::<Arc<String>>().cloned();
+    let http_client = req
+        .extensions()
+        .get::<reqwest::Client>()
+        .cloned()
+        .unwrap_or_default();
 
     let bearer = observable_auth::extract_bearer_token(req.headers()).map_err(StatusCode::from)?;
     let session_cookie = observable_auth::extract_session_cookie(req.headers());
@@ -40,7 +45,7 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-        match verify_credentials(token.clone(), tenant_id, auth_url).await {
+        match verify_credentials(&http_client, token.clone(), tenant_id, auth_url).await {
             Ok(ctx) => {
                 req.extensions_mut().insert(ctx);
                 return Ok(next.run(req).await);
@@ -62,7 +67,7 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    let ctx = validate_session(&auth_url, &session_token).await?;
+    let ctx = validate_session(&http_client, &auth_url, &session_token).await?;
 
     if let Some(requested_tenant_id) = tenant_id_hdr
         && requested_tenant_id != ctx.tenant_id
@@ -107,8 +112,12 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
     Ok(next.run(req).await)
 }
 
-async fn validate_session(auth_url: &str, token: &str) -> Result<TenantContext, StatusCode> {
-    let session = observable_auth::verify_session(&reqwest::Client::new(), auth_url, token)
+async fn validate_session(
+    client: &reqwest::Client,
+    auth_url: &str,
+    token: &str,
+) -> Result<TenantContext, StatusCode> {
+    let session = observable_auth::verify_session(client, auth_url, token)
         .await
         .map_err(StatusCode::from)?;
 
@@ -120,11 +129,12 @@ async fn validate_session(auth_url: &str, token: &str) -> Result<TenantContext, 
 }
 
 async fn verify_credentials(
+    client: &reqwest::Client,
     token: String,
     tenant_id: Uuid,
     auth_url: &str,
 ) -> Result<TenantContext, StatusCode> {
-    let ctx = observable_auth::verify_api_key(&reqwest::Client::new(), auth_url, &token)
+    let ctx = observable_auth::verify_api_key(client, auth_url, &token)
         .await
         .map_err(StatusCode::from)?;
 

@@ -25,6 +25,7 @@ fn build_app(db: PgPool, auth_service_url: String) -> Router {
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: auth_service_url.clone(),
+        http_client: reqwest::Client::new(),
         metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
     };
     Router::new()

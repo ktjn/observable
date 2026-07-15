@@ -131,6 +131,7 @@ fn build_app_with_pg_at(ch: ChClient, db: PgPool, auth_service_url: String) -> R
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url,
+        http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::QueryApiMetrics::new()),
     };
     let auth_service_url = Arc::new(state.auth_service_url.clone());
@@ -197,6 +198,7 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: auth_service_url.clone(),
+        http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::QueryApiMetrics::new()),
     };
     let auth_service_url_ext = Arc::new(auth_service_url);
@@ -239,6 +241,7 @@ fn fake_nlq_app_no_db() -> Router {
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: "http://auth-service:4319".into(),
+        http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::QueryApiMetrics::new()),
     };
     let tenant_id = Uuid::parse_str(DEV_TENANT_ID).unwrap();
@@ -1347,6 +1350,7 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: mock_server.uri(),
+        http_client: reqwest::Client::new(),
         metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
     };
 

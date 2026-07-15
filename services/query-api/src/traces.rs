@@ -26,6 +26,7 @@ pub struct AppState {
     pub llm: Option<Arc<dyn LlmCaller>>,
     /// Base URL for the auth-service internal API.
     pub auth_service_url: String,
+    pub http_client: reqwest::Client,
     pub metrics: Arc<crate::observability::QueryApiMetrics>,
 }
 

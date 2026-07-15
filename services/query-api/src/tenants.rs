@@ -45,9 +45,13 @@ pub async fn list_tenants(
     let session_token = extract_session_cookie(&headers).or_else(|| extract_bearer_token(&headers));
 
     if let Some(session_token) = session_token {
-        let user_id = validate_session_with_auth_service(&state.auth_service_url, &session_token)
-            .await
-            .map_err(|_| StatusCode::UNAUTHORIZED)?;
+        let user_id = validate_session_with_auth_service(
+            &state.http_client,
+            &state.auth_service_url,
+            &session_token,
+        )
+        .await
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
         let rows = sqlx::query_as::<_, (Uuid, String)>(
             r#"
@@ -103,9 +107,13 @@ pub async fn list_tenant_environments(
     // If a session is present, verify the user has access to the requested tenant.
     let session_token = extract_session_cookie(&headers).or_else(|| extract_bearer_token(&headers));
     if let Some(session_token) = session_token {
-        let user_id = validate_session_with_auth_service(&state.auth_service_url, &session_token)
-            .await
-            .map_err(|_| StatusCode::UNAUTHORIZED)?;
+        let user_id = validate_session_with_auth_service(
+            &state.http_client,
+            &state.auth_service_url,
+            &session_token,
+        )
+        .await
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
         let has_access = sqlx::query_scalar::<_, i64>(
             "SELECT COUNT(*) FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2",
@@ -172,10 +180,11 @@ pub fn extract_bearer_token(headers: &HeaderMap) -> Option<String> {
 }
 
 async fn validate_session_with_auth_service(
+    client: &reqwest::Client,
     auth_service_url: &str,
     session_token: &str,
 ) -> anyhow::Result<Uuid> {
-    let resp = reqwest::Client::new()
+    let resp = client
         .post(format!("{auth_service_url}/internal/validate-session"))
         .json(&serde_json::json!({ "session_token": session_token }))
         .send()
