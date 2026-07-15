@@ -72,19 +72,19 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-        let has_access = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2",
+        let requested_role = sqlx::query_scalar::<_, String>(
+            "SELECT role FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2",
         )
         .bind(user_id)
         .bind(requested_tenant_id)
-        .fetch_one(&db)
+        .fetch_optional(&db)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "db error checking cross-tenant access");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-        if has_access == 0 {
+        let Some(role) = requested_role else {
             tracing::warn!(
                 %user_id,
                 session_tenant = %ctx.tenant_id,
@@ -92,12 +92,12 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
                 "user does not have access to requested tenant"
             );
             return Err(StatusCode::FORBIDDEN);
-        }
+        };
 
         let ctx = TenantContext {
             tenant_id: requested_tenant_id,
             user_id: Some(user_id),
-            role: ctx.role,
+            role,
         };
         req.extensions_mut().insert(ctx);
         return Ok(next.run(req).await);
