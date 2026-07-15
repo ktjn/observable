@@ -10,17 +10,14 @@ These instructions are foundational mandates for any AI agent interacting with t
 - **Reusable UI Components:** The UI must be built using reusable components with minimal duplication. Always check for existing components in `apps/frontend/src/components/` and `apps/frontend/src/features/**/components/` before creating new ones. Shared logic should be extracted into hooks or utilities.
 - **Testcontainers for Real Dependencies:** Backend changes that touch PostgreSQL, ClickHouse, Redpanda/Kafka-compatible brokers, object storage, OpenFGA, or another real containerized dependency boundary must add or update the narrowest applicable Testcontainers integration test unless the slice explicitly requires Docker Compose, kind, browser, or external-provider verification instead. If Testcontainers is not applicable, state why in the PR and name the replacement signal.
 - **HTTP Integration Tests for Handler Changes:** Any change that adds a new code path to an existing HTTP handler — new routing logic, a new early-return branch, a fallback, or changed response shape — must include an HTTP integration test in `services/query-api/tests/http_api_integration.rs` (or a focused sibling file) that exercises the new path end-to-end via `tower::ServiceExt::oneshot`. Unit tests for pure functions are not sufficient on their own; the handler path itself must be covered so that refactoring or reordering handler logic is caught by the test suite. Use `mode: "interpret"` to avoid needing ClickHouse when the new path exits before query execution.
-- **Clarity Above All:** Nothing can be left unclear. If instructions, requirements, or code changes are ambiguous, the agent must seek clarification before proceeding.
 - **Specification Alignment:** All changes must align with the core architectural principles and specifications defined in the `spec/` directory.
-- **Implementation Plan Adherence:** All tasks must follow the latest implementation plans and iteration documents located in `docs/superpowers/plans/`.
-- **Finished Plan Archiving:** When a detailed task plan is completed, remove it from `docs/superpowers/plans/` (or move it to a private archive outside this repository) in the same iteration, and update all active-plan and agent-context links that pointed at it. Do not reintroduce a public `archived/` directory of internal plan history — that content was intentionally removed for the 0.1 open source release.
 - **ADR and Spec Synchronization:** Any change to architecture, technology choices, deployment model, data model, security model, or roadmap scope must update both the relevant ADRs and the affected specs in the same iteration. If no ADR change is needed, state why in the PR.
 
 Refer to `spec/10-process.md` for the official development process and AI agent guidance.
 
 ## Modelable Emitter Limitations (Manual Patches Required)
 
-**Never hand-edit a file under a `generated/` directory.** Files generated from `.mdl` sources (e.g. `apps/frontend/src/api/generated/`, `libs/domain/src/generated/`) are overwritten by `scripts/regenerate-models.sh` and must never be edited directly to add or change fields — doing so silently drifts the generated code from its `.mdl` source of truth, and the next regeneration silently reverts the hand-edit, breaking anything that depended on it (this happened to `alerts.AlertRule`/`alerts.Firing`: a hand-edit added `suppressed`/`service_name`/`suppressed_by_rule_name` directly to the generated TypeScript without updating `models/alerts.mdl`, and running the regen script would have deleted those fields out from under the frontend and Rust backend that depend on them). To add or change a field, edit the relevant `models/*.mdl` file and run `scripts/regenerate-models.sh`; the only edits allowed directly in a `generated/` file are the documented manual patches listed below, which the script is not yet able to apply automatically.
+**Never hand-edit a file under a `generated/` directory.** Files generated from `.mdl` sources (e.g. `apps/frontend/src/api/generated/`, `libs/domain/src/generated/`) are overwritten by `scripts/regenerate-models.sh` and must never be edited directly to add or change fields — doing so silently drifts the generated code from its `.mdl` source of truth, and the next regeneration silently reverts the hand-edit, breaking anything that depended on it. To add or change a field, edit the relevant `models/*.mdl` file and run `scripts/regenerate-models.sh`; the only edits allowed directly in a `generated/` file are the documented manual patches listed below, which the script is not yet able to apply automatically.
 
 The modelable codegen emitter (PyPI v1.1.0) has known limitations that require manual post-processing after regeneration:
 
@@ -32,95 +29,16 @@ The modelable codegen emitter (PyPI v1.1.0) has known limitations that require m
 
 New in 1.1.0: the compiler writes `registry-ids.lock` at the repo root (via `modelable compile --registry-ids`, invoked by `scripts/regenerate-models.sh`), allocating stable small-integer ids for any `.mdl` semantic type declared `registry: true`. It is a tracked file, not gitignored — commit it alongside `.mdl` changes so ids are never silently reassigned. It is currently empty (`{}`) since no domain yet declares a `registry: true` type.
 
-Fixed in 1.0.2 (no longer patched):
-- **TypeScript imports placed before docblock** (issue #123): Imports now follow the `@modelable` JSDoc meta block instead of preceding it.
-- **Rust `skip_serializing_if` on ClickHouse Row structs** (issue #124): The Rust emitter now omits `#[serde(skip_serializing_if = "Option::is_none")]` from `#[derive(clickhouse::Row)]` projection structs natively. No manual strip needed.
-- **Rust reverse From impls in domain type files** (issue #125): Bidirectional enum `From` impls are now placed only in projection (Row) files, not in domain model files. The domain→storage coupling is gone.
-
-Fixed in 1.0.1 (no longer patched):
-- **TypeScript NamedType imports** (issue #118): The TS emitter now auto-generates `import type` for NamedType field references.
-- **Rust From impls for cross-record enums** (issue #119, partial): The Rust emitter now generates `impl From<A> for B` between enum types with identical variant sets across records in the same domain.
-
 The `scripts/regenerate-models.sh` script applies all the TS import patches and Rust `From<&str>` impls automatically. After running it:
 1. Run `cargo fmt --all` to fix generated Rust formatting (included in the script)
 2. Run `cargo check --lib` to verify the Rust side compiles
 3. Run `git diff --stat` to review all changes
 
-## Agent Role Model
-
-This repository uses a coordinator-plus-specialists advisory role model to reduce context noise.
-See `.github/agents/README.md` for routing rules, escalation triggers, and role definitions.
-When starting a new task or orchestrating work across multiple surfaces, use the **Coordinator** agent
-defined in `.github/agents/coordinator.agent.md`.
-
-Any AI agent working in this repository must treat `.github/agents/README.md` as the routing index
-for repository role guidance. For new tasks, first load `.github/agents/coordinator.agent.md`. When a
-task matches a routing rule, load the relevant specialist `.agent.md` file and follow it as the active
-role prompt or review checklist. If the runtime supports subagents, invoke the specialist as a
-subagent; otherwise, apply the specialist instructions manually in the current session.
-
-## Phase Plan Status
-
-- **Phase 1 is closed.** Active roadmap work starts after Phase 1: use
-  `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md` for follow-on slices.
-- Pre-0.1 historical plan and design documents (previously kept under `archived/`) were
-  removed as part of the 0.1 open source release cleanup; the active roadmap document is
-  the source of truth for backlog status going forward.
-
-## GitHub Issues Workflow
-
-This is the primary entry point for backlog work. Multiple agent instances can run concurrently —
-each claims one issue and drives it independently to a merged PR.
-
-### Step-by-step
-
-1. **Scan** open, unassigned issues:
-   ```
-   gh issue list --assignee="" --state=open --limit=50
-   ```
-   Prefer `bug` labels over `enhancement` over unlabelled.
-
-2. **Claim** the issue before doing anything else:
-   ```
-   gh issue edit <NUMBER> --add-assignee @me --add-label "in-progress"
-   ```
-   Self-assignment is the concurrency lock. If the issue was already assigned between scan and
-   claim, pick the next one.
-
-3. **Branch** immediately and push so the branch is visible:
-   ```
-   git checkout -b fix/issue-<NUMBER>-<slug>   # bugs
-   git checkout -b feat/issue-<NUMBER>-<slug>  # features
-   git push -u origin <branch-name>
-   ```
-
-4. **For bugs — write the failing test first.**
-   Commit the reproducing test before writing any fix. The commit message must identify the issue:
-   ```
-   git commit -m "test(issue-<NUMBER>): reproduce <description>"
-   ```
-   Then fix the bug. The test must pass without modification after the fix.
-
-5. **For features** — write tests covering the acceptance criteria, then implement.
-
-6. **Run local CI** before pushing any code: `bash scripts/local-ci.sh`
-   Fix every failure. No exceptions (docs-only changes are exempt per the CI section below).
-
-7. **Open a PR** that closes the issue:
-   ```
-   gh pr create --title "fix(issue-<NUMBER>): ..." --body "Closes #<NUMBER> ..."
-   ```
-   Remove `in-progress`, add `ready-for-review` on the issue.
-
-Full role prompt with all constraints: `.github/agents/issue-worker.agent.md`
-
 ## Before Starting Any Implementation Task
 
 1. **Read `spec/adr/README.md`** to scan the one-line decision summaries. Open and read in full any ADR whose domain overlaps with the task.
-2. **Read `docs/agent-context.md`** for the current living codebase map, active source-of-truth pointers, and agent-maintained gotchas. This guide does not replace inspecting the actual files relevant to the task.
-3. **Inspect the actual code every time** before editing. Read the relevant implementation, tests, scripts, specs, and docs for the requested slice; do not rely only on summaries or prior memory.
-4. **Keep the agent context current:** if the change affects repo layout, ownership boundaries, active roadmap guidance, required verification, architectural assumptions, or future agent gotchas, update `docs/agent-context.md` in the same PR. If no update is needed, state why in the PR description.
-5. **Use the latest stable versions** of all dependencies:
+2. **Inspect the actual code every time** before editing. Read the relevant implementation, tests, scripts, specs, and docs for the requested slice; do not rely only on summaries or prior memory.
+3. **Use the latest stable versions** of all dependencies:
    - **Rust crates:** check [crates.io](https://crates.io) for the current stable version before adding or updating a dependency. Use `cargo` commands to add, update, or lock Rust dependencies; do not hand-edit lockfile entries.
    - **npm packages:** check [npmjs.com](https://www.npmjs.com) for the current stable version before adding or updating a dependency. Use `npm` commands only (`npm install`, `npm update`, `npm audit`, `npm ci`); do not use yarn, pnpm, bun, or another package manager for npm work.
    - **Python packages:** prefer `uv` for Python dependency management. If a Python dependency change is needed before the repo is fully uv-managed, plan and document the migration to `pyproject.toml` plus `uv.lock` in the PR before adding or updating packages. Do not introduce new `pip`, `requirements.txt`, Poetry, or Pipenv workflows without an ADR-backed exception.
@@ -169,7 +87,7 @@ If any check fails, you **MUST** fix it before pushing.
 
 ## NLQ Quality Gate
 
-Any change that affects the NLQ→IR→SQL pipeline — the system prompt, IR schema (`NlqIr`),
+Any change that affects the NLQ->IR->SQL pipeline — the system prompt, IR schema (`NlqIr`),
 SQL templates, metadata injection, IR parser, repair loop, or eval test cases — must:
 
 1. Include or update cases in `tests/nlq/cases.json` covering the changed behavior.
@@ -178,7 +96,7 @@ SQL templates, metadata injection, IR parser, repair loop, or eval test cases �
 3. Show that the changed behavior now passes and no previously-passing case has regressed.
 
 The eval harness is a protected regression gate. Do not weaken assertions without a
-replacement signal and reviewer approval. See `spec/08-ai-ml.md §13.4` for the full
+replacement signal and reviewer approval. See `spec/08-ai-ml.md` for the full
 operation reference, design rationale, and feedback loop.
 
 ## CI and Scripts
@@ -200,14 +118,14 @@ npm run test:visual
 
 This runs two spec files:
 - `e2e/visual.spec.ts` — full-page screenshots of every main route (Traces, Logs, Services, Infrastructure, Alerts, Dashboards) with mocked data. No backend needed.
-- `e2e/navigation.spec.ts` — clicks sidebar links, row drilldowns (trace → detail, service → detail), view toggles (List ↔ Topology), tab switches (Alerts tabs), and panel-open states. Includes overflow regression tests.
+- `e2e/navigation.spec.ts` — clicks sidebar links, row drilldowns (trace -> detail, service -> detail), view toggles (List <-> Topology), tab switches (Alerts tabs), and panel-open states. Includes overflow regression tests.
 
 Screenshots are written to `apps/frontend/e2e/screenshots/`. Review them visually — the suite will pass even if the UI looks wrong, because it's not doing pixel-diff comparison. Use your eyes on the output images.
 
 **When to update the tests:**
-- New page or route added → add a test to `visual.spec.ts` following the existing pattern (mock auth + page data, `waitForSelector` on a stable landmark, `screenshot()`).
-- New navigation flow or interactive widget added → add a test to `navigation.spec.ts`.
-- New context panel or slide-over added → add an overflow regression test and a panel-open screenshot test to the `"panel overflow (regression)"` and `"panel screenshots"` describe blocks.
+- New page or route added -> add a test to `visual.spec.ts` following the existing pattern (mock auth + page data, `waitForSelector` on a stable landmark, `screenshot()`).
+- New navigation flow or interactive widget added -> add a test to `navigation.spec.ts`.
+- New context panel or slide-over added -> add an overflow regression test and a panel-open screenshot test to the `"panel overflow (regression)"` and `"panel screenshots"` describe blocks.
 
 **Mock data pattern:**
 All tests use `page.route()` to intercept API calls. Copy the mock structure from an existing test in the same spec file — all fixtures are at the top of each file. The auth mock (`mockAuth`) is a shared helper declared at the top of each spec. Mocked endpoints must match the glob patterns used by the real API (e.g. `**/v1/nlq`, `**/v1/tenants/**/logs/histogram**`).

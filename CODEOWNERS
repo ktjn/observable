@@ -1,0 +1,10 @@
+# Default owners for everything in the repo
+*                       @ktjn
+
+# Helm charts
+charts/                 @ktjn
+
+# Security-sensitive paths
+SECURITY.md             @ktjn
+services/auth-service/  @ktjn
+libs/observable-auth/   @ktjn

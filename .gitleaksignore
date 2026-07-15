@@ -1,0 +1,10 @@
+# Gitleaks ignore rules for Observable
+#
+# Only suppress findings that are intentional dev-mode defaults or test
+# fixtures. Never suppress a finding for a real secret — rotate it instead.
+#
+# Format: one commit-hash:file:rule-id per line, or a fingerprint.
+# See https://github.com/gitleaks/gitleaks#gitleaksignore
+
+# Dev-mode database credentials in example env file and Docker Compose
+# (postgres/observable, clickhouse/default — local dev only, never used in production)
