@@ -56,6 +56,7 @@ pub fn sign_session_jwt(
 
 pub fn verify_session_jwt(secret: &str, token: &str) -> Result<SessionClaims> {
     let mut validation = Validation::new(Algorithm::HS256);
+    validation.leeway = 0;
     validation.set_issuer(&[SESSION_ISSUER]);
     validation.set_audience(&[SESSION_AUDIENCE]);
 
@@ -146,7 +147,7 @@ mod tests {
 
     #[test]
     fn expired_session_is_rejected() {
-        let token = encode_claims(SECRET, &claims(chrono::Utc::now().timestamp() - 60));
+        let token = encode_claims(SECRET, &claims(chrono::Utc::now().timestamp() - 1));
 
         assert!(verify_session_jwt(SECRET, &token).is_err());
     }
