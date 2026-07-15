@@ -2,11 +2,11 @@ use std::{path::Path, sync::Arc};
 
 use admin_service::middleware::auth::{TenantContext, require_tenant};
 use axum::{
+    Extension, Router,
     body::Body,
     http::{Request, StatusCode},
     middleware,
     routing::get,
-    Extension, Router,
 };
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use testcontainers::{ImageExt, runners::AsyncRunner};
@@ -14,8 +14,8 @@ use testcontainers_modules::postgres::Postgres;
 use tower::ServiceExt;
 use uuid::Uuid;
 use wiremock::{
-    matchers::{method, path},
     Mock, MockServer, ResponseTemplate,
+    matchers::{method, path},
 };
 
 async fn start_postgres() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
@@ -72,11 +72,7 @@ fn app(db: PgPool, auth_service_url: String) -> Router {
         .layer(Extension(Arc::new(auth_service_url)))
 }
 
-async fn mock_session(
-    mock_server: &MockServer,
-    user_id: Uuid,
-    session_tenant_id: Uuid,
-) {
+async fn mock_session(mock_server: &MockServer, user_id: Uuid, session_tenant_id: Uuid) {
     Mock::given(method("POST"))
         .and(path("/internal/validate-session"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -129,15 +125,13 @@ async fn session_switch_rebinds_role_from_requested_tenant() {
         .execute(&db)
         .await
         .expect("user inserted");
-    sqlx::query(
-        "INSERT INTO user_tenant_roles (user_id, tenant_id, role) VALUES ($1, $2, $3)",
-    )
-    .bind(user_id)
-    .bind(requested_tenant_id)
-    .bind("member")
-    .execute(&db)
-    .await
-    .expect("membership inserted");
+    sqlx::query("INSERT INTO user_tenant_roles (user_id, tenant_id, role) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(requested_tenant_id)
+        .bind("member")
+        .execute(&db)
+        .await
+        .expect("membership inserted");
 
     let response = app(db, mock_server.uri())
         .oneshot(
@@ -156,5 +150,8 @@ async fn session_switch_rebinds_role_from_requested_tenant() {
         .await
         .unwrap()
         .to_bytes();
-    assert_eq!(body.as_ref(), format!("{requested_tenant_id}:member").as_bytes());
+    assert_eq!(
+        body.as_ref(),
+        format!("{requested_tenant_id}:member").as_bytes()
+    );
 }

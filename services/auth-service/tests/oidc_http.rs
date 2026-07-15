@@ -79,11 +79,7 @@ async fn login_redirect_contains_pkce_state_and_hardened_transient_cookies() {
 
     let cookies = cookies(&response);
     assert_eq!(cookies.len(), 2);
-    assert!(
-        cookies
-            .iter()
-            .any(|cookie| cookie.starts_with("pkce_cv="))
-    );
+    assert!(cookies.iter().any(|cookie| cookie.starts_with("pkce_cv=")));
     assert!(
         cookies
             .iter()

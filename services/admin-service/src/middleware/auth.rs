@@ -144,17 +144,17 @@ async fn verify_credentials(
 mod tests {
     use super::*;
     use axum::{
+        Extension, Router,
         body::Body,
         http::{Request, StatusCode},
         middleware,
         routing::get,
-        Extension, Router,
     };
     use http_body_util::BodyExt;
     use tower::ServiceExt;
     use wiremock::{
-        matchers::{method, path},
         Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
     };
 
     fn test_pool() -> PgPool {
