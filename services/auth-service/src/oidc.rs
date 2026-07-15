@@ -34,6 +34,7 @@ pub struct OidcConfig {
 pub struct OidcState {
     pub db: PgPool,
     pub config: OidcConfig,
+    pub http_client: reqwest::Client,
     pub metrics: Arc<crate::observability::AuthServiceMetrics>,
 }
 
@@ -225,7 +226,8 @@ pub async fn callback_handler(
         .next()
         .unwrap_or("localhost")
         .to_owned();
-    let token_resp = match reqwest::Client::new()
+    let token_resp = match state
+        .http_client
         .post(format!("{}/oauth/v2/token", state.config.api_base))
         .header("Host", &zitadel_host)
         .form(&[
@@ -263,7 +265,8 @@ pub async fn callback_handler(
     };
 
     // Fetch user info from Zitadel (server-to-server, internal URL).
-    let userinfo = match reqwest::Client::new()
+    let userinfo = match state
+        .http_client
         .get(format!("{}/oidc/v1/userinfo", state.config.api_base))
         .header("Host", &zitadel_host)
         .bearer_auth(&access_token)

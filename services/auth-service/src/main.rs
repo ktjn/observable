@@ -96,6 +96,7 @@ async fn main() -> anyhow::Result<()> {
     let state = OidcState {
         db: db.clone(),
         config: oidc_config,
+        http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AuthServiceMetrics::new()),
     };
 

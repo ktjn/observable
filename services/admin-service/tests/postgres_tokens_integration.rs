@@ -361,3 +361,88 @@ async fn delete_active_token_returns_404() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn cross_tenant_token_access_is_blocked() {
+    let (pool, _container) = start_pool().await;
+    let tenant_a = dev_tenant_id();
+    let tenant_b = Uuid::parse_str("00000000-0000-0000-0000-b00000000001").unwrap();
+    sqlx::query("INSERT INTO tenants (id, name) VALUES ($1, 'tenant-b') ON CONFLICT DO NOTHING")
+        .bind(tenant_b)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let app = build_tokens_app(pool);
+    let (app, token_id, _) = create_one_token(app, tenant_a).await;
+
+    // Tenant B cannot list tenant A's tokens.
+    let resp = app
+        .clone()
+        .oneshot(tenant_req("GET", "/v1/tokens", tenant_b))
+        .await
+        .unwrap();
+    let body = body_json(resp.into_body()).await;
+    let ids: Vec<&str> = body["tokens"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|t| t["id"].as_str())
+        .collect();
+    assert!(
+        !ids.contains(&token_id.as_str()),
+        "tenant B must not see tenant A's token"
+    );
+
+    // Tenant B cannot revoke tenant A's token.
+    let resp = app
+        .clone()
+        .oneshot(tenant_req(
+            "DELETE",
+            &format!("/v1/tokens/{token_id}"),
+            tenant_b,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+    // Tenant B cannot renew tenant A's token.
+    let resp = app
+        .clone()
+        .oneshot(tenant_post(
+            &format!("/v1/tokens/{token_id}/renew"),
+            tenant_b,
+            Body::empty(),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn create_token_rejects_empty_name_or_environment() {
+    let (pool, _container) = start_pool().await;
+    let tenant_id = dev_tenant_id();
+    let app = build_tokens_app(pool);
+
+    let resp = app
+        .clone()
+        .oneshot(tenant_post(
+            "/v1/tokens",
+            tenant_id,
+            json_body(&serde_json::json!({"name": "", "environment": "prod"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let resp = app
+        .oneshot(tenant_post(
+            "/v1/tokens",
+            tenant_id,
+            json_body(&serde_json::json!({"name": "valid", "environment": "  "})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}

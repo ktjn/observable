@@ -52,6 +52,7 @@ fn build_nlq_app(ch: ChClient, db: PgPool) -> Router {
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: "http://auth-service:4319".into(),
+        http_client: reqwest::Client::new(),
         metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
     };
     Router::new()

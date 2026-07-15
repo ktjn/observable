@@ -29,6 +29,11 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
     let auth_service_url = req.extensions().get::<Arc<String>>().cloned();
+    let http_client = req
+        .extensions()
+        .get::<reqwest::Client>()
+        .cloned()
+        .unwrap_or_default();
 
     let bearer = observable_auth::extract_bearer_token(req.headers()).map_err(StatusCode::from)?;
     let session_cookie = observable_auth::extract_session_cookie(req.headers());
@@ -43,7 +48,7 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-        match verify_credentials(token.clone(), tenant_id, auth_url).await {
+        match verify_credentials(&http_client, token.clone(), tenant_id, auth_url).await {
             Ok(ctx) => {
                 req.extensions_mut().insert(ctx);
                 return Ok(next.run(req).await);
@@ -67,7 +72,7 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    let ctx = validate_session(&auth_url, &session_token).await?;
+    let ctx = validate_session(&http_client, &auth_url, &session_token).await?;
 
     // If X-Tenant-ID is provided and matches the session tenant, proceed as usual.
     // If it differs, check whether the user actually has a role on the requested
@@ -116,9 +121,12 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
     Ok(next.run(req).await)
 }
 
-/// Call auth-service to validate a session JWT and return a TenantContext.
-async fn validate_session(auth_url: &str, token: &str) -> Result<TenantContext, StatusCode> {
-    let session = observable_auth::verify_session(&reqwest::Client::new(), auth_url, token)
+async fn validate_session(
+    client: &reqwest::Client,
+    auth_url: &str,
+    token: &str,
+) -> Result<TenantContext, StatusCode> {
+    let session = observable_auth::verify_session(client, auth_url, token)
         .await
         .map_err(StatusCode::from)?;
 
@@ -129,18 +137,13 @@ async fn validate_session(auth_url: &str, token: &str) -> Result<TenantContext, 
     })
 }
 
-/// Verify the bearer token against auth-service's `/internal/validate`
-/// endpoint and check tenant ownership. Returns a `TenantContext` on success.
-///
-/// `auth-service`'s `/internal/validate` doesn't take a requested tenant_id,
-/// so it will happily return whatever tenant the key actually belongs to —
-/// the tenant-ownership check below must stay here in query-api.
 async fn verify_credentials(
+    client: &reqwest::Client,
     token: String,
     tenant_id: Uuid,
     auth_url: &str,
 ) -> Result<TenantContext, StatusCode> {
-    let ctx = observable_auth::verify_api_key(&reqwest::Client::new(), auth_url, &token)
+    let ctx = observable_auth::verify_api_key(client, auth_url, &token)
         .await
         .map_err(StatusCode::from)?;
 

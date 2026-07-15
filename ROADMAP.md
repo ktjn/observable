@@ -59,14 +59,14 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 
 - [x] Fail closed when `SESSION_SECRET` is missing outside development mode.
 - [x] Add regression tests for missing and empty session secrets.
-- [ ] Remove or rotate any historical default secret and scan the complete Git history.
-- [ ] Verify Helm and Compose cannot deploy a non-development environment with a default secret.
-- [ ] Complete OIDC login, callback, token-exchange failure, cookie, and session regression tests.
-- [ ] Complete admin-service authentication and tenant-isolation middleware tests.
-- [ ] Complete tests for token issue/revoke and member role mutation handlers.
-- [ ] Remove dead unchecked SQL-builder implementations.
-- [ ] Reuse HTTP clients in authentication middleware hot paths.
-- [ ] Fix all documentation that claims GitHub CI is disabled.
+- [x] Remove or rotate any historical default secret and scan the complete Git history.
+- [x] Verify Helm and Compose cannot deploy a non-development environment with a default secret.
+- [x] Complete OIDC login, callback, token-exchange failure, cookie, and session regression tests.
+- [x] Complete admin-service authentication and tenant-isolation middleware tests.
+- [x] Complete tests for token issue/revoke and member role mutation handlers.
+- [x] Remove dead unchecked SQL-builder implementations.
+- [x] Reuse HTTP clients in authentication middleware hot paths.
+- [x] Fix all documentation that claims GitHub CI is disabled.
 
 ### Exit criteria
 

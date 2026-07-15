@@ -27,6 +27,7 @@ fn test_state(db: PgPool) -> OidcState {
             session_secret: "dev-session-secret-change-in-prod!!".into(),
             dev_mode: true,
         },
+        http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AuthServiceMetrics::new()),
     }
 }

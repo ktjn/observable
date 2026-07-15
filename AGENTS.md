@@ -138,7 +138,7 @@ Full role prompt with all constraints: `.github/agents/issue-worker.agent.md`
 
 ## MANDATORY: Before Pushing ANY Code
 
-You **MUST** run `bash scripts/local-ci.sh` before pushing **ANY** code changes. No exceptions. GitHub CI is disabled — do not push and rely on it to catch errors.
+You **MUST** run `bash scripts/local-ci.sh` before pushing **ANY** code changes. No exceptions. GitHub CI runs on pull requests and pushes to `main` (see `.github/workflows/build.yml`), but local-ci catches issues before they reach CI.
 
 **Note:** Pure documentation changes (files under `docs/`, `spec/`, or any `.md` files) are exempt.
 

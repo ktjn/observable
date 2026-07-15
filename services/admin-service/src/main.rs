@@ -95,6 +95,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))
         .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
+        .layer(axum::Extension(reqwest::Client::new()))
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))
