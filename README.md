@@ -4,8 +4,10 @@ A full-stack, self-hosted observability platform built on OpenTelemetry — trac
 metrics, alerting, dashboards, and natural-language querying, in one product.
 
 - **Native telemetry ingestion** — the ingest gateway accepts OTLP over gRPC and HTTP plus
-  Prometheus Remote Write; other sources are handled by the standalone
-  [Collectable](https://github.com/ktjn/collectable) edge-pipeline tool.
+  Prometheus Remote Write. Gauge, Sum, and Histogram metric types are fully supported;
+  ExponentialHistogram and Summary are modeled but not yet ingested (see
+  [docs/signal-support.md](docs/signal-support.md)). Other sources are handled by the
+  standalone [Collectable](https://github.com/ktjn/collectable) edge-pipeline tool.
 - **Unified query experience** — traces, logs, and metrics are correlated through shared
   identities (tenant, service, environment, trace/span IDs) and explorable from one frontend,
   including a natural-language query layer and a Monaco-based multi-signal query workbench.
@@ -17,8 +19,7 @@ metrics, alerting, dashboards, and natural-language querying, in one product.
   for the full architecture and [spec/adr/README.md](spec/adr/README.md) for the decision log.
 
 This project is preparing its first public release. [ROADMAP.md](ROADMAP.md) is the authoritative
-0.1 release plan and takes precedence over new feature work. The detailed feature backlog remains in
-[docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md](docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md).
+0.1 release plan and takes precedence over new feature work.
 
 > Observable 0.1 is intended for evaluation and small non-critical deployments. Storage schemas,
 > APIs, Helm values, and upgrade procedures may change without backward compatibility before 1.0.
@@ -26,9 +27,8 @@ This project is preparing its first public release. [ROADMAP.md](ROADMAP.md) is 
 ## Documentation
 
 The full specification is located in the [spec/](spec/) directory, indexed in
-[spec/README.md](spec/README.md).
-
-Implementation plans and iteration documents can be found in [docs/superpowers/plans/](docs/superpowers/plans/).
+[spec/README.md](spec/README.md). See [docs/signal-support.md](docs/signal-support.md) for
+the signal-support matrix and known limitations.
 
 ## Contributing
 
@@ -172,14 +172,15 @@ See [spec/10-process.md](spec/10-process.md) for the official development proces
 
 ## Demos
 
-The `demos/` directory contains standalone example applications that showcase Observable in action.
-Each demo is a self-contained app with its own README, Dockerfile entry in `docker-compose.yml`,
-and OTel instrumentation that feeds pipeline-health metrics into the Observable platform.
+The `demos/` directory contains example applications that showcase Observable in action.
 
-| Demo | Description |
-|------|-------------|
-| [crypto-aggregator](demos/crypto-aggregator/README.md) | Real-time crypto live-data dashboard: ingests prices from DexPaprika and Coinbase, blockchain transactions from Blockchain.com, correlates them, and emits pipeline health as OTel metrics. |
-| [otel-demo](demos/otel-demo/) | The [OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo) microservices app, vendored and reconfigured to route through the Observable ingest gateway instead of Jaeger/Grafana/Prometheus. |
+| Demo | Description | Status |
+|------|-------------|--------|
+| [otel-demo](demos/otel-demo/) | The [OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo) microservices app, reconfigured to route through the Observable ingest gateway. | Canonical onboarding demo |
+| [crypto-aggregator](demos/crypto-aggregator/README.md) | Real-time crypto live-data dashboard with OTel metrics. | Supplementary; may move to a separate repository |
+
+The **otel-demo** is the recommended starting point for evaluating Observable with realistic
+multi-service traffic.
 
 ## Related Projects
 

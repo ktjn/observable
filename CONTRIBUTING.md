@@ -10,11 +10,8 @@ the codebase reviewable and regression-free — please read this before opening 
    spec/ADR synchronization rules.
 2. Read [spec/adr/README.md](spec/adr/README.md) for the index of architecture decisions, and
    open any ADR whose domain overlaps with your change.
-3. Read [docs/agent-context.md](docs/agent-context.md) for the current living map of the
-   codebase and known gotchas.
-4. Check [docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md](docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md)
-   to see if the change you're proposing is already scoped, in progress, or intentionally
-   deferred.
+3. Check [ROADMAP.md](ROADMAP.md) to see if the change you're proposing is already scoped,
+   in progress, or intentionally deferred.
 
 ## Workflow
 
@@ -27,8 +24,8 @@ the codebase reviewable and regression-free — please read this before opening 
    ```bash
    bash scripts/local-ci.sh
    ```
-   This is mandatory — GitHub CI does not gate merges in this repository, so this is the only
-   check that runs. See flags to skip stages (`--skip-docker`, `--skip-frontend`,
+   GitHub CI also runs on pull requests and pushes to `main`, but local-ci catches issues
+   before they reach CI. See flags to skip stages (`--skip-docker`, `--skip-frontend`,
    `--skip-helm`, `--skip-smoke`) if a dependency isn't available locally, and state which
    stages you skipped in your PR description.
 5. **For any Rust change**, run `cargo fmt --all` before staging and committing — Rust

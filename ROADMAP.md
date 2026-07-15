@@ -77,16 +77,16 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 
 ## Milestone 2 — Public repository hygiene
 
-- [ ] Replace internal implementation-plan history with GitHub issues, ADRs, or public design docs.
-- [ ] Reduce `AGENTS.md` to repository facts, generated-code rules, commands, and invariants.
-- [ ] Remove tracked local configuration such as `.claude/settings.local.json` unless demonstrably
+- [x] Replace internal implementation-plan history with GitHub issues, ADRs, or public design docs.
+- [x] Reduce `AGENTS.md` to repository facts, generated-code rules, commands, and invariants.
+- [x] Remove tracked local configuration such as `.claude/settings.local.json` unless demonstrably
       sanitized and required.
-- [ ] Add or verify secret-scanning ignore rules without suppressing real findings.
-- [ ] Add `SUPPORT.md`, `CODEOWNERS`, issue templates, and a concise PR template.
-- [ ] Document versioning, compatibility, and release support policy.
-- [ ] Reconcile README claims with implemented ingestion and metric fidelity.
-- [ ] Publish an explicit signal-support and known-data-loss matrix.
-- [ ] Decide whether vendored demos remain in the main repository; retain one canonical demo for
+- [x] Add or verify secret-scanning ignore rules without suppressing real findings.
+- [x] Add `SUPPORT.md`, `CODEOWNERS`, issue templates, and a concise PR template.
+- [x] Document versioning, compatibility, and release support policy.
+- [x] Reconcile README claims with implemented ingestion and metric fidelity.
+- [x] Publish an explicit signal-support and known-data-loss matrix.
+- [x] Decide whether vendored demos remain in the main repository; retain one canonical demo for
       the supported onboarding path.
 
 ### Exit criteria
