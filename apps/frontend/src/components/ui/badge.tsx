@@ -9,11 +9,11 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const toneClasses: Record<BadgeTone, string> = {
-  good: "border border-[var(--good)] text-[var(--good)]",
-  warn: "border border-[var(--warn)] text-[var(--warn)]",
-  bad: "border border-[var(--bad)] text-[var(--bad)]",
-  info: "border border-[var(--brand)] text-[var(--brand)]",
-  neutral: "border border-[var(--border-strong)] text-[var(--muted)]",
+  good: "text-[var(--good)]",
+  warn: "text-[var(--warn)]",
+  bad: "text-[var(--bad)]",
+  info: "text-[var(--brand)]",
+  neutral: "text-[var(--muted)]",
 };
 
 export function Badge({ tone = "neutral", className, children, ...props }: BadgeProps) {
@@ -21,7 +21,7 @@ export function Badge({ tone = "neutral", className, children, ...props }: Badge
     <span
       role="status"
       className={cn(
-        "inline-flex min-h-5 items-center px-1.5 text-[9px] font-bold uppercase tracking-wide",
+        "inline-flex min-h-5 items-center text-[9px] font-bold uppercase tracking-wide",
         toneClasses[tone],
         className
       )}
