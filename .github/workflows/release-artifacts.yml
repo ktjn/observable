@@ -1,0 +1,89 @@
+name: Release Artifacts
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Verify release tag and source commit
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/verify-version.sh
+
+          version="$(tr -d '[:space:]' < VERSION)"
+          expected_tag="v${version}"
+          if [[ "$GITHUB_REF_NAME" != "$expected_tag" ]]; then
+            echo "release tag is '$GITHUB_REF_NAME', expected '$expected_tag'" >&2
+            exit 1
+          fi
+
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "release tag $GITHUB_REF_NAME does not point to a commit contained in origin/main" >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$expected_tag" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+      - name: Build OCI image archive
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          target: runtime
+          platforms: linux/amd64
+          push: false
+          outputs: type=oci,dest=/tmp/observable-services-${{ steps.version.outputs.tag }}-linux-amd64.oci.tar
+          tags: observable-services:${{ steps.version.outputs.tag }}
+          cache-from: type=gha,scope=release-linux-amd64
+          cache-to: type=gha,mode=max,scope=release-linux-amd64
+
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
+        with:
+          version: '4.2.3'
+
+      - name: Package Helm chart and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          tag="${{ steps.version.outputs.tag }}"
+          mkdir -p dist
+
+          mv "/tmp/observable-services-${tag}-linux-amd64.oci.tar" dist/
+          helm dependency build charts/observable
+          helm package charts/observable --destination dist
+
+          expected_chart="dist/observable-${version}.tgz"
+          if [[ ! -f "$expected_chart" ]]; then
+            echo "expected Helm package $expected_chart was not produced" >&2
+            exit 1
+          fi
+
+          (
+            cd dist
+            sha256sum * > SHA256SUMS
+          )
+
+      - name: Upload tag-bound release artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: observable-${{ steps.version.outputs.tag }}-linux-amd64
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
