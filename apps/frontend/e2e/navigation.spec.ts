@@ -291,7 +291,7 @@ test.describe("field column toggles", () => {
 
     await page.goto("/logs");
     const table = page.getByRole("table", { name: "Log results" });
-    await page.getByRole("button", { name: "Open log context for unique log column row" }).click();
+    await page.getByRole("row", { name: "Open log context for unique log column row" }).click();
     const removeServiceColumn = page.getByRole("button", { name: "Remove service.name column" });
     await expect(removeServiceColumn).toBeVisible();
     await removeServiceColumn.click();

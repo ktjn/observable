@@ -94,13 +94,24 @@ test.describe("trace explorer", () => {
   test("duration column uses tonal colors", async ({ page }) => {
     await page.goto("/traces");
     await page.waitForSelector('[aria-label="Trace results"]');
+    // toHaveCSS resolves computed styles to rgb(), so resolve the CSS variables
+    // the same way the browser does rather than comparing against the raw var() text.
+    const resolveColorVar = (varName: string) =>
+      page.evaluate((name) => {
+        const el = document.createElement("span");
+        el.style.color = `var(${name})`;
+        document.body.appendChild(el);
+        const resolved = getComputedStyle(el).color;
+        el.remove();
+        return resolved;
+      }, varName);
     const rows = page.locator('[aria-label="Trace results"] tbody tr');
     // Row 2 (bbb, 50ms) should have green duration — color applied via inline style
     const fastSpan = rows.nth(1).locator("td").nth(4).locator("span.tabular-nums");
-    await expect(fastSpan).toHaveCSS("color", "var(--good)");
+    await expect(fastSpan).toHaveCSS("color", await resolveColorVar("--good"));
     // Row 3 (ccc, 3000ms) is slow (>500ms), red duration
     const slowSpan = rows.nth(2).locator("td").nth(4).locator("span.tabular-nums");
-    await expect(slowSpan).toHaveCSS("color", "var(--bad)");
+    await expect(slowSpan).toHaveCSS("color", await resolveColorVar("--bad"));
   });
 
   test("passes accessibility audit", async ({ page }) => {
