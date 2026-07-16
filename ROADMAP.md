@@ -182,7 +182,9 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 - [ ] Publish multi-architecture container images where supported.
 - [ ] Publish the Helm chart. (workflow implemented; mark complete after the first release
       tag verifies the chart can be pulled and installed from `oci://ghcr.io/ktjn/charts/observable`)
-- [ ] Generate SBOMs and provenance attestations.
+- [ ] Generate SBOMs and provenance attestations. (workflow implemented for the container image;
+      mark complete after the first release tag verifies both attestations are present and
+      `gh attestation verify` succeeds)
 - [ ] Sign container images and release artifacts.
 - [ ] Generate release notes and a changelog.
 - [ ] Verify Compose and Helm installation exclusively from published artifacts.
