@@ -121,7 +121,7 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ steps.version.outputs.version }}"
-          helm push "dist/observable-${version}.tgz" oci://ghcr.io/ktjn/charts
+          helm push "dist/observable-${version}.tgz" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts"
 
       - name: Upload tag-bound release artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
