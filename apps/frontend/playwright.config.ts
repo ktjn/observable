@@ -8,6 +8,11 @@ export default defineConfig({
   fullyParallel: true,
   retries: 0,
   reporter: "list",
+  expect: {
+    toHaveScreenshot: {
+      maxDiffPixelRatio: 0.01,
+    },
+  },
   use: {
     baseURL: frontendUrl,
   },

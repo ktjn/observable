@@ -157,17 +157,17 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 
 ## Milestone 6 — Core user journeys
 
-- [ ] Add Playwright coverage for login and onboarding.
-- [ ] Add an end-to-end first-telemetry flow.
-- [ ] Add trace search and trace-to-related-logs navigation coverage.
-- [ ] Add metric query and dashboard creation coverage.
-- [ ] Add alert creation and triggered-state coverage.
-- [ ] Add administrator member-role mutation coverage.
-- [ ] Add browser-level tenant-isolation coverage.
-- [ ] Run accessibility scans for every major page in CI.
-- [ ] Run the maintained visual-regression suite in CI.
-- [ ] Add a ten-minute evaluation guide and collector configuration.
-- [ ] Add architecture, configuration, security-hardening, and troubleshooting documentation.
+- [x] Add Playwright coverage for login and onboarding.
+- [x] Add an end-to-end first-telemetry flow.
+- [x] Add trace search and trace-to-related-logs navigation coverage.
+- [x] Add metric query and dashboard creation coverage.
+- [x] Add alert creation and triggered-state coverage.
+- [x] Add administrator member-role mutation coverage.
+- [x] Add browser-level tenant-isolation coverage.
+- [x] Run accessibility scans for every major page in CI.
+- [x] Run the maintained visual-regression suite in CI.
+- [x] Add a ten-minute evaluation guide and collector configuration.
+- [x] Add architecture, configuration, security-hardening, and troubleshooting documentation.
 
 ### Exit criteria
 
@@ -206,9 +206,9 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 
 ## Current work
 
-The current implementation priority is **Milestone 6 — Core user journeys**.
+The current implementation priority is **Milestone 7 — Release engineering**.
 
-Milestones 1–5 are complete. The next items are Playwright browser coverage, end-to-end user
-journey tests, accessibility scans, and evaluation documentation.
+Milestones 1–6 are complete. The next items are versioned release artifacts, container image
+signing, Helm chart publishing, and post-release verification.
 
 The detailed feature backlog remains useful for post-0.1 planning but does not override this roadmap.
