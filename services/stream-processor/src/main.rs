@@ -5,7 +5,7 @@ use domain::{EnvelopePayload, TelemetryEnvelope};
 use std::sync::Arc;
 use std::time::Duration;
 use stream_processor::{
-    batch,
+    batch, observability,
     readyz::{StreamProcessorProbeState, readyz},
 };
 use tokio::time;
@@ -36,8 +36,11 @@ async fn main() -> anyhow::Result<()> {
     let probe_port: u16 = std::env::var("STREAM_PROCESSOR_PLATFORM_PORT")
         .unwrap_or_else(|_| "4323".into())
         .parse()?;
+    let sp_metrics = observability::StreamProcessorMetrics::new();
+    let metrics_registry = Arc::new(sp_metrics.registry.clone());
     let probe_state = StreamProcessorProbeState {
         brokers: brokers.clone(),
+        metrics_registry: Some(metrics_registry),
     };
     tokio::spawn(async move {
         use axum::{Router, routing::get};
@@ -46,6 +49,7 @@ async fn main() -> anyhow::Result<()> {
         let app = Router::new()
             .route("/health", get(|| async { axum::http::StatusCode::OK }))
             .route("/readyz", get(readyz))
+            .route("/metrics", get(observability::metrics))
             .layer(TraceLayer::new_for_http())
             .with_state(probe_state);
         let listener = tokio::net::TcpListener::bind(("0.0.0.0", probe_port))

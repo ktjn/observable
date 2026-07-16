@@ -3,6 +3,7 @@ use axum::{extract::State, http::StatusCode};
 #[derive(Clone)]
 pub struct StreamProcessorProbeState {
     pub brokers: String,
+    pub metrics_registry: Option<std::sync::Arc<prometheus::Registry>>,
 }
 
 /// Check Redpanda broker connectivity by fetching cluster metadata.

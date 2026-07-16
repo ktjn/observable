@@ -11,6 +11,7 @@ use tower::ServiceExt;
 fn test_probe_app(pg_url: &str) -> Router {
     let probe_state = IngestGatewayProbeState {
         db: Arc::new(sqlx::PgPool::connect_lazy(pg_url).expect("lazy pool")),
+        metrics_registry: None,
     };
     Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
@@ -72,7 +73,10 @@ async fn ingest_gateway_readyz_returns_200_when_postgres_reachable() {
             .expect("migration applied");
     }
 
-    let probe_state = IngestGatewayProbeState { db: Arc::new(pool) };
+    let probe_state = IngestGatewayProbeState {
+        db: Arc::new(pool),
+        metrics_registry: None,
+    };
     let app = Router::new()
         .route("/readyz", get(readyz))
         .with_state(probe_state);

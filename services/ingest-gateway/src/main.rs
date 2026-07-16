@@ -6,6 +6,7 @@ mod deployments;
 mod grpc;
 #[path = "http-json/mod.rs"]
 mod http_json;
+mod observability;
 mod prometheus_rw;
 mod queue;
 mod readyz;
@@ -201,9 +202,14 @@ async fn main() -> anyhow::Result<()> {
         stub_tenant: None,
     };
 
+    let ig_metrics = observability::IngestGatewayMetrics::new();
+    let metrics_registry = Arc::new(ig_metrics.registry.clone());
     let grpc_state = state.clone();
     let platform_state = state.clone();
-    let probe_state = readyz::IngestGatewayProbeState { db: db.clone() };
+    let probe_state = readyz::IngestGatewayProbeState {
+        db: db.clone(),
+        metrics_registry: Some(metrics_registry),
+    };
     let grpc_future = grpc::start_grpc_server(grpc_state, grpc_port, grpc_max_message_bytes);
     let http_future = http_json::start_http_server(state, http_port);
     let platform_future =

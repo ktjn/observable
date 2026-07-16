@@ -10,6 +10,7 @@ use tower::ServiceExt;
 fn test_probe_app(brokers: &str) -> Router {
     let probe_state = StreamProcessorProbeState {
         brokers: brokers.to_string(),
+        metrics_registry: None,
     };
     Router::new()
         .route("/health", get(|| async { StatusCode::OK }))

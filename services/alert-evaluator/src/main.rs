@@ -1,5 +1,5 @@
-use alert_evaluator::{AppState, evaluator, readyz};
-use axum::{Router, routing::get};
+use alert_evaluator::{AppState, evaluator, observability, readyz};
+use axum::{Router, middleware, routing::get};
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
@@ -43,11 +43,17 @@ async fn main() -> anyhow::Result<()> {
 
     tokio::spawn(evaluator::notification_worker((*db).clone()));
 
-    let state = AppState { db, ch };
+    let metrics = Arc::new(observability::AlertEvaluatorMetrics::new());
+    let state = AppState { db, ch, metrics };
 
     let app = Router::new()
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
         .route("/readyz", get(readyz::readyz))
+        .route("/metrics", get(observability::metrics))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            observability::record_http_metrics,
+        ))
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
