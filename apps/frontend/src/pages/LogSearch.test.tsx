@@ -221,7 +221,7 @@ test("scoped log views share one service-column state across table and context",
 
   const table = await screen.findByRole("table", { name: "Service logs" });
   expect(within(table).queryByRole("columnheader", { name: "service.name" })).not.toBeInTheDocument();
-  fireEvent.click(within(table).getByRole("button", { name: "Open log context for checkout completed" }));
+  fireEvent.click(within(table).getByRole("row", { name: "Open log context for checkout completed" }));
   const sidebar = screen.getByRole("complementary", { name: "Selected log context" });
   fireEvent.click(within(sidebar).getByRole("button", { name: "Add service.name as a column" }));
   expect(within(table).getByRole("columnheader", { name: "service.name" })).toBeInTheDocument();
@@ -256,7 +256,7 @@ test("renders histogram and primary canonical log columns", async () => {
 test("selecting a log opens context properties in the right sidebar", async () => {
   renderLogSearch();
 
-  fireEvent.click(await screen.findByRole("button", { name: "Open log context for checkout completed" }));
+  fireEvent.click(await screen.findByRole("row", { name: "Open log context for checkout completed" }));
 
   const sidebar = screen.getByRole("complementary", { name: "Selected log context" });
   expect(within(sidebar).getByText("Context Properties")).toBeInTheDocument();
@@ -274,7 +274,7 @@ test("selecting a log opens context properties in the right sidebar", async () =
 test("toggles log fields as table columns from the context panel", async () => {
   renderLogSearch();
 
-  fireEvent.click(await screen.findByRole("button", { name: "Open log context for checkout completed" }));
+  fireEvent.click(await screen.findByRole("row", { name: "Open log context for checkout completed" }));
   const sidebar = screen.getByRole("complementary", { name: "Selected log context" });
   const table = screen.getByRole("table", { name: "Log results" });
 
@@ -292,7 +292,7 @@ test("toggles log fields as table columns from the context panel", async () => {
 
 test("persists column visibility across remounts", async () => {
   const { unmount } = renderLogSearch();
-  fireEvent.click(await screen.findByRole("button", { name: "Open log context for checkout completed" }));
+  fireEvent.click(await screen.findByRole("row", { name: "Open log context for checkout completed" }));
   const sidebar = screen.getByRole("complementary", { name: "Selected log context" });
   fireEvent.click(within(sidebar).getByRole("button", { name: "Remove service.name column" }));
   unmount();
@@ -381,7 +381,7 @@ test("date range controls are managed globally, not per-page", async () => {
 test("trace_id in log context sidebar is a link to the trace detail page", async () => {
   renderLogSearch();
 
-  fireEvent.click(await screen.findByRole("button", { name: "Open log context for checkout completed" }));
+  fireEvent.click(await screen.findByRole("row", { name: "Open log context for checkout completed" }));
 
   const sidebar = screen.getByRole("complementary", { name: "Selected log context" });
   const traceLink = within(sidebar).getByRole("link", { name: "trace-1" });
@@ -391,7 +391,7 @@ test("trace_id in log context sidebar is a link to the trace detail page", async
 test("span_id in log context sidebar links to the parent trace", async () => {
   renderLogSearch();
 
-  fireEvent.click(await screen.findByRole("button", { name: "Open log context for checkout completed" }));
+  fireEvent.click(await screen.findByRole("row", { name: "Open log context for checkout completed" }));
 
   const sidebar = screen.getByRole("complementary", { name: "Selected log context" });
   const spanLink = within(sidebar).getByRole("link", { name: "span-1" });
@@ -443,7 +443,7 @@ test("loading a saved view reinstates a column hidden earlier this session", asy
   renderLogSearch();
   await screen.findByRole("table", { name: "Log results" });
 
-  fireEvent.click(await screen.findByRole("button", { name: "Open log context for checkout completed" }));
+  fireEvent.click(await screen.findByRole("row", { name: "Open log context for checkout completed" }));
   const sidebar = screen.getByRole("complementary", { name: "Selected log context" });
   fireEvent.click(within(sidebar).getByRole("button", { name: "Remove service.name column" }));
   expect(
