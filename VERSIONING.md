@@ -17,6 +17,19 @@ To bump the product version, update `VERSION` and every location reported by the
 pull request. Do not derive the product version independently from branch names, commit counts, or
 mutable image tags.
 
+## Tag-bound artifact builds
+
+The `Release Artifacts` workflow runs only for tags matching `v*`. Before building, it verifies that:
+
+- The tag is exactly `v{VERSION}`.
+- All release-facing metadata matches `VERSION`.
+- The tagged commit is contained in `origin/main`.
+
+The workflow produces a `linux/amd64` OCI image archive containing all Observable Rust services, a
+packaged Observable Helm chart, and a `SHA256SUMS` manifest. These are retained as GitHub Actions
+artifacts for 30 days. This workflow builds artifacts but does not publish images or charts; publishing,
+multi-architecture support, signing, SBOMs, and provenance are separate release steps.
+
 ## Version scheme
 
 Observable uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH).
