@@ -164,11 +164,22 @@ git commit -m "ci(release): attest SBOM and build provenance for release image"
 
 ---
 
+## Step ordering (post-review addendum)
+
+Task 1 as specified above (Step 4) inserts the three new steps immediately after "Publish
+multi-architecture image" and before `azure/setup-helm`. A whole-branch review after
+implementation found this placement meant a transient SBOM-scan or Sigstore outage would abort
+the job after the image was already public but before the Helm chart and `dist/` bundle
+published — a partial release. A follow-up fix moved the three steps to run at the end of the
+job instead, after "Upload tag-bound release artifacts". Re-attesting an already-pushed digest on
+a workflow re-run is idempotent, so the reorder has no downside. The step content itself (SHA
+pins, `with:` blocks) is unchanged — only its position in the file moved.
+
 ## Manual verification (cannot be exercised by PR CI)
 
 The tag-only `Release Artifacts` workflow cannot run end-to-end from a pull request. Note in the
 PR description (matching the pattern already used for the three prior Milestone 7 PRs): full
 verification requires pushing the next real `v{VERSION}` release tag and confirming
-`gh attestation verify oci://ghcr.io/{owner}/observable-services:v{VERSION} --owner {owner}`
+`gh attestation verify oci://ghcr.io/ktjn/observable-services:v{VERSION} --owner ktjn`
 reports both a valid SBOM and a valid build-provenance attestation. Do not push a release tag as
 part of this task — that is a separate, explicitly user-authorized action.

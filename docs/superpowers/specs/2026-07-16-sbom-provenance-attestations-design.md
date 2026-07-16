@@ -42,7 +42,9 @@ and artifacts (cosign) is a separate, later Milestone 7 item — out of scope he
 - **Location in workflow:** the existing `build` job in `.github/workflows/release-artifacts.yml`.
   The "Publish multi-architecture image" step gets a new `id: publish` so its `digest` output
   (the manifest-list digest of the pushed multi-arch image) can be referenced by later steps. Three
-  new steps are inserted immediately after it and before the `azure/setup-helm` step:
+  new steps are inserted immediately after it and before the `azure/setup-helm` step (a later fix
+  moved them to run at the end of the job instead, after "Upload tag-bound release artifacts" —
+  see "Step ordering" below):
   1. **Generate SBOM** — `anchore/sbom-action@v0` scans the pushed image reference
      (`${{ steps.version.outputs.image }}:${{ steps.version.outputs.tag }}`) directly from GHCR
      (already authenticated via the existing `docker/login-action` step earlier in the job) and
@@ -84,3 +86,14 @@ Verification for this PR:
 Whether the SBOM scan and both attestations actually succeed against a real pushed image can only
 be exercised by a real `v{VERSION}` tag — the same caveat already recorded for the three prior
 Milestone 7 PRs. Pull-request CI cannot trigger this tag-only workflow.
+
+## Step ordering (post-review addendum)
+
+A whole-branch review after the initial implementation flagged that placing the three
+fail-closed attestation steps before the Helm chart packaging/publish/upload steps meant a
+transient SBOM-scan or Sigstore outage would abort the job after the image was already public but
+before the Helm chart and `dist/` bundle were published — a partial release. A follow-up fix moved
+"Generate SBOM", "Attest SBOM", and "Attest build provenance" to run at the very end of the job,
+after "Upload tag-bound release artifacts", so the primary release deliverables always publish
+first. Re-running the tag workflow to re-attest an already-pushed digest is idempotent, so this
+reordering has no downside.
