@@ -27,8 +27,17 @@ The `Release Artifacts` workflow runs only for tags matching `v*`. Before buildi
 
 The workflow produces a `linux/amd64` OCI image archive containing all Observable Rust services, a
 packaged Observable Helm chart, and a `SHA256SUMS` manifest. These are retained as GitHub Actions
-artifacts for 30 days. This workflow builds artifacts but does not publish images or charts; publishing,
-multi-architecture support, signing, SBOMs, and provenance are separate release steps.
+artifacts for 30 days.
+
+The same workflow publishes the runtime image to:
+
+```text
+ghcr.io/ktjn/observable-services:v{VERSION}
+```
+
+The published tag is a multi-architecture manifest for `linux/amd64` and `linux/arm64`. No mutable
+`latest` tag is published. SBOM generation, provenance attestations, and signing remain separate
+release steps so their policy can be reviewed independently.
 
 ## Version scheme
 
@@ -42,7 +51,7 @@ While the version is below 1.0.0:
   Migrations are provided but rollback is not guaranteed.
 - **HTTP APIs** (`/v1/*` endpoints) may add fields, change response shapes, or remove
   endpoints between minor versions.
-- **Helm values** may be renamed, restructured, or removed between minor versions.
+- **Helm values** may be renamed, restructured, or removed.
 - **Configuration environment variables** may be renamed or removed.
 - **Upgrade procedures** may require manual steps documented in release notes.
 
