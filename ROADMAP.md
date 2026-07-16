@@ -177,7 +177,7 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 
 ## Milestone 7 — Release engineering
 
-- [ ] Establish one repository/product version source of truth.
+- [x] Establish one repository/product version source of truth.
 - [ ] Build release artifacts from immutable tags.
 - [ ] Publish multi-architecture container images where supported.
 - [ ] Publish the Helm chart.
@@ -208,7 +208,8 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 
 The current implementation priority is **Milestone 7 — Release engineering**.
 
-Milestones 1–6 are complete. The next items are versioned release artifacts, container image
-signing, Helm chart publishing, and post-release verification.
+The canonical product version is stored in `VERSION` and verified against release-facing manifests in
+CI. The next items are immutable-tag artifact builds, container image publishing, Helm chart
+publishing, signing, and post-release verification.
 
 The detailed feature backlog remains useful for post-0.1 planning but does not override this roadmap.
