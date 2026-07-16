@@ -108,6 +108,21 @@ jobs:
             sha256sum * > SHA256SUMS
           )
 
+      - name: Log in to GHCR for Helm
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+            --username "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Publish Helm chart to GHCR
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          helm push "dist/observable-${version}.tgz" oci://ghcr.io/ktjn/charts
+
       - name: Upload tag-bound release artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

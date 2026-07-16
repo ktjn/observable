@@ -39,6 +39,19 @@ The published tag is a multi-architecture manifest for `linux/amd64` and `linux/
 `latest` tag is published. SBOM generation, provenance attestations, and signing remain separate
 release steps so their policy can be reviewed independently.
 
+The packaged Helm chart is published to:
+
+```text
+oci://ghcr.io/ktjn/charts/observable
+```
+
+tagged `{VERSION}` to match the chart's `version` in `charts/observable/Chart.yaml`. Install
+directly from the registry with:
+
+```text
+helm install observable oci://ghcr.io/ktjn/charts/observable --version {VERSION}
+```
+
 ## Version scheme
 
 Observable uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH).
