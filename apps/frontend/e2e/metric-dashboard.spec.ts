@@ -72,9 +72,7 @@ test.describe("metric exploration", () => {
   test("passes accessibility audit", async ({ page }) => {
     await page.goto("/metrics");
     await page.waitForSelector("text=http_request_duration_seconds");
-    const results = await new AxeBuilder({ page })
-      .disableRules(["nested-interactive"])
-      .analyze();
+    const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
   });
 });

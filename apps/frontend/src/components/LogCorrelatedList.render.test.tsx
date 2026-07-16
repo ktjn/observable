@@ -112,7 +112,7 @@ test("clicking a log row opens the context view with Surrounding Logs heading", 
   render(<LogCorrelatedList traceId="trace-abc" />, { wrapper });
   await waitFor(() => screen.getByText("trace level message"));
 
-  const row = screen.getByText("trace level message").closest('[role="button"]')!;
+  const row = screen.getByText("trace level message").closest('[role="listitem"]')!;
   fireEvent.click(row);
   expect(screen.getByText(/Surrounding Logs/)).toBeInTheDocument();
 });

@@ -492,7 +492,7 @@ test("renders service metrics workspace with filtering and selected series point
   });
   fireEvent.submit(screen.getByRole("form", { name: "Query current view" }));
   await screen.findByText("checkout.requests");
-  fireEvent.click(screen.getByRole("button", { name: "Select checkout.requests" }));
+  fireEvent.click(screen.getByRole("row", { name: "Select checkout.requests" }));
 
   // Panel opens: sidebar shows "Selected Metric" label and the metric name
   expect(await screen.findByRole("complementary", { name: "Selected metric details" })).toBeInTheDocument();

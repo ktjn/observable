@@ -38,7 +38,7 @@ export function LogList({
           <div
             key={log.log_id}
             data-log-id={log.log_id}
-            role={onRowClick ? "button" : undefined}
+            role={onRowClick ? "listitem" : undefined}
             tabIndex={onRowClick ? 0 : undefined}
             onClick={onRowClick ? () => onRowClick(log) : undefined}
             onKeyDown={

@@ -56,7 +56,7 @@ test("renders canonical values with severity presentation and message copy", () 
   expect(within(table).getByText("INFO")).toHaveClass("text-[var(--good)]");
   expect(within(table).getByRole("button", { name: "Copy message" })).toBeInTheDocument();
 
-  fireEvent.click(within(table).getByRole("button", { name: "Open log context for checkout completed" }));
+  fireEvent.click(within(table).getByRole("row", { name: "Open log context for checkout completed" }));
 
   expect(onSelect).toHaveBeenCalledWith("log-1");
 });

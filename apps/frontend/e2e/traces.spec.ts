@@ -95,12 +95,12 @@ test.describe("trace explorer", () => {
     await page.goto("/traces");
     await page.waitForSelector('[aria-label="Trace results"]');
     const rows = page.locator('[aria-label="Trace results"] tbody tr');
-    // Row 2 (bbb, 50ms) should have green duration
-    const fastDurationCell = rows.nth(1).locator("td").nth(4);
-    await expect(fastDurationCell).toHaveClass(/text-\[var\(--good\)\]/);
+    // Row 2 (bbb, 50ms) should have green duration — color applied via inline style
+    const fastSpan = rows.nth(1).locator("td").nth(4).locator("span.tabular-nums");
+    await expect(fastSpan).toHaveCSS("color", "var(--good)");
     // Row 3 (ccc, 3000ms) is slow (>500ms), red duration
-    const slowDurationCell = rows.nth(2).locator("td").nth(4);
-    await expect(slowDurationCell).toHaveClass(/text-\[var\(--bad\)\]/);
+    const slowSpan = rows.nth(2).locator("td").nth(4).locator("span.tabular-nums");
+    await expect(slowSpan).toHaveCSS("color", "var(--bad)");
   });
 
   test("passes accessibility audit", async ({ page }) => {
