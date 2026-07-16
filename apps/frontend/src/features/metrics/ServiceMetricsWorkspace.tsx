@@ -350,7 +350,7 @@ function MetricCatalogTable({
                 return (
                 <tr
                   key={id}
-                  role="button"
+                  role="row"
                   aria-label={`Select ${item.metric_name}`}
                   className={selectedSeriesId === id ? "selected" : "hoverable"}
                   onClick={() => onSelect(id)}

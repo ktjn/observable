@@ -84,9 +84,9 @@ function LogResultsRow({
       onClick={onSelect}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelect()}
       tabIndex={0}
-      role="button"
+      role="row"
       aria-label={`Open log context for ${message}`}
-      aria-pressed={selected}
+      aria-selected={selected}
     >
       {columns.length === 0 ? (
         <td aria-label="No columns selected">No columns selected</td>
