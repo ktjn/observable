@@ -52,6 +52,14 @@ directly from the registry with:
 helm install observable oci://ghcr.io/ktjn/charts/observable --version {VERSION}
 ```
 
+The published container image carries an SPDX SBOM and SLSA build-provenance attestation,
+generated and attached during this workflow via GitHub's native attestation actions. Verify
+either with:
+
+```text
+gh attestation verify oci://ghcr.io/{owner}/observable-services:v{VERSION} --owner {owner}
+```
+
 ## Version scheme
 
 Observable uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH).
