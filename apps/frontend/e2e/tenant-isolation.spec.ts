@@ -86,7 +86,7 @@ test.describe("tenant isolation — multi tenant", () => {
     await mockAuthMultiTenant(page);
     await mockDataEndpoints(page);
     await page.goto("/services");
-    const select = page.locator("select").first();
+    const select = page.locator("select[aria-label='Tenant']");
     await expect(select).toBeVisible();
     const options = select.locator("option");
     await expect(options).toHaveCount(2);
