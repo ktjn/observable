@@ -1,0 +1,38 @@
+name: Version consistency
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - VERSION
+      - Cargo.toml
+      - '**/Cargo.toml'
+      - apps/frontend/package.json
+      - charts/**/Chart.yaml
+      - scripts/check-release-version.py
+      - .github/workflows/version-consistency.yml
+  push:
+    branches: [main]
+    paths:
+      - VERSION
+      - Cargo.toml
+      - '**/Cargo.toml'
+      - apps/frontend/package.json
+      - charts/**/Chart.yaml
+      - scripts/check-release-version.py
+      - .github/workflows/version-consistency.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v6
+        with:
+          python-version: '3.13'
+      - name: Verify release metadata
+        run: python scripts/check-release-version.py
