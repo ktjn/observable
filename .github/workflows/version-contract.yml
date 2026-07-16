@@ -1,0 +1,39 @@
+name: Version Contract
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - VERSION
+      - Cargo.toml
+      - 'libs/**/Cargo.toml'
+      - 'services/**/Cargo.toml'
+      - apps/frontend/package.json
+      - charts/observable/Chart.yaml
+      - charts/observable-common/Chart.yaml
+      - scripts/check-version.sh
+      - .github/workflows/version-contract.yml
+  push:
+    branches: [main]
+    paths:
+      - VERSION
+      - Cargo.toml
+      - 'libs/**/Cargo.toml'
+      - 'services/**/Cargo.toml'
+      - apps/frontend/package.json
+      - charts/observable/Chart.yaml
+      - charts/observable-common/Chart.yaml
+      - scripts/check-version.sh
+      - .github/workflows/version-contract.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Verify product version metadata
+        run: bash scripts/check-version.sh
