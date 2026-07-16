@@ -116,6 +116,7 @@ pub fn build_platform_router(
     let probes = Router::new()
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
         .route("/readyz", get(crate::readyz::readyz))
+        .route("/metrics", get(crate::observability::metrics))
         .with_state(probe_state);
 
     Router::new().merge(authenticated).merge(probes).layer(

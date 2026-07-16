@@ -1,4 +1,5 @@
 pub mod evaluator;
+pub mod observability;
 pub mod readyz;
 
 use clickhouse::Client;
@@ -8,4 +9,5 @@ use std::sync::Arc;
 pub struct AppState {
     pub db: Arc<sqlx::PgPool>,
     pub ch: Client,
+    pub metrics: Arc<observability::AlertEvaluatorMetrics>,
 }

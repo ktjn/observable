@@ -4,6 +4,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct IngestGatewayProbeState {
     pub db: Arc<sqlx::PgPool>,
+    pub metrics_registry: Option<Arc<prometheus::Registry>>,
 }
 
 pub async fn readyz(State(state): State<IngestGatewayProbeState>) -> StatusCode {
