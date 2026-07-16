@@ -3,13 +3,11 @@ import AxeBuilder from "@axe-core/playwright";
 
 test.describe("login page", () => {
   test("auto-redirects to OIDC when no error param", async ({ page }) => {
-    let loginRedirect = false;
-    await page.route("**/v1/auth/login**", (route) => {
-      loginRedirect = true;
-      route.fulfill({ status: 302, headers: { Location: "/login?error=auth_failed" } });
-    });
+    await page.route("**/v1/auth/login**", (route) =>
+      route.fulfill({ status: 200, body: "oidc login page" })
+    );
     await page.goto("/login");
-    expect(loginRedirect).toBe(true);
+    await page.waitForURL("**/v1/auth/login**", { timeout: 5000 });
   });
 
   test("shows session_expired error message", async ({ page }) => {

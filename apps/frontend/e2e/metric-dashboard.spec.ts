@@ -17,22 +17,11 @@ async function mockAuth(page: import("@playwright/test").Page) {
   );
 }
 
-const FIXTURE_METRICS_LIST = {
-  items: [
-    { metric_name: "http_request_duration_seconds", type: "histogram", unit: "s" },
-    { metric_name: "http_requests_total", type: "sum", unit: "" },
-    { metric_name: "process_cpu_seconds_total", type: "sum", unit: "s" },
+const FIXTURE_METRICS = {
+  metrics: [
+    { tenant_id: "00000000-0000-0000-0000-000000000001", metric_name: "http_request_duration_seconds", description: "HTTP request duration", unit: "s", metric_type: "histogram", service_name: "checkout", environment: "prod", series_count: 5 },
+    { tenant_id: "00000000-0000-0000-0000-000000000001", metric_name: "http_requests_total", description: "Total HTTP requests", unit: "", metric_type: "sum", service_name: "checkout", environment: "prod", series_count: 3 },
   ],
-};
-
-const FIXTURE_METRIC_QUERY = {
-  type: "frame",
-  frame: {
-    data: [
-      { timestamp: "2026-05-15T10:00:00Z", value: 42.5, labels: { service: "checkout" } },
-      { timestamp: "2026-05-15T10:01:00Z", value: 43.1, labels: { service: "checkout" } },
-    ],
-  },
 };
 
 const FIXTURE_DASHBOARDS = {
@@ -64,10 +53,13 @@ test.describe("metric exploration", () => {
   test.beforeEach(async ({ page }) => {
     await mockAuth(page);
     await page.route("**/v1/metrics", (route) =>
-      route.fulfill({ json: FIXTURE_METRICS_LIST })
+      route.fulfill({ json: FIXTURE_METRICS })
+    );
+    await page.route("**/v1/metrics/points**", (route) =>
+      route.fulfill({ json: { points: [] } })
     );
     await page.route("**/v1/nlq**", (route) =>
-      route.fulfill({ json: FIXTURE_METRIC_QUERY })
+      route.fulfill({ json: { type: "frame", frame: { data: [] } } })
     );
   });
 
@@ -109,7 +101,7 @@ test.describe("dashboard creation flow", () => {
       route.fulfill({ json: FIXTURE_DASHBOARDS.items[0] })
     );
     await page.route("**/v1/nlq**", (route) =>
-      route.fulfill({ json: FIXTURE_METRIC_QUERY })
+      route.fulfill({ json: { type: "frame", frame: { data: [] } } })
     );
   });
 

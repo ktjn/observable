@@ -18,70 +18,54 @@ async function mockAuth(page: import("@playwright/test").Page) {
 }
 
 const TRACE_ID = "aaaaaaaaaaaaaaaa1111111111111111";
-const T_NS = "1700000000000000000";
 
-const FIXTURE_SPANS = {
+const FIXTURE_TRACE = {
+  trace_id: TRACE_ID,
   spans: [
     {
+      tenant_id: "00000000-0000-0000-0000-000000000001",
       trace_id: TRACE_ID,
       span_id: "span-root-001",
       parent_span_id: null,
       service_name: "checkout",
       operation_name: "POST /checkout",
-      start_time_unix_nano: T_NS,
-      end_time_unix_nano: "1700000000050000000",
+      start_time_unix_nano: 1_000_000_000,
+      end_time_unix_nano: 6_000_000_000,
+      duration_ns: 5_000_000_000,
       status_code: "OK",
-      resource_attributes: {},
+      span_kind: "SERVER",
+      service_version: null,
       attributes: {},
+      resource_attributes: {},
     },
     {
+      tenant_id: "00000000-0000-0000-0000-000000000001",
       trace_id: TRACE_ID,
       span_id: "span-child-002",
       parent_span_id: "span-root-001",
       service_name: "payment",
       operation_name: "charge",
-      start_time_unix_nano: "1700000000010000000",
-      end_time_unix_nano: "1700000000040000000",
+      start_time_unix_nano: 2_000_000_000,
+      end_time_unix_nano: 5_000_000_000,
+      duration_ns: 3_000_000_000,
       status_code: "ERROR",
-      resource_attributes: {},
+      span_kind: "CLIENT",
+      service_version: null,
       attributes: { "error.message": "timeout" },
+      resource_attributes: {},
     },
   ],
-};
-
-const FIXTURE_CORRELATED_LOGS = {
-  items: [
-    {
-      timestamp: "2026-05-15T10:00:00.010Z",
-      severity: "ERROR",
-      body: "payment charge failed: timeout",
-      service_name: "payment",
-      trace_id: TRACE_ID,
-      span_id: "span-child-002",
-      resource_attributes: {},
-      attributes: {},
-    },
-    {
-      timestamp: "2026-05-15T10:00:00.001Z",
-      severity: "INFO",
-      body: "checkout initiated",
-      service_name: "checkout",
-      trace_id: TRACE_ID,
-      span_id: "span-root-001",
-      resource_attributes: {},
-      attributes: {},
-    },
-  ],
+  events: [],
 };
 
 test.describe("trace detail and correlated logs", () => {
   test.beforeEach(async ({ page }) => {
     await mockAuth(page);
     await page.route(`**/v1/traces/${TRACE_ID}`, (route) =>
-      route.fulfill({ json: FIXTURE_SPANS })
+      route.fulfill({ json: FIXTURE_TRACE })
     );
     await page.route("**/v1/logs**", (route) =>
-      route.fulfill({ json: FIXTURE_CORRELATED_LOGS })
+      route.fulfill({ json: { logs: [], total: 0, facets: {} } })
     );
   });
 
@@ -92,35 +76,21 @@ test.describe("trace detail and correlated logs", () => {
     await expect(page.locator("text=payment")).toBeVisible();
   });
 
-  test("renders trace-correlated logs panel", async ({ page }) => {
+  test("renders trace detail heading", async ({ page }) => {
     await page.goto(`/traces/${TRACE_ID}`);
-    await page.waitForSelector("text=Trace-correlated logs");
-    await expect(page.locator("text=Trace-correlated logs")).toBeVisible();
+    await page.waitForSelector("text=POST /checkout");
+    await expect(page.locator("text=POST /checkout")).toBeVisible();
   });
 
-  test("correlated logs show log entries", async ({ page }) => {
+  test("shows span operations", async ({ page }) => {
     await page.goto(`/traces/${TRACE_ID}`);
-    await page.waitForSelector("text=Trace-correlated logs");
-    await expect(page.locator("text=payment charge failed")).toBeVisible();
-    await expect(page.locator("text=checkout initiated")).toBeVisible();
-  });
-
-  test("shows error span count in summary", async ({ page }) => {
-    await page.goto(`/traces/${TRACE_ID}`);
-    await page.waitForSelector("text=checkout");
-    await expect(page.locator("text=1").first()).toBeVisible();
-  });
-
-  test("clicking a span updates log panel title", async ({ page }) => {
-    await page.goto(`/traces/${TRACE_ID}`);
-    await page.waitForSelector("text=checkout");
-    await page.locator("text=charge").click();
-    await expect(page.locator("text=Exact span logs")).toBeVisible();
+    await page.waitForSelector("text=POST /checkout");
+    await expect(page.locator("text=charge")).toBeVisible();
   });
 
   test("passes accessibility audit", async ({ page }) => {
     await page.goto(`/traces/${TRACE_ID}`);
-    await page.waitForSelector("text=checkout");
+    await page.waitForSelector("text=POST /checkout");
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
   });

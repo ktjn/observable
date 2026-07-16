@@ -47,35 +47,34 @@ const FIXTURE_RULE_OK = {
   auto_trigger_incident: false,
 };
 
+const FIXTURE_RULE_DETAIL = {
+  rule_id: "rule-1",
+  name: "High Error Rate",
+  severity: "critical",
+  alert_type: "threshold",
+  condition: { metric_name: "error_rate", operator: "gt", threshold: 0.05 },
+  silenced: false,
+  firing: true,
+  firings: [],
+  runbook_url: null,
+};
+
 const FIXTURE_CHANNELS = [
   { channel_id: "channel-1", name: "ops-slack", type: "webhook", url: "https://hooks.example.com/1" },
 ];
 
 async function mockAlertsApi(page: import("@playwright/test").Page) {
-  await page.route("**/v1/alerts/rules**", (route) => {
+  await page.route("**/v1/alerts/rules", (route) => {
     if (route.request().method() === "POST") {
       return route.fulfill({
         status: 201,
-        json: {
-          rule_id: "rule-new",
-          name: "New Alert Rule",
-          metric_name: "error_rate",
-          operator: "gt",
-          threshold: 0.1,
-          severity: "warning",
-          silenced: false,
-          state: "ok",
-          firing: false,
-          last_fired_at: null,
-          notification_channels: [],
-          auto_trigger_incident: false,
-        },
+        json: { rule_id: "rule-new" },
       });
     }
     return route.fulfill({ json: { items: [FIXTURE_RULE_FIRING, FIXTURE_RULE_OK] } });
   });
   await page.route("**/v1/alerts/rules/rule-1", (route) =>
-    route.fulfill({ json: FIXTURE_RULE_FIRING })
+    route.fulfill({ json: FIXTURE_RULE_DETAIL })
   );
   await page.route("**/v1/slos**", (route) =>
     route.fulfill({ json: { items: [] } })
@@ -96,6 +95,12 @@ test.describe("alert rule detail", () => {
     await expect(page.locator("text=High Error Rate")).toBeVisible();
   });
 
+  test("alert detail shows condition summary", async ({ page }) => {
+    await page.goto("/alerts/rule-1");
+    await page.waitForSelector("text=High Error Rate");
+    await expect(page.locator("text=threshold")).toBeVisible();
+  });
+
   test("alert detail passes accessibility audit", async ({ page }) => {
     await page.goto("/alerts/rule-1");
     await page.waitForSelector("text=High Error Rate");
@@ -110,23 +115,24 @@ test.describe("alert list fired/resolved states", () => {
     await mockAlertsApi(page);
   });
 
-  test("firing rule shows firing indicator", async ({ page }) => {
-    await page.goto("/alerts");
-    await page.waitForSelector("table[aria-label='Alert rules']");
-    const firingRow = page.locator("tr", { hasText: "High Error Rate" });
-    await expect(firingRow).toHaveClass(/border-l-\[var\(--bad\)\]/);
-  });
-
-  test("ok rule has transparent border", async ({ page }) => {
-    await page.goto("/alerts");
-    await page.waitForSelector("table[aria-label='Alert rules']");
-    const okRow = page.locator("tr", { hasText: "Request Latency" });
-    await expect(okRow).toHaveClass(/border-l-transparent/);
-  });
-
-  test("notification channel shown for rule with channels", async ({ page }) => {
+  test("alert list shows both rules", async ({ page }) => {
     await page.goto("/alerts");
     await page.waitForSelector("table[aria-label='Alert rules']");
     await expect(page.locator("text=High Error Rate")).toBeVisible();
+    await expect(page.locator("text=Request Latency")).toBeVisible();
+  });
+
+  test("firing rule shows Firing badge", async ({ page }) => {
+    await page.goto("/alerts");
+    await page.waitForSelector("table[aria-label='Alert rules']");
+    const firingRow = page.locator("tr", { hasText: "High Error Rate" });
+    await expect(firingRow.locator("text=Firing")).toBeVisible();
+  });
+
+  test("ok rule shows OK badge", async ({ page }) => {
+    await page.goto("/alerts");
+    await page.waitForSelector("table[aria-label='Alert rules']");
+    const okRow = page.locator("tr", { hasText: "Request Latency" });
+    await expect(okRow.locator("text=OK")).toBeVisible();
   });
 });

@@ -47,7 +47,7 @@ const FIXTURE_MEMBERS = {
 };
 
 async function mockMembersApi(page: import("@playwright/test").Page) {
-  await page.route("**/v1/tenants/**/members**", (route) => {
+  await page.route("**/v1/admin/members**", (route) => {
     if (route.request().method() === "GET") {
       return route.fulfill({ json: FIXTURE_MEMBERS });
     }
@@ -62,9 +62,6 @@ async function mockMembersApi(page: import("@playwright/test").Page) {
     }
     return route.continue();
   });
-  await page.route("**/v1/tenants/**/members/**/sessions", (route) =>
-    route.fulfill({ status: 204 })
-  );
 }
 
 test.describe("admin member management", () => {

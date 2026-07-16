@@ -18,6 +18,21 @@ const MOCK_USER_MULTI_TENANT = {
   ],
 };
 
+async function mockDataEndpoints(page: import("@playwright/test").Page) {
+  await page.route("**/v1/nlq**", (route) =>
+    route.fulfill({ json: { type: "frame", frame: { data: [] } } })
+  );
+  await page.route("**/v1/services/summary**", (route) =>
+    route.fulfill({ json: { items: [] } })
+  );
+  await page.route("**/v1/services", (route) =>
+    route.fulfill({ json: { items: [] } })
+  );
+  await page.route("**/v1/topology**", (route) =>
+    route.fulfill({ json: { edges: [] } })
+  );
+}
+
 async function mockAuthSingleTenant(page: import("@playwright/test").Page) {
   await page.route("**/v1/auth/me", (route) => route.fulfill({ json: MOCK_USER_TENANT_A }));
   await page.route("**/v1/tenants", (route) =>
@@ -50,15 +65,13 @@ async function mockAuthMultiTenant(page: import("@playwright/test").Page) {
 test.describe("tenant isolation — single tenant", () => {
   test("API calls include tenant context", async ({ page }) => {
     await mockAuthSingleTenant(page);
+    await mockDataEndpoints(page);
     const tenantHeaders: string[] = [];
     await page.route("**/v1/services**", (route) => {
       const h = route.request().headers()["x-tenant-id"];
       if (h) tenantHeaders.push(h);
       return route.fulfill({ json: { items: [] } });
     });
-    await page.route("**/v1/nlq**", (route) =>
-      route.fulfill({ json: { type: "frame", frame: { data: [] } } })
-    );
     await page.goto("/services");
     await page.waitForTimeout(1000);
     expect(tenantHeaders.length).toBeGreaterThan(0);
@@ -71,12 +84,7 @@ test.describe("tenant isolation — single tenant", () => {
 test.describe("tenant isolation — multi tenant", () => {
   test("tenant selector shows both tenants", async ({ page }) => {
     await mockAuthMultiTenant(page);
-    await page.route("**/v1/services**", (route) =>
-      route.fulfill({ json: { items: [] } })
-    );
-    await page.route("**/v1/nlq**", (route) =>
-      route.fulfill({ json: { type: "frame", frame: { data: [] } } })
-    );
+    await mockDataEndpoints(page);
     await page.goto("/services");
     await expect(page.locator("text=Tenant A")).toBeVisible();
   });

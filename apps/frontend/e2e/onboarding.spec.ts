@@ -20,6 +20,9 @@ async function mockAuth(page: import("@playwright/test").Page) {
 test.describe("onboarding wizard", () => {
   test.beforeEach(async ({ page }) => {
     await mockAuth(page);
+    await page.route("**/v1/setup/status", (route) =>
+      route.fulfill({ json: { state: "waiting", traces: 0, logs: 0, metrics: 0 } })
+    );
   });
 
   test("renders language picker on first step", async ({ page }) => {
@@ -34,7 +37,7 @@ test.describe("onboarding wizard", () => {
   test("Next button is disabled until a language is selected", async ({ page }) => {
     await page.goto("/getting-started");
     await page.waitForSelector("text=Choose language");
-    const nextBtn = page.locator("button", { hasText: "Next" });
+    const nextBtn = page.locator("button", { hasText: /Next/ });
     await expect(nextBtn).toBeDisabled();
     await page.locator("button", { hasText: "Node.js" }).click();
     await expect(nextBtn).toBeEnabled();
@@ -44,7 +47,7 @@ test.describe("onboarding wizard", () => {
     await page.goto("/getting-started");
     await page.waitForSelector("text=Choose language");
     await page.locator("button", { hasText: "Python" }).click();
-    await page.locator("button", { hasText: "Next" }).click();
+    await page.locator("button", { hasText: /Next/ }).click();
     await expect(page.locator("text=Get API key")).toBeVisible();
     await expect(page.locator("text=Create API key")).toBeVisible();
   });
@@ -53,21 +56,32 @@ test.describe("onboarding wizard", () => {
     await page.goto("/getting-started");
     await page.waitForSelector("text=Choose language");
     await page.locator("button", { hasText: "Node.js" }).click();
-    await page.locator("button", { hasText: "Next" }).click();
+    await page.locator("button", { hasText: /Next/ }).click();
     await expect(page.locator("text=Install the SDK")).toBeVisible();
     await expect(page.locator("pre")).toContainText("npm install");
   });
 
-  test("creating API key shows plaintext and advances to waiting step", async ({ page }) => {
-    await page.route("**/v1/tenants/**/tokens", (route) =>
-      route.fulfill({
-        json: { id: "tok-1", plaintext: "osk_test_key_12345" },
-      })
-    );
+  test("creating API key shows plaintext token", async ({ page }) => {
+    await page.route("**/v1/tokens", (route) => {
+      if (route.request().method() === "POST") {
+        return route.fulfill({
+          json: {
+            id: "tok-1",
+            name: "onboarding-nodejs",
+            tenant_name: "observable",
+            environment: "production",
+            created_at: "2026-05-15T00:00:00Z",
+            revoked: false,
+            plaintext: "osk_test_key_12345",
+          },
+        });
+      }
+      return route.fulfill({ json: { tokens: [] } });
+    });
     await page.goto("/getting-started");
     await page.waitForSelector("text=Choose language");
     await page.locator("button", { hasText: "Node.js" }).click();
-    await page.locator("button", { hasText: "Next" }).click();
+    await page.locator("button", { hasText: /Next/ }).click();
     await page.locator("button", { hasText: "Create API key" }).click();
     await expect(page.locator("text=osk_test_key_12345")).toBeVisible();
   });
@@ -82,17 +96,30 @@ test.describe("onboarding wizard", () => {
     await expect(progress).toContainText("Done");
   });
 
-  test("Skip wizard button navigates away", async ({ page }) => {
+  test("Skip wizard button is visible", async ({ page }) => {
     await page.goto("/getting-started");
     await page.waitForSelector("text=Choose language");
     await expect(page.locator("button", { hasText: "Skip wizard" })).toBeVisible();
   });
 
   test("signal detection shows success with badge counts", async ({ page }) => {
-    await page.route("**/v1/tenants/**/tokens", (route) =>
-      route.fulfill({ json: { id: "tok-1", plaintext: "osk_test_key" } })
-    );
-    await page.route("**/v1/tenants/**/setup/first-signal", (route) =>
+    await page.route("**/v1/tokens", (route) => {
+      if (route.request().method() === "POST") {
+        return route.fulfill({
+          json: {
+            id: "tok-1",
+            name: "onboarding-nodejs",
+            tenant_name: "observable",
+            environment: "production",
+            created_at: "2026-05-15T00:00:00Z",
+            revoked: false,
+            plaintext: "osk_test_key",
+          },
+        });
+      }
+      return route.fulfill({ json: { tokens: [] } });
+    });
+    await page.route("**/v1/setup/status", (route) =>
       route.fulfill({
         json: { state: "detected", traces: 5, logs: 3, metrics: 1 },
       })
@@ -100,7 +127,7 @@ test.describe("onboarding wizard", () => {
     await page.goto("/getting-started");
     await page.waitForSelector("text=Choose language");
     await page.locator("button", { hasText: "Node.js" }).click();
-    await page.locator("button", { hasText: "Next" }).click();
+    await page.locator("button", { hasText: /Next/ }).click();
     await page.locator("button", { hasText: "Create API key" }).click();
     await expect(page.locator("text=Your first signal arrived!")).toBeVisible({ timeout: 10000 });
     await expect(page.locator("text=5 traces")).toBeVisible();
