@@ -48,9 +48,9 @@ and artifacts (cosign) is a separate, later Milestone 7 item — out of scope he
      (already authenticated via the existing `docker/login-action` step earlier in the job) and
      writes an SPDX-JSON SBOM to a local file (`sbom.spdx.json`). `upload-artifact: false`, since
      this pass does not add a separate downloadable SBOM artifact.
-  2. **Attest SBOM** — `actions/attest-sbom@v2` with `subject-name: ${{ steps.version.outputs.image }}`,
+  2. **Attest SBOM** — `actions/attest-sbom@v4.1.0` with `subject-name: ${{ steps.version.outputs.image }}`,
      `subject-digest: ${{ steps.publish.outputs.digest }}`, `sbom-path: sbom.spdx.json`.
-  3. **Attest build provenance** — `actions/attest-build-provenance@v2` with the same
+  3. **Attest build provenance** — `actions/attest-build-provenance@v4.1.1` with the same
      `subject-name`/`subject-digest`, recording this workflow run as the builder.
 - **Permissions:** add `id-token: write` and `attestations: write` to the workflow's existing
   `permissions:` block (alongside `contents: read`, `packages: write`) — both are required by
@@ -60,7 +60,7 @@ and artifacts (cosign) is a separate, later Milestone 7 item — out of scope he
   ```
   gh attestation verify oci://ghcr.io/{owner}/observable-services:v{VERSION} --owner {owner}
   ```
-- **Roadmap bookkeeping:** following the pattern used for the three prior Milestone 7 items, the
+- **Roadmap bookkeeping:** following the pattern used for the one prior Milestone 7 item, the
   `ROADMAP.md` checkbox for "Generate SBOMs and provenance attestations" stays unchecked in this
   PR, with a note that it should be marked complete after the first real release tag confirms both
   attestations are present and verify successfully.

@@ -14,7 +14,7 @@
 - Add exactly two new permissions to the workflow: `id-token: write` and `attestations: write` — required by GitHub's attestation actions. Do not add any other new permission.
 - Scope is the published container image only — do not attest the Helm chart or the downloadable `dist/` bundle in this task (explicitly deferred per the design).
 - Do not modify the tag/version verification step, the image build steps' `provenance: false`/`sbom: false` flags, the chart packaging step, or the Helm OCI publish steps added in the prior PR.
-- `ROADMAP.md`'s "Generate SBOMs and provenance attestations" checkbox stays unchecked in this PR — add a note instead, matching the convention already used for the three prior Milestone 7 items.
+- `ROADMAP.md`'s "Generate SBOMs and provenance attestations" checkbox stays unchecked in this PR — add a note instead, matching the convention already used for the one prior Milestone 7 item.
 - This is a docs+CI-workflow-only change; no application code, no chart contents, no version bump.
 - Pin every new `uses:` action to an exact commit SHA with a trailing `# vX.Y.Z` comment, matching every existing `uses:` line in this file. Use exactly these pins (looked up from each action's GitHub releases):
   - `anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0`

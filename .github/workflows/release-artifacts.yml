@@ -84,27 +84,6 @@ jobs:
           provenance: false
           sbom: false
 
-      - name: Generate SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          image: ${{ steps.version.outputs.image }}:${{ steps.version.outputs.tag }}
-          format: spdx-json
-          output-file: sbom.spdx.json
-          upload-artifact: false
-
-      - name: Attest SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-name: ${{ steps.version.outputs.image }}
-          subject-digest: ${{ steps.publish.outputs.digest }}
-          sbom-path: sbom.spdx.json
-
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
-        with:
-          subject-name: ${{ steps.version.outputs.image }}
-          subject-digest: ${{ steps.publish.outputs.digest }}
-
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
         with:
           version: '4.2.3'
@@ -154,3 +133,24 @@ jobs:
           path: dist/
           if-no-files-found: error
           retention-days: 30
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: ${{ steps.version.outputs.image }}:${{ steps.version.outputs.tag }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ steps.version.outputs.image }}
+          subject-digest: ${{ steps.publish.outputs.digest }}
+          sbom-path: sbom.spdx.json
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-name: ${{ steps.version.outputs.image }}
+          subject-digest: ${{ steps.publish.outputs.digest }}
