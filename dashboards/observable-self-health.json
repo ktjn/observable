@@ -1,0 +1,102 @@
+{
+  "schema_version": "2",
+  "name": "Observable Self-Health",
+  "panels": [
+    {
+      "title": "Service Overview",
+      "panel_kind": "text",
+      "content": "## Observable Platform Health\n\nThis dashboard monitors Observable's own services via the self-observability telemetry path. All panels query data from the `observable` environment.",
+      "filters": {},
+      "layout": { "x": 0, "y": 0, "w": 12, "h": 2 }
+    },
+    {
+      "title": "Ingest Gateway — Recent Traces",
+      "panel_kind": "query",
+      "query_kind": "traces",
+      "service": "ingest-gateway",
+      "filters": {},
+      "layout": { "x": 0, "y": 2, "w": 6, "h": 4 },
+      "time_range": { "mode": "preset", "preset": "1h" }
+    },
+    {
+      "title": "Stream Processor — Recent Traces",
+      "panel_kind": "query",
+      "query_kind": "traces",
+      "service": "stream-processor",
+      "filters": {},
+      "layout": { "x": 6, "y": 2, "w": 6, "h": 4 },
+      "time_range": { "mode": "preset", "preset": "1h" }
+    },
+    {
+      "title": "Storage Writer — Recent Traces",
+      "panel_kind": "query",
+      "query_kind": "traces",
+      "service": "storage-writer",
+      "filters": {},
+      "layout": { "x": 0, "y": 6, "w": 6, "h": 4 },
+      "time_range": { "mode": "preset", "preset": "1h" }
+    },
+    {
+      "title": "Query API — Recent Traces",
+      "panel_kind": "query",
+      "query_kind": "traces",
+      "service": "query-api",
+      "filters": {},
+      "layout": { "x": 6, "y": 6, "w": 6, "h": 4 },
+      "time_range": { "mode": "preset", "preset": "1h" }
+    },
+    {
+      "title": "Auth Service — Recent Traces",
+      "panel_kind": "query",
+      "query_kind": "traces",
+      "service": "auth-service",
+      "filters": {},
+      "layout": { "x": 0, "y": 10, "w": 4, "h": 4 },
+      "time_range": { "mode": "preset", "preset": "1h" }
+    },
+    {
+      "title": "Admin Service — Recent Traces",
+      "panel_kind": "query",
+      "query_kind": "traces",
+      "service": "admin-service",
+      "filters": {},
+      "layout": { "x": 4, "y": 10, "w": 4, "h": 4 },
+      "time_range": { "mode": "preset", "preset": "1h" }
+    },
+    {
+      "title": "Alert Evaluator — Recent Traces",
+      "panel_kind": "query",
+      "query_kind": "traces",
+      "service": "alert-evaluator",
+      "filters": {},
+      "layout": { "x": 8, "y": 10, "w": 4, "h": 4 },
+      "time_range": { "mode": "preset", "preset": "1h" }
+    },
+    {
+      "title": "Platform Errors",
+      "panel_kind": "query",
+      "query_kind": "logs",
+      "filters": { "severity": "ERROR" },
+      "layout": { "x": 0, "y": 14, "w": 12, "h": 4 },
+      "time_range": { "mode": "preset", "preset": "1h" }
+    },
+    {
+      "title": "Ingest Gateway — Error Traces",
+      "panel_kind": "query",
+      "query_kind": "traces",
+      "service": "ingest-gateway",
+      "filters": { "status": "error" },
+      "layout": { "x": 0, "y": 18, "w": 6, "h": 4 },
+      "time_range": { "mode": "preset", "preset": "3h" }
+    },
+    {
+      "title": "Storage Writer — Error Traces",
+      "panel_kind": "query",
+      "query_kind": "traces",
+      "service": "storage-writer",
+      "filters": { "status": "error" },
+      "layout": { "x": 6, "y": 18, "w": 6, "h": 4 },
+      "time_range": { "mode": "preset", "preset": "3h" }
+    }
+  ]
+}

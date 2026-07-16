@@ -53,6 +53,8 @@ main() {
   run_stage "Load baseline" docker compose run --rm perf-smoke
   run_stage "Tenant escape smoke" docker compose run --rm smoke-test
   run_stage "Chaos probe" bash "$SCRIPT_DIR/chaos-smoke.sh"
+  run_stage "Dependency failure" bash "$SCRIPT_DIR/dependency-failure-test.sh"
+  run_stage "Backpressure" bash "$SCRIPT_DIR/backpressure-test.sh"
   run_stage "Upgrade and rollback" bash "$SCRIPT_DIR/kind-test.sh"
 
   echo ""
