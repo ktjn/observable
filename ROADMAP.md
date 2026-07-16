@@ -140,13 +140,13 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 
 - [x] Add missing `/metrics` endpoints to ingest-gateway, stream-processor, and alert-evaluator.
 - [x] Add ingest throughput, rejection, queue, processing, and alert-evaluation metrics.
-- [ ] Provide a dashboard for Observable's own health.
+- [x] Provide a dashboard for Observable's own health.
 - [x] Define measurable ingestion and query latency gates.
-- [ ] Run a minimum one-hour ingest/query soak test.
-- [ ] Test Redpanda interruption and recovery.
-- [ ] Test ClickHouse interruption during ingestion and query.
-- [ ] Test PostgreSQL and OpenFGA unavailability with fail-closed behavior where required.
-- [ ] Test bounded memory, queue growth, backpressure, and disk-full behavior.
+- [x] Run a minimum one-hour ingest/query soak test.
+- [x] Test Redpanda interruption and recovery.
+- [x] Test ClickHouse interruption during ingestion and query.
+- [x] Test PostgreSQL and OpenFGA unavailability with fail-closed behavior where required.
+- [x] Test bounded memory, queue growth, backpressure, and disk-full behavior.
 - [x] Document capacity assumptions and recovery procedures.
 
 ### Exit criteria
@@ -206,13 +206,9 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 
 ## Current work
 
-The current implementation priority is **Milestone 5 — Reliability and self-observability**.
+The current implementation priority is **Milestone 6 — Core user journeys**.
 
-Milestones 1–4 are substantially complete. The remaining M5 items are:
-
-1. Provide a dashboard for Observable's own health.
-2. Run a minimum one-hour ingest/query soak test.
-3. Test Redpanda, ClickHouse, PostgreSQL, and OpenFGA interruption and recovery.
-4. Test bounded memory, queue growth, backpressure, and disk-full behavior.
+Milestones 1–5 are complete. The next items are Playwright browser coverage, end-to-end user
+journey tests, accessibility scans, and evaluation documentation.
 
 The detailed feature backlog remains useful for post-0.1 planning but does not override this roadmap.
