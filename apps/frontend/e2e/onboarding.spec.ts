@@ -48,7 +48,7 @@ test.describe("onboarding wizard", () => {
     await page.waitForSelector("text=Choose language");
     await page.locator("button", { hasText: "Python" }).click();
     await page.locator("button", { hasText: /Next/ }).click();
-    await expect(page.locator("text=Get API key")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Get API key" })).toBeVisible();
     await expect(page.locator("text=Create API key")).toBeVisible();
   });
 
@@ -58,7 +58,7 @@ test.describe("onboarding wizard", () => {
     await page.locator("button", { hasText: "Node.js" }).click();
     await page.locator("button", { hasText: /Next/ }).click();
     await expect(page.locator("text=Install the SDK")).toBeVisible();
-    await expect(page.locator("pre")).toContainText("npm install");
+    await expect(page.locator("pre").first()).toContainText("npm install");
   });
 
   test("creating API key shows plaintext token", async ({ page }) => {

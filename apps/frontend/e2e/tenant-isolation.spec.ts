@@ -82,11 +82,15 @@ test.describe("tenant isolation — single tenant", () => {
 });
 
 test.describe("tenant isolation — multi tenant", () => {
-  test("tenant selector shows both tenants", async ({ page }) => {
+  test("tenant selector contains both tenants", async ({ page }) => {
     await mockAuthMultiTenant(page);
     await mockDataEndpoints(page);
     await page.goto("/services");
-    await expect(page.locator("text=Tenant A")).toBeVisible();
+    const select = page.locator("select").first();
+    await expect(select).toBeVisible();
+    const options = select.locator("option");
+    await expect(options).toHaveCount(2);
+    await expect(select).toHaveValue(TENANT_A_ID);
   });
 });
 

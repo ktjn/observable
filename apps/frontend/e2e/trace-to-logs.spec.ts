@@ -71,9 +71,9 @@ test.describe("trace detail and correlated logs", () => {
 
   test("renders waterfall with service names", async ({ page }) => {
     await page.goto(`/traces/${TRACE_ID}`);
-    await page.waitForSelector("text=checkout");
-    await expect(page.locator("text=checkout")).toBeVisible();
-    await expect(page.locator("text=payment")).toBeVisible();
+    await page.waitForSelector("text=POST /checkout");
+    await expect(page.getByText("checkout", { exact: true })).toBeVisible();
+    await expect(page.getByText("payment", { exact: true })).toBeVisible();
   });
 
   test("renders trace detail heading", async ({ page }) => {
