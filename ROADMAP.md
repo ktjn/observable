@@ -177,7 +177,7 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 
 ## Milestone 7 — Release engineering
 
-- [ ] Establish one repository/product version source of truth.
+- [x] Establish one repository/product version source of truth.
 - [ ] Build release artifacts from immutable tags.
 - [ ] Publish multi-architecture container images where supported.
 - [ ] Publish the Helm chart.

@@ -1,5 +1,22 @@
 # Versioning and Release Policy
 
+## Version source of truth
+
+The repository root [`VERSION`](VERSION) file is the authoritative Observable product version.
+Release-facing metadata must match it, including:
+
+- Rust workspace package versions under `libs/` and `services/`.
+- `apps/frontend/package.json`.
+- The Observable Helm chart `version` and `appVersion`.
+- Git release tags, which use the form `v{VERSION}`.
+
+Run `bash scripts/verify-version.sh` before opening a release pull request. CI runs the same check
+for pull requests, `main`, and release tags.
+
+To bump the product version, update `VERSION` and every location reported by the verifier in one
+pull request. Do not derive the product version independently from branch names, commit counts, or
+mutable image tags.
+
 ## Version scheme
 
 Observable uses [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH).
