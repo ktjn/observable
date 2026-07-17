@@ -26,9 +26,6 @@ making changes.
 > "Finished Plan Archiving" note.
 
 - Repository process: `AGENTS.md` and `spec/10-process.md`.
-- Agent role routing: `.github/agents/README.md`, with `.github/agents/coordinator.agent.md` as the
-  default entry role. Runtimes without subagent support should apply matching specialist `.agent.md`
-  files manually as checklists.
 - Active roadmap: `ROADMAP.md` — release-readiness roadmap to 0.1.0. Priority order: security and
   tenant-isolation blockers, then reproducible install/migration/backup/restore, protocol and data
   correctness, operational reliability, core user journeys and documentation, and release

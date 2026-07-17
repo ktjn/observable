@@ -129,3 +129,20 @@ Screenshots are written to `apps/frontend/e2e/screenshots/`. Review them visuall
 
 **Mock data pattern:**
 All tests use `page.route()` to intercept API calls. Copy the mock structure from an existing test in the same spec file — all fixtures are at the top of each file. The auth mock (`mockAuth`) is a shared helper declared at the top of each spec. Mocked endpoints must match the glob patterns used by the real API (e.g. `**/v1/nlq`, `**/v1/tenants/**/logs/histogram**`).
+
+## Role-Based Guidance
+
+To maintain focus and governance consistency, adopt the appropriate mindset based on the task surface:
+
+- **Coordinator:** Decompose the task, identify affected surfaces (spec, docs, architecture, code), and ensure all mandates are satisfied before opening a PR.
+- **Worker:** Claim a GitHub issue, write a failing test (for bugs), and implement the fix/feature following native tool rules (cargo, npm, uv).
+- **Steward:** Review changes for compliance.
+  - **Architecture:** Verify ADR alignment (e.g., Rust for data plane, ClickHouse for telemetry, tenant_id on every table).
+  - **Spec & Docs:** Pass all phases of the `doc-review` skill; ensure ROADMAP.md and cross-links are updated.
+
+### GitHub Issue Workflow
+
+When picking up work from the backlog:
+1. **Find:** `gh issue list --assignee="" --state=open --limit=50 --json number,title,labels --jq 'sort_by(.labels[].name | select(. == "bug")) | reverse | .[]'`
+2. **Claim:** `gh issue edit <NUMBER> --add-assignee @me --add-label "in-progress"`
+3. **Branch:** `git checkout -b fix/issue-<NUMBER>-<slug>` (for bugs) or `feat/issue-<NUMBER>-slug` (for features).
