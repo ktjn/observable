@@ -7,7 +7,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{AdminServiceAppState, middleware::auth::TenantContext};
+use crate::{
+    AdminServiceAppState,
+    middleware::auth::{TenantContext, require_admin},
+};
 
 #[derive(Debug, Deserialize)]
 pub struct UsageReportQuery {
@@ -216,6 +219,7 @@ pub async fn handle_get_tenant_usage_report(
     Extension(ctx): Extension<TenantContext>,
     Query(query): Query<UsageReportQuery>,
 ) -> Result<Json<UsageReportResponse>, StatusCode> {
+    require_admin(&ctx)?;
     match get_tenant_usage_report(&state, ctx.tenant_id, &query).await {
         Ok(report) => Ok(Json(report)),
         Err(e) => {

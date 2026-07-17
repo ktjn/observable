@@ -13,7 +13,7 @@
 // DELETE /v1/tokens/:id/permanent    — hard-delete the row
 
 use crate::AdminServiceAppState;
-use crate::middleware::auth::TenantContext;
+use crate::middleware::auth::{TenantContext, require_admin};
 use axum::{
     Json,
     extract::{Extension, Path, State},
@@ -62,6 +62,7 @@ pub async fn list_tokens(
     State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
 ) -> Result<Json<TokenListResponse>, StatusCode> {
+    require_admin(&ctx)?;
     let rows = sqlx::query!(
         r#"
         SELECT
@@ -108,6 +109,7 @@ pub async fn create_token(
     Extension(ctx): Extension<TenantContext>,
     Json(body): Json<CreateTokenRequest>,
 ) -> Result<Json<CreateTokenResponse>, StatusCode> {
+    require_admin(&ctx)?;
     if body.name.trim().is_empty() || body.environment.trim().is_empty() {
         return Err(StatusCode::UNPROCESSABLE_ENTITY);
     }
@@ -167,6 +169,7 @@ pub async fn revoke_token(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
+    require_admin(&ctx)?;
     let result = sqlx::query!(
         r#"
         UPDATE api_keys
@@ -200,6 +203,7 @@ pub async fn renew_token(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<CreateTokenResponse>, StatusCode> {
+    require_admin(&ctx)?;
     let mut bytes = [0u8; 32];
     rand::rng().fill_bytes(&mut bytes);
     let plaintext: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
@@ -254,6 +258,7 @@ pub async fn restore_token(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
+    require_admin(&ctx)?;
     let result = sqlx::query!(
         r#"
         UPDATE api_keys
@@ -286,6 +291,7 @@ pub async fn delete_token(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
+    require_admin(&ctx)?;
     let result = sqlx::query!(
         r#"
         DELETE FROM api_keys

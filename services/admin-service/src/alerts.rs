@@ -6,7 +6,7 @@
 // PATCH  /v1/admin/alerts/rules/{id}          — update service_name
 
 use crate::AdminServiceAppState;
-use crate::middleware::auth::TenantContext;
+use crate::middleware::auth::{TenantContext, require_admin};
 use axum::{
     Json,
     extract::{Extension, Path, State},
@@ -58,6 +58,7 @@ pub async fn handle_create_rule(
     Extension(ctx): Extension<TenantContext>,
     Json(req): Json<CreateRuleRequest>,
 ) -> Result<(StatusCode, Json<CreateRuleResponse>), StatusCode> {
+    require_admin(&ctx)?;
     if req.name.trim().is_empty() {
         return Err(StatusCode::BAD_REQUEST);
     }
@@ -188,6 +189,7 @@ pub async fn handle_silence_rule(
     Path(rule_id): Path<Uuid>,
     Json(req): Json<SilenceRequest>,
 ) -> Result<StatusCode, StatusCode> {
+    require_admin(&ctx)?;
     let updated: Option<Uuid> = sqlx::query_scalar(
         "UPDATE alert_rules SET silenced = $1 \
          WHERE rule_id = $2 AND tenant_id = $3 \
@@ -215,6 +217,7 @@ pub async fn handle_update_rule_runbook(
     Path(rule_id): Path<Uuid>,
     Json(req): Json<UpdateRunbookRequest>,
 ) -> Result<StatusCode, StatusCode> {
+    require_admin(&ctx)?;
     if let Some(url) = &req.runbook_url
         && !url.starts_with("http://")
         && !url.starts_with("https://")
@@ -248,6 +251,7 @@ pub async fn handle_update_rule(
     Path(rule_id): Path<Uuid>,
     Json(req): Json<UpdateRuleRequest>,
 ) -> Result<StatusCode, StatusCode> {
+    require_admin(&ctx)?;
     let updated: Option<Uuid> = sqlx::query_scalar(
         "UPDATE alert_rules SET service_name = $1 \
          WHERE rule_id = $2 AND tenant_id = $3 \

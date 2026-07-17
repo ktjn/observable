@@ -154,9 +154,16 @@ pub async fn login_handler(State(state): State<OidcState>) -> Response {
         urlencoding(&state_param),
     );
 
-    let set_cv = format!("pkce_cv={verifier}; HttpOnly; SameSite=Lax; Path=/; Max-Age=300");
-    let set_state =
-        format!("oauth_state={state_param}; HttpOnly; SameSite=Lax; Path=/; Max-Age=300");
+    let secure_attr = if state.config.dev_mode {
+        String::new()
+    } else {
+        "; Secure".to_string()
+    };
+    let set_cv =
+        format!("pkce_cv={verifier}; HttpOnly; SameSite=Lax; Path=/; Max-Age=300{secure_attr}");
+    let set_state = format!(
+        "oauth_state={state_param}; HttpOnly; SameSite=Lax; Path=/; Max-Age=300{secure_attr}"
+    );
 
     Response::builder()
         .status(StatusCode::FOUND)
@@ -174,15 +181,26 @@ pub struct CallbackParams {
 }
 
 // Redirect the browser to /login with an error code so the user can retry.
-fn login_error_redirect(code: &str) -> Response {
+fn login_error_redirect(state: &OidcState, code: &str) -> Response {
+    let secure_attr = if state.config.dev_mode {
+        ""
+    } else {
+        "; Secure"
+    };
     Response::builder()
         .status(StatusCode::FOUND)
         .header(
             header::LOCATION,
             format!("/login?error={}", urlencoding(code)),
         )
-        .header(header::SET_COOKIE, "pkce_cv=; Max-Age=0; Path=/")
-        .header(header::SET_COOKIE, "oauth_state=; Max-Age=0; Path=/")
+        .header(
+            header::SET_COOKIE,
+            format!("pkce_cv=; Max-Age=0; Path=/{secure_attr}"),
+        )
+        .header(
+            header::SET_COOKIE,
+            format!("oauth_state=; Max-Age=0; Path=/{secure_attr}"),
+        )
         .body(axum::body::Body::empty())
         .unwrap()
 }
@@ -198,7 +216,7 @@ pub async fn callback_handler(
         Some(v) => v,
         None => {
             tracing::warn!("callback: missing pkce_cv cookie — session may have expired");
-            return login_error_redirect("session_expired");
+            return login_error_redirect(&state, "session_expired");
         }
     };
 
@@ -206,13 +224,13 @@ pub async fn callback_handler(
         Some(s) => s,
         None => {
             tracing::warn!("callback: missing oauth_state cookie — session may have expired");
-            return login_error_redirect("session_expired");
+            return login_error_redirect(&state, "session_expired");
         }
     };
 
     if cookie_state != params.state {
         tracing::warn!("callback: oauth_state mismatch (possible CSRF or stale session)");
-        return login_error_redirect("session_expired");
+        return login_error_redirect(&state, "session_expired");
     }
 
     // Exchange code for tokens at Zitadel (server-to-server, internal URL).
@@ -244,12 +262,12 @@ pub async fn callback_handler(
             Ok(v) => v,
             Err(e) => {
                 tracing::warn!("callback: failed to parse Zitadel token response: {e}");
-                return login_error_redirect("provider_error");
+                return login_error_redirect(&state, "provider_error");
             }
         },
         Err(e) => {
             tracing::warn!("callback: could not reach Zitadel token endpoint: {e}");
-            return login_error_redirect("provider_error");
+            return login_error_redirect(&state, "provider_error");
         }
     };
 
@@ -260,7 +278,7 @@ pub async fn callback_handler(
                 "callback: Zitadel token exchange did not return access_token: {}",
                 token_resp
             );
-            return login_error_redirect("auth_failed");
+            return login_error_redirect(&state, "auth_failed");
         }
     };
 
@@ -277,12 +295,12 @@ pub async fn callback_handler(
             Ok(v) => v,
             Err(e) => {
                 tracing::warn!("callback: failed to parse Zitadel userinfo response: {e}");
-                return login_error_redirect("provider_error");
+                return login_error_redirect(&state, "provider_error");
             }
         },
         Err(e) => {
             tracing::warn!("callback: could not reach Zitadel userinfo endpoint: {e}");
-            return login_error_redirect("provider_error");
+            return login_error_redirect(&state, "provider_error");
         }
     };
 
@@ -290,7 +308,7 @@ pub async fn callback_handler(
         Some(s) => s.to_owned(),
         None => {
             tracing::warn!("callback: Zitadel userinfo missing 'sub': {}", userinfo);
-            return login_error_redirect("auth_failed");
+            return login_error_redirect(&state, "auth_failed");
         }
     };
     let email = userinfo["email"].as_str().unwrap_or("").to_owned();
@@ -300,7 +318,7 @@ pub async fn callback_handler(
         Ok(id) => id,
         Err(e) => {
             tracing::error!("callback: failed to upsert user: {e}");
-            return login_error_redirect("server_error");
+            return login_error_redirect(&state, "server_error");
         }
     };
 
@@ -308,7 +326,7 @@ pub async fn callback_handler(
         Ok(t) => t,
         Err(e) => {
             tracing::error!("callback: failed to list user tenants: {e}");
-            return login_error_redirect("server_error");
+            return login_error_redirect(&state, "server_error");
         }
     };
 
@@ -324,19 +342,19 @@ pub async fn callback_handler(
                 Ok(id) => id,
                 Err(e) => {
                     tracing::error!("callback: invalid hardcoded tenant UUID: {e}");
-                    return login_error_redirect("server_error");
+                    return login_error_redirect(&state, "server_error");
                 }
             };
             if let Err(e) = upsert_user_tenant_role(&state.db, user_id, tid, "tenant_admin").await {
                 tracing::error!("callback: failed to upsert tenant role: {e}");
-                return login_error_redirect("server_error");
+                return login_error_redirect(&state, "server_error");
             }
         }
         tenants = match list_user_tenants(&state.db, user_id).await {
             Ok(t) => t,
             Err(e) => {
                 tracing::error!("callback: failed to list user tenants after seeding: {e}");
-                return login_error_redirect("server_error");
+                return login_error_redirect(&state, "server_error");
             }
         };
     }
@@ -345,7 +363,7 @@ pub async fn callback_handler(
         Some(pair) => pair,
         None => {
             tracing::warn!("callback: user {} has no tenant memberships", sub);
-            return login_error_redirect("no_access");
+            return login_error_redirect(&state, "no_access");
         }
     };
 
@@ -359,7 +377,7 @@ pub async fn callback_handler(
         Ok(r) => r,
         Err(e) => {
             tracing::error!("callback: failed to query environment: {e}");
-            return login_error_redirect("server_error");
+            return login_error_redirect(&state, "server_error");
         }
     };
     let environment = env_row.unwrap_or_else(|| "default".to_string());
@@ -368,7 +386,7 @@ pub async fn callback_handler(
         Ok(id) => id,
         Err(e) => {
             tracing::error!("callback: failed to create session: {e}");
-            return login_error_redirect("server_error");
+            return login_error_redirect(&state, "server_error");
         }
     };
 
@@ -389,7 +407,7 @@ pub async fn callback_handler(
         Ok(t) => t,
         Err(e) => {
             tracing::error!("callback: failed to sign session JWT: {e}");
-            return login_error_redirect("server_error");
+            return login_error_redirect(&state, "server_error");
         }
     };
 
@@ -440,10 +458,19 @@ pub async fn logout_handler(
         .await;
     }
 
+    let secure_attr = if state.config.dev_mode {
+        ""
+    } else {
+        "; Secure"
+    };
+
     Response::builder()
         .status(StatusCode::FOUND)
         .header(header::LOCATION, "/login")
-        .header(header::SET_COOKIE, "session=; Max-Age=0; Path=/")
+        .header(
+            header::SET_COOKIE,
+            format!("session=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax{secure_attr}"),
+        )
         .body(axum::body::Body::empty())
         .unwrap()
 }

@@ -10,7 +10,7 @@
 // POST   /v1/admin/members/:user_id/revoke-sessions — revoke sessions only
 
 use crate::AdminServiceAppState;
-use crate::middleware::auth::TenantContext;
+use crate::middleware::auth::{TenantContext, require_admin};
 use axum::{
     Json,
     extract::{Extension, Path, State},
@@ -49,16 +49,6 @@ pub struct AddMemberRequest {
 #[derive(Deserialize)]
 pub struct UpdateRoleRequest {
     pub role: String,
-}
-
-// ── Role guard helper ─────────────────────────────────────────────────────────
-
-fn require_admin(ctx: &TenantContext) -> Result<(), StatusCode> {
-    if ctx.role != "tenant_admin" {
-        Err(StatusCode::FORBIDDEN)
-    } else {
-        Ok(())
-    }
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────

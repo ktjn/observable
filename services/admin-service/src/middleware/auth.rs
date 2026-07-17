@@ -22,6 +22,14 @@ pub struct TenantContext {
 /// Extensions required in the tower stack (via `.layer(axum::Extension(...))`):
 ///   - `PgPool`          — for the cross-tenant-switch lookup on the session path
 ///   - `Arc<String>`     — the auth-service base URL (for API-key + session validation)
+pub fn require_admin(ctx: &TenantContext) -> Result<(), StatusCode> {
+    if ctx.role != "tenant_admin" {
+        Err(StatusCode::FORBIDDEN)
+    } else {
+        Ok(())
+    }
+}
+
 pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, StatusCode> {
     let db = req.extensions().get::<PgPool>().cloned().ok_or_else(|| {
         tracing::error!("PgPool not found in request extensions — misconfigured middleware stack");

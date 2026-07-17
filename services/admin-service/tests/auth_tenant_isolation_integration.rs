@@ -118,6 +118,15 @@ async fn session_switch_rebinds_role_from_requested_tenant() {
     let requested_tenant_id = Uuid::new_v4();
     mock_session(&mock_server, user_id, session_tenant_id).await;
 
+    sqlx::query(
+        "INSERT INTO tenants (id, name) VALUES ($1, 'Session Tenant'), ($2, 'Requested Tenant')",
+    )
+    .bind(session_tenant_id)
+    .bind(requested_tenant_id)
+    .execute(&db)
+    .await
+    .expect("tenants inserted");
+
     sqlx::query("INSERT INTO users (id, idp_subject, email) VALUES ($1, $2, $3)")
         .bind(user_id)
         .bind(format!("idp|{user_id}"))
@@ -154,4 +163,66 @@ async fn session_switch_rebinds_role_from_requested_tenant() {
         body.as_ref(),
         format!("{requested_tenant_id}:member").as_bytes()
     );
+}
+
+#[tokio::test]
+async fn session_switch_enforces_target_role() {
+    let (db, _container) = start_postgres().await;
+    let mock_server = MockServer::start().await;
+    let user_id = Uuid::new_v4();
+    let session_tenant_id = Uuid::new_v4();
+    let requested_tenant_id = Uuid::new_v4();
+    mock_session(&mock_server, user_id, session_tenant_id).await;
+
+    // User is an admin in their current session tenant, but only a member in the requested tenant.
+    sqlx::query(
+        "INSERT INTO tenants (id, name) VALUES ($1, 'Session Tenant'), ($2, 'Requested Tenant')",
+    )
+    .bind(session_tenant_id)
+    .bind(requested_tenant_id)
+    .execute(&db)
+    .await
+    .expect("tenants inserted");
+
+    sqlx::query("INSERT INTO users (id, idp_subject, email) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(format!("idp|{user_id}"))
+        .bind(format!("{user_id}@example.com"))
+        .execute(&db)
+        .await
+        .expect("user inserted");
+    sqlx::query("INSERT INTO user_tenant_roles (user_id, tenant_id, role) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(requested_tenant_id)
+        .bind("member")
+        .execute(&db)
+        .await
+        .expect("membership inserted");
+
+    // A mock handler that requires admin role.
+    let app = Router::new()
+        .route(
+            "/",
+            get(|Extension(ctx): Extension<TenantContext>| async move {
+                admin_service::middleware::auth::require_admin(&ctx)?;
+                Ok::<_, StatusCode>(ctx.role)
+            }),
+        )
+        .layer(middleware::from_fn(require_tenant))
+        .layer(Extension(db))
+        .layer(Extension(Arc::new(mock_server.uri())));
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/")
+                .header("cookie", "session=valid-session")
+                .header("x-tenant-id", requested_tenant_id.to_string())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
