@@ -2,7 +2,6 @@
 // requires: serde_json (https://docs.rs/serde_json)
 // requires: uuid (https://docs.rs/uuid)
 // requires: clickhouse (https://docs.rs/clickhouse)
-use std::collections::HashMap;
 
 #[cfg(feature = "storage")]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, clickhouse::Row)]
@@ -29,6 +28,7 @@ pub struct LogsLogRowV1 {
 #[cfg(feature = "storage")]
 use super::logs_log_record_v1::LogsLogRecordV1;
 #[cfg(feature = "storage")]
+#[allow(clippy::useless_conversion)]
 impl From<LogsLogRecordV1> for LogsLogRowV1 {
     fn from(src: LogsLogRecordV1) -> Self {
         Self {

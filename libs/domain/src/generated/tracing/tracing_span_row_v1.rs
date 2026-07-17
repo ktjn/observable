@@ -2,7 +2,6 @@
 // requires: serde_json (https://docs.rs/serde_json)
 // requires: uuid (https://docs.rs/uuid)
 // requires: clickhouse (https://docs.rs/clickhouse)
-use std::collections::HashMap;
 
 #[cfg(feature = "storage")]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, clickhouse::Row)]
@@ -37,6 +36,7 @@ use super::tracing_span_v1::TracingSpanV1SpanKind;
 #[cfg(feature = "storage")]
 use super::tracing_span_v1::TracingSpanV1StatusCode;
 #[cfg(feature = "storage")]
+#[allow(clippy::useless_conversion)]
 impl From<TracingSpanV1> for TracingSpanRowV1 {
     fn from(src: TracingSpanV1) -> Self {
         Self {
