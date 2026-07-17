@@ -21,8 +21,8 @@ spec-steward when the task surface calls for them.
 ## Decomposition Workflow
 
 1. **Read the task.** Identify which surfaces it touches:
-   `spec/` · `docs/superpowers/` · `spec/adr/` · `docs/superpowers/plans/` ·
-   `services/` · `apps/` · `libs/` · `migrations/` · `tests/` · `.github/agents/`.
+    `spec/` · `docs/` · `spec/adr/` · `ROADMAP.md` ·
+    `services/` · `apps/` · `libs/` · `migrations/` · `tests/` · `.github/agents/`.
 2. **Apply routing rules** from `.github/agents/README.md`:
    - Architecture-affecting change → invoke architecture-steward first.
    - Spec/doc change → invoke spec-steward before committing.
@@ -32,10 +32,10 @@ spec-steward when the task surface calls for them.
    conflict to the user with a clear options summary — do not resolve it silently.
 4. **Validate closure.** Before opening a PR, confirm all of the following:
    - `bash scripts/local-ci.sh` passed (or change is docs-only and exempt per AGENTS.md).
-   - `cargo fmt --all` ran explicitly before push for any Rust code change.
-   - completed detailed task plans were removed from `docs/superpowers/plans/` and active links
-     were updated.
-   - ADR sync requirement satisfied (new ADR opened, or PR states why none is needed).
+    - `cargo fmt --all` ran explicitly before push for any Rust code change.
+    - completed task statuses were updated in `ROADMAP.md` and active links
+      were updated.
+    - ADR sync requirement satisfied (new ADR opened, or PR states why none is needed).
    - Testcontainers requirement satisfied for any DB/queue boundary change (or PR states why not).
    - No regression gate weakened without replacement signal.
 5. **Open the branch and PR** per the AGENTS.md "Branch and PR Every Iteration" mandate.

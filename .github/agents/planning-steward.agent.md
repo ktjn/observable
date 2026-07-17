@@ -35,8 +35,7 @@ Do **not** pre-load Phase 1 historical documents unless explicitly asked.
    describes? Flag any out-of-scope additions so they can be tracked as follow-up slices.
 6. **Plan update required?** If the task changes planning assumptions (new slice, revised scope,
    closed slice), flag that the plan document should be updated in the same PR.
-7. **Finished plan cleanup check** — if a detailed task plan is complete, confirm it is removed
-   from `docs/superpowers/plans/` and every active link is updated.
+7. **Finished task cleanup check** — if a roadmap item is complete, confirm its status is updated in `ROADMAP.md` and every active link is updated.
 
 ## Constraints
 

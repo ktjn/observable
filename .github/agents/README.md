@@ -18,9 +18,9 @@ the slice of context relevant to their domain.
 |------|-----------|------------|-----------------|
 | **Coordinator** | `coordinator.agent.md` | User-facing; entry point | Cross-domain orchestration |
 | **Issue Worker** | `issue-worker.agent.md` | User-facing; backlog entry point | GitHub issue → branch → PR (parallelisable) |
-| **Spec & Docs Steward** | `spec-steward.agent.md` | Subagent (read-only) | `spec/`, `docs/superpowers/` |
-| **Architecture Steward** | `architecture-steward.agent.md` | Subagent (read-only) | `spec/adr/`, architecture sections of specs |
-| **Planning Steward** | `planning-steward.agent.md` | Subagent (read-only) | `docs/superpowers/plans/` |
+| **Spec & Docs Steward** | `spec-steward.agent.md` | Subagent (read-only) | `spec/`, `docs/` |
+ | **Architecture Steward** | `architecture-steward.agent.md` | Subagent (read-only) | `spec/adr/`, architecture sections of specs |
+ | **Planning Steward** | `planning-steward.agent.md` | Subagent (read-only) | `ROADMAP.md` |
 | **Implementation Steward** | `implementation-steward.agent.md` | Subagent (code) | `services/`, `apps/`, `libs/`, `migrations/`, `tests/` |
 
 ## Runtime Compatibility
@@ -45,10 +45,10 @@ The coordinator decides which specialist(s) to invoke based on what surfaces the
 | Task touches… | Invoke |
 |---------------|--------|
 | GitHub issue backlog (scan, claim, fix, PR) | issue-worker (standalone; does not need coordinator) |
-| `spec/`, `docs/superpowers/`, AGENTS.md, CLAUDE.md | spec-steward |
-| `.github/agents/` (role charters, routing rules, escalation triggers) | spec-steward |
-| `spec/adr/`, architecture/deployment/data-model/security decisions | architecture-steward |
-| `docs/superpowers/plans/` or phase/sequencing questions | planning-steward |
+| `spec/`, `docs/`, AGENTS.md, CLAUDE.md | spec-steward |
+ | `.github/agents/` (role charters, routing rules, escalation triggers) | spec-steward |
+ | `spec/adr/`, architecture/deployment/data-model/security decisions | architecture-steward |
+ | `ROADMAP.md` or phase/sequencing questions | planning-steward |
 | `services/`, `apps/`, `libs/`, `migrations/`, `tests/` | implementation-steward |
 | Multiple surfaces | Multiple specialists in sequence; coordinator reconciles |
 
@@ -57,10 +57,10 @@ The coordinator decides which specialist(s) to invoke based on what surfaces the
 - **Architecture change** (deployment model, data model, security model, API contract, technology choice):
   coordinator must invoke architecture-steward *before* implementation-steward writes any code.
   architecture-steward confirms ADR coverage; if a new ADR is needed, coordinator pauses and creates it.
-- **Spec/doc change** (any file under `spec/` or `docs/superpowers/`):
-  coordinator invokes spec-steward to review consistency and cross-reference accuracy before commit.
-- **Plan change** (adding, resequencing, or closing slices in `docs/superpowers/plans/`):
-  coordinator invokes planning-steward to confirm alignment with active Phases 2–8 plan.
+- **Spec/doc change** (any file under `spec/` or `docs/`):
+   coordinator invokes spec-steward to review consistency and cross-reference accuracy before commit.
+ - **Plan change** (adding, resequencing, or closing slices in `ROADMAP.md`):
+   coordinator invokes planning-steward to confirm alignment with active roadmap.
 - **Pure implementation** (Rust/frontend/migration code, no doc changes):
   coordinator delegates directly to implementation-steward; no specialist review required unless the
   change introduces a new architectural boundary (see Architecture change above).
