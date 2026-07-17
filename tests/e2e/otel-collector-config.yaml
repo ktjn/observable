@@ -1,0 +1,34 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  # Test gRPC export to our gateway
+  otlp/grpc:
+    endpoint: ingest-gateway:4317
+    tls:
+      insecure: true
+    headers:
+      Authorization: "Bearer dev-api-key-0000"
+
+  # Test HTTP/protobuf export to our gateway
+  otlphttp/protobuf:
+    endpoint: http://ingest-gateway:4318
+    headers:
+      Authorization: "Bearer dev-api-key-0000"
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlp/grpc]
+    metrics:
+      receivers: [otlp]
+      exporters: [otlphttp/protobuf]
+    logs:
+      receivers: [otlp]
+      exporters: [otlp/grpc]

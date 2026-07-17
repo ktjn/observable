@@ -7,7 +7,10 @@ use axum::{
 };
 
 use crate::auth::TenantContext;
+use crate::http_json::DecodedBody;
 use crate::queue::producer::build_envelope;
+use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
+use prost::Message;
 
 pub async fn export_traces(
     State(state): State<crate::AppState>,
@@ -28,20 +31,35 @@ pub async fn export_traces(
             .into_response();
     }
 
-    let (span_count, mut spans) = match super::decode_json_otlp_request(&headers, body) {
-        Ok(body) => {
-            let resource_spans = match body.get("resourceSpans").and_then(|v| v.as_array()) {
+    let (span_count, mut spans) = match super::decode_otlp_request(&headers, body) {
+        Ok(DecodedBody::Json(json)) => {
+            let resource_spans = match json.get("resourceSpans").and_then(|v| v.as_array()) {
                 Some(s) => s,
                 None => return StatusCode::BAD_REQUEST.into_response(),
             };
 
             let spans =
-                match super::convert::parse_otlp_traces(&body, ctx.tenant_id, &ctx.environment) {
+                match super::convert::parse_otlp_traces(&json, ctx.tenant_id, &ctx.environment) {
                     Ok(s) => s,
                     Err(status) => return status.into_response(),
                 };
 
             (resource_spans.len(), spans)
+        }
+        Ok(DecodedBody::Protobuf(bytes)) => {
+            let req = match ExportTraceServiceRequest::decode(bytes) {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::warn!("failed to decode OTLP/HTTP protobuf trace request: {e}");
+                    return StatusCode::BAD_REQUEST.into_response();
+                }
+            };
+            let spans = crate::grpc::convert::proto_spans_to_domain(
+                &req.resource_spans,
+                ctx.tenant_id,
+                &ctx.environment,
+            );
+            (req.resource_spans.len(), spans)
         }
         Err(status) => return status.into_response(),
     };
@@ -143,7 +161,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn protobuf_trace_payload_returns_415() {
+    async fn protobuf_trace_payload_returns_200() {
+        use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
+        use prost::Message;
+
+        let req = ExportTraceServiceRequest {
+            resource_spans: vec![],
+        };
+        let mut buf = Vec::new();
+        req.encode(&mut buf).unwrap();
+
         let app = build_router(AppState::with_stub_auth(TENANT));
         let server = TestServer::new(app);
         let resp = server
@@ -153,9 +180,9 @@ mod tests {
                 axum::http::header::CONTENT_TYPE,
                 axum::http::HeaderValue::from_static("application/x-protobuf"),
             )
-            .bytes(vec![0, 1, 2].into())
+            .bytes(buf.into())
             .await;
-        assert_eq!(resp.status_code(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+        assert_eq!(resp.status_code(), StatusCode::OK);
     }
 
     #[tokio::test]

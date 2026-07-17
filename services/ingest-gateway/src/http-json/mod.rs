@@ -18,12 +18,22 @@ use tracing::Level;
 
 use crate::{AppState, auth, change_events, deployments, prometheus_rw};
 
-pub fn decode_json_otlp_request(headers: &HeaderMap, body: Bytes) -> Result<Value, StatusCode> {
+pub enum DecodedBody {
+    Json(Value),
+    Protobuf(Bytes),
+}
+
+pub fn decode_otlp_request(headers: &HeaderMap, body: Bytes) -> Result<DecodedBody, StatusCode> {
     let content_type = get_content_type(headers);
-    let body = decode_request_body(headers, body)?;
+    let body_bytes = decode_request_body(headers, body)?;
 
     if matches_content_type(content_type, "application/json") {
-        return serde_json::from_slice(&body).map_err(|_| StatusCode::BAD_REQUEST);
+        let val = serde_json::from_slice(&body_bytes).map_err(|_| StatusCode::BAD_REQUEST)?;
+        return Ok(DecodedBody::Json(val));
+    }
+
+    if matches_content_type(content_type, "application/x-protobuf") {
+        return Ok(DecodedBody::Protobuf(Bytes::from(body_bytes)));
     }
 
     Err(StatusCode::UNSUPPORTED_MEDIA_TYPE)

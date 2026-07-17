@@ -7,7 +7,10 @@ use axum::{
 };
 
 use crate::auth::TenantContext;
+use crate::http_json::DecodedBody;
 use crate::queue::producer::build_envelope;
+use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
+use prost::Message;
 
 pub async fn export_logs(
     State(state): State<crate::AppState>,
@@ -28,20 +31,35 @@ pub async fn export_logs(
             .into_response();
     }
 
-    let (resource_count, logs) = match super::decode_json_otlp_request(&headers, body) {
-        Ok(body) => {
-            let resource_logs = match body.get("resourceLogs").and_then(|v| v.as_array()) {
+    let (resource_count, logs) = match super::decode_otlp_request(&headers, body) {
+        Ok(DecodedBody::Json(json)) => {
+            let resource_logs = match json.get("resourceLogs").and_then(|v| v.as_array()) {
                 Some(s) => s,
                 None => return StatusCode::BAD_REQUEST.into_response(),
             };
 
-            let logs = match super::convert::parse_otlp_logs(&body, ctx.tenant_id, &ctx.environment)
+            let logs = match super::convert::parse_otlp_logs(&json, ctx.tenant_id, &ctx.environment)
             {
                 Ok(l) => l,
                 Err(status) => return status.into_response(),
             };
 
             (resource_logs.len(), logs)
+        }
+        Ok(DecodedBody::Protobuf(bytes)) => {
+            let req = match ExportLogsServiceRequest::decode(bytes) {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::warn!("failed to decode OTLP/HTTP protobuf log request: {e}");
+                    return StatusCode::BAD_REQUEST.into_response();
+                }
+            };
+            let logs = crate::grpc::convert::proto_logs_to_domain(
+                &req.resource_logs,
+                ctx.tenant_id,
+                &ctx.environment,
+            );
+            (req.resource_logs.len(), logs)
         }
         Err(status) => return status.into_response(),
     };
@@ -123,7 +141,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn protobuf_logs_export_returns_415() {
+    async fn protobuf_logs_export_returns_200() {
+        use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
+        use prost::Message;
+
+        let req = ExportLogsServiceRequest {
+            resource_logs: vec![],
+        };
+        let mut buf = Vec::new();
+        req.encode(&mut buf).unwrap();
+
         let app = build_router(AppState::with_stub_auth(TENANT));
         let server = TestServer::new(app);
         let resp = server
@@ -133,9 +160,9 @@ mod tests {
                 axum::http::header::CONTENT_TYPE,
                 axum::http::HeaderValue::from_static("application/x-protobuf"),
             )
-            .bytes(vec![0, 1, 2].into())
+            .bytes(buf.into())
             .await;
-        assert_eq!(resp.status_code(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+        assert_eq!(resp.status_code(), StatusCode::OK);
     }
 
     #[tokio::test]

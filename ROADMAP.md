@@ -118,8 +118,8 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 
 ## Milestone 4 — Protocol and data correctness
 
-- [ ] Add black-box OTLP gRPC tests using a pinned OpenTelemetry Collector image.
-- [ ] Add black-box OTLP HTTP/protobuf tests.
+- [x] Add black-box OTLP gRPC tests using a pinned OpenTelemetry Collector image.
+- [x] Add black-box OTLP HTTP/protobuf tests.
 - [x] Test gzip and supported compression behavior.
 - [x] Test malformed protobuf, request-size limits, rate limiting, and partial-success responses.
 - [x] Test Prometheus Remote Write compatibility and tenant routing.

@@ -19,6 +19,8 @@ INGEST="${INGEST_URL:-http://localhost:4318}"
 GRPC_INGEST="${GRPC_INGEST_URL:-http://localhost:4317}"
 PLATFORM="${PLATFORM_URL:-http://localhost:4321}"
 QUERY="${QUERY_URL:-http://localhost:8090}"
+COLLECTOR="${COLLECTOR_URL:-http://localhost:4318}"
+COLLECTOR_GRPC="${COLLECTOR_GRPC_URL:-http://localhost:4317}"
 TOKEN="dev-api-key-0000"
 TENANT_ID="00000000-0000-0000-0000-000000000002"
 RUN_ID="${RUN_ID:-$(date +%s%N)}"
@@ -248,6 +250,33 @@ main() {
     "deployments" \
     "$QUERY/v1/deployments?service_name=$SERVICE_NAME" \
     '.items | length'
+
+  echo ""
+  echo "=== Phase 2: Collector-based Ingestion (Black-box) ==="
+  
+  COLLECTOR_SERVICE_NAME="smoke-collector-svc-${RUN_ID}"
+  COLLECTOR_TRACE_ID="$(printf '%032x' "$(( (10#$RUN_ID + 1) % 4294967295))")"
+
+  echo "8. Sending trace via Collector (gRPC pipeline)..."
+  COLLECTOR_TRACE_PAYLOAD="{\"resourceSpans\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"$COLLECTOR_SERVICE_NAME\"}}]},\"scopeSpans\":[{\"spans\":[{\"traceId\":\"$COLLECTOR_TRACE_ID\",\"spanId\":\"00f067aa0ba902b8\",\"name\":\"collector-smoke\",\"startTimeUnixNano\":\"$(date +%s%N)\",\"endTimeUnixNano\":\"$(( $(date +%s%N) + 5000000 ))\",\"status\":{\"code\":1}}]}]}]}"
+  
+  curl -sf -X POST "$COLLECTOR/v1/traces" \
+    -H "Content-Type: application/json" \
+    -d "$COLLECTOR_TRACE_PAYLOAD"
+  echo " OK (sent to collector)"
+
+  echo "8a. Verifying trace landed via Collector..."
+  wait_for_json_count "collector trace" "$QUERY/v1/traces/$COLLECTOR_TRACE_ID" '.spans | length'
+
+  echo "9. Sending metric via Collector (HTTP/protobuf pipeline)..."
+  # We send JSON to the collector, it will export to our gateway using Protobuf as configured
+  curl -sf -X POST "$COLLECTOR/v1/metrics" \
+    -H "Content-Type: application/json" \
+    -d "{\"resourceMetrics\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"$COLLECTOR_SERVICE_NAME\"}}]},\"scopeMetrics\":[{\"metrics\":[{\"name\":\"collector.counter\",\"sum\":{\"dataPoints\":[{\"asDouble\":1.0,\"timeUnixNano\":\"$(date +%s%N)\"}],\"aggregationTemporality\":2,\"isMonotonic\":true}}]}]}]}"
+  echo " OK (sent to collector)"
+
+  echo "9a. Verifying metric landed via Collector..."
+  wait_for_json_count "collector metric" "$QUERY/v1/metrics?service=$COLLECTOR_SERVICE_NAME" '.metrics | length'
 
   echo ""
   echo "=== ALL CHECKS PASSED ==="
