@@ -69,7 +69,7 @@ services:
       - zitadel-bootstrap:/bootstrap
 
   zitadel:
-    image: ghcr.io/zitadel/zitadel:v4.16.0
+    image: ghcr.io/zitadel/zitadel:v4.16.1
     command: start-from-init --masterkeyFromEnv --tlsMode disabled --steps /zitadel-steps.yaml
     environment:
       ZITADEL_DATABASE_POSTGRES_HOST: postgres
