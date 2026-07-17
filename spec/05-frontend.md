@@ -420,7 +420,7 @@ Apply the **inverted pyramid**: show the minimum information needed to assess he
 ### 9.11 UX Requirements
 
 - **Deep links everywhere**: Every view, filter, time range, selected trace, and open panel must produce a shareable URL
-- **Saved views**: Named bookmarks for search configurations (filter set + time range + column selection), scoped per user or shared within project. **Shipped for the logs explorer** (`LogSearch.tsx`) — see `docs/superpowers/specs/2026-07-03-saved-views-logs-design.md`. Traces and metrics explorers are follow-up slices.
+- **Saved views**: Named bookmarks for search configurations (filter set + time range + column selection), scoped per user or shared within project. **Shipped for the logs explorer** (`LogSearch.tsx`). Traces and metrics explorers are follow-up slices.
 - **Keyboard-driven query UX**: Tab-complete in search bars, keyboard shortcuts for common actions (time range, toggle panels, expand detail)
 - **Export APIs**: All data visible in the UI must be exportable (CSV, JSON, OTLP). Export respects current filter and time range
 - **Themes**: Design tokens must support light, dark, and system themes. The system theme follows the browser/OS `prefers-color-scheme` value, and the resolved theme updates when the system preference changes.

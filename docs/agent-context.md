@@ -8,7 +8,7 @@ making changes.
 
 1. Read `AGENTS.md`.
 2. Read `spec/adr/README.md`, then read any overlapping ADRs in full.
-3. Read the active roadmap plan: `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md`.
+3. Read the active roadmap: `ROADMAP.md`.
 4. Read this file.
 5. Inspect the actual code, tests, scripts, specs, and docs touched by the task before editing.
 6. Create or switch to a dedicated short-lived branch before changing files.
@@ -16,17 +16,25 @@ making changes.
 ## Current Source Of Truth
 
 > **Note (0.1 open source release cleanup):** this changelog contains historical entries that
-> link to `archived/plans/*.md` and `archived/specs/*.md` documents. Those directories were
-> removed from the repository as part of preparing the 0.1 open source release (internal
-> planning history, not needed by external contributors). The prose summaries below remain
-> accurate; only the linked source documents are gone. Going forward, do not restore a public
-> `archived/` directory — see `AGENTS.md`'s "Finished Plan Archiving" note.
+> link to `archived/plans/*.md`, `archived/specs/*.md`, `docs/superpowers/specs/*.md`,
+> `docs/analysis/*.md`, `spec/00-market-analysis.md`, `spec/91-customer-tco.md`, and
+> `docs/security-review-p4-s9.md`. Those files were removed from the repository as part of
+> preparing the 0.1 open source release (internal planning history, competitive/pricing
+> analysis, and internal audit snapshots — not needed by external contributors). The prose
+> summaries below remain accurate; only the linked source documents are gone. Going forward, do
+> not restore a public `archived/` directory or reintroduce this content — see `AGENTS.md`'s
+> "Finished Plan Archiving" note.
 
 - Repository process: `AGENTS.md` and `spec/10-process.md`.
 - Agent role routing: `.github/agents/README.md`, with `.github/agents/coordinator.agent.md` as the
   default entry role. Runtimes without subagent support should apply matching specialist `.agent.md`
   files manually as checklists.
-- Active roadmap: `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md` — consolidates the former post-Phase-3 plan and the Phases P9-P14 feature-parity plan (both now archived) into one feature-first backlog. Select work security-first: P0 security findings take precedence, then choose by dependency readiness and user value; stability/compliance/enterprise-packaging work otherwise remains in the Deferred tier (§7).
+- Active roadmap: `ROADMAP.md` — release-readiness roadmap to 0.1.0. Priority order: security and
+  tenant-isolation blockers, then reproducible install/migration/backup/restore, protocol and data
+  correctness, operational reliability, core user journeys and documentation, and release
+  engineering. The former `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md` (which
+  consolidated the post-Phase-3 plan and the Phases P9-P14 feature-parity plan) has been retired
+  now that 0.1 release readiness is the sole priority; see `ROADMAP.md` for the current backlog.
 - **0.1 release cleanup**: `auth-service` no longer falls back to a hardcoded default
   session-signing secret outside dev mode. `resolve_session_secret()` (`services/auth-service/src/lib.rs`)
   fails closed with an explicit error when `SESSION_SECRET` is unset/empty and `OBSERVABLE_ENV` is
@@ -369,8 +377,9 @@ internal port 8080.
 - Pure documentation changes are exempt from `bash scripts/local-ci.sh`; code changes are not.
 - Rust code changes must run `cargo fmt --all` explicitly before pushing, even though
   `bash scripts/local-ci.sh` also runs formatting.
-- Completed detailed task plans must move from `docs/superpowers/plans/` to `archived/plans/`,
-  with active roadmap and agent-context links updated in the same PR.
+- Completed detailed task plans must be removed from `docs/superpowers/plans/` (retained
+  privately, not in a public `archived/` directory), with active roadmap and agent-context links
+  updated in the same PR.
 - Backend changes crossing PostgreSQL, ClickHouse, Redpanda/Kafka-compatible brokers, object
   storage, OpenFGA, or similar real dependency boundaries need the narrowest applicable
   Testcontainers integration test unless the PR explains why a different regression signal applies.

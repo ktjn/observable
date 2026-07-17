@@ -6,9 +6,8 @@ domain notifications {
   // Canonical notification-channel entity. Mirrors
   // services/query-api/src/notifications.rs's NotificationChannelResponse
   // field-for-field. NotificationChannelItem (the Postgres db row) and
-  // CreateChannelRequest are intentionally NOT modeled here — see
-  // docs/superpowers/specs/2026-06-14-notifications-modelable-migration-design.md
-  // for why (Rust enum(...) emission and json->unknown narrowing).
+  // CreateChannelRequest are intentionally NOT modeled here (Rust enum(...)
+  // emission and json->unknown narrowing).
   @wire(json.fieldCase: "snake_case")
   entity NotificationChannel @ 1 (additive) {
     @key channelId: uuid

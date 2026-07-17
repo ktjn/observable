@@ -5,8 +5,7 @@ domain nlq {
 
   // Canonical NLQ query time range. Mirrors libs/domain/src/nlq.rs's
   // NlqTimeRange field-for-field. Shared by NlqIr.time_range and
-  // VisualizationFrame.time_range. See
-  // docs/superpowers/specs/2026-06-15-nlq-visualization-modelable-migration-design.md.
+  // VisualizationFrame.time_range.
   @wire(json.fieldCase: "snake_case")
   value NlqTimeRange {
     from: string
@@ -17,8 +16,7 @@ domain nlq {
   // libs/domain/src/nlq.rs's NlqFilter, except `op` is `string` not
   // `enum(...)` — NlqFilterOp's variants serialize as comparison symbols
   // (=, !=, =~, !~, >, >=, <, <=), which are not valid modelable enum
-  // identifiers (Phase 1 backlog item 6). See
-  // docs/superpowers/specs/2026-06-15-nlq-visualization-modelable-migration-design.md.
+  // identifiers (Phase 1 backlog item 6).
   @wire(json.fieldCase: "snake_case")
   value NlqFilter {
     field: string
@@ -41,8 +39,7 @@ domain nlq {
   // `T | null`, which modelable's `?` (omittable) cannot represent), and
   // `signals` is `array<string>` not `array<enum(...))` (Phase 1 backlog
   // item 9 - array<enum(...)> emits invalid TypeScript). Both are added back
-  // in apps/frontend/src/api/nlq.ts via interface extension. See
-  // docs/superpowers/specs/2026-06-15-nlq-visualization-modelable-migration-design.md.
+  // in apps/frontend/src/api/nlq.ts via interface extension.
   @wire(json.fieldCase: "snake_case")
   value NlqIr {
     operation: enum(timeseries, rate, irate, increase, histogram, topk, table, distribution, catalog, inventory)

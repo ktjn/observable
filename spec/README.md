@@ -6,7 +6,6 @@ Full-stack observability platform specification — Dynatrace / New Relic class,
 
 | File | Contents |
 |------|----------|
-| [00-market-analysis.md](00-market-analysis.md) | Competitive landscape, product positioning, USPs, Tier 2 and Tier 3 feature gaps |
 | [01-overview.md](01-overview.md) | Scope, product definition, product principles |
 | [02-architecture.md](02-architecture.md) | System context, container diagrams, reference architecture, core technical architecture |
 | [03-storage.md](03-storage.md) | Storage strategy, data model, retention tiers, query engine |
@@ -27,8 +26,6 @@ Full-stack observability platform specification — Dynatrace / New Relic class,
 | [18-deployment-markers.md](18-deployment-markers.md) | Deployment markers and release correlation |
 | [19-testbench.md](19-testbench.md) | Test bench: kind-based synthetic workload with full OTel + k8s cluster monitoring |
 | [20-nlq-ir-reference.md](20-nlq-ir-reference.md) | NLQ IR canonical reference: DSL grammar, semantic rules, system prompt architecture, metadata injection, shorthand syntax, SQL template library |
-| [81-product-lifecycle.md](81-product-lifecycle.md) | Product cost structure (CAPEX/OPEX), lifecycle management, support tiers, versioning and EOL policy |
-| [91-customer-tco.md](91-customer-tco.md) | Customer total cost of ownership, acquisition planning, deployment, upgrade strategy, and decommission guide |
 
 ## Implementation Plans
 

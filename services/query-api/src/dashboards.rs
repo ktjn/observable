@@ -17,8 +17,7 @@ const EXPORT_SCHEMA_VERSION: &str = "2";
 /// `models/dashboards.mdl` field-for-field, except `preset` (Phase 1 backlog
 /// item 6: modelable enum members must be valid identifiers, but Preset
 /// values 5m/15m/30m/1h/3h/12h start with digits) and `filters`/`time_range`
-/// (no union/oneof construct for the 3-way discriminated union) — see
-/// `docs/superpowers/specs/2026-06-14-dashboards-modelable-migration-design.md`.
+/// (no union/oneof construct for the 3-way discriminated union).
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct DashboardPanelItem {
     pub panel_id: Uuid,
@@ -35,8 +34,7 @@ pub struct DashboardPanelItem {
 }
 
 /// Canonical dashboard summary entity. Mirrors `dashboards.Dashboard@1` in
-/// `models/dashboards.mdl` field-for-field (see
-/// `docs/superpowers/specs/2026-06-14-dashboards-modelable-migration-design.md`).
+/// `models/dashboards.mdl` field-for-field.
 /// `GrantItem`, `DashboardRow`/`DashboardPanelRow` (Postgres `sqlx::FromRow`
 /// projections), `DashboardListResponse`, `CreateDashboardRequest`,
 /// `UpdateDashboardRequest`, and `DashboardExportPanel`/`DashboardExport` are

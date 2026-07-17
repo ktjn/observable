@@ -327,4 +327,3 @@ or cross-signal joins. See [ADR-026](ADR-026-no-proprietary-query-dsl.md).
 - [ADR-014](ADR-014-ai-feature-boundaries.md) — AI Feature Boundaries (advisory-only, read-only, provenance required)
 - [ADR-013](ADR-013-schema-governance.md) — Schema Governance (Schema Registry)
 - [ADR-005](ADR-005-arrow-datafusion.md) — Arrow/DataFusion Query Layer; SQL as IR
-- [spec/00-market-analysis.md §2.2 Gap 6](../00-market-analysis.md) — Market positioning rationale

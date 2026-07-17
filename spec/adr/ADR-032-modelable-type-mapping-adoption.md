@@ -23,8 +23,8 @@ breaking-change detection (`modelable lineage <Type@version>`).
 ## Decision
 
 Adopt modelable `.mdl` files as the canonical source of truth for shared domain/wire types,
-migrated domain-by-domain (Phase 2 pilot + Phase 3 full migration, per
-`docs/superpowers/plans/2026-06-08-modelable-type-mapping-migration-plan.md`). Specifically:
+migrated domain-by-domain (Phase 2 pilot + Phase 3 full migration, now complete — see the
+Current State table below). Specifically:
 
 - Generated Rust/TypeScript artifacts are **committed to the repo** (not built in CI),
   verified clean via a `modelable compile` diff-check.
@@ -55,9 +55,7 @@ migrated domain-by-domain (Phase 2 pilot + Phase 3 full migration, per
 
 ## Known Limitations
 
-Condensed from the Phase 1 backlog in
-`docs/superpowers/plans/2026-06-08-modelable-type-mapping-migration-plan.md` ("Phase 1
-backlog" section); see that section for full detail on each item.
+Condensed from the Phase 1 backlog identified during the migration.
 
 1. Array-element `rust.type` hints not supported (blocks `Vec<u64>` histogram fields).
 2. No non-optional default-empty-array projection fields.
@@ -97,10 +95,7 @@ only) and why `NlqIr`/`FieldRole` etc. needed hand-written TS extensions.
 
 ## Related
 
-- `docs/superpowers/plans/2026-06-08-modelable-type-mapping-migration-plan.md` — full
-  migration plan, Phase 1 backlog, per-domain design specs.
 - `ADR-030: Timestamp Representation` — the Unix-nanoseconds-as-string convention is
   **unaffected** by this migration; no `.mdl` model currently overrides it (Phase 1 backlog
   item 5 is about a *different* `timestamp` IDL type used for `created_at`/`joined_at`-style
   fields, not the ADR-030 telemetry-timestamp convention).
-- Each domain's design spec under `docs/superpowers/specs/2026-06-1{2,3,4,5}-*-modelable-migration-design.md`.

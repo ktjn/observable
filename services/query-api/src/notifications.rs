@@ -33,8 +33,7 @@ pub struct NotificationChannelItem {
 }
 
 /// Canonical notification-channel entity. Mirrors `notifications.NotificationChannel@1`
-/// in `models/notifications.mdl` field-for-field (see
-/// `docs/superpowers/specs/2026-06-14-notifications-modelable-migration-design.md`).
+/// in `models/notifications.mdl` field-for-field.
 #[derive(Serialize, Debug, Clone)]
 pub struct NotificationChannelResponse {
     pub channel_id: Uuid,

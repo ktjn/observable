@@ -15,9 +15,7 @@ trace/log/metric read path — the platform's highest-traffic, most latency-sens
 These admin operations are privilege-granting (they can mint API keys and assign `tenant_admin`
 roles), which is a materially different trust level than read-only telemetry queries.
 
-This was identified during a 2026-06-19 service-layer architecture review
-(`docs/superpowers/specs/2026-06-19-service-layer-architecture-review.md`, Finding 7) and detailed
-in `docs/superpowers/specs/2026-06-19-admin-service-extraction-design.md`.
+This was identified during a 2026-06-19 service-layer architecture review (Finding 7).
 
 ## Decision
 
@@ -83,9 +81,5 @@ process — the opposite of the isolation this decision is trying to achieve.
 
 ## Related
 
-- `docs/superpowers/specs/2026-06-19-service-layer-architecture-review.md` (Finding 7)
-- `docs/superpowers/specs/2026-06-19-admin-service-extraction-design.md` — full design,
-  architecture diagram, rollout/rollback plan
-- `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md` §7 — backlog entry
 - ADR-008 (Authorization Model) — RBAC model is unaffected by this split, only relocated
 - ADR-004 (Rust for Data Plane Services) — admin-service is Rust/Axum, consistent

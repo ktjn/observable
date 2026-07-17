@@ -99,6 +99,5 @@ Escalate to the deployment owner if any of the following are true:
 ## References
 
 - [spec/12-deployment.md](../../spec/12-deployment.md)
-- [spec/81-product-lifecycle.md](../../spec/81-product-lifecycle.md)
 - [`scripts/canary-promote.sh`](../../scripts/canary-promote.sh)
 - [`charts/observable/values.yaml`](../../charts/observable/values.yaml)
