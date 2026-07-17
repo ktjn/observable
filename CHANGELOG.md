@@ -54,5 +54,13 @@ Initial public release of Observable.
   - Tag-bound artifact builds (OCI images and Helm charts).
   - Multi-architecture container images (`linux/amd64`, `linux/arm64`).
   - SPDX SBOMs and SLSA provenance attestations for container images.
+- Automated release artifact signing and attestation workflows.
+
+### Fixed
+
+- Resolved CI build caching issues for Rust and C/C++ dependencies.
+- Synchronized Helm chart versions with platform release version.
+- Hardened OIDC callback failure paths and session security.
+- Fixed migration idempotency and upgrade reliability.
 
 [0.1.0]: https://github.com/ktjn/observable/releases/tag/v0.1.0

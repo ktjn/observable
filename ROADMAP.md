@@ -211,7 +211,8 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 
 The current implementation priority is **Milestone 7 — Release engineering**.
 
-Milestones 1–6 are complete. The next items are versioned release artifacts, container image
-signing, Helm chart publishing, and post-release verification.
+Milestones 1–6 are complete. The codebase is verified via local smoke tests and CI/CD hardening.
+The next action is to **Tag and publish `v0.1.0`**, followed by post-release verification of 
+published artifacts.
 
 The detailed feature backlog remains useful for post-0.1 planning but does not override this roadmap.
