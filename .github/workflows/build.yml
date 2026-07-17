@@ -103,7 +103,7 @@ jobs:
             -v "$HOME/.cache/sccache":/sccache \
             -e RUSTC_WRAPPER -e SCCACHE_DIR -e CARGO_INCREMENTAL \
             -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
-            rust:1.97.0-bookworm bash -c '
+            rust:1.97.1-bookworm bash -c '
               set -euo pipefail
               rustup component add rustfmt clippy
               apt-get update -qq
@@ -218,7 +218,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8
-      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with:
           components: rustfmt
       - name: Verify generated code matches .mdl sources
