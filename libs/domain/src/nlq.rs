@@ -15,8 +15,7 @@ use serde::{Deserialize, Serialize};
 /// `metric`/`window`/`resolution`/`visualization_hint` (Phase 1 backlog item
 /// 8: `Option<T>` without `skip_serializing_if` can't be generated) and
 /// `signals` (Phase 1 backlog item 9: `array<enum(...))` emits invalid
-/// TypeScript, modeled as `array<string>`) — see
-/// `docs/superpowers/specs/2026-06-15-nlq-visualization-modelable-migration-design.md`.
+/// TypeScript, modeled as `array<string>`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NlqIr {
     /// Query operation type, e.g. timeseries, rate, histogram.

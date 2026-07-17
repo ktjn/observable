@@ -99,8 +99,7 @@ impl From<crate::nlq::NlqVisualizationHint> for VisualizationFrameType {
 /// Describes the semantic role of a column in the result set.
 /// Required for columns that the UI cannot infer from name alone (e.g. histogram buckets).
 ///
-/// Mirrors `nlq.FieldRole` (value) in `models/nlq.mdl` field-for-field. See
-/// `docs/superpowers/specs/2026-06-15-nlq-visualization-modelable-migration-design.md`.
+/// Mirrors `nlq.FieldRole` (value) in `models/nlq.mdl` field-for-field.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FieldRole {
     /// Column name in the result set.

@@ -10,8 +10,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 /// Canonical alert rule summary entity. Mirrors `alerts.AlertRule@1` in
-/// `models/alerts.mdl` field-for-field (see
-/// `docs/superpowers/specs/2026-06-14-alerts-modelable-migration-design.md`).
+/// `models/alerts.mdl` field-for-field.
 /// `AlertRuleRow`/`AlertRuleDetailRow` (Postgres `sqlx::FromRow`
 /// projections) and `AlertRuleListResponse`/`AlertRuleDetailResponse` (list
 /// wrapper / join+firings aggregation) are NOT modeled — timestamp fields
@@ -41,8 +40,7 @@ pub struct AlertRuleListResponse {
 }
 
 /// Canonical alert firing entity. Mirrors `alerts.Firing@1` in
-/// `models/alerts.mdl` field-for-field (see
-/// `docs/superpowers/specs/2026-06-14-alerts-modelable-migration-design.md`).
+/// `models/alerts.mdl` field-for-field.
 /// `occurred_at`/`resolved_at` stay `chrono::DateTime<Utc>` (Phase 1
 /// backlog item 5).
 #[derive(Serialize)]

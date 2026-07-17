@@ -8,9 +8,8 @@ domain alerts {
   // AlertRuleListResponse (list wrapper), AlertRuleDetailResponse (join +
   // firings aggregation), AlertRuleRow/AlertRuleDetailRow (Postgres
   // sqlx::FromRow projections), and CreateRuleRequest/SilenceRequest/
-  // UpdateRunbookRequest (request bodies) are NOT modeled here — see
-  // docs/superpowers/specs/2026-06-14-alerts-modelable-migration-design.md
-  // for why (timestamp -> Rust String gap, Phase 1 backlog item 5).
+  // UpdateRunbookRequest (request bodies) are NOT modeled here (timestamp ->
+  // Rust String gap, Phase 1 backlog item 5).
   @wire(json.fieldCase: "snake_case")
   entity AlertRule @ 1 (additive) {
     @key ruleId: uuid

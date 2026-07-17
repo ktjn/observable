@@ -22,8 +22,7 @@ use uuid::Uuid;
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 /// Canonical tenant-member entity. Mirrors `admin.Member@1` in
-/// `models/admin.mdl` field-for-field (see
-/// `docs/superpowers/specs/2026-06-14-admin-members-modelable-migration-design.md`).
+/// `models/admin.mdl` field-for-field.
 /// Also serves as the Postgres `sqlx::FromRow` projection for the
 /// `users`/`user_tenant_roles` join — `joined_at` stays `chrono::DateTime<Utc>`
 /// (Phase 1 backlog item 5: modelable's `timestamp` emits as Rust `String`).

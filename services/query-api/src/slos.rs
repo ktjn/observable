@@ -6,8 +6,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Canonical SLO definition entity. Mirrors `slos.SloDefinition@1` in
-/// `models/slos.mdl` field-for-field (see
-/// `docs/superpowers/specs/2026-06-14-slos-modelable-migration-design.md`).
+/// `models/slos.mdl` field-for-field.
 /// Also serves as the Postgres `sqlx::FromRow` projection joining
 /// `slo_definitions` with `alert_rules`/`alert_firings` for `firing`/
 /// `last_fired_at` — timestamp fields stay `chrono::DateTime<Utc>`

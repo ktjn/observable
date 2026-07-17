@@ -8,9 +8,7 @@ domain incidents {
   // IncidentItem is the API response shape for the incidents list;
   // IncidentRow (Postgres sqlx::FromRow projection) and
   // IncidentDetailResponse (join + timeline aggregation) are NOT modeled
-  // here — see
-  // docs/superpowers/specs/2026-06-14-incidents-modelable-migration-design.md
-  // for why (timestamp -> Rust String gap, Phase 1 backlog item 5).
+  // here (timestamp -> Rust String gap, Phase 1 backlog item 5).
   @wire(json.fieldCase: "snake_case")
   entity Incident @ 1 (additive) {
     @key incidentId: uuid

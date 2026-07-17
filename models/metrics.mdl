@@ -5,8 +5,7 @@ domain metrics {
 
   // Canonical metric-data-point entity. Mirrors libs/domain/src/metric.rs's
   // MetricPoint field-for-field. MetricPointRow is intentionally NOT modeled
-  // here — see docs/superpowers/specs/2026-06-13-metrics-modelable-migration-design.md
-  // for why (array-element rust.type hints and non-optional array projection
+  // here (array-element rust.type hints and non-optional array projection
   // fields are not yet supported by modelable).
   @wire(json.fieldCase: "snake_case")
   entity MetricPoint @ 1 (additive) {
