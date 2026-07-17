@@ -95,6 +95,32 @@ async fn login_redirect_contains_pkce_state_and_hardened_transient_cookies() {
         assert!(cookie.contains("SameSite=Lax"));
         assert!(cookie.contains("Path=/"));
         assert!(cookie.contains("Max-Age=300"));
+        assert!(
+            cookie.contains("Secure"),
+            "transient cookies must be Secure in non-dev mode"
+        );
+    }
+}
+
+#[tokio::test]
+async fn login_redirect_in_dev_mode_has_no_secure_attribute() {
+    let response = app(state("http://127.0.0.1:1", true))
+        .oneshot(
+            Request::builder()
+                .uri("/v1/auth/login")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let cookies = cookies(&response);
+    assert_eq!(cookies.len(), 2);
+    for cookie in cookies {
+        assert!(
+            !cookie.contains("Secure"),
+            "Secure attribute must be absent in dev mode"
+        );
     }
 }
 
@@ -314,12 +340,44 @@ async fn logout_clears_session_cookie_and_redirects_to_login() {
     assert_eq!(response.status(), StatusCode::FOUND);
     assert_eq!(response.headers().get(header::LOCATION).unwrap(), "/login");
     let cookies = cookies(&response);
+    let session_clear = cookies
+        .iter()
+        .find(|c| c.starts_with("session=;") && c.contains("Max-Age=0"))
+        .expect("session cookie must be cleared");
+
+    assert!(session_clear.contains("HttpOnly"));
+    assert!(session_clear.contains("SameSite=Lax"));
     assert!(
-        cookies
-            .iter()
-            .any(|c| c.starts_with("session=;") && c.contains("Max-Age=0")),
-        "session cookie must be cleared"
+        session_clear.contains("Secure"),
+        "clearing cookie must include Secure in non-dev mode"
     );
+}
+
+#[tokio::test]
+async fn callback_failure_clears_transient_cookies_with_hardened_attributes() {
+    let response = app(state("http://127.0.0.1:1", false))
+        .oneshot(
+            Request::builder()
+                .uri("/v1/auth/callback?code=code&state=expected")
+                // Missing cookies
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let cookies = cookies(&response);
+    let pkce_clear = cookies.iter().find(|c| c.starts_with("pkce_cv=;")).unwrap();
+    let state_clear = cookies
+        .iter()
+        .find(|c| c.starts_with("oauth_state=;"))
+        .unwrap();
+
+    for cookie in [pkce_clear, state_clear] {
+        assert!(cookie.contains("Max-Age=0"));
+        assert!(cookie.contains("Path=/"));
+        assert!(cookie.contains("Secure"));
+    }
 }
 
 #[tokio::test]

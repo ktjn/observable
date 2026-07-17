@@ -12,7 +12,12 @@
 // Env vars take priority over DB values (LLM_API_KEY, LLM_URL / OPENAI_BASE_URL,
 // LLM_MODEL / OPENAI_MODEL).
 use crate::AdminServiceAppState;
-use axum::{Json, extract::State, http::StatusCode};
+use crate::middleware::auth::{TenantContext, require_admin};
+use axum::{
+    Json,
+    extract::{Extension, State},
+    http::StatusCode,
+};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
@@ -84,7 +89,9 @@ pub struct SetLlmKeyRequest {
 /// Returns LLM configuration status. Never echoes the API key value itself.
 pub async fn get_config(
     State(state): State<AdminServiceAppState>,
+    Extension(ctx): Extension<TenantContext>,
 ) -> Result<Json<ConfigStatus>, StatusCode> {
+    require_admin(&ctx)?;
     // Env vars take priority over DB values.
     let llm_url = env_llm_url().or(fetch_db_value(&state.db, "llm_url")
         .await
@@ -112,8 +119,10 @@ pub async fn get_config(
 /// Upserts any combination of api_key (XOR-obfuscated), url, and model.
 pub async fn put_llm_config(
     State(state): State<AdminServiceAppState>,
+    Extension(ctx): Extension<TenantContext>,
     Json(body): Json<SetLlmConfigRequest>,
 ) -> Result<StatusCode, StatusCode> {
+    require_admin(&ctx)?;
     if let Some(key) = body.api_key {
         let key = key.trim().to_string();
         if key.is_empty() {
@@ -144,8 +153,10 @@ pub async fn put_llm_config(
 /// PUT /v1/config/llm-key — legacy alias.
 pub async fn put_llm_key(
     State(state): State<AdminServiceAppState>,
+    Extension(ctx): Extension<TenantContext>,
     Json(body): Json<SetLlmKeyRequest>,
 ) -> Result<StatusCode, StatusCode> {
+    require_admin(&ctx)?;
     let key = body.key.trim().to_string();
     if key.is_empty() {
         return Err(StatusCode::UNPROCESSABLE_ENTITY);
@@ -187,8 +198,10 @@ pub struct LlmModelsResult {
 /// history (compared to query parameters).
 pub async fn list_llm_models(
     State(state): State<AdminServiceAppState>,
+    Extension(ctx): Extension<TenantContext>,
     Json(body): Json<ListLlmModelsRequest>,
-) -> Json<LlmModelsResult> {
+) -> Result<Json<LlmModelsResult>, StatusCode> {
+    require_admin(&ctx)?;
     use crate::llm_probe::OpenAiLlmCaller;
 
     // Resolve API key: request body → env → DB → empty (no-auth providers).
@@ -218,16 +231,16 @@ pub async fn list_llm_models(
     let caller = OpenAiLlmCaller::from_key(api_key, url, None);
 
     match caller.list_models().await {
-        Ok(models) => Json(LlmModelsResult {
+        Ok(models) => Ok(Json(LlmModelsResult {
             ok: true,
             models,
             error: None,
-        }),
-        Err(e) => Json(LlmModelsResult {
+        })),
+        Err(e) => Ok(Json(LlmModelsResult {
             ok: false,
             models: vec![],
             error: Some(e),
-        }),
+        })),
     }
 }
 

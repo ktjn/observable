@@ -100,3 +100,10 @@ The `auth-service` resolves `(tenant_id, role, environment)` from the token on e
 - A client using the wrong token will silently route telemetry to the wrong environment. Operational runbooks must emphasize token-to-environment mapping.
 - Ingestion tokens do not grant read or query access; they are write-only credentials at the ingest boundary.
 
+### 8.7 Session Security
+
+- **Cookie Hardening:** All session and PKCE-related cookies must use `HttpOnly`, `SameSite=Lax`, and `Path=/`.
+- **Production Safety:** In non-development environments (where `dev_mode` is false), the `Secure` attribute is mandatory for all auth-related cookies.
+- **Fail-Closed Authorization:** Any failure to reach the `auth-service` or the underlying session store must result in a rejection of the request (HTTP 503 or 401), ensuring no unauthorized access is granted during dependency outages.
+- **Role Enforcement:** All administrative operations (member management, API-key lifecycle, platform configuration) require the `tenant_admin` role. The `member` role is restricted to read-only access for core telemetry and dashboard features.
+

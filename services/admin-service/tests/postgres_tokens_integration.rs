@@ -80,7 +80,7 @@ async fn inject_tenant_ctx(mut req: Request<Body>, next: axum_middleware::Next) 
     req.extensions_mut().insert(TenantContext {
         tenant_id,
         user_id: None,
-        role: "member".into(),
+        role: "tenant_admin".into(),
     });
     next.run(req).await
 }
