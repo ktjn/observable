@@ -113,6 +113,10 @@ jobs:
               # Download static sccache binary (musl) to avoid glibc version mismatch with host
               curl -L https://github.com/mozilla/sccache/releases/download/v0.16.0/sccache-v0.16.0-x86_64-unknown-linux-musl.tar.gz | tar xz --strip-components=1 -C /usr/local/bin sccache-v0.16.0-x86_64-unknown-linux-musl/sccache
               chmod +x /usr/local/bin/sccache
+              
+              # Ensure stats are shown and server is stopped even on failure
+              trap "sccache --show-stats; sccache --stop-server || true" EXIT
+
               rustup component add rustfmt clippy
               apt-get update -qq
               apt-get install -y -qq --no-install-recommends \
@@ -122,13 +126,15 @@ jobs:
               cargo clippy --workspace --all-targets -- -D warnings
               cargo test --workspace --lib --bins
               cargo build --release --workspace
-              sccache --show-stats
-              sccache --stop-server
-              # Container runs as root, so cache files end up root-owned on the
-              # host mounts; chown back to the runner user or actions/cache'\''s
-              # post-job tar step cannot read them to persist the cache.
-              chown -R "$HOST_UID:$HOST_GID" /usr/local/cargo/registry /usr/local/cargo/git /sccache /app/target
             '
+
+      - name: Fix permissions for caching
+        if: always()
+        run: |
+          # Container runs as root, so cache files end up root-owned on the
+          # host mounts; chown back to the runner user or actions/cache's
+          # post-job tar step cannot read them to persist the cache.
+          sudo chown -R $(id -u):$(id -g) ~/.cargo-ci ~/.cache/sccache
 
       - name: Stage release binaries for Docker context
         run: |
