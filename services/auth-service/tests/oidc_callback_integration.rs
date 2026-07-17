@@ -317,3 +317,271 @@ async fn validate_session_rejects_forged_jwt() {
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test]
+async fn callback_mismatched_state_redirects_to_login_error() {
+    let (pool, _container) = start_pool().await;
+    let state = OidcState {
+        db: pool,
+        config: OidcConfig {
+            issuer: "http://localhost:1".to_string(),
+            api_base: "http://localhost:1".to_string(),
+            client_id: "test-client".to_string(),
+            redirect_uri: "http://localhost:5173/auth/callback".to_string(),
+            session_secret: SESSION_SECRET.to_string(),
+            dev_mode: true,
+        },
+        http_client: reqwest::Client::new(),
+        metrics: Arc::new(AuthServiceMetrics::new()),
+    };
+
+    let app = Router::new()
+        .route("/v1/auth/callback", get(callback_handler))
+        .with_state(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/auth/callback?code=auth-code&state=wrong-state")
+                .header(header::COOKIE, "pkce_cv=verifier; oauth_state=expected")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FOUND);
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(location.contains("error=session_expired"));
+
+    let cookies: Vec<&str> = response
+        .headers()
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .map(|v| v.to_str().unwrap())
+        .collect();
+
+    assert!(cookies.iter().any(|c| c.contains("pkce_cv=; Max-Age=0")));
+    assert!(
+        cookies
+            .iter()
+            .any(|c| c.contains("oauth_state=; Max-Age=0"))
+    );
+    assert!(!cookies.iter().any(|c| c.contains("session=")));
+}
+
+#[tokio::test]
+async fn callback_token_exchange_failure_redirects_to_login_error() {
+    let (pool, _container) = start_pool().await;
+    let mock_server = MockServer::start().await;
+
+    // Token exchange returns 500
+    Mock::given(method("POST"))
+        .and(path("/oauth/v2/token"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&mock_server)
+        .await;
+
+    let state = OidcState {
+        db: pool,
+        config: OidcConfig {
+            issuer: mock_server.uri(),
+            api_base: mock_server.uri(),
+            client_id: "test-client".to_string(),
+            redirect_uri: "http://localhost:5173/auth/callback".to_string(),
+            session_secret: SESSION_SECRET.to_string(),
+            dev_mode: true,
+        },
+        http_client: reqwest::Client::new(),
+        metrics: Arc::new(AuthServiceMetrics::new()),
+    };
+
+    let app = Router::new()
+        .route("/v1/auth/callback", get(callback_handler))
+        .with_state(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/auth/callback?code=auth-code&state=expected")
+                .header(header::COOKIE, "pkce_cv=verifier; oauth_state=expected")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FOUND);
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(location.contains("error=provider_error"));
+    assert!(
+        !response
+            .headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .any(|v| v.to_str().unwrap().contains("session="))
+    );
+}
+
+#[tokio::test]
+async fn callback_userinfo_failure_redirects_to_login_error() {
+    let (pool, _container) = start_pool().await;
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/oauth/v2/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "mock-access-token",
+            "token_type": "Bearer"
+        })))
+        .mount(&mock_server)
+        .await;
+
+    // Userinfo returns 401 Unauthorized
+    Mock::given(method("GET"))
+        .and(path("/oidc/v1/userinfo"))
+        .respond_with(ResponseTemplate::new(401))
+        .mount(&mock_server)
+        .await;
+
+    let state = OidcState {
+        db: pool,
+        config: OidcConfig {
+            issuer: mock_server.uri(),
+            api_base: mock_server.uri(),
+            client_id: "test-client".to_string(),
+            redirect_uri: "http://localhost:5173/auth/callback".to_string(),
+            session_secret: SESSION_SECRET.to_string(),
+            dev_mode: true,
+        },
+        http_client: reqwest::Client::new(),
+        metrics: Arc::new(AuthServiceMetrics::new()),
+    };
+
+    let app = Router::new()
+        .route("/v1/auth/callback", get(callback_handler))
+        .with_state(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/auth/callback?code=auth-code&state=expected")
+                .header(header::COOKIE, "pkce_cv=verifier; oauth_state=expected")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FOUND);
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(location.contains("error=provider_error"));
+}
+
+#[tokio::test]
+async fn callback_missing_cookies_redirects_to_login_error() {
+    let (pool, _container) = start_pool().await;
+    let state = OidcState {
+        db: pool,
+        config: OidcConfig {
+            issuer: "http://localhost:1".to_string(),
+            api_base: "http://localhost:1".to_string(),
+            client_id: "test-client".to_string(),
+            redirect_uri: "http://localhost:5173/auth/callback".to_string(),
+            session_secret: SESSION_SECRET.to_string(),
+            dev_mode: true,
+        },
+        http_client: reqwest::Client::new(),
+        metrics: Arc::new(AuthServiceMetrics::new()),
+    };
+
+    let app = Router::new()
+        .route("/v1/auth/callback", get(callback_handler))
+        .with_state(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/auth/callback?code=auth-code&state=expected")
+                // No cookies
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FOUND);
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(location.contains("error=session_expired"));
+}
+
+#[tokio::test]
+async fn callback_malformed_token_response_redirects_to_login_error() {
+    let (pool, _container) = start_pool().await;
+    let mock_server = MockServer::start().await;
+
+    // Token exchange returns invalid JSON
+    Mock::given(method("POST"))
+        .and(path("/oauth/v2/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("not-json"))
+        .mount(&mock_server)
+        .await;
+
+    let state = OidcState {
+        db: pool,
+        config: OidcConfig {
+            issuer: mock_server.uri(),
+            api_base: mock_server.uri(),
+            client_id: "test-client".to_string(),
+            redirect_uri: "http://localhost:5173/auth/callback".to_string(),
+            session_secret: SESSION_SECRET.to_string(),
+            dev_mode: true,
+        },
+        http_client: reqwest::Client::new(),
+        metrics: Arc::new(AuthServiceMetrics::new()),
+    };
+
+    let app = Router::new()
+        .route("/v1/auth/callback", get(callback_handler))
+        .with_state(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/auth/callback?code=auth-code&state=expected")
+                .header(header::COOKIE, "pkce_cv=verifier; oauth_state=expected")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FOUND);
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(location.contains("error=provider_error"));
+}
