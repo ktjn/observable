@@ -16,6 +16,7 @@ Initial public release of Observable.
   - Prometheus Remote Write (`remote_write`) compatibility.
   - Deployment markers (`POST /v1/deployments`) and change events (`POST /v1/events/changes`).
   - Tenant-aware ingestion with API keys.
+  - Machine-readable OpenAPI 3.1 contracts for all public APIs.
 
 - **Storage & Processing**
   - Polyglot storage: ClickHouse for telemetry, PostgreSQL for control-plane metadata.
@@ -47,6 +48,7 @@ Initial public release of Observable.
   - Production-ready Helm v3 chart with library chart pattern.
   - Platform self-observability: every service emits OTLP traces, metrics, and logs.
   - Local verification gates: `local-ci.sh`, `smoke-test.sh`, `perf-smoke.sh`, and `kind-test.sh`.
+  - Automated verification of migration idempotency and upgrade procedures.
 
 - **Supply Chain**
   - Tag-bound artifact builds (OCI images and Helm charts).

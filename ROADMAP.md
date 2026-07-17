@@ -105,8 +105,8 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 - [x] Document minimum CPU, memory, disk, and expected idle resource use.
 - [ ] Test a clean Compose installation from released artifacts.
 - [ ] Test a clean Helm installation from released artifacts.
-- [ ] Test migration idempotency and restart during migration.
-- [ ] Create and test a synthetic pre-0.1 upgrade fixture.
+- [x] Test migration idempotency and restart during migration.
+- [x] Create and test a synthetic pre-0.1 upgrade fixture.
 - [x] Document and verify backup and restore.
 - [x] Document unsupported downgrade behavior.
 
@@ -127,7 +127,7 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 - [x] Document histogram, exponential-histogram, and summary fidelity.
 - [x] Test trace/log/metric correlation identifiers end to end.
 - [x] Define and document public API stability expectations.
-- [ ] Ensure public HTTP endpoints have machine-readable contracts where practical.
+- [x] Ensure public HTTP endpoints have machine-readable contracts where practical.
 - [x] Add deterministic generated-code verification that fails on regeneration drift.
 
 ### Exit criteria
