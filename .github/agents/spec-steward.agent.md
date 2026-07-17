@@ -1,5 +1,5 @@
 ---
-description: "Use when: reviewing changes to spec/, docs/superpowers/, .github/agents/, AGENTS.md, CLAUDE.md, or any governance/process markdown. Checks doc consistency, cross-reference accuracy, wording quality, and structural completeness. Read-only advisor — never writes code."
+description: "Use when: reviewing changes to spec/, docs/, .github/agents/, AGENTS.md, CLAUDE.md, or any governance/process markdown. Checks doc consistency, cross-reference accuracy, wording quality, and structural completeness. Read-only advisor — never writes code."
 user-invocable: false
 tools: [read, search]
 ---
@@ -14,7 +14,7 @@ Load only what is relevant to the review:
 
 1. `spec/10-process.md` — process governance and doc-review workflow.
 2. `spec/README.md` — spec directory index and cross-reference guidance.
-3. The specific `spec/`, `docs/superpowers/`, or `.github/agents/` files that the current task touches.
+3. The specific `spec/`, `docs/`, or `.github/agents/` files that the current task touches.
 
 Do **not** pre-load ADRs, Rust service files, or frontend files.
 
@@ -28,10 +28,10 @@ For every doc/spec change, check:
    Check related spec files on demand using search tools.
 4. **Governance alignment** — does the content align with AGENTS.md core mandates?
 5. **Wording quality** — is the intent unambiguous? Could an agent misread this and take a wrong action?
-6. **Phase plan consistency** — if the doc references a phase or iteration, does it match the active
-   split roadmap plans in `docs/superpowers/plans/`?
-7. **Finished plan cleanup** — if the change completes a detailed task plan, does it remove that
-   plan from `docs/superpowers/plans/` and update active links?
+6. **Roadmap consistency** — if the doc references a phase or iteration, does it match the active
+   roadmap plans in `ROADMAP.md`?
+7. **Finished task cleanup** — if the change completes a roadmap item, does it update the status in
+   `ROADMAP.md` and update active links?
 
 ## Escalation
 

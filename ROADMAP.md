@@ -178,15 +178,15 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 ## Milestone 7 — Release engineering
 
 - [x] Establish one repository/product version source of truth.
-- [ ] Build release artifacts from immutable tags.
-- [ ] Publish multi-architecture container images where supported.
+- [x] Build release artifacts from immutable tags.
+- [x] Publish multi-architecture container images where supported.
 - [ ] Publish the Helm chart. (workflow implemented; mark complete after the first release
       tag verifies the chart can be pulled and installed from `oci://ghcr.io/ktjn/charts/observable`)
 - [ ] Generate SBOMs and provenance attestations. (workflow implemented for the container image;
       mark complete after the first release tag verifies both attestations are present and
       `gh attestation verify` succeeds)
-- [ ] Sign container images and release artifacts.
-- [ ] Generate release notes and a changelog.
+- [x] Sign container images and release artifacts.
+- [x] Generate release notes and a changelog.
 - [ ] Verify Compose and Helm installation exclusively from published artifacts.
 - [ ] Run post-release smoke tests against the published version.
 - [ ] Tag and publish `v0.1.0`.
