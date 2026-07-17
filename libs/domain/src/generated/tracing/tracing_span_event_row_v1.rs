@@ -2,7 +2,6 @@
 // requires: serde_json (https://docs.rs/serde_json)
 // requires: uuid (https://docs.rs/uuid)
 // requires: clickhouse (https://docs.rs/clickhouse)
-use std::collections::HashMap;
 
 #[cfg(feature = "storage")]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, clickhouse::Row)]
@@ -20,6 +19,7 @@ pub struct TracingSpanEventRowV1 {
 #[cfg(feature = "storage")]
 use super::tracing_span_event_v1::TracingSpanEventV1;
 #[cfg(feature = "storage")]
+#[allow(clippy::useless_conversion)]
 impl From<TracingSpanEventV1> for TracingSpanEventRowV1 {
     fn from(src: TracingSpanEventV1) -> Self {
         Self {
