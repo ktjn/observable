@@ -117,4 +117,3 @@ Rejected as a *primary* UX because:
 - [spec/09-api.md §Extension Points](../09-api.md) — query macros/functions as SQL UDFs, not a DSL
 - [spec/13-risks-roadmap.md §Risk 5](../13-risks-roadmap.md) — "Custom query DSL too early" risk
   (now resolved by this ADR)
-- [spec/00-market-analysis.md §2.2](../00-market-analysis.md) — market positioning and lock-in analysis

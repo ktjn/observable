@@ -147,4 +147,3 @@ rather than patching Fluent Bit's config model.
 - [ADR-004](ADR-004-rust-data-plane.md) — Rust for data plane components
 - [spec/16-collectable.md](../16-collectable.md) — Full Collectable specification
 - [spec/06-agents.md §10.1](../06-agents.md) — Agent and collector components
-- [spec/00-market-analysis.md §4.1](../00-market-analysis.md) — Log pipeline gap analysis

@@ -25,5 +25,4 @@ independent tool remains recorded in [ADR-022](adr/ADR-022-collectable-mediator.
 | [ADR-004](adr/ADR-004-rust-data-plane.md) | Collectable mediators are written in Rust, consistent with the data plane decision |
 | [ADR-022](adr/ADR-022-collectable-mediator.md) | Decision rationale for building Collectable, and its extraction to its own repository |
 | [spec/06-agents.md §10.1](06-agents.md) | Collectable listed as a pipeline component |
-| [spec/00-market-analysis.md §4.1](00-market-analysis.md) | Log pipeline gap analysis referencing Collectable |
 | [spec/01-overview.md](01-overview.md) | OTLP-only ingest policy references Collectable as edge transformation path |

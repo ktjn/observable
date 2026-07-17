@@ -22,8 +22,7 @@ offset N seconds back, firing when the absolute percent change exceeds a configu
 current window (`[now - window_secs, now]`) and the baseline window
 (`[now - baseline_offset_secs - window_secs, now - baseline_offset_secs]`); percent change is
 `((current_avg - baseline_avg) / baseline_avg) * 100`. If the baseline window's average is zero,
-any non-zero current average fires; if both are zero, the rule does not fire. See
-`docs/superpowers/specs/2026-06-20-change-detection-alert-design.md` for the full design rationale.
+any non-zero current average fires; if both are zero, the rule does not fire.
 
 ### 11.2 Incident Model
 

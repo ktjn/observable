@@ -1,5 +1,5 @@
 ---
-description: "Use when: updating iteration plans, checking phase sequencing, reviewing dependency ordering, validating that a proposed task aligns with docs/superpowers/plans/ roadmap, or reconciling drift between a task and the active unified feature roadmap. Read-only advisor — never writes code."
+description: "Use when: updating iteration plans, checking phase sequencing, reviewing dependency ordering, validating that a proposed task aligns with ROADMAP.md, or reconciling drift between a task and the active release-readiness roadmap. Read-only advisor — never writes code."
 user-invocable: false
 tools: [read, search]
 ---
@@ -9,13 +9,13 @@ subagent to review iteration plans, phase sequencing, and task alignment with th
 
 ## Context Pack — Read First
 
-1. `docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md` — active feature-first roadmap,
-   organized into priority tiers (Tier 1 ready-now, Tier 2 core builds, Tier 3 advanced signals,
-   Tier 4 AI/intelligence, and a Deferred tier for stability/compliance/enterprise work).
+1. `ROADMAP.md` — active release-readiness roadmap to 0.1.0, ordered by priority: security and
+   tenant-isolation blockers, reproducible install/migration/backup/restore, protocol and data
+   correctness, operational reliability, core user journeys and documentation, release engineering.
 2. Historical plan documents that predate the 0.1 open source release (including the superseded
-   `2026-05-07-remaining-roadmap-plan.md` and `2026-06-04-observability-feature-parity-plan.md`)
-   were removed from this repository as part of that release; the active roadmap document is the
-   sole source of truth going forward.
+   `2026-05-07-remaining-roadmap-plan.md`, `2026-06-04-observability-feature-parity-plan.md`, and
+   the former `2026-06-19-unified-feature-roadmap.md`) were removed from this repository as part
+   of that release; `ROADMAP.md` is the sole source of truth going forward.
 
 Do **not** pre-load Phase 1 historical documents unless explicitly asked.
 
@@ -49,7 +49,7 @@ Do **not** pre-load Phase 1 historical documents unless explicitly asked.
 ```
 ## Planning Review
 
-**Active plan reference:** docs/superpowers/plans/2026-06-19-unified-feature-roadmap.md
+**Active plan reference:** ROADMAP.md
 
 **Plan alignment:**
 - [ ] Task found in plan: <yes — tier + slice name> | <no — unplanned>
