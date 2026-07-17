@@ -11,6 +11,11 @@ FAILED=0
 
 trap 'rm -rf "$TMP_TS" "$TMP_RS"' EXIT
 
+if ! command -v uv >/dev/null 2>&1; then
+  echo "SKIP: uv not installed, skipping drift check."
+  exit 0
+fi
+
 echo "Compiling .mdl files..."
 uv run --project models modelable compile models/ --target typescript --out "$TMP_TS"
 uv run --project models modelable compile models/ --target rust --out "$TMP_RS"

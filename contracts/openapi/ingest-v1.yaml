@@ -13,6 +13,11 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/ExportTraceServiceRequest"
+          application/x-protobuf:
+            schema:
+              description: Binary OTLP Protobuf payload
+              type: string
+              format: binary
       responses:
         "200":
           description: Accepted
@@ -48,6 +53,11 @@ paths:
         content:
           application/json:
             schema: { type: object }
+          application/x-protobuf:
+            schema:
+              description: Binary OTLP Protobuf payload
+              type: string
+              format: binary
       responses:
         "200": { description: Accepted }
         "401": { description: Unauthorized }
@@ -56,7 +66,8 @@ paths:
       summary: Export OTLP metrics
       operationId: exportMetrics
       description: >
-        Accepts OTLP/HTTP JSON metric exports for gauges, sums, and explicit histograms.
+        Accepts OTLP/HTTP metric exports for gauges, sums, and explicit histograms.
+        Supports both application/json and application/x-protobuf.
         Metric series identity is deterministic across repeated points with the same
         tenant, metric name, resource attributes, point attributes, type, monotonicity,
         temporality, service, and environment.
@@ -65,6 +76,11 @@ paths:
         content:
           application/json:
             schema: { type: object }
+          application/x-protobuf:
+            schema:
+              description: Binary OTLP Protobuf payload
+              type: string
+              format: binary
       responses:
         "200": { description: Accepted }
         "400": { description: Bad request }
@@ -88,6 +104,88 @@ paths:
                   message:
                     type: string
                     example: Metric ingest rate limit exceeded
+  /api/v1/write:
+    post:
+      summary: Prometheus Remote Write
+      operationId: prometheusRemoteWrite
+      description: >
+        Accepts Prometheus remote_write v1 WriteRequest messages, snappy-compressed.
+        Hosted on the platform port (default 4321).
+      requestBody:
+        required: true
+        content:
+          application/x-protobuf:
+            schema:
+              description: Snappy-compressed Prometheus WriteRequest protobuf
+              type: string
+              format: binary
+      responses:
+        "204": { description: Accepted }
+        "400": { description: Bad request (snappy or protobuf decode failure) }
+        "401": { description: Unauthorized (missing or invalid API key) }
+        "403": { description: Forbidden (API key lacks ingest role) }
+        "415": { description: Unsupported Media Type (not application/x-protobuf) }
+        "429": { description: Too Many Requests (rate limit exceeded) }
+        "500": { description: Internal Server Error }
+  /v1/deployments:
+    post:
+      summary: Create deployment marker
+      operationId: createDeployment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [service_name, service_version]
+              properties:
+                service_name: { type: string }
+                service_version: { type: string }
+                environment: { type: string }
+                repo_url: { type: string }
+                commit_sha: { type: string }
+      responses:
+        "201": { description: Created }
+        "401": { description: Unauthorized }
+  /v1/deployments/{deployment_id}:
+    patch:
+      summary: Finish/Update deployment marker
+      operationId: updateDeployment
+      parameters:
+        - name: deployment_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [started, finished, failed, rolled_back] }
+      responses:
+        "200": { description: Updated }
+        "404": { description: Not found }
+  /v1/events/changes:
+    post:
+      summary: Create change event
+      operationId: createChangeEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [summary]
+              properties:
+                summary: { type: string }
+                description: { type: string }
+                service_name: { type: string }
+                environment: { type: string }
+      responses:
+        "201": { description: Created }
+        "401": { description: Unauthorized }
 components:
   securitySchemes:
     BearerAuth:

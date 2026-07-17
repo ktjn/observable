@@ -1,0 +1,87 @@
+openapi: "3.1.0"
+info:
+  title: Observable Admin API
+  version: "1.0.0"
+paths:
+  /v1/admin/members:
+    get:
+      summary: List tenant members
+      operationId: listMembers
+      responses:
+        "200": { description: List of members }
+    post:
+      summary: Add member to tenant
+      operationId: addMember
+      responses:
+        "201": { description: Member added }
+  /v1/admin/members/{user_id}/role:
+    put:
+      summary: Update member role
+      operationId: updateMemberRole
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Role updated }
+  /v1/admin/members/{user_id}:
+    delete:
+      summary: Remove member from tenant
+      operationId: removeMember
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Member removed }
+  /v1/tokens:
+    get:
+      summary: List API tokens
+      operationId: listTokens
+    post:
+      summary: Create API token
+      operationId: createToken
+  /v1/tokens/{id}:
+    delete:
+      summary: Revoke API token
+      operationId: revokeToken
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+  /v1/config:
+    get:
+      summary: Get tenant configuration
+      operationId: getConfig
+  /v1/config/llm:
+    put:
+      summary: Update LLM configuration
+      operationId: updateLlmConfig
+  /v1/tenants/usage-report:
+    get:
+      summary: Get tenant usage report
+      operationId: getUsageReport
+  /v1/admin/alerts/rules:
+    post:
+      summary: Create alert rule
+      operationId: createAlertRule
+  /v1/admin/alerts/rules/{rule_id}:
+    patch:
+      summary: Update alert rule
+      operationId: updateAlertRule
+      parameters:
+        - name: rule_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+components:
+  securitySchemes:
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+security:
+  - CookieAuth: []

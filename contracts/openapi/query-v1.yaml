@@ -68,6 +68,119 @@ paths:
       responses:
         "200":
           description: List of log records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogListResponse"
+  /v1/logs/histogram:
+    get:
+      summary: Get log distribution histogram
+      operationId: logHistogram
+      parameters:
+        - name: service
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: interval
+          in: query
+          schema: { type: string, example: 1m }
+      responses:
+        "200":
+          description: Histogram data
+  /v1/logs/tail:
+    get:
+      summary: Live tail logs
+      operationId: tailLogs
+      parameters:
+        - name: service
+          in: query
+          schema: { type: string }
+        - name: since_unix_nano
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: List of new log records
+  /v1/logs/{log_id}/context:
+    get:
+      summary: Get log context (surrounding logs)
+      operationId: getLogContext
+      parameters:
+        - name: log_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Logs surrounding the specified log line
+  /v1/metrics:
+    get:
+      summary: List metric catalog entries
+      operationId: listMetrics
+      parameters:
+        - name: service
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Metric catalog
+  /v1/metrics/points:
+    get:
+      summary: Get aggregated metric points
+      operationId: getMetricPoints
+      parameters:
+        - name: metric_name
+          in: query
+          required: true
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Aggregated points
+  /v1/topology:
+    get:
+      summary: Get service topology
+      operationId: getTopology
+      responses:
+        "200":
+          description: Service relationship graph
+  /v1/services/summary:
+    get:
+      summary: List service summaries
+      operationId: listServiceSummaries
+      responses:
+        "200":
+          description: Service catalog with summaries
+  /v1/dashboards:
+    get:
+      summary: List dashboards
+      operationId: listDashboards
+      responses:
+        "200":
+          description: List of tenant-scoped dashboards
+    post:
+      summary: Create dashboard
+      operationId: createDashboard
+      responses:
+        "201":
+          description: Created
+  /v1/saved-views:
+    get:
+      summary: List saved views
+      operationId: listSavedViews
+    post:
+      summary: Create saved view
+      operationId: createSavedView
 components:
   securitySchemes:
     BearerAuth:
@@ -86,6 +199,14 @@ components:
       type: object
       properties:
         traces:
+          type: array
+          items:
+            type: object
+        total: { type: integer }
+    LogListResponse:
+      type: object
+      properties:
+        logs:
           type: array
           items:
             type: object

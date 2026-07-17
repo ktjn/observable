@@ -1,0 +1,41 @@
+openapi: "3.1.0"
+info:
+  title: Observable Auth API
+  version: "1.0.0"
+paths:
+  /v1/auth/login:
+    get:
+      summary: Start OIDC login flow
+      operationId: login
+      responses:
+        "302": { description: Redirect to OIDC provider }
+  /v1/auth/callback:
+    get:
+      summary: OIDC callback endpoint
+      operationId: callback
+      responses:
+        "302": { description: Redirect to frontend with session cookie }
+  /v1/auth/logout:
+    post:
+      summary: Logout and clear session
+      operationId: logout
+      responses:
+        "204": { description: Logged out }
+  /v1/auth/me:
+    get:
+      summary: Get current session user info
+      operationId: getMe
+      responses:
+        "200":
+          description: Current user information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id: { type: string }
+                  email: { type: string }
+                  name: { type: string }
+                  role: { type: string }
+                  tenant_id: { type: string, format: uuid }
+        "401": { description: No active session }
