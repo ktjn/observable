@@ -168,9 +168,6 @@ export async function prepareNlqQuery(
     body: JSON.stringify(req),
   });
 
-  if (res.status === 503) {
-    throw new Error("NLQ service is not configured on this server");
-  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(
@@ -199,9 +196,6 @@ export async function completeNlqQuery(
     body: JSON.stringify({ session_token: sessionToken, raw_llm_response: rawLlmResponse }),
   });
 
-  if (res.status === 503) {
-    throw new Error("NLQ service is not configured on this server");
-  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(

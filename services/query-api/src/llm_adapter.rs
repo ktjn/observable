@@ -1771,7 +1771,10 @@ fn map_llm_adapter_error(
 /// Accepts a natural language question, calls the LLM adapter, and returns a discriminated
 /// `NlqQueryResponse` (frame or decline).
 ///
-/// Returns 503 if no LLM configuration exists at all (neither key nor endpoint URL in env or DB).
+/// Returns 503 if no LLM configuration exists at all (neither key nor endpoint URL in env or
+/// DB), or if the tenant's provider is configured as `webllm` — this endpoint is the
+/// single-call remote-only path and has nothing server-side to call for a WebLLM tenant;
+/// such clients should use `/v1/nlq/prepare` + `/v1/nlq/complete` instead.
 pub async fn handle_nlq_query(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
@@ -2040,7 +2043,13 @@ pub async fn handle_nlq_complete(
             state.sessions.put_back(body.session_token, session);
             Ok(Json(NlqCompleteResponse::NeedsRepair { repair_prompt }))
         }
-        Err(e) => Err(map_llm_adapter_error(e, ctx.tenant_id)),
+        Err(e) => {
+            // Put the session back so a retry with the same token (as the mapped error's
+            // "please retry" advice implies for transient failures) can actually resume,
+            // instead of hitting a 404 and having to restart the whole flow from /prepare.
+            state.sessions.put_back(body.session_token, session);
+            Err(map_llm_adapter_error(e, ctx.tenant_id))
+        }
     }
 }
 
@@ -3436,6 +3445,48 @@ mod tests {
         .await
         .expect_err("session should have been removed after Final outcome");
         assert_eq!(err.0, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn handle_nlq_complete_transient_query_error_puts_session_back_for_retry() {
+        let state = fake_state();
+        let tenant_id = Uuid::new_v4();
+        // A log-signal IR in execute mode: skips fuzzy metric resolution but still reaches
+        // `execute_mcp_query`, which will fail against `fake_ch`'s unreachable ClickHouse URL —
+        // a stand-in for a real transient data-store outage.
+        let ir = log_ir();
+        let raw = serde_json::to_string(&serde_json::json!({"type": "ir", "ir": ir})).unwrap();
+        let session_token = state.sessions.insert(
+            tenant_id,
+            default_req("show me errors", NlqQueryMode::Execute),
+            "show me errors".into(),
+        );
+
+        let body = NlqCompleteRequest {
+            session_token,
+            raw_llm_response: raw,
+        };
+        let err = handle_nlq_complete(
+            State(state.clone()),
+            Extension(fake_ctx(tenant_id)),
+            Json(body),
+        )
+        .await
+        .expect_err("unreachable data store should produce an error response");
+        assert_eq!(
+            err.0,
+            StatusCode::SERVICE_UNAVAILABLE,
+            "transient data-store errors should map to 503, got body: {:?}",
+            err.1
+        );
+
+        // The session must still be usable: a retry with the same token (as the 503's
+        // "please retry" message implies) should resume rather than 404.
+        let session = state
+            .sessions
+            .take_for_resume(session_token, tenant_id)
+            .expect("session should have been put back after a transient resume error");
+        assert_eq!(session.repair_attempt, 0);
     }
 
     #[tokio::test]

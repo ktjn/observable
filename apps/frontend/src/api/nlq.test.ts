@@ -80,11 +80,11 @@ describe("prepareNlqQuery", () => {
     ).rejects.toThrow("bad request");
   });
 
-  test("throws a specific error on 503", async () => {
-    mockFetchOnce(503, {});
+  test("surfaces the backend's error message on a transient 503, not a misconfiguration message", async () => {
+    mockFetchOnce(503, { error: "data store temporarily unavailable, please retry" });
     await expect(
       prepareNlqQuery(DEFAULT_TENANT_ID, { question: "p99 latency" })
-    ).rejects.toThrow("NLQ service is not configured on this server");
+    ).rejects.toThrow("data store temporarily unavailable, please retry");
   });
 
   test("sends the request via POST with tenant headers", async () => {
@@ -123,6 +123,13 @@ describe("completeNlqQuery", () => {
     await expect(
       completeNlqQuery(DEFAULT_TENANT_ID, "session-1", "raw response")
     ).rejects.toThrow("unknown or expired NLQ session");
+  });
+
+  test("surfaces the backend's error message on a transient 503, not a misconfiguration message", async () => {
+    mockFetchOnce(503, { error: "data store temporarily unavailable, please retry" });
+    await expect(
+      completeNlqQuery(DEFAULT_TENANT_ID, "session-1", "raw response")
+    ).rejects.toThrow("data store temporarily unavailable, please retry");
   });
 
   test("sends session_token and raw_llm_response in the body", async () => {
