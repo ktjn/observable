@@ -595,6 +595,113 @@ When in doubt, produce an IR. Only decline when the question **explicitly** ment
     prompt
 }
 
+/// Compact variant of `build_system_prompt` for local WebLLM models, whose prebuilt
+/// context windows top out at 4096 tokens across the entire model catalog (checked
+/// directly against `@mlc-ai/web-llm`'s `prebuiltAppConfig.model_list`) — `build_system_prompt`'s
+/// static template alone is already ~4600 tokens, exceeding that ceiling before any
+/// schema, question, or response headroom is added. This trims instructions and examples
+/// to the essentials while preserving every correctness-critical rule (signals-vs-metric,
+/// distribution-vs-timeseries, percentiles fidelity, filter/time_range rules, decline
+/// boundary, page context), so results should still be substantively correct — just less
+/// heavily example-guided than the full prompt used for large-context remote models.
+pub(crate) fn build_system_prompt_compact(
+    metrics: &[crate::mcp_tools::SignalField],
+    label_keys: &[String],
+    service_scope: Option<&str>,
+    base_ir: Option<&NlqIr>,
+) -> String {
+    let mut prompt = String::from(
+        r#"You are an observability query assistant. Convert the question into JSON matching EXACTLY ONE of:
+{"type":"ir","ir":<NlqIr>}
+{"type":"decline","reason":"<brief>"} — ONLY for explicit billing/SLA/regulatory-compliance/financial-reconciliation questions
+{"type":"capabilities"} — ONLY if the user asks what you can do
+
+NlqIr schema:
+{"operation":"timeseries"|"rate"|"irate"|"increase"|"histogram"|"topk"|"table"|"distribution"|"catalog"|"inventory","signals":["metrics"]|["logs"]|["traces"]|[],"metric":"<name_from_schema>"|null,"query":"<text>"|null,"window":"5m"|null,"filters":[{"field":"<f>","op":"="|"!="|">"|">="|"<"|"<="|"=~"|"!~","value":"<v>"}],"group_by":["<f>"],"resolution":"1m"|"5m"|"1h"|null,"time_range":{"from":"now-1h","to":"now"},"visualization_hint":"timeseries"|"histogram"|"heatmap"|"table"|"topk"|"flamegraph"|"distribution"|null,"percentiles":["p99"]|null,"catalog_field":"<label_key>"|null,"limit":10|null}
+
+`signals` is a CATEGORY not a metric name: "metrics" for metric questions, "logs" for log questions. The metric name always goes in `metric`, never in `signals`.
+
+Operations:
+- timeseries: chart of values over time — default for a metric question naming no specific stat
+- rate / irate / increase: counter per-second rate / instantaneous rate / total increase over the window
+- distribution: ONE scalar stat (p50/p75/p95/p99/average/mean/median/min/max) — use when the user names a specific stat; set `percentiles` to exactly what they asked (e.g. "p95 and average" -> ["p95","average"])
+- topk: rank entities by a metric value ("top N by X", "highest X") — REQUIRES `metric`; `limit` = N (default 10 if unspecified)
+- table: raw recent rows for a metric, OR log search — for logs: signals:["logs"], metric:null, `query`=free-text body search, filters may use service_name/severity_text(INFO|WARN|ERROR|FATAL)/environment/trace_id/span_id
+- catalog: list distinct values of a dimension ("list services", "what X exist") — set `catalog_field` (e.g. "service_name","environment","metric_name", or any label key), no `metric`, no ranking
+- inventory: filter an infrastructure entity table by attributes (NOT a metric/chart) — filters use entity_type(host|cluster|namespace|pod|container)/environment/service_name/health_state(healthy|watch|breach)/display_name, no `metric`, no `catalog_field`
+
+Rules:
+- distribution vs timeseries: user names a stat (p95, average, median, ...) -> distribution; otherwise a metric mention alone -> timeseries. Never confuse with topk (topk ranks entities, catalog lists entities — topk requires computing/ranking a metric, catalog does not).
+- percentiles: include EXACTLY the stats the user asked for, never more/fewer; only set for `distribution`; null for all other operations.
+- limit: only meaningful for `topk`; null otherwise.
+- NEVER add a filter with an empty value — omit filters you're not confident about instead.
+- NEVER put time constraints in `filters` — all temporal bounds go in `time_range` only.
+- Decline ONLY for explicit billing/SLA/regulatory/financial-reconciliation questions. Always answer operational/observability questions — never decline those.
+
+Examples:
+"p99 latency last hour" -> {"type":"ir","ir":{"operation":"distribution","signals":["metrics"],"metric":"<metric>","percentiles":["p99"],"time_range":{"from":"now-1h","to":"now"}}}
+"top 5 services by errors" -> {"type":"ir","ir":{"operation":"topk","signals":["metrics"],"metric":"<metric>","limit":5,"time_range":{"from":"now-1h","to":"now"}}}
+"list all services" -> {"type":"ir","ir":{"operation":"catalog","signals":["metrics"],"catalog_field":"service_name","filters":[],"time_range":{"from":"now-24h","to":"now"}}}
+"logs containing timeout last 30m" -> {"type":"ir","ir":{"operation":"table","signals":["logs"],"metric":null,"query":"timeout","filters":[],"time_range":{"from":"now-30m","to":"now"}}}
+
+## Available metrics
+
+"#,
+    );
+
+    if metrics.is_empty() {
+        prompt.push_str("(none available for this tenant)\n");
+    } else {
+        for m in metrics {
+            prompt.push_str(&format!("- {}", m.field_name));
+            if let Some(mt) = &m.metric_type {
+                prompt.push_str(&format!(" [{mt}]"));
+            }
+            if let Some(desc) = &m.business_description {
+                prompt.push_str(&format!(": {desc}"));
+            }
+            prompt.push('\n');
+        }
+    }
+
+    prompt.push_str("\n## Available label keys\n\n");
+    if label_keys.is_empty() {
+        prompt.push_str("(none discovered)\n");
+    } else {
+        prompt.push_str(&label_keys.join(", "));
+        prompt.push_str("\nDo not invent label keys not listed above (catalog_field is exempt).\n");
+    }
+
+    if let Some(svc) = service_scope {
+        prompt.push_str(&format!(
+            "\n## Service scope\n\nScoped to service `{svc}` — service_name filter is enforced automatically, do not add it yourself.\n"
+        ));
+    }
+
+    if let Some(base) = base_ir {
+        let ctx = if base.operation == NlqOperation::Inventory {
+            "\n## Page context\n\nInfrastructure inventory page: filter entities, NOT a metric chart. \
+             ALWAYS operation:\"inventory\". Fields: entity_type/environment/service_name/health_state/display_name. No `metric`.\n"
+        } else if base.signals.contains(&NlqSignal::Logs) {
+            "\n## Page context\n\nLog search page. ALWAYS operation:\"table\", signals:[\"logs\"]. \
+             Fields: service_name/severity_text/environment/trace_id/span_id, `query` for free-text body search. No `metric`.\n"
+        } else if base.signals.contains(&NlqSignal::Traces) {
+            "\n## Page context\n\nTrace search page. ALWAYS operation:\"table\", signals:[\"traces\"]. \
+             Fields: service_name/status_code(OK|ERROR|UNSET)/environment/operation. No `metric`.\n"
+        } else if base.operation == NlqOperation::Catalog {
+            "\n## Page context\n\nServices topology page. ALWAYS operation:\"catalog\", catalog_field:\"service_name\". \
+             Fields: environment. No `metric`.\n"
+        } else {
+            ""
+        };
+        if !ctx.is_empty() {
+            prompt.push_str(ctx);
+        }
+    }
+
+    prompt
+}
+
 // ── Capabilities hint ─────────────────────────────────────────────────────────
 
 /// Builds a static capabilities description. Assembled server-side — no LLM or DB call needed.
@@ -1272,8 +1379,25 @@ pub enum NlqPrepareOutcome {
     Prepared(NlqPreparedCall),
 }
 
+/// Which system prompt `prepare_nlq_pipeline` should build. `Full` is used for the
+/// remote-provider path (large-context models, no token pressure). `Compact` is used
+/// for WebLLM: every prebuilt WebLLM model tops out at a 4096-token context window
+/// (checked directly against the full `prebuiltAppConfig.model_list` catalog), and
+/// `build_system_prompt`'s static template alone is already ~4600 tokens — comfortably
+/// exceeding that ceiling before any schema, question, or generation headroom. Also
+/// tightens the schema-context metric limit for the same reason.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PromptStyle {
+    Full,
+    Compact,
+}
+
+const FULL_PROMPT_METRIC_LIMIT: usize = 20;
+const COMPACT_PROMPT_METRIC_LIMIT: usize = 8;
+
 /// Runs the pre-LLM portion of the NLQ pipeline: server-side deny gate, bounded schema
-/// context fetch, and system prompt construction. Contains today's steps 1–3 verbatim.
+/// context fetch, and system prompt construction. Contains today's steps 1–3 verbatim
+/// for `PromptStyle::Full`.
 ///
 /// Never produces a repair-turn prompt — the returned `question` is always the
 /// original question. Repair prompts are built by `resume_nlq_pipeline`.
@@ -1282,6 +1406,7 @@ pub async fn prepare_nlq_pipeline(
     ch: &clickhouse::Client,
     tenant_id: Uuid,
     req: &NlqQueryRequest,
+    prompt_style: PromptStyle,
 ) -> Result<NlqPrepareOutcome, LlmAdapterError> {
     let question = req.question.as_deref().unwrap_or("");
     let question_preview = question.chars().take(256).collect::<String>();
@@ -1306,20 +1431,33 @@ pub async fn prepare_nlq_pipeline(
         }));
     }
 
-    // 2. Fetch bounded schema context (up to 20 schema-complete metrics)
-    let (metrics, label_keys) = fetch_schema_context(db, ch, tenant_id, 20).await?;
+    // 2. Fetch bounded schema context (up to N schema-complete metrics)
+    let metric_limit = match prompt_style {
+        PromptStyle::Full => FULL_PROMPT_METRIC_LIMIT,
+        PromptStyle::Compact => COMPACT_PROMPT_METRIC_LIMIT,
+    };
+    let (metrics, label_keys) = fetch_schema_context(db, ch, tenant_id, metric_limit).await?;
 
     // 3. Build system prompt
-    let system_prompt = build_system_prompt(
-        &metrics,
-        &label_keys,
-        req.service_name.as_deref(),
-        req.base_ir.as_ref(),
-    );
+    let system_prompt = match prompt_style {
+        PromptStyle::Full => build_system_prompt(
+            &metrics,
+            &label_keys,
+            req.service_name.as_deref(),
+            req.base_ir.as_ref(),
+        ),
+        PromptStyle::Compact => build_system_prompt_compact(
+            &metrics,
+            &label_keys,
+            req.service_name.as_deref(),
+            req.base_ir.as_ref(),
+        ),
+    };
 
     tracing::debug!(
         tenant_id = %tenant_id,
         prompt_metric_count = metrics.len(),
+        prompt_style = ?prompt_style,
         "NLQ calling LLM"
     );
 
@@ -1525,7 +1663,7 @@ pub async fn run_nlq_pipeline(
 ) -> Result<NlqQueryResponse, LlmAdapterError> {
     let pipeline_start = std::time::Instant::now();
 
-    let prepared = match prepare_nlq_pipeline(db, ch, tenant_id, req).await? {
+    let prepared = match prepare_nlq_pipeline(db, ch, tenant_id, req, PromptStyle::Full).await? {
         NlqPrepareOutcome::Declined(response) => return Ok(response),
         NlqPrepareOutcome::Prepared(prepared) => prepared,
     };
@@ -1958,15 +2096,20 @@ pub async fn handle_nlq_prepare(
         return result.map(|response| Json(NlqPrepareResponse::Final { response }));
     }
 
-    // Resolve the provider for parity with `handle_nlq_query`, though today it's a no-op
-    // here: `/prepare` never calls an `LlmCaller` itself for either provider — Remote
-    // tenants proceed into the pipeline exactly as before, and Webllm tenants are the
-    // *intended* audience for this endpoint (the client runs inference and posts the raw
-    // response to `/v1/nlq/complete`). This call exists only so the branch is visible next
-    // to `handle_nlq_query`'s; it doesn't change behavior for either provider value.
-    let _provider = crate::llm_config::fetch_provider(&state.db).await;
+    // Resolve the provider so we can pick the right system-prompt style: `/prepare` never
+    // calls an `LlmCaller` itself for either provider — Remote tenants proceed into the
+    // pipeline exactly as before (full prompt, no context-window pressure on large remote
+    // models), and Webllm tenants are the *intended* audience for this endpoint (the client
+    // runs inference locally and posts the raw response to `/v1/nlq/complete`) — every
+    // prebuilt WebLLM model tops out at a 4096-token context window, so those tenants get
+    // the compact prompt (see `PromptStyle`/`build_system_prompt_compact`).
+    let provider = crate::llm_config::fetch_provider(&state.db).await;
+    let prompt_style = match provider {
+        crate::llm_config::LlmProvider::Remote => PromptStyle::Full,
+        crate::llm_config::LlmProvider::Webllm => PromptStyle::Compact,
+    };
 
-    match prepare_nlq_pipeline(&state.db, &state.ch, ctx.tenant_id, &req).await {
+    match prepare_nlq_pipeline(&state.db, &state.ch, ctx.tenant_id, &req, prompt_style).await {
         Ok(NlqPrepareOutcome::Declined(response)) => {
             Ok(Json(NlqPrepareResponse::Final { response }))
         }
@@ -2691,6 +2834,114 @@ mod tests {
         );
     }
 
+    // ── build_system_prompt_compact ───────────────────────────────────────────
+    //
+    // WebLLM's entire prebuilt model catalog tops out at a 4096-token context window
+    // (verified against @mlc-ai/web-llm's prebuiltAppConfig.model_list). These tests
+    // pin the compact prompt to a hard token budget so a future edit can't silently
+    // regrow it past what any WebLLM model can actually accept.
+
+    /// Rough token estimate matching the chars/4 heuristic used to size this prompt —
+    /// not exact, but good enough to catch a regression by an order of magnitude.
+    fn rough_token_estimate(s: &str) -> usize {
+        s.len() / 4
+    }
+
+    #[test]
+    fn compact_prompt_static_template_fits_webllm_context_budget() {
+        // Empty schema/labels isolates the static template's own size. Budget: must
+        // leave comfortable headroom under the 4096-token ceiling shared by every
+        // prebuilt WebLLM model, even before schema, question, and response tokens.
+        let prompt = build_system_prompt_compact(&[], &[], None, None);
+        let tokens = rough_token_estimate(&prompt);
+        assert!(
+            tokens < 1500,
+            "compact prompt static template is ~{tokens} tokens, expected < 1500 \
+             (WebLLM's max context across every prebuilt model is 4096 tokens; this \
+             budget must leave room for schema, question, and response headroom)"
+        );
+    }
+
+    #[test]
+    fn compact_prompt_much_smaller_than_full_prompt() {
+        let full = build_system_prompt(&[], &[], None, None);
+        let compact = build_system_prompt_compact(&[], &[], None, None);
+        assert!(
+            compact.len() < full.len() / 2,
+            "compact prompt ({} chars) should be well under half the full prompt's \
+             size ({} chars)",
+            compact.len(),
+            full.len()
+        );
+    }
+
+    #[test]
+    fn compact_prompt_preserves_core_correctness_rules() {
+        let prompt = build_system_prompt_compact(&[], &[], None, None);
+        // Output-format contract.
+        assert!(prompt.contains(r#"{"type":"ir""#));
+        assert!(prompt.contains(r#"{"type":"decline""#));
+        assert!(prompt.contains(r#"{"type":"capabilities"}"#));
+        // signals-vs-metric distinction (a common small-model failure mode).
+        assert!(prompt.contains("signals` is a CATEGORY not a metric name"));
+        // distribution vs timeseries rule.
+        assert!(prompt.contains("distribution vs timeseries"));
+        // percentiles fidelity.
+        assert!(prompt.contains("EXACTLY the stats"));
+        // filter/time_range rules.
+        assert!(prompt.contains("NEVER put time constraints in `filters`"));
+        // advisory decline boundary.
+        assert!(prompt.contains("Decline ONLY for explicit billing"));
+    }
+
+    #[test]
+    fn compact_prompt_includes_bounded_metrics_and_labels() {
+        let metrics = vec![crate::mcp_tools::SignalField {
+            field_name: "http_request_duration_ms".into(),
+            field_type: "float64".into(),
+            otel_spec_version: None,
+            display_name: Some("Request duration".into()),
+            business_description: Some("Latency of inbound HTTP requests".into()),
+            interpretation_rule: None,
+            effective_sample_rate: None,
+            metric_type: Some("histogram".into()),
+            timestamp_column: Some("timestamp_unix_nano".into()),
+            unit: Some("ms".into()),
+            recommended_downsampling: None,
+            schema_complete: true,
+        }];
+        let keys = vec!["service_name".to_string(), "pod".to_string()];
+        let prompt = build_system_prompt_compact(&metrics, &keys, None, None);
+        assert!(prompt.contains("http_request_duration_ms"));
+        assert!(prompt.contains("Latency of inbound HTTP requests"));
+        assert!(prompt.contains("service_name"));
+        assert!(prompt.contains("pod"));
+    }
+
+    #[test]
+    fn compact_prompt_includes_page_context_for_log_search() {
+        let base_ir = NlqIr {
+            operation: NlqOperation::Table,
+            signals: vec![NlqSignal::Logs],
+            filters: vec![],
+            group_by: vec![],
+            time_range: NlqTimeRange {
+                from: "now-1h".into(),
+                to: "now".into(),
+            },
+            metric: None,
+            query: None,
+            window: None,
+            resolution: None,
+            visualization_hint: None,
+            percentiles: None,
+            catalog_field: None,
+            limit: None,
+        };
+        let prompt = build_system_prompt_compact(&[], &[], None, Some(&base_ir));
+        assert!(prompt.contains("Log search page"));
+    }
+
     // ── repair loop ───────────────────────────────────────────────────────────
 
     struct SequentialMockLlmCaller {
@@ -3180,7 +3431,7 @@ mod tests {
             NlqQueryMode::Execute,
         );
 
-        let outcome = prepare_nlq_pipeline(&db, &ch, Uuid::nil(), &req)
+        let outcome = prepare_nlq_pipeline(&db, &ch, Uuid::nil(), &req, PromptStyle::Full)
             .await
             .unwrap();
 
