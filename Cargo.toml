@@ -16,6 +16,9 @@ members = [
 [workspace.package]
 edition = "2024"
 
+[profile.release]
+overflow-checks = true
+
 [workspace.dependencies]
 tokio              = { version = "1", features = ["full"] }
 axum               = { version = "0.8", features = ["json", "macros"] }

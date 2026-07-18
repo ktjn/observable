@@ -55,11 +55,15 @@ jobs:
       # after a Cargo.lock-changing dependency bump (new cache key, so no
       # warm target/ to reuse) plus the rust:bookworm build image and the
       # runtime image build can otherwise exhaust the runner's free space
-      # mid-build. Reclaim that space up front.
+      # mid-build. Only pay this ~2m cleanup cost when we're actually close
+      # to running out (warm-cache runs have plenty of headroom already).
       - name: Free disk space
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/powershell /usr/share/swift /usr/local/.ghcup /usr/lib/jvm
-          docker image prune -af
+          avail_mb=$(df --output=avail -m / | tail -1 | tr -d ' ')
+          if [ "$avail_mb" -lt 20480 ]; then
+            sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/powershell /usr/share/swift /usr/local/.ghcup /usr/lib/jvm
+            docker image prune -af
+          fi
           df -h /
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -75,12 +79,23 @@ jobs:
             cargo-sccache-v1-${{ env.RUST_VERSION }}-
             cargo-sccache-v1-
 
+      # sccache and cargo-nextest are static musl binaries pinned by version
+      # below; they never change for a given key, so (unlike the cache above)
+      # an exact-key hit is exactly what we want here — it just skips the
+      # re-download instead of ever going stale.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        id: tool-cache
+        with:
+          path: ~/.cache/ci-tools
+          key: ci-tools-v1-sccache-0.16.0-nextest-0.9.140
+
       # Build/lint/test inside rust:1.97.1-bookworm (same glibc as the
       # debian:bookworm-slim runtime image) rather than natively on the
       # ubuntu-latest runner — ubuntu-latest's glibc is newer than bookworm's,
       # and binaries built against it fail to load in the runtime image.
-      # We download a static musl version of sccache inside the container to
-      # ensure compatibility with both the host cache and the build env.
+      # sccache and cargo-nextest are static musl binaries (avoids glibc
+      # version mismatch with the host) fetched once and cached above by
+      # ~/.cache/ci-tools, rather than re-downloaded every run.
       #
       # sccache's GHA cache backend (SCCACHE_GHA_ENABLED) targets GitHub's
       # old cache service API and silently fails every write against the
@@ -92,6 +107,13 @@ jobs:
       # of the dependency tree) gets a fresh OUT_DIR hash, which leaks into
       # its rustc invocation and busts sccache's cache key even when the
       # source is byte-identical to the previous run.
+      #
+      # Tests run under --release (not the default debug profile): sccache
+      # caches per exact rustc flags, so debug tests and the release build
+      # below used to compile the entire dependency graph twice under
+      # different profiles. Running both under --release lets sccache share
+      # one compile across both. overflow-checks stays on in [profile.release]
+      # (Cargo.toml) so this doesn't lose overflow-panic coverage.
       - name: Build, lint, test
         env:
           RUSTC_WRAPPER: sccache
@@ -100,21 +122,29 @@ jobs:
           SCCACHE_DIR: /sccache
           CARGO_INCREMENTAL: "0"
         run: |
-          mkdir -p ~/.cargo-ci/registry ~/.cargo-ci/git ~/.cargo-ci/target ~/.cache/sccache
+          mkdir -p ~/.cargo-ci/registry ~/.cargo-ci/git ~/.cargo-ci/target ~/.cache/sccache ~/.cache/ci-tools
           docker run --rm \
             -v "$PWD":/app -w /app \
             -v "$HOME/.cargo-ci/registry":/usr/local/cargo/registry \
             -v "$HOME/.cargo-ci/git":/usr/local/cargo/git \
             -v "$HOME/.cargo-ci/target":/app/target \
             -v "$HOME/.cache/sccache":/sccache \
+            -v "$HOME/.cache/ci-tools":/ci-tools \
             -e RUSTC_WRAPPER -e CC -e CXX -e SCCACHE_DIR -e CARGO_INCREMENTAL \
             -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
             rust:${{ env.RUST_VERSION }} bash -c '
               set -euo pipefail
-              # Download static sccache binary (musl) to avoid glibc version mismatch with host
-              curl -L https://github.com/mozilla/sccache/releases/download/v0.16.0/sccache-v0.16.0-x86_64-unknown-linux-musl.tar.gz | tar xz --strip-components=1 -C /usr/local/bin sccache-v0.16.0-x86_64-unknown-linux-musl/sccache
-              chmod +x /usr/local/bin/sccache
-              
+
+              if [ ! -x /ci-tools/sccache ]; then
+                curl -L https://github.com/mozilla/sccache/releases/download/v0.16.0/sccache-v0.16.0-x86_64-unknown-linux-musl.tar.gz | tar xz --strip-components=1 -C /ci-tools sccache-v0.16.0-x86_64-unknown-linux-musl/sccache
+                chmod +x /ci-tools/sccache
+              fi
+              if [ ! -x /ci-tools/cargo-nextest ]; then
+                curl -L https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.140/cargo-nextest-0.9.140-x86_64-unknown-linux-musl.tar.gz | tar xz -C /ci-tools cargo-nextest
+                chmod +x /ci-tools/cargo-nextest
+              fi
+              export PATH="/ci-tools:$PATH"
+
               # Ensure stats are shown and server is stopped even on failure
               trap "sccache --show-stats; sccache --stop-server || true" EXIT
 
@@ -125,7 +155,7 @@ jobs:
               sccache --start-server
               cargo fmt --check
               cargo clippy --workspace --all-targets -- -D warnings
-              cargo test --workspace --lib --bins
+              cargo nextest run --workspace --lib --bins --release
               cargo build --release --workspace
             '
 
@@ -135,7 +165,7 @@ jobs:
           # Container runs as root, so cache files end up root-owned on the
           # host mounts; chown back to the runner user or actions/cache's
           # post-job tar step cannot read them to persist the cache.
-          sudo chown -R $(id -u):$(id -g) ~/.cargo-ci ~/.cache/sccache
+          sudo chown -R $(id -u):$(id -g) ~/.cargo-ci ~/.cache/sccache ~/.cache/ci-tools
 
       - name: Stage release binaries for Docker context
         run: |
