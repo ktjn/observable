@@ -603,7 +603,7 @@ services:
       POSTGRES_DB: otel
     volumes:
       - ./src/postgresql/init.sql:/docker-entrypoint-initdb.d/init.sql
-      - otel_demo_postgresql_data:/var/lib/postgresql/data
+      - otel_demo_postgresql_data:/var/lib/postgresql
     logging: *logging
 
   valkey-cart:
