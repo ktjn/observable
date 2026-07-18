@@ -38,6 +38,10 @@ export interface PlatformConfig {
   llm_url: string | null;
   /** LLM model identifier stored in DB; null if not set. */
   llm_model: string | null;
+  /** "remote" | "webllm" — always present, defaults to "remote". */
+  llm_provider: "remote" | "webllm";
+  /** WebLLM model identifier; null if not set. Separate from `llm_model`. */
+  webllm_model: string | null;
 }
 
 export async function getConfig(tenantId: string): Promise<PlatformConfig> {
@@ -56,14 +60,18 @@ export interface SaveLlmConfigParams {
   apiKey?: string;
   url?: string;
   model?: string;
+  provider?: "remote" | "webllm";
+  webllmModel?: string;
 }
 
-/** PUT /v1/config/llm — upserts whichever of apiKey, url, model are provided. */
+/** PUT /v1/config/llm — upserts whichever of apiKey, url, model, provider, webllmModel are provided. */
 export async function saveLlmConfig(tenantId: string, params: SaveLlmConfigParams): Promise<void> {
   const body: Record<string, string> = {};
   if (params.apiKey !== undefined) body.api_key = params.apiKey;
   if (params.url !== undefined) body.url = params.url;
   if (params.model !== undefined) body.model = params.model;
+  if (params.provider !== undefined) body.provider = params.provider;
+  if (params.webllmModel !== undefined) body.webllm_model = params.webllmModel;
 
   const res = await fetch("/v1/config/llm", {
     credentials: "include",

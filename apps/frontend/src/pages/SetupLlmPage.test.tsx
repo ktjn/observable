@@ -21,10 +21,21 @@ const mockGetConfig = vi.mocked(getConfig);
 const mockSaveLlmConfig = vi.mocked(saveLlmConfig);
 const mockFetchAvailableModels = vi.mocked(fetchAvailableModels);
 
+vi.mock("../lib/webllm/webllmEngine", () => ({
+  listAvailableModels: vi.fn(),
+  checkWebGpuSupport: vi.fn(),
+}));
+
+import { listAvailableModels, checkWebGpuSupport } from "../lib/webllm/webllmEngine";
+const mockListAvailableModels = vi.mocked(listAvailableModels);
+const mockCheckWebGpuSupport = vi.mocked(checkWebGpuSupport);
+
 const BASE_CONFIG = {
   llm_key_configured: false,
   llm_url: null,
   llm_model: null,
+  llm_provider: "remote" as const,
+  webllm_model: null,
 };
 
 const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
@@ -261,5 +272,111 @@ describe("SetupLlmPage", () => {
       expect(screen.getByTestId("llm-config-test-failed")).toBeInTheDocument()
     );
     expect(screen.getByTestId("llm-config-test-failed").textContent).toContain("connection refused");
+  });
+
+  // ── Provider selector / WebLLM branch ────────────────────────────────────────
+
+  test("defaults to Remote provider and shows the remote fields", async () => {
+    mockGetConfig.mockResolvedValue({ ...BASE_CONFIG });
+    renderPage();
+    await screen.findByTestId("llm-provider-select");
+    expect((screen.getByTestId("llm-provider-select") as HTMLSelectElement).value).toBe("remote");
+    expect(screen.getByTestId("llm-key-input")).toBeInTheDocument();
+    expect(screen.getByTestId("llm-url-input")).toBeInTheDocument();
+    expect(screen.queryByTestId("webllm-model-select")).not.toBeInTheDocument();
+    expect(mockListAvailableModels).not.toHaveBeenCalled();
+    expect(mockCheckWebGpuSupport).not.toHaveBeenCalled();
+  });
+
+  test("pre-fills provider select from config.llm_provider", async () => {
+    mockGetConfig.mockResolvedValue({ ...BASE_CONFIG, llm_provider: "webllm", webllm_model: "Llama-3-8B" });
+    mockListAvailableModels.mockResolvedValue([{ modelId: "Llama-3-8B", label: "Llama-3-8B" }]);
+    mockCheckWebGpuSupport.mockResolvedValue({ supported: true });
+    renderPage();
+    await waitFor(() =>
+      expect((screen.getByTestId("llm-provider-select") as HTMLSelectElement).value).toBe("webllm")
+    );
+  });
+
+  test("switching provider to WebLLM hides remote fields and shows model picker + GPU badge", async () => {
+    mockGetConfig.mockResolvedValue({ ...BASE_CONFIG });
+    mockListAvailableModels.mockResolvedValue([
+      { modelId: "Llama-3-8B-Instruct-q4f16_1", label: "Llama-3-8B-Instruct-q4f16_1" },
+    ]);
+    mockCheckWebGpuSupport.mockResolvedValue({ supported: true });
+    renderPage();
+    await screen.findByTestId("llm-provider-select");
+    fireEvent.change(screen.getByTestId("llm-provider-select"), { target: { value: "webllm" } });
+
+    expect(screen.queryByTestId("llm-key-input")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("llm-url-input")).not.toBeInTheDocument();
+
+    await waitFor(() => expect(mockListAvailableModels).toHaveBeenCalled());
+    await waitFor(() => expect(mockCheckWebGpuSupport).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.getByRole("option", { name: "Llama-3-8B-Instruct-q4f16_1" })).toBeInTheDocument()
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("webllm-gpu-badge").textContent).toContain("WebGPU supported")
+    );
+  });
+
+  test("WebGPU unsupported shows a warn badge with the reason", async () => {
+    mockGetConfig.mockResolvedValue({ ...BASE_CONFIG });
+    mockListAvailableModels.mockResolvedValue([]);
+    mockCheckWebGpuSupport.mockResolvedValue({ supported: false, reason: "No compatible GPU adapter found" });
+    renderPage();
+    await screen.findByTestId("llm-provider-select");
+    fireEvent.change(screen.getByTestId("llm-provider-select"), { target: { value: "webllm" } });
+    await waitFor(() =>
+      expect(screen.getByTestId("webllm-gpu-badge").textContent).toContain("No compatible GPU adapter found")
+    );
+  });
+
+  test("saving in Remote mode calls saveLlmConfig with the existing shape (regression)", async () => {
+    mockGetConfig.mockResolvedValue({ ...BASE_CONFIG });
+    mockSaveLlmConfig.mockResolvedValue(undefined);
+    renderPage();
+    await screen.findByTestId("llm-url-input");
+    fireEvent.change(screen.getByTestId("llm-url-input"), { target: { value: "http://localhost:8000" } });
+    fireEvent.change(screen.getByTestId("llm-model-input"), { target: { value: "gpt-4o" } });
+    fireEvent.submit(screen.getByTestId("llm-url-input").closest("form")!);
+    await waitFor(() =>
+      expect(mockSaveLlmConfig).toHaveBeenCalledWith(
+        DEFAULT_TENANT_ID,
+        expect.objectContaining({ url: "http://localhost:8000", model: "gpt-4o", provider: "remote" })
+      )
+    );
+    const callArg = mockSaveLlmConfig.mock.calls[0][1];
+    expect(callArg).not.toHaveProperty("webllmModel");
+  });
+
+  test("saving in WebLLM mode submits provider + webllmModel and no stale remote fields", async () => {
+    mockGetConfig.mockResolvedValue({ ...BASE_CONFIG, llm_url: "http://old-host:8000", llm_model: "gpt-4o" });
+    mockSaveLlmConfig.mockResolvedValue(undefined);
+    mockListAvailableModels.mockResolvedValue([
+      { modelId: "Llama-3-8B-Instruct-q4f16_1", label: "Llama-3-8B-Instruct-q4f16_1" },
+    ]);
+    mockCheckWebGpuSupport.mockResolvedValue({ supported: true });
+    renderPage();
+    await screen.findByTestId("llm-provider-select");
+    fireEvent.change(screen.getByTestId("llm-provider-select"), { target: { value: "webllm" } });
+    await waitFor(() =>
+      expect(screen.getByRole("option", { name: "Llama-3-8B-Instruct-q4f16_1" })).toBeInTheDocument()
+    );
+    fireEvent.change(screen.getByTestId("webllm-model-select"), {
+      target: { value: "Llama-3-8B-Instruct-q4f16_1" },
+    });
+    fireEvent.submit(screen.getByTestId("webllm-model-select").closest("form")!);
+    await waitFor(() =>
+      expect(mockSaveLlmConfig).toHaveBeenCalledWith(
+        DEFAULT_TENANT_ID,
+        expect.objectContaining({ provider: "webllm", webllmModel: "Llama-3-8B-Instruct-q4f16_1" })
+      )
+    );
+    const callArg = mockSaveLlmConfig.mock.calls[0][1];
+    expect(callArg).not.toHaveProperty("apiKey");
+    expect(callArg).not.toHaveProperty("url");
+    expect(callArg).not.toHaveProperty("model");
   });
 });
