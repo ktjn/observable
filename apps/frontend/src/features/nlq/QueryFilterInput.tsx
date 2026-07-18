@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
-import { submitNlqQuery } from "../../api/nlq";
+import { useQuery } from "@tanstack/react-query";
 import type { NlqIr } from "../../api/nlq";
+import { getConfig } from "../../api/setup";
 import { SignalQueryForm } from "../../components/shared/SignalQueryForm";
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
 import { useTenantContext } from "../../hooks/useTenantContext";
+import { submitNlqWithProvider } from "./submitNlqWithProvider";
 import type { NlqIrLike } from "./queryFilters";
 
 interface QueryFilterInputProps {
@@ -32,6 +34,11 @@ export function QueryFilterInput({
 }: QueryFilterInputProps) {
   const { fromMs, toMs } = useGlobalDateRange();
   const { tenantId } = useTenantContext();
+  const { data: config } = useQuery({
+    queryKey: ["setup", "config", tenantId],
+    queryFn: () => getConfig(tenantId),
+  });
+  const provider = config?.llm_provider ?? "remote";
   const effectiveBaseIr = useMemo<NlqIrLike>(
     () => ({
       ...baseIr,
@@ -63,12 +70,16 @@ export function QueryFilterInput({
 
     setState({ status: "loading" });
     try {
-      const response = await submitNlqQuery(tenantId, {
-        question,
-        mode: "interpret",
-        service_name: serviceName,
-        base_ir: effectiveBaseIr,
-      });
+      const response = await submitNlqWithProvider(
+        tenantId,
+        { provider, webllmModel: config?.webllm_model },
+        {
+          question,
+          mode: "interpret",
+          service_name: serviceName,
+          base_ir: effectiveBaseIr,
+        },
+      );
       if (response.type !== "ir") {
         const message =
           response.type === "decline"
