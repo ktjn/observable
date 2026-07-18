@@ -391,7 +391,7 @@ services:
       postgres: { condition: service_healthy }
 
   # --- VERIFICATION ---
-  otel-collector:
+  otel-collector-verification:
     image: otel/opentelemetry-collector-contrib:0.156.0
     profiles: ["verification"]
     volumes:
@@ -408,8 +408,8 @@ services:
       GRPC_INGEST_URL: http://ingest-gateway:4317
       PLATFORM_URL: http://ingest-gateway:4321
       QUERY_URL: http://query-api:8090
-      COLLECTOR_URL: http://otel-collector:4318
-      COLLECTOR_GRPC_URL: http://otel-collector:4317
+      COLLECTOR_URL: http://otel-collector-verification:4318
+      COLLECTOR_GRPC_URL: http://otel-collector-verification:4317
     entrypoint: ["/bin/bash", "/app/tests/e2e/smoke_test.sh"]
     volumes:
       - .:/app:ro
@@ -417,7 +417,7 @@ services:
       ingest-gateway: { condition: service_healthy }
       query-api: { condition: service_healthy }
       stream-processor: { condition: service_healthy }
-      otel-collector: { condition: service_started }
+      otel-collector-verification: { condition: service_started }
 
   perf-smoke:
     image: observable-services:local
