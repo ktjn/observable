@@ -143,3 +143,70 @@ export async function submitNlqQuery(tenantId: string, req: NlqRequest): Promise
   }
   return res.json();
 }
+
+// ── Two-phase prepare/complete (WebLLM client-side inference) ──────────────────
+//
+// `NlqRequest` already covers the `/v1/nlq/prepare` body shape (question/service_name/
+// base_ir/mode), so it's reused directly rather than duplicating an identical type.
+export type NlqPrepareRequest = NlqRequest;
+
+export type NlqPrepareResult =
+  | { type: "final"; response: NlqResponse }
+  | { type: "prepared"; session_token: string; system_prompt: string; question: string };
+
+export async function prepareNlqQuery(
+  tenantId: string,
+  req: NlqPrepareRequest
+): Promise<NlqPrepareResult> {
+  const res = await fetch("/v1/nlq/prepare", {
+    credentials: "include",
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...tenantHeaders(tenantId),
+    },
+    body: JSON.stringify(req),
+  });
+
+  if (res.status === 503) {
+    throw new Error("NLQ service is not configured on this server");
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(
+      (body as { error?: string }).error ?? `NLQ prepare request failed: ${res.status}`
+    );
+  }
+  return res.json();
+}
+
+export type NlqCompleteResult =
+  | { type: "final"; response: NlqResponse }
+  | { type: "needs_repair"; repair_prompt: string };
+
+export async function completeNlqQuery(
+  tenantId: string,
+  sessionToken: string,
+  rawLlmResponse: string
+): Promise<NlqCompleteResult> {
+  const res = await fetch("/v1/nlq/complete", {
+    credentials: "include",
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...tenantHeaders(tenantId),
+    },
+    body: JSON.stringify({ session_token: sessionToken, raw_llm_response: rawLlmResponse }),
+  });
+
+  if (res.status === 503) {
+    throw new Error("NLQ service is not configured on this server");
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(
+      (body as { error?: string }).error ?? `NLQ complete request failed: ${res.status}`
+    );
+  }
+  return res.json();
+}
