@@ -69,8 +69,9 @@ jobs:
             ~/.cargo-ci/git
             ~/.cargo-ci/target
             ~/.cache/sccache
-          key: cargo-sccache-v1-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}
+          key: cargo-sccache-v1-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}-${{ github.run_id }}
           restore-keys: |
+            cargo-sccache-v1-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}-
             cargo-sccache-v1-${{ env.RUST_VERSION }}-
             cargo-sccache-v1-
 
