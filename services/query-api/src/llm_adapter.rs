@@ -1780,6 +1780,22 @@ pub async fn handle_nlq_query(
     if let Some(result) = try_pre_llm_shortcuts(&state, &ctx, &req).await {
         return result.map(Json);
     }
+
+    // `POST /v1/nlq` is the single-call remote-style endpoint: it calls an `LlmCaller`
+    // itself. A tenant configured for WebLLM has nothing server-side to call here — the
+    // client is expected to use `/v1/nlq/prepare` + `/v1/nlq/complete` instead, which run
+    // inference in-browser. This is a guard against a stale/misrouted client, not a path
+    // any correctly written client should hit in normal operation.
+    if crate::llm_config::fetch_provider(&state.db).await == crate::llm_config::LlmProvider::Webllm
+    {
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "LLM provider is configured as webllm; use /v1/nlq/prepare and /v1/nlq/complete instead"
+            })),
+        ));
+    }
+
     let question = req.question.as_deref().unwrap_or("").trim();
 
     // Resolve the LLM caller: prefer pre-built caller in AppState (from env var at startup),
@@ -1938,6 +1954,14 @@ pub async fn handle_nlq_prepare(
     if let Some(result) = try_pre_llm_shortcuts(&state, &ctx, &req).await {
         return result.map(|response| Json(NlqPrepareResponse::Final { response }));
     }
+
+    // Resolve the provider for parity with `handle_nlq_query`, though today it's a no-op
+    // here: `/prepare` never calls an `LlmCaller` itself for either provider — Remote
+    // tenants proceed into the pipeline exactly as before, and Webllm tenants are the
+    // *intended* audience for this endpoint (the client runs inference and posts the raw
+    // response to `/v1/nlq/complete`). This call exists only so the branch is visible next
+    // to `handle_nlq_query`'s; it doesn't change behavior for either provider value.
+    let _provider = crate::llm_config::fetch_provider(&state.db).await;
 
     match prepare_nlq_pipeline(&state.db, &state.ch, ctx.tenant_id, &req).await {
         Ok(NlqPrepareOutcome::Declined(response)) => {

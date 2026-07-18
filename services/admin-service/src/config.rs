@@ -3,8 +3,10 @@
 // Provides a runtime way to set LLM connection parameters without requiring a container
 // restart. Values are stored in the `platform_config` PostgreSQL table.
 //
-// GET  /v1/config            — returns {llm_key_configured, llm_url, llm_model}; never echoes the key.
-// PUT  /v1/config/llm        — upserts api_key (XOR-obfuscated), url, model from JSON body.
+// GET  /v1/config            — returns {llm_key_configured, llm_url, llm_model, llm_provider,
+//                              webllm_model}; never echoes the key.
+// PUT  /v1/config/llm        — upserts api_key (XOR-obfuscated), url, model, provider,
+//                              webllm_model from JSON body.
 // PUT  /v1/config/llm-key    — legacy alias; accepts {key: "..."} for backwards compat.
 // POST /v1/config/llm/models — tests connectivity and lists available models; accepts optional
 //                              {url, api_key} body (falls back to DB/env when omitted).
@@ -67,6 +69,11 @@ pub struct ConfigStatus {
     pub llm_url: Option<String>,
     /// LLM model identifier; null when not set.
     pub llm_model: Option<String>,
+    /// "remote" | "webllm" — always present, defaults to "remote".
+    pub llm_provider: String,
+    /// WebLLM model identifier (e.g. a MLC model id); null when not set. Separate from
+    /// `llm_model`, which is the remote-provider model.
+    pub webllm_model: Option<String>,
 }
 
 /// PUT /v1/config/llm request body. All fields are optional; only provided fields are upserted.
@@ -75,6 +82,9 @@ pub struct SetLlmConfigRequest {
     pub api_key: Option<String>,
     pub url: Option<String>,
     pub model: Option<String>,
+    /// "remote" | "webllm"; any other value is rejected with 400.
+    pub provider: Option<String>,
+    pub webllm_model: Option<String>,
 }
 
 /// PUT /v1/config/llm-key legacy body (kept for backwards compatibility).
@@ -108,10 +118,27 @@ pub async fn get_config(
     let key_configured =
         env_key_present() || db_key_present(&state.db).await.unwrap_or(false) || llm_url.is_some();
 
+    // Env var takes priority over the DB value, same as the other LLM config fields;
+    // default to "remote" when neither is set or the stored value is unrecognized.
+    let llm_provider = env_llm_provider()
+        .or(fetch_db_value(&state.db, "llm_provider")
+            .await
+            .unwrap_or(None)
+            .filter(|v| !v.is_empty()))
+        .filter(|v| is_valid_provider(v))
+        .map(|v| v.trim().to_ascii_lowercase())
+        .unwrap_or_else(|| "remote".to_string());
+    let webllm_model = fetch_db_value(&state.db, "webllm_model")
+        .await
+        .unwrap_or(None)
+        .filter(|v| !v.is_empty());
+
     Ok(Json(ConfigStatus {
         llm_key_configured: key_configured,
         llm_url,
         llm_model,
+        llm_provider,
+        webllm_model,
     }))
 }
 
@@ -144,6 +171,19 @@ pub async fn put_llm_config(
     }
     if let Some(model) = body.model {
         upsert_db_value(&state.db, "llm_model", model.trim())
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+    if let Some(provider) = body.provider {
+        if !is_valid_provider(&provider) {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        upsert_db_value(&state.db, "llm_provider", provider.trim())
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+    if let Some(webllm_model) = body.webllm_model {
+        upsert_db_value(&state.db, "webllm_model", webllm_model.trim())
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
@@ -268,6 +308,23 @@ pub fn env_llm_model() -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
+/// Returns the LLM provider from the `LLM_PROVIDER` env var, if set to a recognized value
+/// ("remote"/"webllm", case-insensitive). Mirrors `query-api`'s `llm_config::fetch_provider`
+/// env lookup so both services agree on what counts as "configured".
+pub fn env_llm_provider() -> Option<String> {
+    std::env::var("LLM_PROVIDER")
+        .ok()
+        .filter(|v| is_valid_provider(v))
+}
+
+/// True when `value` (trimmed, case-insensitive) is exactly "remote" or "webllm".
+pub fn is_valid_provider(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "remote" | "webllm"
+    )
+}
+
 pub async fn db_key_present(db: &PgPool) -> Result<bool, sqlx::Error> {
     let row: Option<(String,)> =
         sqlx::query_as("SELECT value FROM platform_config WHERE key = 'llm_api_key'")
@@ -350,5 +407,21 @@ mod tests {
     #[test]
     fn xor_deobfuscate_odd_length_returns_none() {
         assert_eq!(xor_deobfuscate("abc"), None);
+    }
+
+    #[test]
+    fn is_valid_provider_accepts_remote_and_webllm_case_insensitively() {
+        assert!(is_valid_provider("remote"));
+        assert!(is_valid_provider("Remote"));
+        assert!(is_valid_provider("webllm"));
+        assert!(is_valid_provider("WEBLLM"));
+        assert!(is_valid_provider("  webllm  "));
+    }
+
+    #[test]
+    fn is_valid_provider_rejects_garbage() {
+        assert!(!is_valid_provider("openai"));
+        assert!(!is_valid_provider(""));
+        assert!(!is_valid_provider("remotee"));
     }
 }
