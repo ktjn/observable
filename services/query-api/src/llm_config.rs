@@ -48,6 +48,57 @@ pub async fn fetch_db_value(db: &PgPool, key: &str) -> Result<Option<String>, sq
     Ok(row.map(|(v,)| v))
 }
 
+// ── Provider selection (Remote vs. WebLLM) ───────────────────────────────────
+
+/// Which LLM path a tenant is configured to use: the existing server-side call to a
+/// remote OpenAI-compatible endpoint, or client-side inference via WebLLM (the browser
+/// runs the model; the server only prepares prompts via `/v1/nlq/prepare` +
+/// `/v1/nlq/complete`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LlmProvider {
+    Remote,
+    Webllm,
+}
+
+/// Parses a raw provider string ("remote"/"webllm", case-insensitive). Any other value
+/// (including empty) is treated as unset.
+fn parse_provider(raw: &str) -> Option<LlmProvider> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "remote" => Some(LlmProvider::Remote),
+        "webllm" => Some(LlmProvider::Webllm),
+        _ => None,
+    }
+}
+
+/// Resolves the configured LLM provider: `LLM_PROVIDER` env var first, then
+/// `platform_config.llm_provider` DB value, defaulting to `LlmProvider::Remote` when
+/// neither is set (or either is an unrecognized value). Mirrors the env-then-DB
+/// lookup pattern used by `env_llm_model`/`env_llm_url`/`fetch_db_value` above: any
+/// lookup failure (including a DB error) is treated as "not configured" rather than
+/// propagated, since an unreachable provider config should never block the NLQ path.
+pub async fn fetch_provider(db: &PgPool) -> LlmProvider {
+    if let Ok(raw) = std::env::var("LLM_PROVIDER") {
+        match parse_provider(&raw) {
+            Some(provider) => return provider,
+            None if !raw.trim().is_empty() => {
+                tracing::warn!(value = %raw, "LLM_PROVIDER set to an unrecognized value — ignoring");
+            }
+            None => {}
+        }
+    }
+
+    if let Some(raw) = fetch_db_value(db, "llm_provider").await.ok().flatten() {
+        match parse_provider(&raw) {
+            Some(provider) => return provider,
+            None => {
+                tracing::warn!(value = %raw, "platform_config.llm_provider is an unrecognized value — falling back to remote");
+            }
+        }
+    }
+
+    LlmProvider::Remote
+}
+
 // ── XOR obfuscation (key-at-rest helper for `fetch_db_key`) ──────────────────
 //
 // Provides basic obfuscation for the API key at rest. This is NOT cryptographically
@@ -105,5 +156,71 @@ mod tests {
     #[test]
     fn xor_deobfuscate_odd_length_returns_none() {
         assert_eq!(xor_deobfuscate("abc"), None);
+    }
+
+    // ── fetch_provider ────────────────────────────────────────────────────────
+    //
+    // These tests read/write the process-wide `LLM_PROVIDER` env var, so they're
+    // serialized via `ENV_LOCK` to avoid racing each other under the default
+    // parallel test runner (no other test in this crate touches `LLM_PROVIDER`).
+
+    // A `tokio::sync::Mutex` (not `std::sync::Mutex`) so the guard can be held across the
+    // `.await` in `fetch_provider` without tripping `clippy::await_holding_lock`.
+    static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+    /// A pool that is never actually connected — `fetch_db_value` against it fails
+    /// immediately, which `fetch_provider` treats as "not configured", matching the
+    /// existing `fetch_db_key`/`fetch_db_value` fallback convention used elsewhere in
+    /// this module and in `llm_adapter.rs`'s DB-fallback tests.
+    fn fake_db() -> PgPool {
+        PgPool::connect_lazy("postgres://x:x@127.0.0.1:5432/x").expect("valid url")
+    }
+
+    #[tokio::test]
+    async fn fetch_provider_defaults_to_remote_with_no_env_no_db() {
+        let _guard = ENV_LOCK.lock().await;
+        unsafe {
+            std::env::remove_var("LLM_PROVIDER");
+        }
+        assert_eq!(fetch_provider(&fake_db()).await, LlmProvider::Remote);
+    }
+
+    #[tokio::test]
+    async fn fetch_provider_env_webllm_wins_regardless_of_db() {
+        let _guard = ENV_LOCK.lock().await;
+        unsafe {
+            std::env::set_var("LLM_PROVIDER", "webllm");
+        }
+        let result = fetch_provider(&fake_db()).await;
+        unsafe {
+            std::env::remove_var("LLM_PROVIDER");
+        }
+        assert_eq!(result, LlmProvider::Webllm);
+    }
+
+    #[tokio::test]
+    async fn fetch_provider_env_remote_is_case_insensitive() {
+        let _guard = ENV_LOCK.lock().await;
+        unsafe {
+            std::env::set_var("LLM_PROVIDER", "ReMoTe");
+        }
+        let result = fetch_provider(&fake_db()).await;
+        unsafe {
+            std::env::remove_var("LLM_PROVIDER");
+        }
+        assert_eq!(result, LlmProvider::Remote);
+    }
+
+    #[tokio::test]
+    async fn fetch_provider_invalid_env_value_falls_back_to_default() {
+        let _guard = ENV_LOCK.lock().await;
+        unsafe {
+            std::env::set_var("LLM_PROVIDER", "not-a-real-provider");
+        }
+        let result = fetch_provider(&fake_db()).await;
+        unsafe {
+            std::env::remove_var("LLM_PROVIDER");
+        }
+        assert_eq!(result, LlmProvider::Remote);
     }
 }

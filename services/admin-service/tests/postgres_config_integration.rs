@@ -1,10 +1,19 @@
 use admin_service::config::{
-    db_key_present, fetch_db_key, fetch_db_value, upsert_db_value, xor_obfuscate,
+    SetLlmConfigRequest, db_key_present, fetch_db_key, fetch_db_value, get_config, put_llm_config,
+    upsert_db_value, xor_obfuscate,
 };
+use admin_service::middleware::auth::TenantContext;
+use admin_service::{AdminServiceAppState, observability};
+use axum::Json;
+use axum::extract::{Extension, State};
+use axum::http::StatusCode;
+use clickhouse::Client as ChClient;
 use sqlx::PgPool;
 use std::path::Path;
+use std::sync::Arc;
 use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
+use uuid::Uuid;
 
 async fn apply_migrations(pool: &PgPool) {
     let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -121,4 +130,93 @@ async fn llm_url_and_model_absent_in_fresh_db() {
     let model = fetch_db_value(&pool, "llm_model").await.expect("fetch ok");
     assert!(url.is_none());
     assert!(model.is_none());
+}
+
+// ── get_config / put_llm_config handlers (llm_provider / webllm_model) ─────────
+
+fn admin_state(db: PgPool) -> AdminServiceAppState {
+    AdminServiceAppState {
+        db,
+        ch: ChClient::default().with_url("http://127.0.0.1:19999"),
+        auth_service_url: "http://auth-service:4319".into(),
+        metrics: Arc::new(observability::AdminServiceMetrics::new()),
+    }
+}
+
+fn admin_ctx() -> TenantContext {
+    TenantContext {
+        tenant_id: Uuid::new_v4(),
+        user_id: None,
+        role: "tenant_admin".into(),
+    }
+}
+
+#[tokio::test]
+async fn get_config_defaults_llm_provider_to_remote_and_webllm_model_to_none() {
+    let (pool, _container) = start_pool().await;
+    let state = admin_state(pool);
+
+    let Json(status) = get_config(State(state), Extension(admin_ctx()))
+        .await
+        .expect("get_config ok");
+
+    assert_eq!(status.llm_provider, "remote");
+    assert_eq!(status.webllm_model, None);
+}
+
+#[tokio::test]
+async fn put_llm_config_persists_provider_and_webllm_model() {
+    let (pool, _container) = start_pool().await;
+    let state = admin_state(pool);
+
+    let status = put_llm_config(
+        State(state.clone()),
+        Extension(admin_ctx()),
+        Json(SetLlmConfigRequest {
+            api_key: None,
+            url: None,
+            model: None,
+            provider: Some("webllm".to_string()),
+            webllm_model: Some("Llama-3.1-8B-Instruct-q4f32_1-MLC".to_string()),
+        }),
+    )
+    .await
+    .expect("put_llm_config ok");
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let Json(status) = get_config(State(state), Extension(admin_ctx()))
+        .await
+        .expect("get_config ok");
+    assert_eq!(status.llm_provider, "webllm");
+    assert_eq!(
+        status.webllm_model.as_deref(),
+        Some("Llama-3.1-8B-Instruct-q4f32_1-MLC")
+    );
+}
+
+#[tokio::test]
+async fn put_llm_config_rejects_invalid_provider_with_400() {
+    let (pool, _container) = start_pool().await;
+    let state = admin_state(pool.clone());
+
+    let err = put_llm_config(
+        State(state),
+        Extension(admin_ctx()),
+        Json(SetLlmConfigRequest {
+            api_key: None,
+            url: None,
+            model: None,
+            provider: Some("openai".to_string()),
+            webllm_model: None,
+        }),
+    )
+    .await
+    .expect_err("invalid provider must be rejected");
+    assert_eq!(err, StatusCode::BAD_REQUEST);
+
+    // Rejected write must not have persisted garbage into platform_config.
+    let stored = fetch_db_value(&pool, "llm_provider")
+        .await
+        .expect("fetch ok");
+    assert!(stored.is_none());
 }

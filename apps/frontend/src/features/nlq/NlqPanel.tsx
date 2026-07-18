@@ -10,12 +10,29 @@
  *   - InvalidResponse (unparseable LLM output) shows reason + raw LLM text for debugging.
  */
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { NlqIr, NlqResponse, VisualizationFrame } from "../../api/nlq";
-import { submitNlqQuery } from "../../api/nlq";
+import { submitNlqQuery, prepareNlqQuery, completeNlqQuery } from "../../api/nlq";
+import { getConfig } from "../../api/setup";
+import { checkWebGpuSupport, getOrCreateEngine } from "../../lib/webllm/webllmEngine";
 import { SignalQueryForm } from "../../components/shared/SignalQueryForm";
 import { CopyButton } from "../../components/ui/copy-button";
 import { VisualizationPanel } from "./VisualizationPanel";
 import { useTenantContext } from "../../hooks/useTenantContext";
+
+// Hard ceiling on repair round-trips. The backend enforces the real cap
+// server-side (via the session token's repair_attempt counter) and always
+// eventually returns "final", so this loop terminates on its own — this is
+// only a defense-in-depth guard against a latent hang if that invariant is
+// ever violated by a backend bug.
+const MAX_REPAIR_ITERATIONS = 5;
+
+const LOADING_PHASE_LABEL: Record<string, string> = {
+  checking_gpu: "Checking GPU support…",
+  preparing: "Preparing…",
+  downloading_model: "Downloading model (first use can take a while)…",
+  generating: "Thinking…",
+};
 
 interface Props {
   /** Optional service context. Passed to the backend to scope the NLQ query. */
@@ -28,9 +45,11 @@ interface Props {
   suppressFrameResult?: boolean;
 }
 
+type LoadingPhase = "checking_gpu" | "preparing" | "downloading_model" | "generating";
+
 type QueryState =
   | { status: "idle" }
-  | { status: "loading" }
+  | { status: "loading"; phase?: LoadingPhase }
   | { status: "error"; message: string }
   | { status: "result"; response: NlqResponse; question: string };
 
@@ -43,23 +62,94 @@ export function NlqPanel({
   const [question, setQuestion] = useState("");
   const [state, setState] = useState<QueryState>({ status: "idle" });
   const { tenantId } = useTenantContext();
+  const { data: config } = useQuery({
+    queryKey: ["setup", "config", tenantId],
+    queryFn: () => getConfig(tenantId),
+  });
+  const provider = config?.llm_provider ?? "remote";
 
   function handleReset() {
     setQuestion("");
     setState({ status: "idle" });
   }
 
+  function handleFinalResponse(response: NlqResponse, q: string) {
+    if (response.type === "frame") {
+      onFrameResult?.(response.frame);
+    }
+    setState({ status: "result", response, question: q });
+  }
+
+  async function handleWebLlmSubmit(q: string) {
+    setState({ status: "loading", phase: "checking_gpu" });
+    const gpuSupport = await checkWebGpuSupport();
+    if (!gpuSupport.supported) {
+      setState({
+        status: "error",
+        message: `WebLLM is configured but this browser doesn't support it: ${gpuSupport.reason}`,
+      });
+      return;
+    }
+
+    setState({ status: "loading", phase: "preparing" });
+    const prepared = await prepareNlqQuery(tenantId, { question: q, service_name: serviceName });
+    if (prepared.type === "final") {
+      handleFinalResponse(prepared.response, q);
+      return;
+    }
+
+    const model = config?.webllm_model;
+    if (!model) {
+      setState({
+        status: "error",
+        message: "No WebLLM model configured. Set one on the Setup page.",
+      });
+      return;
+    }
+
+    setState({ status: "loading", phase: "downloading_model" });
+    const engine = await getOrCreateEngine(model, () => {
+      // Text-only loading label is sufficient for this task; progress detail
+      // (byte counts etc.) is intentionally not surfaced.
+    });
+
+    setState({ status: "loading", phase: "generating" });
+    let raw = await engine.complete(prepared.system_prompt, prepared.question);
+    let result = await completeNlqQuery(tenantId, prepared.session_token, raw);
+
+    let iterations = 0;
+    while (result.type === "needs_repair") {
+      iterations += 1;
+      if (iterations > MAX_REPAIR_ITERATIONS) {
+        setState({
+          status: "error",
+          message: "NLQ repair loop exceeded the maximum number of attempts",
+        });
+        return;
+      }
+      setState({ status: "loading", phase: "generating" });
+      raw = await engine.complete(prepared.system_prompt, result.repair_prompt);
+      result = await completeNlqQuery(tenantId, prepared.session_token, raw);
+    }
+
+    handleFinalResponse(result.response, q);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const q = question.trim();
     if (!q) return;
-    setState({ status: "loading" });
     try {
-      const response = await submitNlqQuery(tenantId, { question: q, service_name: serviceName });
-      if (response.type === "frame") {
-        onFrameResult?.(response.frame);
+      if (provider === "webllm") {
+        await handleWebLlmSubmit(q);
+      } else {
+        setState({ status: "loading" });
+        const response = await submitNlqQuery(tenantId, { question: q, service_name: serviceName });
+        if (response.type === "frame") {
+          onFrameResult?.(response.frame);
+        }
+        setState({ status: "result", response, question: q });
       }
-      setState({ status: "result", response, question: q });
     } catch (err) {
       setState({
         status: "error",
@@ -83,7 +173,11 @@ export function NlqPanel({
           "Ask a question about your metrics\u2026 e.g. \u201cp99 latency last hour\u201d"
         }
         idleLabel="Ask"
-        loadingLabel="Querying…"
+        loadingLabel={
+          state.status === "loading" && state.phase
+            ? LOADING_PHASE_LABEL[state.phase]
+            : "Querying…"
+        }
         inputTestId="nlq-input"
         submitTestId="nlq-submit"
         onReset={handleReset}

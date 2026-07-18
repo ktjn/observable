@@ -16,3 +16,4 @@ __pycache__/
 
 # modelable runtime — registry and compiled plans (generated, not committed)
 .modelable/
+.superpowers/

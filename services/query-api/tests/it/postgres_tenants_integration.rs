@@ -31,6 +31,7 @@ fn build_tenants_app(pool: PgPool) -> Router {
         auth_service_url: "http://auth-service:4319".into(),
         http_client: reqwest::Client::new(),
         metrics: std::sync::Arc::new(query_api::observability::QueryApiMetrics::new()),
+        sessions: query_api::nlq_session::NlqSessionStore::default(),
     };
     // No tenant-auth middleware — these are bootstrap endpoints.
     Router::new()

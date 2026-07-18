@@ -1257,18 +1257,32 @@ fn enforce_service_scope(ir: &mut NlqIr, service_name: &str) {
 
 // ── Core orchestration ────────────────────────────────────────────────────────
 
-/// End-to-end NLQ pipeline: question → LlmCaller → NlqIr → execute_mcp_query → NlqQueryResponse.
+/// A prepared system prompt + question pair, ready to be sent to an `LlmCaller`
+/// (or, in a later phase, to a browser-side WebLLM engine).
+pub struct NlqPreparedCall {
+    pub system_prompt: String,
+    pub question: String,
+}
+
+/// Outcome of `prepare_nlq_pipeline`: either the request was declined before any LLM
+/// call was needed, or a system prompt + question pair is ready to be sent to an LLM.
+#[allow(clippy::large_enum_variant)]
+pub enum NlqPrepareOutcome {
+    Declined(NlqQueryResponse),
+    Prepared(NlqPreparedCall),
+}
+
+/// Runs the pre-LLM portion of the NLQ pipeline: server-side deny gate, bounded schema
+/// context fetch, and system prompt construction. Contains today's steps 1–3 verbatim.
 ///
-/// Advisory-only: every VisualizationFrame carries provenance (source_sql, approximation_statement).
-/// Callers must not use results for billing, SLA enforcement, or regulatory compliance.
-pub async fn run_nlq_pipeline(
+/// Never produces a repair-turn prompt — the returned `question` is always the
+/// original question. Repair prompts are built by `resume_nlq_pipeline`.
+pub async fn prepare_nlq_pipeline(
     db: &PgPool,
     ch: &clickhouse::Client,
-    llm: &dyn LlmCaller,
     tenant_id: Uuid,
     req: &NlqQueryRequest,
-) -> Result<NlqQueryResponse, LlmAdapterError> {
-    let pipeline_start = std::time::Instant::now();
+) -> Result<NlqPrepareOutcome, LlmAdapterError> {
     let question = req.question.as_deref().unwrap_or("");
     let question_preview = question.chars().take(256).collect::<String>();
 
@@ -1287,7 +1301,9 @@ pub async fn run_nlq_pipeline(
             reason = %reason,
             "NLQ declined by server-side deny gate"
         );
-        return Ok(NlqQueryResponse::Decline { reason });
+        return Ok(NlqPrepareOutcome::Declined(NlqQueryResponse::Decline {
+            reason,
+        }));
     }
 
     // 2. Fetch bounded schema context (up to 20 schema-complete metrics)
@@ -1307,69 +1323,80 @@ pub async fn run_nlq_pipeline(
         "NLQ calling LLM"
     );
 
-    // 4 + 5. Call LLM with an optional repair loop.
-    //
-    // On an `InvalidResponse` parse error the pipeline sends a structured repair prompt
-    // as the next user turn (system prompt unchanged — it already carries schema + rules).
-    // The loop is capped at MAX_REPAIR_ATTEMPTS to bound token spend.
-    let llm_start = std::time::Instant::now();
-    let mut repair_attempt: usize = 0;
-    let mut last_question = question.to_string();
-    let (parsed, _raw_response) = loop {
-        let raw = llm.call(&system_prompt, &last_question).await?;
+    Ok(NlqPrepareOutcome::Prepared(NlqPreparedCall {
+        system_prompt,
+        question: question.to_string(),
+    }))
+}
 
-        tracing::debug!(
-            tenant_id = %tenant_id,
-            llm_elapsed_ms = llm_start.elapsed().as_millis(),
-            raw_response_len = raw.len(),
-            "NLQ LLM call complete"
-        );
+/// Outcome of `resume_nlq_pipeline`: either a final response, or a signal that the raw
+/// LLM response failed to parse and a repair-turn prompt should be sent back to the LLM.
+#[allow(clippy::large_enum_variant)]
+pub enum NlqResumeOutcome {
+    Final(NlqQueryResponse),
+    NeedsRepair { repair_prompt: String },
+}
 
-        match parse_llm_response(&raw) {
-            Ok(p) => {
-                tracing::debug!(
-                    tenant_id = %tenant_id,
-                    parsed_type = match &p {
-                        NlqIrOrDecline::Ir(_) => "ir",
-                        NlqIrOrDecline::Decline { .. } => "decline",
-                        NlqIrOrDecline::Capabilities => "capabilities",
-                    },
-                    "NLQ LLM response parsed"
-                );
-                break (p, raw);
-            }
-            Err(LlmAdapterError::InvalidResponse(ref reason))
-                if repair_attempt < MAX_REPAIR_ATTEMPTS =>
-            {
-                repair_attempt += 1;
-                tracing::warn!(
-                    tenant_id = %tenant_id,
-                    repair_attempt,
-                    error = %reason,
-                    "NLQ repair attempt"
-                );
-                last_question = build_repair_prompt(question, reason, &raw);
-                continue;
-            }
-            Err(LlmAdapterError::InvalidResponse(reason)) => {
-                let truncated = raw.chars().take(512).collect::<String>();
-                tracing::warn!(
-                    tenant_id = %tenant_id,
-                    question = %question_preview,
-                    error = %reason,
-                    raw_response = %truncated,
-                    repair_attempts = repair_attempt,
-                    "NLQ repair budget exhausted"
-                );
-                return Ok(NlqQueryResponse::InvalidResponse {
-                    reason,
-                    raw_llm_response: raw,
-                });
-            }
-            Err(e) => return Err(e),
+/// Runs the post-LLM portion of the NLQ pipeline for a single raw completion: parses
+/// it, and either produces a final response (today's steps 6–9, unchanged) or — on an
+/// `InvalidResponse` parse error within the repair budget — a repair-turn prompt for the
+/// caller to send back to the LLM. The repair loop itself lives in the caller.
+pub async fn resume_nlq_pipeline(
+    db: &PgPool,
+    ch: &clickhouse::Client,
+    tenant_id: Uuid,
+    req: &NlqQueryRequest,
+    original_question: &str,
+    repair_attempt: usize,
+    raw_llm_response: &str,
+) -> Result<NlqResumeOutcome, LlmAdapterError> {
+    let question_preview = original_question.chars().take(256).collect::<String>();
+
+    // 4 + 5. Parse the raw LLM response, branching on repair budget for InvalidResponse.
+    let parsed = match parse_llm_response(raw_llm_response) {
+        Ok(p) => {
+            tracing::debug!(
+                tenant_id = %tenant_id,
+                parsed_type = match &p {
+                    NlqIrOrDecline::Ir(_) => "ir",
+                    NlqIrOrDecline::Decline { .. } => "decline",
+                    NlqIrOrDecline::Capabilities => "capabilities",
+                },
+                "NLQ LLM response parsed"
+            );
+            p
         }
+        Err(LlmAdapterError::InvalidResponse(ref reason))
+            if repair_attempt < MAX_REPAIR_ATTEMPTS =>
+        {
+            let next_repair_attempt = repair_attempt + 1;
+            tracing::warn!(
+                tenant_id = %tenant_id,
+                repair_attempt = next_repair_attempt,
+                error = %reason,
+                "NLQ repair attempt"
+            );
+            return Ok(NlqResumeOutcome::NeedsRepair {
+                repair_prompt: build_repair_prompt(original_question, reason, raw_llm_response),
+            });
+        }
+        Err(LlmAdapterError::InvalidResponse(reason)) => {
+            let truncated = raw_llm_response.chars().take(512).collect::<String>();
+            tracing::warn!(
+                tenant_id = %tenant_id,
+                question = %question_preview,
+                error = %reason,
+                raw_response = %truncated,
+                repair_attempts = repair_attempt,
+                "NLQ repair budget exhausted"
+            );
+            return Ok(NlqResumeOutcome::Final(NlqQueryResponse::InvalidResponse {
+                reason,
+                raw_llm_response: raw_llm_response.to_string(),
+            }));
+        }
+        Err(e) => return Err(e),
     };
-    let _llm_elapsed_ms = llm_start.elapsed().as_millis();
 
     // 6. Handle decline or capabilities from LLM
     let mut ir = match parsed {
@@ -1381,7 +1408,9 @@ pub async fn run_nlq_pipeline(
                 source = "llm",
                 "NLQ declined by LLM"
             );
-            return Ok(NlqQueryResponse::Decline { reason });
+            return Ok(NlqResumeOutcome::Final(NlqQueryResponse::Decline {
+                reason,
+            }));
         }
         NlqIrOrDecline::Capabilities => {
             tracing::info!(
@@ -1389,9 +1418,9 @@ pub async fn run_nlq_pipeline(
                 question = %question_preview,
                 "NLQ capabilities short-circuit"
             );
-            return Ok(NlqQueryResponse::Capabilities {
+            return Ok(NlqResumeOutcome::Final(NlqQueryResponse::Capabilities {
                 hint: build_capabilities_hint(),
-            });
+            }));
         }
         NlqIrOrDecline::Ir(ir) => ir,
     };
@@ -1415,11 +1444,11 @@ pub async fn run_nlq_pipeline(
             source = "no_metric",
             "NLQ declined — no metric identified"
         );
-        return Ok(NlqQueryResponse::Decline {
+        return Ok(NlqResumeOutcome::Final(NlqQueryResponse::Decline {
             reason: "Could not identify a metric for this question. \
                      Please rephrase or specify a metric name."
                 .into(),
-        });
+        }));
     }
 
     // 8b. Fuzzy metric resolution — skip for log/trace queries (no metric to resolve).
@@ -1450,7 +1479,7 @@ pub async fn run_nlq_pipeline(
             operation = ?ir.operation,
             "NLQ interpreted to IR without execution"
         );
-        return Ok(NlqQueryResponse::Ir { ir });
+        return Ok(NlqResumeOutcome::Final(NlqQueryResponse::Ir { ir }));
     }
 
     // Apply base_ir merge in execute mode: base operation/signals preserved,
@@ -1472,7 +1501,6 @@ pub async fn run_nlq_pipeline(
         .await
         .map_err(LlmAdapterError::QueryExecution)?;
     let mcp_elapsed_ms = mcp_start.elapsed().as_millis();
-    let pipeline_elapsed_ms = pipeline_start.elapsed().as_millis();
 
     tracing::debug!(
         tenant_id = %tenant_id,
@@ -1481,14 +1509,76 @@ pub async fn run_nlq_pipeline(
         "NLQ MCP query complete"
     );
 
-    tracing::info!(
-        tenant_id = %tenant_id,
-        pipeline_elapsed_ms,
-        result = "frame",
-        "NLQ pipeline complete"
-    );
+    Ok(NlqResumeOutcome::Final(NlqQueryResponse::Frame { frame }))
+}
 
-    Ok(NlqQueryResponse::Frame { frame })
+/// End-to-end NLQ pipeline: question → LlmCaller → NlqIr → execute_mcp_query → NlqQueryResponse.
+///
+/// Advisory-only: every VisualizationFrame carries provenance (source_sql, approximation_statement).
+/// Callers must not use results for billing, SLA enforcement, or regulatory compliance.
+pub async fn run_nlq_pipeline(
+    db: &PgPool,
+    ch: &clickhouse::Client,
+    llm: &dyn LlmCaller,
+    tenant_id: Uuid,
+    req: &NlqQueryRequest,
+) -> Result<NlqQueryResponse, LlmAdapterError> {
+    let pipeline_start = std::time::Instant::now();
+
+    let prepared = match prepare_nlq_pipeline(db, ch, tenant_id, req).await? {
+        NlqPrepareOutcome::Declined(response) => return Ok(response),
+        NlqPrepareOutcome::Prepared(prepared) => prepared,
+    };
+
+    // 4 + 5. Call LLM with an optional repair loop.
+    //
+    // On an `InvalidResponse` parse error the pipeline sends a structured repair prompt
+    // as the next user turn (system prompt unchanged — it already carries schema + rules).
+    // The loop is capped at MAX_REPAIR_ATTEMPTS to bound token spend.
+    let llm_start = std::time::Instant::now();
+    let mut repair_attempt: usize = 0;
+    let mut next_question = prepared.question.clone();
+    let response = loop {
+        let raw = llm.call(&prepared.system_prompt, &next_question).await?;
+
+        tracing::debug!(
+            tenant_id = %tenant_id,
+            llm_elapsed_ms = llm_start.elapsed().as_millis(),
+            raw_response_len = raw.len(),
+            "NLQ LLM call complete"
+        );
+
+        match resume_nlq_pipeline(
+            db,
+            ch,
+            tenant_id,
+            req,
+            &prepared.question,
+            repair_attempt,
+            &raw,
+        )
+        .await?
+        {
+            NlqResumeOutcome::Final(response) => break response,
+            NlqResumeOutcome::NeedsRepair { repair_prompt } => {
+                repair_attempt += 1;
+                next_question = repair_prompt;
+            }
+        }
+    };
+    let _llm_elapsed_ms = llm_start.elapsed().as_millis();
+
+    if matches!(response, NlqQueryResponse::Frame { .. }) {
+        let pipeline_elapsed_ms = pipeline_start.elapsed().as_millis();
+        tracing::info!(
+            tenant_id = %tenant_id,
+            pipeline_elapsed_ms,
+            result = "frame",
+            "NLQ pipeline complete"
+        );
+    }
+
+    Ok(response)
 }
 
 // ── HTTP handler ──────────────────────────────────────────────────────────────
@@ -1535,17 +1625,18 @@ fn map_mcp_error(
     }
 }
 
-/// POST /v1/nlq
+/// Runs the pre-LLM shortcuts shared by `handle_nlq_query` and `handle_nlq_prepare`, in the
+/// same order both endpoints must apply them: empty-question+base_ir page-load execution,
+/// raw-IR-pasted-as-question, and `/`-prefixed shorthand bypass.
 ///
-/// Accepts a natural language question, calls the LLM adapter, and returns a discriminated
-/// `NlqQueryResponse` (frame or decline).
-///
-/// Returns 503 if no LLM configuration exists at all (neither key nor endpoint URL in env or DB).
-pub async fn handle_nlq_query(
-    State(state): State<AppState>,
-    Extension(ctx): Extension<TenantContext>,
-    Json(req): Json<NlqQueryRequest>,
-) -> Result<Json<NlqQueryResponse>, (StatusCode, Json<serde_json::Value>)> {
+/// Returns `None` when no shortcut applies (the caller must go on to run the LLM pipeline).
+/// Returns `Some(Ok(response))` / `Some(Err(status, body))` when a shortcut produced a final
+/// `NlqQueryResponse` (or a request error) without needing an LLM call at all.
+async fn try_pre_llm_shortcuts(
+    state: &AppState,
+    ctx: &TenantContext,
+    req: &NlqQueryRequest,
+) -> Option<Result<NlqQueryResponse, (StatusCode, Json<serde_json::Value>)>> {
     let question = req.question.as_deref().unwrap_or("").trim();
 
     // Case 1: no question + base_ir set → execute base_ir directly (page-load pattern)
@@ -1556,17 +1647,19 @@ pub async fn handle_nlq_query(
                 enforce_service_scope(&mut ir, svc);
             }
             if req.mode == NlqQueryMode::Interpret {
-                return Ok(Json(NlqQueryResponse::Ir { ir }));
+                return Some(Ok(NlqQueryResponse::Ir { ir }));
             }
-            return match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
-                Ok(frame) => Ok(Json(NlqQueryResponse::Frame { frame })),
-                Err(e) => Err(map_mcp_error(e, ctx.tenant_id)),
-            };
+            return Some(
+                match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
+                    Ok(frame) => Ok(NlqQueryResponse::Frame { frame }),
+                    Err(e) => Err(map_mcp_error(e, ctx.tenant_id)),
+                },
+            );
         }
-        return Err((
+        return Some(Err((
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({"error": "question is required when base_ir is not provided"})),
-        ));
+        )));
     }
 
     match parse_user_query_input(question) {
@@ -1576,23 +1669,25 @@ pub async fn handle_nlq_query(
                 enforce_service_scope(&mut ir, svc);
             }
             if req.mode == NlqQueryMode::Interpret {
-                return Ok(Json(NlqQueryResponse::Ir { ir }));
+                return Some(Ok(NlqQueryResponse::Ir { ir }));
             }
             // Apply base_ir merge if provided
             if let Some(base) = req.base_ir.clone() {
                 ir = merge_irs(base, ir);
             }
-            return match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
-                Ok(frame) => Ok(Json(NlqQueryResponse::Frame { frame })),
-                Err(e) => Err(map_mcp_error(e, ctx.tenant_id)),
-            };
+            return Some(
+                match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
+                    Ok(frame) => Ok(NlqQueryResponse::Frame { frame }),
+                    Err(e) => Err(map_mcp_error(e, ctx.tenant_id)),
+                },
+            );
         }
         Ok(UserQueryInput::NaturalLanguage) => {}
         Err(e) => {
-            return Err((
+            return Some(Err((
                 StatusCode::UNPROCESSABLE_ENTITY,
                 Json(serde_json::json!({"error": e.to_string()})),
-            ));
+            )));
         }
     }
 
@@ -1609,13 +1704,102 @@ pub async fn handle_nlq_query(
         }
         tracing::info!(tenant_id = %ctx.tenant_id, "shorthand bypass: executing IR without LLM");
         if req.mode == NlqQueryMode::Interpret {
-            return Ok(Json(NlqQueryResponse::Ir { ir }));
+            return Some(Ok(NlqQueryResponse::Ir { ir }));
         }
-        return match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
-            Ok(frame) => Ok(Json(NlqQueryResponse::Frame { frame })),
-            Err(e) => Err(map_mcp_error(e, ctx.tenant_id)),
-        };
+        return Some(
+            match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
+                Ok(frame) => Ok(NlqQueryResponse::Frame { frame }),
+                Err(e) => Err(map_mcp_error(e, ctx.tenant_id)),
+            },
+        );
     }
+
+    None
+}
+
+/// Maps an `LlmAdapterError` produced by `prepare_nlq_pipeline` / `resume_nlq_pipeline` to an
+/// HTTP status + JSON error body, for the two-phase `/v1/nlq/prepare` and `/v1/nlq/complete`
+/// endpoints. Mirrors the error handling `handle_nlq_query` applies to `run_nlq_pipeline`
+/// (minus the `LlmCall` variant, which neither `prepare_nlq_pipeline` nor `resume_nlq_pipeline`
+/// can produce — no endpoint in this module calls an `LlmCaller`).
+fn map_llm_adapter_error(
+    e: LlmAdapterError,
+    tenant_id: Uuid,
+) -> (StatusCode, Json<serde_json::Value>) {
+    match e {
+        LlmAdapterError::QueryExecution(ref inner)
+            if inner.to_string().contains("Connect") || inner.to_string().contains("network") =>
+        {
+            tracing::error!(error = %inner, tenant_id = %tenant_id, "NLQ pipeline failed — data store unreachable");
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(
+                    serde_json::json!({"error": "data store temporarily unavailable, please retry"}),
+                ),
+            )
+        }
+        LlmAdapterError::QueryExecution(crate::mcp_query::McpQueryError::SqlTemplate(
+            crate::sql_templates::SqlTemplateError::InvalidFilterValue(field),
+        )) => {
+            tracing::warn!(field = %field, "NLQ rejected: invalid filter value");
+            (
+                StatusCode::BAD_REQUEST,
+                Json(
+                    serde_json::json!({"error": format!("invalid filter value for field: {field}")}),
+                ),
+            )
+        }
+        LlmAdapterError::QueryExecution(crate::mcp_query::McpQueryError::MissingMetric) => {
+            tracing::warn!(tenant_id = %tenant_id, "NLQ rejected: metric is required");
+            (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "metric is required for this operation"})),
+            )
+        }
+        e => {
+            tracing::error!(error = %e, tenant_id = %tenant_id, "NLQ pipeline failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "NLQ pipeline failed"})),
+            )
+        }
+    }
+}
+
+/// POST /v1/nlq
+///
+/// Accepts a natural language question, calls the LLM adapter, and returns a discriminated
+/// `NlqQueryResponse` (frame or decline).
+///
+/// Returns 503 if no LLM configuration exists at all (neither key nor endpoint URL in env or
+/// DB), or if the tenant's provider is configured as `webllm` — this endpoint is the
+/// single-call remote-only path and has nothing server-side to call for a WebLLM tenant;
+/// such clients should use `/v1/nlq/prepare` + `/v1/nlq/complete` instead.
+pub async fn handle_nlq_query(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Json(req): Json<NlqQueryRequest>,
+) -> Result<Json<NlqQueryResponse>, (StatusCode, Json<serde_json::Value>)> {
+    if let Some(result) = try_pre_llm_shortcuts(&state, &ctx, &req).await {
+        return result.map(Json);
+    }
+
+    // `POST /v1/nlq` is the single-call remote-style endpoint: it calls an `LlmCaller`
+    // itself. A tenant configured for WebLLM has nothing server-side to call here — the
+    // client is expected to use `/v1/nlq/prepare` + `/v1/nlq/complete` instead, which run
+    // inference in-browser. This is a guard against a stale/misrouted client, not a path
+    // any correctly written client should hit in normal operation.
+    if crate::llm_config::fetch_provider(&state.db).await == crate::llm_config::LlmProvider::Webllm
+    {
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "LLM provider is configured as webllm; use /v1/nlq/prepare and /v1/nlq/complete instead"
+            })),
+        ));
+    }
+
+    let question = req.question.as_deref().unwrap_or("").trim();
 
     // Resolve the LLM caller: prefer pre-built caller in AppState (from env var at startup),
     // fall back to constructing one from the DB-stored config at call time.
@@ -1731,6 +1915,140 @@ pub async fn handle_nlq_query(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"error": "NLQ pipeline failed"})),
             ))
+        }
+    }
+}
+
+// ── Two-phase NLQ pipeline (client-side LLM inference) ─────────────────────────
+//
+// `POST /v1/nlq/prepare` + `POST /v1/nlq/complete` expose `prepare_nlq_pipeline` /
+// `resume_nlq_pipeline` over HTTP for a caller that runs LLM inference itself (e.g. a
+// browser-side WebLLM engine, added in a later change) instead of the server calling out to
+// a remote LLM. `POST /v1/nlq` above is unaffected and keeps working exactly as before.
+
+/// Response for `POST /v1/nlq/prepare`.
+#[derive(Debug, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)]
+pub enum NlqPrepareResponse {
+    /// A pre-LLM shortcut fired, or the pipeline declined the question — no LLM call needed.
+    Final { response: NlqQueryResponse },
+    /// A system prompt + question are ready to send to an LLM. `session_token` must be
+    /// echoed back on the matching `/v1/nlq/complete` call.
+    Prepared {
+        session_token: Uuid,
+        system_prompt: String,
+        question: String,
+    },
+}
+
+/// POST /v1/nlq/prepare
+///
+/// Runs the pre-LLM portion of the NLQ pipeline (pre-LLM shortcuts, then
+/// `prepare_nlq_pipeline`) and, if an LLM call is actually needed, stores a session so the
+/// repair-attempt cap can be enforced server-side across the follow-up `/v1/nlq/complete`
+/// call(s). Never calls an `LlmCaller` itself — the caller runs inference and posts the raw
+/// response back to `/v1/nlq/complete`.
+pub async fn handle_nlq_prepare(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Json(req): Json<NlqQueryRequest>,
+) -> Result<Json<NlqPrepareResponse>, (StatusCode, Json<serde_json::Value>)> {
+    if let Some(result) = try_pre_llm_shortcuts(&state, &ctx, &req).await {
+        return result.map(|response| Json(NlqPrepareResponse::Final { response }));
+    }
+
+    // Resolve the provider for parity with `handle_nlq_query`, though today it's a no-op
+    // here: `/prepare` never calls an `LlmCaller` itself for either provider — Remote
+    // tenants proceed into the pipeline exactly as before, and Webllm tenants are the
+    // *intended* audience for this endpoint (the client runs inference and posts the raw
+    // response to `/v1/nlq/complete`). This call exists only so the branch is visible next
+    // to `handle_nlq_query`'s; it doesn't change behavior for either provider value.
+    let _provider = crate::llm_config::fetch_provider(&state.db).await;
+
+    match prepare_nlq_pipeline(&state.db, &state.ch, ctx.tenant_id, &req).await {
+        Ok(NlqPrepareOutcome::Declined(response)) => {
+            Ok(Json(NlqPrepareResponse::Final { response }))
+        }
+        Ok(NlqPrepareOutcome::Prepared(prepared)) => {
+            let session_token =
+                state
+                    .sessions
+                    .insert(ctx.tenant_id, req, prepared.question.clone());
+            Ok(Json(NlqPrepareResponse::Prepared {
+                session_token,
+                system_prompt: prepared.system_prompt,
+                question: prepared.question,
+            }))
+        }
+        Err(e) => Err(map_llm_adapter_error(e, ctx.tenant_id)),
+    }
+}
+
+/// Request body for `POST /v1/nlq/complete`.
+#[derive(Debug, Deserialize)]
+pub struct NlqCompleteRequest {
+    pub session_token: Uuid,
+    pub raw_llm_response: String,
+}
+
+/// Response for `POST /v1/nlq/complete`.
+#[derive(Debug, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)]
+pub enum NlqCompleteResponse {
+    Final { response: NlqQueryResponse },
+    NeedsRepair { repair_prompt: String },
+}
+
+/// POST /v1/nlq/complete
+///
+/// Consumes a raw LLM completion for a session created by `/v1/nlq/prepare`. On a parse
+/// failure within the repair budget, keeps the session alive (server-incremented
+/// `repair_attempt`) and returns a repair prompt for the caller to send back to the LLM as
+/// the next turn. On a `Final` outcome (success, decline, capabilities, or repair-budget-
+/// exhausted `InvalidResponse`), removes the session from the store.
+pub async fn handle_nlq_complete(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Json(body): Json<NlqCompleteRequest>,
+) -> Result<Json<NlqCompleteResponse>, (StatusCode, Json<serde_json::Value>)> {
+    let Some(mut session) = state
+        .sessions
+        .take_for_resume(body.session_token, ctx.tenant_id)
+    else {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "unknown or expired NLQ session"})),
+        ));
+    };
+
+    match resume_nlq_pipeline(
+        &state.db,
+        &state.ch,
+        session.tenant_id,
+        &session.req,
+        &session.original_question,
+        session.repair_attempt,
+        &body.raw_llm_response,
+    )
+    .await
+    {
+        Ok(NlqResumeOutcome::Final(response)) => {
+            // Session already removed by `take_for_resume` — nothing further to do.
+            Ok(Json(NlqCompleteResponse::Final { response }))
+        }
+        Ok(NlqResumeOutcome::NeedsRepair { repair_prompt }) => {
+            session.repair_attempt += 1;
+            state.sessions.put_back(body.session_token, session);
+            Ok(Json(NlqCompleteResponse::NeedsRepair { repair_prompt }))
+        }
+        Err(e) => {
+            // Put the session back so a retry with the same token (as the mapped error's
+            // "please retry" advice implies for transient failures) can actually resume,
+            // instead of hitting a 404 and having to restart the whole flow from /prepare.
+            state.sessions.put_back(body.session_token, session);
+            Err(map_llm_adapter_error(e, ctx.tenant_id))
         }
     }
 }
@@ -2801,5 +3119,468 @@ mod tests {
         let ir = sh.into_nlq_ir();
         assert_eq!(ir.signals, vec![NlqSignal::Logs]);
         assert_eq!(ir.query, Some("error".into()));
+    }
+
+    // ── prepare_nlq_pipeline / resume_nlq_pipeline ──────────────────────────────
+    //
+    // These use a lazily-connecting Postgres pool and a ClickHouse client pointed at
+    // an unreachable port, mirroring the `fake_nlq_app_no_db` pattern in
+    // `tests/it/http_api_integration.rs` — neither is actually queried by the code
+    // paths exercised below (deny gate short-circuits before any DB call; the
+    // interpret-mode + log-signal IR skips both fuzzy metric resolution and
+    // `execute_mcp_query`).
+
+    fn fake_db() -> PgPool {
+        PgPool::connect_lazy("postgres://user:pass@127.0.0.1:5432/db").expect("valid postgres url")
+    }
+
+    fn fake_ch() -> clickhouse::Client {
+        clickhouse::Client::default().with_url("http://127.0.0.1:19999")
+    }
+
+    fn default_req(question: &str, mode: NlqQueryMode) -> NlqQueryRequest {
+        NlqQueryRequest {
+            question: Some(question.to_string()),
+            service_name: None,
+            base_ir: None,
+            mode,
+        }
+    }
+
+    /// An IR that needs no DB access to reach a `Final` outcome from
+    /// `resume_nlq_pipeline`: a log-signal query (skips fuzzy metric resolution)
+    /// interpreted rather than executed (skips `execute_mcp_query`).
+    fn log_ir() -> NlqIr {
+        NlqIr {
+            operation: NlqOperation::Table,
+            signals: vec![NlqSignal::Logs],
+            metric: None,
+            window: None,
+            filters: vec![],
+            group_by: vec![],
+            resolution: None,
+            time_range: NlqTimeRange {
+                from: "now-1h".into(),
+                to: "now".into(),
+            },
+            visualization_hint: None,
+            percentiles: None,
+            catalog_field: None,
+            limit: None,
+            query: Some("error".into()),
+        }
+    }
+
+    #[tokio::test]
+    async fn prepare_pipeline_deny_gate_short_circuits() {
+        let db = fake_db();
+        let ch = fake_ch();
+        let req = default_req(
+            "What is our billing total this month?",
+            NlqQueryMode::Execute,
+        );
+
+        let outcome = prepare_nlq_pipeline(&db, &ch, Uuid::nil(), &req)
+            .await
+            .unwrap();
+
+        match outcome {
+            NlqPrepareOutcome::Declined(NlqQueryResponse::Decline { reason }) => {
+                assert!(
+                    reason.contains("billing"),
+                    "decline reason should mention billing, got: {reason}"
+                );
+            }
+            _ => panic!("expected Declined(Decline) for a billing question"),
+        }
+    }
+
+    #[tokio::test]
+    async fn resume_pipeline_valid_ir_produces_final() {
+        let db = fake_db();
+        let ch = fake_ch();
+        let ir = log_ir();
+        let raw = serde_json::to_string(&serde_json::json!({"type": "ir", "ir": ir})).unwrap();
+        let req = default_req("show me errors", NlqQueryMode::Interpret);
+
+        let outcome = resume_nlq_pipeline(&db, &ch, Uuid::nil(), &req, "show me errors", 0, &raw)
+            .await
+            .unwrap();
+
+        match outcome {
+            NlqResumeOutcome::Final(NlqQueryResponse::Ir { ir: got }) => {
+                assert_eq!(got.signals, vec![NlqSignal::Logs]);
+            }
+            _ => panic!("expected Final(Ir) for a valid log-signal IR in interpret mode"),
+        }
+    }
+
+    #[tokio::test]
+    async fn resume_pipeline_invalid_response_under_cap_returns_needs_repair() {
+        let db = fake_db();
+        let ch = fake_ch();
+        let req = default_req("original question", NlqQueryMode::Execute);
+
+        let outcome = resume_nlq_pipeline(
+            &db,
+            &ch,
+            Uuid::nil(),
+            &req,
+            "original question",
+            0,
+            "not json at all",
+        )
+        .await
+        .unwrap();
+
+        match outcome {
+            NlqResumeOutcome::NeedsRepair { repair_prompt } => {
+                assert!(repair_prompt.contains("Original question: \"original question\""));
+                assert!(repair_prompt.contains("not json at all"));
+            }
+            _ => {
+                panic!("expected NeedsRepair when repair_attempt (0) is below MAX_REPAIR_ATTEMPTS")
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn resume_pipeline_invalid_response_at_cap_returns_final_invalid_response() {
+        let db = fake_db();
+        let ch = fake_ch();
+        let req = default_req("q", NlqQueryMode::Execute);
+
+        let outcome = resume_nlq_pipeline(
+            &db,
+            &ch,
+            Uuid::nil(),
+            &req,
+            "q",
+            MAX_REPAIR_ATTEMPTS,
+            "still not json",
+        )
+        .await
+        .unwrap();
+
+        match outcome {
+            NlqResumeOutcome::Final(NlqQueryResponse::InvalidResponse {
+                raw_llm_response, ..
+            }) => {
+                assert_eq!(raw_llm_response, "still not json");
+            }
+            _ => panic!(
+                "expected Final(InvalidResponse) once repair_attempt reaches MAX_REPAIR_ATTEMPTS"
+            ),
+        }
+    }
+
+    // ── handle_nlq_prepare / handle_nlq_complete ─────────────────────────────
+
+    fn fake_state() -> AppState {
+        AppState {
+            ch: fake_ch(),
+            db: fake_db(),
+            planner: std::sync::Arc::new(crate::planner::QueryPlanner),
+            llm: None,
+            auth_service_url: "http://auth-service:4319".into(),
+            http_client: reqwest::Client::new(),
+            metrics: std::sync::Arc::new(crate::observability::QueryApiMetrics::new()),
+            sessions: crate::nlq_session::NlqSessionStore::default(),
+        }
+    }
+
+    fn fake_ctx(tenant_id: Uuid) -> TenantContext {
+        TenantContext {
+            tenant_id,
+            user_id: None,
+            role: "admin".into(),
+        }
+    }
+
+    #[tokio::test]
+    async fn handle_nlq_prepare_shorthand_bypass_short_circuits_before_session_store() {
+        let state = fake_state();
+        let ctx = fake_ctx(Uuid::new_v4());
+        let req = default_req("/m:cpu_usage", NlqQueryMode::Interpret);
+
+        let Json(response) = handle_nlq_prepare(State(state.clone()), Extension(ctx), Json(req))
+            .await
+            .expect("shorthand bypass should not error");
+
+        match response {
+            NlqPrepareResponse::Final {
+                response: NlqQueryResponse::Ir { ir },
+            } => {
+                assert_eq!(ir.metric.as_deref(), Some("cpu_usage"));
+            }
+            other => panic!(
+                "expected Final(Ir) for shorthand bypass, got a different variant: {other:?}"
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn handle_nlq_prepare_deny_gate_question_returns_final_decline() {
+        let state = fake_state();
+        let ctx = fake_ctx(Uuid::new_v4());
+        let req = default_req(
+            "What is our billing total this month?",
+            NlqQueryMode::Execute,
+        );
+
+        let Json(response) = handle_nlq_prepare(State(state), Extension(ctx), Json(req))
+            .await
+            .expect("deny gate should return Ok with a Decline body, not an HTTP error");
+
+        match response {
+            NlqPrepareResponse::Final {
+                response: NlqQueryResponse::Decline { reason },
+            } => {
+                assert!(reason.contains("billing"));
+            }
+            other => panic!("expected Final(Decline), got: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn handle_nlq_prepare_reaches_prepared_and_session_is_retrievable() {
+        let state = fake_state();
+        let tenant_id = Uuid::new_v4();
+        let ctx = fake_ctx(tenant_id);
+        let req = default_req("how many errors happened", NlqQueryMode::Execute);
+
+        let Json(response) = handle_nlq_prepare(State(state.clone()), Extension(ctx), Json(req))
+            .await
+            .expect("ordinary question should reach Prepared");
+
+        let session_token = match response {
+            NlqPrepareResponse::Prepared { session_token, .. } => session_token,
+            other => panic!("expected Prepared, got: {other:?}"),
+        };
+
+        let session = state
+            .sessions
+            .take_for_resume(session_token, tenant_id)
+            .expect("session should be retrievable after /prepare");
+        assert_eq!(session.tenant_id, tenant_id);
+        assert_eq!(session.repair_attempt, 0);
+    }
+
+    #[tokio::test]
+    async fn handle_nlq_complete_unknown_token_returns_404() {
+        let state = fake_state();
+        let ctx = fake_ctx(Uuid::new_v4());
+        let body = NlqCompleteRequest {
+            session_token: Uuid::new_v4(),
+            raw_llm_response: "irrelevant".into(),
+        };
+
+        let err = handle_nlq_complete(State(state), Extension(ctx), Json(body))
+            .await
+            .expect_err("unknown session token should 404");
+        assert_eq!(err.0, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn handle_nlq_complete_wrong_tenant_returns_404() {
+        let state = fake_state();
+        let tenant_id = Uuid::new_v4();
+        let other_tenant = Uuid::new_v4();
+        let session_token = state.sessions.insert(
+            tenant_id,
+            default_req("show me errors", NlqQueryMode::Interpret),
+            "show me errors".into(),
+        );
+
+        let body = NlqCompleteRequest {
+            session_token,
+            raw_llm_response: "irrelevant".into(),
+        };
+        let err = handle_nlq_complete(State(state), Extension(fake_ctx(other_tenant)), Json(body))
+            .await
+            .expect_err("wrong-tenant session token should 404");
+        assert_eq!(err.0, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn handle_nlq_complete_valid_response_returns_final_and_removes_session() {
+        let state = fake_state();
+        let tenant_id = Uuid::new_v4();
+        let ir = log_ir();
+        let raw = serde_json::to_string(&serde_json::json!({"type": "ir", "ir": ir})).unwrap();
+        let session_token = state.sessions.insert(
+            tenant_id,
+            default_req("show me errors", NlqQueryMode::Interpret),
+            "show me errors".into(),
+        );
+
+        let body = NlqCompleteRequest {
+            session_token,
+            raw_llm_response: raw,
+        };
+        let Json(response) = handle_nlq_complete(
+            State(state.clone()),
+            Extension(fake_ctx(tenant_id)),
+            Json(body),
+        )
+        .await
+        .expect("valid IR response should succeed");
+        match response {
+            NlqCompleteResponse::Final {
+                response: NlqQueryResponse::Ir { .. },
+            } => {}
+            other => panic!("expected Final(Ir), got: {other:?}"),
+        }
+
+        // Session is gone: a second /complete call with the same token now 404s.
+        let body_again = NlqCompleteRequest {
+            session_token,
+            raw_llm_response: "anything".into(),
+        };
+        let err = handle_nlq_complete(
+            State(state),
+            Extension(fake_ctx(tenant_id)),
+            Json(body_again),
+        )
+        .await
+        .expect_err("session should have been removed after Final outcome");
+        assert_eq!(err.0, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn handle_nlq_complete_transient_query_error_puts_session_back_for_retry() {
+        let state = fake_state();
+        let tenant_id = Uuid::new_v4();
+        // A log-signal IR in execute mode: skips fuzzy metric resolution but still reaches
+        // `execute_mcp_query`, which will fail against `fake_ch`'s unreachable ClickHouse URL —
+        // a stand-in for a real transient data-store outage.
+        let ir = log_ir();
+        let raw = serde_json::to_string(&serde_json::json!({"type": "ir", "ir": ir})).unwrap();
+        let session_token = state.sessions.insert(
+            tenant_id,
+            default_req("show me errors", NlqQueryMode::Execute),
+            "show me errors".into(),
+        );
+
+        let body = NlqCompleteRequest {
+            session_token,
+            raw_llm_response: raw,
+        };
+        let err = handle_nlq_complete(
+            State(state.clone()),
+            Extension(fake_ctx(tenant_id)),
+            Json(body),
+        )
+        .await
+        .expect_err("unreachable data store should produce an error response");
+        assert_eq!(
+            err.0,
+            StatusCode::SERVICE_UNAVAILABLE,
+            "transient data-store errors should map to 503, got body: {:?}",
+            err.1
+        );
+
+        // The session must still be usable: a retry with the same token (as the 503's
+        // "please retry" message implies) should resume rather than 404.
+        let session = state
+            .sessions
+            .take_for_resume(session_token, tenant_id)
+            .expect("session should have been put back after a transient resume error");
+        assert_eq!(session.repair_attempt, 0);
+    }
+
+    #[tokio::test]
+    async fn handle_nlq_complete_invalid_response_under_cap_keeps_session_with_bumped_repair_attempt()
+     {
+        let state = fake_state();
+        let tenant_id = Uuid::new_v4();
+        let session_token = state.sessions.insert(
+            tenant_id,
+            default_req("original question", NlqQueryMode::Execute),
+            "original question".into(),
+        );
+
+        let body = NlqCompleteRequest {
+            session_token,
+            raw_llm_response: "not json at all".into(),
+        };
+        let Json(response) = handle_nlq_complete(
+            State(state.clone()),
+            Extension(fake_ctx(tenant_id)),
+            Json(body),
+        )
+        .await
+        .expect("invalid response under the repair cap should not error");
+        match response {
+            NlqCompleteResponse::NeedsRepair { repair_prompt } => {
+                assert!(repair_prompt.contains("not json at all"));
+            }
+            other => panic!("expected NeedsRepair, got: {other:?}"),
+        }
+
+        // Session is still present, and repair_attempt was bumped server-side: feeding another
+        // invalid response now reaches the repair-cap-exhausted path (Final(InvalidResponse)),
+        // proving repair_attempt is now at MAX_REPAIR_ATTEMPTS.
+        let body_again = NlqCompleteRequest {
+            session_token,
+            raw_llm_response: "still not json".into(),
+        };
+        let Json(response) = handle_nlq_complete(
+            State(state),
+            Extension(fake_ctx(tenant_id)),
+            Json(body_again),
+        )
+        .await
+        .expect("second repair turn should not error");
+        match response {
+            NlqCompleteResponse::Final {
+                response:
+                    NlqQueryResponse::InvalidResponse {
+                        raw_llm_response, ..
+                    },
+            } => {
+                assert_eq!(raw_llm_response, "still not json");
+            }
+            other => panic!("expected Final(InvalidResponse) at the repair cap, got: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn handle_nlq_complete_invalid_response_at_cap_returns_final_invalid_response() {
+        let state = fake_state();
+        let tenant_id = Uuid::new_v4();
+        let session_token = state.sessions.insert(
+            tenant_id,
+            default_req("q", NlqQueryMode::Execute),
+            "q".into(),
+        );
+        // Drive repair_attempt up to MAX_REPAIR_ATTEMPTS directly via the store, matching what
+        // `handle_nlq_complete` would have done across MAX_REPAIR_ATTEMPTS prior NeedsRepair turns.
+        let mut session = state
+            .sessions
+            .take_for_resume(session_token, tenant_id)
+            .unwrap();
+        session.repair_attempt = MAX_REPAIR_ATTEMPTS;
+        state.sessions.put_back(session_token, session);
+
+        let body = NlqCompleteRequest {
+            session_token,
+            raw_llm_response: "still not json".into(),
+        };
+        let Json(response) =
+            handle_nlq_complete(State(state), Extension(fake_ctx(tenant_id)), Json(body))
+                .await
+                .expect("repair-cap-exhausted response should not error");
+        match response {
+            NlqCompleteResponse::Final {
+                response:
+                    NlqQueryResponse::InvalidResponse {
+                        raw_llm_response, ..
+                    },
+            } => {
+                assert_eq!(raw_llm_response, "still not json");
+            }
+            other => panic!("expected Final(InvalidResponse), got: {other:?}"),
+        }
     }
 }
