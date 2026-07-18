@@ -15,6 +15,7 @@ use std::{
 
 use crate::llm_adapter::LlmCaller;
 use crate::middleware::auth::TenantContext;
+use crate::nlq_session::NlqSessionStore;
 use crate::planner::QueryPlanner;
 
 #[derive(Clone)]
@@ -28,6 +29,9 @@ pub struct AppState {
     pub auth_service_url: String,
     pub http_client: reqwest::Client,
     pub metrics: Arc<crate::observability::QueryApiMetrics>,
+    /// Server-side session store backing the two-phase `/v1/nlq/prepare` +
+    /// `/v1/nlq/complete` pipeline (in-memory; see `nlq_session` module docs).
+    pub sessions: NlqSessionStore,
 }
 
 #[derive(Serialize)]

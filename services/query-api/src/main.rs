@@ -12,6 +12,7 @@ mod mcp_query;
 mod mcp_tools;
 mod metrics;
 mod middleware;
+mod nlq_session;
 mod notifications;
 mod observability;
 mod planner;
@@ -69,6 +70,7 @@ async fn main() -> anyhow::Result<()> {
         auth_service_url,
         http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::QueryApiMetrics::new()),
+        sessions: nlq_session::NlqSessionStore::default(),
     };
     let app = Router::new()
         .route("/v1/traces", get(traces::search_traces))
@@ -202,6 +204,8 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/v1/mcp/query", post(mcp_query::handle_mcp_query))
         .route("/v1/nlq", post(llm_adapter::handle_nlq_query))
+        .route("/v1/nlq/prepare", post(llm_adapter::handle_nlq_prepare))
+        .route("/v1/nlq/complete", post(llm_adapter::handle_nlq_complete))
         .route("/v1/nlq/metadata", get(llm_adapter::handle_nlq_metadata))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))

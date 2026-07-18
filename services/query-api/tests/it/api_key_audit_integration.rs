@@ -126,6 +126,7 @@ fn build_app(db: PgPool, auth_service_url: String) -> Router {
         auth_service_url: auth_service_url.clone(),
         http_client: reqwest::Client::new(),
         metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
+        sessions: query_api::nlq_session::NlqSessionStore::default(),
     };
     Router::new()
         .route("/v1/traces/histogram", get(|| async { StatusCode::OK }))
