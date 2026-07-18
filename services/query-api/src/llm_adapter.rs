@@ -1261,14 +1261,32 @@ fn enforce_service_scope(ir: &mut NlqIr, service_name: &str) {
 ///
 /// Advisory-only: every VisualizationFrame carries provenance (source_sql, approximation_statement).
 /// Callers must not use results for billing, SLA enforcement, or regulatory compliance.
-pub async fn run_nlq_pipeline(
+/// A prepared system prompt + question pair, ready to be sent to an `LlmCaller`
+/// (or, in a later phase, to a browser-side WebLLM engine).
+pub struct NlqPreparedCall {
+    pub system_prompt: String,
+    pub question: String,
+}
+
+/// Outcome of `prepare_nlq_pipeline`: either the request was declined before any LLM
+/// call was needed, or a system prompt + question pair is ready to be sent to an LLM.
+#[allow(clippy::large_enum_variant)]
+pub enum NlqPrepareOutcome {
+    Declined(NlqQueryResponse),
+    Prepared(NlqPreparedCall),
+}
+
+/// Runs the pre-LLM portion of the NLQ pipeline: server-side deny gate, bounded schema
+/// context fetch, and system prompt construction. Contains today's steps 1–3 verbatim.
+///
+/// Never produces a repair-turn prompt — the returned `question` is always the
+/// original question. Repair prompts are built by `resume_nlq_pipeline`.
+pub async fn prepare_nlq_pipeline(
     db: &PgPool,
     ch: &clickhouse::Client,
-    llm: &dyn LlmCaller,
     tenant_id: Uuid,
     req: &NlqQueryRequest,
-) -> Result<NlqQueryResponse, LlmAdapterError> {
-    let pipeline_start = std::time::Instant::now();
+) -> Result<NlqPrepareOutcome, LlmAdapterError> {
     let question = req.question.as_deref().unwrap_or("");
     let question_preview = question.chars().take(256).collect::<String>();
 
@@ -1287,7 +1305,9 @@ pub async fn run_nlq_pipeline(
             reason = %reason,
             "NLQ declined by server-side deny gate"
         );
-        return Ok(NlqQueryResponse::Decline { reason });
+        return Ok(NlqPrepareOutcome::Declined(NlqQueryResponse::Decline {
+            reason,
+        }));
     }
 
     // 2. Fetch bounded schema context (up to 20 schema-complete metrics)
@@ -1307,69 +1327,80 @@ pub async fn run_nlq_pipeline(
         "NLQ calling LLM"
     );
 
-    // 4 + 5. Call LLM with an optional repair loop.
-    //
-    // On an `InvalidResponse` parse error the pipeline sends a structured repair prompt
-    // as the next user turn (system prompt unchanged — it already carries schema + rules).
-    // The loop is capped at MAX_REPAIR_ATTEMPTS to bound token spend.
-    let llm_start = std::time::Instant::now();
-    let mut repair_attempt: usize = 0;
-    let mut last_question = question.to_string();
-    let (parsed, _raw_response) = loop {
-        let raw = llm.call(&system_prompt, &last_question).await?;
+    Ok(NlqPrepareOutcome::Prepared(NlqPreparedCall {
+        system_prompt,
+        question: question.to_string(),
+    }))
+}
 
-        tracing::debug!(
-            tenant_id = %tenant_id,
-            llm_elapsed_ms = llm_start.elapsed().as_millis(),
-            raw_response_len = raw.len(),
-            "NLQ LLM call complete"
-        );
+/// Outcome of `resume_nlq_pipeline`: either a final response, or a signal that the raw
+/// LLM response failed to parse and a repair-turn prompt should be sent back to the LLM.
+#[allow(clippy::large_enum_variant)]
+pub enum NlqResumeOutcome {
+    Final(NlqQueryResponse),
+    NeedsRepair { repair_prompt: String },
+}
 
-        match parse_llm_response(&raw) {
-            Ok(p) => {
-                tracing::debug!(
-                    tenant_id = %tenant_id,
-                    parsed_type = match &p {
-                        NlqIrOrDecline::Ir(_) => "ir",
-                        NlqIrOrDecline::Decline { .. } => "decline",
-                        NlqIrOrDecline::Capabilities => "capabilities",
-                    },
-                    "NLQ LLM response parsed"
-                );
-                break (p, raw);
-            }
-            Err(LlmAdapterError::InvalidResponse(ref reason))
-                if repair_attempt < MAX_REPAIR_ATTEMPTS =>
-            {
-                repair_attempt += 1;
-                tracing::warn!(
-                    tenant_id = %tenant_id,
-                    repair_attempt,
-                    error = %reason,
-                    "NLQ repair attempt"
-                );
-                last_question = build_repair_prompt(question, reason, &raw);
-                continue;
-            }
-            Err(LlmAdapterError::InvalidResponse(reason)) => {
-                let truncated = raw.chars().take(512).collect::<String>();
-                tracing::warn!(
-                    tenant_id = %tenant_id,
-                    question = %question_preview,
-                    error = %reason,
-                    raw_response = %truncated,
-                    repair_attempts = repair_attempt,
-                    "NLQ repair budget exhausted"
-                );
-                return Ok(NlqQueryResponse::InvalidResponse {
-                    reason,
-                    raw_llm_response: raw,
-                });
-            }
-            Err(e) => return Err(e),
+/// Runs the post-LLM portion of the NLQ pipeline for a single raw completion: parses
+/// it, and either produces a final response (today's steps 6–9, unchanged) or — on an
+/// `InvalidResponse` parse error within the repair budget — a repair-turn prompt for the
+/// caller to send back to the LLM. The repair loop itself lives in the caller.
+pub async fn resume_nlq_pipeline(
+    db: &PgPool,
+    ch: &clickhouse::Client,
+    tenant_id: Uuid,
+    req: &NlqQueryRequest,
+    original_question: &str,
+    repair_attempt: usize,
+    raw_llm_response: &str,
+) -> Result<NlqResumeOutcome, LlmAdapterError> {
+    let question_preview = original_question.chars().take(256).collect::<String>();
+
+    // 4 + 5. Parse the raw LLM response, branching on repair budget for InvalidResponse.
+    let parsed = match parse_llm_response(raw_llm_response) {
+        Ok(p) => {
+            tracing::debug!(
+                tenant_id = %tenant_id,
+                parsed_type = match &p {
+                    NlqIrOrDecline::Ir(_) => "ir",
+                    NlqIrOrDecline::Decline { .. } => "decline",
+                    NlqIrOrDecline::Capabilities => "capabilities",
+                },
+                "NLQ LLM response parsed"
+            );
+            p
         }
+        Err(LlmAdapterError::InvalidResponse(ref reason))
+            if repair_attempt < MAX_REPAIR_ATTEMPTS =>
+        {
+            let next_repair_attempt = repair_attempt + 1;
+            tracing::warn!(
+                tenant_id = %tenant_id,
+                repair_attempt = next_repair_attempt,
+                error = %reason,
+                "NLQ repair attempt"
+            );
+            return Ok(NlqResumeOutcome::NeedsRepair {
+                repair_prompt: build_repair_prompt(original_question, reason, raw_llm_response),
+            });
+        }
+        Err(LlmAdapterError::InvalidResponse(reason)) => {
+            let truncated = raw_llm_response.chars().take(512).collect::<String>();
+            tracing::warn!(
+                tenant_id = %tenant_id,
+                question = %question_preview,
+                error = %reason,
+                raw_response = %truncated,
+                repair_attempts = repair_attempt,
+                "NLQ repair budget exhausted"
+            );
+            return Ok(NlqResumeOutcome::Final(NlqQueryResponse::InvalidResponse {
+                reason,
+                raw_llm_response: raw_llm_response.to_string(),
+            }));
+        }
+        Err(e) => return Err(e),
     };
-    let _llm_elapsed_ms = llm_start.elapsed().as_millis();
 
     // 6. Handle decline or capabilities from LLM
     let mut ir = match parsed {
@@ -1381,7 +1412,9 @@ pub async fn run_nlq_pipeline(
                 source = "llm",
                 "NLQ declined by LLM"
             );
-            return Ok(NlqQueryResponse::Decline { reason });
+            return Ok(NlqResumeOutcome::Final(NlqQueryResponse::Decline {
+                reason,
+            }));
         }
         NlqIrOrDecline::Capabilities => {
             tracing::info!(
@@ -1389,9 +1422,9 @@ pub async fn run_nlq_pipeline(
                 question = %question_preview,
                 "NLQ capabilities short-circuit"
             );
-            return Ok(NlqQueryResponse::Capabilities {
+            return Ok(NlqResumeOutcome::Final(NlqQueryResponse::Capabilities {
                 hint: build_capabilities_hint(),
-            });
+            }));
         }
         NlqIrOrDecline::Ir(ir) => ir,
     };
@@ -1415,11 +1448,11 @@ pub async fn run_nlq_pipeline(
             source = "no_metric",
             "NLQ declined — no metric identified"
         );
-        return Ok(NlqQueryResponse::Decline {
+        return Ok(NlqResumeOutcome::Final(NlqQueryResponse::Decline {
             reason: "Could not identify a metric for this question. \
                      Please rephrase or specify a metric name."
                 .into(),
-        });
+        }));
     }
 
     // 8b. Fuzzy metric resolution — skip for log/trace queries (no metric to resolve).
@@ -1450,7 +1483,7 @@ pub async fn run_nlq_pipeline(
             operation = ?ir.operation,
             "NLQ interpreted to IR without execution"
         );
-        return Ok(NlqQueryResponse::Ir { ir });
+        return Ok(NlqResumeOutcome::Final(NlqQueryResponse::Ir { ir }));
     }
 
     // Apply base_ir merge in execute mode: base operation/signals preserved,
@@ -1472,7 +1505,6 @@ pub async fn run_nlq_pipeline(
         .await
         .map_err(LlmAdapterError::QueryExecution)?;
     let mcp_elapsed_ms = mcp_start.elapsed().as_millis();
-    let pipeline_elapsed_ms = pipeline_start.elapsed().as_millis();
 
     tracing::debug!(
         tenant_id = %tenant_id,
@@ -1481,14 +1513,72 @@ pub async fn run_nlq_pipeline(
         "NLQ MCP query complete"
     );
 
-    tracing::info!(
-        tenant_id = %tenant_id,
-        pipeline_elapsed_ms,
-        result = "frame",
-        "NLQ pipeline complete"
-    );
+    Ok(NlqResumeOutcome::Final(NlqQueryResponse::Frame { frame }))
+}
 
-    Ok(NlqQueryResponse::Frame { frame })
+pub async fn run_nlq_pipeline(
+    db: &PgPool,
+    ch: &clickhouse::Client,
+    llm: &dyn LlmCaller,
+    tenant_id: Uuid,
+    req: &NlqQueryRequest,
+) -> Result<NlqQueryResponse, LlmAdapterError> {
+    let pipeline_start = std::time::Instant::now();
+
+    let prepared = match prepare_nlq_pipeline(db, ch, tenant_id, req).await? {
+        NlqPrepareOutcome::Declined(response) => return Ok(response),
+        NlqPrepareOutcome::Prepared(prepared) => prepared,
+    };
+
+    // 4 + 5. Call LLM with an optional repair loop.
+    //
+    // On an `InvalidResponse` parse error the pipeline sends a structured repair prompt
+    // as the next user turn (system prompt unchanged — it already carries schema + rules).
+    // The loop is capped at MAX_REPAIR_ATTEMPTS to bound token spend.
+    let llm_start = std::time::Instant::now();
+    let mut repair_attempt: usize = 0;
+    let mut next_question = prepared.question.clone();
+    let response = loop {
+        let raw = llm.call(&prepared.system_prompt, &next_question).await?;
+
+        tracing::debug!(
+            tenant_id = %tenant_id,
+            llm_elapsed_ms = llm_start.elapsed().as_millis(),
+            raw_response_len = raw.len(),
+            "NLQ LLM call complete"
+        );
+
+        match resume_nlq_pipeline(
+            db,
+            ch,
+            tenant_id,
+            req,
+            &prepared.question,
+            repair_attempt,
+            &raw,
+        )
+        .await?
+        {
+            NlqResumeOutcome::Final(response) => break response,
+            NlqResumeOutcome::NeedsRepair { repair_prompt } => {
+                repair_attempt += 1;
+                next_question = repair_prompt;
+            }
+        }
+    };
+    let _llm_elapsed_ms = llm_start.elapsed().as_millis();
+
+    if matches!(response, NlqQueryResponse::Frame { .. }) {
+        let pipeline_elapsed_ms = pipeline_start.elapsed().as_millis();
+        tracing::info!(
+            tenant_id = %tenant_id,
+            pipeline_elapsed_ms,
+            result = "frame",
+            "NLQ pipeline complete"
+        );
+    }
+
+    Ok(response)
 }
 
 // ── HTTP handler ──────────────────────────────────────────────────────────────
@@ -2801,5 +2891,158 @@ mod tests {
         let ir = sh.into_nlq_ir();
         assert_eq!(ir.signals, vec![NlqSignal::Logs]);
         assert_eq!(ir.query, Some("error".into()));
+    }
+
+    // ── prepare_nlq_pipeline / resume_nlq_pipeline ──────────────────────────────
+    //
+    // These use a lazily-connecting Postgres pool and a ClickHouse client pointed at
+    // an unreachable port, mirroring the `fake_nlq_app_no_db` pattern in
+    // `tests/it/http_api_integration.rs` — neither is actually queried by the code
+    // paths exercised below (deny gate short-circuits before any DB call; the
+    // interpret-mode + log-signal IR skips both fuzzy metric resolution and
+    // `execute_mcp_query`).
+
+    fn fake_db() -> PgPool {
+        PgPool::connect_lazy("postgres://user:pass@127.0.0.1:5432/db").expect("valid postgres url")
+    }
+
+    fn fake_ch() -> clickhouse::Client {
+        clickhouse::Client::default().with_url("http://127.0.0.1:19999")
+    }
+
+    fn default_req(question: &str, mode: NlqQueryMode) -> NlqQueryRequest {
+        NlqQueryRequest {
+            question: Some(question.to_string()),
+            service_name: None,
+            base_ir: None,
+            mode,
+        }
+    }
+
+    /// An IR that needs no DB access to reach a `Final` outcome from
+    /// `resume_nlq_pipeline`: a log-signal query (skips fuzzy metric resolution)
+    /// interpreted rather than executed (skips `execute_mcp_query`).
+    fn log_ir() -> NlqIr {
+        NlqIr {
+            operation: NlqOperation::Table,
+            signals: vec![NlqSignal::Logs],
+            metric: None,
+            window: None,
+            filters: vec![],
+            group_by: vec![],
+            resolution: None,
+            time_range: NlqTimeRange {
+                from: "now-1h".into(),
+                to: "now".into(),
+            },
+            visualization_hint: None,
+            percentiles: None,
+            catalog_field: None,
+            limit: None,
+            query: Some("error".into()),
+        }
+    }
+
+    #[tokio::test]
+    async fn prepare_pipeline_deny_gate_short_circuits() {
+        let db = fake_db();
+        let ch = fake_ch();
+        let req = default_req(
+            "What is our billing total this month?",
+            NlqQueryMode::Execute,
+        );
+
+        let outcome = prepare_nlq_pipeline(&db, &ch, Uuid::nil(), &req)
+            .await
+            .unwrap();
+
+        match outcome {
+            NlqPrepareOutcome::Declined(NlqQueryResponse::Decline { reason }) => {
+                assert!(
+                    reason.contains("billing"),
+                    "decline reason should mention billing, got: {reason}"
+                );
+            }
+            _ => panic!("expected Declined(Decline) for a billing question"),
+        }
+    }
+
+    #[tokio::test]
+    async fn resume_pipeline_valid_ir_produces_final() {
+        let db = fake_db();
+        let ch = fake_ch();
+        let ir = log_ir();
+        let raw = serde_json::to_string(&serde_json::json!({"type": "ir", "ir": ir})).unwrap();
+        let req = default_req("show me errors", NlqQueryMode::Interpret);
+
+        let outcome = resume_nlq_pipeline(&db, &ch, Uuid::nil(), &req, "show me errors", 0, &raw)
+            .await
+            .unwrap();
+
+        match outcome {
+            NlqResumeOutcome::Final(NlqQueryResponse::Ir { ir: got }) => {
+                assert_eq!(got.signals, vec![NlqSignal::Logs]);
+            }
+            _ => panic!("expected Final(Ir) for a valid log-signal IR in interpret mode"),
+        }
+    }
+
+    #[tokio::test]
+    async fn resume_pipeline_invalid_response_under_cap_returns_needs_repair() {
+        let db = fake_db();
+        let ch = fake_ch();
+        let req = default_req("original question", NlqQueryMode::Execute);
+
+        let outcome = resume_nlq_pipeline(
+            &db,
+            &ch,
+            Uuid::nil(),
+            &req,
+            "original question",
+            0,
+            "not json at all",
+        )
+        .await
+        .unwrap();
+
+        match outcome {
+            NlqResumeOutcome::NeedsRepair { repair_prompt } => {
+                assert!(repair_prompt.contains("Original question: \"original question\""));
+                assert!(repair_prompt.contains("not json at all"));
+            }
+            _ => {
+                panic!("expected NeedsRepair when repair_attempt (0) is below MAX_REPAIR_ATTEMPTS")
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn resume_pipeline_invalid_response_at_cap_returns_final_invalid_response() {
+        let db = fake_db();
+        let ch = fake_ch();
+        let req = default_req("q", NlqQueryMode::Execute);
+
+        let outcome = resume_nlq_pipeline(
+            &db,
+            &ch,
+            Uuid::nil(),
+            &req,
+            "q",
+            MAX_REPAIR_ATTEMPTS,
+            "still not json",
+        )
+        .await
+        .unwrap();
+
+        match outcome {
+            NlqResumeOutcome::Final(NlqQueryResponse::InvalidResponse {
+                raw_llm_response, ..
+            }) => {
+                assert_eq!(raw_llm_response, "still not json");
+            }
+            _ => panic!(
+                "expected Final(InvalidResponse) once repair_attempt reaches MAX_REPAIR_ATTEMPTS"
+            ),
+        }
     }
 }
