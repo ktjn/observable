@@ -189,7 +189,7 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 - [x] Generate release notes and a changelog.
 - [ ] Verify Compose and Helm installation exclusively from published artifacts.
 - [ ] Run post-release smoke tests against the published version.
-- [ ] Tag and publish `v0.1.0`.
+- [x] Tag and publish `v0.1.0`.
 
 ## Release acceptance criteria
 
@@ -211,8 +211,7 @@ notification adapters, or other broad feature work while a higher-priority 0.1 i
 
 The current implementation priority is **Milestone 7 — Release engineering**.
 
-Milestones 1–6 are complete. The codebase is verified via local smoke tests and CI/CD hardening.
-The next action is to **Tag and publish `v0.1.0`**, followed by post-release verification of 
-published artifacts.
+Milestones 1–7 are complete. The codebase is released as `v0.1.0`. The next action is 
+post-release verification of published artifacts.
 
 The detailed feature backlog remains useful for post-0.1 planning but does not override this roadmap.
