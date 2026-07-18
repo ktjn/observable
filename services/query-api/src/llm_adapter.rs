@@ -1257,10 +1257,6 @@ fn enforce_service_scope(ir: &mut NlqIr, service_name: &str) {
 
 // ── Core orchestration ────────────────────────────────────────────────────────
 
-/// End-to-end NLQ pipeline: question → LlmCaller → NlqIr → execute_mcp_query → NlqQueryResponse.
-///
-/// Advisory-only: every VisualizationFrame carries provenance (source_sql, approximation_statement).
-/// Callers must not use results for billing, SLA enforcement, or regulatory compliance.
 /// A prepared system prompt + question pair, ready to be sent to an `LlmCaller`
 /// (or, in a later phase, to a browser-side WebLLM engine).
 pub struct NlqPreparedCall {
@@ -1516,6 +1512,10 @@ pub async fn resume_nlq_pipeline(
     Ok(NlqResumeOutcome::Final(NlqQueryResponse::Frame { frame }))
 }
 
+/// End-to-end NLQ pipeline: question → LlmCaller → NlqIr → execute_mcp_query → NlqQueryResponse.
+///
+/// Advisory-only: every VisualizationFrame carries provenance (source_sql, approximation_statement).
+/// Callers must not use results for billing, SLA enforcement, or regulatory compliance.
 pub async fn run_nlq_pipeline(
     db: &PgPool,
     ch: &clickhouse::Client,
