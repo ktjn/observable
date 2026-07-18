@@ -85,10 +85,20 @@ export async function getOrCreateEngine(
       if (disposed) {
         throw new Error("WebLLM engine has been disposed");
       }
+      // No `response_format` here — this build of @mlc-ai/web-llm always calls
+      // GrammarCompiler.compileJSONSchema(response_format.schema) when
+      // response_format.type === "json_object", with no fallback for an unset
+      // `schema` (unlike OpenAI, where json_object mode needs no schema). Passing
+      // `{ type: "json_object" }` without a schema string crashes the WASM binding
+      // ("Cannot pass non-string to std::string"). Omitting response_format entirely
+      // skips grammar-constrained decoding — the system prompt's own "Respond with
+      // JSON only" instruction is what constrains output instead, same as the
+      // remote-provider path effectively relies on in practice. A real JSON Schema
+      // string could be passed here in the future to re-enable grammar-constrained
+      // decoding safely, if stricter structural guarantees are ever needed.
       const result = await engine.chat.completions.create({
         model: modelId,
         temperature: 0,
-        response_format: { type: "json_object" },
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userTurn },
