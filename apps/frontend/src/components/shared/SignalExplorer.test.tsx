@@ -1,5 +1,6 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { vi, expect, test, afterEach } from "vitest";
+import { vi, expect, test, afterEach, beforeEach } from "vitest";
 import { SignalExplorer } from "./SignalExplorer";
 import type { SignalExplorerProps } from "./SignalExplorer";
 import { TenantContextProvider } from "../../hooks/useTenantContext";
@@ -8,19 +9,44 @@ vi.mock("../../api/nlq", () => ({
   submitNlqQuery: vi.fn(),
 }));
 
+vi.mock("../../api/setup", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../api/setup")>();
+  return {
+    ...actual,
+    getConfig: vi.fn(),
+  };
+});
+
 vi.mock("../../hooks/useGlobalDateRange", () => ({
   useGlobalDateRange: () => ({ fromMs: Date.now() - 3600_000, toMs: Date.now() }),
 }));
 
 import { submitNlqQuery } from "../../api/nlq";
+import { getConfig } from "../../api/setup";
 const mockSubmit = vi.mocked(submitNlqQuery);
+const mockGetConfig = vi.mocked(getConfig);
+
+beforeEach(() => {
+  mockGetConfig.mockResolvedValue({
+    llm_key_configured: true,
+    llm_url: null,
+    llm_model: null,
+    llm_provider: "remote",
+    webllm_model: null,
+  });
+});
 
 afterEach(() => {
   vi.clearAllMocks();
 });
 
 function wrapper({ children }: { children: React.ReactNode }) {
-  return <TenantContextProvider>{children}</TenantContextProvider>;
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return (
+    <TenantContextProvider>
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    </TenantContextProvider>
+  );
 }
 
 function makeProps(overrides: Partial<SignalExplorerProps> = {}): SignalExplorerProps {
