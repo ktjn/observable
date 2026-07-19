@@ -9,7 +9,7 @@ import { EmptyState } from "../components/ui/empty-state";
 import { ErrorState } from "../components/ui/error-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { TablePanel } from "../components/ui/table-panel";
-import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
+import { QueryInput } from "../features/nlq/QueryInput";
 import { deriveViewFiltersFromIr, type NlqIrLike } from "../features/nlq/queryFilters";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { LogExplorer } from "./LogSearch";
@@ -54,7 +54,7 @@ export default function ServiceTopologyPage() {
       </div>
 
       <div className="toolbar-row">
-        <QueryFilterInput
+        <QueryInput
           baseIr={TOPOLOGY_BASE_IR}
           placeholder='Focus topology, e.g. "prod payments service"'
           onIr={(ir) => {
