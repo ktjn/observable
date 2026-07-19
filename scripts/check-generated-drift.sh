@@ -34,20 +34,6 @@ while IFS= read -r -d '' f; do
   fi
 done < <(find apps/frontend/src/api/generated -name '*.ts' -print0)
 
-# TypeScript — crypto-aggregator demos
-while IFS= read -r -d '' f; do
-  name="$(basename "$f")"
-  if [ ! -f "$TMP_TS/$name" ]; then
-    echo "MISSING in generated: $f"
-    FAILED=1
-    continue
-  fi
-  if ! diff -q "$f" "$TMP_TS/$name" >/dev/null 2>&1; then
-    echo "DRIFTED: $f"
-    FAILED=1
-  fi
-done < <(find demos/crypto-aggregator -path '*/generated/*.ts' -print0)
-
 # Format generated Rust to match the regeneration script's cargo fmt step
 find "$TMP_RS" -name '*.rs' -print0 > "$TMP_RS_FILES"
 while IFS= read -r -d '' f; do

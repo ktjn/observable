@@ -95,8 +95,6 @@ make test           # cargo test + frontend typecheck
 | **ClickHouse** (HTTP) | http://localhost:8123 |
 | **Redpanda** (Kafka-compatible) | localhost:9092 |
 | **Testbench shop API** | http://localhost:8000 |
-| **Crypto demo backend** | http://localhost:3100 |
-| **Crypto demo frontend** | http://localhost:3101 |
 
 ### Stopping and resetting
 
@@ -177,7 +175,6 @@ The `demos/` directory contains example applications that showcase Observable in
 | Demo | Description | Status |
 |------|-------------|--------|
 | [otel-demo](demos/otel-demo/) | The [OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo) microservices app, reconfigured to route through the Observable ingest gateway. | Canonical onboarding demo |
-| [crypto-aggregator](demos/crypto-aggregator/README.md) | Real-time crypto live-data dashboard with OTel metrics. | Supplementary; may move to a separate repository |
 
 The **otel-demo** is the recommended starting point for evaluating Observable with realistic
 multi-service traffic.

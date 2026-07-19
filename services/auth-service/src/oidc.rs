@@ -331,12 +331,11 @@ pub async fn callback_handler(
     };
 
     // Dev mode: first login has no role yet — seed tenant_admin on both the
-    // observable tenant, dev-tenant, and crypto-demo so the admin can switch between them.
+    // observable tenant and dev-tenant so the admin can switch between them.
     if tenants.is_empty() && state.config.dev_mode {
         for tenant_str in [
             "00000000-0000-0000-0000-000000000001", // observable
             "00000000-0000-0000-0000-000000000002", // dev-tenant
-            "00000000-0000-0000-0000-000000000003", // crypto-demo
         ] {
             let tid = match uuid::Uuid::parse_str(tenant_str) {
                 Ok(id) => id,

@@ -374,22 +374,6 @@ services:
       query-api: { condition: service_healthy }
       admin-service: { condition: service_healthy }
 
-  crypto-demo:
-    image: crypto-demo:local
-    build: { context: demos/crypto-aggregator }
-    profiles: ["demos"]
-    ports:
-      - "3100:3100"
-      - "3101:80"
-    environment:
-      PORT: "3100"
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://ingest-gateway:4317
-      OTEL_EXPORTER_OTLP_HEADERS: "authorization=Bearer crypto-demo-api-key-0000"
-      OTEL_SERVICE_NAME: crypto-demo-pipeline
-    depends_on:
-      ingest-gateway: { condition: service_healthy }
-      postgres: { condition: service_healthy }
-
   # --- VERIFICATION ---
   otel-collector-verification:
     image: otel/opentelemetry-collector-contrib:0.156.0

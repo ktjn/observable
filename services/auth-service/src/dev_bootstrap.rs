@@ -1,6 +1,6 @@
 // dev_bootstrap.rs — only called when OBSERVABLE_ENV=dev.
 // Ensures admin@dev.observable has a tenant_admin role on the observable
-// tenant, dev-tenant, crypto-demo, and otel-demo after Zitadel login.  The user row is created by the
+// tenant, dev-tenant, and otel-demo after Zitadel login.  The user row is created by the
 // OIDC callback on first login; this pre-seeds role assignments so login ->
 // tenant works immediately.
 //
@@ -12,7 +12,6 @@ use uuid::Uuid;
 
 const OBSERVABLE_TENANT_ID: &str = "00000000-0000-0000-0000-000000000001";
 const DEV_TENANT_ID: &str = "00000000-0000-0000-0000-000000000002";
-const CRYPTO_DEMO_TENANT_ID: &str = "00000000-0000-0000-0000-000000000003";
 const OTEL_DEMO_TENANT_ID: &str = "00000000-0000-0000-0000-000000000004";
 
 pub async fn seed_dev_admin_role(pool: &PgPool, dev_admin_email: &str) -> Result<()> {
@@ -22,12 +21,7 @@ pub async fn seed_dev_admin_role(pool: &PgPool, dev_admin_email: &str) -> Result
         .await?;
 
     if let Some(uid) = user_id {
-        for tenant_str in [
-            OBSERVABLE_TENANT_ID,
-            DEV_TENANT_ID,
-            CRYPTO_DEMO_TENANT_ID,
-            OTEL_DEMO_TENANT_ID,
-        ] {
+        for tenant_str in [OBSERVABLE_TENANT_ID, DEV_TENANT_ID, OTEL_DEMO_TENANT_ID] {
             let tenant_id = Uuid::parse_str(tenant_str)?;
             sqlx::query(
                 r#"
@@ -43,7 +37,7 @@ pub async fn seed_dev_admin_role(pool: &PgPool, dev_admin_email: &str) -> Result
         }
         tracing::info!(
             email = dev_admin_email,
-            "dev admin role ensured on observable, dev-tenant, crypto-demo, and otel-demo"
+            "dev admin role ensured on observable, dev-tenant, and otel-demo"
         );
     } else {
         tracing::info!(
