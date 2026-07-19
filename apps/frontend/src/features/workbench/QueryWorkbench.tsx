@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import type { NlqIrLike } from "../../api/nlq";
-import { submitNlqQuery } from "../../api/nlq";
+import { useQuery } from "@tanstack/react-query";
+import { getConfig } from "../../api/setup";
+import { submitNlqWithProvider } from "../nlq/submitNlqWithProvider";
 import {
   createIdleWorkbenchQueryStateMap,
   type WorkbenchQueryState as WorkbenchQueryStateRuntime,
@@ -40,6 +42,11 @@ export default function QueryWorkbench() {
   const navigate = useNavigate();
   const { fromMs, toMs } = useGlobalDateRange();
   const { tenantId } = useTenantContext();
+  const { data: config } = useQuery({
+    queryKey: ["setup", "config", tenantId],
+    queryFn: () => getConfig(tenantId),
+  });
+  const provider = config?.llm_provider ?? "remote";
 
   const [notebook, setNotebook] = useState<NotebookStateV1>(() =>
     decodeWorkbenchState(search.state),
@@ -118,10 +125,11 @@ export default function QueryWorkbench() {
           time_range: baseIr.time_range,
         };
 
-        const response = await submitNlqQuery(tenantId, {
-          base_ir: mergedBaseIr,
-          mode: "execute",
-        });
+        const response = await submitNlqWithProvider(
+          tenantId,
+          { provider, webllmModel: config?.webllm_model },
+          { base_ir: mergedBaseIr, mode: "execute" },
+        );
 
         setBlockRuntime(
           id,
@@ -132,11 +140,11 @@ export default function QueryWorkbench() {
         return;
       }
 
-      const response = await submitNlqQuery(tenantId, {
-        base_ir: baseIr,
-        question,
-        mode: "execute",
-      });
+      const response = await submitNlqWithProvider(
+        tenantId,
+        { provider, webllmModel: config?.webllm_model },
+        { base_ir: baseIr, question, mode: "execute" },
+      );
       setBlockRuntime(
         id,
         response.type === "frame"

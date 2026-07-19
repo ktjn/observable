@@ -20,7 +20,7 @@ import { PillFilter } from "../components/ui/pill-filter";
 import { ErrorRateCell, LatencyCell } from "../components/ui/metric-cells";
 import { TablePanel } from "../components/ui/table-panel";
 import { TopologyMap } from "../components/topology/TopologyMap";
-import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
+import { QueryInput } from "../features/nlq/QueryInput";
 import { deriveViewFiltersFromIr, type NlqIrLike } from "../features/nlq/queryFilters";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { LogExplorer } from "./LogSearch";
@@ -152,7 +152,7 @@ export default function ServicesPage() {
       </div>
 
       <div className="toolbar-row">
-        <QueryFilterInput
+        <QueryInput
           baseIr={SERVICES_BASE_IR}
           placeholder='Filter services, e.g. "prod checkout services in watch"'
           onIr={(ir) => {
@@ -181,14 +181,6 @@ export default function ServicesPage() {
               onSelect={(key) => setHealthFilter(key)}
               rounded
               ariaLabel="Filter by health"
-            />
-
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search services…"
-              className="ml-auto min-w-[180px] px-2.5 py-1 text-xs border border-[var(--border)] bg-transparent text-[var(--text)] placeholder:text-[var(--muted)] rounded focus:outline-none focus:border-[var(--brand)]"
             />
           </div>
 

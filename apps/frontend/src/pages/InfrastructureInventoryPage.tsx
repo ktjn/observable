@@ -19,7 +19,7 @@ import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { PillFilter } from "../components/ui/pill-filter";
 import { TablePanel } from "../components/ui/table-panel";
-import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
+import { QueryInput } from "../features/nlq/QueryInput";
 
 const INFRA_BASE_IR: NlqIrLike = {
   operation: "inventory",
@@ -165,7 +165,7 @@ export default function InfrastructureInventoryPage() {
       </div>
 
       <div className="toolbar-row">
-        <QueryFilterInput
+        <QueryInput
           baseIr={INFRA_BASE_IR}
           placeholder='Filter infrastructure, e.g. "prod pods for checkout in breach"'
           onSubmit={(text) => {

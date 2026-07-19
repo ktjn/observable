@@ -6,9 +6,10 @@ import { SignalQueryForm } from "../../components/shared/SignalQueryForm";
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import { submitNlqWithProvider } from "./submitNlqWithProvider";
+import { detectQueryMode, toShorthandQuery, type QueryMode } from "./detectQueryMode";
 import type { NlqIrLike } from "./queryFilters";
 
-interface QueryFilterInputProps {
+interface QueryInputProps {
   /**
    * The page base IR. Sent as `base_ir` in interpret requests so the LLM
    * receives correct page context. Also forwarded on `onSubmit` for execute calls.
@@ -17,21 +18,33 @@ interface QueryFilterInputProps {
   serviceName?: string;
   placeholder?: string;
   /**
-   * Called with the raw text (NLQ or raw IR JSON) after the user submits.
+   * Called with the raw text (as typed, or NLQ text) after the user submits.
    * The page uses this text in its own execute request, merged with `baseIr` server-side.
    */
   onSubmit?: (rawText: string) => void;
-  /** @deprecated Use `onSubmit` instead. Called with the interpreted IR for debug purposes. */
+  /** Called with the interpreted IR, for debug purposes. */
   onIr?: (ir: NlqIrLike | Record<string, unknown>) => void;
 }
 
-export function QueryFilterInput({
+const MODE_LABEL: Record<QueryMode, string> = {
+  filter: "Filter",
+  search: "Search",
+  ai: "AI",
+};
+
+const MODE_CLASS: Record<QueryMode, string> = {
+  filter: "text-[var(--brand)]",
+  search: "text-[var(--good)]",
+  ai: "text-[var(--muted)]",
+};
+
+export function QueryInput({
   baseIr,
   serviceName,
   placeholder,
   onSubmit,
   onIr,
-}: QueryFilterInputProps) {
+}: QueryInputProps) {
   const { fromMs, toMs } = useGlobalDateRange();
   const { tenantId } = useTenantContext();
   const { data: config } = useQuery({
@@ -57,6 +70,8 @@ export function QueryFilterInput({
     | { status: "interpreted"; ir: NlqIr }
   >({ status: "idle" });
 
+  const mode = query.trim() ? detectQueryMode(query) : null;
+
   function handleReset() {
     setQuery("");
     setState({ status: "idle" });
@@ -65,8 +80,10 @@ export function QueryFilterInput({
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const question = query.trim();
-    if (!question) return;
+    const rawText = query.trim();
+    if (!rawText) return;
+    const detectedMode = detectQueryMode(rawText);
+    const question = toShorthandQuery(rawText, detectedMode);
 
     setState({ status: "loading" });
     try {
@@ -93,9 +110,8 @@ export function QueryFilterInput({
         return;
       }
       setState({ status: "interpreted", ir: response.ir });
-      // Notify parent with the raw text so it can drive its own execute call.
-      onSubmit?.(question);
-      // Legacy: also call onIr if provided.
+      // Notify parent with the raw (non-shorthand) text so it can drive its own execute call.
+      onSubmit?.(rawText);
       onIr?.(response.ir);
     } catch (error) {
       setState({
@@ -114,10 +130,20 @@ export function QueryFilterInput({
         isLoading={state.status === "loading"}
         inputLabel="Query current view input"
         formLabel="Query current view"
-        placeholder={placeholder ?? "Filter this view with natural language"}
+        placeholder={placeholder ?? "Filter this view — a word, field:value, or a question"}
         idleLabel="Apply query"
         loadingLabel="Interpreting..."
         onReset={handleReset}
+        badge={
+          mode && (
+            <span
+              data-testid="query-mode-badge"
+              className={`text-[9px] font-bold uppercase tracking-wide ${MODE_CLASS[mode]}`}
+            >
+              {MODE_LABEL[mode]}
+            </span>
+          )
+        }
       />
 
       {state.status === "error" && (

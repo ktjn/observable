@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "@tanstack/react-router";
-import { useState } from "react";
 import { listChangeEvents } from "../api/changeEvents";
 import { listDeployments } from "../api/deployments";
 import {
@@ -8,8 +7,6 @@ import {
   getServiceSummary,
   ServiceSummary,
 } from "../api/services";
-import { Badge } from "../components/ui/badge";
-import { CopyableText } from "../components/ui/copy-button";
 import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
@@ -18,9 +15,6 @@ import {
   TimeSeriesGraph,
   TimeSeriesSeries,
 } from "../components/ui/time-series-graph";
-import { NlqPanel } from "../features/nlq/NlqPanel";
-import type { VisualizationFrame } from "../api/nlq";
-import { VisualizationPanel } from "../features/nlq/VisualizationPanel";
 import { ServiceMetricsWorkspace } from "../features/metrics/ServiceMetricsWorkspace";
 import { ServiceInfraPanel } from "../components/ServiceInfraPanel";
 import { ServiceDeploymentsTab } from "../features/services/ServiceDeploymentsTab";
@@ -98,9 +92,6 @@ function ServiceDetailView({
   fromMs: number;
   toMs: number;
 }) {
-  const [nlqFrame, setNlqFrame] = useState<VisualizationFrame | null>(null);
-  const [nlqTab, setNlqTab] = useState<ServiceSignalTab | null>(null);
-  const displayedTab = nlqTab ?? activeTab;
   const { tenantId } = useTenantContext();
 
   const { data: historyData } = useQuery({
@@ -127,7 +118,10 @@ function ServiceDetailView({
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Service Overview</div>
           <h1>{service.service_name}</h1>
         </div>
-        <Link to="/services" className="secondary-link">Back to services</Link>
+        <div className="flex items-center gap-3">
+          <Link to="/workbench" className="secondary-link">Ask in Workbench →</Link>
+          <Link to="/services" className="secondary-link">Back to services</Link>
+        </div>
       </div>
 
       <div
@@ -164,114 +158,35 @@ function ServiceDetailView({
         toMs={toMs}
       />
 
-      <div className="detail-grid">
-        <Panel
-          eyebrow="Health"
-          title="Current State"
-          actions={<HealthStatus healthState={service.health_state} />}
-        >
-          <dl className="definition-grid">
-            <div>
-              <dt>SLO / health state</dt>
-              <dd>{healthLabel(service.health_state)}</dd>
-            </div>
-            <div>
-              <dt>Latest deployment</dt>
-              <dd>
-                {service.latest_deployment ? (
-                  <CopyableText value={service.latest_deployment} label="Copy deployment version" mono />
-                ) : (
-                  "No deployment marker"
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Time window</dt>
-              <dd>{describeRange(fromMs, toMs)}</dd>
-            </div>
-          </dl>
-        </Panel>
-
-        <Panel eyebrow="Investigate" title="Signal Entry Points">
-          <div className="grid grid-cols-2 gap-2.5" aria-label="Signal entry points">
-            <a
-              href={`/traces?service=${encodeURIComponent(service.service_name)}`}
-              className="min-h-[54px] border border-[var(--border)] grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
-            >
-              Traces
-            </a>
-            <a
-              href={`/logs?service=${encodeURIComponent(service.service_name)}`}
-              className="min-h-[54px] border border-[var(--border)] grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
-            >
-              Logs
-            </a>
-            <a
-              href={`/services/${encodeURIComponent(service.service_name)}/metrics?lookback_minutes=60`}
-              className="min-h-[54px] border border-[var(--border)] grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
-            >
-              Metrics
-            </a>
-            <a
-              href={`/infrastructure?service=${encodeURIComponent(service.service_name)}`}
-              className="min-h-[54px] border border-[var(--border)] grid place-items-center text-[var(--text)] no-underline font-bold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
-            >
-              Infrastructure
-            </a>
-          </div>
-        </Panel>
-      </div>
-
-      <ServiceInfraPanel serviceName={service.service_name} />
-
-      <Panel eyebrow="Ask" title="Natural Language Query">
-        <NlqPanel
-          serviceName={service.service_name}
-          placeholder={`Ask about ${service.service_name}… e.g. "p99 latency over the last hour"`}
-          suppressFrameResult
-          onFrameResult={(frame) => {
-            const tab = signalTabFromFrame(frame);
-            setNlqFrame(frame);
-            setNlqTab(tab);
-          }}
-        />
-      </Panel>
-
       <ServiceSignalTabs
         serviceName={service.service_name}
-        activeTab={displayedTab}
-        nlqFrame={nlqFrame}
+        activeTab={activeTab}
+        healthState={service.health_state}
       />
     </section>
   );
 }
 
-type ServiceSignalTab = "reliability" | "logs" | "metrics" | "traces" | "deployments" | "alerts";
+type ServiceSignalTab = "reliability" | "logs" | "metrics" | "traces" | "infrastructure" | "deployments" | "alerts";
 
 function signalTabFromPath(pathname: string): ServiceSignalTab {
   if (pathname.endsWith("/reliability")) return "reliability";
   if (pathname.endsWith("/metrics")) return "metrics";
   if (pathname.endsWith("/traces")) return "traces";
+  if (pathname.endsWith("/infrastructure")) return "infrastructure";
   if (pathname.endsWith("/deployments")) return "deployments";
   if (pathname.endsWith("/alerts")) return "alerts";
   return "logs";
 }
 
-function describeRange(fromMs: number, toMs: number): string {
-  const minutes = Math.round((toMs - fromMs) / 60_000);
-  if (minutes < 60) return `Last ${minutes}m`;
-  const hours = Math.round(minutes / 60);
-  return `Last ${hours}h`;
-}
-
 function ServiceSignalTabs({
   serviceName,
   activeTab,
-  nlqFrame,
+  healthState,
 }: {
   serviceName: string;
   activeTab: ServiceSignalTab;
-  nlqFrame: VisualizationFrame | null;
+  healthState: ServiceSummary["health_state"];
 }) {
   const encodedService = encodeURIComponent(serviceName);
   const tabLinks = [
@@ -279,6 +194,7 @@ function ServiceSignalTabs({
     { tab: "logs" as const,         label: "Logs",        to: "/services/$serviceId/logs" },
     { tab: "metrics" as const,      label: "Metrics",     to: "/services/$serviceId/metrics" },
     { tab: "traces" as const,       label: "Traces",      to: "/services/$serviceId/traces" },
+    { tab: "infrastructure" as const, label: "Infrastructure", to: "/services/$serviceId/infrastructure" },
     { tab: "deployments" as const,  label: "Deployments", to: "/services/$serviceId/deployments" },
     { tab: "alerts" as const,       label: "Alerts",      to: "/services/$serviceId/alerts" },
   ];
@@ -298,53 +214,16 @@ function ServiceSignalTabs({
           </Link>
         ))}
       </nav>
-      {activeTab === "logs" && (
-        nlqFrame && signalTabFromFrame(nlqFrame) === "logs" ? (
-          <NlqTabFrame frame={nlqFrame} />
-        ) : (
-          <ServiceLogsTab serviceName={serviceName} />
-        )
-      )}
-      {activeTab === "metrics" && (
-        nlqFrame && signalTabFromFrame(nlqFrame) === "metrics" ? (
-          <NlqTabFrame frame={nlqFrame} />
-        ) : (
-          <ServiceMetricsWorkspace initialService={serviceName} />
-        )
-      )}
-      {activeTab === "traces" && (
-        nlqFrame && signalTabFromFrame(nlqFrame) === "traces" ? (
-          <NlqTabFrame frame={nlqFrame} />
-        ) : (
-          <ServiceTracesTab serviceName={serviceName} />
-        )
-      )}
-      {activeTab === "deployments" && (
-        <ServiceDeploymentsTab serviceName={serviceName} />
-      )}
+      {activeTab === "logs" && <ServiceLogsTab serviceName={serviceName} />}
+      {activeTab === "metrics" && <ServiceMetricsWorkspace initialService={serviceName} />}
+      {activeTab === "traces" && <ServiceTracesTab serviceName={serviceName} />}
+      {activeTab === "infrastructure" && <ServiceInfraPanel serviceName={serviceName} />}
+      {activeTab === "deployments" && <ServiceDeploymentsTab serviceName={serviceName} />}
       {activeTab === "reliability" && (
-        <ServiceReliabilityTab serviceName={serviceName} />
+        <ServiceReliabilityTab serviceName={serviceName} healthState={healthState} />
       )}
       {activeTab === "alerts" && <ServiceAlertsTab />}
     </Panel>
-  );
-}
-
-function signalTabFromFrame(frame: VisualizationFrame): ServiceSignalTab {
-  const signal = frame.signal_types[0];
-  if (signal === "metrics") return "metrics";
-  if (signal === "traces") return "traces";
-  return "logs";
-}
-
-function NlqTabFrame({ frame }: { frame: VisualizationFrame }) {
-  return (
-    <div className="space-y-3 p-4" data-testid="service-nlq-tab-result">
-      <VisualizationPanel frame={frame} />
-      <p className="m-0 text-xs italic text-[var(--muted)]">
-        {frame.approximation_statement}
-      </p>
-    </div>
   );
 }
 
@@ -375,18 +254,6 @@ function ServiceTracesTab({ serviceName }: { serviceName: string }) {
       tableAriaLabel="Service traces"
     />
   );
-}
-
-function HealthStatus({ healthState }: { healthState: ServiceSummary["health_state"] }) {
-  if (healthState === "breach") return <Badge tone="bad">Breach</Badge>;
-  if (healthState === "watch") return <Badge tone="warn">Watch</Badge>;
-  return <Badge tone="good">Healthy</Badge>;
-}
-
-function healthLabel(healthState: ServiceSummary["health_state"]) {
-  if (healthState === "breach") return "Breach";
-  if (healthState === "watch") return "Watch";
-  return "Healthy";
 }
 
 function ResponseTimeGraphSection({

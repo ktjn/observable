@@ -231,6 +231,63 @@ kubectl rollout status daemonset/otel-collector-agent \
   || info "WARN: agent DaemonSet not fully ready"
 
 # ---------------------------------------------------------------------------
+# Record deployment markers for the testbench shop services (non-fatal — the
+# demo is still usable without them, this just gives the Deployments tab and
+# response-time chart annotations something to show).
+# ---------------------------------------------------------------------------
+
+log "Recording deployment markers for testbench shop services"
+INGEST_GATEWAY_PORT_LOCAL=14318
+DEPLOY_KEY="dev-api-key-0000"
+DEPLOY_TENANT="00000000-0000-0000-0000-000000000002"
+DEPLOY_VERSION="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo "local")"
+
+kubectl port-forward svc/ingest-gateway "${INGEST_GATEWAY_PORT_LOCAL}:4318" \
+  --namespace "$OBSERVABLE_NS" >/tmp/testbench-ingest-port-forward.log 2>&1 &
+INGEST_PF_PID=$!
+
+record_deployment_marker() {
+  local service_name="$1"
+  local create_body
+  create_body="$(jq -n \
+    --arg service_name "$service_name" \
+    --arg environment "production" \
+    --arg service_version "$DEPLOY_VERSION" \
+    '{service_name: $service_name, environment: $environment, service_version: $service_version}')"
+
+  local deployment_id
+  deployment_id="$(curl -sf --max-time 10 -X POST "http://localhost:${INGEST_GATEWAY_PORT_LOCAL}/v1/deployments" \
+    -H "Authorization: Bearer ${DEPLOY_KEY}" \
+    -H "X-Tenant-ID: ${DEPLOY_TENANT}" \
+    -H "Content-Type: application/json" \
+    -d "$create_body" | jq -r '.deployment_id')" || return 1
+
+  [[ -z "$deployment_id" || "$deployment_id" == "null" ]] && return 1
+
+  curl -sf --max-time 10 -X PATCH "http://localhost:${INGEST_GATEWAY_PORT_LOCAL}/v1/deployments/${deployment_id}" \
+    -H "Authorization: Bearer ${DEPLOY_KEY}" \
+    -H "X-Tenant-ID: ${DEPLOY_TENANT}" \
+    -H "Content-Type: application/json" \
+    -d '{"status":"success"}' >/dev/null
+}
+
+if timeout 15 bash -c "until curl -sf --max-time 2 http://localhost:${INGEST_GATEWAY_PORT_LOCAL}/health >/dev/null 2>&1; do sleep 1; done"; then
+  marker_failures=0
+  for svc in shop-api shop-frontend shop-worker; do
+    record_deployment_marker "$svc" || marker_failures=$((marker_failures + 1))
+  done
+  if [[ "$marker_failures" -eq 0 ]]; then
+    info "PASS: recorded deployment markers for shop-api, shop-frontend, shop-worker"
+  else
+    info "WARN: failed to record $marker_failures deployment marker(s) — continuing without them"
+  fi
+else
+  info "WARN: ingest-gateway not reachable for deployment markers — continuing without them"
+fi
+
+kill "$INGEST_PF_PID" 2>/dev/null || true
+
+# ---------------------------------------------------------------------------
 # Install Kubernetes Gateway API CRDs
 # ---------------------------------------------------------------------------
 

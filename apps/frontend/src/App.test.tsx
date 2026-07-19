@@ -331,25 +331,18 @@ test("renders the service detail overview with performance entry points", async 
   expect(screen.getByText("12.50 rps")).toBeInTheDocument();
   expect(screen.getByText("2.50%")).toBeInTheDocument();
   expect(screen.getByText("245ms")).toBeInTheDocument();
-  expect(screen.getByText("checkout@2026.04.21")).toBeInTheDocument();
-  const entryPoints = screen.getByLabelText("Signal entry points");
-  expect(within(entryPoints).getByRole("link", { name: "Traces" })).toHaveAttribute(
-    "href",
-    "/traces?service=checkout",
-  );
-  expect(within(entryPoints).getByRole("link", { name: "Metrics" })).toHaveAttribute(
-    "href",
-    "/services/checkout/metrics?lookback_minutes=60",
-  );
-  expect(within(entryPoints).getByRole("link", { name: "Infrastructure" })).toHaveAttribute(
-    "href",
-    "/infrastructure?service=checkout",
-  );
+  expect(screen.getByRole("link", { name: /Ask in Workbench/i })).toBeInTheDocument();
+  expect(screen.queryByText("Signal Entry Points")).not.toBeInTheDocument();
+  expect(screen.queryByText("Natural Language Query")).not.toBeInTheDocument();
 
   const tabs = screen.getByRole("navigation", { name: "Service signals" });
   expect(within(tabs).getByRole("link", { name: "Reliability" })).toHaveAttribute(
     "href",
     "/services/checkout/reliability",
+  );
+  expect(within(tabs).getByRole("link", { name: "Infrastructure" })).toHaveAttribute(
+    "href",
+    "/services/checkout/infrastructure",
   );
 });
 

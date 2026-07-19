@@ -7,7 +7,7 @@ import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
 import { Toolbar } from "../components/ui/toolbar";
-import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
+import { QueryInput } from "../features/nlq/QueryInput";
 import { deriveViewFiltersFromIr, type NlqIrLike } from "../features/nlq/queryFilters";
 import { useTenantContext } from "../hooks/useTenantContext";
 
@@ -102,7 +102,7 @@ export function ProductAreaPage() {
       </div>
 
       <Toolbar aria-label="Service filters">
-        <QueryFilterInput
+        <QueryInput
           baseIr={SERVICES_BASE_IR}
           placeholder='Filter services, e.g. "prod checkout services in watch"'
           onIr={(ir) => {

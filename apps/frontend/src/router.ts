@@ -127,6 +127,11 @@ const serviceReliabilityRoute = createRoute({
   path: "/services/$serviceId/reliability",
   component: ServiceDetailPage,
 });
+const serviceInfrastructureRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/services/$serviceId/infrastructure",
+  component: ServiceDetailPage,
+});
 const infrastructureRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/infrastructure",
@@ -272,6 +277,7 @@ export const router = createRouter({
     serviceDeploymentsRoute,
     serviceAlertsRoute,
     serviceReliabilityRoute,
+    serviceInfrastructureRoute,
     infrastructureRoute,
     infrastructureDetailRoute,
     serviceOverviewRoute,

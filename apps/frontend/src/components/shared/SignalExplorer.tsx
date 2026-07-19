@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from "react";
 import { Button } from "../ui/button";
-import { QueryFilterInput } from "../../features/nlq/QueryFilterInput";
+import { QueryInput } from "../../features/nlq/QueryInput";
 import type { NlqIrLike, QuerySurface } from "../../features/nlq/queryFilters";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -14,7 +14,7 @@ export interface SignalExplorerProps {
   showPromote?: boolean;
   querySurface?: Extract<QuerySurface, "logs" | "traces" | "metrics">;
   /**
-   * Page base IR for NLQ filtering. When provided, `QueryFilterInput` uses the
+   * Page base IR for NLQ filtering. When provided, `QueryInput` uses the
    * new `baseIr`/`onSubmit` pattern and calls `onQuerySubmit` with the raw query text.
    */
   baseIr?: NlqIrLike;
@@ -92,7 +92,7 @@ export function SignalExplorer({
 
       <div className="toolbar-row">
         {!lockedService && baseIr && onQuerySubmit && (
-          <QueryFilterInput
+          <QueryInput
             baseIr={baseIr}
             placeholder={`Filter ${title.toLowerCase()}, e.g. "checkout errors in prod"`}
             onSubmit={onQuerySubmit}

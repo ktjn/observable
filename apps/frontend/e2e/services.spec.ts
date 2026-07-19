@@ -105,11 +105,11 @@ test.describe("services list view", () => {
     await expect(page.locator("button", { hasText: "breach" })).toBeVisible();
   });
 
-  test("renders search input", async ({ page }) => {
+  test("renders the query filter input", async ({ page }) => {
     await page.goto("/services");
     await waitForTable(page);
 
-    await expect(page.getByPlaceholder("Search services…")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Query current view input" })).toBeVisible();
   });
 
   test("health pill shows count per state", async ({ page }) => {
@@ -133,11 +133,48 @@ test.describe("services list view", () => {
     await expect(table.locator("td", { hasText: "notifications" })).not.toBeVisible();
   });
 
-  test("search input filters rows by service name", async ({ page }) => {
+  test("query filter input filters rows by service name", async ({ page }) => {
+    await page.route("**/v1/config", (route) =>
+      route.fulfill({
+        json: {
+          llm_key_configured: false,
+          llm_url: null,
+          llm_model: null,
+          llm_provider: "remote",
+          webllm_model: null,
+        },
+      })
+    );
+    // A bare word like "notif" is detected as a search-mode shorthand query
+    // client-side and sent as `/notif` — query-api's deterministic shorthand
+    // parser (ADR-029) turns that into a free-text `query` term without
+    // calling the LLM, which is what this mock stands in for.
+    await page.route("**/v1/nlq", (route) =>
+      route.fulfill({
+        json: {
+          type: "ir",
+          ir: {
+            operation: "catalog",
+            signals: ["metrics"],
+            filters: [],
+            group_by: [],
+            time_range: { from: "now-1h", to: "now" },
+            metric: null,
+            window: null,
+            resolution: null,
+            visualization_hint: null,
+            query: "notif",
+          },
+        },
+      })
+    );
+
     await page.goto("/services");
     await waitForTable(page);
 
-    await page.getByPlaceholder("Search services…").fill("notif");
+    const input = page.getByRole("textbox", { name: "Query current view input" });
+    await input.fill("notif");
+    await input.press("Enter");
 
     const table = page.locator("table[aria-label='Service catalog']");
     await expect(table.locator("td", { hasText: "notifications" }).first()).toBeVisible();

@@ -6,7 +6,7 @@ import { Button } from "./ui/button";
 import { formatLogMessage, severityTextClass } from "../utils/logFormatting";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { useTimeDisplay } from "../lib/timeDisplay";
-import { QueryFilterInput } from "../features/nlq/QueryFilterInput";
+import { QueryInput } from "../features/nlq/QueryInput";
 import { deriveViewFiltersFromIr, type NlqIrLike } from "../features/nlq/queryFilters";
 import { useTenantContext } from "../hooks/useTenantContext";
 
@@ -65,7 +65,7 @@ export function LogLiveTail() {
         >
           {enabled ? "Pause" : "Resume"}
         </Button>
-        <QueryFilterInput
+        <QueryInput
           baseIr={LIVE_LOGS_BASE_IR}
           placeholder='Filter live logs, e.g. "checkout service"'
           onIr={(ir) => {

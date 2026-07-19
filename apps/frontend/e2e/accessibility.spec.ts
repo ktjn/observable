@@ -270,7 +270,7 @@ test.describe("service and infrastructure detail", () => {
 
   test("service detail has no axe violations", async ({ page }) => {
     await page.goto("/services/checkout");
-    await page.waitForSelector("text=checkout@2026.04.21");
+    await page.waitForSelector("nav[aria-label='Service signals']");
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
   });

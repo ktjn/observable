@@ -16,7 +16,7 @@ import { SignalExplorer, type SaveStatus } from "../../components/shared/SignalE
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import { liveViewQueryOptions } from "../../hooks/useLiveRefresh";
-import { QueryFilterInput } from "../nlq/QueryFilterInput";
+import { QueryInput } from "../nlq/QueryInput";
 import { deriveViewFiltersFromIr, type NlqIrLike } from "../nlq/queryFilters";
 
 const METRICS_BASE_IR: NlqIrLike = {
@@ -183,7 +183,7 @@ export function ServiceMetricsWorkspace({
         renderTable={(selectedId, onSelect) => (
           <div className="flex flex-col flex-1 min-h-0 gap-4">
             <div>
-              <QueryFilterInput
+              <QueryInput
                 baseIr={METRICS_BASE_IR}
                 serviceName={serviceName}
                 placeholder='Filter metric series, e.g. "histogram latency metrics in prod"'

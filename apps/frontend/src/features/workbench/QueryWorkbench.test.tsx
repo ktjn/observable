@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
-import { describe, expect, test, vi, afterEach } from "vitest";
+import { describe, expect, test, vi, afterEach, beforeEach } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import QueryWorkbench from "./QueryWorkbench";
 import { TenantContextProvider } from "../../hooks/useTenantContext";
 
@@ -14,6 +15,21 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 
 vi.mock("../../api/nlq", () => ({
   submitNlqQuery: vi.fn(),
+  prepareNlqQuery: vi.fn(),
+  completeNlqQuery: vi.fn(),
+}));
+
+vi.mock("../../api/setup", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../api/setup")>();
+  return {
+    ...actual,
+    getConfig: vi.fn(),
+  };
+});
+
+vi.mock("../../lib/webllm/webllmEngine", () => ({
+  checkWebGpuSupport: vi.fn(),
+  getOrCreateEngine: vi.fn(),
 }));
 
 vi.mock("../../hooks/useGlobalDateRange", () => ({
@@ -50,9 +66,16 @@ vi.mock("./NotebookEditor", () => ({
   ),
 }));
 
-import { submitNlqQuery } from "../../api/nlq";
+import { submitNlqQuery, prepareNlqQuery, completeNlqQuery } from "../../api/nlq";
+import { getConfig } from "../../api/setup";
+import { checkWebGpuSupport, getOrCreateEngine } from "../../lib/webllm/webllmEngine";
 
 const mockSubmit = vi.mocked(submitNlqQuery);
+const mockPrepare = vi.mocked(prepareNlqQuery);
+const mockComplete = vi.mocked(completeNlqQuery);
+const mockGetConfig = vi.mocked(getConfig);
+const mockCheckWebGpuSupport = vi.mocked(checkWebGpuSupport);
+const mockGetOrCreateEngine = vi.mocked(getOrCreateEngine);
 
 const FRAME_RESPONSE = {
   type: "frame" as const,
@@ -97,8 +120,28 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+const REMOTE_CONFIG = {
+  llm_key_configured: true,
+  llm_url: null,
+  llm_model: null,
+  llm_provider: "remote" as const,
+  webllm_model: null,
+};
+
+beforeEach(() => {
+  mockGetConfig.mockResolvedValue(REMOTE_CONFIG);
+});
+
 function renderWorkbench() {
-  return render(<QueryWorkbench />, { wrapper: TenantContextProvider });
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  function wrapper({ children }: { children: React.ReactNode }) {
+    return (
+      <TenantContextProvider>
+        <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+      </TenantContextProvider>
+    );
+  }
+  return render(<QueryWorkbench />, { wrapper });
 }
 
 describe("QueryWorkbench", () => {
@@ -220,5 +263,45 @@ describe("QueryWorkbench", () => {
       "Raw mode expects valid JSON.",
     );
     expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
+  // Regression test for the bug where QueryWorkbench called submitNlqQuery
+  // directly instead of the shared provider-aware submitNlqWithProvider,
+  // so it ignored the user's WebLLM provider selection on the Setup page.
+  test("routes through the two-phase WebLLM flow when the configured provider is webllm", async () => {
+    mockGetConfig.mockResolvedValue({
+      llm_key_configured: false,
+      llm_url: null,
+      llm_model: null,
+      llm_provider: "webllm" as const,
+      webllm_model: "Phi-3-mini-4k-instruct-q4f16_1-MLC",
+    });
+    mockCheckWebGpuSupport.mockResolvedValue({ supported: true });
+    mockPrepare.mockResolvedValue({
+      type: "prepared",
+      session_token: "token-1",
+      system_prompt: "sys",
+      question: "p95 latency",
+    });
+    mockGetOrCreateEngine.mockResolvedValue({
+      complete: vi.fn().mockResolvedValue('{"operation":"timeseries"}'),
+      dispose: vi.fn(),
+    });
+    mockComplete.mockResolvedValue({ type: "final", response: FRAME_RESPONSE });
+
+    renderWorkbench();
+    await waitFor(() => expect(mockGetConfig).toHaveBeenCalled());
+
+    const metricsBlock = screen.getByTestId("workbench-block-metrics");
+    fireEvent.change(within(metricsBlock).getByRole("textbox"), {
+      target: { value: "p95 latency" },
+    });
+    fireEvent.click(within(metricsBlock).getByTestId("workbench-run-metrics"));
+
+    await waitFor(() => expect(mockPrepare).toHaveBeenCalled());
+    expect(mockSubmit).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(within(metricsBlock).getByTestId("workbench-results-frame")).toBeInTheDocument(),
+    );
   });
 });
