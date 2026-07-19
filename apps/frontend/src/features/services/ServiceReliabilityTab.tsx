@@ -33,7 +33,27 @@ function formatMinutes(value: number | null): string {
   return `${Math.round(value)}m`;
 }
 
-export function ServiceReliabilityTab({ serviceName }: { serviceName: string }) {
+type HealthState = "healthy" | "watch" | "breach";
+
+function healthTone(state: HealthState): "good" | "warn" | "bad" {
+  if (state === "breach") return "bad";
+  if (state === "watch") return "warn";
+  return "good";
+}
+
+function healthLabel(state: HealthState): string {
+  if (state === "breach") return "Breach";
+  if (state === "watch") return "Watch";
+  return "Healthy";
+}
+
+export function ServiceReliabilityTab({
+  serviceName,
+  healthState,
+}: {
+  serviceName: string;
+  healthState: HealthState;
+}) {
   const { tenantId, environment } = useTenantContext();
   const { fromMs, toMs } = useGlobalDateRange();
   const { format } = useTimeDisplay();
@@ -81,7 +101,10 @@ export function ServiceReliabilityTab({ serviceName }: { serviceName: string }) 
   return (
     <div className="space-y-6 p-4">
       <div className="space-y-1">
-        <div className="text-xs font-bold uppercase text-[var(--muted)]">Reliability</div>
+        <div className="flex items-center gap-2 text-xs font-bold uppercase text-[var(--muted)]">
+          <span>Reliability</span>
+          <Badge tone={healthTone(healthState)}>{healthLabel(healthState)}</Badge>
+        </div>
         <h3 className="text-lg font-semibold text-[var(--text-strong)]">
           {serviceName}
         </h3>
