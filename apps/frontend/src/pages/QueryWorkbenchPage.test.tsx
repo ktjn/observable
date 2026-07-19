@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import QueryWorkbenchPage from "./QueryWorkbenchPage";
 import { encodeWorkbenchState } from "../features/workbench/workbenchState";
 import { TenantContextProvider } from "../hooks/useTenantContext";
@@ -17,10 +18,29 @@ vi.mock("../features/workbench/NotebookEditor", () => ({
   NotebookEditor: () => <textarea aria-label="Notebook editor" />,
 }));
 
+vi.mock("../api/setup", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/setup")>();
+  return {
+    ...actual,
+    getConfig: vi.fn().mockResolvedValue({
+      llm_key_configured: true,
+      llm_url: null,
+      llm_model: null,
+      llm_provider: "remote" as const,
+      webllm_model: null,
+    }),
+  };
+});
+
 import { useSearch } from "@tanstack/react-router";
 
 function wrapper({ children }: { children: React.ReactNode }) {
-  return <TenantContextProvider>{children}</TenantContextProvider>;
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return (
+    <TenantContextProvider>
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    </TenantContextProvider>
+  );
 }
 
 describe("QueryWorkbenchPage", () => {
