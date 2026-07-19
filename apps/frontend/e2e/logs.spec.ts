@@ -107,14 +107,6 @@ test.describe("log explorer", () => {
     await expect(page.locator('[aria-label="Log results"] tbody tr')).toHaveCount(1);
   });
 
-  test("message search filters rows", async ({ page }) => {
-    await page.goto("/logs");
-    await page.waitForSelector('[aria-label="Log results"]');
-    await page.fill('[aria-label="Search log messages"]', "checkout");
-    await expect(page.locator('[aria-label="Log results"] tbody tr')).toHaveCount(1);
-    await expect(page.locator('[aria-label="Log results"]')).toContainText("checkout failed");
-  });
-
   test("empty state shown when no logs match filter", async ({ page }) => {
     await page.route("**/v1/nlq", (route) =>
       route.fulfill({ json: { type: "frame", frame: { data: [] } } })

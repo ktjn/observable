@@ -8,7 +8,6 @@ import type { LogViewConfig, SavedView } from "../../../api/savedViews";
 const baseConfig: LogViewConfig = {
   query: null,
   severity_filter: "all",
-  message_search: "",
   time_range: { mode: "preset", preset: "1h" },
   visible_columns: ["level", "service"],
 };

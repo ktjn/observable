@@ -126,7 +126,6 @@ vi.mock("../api/savedViews", async () => {
           config: {
             query: null,
             severity_filter: "error",
-            message_search: "timeout",
             time_range: { mode: "preset", preset: "1h" },
             visible_columns: [
               "level",
@@ -416,7 +415,7 @@ test("shows 'Histogram unavailable' when histogram query fails", async () => {
   });
 });
 
-test("loading a saved view applies its severity filter and message search", async () => {
+test("loading a saved view applies its severity filter", async () => {
   renderLogSearch();
 
   fireEvent.click(screen.getByRole("button", { name: /saved views/i }));
@@ -424,7 +423,8 @@ test("loading a saved view applies its severity filter and message search", asyn
   fireEvent.click(screen.getByText("Only errors"));
 
   await waitFor(() => {
-    expect(screen.getByLabelText("Search log messages")).toHaveValue("timeout");
+    expect(screen.getByText("payment failed")).toBeInTheDocument();
+    expect(screen.queryByText("checkout completed")).not.toBeInTheDocument();
   });
   fireEvent.click(screen.getByRole("button", { name: "Columns" }));
   expect(screen.getAllByRole("checkbox").map((checkbox) => ({
@@ -452,15 +452,12 @@ test("loading a saved view reinstates a column hidden earlier this session", asy
     }),
   ).not.toBeInTheDocument();
 
-  // The saved view's own severity/message filters match zero of the fixture logs, so the
-  // table renders an empty state rather than rows after loading it — check column visibility
-  // via the column picker's checkboxes instead of the (absent) table headers.
   fireEvent.click(screen.getByRole("button", { name: /saved views/i }));
   await waitFor(() => screen.getByText("Only errors"));
   fireEvent.click(screen.getByText("Only errors"));
 
   await waitFor(() => {
-    expect(screen.getByLabelText("Search log messages")).toHaveValue("timeout");
+    expect(screen.getByText("payment failed")).toBeInTheDocument();
   });
 
   fireEvent.click(screen.getByRole("button", { name: "Columns" }));
@@ -469,45 +466,6 @@ test("loading a saved view reinstates a column hidden earlier this session", asy
     .find((checkbox) => checkbox.parentElement?.textContent === "service.name") as HTMLInputElement;
   expect(serviceNameCheckbox).toBeDefined();
   expect(serviceNameCheckbox.checked).toBe(true);
-});
-
-test("plain-mode quick filter matches substrings as before", async () => {
-  renderLogSearch();
-
-  const input = await screen.findByLabelText("Search log messages");
-  fireEvent.change(input, { target: { value: "failed" } });
-
-  await waitFor(() => {
-    expect(screen.getByText("payment failed")).toBeInTheDocument();
-    expect(screen.queryByText("checkout completed")).not.toBeInTheDocument();
-  });
-});
-
-test("regex-mode quick filter matches a pattern against log messages", async () => {
-  renderLogSearch();
-
-  fireEvent.click(await screen.findByRole("button", { name: /enable regex quick filter/i }));
-  const input = screen.getByLabelText("Search log messages");
-  fireEvent.change(input, { target: { value: "^payment" } });
-
-  await waitFor(() => {
-    expect(screen.getByText("payment failed")).toBeInTheDocument();
-    expect(screen.queryByText("checkout completed")).not.toBeInTheDocument();
-  });
-});
-
-test("invalid regex in regex mode shows all rows with an inline notice", async () => {
-  renderLogSearch();
-
-  fireEvent.click(await screen.findByRole("button", { name: /enable regex quick filter/i }));
-  const input = screen.getByLabelText("Search log messages");
-  fireEvent.change(input, { target: { value: "(unterminated" } });
-
-  await waitFor(() => {
-    expect(screen.getByText("payment failed")).toBeInTheDocument();
-    expect(screen.getByText("checkout completed")).toBeInTheDocument();
-    expect(screen.getByText("Invalid regex — showing all results.")).toBeInTheDocument();
-  });
 });
 
 test("histogram resets to a zero-filled range when the API returns no buckets", async () => {

@@ -187,12 +187,6 @@ export function ServiceMetricsWorkspace({
                 baseIr={METRICS_BASE_IR}
                 serviceName={serviceName}
                 placeholder='Filter metric series, e.g. "histogram latency metrics in prod"'
-                onSubmit={(_rawText) => {
-                  // Need to derive IR and apply filters based on rawText here?
-                  // Actually, the previous implementation used `onIr`.
-                  // Let's keep `onIr` and add `baseIr` as required.
-                }}
-
                 onIr={(ir) => {
                   const next = deriveViewFiltersFromIr(ir, "metrics");
                   setFilters({
