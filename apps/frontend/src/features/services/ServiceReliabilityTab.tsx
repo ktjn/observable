@@ -89,30 +89,37 @@ export function ServiceReliabilityTab({
     data.slo_summary.total > 0 ||
     data.deployment_summary.total > 0;
 
+  const header = (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2 text-xs font-bold uppercase text-[var(--muted)]">
+        <span>Reliability</span>
+        <Badge tone={healthTone(healthState)}>{healthLabel(healthState)}</Badge>
+      </div>
+      <h3 className="text-lg font-semibold text-[var(--text-strong)]">
+        {serviceName}
+      </h3>
+      <p className="text-sm text-[var(--muted)]">
+        Window: {formatTimestamp(isoToNs(data.from), format)} to{" "}
+        {formatTimestamp(isoToNs(data.to), format)}
+      </p>
+    </div>
+  );
+
   if (!hasData) {
     return (
-      <EmptyState
-        title="No reliability data yet."
-        description="This service has no incidents, SLOs, or deployments in the selected window."
-      />
+      <div className="space-y-6 p-4">
+        {header}
+        <EmptyState
+          title="No reliability data yet."
+          description="This service has no incidents, SLOs, or deployments in the selected window."
+        />
+      </div>
     );
   }
 
   return (
     <div className="space-y-6 p-4">
-      <div className="space-y-1">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase text-[var(--muted)]">
-          <span>Reliability</span>
-          <Badge tone={healthTone(healthState)}>{healthLabel(healthState)}</Badge>
-        </div>
-        <h3 className="text-lg font-semibold text-[var(--text-strong)]">
-          {serviceName}
-        </h3>
-        <p className="text-sm text-[var(--muted)]">
-          Window: {formatTimestamp(isoToNs(data.from), format)} to{" "}
-          {formatTimestamp(isoToNs(data.to), format)}
-        </p>
-      </div>
+      {header}
 
       <div
         className="grid grid-cols-1 gap-4 sm:grid-cols-4"

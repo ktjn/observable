@@ -7,7 +7,6 @@ export type SignalKind = "logs";
 export interface LogViewConfig {
   query: string | null;
   severity_filter: string;
-  message_search: string;
   time_range: { mode: "preset"; preset: string } | { mode: "absolute"; from_ms: number; to_ms: number };
   visible_columns: string[];
 }

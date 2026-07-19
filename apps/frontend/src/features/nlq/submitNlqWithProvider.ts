@@ -27,9 +27,9 @@ export interface NlqProviderConfig {
  * repair loop) when `config.provider === "webllm"`; otherwise the existing
  * single-call remote path, unchanged.
  *
- * Shared by every NLQ-submitting surface (NlqPanel, QueryFilterInput, and any
+ * Shared by every NLQ-submitting surface (QueryInput, Workbench, and any
  * future one) so provider-awareness can't drift between them the way it did
- * when only NlqPanel was wired up initially.
+ * when only one surface was wired up initially.
  */
 export async function submitNlqWithProvider(
   tenantId: string,

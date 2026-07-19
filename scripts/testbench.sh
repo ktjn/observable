@@ -41,6 +41,11 @@ TESTBENCH_CHART="$REPO_ROOT/charts/observable-testbench"
 TESTBENCH_RELEASE="observable-testbench"
 KIND_CONFIG="$SCRIPT_DIR/testbench-kind-config.yaml"
 
+# Dev-mode API key/tenant shared by every post-deploy call this script makes
+# against the Observable platform (deployment markers, alert-rule seeding).
+DEV_KEY="dev-api-key-0000"
+DEV_TENANT="00000000-0000-0000-0000-000000000002"
+
 # Gateway API — update versions when newer stable releases are available:
 #   https://github.com/kubernetes-sigs/gateway-api/releases
 #   https://github.com/nginx/nginx-gateway-fabric/releases
@@ -238,8 +243,6 @@ kubectl rollout status daemonset/otel-collector-agent \
 
 log "Recording deployment markers for testbench shop services"
 INGEST_GATEWAY_PORT_LOCAL=14318
-DEPLOY_KEY="dev-api-key-0000"
-DEPLOY_TENANT="00000000-0000-0000-0000-000000000002"
 DEPLOY_VERSION="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo "local")"
 
 kubectl port-forward svc/ingest-gateway "${INGEST_GATEWAY_PORT_LOCAL}:4318" \
@@ -257,16 +260,16 @@ record_deployment_marker() {
 
   local deployment_id
   deployment_id="$(curl -sf --max-time 10 -X POST "http://localhost:${INGEST_GATEWAY_PORT_LOCAL}/v1/deployments" \
-    -H "Authorization: Bearer ${DEPLOY_KEY}" \
-    -H "X-Tenant-ID: ${DEPLOY_TENANT}" \
+    -H "Authorization: Bearer ${DEV_KEY}" \
+    -H "X-Tenant-ID: ${DEV_TENANT}" \
     -H "Content-Type: application/json" \
     -d "$create_body" | jq -r '.deployment_id')" || return 1
 
   [[ -z "$deployment_id" || "$deployment_id" == "null" ]] && return 1
 
   curl -sf --max-time 10 -X PATCH "http://localhost:${INGEST_GATEWAY_PORT_LOCAL}/v1/deployments/${deployment_id}" \
-    -H "Authorization: Bearer ${DEPLOY_KEY}" \
-    -H "X-Tenant-ID: ${DEPLOY_TENANT}" \
+    -H "Authorization: Bearer ${DEV_KEY}" \
+    -H "X-Tenant-ID: ${DEV_TENANT}" \
     -H "Content-Type: application/json" \
     -d '{"status":"success"}' >/dev/null
 }
@@ -455,8 +458,6 @@ fi
 
 log "Seeding example alert rules via admin-service"
 ADMIN_SERVICE_PORT_LOCAL=14324
-DEV_KEY="dev-api-key-0000"
-DEV_TENANT="00000000-0000-0000-0000-000000000002"
 
 kubectl port-forward svc/admin-service "${ADMIN_SERVICE_PORT_LOCAL}:4324" \
   --namespace "$OBSERVABLE_NS" >/tmp/testbench-admin-port-forward.log 2>&1 &

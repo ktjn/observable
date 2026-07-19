@@ -12,7 +12,7 @@ import { submitNlqQuery } from "../api/nlq";
 import type { NlqIrLike } from "../features/nlq/queryFilters";
 import { infraLinks } from "../utils/infraLinks";
 import { formatBucketLabel } from "../utils/formatBucketLabel";
-import { OTelLevel, otelSeverity, formatLogMessage } from "../utils/logFormatting";
+import { OTelLevel, otelSeverity } from "../utils/logFormatting";
 import { DEFAULT_LOG_COLUMNS, logContextEntries, normalizeLogColumnKeys } from "../utils/logContext";
 import { useColumnPreferences } from "../hooks/useColumnPreferences";
 import { useTimeDisplay } from "../lib/timeDisplay";
@@ -117,7 +117,6 @@ export function LogExplorer({
   const [userQuery, setUserQuery] = useState<string | null>(initialQuery);
   // Keep service for legacy clear-filter button visibility.
   const [service, setService] = useState(initialService);
-  const [messageSearch, setMessageSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
 
   const from = String(BigInt(Math.floor(fromMs)) * 1_000_000n);
@@ -129,8 +128,6 @@ export function LogExplorer({
     "observable.log-columns",
     showServiceColumn ? DEFAULT_LOG_COLUMNS : DEFAULT_LOG_COLUMNS.filter((key) => key !== "service.name"),
   );
-  const [isRegexMode, setIsRegexMode] = useState(false);
-
   const SEVERITY_MIN: Partial<Record<SeverityFilter, number>> = {
     error: 17,
     warn: 13,
@@ -195,31 +192,9 @@ export function LogExplorer({
   const logs = isLive ? liveTail.logs : rawLogs.slice(0, ROW_LIMIT);
   const isCapped = !isLive && rawLogs.length > ROW_LIMIT;
 
-  const regexPattern = useMemo(() => {
-    if (!isRegexMode || !messageSearch.trim()) return null;
-    try {
-      return new RegExp(messageSearch, "i");
-    } catch {
-      return undefined; // undefined marks an invalid pattern, distinct from null (no pattern requested)
-    }
-  }, [isRegexMode, messageSearch]);
-
-  const isRegexInvalid = isRegexMode && messageSearch.trim() !== "" && regexPattern === undefined;
-
-  // Apply message search first, then compute severity counts, then apply severity filter.
-  const messageFilteredLogs = useMemo(() => {
-    if (!messageSearch.trim()) return logs;
-    if (isRegexMode) {
-      if (!regexPattern) return logs; // invalid pattern: show everything rather than nothing
-      return logs.filter((l) => regexPattern.test(formatLogMessage(l.body)));
-    }
-    const needle = messageSearch.toLowerCase();
-    return logs.filter((l) => formatLogMessage(l.body).toLowerCase().includes(needle));
-  }, [logs, messageSearch, isRegexMode, regexPattern]);
-
   const severityCounts = useMemo(() => {
-    const counts: Record<SeverityFilter, number> = { all: messageFilteredLogs.length, error: 0, warn: 0, info: 0, debug: 0 };
-    for (const log of messageFilteredLogs) {
+    const counts: Record<SeverityFilter, number> = { all: logs.length, error: 0, warn: 0, info: 0, debug: 0 };
+    for (const log of logs) {
       for (const pill of SEVERITY_PILLS) {
         if (pill.key !== "all" && pill.test(log.severity_number)) {
           counts[pill.key]++;
@@ -228,13 +203,13 @@ export function LogExplorer({
       }
     }
     return counts;
-  }, [messageFilteredLogs]);
+  }, [logs]);
 
   const displayedLogs = useMemo(() => {
-    if (severityFilter === "all") return messageFilteredLogs;
+    if (severityFilter === "all") return logs;
     const pill = SEVERITY_PILLS.find((p) => p.key === severityFilter);
-    return pill ? messageFilteredLogs.filter((l) => pill.test(l.severity_number)) : messageFilteredLogs;
-  }, [messageFilteredLogs, severityFilter]);
+    return pill ? logs.filter((l) => pill.test(l.severity_number)) : logs;
+  }, [logs, severityFilter]);
 
   const histogram = useMemo(
     () =>
@@ -268,7 +243,6 @@ export function LogExplorer({
   const currentViewConfig: LogViewConfig = {
     query: userQuery,
     severity_filter: severityFilter,
-    message_search: messageSearch,
     time_range:
       preset != null
         ? { mode: "preset", preset }
@@ -280,7 +254,6 @@ export function LogExplorer({
     setUserQuery(config.query);
     setService("");
     setSeverityFilter(config.severity_filter as SeverityFilter);
-    setMessageSearch(config.message_search);
     if (config.time_range.mode === "preset") {
       setPreset(config.time_range.preset as Parameters<typeof setPreset>[0]);
     } else {
@@ -349,7 +322,7 @@ export function LogExplorer({
             <MetricCard label="Info" value={String(severityCounts.info)} tone="info" />
           </div>
 
-          {/* Severity pills + message search */}
+          {/* Severity pills */}
           <div className="flex flex-wrap items-center gap-2">
             <PillFilter
               pills={SEVERITY_PILLS.map((pill) => ({
@@ -362,29 +335,6 @@ export function LogExplorer({
               onSelect={(key) => setSeverityFilter(key as SeverityFilter)}
               ariaLabel="Filter by severity"
             />
-            <input
-              type="search"
-              value={messageSearch}
-              onChange={(e) => setMessageSearch(e.target.value)}
-              placeholder="Quick filter — plain text or regex"
-              aria-label="Search log messages"
-              className="min-w-[180px] flex-1 border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--brand)] focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => setIsRegexMode((v) => !v)}
-              aria-pressed={isRegexMode}
-              aria-label={isRegexMode ? "Disable regex quick filter" : "Enable regex quick filter"}
-              title="Toggle regex matching for the quick filter"
-              className={[
-                "px-2 py-1 text-xs font-mono font-bold border transition-colors",
-                isRegexMode
-                  ? "border-[var(--brand)] text-[var(--brand)]"
-                  : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--brand)] hover:text-[var(--text)]",
-              ].join(" ")}
-            >
-              .*
-            </button>
             <button
               type="button"
               onClick={() => setIsLive((v) => !v)}
@@ -412,12 +362,6 @@ export function LogExplorer({
               NLQ query not applied in tail mode — service and severity filters are active.
             </p>
           )}
-          {isRegexInvalid && (
-            <p className="text-[10px] text-[var(--warn)] px-1">
-              Invalid regex — showing all results.
-            </p>
-          )}
-
           <TablePanel className="flex-1 min-h-0 flex flex-col">
             <div
               ref={scrollContainerRef}
@@ -435,7 +379,7 @@ export function LogExplorer({
                   description={
                     isLive
                       ? "No log entries since live tail started. New logs will appear automatically."
-                      : messageSearch || severityFilter !== "all"
+                      : severityFilter !== "all"
                       ? "No logs match the current filters. Try clearing the search or selecting a different severity."
                       : "No logs in the selected time range. Try widening the time window or checking your service filter."
                   }
