@@ -144,9 +144,6 @@ docker compose up -d --build
 # Include the OpenTelemetry Demo for realistic traffic
 docker compose -f docker-compose.yml -f docker-compose.demos.yml up -d --build
 
-# Include the crypto-aggregator demo
-docker compose --profile demos up -d --build
-
 # Run smoke tests
 docker compose --profile verification run --rm smoke-test
 ```

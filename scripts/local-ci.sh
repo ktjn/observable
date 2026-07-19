@@ -81,20 +81,6 @@ if [[ $SKIP_MODELABLE -eq 0 ]]; then
       fi
     done < <(find apps/frontend/src/api/generated -name '*.ts' -print0)
 
-    # TypeScript — crypto-aggregator demos
-    while IFS= read -r -d '' f; do
-      name="$(basename "$f")"
-      if [ ! -f "$TMP_TS/$name" ]; then
-        echo "  MISSING in generated: $f"
-        FAILED=1
-        continue
-      fi
-      if ! diff -q "$f" "$TMP_TS/$name" >/dev/null 2>&1; then
-        echo "  DRIFTED: $f"
-        FAILED=1
-      fi
-    done < <(find demos/crypto-aggregator -path '*/generated/*.ts' -print0)
-
     # Match the official regeneration path, which formats generated Rust via
     # workspace cargo fmt before committing it. Formatting the temporary output
     # preserves the byte-for-byte drift check while avoiding raw-emitter noise.

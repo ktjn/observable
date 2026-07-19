@@ -53,7 +53,7 @@ else
       charts/*|charts/**|scripts/helm-lint.sh)
         helm=1
         ;;
-      models/*|models/**|libs/domain/src/generated/*|libs/domain/src/generated/**|apps/frontend/src/api/generated/*|apps/frontend/src/api/generated/**|demos/crypto-aggregator/*/src/generated/*)
+      models/*|models/**|libs/domain/src/generated/*|libs/domain/src/generated/**|apps/frontend/src/api/generated/*|apps/frontend/src/api/generated/**)
         models=1
         ;;
     esac

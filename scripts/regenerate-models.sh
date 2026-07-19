@@ -31,14 +31,6 @@ for f in "$TMP_TS"/*.ts; do
   cp "$f" "apps/frontend/src/api/generated/$domain/$name"
 done
 
-echo "==> Copying pipeline TypeScript files to crypto-aggregator demos"
-for f in "$TMP_TS"/pipeline.*.ts; do
-  mkdir -p "demos/crypto-aggregator/backend/src/generated"
-  mkdir -p "demos/crypto-aggregator/frontend/src/generated"
-  cp "$f" "demos/crypto-aggregator/backend/src/generated/"
-  cp "$f" "demos/crypto-aggregator/frontend/src/generated/"
-done
-echo ""
 
 echo "==> Compiling Rust artifacts"
 uv run --project models modelable compile models/ --target rust --out "$TMP_RS"
