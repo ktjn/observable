@@ -46,6 +46,16 @@ The `scripts/regenerate-models.sh` script applies all the TS import patches and 
    - **Docker images:** prefer the latest stable version and pin Compose/local/Testcontainers images to `image:major.minor` at minimum. For production Dockerfiles and base images, use `image:major.minor.patch`; SHA digest is strongly preferred. When an image is used in both Docker Compose and Testcontainers, update every reference in the same PR and keep the versions identical unless the PR documents a deliberate compatibility exception.
    - Do not pin to an older version without a documented reason in the PR description.
 
+## Do Not Use Git Worktrees
+
+Work directly on branches in the main checkout (`git switch`/`git checkout`), not `git worktree add`.
+Every worktree gets its own `target/` directory, and this repo's Rust workspace is large enough that a
+from-scratch build per worktree costs many minutes. There is no reliable way to share `target/` across
+worktrees from tracked repo config (Cargo resolves relative `target-dir` paths relative to whichever
+`.cargo/config.toml` copy is running, which is per-worktree, not shared), so worktrees mean paying the
+full Rust build cost again on every new one. If you need true parallel isolation (e.g. two agents
+building on different branches at once), use a separate full clone instead.
+
 ## Package and Image Upgrade Rules
 
 - Use the package manager native to the ecosystem. npm dependencies are updated with npm and nothing else; Rust dependencies are updated with cargo; Python dependencies are managed with uv or require a uv migration plan first.

@@ -1,4 +1,0 @@
-[build]
-# Shared across all worktrees (main checkout + .claude/worktrees/*) so cargo
-# reuses compiled artifacts instead of doing a full rebuild per worktree.
-target-dir = "target"
