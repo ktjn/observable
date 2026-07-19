@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { ShorthandHint } from "../../features/nlq/ShorthandHint";
@@ -18,6 +18,8 @@ interface SignalQueryFormProps {
   /** Clears the query text and any submitted results. Shown only when there's something to reset. */
   onReset?: () => void;
   resetTestId?: string;
+  /** Optional small indicator rendered next to the input (e.g. a detected-mode badge). */
+  badge?: ReactNode;
 }
 
 export function SignalQueryForm({
@@ -34,6 +36,7 @@ export function SignalQueryForm({
   submitTestId,
   onReset,
   resetTestId,
+  badge,
 }: SignalQueryFormProps) {
   return (
     <form
@@ -43,15 +46,22 @@ export function SignalQueryForm({
       className="flex gap-2 max-[640px]:flex-col"
     >
       <ShorthandHint className="relative z-30 group min-w-[260px] flex-1">
-        <Input
-          aria-label={inputLabel}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={placeholder}
-          disabled={isLoading}
-          className="w-full"
-          data-testid={inputTestId}
-        />
+        <div className="relative">
+          <Input
+            aria-label={inputLabel}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={placeholder}
+            disabled={isLoading}
+            className="w-full"
+            data-testid={inputTestId}
+          />
+          {badge && (
+            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
+              {badge}
+            </span>
+          )}
+        </div>
       </ShorthandHint>
       <Button
         type="submit"
