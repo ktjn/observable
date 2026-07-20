@@ -6,8 +6,7 @@ metrics, alerting, dashboards, and natural-language querying, in one product.
 - **Native telemetry ingestion** — the ingest gateway accepts OTLP over gRPC and HTTP plus
   Prometheus Remote Write. Gauge, Sum, and Histogram metric types are fully supported;
   ExponentialHistogram and Summary are modeled but not yet ingested (see
-  [docs/signal-support.md](docs/signal-support.md)). Other sources are handled by the
-  standalone [Collectable](https://github.com/ktjn/collectable) edge-pipeline tool.
+  [docs/signal-support.md](docs/signal-support.md)).
 - **Unified query experience** — traces, logs, and metrics are correlated through shared
   identities (tenant, service, environment, trace/span IDs) and explorable from one frontend,
   including a natural-language query layer and a Monaco-based multi-signal query workbench.
@@ -107,11 +106,13 @@ password with `OBSERVABLE_DEV_ADMIN_PASSWORD` when needed.
 | **Query API** | http://localhost:8090 |
 | **Auth service** | http://localhost:4319 |
 | **Admin service** | http://localhost:4324 |
+| **Alert evaluator** | http://localhost:4322 |
+| **Storage writer** | http://localhost:4320 |
+| **Stream processor** | http://localhost:4323 |
 | **OpenFGA** (authorization) | http://localhost:8083 |
 | **Zitadel** (identity provider) | http://localhost:8082 |
 | **ClickHouse** (HTTP) | http://localhost:8123 |
 | **Redpanda** (Kafka-compatible) | localhost:9092 |
-| **Testbench shop API** | http://localhost:8000 |
 
 ### Stopping and resetting
 
@@ -196,9 +197,3 @@ The `demos/` directory contains example applications that showcase Observable in
 The **otel-demo** is the recommended starting point for evaluating Observable with realistic
 multi-service traffic.
 
-## Related Projects
-
-[Collectable](https://github.com/ktjn/collectable) is a standalone edge-pipeline tool that
-compiles legacy log/metric sources (syslog, log4j2, MQTT, webhooks, etc.) into static Rust
-binaries emitting OTLP. It has no runtime coupling to Observable and works with any
-OTLP-compatible backend; it used to live in this repository but now has its own home.

@@ -11,8 +11,6 @@ and known limitations as of the 0.1 release.
 | OTLP/HTTP (port 4318) | Traces, Logs, Metrics | Supported |
 | Prometheus Remote Write (port 4318) | Metrics | Supported |
 
-Other sources (syslog, log4j2, MQTT, webhooks) are handled by the standalone
-[Collectable](https://github.com/ktjn/collectable) edge-pipeline tool, which emits OTLP.
 
 ## Trace support
 
