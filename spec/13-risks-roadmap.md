@@ -12,90 +12,46 @@
 
 ---
 
-## 23. Initial Deliverables
+## 23. Roadmap Authority
 
-Produce and review these before implementation begins:
+[`ROADMAP.md`](../ROADMAP.md) is the sole authority for release sequence, outcomes, dependencies,
+exit evidence, and non-goals. This document records durable product risks and the stable-core scope;
+it does not maintain a parallel execution order.
 
-1. product requirements document with target users, non-goals, and success metrics
-2. system context and container diagrams
-3. canonical domain model with OTel attribute mapping
-4. tenancy, authn, authz, and data-isolation model
-5. ingestion, storage, queue, retention, and schema-governance ADRs
-6. query API spec, including initial trace/log/metric semantics and versioning policy
-7. frontend architecture spec and first user workflows
-8. deployment architecture, environment topology, and release strategy
-9. security architecture, supply-chain baseline, and audit requirements
-10. test strategy with synthetic, replay, malformed, and high-cardinality datasets
-11. platform SLOs and non-functional acceptance targets
-12. phased roadmap with staffing, ownership, and phase gates
+Roadmap capabilities are delivered as tiny vertical slices under [the development
+process](10-process.md). Existing UI and API surfaces count as shipped capability, but do not count
+as operational maturity until the roadmap's release evidence is satisfied.
 
 ---
 
-## 24. Suggested First Release Scope
+## 24. Stable Self-Hosted Scope
 
-### 24.1 Internal MVP Scope
+### 24.1 Shipped Evaluation Baseline
 
-Internal MVP is for dogfooding and validating the core architecture. It is not the externally supported v1.
+`0.1.0` provides the initial ingest, storage, query, visualization, alerting, tenancy, Compose, and
+Helm surfaces for evaluation and small non-critical deployments. Published-artifact verification and
+operational maturity remain separate evidence requirements; see the roadmap's `0.1` baseline.
 
-- OTLP ingest for traces and logs
-- basic metrics ingest
-- tenant auth with API keys and workload identity
-- durable queue before transform/storage
-- ClickHouse-backed traces/logs and initial metrics storage
-- trace, log, metric, and configuration query APIs
-- React UI with a service-centric entry point: onboarding/setup, service catalog, service detail,
-  trace search, log search, metric exploration, and one dashboard workflow
-- internal platform telemetry, health dashboards, and synthetic test telemetry
-- hot retention policy prototype
-- basic threshold alerts, including one minimal operator-facing UI path
-- internal dogfooding
+### 24.2 Path to 1.0
 
-### 24.2 External v1 Scope
+The stable self-hosted contract is built in dependency order:
 
-Include in externally supported v1:
+1. dependable Docker Compose evaluation from published artifacts;
+2. one operator-ready Kubernetes topology;
+3. enforceable governance for shared team adoption;
+4. a complete service-reliability workflow; and
+5. verified compatibility, security, performance, recovery, and support boundaries for `1.0.0`.
 
-- OTLP ingest
-- logs + traces + basic metrics
-- React UI
-- service catalog
-- dashboards
-- threshold + burn-rate alerts
-- RBAC
-- SSO/OIDC for target customer environments
-- hot/warm retention
-- audit logs
-- tenant-aware rate limits, quotas, and cardinality diagnostics
-- trace-log correlation and RED metrics
-- k8s deployment
-- canary releases
-- rollback and restore runbooks
-- load, chaos, tenant-isolation, and upgrade/rollback test evidence
+Every stage must close its documented evidence gates before the dependent stability claim is made.
+Kubernetes remains the production target under [ADR-010](adr/ADR-010-deployment-model.md); Compose is
+the easiest evaluation path, not the production topology.
 
-Do not block v1 on:
+### 24.3 Not Required for 1.0
 
-- session replay
-- mobile SDK
-- full profiling
-- deep AI features
-- billing perfection
-- multi-region active-active
-- regional residency controls unless required by the first target customer
-- tenant-isolated deployment packaging unless required by the first target customer
-
-### 24.3 Near-Term Execution Order
-
-1. Ratify Phase 0 specs and ADRs.
-2. Build the ingest-to-query slice for traces/logs.
-3. Add tenant auth, durable buffering, and ClickHouse writes.
-4. Add query APIs and the minimal UI.
-5. Add basic metrics.
-6. Add platform telemetry and dogfood dashboards.
-7. Add tenant isolation tests, rate limits, quotas, cardinality budgets, retention, and audit logs.
-8. Add RBAC and basic threshold alerts.
-9. Add Kubernetes/GitOps/canary delivery.
-10. Add correlation, service catalog, RED metrics, SLOs, burn-rate alerts, and warm retention for v1.
-
-Each execution-order item must be delivered through tiny agent iterations. The first PR for an item should prove the smallest runnable contract; subsequent PRs should add breadth, resilience, performance, and polish. Do not use one execution-order item as one implementation branch.
+The stable core does not require browser RUM, mobile observability, session replay, continuous
+profiling, synthetics, advanced AI, billing, regional residency, tenant-isolated packaging, or
+multi-region active-active operation. These remain unordered post-1.0 themes unless the authoritative
+roadmap is explicitly revised.
 
 ---
 
@@ -103,16 +59,16 @@ Each execution-order item must be delivered through tiny agent iterations. The f
 
 Recommended technology shape:
 
-| Concern | Choice |
-|---------|--------|
-| External contract | OpenTelemetry |
-| Data plane language | Rust |
-| Query substrate | Arrow + DataFusion |
-| Logs/traces store | ClickHouse |
-| Frontend | React 19 + TypeScript + Vite 8 + TanStack Query |
-| Authorization | RBAC + OpenFGA-style fine-grained model |
-| Runtime | Kubernetes |
-| Delivery | GitOps + progressive rollout |
-| Process | trunk-based, ADR-driven, test-heavy, telemetry-contract aware |
+| Concern             | Choice                                                        |
+| ------------------- | ------------------------------------------------------------- |
+| External contract   | OpenTelemetry                                                 |
+| Data plane language | Rust                                                          |
+| Query substrate     | Arrow + DataFusion                                            |
+| Logs/traces store   | ClickHouse                                                    |
+| Frontend            | React 19 + TypeScript + Vite 8 + TanStack Query               |
+| Authorization       | RBAC + OpenFGA-style fine-grained model                       |
+| Runtime             | Kubernetes                                                    |
+| Delivery            | GitOps + progressive rollout                                  |
+| Process             | trunk-based, ADR-driven, test-heavy, telemetry-contract aware |
 
 This is a credible path to a production-ready observability platform that stays aligned with current ecosystem direction without copying Dynatrace/New Relic internals blindly.

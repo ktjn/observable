@@ -17,8 +17,8 @@ metrics, alerting, dashboards, and natural-language querying, in one product.
 - **Rust data plane, React frontend** — see [spec/02-architecture.md](spec/02-architecture.md)
   for the full architecture and [spec/adr/README.md](spec/adr/README.md) for the decision log.
 
-This project is preparing its first public release. [ROADMAP.md](ROADMAP.md) is the authoritative
-0.1 release plan and takes precedence over new feature work.
+The current release is `0.1.0`. [ROADMAP.md](ROADMAP.md) is the authoritative, outcome-based path
+from the shipped evaluation baseline through a stable `1.0.0` self-hosted contract.
 
 > Observable 0.1 is intended for evaluation and small non-critical deployments. Storage schemas,
 > APIs, Helm values, and upgrade procedures may change without backward compatibility before 1.0.
@@ -86,33 +86,33 @@ make test           # cargo test + frontend typecheck
 
 When the stack is ready, open the frontend and sign in with the development account:
 
-| Field | Value |
-|-------|-------|
-| URL | http://localhost:5173 |
+| Field    | Value                        |
+| -------- | ---------------------------- |
+| URL      | http://localhost:5173        |
 | Username | `admin@observable.localhost` |
-| Password | `Dev@Admin1234!` |
+| Password | `Dev@Admin1234!`             |
 
 These credentials are for the local Docker Compose environment only. Override the development
 password with `OBSERVABLE_DEV_ADMIN_PASSWORD` when needed.
 
 ### Service URLs
 
-| Service | URL |
-|---------|-----|
-| **Frontend** | http://localhost:5173 |
-| **Ingest gateway** (HTTP/OTLP) | http://localhost:4318 |
-| **Ingest gateway** (gRPC/OTLP) | grpc://localhost:4317 |
+| Service                           | URL                   |
+| --------------------------------- | --------------------- |
+| **Frontend**                      | http://localhost:5173 |
+| **Ingest gateway** (HTTP/OTLP)    | http://localhost:4318 |
+| **Ingest gateway** (gRPC/OTLP)    | grpc://localhost:4317 |
 | **Ingest gateway** (platform API) | http://localhost:4321 |
-| **Query API** | http://localhost:8090 |
-| **Auth service** | http://localhost:4319 |
-| **Admin service** | http://localhost:4324 |
-| **Alert evaluator** | http://localhost:4322 |
-| **Storage writer** | http://localhost:4320 |
-| **Stream processor** | http://localhost:4323 |
-| **OpenFGA** (authorization) | http://localhost:8083 |
-| **Zitadel** (identity provider) | http://localhost:8082 |
-| **ClickHouse** (HTTP) | http://localhost:8123 |
-| **Redpanda** (Kafka-compatible) | localhost:9092 |
+| **Query API**                     | http://localhost:8090 |
+| **Auth service**                  | http://localhost:4319 |
+| **Admin service**                 | http://localhost:4324 |
+| **Alert evaluator**               | http://localhost:4322 |
+| **Storage writer**                | http://localhost:4320 |
+| **Stream processor**              | http://localhost:4323 |
+| **OpenFGA** (authorization)       | http://localhost:8083 |
+| **Zitadel** (identity provider)   | http://localhost:8082 |
+| **ClickHouse** (HTTP)             | http://localhost:8123 |
+| **Redpanda** (Kafka-compatible)   | localhost:9092        |
 
 ### Stopping and resetting
 
@@ -121,6 +121,7 @@ password with `OBSERVABLE_DEV_ADMIN_PASSWORD` when needed.
 > Observable frontend ingress. Docker Compose binds **8083** for OpenFGA. These don't
 > overlap, but if a stale kind cluster is running it may hold other ports too. Stop it
 > before running `docker compose up -d`:
+>
 > ```bash
 > kind delete cluster --name observable-test
 > ```
@@ -155,6 +156,7 @@ bash scripts/testbench.sh --keep-cluster
 ```
 
 URLs once ready:
+
 - Observable frontend: http://localhost:8080/
 - Testbench shop: http://localhost:3000/
 
@@ -190,10 +192,9 @@ See [spec/10-process.md](spec/10-process.md) for the official development proces
 
 The `demos/` directory contains example applications that showcase Observable in action.
 
-| Demo | Description | Status |
-|------|-------------|--------|
+| Demo                          | Description                                                                                                                                                    | Status                    |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
 | [otel-demo](demos/otel-demo/) | The [OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo) microservices app, reconfigured to route through the Observable ingest gateway. | Canonical onboarding demo |
 
 The **otel-demo** is the recommended starting point for evaluating Observable with realistic
 multi-service traffic.
-

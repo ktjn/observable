@@ -12,12 +12,13 @@
 The platform needs a stable, industry-standard interface for telemetry ingestion to ensure interoperability with existing tools, SDKs, and collectors. Inventing a custom ingestion protocol would create high friction for user onboarding and increase maintenance overhead.
 
 Since the initial decision, additional questions have emerged that this ADR now also addresses:
-- Which *version* of the OTLP specification is supported (floor and target)?
+
+- Which _version_ of the OTLP specification is supported (floor and target)?
 - When should the platform update its internal OTEL Rust crate versions?
 - How are new OTLP spec signals and fields adopted?
 
 **Key insight — client compatibility is independent of internal crate version:**
-The ingest gateway is a *receiver*. Proto3 wire format is backward-compatible: a gateway
+The ingest gateway is a _receiver_. Proto3 wire format is backward-compatible: a gateway
 compiled against newer OTLP proto types correctly parses payloads from any prior OTLP spec
 version. Upgrading internal crates does not break existing clients.
 
@@ -37,11 +38,12 @@ version. Upgrading internal crates does not break existing clients.
    gRPC deserialization is handled by the `opentelemetry-proto` Rust crate. The proto files
    must be kept in sync with the target OTLP spec version as part of quarterly crate updates.
 
-6. **Proto-format quirk documentation:** Comments that document SDK-version-specific serialization quirks must describe the *behavior* observed, not pin a specific SDK version, since older and newer clients coexist on the wire simultaneously.
+6. **Proto-format quirk documentation:** Comments that document SDK-version-specific serialization quirks must describe the _behavior_ observed, not pin a specific SDK version, since older and newer clients coexist on the wire simultaneously.
 
 ## Consequences
 
 **Easier:**
+
 - Direct compatibility with OTel SDKs and OTel Collector.
 - Lower barrier to entry for users already using OTel.
 - Standardized semantic conventions for metadata.
@@ -50,11 +52,13 @@ version. Upgrading internal crates does not break existing clients.
 - New OTLP signals (e.g., Events, Profiles) are adopted as they stabilize without requiring a new ADR.
 
 **Harder:**
+
 - Strict adherence to OTel's evolving specification.
 - Potential performance overhead for high-throughput normalization.
 - Quarterly crate upgrades require resolving breaking API changes, especially after large gaps in upgrade cadence.
 
 **Constrained:**
+
 - The internal data model will be primarily OTel-centric, making it more difficult to support legacy non-OTel formats without translation.
 - Fields present in OTLP spec 1.0.0 must continue to be accepted; they cannot be dropped without a deprecation cycle.
 - The platform cannot advertise support for a new OTLP signal until the ingest gateway and storage-writer handle it end-to-end.
@@ -62,15 +66,19 @@ version. Upgrading internal crates does not break existing clients.
 ## Alternatives Considered
 
 ### Option A: Custom Ingestion Protocol
+
 Rejected due to high user friction and lack of ecosystem support.
 
 ### Option B: Vendor-Specific Ingestion (e.g., Datadog, Prometheus)
+
 Rejected to maintain vendor neutrality and broad ecosystem compatibility. OTel already supports these via exporters/receivers.
 
 ### Option C: Pin to a fixed OTLP spec version
+
 Rejected. Pinning prevents the platform from supporting new spec signals without another ADR change and requires clients to avoid new spec features.
 
 ### Option D: No version policy — upgrade ad hoc
+
 Rejected. The ad-hoc approach produced stale internal crates (5 minor versions behind), a prost version-mismatch workaround, tonic version inconsistency between the mediator binary and its build template, and version-pinned quirk comments in source code.
 
 ## Related
@@ -79,6 +87,5 @@ Rejected. The ad-hoc approach produced stale internal crates (5 minor versions b
 - `spec/02-architecture.md` (Ingestion)
 - `spec/06-agents.md` (Agent and Collector Strategy)
 - `spec/14-domain-model.md` (OTel-aligned telemetry schemas and cross-signal joins)
-- [ADR-022](ADR-022-collectable-mediator.md) — Collectable mediator (OTEL SDK producer)
 - [ADR-023](ADR-023-standard-otlp-ports.md) — Standard OTLP port conformance
 - `spec/10-process.md §16.10` — Dependency maintenance policy
