@@ -126,10 +126,11 @@ export default function ServicesPage() {
           <button
             type="button"
             onClick={() => setView("list")}
+            aria-pressed={view === "list"}
             className={[
               "px-3 py-1 text-xs font-bold rounded transition-colors",
               view === "list"
-                ? "bg-[var(--brand)] text-white"
+                ? "bg-[var(--brand)] text-[var(--bg)]"
                 : "text-[var(--muted)] hover:text-[var(--text)]",
             ].join(" ")}
           >
@@ -138,10 +139,11 @@ export default function ServicesPage() {
           <button
             type="button"
             onClick={() => setView("topology")}
+            aria-pressed={view === "topology"}
             className={[
               "px-3 py-1 text-xs font-bold rounded transition-colors",
               view === "topology"
-                ? "bg-[var(--brand)] text-white"
+                ? "bg-[var(--brand)] text-[var(--bg)]"
                 : "text-[var(--muted)] hover:text-[var(--text)]",
             ].join(" ")}
           >

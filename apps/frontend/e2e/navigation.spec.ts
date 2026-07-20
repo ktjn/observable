@@ -218,7 +218,7 @@ test.describe("alerts tab navigation", () => {
         },
       })
     );
-    await page.route("**/v1/notification-channels**", (route) => route.fulfill({ json: [] }));
+    await page.route("**/v1/notifications/channels**", (route) => route.fulfill({ json: [] }));
   });
 
   test("clicking SLOs tab shows SLO content", async ({ page }) => {
@@ -233,7 +233,20 @@ test.describe("alerts tab navigation", () => {
     await page.goto("/alerts");
     await page.waitForSelector("table[aria-label='Alert rules']");
     await page.getByRole("tab", { name: "Notification Channels" }).click();
+    await expect(page.locator("text=No notification channels")).toBeVisible();
     await page.screenshot({ path: "e2e/screenshots/nav-alerts-channels-tab.png", fullPage: true });
+  });
+
+  test("Notification Channels tab shows ErrorState with retry when the channels request fails", async ({ page }) => {
+    await page.route("**/v1/notifications/channels**", (route) =>
+      route.fulfill({ status: 500, json: { error: "internal error" } })
+    );
+    await page.goto("/alerts");
+    await page.waitForSelector("table[aria-label='Alert rules']");
+    await page.getByRole("tab", { name: "Notification Channels" }).click();
+    await expect(page.locator("text=Failed to load channels")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+    await page.screenshot({ path: "e2e/screenshots/nav-alerts-channels-tab-error.png", fullPage: true });
   });
 
   test("clicking back to Alert Rules tab restores the table", async ({ page }) => {
@@ -273,6 +286,29 @@ test.describe("dashboard navigation", () => {
     await page.locator("[aria-label='Dashboard cards'] a", { hasText: "Open" }).first().click();
     await expect(page).toHaveURL(/\/dashboards\/dash-1/);
     await page.screenshot({ path: "e2e/screenshots/nav-dashboard-detail.png", fullPage: true });
+  });
+
+  test("dashboard detail shows ErrorState when the dashboard fails to load", async ({ page }) => {
+    await mockAuth(page);
+    await page.route("**/v1/dashboards", (route) =>
+      route.fulfill({
+        json: {
+          items: [
+            { dashboard_id: "dash-1", name: "Checkout Overview", panels: [], created_at: "2026-05-05T00:00:00Z" },
+          ],
+        },
+      })
+    );
+    await page.route("**/v1/dashboards/dash-1", (route) =>
+      route.fulfill({ status: 500, json: { error: "internal error" } })
+    );
+
+    await page.goto("/dashboards");
+    await page.waitForSelector("[aria-label='Dashboard cards']");
+    await page.locator("[aria-label='Dashboard cards'] a", { hasText: "Open" }).first().click();
+    await expect(page).toHaveURL(/\/dashboards\/dash-1/);
+    await expect(page.locator("text=Dashboard could not be loaded")).toBeVisible({ timeout: 15000 });
+    await page.screenshot({ path: "e2e/screenshots/nav-dashboard-detail-error.png", fullPage: true });
   });
 });
 

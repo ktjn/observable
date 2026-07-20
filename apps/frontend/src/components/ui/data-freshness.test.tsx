@@ -50,3 +50,25 @@ test("interval updates the display after 30s", () => {
 
   expect(screen.getByText("Updated 40s ago")).toBeInTheDocument();
 });
+
+test("clamps to 0s ago when dataUpdatedAt is in the future (clock skew)", () => {
+  const now = 1_700_000_000_000;
+  vi.setSystemTime(now);
+  render(<DataFreshness dataUpdatedAt={now + 5_000} />);
+  expect(screen.getByText("Updated 0s ago")).toBeInTheDocument();
+});
+
+test("resyncs immediately (no negative value) when dataUpdatedAt changes after mount", () => {
+  const now = 1_700_000_000_000;
+  vi.setSystemTime(now);
+  const { rerender } = render(<DataFreshness dataUpdatedAt={now - 10_000} />);
+  expect(screen.getByText("Updated 10s ago")).toBeInTheDocument();
+
+  // New data arrives with a dataUpdatedAt very close to (or at) "now", simulating the
+  // stale-mount race where `now` in state would otherwise be captured before this update.
+  act(() => {
+    rerender(<DataFreshness dataUpdatedAt={now} />);
+  });
+
+  expect(screen.getByText("Updated 0s ago")).toBeInTheDocument();
+});

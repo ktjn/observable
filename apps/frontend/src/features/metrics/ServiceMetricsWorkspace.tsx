@@ -263,12 +263,14 @@ function MetricGraphContainer({
   onResetZoom: () => void;
 }) {
   const { tenantId } = useTenantContext();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["metric-group-points", tenantId, selectedMetric ? metricIdentity(selectedMetric) : null, fromMs, toMs],
     queryFn: () => getMetricGroupPoints(tenantId, selectedMetric!),
     enabled: Boolean(selectedMetric),
     ...liveViewQueryOptions,
   });
+
+  const points = data?.points ?? [];
 
   const content = !selectedMetric ? (
     <EmptyState
@@ -279,8 +281,20 @@ function MetricGraphContainer({
     />
   ) : isLoading ? (
     <LoadingState variant="skeleton" className="h-full" />
+  ) : isError ? (
+    <ErrorState
+      className="h-full min-h-0"
+      title="Failed to load metric data"
+      description="Something went wrong while loading data points for this metric."
+    />
+  ) : points.length === 0 ? (
+    <EmptyState
+      compact
+      className="h-full"
+      title="No data points"
+      description="This metric has no data points in the selected time range."
+    />
   ) : (() => {
-    const points = data?.points ?? [];
     const seriesData: TimeSeriesSeries[] = [
       {
         key: metricIdentity(selectedMetric),
@@ -397,9 +411,9 @@ function MetricDetailSidebar({
       className="w-full border border-[var(--border)] bg-[var(--surface)] p-4"
     >
       <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Selected Metric</div>
-          <h2 className="m-0 text-base font-bold text-[var(--text-strong)]">
+          <h2 className="m-0 truncate text-base font-bold text-[var(--text-strong)]" title={metric.metric_name}>
             <CopyableText value={metric.metric_name} label="Copy metric name" mono />
           </h2>
         </div>

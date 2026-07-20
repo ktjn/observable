@@ -67,3 +67,18 @@ test("auto-selects the first (highest series_count) metric instead of showing an
   await waitFor(() => expect(screen.getByText("b.request_latency")).toBeInTheDocument());
   expect(screen.queryByText("No metric selected")).not.toBeInTheDocument();
 });
+
+test("shows an empty state for the chart when the selected metric has no data points", async () => {
+  renderWorkspace();
+
+  await waitFor(() => expect(screen.getByText("No data points")).toBeInTheDocument());
+});
+
+test("shows an error state for the chart when fetching data points fails", async () => {
+  const { getMetricGroupPoints } = await import("../../api/metrics");
+  vi.mocked(getMetricGroupPoints).mockRejectedValue(new Error("upstream failure"));
+
+  renderWorkspace();
+
+  await waitFor(() => expect(screen.getByText("Failed to load metric data")).toBeInTheDocument());
+});
