@@ -28,7 +28,9 @@ This project is preparing its first public release. [ROADMAP.md](ROADMAP.md) is 
 
 The full specification is located in the [spec/](spec/) directory, indexed in
 [spec/README.md](spec/README.md). See [docs/signal-support.md](docs/signal-support.md) for
-the signal-support matrix and known limitations.
+the signal-support matrix and known limitations. For operating an evaluation deployment, see the
+[evaluation guide](docs/evaluation-guide.md), [deployment guide](docs/deployment.md),
+[resource requirements](docs/resource-requirements.md), and [API stability policy](docs/api-stability.md).
 
 ## Contributing
 
@@ -51,6 +53,9 @@ The entire stack is started with a single command. All service images are built
 locally from source — no registry login needed. The first run compiles the Rust
 backend, which typically takes **3–10 minutes** depending on your machine; subsequent
 starts reuse the Docker layer cache and are nearly instant.
+
+You need Docker Compose and GNU Make. See [resource requirements](docs/resource-requirements.md)
+before starting the stack on a constrained machine.
 
 ```bash
 # Recommended: build images then start (required on first run or after pulling new code)
@@ -80,6 +85,17 @@ make test           # cargo test + frontend typecheck
 > **After pulling new code that adds migrations**, run `make db-migrate` to apply them
 > without a full restart.
 
+When the stack is ready, open the frontend and sign in with the development account:
+
+| Field | Value |
+|-------|-------|
+| URL | http://localhost:5173 |
+| Username | `admin@observable.localhost` |
+| Password | `Dev@Admin1234!` |
+
+These credentials are for the local Docker Compose environment only. Override the development
+password with `OBSERVABLE_DEV_ADMIN_PASSWORD` when needed.
+
 ### Service URLs
 
 | Service | URL |
@@ -87,6 +103,7 @@ make test           # cargo test + frontend typecheck
 | **Frontend** | http://localhost:5173 |
 | **Ingest gateway** (HTTP/OTLP) | http://localhost:4318 |
 | **Ingest gateway** (gRPC/OTLP) | grpc://localhost:4317 |
+| **Ingest gateway** (platform API) | http://localhost:4321 |
 | **Query API** | http://localhost:8090 |
 | **Auth service** | http://localhost:4319 |
 | **Admin service** | http://localhost:4324 |
