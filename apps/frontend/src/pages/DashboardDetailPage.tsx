@@ -22,6 +22,8 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select, SelectOption } from "../components/ui/select";
 import { LoadingState } from "../components/ui/loading-state";
+import { EmptyState } from "../components/ui/empty-state";
+import { ErrorState } from "../components/ui/error-state";
 import { Panel } from "../components/ui/panel";
 import { presetToMs, useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
@@ -237,7 +239,7 @@ export default function DashboardDetailPage() {
 
   if (isLoading) return <LoadingState>Loading dashboard...</LoadingState>;
   if (error || !data) {
-    return <LoadingState className="text-[var(--bad)]">Dashboard could not be loaded.</LoadingState>;
+    return <ErrorState title="Dashboard could not be loaded" description={error ? String(error) : undefined} />;
   }
 
   return (
@@ -708,10 +710,10 @@ function QueryPanel({
 
   if (isLoading) return <LoadingState>Loading panel...</LoadingState>;
   if (error) {
-    return <LoadingState className="text-[var(--bad)]">Panel query failed: {String(error)}</LoadingState>;
+    return <ErrorState title="Panel query failed" description={String(error)} />;
   }
   if (!data || data.type !== "frame") {
-    return <LoadingState>No panel data returned.</LoadingState>;
+    return <EmptyState title="No panel data" description="This panel returned no data for the selected range." />;
   }
   return (
     <div className="grid gap-2">

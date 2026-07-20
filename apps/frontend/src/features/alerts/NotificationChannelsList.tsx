@@ -13,6 +13,7 @@ import { Input } from "../../components/ui/input";
 import { Panel } from "../../components/ui/panel";
 import { Toolbar } from "../../components/ui/toolbar";
 import { EmptyState } from "../../components/ui/empty-state";
+import { ErrorState } from "../../components/ui/error-state";
 import { useTenantContext } from "../../hooks/useTenantContext";
 
 export function NotificationChannelsList() {
@@ -23,7 +24,7 @@ export function NotificationChannelsList() {
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["notification-channels", tenantId],
     queryFn: () => listNotificationChannels(tenantId),
   });
@@ -112,7 +113,13 @@ export function NotificationChannelsList() {
         </Panel>
       )}
 
-      {isLoading ? (
+      {isError ? (
+        <ErrorState
+          title="Failed to load channels"
+          description="Something went wrong while loading notification channels."
+          actions={<Button onClick={() => refetch()}>Retry</Button>}
+        />
+      ) : isLoading ? (
         <div className="py-8 text-center text-[var(--muted)]">Loading channels…</div>
       ) : channels.length === 0 ? (
         <EmptyState

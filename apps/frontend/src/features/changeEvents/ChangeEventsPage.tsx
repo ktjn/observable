@@ -69,6 +69,7 @@ export default function ChangeEventsPage() {
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value as ChangeEventType | "all")}
           aria-label="Filter by event type"
+          className="max-w-[180px]"
         >
           <SelectOption value="all">All types</SelectOption>
           {EVENT_TYPES.map((t) => (

@@ -52,6 +52,7 @@ export function SignalQueryForm({
             value={value}
             onChange={(event) => onChange(event.target.value)}
             placeholder={placeholder}
+            title={placeholder}
             disabled={isLoading}
             className="w-full"
             data-testid={inputTestId}

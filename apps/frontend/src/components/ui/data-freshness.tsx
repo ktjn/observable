@@ -12,9 +12,13 @@ export function DataFreshness({ dataUpdatedAt }: DataFreshnessProps) {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    setNow(Date.now());
+  }, [dataUpdatedAt]);
+
   if (dataUpdatedAt === 0) return null;
 
-  const diffSec = Math.floor((now - dataUpdatedAt) / 1000);
+  const diffSec = Math.max(0, Math.floor((now - dataUpdatedAt) / 1000));
   let label: string;
   if (diffSec < 60) {
     label = `${diffSec}s ago`;

@@ -408,8 +408,9 @@ export function TraceDetail({ traceId, spans, events }: Props) {
                     } ${isErrorSpan ? "border-l-2 border-l-[var(--bad)]" : ""}`}
                   >
                     <span
-                      className="w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-xs shrink-0"
+                      className="w-[260px] overflow-hidden text-ellipsis whitespace-nowrap text-xs shrink-0"
                       style={{ paddingLeft: `${depth * 12}px` }}
+                      title={`${span.service_name}: ${span.operation_name}`}
                     >
                       {span.service_name}: {span.operation_name}
                       <span className="ml-1 text-[10px] text-[var(--muted)] font-mono">

@@ -356,6 +356,37 @@ test("Done saves staged layout to API and exits edit mode", async () => {
   );
 });
 
+test("panel shows ErrorState when the panel query fails", async () => {
+  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+  vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+  vi.mocked(submitNlqQuery).mockRejectedValue(new Error("upstream timeout"));
+
+  renderPage();
+
+  await screen.findByRole("heading", { name: "Checkout Health" });
+  expect(await screen.findByText("Panel query failed")).toBeInTheDocument();
+  expect(await screen.findByText(/upstream timeout/)).toBeInTheDocument();
+});
+
+test("panel shows EmptyState when the query returns no frame data", async () => {
+  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+  vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+  vi.mocked(submitNlqQuery).mockResolvedValue({ type: "text", text: "no data" } as never);
+
+  renderPage();
+
+  await screen.findByRole("heading", { name: "Checkout Health" });
+  expect(await screen.findByText("No panel data")).toBeInTheDocument();
+});
+
+test("dashboard shows ErrorState when the dashboard fails to load", async () => {
+  vi.spyOn(dashboardsApi, "getDashboard").mockRejectedValue(new Error("dashboard fetch failed"));
+
+  renderPage();
+
+  expect(await screen.findByText("Dashboard could not be loaded")).toBeInTheDocument();
+});
+
 test("metrics panels without query text execute a metric catalog base IR", async () => {
   vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue({
     ...dashboard,
