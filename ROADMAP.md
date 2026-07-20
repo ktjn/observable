@@ -1,217 +1,191 @@
-# Observable Roadmap to 0.1.0
+# Observable Roadmap
 
 > **Status:** Active and authoritative.
 >
-> Until `v0.1.0` is released, release readiness takes precedence over new feature work. New product
-> features should only be promoted when they remove a release blocker, close a documented
-> correctness gap, or are required by the supported 0.1 deployment contract.
+> This is the sole release-sequencing roadmap for Observable. It describes outcomes and evidence,
+> not delivery dates or a complete implementation backlog. Work is decomposed into small GitHub
+> issues and pull requests according to [spec/10-process.md](spec/10-process.md).
 
-## Goal
+## Direction
 
-Release a secure, reproducible, testable evaluation version of Observable that supports the core
-observability workflow without claiming production maturity that has not been demonstrated.
+Observable is an open-source, full-stack observability platform. The path to `1.0.0` first makes
+Docker Compose evaluation dependable, then establishes Kubernetes operations, governance, and a
+complete service-reliability workflow before promising a stable self-hosted contract.
 
-Observable 0.1 is intended for evaluation and small non-critical deployments. Storage schemas,
-APIs, Helm values, and upgrade procedures may change without backward compatibility before 1.0.
+The product aims to provide a credible self-hosted observability core in the same problem space as
+Datadog, Dynatrace, and New Relic. `1.0.0` does not imply feature parity with those products.
 
-## Priority rule
+## Release model
 
-Work in this order:
+Each release slice has a target outcome, dependencies, scope, exit evidence, and non-goals. A slice
+is complete only when the stated evidence exists; the presence of a UI page, API, or workflow alone
+does not establish operational maturity.
 
-1. Security and tenant-isolation blockers.
-2. Reproducible installation, migration, backup, and restore.
-3. Protocol and data correctness.
-4. Operational reliability and self-observability.
-5. Core user journeys and documentation.
-6. Release engineering and artifact verification.
+Release numbers express dependency order rather than dates. Before `1.0.0`, storage schemas, APIs,
+configuration, Helm values, and upgrade procedures may change as described in
+[VERSIONING.md](VERSIONING.md). Only the latest release is supported.
 
-Do not prioritize saved-view parity, fleet management, billing, asynchronous export, additional
-notification adapters, or other broad feature work while a higher-priority 0.1 item remains open.
+## 0.1 — Evaluation baseline (shipped)
 
-## 0.1 scope
+**Outcome:** An evaluator can run the initial public release and exercise the core observability
+journeys in a non-critical environment.
 
-### Included
+**Shipped capabilities:**
 
-- OTLP traces, logs, and supported metric types over gRPC and HTTP.
-- Prometheus Remote Write ingestion.
-- Trace, log, and metric exploration with documented cross-signal correlation.
-- Dashboards, threshold alerts, SLO burn-rate alerts, and webhook notifications.
-- API-key ingestion and OIDC browser authentication.
-- Tenant and environment isolation.
-- One supported Docker Compose evaluation topology.
-- One supported Helm deployment topology.
-- Documented retention, migration, backup, restore, and failure behavior.
-- Platform self-observability.
-- Signed, versioned release artifacts with SBOMs.
+- OTLP trace, log, and supported metric ingestion over gRPC and HTTP, plus Prometheus Remote Write.
+- Tenant-aware storage and query paths, OIDC browser authentication, OpenFGA authorization, and
+  ingestion-token environment binding.
+- Trace, log, metric, service, dashboard, alert, SLO, incident, deployment-event, and administration
+  surfaces, with initial cross-signal navigation and webhook notifications.
+- Docker Compose evaluation and Helm deployment assets, migrations, backup/restore guidance,
+  platform self-observability, smoke/performance checks, and tag-bound release workflows.
 
-### Deferred beyond 0.1
+**Open release debt:** Published Helm, SBOM/provenance, Compose/Helm installation, and post-release
+smoke claims still require evidence against the actual `v0.1.0` artifacts. Workflow implementation
+or source-built verification is not equivalent to published-artifact verification.
 
-- Fleet management.
-- Billing workflows.
-- Asynchronous export.
-- Full saved-view parity across every signal.
-- Additional notification-channel adapters.
-- Broad HA or large-scale clustering claims.
-- Multiple identity-provider combinations beyond the supported reference setup.
-- Natural-language querying as a release-critical capability.
+**Support boundary:** `0.1.0` is for evaluation and small non-critical deployments. It does not
+claim production Kubernetes readiness, broad high availability, stable compatibility, or a complete
+governance and incident-response contract.
 
-## Milestone 1 — Release blockers
+## 0.2 — Effortless self-hosted evaluation
 
-- [x] Fail closed when `SESSION_SECRET` is missing outside development mode.
-- [x] Add regression tests for missing and empty session secrets.
-- [x] Remove or rotate any historical default secret and scan the complete Git history.
-- [x] Verify Helm and Compose cannot deploy a non-development environment with a default secret.
-- [x] Complete OIDC login, callback, token-exchange failure, cookie, and session regression tests.
-- [x] Complete admin-service authentication and tenant-isolation middleware tests.
-- [x] Complete tests for token issue/revoke and member role mutation handlers.
-- [x] Remove dead unchecked SQL-builder implementations.
-- [x] Reuse HTTP clients in authentication middleware hot paths.
-- [x] Fix all documentation that claims GitHub CI is disabled.
+**Outcome:** A new self-hoster can evaluate Observable through Docker Compose without building from
+source or discovering undocumented lifecycle steps.
 
-### Exit criteria
+**Depends on:** The `0.1.0` evaluation baseline.
 
-- No known critical or high-severity authentication or tenant-isolation defect remains.
-- Missing security configuration causes startup or installation to fail closed.
-- Cross-tenant query and administration access is covered by automated tests.
-- Required GitHub checks are documented and enforced on `main`.
+**Scope:**
 
-## Milestone 2 — Public repository hygiene
+- Verify fresh installation exclusively from published, versioned artifacts on supported hosts.
+- Make first telemetry, health diagnosis, reset, upgrade, backup, and restore repeatable from the
+  documented Compose path.
+- Publish clear prerequisites, resource expectations, failure messages, and troubleshooting data.
+- Close the `0.1.0` release-artifact evidence debt, including signatures and attestations.
 
-- [x] Replace internal implementation-plan history with GitHub issues, ADRs, or public design docs.
-- [x] Reduce `AGENTS.md` to repository facts, generated-code rules, commands, and invariants.
-- [x] Remove tracked local configuration such as `.claude/settings.local.json` unless demonstrably
-      sanitized and required.
-- [x] Add or verify secret-scanning ignore rules without suppressing real findings.
-- [x] Add `SUPPORT.md`, `CODEOWNERS`, issue templates, and a concise PR template.
-- [x] Document versioning, compatibility, and release support policy.
-- [x] Reconcile README claims with implemented ingestion and metric fidelity.
-- [x] Publish an explicit signal-support and known-data-loss matrix.
-- [x] Decide whether vendored demos remain in the main repository; retain one canonical demo for
-      the supported onboarding path.
+**Exit evidence:**
 
-### Exit criteria
+- A clean-host evaluator reaches first telemetry within the documented flow and time budget.
+- Automated release-candidate checks install, upgrade, back up, restore, reset, and smoke-test the
+  published Compose artifacts.
+- Release documentation identifies supported host assumptions and actionable diagnostics for every
+  critical dependency.
 
-- A new contributor can understand scope, build, test, and contribution rules without reading
-  internal agent orchestration material.
-- Public product claims match tested behavior.
-- Repository and history scans contain no unresolved credential or private-data findings.
+**Non-goals:** Production support for Compose, broad HA, fleet management, billing, and advanced
+telemetry signals.
 
-## Milestone 3 — Supported installation and upgrades
+## 0.3 — Operator-ready Kubernetes
 
-- [x] Define an `evaluation` Compose profile with the minimum required components.
-- [x] Define one supported production-like Helm configuration.
-- [x] Document required and optional services, ports, trust boundaries, and TLS assumptions.
-- [x] Validate all required configuration at startup with actionable errors.
-- [x] Document minimum CPU, memory, disk, and expected idle resource use.
-- [ ] Test a clean Compose installation from released artifacts.
-- [ ] Test a clean Helm installation from released artifacts.
-- [x] Test migration idempotency and restart during migration.
-- [x] Create and test a synthetic pre-0.1 upgrade fixture.
-- [x] Document and verify backup and restore.
-- [x] Document unsupported downgrade behavior.
+**Outcome:** A platform team can operate one supported Kubernetes topology with explicit capacity,
+failure, and lifecycle boundaries.
 
-### Exit criteria
+**Depends on:** Repeatable release artifacts and lifecycle procedures from `0.2`.
 
-- A clean environment can install Observable using only versioned release artifacts.
-- Upgrade, backup, and restore procedures are executable and covered by tests.
-- No required production configuration relies on an insecure default.
+**Scope:**
 
-## Milestone 4 — Protocol and data correctness
+- Verify Helm installation and upgrades from the published OCI chart and versioned images.
+- Harden configuration, secrets, ingress, persistent storage, migrations, rollback, and recovery for
+  the supported topology.
+- Provide capacity guidance, platform health dashboards, alerting, and runbooks for critical paths.
+- Exercise dependency interruption, restart, backup/restore, and bounded-degradation behavior in a
+  representative Kubernetes environment.
 
-- [x] Add black-box OTLP gRPC tests using a pinned OpenTelemetry Collector image.
-- [x] Add black-box OTLP HTTP/protobuf tests.
-- [x] Test gzip and supported compression behavior.
-- [x] Test malformed protobuf, request-size limits, rate limiting, and partial-success responses.
-- [x] Test Prometheus Remote Write compatibility and tenant routing.
-- [x] Test resource, scope, and signal attribute preservation.
-- [x] Document histogram, exponential-histogram, and summary fidelity.
-- [x] Test trace/log/metric correlation identifiers end to end.
-- [x] Define and document public API stability expectations.
-- [x] Ensure public HTTP endpoints have machine-readable contracts where practical.
-- [x] Add deterministic generated-code verification that fails on regeneration drift.
+**Exit evidence:**
 
-### Exit criteria
+- Automated clean install, upgrade, rollback, and recovery checks pass against published artifacts.
+- Measured capacity envelopes and dependency-failure drills have explicit pass/fail thresholds.
+- Operators can diagnose ingest, query, storage, queue, identity, and authorization failures using
+  supported telemetry and runbooks.
 
-- Supported clients can send each supported signal through documented paths.
-- Rejected or lossy data is reported consistently and documented.
-- Generated models reproduce without manual undocumented edits.
+**Non-goals:** Multi-region operation, active-active control planes, arbitrary Kubernetes
+distributions, or a broad HA claim beyond the tested topology.
 
-## Milestone 5 — Reliability and self-observability
+## 0.4 — Governed team adoption
 
-- [x] Add missing `/metrics` endpoints to ingest-gateway, stream-processor, and alert-evaluator.
-- [x] Add ingest throughput, rejection, queue, processing, and alert-evaluation metrics.
-- [x] Provide a dashboard for Observable's own health.
-- [x] Define measurable ingestion and query latency gates.
-- [x] Run a minimum one-hour ingest/query soak test.
-- [x] Test Redpanda interruption and recovery.
-- [x] Test ClickHouse interruption during ingestion and query.
-- [x] Test PostgreSQL and OpenFGA unavailability with fail-closed behavior where required.
-- [x] Test bounded memory, queue growth, backpressure, and disk-full behavior.
-- [x] Document capacity assumptions and recovery procedures.
+**Outcome:** Multiple teams can share a deployment with enforceable usage, retention, access, and
+accountability controls.
 
-### Exit criteria
+**Depends on:** A supportable Kubernetes operational baseline from `0.3`.
 
-- The platform exposes enough telemetry to diagnose its own critical paths.
-- Soak and dependency-failure tests have explicit pass/fail thresholds.
-- No tested dependency outage causes silent cross-tenant exposure or unbounded resource growth.
+**Scope:**
 
-## Milestone 6 — Core user journeys
+- Enforce tenant-aware ingest limits, quotas, and cardinality budgets with visible rejection behavior.
+- Complete retention and deletion workflows across supported signals and storage tiers.
+- Mature role and resource scoping, audit coverage, credential lifecycle, and tenant-isolation tests.
+- Expose actionable usage, cost, and cardinality diagnostics to operators and tenant administrators.
 
-- [x] Add Playwright coverage for login and onboarding.
-- [x] Add an end-to-end first-telemetry flow.
-- [x] Add trace search and trace-to-related-logs navigation coverage.
-- [x] Add metric query and dashboard creation coverage.
-- [x] Add alert creation and triggered-state coverage.
-- [x] Add administrator member-role mutation coverage.
-- [x] Add browser-level tenant-isolation coverage.
-- [x] Run accessibility scans for every major page in CI.
-- [x] Run the maintained visual-regression suite in CI.
-- [x] Add a ten-minute evaluation guide and collector configuration.
-- [x] Add architecture, configuration, security-hardening, and troubleshooting documentation.
+**Exit evidence:**
 
-### Exit criteria
+- Load and adversarial tests prove limits cannot be bypassed across tenants or environments.
+- Retention and deletion have documented completion semantics and verifiable audit records.
+- Usage reports reconcile with accepted, rejected, retained, and deleted telemetry within documented
+  tolerances.
 
-- Core workflows pass from browser to storage against the supported deployment topology.
-- Major views meet the defined accessibility baseline.
-- A new evaluator can reach first telemetry without undocumented steps.
+**Non-goals:** Billing systems, compliance certification, regional residency, bring-your-own-key,
+and tenant-isolated product packaging.
 
-## Milestone 7 — Release engineering
+## 0.5 — Service reliability workflow
 
-- [x] Establish one repository/product version source of truth.
-- [x] Build release artifacts from immutable tags.
-- [x] Publish multi-architecture container images where supported.
-- [ ] Publish the Helm chart. (workflow implemented; mark complete after the first release
-      tag verifies the chart can be pulled and installed from `oci://ghcr.io/ktjn/charts/observable`)
-- [ ] Generate SBOMs and provenance attestations. (workflow implemented for the container image;
-      mark complete after the first release tag verifies both attestations are present and
-      `gh attestation verify` succeeds)
-- [x] Sign container images and release artifacts.
-- [x] Generate release notes and a changelog.
-- [ ] Verify Compose and Helm installation exclusively from published artifacts.
-- [ ] Run post-release smoke tests against the published version.
-- [x] Tag and publish `v0.1.0`.
+**Outcome:** A service owner can move from detection through triage, notification, and review without
+manually reconstructing context across tools.
 
-## Release acceptance criteria
+**Depends on:** Governed team and data boundaries from `0.4`.
 
-`v0.1.0` is releasable only when all of the following are true:
+**Scope:**
 
-- No known critical or high-severity authentication or tenant-isolation defect remains.
-- No default installation credential can authenticate a user or sign a session.
-- Fresh Compose and Helm installations pass from released artifacts.
-- Upgrade, backup, and restore verification passes.
-- OTLP gRPC, OTLP HTTP, and Prometheus Remote Write compatibility tests pass.
-- Core trace, log, metric, dashboard, alert, and administration journeys pass browser E2E tests.
-- Cross-tenant query and administration tests pass.
-- The defined soak and performance thresholds pass.
-- README and support-matrix claims match implemented behavior.
-- Required CI checks protect `main`.
-- Released artifacts are immutable, signed, and accompanied by SBOMs.
+- Mature trace/log/metric, service/topology, infrastructure, deployment, and change-event correlation.
+- Complete SLO and error-budget workflows, alert routing, suppression, escalation integrations, and
+  incident timelines.
+- Connect service ownership, impact context, runbooks, and reliability review views.
+- Provide versionable import/export for supported dashboards, alerts, SLOs, and related configuration.
 
-## Current work
+**Exit evidence:**
 
-The current implementation priority is **Milestone 7 — Release engineering**.
+- End-to-end scenarios prove detect-to-review journeys for latency, errors, saturation, no-data, and
+  deployment regressions.
+- Notification delivery, deduplication, retries, suppression, and failure visibility meet documented
+  expectations.
+- Configuration round trips deterministically and validates before application.
 
-Milestones 1–7 are complete. The codebase is released as `v0.1.0`. The next action is 
-post-release verification of published artifacts.
+**Non-goals:** Replacing dedicated paging products, autonomous remediation, advanced AI incident
+management, and parity with every third-party integration ecosystem.
 
-The detailed feature backlog remains useful for post-0.1 planning but does not override this roadmap.
+## 1.0 — Stable self-hosted contract
+
+**Outcome:** Adopters can run the supported self-hosted topology with a stable compatibility,
+security, performance, upgrade, and support contract.
+
+**Depends on:** Demonstrated evaluation, Kubernetes operations, governance, and reliability
+workflows from `0.2` through `0.5`.
+
+**Scope:**
+
+- Define and verify stable public APIs, configuration, Helm values, storage migrations, and upgrade
+  compatibility under semantic versioning.
+- Complete security review and tenant-isolation evidence for supported identity and deployment paths.
+- Publish tested performance/capacity envelopes, operational SLOs, recovery objectives, and runbooks.
+- Establish release support boundaries, vulnerability handling, migration policy, and artifact
+  provenance for the supported topology.
+
+**Exit evidence:**
+
+- Upgrade suites cover every supported predecessor and preserve documented data and configuration.
+- Security, tenant-escape, load, soak, chaos, backup/restore, and disaster-recovery gates pass against
+  release candidates with retained evidence.
+- Documentation and support policy enumerate supported versions, platforms, dependencies, and known
+  limitations without relying on pre-`1.0` instability exceptions.
+
+**Non-goals:** Feature parity with commercial suites, LTS branches unless separately adopted,
+multi-region active-active operation, or making every post-`1.0` theme part of the stable core.
+
+## Beyond 1.0 themes
+
+These are unordered candidates, not commitments or blockers for `1.0.0`:
+
+- Browser RUM, mobile observability, session replay, continuous profiling, and synthetics.
+- Advanced AI assistance, anomaly models, capacity forecasting, and approval-gated remediation.
+- Regional residency, compliance reporting, bring-your-own-key, billing, and marketplace packaging.
+- Multi-region operation, broader HA topologies, fleet management, and additional ecosystem adapters.
+
+Accepted but unimplemented ADRs describe architectural direction where one exists; they do not assign
+a release. Prioritization happens through reviewed issues and small vertical slices.

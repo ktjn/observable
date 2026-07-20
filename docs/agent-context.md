@@ -26,12 +26,10 @@ making changes.
 > "Finished Plan Archiving" note.
 
 - Repository process: `AGENTS.md` and `spec/10-process.md`.
-- Active roadmap: `ROADMAP.md` — release-readiness roadmap to 0.1.0. Priority order: security and
-  tenant-isolation blockers, then reproducible install/migration/backup/restore, protocol and data
-  correctness, operational reliability, core user journeys and documentation, and release
-  engineering. The former unified feature roadmap (which
-  consolidated the post-Phase-3 plan and the Phases P9-P14 feature-parity plan) has been retired
-  now that 0.1 release readiness is the sole priority; see `ROADMAP.md` for the current backlog.
+- Active roadmap: `ROADMAP.md` — the sole release-sequencing authority from the shipped `0.1.0`
+  evaluation baseline through a stable `1.0.0` self-hosted contract. The dependency order is
+  effortless Compose evaluation, operator-ready Kubernetes, governed team adoption, the complete
+  service-reliability workflow, and then the stable contract; post-1.0 themes are unordered.
 - **0.1 release cleanup**: `auth-service` no longer falls back to a hardcoded default
   session-signing secret outside dev mode. `resolve_session_secret()` (`services/auth-service/src/lib.rs`)
   fails closed with an explicit error when `SESSION_SECRET` is unset/empty and `OBSERVABLE_ENV` is
@@ -128,6 +126,7 @@ Every API call that is tenant-scoped must receive `tenantId` as its first parame
 from the `useTenantContext()` hook. **Never import `LOCAL_DEV_TENANT_ID` at an API call site.**
 
 Key files:
+
 - `apps/frontend/src/hooks/useTenantContext.tsx` — `TenantContextProvider` + `useTenantContext` hook.
   Default: self-ingestion/system tenant (`00000000-0000-0000-0000-000000000001`), environment `null` (= all).
 - `apps/frontend/src/api/tenants.ts` — `listTenants()` and `listEnvironments(tenantId)` (bootstrap, no auth header needed).
@@ -135,9 +134,13 @@ Key files:
   Routes are registered **outside** the `require_tenant` auth middleware (bootstrap endpoints), but are filtered by the authenticated user session if a `session` cookie or `Bearer` token is present.
 
 Pattern for new call sites:
+
 ```typescript
 const { tenantId } = useTenantContext();
-useQuery({ queryKey: ["my-key", tenantId], queryFn: () => myApiFn(tenantId, ...params) });
+useQuery({
+  queryKey: ["my-key", tenantId],
+  queryFn: () => myApiFn(tenantId, ...params),
+});
 ```
 
 `LOCAL_DEV_TENANT_ID` (exported from `api/setup.ts`) is still valid as the dev seed default value
@@ -229,7 +232,7 @@ backlog and per-domain design specs.
 - **Model sources:** `models/*.mdl`, validated/compiled with the pinned version in
   `models/pyproject.toml`. There is no local modelable install in this repo — regenerate using
   a checkout of `modelable` itself: `cd <modelable-checkout>/cli && .venv/Scripts/python.exe -m
-  modelable compile <observable-checkout>/models --target <rust|typescript> --out <scratch-dir>`,
+modelable compile <observable-checkout>/models --target <rust|typescript> --out <scratch-dir>`,
   then copy the relevant generated files into this repo and commit them (generated code is
   committed, not built in CI — see "Resolved Decisions" in the migration plan).
 - **Generated Rust artifacts:** `libs/domain/src/generated/<domain>/`, re-exported via a
@@ -254,7 +257,7 @@ backlog and per-domain design specs.
   for now-required maps, not `any`/`@ts-expect-error`.
 - **Verification:** `cargo fmt --all` + relevant `cargo test` crates for Rust changes;
   `npm run typecheck && npm test && npm run build` for frontend changes; `bash
-  scripts/local-ci.sh`; and a `modelable lineage <Type@version>` proof in the PR description
+scripts/local-ci.sh`; and a `modelable lineage <Type@version>` proof in the PR description
   showing no `type_loss` warnings.
 - **Completed domains:** tracing, logs, metrics, notifications, admin/members, slos,
   incidents, alerts, dashboards, nlq/visualization. `3.5b Schemas` is deferred — no frontend
@@ -335,22 +338,28 @@ backlog and per-domain design specs.
 ## Dev Environment Gotchas
 
 ### PostgreSQL major version upgrade requires volume reset
+
 Bumping the `postgres` image tag across a major version (e.g. 16→17) in `docker-compose.yml`
 makes the existing `observable_postgres_data` volume incompatible. The container will crash with:
+
 ```
 FATAL: database files are incompatible with server
 DETAIL: The data directory was initialized by PostgreSQL version N.
 ```
+
 Fix: run `make reset-volumes` (or `bash scripts/reset-dev-volumes.sh`) to drop the old volume,
 then `docker compose up --build`. All 28+ migrations in `migrations/postgres/` re-apply
 automatically via `postgres-setup`. No data is lost — this is a local dev environment.
 
 ### Redpanda version bump that skips logical versions also requires a volume reset
+
 Redpanda tracks an internal logical version and refuses to upgrade by more than a few steps
 at a time. A too-large version jump crashes with:
+
 ```
 Assert failure: 'false' Attempted to upgrade from incompatible logical version N to M!
 ```
+
 Fix: same as above — `make reset-volumes` drops `redpanda_data`. The `telemetry.raw` topic is
 re-created automatically by the `redpanda-setup` container on next startup.
 
@@ -359,6 +368,7 @@ The same pattern applies if ClickHouse changes on-disk formats across major vers
 `redpanda_data`. Use `--all` to also wipe ClickHouse and Zitadel bootstrap volumes.
 
 ### Browser auth routing uses the shared Gateway
+
 The live k8s cluster currently exposes the frontend through `observable/testbench-gateway`
 listener `observable` on port 80, with the frontend HTTPRoute attached at `/`. Zitadel now
 needs its own HTTPRoute on the same listener so `/oauth`, `/oidc`, `/.well-known`, and `/ui`

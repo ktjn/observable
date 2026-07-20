@@ -1,7 +1,7 @@
 # ADR-022: Collectable — Independent Compiled-Mediator Tool for Legacy Source Ingestion
 
 **Date:** 2026-04-19
-**Status:** Accepted
+**Status:** Superseded
 **Authors:** Engineering
 **Deciders:** Project Stakeholders
 **Review date:** 2026-10-19
@@ -40,7 +40,7 @@ Both tools can receive native formats and forward via OTLP in principle.
 **Option C — Server-side translation layer in the Observable ingest gateway**
 Adding native format receivers to the Observable ingest gateway couples two
 orthogonal concerns: for every new source format, Observable must implement a new
-transport *and* a new parser *and* test their interaction with the ingest pipeline.
+transport _and_ a new parser _and_ test their interaction with the ingest pipeline.
 Complexity compounds rather than accumulates. This also violates ADR-001 (OTLP as
 the external contract) and creates a surface that is difficult to keep consistent
 across Observable releases.
@@ -59,6 +59,7 @@ involved in mediator compilation, distribution, or operation.
 Build **Collectable** as an independent compiled-mediator tool (Option C variant).
 
 Collectable consists of:
+
 1. A **parser development UI** — web-based, interactive, with live preview against
    sample data and guided OTLP field mapping.
 2. A **build service** — receives a pipeline definition, generates Rust source from
@@ -70,11 +71,17 @@ The tool runs via `docker compose up`. No Observable account or connection is
 required to build mediators. The OTLP output endpoint is configuration, not
 hardwired to Observable.
 
+This decision is superseded. Collectable has been removed from Observable's product scope and is
+not an Observable component, dependency, integration path, or roadmap commitment. The remainder of
+this ADR is retained only as historical decision context; ADR-001 continues to define Observable's
+active ingestion contract.
+
 ---
 
 ## Consequences
 
 **Positive:**
+
 - Observable's ingest gateway surface stays minimal and uniform (OTLP only).
   ADR-001 is reinforced, not compromised.
 - The compiled binary is small (Rust + musl static = ~5–15 MB), matching
@@ -89,6 +96,7 @@ hardwired to Observable.
   format does not touch Observable services.
 
 **Negative / risks:**
+
 - Collectable is a significant new build surface: a React UI, a Rust build service,
   a mediator library, and a cross-compilation pipeline.
 - The build service must handle cross-compilation securely — user-defined patterns
@@ -99,6 +107,7 @@ hardwired to Observable.
 - Observable must maintain the mediator template library as Rust crates evolve.
 
 **Neutral:**
+
 - Collectable does not replace the OTel Collector distribution (Tier 2 gap,
   spec/06-agents.md §10.1). The Collector remains the recommended path for
   sources that already have an OTel SDK or Collector-compatible receiver.
@@ -126,15 +135,18 @@ hardwired to Observable.
 ## Alternatives Considered
 
 ### Add native format receivers to the Observable ingest gateway
+
 Rejected. Compounds transport + parser complexity in the ingest hot path, violates
 ADR-001, and makes the ingest gateway surface hard to maintain.
 
 ### Ship an Observable OTel Collector distribution only
+
 Partially useful. Addresses sources that are reachable by a Collector agent, but
 the footprint is prohibitive for dense environments and the OTLP mapping problem
 remains unsolved for users without deep Collector expertise.
 
 ### Fork Fluent Bit and extend with better OTLP mapping
+
 Rejected. Maintaining a C codebase fork is high ongoing cost. The OTLP mapping
 problem is better solved by a different approach (guided UI + compiled output)
 rather than patching Fluent Bit's config model.
@@ -145,5 +157,3 @@ rather than patching Fluent Bit's config model.
 
 - [ADR-001](ADR-001-otel-external-contract.md) — OTel as the external contract
 - [ADR-004](ADR-004-rust-data-plane.md) — Rust for data plane components
-- [spec/16-collectable.md](../16-collectable.md) — Full Collectable specification
-- [spec/06-agents.md §10.1](../06-agents.md) — Agent and collector components

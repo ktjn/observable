@@ -29,6 +29,7 @@ Maintain ADRs from day 1.
 ### 16.1 Repo Strategy
 
 Monorepo preferred when:
+
 - shared protobuf/schema packages
 - shared UI packages
 - shared infra modules
@@ -80,12 +81,14 @@ Polyrepo acceptable if org scale requires it.
 CI must make every change reproducible, reviewable, and releasable before merge. The default target is a monorepo with Rust services, TypeScript frontend packages, protobuf/OpenAPI contracts, containerized services, and Kubernetes deployment artifacts.
 
 **Pipeline triggers**
+
 - Pull request to `main`: run validation, build, unit, contract, integration smoke, security, and documentation checks.
 - Merge to `main`: repeat required checks, publish versioned build artifacts, and update the integration environment through GitOps.
 - Release tag: build immutable release artifacts, sign them, generate SBOM/provenance, and promote through staging to production.
 - Nightly: run extended integration, E2E, performance, high-cardinality, chaos, dependency, and vulnerability scans.
 
 **Required PR checks**
+
 1. repository hygiene: formatting, linting, dependency policy, secret scan, and generated-code drift
 2. contract checks: protobuf/OpenAPI linting, breaking-change detection, and SDK/client generation
 3. backend checks: Rust format, clippy, unit tests, service-level contract tests, and applicable Testcontainers integration tests for real dependency boundaries
@@ -95,6 +98,7 @@ CI must make every change reproducible, reviewable, and releasable before merge.
 7. documentation checks: ADR/spec synchronization review, Markdown link checks, and diagram syntax checks where supported
 
 **Build outputs**
+
 - Rust service binaries compiled in release mode
 - frontend static assets
 - protobuf/OpenAPI generated clients and schema artifacts
@@ -104,6 +108,7 @@ CI must make every change reproducible, reviewable, and releasable before merge.
 - SBOMs, provenance attestations, image signatures, and checksums
 
 **Artifact rules**
+
 - Every artifact must be traceable to a git commit, CI run, source branch, and dependency lockfile.
 - Container images must use immutable tags based on commit SHA and release version; mutable tags are aliases only.
 - Generated code must be committed only when required by the repo layout and must be checked for drift in CI.
@@ -111,6 +116,7 @@ CI must make every change reproducible, reviewable, and releasable before merge.
 - Secrets must never be baked into artifacts, images, generated config, or test fixtures.
 
 **Promotion gates**
+
 1. PR validation passes and human review approves.
 2. Merge to `main` publishes artifacts and deploys to shared integration.
 3. Integration smoke and contract suites pass.
@@ -121,6 +127,7 @@ CI must make every change reproducible, reviewable, and releasable before merge.
 8. Production rollout proceeds progressively and rolls back automatically on SLO regression.
 
 **Failure handling**
+
 - Required PR checks block merge.
 - Failed artifact signing, SBOM generation, provenance generation, or secret scanning blocks release.
 - Failed integration or staging deployment blocks promotion, not unrelated PR validation.
@@ -149,10 +156,10 @@ When utilizing AI agents for development, the following mandates apply:
   2. Run `python3 scripts/nlq-eval.py` against a running cluster and record the pass/fail summary
      in the PR description.
   3. Show that the changed behavior now passes and that no previously-passing case has regressed.
-  The eval harness is a protected regression gate equivalent to `local-ci.sh`. Do not weaken,
-  skip, or remove assertions without a replacement signal and explicit reviewer approval.
-  See [spec/08-ai-ml.md §13.4](08-ai-ml.md) for the full operation reference and
-  feedback loop.
+     The eval harness is a protected regression gate equivalent to `local-ci.sh`. Do not weaken,
+     skip, or remove assertions without a replacement signal and explicit reviewer approval.
+     See [spec/08-ai-ml.md §13.4](08-ai-ml.md) for the full operation reference and
+     feedback loop.
 
 **MANDATORY: Before Pushing ANY Code**
 
@@ -186,12 +193,14 @@ Agents must treat `scripts/local-ci.sh`, `tests/e2e/smoke_test.sh`, `scripts/per
 Agents must move from specification to final product through small, reviewable vertical slices. An iteration should be small enough that a reviewer can understand the intent, diff, tests, and remaining risk in one sitting.
 
 **Iteration size limits**
+
 - Prefer one behavior, one API endpoint, one schema change, one UI state, one deployment check, or one documentation correction per iteration.
 - Keep pull requests below roughly 300 changed lines unless generated files or mechanical migrations make that impossible.
 - Avoid mixing concerns. Do not combine unrelated backend, frontend, infrastructure, and documentation work unless the slice cannot function without all of them.
 - Do not start the next slice until the current branch has a PR with verification notes and a clear merge or follow-up path.
 
 **Spec-to-slice loop**
+
 1. **Select source spec:** identify the exact spec, ADR, phase item, and acceptance target driving the work.
 2. **Define the smallest user-visible or operator-visible outcome:** state what will work after this slice that did not work before.
 3. **Write the slice contract:** list inputs, outputs, touched boundaries, test evidence, telemetry impact, rollback path, and any ADR/spec sync requirement.
@@ -223,6 +232,7 @@ Next smallest slice:
 ```
 
 **Preferred product-building sequence**
+
 1. Start with a failing or pending contract test that names the expected behavior.
 2. Add the minimum domain/API shape needed to satisfy the contract.
 3. Add the smallest persistence or integration path needed for the behavior.
@@ -231,6 +241,7 @@ Next smallest slice:
 6. Harden with follow-up slices: edge cases, performance, resilience, security, and UX polish.
 
 **Agent PR requirements**
+
 - PR titles must describe the tiny outcome, not the broad phase.
 - PR bodies must include the slice contract or a concise equivalent.
 - PRs must state whether ADRs and specs are in sync. If no ADR update is required, explain why.
@@ -249,6 +260,7 @@ Any agent PR that touches files under `spec/` or `docs/` must run the `doc-revie
 A **WARN** indicates a finding that is noted but does not block the PR (e.g., a cross-reference that is stale but not incorrect, or a missing bidirectional link to an external resource outside the repo). A **FAIL** indicates a finding that makes the change incorrect or incomplete and blocks the PR.
 
 #### Phase 1: Structural Validation
+
 - Valid Markdown: no unclosed fences, broken headings
 - No bare `TODO` or `TBD` placeholders remaining in the document
 - ADR files must contain: Status, Context, Decision, Consequences sections
@@ -256,17 +268,21 @@ A **WARN** indicates a finding that is noted but does not block the PR (e.g., a 
 - Diagrams (Mermaid or similar) must have valid syntax
 
 #### Phase 2: Cross-Reference Consistency
+
 For every ADR or spec referenced in a changed file:
+
 - The linked file exists at the stated path
 - The reference is bidirectional (if spec A links to ADR-007, ADR-007 must be consistent with spec A)
 - The description of the linked decision matches what the linked file actually says
 
 #### Phase 3: Coverage Completeness
+
 - If a spec change touches architecture, technology choices, deployment model, data model, security model, or roadmap scope → an ADR must also be touched, or the PR must explicitly state why no ADR change is needed
 - If an ADR is touched → all specs that reference that ADR must be checked for staleness
 - `spec/README.md` table must accurately reflect any added, renamed, or removed spec files
 
 #### Phase 4: Quality Gates
+
 - No contradictions between changed files and the rest of the corpus
 - No sections removed without a replacement or an explicit note explaining the removal
 - Changed files maintain accurate cross-links to related specs
@@ -295,6 +311,7 @@ Blockers requiring fix before PR: N
 ```
 
 **Failure handling:**
+
 - `FAIL` in any phase: agent fixes the issue and re-runs from Phase 1. Cannot open a PR until all phases pass.
 - `WARN`: agent lists all warnings in the PR body under "Acknowledged doc/spec review warnings."
 - `PASS` (all phases): agent notes "Doc/spec review: all phases passed" in the PR body.
@@ -305,14 +322,14 @@ Blockers requiring fix before PR: N
 
 #### Pinning rules
 
-| Ecosystem | Version specifier | Lockfile | Notes |
-|---|---|---|---|
-| Rust crates | `^major.minor` in `Cargo.toml` | `Cargo.lock` committed | Lockfile is the exact pin; use `cargo` commands for dependency updates |
-| npm packages | `^major` in `package.json` | `package-lock.json` committed | Lockfile is the exact pin; use npm only, never yarn/pnpm/bun |
-| Python packages | `pyproject.toml` | `uv.lock` committed | Use uv; if not yet uv-managed, plan the uv migration before changing Python dependencies |
-| Docker Compose (local/dev) | `image:major.minor` minimum | n/a | Keep versions aligned with matching Testcontainers fixtures |
-| Production Dockerfiles / base images | `image:major.minor.patch` | SHA digest strongly preferred | |
-| GitHub Actions | `action@vN` (latest major tag) | n/a | |
+| Ecosystem                            | Version specifier              | Lockfile                      | Notes                                                                                    |
+| ------------------------------------ | ------------------------------ | ----------------------------- | ---------------------------------------------------------------------------------------- |
+| Rust crates                          | `^major.minor` in `Cargo.toml` | `Cargo.lock` committed        | Lockfile is the exact pin; use `cargo` commands for dependency updates                   |
+| npm packages                         | `^major` in `package.json`     | `package-lock.json` committed | Lockfile is the exact pin; use npm only, never yarn/pnpm/bun                             |
+| Python packages                      | `pyproject.toml`               | `uv.lock` committed           | Use uv; if not yet uv-managed, plan the uv migration before changing Python dependencies |
+| Docker Compose (local/dev)           | `image:major.minor` minimum    | n/a                           | Keep versions aligned with matching Testcontainers fixtures                              |
+| Production Dockerfiles / base images | `image:major.minor.patch`      | SHA digest strongly preferred |                                                                                          |
+| GitHub Actions                       | `action@vN` (latest major tag) | n/a                           |                                                                                          |
 
 Lockfiles are always committed. Range specifiers without committed lockfiles are not permitted.
 
@@ -340,162 +357,57 @@ For CI-level dependency audit, SBOM generation, and license policy enforcement, 
 - The PR author is responsible for verifying the update does not break `bash scripts/local-ci.sh` before pushing. No exceptions.
 - Routine dependency PRs must state: what changed, whether local-ci passed, and whether any lockfile drift was introduced.
 
-## 17. Project Plan: Small Steps to Production
+## 17. Roadmap Delivery: Small Vertical Slices
 
 ### 17.1 Planning Rules
 
-The roadmap is staged to prove the risky foundations before broadening the product surface.
+[`ROADMAP.md`](../ROADMAP.md) is the sole authority for release order, outcomes, exit evidence, and
+non-goals. This section defines how roadmap outcomes are decomposed and delivered; it does not
+maintain a parallel phase sequence.
 
-1. Every phase has an explicit exit gate.
+1. Every release slice has explicit exit evidence.
 2. Tenant isolation, ingest durability, cardinality controls, and internal telemetry are not optional hardening items; they are part of the first runnable platform.
-3. MVP means internally dogfoodable. v1 means externally supportable for selected production customers.
-4. Do not start advanced telemetry, incident workflows, or AI features until the ingest, query, retention, and authorization foundations are measured under load.
-5. Any new phase work must identify contract, data-retention, auth, test, rollback, and telemetry impacts before implementation starts.
-6. Every numbered phase item must be decomposed into tiny agent iterations before implementation. A phase item is not ready for execution until its first slice has a source spec, acceptance target, verification plan, and rollback note.
+3. The shipped `0.1.0` baseline is evaluation-only; `1.0.0` means externally supportable within the
+   boundaries defined by the roadmap and versioning policy.
+4. Do not promote post-1.0 themes ahead of unmet operational, governance, reliability, or stable-contract evidence unless the roadmap is explicitly revised.
+5. Any roadmap work must identify contract, data-retention, auth, test, rollback, and telemetry impacts before implementation starts.
+6. Every roadmap capability must be decomposed into tiny agent iterations before implementation. A capability is not ready for execution until its first slice has a source spec, acceptance target, verification plan, and rollback note.
 7. Agents should prefer vertical walking skeletons over horizontal platform layers: prove ingest-to-query before broadening signal coverage; prove one tenant-safe path before adding more roles or environments.
 
 ### 17.2 Agent Backlog Decomposition
 
 Each phase item should be split into three levels:
 
-| Level | Purpose | Example |
-|---|---|---|
-| Phase item | Product capability or risk reduction target | Build OTLP HTTP/gRPC ingest for traces and logs |
-| Slice | One reviewable behavior with tests | Accept one valid OTLP trace payload and return a durable acknowledgement |
-| Task | Local implementation step inside the slice | Add route, parser test, tenant lookup stub, and ingest metric |
+| Level              | Purpose                                    | Example                                                                  |
+| ------------------ | ------------------------------------------ | ------------------------------------------------------------------------ |
+| Roadmap capability | Product outcome or risk reduction target   | Verify published Compose artifacts on a clean host                       |
+| Slice              | One reviewable behavior with tests         | Accept one valid OTLP trace payload and return a durable acknowledgement |
+| Task               | Local implementation step inside the slice | Add route, parser test, tenant lookup stub, and ingest metric            |
 
-Agents must not turn phase items directly into large implementation PRs. The first slice for any capability should establish the contract and a runnable path; later slices can expand coverage, performance, and edge cases.
+Agents must not turn roadmap capabilities directly into large implementation PRs. The first slice for any capability should establish the contract and a runnable path; later slices can expand coverage, performance, and edge cases.
 
-**Tiny slice examples for Phase 1**
+**Tiny slice examples**
 
-| Phase item | First tiny slice | Follow-up slices |
-|---|---|---|
-| Monorepo and CI scaffold | Create workspace skeleton with one Rust service crate, one frontend package placeholder, and required format/lint tasks | Add protobuf lint; add container build; add docs link checks |
-| OTLP ingest | Accept a minimal trace request through one protocol with tenant-scoped validation and a contract test | Add logs; add gRPC; add malformed payload corpus; add backpressure behavior |
-| Tenant authentication | Validate one API key against an in-memory/test fixture store | Add hashed key storage; add workload identity; add audit logs; add rotation |
-| Durable buffering | Write one normalized envelope to the queue with idempotency key and retry test | Add partition strategy; add dead-letter handling; add queue lag telemetry |
-| ClickHouse writes | Persist one span table shape behind a repository interface and migration | Add logs table; add batch writer; add dedupe; add retention policy |
-| Query APIs | Return one trace by `tenant_id + trace_id` from a repository contract | Add log search; add metric query; add pagination; add auth scopes |
-| React UI | Render trace search form against a mocked API contract | Connect live API; add loading/error states; add deep link; add smoke test |
+| Roadmap capability       | First tiny slice                                                                                                        | Follow-up slices                                                            |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Monorepo and CI scaffold | Create workspace skeleton with one Rust service crate, one frontend package placeholder, and required format/lint tasks | Add protobuf lint; add container build; add docs link checks                |
+| OTLP ingest              | Accept a minimal trace request through one protocol with tenant-scoped validation and a contract test                   | Add logs; add gRPC; add malformed payload corpus; add backpressure behavior |
+| Tenant authentication    | Validate one API key against an in-memory/test fixture store                                                            | Add hashed key storage; add workload identity; add audit logs; add rotation |
+| Durable buffering        | Write one normalized envelope to the queue with idempotency key and retry test                                          | Add partition strategy; add dead-letter handling; add queue lag telemetry   |
+| ClickHouse writes        | Persist one span table shape behind a repository interface and migration                                                | Add logs table; add batch writer; add dedupe; add retention policy          |
+| Query APIs               | Return one trace by `tenant_id + trace_id` from a repository contract                                                   | Add log search; add metric query; add pagination; add auth scopes           |
+| React UI                 | Render trace search form against a mocked API contract                                                                  | Connect live API; add loading/error states; add deep link; add smoke test   |
 
 **Definition of a complete tiny slice**
+
 - The slice maps to a spec or ADR.
 - The changed behavior can be demonstrated by a test, local command, screenshot, API example, or rendered artifact.
 - The PR can be reverted without leaving partially adopted architecture behind.
 - Follow-up work is explicit and smaller than the parent phase item.
 
-### Phase 0 — Foundations
+### 17.3 Release Sequencing
 
-1. Finalize product scope, target users, and success metrics.
-2. Write system context and container diagrams.
-3. Define the canonical telemetry domain model and OTel attribute mapping.
-4. Define shared multi-tenant, isolated-storage, and single-tenant deployment models.
-5. Create ADR template and ratify the required ADR set.
-6. Define repo layout, release conventions, CI gates, and codegen strategy.
-7. Define security baseline: OIDC, workload identity, secret handling, SBOM, artifact signing, and audit requirements.
-8. Define local, CI ephemeral, integration, perf/staging, production, and regulated/single-tenant environments.
-9. Define platform SLOs and first non-functional acceptance targets.
-10. Create the initial staffing and ownership map.
-
-**Exit gate:** all foundational specs exist, the initial ADR set is Accepted, acceptance targets are documented, and the implementation backlog can be traced back to specs.
-
-### Phase 1 — Internal MVP: Ingest to Query
-
-1. Scaffold the monorepo, CI, protobuf/OpenAPI linting, migrations, and service templates.
-2. Build OTLP HTTP/gRPC ingest for traces and logs first.
-3. Add tenant authentication with API keys and workload identity.
-4. Add durable buffering before expensive transforms.
-5. Implement validation, normalization, tenant routing, and idempotent write design.
-6. Store traces and logs in ClickHouse using the canonical domain model.
-7. Add basic metrics ingestion and storage using ClickHouse (DONE).
-8. Expose initial trace, log, metric, and configuration query APIs (DONE).
-9. Ship a simple React UI for trace search, log search, metric exploration, and one dashboard view.
-10. Emit platform telemetry from every service and publish internal health dashboards.
-11. Run internal dogfooding with synthetic and real service telemetry.
-
-**Exit gate:** a tenant can ingest telemetry, query it through API and UI, and survive a single queue or storage node failure without committed buffered data loss.
-
-### Phase 2 — Governed MVP: Isolation, Cost, and Release Safety
-
-1. Enforce tenant isolation in API, query, storage, and policy tests.
-2. Add tenant-aware rate limits, ingest quotas, and basic cardinality budgets.
-3. Add PII masking/redaction hooks in the ingest pipeline.
-4. Add hot retention policies and deletion workflows for traces, logs, and metrics.
-5. Add audit logging for ingest credentials, queries, config changes, and admin actions.
-6. Add RBAC for tenant admin, project admin, member, and viewer roles.
-7. Add basic alert definitions and threshold evaluation.
-8. Add Kubernetes deployment manifests, GitOps delivery, canary rollout, and rollback gates.
-9. Add perf smoke tests for ingest throughput, common query latency, and dashboard load.
-
-**Exit gate:** internal tenants can run the platform continuously with measured cost controls, enforced RBAC, audit trails, and progressive deployment rollback.
-
-### Phase 3 — Correlation and Service Operations
-
-1. Implement trace-log correlation.
-2. Build the service catalog from OTel resource attributes and deployment metadata.
-3. Add service maps and topology rollups.
-4. Add deployment/change events.
-5. Generate RED metrics from spans.
-6. Add Kubernetes metadata enrichment.
-7. Improve search, filtering, and deep links across signals.
-8. Add dashboard-as-code and alert-as-code import/export.
-
-**Exit gate:** users can move from service to trace, log, metric, deployment, and dashboard context without manual ID copying.
-
-### Phase 4 — v1 Production Readiness
-
-1. Add warm retention tiers, compaction, and restore procedures.
-2. Add backup/restore drills and RPO/RTO documentation per retention tier.
-3. Add SSO/OIDC integration and SCIM if required by target v1 customers.
-4. Add OpenFGA-style ReBAC for dashboards, projects, environments, incidents, and data scopes.
-5. Add SLO definitions, burn-rate calculations, and burn-rate alerts.
-6. Add production incident runbooks for ingest, query, storage, auth, and deployment failures.
-7. Add cost reporting, cardinality diagnostics, and tenant usage reports.
-8. Run load, chaos, tenant-escape, and upgrade/rollback test suites.
-9. Complete security review for auth, tenancy, query, and ingestion boundaries.
-
-**Exit gate:** selected production customers can use v1 with documented support boundaries, measured SLOs, rollback paths, and customer-facing runbooks.
-
-### Phase 5 — Reliability Product
-
-1. Add incident timelines.
-2. Add notification routing and on-call integrations.
-3. Add runbook workflows.
-4. Add topology-aware impact analysis.
-5. Add composite alerts and alert suppression.
-6. Add reliability reporting by service, team, environment, and tenant.
-
-**Exit gate:** the platform supports the full detect, triage, notify, and review loop for service reliability.
-
-### Phase 6 — Advanced Telemetry
-
-1. Add continuous profiling with separate storage and symbol handling.
-2. Add browser RUM.
-3. Add mobile observability.
-4. Add synthetics.
-5. Add eBPF-assisted enrichment where operationally justified.
-6. Add session replay only after privacy, storage, and cost controls are proven.
-
-**Exit gate:** each advanced signal is modular, governed by retention and privacy policy, and correlated through the shared identity model.
-
-### Phase 7 — Enterprise Readiness
-
-1. Add regional residency controls.
-2. Add BYOK.
-3. Add tenant-isolated deployment packaging.
-4. Add compliance reporting.
-5. Add billing/metering integration.
-6. Add marketplace/private deployment packaging.
-7. Define multi-region active-active only after single-region/multi-AZ operations are stable.
-
-**Exit gate:** enterprise deployment variants are supportable without forking the product architecture.
-
-### Phase 8 — Intelligence
-
-1. Add anomaly models after historical retention and labeling are reliable.
-2. Add query recommendations.
-3. Add incident summarization.
-4. Add capacity forecasting.
-5. Add remediation hooks with explicit approval controls.
-
-**Exit gate:** AI features are explainable, auditable, reversible, and never required for core platform correctness.
+Release sequencing is intentionally not duplicated here. Use [`ROADMAP.md`](../ROADMAP.md) for the
+current path from the shipped evaluation baseline through `1.0.0` and for unordered post-1.0 themes.
+Detailed issue backlogs may evolve without changing this process specification, but changing release
+outcomes, dependencies, or support boundaries requires updating the roadmap in the same iteration.
