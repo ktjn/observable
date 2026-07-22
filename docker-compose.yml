@@ -376,7 +376,7 @@ services:
 
   # --- VERIFICATION ---
   otel-collector-verification:
-    image: otel/opentelemetry-collector-contrib:0.156.0
+    image: otel/opentelemetry-collector-contrib:0.157.0
     profiles: ["verification"]
     volumes:
       - ./tests/e2e/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
