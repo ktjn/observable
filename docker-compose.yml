@@ -6,7 +6,7 @@ x-platform-self-observability-env: &platform-self-observability-env
 services:
   # --- INFRASTRUCTURE ---
   clickhouse:
-    image: clickhouse/clickhouse-server:26.6
+    image: clickhouse/clickhouse-server:26.7
     ports: ["8123:8123", "9000:9000"]
     environment:
       CLICKHOUSE_DB: observable
@@ -117,7 +117,7 @@ services:
 
   # --- SETUP & MIGRATIONS ---
   clickhouse-setup:
-    image: clickhouse/clickhouse-server:26.6
+    image: clickhouse/clickhouse-server:26.7
     entrypoint:
       - /bin/bash
       - -c
