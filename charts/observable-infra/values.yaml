@@ -50,7 +50,7 @@ redpanda:
   enabled: true
   image:
     repository: redpandadata/redpanda
-    tag: v26.1.13
+    tag: v26.1.14
   # Redpanda process memory (passed to --memory). Must be less than resources.limits.memory.
   processMemory: 400M
   resources:
