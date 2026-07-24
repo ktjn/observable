@@ -15,7 +15,7 @@ x-otel-env: &otel-env
 
 services:
   accounting:
-    image: ghcr.io/open-telemetry/demo:2.2.0-accounting
+    image: ghcr.io/open-telemetry/demo:3.0.0-accounting
     deploy:
       resources:
         limits:
@@ -36,7 +36,7 @@ services:
     logging: *logging
 
   ad:
-    image: ghcr.io/open-telemetry/demo:2.2.0-ad
+    image: ghcr.io/open-telemetry/demo:3.0.0-ad
     deploy:
       resources:
         limits:
@@ -61,7 +61,7 @@ services:
     logging: *logging
 
   cart:
-    image: ghcr.io/open-telemetry/demo:2.2.0-cart
+    image: ghcr.io/open-telemetry/demo:3.0.0-cart
     deploy:
       resources:
         limits:
@@ -87,7 +87,7 @@ services:
     logging: *logging
 
   checkout:
-    image: ghcr.io/open-telemetry/demo:2.2.0-checkout
+    image: ghcr.io/open-telemetry/demo:3.0.0-checkout
     deploy:
       resources:
         limits:
@@ -131,7 +131,7 @@ services:
     logging: *logging
 
   currency:
-    image: ghcr.io/open-telemetry/demo:2.2.0-currency
+    image: ghcr.io/open-telemetry/demo:3.0.0-currency
     deploy:
       resources:
         limits:
@@ -151,7 +151,7 @@ services:
     logging: *logging
 
   email:
-    image: ghcr.io/open-telemetry/demo:2.2.0-email
+    image: ghcr.io/open-telemetry/demo:3.0.0-email
     deploy:
       resources:
         limits:
@@ -174,7 +174,7 @@ services:
     logging: *logging
 
   fraud-detection:
-    image: ghcr.io/open-telemetry/demo:2.2.0-fraud-detection
+    image: ghcr.io/open-telemetry/demo:3.0.0-fraud-detection
     deploy:
       resources:
         limits:
@@ -198,7 +198,7 @@ services:
     logging: *logging
 
   otel-demo-frontend:
-    image: ghcr.io/open-telemetry/demo:2.2.0-frontend
+    image: ghcr.io/open-telemetry/demo:3.0.0-frontend
     deploy:
       resources:
         limits:
@@ -249,7 +249,7 @@ services:
     logging: *logging
 
   frontend-proxy:
-    image: ghcr.io/open-telemetry/demo:2.2.0-frontend-proxy
+    image: ghcr.io/open-telemetry/demo:3.0.0-frontend-proxy
     deploy:
       resources:
         limits:
@@ -292,7 +292,7 @@ services:
     logging: *logging
 
   image-provider:
-    image: ghcr.io/open-telemetry/demo:2.2.0-image-provider
+    image: ghcr.io/open-telemetry/demo:3.0.0-image-provider
     deploy:
       resources:
         limits:
@@ -312,7 +312,7 @@ services:
     logging: *logging
 
   load-generator:
-    image: ghcr.io/open-telemetry/demo:2.2.0-load-generator
+    image: ghcr.io/open-telemetry/demo:3.0.0-load-generator
     deploy:
       resources:
         limits:
@@ -342,7 +342,7 @@ services:
     logging: *logging
 
   payment:
-    image: ghcr.io/open-telemetry/demo:2.2.0-payment
+    image: ghcr.io/open-telemetry/demo:3.0.0-payment
     deploy:
       resources:
         limits:
@@ -365,7 +365,7 @@ services:
     logging: *logging
 
   product-catalog:
-    image: ghcr.io/open-telemetry/demo:2.2.0-product-catalog
+    image: ghcr.io/open-telemetry/demo:3.0.0-product-catalog
     deploy:
       resources:
         limits:
@@ -428,7 +428,7 @@ services:
     logging: *logging
 
   quote:
-    image: ghcr.io/open-telemetry/demo:2.2.0-quote
+    image: ghcr.io/open-telemetry/demo:3.0.0-quote
     deploy:
       resources:
         limits:
@@ -451,7 +451,7 @@ services:
     logging: *logging
 
   recommendation:
-    image: ghcr.io/open-telemetry/demo:2.2.0-recommendation
+    image: ghcr.io/open-telemetry/demo:3.0.0-recommendation
     deploy:
       resources:
         limits:
@@ -478,7 +478,7 @@ services:
     logging: *logging
 
   shipping:
-    image: ghcr.io/open-telemetry/demo:2.2.0-shipping
+    image: ghcr.io/open-telemetry/demo:3.0.0-shipping
     deploy:
       resources:
         limits:
@@ -522,7 +522,7 @@ services:
     logging: *logging
 
   flagd-ui:
-    image: ghcr.io/open-telemetry/demo:2.2.0-flagd-ui
+    image: ghcr.io/open-telemetry/demo:3.0.0-flagd-ui
     deploy:
       resources:
         limits:
@@ -548,7 +548,7 @@ services:
     logging: *logging
 
   kafka:
-    image: ghcr.io/open-telemetry/demo:2.2.0-kafka
+    image: ghcr.io/open-telemetry/demo:3.0.0-kafka
     deploy:
       resources:
         limits:
