@@ -22,7 +22,7 @@ prometheus         = { version = "0.14.0", features = ["process"] }
 
 [dev-dependencies]
 domain                  = { path = "../../libs/domain", features = ["storage"] }
-testcontainers         = "0.27.3"
+testcontainers         = "0.27.0"
 testcontainers-modules = { version = "0.15.0", features = ["clickhouse", "postgres"] }
 axum               = { workspace = true }
 tower              = { version = "0.5", features = ["util"] }
