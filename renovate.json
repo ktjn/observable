@@ -130,8 +130,7 @@
       "description": "Group non-major dependencies into a single PR",
       "groupName": "all-dependencies",
       "groupSlug": "all-dependencies",
-      "matchPackageNames": ["/.*/"],
-      "excludePackageNames": ["testcontainers", "testcontainers-modules", "vite", "@vitejs/plugin-react"],
+      "matchPackageNames": ["/.*/", "!testcontainers", "!testcontainers-modules", "!vite", "!@vitejs/plugin-react"],
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"]
     },
     {
