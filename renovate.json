@@ -6,7 +6,7 @@
     "helpers:pinGitHubActionDigests"
   ],
   "labels": ["dependencies"],
-  "dependencyDashboard": true,
+  "dependencyDashboard": false,
   "prConcurrentLimit": 1,
   "prHourlyLimit": 1,
   "branchPrefix": "renovate/",
