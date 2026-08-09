@@ -126,7 +126,7 @@ wheels = [
 
 [[package]]
 name = "modelable"
-version = "1.3.0"
+version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -141,9 +141,9 @@ dependencies = [
     { name = "searchable-client" },
     { name = "searchable-indexer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/52/47/ec10f62b333b2d34a41e0048923a5d2f59612dc8c6c36603130bebd87b63/modelable-1.3.0.tar.gz", hash = "sha256:2c39564c4d54cd3f5817fe7ff9c0623d8ebc322beb7d67af40d09cc4672484dc", size = 4067059, upload-time = "2026-08-02T12:42:41.438Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b7/56/40a8eef1d07258f801ed8046c6c1d9717f8fe26e001d0141047b5c675359/modelable-1.4.0.tar.gz", hash = "sha256:b11330325f06bc0fedfcf5bc0a33dd52ab0e212633f1139f67d12453143441ee", size = 2672597, upload-time = "2026-08-08T16:01:54.585Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f8/af/183ce0cbbbdd1b17e276687fe7b153d8dfedbb7098f4a4c99697a23b2e66/modelable-1.3.0-py3-none-any.whl", hash = "sha256:c1a187be70692edba172d0df9ace48371c026e23b48127700d20e6fbbfbba920", size = 4344308, upload-time = "2026-08-02T12:42:39.671Z" },
+    { url = "https://files.pythonhosted.org/packages/71/27/ccc5ccd9474b5f93fe2a89bbf9ed8a4b533bcde44721a2f33f46e81bdbcc/modelable-1.4.0-py3-none-any.whl", hash = "sha256:8dd170678e874fb31df4dfaf5b4a4a7c7a961aeea173657dbb8e6d6256a6e748", size = 2701415, upload-time = "2026-08-08T16:01:52.75Z" },
 ]
 
 [[package]]
@@ -155,7 +155,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "modelable", specifier = "==1.3.0" }]
+requires-dist = [{ name = "modelable", specifier = "==1.4.0" }]
 
 [[package]]
 name = "psycopg"
@@ -399,28 +399,39 @@ wheels = [
 ]
 
 [[package]]
+name = "searchable-binary"
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/60/9f/03c57a9ab5d1623f6164a4b8fad7d7c827533c5dfa24a1340fb127fcdf9c/searchable_binary-0.1.1.tar.gz", hash = "sha256:3d51fa189cc3f00e2d2a60c86f628799f8df88b8fba4b154e6d94955d250b853", size = 6546, upload-time = "2026-08-08T16:49:12.056Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c3/6e/5c864eb829efbc7284dd9d5a65a7d5c5c9ce2d95c8a6993642cbbe315f6b/searchable_binary-0.1.1-py3-none-any.whl", hash = "sha256:c56108a1aa3f89bba0b69d4aa3e84a942d271799ca1b82e464c4f1841fcfdaee", size = 7825, upload-time = "2026-08-08T16:49:08.379Z" },
+]
+
+[[package]]
 name = "searchable-client"
-version = "0.3.0"
+version = "0.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "searchable-analysis" },
+    { name = "searchable-binary" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/74/98/2febf9c7ff16da43b7701a99f8544ac9a58d662a8e4e6d6c2d55eeee79f8/searchable_client-0.3.0.tar.gz", hash = "sha256:784c3bf6afb935df012241574641aae8edc2604875adc8a597acdce05eb2c8b6", size = 44110, upload-time = "2026-08-01T05:21:21.067Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/40/05/c2bef94fc52f7136333a9a61299080c54b654d6d6fa9972a3b7d95d6f621/searchable_client-0.4.2.tar.gz", hash = "sha256:a6b1244222e14e5c17d5b5b74b71d40a317e6b84b8389e13c04edc4c7315997b", size = 45616, upload-time = "2026-08-08T16:49:12.726Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/65/a3/d42d93221f71cd09d2715d9ddd031f0df91910c8ae8fc8367ba84f69426a/searchable_client-0.3.0-py3-none-any.whl", hash = "sha256:d2d1ba4c59587075c1ae523f63186b6cfa7f2d8cb1d6f0286a36c1df4651288c", size = 24419, upload-time = "2026-08-01T05:21:18.466Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/f8/1b32259a3e34b6439ecb4ca5e6faf41fee32233dd55cf272a05555fcd237/searchable_client-0.4.2-py3-none-any.whl", hash = "sha256:afec6f1c5c57cdab017f5ef803ef75561eecc1131bfa7096502d33f912129e3c", size = 26533, upload-time = "2026-08-08T16:49:09.299Z" },
 ]
 
 [[package]]
 name = "searchable-indexer"
-version = "0.2.0"
+version = "0.2.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "searchable-analysis" },
+    { name = "searchable-binary" },
     { name = "selectolax" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ac/f3/3a09d885326b2cc21d73391077073cbe938c5a22925fb4f1fd9688cf96a7/searchable_indexer-0.2.0.tar.gz", hash = "sha256:5106115968f99b94d15e284341dc4123f78c0e44ba5445290b590d2068093aff", size = 35958, upload-time = "2026-08-01T05:21:21.72Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/72/39/e193f52b70e66a1707617008cf856064fd217c7ca3e667eec519afd58b5b/searchable_indexer-0.2.3.tar.gz", hash = "sha256:f905144fe6321abde49f3b908bf1916cc5e9cdd41cde805b7931713ad0f6f63e", size = 34747, upload-time = "2026-08-08T16:49:13.645Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e7/40/f44f922c36ffcec86b46ac27bc31d3abdda11e7a1a239287618c57f0d93b/searchable_indexer-0.2.0-py3-none-any.whl", hash = "sha256:b85fe52b6cdcea70dfeba5d3c391cc71681586db8ba1f9f82d25f8f08689d905", size = 24068, upload-time = "2026-08-01T05:21:19.262Z" },
+    { url = "https://files.pythonhosted.org/packages/45/3c/39a32c1e3ca4837d72c81fabc218a3b01074d72a4ccb66e8d808bc2d46f1/searchable_indexer-0.2.3-py3-none-any.whl", hash = "sha256:f936a7a23378173b2397ac9eceec37fd60d9bc95a02173e9c7cfd35a86387343", size = 21885, upload-time = "2026-08-08T16:49:10.181Z" },
 ]
 
 [[package]]
