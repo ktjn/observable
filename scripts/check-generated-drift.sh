@@ -7,6 +7,8 @@ set -euo pipefail
 TMP_TS="$(mktemp -d)"
 TMP_RS="$(mktemp -d)"
 TMP_RS_FILES="$TMP_RS/.rust-files"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REGISTRY_IDS="$REPO_ROOT/registry-ids.lock"
 FAILED=0
 
 trap 'rm -rf "$TMP_TS" "$TMP_RS"' EXIT
@@ -17,8 +19,8 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 echo "Compiling .mdl files..."
-uv run --project models modelable compile models/ --target typescript --out "$TMP_TS"
-uv run --project models modelable compile models/ --target rust --out "$TMP_RS"
+uv run --project models modelable compile models/ --target typescript --out "$TMP_TS" --registry-ids "$REGISTRY_IDS"
+uv run --project models modelable compile models/ --target rust --out "$TMP_RS" --registry-ids "$REGISTRY_IDS"
 
 # TypeScript — main frontend
 while IFS= read -r -d '' f; do
