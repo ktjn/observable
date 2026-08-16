@@ -25,6 +25,7 @@ pub struct TracingSpanV1 {
     pub workload: String,
     pub deployment_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub parent_span_id: Option<String>,
 }
 
