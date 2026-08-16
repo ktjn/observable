@@ -33,6 +33,9 @@ Current State table below). Specifically:
   `TraceResponse`, `LogListResponse`, `IncidentListResponse`) stay hand-written.
 - `@wire(...)` hints (e.g. `json.fieldCase: "snake_case"`) bridge representation gaps for a
   single target without affecting others.
+- Modelable `1.8.0`'s shared binding capability is adopted: the ClickHouse adapter binding is
+  declared once in `models/tracing.mdl` and reused by the logs binding, eliminating the former
+  duplicate declaration workaround.
 - A Python/uv toolchain plus a `modelable` checkout is a **dev-time-only** dependency for
   editing `.mdl` sources or regenerating artifacts — not a CI/build dependency for unrelated
   changes.
@@ -60,7 +63,8 @@ Condensed from the Phase 1 backlog identified during the migration.
 1. Array-element `rust.type` hints not supported (blocks `Vec<u64>` histogram fields).
 2. No non-optional default-empty-array projection fields.
 3. `enum(...)` always emits Rust `String`, never a real enum.
-4. Duplicate `binding` declarations break from-scratch registry builds.
+4. Shared bindings are supported in Modelable 1.8.0 and the duplicate ClickHouse binding has been
+   removed; bindings must still be declared once and referenced consistently across the workspace.
 5. `timestamp` emits Rust `String`, not `chrono`-compatible.
 6. `enum(...)` members can't start with a digit (blocks e.g. `"5m"` preset unions).
 7. TS emitter doesn't emit imports for cross-model `NamedType` references (manual workaround
@@ -78,10 +82,10 @@ only) and why `NlqIr`/`FieldRole` etc. needed hand-written TS extensions.
   their Rust counterparts — `modelable lineage` proves every generated field traces to its
   `.mdl` source. Adding a field to a migrated domain means editing one `.mdl` file and
   regenerating, not hand-editing N call sites.
-- **Harder:** Rust-side migration is incomplete for 8/10 domains pending modelable emitter
-  work (Phase 1 backlog). Anyone editing `.mdl` files needs a modelable checkout plus
-  Python/uv locally (dev-time only, not CI-gating per "Resolved Decisions" in the migration
-  plan).
+- **Harder:** Rust-side migration is incomplete for 8/10 domains pending the remaining
+  modelable emitter gaps listed above. Anyone editing `.mdl` files needs Modelable 1.8.0 plus
+  Python/uv locally (dev-time only, not CI-gating). Generated Rust and TypeScript artifacts stay
+  committed and are validated for drift; the upgrade does not change that architecture.
 
 ## Alternatives Considered
 
