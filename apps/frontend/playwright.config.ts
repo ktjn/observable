@@ -5,6 +5,9 @@ const frontendUrl = `http://localhost:${frontendPort}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  // Runs only under playwright.playground.config.ts, against a playground-mode
+  // build — hash routing and the auth-redirect bypass aren't active otherwise.
+  testIgnore: ["playground/**"],
   fullyParallel: true,
   retries: 0,
   reporter: "list",
