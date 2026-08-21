@@ -11,6 +11,7 @@ import {
   recordSelfObservabilityRouteChange,
 } from "./lib/selfObservabilityRuntime";
 import { TenantContextProvider } from "./hooks/useTenantContext";
+import { RuntimeProvider } from "./hooks/useRuntime";
 
 const queryClient = new QueryClient();
 
@@ -31,7 +32,9 @@ export default function App() {
       <ThemeProvider>
         <TimeDisplayProvider>
           <TenantContextProvider>
-            <RouterProvider router={router} />
+            <RuntimeProvider>
+              <RouterProvider router={router} />
+            </RuntimeProvider>
           </TenantContextProvider>
         </TimeDisplayProvider>
       </ThemeProvider>

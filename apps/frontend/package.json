@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:playground": "tsc && vite build --mode playground",
+    "preview:playground": "vite preview --mode playground",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest",
@@ -14,6 +16,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
+    "@duckdb/duckdb-wasm": "^1.32.0",
     "@mlc-ai/web-llm": "^0.2.84",
     "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-query": "^5.0.0",
