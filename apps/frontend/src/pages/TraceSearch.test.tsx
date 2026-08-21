@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
 import { TenantContextProvider } from "../hooks/useTenantContext";
+import { RuntimeProvider } from "../hooks/useRuntime";
 import type { TraceResponse } from "../api/traces";
 import TraceSearch, { TraceContextSidebar } from "./TraceSearch";
 
@@ -58,6 +59,7 @@ vi.mock("../api/nlq", () => ({
 
 vi.mock("../api/traces", () => ({
   fetchTraceHistogram: vi.fn(async () => ({ buckets: [] })),
+  searchTraces: vi.fn(async () => ({ traces: [], total: 0, facets: {} })),
 }));
 
 vi.mock("../api/dashboards", () => ({
@@ -120,11 +122,13 @@ function renderTraceSearch() {
 
   return render(
     <TenantContextProvider>
-      <QueryClientProvider client={client}>
-        <TimeDisplayProvider>
-          <TraceSearch />
-        </TimeDisplayProvider>
-      </QueryClientProvider>
+      <RuntimeProvider>
+        <QueryClientProvider client={client}>
+          <TimeDisplayProvider>
+            <TraceSearch />
+          </TimeDisplayProvider>
+        </QueryClientProvider>
+      </RuntimeProvider>
     </TenantContextProvider>,
   );
 }

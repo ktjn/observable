@@ -1,4 +1,7 @@
 import type { TraceHistogramResponse, TraceListResponse } from "../api/traces";
+import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants";
+import type { NlqRequest, NlqResponse } from "../api/nlq";
+import type { CreateDashboardRequest, Dashboard } from "../api/dashboards";
 
 export interface SearchTracesParams {
   service?: string;
@@ -22,8 +25,18 @@ export interface TraceHistogramParams {
  */
 export interface RuntimeApi {
   readonly mode: "http" | "playground";
+  tenants: {
+    list(): Promise<TenantListResponse>;
+    listEnvironments(tenantId: string): Promise<EnvironmentListResponse>;
+  };
   traces: {
     search(tenantId: string, params: SearchTracesParams): Promise<TraceListResponse>;
     histogram(tenantId: string, params: TraceHistogramParams): Promise<TraceHistogramResponse>;
+  };
+  nlq: {
+    execute(tenantId: string, request: NlqRequest): Promise<NlqResponse>;
+  };
+  dashboards: {
+    create(tenantId: string, request: CreateDashboardRequest): Promise<Dashboard>;
   };
 }

@@ -33,6 +33,13 @@ vi.mock("../hooks/useTenantContext", () => ({
   }),
 }));
 
+vi.mock("../hooks/useRuntime", () => ({
+  useRuntime: () => ({
+    mode: "http",
+    tenants: { list: vi.fn(), listEnvironments: vi.fn() },
+  }),
+}));
+
 vi.mock("../hooks/useAuth", () => ({
   useAuth: () => ({ data: { user_id: "user-1" }, isLoading: false }),
 }));

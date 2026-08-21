@@ -18,6 +18,16 @@ function runContract(name: string, runtime: RuntimeApi) {
       expect(runtime.mode).toBe(name);
     });
 
+    it("tenants.list returns the TenantListResponse shape", async () => {
+      const result = await runtime.tenants.list();
+      expect(Array.isArray(result.tenants)).toBe(true);
+    });
+
+    it("tenants.listEnvironments returns the EnvironmentListResponse shape", async () => {
+      const result = await runtime.tenants.listEnvironments(MOCK_TENANT_ID);
+      expect(Array.isArray(result.environments)).toBe(true);
+    });
+
     it("traces.search returns the TraceListResponse shape", async () => {
       const result = await runtime.traces.search(MOCK_TENANT_ID, { limit: 10 });
       expect(Array.isArray(result.traces)).toBe(true);
@@ -34,6 +44,26 @@ function runContract(name: string, runtime: RuntimeApi) {
         expect(typeof bucket.count).toBe("number");
       }
     });
+
+    it("nlq.execute returns a discriminated NlqResponse", async () => {
+      const result = await runtime.nlq.execute(MOCK_TENANT_ID, {
+        base_ir: { operation: "table", signals: ["traces"], filters: [], time_range: { from: "now-1h", to: "now" } },
+        mode: "execute",
+      });
+      expect(typeof result.type).toBe("string");
+      if (result.type === "frame") {
+        expect(Array.isArray(result.frame.data)).toBe(true);
+      }
+    });
+
+    it("dashboards.create returns a Dashboard shape", async () => {
+      const result = await runtime.dashboards.create(MOCK_TENANT_ID, {
+        name: "contract-test dashboard",
+        panels: [],
+      });
+      expect(typeof result.dashboard_id).toBe("string");
+      expect(typeof result.name).toBe("string");
+    });
   });
 }
 
@@ -43,7 +73,42 @@ describe("runtime contract", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ traces: [], total: 0, facets: {}, buckets: [] }),
+        json: async () => ({
+          traces: [],
+          total: 0,
+          facets: {},
+          buckets: [],
+          tenants: [],
+          environments: [],
+          type: "frame",
+          frame: {
+            frame_type: "table",
+            x_field: null,
+            y_field: null,
+            series_field: null,
+            unit: null,
+            suggested_visualization: "table",
+            field_roles: [],
+            data: [],
+            nlq_ir: {
+              operation: "table",
+              signals: [],
+              filters: [],
+              group_by: [],
+              time_range: { from: "now-1h", to: "now" },
+            },
+            source_sql: "",
+            time_range: { from: "now-1h", to: "now" },
+            signal_types: [],
+            sample_rate: null,
+            approximation_statement: "",
+          },
+          dashboard_id: "http-dashboard-1",
+          name: "contract-test dashboard",
+          visibility: "private",
+          panels: [],
+          created_at: new Date(0).toISOString(),
+        }),
       })
     );
     vi.stubGlobal("window", { location: { origin: "http://localhost" } });
