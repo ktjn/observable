@@ -1,4 +1,4 @@
-import { createRouter, createRoute, createRootRoute } from "@tanstack/react-router";
+import { createRouter, createRoute, createRootRoute, createHashHistory } from "@tanstack/react-router";
 import { AppShell } from "./components/AppShell";
 import HomePage from "./pages/HomePage";
 import AdminPage from "./pages/AdminPage";
@@ -29,6 +29,14 @@ import AuthCallbackPage from "./pages/AuthCallbackPage";
 import IdentitySettingsPage from "./pages/IdentitySettingsPage";
 import OnboardingPage from "./pages/OnboardingPage";
 import ChangeEventsPage from "./features/changeEvents/ChangeEventsPage";
+import { lazy } from "react";
+
+const IS_PLAYGROUND = import.meta.env.VITE_OBSERVABLE_RUNTIME === "playground";
+// Lazy-loaded (not a static import): PlaygroundSpike pulls in the playground
+// worker, which statically references @duckdb/duckdb-wasm. A static import
+// here would drag that whole module graph into every test/page that imports
+// this router file, including production (non-playground) ones.
+const PlaygroundSpike = lazy(() => import("./pages/PlaygroundSpike"));
 
 export type Preset = "5m" | "15m" | "30m" | "1h" | "3h" | "12h";
 export const DEFAULT_PRESET: Preset = "1h";
@@ -260,9 +268,19 @@ const authCallbackRoute = createRoute({
   component: AuthCallbackPage,
 });
 
+// Phase 0 spike route — not linked from nav, only registered in playground
+// builds so it never ships in the production bundle's route tree.
+const playgroundSpikeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/playground-spike",
+  component: PlaygroundSpike,
+});
+
 export const router = createRouter({
+  history: IS_PLAYGROUND ? createHashHistory() : undefined,
   routeTree: rootRoute.addChildren([
     homeRoute,
+    ...(IS_PLAYGROUND ? [playgroundSpikeRoute] : []),
     gettingStartedRoute,
     setupRoute,
     setupLlmRoute,
