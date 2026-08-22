@@ -10,6 +10,9 @@ use domain_core::nlq::NlqIr;
 use query_core::log_query::{
     extract_log_query_filters, render_log_histogram_duckdb, render_log_query_duckdb,
 };
+use query_core::service_query::{
+    ServiceSummaryRow, render_service_summary_duckdb, service_summary_from_row,
+};
 use query_core::trace_query::{
     extract_trace_query_filters, render_trace_histogram_duckdb, render_trace_query_duckdb,
 };
@@ -174,6 +177,55 @@ pub fn render_log_histogram_sql(
         .map_err(|e| JsValue::from_str(&e))
 }
 
+/// Plans a per-service summary aggregation query into DuckDB-flavored SQL
+/// against the playground's local `spans` table. `from_ns`/`to_ns` are
+/// decimal-string nanosecond epoch timestamps; `environment` is optional.
+fn render_service_summary_sql_inner(
+    from_ns: &str,
+    to_ns: &str,
+    environment: Option<String>,
+) -> Result<String, String> {
+    let from_ns: u64 = from_ns
+        .parse()
+        .map_err(|e: std::num::ParseIntError| e.to_string())?;
+    let to_ns: u64 = to_ns
+        .parse()
+        .map_err(|e: std::num::ParseIntError| e.to_string())?;
+    Ok(render_service_summary_duckdb(
+        from_ns,
+        to_ns,
+        environment.as_deref(),
+    ))
+}
+
+#[wasm_bindgen]
+pub fn render_service_summary_sql(
+    from_ns: &str,
+    to_ns: &str,
+    environment: Option<String>,
+) -> Result<String, JsValue> {
+    render_service_summary_sql_inner(from_ns, to_ns, environment).map_err(|e| JsValue::from_str(&e))
+}
+
+/// Shapes raw DuckDB aggregation rows (JSON array of `ServiceSummaryRow`)
+/// into the frontend's `ServiceSummary` shape (rates, health state) — the
+/// same pure computation `discovery.rs::list_service_summaries` runs after
+/// its ClickHouse query, reused here verbatim via `service_summary_from_row`.
+fn compute_service_summaries_inner(rows_json: &str, duration_secs: f64) -> Result<String, String> {
+    let rows: Vec<ServiceSummaryRow> =
+        serde_json::from_str(rows_json).map_err(|e| e.to_string())?;
+    let summaries: Vec<_> = rows
+        .into_iter()
+        .map(|row| service_summary_from_row(row, duration_secs))
+        .collect();
+    serde_json::to_string(&summaries).map_err(|e| e.to_string())
+}
+
+#[wasm_bindgen]
+pub fn compute_service_summaries(rows_json: &str, duration_secs: f64) -> Result<String, JsValue> {
+    compute_service_summaries_inner(rows_json, duration_secs).map_err(|e| JsValue::from_str(&e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -272,5 +324,32 @@ mod tests {
     #[test]
     fn render_log_histogram_sql_rejects_invalid_timestamps() {
         assert!(render_log_histogram_sql_inner("not-a-number", "1000", 10, None).is_err());
+    }
+
+    #[test]
+    fn render_service_summary_sql_builds_duckdb_sql() {
+        let sql = render_service_summary_sql_inner("0", "3600000000000", Some("production".into()))
+            .unwrap();
+        assert!(sql.contains("FROM spans"));
+        assert!(sql.contains("environment = 'production'"));
+    }
+
+    #[test]
+    fn render_service_summary_sql_rejects_invalid_timestamps() {
+        assert!(render_service_summary_sql_inner("not-a-number", "1000", None).is_err());
+    }
+
+    #[test]
+    fn compute_service_summaries_shapes_rows_into_summaries() {
+        let rows_json = r#"[{"service_name":"checkout","request_count":200,"error_count":10,"p95_latency_ns":250000000.0}]"#;
+        let json = compute_service_summaries_inner(rows_json, 100.0).unwrap();
+        assert!(json.contains("\"service_name\":\"checkout\""));
+        assert!(json.contains("\"health_state\":\"watch\""));
+        assert!(json.contains("\"request_rate\":2.0"));
+    }
+
+    #[test]
+    fn compute_service_summaries_rejects_invalid_json() {
+        assert!(compute_service_summaries_inner("not json", 100.0).is_err());
     }
 }

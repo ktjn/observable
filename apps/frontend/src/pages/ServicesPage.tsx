@@ -1,13 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import {
-  getTopology,
-  listServiceSummaries,
-  listServices,
-  type ServiceSummary,
-  type TopologyEdge,
-} from "../api/services";
+import { getTopology, listServices, type ServiceSummary, type TopologyEdge } from "../api/services";
+import { useRuntime } from "../hooks/useRuntime";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { CopyableText } from "../components/ui/copy-button";
@@ -44,11 +39,12 @@ export default function ServicesPage() {
   const [sortBy, setSortBy] = useState<keyof ServiceSummary | "health">("service_name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
 
   const { data: servicesData, isLoading, dataUpdatedAt } = useQuery({
     queryKey: ["services-summary", tenantId, environment],
     queryFn: () =>
-      listServiceSummaries(tenantId, {
+      runtime.services.list(tenantId, {
         environment: environment === "all" ? undefined : environment,
       }),
   });

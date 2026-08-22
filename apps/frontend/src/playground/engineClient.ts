@@ -37,11 +37,22 @@ export interface LogHistogramBucket {
   counts: Record<string, number>;
 }
 
+export interface ServiceSummary {
+  service_name: string;
+  request_rate: number;
+  error_rate: number;
+  p95_latency_ms: number;
+  health_state: "healthy" | "watch" | "breach";
+  active_alert_count: number;
+  latest_deployment: string | null;
+}
+
 type EngineResult =
   | { rows: NlqTraceRow[]; sql: string }
   | { buckets: TraceHistogramBucket[] }
   | { rows: NlqLogRow[]; sql: string }
   | { buckets: LogHistogramBucket[] }
+  | { items: ServiceSummary[] }
   | undefined;
 
 type EngineResponse =
@@ -49,6 +60,7 @@ type EngineResponse =
   | { type: "histogram-result"; requestId: string; buckets: TraceHistogramBucket[] }
   | { type: "nlq-log-result"; requestId: string; rows: NlqLogRow[]; sql: string }
   | { type: "log-histogram-result"; requestId: string; buckets: LogHistogramBucket[] }
+  | { type: "service-summaries-result"; requestId: string; items: ServiceSummary[] }
   | { type: "reset-done"; requestId: string }
   | { type: "nlq-error"; requestId: string; message: string };
 
@@ -76,6 +88,8 @@ function getWorker(): Worker {
       request.resolve({ buckets: event.data.buckets });
     } else if (event.data.type === "log-histogram-result") {
       request.resolve({ buckets: event.data.buckets });
+    } else if (event.data.type === "service-summaries-result") {
+      request.resolve({ items: event.data.items });
     } else if (event.data.type === "reset-done") {
       request.resolve(undefined);
     } else {
@@ -149,6 +163,27 @@ export function executeLogHistogram(params: {
       reject,
     });
     getWorker().postMessage({ type: "log-histogram", requestId, ...params });
+  });
+}
+
+/**
+ * Runs the Services list page's per-service summary aggregation through the
+ * persistent playground engine worker: Rust-planned DuckDB SQL executed
+ * against the browser-local `spans` table, then shaped (rates, health
+ * state) by the same pure Rust logic production's discovery.rs uses.
+ */
+export function executeServiceSummaries(params: {
+  fromNs: string;
+  toNs: string;
+  environment?: string;
+}): Promise<{ items: ServiceSummary[] }> {
+  const requestId = String(nextRequestId++);
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, {
+      resolve: resolve as (r: EngineResult) => void,
+      reject,
+    });
+    getWorker().postMessage({ type: "service-summaries", requestId, ...params });
   });
 }
 

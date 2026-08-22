@@ -3,7 +3,8 @@ import type { LogRecord, LogHistogramResponse } from "../api/logs";
 import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants";
 import type { NlqRequest, NlqResponse, NlqIr, VisualizationFrame } from "../api/nlq";
 import type { Dashboard } from "../api/dashboards";
-import type { RuntimeApi, TraceHistogramParams, LogHistogramParams } from "./types";
+import type { ServiceSummaryResponse } from "../api/services";
+import type { RuntimeApi, TraceHistogramParams, LogHistogramParams, ServiceSummaryParams } from "./types";
 // Dynamically imported (not a static import): engineClient statically
 // references a Worker URL, which Vite's dep scanner eagerly resolves at
 // import time. A static import here would drag that into every module that
@@ -227,6 +228,20 @@ export const playgroundRuntime: RuntimeApi = {
         return { buckets };
       }
       return { buckets: [{ start_ms: 0, end_ms: 60_000, counts: { "9": 1, "17": 1 } }] };
+    },
+  },
+  services: {
+    async list(_tenantId: string, params: ServiceSummaryParams): Promise<ServiceSummaryResponse> {
+      const nowMs = Date.now();
+      const fromMs = params.from ?? nowMs - 3_600_000;
+      const toMs = params.to ?? nowMs;
+      const { executeServiceSummaries } = await import("../playground/engineClient");
+      const { items } = await executeServiceSummaries({
+        fromNs: String(BigInt(Math.floor(fromMs)) * 1_000_000n),
+        toNs: String(BigInt(Math.floor(toMs)) * 1_000_000n),
+        environment: params.environment,
+      });
+      return { items };
     },
   },
   nlq: {

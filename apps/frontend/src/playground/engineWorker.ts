@@ -49,6 +49,16 @@ interface LogHistogramBucket {
   counts: Record<number, number>;
 }
 
+interface ServiceSummary {
+  service_name: string;
+  request_rate: number;
+  error_rate: number;
+  p95_latency_ms: number;
+  health_state: "healthy" | "watch" | "breach";
+  active_alert_count: number;
+  latest_deployment: string | null;
+}
+
 interface GeneratedSpan {
   trace_id: string;
   span_id: string;
@@ -94,12 +104,20 @@ type EngineRequest =
       bucketCount: number;
       service?: string;
     }
+  | {
+      type: "service-summaries";
+      requestId: string;
+      fromNs: string;
+      toNs: string;
+      environment?: string;
+    }
   | { type: "reset"; requestId: string; seed: number };
 type EngineResponse =
   | { type: "nlq-result"; requestId: string; rows: NlqTraceRow[]; sql: string }
   | { type: "histogram-result"; requestId: string; buckets: TraceHistogramBucket[] }
   | { type: "nlq-log-result"; requestId: string; rows: NlqLogRow[]; sql: string }
   | { type: "log-histogram-result"; requestId: string; buckets: LogHistogramBucket[] }
+  | { type: "service-summaries-result"; requestId: string; items: ServiceSummary[] }
   | { type: "reset-done"; requestId: string }
   | { type: "nlq-error"; requestId: string; message: string };
 
@@ -126,6 +144,8 @@ interface EngineState {
     bucketCount: number,
     service: string | undefined
   ) => string;
+  renderServiceSummarySql: (fromNs: string, toNs: string, environment: string | undefined) => string;
+  computeServiceSummaries: (rowsJson: string, durationSecs: number) => string;
   conn: { query: (sql: string) => Promise<{ toArray: () => Record<string, unknown>[] }> };
 }
 
@@ -219,6 +239,8 @@ async function initEngine(): Promise<EngineState> {
     renderTraceHistogramSql: wasmModule.render_trace_histogram_sql,
     renderLogSearchSql: wasmModule.render_log_search_sql,
     renderLogHistogramSql: wasmModule.render_log_histogram_sql,
+    renderServiceSummarySql: wasmModule.render_service_summary_sql,
+    computeServiceSummaries: wasmModule.compute_service_summaries,
     conn,
   };
   await seedData(state, currentSeed);
@@ -339,6 +361,26 @@ async function executeLogHistogram(
   return buckets;
 }
 
+async function executeServiceSummaries(
+  fromNs: string,
+  toNs: string,
+  environment: string | undefined
+): Promise<ServiceSummary[]> {
+  const { renderServiceSummarySql, computeServiceSummaries, conn } = await getEngine();
+  const sql = renderServiceSummarySql(fromNs, toNs, environment);
+  const result = await conn.query(sql);
+  const rows = result.toArray().map((row) => ({
+    service_name: String(row.service_name),
+    request_count: Number(row.request_count),
+    error_count: Number(row.error_count),
+    p95_latency_ns: Number(row.p95_latency_ns) || 0,
+  }));
+
+  const durationSecs = Number(BigInt(toNs) - BigInt(fromNs)) / 1_000_000_000;
+  const summariesJson = computeServiceSummaries(JSON.stringify(rows), durationSecs);
+  return JSON.parse(summariesJson);
+}
+
 async function resetPlayground(seed: number): Promise<void> {
   const state = await getEngine();
   currentSeed = seed;
@@ -364,6 +406,10 @@ workerSelf.onmessage = async (event) => {
       const { fromNs, toNs, bucketCount, service } = event.data;
       const buckets = await executeLogHistogram(fromNs, toNs, bucketCount, service);
       workerSelf.postMessage({ type: "log-histogram-result", requestId, buckets });
+    } else if (event.data.type === "service-summaries") {
+      const { fromNs, toNs, environment } = event.data;
+      const items = await executeServiceSummaries(fromNs, toNs, environment);
+      workerSelf.postMessage({ type: "service-summaries-result", requestId, items });
     } else if (event.data.type === "reset") {
       await resetPlayground(event.data.seed);
       workerSelf.postMessage({ type: "reset-done", requestId });

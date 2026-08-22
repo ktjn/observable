@@ -8,6 +8,7 @@
 pub mod log_query;
 pub mod params;
 pub mod planner;
+pub mod service_query;
 pub mod sql_templates;
 pub mod trace_query;
 

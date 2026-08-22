@@ -4,6 +4,15 @@ import { expect, test, vi, beforeEach } from "vitest";
 import * as servicesApi from "../api/services";
 import ServicesPage from "./ServicesPage";
 
+const listMock = vi.fn();
+
+vi.mock("../hooks/useRuntime", () => ({
+  useRuntime: () => ({
+    mode: "http",
+    services: { list: listMock },
+  }),
+}));
+
 vi.mock("@tanstack/react-router", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
   return {
@@ -58,10 +67,11 @@ function renderPage() {
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  listMock.mockReset();
 });
 
 test("renders active alert count and latest deploy columns", async () => {
-  vi.spyOn(servicesApi, "listServiceSummaries").mockResolvedValue({ items: [sampleSummary] });
+  listMock.mockResolvedValue({ items: [sampleSummary] });
 
   renderPage();
 

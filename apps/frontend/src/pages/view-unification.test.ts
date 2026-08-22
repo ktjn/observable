@@ -11,7 +11,7 @@ describe("view unification", () => {
   it("ServicesPage owns both the service list and the topology view", () => {
     // List view and topology view are unified under one page with a tab toggle.
     expect(servicesPageSource).toContain("TopologyMap");
-    expect(servicesPageSource).toContain("listServiceSummaries");
+    expect(servicesPageSource).toContain("runtime.services.list");
     // No separate service-overview page imported by the router.
     expect(routerSource).not.toContain("ServiceTopologyPage");
     expect(routerSource).not.toContain("import ServiceOverview from");
