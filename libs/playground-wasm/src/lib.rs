@@ -4,6 +4,8 @@
 //! `JsValue` cannot be constructed outside an actual wasm/JS runtime, so
 //! native tests exercise the pure inner functions instead.
 
+mod generator;
+
 use domain_core::nlq::NlqIr;
 use query_core::trace_query::{extract_trace_query_filters, render_trace_query_duckdb};
 use wasm_bindgen::prelude::*;
@@ -26,6 +28,22 @@ fn render_trace_search_sql_inner(ir_json: &str) -> Result<String, String> {
 #[wasm_bindgen]
 pub fn render_trace_search_sql(ir_json: &str) -> Result<String, JsValue> {
     render_trace_search_sql_inner(ir_json).map_err(|e| JsValue::from_str(&e))
+}
+
+/// Generates a deterministic set of demo spans (see `generator.rs`) as a
+/// JSON array. `now_unix_nano` is a decimal-string nanosecond epoch
+/// timestamp (avoids JS `Number` precision loss for large integers).
+fn generate_spans_json_inner(seed: u32, now_unix_nano: &str) -> Result<String, String> {
+    let now: i64 = now_unix_nano
+        .parse()
+        .map_err(|e: std::num::ParseIntError| e.to_string())?;
+    let spans = generator::generate_spans(seed, now);
+    serde_json::to_string(&spans).map_err(|e| e.to_string())
+}
+
+#[wasm_bindgen]
+pub fn generate_spans_json(seed: u32, now_unix_nano: &str) -> Result<String, JsValue> {
+    generate_spans_json_inner(seed, now_unix_nano).map_err(|e| JsValue::from_str(&e))
 }
 
 #[cfg(test)]

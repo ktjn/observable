@@ -11,4 +11,5 @@ crate-type = ["cdylib", "rlib"]
 wasm-bindgen = "0.2"
 domain-core  = { path = "../domain-core" }
 query-core   = { path = "../query-core" }
+serde        = { workspace = true }
 serde_json   = { workspace = true }
