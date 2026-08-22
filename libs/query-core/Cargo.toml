@@ -1,0 +1,16 @@
+[package]
+name = "query-core"
+version = "0.1.0"
+edition.workspace = true
+publish = false
+
+[dependencies]
+domain-core = { path = "../domain-core" }
+serde       = { workspace = true }
+chrono      = { workspace = true }
+# Not `{ workspace = true }`: the workspace default pulls in uuid's "v4"
+# feature (random generation), which requires a randomness source on
+# wasm32-unknown-unknown that this crate has no reason to need — it only
+# holds/parses tenant ids, never generates new ones.
+uuid        = { version = "1", default-features = false, features = ["serde"] }
+tracing     = { workspace = true }

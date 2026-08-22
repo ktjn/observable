@@ -1,0 +1,12 @@
+//! Portable query semantic planning, extracted from
+//! `services/query-api/src/planner/` and `sql_templates.rs` — no
+//! axum/clickhouse/tokio/reqwest dependencies, compiles natively and to
+//! `wasm32-unknown-unknown`. See
+//! `docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md`
+//! section 6.
+
+pub mod params;
+pub mod planner;
+pub mod sql_templates;
+
+pub use params::*;

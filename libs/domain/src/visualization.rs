@@ -11,7 +11,7 @@
 //
 // `approximation_statement` and `nlq_ir` are always present. Neither the UI nor any
 // automated system may omit the provenance payload when displaying or forwarding results.
-use crate::nlq::{NlqIr, NlqSignal, NlqTimeRange};
+use domain_core::nlq::{NlqIr, NlqSignal, NlqTimeRange};
 use serde::{Deserialize, Serialize};
 
 // ── VisualizationFrame ────────────────────────────────────────────────────────
@@ -79,9 +79,9 @@ pub enum VisualizationFrameType {
 }
 
 /// Maps `NlqVisualizationHint` to a `VisualizationFrameType`.
-impl From<crate::nlq::NlqVisualizationHint> for VisualizationFrameType {
-    fn from(hint: crate::nlq::NlqVisualizationHint) -> Self {
-        use crate::nlq::NlqVisualizationHint as H;
+impl From<domain_core::nlq::NlqVisualizationHint> for VisualizationFrameType {
+    fn from(hint: domain_core::nlq::NlqVisualizationHint) -> Self {
+        use domain_core::nlq::NlqVisualizationHint as H;
         match hint {
             H::Timeseries => Self::Timeseries,
             H::Histogram => Self::Histogram,
@@ -132,7 +132,7 @@ pub enum FieldRoleKind {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nlq::{
+    use domain_core::nlq::{
         NlqFilter, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, NlqTimeRange, NlqVisualizationHint,
     };
 

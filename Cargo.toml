@@ -2,8 +2,10 @@
 resolver = "2"
 members = [
     "libs/domain",
+    "libs/domain-core",
     "libs/observable-auth",
     "libs/playground-wasm",
+    "libs/query-core",
     "libs/test-support",
     "services/ingest-gateway",
     "services/auth-service",

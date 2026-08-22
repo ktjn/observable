@@ -1139,6 +1139,7 @@ dependencies = [
  "axum",
  "chrono",
  "clickhouse",
+ "domain-core",
  "opentelemetry",
  "opentelemetry-appender-tracing",
  "opentelemetry-otlp",
@@ -1152,6 +1153,14 @@ dependencies = [
  "tracing-opentelemetry",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "domain-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3192,6 +3201,7 @@ dependencies = [
  "http-body-util",
  "observable-auth",
  "prometheus",
+ "query-core",
  "reqwest",
  "serde",
  "serde_json",
@@ -3206,6 +3216,17 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "wiremock",
+]
+
+[[package]]
+name = "query-core"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "domain-core",
+ "serde",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

@@ -25,17 +25,7 @@ pub struct LogListResponse {
     pub facets: HashMap<String, Vec<FacetValue>>,
 }
 
-#[derive(Deserialize)]
-pub struct LogSearchParams {
-    pub service: Option<String>,
-    pub severity: Option<i32>,
-    pub trace_id: Option<String>,
-    pub span_id: Option<String>,
-    pub limit: Option<u32>,
-    pub facets: Option<String>, // Comma-separated list of fields to facet
-    pub from: Option<DateTime<Utc>>,
-    pub to: Option<DateTime<Utc>>,
-}
+pub use query_core::LogSearchParams;
 
 #[derive(Deserialize)]
 pub struct LogTailParams {
