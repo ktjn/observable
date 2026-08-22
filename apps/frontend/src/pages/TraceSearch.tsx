@@ -2,16 +2,14 @@ import { useMemo, useState } from "react";
 import { useGlobalServiceFilter } from "../hooks/useGlobalServiceFilter";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { createDashboard } from "../api/dashboards";
 import {
-  fetchTraceHistogram,
   Span,
   TraceResponse,
   TraceHistogramBucket as ApiHistogramBucket,
   TraceHistogramResponse,
 } from "../api/traces";
-import { submitNlqQuery } from "../api/nlq";
 import type { NlqIrLike } from "../features/nlq/queryFilters";
+import { useRuntime } from "../hooks/useRuntime";
 import { FacetSidebar } from "../components/FacetSidebar";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -139,6 +137,7 @@ export function TraceExplorer({
   const { format } = useTimeDisplay();
   const { fromMs, toMs, setCustomRange } = useGlobalDateRange();
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
 
   const initialQuery = serviceName
     ? JSON.stringify({
@@ -164,7 +163,7 @@ export function TraceExplorer({
   const { data, isLoading, error } = useQuery({
     queryKey: ["traces", "nlq", tenantId, userQuery, fromMs, toMs],
     queryFn: async () => {
-      const response = await submitNlqQuery(tenantId, {
+      const response = await runtime.nlq.execute(tenantId, {
         base_ir: { ...TRACE_BASE_IR, time_range: { from, to } },
         question: userQuery ?? undefined,
         mode: "execute",
@@ -178,7 +177,7 @@ export function TraceExplorer({
   const { data: histogramData, isError: isHistogramError } = useQuery({
     queryKey: ["traces-histogram", tenantId, service, fromMs, toMs, bucketCount],
     queryFn: () =>
-      fetchTraceHistogram(tenantId, {
+      runtime.traces.histogram(tenantId, {
         service: service || undefined,
         from,
         to,
@@ -224,7 +223,7 @@ export function TraceExplorer({
   const handlePromote = async () => {
     setSaveStatus("saving");
     try {
-      await createDashboard(tenantId, {
+      await runtime.dashboards.create(tenantId, {
         name: service ? `Traces for ${service}` : "Promoted trace query",
         panels: [
           {

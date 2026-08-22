@@ -5,7 +5,7 @@ import { useTimeDisplay, TIME_FORMAT_OPTIONS } from "../lib/timeDisplay";
 import { GlobalDateRangePicker } from "./GlobalDateRangePicker";
 import { UserMenu } from "./UserMenu";
 import { useTenantContext } from "../hooks/useTenantContext";
-import { listTenants, listEnvironments } from "../api/tenants";
+import { useRuntime } from "../hooks/useRuntime";
 import { useEffect, useState } from "react";
 import { useLocation } from "@tanstack/react-router";
 import { useAuth } from "../hooks/useAuth";
@@ -77,15 +77,16 @@ export function AppShell() {
   const { format, setFormat } = useTimeDisplay();
   const { tenantId, tenantName, environment, setTenant, setEnvironment } = useTenantContext();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const runtime = useRuntime();
 
   const { data: tenantsData } = useQuery({
     queryKey: ["tenants"],
-    queryFn: listTenants,
+    queryFn: runtime.tenants.list,
   });
 
   const { data: environmentsData } = useQuery({
     queryKey: ["environments", tenantId],
-    queryFn: () => listEnvironments(tenantId),
+    queryFn: () => runtime.tenants.listEnvironments(tenantId),
     enabled: !!tenantId,
   });
 
