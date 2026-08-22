@@ -13,7 +13,8 @@ use query_core::log_query::{
 };
 use query_core::metric_query::{render_metric_catalog_duckdb, render_metric_group_points_duckdb};
 use query_core::service_query::{
-    ServiceSummaryRow, render_service_summary_duckdb, service_summary_from_row,
+    ServiceSummaryRow, render_response_time_histogram_duckdb, render_service_summary_duckdb,
+    service_summary_from_row,
 };
 use query_core::topology_query::{TopologyEdgeRow, render_topology_duckdb, topology_edge_from_row};
 use query_core::trace_query::{
@@ -208,6 +209,51 @@ pub fn render_service_summary_sql(
     environment: Option<String>,
 ) -> Result<String, JsValue> {
     render_service_summary_sql_inner(from_ns, to_ns, environment).map_err(|e| JsValue::from_str(&e))
+}
+
+#[derive(Serialize)]
+struct ResponseTimeHistogramPlanJson {
+    sql: String,
+    from_ns: String,
+    interval_ns: String,
+}
+
+/// Plans a per-service response-time histogram query (Service Detail page's
+/// P50/P95/throughput graph) into DuckDB-flavored SQL against the
+/// playground's local `spans` table. `from_ns`/`to_ns` are decimal-string
+/// nanosecond epoch timestamps. Returns JSON: `{"sql", "from_ns",
+/// "interval_ns"}` — the caller fills in zero-value buckets missing from
+/// the query result, mirroring production's handler.
+fn render_response_time_histogram_sql_inner(
+    from_ns: &str,
+    to_ns: &str,
+    bucket_count: u32,
+    service_name: &str,
+) -> Result<String, String> {
+    let from_ns: u64 = from_ns
+        .parse()
+        .map_err(|e: std::num::ParseIntError| e.to_string())?;
+    let to_ns: u64 = to_ns
+        .parse()
+        .map_err(|e: std::num::ParseIntError| e.to_string())?;
+    let plan = render_response_time_histogram_duckdb(from_ns, to_ns, bucket_count, service_name);
+    serde_json::to_string(&ResponseTimeHistogramPlanJson {
+        sql: plan.sql,
+        from_ns: plan.from_ns.to_string(),
+        interval_ns: plan.interval_ns.to_string(),
+    })
+    .map_err(|e| e.to_string())
+}
+
+#[wasm_bindgen]
+pub fn render_response_time_histogram_sql(
+    from_ns: &str,
+    to_ns: &str,
+    bucket_count: u32,
+    service_name: &str,
+) -> Result<String, JsValue> {
+    render_response_time_histogram_sql_inner(from_ns, to_ns, bucket_count, service_name)
+        .map_err(|e| JsValue::from_str(&e))
 }
 
 /// Shapes raw DuckDB aggregation rows (JSON array of `ServiceSummaryRow`)
@@ -482,6 +528,23 @@ mod tests {
             .unwrap();
         assert!(sql.contains("FROM spans"));
         assert!(sql.contains("environment = 'production'"));
+    }
+
+    #[test]
+    fn render_response_time_histogram_sql_builds_duckdb_sql() {
+        let json =
+            render_response_time_histogram_sql_inner("0", "3600000000000", 60, "checkout").unwrap();
+        assert!(json.contains("\"sql\""));
+        assert!(json.contains("service_name = 'checkout'"));
+        assert!(json.contains("quantile_cont(duration_ns, 0.50)"));
+    }
+
+    #[test]
+    fn render_response_time_histogram_sql_rejects_invalid_timestamps() {
+        assert!(
+            render_response_time_histogram_sql_inner("not-a-number", "1000", 10, "checkout")
+                .is_err()
+        );
     }
 
     #[test]

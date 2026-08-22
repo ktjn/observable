@@ -11,7 +11,13 @@ import {
   exportDashboard,
   importDashboard,
 } from "../api/dashboards";
-import { listServiceSummaries, listServices, getTopology } from "../api/services";
+import {
+  listServiceSummaries,
+  listServices,
+  getTopology,
+  getServiceSummary,
+  getServiceResponseTimeHistory,
+} from "../api/services";
 import { listMetrics, getMetricGroupPoints } from "../api/metrics";
 import { listChangeEvents } from "../api/changeEvents";
 import type { RuntimeApi } from "./types";
@@ -33,6 +39,8 @@ export const httpRuntime: RuntimeApi = {
   services: {
     list: listServiceSummaries,
     listNames: listServices,
+    summary: getServiceSummary,
+    responseTimeHistory: getServiceResponseTimeHistory,
   },
   topology: {
     get: getTopology,

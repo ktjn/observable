@@ -59,6 +59,14 @@ interface ServiceSummary {
   latest_deployment: string | null;
 }
 
+interface ResponseTimeHistoryBucket {
+  start_ms: number;
+  end_ms: number;
+  p50_ms: number;
+  p95_ms: number;
+  request_rate: number;
+}
+
 interface TopologyEdge {
   caller: string;
   callee: string;
@@ -208,6 +216,14 @@ type EngineRequest =
       eventType?: string;
       limit: number;
     }
+  | {
+      type: "response-time-histogram";
+      requestId: string;
+      fromNs: string;
+      toNs: string;
+      bucketCount: number;
+      serviceName: string;
+    }
   | { type: "reset"; requestId: string; seed: number };
 type EngineResponse =
   | { type: "nlq-result"; requestId: string; rows: NlqTraceRow[]; sql: string }
@@ -220,6 +236,7 @@ type EngineResponse =
   | { type: "metric-catalog-result"; requestId: string; metrics: MetricCatalogEntry[] }
   | { type: "metric-group-points-result"; requestId: string; points: MetricPoint[] }
   | { type: "change-events-result"; requestId: string; items: ChangeEvent[] }
+  | { type: "response-time-histogram-result"; requestId: string; buckets: ResponseTimeHistoryBucket[] }
   | { type: "reset-done"; requestId: string }
   | { type: "nlq-error"; requestId: string; message: string };
 
@@ -272,6 +289,12 @@ interface EngineState {
     fromNs: string,
     toNs: string,
     limit: number
+  ) => string;
+  renderResponseTimeHistogramSql: (
+    fromNs: string,
+    toNs: string,
+    bucketCount: number,
+    serviceName: string
   ) => string;
   conn: { query: (sql: string) => Promise<{ toArray: () => Record<string, unknown>[] }> };
 }
@@ -442,6 +465,7 @@ async function initEngine(): Promise<EngineState> {
     renderMetricGroupPointsSql: wasmModule.render_metric_group_points_sql,
     generateChangeEventsJson: wasmModule.generate_change_events_json,
     renderChangeEventsSql: wasmModule.render_change_events_sql,
+    renderResponseTimeHistogramSql: wasmModule.render_response_time_histogram_sql,
     conn,
   };
   await seedData(state, currentSeed);
@@ -683,6 +707,45 @@ async function executeChangeEvents(
   });
 }
 
+async function executeResponseTimeHistogram(
+  fromNs: string,
+  toNs: string,
+  bucketCount: number,
+  serviceName: string
+): Promise<ResponseTimeHistoryBucket[]> {
+  const { renderResponseTimeHistogramSql, conn } = await getEngine();
+  const planJson = renderResponseTimeHistogramSql(fromNs, toNs, bucketCount, serviceName);
+  const plan: { sql: string; from_ns: string; interval_ns: string } = JSON.parse(planJson);
+  const result = await conn.query(plan.sql);
+
+  const counts = new Map<number, { p50Ns: number; p95Ns: number; spanCount: number }>();
+  for (const row of result.toArray()) {
+    counts.set(Number(row.bucket_idx), {
+      p50Ns: Number(row.p50_latency_ns) || 0,
+      p95Ns: Number(row.p95_latency_ns) || 0,
+      spanCount: Number(row.span_count),
+    });
+  }
+
+  const fromNsBig = BigInt(plan.from_ns);
+  const intervalNsBig = BigInt(plan.interval_ns);
+  const intervalSecs = Number(intervalNsBig) / 1_000_000_000;
+  const buckets: ResponseTimeHistoryBucket[] = [];
+  for (let i = 0; i < bucketCount; i++) {
+    const startNs = fromNsBig + BigInt(i) * intervalNsBig;
+    const endNs = startNs + intervalNsBig;
+    const bucket = counts.get(i);
+    buckets.push({
+      start_ms: Number(startNs / 1_000_000n),
+      end_ms: Number(endNs / 1_000_000n),
+      p50_ms: (bucket?.p50Ns ?? 0) / 1_000_000,
+      p95_ms: (bucket?.p95Ns ?? 0) / 1_000_000,
+      request_rate: (bucket?.spanCount ?? 0) / intervalSecs,
+    });
+  }
+  return buckets;
+}
+
 async function resetPlayground(seed: number): Promise<void> {
   const state = await getEngine();
   currentSeed = seed;
@@ -732,6 +795,10 @@ workerSelf.onmessage = async (event) => {
       const { fromNs, toNs, service, environment, eventType, limit } = event.data;
       const items = await executeChangeEvents(fromNs, toNs, service, environment, eventType, limit);
       workerSelf.postMessage({ type: "change-events-result", requestId, items });
+    } else if (event.data.type === "response-time-histogram") {
+      const { fromNs, toNs, bucketCount, serviceName } = event.data;
+      const buckets = await executeResponseTimeHistogram(fromNs, toNs, bucketCount, serviceName);
+      workerSelf.postMessage({ type: "response-time-histogram-result", requestId, buckets });
     } else if (event.data.type === "reset") {
       await resetPlayground(event.data.seed);
       workerSelf.postMessage({ type: "reset-done", requestId });

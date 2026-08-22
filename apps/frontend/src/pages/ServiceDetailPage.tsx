@@ -1,12 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "@tanstack/react-router";
-import { listChangeEvents } from "../api/changeEvents";
 import { listDeployments } from "../api/deployments";
-import {
-  getServiceResponseTimeHistory,
-  getServiceSummary,
-  ServiceSummary,
-} from "../api/services";
+import { ServiceSummary } from "../api/services";
 import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
@@ -22,6 +17,7 @@ import { ServiceAlertsTab } from "../features/services/ServiceAlertsTab";
 import { ServiceReliabilityTab } from "../features/services/ServiceReliabilityTab";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { useRuntime } from "../hooks/useRuntime";
 import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
 import { LogExplorer } from "./LogSearch";
 import { TraceExplorer } from "./TraceSearch";
@@ -29,6 +25,7 @@ import { TraceExplorer } from "./TraceSearch";
 export default function ServiceDetailPage() {
   const { serviceId } = useParams({ strict: false });
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   if (!serviceId) {
     return <LoadingState>Loading service overview…</LoadingState>;
   }
@@ -39,7 +36,7 @@ export default function ServiceDetailPage() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["service-summary", tenantId, serviceName, fromMs, toMs],
-    queryFn: () => getServiceSummary(tenantId, serviceName, { from: fromMs, to: toMs }),
+    queryFn: () => runtime.services.summary(tenantId, serviceName, { from: fromMs, to: toMs }),
     ...liveViewQueryOptions,
   });
 
@@ -93,6 +90,7 @@ function ServiceDetailView({
   toMs: number;
 }) {
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
 
   const { data: historyData } = useQuery({
     queryKey: [
@@ -103,7 +101,7 @@ function ServiceDetailView({
       toMs,
     ],
     queryFn: () =>
-      getServiceResponseTimeHistory(tenantId, service.service_name, {
+      runtime.services.responseTimeHistory(tenantId, service.service_name, {
         from: fromMs,
         to: toMs,
         buckets: 60,
@@ -267,11 +265,12 @@ function ResponseTimeGraphSection({
 }) {
   const { preset, setCustomRange, clearCustomRange } = useGlobalDateRange();
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
 
   const { data: historyData } = useQuery({
     queryKey: ["service-response-time", tenantId, serviceName, fromMs, toMs],
     queryFn: () =>
-      getServiceResponseTimeHistory(tenantId, serviceName, {
+      runtime.services.responseTimeHistory(tenantId, serviceName, {
         from: fromMs,
         to: toMs,
         buckets: 60,
@@ -294,7 +293,7 @@ function ResponseTimeGraphSection({
   const { data: changeEventData } = useQuery({
     queryKey: ["change-events", tenantId, serviceName, fromMs, toMs],
     queryFn: () =>
-      listChangeEvents(tenantId, {
+      runtime.changeEvents.list(tenantId, {
         service_name: serviceName,
         start_time: new Date(fromMs).toISOString(),
         end_time: new Date(toMs).toISOString(),

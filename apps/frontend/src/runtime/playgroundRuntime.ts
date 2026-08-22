@@ -10,7 +10,13 @@ import type {
   DashboardListResponse,
   DashboardExport,
 } from "../api/dashboards";
-import type { ServiceSummaryResponse, DiscoveryResponse, TopologyResponse } from "../api/services";
+import type {
+  ServiceSummaryResponse,
+  DiscoveryResponse,
+  TopologyResponse,
+  ServiceDetailResponse,
+  ResponseTimeHistoryResponse,
+} from "../api/services";
 import type { MetricCatalogResponse, MetricPointsResponse, MetricCatalogEntry } from "../api/metrics";
 import type { ListChangeEventsResponse, ListChangeEventsParams } from "../api/changeEvents";
 import type {
@@ -250,6 +256,79 @@ function requireDashboard(dashboardId: string): Dashboard {
   return dashboard;
 }
 
+/**
+ * `question` doubles as either free-text NLQ or a raw JSON-encoded `NlqIr`
+ * — the "Simple IR Shorthand" power-user bypass (ADR-034), which
+ * production's `parse_user_query_input` recognizes by a leading `{`. Locked-
+ * service views (LogSearch.tsx/TraceSearch.tsx's `serviceName` prop) rely on
+ * this to pre-set a service filter without going through the LLM. Mirrored
+ * here so those views get real DuckDB-backed rows instead of falling
+ * through to the free-text stub path below.
+ */
+function parseRawIrQuestion(question: string | undefined): NlqIr | null {
+  if (!question) return null;
+  const trimmed = question.trim();
+  if (!trimmed.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed && typeof parsed === "object" && typeof parsed.operation === "string" && Array.isArray(parsed.signals)) {
+      return parsed as NlqIr;
+    }
+  } catch {
+    // Not JSON — a genuine free-text question, handled by the caller.
+  }
+  return null;
+}
+
+/** Mirrors `llm_adapter.rs::merge_irs` (operation/signals always come from `base`). */
+function mergeIrs(base: NlqIr, user: NlqIr): NlqIr {
+  const userFilterFields = new Set(user.filters.map((f) => f.field.toLowerCase()));
+  const mergedFilters = [
+    ...base.filters.filter((f) => !userFilterFields.has(f.field.toLowerCase())),
+    ...user.filters,
+  ];
+  return {
+    ...base,
+    filters: mergedFilters,
+    time_range: user.time_range?.from ? user.time_range : base.time_range,
+    query: user.query,
+  };
+}
+
+/**
+ * Resolves a "now"/"now-Xh" relative time expression to an absolute
+ * nanosecond-epoch decimal string. `query-core::sql_templates::parse_time_expr`
+ * (shared, ClickHouse-flavored production code reused as-is by the DuckDB
+ * dialect renderers — see trace_query.rs/log_query.rs) emits
+ * `toUnixTimestamp64Nano(now64())`-style ClickHouse SQL for these, which
+ * DuckDB doesn't understand. Page-load `base_ir` always arrives pre-resolved
+ * to absolute ns already (a plain digit string passes through unchanged
+ * here), but `mergeIrs` can surface a raw-IR question's still-relative
+ * `LOG_BASE_IR`/`TRACE_BASE_IR`-style time_range, so resolve it locally
+ * before it ever reaches the Rust query planner.
+ */
+function resolveTimeExpr(expr: string, nowNs: bigint): string {
+  const trimmed = expr.trim();
+  if (trimmed === "now") return nowNs.toString();
+  const match = /^now-(\d+)([smhd])$/.exec(trimmed);
+  if (!match) return trimmed;
+  const nanosPerUnit: Record<string, bigint> = {
+    s: 1_000_000_000n,
+    m: 60_000_000_000n,
+    h: 3_600_000_000_000n,
+    d: 86_400_000_000_000n,
+  };
+  return (nowNs - BigInt(match[1]) * nanosPerUnit[match[2]]).toString();
+}
+
+function resolveTimeRange(timeRange: NlqIr["time_range"]): NlqIr["time_range"] {
+  const nowNs = BigInt(Date.now()) * 1_000_000n;
+  return {
+    from: resolveTimeExpr(timeRange.from, nowNs),
+    to: resolveTimeExpr(timeRange.to, nowNs),
+  };
+}
+
 export const playgroundRuntime: RuntimeApi = {
   mode: "playground",
   tenants: {
@@ -315,6 +394,43 @@ export const playgroundRuntime: RuntimeApi = {
       const { names } = await executeServiceNames();
       return { items: names };
     },
+    async summary(
+      _tenantId: string,
+      serviceName: string,
+      params: ServiceSummaryParams
+    ): Promise<ServiceDetailResponse> {
+      const nowMs = Date.now();
+      const fromMs = params.from ?? nowMs - 3_600_000;
+      const toMs = params.to ?? nowMs;
+      const { executeServiceSummaries } = await import("../playground/engineClient");
+      const { items } = await executeServiceSummaries({
+        fromNs: String(BigInt(Math.floor(fromMs)) * 1_000_000n),
+        toNs: String(BigInt(Math.floor(toMs)) * 1_000_000n),
+        environment: params.environment,
+      });
+      const service = items.find((item) => item.service_name === serviceName);
+      if (!service) {
+        throw new Error(`Service not found: ${serviceName}`);
+      }
+      return { service };
+    },
+    async responseTimeHistory(
+      _tenantId: string,
+      serviceName: string,
+      params: { from?: number; to?: number; buckets?: number }
+    ): Promise<ResponseTimeHistoryResponse> {
+      const nowMs = Date.now();
+      const fromMs = params.from ?? nowMs - 3_600_000;
+      const toMs = params.to ?? nowMs;
+      const { executeResponseTimeHistogram } = await import("../playground/engineClient");
+      const { buckets } = await executeResponseTimeHistogram({
+        fromNs: String(BigInt(Math.floor(fromMs)) * 1_000_000n),
+        toNs: String(BigInt(Math.floor(toMs)) * 1_000_000n),
+        bucketCount: params.buckets ?? 60,
+        serviceName,
+      });
+      return { buckets };
+    },
   },
   topology: {
     async get(_tenantId: string, params: TopologyParams): Promise<TopologyResponse> {
@@ -362,9 +478,22 @@ export const playgroundRuntime: RuntimeApi = {
   },
   nlq: {
     async execute(_tenantId: string, request: NlqRequest): Promise<NlqResponse> {
-      const ir = request.base_ir;
+      const rawIr = parseRawIrQuestion(request.question);
+      let ir = rawIr
+        ? request.base_ir
+          ? mergeIrs(request.base_ir as NlqIr, rawIr)
+          : rawIr
+        : (request.base_ir as NlqIr | undefined);
+      if (ir) {
+        ir = { ...ir, time_range: resolveTimeRange(ir.time_range) };
+      }
+      // A genuine free-text question (not the raw-IR shorthand) has no
+      // deterministic local answer — falls through to the fixture below,
+      // same as before.
+      const hasFreeTextQuestion = Boolean(request.question) && !rawIr;
+
       if (
-        !request.question &&
+        !hasFreeTextQuestion &&
         ir &&
         ir.operation === "table" &&
         ir.signals?.length === 1 &&
@@ -377,14 +506,14 @@ export const playgroundRuntime: RuntimeApi = {
           frame: {
             ...STUB_NLQ_FRAME,
             data: rows as unknown as Record<string, unknown>[],
-            nlq_ir: ir as NlqIr,
+            nlq_ir: ir,
             source_sql: sql,
           },
         };
       }
 
       if (
-        !request.question &&
+        !hasFreeTextQuestion &&
         ir &&
         ir.operation === "table" &&
         ir.signals?.length === 1 &&
@@ -397,7 +526,7 @@ export const playgroundRuntime: RuntimeApi = {
           frame: {
             ...STUB_LOG_FRAME,
             data: rows as unknown as Record<string, unknown>[],
-            nlq_ir: ir as NlqIr,
+            nlq_ir: ir,
             source_sql: sql,
           },
         };
@@ -407,7 +536,7 @@ export const playgroundRuntime: RuntimeApi = {
       // fixture data — shorthand/IR-merge logic isn't wired yet. Match the
       // fixture shape to the requested signal so at least the response
       // *shape* is correct even when the content is static.
-      if (!request.question && ir?.signals?.length === 1 && ir.signals[0] === "logs") {
+      if (!hasFreeTextQuestion && ir?.signals?.length === 1 && ir.signals[0] === "logs") {
         return { type: "frame", frame: STUB_LOG_FRAME };
       }
       return { type: "frame", frame: STUB_NLQ_FRAME };
