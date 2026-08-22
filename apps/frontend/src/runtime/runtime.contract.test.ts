@@ -25,6 +25,30 @@ vi.mock("../playground/engineClient", () => ({
   executeTraceHistogram: vi.fn(async () => ({
     buckets: [{ start_ms: 0, end_ms: 60_000, count: 1 }],
   })),
+  executeLogTable: vi.fn(async () => ({
+    rows: [
+      {
+        tenant_id: "00000000-0000-0000-0000-000000000001",
+        log_id: "mock-log-1",
+        timestamp_unix_nano: "0",
+        observed_timestamp_unix_nano: "0",
+        severity_number: 9,
+        severity_text: "INFO",
+        body: "checkout request completed",
+        trace_id: "mock-trace-1",
+        span_id: "mock-span-1",
+        service_name: "checkout",
+        environment: "production",
+        host_id: "mock-host",
+        attributes: {},
+        resource_attributes: {},
+      },
+    ],
+    sql: "-- mocked",
+  })),
+  executeLogHistogram: vi.fn(async () => ({
+    buckets: [{ start_ms: 0, end_ms: 60_000, counts: { "9": 1, "17": 1 } }],
+  })),
 }));
 
 const MOCK_TENANT_ID = "00000000-0000-0000-0000-000000000001";
