@@ -1,8 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, expect, test, vi } from "vitest";
-import * as dashboardsApi from "../api/dashboards";
-import { submitNlqQuery } from "../api/nlq";
+import type * as dashboardsApi from "../api/dashboards";
 import DashboardDetailPage from "./DashboardDetailPage";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
 
@@ -30,13 +29,17 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   };
 });
 
-vi.mock("../api/nlq", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../api/nlq")>();
-  return {
-    ...actual,
-    submitNlqQuery: vi.fn(),
-  };
-});
+const getMock = vi.fn();
+const updateMock = vi.fn();
+const nlqExecuteMock = vi.fn();
+
+vi.mock("../hooks/useRuntime", () => ({
+  useRuntime: () => ({
+    mode: "http",
+    dashboards: { get: getMock, update: updateMock },
+    nlq: { execute: nlqExecuteMock },
+  }),
+}));
 
 vi.mock('react-grid-layout', () => {
   type LayoutItem = { i: string; x: number; y: number; w: number; h: number };
@@ -140,19 +143,22 @@ function renderPage() {
 beforeEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
-  vi.mocked(submitNlqQuery).mockResolvedValue(queryFrame);
+  getMock.mockReset();
+  updateMock.mockReset();
+  nlqExecuteMock.mockReset();
+  nlqExecuteMock.mockResolvedValue(queryFrame);
 });
 
 test("renders query panels through NLQ and text panels as explanation boxes", async () => {
-  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
-  vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+  getMock.mockResolvedValue(dashboard);
+  updateMock.mockResolvedValue(dashboard);
 
   renderPage();
 
   expect(await screen.findByRole("heading", { name: "Checkout Health" })).toBeInTheDocument();
   expect(await screen.findByText("Escalate after deploy verification.")).toBeInTheDocument();
   expect(await screen.findByText("checkout")).toBeInTheDocument();
-  expect(submitNlqQuery).toHaveBeenCalledWith(
+  expect(nlqExecuteMock).toHaveBeenCalledWith(
     "test-tenant",
     expect.objectContaining({
       question: "errors in checkout",
@@ -164,7 +170,7 @@ test("renders query panels through NLQ and text panels as explanation boxes", as
 
 test("local preset time range overrides the global date range", async () => {
   vi.spyOn(Date, "now").mockReturnValue(new Date("2026-05-10T12:00:00Z").getTime());
-  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue({
+  getMock.mockResolvedValue({
     ...dashboard,
     panels: [
       {
@@ -173,14 +179,14 @@ test("local preset time range overrides the global date range", async () => {
       },
     ],
   });
-  vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+  updateMock.mockResolvedValue(dashboard);
 
   renderPage();
 
   await screen.findByRole("heading", { name: "Checkout Health" });
 
   await waitFor(() =>
-    expect(submitNlqQuery).toHaveBeenCalledWith(
+    expect(nlqExecuteMock).toHaveBeenCalledWith(
       "test-tenant",
       expect.objectContaining({
         base_ir: expect.objectContaining({
@@ -195,8 +201,8 @@ test("local preset time range overrides the global date range", async () => {
 });
 
 test("add panel button opens template library and custom form submits a new query panel", async () => {
-  const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
-  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+  updateMock.mockResolvedValue(dashboard);
+  getMock.mockResolvedValue(dashboard);
 
   renderPage();
   await screen.findByRole("heading", { name: "Checkout Health" });
@@ -215,7 +221,7 @@ test("add panel button opens template library and custom form submits a new quer
   fireEvent.click(submitButton);
 
   await waitFor(() =>
-    expect(updateSpy).toHaveBeenCalledWith(
+    expect(updateMock).toHaveBeenCalledWith(
       "test-tenant",
       "dash-1",
       expect.objectContaining({
@@ -233,8 +239,8 @@ test("add panel button opens template library and custom form submits a new quer
 });
 
 test("add panel form shows text content field when kind is text", async () => {
-  vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
-  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+  updateMock.mockResolvedValue(dashboard);
+  getMock.mockResolvedValue(dashboard);
 
   renderPage();
   await screen.findByRole("heading", { name: "Checkout Health" });
@@ -250,8 +256,8 @@ test("add panel form shows text content field when kind is text", async () => {
 });
 
 test("add panel cancel button closes the form", async () => {
-  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
-  vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+  getMock.mockResolvedValue(dashboard);
+  updateMock.mockResolvedValue(dashboard);
 
   renderPage();
   await screen.findByRole("heading", { name: "Checkout Health" });
@@ -265,8 +271,8 @@ test("add panel cancel button closes the form", async () => {
 });
 
 test("add panel from template submits pre-filled query panel", async () => {
-  const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
-  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+  updateMock.mockResolvedValue(dashboard);
+  getMock.mockResolvedValue(dashboard);
 
   renderPage();
   await screen.findByRole("heading", { name: "Checkout Health" });
@@ -277,7 +283,7 @@ test("add panel from template submits pre-filled query panel", async () => {
   fireEvent.click(screen.getByTestId("template-error-rate"));
 
   await waitFor(() =>
-    expect(updateSpy).toHaveBeenCalledWith(
+    expect(updateMock).toHaveBeenCalledWith(
       "test-tenant",
       "dash-1",
       expect.objectContaining({
@@ -296,8 +302,8 @@ test("add panel from template submits pre-filled query panel", async () => {
 });
 
 test("Edit layout button enters edit mode showing Done and Cancel", async () => {
-  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
-  vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+  getMock.mockResolvedValue(dashboard);
+  updateMock.mockResolvedValue(dashboard);
 
   renderPage();
   await screen.findByRole("heading", { name: "Checkout Health" });
@@ -311,8 +317,8 @@ test("Edit layout button enters edit mode showing Done and Cancel", async () => 
 });
 
 test("Cancel exits edit mode without calling updateDashboard", async () => {
-  const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
-  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+  updateMock.mockResolvedValue(dashboard);
+  getMock.mockResolvedValue(dashboard);
 
   renderPage();
   await screen.findByRole("heading", { name: "Checkout Health" });
@@ -322,12 +328,12 @@ test("Cancel exits edit mode without calling updateDashboard", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
   expect(screen.getByRole("button", { name: "Edit layout" })).toBeInTheDocument();
-  expect(updateSpy).not.toHaveBeenCalled();
+  expect(updateMock).not.toHaveBeenCalled();
 });
 
 test("Done saves staged layout to API and exits edit mode", async () => {
-  const updateSpy = vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
-  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
+  updateMock.mockResolvedValue(dashboard);
+  getMock.mockResolvedValue(dashboard);
 
   renderPage();
   await screen.findByRole("heading", { name: "Checkout Health" });
@@ -337,7 +343,7 @@ test("Done saves staged layout to API and exits edit mode", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Done" }));
 
   await waitFor(() =>
-    expect(updateSpy).toHaveBeenCalledWith(
+    expect(updateMock).toHaveBeenCalledWith(
       "test-tenant",
       "dash-1",
       expect.objectContaining({
@@ -357,9 +363,9 @@ test("Done saves staged layout to API and exits edit mode", async () => {
 });
 
 test("panel shows ErrorState when the panel query fails", async () => {
-  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
-  vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
-  vi.mocked(submitNlqQuery).mockRejectedValue(new Error("upstream timeout"));
+  getMock.mockResolvedValue(dashboard);
+  updateMock.mockResolvedValue(dashboard);
+  nlqExecuteMock.mockRejectedValue(new Error("upstream timeout"));
 
   renderPage();
 
@@ -369,9 +375,9 @@ test("panel shows ErrorState when the panel query fails", async () => {
 });
 
 test("panel shows EmptyState when the query returns no frame data", async () => {
-  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue(dashboard);
-  vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
-  vi.mocked(submitNlqQuery).mockResolvedValue({ type: "text", text: "no data" } as never);
+  getMock.mockResolvedValue(dashboard);
+  updateMock.mockResolvedValue(dashboard);
+  nlqExecuteMock.mockResolvedValue({ type: "text", text: "no data" } as never);
 
   renderPage();
 
@@ -380,7 +386,7 @@ test("panel shows EmptyState when the query returns no frame data", async () => 
 });
 
 test("dashboard shows ErrorState when the dashboard fails to load", async () => {
-  vi.spyOn(dashboardsApi, "getDashboard").mockRejectedValue(new Error("dashboard fetch failed"));
+  getMock.mockRejectedValue(new Error("dashboard fetch failed"));
 
   renderPage();
 
@@ -388,7 +394,7 @@ test("dashboard shows ErrorState when the dashboard fails to load", async () => 
 });
 
 test("metrics panels without query text execute a metric catalog base IR", async () => {
-  vi.spyOn(dashboardsApi, "getDashboard").mockResolvedValue({
+  getMock.mockResolvedValue({
     ...dashboard,
     panels: [
       {
@@ -400,14 +406,14 @@ test("metrics panels without query text execute a metric catalog base IR", async
       },
     ],
   });
-  vi.spyOn(dashboardsApi, "updateDashboard").mockResolvedValue(dashboard);
+  updateMock.mockResolvedValue(dashboard);
 
   renderPage();
 
   await screen.findByRole("heading", { name: "Checkout Health" });
 
   await waitFor(() =>
-    expect(submitNlqQuery).toHaveBeenCalledWith(
+    expect(nlqExecuteMock).toHaveBeenCalledWith(
       "test-tenant",
       expect.objectContaining({
         question: undefined,

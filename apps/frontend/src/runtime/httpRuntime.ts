@@ -2,7 +2,15 @@ import { fetchTraceHistogram, searchTraces } from "../api/traces";
 import { fetchLogHistogram } from "../api/logs";
 import { listTenants, listEnvironments } from "../api/tenants";
 import { submitNlqQuery } from "../api/nlq";
-import { createDashboard } from "../api/dashboards";
+import {
+  createDashboard,
+  listDashboards,
+  getDashboard,
+  updateDashboard,
+  deleteDashboard,
+  exportDashboard,
+  importDashboard,
+} from "../api/dashboards";
 import { listServiceSummaries, listServices, getTopology } from "../api/services";
 import { listMetrics, getMetricGroupPoints } from "../api/metrics";
 import { listChangeEvents } from "../api/changeEvents";
@@ -40,6 +48,12 @@ export const httpRuntime: RuntimeApi = {
     execute: submitNlqQuery,
   },
   dashboards: {
+    list: listDashboards,
+    get: getDashboard,
     create: createDashboard,
+    update: updateDashboard,
+    delete: deleteDashboard,
+    export: exportDashboard,
+    import: importDashboard,
   },
 };

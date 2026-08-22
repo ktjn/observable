@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, test, vi, beforeEach } from "vitest";
-import * as dashboardsApi from "../api/dashboards";
+import type * as dashboardsApi from "../api/dashboards";
 import DashboardsPage from "./DashboardsPage";
 
 vi.mock("../hooks/useTenantContext", () => ({
@@ -14,6 +14,39 @@ const { mockNavigate } = vi.hoisted(() => ({
 
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({ navigate: mockNavigate }),
+  Link: ({
+    children,
+    to,
+    params,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+    to?: string;
+    params?: Record<string, string>;
+    children?: React.ReactNode;
+  }) => (
+    <a href={to ? to.replace(/\$(\w+)/g, (_, key: string) => params?.[key] ?? "") : "#"} {...props}>
+      {children}
+    </a>
+  ),
+}));
+
+const listMock = vi.fn();
+const deleteMock = vi.fn();
+const createMock = vi.fn();
+const exportMock = vi.fn();
+const importMock = vi.fn();
+
+vi.mock("../hooks/useRuntime", () => ({
+  useRuntime: () => ({
+    mode: "http",
+    dashboards: {
+      list: listMock,
+      delete: deleteMock,
+      create: createMock,
+      export: exportMock,
+      import: importMock,
+    },
+  }),
 }));
 
 const sampleDashboard: dashboardsApi.Dashboard = {
@@ -49,10 +82,15 @@ function renderPage() {
 beforeEach(() => {
   vi.restoreAllMocks();
   mockNavigate.mockClear();
+  listMock.mockReset();
+  deleteMock.mockReset();
+  createMock.mockReset();
+  exportMock.mockReset();
+  importMock.mockReset();
 });
 
 test("renders dashboard list when data loads", async () => {
-  vi.spyOn(dashboardsApi, "listDashboards").mockResolvedValue({ items: [sampleDashboard] });
+  listMock.mockResolvedValue({ items: [sampleDashboard] });
 
   renderPage();
 
@@ -62,7 +100,7 @@ test("renders dashboard list when data loads", async () => {
 });
 
 test("renders empty state when no dashboards", async () => {
-  vi.spyOn(dashboardsApi, "listDashboards").mockResolvedValue({ items: [] });
+  listMock.mockResolvedValue({ items: [] });
 
   renderPage();
 
@@ -70,8 +108,8 @@ test("renders empty state when no dashboards", async () => {
 });
 
 test("Export button calls exportDashboard and creates a download blob", async () => {
-  vi.spyOn(dashboardsApi, "listDashboards").mockResolvedValue({ items: [sampleDashboard] });
-  const exportSpy = vi.spyOn(dashboardsApi, "exportDashboard").mockResolvedValue({
+  listMock.mockResolvedValue({ items: [sampleDashboard] });
+  exportMock.mockResolvedValue({
     schema_version: "1",
     name: "My Dashboard",
     panels: [{ title: "Error Logs", query_kind: "logs", service: "checkout", preset: "1h", filters: {} }],
@@ -85,13 +123,13 @@ test("Export button calls exportDashboard and creates a download blob", async ()
   await waitFor(() => screen.getByText("My Dashboard"));
   fireEvent.click(screen.getByRole("button", { name: "Export" }));
 
-  await waitFor(() => expect(exportSpy).toHaveBeenCalledWith("test-tenant", "dash-1"));
+  await waitFor(() => expect(exportMock).toHaveBeenCalledWith("test-tenant", "dash-1"));
   expect(createObjectURLSpy).toHaveBeenCalledWith(expect.any(Blob));
 });
 
 test("Import button opens file picker and calls importDashboard on valid JSON", async () => {
-  vi.spyOn(dashboardsApi, "listDashboards").mockResolvedValue({ items: [] });
-  const importSpy = vi.spyOn(dashboardsApi, "importDashboard").mockResolvedValue(sampleDashboard);
+  listMock.mockResolvedValue({ items: [] });
+  importMock.mockResolvedValue(sampleDashboard);
 
   renderPage();
 
@@ -110,12 +148,12 @@ test("Import button opens file picker and calls importDashboard on valid JSON", 
   Object.defineProperty(fileInput, "files", { value: [file], configurable: true });
   fireEvent.change(fileInput);
 
-  await waitFor(() => expect(importSpy).toHaveBeenCalledWith("test-tenant", exportPayload));
+  await waitFor(() => expect(importMock).toHaveBeenCalledWith("test-tenant", exportPayload));
 });
 
 test("Import shows error message on failure", async () => {
-  vi.spyOn(dashboardsApi, "listDashboards").mockResolvedValue({ items: [] });
-  vi.spyOn(dashboardsApi, "importDashboard").mockRejectedValue(new Error("Dashboard import failed: 422"));
+  listMock.mockResolvedValue({ items: [] });
+  importMock.mockRejectedValue(new Error("Dashboard import failed: 422"));
 
   renderPage();
 
@@ -136,7 +174,7 @@ test("Import shows error message on failure", async () => {
 // ── Slice 9: create-affordance, card metadata ─────────────────────────────────
 
 test('"New dashboard" button appears in header', async () => {
-  vi.spyOn(dashboardsApi, "listDashboards").mockResolvedValue({ items: [] });
+  listMock.mockResolvedValue({ items: [] });
 
   renderPage();
 
@@ -145,7 +183,7 @@ test('"New dashboard" button appears in header', async () => {
 });
 
 test('clicking "New dashboard" shows inline name input', async () => {
-  vi.spyOn(dashboardsApi, "listDashboards").mockResolvedValue({ items: [] });
+  listMock.mockResolvedValue({ items: [] });
 
   renderPage();
 
@@ -158,8 +196,8 @@ test('clicking "New dashboard" shows inline name input', async () => {
 });
 
 test("submitting with a name calls createDashboard", async () => {
-  vi.spyOn(dashboardsApi, "listDashboards").mockResolvedValue({ items: [] });
-  const createSpy = vi.spyOn(dashboardsApi, "createDashboard").mockResolvedValue({
+  listMock.mockResolvedValue({ items: [] });
+  createMock.mockResolvedValue({
     ...sampleDashboard,
     dashboard_id: "dash-new",
     name: "Alpha",
@@ -175,7 +213,7 @@ test("submitting with a name calls createDashboard", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
   await waitFor(() =>
-    expect(createSpy).toHaveBeenCalledWith("test-tenant", { name: "Alpha", panels: [] }),
+    expect(createMock).toHaveBeenCalledWith("test-tenant", { name: "Alpha", panels: [] }),
   );
   await waitFor(() =>
     expect(mockNavigate).toHaveBeenCalledWith({ to: "/dashboards/dash-new" }),
@@ -183,7 +221,7 @@ test("submitting with a name calls createDashboard", async () => {
 });
 
 test("dashboard card shows created_at date", async () => {
-  vi.spyOn(dashboardsApi, "listDashboards").mockResolvedValue({ items: [sampleDashboard] });
+  listMock.mockResolvedValue({ items: [sampleDashboard] });
 
   renderPage();
 
@@ -193,7 +231,7 @@ test("dashboard card shows created_at date", async () => {
 });
 
 test("dashboard card shows visibility badge", async () => {
-  vi.spyOn(dashboardsApi, "listDashboards").mockResolvedValue({ items: [sampleDashboard] });
+  listMock.mockResolvedValue({ items: [sampleDashboard] });
 
   renderPage();
 
