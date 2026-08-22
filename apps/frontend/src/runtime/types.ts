@@ -2,7 +2,13 @@ import type { TraceHistogramResponse, TraceListResponse } from "../api/traces";
 import type { LogHistogramResponse } from "../api/logs";
 import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants";
 import type { NlqRequest, NlqResponse } from "../api/nlq";
-import type { CreateDashboardRequest, Dashboard } from "../api/dashboards";
+import type {
+  CreateDashboardRequest,
+  UpdateDashboardRequest,
+  Dashboard,
+  DashboardListResponse,
+  DashboardExport,
+} from "../api/dashboards";
 import type { ServiceSummaryResponse, DiscoveryResponse, TopologyResponse } from "../api/services";
 import type { MetricCatalogResponse, MetricPointsResponse, MetricCatalogEntry } from "../api/metrics";
 import type { ListChangeEventsResponse, ListChangeEventsParams } from "../api/changeEvents";
@@ -78,6 +84,12 @@ export interface RuntimeApi {
     execute(tenantId: string, request: NlqRequest): Promise<NlqResponse>;
   };
   dashboards: {
+    list(tenantId: string): Promise<DashboardListResponse>;
+    get(tenantId: string, dashboardId: string): Promise<Dashboard>;
     create(tenantId: string, request: CreateDashboardRequest): Promise<Dashboard>;
+    update(tenantId: string, dashboardId: string, request: UpdateDashboardRequest): Promise<Dashboard>;
+    delete(tenantId: string, dashboardId: string): Promise<void>;
+    export(tenantId: string, dashboardId: string): Promise<DashboardExport>;
+    import(tenantId: string, export_: DashboardExport): Promise<Dashboard>;
   };
 }

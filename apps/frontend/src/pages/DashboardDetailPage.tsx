@@ -4,17 +4,14 @@ import 'react-resizable/css/styles.css';
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
 import { useState } from "react";
-import {
-  getDashboard,
-  updateDashboard,
-  type DashboardPanel,
-  type DashboardPanelKind,
-  type DashboardPanelTimeRange,
-  type DashboardQueryKind,
-  type UpdateDashboardRequest,
+import type {
+  DashboardPanel,
+  DashboardPanelKind,
+  DashboardPanelTimeRange,
+  DashboardQueryKind,
+  UpdateDashboardRequest,
 } from "../api/dashboards";
 import type { Preset } from "../router";
-import { submitNlqQuery } from "../api/nlq";
 import { VisualizationPanel } from "../features/nlq/VisualizationPanel";
 import { PanelTemplateLibrary, type PanelTemplate } from "../features/dashboards/PanelTemplateLibrary";
 import type { NlqIrLike } from "../features/nlq/queryFilters";
@@ -27,6 +24,7 @@ import { ErrorState } from "../components/ui/error-state";
 import { Panel } from "../components/ui/panel";
 import { presetToMs, useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { useRuntime } from "../hooks/useRuntime";
 
 function msToNsString(ms: number): string {
   return String(BigInt(Math.floor(ms)) * 1_000_000n);
@@ -90,6 +88,7 @@ export default function DashboardDetailPage() {
   const params = useParams({ strict: false }) as { dashboardId: string };
   const dashboardId = params.dashboardId;
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const globalDateRange = useGlobalDateRange();
   const queryClient = useQueryClient();
   const [addPanelMode, setAddPanelMode] = useState<null | "templates" | "custom">(null);
@@ -101,11 +100,11 @@ export default function DashboardDetailPage() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["dashboard", tenantId, dashboardId],
-    queryFn: () => getDashboard(tenantId, dashboardId),
+    queryFn: () => runtime.dashboards.get(tenantId, dashboardId),
   });
 
   const updateMutation = useMutation({
-    mutationFn: (next: UpdateDashboardRequest) => updateDashboard(tenantId, dashboardId, next),
+    mutationFn: (next: UpdateDashboardRequest) => runtime.dashboards.update(tenantId, dashboardId, next),
     onSuccess: (updated) => {
       queryClient.setQueryData(["dashboard", tenantId, dashboardId], updated);
     },
@@ -674,6 +673,7 @@ function QueryPanel({
   globalRange: { fromMs: number; toMs: number };
 }) {
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const resolved = resolvePanelTimeRange(panel.time_range as DashboardPanelTimeRange, globalRange);
   const signal = panel.query_kind ?? "logs";
   const hasQuestion = Boolean(panel.query_text?.trim());
@@ -700,7 +700,7 @@ function QueryPanel({
       resolved.toMs,
     ],
     queryFn: () =>
-      submitNlqQuery(tenantId, {
+      runtime.nlq.execute(tenantId, {
         question: panel.query_text ?? undefined,
         mode: "execute",
         service_name: panel.service ?? undefined,

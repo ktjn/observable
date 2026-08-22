@@ -1,23 +1,17 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "@tanstack/react-router";
-import {
-  createDashboard,
-  deleteDashboard,
-  exportDashboard,
-  importDashboard,
-  listDashboards,
-  type Dashboard,
-  type DashboardExport,
-} from "../api/dashboards";
+import { Link, useRouter } from "@tanstack/react-router";
+import type { Dashboard, DashboardExport } from "../api/dashboards";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { useRuntime } from "../hooks/useRuntime";
 
 export default function DashboardsPage() {
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const queryClient = useQueryClient();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -31,11 +25,11 @@ export default function DashboardsPage() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["dashboards", tenantId],
-    queryFn: () => listDashboards(tenantId),
+    queryFn: () => runtime.dashboards.list(tenantId),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (dashboardId: string) => deleteDashboard(tenantId, dashboardId),
+    mutationFn: (dashboardId: string) => runtime.dashboards.delete(tenantId, dashboardId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["dashboards", tenantId] }),
   });
 
@@ -44,7 +38,7 @@ export default function DashboardsPage() {
     setCreateSubmitting(true);
     setCreateError(null);
     try {
-      const created = await createDashboard(tenantId, { name: newName.trim(), panels: [] });
+      const created = await runtime.dashboards.create(tenantId, { name: newName.trim(), panels: [] });
       await queryClient.invalidateQueries({ queryKey: ["dashboards", tenantId] });
       router.navigate({ to: `/dashboards/${created.dashboard_id}` });
       setCreating(false);
@@ -64,7 +58,7 @@ export default function DashboardsPage() {
 
   async function handleExport(dashboard: Dashboard) {
     try {
-      const exported = await exportDashboard(tenantId, dashboard.dashboard_id);
+      const exported = await runtime.dashboards.export(tenantId, dashboard.dashboard_id);
       const blob = new Blob([JSON.stringify(exported, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -84,7 +78,7 @@ export default function DashboardsPage() {
     try {
       const text = await file.text();
       const payload: DashboardExport = JSON.parse(text);
-      await importDashboard(tenantId, payload);
+      await runtime.dashboards.import(tenantId, payload);
       await queryClient.invalidateQueries({ queryKey: ["dashboards", tenantId] });
     } catch (err) {
       setImportError(err instanceof Error ? err.message : "Import failed");
@@ -209,12 +203,13 @@ function DashboardCard({
       </div>
 
       <div className="mt-auto flex items-center gap-2 pt-4">
-        <a
-          href={`/dashboards/${dashboard.dashboard_id}`}
+        <Link
+          to="/dashboards/$dashboardId"
+          params={{ dashboardId: dashboard.dashboard_id }}
           className="inline-flex min-h-9 items-center border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] no-underline hover:border-[var(--brand)]"
         >
           Open
-        </a>
+        </Link>
         <Button variant="secondary" onClick={onExport}>
           Export
         </Button>

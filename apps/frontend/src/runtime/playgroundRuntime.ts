@@ -2,7 +2,14 @@ import type { Span, TraceHistogramResponse, TraceListResponse, TraceResponse } f
 import type { LogRecord, LogHistogramResponse } from "../api/logs";
 import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants";
 import type { NlqRequest, NlqResponse, NlqIr, VisualizationFrame } from "../api/nlq";
-import type { Dashboard } from "../api/dashboards";
+import type {
+  Dashboard,
+  DashboardPanel,
+  CreateDashboardRequest,
+  UpdateDashboardRequest,
+  DashboardListResponse,
+  DashboardExport,
+} from "../api/dashboards";
 import type { ServiceSummaryResponse, DiscoveryResponse, TopologyResponse } from "../api/services";
 import type { MetricCatalogResponse, MetricPointsResponse, MetricCatalogEntry } from "../api/metrics";
 import type { ListChangeEventsResponse, ListChangeEventsParams } from "../api/changeEvents";
@@ -183,13 +190,65 @@ const STUB_LOG_FRAME: VisualizationFrame = {
   approximation_statement: "",
 };
 
-const STUB_DASHBOARD: Dashboard = {
-  dashboard_id: "playground-dashboard-1",
-  name: "playground dashboard",
-  visibility: "private",
-  panels: [],
-  created_at: new Date(0).toISOString(),
-};
+/**
+ * Dashboards are user-created content, not generated analytical data, so
+ * they live in a plain in-memory `Map` rather than a DuckDB table — no SQL
+ * shape to plan, just CRUD over JSON. Cleared on a full page reload, same
+ * lifetime as the rest of the playground's demo data, but *not* touched by
+ * "Reset playground" (that only regenerates spans/logs/metrics/change
+ * events — a user's saved dashboards aren't demo data to discard).
+ */
+const dashboardStore = new Map<string, Dashboard>();
+let nextDashboardId = 1;
+let nextPanelId = 1;
+
+function makeDashboardId(): string {
+  return `playground-dashboard-${nextDashboardId++}`;
+}
+
+function makePanelId(): string {
+  return `playground-panel-${nextPanelId++}`;
+}
+
+function panelFromCreateRequest(panel: CreateDashboardRequest["panels"][number]): DashboardPanel {
+  return {
+    panel_id: makePanelId(),
+    title: panel.title,
+    panel_kind: panel.panel_kind ?? "query",
+    query_kind: panel.query_kind ?? undefined,
+    service: panel.service,
+    preset: panel.preset ?? undefined,
+    filters: panel.filters,
+    query_text: panel.query_text ?? undefined,
+    content: panel.content ?? undefined,
+    layout: panel.layout ?? { x: 0, y: 0, w: 6, h: 4 },
+    time_range: panel.time_range ?? { mode: "global" },
+  };
+}
+
+function panelFromUpdateRequest(panel: UpdateDashboardRequest["panels"][number]): DashboardPanel {
+  return {
+    panel_id: panel.panel_id ?? makePanelId(),
+    title: panel.title,
+    panel_kind: panel.panel_kind,
+    query_kind: panel.query_kind ?? undefined,
+    service: panel.service ?? undefined,
+    preset: panel.preset ?? undefined,
+    filters: panel.filters,
+    query_text: panel.query_text ?? undefined,
+    content: panel.content ?? undefined,
+    layout: panel.layout,
+    time_range: panel.time_range,
+  };
+}
+
+function requireDashboard(dashboardId: string): Dashboard {
+  const dashboard = dashboardStore.get(dashboardId);
+  if (!dashboard) {
+    throw new Error(`Dashboard not found: ${dashboardId}`);
+  }
+  return dashboard;
+}
 
 export const playgroundRuntime: RuntimeApi = {
   mode: "playground",
@@ -355,8 +414,78 @@ export const playgroundRuntime: RuntimeApi = {
     },
   },
   dashboards: {
-    async create(): Promise<Dashboard> {
-      return STUB_DASHBOARD;
+    async list(): Promise<DashboardListResponse> {
+      return { items: Array.from(dashboardStore.values()) };
+    },
+    async get(_tenantId: string, dashboardId: string): Promise<Dashboard> {
+      return requireDashboard(dashboardId);
+    },
+    async create(_tenantId: string, request: CreateDashboardRequest): Promise<Dashboard> {
+      const dashboard: Dashboard = {
+        dashboard_id: makeDashboardId(),
+        name: request.name,
+        visibility: "private",
+        panels: request.panels.map(panelFromCreateRequest),
+        created_at: new Date().toISOString(),
+      };
+      dashboardStore.set(dashboard.dashboard_id, dashboard);
+      return dashboard;
+    },
+    async update(_tenantId: string, dashboardId: string, request: UpdateDashboardRequest): Promise<Dashboard> {
+      const existing = requireDashboard(dashboardId);
+      const updated: Dashboard = {
+        ...existing,
+        name: request.name,
+        panels: request.panels.map(panelFromUpdateRequest),
+      };
+      dashboardStore.set(dashboardId, updated);
+      return updated;
+    },
+    async delete(_tenantId: string, dashboardId: string): Promise<void> {
+      dashboardStore.delete(dashboardId);
+    },
+    async export(_tenantId: string, dashboardId: string): Promise<DashboardExport> {
+      const dashboard = requireDashboard(dashboardId);
+      return {
+        schema_version: "1",
+        name: dashboard.name,
+        panels: dashboard.panels.map((panel) => ({
+          title: panel.title,
+          panel_kind: panel.panel_kind,
+          query_kind: panel.query_kind,
+          service: panel.service,
+          preset: panel.preset as DashboardExport["panels"][number]["preset"],
+          filters: panel.filters as Record<string, unknown>,
+          query_text: panel.query_text,
+          content: panel.content,
+          layout: panel.layout,
+          time_range: panel.time_range as DashboardExport["panels"][number]["time_range"],
+        })),
+      };
+    },
+    async import(_tenantId: string, export_: DashboardExport): Promise<Dashboard> {
+      const dashboard: Dashboard = {
+        dashboard_id: makeDashboardId(),
+        name: export_.name,
+        visibility: "private",
+        panels: export_.panels.map((panel) =>
+          panelFromCreateRequest({
+            title: panel.title,
+            panel_kind: panel.panel_kind,
+            query_kind: panel.query_kind,
+            service: panel.service ?? undefined,
+            preset: panel.preset ?? null,
+            filters: panel.filters,
+            query_text: panel.query_text,
+            content: panel.content,
+            layout: panel.layout,
+            time_range: panel.time_range,
+          })
+        ),
+        created_at: new Date().toISOString(),
+      };
+      dashboardStore.set(dashboard.dashboard_id, dashboard);
+      return dashboard;
     },
   },
 };

@@ -105,6 +105,12 @@ vi.mock("../api/logs", async () => {
 });
 
 vi.mock("../api/dashboards", () => ({
+  listDashboards: vi.fn(async () => ({ items: [] })),
+  getDashboard: vi.fn(),
+  updateDashboard: vi.fn(),
+  deleteDashboard: vi.fn(),
+  exportDashboard: vi.fn(),
+  importDashboard: vi.fn(),
   createDashboard: vi.fn(async () => ({
     dashboard_id: "dash-1",
     name: "Promoted log query",
