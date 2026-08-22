@@ -1,13 +1,21 @@
 import type { Span, TraceHistogramResponse, TraceListResponse, TraceResponse } from "../api/traces";
 import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants";
-import type { NlqResponse, NlqIr, VisualizationFrame } from "../api/nlq";
+import type { NlqRequest, NlqResponse, NlqIr, VisualizationFrame } from "../api/nlq";
 import type { Dashboard } from "../api/dashboards";
 import type { RuntimeApi } from "./types";
+// Dynamically imported (not a static import): engineClient statically
+// references a Worker URL, which Vite's dep scanner eagerly resolves at
+// import time. A static import here would drag that into every module that
+// imports playgroundRuntime.ts, including production (non-playground)
+// tests — see the identical issue with PlaygroundSpike in router.ts.
 
 /**
- * Phase 1 (start) in-memory stub. Proves the runtime seam end-to-end with fixed
- * fixture data; not yet wired to the playground worker/WASM/DuckDB engine
- * (that wiring is Phase 3).
+ * In-memory stub for most operations; `nlq.execute` is wired to the real
+ * playground engine (Rust-planned DuckDB-WASM query) for one shape — the
+ * Traces page's page-load/filter-pill query (no free-text question,
+ * signals=["traces"], operation="table"). Everything else still falls back
+ * to STUB_NLQ_FRAME. See Phase 3 in
+ * docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md.
  */
 
 // Must match useTenantContext.tsx's DEFAULT_TENANT_ID / DEFAULT_TENANT_NAME and
@@ -138,7 +146,30 @@ export const playgroundRuntime: RuntimeApi = {
     },
   },
   nlq: {
-    async execute(): Promise<NlqResponse> {
+    async execute(_tenantId: string, request: NlqRequest): Promise<NlqResponse> {
+      const ir = request.base_ir;
+      if (
+        !request.question &&
+        ir &&
+        ir.operation === "table" &&
+        ir.signals?.length === 1 &&
+        ir.signals[0] === "traces"
+      ) {
+        const { executeTraceTable } = await import("../playground/engineClient");
+        const { rows, sql } = await executeTraceTable(ir);
+        return {
+          type: "frame",
+          frame: {
+            ...STUB_NLQ_FRAME,
+            data: rows as unknown as Record<string, unknown>[],
+            nlq_ir: ir as NlqIr,
+            source_sql: sql,
+          },
+        };
+      }
+
+      // Free-text NLQ questions and every other operation/signal still use
+      // fixture data — shorthand/IR-merge logic isn't wired yet.
       return { type: "frame", frame: STUB_NLQ_FRAME };
     },
   },

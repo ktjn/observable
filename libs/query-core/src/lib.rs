@@ -8,5 +8,6 @@
 pub mod params;
 pub mod planner;
 pub mod sql_templates;
+pub mod trace_query;
 
 pub use params::*;

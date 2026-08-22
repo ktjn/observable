@@ -3,6 +3,27 @@ import { httpRuntime } from "./httpRuntime";
 import { playgroundRuntime } from "./playgroundRuntime";
 import type { RuntimeApi } from "./types";
 
+// playgroundRuntime.nlq.execute delegates trace-table queries to a real Web
+// Worker (engineClient), which jsdom doesn't support. Mock it here — the
+// worker/DuckDB/wasm pipeline itself is covered by
+// apps/frontend/e2e/playground/traces.spec.ts against a real browser.
+vi.mock("../playground/engineClient", () => ({
+  executeTraceTable: vi.fn(async () => ({
+    rows: [
+      {
+        trace_id: "mock-trace-1",
+        root_service: "checkout",
+        root_operation: "POST /checkout",
+        duration_ms: 12,
+        status_code: "OK",
+        environment: "production",
+        start_time_unix_nano: "0",
+      },
+    ],
+    sql: "-- mocked",
+  })),
+}));
+
 const MOCK_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 
 /**

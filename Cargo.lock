@@ -2985,6 +2985,9 @@ checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
 name = "playground-wasm"
 version = "0.1.0"
 dependencies = [
+ "domain-core",
+ "query-core",
+ "serde_json",
  "wasm-bindgen",
 ]
 
