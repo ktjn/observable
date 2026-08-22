@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getMetricGroupPoints, listMetrics, type MetricCatalogEntry } from "../../api/metrics";
-import { createDashboard } from "../../api/dashboards";
+import type { MetricCatalogEntry } from "../../api/metrics";
+import { useRuntime } from "../../hooks/useRuntime";
 import { Button } from "../../components/ui/button";
 import { CopyableText } from "../../components/ui/copy-button";
 import { DlRow } from "../../components/ui/dl-row";
@@ -43,6 +43,7 @@ export function ServiceMetricsWorkspace({
 }) {
   const { fromMs, toMs, preset, setCustomRange, clearCustomRange } = useGlobalDateRange();
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const [serviceName, setServiceName] = useState(initialService);
   const [filters, setFilters] = useState<FilterState>({
     name: "",
@@ -54,7 +55,7 @@ export function ServiceMetricsWorkspace({
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["service", tenantId, serviceName, "metrics"],
-    queryFn: () => listMetrics(tenantId, { service: serviceName || undefined }),
+    queryFn: () => runtime.metrics.list(tenantId, { service: serviceName || undefined }),
     enabled: true, // We want to allow listing all metrics if serviceName is empty
     ...liveViewQueryOptions,
   });
@@ -114,7 +115,7 @@ export function ServiceMetricsWorkspace({
   const handlePromote = async () => {
     setSaveStatus("saving");
     try {
-      await createDashboard(tenantId, {
+      await runtime.dashboards.create(tenantId, {
         name: serviceName ? `Metrics for ${serviceName}` : "Global Metrics",
         panels: [
           {
@@ -263,9 +264,10 @@ function MetricGraphContainer({
   onResetZoom: () => void;
 }) {
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["metric-group-points", tenantId, selectedMetric ? metricIdentity(selectedMetric) : null, fromMs, toMs],
-    queryFn: () => getMetricGroupPoints(tenantId, selectedMetric!),
+    queryFn: () => runtime.metrics.points(tenantId, selectedMetric!),
     enabled: Boolean(selectedMetric),
     ...liveViewQueryOptions,
   });

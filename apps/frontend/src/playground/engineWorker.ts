@@ -67,6 +67,48 @@ interface TopologyEdge {
   p95_latency_ms: number;
 }
 
+interface MetricCatalogEntry {
+  tenant_id: string;
+  metric_name: string;
+  description: string;
+  unit: string;
+  metric_type: string;
+  is_monotonic?: boolean;
+  aggregation_temporality?: string;
+  service_name: string;
+  environment: string;
+  series_count: number;
+}
+
+interface MetricPoint {
+  tenant_id: string;
+  metric_series_id: string;
+  metric_name: string;
+  service_name: string;
+  time_unix_nano: number;
+  start_time_unix_nano?: number;
+  value_double?: number;
+}
+
+interface GeneratedMetricSeries {
+  metric_series_id: string;
+  metric_name: string;
+  description: string;
+  unit: string;
+  metric_type: string;
+  is_monotonic: boolean;
+  aggregation_temporality: string;
+  service_name: string;
+  environment: string;
+}
+
+interface GeneratedMetricPoint {
+  metric_series_id: string;
+  time_unix_nano: string;
+  start_time_unix_nano: string;
+  value_double: number;
+}
+
 interface GeneratedSpan {
   trace_id: string;
   span_id: string;
@@ -128,6 +170,8 @@ type EngineRequest =
       service?: string;
     }
   | { type: "service-names"; requestId: string }
+  | { type: "metric-catalog"; requestId: string; service?: string }
+  | { type: "metric-group-points"; requestId: string; metric: MetricCatalogEntry }
   | { type: "reset"; requestId: string; seed: number };
 type EngineResponse =
   | { type: "nlq-result"; requestId: string; rows: NlqTraceRow[]; sql: string }
@@ -137,6 +181,8 @@ type EngineResponse =
   | { type: "service-summaries-result"; requestId: string; items: ServiceSummary[] }
   | { type: "topology-result"; requestId: string; edges: TopologyEdge[] }
   | { type: "service-names-result"; requestId: string; names: string[] }
+  | { type: "metric-catalog-result"; requestId: string; metrics: MetricCatalogEntry[] }
+  | { type: "metric-group-points-result"; requestId: string; points: MetricPoint[] }
   | { type: "reset-done"; requestId: string }
   | { type: "nlq-error"; requestId: string; message: string };
 
@@ -172,6 +218,15 @@ interface EngineState {
     service: string | undefined
   ) => string;
   computeTopologyEdges: (rowsJson: string) => string;
+  generateMetricsJson: (seed: number, nowUnixNano: string) => string;
+  renderMetricCatalogSql: (service: string | undefined) => string;
+  renderMetricGroupPointsSql: (
+    metricName: string,
+    service: string,
+    environment: string,
+    metricType: string,
+    unit: string
+  ) => string;
   conn: { query: (sql: string) => Promise<{ toArray: () => Record<string, unknown>[] }> };
 }
 
@@ -193,6 +248,29 @@ function insertSpansSql(spans: GeneratedSpan[]): string {
     )
     .join(", ");
   return `INSERT INTO spans VALUES ${values}`;
+}
+
+function insertMetricSeriesSql(series: GeneratedMetricSeries[]): string {
+  const values = series
+    .map(
+      (s) =>
+        `('${escapeSqlString(s.metric_series_id)}', '${escapeSqlString(s.metric_name)}', ` +
+        `'${escapeSqlString(s.description)}', '${escapeSqlString(s.unit)}', '${escapeSqlString(s.metric_type)}', ` +
+        `${s.is_monotonic}, '${escapeSqlString(s.aggregation_temporality)}', ` +
+        `'${escapeSqlString(s.service_name)}', '${escapeSqlString(s.environment)}')`
+    )
+    .join(", ");
+  return `INSERT INTO metric_series VALUES ${values}`;
+}
+
+function insertMetricPointsSql(points: GeneratedMetricPoint[]): string {
+  const values = points
+    .map(
+      (p) =>
+        `('${escapeSqlString(p.metric_series_id)}', ${p.time_unix_nano}, ${p.start_time_unix_nano}, ${p.value_double})`
+    )
+    .join(", ");
+  return `INSERT INTO metric_points VALUES ${values}`;
 }
 
 function insertLogsSql(logs: GeneratedLog[]): string {
@@ -224,6 +302,16 @@ async function seedData(state: EngineState, seed: number): Promise<void> {
   const logs: GeneratedLog[] = JSON.parse(logsJson);
   if (logs.length > 0) {
     await state.conn.query(insertLogsSql(logs));
+  }
+
+  const metricsJson = state.generateMetricsJson(seed, nowUnixNano);
+  const { series, points }: { series: GeneratedMetricSeries[]; points: GeneratedMetricPoint[] } =
+    JSON.parse(metricsJson);
+  if (series.length > 0) {
+    await state.conn.query(insertMetricSeriesSql(series));
+  }
+  if (points.length > 0) {
+    await state.conn.query(insertMetricPointsSql(points));
   }
 }
 
@@ -257,6 +345,16 @@ async function initEngine(): Promise<EngineState> {
       "trace_id VARCHAR, span_id VARCHAR, service_name VARCHAR, " +
       "environment VARCHAR, host_id VARCHAR)"
   );
+  await conn.query(
+    "CREATE TABLE metric_series (" +
+      "metric_series_id VARCHAR, metric_name VARCHAR, description VARCHAR, unit VARCHAR, " +
+      "metric_type VARCHAR, is_monotonic BOOLEAN, aggregation_temporality VARCHAR, " +
+      "service_name VARCHAR, environment VARCHAR)"
+  );
+  await conn.query(
+    "CREATE TABLE metric_points (" +
+      "metric_series_id VARCHAR, time_unix_nano BIGINT, start_time_unix_nano BIGINT, value_double DOUBLE)"
+  );
 
   const state: EngineState = {
     generateSpansJson: wasmModule.generate_spans_json,
@@ -269,6 +367,9 @@ async function initEngine(): Promise<EngineState> {
     computeServiceSummaries: wasmModule.compute_service_summaries,
     renderTopologySql: wasmModule.render_topology_sql,
     computeTopologyEdges: wasmModule.compute_topology_edges,
+    generateMetricsJson: wasmModule.generate_metrics_json,
+    renderMetricCatalogSql: wasmModule.render_metric_catalog_sql,
+    renderMetricGroupPointsSql: wasmModule.render_metric_group_points_sql,
     conn,
   };
   await seedData(state, currentSeed);
@@ -438,11 +539,52 @@ async function executeServiceNames(): Promise<string[]> {
   return result.toArray().map((row) => String(row.service_name));
 }
 
+async function executeMetricCatalog(service: string | undefined): Promise<MetricCatalogEntry[]> {
+  const { renderMetricCatalogSql, conn } = await getEngine();
+  const sql = renderMetricCatalogSql(service);
+  const result = await conn.query(sql);
+  return result.toArray().map((row) => ({
+    tenant_id: DEMO_TENANT_ID,
+    metric_name: String(row.metric_name),
+    description: String(row.description),
+    unit: String(row.unit),
+    metric_type: String(row.metric_type),
+    is_monotonic: Boolean(row.is_monotonic),
+    aggregation_temporality: String(row.aggregation_temporality),
+    service_name: String(row.service_name),
+    environment: String(row.environment),
+    series_count: Number(row.series_count),
+  }));
+}
+
+async function executeMetricGroupPoints(metric: MetricCatalogEntry): Promise<MetricPoint[]> {
+  const { renderMetricGroupPointsSql, conn } = await getEngine();
+  const sql = renderMetricGroupPointsSql(
+    metric.metric_name,
+    metric.service_name,
+    metric.environment || "default",
+    metric.metric_type,
+    metric.unit || ""
+  );
+  const result = await conn.query(sql);
+  return result.toArray().map((row) => ({
+    tenant_id: DEMO_TENANT_ID,
+    metric_series_id: String(row.metric_series_id),
+    metric_name: String(row.metric_name),
+    service_name: String(row.service_name),
+    time_unix_nano: Number(row.time_unix_nano),
+    start_time_unix_nano: row.start_time_unix_nano != null ? Number(row.start_time_unix_nano) : undefined,
+    value_double: Number(row.value_double),
+  }));
+}
+
 async function resetPlayground(seed: number): Promise<void> {
   const state = await getEngine();
   currentSeed = seed;
   await state.conn.query("DELETE FROM spans");
   await state.conn.query("DELETE FROM logs");
+  await state.conn.query("DELETE FROM metric_series");
+  await state.conn.query("DELETE FROM metric_points");
   await seedData(state, seed);
 }
 
@@ -474,6 +616,12 @@ workerSelf.onmessage = async (event) => {
     } else if (event.data.type === "service-names") {
       const names = await executeServiceNames();
       workerSelf.postMessage({ type: "service-names-result", requestId, names });
+    } else if (event.data.type === "metric-catalog") {
+      const metrics = await executeMetricCatalog(event.data.service);
+      workerSelf.postMessage({ type: "metric-catalog-result", requestId, metrics });
+    } else if (event.data.type === "metric-group-points") {
+      const points = await executeMetricGroupPoints(event.data.metric);
+      workerSelf.postMessage({ type: "metric-group-points-result", requestId, points });
     } else if (event.data.type === "reset") {
       await resetPlayground(event.data.seed);
       workerSelf.postMessage({ type: "reset-done", requestId });

@@ -10,6 +10,7 @@ use domain_core::nlq::NlqIr;
 use query_core::log_query::{
     extract_log_query_filters, render_log_histogram_duckdb, render_log_query_duckdb,
 };
+use query_core::metric_query::{render_metric_catalog_duckdb, render_metric_group_points_duckdb};
 use query_core::service_query::{
     ServiceSummaryRow, render_service_summary_duckdb, service_summary_from_row,
 };
@@ -275,6 +276,49 @@ pub fn compute_topology_edges(rows_json: &str) -> Result<String, JsValue> {
     compute_topology_edges_inner(rows_json).map_err(|e| JsValue::from_str(&e))
 }
 
+#[derive(Serialize)]
+struct GeneratedMetricsJson {
+    series: Vec<generator::GeneratedMetricSeries>,
+    points: Vec<generator::GeneratedMetricPoint>,
+}
+
+/// Generates the playground's fixed demo metric catalog (see
+/// `generator.rs::generate_metrics`) as JSON: `{"series": [...], "points": [...]}`.
+/// `now_unix_nano` is a decimal-string nanosecond epoch timestamp.
+fn generate_metrics_json_inner(seed: u32, now_unix_nano: &str) -> Result<String, String> {
+    let now: i64 = now_unix_nano
+        .parse()
+        .map_err(|e: std::num::ParseIntError| e.to_string())?;
+    let (series, points) = generator::generate_metrics(seed, now);
+    serde_json::to_string(&GeneratedMetricsJson { series, points }).map_err(|e| e.to_string())
+}
+
+#[wasm_bindgen]
+pub fn generate_metrics_json(seed: u32, now_unix_nano: &str) -> Result<String, JsValue> {
+    generate_metrics_json_inner(seed, now_unix_nano).map_err(|e| JsValue::from_str(&e))
+}
+
+/// Plans the metric catalog aggregation query into DuckDB-flavored SQL
+/// against the playground's local `metric_series` table. `service` is
+/// optional.
+#[wasm_bindgen]
+pub fn render_metric_catalog_sql(service: Option<String>) -> String {
+    render_metric_catalog_duckdb(service.as_deref())
+}
+
+/// Plans a metric group-points query into DuckDB-flavored SQL against the
+/// playground's local `metric_points`/`metric_series` tables.
+#[wasm_bindgen]
+pub fn render_metric_group_points_sql(
+    metric_name: &str,
+    service: &str,
+    environment: &str,
+    metric_type: &str,
+    unit: &str,
+) -> String {
+    render_metric_group_points_duckdb(metric_name, service, environment, metric_type, unit)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -427,5 +471,38 @@ mod tests {
     #[test]
     fn compute_topology_edges_rejects_invalid_json() {
         assert!(compute_topology_edges_inner("not json").is_err());
+    }
+
+    #[test]
+    fn generate_metrics_json_produces_series_and_points() {
+        let json = generate_metrics_json_inner(7, "1700003600000000000").unwrap();
+        assert!(json.contains("\"series\""));
+        assert!(json.contains("\"points\""));
+        assert!(json.contains("http.server.duration"));
+    }
+
+    #[test]
+    fn generate_metrics_json_rejects_invalid_timestamp() {
+        assert!(generate_metrics_json_inner(7, "not-a-number").is_err());
+    }
+
+    #[test]
+    fn render_metric_catalog_sql_builds_duckdb_sql() {
+        let sql = render_metric_catalog_sql(Some("checkout".into()));
+        assert!(sql.contains("FROM metric_series"));
+        assert!(sql.contains("service_name = 'checkout'"));
+    }
+
+    #[test]
+    fn render_metric_group_points_sql_builds_duckdb_sql() {
+        let sql = render_metric_group_points_sql(
+            "http.server.duration",
+            "checkout",
+            "production",
+            "gauge",
+            "ms",
+        );
+        assert!(sql.contains("FROM metric_points"));
+        assert!(sql.contains("avg(mp.value_double)"));
     }
 }

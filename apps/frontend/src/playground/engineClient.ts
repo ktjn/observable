@@ -55,6 +55,29 @@ export interface TopologyEdge {
   p95_latency_ms: number;
 }
 
+export interface MetricCatalogEntry {
+  tenant_id: string;
+  metric_name: string;
+  description: string;
+  unit: string;
+  metric_type: string;
+  is_monotonic?: boolean;
+  aggregation_temporality?: string;
+  service_name: string;
+  environment: string;
+  series_count: number;
+}
+
+export interface MetricPoint {
+  tenant_id: string;
+  metric_series_id: string;
+  metric_name: string;
+  service_name: string;
+  time_unix_nano: number;
+  start_time_unix_nano?: number;
+  value_double?: number;
+}
+
 type EngineResult =
   | { rows: NlqTraceRow[]; sql: string }
   | { buckets: TraceHistogramBucket[] }
@@ -63,6 +86,8 @@ type EngineResult =
   | { items: ServiceSummary[] }
   | { edges: TopologyEdge[] }
   | { names: string[] }
+  | { metrics: MetricCatalogEntry[] }
+  | { points: MetricPoint[] }
   | undefined;
 
 type EngineResponse =
@@ -73,6 +98,8 @@ type EngineResponse =
   | { type: "service-summaries-result"; requestId: string; items: ServiceSummary[] }
   | { type: "topology-result"; requestId: string; edges: TopologyEdge[] }
   | { type: "service-names-result"; requestId: string; names: string[] }
+  | { type: "metric-catalog-result"; requestId: string; metrics: MetricCatalogEntry[] }
+  | { type: "metric-group-points-result"; requestId: string; points: MetricPoint[] }
   | { type: "reset-done"; requestId: string }
   | { type: "nlq-error"; requestId: string; message: string };
 
@@ -106,6 +133,10 @@ function getWorker(): Worker {
       request.resolve({ edges: event.data.edges });
     } else if (event.data.type === "service-names-result") {
       request.resolve({ names: event.data.names });
+    } else if (event.data.type === "metric-catalog-result") {
+      request.resolve({ metrics: event.data.metrics });
+    } else if (event.data.type === "metric-group-points-result") {
+      request.resolve({ points: event.data.points });
     } else if (event.data.type === "reset-done") {
       request.resolve(undefined);
     } else {
@@ -233,6 +264,38 @@ export function executeServiceNames(): Promise<{ names: string[] }> {
       reject,
     });
     getWorker().postMessage({ type: "service-names", requestId });
+  });
+}
+
+/**
+ * Lists the Metrics page's catalog (Rust-planned DuckDB aggregation over
+ * the browser-local `metric_series` table) through the persistent
+ * playground engine worker.
+ */
+export function executeMetricCatalog(service: string | undefined): Promise<{ metrics: MetricCatalogEntry[] }> {
+  const requestId = String(nextRequestId++);
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, {
+      resolve: resolve as (r: EngineResult) => void,
+      reject,
+    });
+    getWorker().postMessage({ type: "metric-catalog", requestId, service });
+  });
+}
+
+/**
+ * Runs the Metrics page's group-points query (Rust-planned DuckDB join
+ * over the browser-local `metric_points`/`metric_series` tables) through
+ * the persistent playground engine worker.
+ */
+export function executeMetricGroupPoints(metric: MetricCatalogEntry): Promise<{ points: MetricPoint[] }> {
+  const requestId = String(nextRequestId++);
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, {
+      resolve: resolve as (r: EngineResult) => void,
+      reject,
+    });
+    getWorker().postMessage({ type: "metric-group-points", requestId, metric });
   });
 }
 

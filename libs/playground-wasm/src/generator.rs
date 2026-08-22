@@ -1,6 +1,7 @@
-//! Deterministic, seeded demo trace/log generator for the browser-local
-//! playground. Scoped-down Phase 4 slice: traces and one log per span
-//! (metrics/deployments/SLO burn are future work). See
+//! Deterministic, seeded demo trace/log/metric generator for the
+//! browser-local playground. Scoped-down Phase 4 slice: traces, one log per
+//! span, and a small fixed metric catalog (deployments/SLO burn are future
+//! work). See
 //! `docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md`.
 
 use serde::Serialize;
@@ -261,6 +262,86 @@ pub fn generate_logs(seed: u32, now_unix_nano: i64) -> Vec<GeneratedLog> {
         .collect()
 }
 
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct GeneratedMetricSeries {
+    pub metric_series_id: String,
+    pub metric_name: String,
+    pub description: String,
+    pub unit: String,
+    pub metric_type: String,
+    pub is_monotonic: bool,
+    pub aggregation_temporality: String,
+    pub service_name: String,
+    pub environment: String,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct GeneratedMetricPoint {
+    pub metric_series_id: String,
+    /// Nanoseconds, as a decimal string — see `GeneratedSpan::duration_ns`.
+    pub time_unix_nano: String,
+    pub start_time_unix_nano: String,
+    pub value_double: f64,
+}
+
+/// `(name, type, unit, is_monotonic, min_value, max_value)`. Values are
+/// plausible ranges for a demo graph, not a real OTel cumulative-counter
+/// simulation — `http.server.request_count` here is a modest scope-down
+/// (per-point value, not a running total).
+const METRIC_DEFS: &[(&str, &str, &str, bool, f64, f64)] = &[
+    ("http.server.request_count", "sum", "1", true, 10.0, 200.0),
+    ("http.server.duration", "gauge", "ms", false, 5.0, 500.0),
+    ("system.cpu.utilization", "gauge", "1", false, 0.05, 0.95),
+];
+
+const METRIC_POINT_COUNT: u32 = 20;
+
+/// Generates a small fixed metric catalog (`METRIC_DEFS` x every topology
+/// service) with `METRIC_POINT_COUNT` points each, spread evenly over
+/// `WINDOW_SECS` relative to `now_unix_nano`. Deterministic like
+/// `generate_spans`/`generate_logs`.
+pub fn generate_metrics(
+    seed: u32,
+    now_unix_nano: i64,
+) -> (Vec<GeneratedMetricSeries>, Vec<GeneratedMetricPoint>) {
+    let mut rng = Rng::new(seed.wrapping_add(0x1234_5678));
+    let mut series = Vec::new();
+    let mut points = Vec::new();
+    let interval_ns = (WINDOW_SECS as i64 * 1_000_000_000) / METRIC_POINT_COUNT as i64;
+
+    let mut idx = 0u32;
+    for (service_name, _) in TOPOLOGY {
+        for (metric_name, metric_type, unit, is_monotonic, min_v, max_v) in METRIC_DEFS {
+            let series_id = format!("playground-metric-{idx}");
+            series.push(GeneratedMetricSeries {
+                metric_series_id: series_id.clone(),
+                metric_name: metric_name.to_string(),
+                description: format!("{metric_name} for {service_name}"),
+                unit: unit.to_string(),
+                metric_type: metric_type.to_string(),
+                is_monotonic: *is_monotonic,
+                aggregation_temporality: "cumulative".to_string(),
+                service_name: service_name.to_string(),
+                environment: "production".to_string(),
+            });
+
+            for p in 0..METRIC_POINT_COUNT {
+                let t = now_unix_nano - (METRIC_POINT_COUNT - 1 - p) as i64 * interval_ns;
+                let value = min_v + rng.next_f64() * (max_v - min_v);
+                points.push(GeneratedMetricPoint {
+                    metric_series_id: series_id.clone(),
+                    time_unix_nano: t.to_string(),
+                    start_time_unix_nano: t.to_string(),
+                    value_double: value,
+                });
+            }
+            idx += 1;
+        }
+    }
+
+    (series, points)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -405,6 +486,54 @@ mod tests {
             assert_eq!(log.trace_id, span.trace_id);
             assert_eq!(log.service_name, span.service_name);
             assert_eq!(log.timestamp_unix_nano, span.start_time_unix_nano);
+        }
+    }
+
+    // ── metrics ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn metrics_same_seed_produces_identical_output() {
+        let (series_a, points_a) = generate_metrics(42, NOW);
+        let (series_b, points_b) = generate_metrics(42, NOW);
+        assert_eq!(series_a, series_b);
+        assert_eq!(points_a, points_b);
+    }
+
+    #[test]
+    fn one_series_per_service_per_metric_def() {
+        let (series, _) = generate_metrics(7, NOW);
+        assert_eq!(series.len(), TOPOLOGY.len() * METRIC_DEFS.len());
+    }
+
+    #[test]
+    fn each_series_has_the_configured_point_count() {
+        let (series, points) = generate_metrics(7, NOW);
+        for s in &series {
+            let count = points
+                .iter()
+                .filter(|p| p.metric_series_id == s.metric_series_id)
+                .count();
+            assert_eq!(count, METRIC_POINT_COUNT as usize);
+        }
+    }
+
+    #[test]
+    fn metric_points_are_within_the_configured_window_and_ordered() {
+        let (series, points) = generate_metrics(7, NOW);
+        for s in &series {
+            let mut last: Option<i64> = None;
+            for p in points
+                .iter()
+                .filter(|p| p.metric_series_id == s.metric_series_id)
+            {
+                let t: i64 = p.time_unix_nano.parse().unwrap();
+                assert!(t <= NOW);
+                assert!(NOW - t <= WINDOW_SECS as i64 * 1_000_000_000);
+                if let Some(prev) = last {
+                    assert!(t >= prev, "points must be non-decreasing in time");
+                }
+                last = Some(t);
+            }
         }
     }
 }
