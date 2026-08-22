@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useGlobalServiceFilter } from "../hooks/useGlobalServiceFilter";
 import { useQuery } from "@tanstack/react-query";
-import { createDashboard } from "../api/dashboards";
 import {
   LogRecord,
   LogHistogramBucket as ApiHistogramBucket,
   LogHistogramResponse,
-  fetchLogHistogram,
 } from "../api/logs";
-import { submitNlqQuery } from "../api/nlq";
 import type { NlqIrLike } from "../features/nlq/queryFilters";
+import { useRuntime } from "../hooks/useRuntime";
 import { infraLinks } from "../utils/infraLinks";
 import { formatBucketLabel } from "../utils/formatBucketLabel";
 import { OTelLevel, otelSeverity } from "../utils/logFormatting";
@@ -104,6 +102,7 @@ export function LogExplorer({
   const { format } = useTimeDisplay();
   const { preset, fromMs, toMs, setPreset, setCustomRange } = useGlobalDateRange();
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
 
   // userQuery is the raw text (NLQ or raw IR JSON) submitted by the user.
   // When serviceName is provided, initialise with a pre-set service filter IR.
@@ -164,7 +163,7 @@ export function LogExplorer({
   const { data, isLoading, error } = useQuery({
     queryKey: ["logs", "nlq", tenantId, userQuery, fromMs, toMs],
     queryFn: async () => {
-      const response = await submitNlqQuery(tenantId, {
+      const response = await runtime.nlq.execute(tenantId, {
         base_ir: { ...LOG_BASE_IR, time_range: { from, to } },
         question: userQuery ?? undefined,
         mode: "execute",
@@ -178,7 +177,7 @@ export function LogExplorer({
   const { data: histogramData, isError: isHistogramError } = useQuery({
     queryKey: ["logs-histogram", tenantId, service, fromMs, toMs, bucketCount],
     queryFn: () =>
-      fetchLogHistogram(tenantId, {
+      runtime.logs.histogram(tenantId, {
         service: service || undefined,
         from,
         to,
@@ -222,7 +221,7 @@ export function LogExplorer({
   const handlePromote = async () => {
     setSaveStatus("saving");
     try {
-      await createDashboard(tenantId, {
+      await runtime.dashboards.create(tenantId, {
         name: service ? `Logs for ${service}` : "Promoted log query",
         panels: [
           {

@@ -27,6 +27,37 @@ vi.mock("../hooks/useTenantContext", () => ({
   useTenantContext: () => ({ tenantId: "test-tenant" }),
 }));
 
+vi.mock("../hooks/useRuntime", () => ({
+  useRuntime: () => ({
+    mode: "http",
+    tenants: { list: vi.fn(), listEnvironments: vi.fn() },
+    traces: { search: vi.fn(), histogram: vi.fn(async () => ({ buckets: [] })) },
+    logs: { histogram: vi.fn(async () => ({ buckets: [] })) },
+    nlq: {
+      execute: vi.fn(async () => ({
+        type: "frame",
+        frame: {
+          frame_type: "table",
+          x_field: null,
+          y_field: null,
+          series_field: null,
+          unit: null,
+          suggested_visualization: "table",
+          field_roles: [],
+          data: [],
+          nlq_ir: {},
+          source_sql: "",
+          time_range: { from: "now-1h", to: "now" },
+          signal_types: [],
+          sample_rate: null,
+          approximation_statement: "",
+        },
+      })),
+    },
+    dashboards: { create: vi.fn() },
+  }),
+}));
+
 vi.mock("../hooks/useGlobalDateRange", () => ({
   useGlobalDateRange: () => ({
     preset: "1h",

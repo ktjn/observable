@@ -1,8 +1,9 @@
 import type { Span, TraceHistogramResponse, TraceListResponse, TraceResponse } from "../api/traces";
+import type { LogRecord, LogHistogramResponse } from "../api/logs";
 import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants";
 import type { NlqRequest, NlqResponse, NlqIr, VisualizationFrame } from "../api/nlq";
 import type { Dashboard } from "../api/dashboards";
-import type { RuntimeApi, TraceHistogramParams } from "./types";
+import type { RuntimeApi, TraceHistogramParams, LogHistogramParams } from "./types";
 // Dynamically imported (not a static import): engineClient statically
 // references a Worker URL, which Vite's dep scanner eagerly resolves at
 // import time. A static import here would drag that into every module that
@@ -113,6 +114,66 @@ const STUB_NLQ_FRAME: VisualizationFrame = {
   approximation_statement: "",
 };
 
+const STUB_LOG_RECORDS: LogRecord[] = [
+  {
+    tenant_id: DEMO_TENANT_ID,
+    log_id: "playground-log-1",
+    timestamp_unix_nano: Number(NOW_NS()),
+    observed_timestamp_unix_nano: Number(NOW_NS()),
+    severity_number: 9,
+    severity_text: "INFO",
+    body: "checkout request completed",
+    attributes: {},
+    resource_attributes: {},
+    service_name: "checkout",
+    environment: "production",
+    host_id: "playground-host",
+  },
+  {
+    tenant_id: DEMO_TENANT_ID,
+    log_id: "playground-log-2",
+    timestamp_unix_nano: Number(NOW_NS() - 30_000_000_000n),
+    observed_timestamp_unix_nano: Number(NOW_NS() - 30_000_000_000n),
+    severity_number: 17,
+    severity_text: "ERROR",
+    body: "payment charge failed: card declined",
+    attributes: {},
+    resource_attributes: {},
+    service_name: "payment",
+    environment: "production",
+    host_id: "playground-host",
+  },
+];
+
+const STUB_LOG_IR: NlqIr = {
+  operation: "table",
+  signals: ["logs"],
+  filters: [],
+  group_by: [],
+  time_range: { from: "now-1h", to: "now" },
+  metric: null,
+  window: null,
+  resolution: null,
+  visualization_hint: "table",
+};
+
+const STUB_LOG_FRAME: VisualizationFrame = {
+  frame_type: "table",
+  x_field: null,
+  y_field: null,
+  series_field: null,
+  unit: null,
+  suggested_visualization: "table",
+  field_roles: [],
+  data: STUB_LOG_RECORDS as unknown as Record<string, unknown>[],
+  nlq_ir: STUB_LOG_IR,
+  source_sql: "-- playground fixture data, not executed",
+  time_range: { from: "now-1h", to: "now" },
+  signal_types: ["logs"],
+  sample_rate: null,
+  approximation_statement: "",
+};
+
 const STUB_DASHBOARD: Dashboard = {
   dashboard_id: "playground-dashboard-1",
   name: "playground dashboard",
@@ -153,6 +214,13 @@ export const playgroundRuntime: RuntimeApi = {
       return { buckets: [{ start_ms: 0, end_ms: 60_000, count: 1 }] };
     },
   },
+  logs: {
+    // Fixture only — not yet wired to the real DuckDB engine (traces got
+    // that first; logs is a follow-up slice).
+    async histogram(_tenantId: string, _params: LogHistogramParams): Promise<LogHistogramResponse> {
+      return { buckets: [{ start_ms: 0, end_ms: 60_000, counts: { INFO: 1, ERROR: 1 } }] };
+    },
+  },
   nlq: {
     async execute(_tenantId: string, request: NlqRequest): Promise<NlqResponse> {
       const ir = request.base_ir;
@@ -177,7 +245,12 @@ export const playgroundRuntime: RuntimeApi = {
       }
 
       // Free-text NLQ questions and every other operation/signal still use
-      // fixture data — shorthand/IR-merge logic isn't wired yet.
+      // fixture data — shorthand/IR-merge logic isn't wired yet. Match the
+      // fixture shape to the requested signal so at least the response
+      // *shape* is correct even when the content is static.
+      if (!request.question && ir?.signals?.length === 1 && ir.signals[0] === "logs") {
+        return { type: "frame", frame: STUB_LOG_FRAME };
+      }
       return { type: "frame", frame: STUB_NLQ_FRAME };
     },
   },

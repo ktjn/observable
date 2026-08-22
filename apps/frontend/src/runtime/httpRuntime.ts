@@ -1,4 +1,5 @@
 import { fetchTraceHistogram, searchTraces } from "../api/traces";
+import { fetchLogHistogram } from "../api/logs";
 import { listTenants, listEnvironments } from "../api/tenants";
 import { submitNlqQuery } from "../api/nlq";
 import { createDashboard } from "../api/dashboards";
@@ -14,6 +15,9 @@ export const httpRuntime: RuntimeApi = {
   traces: {
     search: searchTraces,
     histogram: fetchTraceHistogram,
+  },
+  logs: {
+    histogram: fetchLogHistogram,
   },
   nlq: {
     execute: submitNlqQuery,

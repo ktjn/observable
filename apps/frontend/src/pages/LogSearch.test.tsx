@@ -5,6 +5,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import type { LogRecord } from "../api/logs";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
 import { TenantContextProvider } from "../hooks/useTenantContext";
+import { RuntimeProvider } from "../hooks/useRuntime";
 import LogSearch, {
   buildLogHistogram,
   formatLogMessage,
@@ -206,11 +207,13 @@ function renderLogSearch(content: ReactNode = <LogSearch />) {
 
   return render(
     <TenantContextProvider>
-      <QueryClientProvider client={client}>
-        <TimeDisplayProvider>
-          {content}
-        </TimeDisplayProvider>
-      </QueryClientProvider>
+      <RuntimeProvider>
+        <QueryClientProvider client={client}>
+          <TimeDisplayProvider>
+            {content}
+          </TimeDisplayProvider>
+        </QueryClientProvider>
+      </RuntimeProvider>
     </TenantContextProvider>,
   );
 }
