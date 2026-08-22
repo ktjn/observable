@@ -1,7 +1,6 @@
-//! Deterministic, seeded demo trace generator for the browser-local
-//! playground. Scoped-down Phase 4 slice: traces only (2-3 span nested
-//! traces across a small fixed topology), not the full plan section 8
-//! generator (logs/metrics/deployments/SLO burn are future work). See
+//! Deterministic, seeded demo trace/log generator for the browser-local
+//! playground. Scoped-down Phase 4 slice: traces and one log per span
+//! (metrics/deployments/SLO burn are future work). See
 //! `docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md`.
 
 use serde::Serialize;
@@ -200,6 +199,68 @@ pub fn generate_spans(seed: u32, now_unix_nano: i64) -> Vec<GeneratedSpan> {
     spans
 }
 
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct GeneratedLog {
+    pub log_id: String,
+    /// Nanoseconds, as a decimal string — see `GeneratedSpan::duration_ns`.
+    pub timestamp_unix_nano: String,
+    pub observed_timestamp_unix_nano: String,
+    pub severity_number: i32,
+    pub severity_text: String,
+    pub body: String,
+    pub trace_id: String,
+    pub span_id: String,
+    pub service_name: String,
+    pub environment: String,
+    pub host_id: String,
+}
+
+fn log_body(service: &str, status: &str) -> String {
+    if status == "ERROR" {
+        format!("{service} request failed")
+    } else {
+        format!("{service} request completed")
+    }
+}
+
+/// Derives one log record per generated span (same seed/topology/timing),
+/// so trace_id/span_id correlation between the Traces and Logs pages is
+/// real, not coincidental. Spans with `status_code == "ERROR"` produce an
+/// ERROR-severity log; otherwise INFO, with a small chance of WARN.
+pub fn generate_logs(seed: u32, now_unix_nano: i64) -> Vec<GeneratedLog> {
+    let spans = generate_spans(seed, now_unix_nano);
+    // Offset from the span-generation seed so severity/warn rolls don't
+    // shadow the span RNG's own draws.
+    let mut rng = Rng::new(seed.wrapping_add(0x9E37_79B9));
+
+    spans
+        .into_iter()
+        .map(|span| {
+            let (severity_number, severity_text) = if span.status_code == "ERROR" {
+                (17, "ERROR")
+            } else if rng.next_f64() < 0.1 {
+                (13, "WARN")
+            } else {
+                (9, "INFO")
+            };
+
+            GeneratedLog {
+                log_id: format!("playground-log-{}", span.span_id),
+                timestamp_unix_nano: span.start_time_unix_nano.clone(),
+                observed_timestamp_unix_nano: span.start_time_unix_nano,
+                severity_number,
+                severity_text: severity_text.to_string(),
+                body: log_body(&span.service_name, &span.status_code),
+                trace_id: span.trace_id,
+                span_id: span.span_id,
+                service_name: span.service_name,
+                environment: span.environment,
+                host_id: "playground-host".to_string(),
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -295,6 +356,55 @@ mod tests {
             let start: i64 = span.start_time_unix_nano.parse().unwrap();
             assert!(start <= NOW);
             assert!(NOW - start <= window_ns);
+        }
+    }
+
+    // ── logs ──────────────────────────────────────────────────────────────
+
+    #[test]
+    fn logs_same_seed_produces_identical_output() {
+        let a = generate_logs(42, NOW);
+        let b = generate_logs(42, NOW);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn one_log_per_span() {
+        let spans = generate_spans(7, NOW);
+        let logs = generate_logs(7, NOW);
+        assert_eq!(spans.len(), logs.len());
+    }
+
+    #[test]
+    fn error_spans_produce_error_severity_logs() {
+        let spans = generate_spans(7, NOW);
+        let logs = generate_logs(7, NOW);
+        let logs_by_span: HashMap<&str, &GeneratedLog> =
+            logs.iter().map(|l| (l.span_id.as_str(), l)).collect();
+
+        for span in &spans {
+            let log = logs_by_span.get(span.span_id.as_str()).unwrap();
+            if span.status_code == "ERROR" {
+                assert_eq!(log.severity_number, 17);
+                assert_eq!(log.severity_text, "ERROR");
+            } else {
+                assert_ne!(log.severity_number, 17);
+            }
+        }
+    }
+
+    #[test]
+    fn logs_carry_trace_and_span_correlation() {
+        let spans = generate_spans(7, NOW);
+        let logs = generate_logs(7, NOW);
+        let logs_by_span: HashMap<&str, &GeneratedLog> =
+            logs.iter().map(|l| (l.span_id.as_str(), l)).collect();
+
+        for span in &spans {
+            let log = logs_by_span.get(span.span_id.as_str()).unwrap();
+            assert_eq!(log.trace_id, span.trace_id);
+            assert_eq!(log.service_name, span.service_name);
+            assert_eq!(log.timestamp_unix_nano, span.start_time_unix_nano);
         }
     }
 }

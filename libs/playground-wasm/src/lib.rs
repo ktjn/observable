@@ -7,6 +7,9 @@
 mod generator;
 
 use domain_core::nlq::NlqIr;
+use query_core::log_query::{
+    extract_log_query_filters, render_log_histogram_duckdb, render_log_query_duckdb,
+};
 use query_core::trace_query::{
     extract_trace_query_filters, render_trace_histogram_duckdb, render_trace_query_duckdb,
 };
@@ -98,6 +101,79 @@ pub fn render_trace_histogram_sql(
         .map_err(|e| JsValue::from_str(&e))
 }
 
+/// Plans a Logs table query into DuckDB-flavored SQL against the
+/// playground's local `logs` table. `ir_json` is a JSON-serialized `NlqIr`.
+fn render_log_search_sql_inner(ir_json: &str) -> Result<String, String> {
+    let ir: NlqIr = serde_json::from_str(ir_json).map_err(|e| e.to_string())?;
+    let filters = extract_log_query_filters(&ir).map_err(|e| e.to_string())?;
+    Ok(render_log_query_duckdb(&filters))
+}
+
+#[wasm_bindgen]
+pub fn render_log_search_sql(ir_json: &str) -> Result<String, JsValue> {
+    render_log_search_sql_inner(ir_json).map_err(|e| JsValue::from_str(&e))
+}
+
+/// Generates one deterministic demo log record per generated span (see
+/// `generator.rs::generate_logs`) as a JSON array. `now_unix_nano` is a
+/// decimal-string nanosecond epoch timestamp.
+fn generate_logs_json_inner(seed: u32, now_unix_nano: &str) -> Result<String, String> {
+    let now: i64 = now_unix_nano
+        .parse()
+        .map_err(|e: std::num::ParseIntError| e.to_string())?;
+    let logs = generator::generate_logs(seed, now);
+    serde_json::to_string(&logs).map_err(|e| e.to_string())
+}
+
+#[wasm_bindgen]
+pub fn generate_logs_json(seed: u32, now_unix_nano: &str) -> Result<String, JsValue> {
+    generate_logs_json_inner(seed, now_unix_nano).map_err(|e| JsValue::from_str(&e))
+}
+
+#[derive(Serialize)]
+struct LogHistogramPlanJson {
+    sql: String,
+    from_ns: String,
+    interval_ns: String,
+}
+
+/// Plans a Logs histogram query into DuckDB-flavored SQL against the
+/// playground's local `logs` table. `from_ns`/`to_ns` are decimal-string
+/// nanosecond epoch timestamps; `service` is optional. Returns JSON:
+/// `{"sql", "from_ns", "interval_ns"}` — the caller fills in zero-count
+/// buckets missing from the query result, mirroring production's handler.
+fn render_log_histogram_sql_inner(
+    from_ns: &str,
+    to_ns: &str,
+    bucket_count: u32,
+    service: Option<String>,
+) -> Result<String, String> {
+    let from_ns: u64 = from_ns
+        .parse()
+        .map_err(|e: std::num::ParseIntError| e.to_string())?;
+    let to_ns: u64 = to_ns
+        .parse()
+        .map_err(|e: std::num::ParseIntError| e.to_string())?;
+    let plan = render_log_histogram_duckdb(from_ns, to_ns, bucket_count, service.as_deref());
+    serde_json::to_string(&LogHistogramPlanJson {
+        sql: plan.sql,
+        from_ns: plan.from_ns.to_string(),
+        interval_ns: plan.interval_ns.to_string(),
+    })
+    .map_err(|e| e.to_string())
+}
+
+#[wasm_bindgen]
+pub fn render_log_histogram_sql(
+    from_ns: &str,
+    to_ns: &str,
+    bucket_count: u32,
+    service: Option<String>,
+) -> Result<String, JsValue> {
+    render_log_histogram_sql_inner(from_ns, to_ns, bucket_count, service)
+        .map_err(|e| JsValue::from_str(&e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,5 +220,57 @@ mod tests {
     #[test]
     fn render_trace_histogram_sql_rejects_invalid_timestamps() {
         assert!(render_trace_histogram_sql_inner("not-a-number", "1000", 10, None).is_err());
+    }
+
+    #[test]
+    fn render_log_search_sql_builds_duckdb_sql() {
+        let ir_json = r#"{
+            "operation": "table",
+            "signals": ["logs"],
+            "metric": null,
+            "window": null,
+            "filters": [{"field": "service_name", "op": "=", "value": "checkout"}],
+            "group_by": [],
+            "resolution": null,
+            "time_range": {"from": "1700000000000000000", "to": "1700003600000000000"},
+            "visualization_hint": null
+        }"#;
+        let sql = render_log_search_sql_inner(ir_json).unwrap();
+        assert!(sql.contains("FROM logs"));
+        assert!(sql.contains("service_name = 'checkout'"));
+    }
+
+    #[test]
+    fn render_log_search_sql_rejects_invalid_json() {
+        assert!(render_log_search_sql_inner("not json").is_err());
+    }
+
+    #[test]
+    fn generate_logs_json_produces_one_log_per_span() {
+        let spans_json = generate_spans_json_inner(7, "1700003600000000000").unwrap();
+        let spans: Vec<serde_json::Value> = serde_json::from_str(&spans_json).unwrap();
+        let logs_json = generate_logs_json_inner(7, "1700003600000000000").unwrap();
+        let logs: Vec<serde_json::Value> = serde_json::from_str(&logs_json).unwrap();
+        assert_eq!(spans.len(), logs.len());
+    }
+
+    #[test]
+    fn generate_logs_json_rejects_invalid_timestamp() {
+        assert!(generate_logs_json_inner(7, "not-a-number").is_err());
+    }
+
+    #[test]
+    fn render_log_histogram_sql_builds_duckdb_sql() {
+        let json = render_log_histogram_sql_inner("0", "60000000000", 60, Some("checkout".into()))
+            .unwrap();
+        assert!(json.contains("\"sql\""));
+        assert!(json.contains("service_name = 'checkout'"));
+        assert!(json.contains("\"from_ns\":\"0\""));
+        assert!(json.contains("\"interval_ns\":\"1000000000\""));
+    }
+
+    #[test]
+    fn render_log_histogram_sql_rejects_invalid_timestamps() {
+        assert!(render_log_histogram_sql_inner("not-a-number", "1000", 10, None).is_err());
     }
 }

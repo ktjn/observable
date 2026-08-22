@@ -11,12 +11,12 @@ import type { RuntimeApi, TraceHistogramParams, LogHistogramParams } from "./typ
 // tests — see the identical issue with PlaygroundSpike in router.ts.
 
 /**
- * In-memory stub for most operations; `nlq.execute` is wired to the real
- * playground engine (Rust-planned DuckDB-WASM query) for one shape — the
- * Traces page's page-load/filter-pill query (no free-text question,
- * signals=["traces"], operation="table"). Everything else still falls back
- * to STUB_NLQ_FRAME. See Phase 3 in
- * docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md.
+ * In-memory stub for most operations; `nlq.execute` and `*.histogram` are
+ * wired to the real playground engine (Rust-planned DuckDB-WASM query) for
+ * the Traces and Logs pages' page-load/filter-pill shapes (no free-text
+ * question, operation="table"). Free-text NLQ questions and every other
+ * operation/signal still fall back to fixture data. See Phase 3/4 follow-up
+ * in docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md.
  */
 
 // Must match useTenantContext.tsx's DEFAULT_TENANT_ID / DEFAULT_TENANT_NAME and
@@ -215,10 +215,18 @@ export const playgroundRuntime: RuntimeApi = {
     },
   },
   logs: {
-    // Fixture only — not yet wired to the real DuckDB engine (traces got
-    // that first; logs is a follow-up slice).
-    async histogram(_tenantId: string, _params: LogHistogramParams): Promise<LogHistogramResponse> {
-      return { buckets: [{ start_ms: 0, end_ms: 60_000, counts: { INFO: 1, ERROR: 1 } }] };
+    async histogram(_tenantId: string, params: LogHistogramParams): Promise<LogHistogramResponse> {
+      if (params.from && params.to) {
+        const { executeLogHistogram } = await import("../playground/engineClient");
+        const { buckets } = await executeLogHistogram({
+          fromNs: params.from,
+          toNs: params.to,
+          bucketCount: params.buckets ?? 30,
+          service: params.service,
+        });
+        return { buckets };
+      }
+      return { buckets: [{ start_ms: 0, end_ms: 60_000, counts: { "9": 1, "17": 1 } }] };
     },
   },
   nlq: {
@@ -237,6 +245,26 @@ export const playgroundRuntime: RuntimeApi = {
           type: "frame",
           frame: {
             ...STUB_NLQ_FRAME,
+            data: rows as unknown as Record<string, unknown>[],
+            nlq_ir: ir as NlqIr,
+            source_sql: sql,
+          },
+        };
+      }
+
+      if (
+        !request.question &&
+        ir &&
+        ir.operation === "table" &&
+        ir.signals?.length === 1 &&
+        ir.signals[0] === "logs"
+      ) {
+        const { executeLogTable } = await import("../playground/engineClient");
+        const { rows, sql } = await executeLogTable(ir);
+        return {
+          type: "frame",
+          frame: {
+            ...STUB_LOG_FRAME,
             data: rows as unknown as Record<string, unknown>[],
             nlq_ir: ir as NlqIr,
             source_sql: sql,
