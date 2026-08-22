@@ -17,6 +17,11 @@ metrics, alerting, dashboards, and natural-language querying, in one product.
 - **Rust data plane, React frontend** — see [spec/02-architecture.md](spec/02-architecture.md)
   for the full architecture and [spec/adr/README.md](spec/adr/README.md) for the decision log.
 
+**[Try the browser-only playground](https://ktjn.github.io/observable/)** — the real production UI
+running entirely client-side against synthetic demo data (no backend, no signup). See
+[docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md](docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md)
+for how it works.
+
 The current release is `0.1.0`. [ROADMAP.md](ROADMAP.md) is the authoritative, outcome-based path
 from the shipped evaluation baseline through a stable `1.0.0` self-hosted contract.
 
