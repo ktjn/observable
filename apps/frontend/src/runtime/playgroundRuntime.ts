@@ -5,6 +5,7 @@ import type { NlqRequest, NlqResponse, NlqIr, VisualizationFrame } from "../api/
 import type { Dashboard } from "../api/dashboards";
 import type { ServiceSummaryResponse, DiscoveryResponse, TopologyResponse } from "../api/services";
 import type { MetricCatalogResponse, MetricPointsResponse, MetricCatalogEntry } from "../api/metrics";
+import type { ListChangeEventsResponse, ListChangeEventsParams } from "../api/changeEvents";
 import type {
   RuntimeApi,
   TraceHistogramParams,
@@ -281,6 +282,23 @@ export const playgroundRuntime: RuntimeApi = {
       const { executeMetricGroupPoints } = await import("../playground/engineClient");
       const { points } = await executeMetricGroupPoints(metric);
       return { points };
+    },
+  },
+  changeEvents: {
+    async list(_tenantId: string, params: ListChangeEventsParams): Promise<ListChangeEventsResponse> {
+      const nowMs = Date.now();
+      const fromMs = params.start_time ? new Date(params.start_time).getTime() : nowMs - 3_600_000;
+      const toMs = params.end_time ? new Date(params.end_time).getTime() : nowMs;
+      const { executeChangeEvents } = await import("../playground/engineClient");
+      const { changeEvents } = await executeChangeEvents({
+        fromNs: String(BigInt(Math.floor(fromMs)) * 1_000_000n),
+        toNs: String(BigInt(Math.floor(toMs)) * 1_000_000n),
+        service: params.service_name,
+        environment: params.environment,
+        eventType: params.event_type,
+        limit: params.limit ?? 50,
+      });
+      return { items: changeEvents };
     },
   },
   nlq: {

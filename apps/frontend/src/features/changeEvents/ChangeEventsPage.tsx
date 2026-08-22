@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { listChangeEvents, type ChangeEvent, type ChangeEventType } from "../../api/changeEvents";
+import type { ChangeEvent, ChangeEventType } from "../../api/changeEvents";
+import { useRuntime } from "../../hooks/useRuntime";
 import { Badge } from "../../components/ui/badge";
 import { EmptyState } from "../../components/ui/empty-state";
 import { ErrorState } from "../../components/ui/error-state";
@@ -25,6 +26,7 @@ function eventTypeTone(eventType: ChangeEventType): "good" | "bad" | "warn" | "i
 
 export default function ChangeEventsPage() {
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const { fromMs, toMs } = useGlobalDateRange();
   const { format } = useTimeDisplay();
   const [serviceFilter, setServiceFilter] = useState("");
@@ -33,7 +35,7 @@ export default function ChangeEventsPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["change-events-explorer", tenantId, fromMs, toMs, serviceFilter, typeFilter],
     queryFn: () =>
-      listChangeEvents(tenantId, {
+      runtime.changeEvents.list(tenantId, {
         service_name: serviceFilter || undefined,
         event_type: typeFilter === "all" ? undefined : typeFilter,
         start_time: new Date(fromMs).toISOString(),

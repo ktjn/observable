@@ -109,6 +109,32 @@ interface GeneratedMetricPoint {
   value_double: number;
 }
 
+interface ChangeEvent {
+  change_event_id: string;
+  tenant_id: string;
+  project_id: string | null;
+  event_type: string;
+  service_name: string | null;
+  environment: string;
+  title: string;
+  description: string | null;
+  occurred_at: string;
+  source: string | null;
+  created_by: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+interface GeneratedChangeEvent {
+  change_event_id: string;
+  event_type: string;
+  service_name: string;
+  environment: string;
+  title: string;
+  description: string;
+  occurred_at_unix_nano: string;
+  source: string;
+}
+
 interface GeneratedSpan {
   trace_id: string;
   span_id: string;
@@ -172,6 +198,16 @@ type EngineRequest =
   | { type: "service-names"; requestId: string }
   | { type: "metric-catalog"; requestId: string; service?: string }
   | { type: "metric-group-points"; requestId: string; metric: MetricCatalogEntry }
+  | {
+      type: "change-events";
+      requestId: string;
+      fromNs: string;
+      toNs: string;
+      service?: string;
+      environment?: string;
+      eventType?: string;
+      limit: number;
+    }
   | { type: "reset"; requestId: string; seed: number };
 type EngineResponse =
   | { type: "nlq-result"; requestId: string; rows: NlqTraceRow[]; sql: string }
@@ -183,6 +219,7 @@ type EngineResponse =
   | { type: "service-names-result"; requestId: string; names: string[] }
   | { type: "metric-catalog-result"; requestId: string; metrics: MetricCatalogEntry[] }
   | { type: "metric-group-points-result"; requestId: string; points: MetricPoint[] }
+  | { type: "change-events-result"; requestId: string; items: ChangeEvent[] }
   | { type: "reset-done"; requestId: string }
   | { type: "nlq-error"; requestId: string; message: string };
 
@@ -226,6 +263,15 @@ interface EngineState {
     environment: string,
     metricType: string,
     unit: string
+  ) => string;
+  generateChangeEventsJson: (seed: number, nowUnixNano: string) => string;
+  renderChangeEventsSql: (
+    serviceName: string | undefined,
+    environment: string | undefined,
+    eventType: string | undefined,
+    fromNs: string,
+    toNs: string,
+    limit: number
   ) => string;
   conn: { query: (sql: string) => Promise<{ toArray: () => Record<string, unknown>[] }> };
 }
@@ -273,6 +319,19 @@ function insertMetricPointsSql(points: GeneratedMetricPoint[]): string {
   return `INSERT INTO metric_points VALUES ${values}`;
 }
 
+function insertChangeEventsSql(events: GeneratedChangeEvent[]): string {
+  const values = events
+    .map(
+      (e) =>
+        `('${escapeSqlString(e.change_event_id)}', '${escapeSqlString(e.event_type)}', ` +
+        `'${escapeSqlString(e.service_name)}', '${escapeSqlString(e.environment)}', ` +
+        `'${escapeSqlString(e.title)}', '${escapeSqlString(e.description)}', ` +
+        `${e.occurred_at_unix_nano}, '${escapeSqlString(e.source)}')`
+    )
+    .join(", ");
+  return `INSERT INTO change_events VALUES ${values}`;
+}
+
 function insertLogsSql(logs: GeneratedLog[]): string {
   const values = logs
     .map(
@@ -312,6 +371,12 @@ async function seedData(state: EngineState, seed: number): Promise<void> {
   }
   if (points.length > 0) {
     await state.conn.query(insertMetricPointsSql(points));
+  }
+
+  const changeEventsJson = state.generateChangeEventsJson(seed, nowUnixNano);
+  const changeEvents: GeneratedChangeEvent[] = JSON.parse(changeEventsJson);
+  if (changeEvents.length > 0) {
+    await state.conn.query(insertChangeEventsSql(changeEvents));
   }
 }
 
@@ -355,6 +420,11 @@ async function initEngine(): Promise<EngineState> {
     "CREATE TABLE metric_points (" +
       "metric_series_id VARCHAR, time_unix_nano BIGINT, start_time_unix_nano BIGINT, value_double DOUBLE)"
   );
+  await conn.query(
+    "CREATE TABLE change_events (" +
+      "change_event_id VARCHAR, event_type VARCHAR, service_name VARCHAR, environment VARCHAR, " +
+      "title VARCHAR, description VARCHAR, occurred_at_unix_nano BIGINT, source VARCHAR)"
+  );
 
   const state: EngineState = {
     generateSpansJson: wasmModule.generate_spans_json,
@@ -370,6 +440,8 @@ async function initEngine(): Promise<EngineState> {
     generateMetricsJson: wasmModule.generate_metrics_json,
     renderMetricCatalogSql: wasmModule.render_metric_catalog_sql,
     renderMetricGroupPointsSql: wasmModule.render_metric_group_points_sql,
+    generateChangeEventsJson: wasmModule.generate_change_events_json,
+    renderChangeEventsSql: wasmModule.render_change_events_sql,
     conn,
   };
   await seedData(state, currentSeed);
@@ -578,6 +650,39 @@ async function executeMetricGroupPoints(metric: MetricCatalogEntry): Promise<Met
   }));
 }
 
+async function executeChangeEvents(
+  fromNs: string,
+  toNs: string,
+  service: string | undefined,
+  environment: string | undefined,
+  eventType: string | undefined,
+  limit: number
+): Promise<ChangeEvent[]> {
+  const { renderChangeEventsSql, conn } = await getEngine();
+  const sql = renderChangeEventsSql(service, environment, eventType, fromNs, toNs, limit);
+  const result = await conn.query(sql);
+  return result.toArray().map((row) => {
+    const occurredAtMs = Number(BigInt(String(row.occurred_at_unix_nano)) / 1_000_000n);
+    const serviceName = String(row.service_name);
+    const description = String(row.description);
+    const source = String(row.source);
+    return {
+      change_event_id: String(row.change_event_id),
+      tenant_id: DEMO_TENANT_ID,
+      project_id: null,
+      event_type: String(row.event_type),
+      service_name: serviceName === "" ? null : serviceName,
+      environment: String(row.environment),
+      title: String(row.title),
+      description: description === "" ? null : description,
+      occurred_at: new Date(occurredAtMs).toISOString(),
+      source: source === "" ? null : source,
+      created_by: null,
+      metadata: null,
+    };
+  });
+}
+
 async function resetPlayground(seed: number): Promise<void> {
   const state = await getEngine();
   currentSeed = seed;
@@ -585,6 +690,7 @@ async function resetPlayground(seed: number): Promise<void> {
   await state.conn.query("DELETE FROM logs");
   await state.conn.query("DELETE FROM metric_series");
   await state.conn.query("DELETE FROM metric_points");
+  await state.conn.query("DELETE FROM change_events");
   await seedData(state, seed);
 }
 
@@ -622,6 +728,10 @@ workerSelf.onmessage = async (event) => {
     } else if (event.data.type === "metric-group-points") {
       const points = await executeMetricGroupPoints(event.data.metric);
       workerSelf.postMessage({ type: "metric-group-points-result", requestId, points });
+    } else if (event.data.type === "change-events") {
+      const { fromNs, toNs, service, environment, eventType, limit } = event.data;
+      const items = await executeChangeEvents(fromNs, toNs, service, environment, eventType, limit);
+      workerSelf.postMessage({ type: "change-events-result", requestId, items });
     } else if (event.data.type === "reset") {
       await resetPlayground(event.data.seed);
       workerSelf.postMessage({ type: "reset-done", requestId });

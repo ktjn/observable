@@ -1,7 +1,7 @@
-//! Deterministic, seeded demo trace/log/metric generator for the
-//! browser-local playground. Scoped-down Phase 4 slice: traces, one log per
-//! span, and a small fixed metric catalog (deployments/SLO burn are future
-//! work). See
+//! Deterministic, seeded demo trace/log/metric/change-event generator for
+//! the browser-local playground. Scoped-down Phase 4 slice: traces, one log
+//! per span, a small fixed metric catalog, and one change event per
+//! topology service (SLO burn is future work). See
 //! `docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md`.
 
 use serde::Serialize;
@@ -342,6 +342,65 @@ pub fn generate_metrics(
     (series, points)
 }
 
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct GeneratedChangeEvent {
+    pub change_event_id: String,
+    pub event_type: String,
+    pub service_name: String,
+    pub environment: String,
+    pub title: String,
+    pub description: String,
+    /// Nanoseconds, as a decimal string — see `GeneratedSpan::duration_ns`.
+    pub occurred_at_unix_nano: String,
+    pub source: String,
+}
+
+/// `(event_type, title_template, source)`.
+const CHANGE_EVENT_DEFS: &[(&str, &str, &str)] = &[
+    (
+        "config_change",
+        "Updated rollout config for {service}",
+        "admin-service",
+    ),
+    ("feature_flag", "Enabled new-{service}-flow", "launchdarkly"),
+    (
+        "migration",
+        "Ran schema migration for {service}",
+        "ci-pipeline",
+    ),
+    ("other", "Deployed {service} v1.{n}.0", "ci-pipeline"),
+];
+
+/// Generates one change event per topology service (rotating through
+/// `CHANGE_EVENT_DEFS`), spread over `WINDOW_SECS` relative to
+/// `now_unix_nano`. Deterministic like `generate_spans`/`generate_logs`.
+pub fn generate_change_events(seed: u32, now_unix_nano: i64) -> Vec<GeneratedChangeEvent> {
+    let mut rng = Rng::new(seed.wrapping_add(0x0BAD_C0DE));
+    let mut events = Vec::new();
+
+    for (i, (service_name, _)) in TOPOLOGY.iter().enumerate() {
+        let (event_type, title_template, source) = CHANGE_EVENT_DEFS[i % CHANGE_EVENT_DEFS.len()];
+        let offset_ns = rng.next_range(WINDOW_SECS) as i64 * 1_000_000_000;
+        let occurred_at = now_unix_nano - offset_ns;
+        let title = title_template
+            .replace("{service}", service_name)
+            .replace("{n}", &(i + 1).to_string());
+
+        events.push(GeneratedChangeEvent {
+            change_event_id: format!("playground-change-event-{i}"),
+            event_type: event_type.to_string(),
+            service_name: service_name.to_string(),
+            environment: "production".to_string(),
+            title,
+            description: String::new(),
+            occurred_at_unix_nano: occurred_at.to_string(),
+            source: source.to_string(),
+        });
+    }
+
+    events
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -534,6 +593,39 @@ mod tests {
                 }
                 last = Some(t);
             }
+        }
+    }
+
+    // ── change events ────────────────────────────────────────────────────
+
+    #[test]
+    fn change_events_same_seed_produces_identical_output() {
+        let a = generate_change_events(42, NOW);
+        let b = generate_change_events(42, NOW);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn one_change_event_per_topology_service() {
+        let events = generate_change_events(7, NOW);
+        assert_eq!(events.len(), TOPOLOGY.len());
+    }
+
+    #[test]
+    fn change_event_titles_are_service_specific() {
+        let events = generate_change_events(7, NOW);
+        for event in &events {
+            assert!(event.title.contains(&event.service_name));
+        }
+    }
+
+    #[test]
+    fn change_events_are_within_the_configured_window() {
+        let events = generate_change_events(7, NOW);
+        for event in &events {
+            let t: i64 = event.occurred_at_unix_nano.parse().unwrap();
+            assert!(t <= NOW);
+            assert!(NOW - t <= WINDOW_SECS as i64 * 1_000_000_000);
         }
     }
 }

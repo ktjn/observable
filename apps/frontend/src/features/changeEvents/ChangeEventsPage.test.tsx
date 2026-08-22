@@ -2,7 +2,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ChangeEventsPage from "./ChangeEventsPage";
-import * as changeEventsApi from "../../api/changeEvents";
+
+const listMock = vi.fn();
 
 vi.mock("../../hooks/useTenantContext", () => ({
   useTenantContext: () => ({ tenantId: "tenant-1" }),
@@ -12,6 +13,12 @@ vi.mock("../../hooks/useGlobalDateRange", () => ({
 }));
 vi.mock("../../lib/timeDisplay", () => ({
   useTimeDisplay: () => ({ format: "iso-local-ms" }),
+}));
+vi.mock("../../hooks/useRuntime", () => ({
+  useRuntime: () => ({
+    mode: "http",
+    changeEvents: { list: listMock },
+  }),
 }));
 
 function renderPage() {
@@ -26,16 +33,17 @@ function renderPage() {
 describe("ChangeEventsPage", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    listMock.mockReset();
   });
 
   it("renders an empty state when no events are returned", async () => {
-    vi.spyOn(changeEventsApi, "listChangeEvents").mockResolvedValue({ items: [] });
+    listMock.mockResolvedValue({ items: [] });
     renderPage();
     await waitFor(() => expect(screen.getByText("No change events found")).toBeInTheDocument());
   });
 
   it("renders the change events summary stat-card row", async () => {
-    vi.spyOn(changeEventsApi, "listChangeEvents").mockResolvedValue({
+    listMock.mockResolvedValue({
       items: [
         {
           change_event_id: "ce-2",
@@ -59,7 +67,7 @@ describe("ChangeEventsPage", () => {
   });
 
   it("renders a row for each returned event", async () => {
-    vi.spyOn(changeEventsApi, "listChangeEvents").mockResolvedValue({
+    listMock.mockResolvedValue({
       items: [
         {
           change_event_id: "ce-1",
