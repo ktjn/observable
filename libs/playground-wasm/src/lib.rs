@@ -7,7 +7,10 @@
 mod generator;
 
 use domain_core::nlq::NlqIr;
-use query_core::trace_query::{extract_trace_query_filters, render_trace_query_duckdb};
+use query_core::trace_query::{
+    extract_trace_query_filters, render_trace_histogram_duckdb, render_trace_query_duckdb,
+};
+use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -46,6 +49,55 @@ pub fn generate_spans_json(seed: u32, now_unix_nano: &str) -> Result<String, JsV
     generate_spans_json_inner(seed, now_unix_nano).map_err(|e| JsValue::from_str(&e))
 }
 
+#[derive(Serialize)]
+struct TraceHistogramPlanJson {
+    sql: String,
+    /// Nanoseconds, as decimal strings — see `generate_spans_json`'s doc
+    /// comment for why (JS `Number` precision loss).
+    from_ns: String,
+    interval_ns: String,
+}
+
+/// Plans a Traces histogram query (see
+/// `docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md`
+/// section 20) into DuckDB-flavored SQL against the playground's local
+/// `spans` table. `from_ns`/`to_ns` are decimal-string nanosecond epoch
+/// timestamps; `service` is optional. Returns JSON:
+/// `{"sql", "from_ns", "interval_ns"}` — the caller fills in zero-count
+/// buckets missing from the query result using `from_ns`/`interval_ns`,
+/// mirroring production's handler.
+fn render_trace_histogram_sql_inner(
+    from_ns: &str,
+    to_ns: &str,
+    bucket_count: u32,
+    service: Option<String>,
+) -> Result<String, String> {
+    let from_ns: u64 = from_ns
+        .parse()
+        .map_err(|e: std::num::ParseIntError| e.to_string())?;
+    let to_ns: u64 = to_ns
+        .parse()
+        .map_err(|e: std::num::ParseIntError| e.to_string())?;
+    let plan = render_trace_histogram_duckdb(from_ns, to_ns, bucket_count, service.as_deref());
+    serde_json::to_string(&TraceHistogramPlanJson {
+        sql: plan.sql,
+        from_ns: plan.from_ns.to_string(),
+        interval_ns: plan.interval_ns.to_string(),
+    })
+    .map_err(|e| e.to_string())
+}
+
+#[wasm_bindgen]
+pub fn render_trace_histogram_sql(
+    from_ns: &str,
+    to_ns: &str,
+    bucket_count: u32,
+    service: Option<String>,
+) -> Result<String, JsValue> {
+    render_trace_histogram_sql_inner(from_ns, to_ns, bucket_count, service)
+        .map_err(|e| JsValue::from_str(&e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -76,5 +128,21 @@ mod tests {
     #[test]
     fn render_trace_search_sql_rejects_invalid_json() {
         assert!(render_trace_search_sql_inner("not json").is_err());
+    }
+
+    #[test]
+    fn render_trace_histogram_sql_builds_duckdb_sql() {
+        let json =
+            render_trace_histogram_sql_inner("0", "60000000000", 60, Some("checkout".into()))
+                .unwrap();
+        assert!(json.contains("\"sql\""));
+        assert!(json.contains("service_name = 'checkout'"));
+        assert!(json.contains("\"from_ns\":\"0\""));
+        assert!(json.contains("\"interval_ns\":\"1000000000\""));
+    }
+
+    #[test]
+    fn render_trace_histogram_sql_rejects_invalid_timestamps() {
+        assert!(render_trace_histogram_sql_inner("not-a-number", "1000", 10, None).is_err());
     }
 }

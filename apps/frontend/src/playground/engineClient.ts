@@ -8,13 +8,25 @@ export interface NlqTraceRow {
   start_time_unix_nano: number | string;
 }
 
+export interface TraceHistogramBucket {
+  start_ms: number;
+  end_ms: number;
+  count: number;
+}
+
+type EngineResult =
+  | { rows: NlqTraceRow[]; sql: string }
+  | { buckets: TraceHistogramBucket[] }
+  | undefined;
+
 type EngineResponse =
   | { type: "nlq-result"; requestId: string; rows: NlqTraceRow[]; sql: string }
+  | { type: "histogram-result"; requestId: string; buckets: TraceHistogramBucket[] }
   | { type: "reset-done"; requestId: string }
   | { type: "nlq-error"; requestId: string; message: string };
 
 interface PendingRequest {
-  resolve: (result: { rows: NlqTraceRow[]; sql: string } | undefined) => void;
+  resolve: (result: EngineResult) => void;
   reject: (error: Error) => void;
 }
 
@@ -31,6 +43,8 @@ function getWorker(): Worker {
     pending.delete(event.data.requestId);
     if (event.data.type === "nlq-result") {
       request.resolve({ rows: event.data.rows, sql: event.data.sql });
+    } else if (event.data.type === "histogram-result") {
+      request.resolve({ buckets: event.data.buckets });
     } else if (event.data.type === "reset-done") {
       request.resolve(undefined);
     } else {
@@ -50,10 +64,27 @@ export function executeTraceTable(ir: unknown): Promise<{ rows: NlqTraceRow[]; s
   const requestId = String(nextRequestId++);
   return new Promise((resolve, reject) => {
     pending.set(requestId, {
-      resolve: resolve as (r: { rows: NlqTraceRow[]; sql: string } | undefined) => void,
+      resolve: resolve as (r: EngineResult) => void,
       reject,
     });
     getWorker().postMessage({ type: "nlq-execute-trace-table", requestId, ir });
+  });
+}
+
+/** Runs a Traces histogram query through the persistent playground engine worker. */
+export function executeTraceHistogram(params: {
+  fromNs: string;
+  toNs: string;
+  bucketCount: number;
+  service?: string;
+}): Promise<{ buckets: TraceHistogramBucket[] }> {
+  const requestId = String(nextRequestId++);
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, {
+      resolve: resolve as (r: EngineResult) => void,
+      reject,
+    });
+    getWorker().postMessage({ type: "trace-histogram", requestId, ...params });
   });
 }
 

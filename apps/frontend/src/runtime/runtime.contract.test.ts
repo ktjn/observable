@@ -22,6 +22,9 @@ vi.mock("../playground/engineClient", () => ({
     ],
     sql: "-- mocked",
   })),
+  executeTraceHistogram: vi.fn(async () => ({
+    buckets: [{ start_ms: 0, end_ms: 60_000, count: 1 }],
+  })),
 }));
 
 const MOCK_TENANT_ID = "00000000-0000-0000-0000-000000000001";
@@ -57,7 +60,11 @@ function runContract(name: string, runtime: RuntimeApi) {
     });
 
     it("traces.histogram returns the TraceHistogramResponse shape", async () => {
-      const result = await runtime.traces.histogram(MOCK_TENANT_ID, { buckets: 12 });
+      const result = await runtime.traces.histogram(MOCK_TENANT_ID, {
+        buckets: 12,
+        from: "1700000000000000000",
+        to: "1700003600000000000",
+      });
       expect(Array.isArray(result.buckets)).toBe(true);
       for (const bucket of result.buckets) {
         expect(typeof bucket.start_ms).toBe("number");
