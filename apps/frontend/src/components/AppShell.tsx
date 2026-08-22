@@ -1,9 +1,10 @@
 import { Outlet } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTheme, type ThemePreference } from "../lib/theme";
 import { useTimeDisplay, TIME_FORMAT_OPTIONS } from "../lib/timeDisplay";
 import { GlobalDateRangePicker } from "./GlobalDateRangePicker";
 import { UserMenu } from "./UserMenu";
+import { Button } from "./ui/button";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { useRuntime } from "../hooks/useRuntime";
 import { useEffect, useState } from "react";
@@ -77,7 +78,24 @@ export function AppShell() {
   const { format, setFormat } = useTimeDisplay();
   const { tenantId, tenantName, environment, setTenant, setEnvironment } = useTenantContext();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const runtime = useRuntime();
+  const queryClient = useQueryClient();
+  const isPlayground = import.meta.env.VITE_OBSERVABLE_RUNTIME === "playground";
+
+  async function handleResetPlayground() {
+    setResetting(true);
+    try {
+      // Dynamically imported (not a static import): engineClient statically
+      // references a Worker URL, which Vite's dep scanner eagerly resolves
+      // at import time — see the identical reasoning in playgroundRuntime.ts.
+      const { resetPlayground } = await import("../playground/engineClient");
+      await resetPlayground();
+      await queryClient.invalidateQueries();
+    } finally {
+      setResetting(false);
+    }
+  }
 
   const { data: tenantsData } = useQuery({
     queryKey: ["tenants"],
@@ -203,6 +221,16 @@ export function AppShell() {
                 <option key={env.environment} value={env.environment}>{env.environment}</option>
               ))}
             </select>
+            {isPlayground && (
+              <Button
+                variant="secondary"
+                className="context-pill"
+                onClick={handleResetPlayground}
+                disabled={resetting}
+              >
+                {resetting ? "Resetting…" : "Reset playground"}
+              </Button>
+            )}
             <UserMenu />
           </div>
         </header>

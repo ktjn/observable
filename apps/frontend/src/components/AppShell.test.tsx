@@ -21,6 +21,7 @@ vi.mock("@tanstack/react-query", () => ({
     }
     return { data: undefined };
   },
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
 vi.mock("../hooks/useTenantContext", () => ({

@@ -10,10 +10,11 @@ export interface NlqTraceRow {
 
 type EngineResponse =
   | { type: "nlq-result"; requestId: string; rows: NlqTraceRow[]; sql: string }
+  | { type: "reset-done"; requestId: string }
   | { type: "nlq-error"; requestId: string; message: string };
 
 interface PendingRequest {
-  resolve: (result: { rows: NlqTraceRow[]; sql: string }) => void;
+  resolve: (result: { rows: NlqTraceRow[]; sql: string } | undefined) => void;
   reject: (error: Error) => void;
 }
 
@@ -30,6 +31,8 @@ function getWorker(): Worker {
     pending.delete(event.data.requestId);
     if (event.data.type === "nlq-result") {
       request.resolve({ rows: event.data.rows, sql: event.data.sql });
+    } else if (event.data.type === "reset-done") {
+      request.resolve(undefined);
     } else {
       request.reject(new Error(event.data.message));
     }
@@ -46,7 +49,20 @@ function getWorker(): Worker {
 export function executeTraceTable(ir: unknown): Promise<{ rows: NlqTraceRow[]; sql: string }> {
   const requestId = String(nextRequestId++);
   return new Promise((resolve, reject) => {
-    pending.set(requestId, { resolve, reject });
+    pending.set(requestId, {
+      resolve: resolve as (r: { rows: NlqTraceRow[]; sql: string } | undefined) => void,
+      reject,
+    });
     getWorker().postMessage({ type: "nlq-execute-trace-table", requestId, ir });
+  });
+}
+
+/** Regenerates the playground's demo dataset with a fresh seed. */
+export function resetPlayground(): Promise<void> {
+  const requestId = String(nextRequestId++);
+  const seed = Date.now() % 0xffffffff;
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, { resolve: () => resolve(), reject });
+    getWorker().postMessage({ type: "reset", requestId, seed });
   });
 }
