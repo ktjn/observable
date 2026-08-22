@@ -10,6 +10,7 @@ pub mod params;
 pub mod planner;
 pub mod service_query;
 pub mod sql_templates;
+pub mod topology_query;
 pub mod trace_query;
 
 pub use params::*;

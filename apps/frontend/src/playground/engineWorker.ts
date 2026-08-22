@@ -59,6 +59,14 @@ interface ServiceSummary {
   latest_deployment: string | null;
 }
 
+interface TopologyEdge {
+  caller: string;
+  callee: string;
+  request_count: number;
+  error_rate: number;
+  p95_latency_ms: number;
+}
+
 interface GeneratedSpan {
   trace_id: string;
   span_id: string;
@@ -111,6 +119,15 @@ type EngineRequest =
       toNs: string;
       environment?: string;
     }
+  | {
+      type: "topology";
+      requestId: string;
+      fromNs: string;
+      toNs: string;
+      environment?: string;
+      service?: string;
+    }
+  | { type: "service-names"; requestId: string }
   | { type: "reset"; requestId: string; seed: number };
 type EngineResponse =
   | { type: "nlq-result"; requestId: string; rows: NlqTraceRow[]; sql: string }
@@ -118,6 +135,8 @@ type EngineResponse =
   | { type: "nlq-log-result"; requestId: string; rows: NlqLogRow[]; sql: string }
   | { type: "log-histogram-result"; requestId: string; buckets: LogHistogramBucket[] }
   | { type: "service-summaries-result"; requestId: string; items: ServiceSummary[] }
+  | { type: "topology-result"; requestId: string; edges: TopologyEdge[] }
+  | { type: "service-names-result"; requestId: string; names: string[] }
   | { type: "reset-done"; requestId: string }
   | { type: "nlq-error"; requestId: string; message: string };
 
@@ -146,6 +165,13 @@ interface EngineState {
   ) => string;
   renderServiceSummarySql: (fromNs: string, toNs: string, environment: string | undefined) => string;
   computeServiceSummaries: (rowsJson: string, durationSecs: number) => string;
+  renderTopologySql: (
+    fromNs: string,
+    toNs: string,
+    environment: string | undefined,
+    service: string | undefined
+  ) => string;
+  computeTopologyEdges: (rowsJson: string) => string;
   conn: { query: (sql: string) => Promise<{ toArray: () => Record<string, unknown>[] }> };
 }
 
@@ -241,6 +267,8 @@ async function initEngine(): Promise<EngineState> {
     renderLogHistogramSql: wasmModule.render_log_histogram_sql,
     renderServiceSummarySql: wasmModule.render_service_summary_sql,
     computeServiceSummaries: wasmModule.compute_service_summaries,
+    renderTopologySql: wasmModule.render_topology_sql,
+    computeTopologyEdges: wasmModule.compute_topology_edges,
     conn,
   };
   await seedData(state, currentSeed);
@@ -381,6 +409,35 @@ async function executeServiceSummaries(
   return JSON.parse(summariesJson);
 }
 
+async function executeTopology(
+  fromNs: string,
+  toNs: string,
+  environment: string | undefined,
+  service: string | undefined
+): Promise<TopologyEdge[]> {
+  const { renderTopologySql, computeTopologyEdges, conn } = await getEngine();
+  const sql = renderTopologySql(fromNs, toNs, environment, service);
+  const result = await conn.query(sql);
+  const rows = result.toArray().map((row) => ({
+    caller: String(row.caller),
+    callee: String(row.callee),
+    request_count: Number(row.request_count),
+    error_count: Number(row.error_count),
+    p95_latency_ns: Number(row.p95_latency_ns) || 0,
+  }));
+
+  const edgesJson = computeTopologyEdges(JSON.stringify(rows));
+  return JSON.parse(edgesJson);
+}
+
+async function executeServiceNames(): Promise<string[]> {
+  const { conn } = await getEngine();
+  const result = await conn.query(
+    "SELECT DISTINCT service_name FROM spans WHERE service_name != '' ORDER BY service_name"
+  );
+  return result.toArray().map((row) => String(row.service_name));
+}
+
 async function resetPlayground(seed: number): Promise<void> {
   const state = await getEngine();
   currentSeed = seed;
@@ -410,6 +467,13 @@ workerSelf.onmessage = async (event) => {
       const { fromNs, toNs, environment } = event.data;
       const items = await executeServiceSummaries(fromNs, toNs, environment);
       workerSelf.postMessage({ type: "service-summaries-result", requestId, items });
+    } else if (event.data.type === "topology") {
+      const { fromNs, toNs, environment, service } = event.data;
+      const edges = await executeTopology(fromNs, toNs, environment, service);
+      workerSelf.postMessage({ type: "topology-result", requestId, edges });
+    } else if (event.data.type === "service-names") {
+      const names = await executeServiceNames();
+      workerSelf.postMessage({ type: "service-names-result", requestId, names });
     } else if (event.data.type === "reset") {
       await resetPlayground(event.data.seed);
       workerSelf.postMessage({ type: "reset-done", requestId });

@@ -3,7 +3,7 @@ import type { LogHistogramResponse } from "../api/logs";
 import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants";
 import type { NlqRequest, NlqResponse } from "../api/nlq";
 import type { CreateDashboardRequest, Dashboard } from "../api/dashboards";
-import type { ServiceSummaryResponse } from "../api/services";
+import type { ServiceSummaryResponse, DiscoveryResponse, TopologyResponse } from "../api/services";
 
 export interface SearchTracesParams {
   service?: string;
@@ -33,6 +33,13 @@ export interface ServiceSummaryParams {
   to?: number;
 }
 
+export interface TopologyParams {
+  environment?: string;
+  from?: number;
+  to?: number;
+  service?: string;
+}
+
 /**
  * Typed seam between UI components and either the production HTTP backend
  * (`httpRuntime`) or the browser-local playground engine (`playgroundRuntime`).
@@ -53,6 +60,10 @@ export interface RuntimeApi {
   };
   services: {
     list(tenantId: string, params: ServiceSummaryParams): Promise<ServiceSummaryResponse>;
+    listNames(tenantId: string): Promise<DiscoveryResponse>;
+  };
+  topology: {
+    get(tenantId: string, params: TopologyParams): Promise<TopologyResponse>;
   };
   nlq: {
     execute(tenantId: string, request: NlqRequest): Promise<NlqResponse>;

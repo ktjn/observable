@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { getTopology, listServices, type ServiceSummary, type TopologyEdge } from "../api/services";
+import type { ServiceSummary, TopologyEdge } from "../api/services";
 import { useRuntime } from "../hooks/useRuntime";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -296,6 +296,7 @@ function HealthStatus({ healthState }: { healthState: ServiceSummary["health_sta
 // ── Topology view ─────────────────────────────────────────────────────────────
 
 function TopologyView({ tenantId, environment }: { tenantId: string; environment: string }) {
+  const runtime = useRuntime();
   const [focusedService, setFocusedService] = useState<string | null>(null);
   const [edgePopover, setEdgePopover] = useState<{
     edge: TopologyEdge;
@@ -306,12 +307,12 @@ function TopologyView({ tenantId, environment }: { tenantId: string; environment
   const { data, isLoading, error } = useQuery({
     queryKey: ["topology", tenantId, environment],
     queryFn: () =>
-      getTopology(tenantId, { environment: environment === "all" ? undefined : environment }),
+      runtime.topology.get(tenantId, { environment: environment === "all" ? undefined : environment }),
   });
 
   const { data: servicesData } = useQuery({
     queryKey: ["services", tenantId],
-    queryFn: () => listServices(tenantId),
+    queryFn: () => runtime.services.listNames(tenantId),
   });
 
   const allServiceNames = (servicesData?.items ?? []).filter((s) => s !== "");

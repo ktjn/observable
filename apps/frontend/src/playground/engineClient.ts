@@ -47,12 +47,22 @@ export interface ServiceSummary {
   latest_deployment: string | null;
 }
 
+export interface TopologyEdge {
+  caller: string;
+  callee: string;
+  request_count: number;
+  error_rate: number;
+  p95_latency_ms: number;
+}
+
 type EngineResult =
   | { rows: NlqTraceRow[]; sql: string }
   | { buckets: TraceHistogramBucket[] }
   | { rows: NlqLogRow[]; sql: string }
   | { buckets: LogHistogramBucket[] }
   | { items: ServiceSummary[] }
+  | { edges: TopologyEdge[] }
+  | { names: string[] }
   | undefined;
 
 type EngineResponse =
@@ -61,6 +71,8 @@ type EngineResponse =
   | { type: "nlq-log-result"; requestId: string; rows: NlqLogRow[]; sql: string }
   | { type: "log-histogram-result"; requestId: string; buckets: LogHistogramBucket[] }
   | { type: "service-summaries-result"; requestId: string; items: ServiceSummary[] }
+  | { type: "topology-result"; requestId: string; edges: TopologyEdge[] }
+  | { type: "service-names-result"; requestId: string; names: string[] }
   | { type: "reset-done"; requestId: string }
   | { type: "nlq-error"; requestId: string; message: string };
 
@@ -90,6 +102,10 @@ function getWorker(): Worker {
       request.resolve({ buckets: event.data.buckets });
     } else if (event.data.type === "service-summaries-result") {
       request.resolve({ items: event.data.items });
+    } else if (event.data.type === "topology-result") {
+      request.resolve({ edges: event.data.edges });
+    } else if (event.data.type === "service-names-result") {
+      request.resolve({ names: event.data.names });
     } else if (event.data.type === "reset-done") {
       request.resolve(undefined);
     } else {
@@ -184,6 +200,39 @@ export function executeServiceSummaries(params: {
       reject,
     });
     getWorker().postMessage({ type: "service-summaries", requestId, ...params });
+  });
+}
+
+/**
+ * Runs the Services topology view's parent/child join aggregation through
+ * the persistent playground engine worker: Rust-planned DuckDB SQL executed
+ * against the browser-local `spans` table.
+ */
+export function executeTopology(params: {
+  fromNs: string;
+  toNs: string;
+  environment?: string;
+  service?: string;
+}): Promise<{ edges: TopologyEdge[] }> {
+  const requestId = String(nextRequestId++);
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, {
+      resolve: resolve as (r: EngineResult) => void,
+      reject,
+    });
+    getWorker().postMessage({ type: "topology", requestId, ...params });
+  });
+}
+
+/** Lists distinct service names observed in the playground's local `spans` table. */
+export function executeServiceNames(): Promise<{ names: string[] }> {
+  const requestId = String(nextRequestId++);
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, {
+      resolve: resolve as (r: EngineResult) => void,
+      reject,
+    });
+    getWorker().postMessage({ type: "service-names", requestId });
   });
 }
 
