@@ -1,4 +1,5 @@
 import type { TraceHistogramResponse, TraceListResponse } from "../api/traces";
+import type { LogHistogramResponse } from "../api/logs";
 import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants";
 import type { NlqRequest, NlqResponse } from "../api/nlq";
 import type { CreateDashboardRequest, Dashboard } from "../api/dashboards";
@@ -18,6 +19,13 @@ export interface TraceHistogramParams {
   buckets?: number;
 }
 
+export interface LogHistogramParams {
+  service?: string;
+  from: string;
+  to: string;
+  buckets?: number;
+}
+
 /**
  * Typed seam between UI components and either the production HTTP backend
  * (`httpRuntime`) or the browser-local playground engine (`playgroundRuntime`).
@@ -32,6 +40,9 @@ export interface RuntimeApi {
   traces: {
     search(tenantId: string, params: SearchTracesParams): Promise<TraceListResponse>;
     histogram(tenantId: string, params: TraceHistogramParams): Promise<TraceHistogramResponse>;
+  };
+  logs: {
+    histogram(tenantId: string, params: LogHistogramParams): Promise<LogHistogramResponse>;
   };
   nlq: {
     execute(tenantId: string, request: NlqRequest): Promise<NlqResponse>;

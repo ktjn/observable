@@ -73,6 +73,20 @@ function runContract(name: string, runtime: RuntimeApi) {
       }
     });
 
+    it("logs.histogram returns the LogHistogramResponse shape", async () => {
+      const result = await runtime.logs.histogram(MOCK_TENANT_ID, {
+        buckets: 12,
+        from: "1700000000000000000",
+        to: "1700003600000000000",
+      });
+      expect(Array.isArray(result.buckets)).toBe(true);
+      for (const bucket of result.buckets) {
+        expect(typeof bucket.start_ms).toBe("number");
+        expect(typeof bucket.end_ms).toBe("number");
+        expect(typeof bucket.counts).toBe("object");
+      }
+    });
+
     it("nlq.execute returns a discriminated NlqResponse", async () => {
       const result = await runtime.nlq.execute(MOCK_TENANT_ID, {
         base_ir: { operation: "table", signals: ["traces"], filters: [], time_range: { from: "now-1h", to: "now" } },
