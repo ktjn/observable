@@ -235,6 +235,13 @@ export function AppShell() {
           </div>
         </header>
 
+        {isPlayground && (
+          <div className="playground-banner" role="note">
+            Playground mode — all data is synthetic and generated locally in your browser. This is not
+            connected to any backend and does not reflect production behavior.
+          </div>
+        )}
+
         <main className="content-shell">
           <Outlet />
         </main>
