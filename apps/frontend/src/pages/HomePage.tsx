@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { listServiceSummaries } from "../api/services";
 import { listAlertRules } from "../api/alerts";
 import { listIncidents } from "../api/incidents";
 import { Badge } from "../components/ui/badge";
@@ -11,13 +10,15 @@ import { MetricCard } from "../components/ui/metric-card";
 import { TablePanel } from "../components/ui/table-panel";
 import { LoadingState } from "../components/ui/loading-state";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { useRuntime } from "../hooks/useRuntime";
 
 export default function HomePage() {
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
 
   const { data: servicesData, isLoading: servicesLoading, dataUpdatedAt } = useQuery({
     queryKey: ["services-summary", tenantId, "all"],
-    queryFn: () => listServiceSummaries(tenantId),
+    queryFn: () => runtime.services.list(tenantId, {}),
   });
 
   const { data: alertsData } = useQuery({

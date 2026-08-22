@@ -26,6 +26,13 @@ vi.mock("../hooks/useTenantContext", () => ({
   useTenantContext: () => ({ tenantId: "test-tenant" }),
 }));
 
+vi.mock("../hooks/useRuntime", () => ({
+  useRuntime: () => ({
+    mode: "http",
+    services: { list: vi.fn() },
+  }),
+}));
+
 describe("HomePage navigation", () => {
   test("points the quick nav at the workbench", () => {
     render(<HomePage />);
