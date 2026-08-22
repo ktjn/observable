@@ -87,6 +87,55 @@ pub fn render_trace_query_duckdb(filters: &TraceQueryFilters) -> String {
     )
 }
 
+/// Bucketed count-of-traces plan, mirroring `plan_trace_histogram` in
+/// `crate::planner` (which still emits ClickHouse's `intDiv` for
+/// production) but rendered for the playground's local `spans` table.
+pub struct TraceHistogramPlan {
+    pub sql: String,
+    pub from_ns: u64,
+    pub interval_ns: u64,
+}
+
+/// Renders a bucketed `count(DISTINCT trace_id)` query. `bucket_count` is
+/// clamped to at least 1; the caller (mirroring production's handler) is
+/// expected to fill in zero-count buckets for indices missing from the
+/// result using `from_ns`/`interval_ns`.
+pub fn render_trace_histogram_duckdb(
+    from_ns: u64,
+    to_ns: u64,
+    bucket_count: u32,
+    service: Option<&str>,
+) -> TraceHistogramPlan {
+    let bucket_count = bucket_count.max(1);
+    let range_ns = to_ns.saturating_sub(from_ns).max(1);
+    let interval_ns = (range_ns / bucket_count as u64).max(1);
+
+    let mut where_clauses = vec![
+        format!("start_time_unix_nano >= {from_ns}"),
+        format!("start_time_unix_nano <= {to_ns}"),
+    ];
+    if let Some(svc) = service {
+        where_clauses.push(format!("service_name = '{}'", escape_string_value(svc)));
+    }
+    let where_sql = where_clauses.join(" AND ");
+
+    let sql = format!(
+        "SELECT \
+           CAST((start_time_unix_nano - {from_ns}) / {interval_ns} AS BIGINT) AS bucket_idx, \
+           count(DISTINCT trace_id) AS cnt \
+         FROM spans \
+         WHERE {where_sql} \
+         GROUP BY bucket_idx \
+         ORDER BY bucket_idx ASC"
+    );
+
+    TraceHistogramPlan {
+        sql,
+        from_ns,
+        interval_ns,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -241,5 +290,56 @@ mod tests {
         let mut ir = base_ir();
         ir.time_range.from = "not-a-time".into();
         assert!(extract_trace_query_filters(&ir).is_err());
+    }
+
+    // ── histogram ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn histogram_interval_divides_range_by_bucket_count() {
+        let plan = render_trace_histogram_duckdb(0, 60_000_000_000, 60, None);
+        assert_eq!(plan.from_ns, 0);
+        assert_eq!(plan.interval_ns, 1_000_000_000);
+    }
+
+    #[test]
+    fn histogram_interval_clamps_to_one_for_degenerate_range() {
+        let plan = render_trace_histogram_duckdb(1000, 1000, 30, None);
+        assert_eq!(plan.interval_ns, 1);
+    }
+
+    #[test]
+    fn histogram_bucket_count_clamps_to_at_least_one() {
+        let plan = render_trace_histogram_duckdb(0, 100, 0, None);
+        assert_eq!(plan.interval_ns, 100);
+    }
+
+    #[test]
+    fn histogram_sql_uses_duckdb_arithmetic_not_intdiv() {
+        let plan = render_trace_histogram_duckdb(1000, 61000, 60, None);
+        assert!(
+            plan.sql
+                .contains("CAST((start_time_unix_nano - 1000) / 1000 AS BIGINT)")
+        );
+        assert!(!plan.sql.contains("intDiv"));
+        assert!(plan.sql.contains("count(DISTINCT trace_id)"));
+        assert!(plan.sql.contains("FROM spans"));
+    }
+
+    #[test]
+    fn histogram_sql_includes_service_filter_when_present() {
+        let plan = render_trace_histogram_duckdb(0, 1000, 10, Some("checkout"));
+        assert!(plan.sql.contains("service_name = 'checkout'"));
+    }
+
+    #[test]
+    fn histogram_sql_omits_service_filter_when_absent() {
+        let plan = render_trace_histogram_duckdb(0, 1000, 10, None);
+        assert!(!plan.sql.contains("service_name"));
+    }
+
+    #[test]
+    fn histogram_sql_escapes_service_name() {
+        let plan = render_trace_histogram_duckdb(0, 1000, 10, Some("o'brien"));
+        assert!(plan.sql.contains("service_name = 'o\\'brien'"));
     }
 }

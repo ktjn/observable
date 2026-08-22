@@ -2,7 +2,7 @@ import type { Span, TraceHistogramResponse, TraceListResponse, TraceResponse } f
 import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants";
 import type { NlqRequest, NlqResponse, NlqIr, VisualizationFrame } from "../api/nlq";
 import type { Dashboard } from "../api/dashboards";
-import type { RuntimeApi } from "./types";
+import type { RuntimeApi, TraceHistogramParams } from "./types";
 // Dynamically imported (not a static import): engineClient statically
 // references a Worker URL, which Vite's dep scanner eagerly resolves at
 // import time. A static import here would drag that into every module that
@@ -139,10 +139,18 @@ export const playgroundRuntime: RuntimeApi = {
         facets: { service_name: [{ value: "checkout", count: 1 }] },
       };
     },
-    async histogram(): Promise<TraceHistogramResponse> {
-      return {
-        buckets: [{ start_ms: 0, end_ms: 60_000, count: 1 }],
-      };
+    async histogram(_tenantId: string, params: TraceHistogramParams): Promise<TraceHistogramResponse> {
+      if (params.from && params.to) {
+        const { executeTraceHistogram } = await import("../playground/engineClient");
+        const { buckets } = await executeTraceHistogram({
+          fromNs: params.from,
+          toNs: params.to,
+          bucketCount: params.buckets ?? 30,
+          service: params.service,
+        });
+        return { buckets };
+      }
+      return { buckets: [{ start_ms: 0, end_ms: 60_000, count: 1 }] };
     },
   },
   nlq: {

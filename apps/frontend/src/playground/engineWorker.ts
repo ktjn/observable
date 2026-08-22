@@ -14,6 +14,12 @@ interface NlqTraceRow {
   start_time_unix_nano: number | string;
 }
 
+interface TraceHistogramBucket {
+  start_ms: number;
+  end_ms: number;
+  count: number;
+}
+
 interface GeneratedSpan {
   trace_id: string;
   span_id: string;
@@ -28,9 +34,18 @@ interface GeneratedSpan {
 
 type EngineRequest =
   | { type: "nlq-execute-trace-table"; requestId: string; ir: unknown }
+  | {
+      type: "trace-histogram";
+      requestId: string;
+      fromNs: string;
+      toNs: string;
+      bucketCount: number;
+      service?: string;
+    }
   | { type: "reset"; requestId: string; seed: number };
 type EngineResponse =
   | { type: "nlq-result"; requestId: string; rows: NlqTraceRow[]; sql: string }
+  | { type: "histogram-result"; requestId: string; buckets: TraceHistogramBucket[] }
   | { type: "reset-done"; requestId: string }
   | { type: "nlq-error"; requestId: string; message: string };
 
@@ -43,6 +58,12 @@ const workerSelf = self as unknown as WorkerSelf;
 interface EngineState {
   generateSpansJson: (seed: number, nowUnixNano: string) => string;
   renderTraceSearchSql: (irJson: string) => string;
+  renderTraceHistogramSql: (
+    fromNs: string,
+    toNs: string,
+    bucketCount: number,
+    service: string | undefined
+  ) => string;
   conn: { query: (sql: string) => Promise<{ toArray: () => Record<string, unknown>[] }> };
 }
 
@@ -102,6 +123,7 @@ async function initEngine(): Promise<EngineState> {
   const state: EngineState = {
     generateSpansJson: wasmModule.generate_spans_json,
     renderTraceSearchSql: wasmModule.render_trace_search_sql,
+    renderTraceHistogramSql: wasmModule.render_trace_histogram_sql,
     conn,
   };
   await seedSpans(state, currentSeed);
@@ -129,6 +151,37 @@ async function executeTraceTable(ir: unknown): Promise<{ rows: NlqTraceRow[]; sq
   return { rows, sql };
 }
 
+async function executeTraceHistogram(
+  fromNs: string,
+  toNs: string,
+  bucketCount: number,
+  service: string | undefined
+): Promise<TraceHistogramBucket[]> {
+  const { renderTraceHistogramSql, conn } = await getEngine();
+  const planJson = renderTraceHistogramSql(fromNs, toNs, bucketCount, service);
+  const plan: { sql: string; from_ns: string; interval_ns: string } = JSON.parse(planJson);
+  const result = await conn.query(plan.sql);
+
+  const counts = new Map<number, number>();
+  for (const row of result.toArray()) {
+    counts.set(Number(row.bucket_idx), Number(row.cnt));
+  }
+
+  const fromNsBig = BigInt(plan.from_ns);
+  const intervalNsBig = BigInt(plan.interval_ns);
+  const buckets: TraceHistogramBucket[] = [];
+  for (let i = 0; i < bucketCount; i++) {
+    const startNs = fromNsBig + BigInt(i) * intervalNsBig;
+    const endNs = startNs + intervalNsBig;
+    buckets.push({
+      start_ms: Number(startNs / 1_000_000n),
+      end_ms: Number(endNs / 1_000_000n),
+      count: counts.get(i) ?? 0,
+    });
+  }
+  return buckets;
+}
+
 async function resetPlayground(seed: number): Promise<void> {
   const state = await getEngine();
   currentSeed = seed;
@@ -142,6 +195,10 @@ workerSelf.onmessage = async (event) => {
     if (event.data.type === "nlq-execute-trace-table") {
       const { rows, sql } = await executeTraceTable(event.data.ir);
       workerSelf.postMessage({ type: "nlq-result", requestId, rows, sql });
+    } else if (event.data.type === "trace-histogram") {
+      const { fromNs, toNs, bucketCount, service } = event.data;
+      const buckets = await executeTraceHistogram(fromNs, toNs, bucketCount, service);
+      workerSelf.postMessage({ type: "histogram-result", requestId, buckets });
     } else if (event.data.type === "reset") {
       await resetPlayground(event.data.seed);
       workerSelf.postMessage({ type: "reset-done", requestId });
