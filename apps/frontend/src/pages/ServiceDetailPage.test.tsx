@@ -1,9 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, test, vi, beforeEach } from "vitest";
-import * as servicesApi from "../api/services";
+import type * as servicesApi from "../api/services";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
 import ServiceDetailPage from "./ServiceDetailPage";
+
+const summaryMock = vi.fn();
+const responseTimeHistoryMock = vi.fn();
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -55,6 +58,13 @@ vi.mock("../hooks/useRuntime", () => ({
       })),
     },
     dashboards: { create: vi.fn() },
+    services: {
+      list: vi.fn(),
+      listNames: vi.fn(),
+      summary: summaryMock,
+      responseTimeHistory: responseTimeHistoryMock,
+    },
+    changeEvents: { list: vi.fn(async () => ({ items: [] })) },
   }),
 }));
 
@@ -92,11 +102,13 @@ function renderPage() {
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  summaryMock.mockReset();
+  responseTimeHistoryMock.mockReset();
 });
 
 test("shows the Infrastructure tab and no Signal Entry Points or Ask panel", async () => {
-  vi.spyOn(servicesApi, "getServiceSummary").mockResolvedValue({ service: sampleSummary });
-  vi.spyOn(servicesApi, "getServiceResponseTimeHistory").mockResolvedValue({ buckets: [] });
+  summaryMock.mockResolvedValue({ service: sampleSummary });
+  responseTimeHistoryMock.mockResolvedValue({ buckets: [] });
 
   renderPage();
 

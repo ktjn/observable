@@ -93,6 +93,14 @@ export interface ChangeEvent {
   metadata: Record<string, unknown> | null;
 }
 
+export interface ResponseTimeHistoryBucket {
+  start_ms: number;
+  end_ms: number;
+  p50_ms: number;
+  p95_ms: number;
+  request_rate: number;
+}
+
 type EngineResult =
   | { rows: NlqTraceRow[]; sql: string }
   | { buckets: TraceHistogramBucket[] }
@@ -104,6 +112,7 @@ type EngineResult =
   | { metrics: MetricCatalogEntry[] }
   | { points: MetricPoint[] }
   | { changeEvents: ChangeEvent[] }
+  | { buckets: ResponseTimeHistoryBucket[] }
   | undefined;
 
 type EngineResponse =
@@ -117,6 +126,7 @@ type EngineResponse =
   | { type: "metric-catalog-result"; requestId: string; metrics: MetricCatalogEntry[] }
   | { type: "metric-group-points-result"; requestId: string; points: MetricPoint[] }
   | { type: "change-events-result"; requestId: string; items: ChangeEvent[] }
+  | { type: "response-time-histogram-result"; requestId: string; buckets: ResponseTimeHistoryBucket[] }
   | { type: "reset-done"; requestId: string }
   | { type: "nlq-error"; requestId: string; message: string };
 
@@ -156,6 +166,8 @@ function getWorker(): Worker {
       request.resolve({ points: event.data.points });
     } else if (event.data.type === "change-events-result") {
       request.resolve({ changeEvents: event.data.items });
+    } else if (event.data.type === "response-time-histogram-result") {
+      request.resolve({ buckets: event.data.buckets });
     } else if (event.data.type === "reset-done") {
       request.resolve(undefined);
     } else {
@@ -338,6 +350,26 @@ export function executeChangeEvents(params: {
       reject,
     });
     getWorker().postMessage({ type: "change-events", requestId, ...params });
+  });
+}
+
+/**
+ * Runs the Service Detail page's response-time histogram (P50/P95/
+ * throughput graph) through the persistent playground engine worker.
+ */
+export function executeResponseTimeHistogram(params: {
+  fromNs: string;
+  toNs: string;
+  bucketCount: number;
+  serviceName: string;
+}): Promise<{ buckets: ResponseTimeHistoryBucket[] }> {
+  const requestId = String(nextRequestId++);
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, {
+      resolve: resolve as (r: EngineResult) => void,
+      reject,
+    });
+    getWorker().postMessage({ type: "response-time-histogram", requestId, ...params });
   });
 }
 

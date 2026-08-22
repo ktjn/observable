@@ -9,7 +9,13 @@ import type {
   DashboardListResponse,
   DashboardExport,
 } from "../api/dashboards";
-import type { ServiceSummaryResponse, DiscoveryResponse, TopologyResponse } from "../api/services";
+import type {
+  ServiceSummaryResponse,
+  DiscoveryResponse,
+  TopologyResponse,
+  ServiceDetailResponse,
+  ResponseTimeHistoryResponse,
+} from "../api/services";
 import type { MetricCatalogResponse, MetricPointsResponse, MetricCatalogEntry } from "../api/metrics";
 import type { ListChangeEventsResponse, ListChangeEventsParams } from "../api/changeEvents";
 
@@ -69,6 +75,16 @@ export interface RuntimeApi {
   services: {
     list(tenantId: string, params: ServiceSummaryParams): Promise<ServiceSummaryResponse>;
     listNames(tenantId: string): Promise<DiscoveryResponse>;
+    summary(
+      tenantId: string,
+      serviceName: string,
+      params: ServiceSummaryParams
+    ): Promise<ServiceDetailResponse>;
+    responseTimeHistory(
+      tenantId: string,
+      serviceName: string,
+      params: { from?: number; to?: number; buckets?: number }
+    ): Promise<ResponseTimeHistoryResponse>;
   };
   topology: {
     get(tenantId: string, params: TopologyParams): Promise<TopologyResponse>;

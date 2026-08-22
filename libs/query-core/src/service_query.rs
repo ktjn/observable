@@ -97,6 +97,49 @@ pub fn health_state(error_rate: f64) -> &'static str {
     }
 }
 
+/// Renders a DuckDB-flavored bucketed response-time query for one service
+/// against the playground's local `spans` table, mirroring
+/// `crate::planner::plan_response_time_histogram` (still ClickHouse
+/// `intDiv`/`quantile` for production) with DuckDB's arithmetic and
+/// `quantile_cont` instead.
+pub fn render_response_time_histogram_duckdb(
+    from_ns: u64,
+    to_ns: u64,
+    bucket_count: u32,
+    service_name: &str,
+) -> ResponseTimeHistogramPlan {
+    let bucket_count = bucket_count.max(1);
+    let range_ns = to_ns.saturating_sub(from_ns).max(1);
+    let interval_ns = (range_ns / bucket_count as u64).max(1);
+    let service_name = escape_string_value(service_name);
+
+    let sql = format!(
+        "SELECT \
+           CAST((start_time_unix_nano - {from_ns}) / {interval_ns} AS BIGINT) AS bucket_idx, \
+           quantile_cont(duration_ns, 0.50) AS p50_latency_ns, \
+           quantile_cont(duration_ns, 0.95) AS p95_latency_ns, \
+           count(*) AS span_count \
+         FROM spans \
+         WHERE service_name = '{service_name}' \
+           AND start_time_unix_nano >= {from_ns} \
+           AND start_time_unix_nano <= {to_ns} \
+         GROUP BY bucket_idx \
+         ORDER BY bucket_idx ASC"
+    );
+
+    ResponseTimeHistogramPlan {
+        sql,
+        from_ns,
+        interval_ns,
+    }
+}
+
+pub struct ResponseTimeHistogramPlan {
+    pub sql: String,
+    pub from_ns: u64,
+    pub interval_ns: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,5 +211,46 @@ mod tests {
         let summary = service_summary_from_row(row, 100.0);
         assert_eq!(summary.error_rate, 0.0);
         assert_eq!(summary.health_state, "healthy");
+    }
+
+    // ── response-time histogram ──────────────────────────────────────────
+
+    #[test]
+    fn response_time_histogram_interval_divides_range_by_bucket_count() {
+        let plan = render_response_time_histogram_duckdb(0, 60_000_000_000, 60, "checkout");
+        assert_eq!(plan.from_ns, 0);
+        assert_eq!(plan.interval_ns, 1_000_000_000);
+    }
+
+    #[test]
+    fn response_time_histogram_bucket_count_clamps_to_at_least_one() {
+        let plan = render_response_time_histogram_duckdb(0, 100, 0, "checkout");
+        assert_eq!(plan.interval_ns, 100);
+    }
+
+    #[test]
+    fn response_time_histogram_sql_uses_duckdb_arithmetic_and_quantile_cont() {
+        let plan = render_response_time_histogram_duckdb(1000, 61000, 60, "checkout");
+        assert!(
+            plan.sql
+                .contains("CAST((start_time_unix_nano - 1000) / 1000 AS BIGINT)")
+        );
+        assert!(!plan.sql.contains("intDiv"));
+        assert!(plan.sql.contains("quantile_cont(duration_ns, 0.50)"));
+        assert!(plan.sql.contains("quantile_cont(duration_ns, 0.95)"));
+        assert!(!plan.sql.contains("quantile(0.50)"));
+        assert!(plan.sql.contains("FROM spans"));
+    }
+
+    #[test]
+    fn response_time_histogram_sql_filters_by_service_name() {
+        let plan = render_response_time_histogram_duckdb(0, 1000, 10, "checkout");
+        assert!(plan.sql.contains("service_name = 'checkout'"));
+    }
+
+    #[test]
+    fn response_time_histogram_sql_escapes_service_name() {
+        let plan = render_response_time_histogram_duckdb(0, 1000, 10, "o'brien");
+        assert!(plan.sql.contains("service_name = 'o\\'brien'"));
     }
 }
