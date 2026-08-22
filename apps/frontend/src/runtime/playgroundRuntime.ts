@@ -3,8 +3,14 @@ import type { LogRecord, LogHistogramResponse } from "../api/logs";
 import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants";
 import type { NlqRequest, NlqResponse, NlqIr, VisualizationFrame } from "../api/nlq";
 import type { Dashboard } from "../api/dashboards";
-import type { ServiceSummaryResponse } from "../api/services";
-import type { RuntimeApi, TraceHistogramParams, LogHistogramParams, ServiceSummaryParams } from "./types";
+import type { ServiceSummaryResponse, DiscoveryResponse, TopologyResponse } from "../api/services";
+import type {
+  RuntimeApi,
+  TraceHistogramParams,
+  LogHistogramParams,
+  ServiceSummaryParams,
+  TopologyParams,
+} from "./types";
 // Dynamically imported (not a static import): engineClient statically
 // references a Worker URL, which Vite's dep scanner eagerly resolves at
 // import time. A static import here would drag that into every module that
@@ -242,6 +248,26 @@ export const playgroundRuntime: RuntimeApi = {
         environment: params.environment,
       });
       return { items };
+    },
+    async listNames(): Promise<DiscoveryResponse> {
+      const { executeServiceNames } = await import("../playground/engineClient");
+      const { names } = await executeServiceNames();
+      return { items: names };
+    },
+  },
+  topology: {
+    async get(_tenantId: string, params: TopologyParams): Promise<TopologyResponse> {
+      const nowMs = Date.now();
+      const fromMs = params.from ?? nowMs - 3_600_000;
+      const toMs = params.to ?? nowMs;
+      const { executeTopology } = await import("../playground/engineClient");
+      const { edges } = await executeTopology({
+        fromNs: String(BigInt(Math.floor(fromMs)) * 1_000_000n),
+        toNs: String(BigInt(Math.floor(toMs)) * 1_000_000n),
+        environment: params.environment,
+        service: params.service,
+      });
+      return { edges };
     },
   },
   nlq: {

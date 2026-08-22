@@ -3,7 +3,7 @@ import { fetchLogHistogram } from "../api/logs";
 import { listTenants, listEnvironments } from "../api/tenants";
 import { submitNlqQuery } from "../api/nlq";
 import { createDashboard } from "../api/dashboards";
-import { listServiceSummaries } from "../api/services";
+import { listServiceSummaries, listServices, getTopology } from "../api/services";
 import type { RuntimeApi } from "./types";
 
 /** Delegates to the existing production `fetch` calls with zero behavior change. */
@@ -22,6 +22,10 @@ export const httpRuntime: RuntimeApi = {
   },
   services: {
     list: listServiceSummaries,
+    listNames: listServices,
+  },
+  topology: {
+    get: getTopology,
   },
   nlq: {
     execute: submitNlqQuery,

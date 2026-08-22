@@ -13,6 +13,7 @@ use query_core::log_query::{
 use query_core::service_query::{
     ServiceSummaryRow, render_service_summary_duckdb, service_summary_from_row,
 };
+use query_core::topology_query::{TopologyEdgeRow, render_topology_duckdb, topology_edge_from_row};
 use query_core::trace_query::{
     extract_trace_query_filters, render_trace_histogram_duckdb, render_trace_query_duckdb,
 };
@@ -226,6 +227,54 @@ pub fn compute_service_summaries(rows_json: &str, duration_secs: f64) -> Result<
     compute_service_summaries_inner(rows_json, duration_secs).map_err(|e| JsValue::from_str(&e))
 }
 
+/// Plans a service-topology join aggregation query into DuckDB-flavored SQL
+/// against the playground's local `spans` table. `from_ns`/`to_ns` are
+/// decimal-string nanosecond epoch timestamps; `environment`/`service` are
+/// optional.
+fn render_topology_sql_inner(
+    from_ns: &str,
+    to_ns: &str,
+    environment: Option<String>,
+    service: Option<String>,
+) -> Result<String, String> {
+    let from_ns: u64 = from_ns
+        .parse()
+        .map_err(|e: std::num::ParseIntError| e.to_string())?;
+    let to_ns: u64 = to_ns
+        .parse()
+        .map_err(|e: std::num::ParseIntError| e.to_string())?;
+    Ok(render_topology_duckdb(
+        from_ns,
+        to_ns,
+        environment.as_deref(),
+        service.as_deref(),
+    ))
+}
+
+#[wasm_bindgen]
+pub fn render_topology_sql(
+    from_ns: &str,
+    to_ns: &str,
+    environment: Option<String>,
+    service: Option<String>,
+) -> Result<String, JsValue> {
+    render_topology_sql_inner(from_ns, to_ns, environment, service)
+        .map_err(|e| JsValue::from_str(&e))
+}
+
+/// Shapes raw DuckDB join-aggregation rows (JSON array of `TopologyEdgeRow`)
+/// into the frontend's `TopologyEdge` shape (error rate, latency in ms).
+fn compute_topology_edges_inner(rows_json: &str) -> Result<String, String> {
+    let rows: Vec<TopologyEdgeRow> = serde_json::from_str(rows_json).map_err(|e| e.to_string())?;
+    let edges: Vec<_> = rows.into_iter().map(topology_edge_from_row).collect();
+    serde_json::to_string(&edges).map_err(|e| e.to_string())
+}
+
+#[wasm_bindgen]
+pub fn compute_topology_edges(rows_json: &str) -> Result<String, JsValue> {
+    compute_topology_edges_inner(rows_json).map_err(|e| JsValue::from_str(&e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -351,5 +400,32 @@ mod tests {
     #[test]
     fn compute_service_summaries_rejects_invalid_json() {
         assert!(compute_service_summaries_inner("not json", 100.0).is_err());
+    }
+
+    #[test]
+    fn render_topology_sql_builds_duckdb_sql() {
+        let sql =
+            render_topology_sql_inner("0", "3600000000000", None, Some("checkout".into())).unwrap();
+        assert!(sql.contains("FROM spans AS child, spans AS parent"));
+        assert!(sql.contains("checkout"));
+    }
+
+    #[test]
+    fn render_topology_sql_rejects_invalid_timestamps() {
+        assert!(render_topology_sql_inner("not-a-number", "1000", None, None).is_err());
+    }
+
+    #[test]
+    fn compute_topology_edges_shapes_rows() {
+        let rows_json = r#"[{"caller":"web","callee":"api-gateway","request_count":40,"error_count":4,"p95_latency_ns":66000000.0}]"#;
+        let json = compute_topology_edges_inner(rows_json).unwrap();
+        assert!(json.contains("\"caller\":\"web\""));
+        assert!(json.contains("\"error_rate\":0.1"));
+        assert!(json.contains("\"p95_latency_ms\":66.0"));
+    }
+
+    #[test]
+    fn compute_topology_edges_rejects_invalid_json() {
+        assert!(compute_topology_edges_inner("not json").is_err());
     }
 }
