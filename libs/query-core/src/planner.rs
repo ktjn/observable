@@ -1,6 +1,6 @@
-use crate::discovery::TopologyParams;
-use crate::logs::LogSearchParams;
-use crate::traces::{SELECT_COLS, SearchParams as TraceSearchParams};
+use crate::params::{
+    LogSearchParams, SELECT_COLS, SearchParams as TraceSearchParams, TopologyParams,
+};
 use std::collections::HashMap;
 
 pub struct LogQueryPlan {

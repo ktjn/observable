@@ -9,6 +9,7 @@ path = "src/lib.rs"
 
 [dependencies]
 domain             = { path = "../../libs/domain", features = ["storage"] }
+query-core         = { path = "../../libs/query-core" }
 observable-auth    = { path = "../../libs/observable-auth" }
 tokio              = { workspace = true }
 axum               = { workspace = true }

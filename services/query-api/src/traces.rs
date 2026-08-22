@@ -3,7 +3,7 @@ use axum::{
     extract::{Extension, Path, Query, State},
     http::StatusCode,
 };
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use clickhouse::Client;
 use domain::{Span, SpanEvent, SpanEventRow, SpanRow};
 use serde::{Deserialize, Serialize};
@@ -54,14 +54,7 @@ pub struct TraceListResponse {
     pub facets: HashMap<String, Vec<FacetValue>>,
 }
 
-#[derive(Deserialize)]
-pub struct SearchParams {
-    pub service: Option<String>,
-    pub limit: Option<u32>,
-    pub facets: Option<String>, // Comma-separated list of fields to facet
-    pub from: Option<DateTime<Utc>>,
-    pub to: Option<DateTime<Utc>>,
-}
+pub use query_core::SearchParams;
 
 #[derive(Deserialize)]
 pub struct TraceHistogramParams {
@@ -83,11 +76,7 @@ pub struct TraceHistogramResponse {
     pub buckets: Vec<TraceHistogramBucket>,
 }
 
-pub(crate) const SELECT_COLS: &str = "tenant_id, trace_id, span_id, service_name, \
-    service_namespace, service_version, operation_name, span_kind, \
-    start_time_unix_nano, end_time_unix_nano, duration_ns, \
-    status_code, status_message, attributes, resource_attributes, \
-    environment, host_id, workload, deployment_id, parent_span_id";
+pub(crate) use query_core::SELECT_COLS;
 
 pub async fn get_trace(
     State(state): State<AppState>,

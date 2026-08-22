@@ -4,11 +4,13 @@ pub mod config;
 pub mod envelope;
 pub mod log;
 pub mod metric;
-pub mod nlq;
 pub mod span;
 pub mod telemetry;
 pub mod visualization;
 
+pub use domain_core::nlq::{
+    NlqFilter, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, NlqTimeRange, NlqVisualizationHint,
+};
 pub use envelope::{EnvelopePayload, TelemetryEnvelope};
 pub use log::LogRecord;
 #[cfg(feature = "storage")]
@@ -18,9 +20,6 @@ pub use metric::{
 };
 #[cfg(feature = "storage")]
 pub use metric::{MetricPointRow, MetricSeriesRow};
-pub use nlq::{
-    NlqFilter, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, NlqTimeRange, NlqVisualizationHint,
-};
 pub use span::{Span, SpanEvent, SpanKind, StatusCode};
 #[cfg(feature = "storage")]
 pub use span::{SpanEventRow, SpanRow};
