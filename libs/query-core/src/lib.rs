@@ -5,6 +5,7 @@
 //! `docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md`
 //! section 6.
 
+pub mod change_event_query;
 pub mod log_query;
 pub mod metric_query;
 pub mod params;

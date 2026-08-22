@@ -5,6 +5,7 @@ import { submitNlqQuery } from "../api/nlq";
 import { createDashboard } from "../api/dashboards";
 import { listServiceSummaries, listServices, getTopology } from "../api/services";
 import { listMetrics, getMetricGroupPoints } from "../api/metrics";
+import { listChangeEvents } from "../api/changeEvents";
 import type { RuntimeApi } from "./types";
 
 /** Delegates to the existing production `fetch` calls with zero behavior change. */
@@ -31,6 +32,9 @@ export const httpRuntime: RuntimeApi = {
   metrics: {
     list: listMetrics,
     points: getMetricGroupPoints,
+  },
+  changeEvents: {
+    list: listChangeEvents,
   },
   nlq: {
     execute: submitNlqQuery,

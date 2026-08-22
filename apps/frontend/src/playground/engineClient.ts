@@ -78,6 +78,21 @@ export interface MetricPoint {
   value_double?: number;
 }
 
+export interface ChangeEvent {
+  change_event_id: string;
+  tenant_id: string;
+  project_id: string | null;
+  event_type: "config_change" | "feature_flag" | "migration" | "incident" | "other";
+  service_name: string | null;
+  environment: string;
+  title: string;
+  description: string | null;
+  occurred_at: string;
+  source: string | null;
+  created_by: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
 type EngineResult =
   | { rows: NlqTraceRow[]; sql: string }
   | { buckets: TraceHistogramBucket[] }
@@ -88,6 +103,7 @@ type EngineResult =
   | { names: string[] }
   | { metrics: MetricCatalogEntry[] }
   | { points: MetricPoint[] }
+  | { changeEvents: ChangeEvent[] }
   | undefined;
 
 type EngineResponse =
@@ -100,6 +116,7 @@ type EngineResponse =
   | { type: "service-names-result"; requestId: string; names: string[] }
   | { type: "metric-catalog-result"; requestId: string; metrics: MetricCatalogEntry[] }
   | { type: "metric-group-points-result"; requestId: string; points: MetricPoint[] }
+  | { type: "change-events-result"; requestId: string; items: ChangeEvent[] }
   | { type: "reset-done"; requestId: string }
   | { type: "nlq-error"; requestId: string; message: string };
 
@@ -137,6 +154,8 @@ function getWorker(): Worker {
       request.resolve({ metrics: event.data.metrics });
     } else if (event.data.type === "metric-group-points-result") {
       request.resolve({ points: event.data.points });
+    } else if (event.data.type === "change-events-result") {
+      request.resolve({ changeEvents: event.data.items });
     } else if (event.data.type === "reset-done") {
       request.resolve(undefined);
     } else {
@@ -296,6 +315,29 @@ export function executeMetricGroupPoints(metric: MetricCatalogEntry): Promise<{ 
       reject,
     });
     getWorker().postMessage({ type: "metric-group-points", requestId, metric });
+  });
+}
+
+/**
+ * Runs the Change Events page's filtered/limited listing (Rust-planned
+ * DuckDB query over the browser-local `change_events` table) through the
+ * persistent playground engine worker.
+ */
+export function executeChangeEvents(params: {
+  fromNs: string;
+  toNs: string;
+  service?: string;
+  environment?: string;
+  eventType?: string;
+  limit: number;
+}): Promise<{ changeEvents: ChangeEvent[] }> {
+  const requestId = String(nextRequestId++);
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, {
+      resolve: resolve as (r: EngineResult) => void,
+      reject,
+    });
+    getWorker().postMessage({ type: "change-events", requestId, ...params });
   });
 }
 

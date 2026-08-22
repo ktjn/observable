@@ -7,6 +7,7 @@
 mod generator;
 
 use domain_core::nlq::NlqIr;
+use query_core::change_event_query::render_change_events_duckdb;
 use query_core::log_query::{
     extract_log_query_filters, render_log_histogram_duckdb, render_log_query_duckdb,
 };
@@ -319,6 +320,62 @@ pub fn render_metric_group_points_sql(
     render_metric_group_points_duckdb(metric_name, service, environment, metric_type, unit)
 }
 
+/// Generates the playground's fixed demo change-event set (see
+/// `generator.rs::generate_change_events`) as a JSON array. `now_unix_nano`
+/// is a decimal-string nanosecond epoch timestamp.
+fn generate_change_events_json_inner(seed: u32, now_unix_nano: &str) -> Result<String, String> {
+    let now: i64 = now_unix_nano
+        .parse()
+        .map_err(|e: std::num::ParseIntError| e.to_string())?;
+    let events = generator::generate_change_events(seed, now);
+    serde_json::to_string(&events).map_err(|e| e.to_string())
+}
+
+#[wasm_bindgen]
+pub fn generate_change_events_json(seed: u32, now_unix_nano: &str) -> Result<String, JsValue> {
+    generate_change_events_json_inner(seed, now_unix_nano).map_err(|e| JsValue::from_str(&e))
+}
+
+/// Plans a filtered/limited change-events query into DuckDB-flavored SQL
+/// against the playground's local `change_events` table. `from_ns`/`to_ns`
+/// are decimal-string nanosecond epoch timestamps.
+fn render_change_events_sql_inner(
+    service_name: Option<String>,
+    environment: Option<String>,
+    event_type: Option<String>,
+    from_ns: &str,
+    to_ns: &str,
+    limit: u32,
+) -> Result<String, String> {
+    let from_ns: u64 = from_ns
+        .parse()
+        .map_err(|e: std::num::ParseIntError| e.to_string())?;
+    let to_ns: u64 = to_ns
+        .parse()
+        .map_err(|e: std::num::ParseIntError| e.to_string())?;
+    Ok(render_change_events_duckdb(
+        service_name.as_deref(),
+        environment.as_deref(),
+        event_type.as_deref(),
+        from_ns,
+        to_ns,
+        limit,
+    ))
+}
+
+#[wasm_bindgen]
+pub fn render_change_events_sql(
+    service_name: Option<String>,
+    environment: Option<String>,
+    event_type: Option<String>,
+    from_ns: &str,
+    to_ns: &str,
+    limit: u32,
+) -> Result<String, JsValue> {
+    render_change_events_sql_inner(service_name, environment, event_type, from_ns, to_ns, limit)
+        .map_err(|e| JsValue::from_str(&e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -504,5 +561,40 @@ mod tests {
         );
         assert!(sql.contains("FROM metric_points"));
         assert!(sql.contains("avg(mp.value_double)"));
+    }
+
+    #[test]
+    fn generate_change_events_json_produces_one_event_per_service() {
+        let json = generate_change_events_json_inner(7, "1700003600000000000").unwrap();
+        assert!(json.contains("change_event_id"));
+        assert!(json.contains("event_type"));
+    }
+
+    #[test]
+    fn generate_change_events_json_rejects_invalid_timestamp() {
+        assert!(generate_change_events_json_inner(7, "not-a-number").is_err());
+    }
+
+    #[test]
+    fn render_change_events_sql_builds_duckdb_sql() {
+        let sql = render_change_events_sql_inner(
+            Some("checkout".into()),
+            None,
+            None,
+            "0",
+            "3600000000000",
+            50,
+        )
+        .unwrap();
+        assert!(sql.contains("FROM change_events"));
+        assert!(sql.contains("service_name = 'checkout'"));
+        assert!(sql.contains("LIMIT 50"));
+    }
+
+    #[test]
+    fn render_change_events_sql_rejects_invalid_timestamps() {
+        assert!(
+            render_change_events_sql_inner(None, None, None, "not-a-number", "1000", 50).is_err()
+        );
     }
 }
