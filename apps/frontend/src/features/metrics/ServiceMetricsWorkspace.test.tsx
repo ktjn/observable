@@ -41,13 +41,21 @@ const metrics = [
   },
 ];
 
-vi.mock("../../api/metrics", () => ({
-  listMetrics: vi.fn(async () => ({ metrics })),
-  getMetricGroupPoints: vi.fn(async () => ({ points: [] })),
+const listMock = vi.fn(async () => ({ metrics }));
+const pointsMock = vi.fn(async () => ({ points: [] }));
+
+vi.mock("../../hooks/useRuntime", () => ({
+  useRuntime: () => ({
+    mode: "http",
+    metrics: { list: listMock, points: pointsMock },
+    dashboards: { create: vi.fn() },
+  }),
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  listMock.mockImplementation(async () => ({ metrics }));
+  pointsMock.mockImplementation(async () => ({ points: [] }));
 });
 
 function renderWorkspace() {
@@ -75,8 +83,7 @@ test("shows an empty state for the chart when the selected metric has no data po
 });
 
 test("shows an error state for the chart when fetching data points fails", async () => {
-  const { getMetricGroupPoints } = await import("../../api/metrics");
-  vi.mocked(getMetricGroupPoints).mockRejectedValue(new Error("upstream failure"));
+  pointsMock.mockRejectedValue(new Error("upstream failure"));
 
   renderWorkspace();
 

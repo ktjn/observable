@@ -4,6 +4,7 @@ import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants
 import type { NlqRequest, NlqResponse, NlqIr, VisualizationFrame } from "../api/nlq";
 import type { Dashboard } from "../api/dashboards";
 import type { ServiceSummaryResponse, DiscoveryResponse, TopologyResponse } from "../api/services";
+import type { MetricCatalogResponse, MetricPointsResponse, MetricCatalogEntry } from "../api/metrics";
 import type {
   RuntimeApi,
   TraceHistogramParams,
@@ -268,6 +269,18 @@ export const playgroundRuntime: RuntimeApi = {
         service: params.service,
       });
       return { edges };
+    },
+  },
+  metrics: {
+    async list(_tenantId: string, params: { service?: string }): Promise<MetricCatalogResponse> {
+      const { executeMetricCatalog } = await import("../playground/engineClient");
+      const { metrics } = await executeMetricCatalog(params.service);
+      return { metrics };
+    },
+    async points(_tenantId: string, metric: MetricCatalogEntry): Promise<MetricPointsResponse> {
+      const { executeMetricGroupPoints } = await import("../playground/engineClient");
+      const { points } = await executeMetricGroupPoints(metric);
+      return { points };
     },
   },
   nlq: {

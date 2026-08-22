@@ -6,6 +6,7 @@
 //! section 6.
 
 pub mod log_query;
+pub mod metric_query;
 pub mod params;
 pub mod planner;
 pub mod service_query;

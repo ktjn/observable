@@ -4,6 +4,7 @@ import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants
 import type { NlqRequest, NlqResponse } from "../api/nlq";
 import type { CreateDashboardRequest, Dashboard } from "../api/dashboards";
 import type { ServiceSummaryResponse, DiscoveryResponse, TopologyResponse } from "../api/services";
+import type { MetricCatalogResponse, MetricPointsResponse, MetricCatalogEntry } from "../api/metrics";
 
 export interface SearchTracesParams {
   service?: string;
@@ -64,6 +65,10 @@ export interface RuntimeApi {
   };
   topology: {
     get(tenantId: string, params: TopologyParams): Promise<TopologyResponse>;
+  };
+  metrics: {
+    list(tenantId: string, params: { service?: string }): Promise<MetricCatalogResponse>;
+    points(tenantId: string, metric: MetricCatalogEntry): Promise<MetricPointsResponse>;
   };
   nlq: {
     execute(tenantId: string, request: NlqRequest): Promise<NlqResponse>;
