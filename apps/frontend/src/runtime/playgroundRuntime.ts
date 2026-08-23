@@ -31,6 +31,15 @@ import type { ListDeploymentsParams, ListDeploymentsResponse, DeploymentMarker }
 import type { CreateSloRequest, SloDefinitionItem, SloListResponse } from "../api/slos";
 import type { CreateChannelRequest, NotificationChannelItem } from "../api/notifications";
 import type {
+  CreateSavedViewRequest,
+  GrantItem,
+  GrantListResponse,
+  SavedView,
+  SavedViewListResponse,
+  SignalKind,
+  UpdateSavedViewRequest,
+} from "../api/savedViews";
+import type {
   RuntimeApi,
   TraceHistogramParams,
   LogHistogramParams,
@@ -318,6 +327,39 @@ const notificationChannelStore: NotificationChannelItem[] = [
     config: { url: "https://example.invalid/hook" },
   },
 ];
+
+/**
+ * Saved views live in a plain in-memory store (same lifetime/lifecycle as
+ * dashboards — user content, not generated analytical data), keyed by
+ * signal kind. Seeded with one demo logs view; grants are tracked per view
+ * with the playground user as owner.
+ */
+const savedViewStore = new Map<string, SavedView>();
+const savedViewGrantStore = new Map<string, GrantItem[]>();
+let nextSavedViewId = 1;
+
+function seedSavedViews(): void {
+  const nowIso = new Date().toISOString();
+  const demoView: SavedView = {
+    saved_view_id: "playground-view-1",
+    name: "Errors only (demo)",
+    signal_kind: "logs",
+    visibility: "private",
+    config: {
+      query: null,
+      severity_filter: "ERROR",
+      time_range: { mode: "preset", preset: "1h" },
+      visible_columns: ["timestamp", "severity", "service", "body"],
+    },
+    created_at: nowIso,
+    updated_at: nowIso,
+  };
+  savedViewStore.set(demoView.saved_view_id, demoView);
+  savedViewGrantStore.set(demoView.saved_view_id, [
+    { user_id: "playground-user", relation: "owner", granted_at: nowIso },
+  ]);
+}
+seedSavedViews();
 
 const incidentsData: IncidentItem[] = (() => {
   const fortyMinAgoIso = new Date(Date.now() - 40 * 60_000).toISOString();
@@ -863,6 +905,78 @@ export const playgroundRuntime: RuntimeApi = {
     async delete(_tenantId: string, channelId: string): Promise<void> {
       const idx = notificationChannelStore.findIndex((c) => c.channel_id === channelId);
       if (idx >= 0) notificationChannelStore.splice(idx, 1);
+    },
+  },
+  savedViews: {
+    async list(_tenantId: string, signalKind: SignalKind): Promise<SavedViewListResponse> {
+      return {
+        items: [...savedViewStore.values()].filter((v) => v.signal_kind === signalKind),
+      };
+    },
+    async create(_tenantId: string, req: CreateSavedViewRequest): Promise<SavedView> {
+      const nowIso = new Date().toISOString();
+      const view: SavedView = {
+        saved_view_id: `playground-view-${nextSavedViewId++}`,
+        name: req.name,
+        signal_kind: req.signal_kind,
+        visibility: "private",
+        config: req.config,
+        created_at: nowIso,
+        updated_at: nowIso,
+      };
+      savedViewStore.set(view.saved_view_id, view);
+      savedViewGrantStore.set(view.saved_view_id, [
+        { user_id: "playground-user", relation: "owner", granted_at: nowIso },
+      ]);
+      return view;
+    },
+    async update(
+      _tenantId: string,
+      savedViewId: string,
+      req: UpdateSavedViewRequest
+    ): Promise<SavedView> {
+      const existing = savedViewStore.get(savedViewId);
+      if (!existing) {
+        throw new Error(`Saved view update failed: 404`);
+      }
+      const updated: SavedView = {
+        ...existing,
+        name: req.name,
+        config: req.config,
+        visibility: req.visibility ?? existing.visibility,
+        updated_at: new Date().toISOString(),
+      };
+      savedViewStore.set(savedViewId, updated);
+      return updated;
+    },
+    async delete(_tenantId: string, savedViewId: string): Promise<void> {
+      savedViewStore.delete(savedViewId);
+      savedViewGrantStore.delete(savedViewId);
+    },
+    async listGrants(_tenantId: string, savedViewId: string): Promise<GrantListResponse> {
+      return { grants: savedViewGrantStore.get(savedViewId) ?? [] };
+    },
+    async addGrant(
+      _tenantId: string,
+      savedViewId: string,
+      userId: string,
+      relation: GrantItem["relation"]
+    ): Promise<void> {
+      if (!savedViewStore.has(savedViewId)) {
+        throw new Error(`Saved view grant add failed: 404`);
+      }
+      const grants = savedViewGrantStore.get(savedViewId) ?? [];
+      if (!grants.some((g) => g.user_id === userId)) {
+        grants.push({ user_id: userId, relation, granted_at: new Date().toISOString() });
+      }
+      savedViewGrantStore.set(savedViewId, grants);
+    },
+    async revokeGrant(_tenantId: string, savedViewId: string, userId: string): Promise<void> {
+      const grants = savedViewGrantStore.get(savedViewId) ?? [];
+      savedViewGrantStore.set(
+        savedViewId,
+        grants.filter((g) => g.user_id !== userId)
+      );
     },
   },
   deployments: {

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { expect, test, vi } from "vitest";
 import { SavedViewsControl } from "./SavedViewsControl";
 import type { LogViewConfig, SavedView } from "../../../api/savedViews";
+import type { RuntimeApi } from "../../../runtime/types";
 
 const baseConfig: LogViewConfig = {
   query: null,
@@ -22,19 +23,33 @@ const savedView: SavedView = {
   updated_at: "2026-07-01T00:00:00Z",
 };
 
-vi.mock("../../../api/savedViews", async () => {
-  const actual = await vi.importActual<typeof import("../../../api/savedViews")>("../../../api/savedViews");
-  return {
-    ...actual,
-    fetchSavedViews: vi.fn(async () => ({ items: [savedView] })),
-    createSavedView: vi.fn(async () => savedView),
-    deleteSavedView: vi.fn(async () => undefined),
-    updateSavedView: vi.fn(async () => ({ ...savedView, visibility: "public" })),
-    fetchSavedViewGrants: vi.fn(async () => ({ grants: [] })),
-    addSavedViewGrant: vi.fn(async () => undefined),
-    revokeSavedViewGrant: vi.fn(async () => undefined),
-  };
-});
+vi.mock("../../../hooks/useRuntime", () => ({
+  useRuntime: vi.fn(),
+}));
+
+import { useRuntime } from "../../../hooks/useRuntime";
+
+const listMock = vi.fn(async () => ({ items: [savedView] }));
+const createMock = vi.fn(async () => savedView);
+const updateMock = vi.fn(async () => ({ ...savedView, visibility: "public" as const }));
+const deleteMock = vi.fn(async () => undefined);
+const grantsMock = vi.fn(async () => ({ grants: [] }));
+const addGrantMock = vi.fn(async () => undefined);
+const revokeGrantMock = vi.fn(async () => undefined);
+
+function mockRuntime() {
+  vi.mocked(useRuntime).mockReturnValue({
+    savedViews: {
+      list: listMock,
+      create: createMock,
+      update: updateMock,
+      delete: deleteMock,
+      listGrants: grantsMock,
+      addGrant: addGrantMock,
+      revokeGrant: revokeGrantMock,
+    },
+  } as unknown as RuntimeApi);
+}
 
 function wrapper({ children }: { children: ReactNode }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -42,6 +57,7 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 test("loading a saved view calls onLoad with its config", async () => {
+  mockRuntime();
   const onLoad = vi.fn();
   render(
     <SavedViewsControl tenantId="tenant-1" currentConfig={baseConfig} onLoad={onLoad} />,
@@ -55,8 +71,8 @@ test("loading a saved view calls onLoad with its config", async () => {
   expect(onLoad).toHaveBeenCalledWith(savedView.config);
 });
 
-test("saving the current view calls createSavedView with the current config", async () => {
-  const { createSavedView } = await import("../../../api/savedViews");
+test("saving the current view calls savedViews.create with the current config", async () => {
+  mockRuntime();
   render(
     <SavedViewsControl tenantId="tenant-1" currentConfig={baseConfig} onLoad={vi.fn()} />,
     { wrapper },
@@ -69,7 +85,7 @@ test("saving the current view calls createSavedView with the current config", as
   fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
 
   await waitFor(() =>
-    expect(createSavedView).toHaveBeenCalledWith("tenant-1", {
+    expect(createMock).toHaveBeenCalledWith("tenant-1", {
       name: "My new view",
       signal_kind: "logs",
       config: baseConfig,
@@ -77,8 +93,8 @@ test("saving the current view calls createSavedView with the current config", as
   );
 });
 
-test("toggling visibility calls updateSavedView with the flipped value", async () => {
-  const { updateSavedView } = await import("../../../api/savedViews");
+test("toggling visibility calls savedViews.update with the flipped value", async () => {
+  mockRuntime();
   render(<SavedViewsControl tenantId="tenant-1" currentConfig={baseConfig} onLoad={vi.fn()} />, { wrapper });
 
   fireEvent.click(screen.getByRole("button", { name: /saved views/i }));
@@ -88,7 +104,7 @@ test("toggling visibility calls updateSavedView with the flipped value", async (
   fireEvent.click(screen.getByRole("button", { name: /make public/i }));
 
   await waitFor(() =>
-    expect(updateSavedView).toHaveBeenCalledWith("tenant-1", savedView.saved_view_id, {
+    expect(updateMock).toHaveBeenCalledWith("tenant-1", savedView.saved_view_id, {
       name: savedView.name,
       config: savedView.config,
       visibility: "public",
@@ -96,8 +112,8 @@ test("toggling visibility calls updateSavedView with the flipped value", async (
   );
 });
 
-test("adding a grant calls addSavedViewGrant with the entered user id and relation", async () => {
-  const { addSavedViewGrant } = await import("../../../api/savedViews");
+test("adding a grant calls savedViews.addGrant with the entered user id and relation", async () => {
+  mockRuntime();
   render(<SavedViewsControl tenantId="tenant-1" currentConfig={baseConfig} onLoad={vi.fn()} />, { wrapper });
 
   fireEvent.click(screen.getByRole("button", { name: /saved views/i }));
@@ -108,6 +124,6 @@ test("adding a grant calls addSavedViewGrant with the entered user id and relati
   fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
 
   await waitFor(() =>
-    expect(addSavedViewGrant).toHaveBeenCalledWith("tenant-1", savedView.saved_view_id, "user-42", "viewer"),
+    expect(addGrantMock).toHaveBeenCalledWith("tenant-1", savedView.saved_view_id, "user-42", "viewer"),
   );
 });

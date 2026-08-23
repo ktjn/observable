@@ -35,6 +35,15 @@ import {
   createNotificationChannel,
   deleteNotificationChannel,
 } from "../api/notifications";
+import {
+  addSavedViewGrant,
+  createSavedView,
+  deleteSavedView,
+  fetchSavedViewGrants,
+  fetchSavedViews,
+  revokeSavedViewGrant,
+  updateSavedView,
+} from "../api/savedViews";
 import type { RuntimeApi } from "./types";
 
 /** Delegates to the existing production `fetch` calls with zero behavior change. */
@@ -90,6 +99,15 @@ export const httpRuntime: RuntimeApi = {
     list: listNotificationChannels,
     create: createNotificationChannel,
     delete: deleteNotificationChannel,
+  },
+  savedViews: {
+    list: fetchSavedViews,
+    create: createSavedView,
+    update: updateSavedView,
+    delete: deleteSavedView,
+    listGrants: fetchSavedViewGrants,
+    addGrant: addSavedViewGrant,
+    revokeGrant: revokeSavedViewGrant,
   },
   deployments: {
     list: listDeployments,
