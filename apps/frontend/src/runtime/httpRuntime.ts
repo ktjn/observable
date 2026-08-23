@@ -1,4 +1,4 @@
-import { fetchTraceHistogram, searchTraces } from "../api/traces";
+import { fetchTraceHistogram, getTrace, searchTraces } from "../api/traces";
 import { fetchLogHistogram } from "../api/logs";
 import { listTenants, listEnvironments } from "../api/tenants";
 import { submitNlqQuery } from "../api/nlq";
@@ -31,6 +31,7 @@ export const httpRuntime: RuntimeApi = {
   },
   traces: {
     search: searchTraces,
+    get: getTrace,
     histogram: fetchTraceHistogram,
   },
   logs: {

@@ -8,6 +8,29 @@ export interface NlqTraceRow {
   start_time_unix_nano: number | string;
 }
 
+export interface TraceDetailSpan {
+  span_id: string;
+  trace_id: string;
+  parent_span_id?: string;
+  tenant_id: string;
+  service_name: string;
+  service_namespace: string;
+  service_version: string;
+  operation_name: string;
+  span_kind: "INTERNAL" | "SERVER" | "CLIENT" | "PRODUCER" | "CONSUMER";
+  start_time_unix_nano: number;
+  end_time_unix_nano: number;
+  duration_ns: number;
+  status_code: "UNSET" | "OK" | "ERROR";
+  status_message: string;
+  attributes: Record<string, unknown>;
+  resource_attributes: Record<string, unknown>;
+  environment: string;
+  host_id: string;
+  workload: string;
+  deployment_id: string;
+}
+
 export interface TraceHistogramBucket {
   start_ms: number;
   end_ms: number;
@@ -103,6 +126,7 @@ export interface ResponseTimeHistoryBucket {
 
 type EngineResult =
   | { rows: NlqTraceRow[]; sql: string }
+  | { spans: TraceDetailSpan[] }
   | { buckets: TraceHistogramBucket[] }
   | { rows: NlqLogRow[]; sql: string }
   | { buckets: LogHistogramBucket[] }
@@ -117,6 +141,7 @@ type EngineResult =
 
 type EngineResponse =
   | { type: "nlq-result"; requestId: string; rows: NlqTraceRow[]; sql: string }
+  | { type: "trace-detail-result"; requestId: string; spans: TraceDetailSpan[] }
   | { type: "histogram-result"; requestId: string; buckets: TraceHistogramBucket[] }
   | { type: "nlq-log-result"; requestId: string; rows: NlqLogRow[]; sql: string }
   | { type: "log-histogram-result"; requestId: string; buckets: LogHistogramBucket[] }
@@ -148,6 +173,8 @@ function getWorker(): Worker {
     pending.delete(event.data.requestId);
     if (event.data.type === "nlq-result") {
       request.resolve({ rows: event.data.rows, sql: event.data.sql });
+    } else if (event.data.type === "trace-detail-result") {
+      request.resolve({ spans: event.data.spans });
     } else if (event.data.type === "nlq-log-result") {
       request.resolve({ rows: event.data.rows, sql: event.data.sql });
     } else if (event.data.type === "histogram-result") {
@@ -191,6 +218,22 @@ export function executeTraceTable(ir: unknown): Promise<{ rows: NlqTraceRow[]; s
       reject,
     });
     getWorker().postMessage({ type: "nlq-execute-trace-table", requestId, ir });
+  });
+}
+
+/**
+ * Fetches every span of one trace (the trace-detail waterfall) from the
+ * playground's local `spans` table through the persistent engine worker.
+ * Resolves with an empty array when the trace id is unknown.
+ */
+export function executeTraceDetail(traceId: string): Promise<{ spans: TraceDetailSpan[] }> {
+  const requestId = String(nextRequestId++);
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, {
+      resolve: resolve as (r: EngineResult) => void,
+      reject,
+    });
+    getWorker().postMessage({ type: "trace-detail", requestId, traceId });
   });
 }
 

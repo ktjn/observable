@@ -22,6 +22,32 @@ vi.mock("../playground/engineClient", () => ({
     ],
     sql: "-- mocked",
   })),
+  executeTraceDetail: vi.fn(async () => ({
+    spans: [
+      {
+        span_id: "mock-span-1",
+        trace_id: "mock-trace-1",
+        parent_span_id: undefined,
+        tenant_id: "00000000-0000-0000-0000-000000000001",
+        service_name: "checkout",
+        service_namespace: "observable-playground",
+        service_version: "",
+        operation_name: "POST /checkout",
+        span_kind: "SERVER",
+        start_time_unix_nano: 0,
+        end_time_unix_nano: 12_000_000,
+        duration_ns: 12_000_000,
+        status_code: "OK",
+        status_message: "",
+        attributes: {},
+        resource_attributes: {},
+        environment: "production",
+        host_id: "",
+        workload: "",
+        deployment_id: "",
+      },
+    ],
+  })),
   executeTraceHistogram: vi.fn(async () => ({
     buckets: [{ start_ms: 0, end_ms: 60_000, count: 1 }],
   })),
@@ -83,6 +109,13 @@ function runContract(name: string, runtime: RuntimeApi) {
       expect(typeof result.facets).toBe("object");
     });
 
+    it("traces.get returns the TraceResponse shape", async () => {
+      const result = await runtime.traces.get(MOCK_TENANT_ID, "trace-1");
+      expect(typeof result.trace_id).toBe("string");
+      expect(Array.isArray(result.spans)).toBe(true);
+      expect(Array.isArray(result.events)).toBe(true);
+    });
+
     it("traces.histogram returns the TraceHistogramResponse shape", async () => {
       const result = await runtime.traces.histogram(MOCK_TENANT_ID, {
         buckets: 12,
@@ -140,6 +173,9 @@ describe("runtime contract", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
+          trace_id: "trace-1",
+          spans: [],
+          events: [],
           traces: [],
           total: 0,
           facets: {},

@@ -33,6 +33,28 @@ test("traces page renders from the real DuckDB-WASM engine with no backend calls
   expect(backendCalls).toEqual([]);
 });
 
+test("trace detail waterfall renders from the real engine with no backend calls", async ({ page }) => {
+  const requests: string[] = [];
+  page.on("request", (req) => requests.push(new URL(req.url()).pathname));
+
+  await page.goto("#/traces");
+  const table = page.getByRole("table", { name: "Trace results" });
+  await expect(table).toBeVisible({ timeout: 15_000 });
+
+  // Drill into the first listed trace via its trace-id link.
+  await table.getByRole("link").first().click();
+
+  // The waterfall is served by runtime.traces.get -> engine worker
+  // (DuckDB query over the local spans table), not an HTTP fetch.
+  await expect(page.getByText("Total Spans")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Waterfall")).toBeVisible();
+  await expect(page.locator('[aria-label="Service color legend"]')).toBeVisible();
+
+  const blockedPrefixes = ["/v1/traces", "/v1/nlq", "/v1/tenants"];
+  const backendCalls = requests.filter((path) => blockedPrefixes.some((prefix) => path.startsWith(prefix)));
+  expect(backendCalls).toEqual([]);
+});
+
 test("reset playground regenerates the dataset", async ({ page }) => {
   await page.goto("#/traces");
   await expect(page.getByRole("table", { name: "Trace results" })).toBeVisible({ timeout: 15_000 });

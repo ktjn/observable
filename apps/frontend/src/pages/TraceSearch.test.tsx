@@ -60,6 +60,7 @@ vi.mock("../api/nlq", () => ({
 vi.mock("../api/traces", () => ({
   fetchTraceHistogram: vi.fn(async () => ({ buckets: [] })),
   searchTraces: vi.fn(async () => ({ traces: [], total: 0, facets: {} })),
+  getTrace: vi.fn(async () => ({ trace_id: "trace-1", spans: [], events: [] })),
 }));
 
 vi.mock("../api/dashboards", () => ({

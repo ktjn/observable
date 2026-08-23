@@ -1,4 +1,4 @@
-import type { TraceHistogramResponse, TraceListResponse } from "../api/traces";
+import type { TraceHistogramResponse, TraceListResponse, TraceResponse } from "../api/traces";
 import type { LogHistogramResponse } from "../api/logs";
 import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants";
 import type { NlqRequest, NlqResponse } from "../api/nlq";
@@ -67,6 +67,7 @@ export interface RuntimeApi {
   };
   traces: {
     search(tenantId: string, params: SearchTracesParams): Promise<TraceListResponse>;
+    get(tenantId: string, traceId: string): Promise<TraceResponse>;
     histogram(tenantId: string, params: TraceHistogramParams): Promise<TraceHistogramResponse>;
   };
   logs: {
