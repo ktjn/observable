@@ -39,6 +39,20 @@ import type {
   InfrastructureEntityType,
   InfrastructureInventoryResponse,
 } from "../api/infrastructure";
+import type {
+  FirstSignalStatus,
+  LlmModelsResult,
+  PlatformConfig,
+  SaveLlmConfigParams,
+} from "../api/setup";
+import type {
+  CreateTokenRequest,
+  CreateTokenResponse,
+  TokenListResponse,
+} from "../api/tokens";
+import type { MemberListResponse, MemberRecord, TenantRole } from "../api/admin-members";
+import type { TenantUsageReportResponse } from "../api/usage";
+import type { MeResponse } from "../api/auth";
 
 export interface InfrastructureListParams {
   service?: string;
@@ -184,6 +198,35 @@ export interface RuntimeApi {
       entityType: InfrastructureEntityType,
       entityId: string
     ): Promise<InfrastructureDetailResponse>;
+  };
+  setup: {
+    getFirstSignalStatus(tenantId: string): Promise<FirstSignalStatus>;
+    getConfig(tenantId: string): Promise<PlatformConfig>;
+    saveLlmConfig(tenantId: string, params: SaveLlmConfigParams): Promise<void>;
+    fetchAvailableModels(tenantId: string, url?: string, apiKey?: string): Promise<LlmModelsResult>;
+  };
+  tokens: {
+    list(tenantId: string): Promise<TokenListResponse>;
+    create(tenantId: string, req: CreateTokenRequest): Promise<CreateTokenResponse>;
+    revoke(tenantId: string, id: string): Promise<void>;
+    renew(tenantId: string, id: string): Promise<CreateTokenResponse>;
+    restore(tenantId: string, id: string): Promise<void>;
+    delete(tenantId: string, id: string): Promise<void>;
+  };
+  members: {
+    list(tenantId: string): Promise<MemberListResponse>;
+    add(tenantId: string, body: { email: string; role: TenantRole }): Promise<MemberRecord>;
+    updateRole(tenantId: string, userId: string, role: TenantRole): Promise<void>;
+    remove(tenantId: string, userId: string): Promise<void>;
+    revokeSessions(tenantId: string, userId: string): Promise<void>;
+  };
+  usage: {
+    report(tenantId: string, params: { from?: number; to?: number }): Promise<TenantUsageReportResponse>;
+  };
+  auth: {
+    me(): Promise<MeResponse>;
+    login(): void;
+    logout(): Promise<void>;
   };
   deployments: {
     list(tenantId: string, params: ListDeploymentsParams): Promise<ListDeploymentsResponse>;

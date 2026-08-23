@@ -9,22 +9,25 @@ vi.mock("../../api/nlq", () => ({
   submitNlqQuery: vi.fn(),
 }));
 
-vi.mock("../../api/setup", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../api/setup")>();
-  return {
-    ...actual,
-    getConfig: vi.fn(),
-  };
-});
+const { mockGetConfig } = vi.hoisted(() => ({ mockGetConfig: vi.fn() }));
+
+vi.mock("../../hooks/useRuntime", () => ({
+  useRuntime: () => ({
+    setup: {
+      getConfig: mockGetConfig,
+      saveLlmConfig: vi.fn(),
+      fetchAvailableModels: vi.fn(),
+      getFirstSignalStatus: vi.fn(),
+    },
+  }),
+}));
 
 vi.mock("../../hooks/useGlobalDateRange", () => ({
   useGlobalDateRange: () => ({ fromMs: Date.now() - 3600_000, toMs: Date.now() }),
 }));
 
 import { submitNlqQuery } from "../../api/nlq";
-import { getConfig } from "../../api/setup";
 const mockSubmit = vi.mocked(submitNlqQuery);
-const mockGetConfig = vi.mocked(getConfig);
 
 beforeEach(() => {
   mockGetConfig.mockResolvedValue({

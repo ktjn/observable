@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import type { NlqIrLike } from "../../api/nlq";
 import { useQuery } from "@tanstack/react-query";
-import { getConfig } from "../../api/setup";
+import { useRuntime } from "../../hooks/useRuntime";
 import { submitNlqWithProvider } from "../nlq/submitNlqWithProvider";
 import {
   createIdleWorkbenchQueryStateMap,
@@ -42,9 +42,10 @@ export default function QueryWorkbench() {
   const navigate = useNavigate();
   const { fromMs, toMs } = useGlobalDateRange();
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const { data: config } = useQuery({
     queryKey: ["setup", "config", tenantId],
-    queryFn: () => getConfig(tenantId),
+    queryFn: () => runtime.setup.getConfig(tenantId),
   });
   const provider = config?.llm_provider ?? "remote";
 

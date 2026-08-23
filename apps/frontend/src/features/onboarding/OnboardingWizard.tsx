@@ -5,8 +5,7 @@ import { Button } from "../../components/ui/button";
 import { Panel } from "../../components/ui/panel";
 import { Badge } from "../../components/ui/badge";
 import { CopyButton } from "../../components/ui/copy-button";
-import { createToken } from "../../api/tokens";
-import { getFirstSignalStatus } from "../../api/setup";
+import { useRuntime } from "../../hooks/useRuntime";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import {
   type Language,
@@ -119,13 +118,14 @@ interface StepApiKeyProps {
 
 function StepApiKey({ language, tenantId, onKeyReady, onNext }: StepApiKeyProps) {
   const qc = useQueryClient();
+  const runtime = useRuntime();
   const [envName, setEnvName] = useState("production");
   const [formError, setFormError] = useState<string | null>(null);
   const [plaintext, setPlaintext] = useState<string | null>(null);
 
   const createMutation = useMutation({
     mutationFn: () =>
-      createToken(tenantId, { name: `onboarding-${language}`, environment: envName.trim() }),
+      runtime.tokens.create(tenantId, { name: `onboarding-${language}`, environment: envName.trim() }),
     onSuccess: (res) => {
       void qc.invalidateQueries({ queryKey: ["tokens", tenantId] });
       setPlaintext(res.plaintext);
@@ -232,9 +232,10 @@ interface StepWaitingProps {
 }
 
 function StepWaiting({ tenantId, plaintext, onDetected }: StepWaitingProps) {
+  const runtime = useRuntime();
   const { data } = useQuery({
     queryKey: ["onboarding-signal", tenantId],
-    queryFn: () => getFirstSignalStatus(tenantId),
+    queryFn: () => runtime.setup.getFirstSignalStatus(tenantId),
     refetchInterval: 3000,
   });
 

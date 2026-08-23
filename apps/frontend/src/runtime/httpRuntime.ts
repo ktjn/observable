@@ -45,6 +45,29 @@ import {
   updateSavedView,
 } from "../api/savedViews";
 import { getInfrastructureDetail, listInfrastructure } from "../api/infrastructure";
+import {
+  fetchAvailableModels,
+  getConfig,
+  getFirstSignalStatus,
+  saveLlmConfig,
+} from "../api/setup";
+import {
+  createToken,
+  deleteToken,
+  listTokens,
+  renewToken,
+  restoreToken,
+  revokeToken,
+} from "../api/tokens";
+import {
+  addMember,
+  listMembers,
+  removeMember,
+  revokeMemberSessions,
+  updateMemberRole,
+} from "../api/admin-members";
+import { getTenantUsageReport } from "../api/usage";
+import { initiateLogin, logout, me } from "../api/auth";
 import type { RuntimeApi } from "./types";
 
 /** Delegates to the existing production `fetch` calls with zero behavior change. */
@@ -118,6 +141,35 @@ export const httpRuntime: RuntimeApi = {
         ...(params.entity_type ? { entity_type: params.entity_type } : {}),
       }),
     get: getInfrastructureDetail,
+  },
+  setup: {
+    getFirstSignalStatus,
+    getConfig,
+    saveLlmConfig,
+    fetchAvailableModels,
+  },
+  tokens: {
+    list: listTokens,
+    create: createToken,
+    revoke: revokeToken,
+    renew: renewToken,
+    restore: restoreToken,
+    delete: deleteToken,
+  },
+  members: {
+    list: listMembers,
+    add: addMember,
+    updateRole: updateMemberRole,
+    remove: removeMember,
+    revokeSessions: revokeMemberSessions,
+  },
+  usage: {
+    report: getTenantUsageReport,
+  },
+  auth: {
+    me,
+    login: initiateLogin,
+    logout,
   },
   deployments: {
     list: listDeployments,

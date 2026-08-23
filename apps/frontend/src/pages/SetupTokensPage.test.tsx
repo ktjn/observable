@@ -6,22 +6,28 @@ import { TenantContextProvider } from "../hooks/useTenantContext";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-vi.mock("../api/tokens", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../api/tokens")>();
-  return {
-    ...actual,
-    listTokens: vi.fn().mockResolvedValue({ tokens: [] }),
-    createToken: vi.fn(),
-    revokeToken: vi.fn(),
-    renewToken: vi.fn(),
-    restoreToken: vi.fn(),
-    deleteToken: vi.fn(),
-  };
-});
+const { mockListTokens, mockCreateToken, mockRevokeToken, mockRenewToken, mockRestoreToken, mockDeleteToken } =
+  vi.hoisted(() => ({
+    mockListTokens: vi.fn(),
+    mockCreateToken: vi.fn(),
+    mockRevokeToken: vi.fn(),
+    mockRenewToken: vi.fn(),
+    mockRestoreToken: vi.fn(),
+    mockDeleteToken: vi.fn(),
+  }));
 
-import { listTokens, createToken } from "../api/tokens";
-const mockListTokens = vi.mocked(listTokens);
-const mockCreateToken = vi.mocked(createToken);
+vi.mock("../hooks/useRuntime", () => ({
+  useRuntime: () => ({
+    tokens: {
+      list: mockListTokens,
+      create: mockCreateToken,
+      revoke: mockRevokeToken,
+      renew: mockRenewToken,
+      restore: mockRestoreToken,
+      delete: mockDeleteToken,
+    },
+  }),
+}));
 
 const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 

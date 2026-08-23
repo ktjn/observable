@@ -5,9 +5,6 @@ import { Button } from "../components/ui/button";
 import { Panel } from "../components/ui/panel";
 import { Select, SelectOption } from "../components/ui/select";
 import {
-  fetchAvailableModels,
-  getConfig,
-  saveLlmConfig,
   type LlmModelsResult,
   type SaveLlmConfigParams,
 } from "../api/setup";
@@ -18,14 +15,16 @@ import {
   type WebLlmModelOption,
 } from "../lib/webllm/webllmEngine";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { useRuntime } from "../hooks/useRuntime";
 
 type LlmProvider = "remote" | "webllm";
 
 export default function SetupLlmPage() {
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const { data: config, refetch: refetchConfig } = useQuery({
     queryKey: ["setup", "config", tenantId],
-    queryFn: () => getConfig(tenantId),
+    queryFn: () => runtime.setup.getConfig(tenantId),
   });
 
   const [apiKey, setApiKey] = useState("");
@@ -86,7 +85,7 @@ export default function SetupLlmPage() {
   async function handleTestConnection() {
     setModelsStatus("loading");
     setModelsError("");
-    const result: LlmModelsResult = await fetchAvailableModels(
+    const result: LlmModelsResult = await runtime.setup.fetchAvailableModels(
       tenantId,
       urlValue.trim() || undefined,
       apiKey.trim() || undefined,
@@ -125,7 +124,7 @@ export default function SetupLlmPage() {
         if (url !== null) params.url = urlValue.trim();
         if (model !== null) params.model = modelValue.trim();
       }
-      await saveLlmConfig(tenantId, params);
+      await runtime.setup.saveLlmConfig(tenantId, params);
       setApiKey("");
       setSaveState("saved");
       void refetchConfig();

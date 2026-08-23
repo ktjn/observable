@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { NlqIr } from "../../api/nlq";
-import { getConfig } from "../../api/setup";
+import { useRuntime } from "../../hooks/useRuntime";
 import { SignalQueryForm } from "../../components/shared/SignalQueryForm";
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
 import { useTenantContext } from "../../hooks/useTenantContext";
@@ -47,9 +47,10 @@ export function QueryInput({
 }: QueryInputProps) {
   const { fromMs, toMs } = useGlobalDateRange();
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const { data: config } = useQuery({
     queryKey: ["setup", "config", tenantId],
-    queryFn: () => getConfig(tenantId),
+    queryFn: () => runtime.setup.getConfig(tenantId),
   });
   const provider = config?.llm_provider ?? "remote";
   const effectiveBaseIr = useMemo<NlqIrLike>(

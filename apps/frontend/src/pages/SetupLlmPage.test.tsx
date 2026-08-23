@@ -6,20 +6,21 @@ import { TenantContextProvider } from "../hooks/useTenantContext";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-vi.mock("../api/setup", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../api/setup")>();
-  return {
-    ...actual,
-    getConfig: vi.fn(),
-    saveLlmConfig: vi.fn(),
-    fetchAvailableModels: vi.fn(),
-  };
-});
+const { mockGetConfig, mockSaveLlmConfig, mockFetchAvailableModels } = vi.hoisted(() => ({
+  mockGetConfig: vi.fn(),
+  mockSaveLlmConfig: vi.fn(),
+  mockFetchAvailableModels: vi.fn(),
+}));
 
-import { getConfig, saveLlmConfig, fetchAvailableModels } from "../api/setup";
-const mockGetConfig = vi.mocked(getConfig);
-const mockSaveLlmConfig = vi.mocked(saveLlmConfig);
-const mockFetchAvailableModels = vi.mocked(fetchAvailableModels);
+vi.mock("../hooks/useRuntime", () => ({
+  useRuntime: () => ({
+    setup: {
+      getConfig: mockGetConfig,
+      saveLlmConfig: mockSaveLlmConfig,
+      fetchAvailableModels: mockFetchAvailableModels,
+    },
+  }),
+}));
 
 vi.mock("../lib/webllm/webllmEngine", () => ({
   listAvailableModels: vi.fn(),

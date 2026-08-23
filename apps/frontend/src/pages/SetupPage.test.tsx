@@ -6,21 +6,22 @@ import { TenantContextProvider } from "../hooks/useTenantContext";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-vi.mock("../api/setup", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../api/setup")>();
-  return {
-    ...actual,
-    getFirstSignalStatus: vi.fn().mockResolvedValue({
-      state: "waiting",
-      traces: 0,
-      logs: 0,
-      metrics: 0,
-    }),
-  };
-});
+const { mockGetFirstSignalStatus } = vi.hoisted(() => ({
+  mockGetFirstSignalStatus: vi.fn(),
+}));
 
-import { getFirstSignalStatus } from "../api/setup";
-const mockGetFirstSignalStatus = vi.mocked(getFirstSignalStatus);
+vi.mock("../hooks/useRuntime", () => ({
+  useRuntime: () => ({
+    setup: { getFirstSignalStatus: mockGetFirstSignalStatus },
+  }),
+}));
+
+mockGetFirstSignalStatus.mockResolvedValue({
+  state: "waiting",
+  traces: 0,
+  logs: 0,
+  metrics: 0,
+});
 
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

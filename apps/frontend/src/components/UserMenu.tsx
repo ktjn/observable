@@ -1,14 +1,15 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "./ui/button"
-import { logout } from "../api/auth";
+import { useRuntime } from "../hooks/useRuntime";
 import { useAuth } from "../hooks/useAuth";
 
 export function UserMenu() {
   const queryClient = useQueryClient();
+  const runtime = useRuntime();
   const { data: user, isLoading } = useAuth();
 
   const logoutMutation = useMutation({
-    mutationFn: logout,
+    mutationFn: () => runtime.auth.logout(),
     onSuccess: () => {
       queryClient.clear();
       window.location.href = "/v1/auth/login";
