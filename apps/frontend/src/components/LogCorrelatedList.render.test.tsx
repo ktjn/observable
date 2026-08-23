@@ -4,7 +4,29 @@ import { vi, beforeEach } from "vitest";
 import { LogCorrelatedList } from "./LogCorrelatedList";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
 import { TenantContextProvider } from "../hooks/useTenantContext";
-import * as logsApi from "../api/logs";
+import type { LogListResponse } from "../api/logs";
+import type { RuntimeApi } from "../runtime/types";
+
+vi.mock("../hooks/useRuntime", () => ({
+  useRuntime: vi.fn(),
+}));
+
+import { useRuntime } from "../hooks/useRuntime";
+
+function mockLogs({
+  search,
+  context,
+}: {
+  search?: Promise<LogListResponse>;
+  context?: Promise<LogListResponse>;
+}) {
+  vi.mocked(useRuntime).mockReturnValue({
+    logs: {
+      search: search ? vi.fn(() => search) : vi.fn(),
+      context: context ? vi.fn(() => context) : vi.fn(),
+    },
+  } as unknown as RuntimeApi);
+}
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -51,21 +73,17 @@ const spanLog = {
 };
 
 beforeEach(() => {
-  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 test("shows loading state while fetching", () => {
-  vi.spyOn(logsApi, "searchLogs").mockReturnValue(new Promise(() => {}));
+  mockLogs({ search: new Promise<LogListResponse>(() => {}) });
   render(<LogCorrelatedList traceId="trace-abc" />, { wrapper });
   expect(screen.getByText(/Loading logs/)).toBeInTheDocument();
 });
 
 test("shows empty message when no correlated logs found", async () => {
-  vi.spyOn(logsApi, "searchLogs").mockResolvedValue({
-    logs: [],
-    total: 0,
-    facets: {},
-  });
+  mockLogs({ search: Promise.resolve({ logs: [], total: 0, facets: {} }) });
 
   render(<LogCorrelatedList traceId="trace-abc" />, { wrapper });
   await waitFor(() =>
@@ -74,10 +92,8 @@ test("shows empty message when no correlated logs found", async () => {
 });
 
 test("shows all logs when no span selected", async () => {
-  vi.spyOn(logsApi, "searchLogs").mockResolvedValue({
-    logs: [traceLog, spanLog],
-    total: 2,
-    facets: {},
+  mockLogs({
+    search: Promise.resolve({ logs: [traceLog, spanLog], total: 2, facets: {} }),
   });
 
   render(<LogCorrelatedList traceId="trace-abc" />, { wrapper });
@@ -88,10 +104,8 @@ test("shows all logs when no span selected", async () => {
 });
 
 test("filters to span and trace-level logs when spanId is provided", async () => {
-  vi.spyOn(logsApi, "searchLogs").mockResolvedValue({
-    logs: [traceLog, spanLog],
-    total: 2,
-    facets: {},
+  mockLogs({
+    search: Promise.resolve({ logs: [traceLog, spanLog], total: 2, facets: {} }),
   });
 
   render(<LogCorrelatedList traceId="trace-abc" spanId="span-111" />, { wrapper });
@@ -102,12 +116,10 @@ test("filters to span and trace-level logs when spanId is provided", async () =>
 });
 
 test("clicking a log row opens the context view with Surrounding Logs heading", async () => {
-  vi.spyOn(logsApi, "searchLogs").mockResolvedValue({
-    logs: [traceLog],
-    total: 1,
-    facets: {},
+  mockLogs({
+    search: Promise.resolve({ logs: [traceLog], total: 1, facets: {} }),
+    context: new Promise<LogListResponse>(() => {}),
   });
-  vi.spyOn(logsApi, "getLogContext").mockReturnValue(new Promise(() => {}));
 
   render(<LogCorrelatedList traceId="trace-abc" />, { wrapper });
   await waitFor(() => screen.getByText("trace level message"));
@@ -118,10 +130,8 @@ test("clicking a log row opens the context view with Surrounding Logs heading", 
 });
 
 test("span-linked log renders trace link with span aria-label", async () => {
-  vi.spyOn(logsApi, "searchLogs").mockResolvedValue({
-    logs: [spanLog],
-    total: 1,
-    facets: {},
+  mockLogs({
+    search: Promise.resolve({ logs: [spanLog], total: 1, facets: {} }),
   });
 
   render(<LogCorrelatedList traceId="trace-abc" />, { wrapper });
@@ -133,10 +143,8 @@ test("span-linked log renders trace link with span aria-label", async () => {
 });
 
 test("trace-level log renders trace link with trace aria-label", async () => {
-  vi.spyOn(logsApi, "searchLogs").mockResolvedValue({
-    logs: [traceLog],
-    total: 1,
-    facets: {},
+  mockLogs({
+    search: Promise.resolve({ logs: [traceLog], total: 1, facets: {} }),
   });
 
   render(<LogCorrelatedList traceId="trace-abc" />, { wrapper });

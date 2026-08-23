@@ -4,7 +4,20 @@ import { vi, beforeEach } from "vitest";
 import { LogContextView } from "./LogContextView";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
 import { TenantContextProvider } from "../hooks/useTenantContext";
-import * as logsApi from "../api/logs";
+import type { LogListResponse } from "../api/logs";
+import type { RuntimeApi } from "../runtime/types";
+
+vi.mock("../hooks/useRuntime", () => ({
+  useRuntime: vi.fn(),
+}));
+
+import { useRuntime } from "../hooks/useRuntime";
+
+function mockLogContext(response: Promise<LogListResponse>) {
+  vi.mocked(useRuntime).mockReturnValue({
+    logs: { context: vi.fn(() => response) },
+  } as unknown as RuntimeApi);
+}
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -65,21 +78,21 @@ const traceLinkedLog = {
 };
 
 beforeEach(() => {
-  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 test("shows loading state while fetching", () => {
-  vi.spyOn(logsApi, "getLogContext").mockReturnValue(new Promise(() => {}));
+  mockLogContext(new Promise<LogListResponse>(() => {}));
   render(<LogContextView logId="pivot-id" onClose={vi.fn()} />, { wrapper });
   expect(screen.getByText(/Loading logs/)).toBeInTheDocument();
 });
 
 test("renders log lines with pivot highlighted", async () => {
-  vi.spyOn(logsApi, "getLogContext").mockResolvedValue({
+  mockLogContext(Promise.resolve({
     logs: [beforeLog, pivotLog],
     total: 2,
     facets: {},
-  });
+  }));
 
   render(<LogContextView logId="pivot-id" onClose={vi.fn()} />, { wrapper });
 
@@ -93,11 +106,11 @@ test("renders log lines with pivot highlighted", async () => {
 });
 
 test("trace-linked log renders a link with correct href and aria-label", async () => {
-  vi.spyOn(logsApi, "getLogContext").mockResolvedValue({
+  mockLogContext(Promise.resolve({
     logs: [traceLinkedLog],
     total: 1,
     facets: {},
-  });
+  }));
 
   render(<LogContextView logId="trace-linked-id" onClose={vi.fn()} />, { wrapper });
   await waitFor(() => expect(screen.getByText("trace linked message")).toBeInTheDocument());
@@ -107,11 +120,11 @@ test("trace-linked log renders a link with correct href and aria-label", async (
 });
 
 test("calls onClose when Close button is clicked", async () => {
-  vi.spyOn(logsApi, "getLogContext").mockResolvedValue({
+  mockLogContext(Promise.resolve({
     logs: [pivotLog],
     total: 1,
     facets: {},
-  });
+  }));
   const onClose = vi.fn();
 
   render(<LogContextView logId="pivot-id" onClose={onClose} />, { wrapper });

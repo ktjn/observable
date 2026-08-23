@@ -5,7 +5,13 @@ import { TimeDisplayProvider } from "../lib/timeDisplay";
 import { TenantContextProvider } from "../hooks/useTenantContext";
 import { TraceDetail } from "./TraceDetail";
 import type { Span } from "../api/traces";
-import * as logsApi from "../api/logs";
+import type { RuntimeApi } from "../runtime/types";
+
+vi.mock("../hooks/useRuntime", () => ({
+  useRuntime: vi.fn(),
+}));
+
+import { useRuntime } from "../hooks/useRuntime";
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -54,11 +60,12 @@ const baseSpan: Span = {
 };
 
 beforeEach(() => {
-  vi.spyOn(logsApi, "searchLogs").mockResolvedValue({
-    logs: [],
-    total: 0,
-    facets: {},
-  });
+  vi.mocked(useRuntime).mockReturnValue({
+    logs: {
+      search: vi.fn(async () => ({ logs: [], total: 0, facets: {} })),
+      context: vi.fn(async () => ({ logs: [], total: 0, facets: {} })),
+    },
+  } as unknown as RuntimeApi);
 });
 
 test("clicking a waterfall row selects it and clicking again deselects it", () => {
