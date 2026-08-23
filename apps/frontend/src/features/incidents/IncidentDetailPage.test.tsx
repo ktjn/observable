@@ -1,12 +1,17 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, test, vi, beforeEach } from "vitest";
-import * as incidentsApi from "../../api/incidents";
-import * as servicesApi from "../../api/services";
+import type { IncidentDetailResponse } from "../../api/incidents";
+import type { TopologyResponse } from "../../api/services";
 import { IncidentDetailPage } from "./IncidentDetailPage";
+import type { RuntimeApi } from "../../runtime/types";
 
 vi.mock("../../hooks/useTenantContext", () => ({
   useTenantContext: () => ({ tenantId: "test-tenant" }),
+}));
+
+vi.mock("../../hooks/useRuntime", () => ({
+  useRuntime: vi.fn(),
 }));
 
 vi.mock("../../lib/timeDisplay", () => ({
@@ -35,7 +40,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   };
 });
 
-const baseDetail: incidentsApi.IncidentDetailResponse = {
+import { useRuntime } from "../../hooks/useRuntime";
+
+const baseDetail: IncidentDetailResponse = {
   incident_id: "inc-1",
   title: "CPU spike",
   severity: "critical",
@@ -63,6 +70,16 @@ const baseDetail: incidentsApi.IncidentDetailResponse = {
   ],
 };
 
+function mockIncident(
+  detail: IncidentDetailResponse,
+  topology?: Promise<TopologyResponse>
+) {
+  vi.mocked(useRuntime).mockReturnValue({
+    incidents: { list: vi.fn(), get: vi.fn(async () => detail) },
+    topology: { get: topology ? vi.fn(() => topology) : vi.fn() },
+  } as unknown as RuntimeApi);
+}
+
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -73,11 +90,11 @@ function renderPage() {
 }
 
 beforeEach(() => {
-  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 test("renders timeline events with humanized labels", async () => {
-  vi.spyOn(incidentsApi, "getIncident").mockResolvedValue(baseDetail);
+  mockIncident(baseDetail);
   renderPage();
   await waitFor(() => screen.getByRole("heading", { level: 1, name: "CPU spike" }));
   expect(screen.getByText("triggered")).toBeInTheDocument();
@@ -85,14 +102,14 @@ test("renders timeline events with humanized labels", async () => {
 });
 
 test("renders view rule link on alert_fired when triggered_by_rule_id is set", async () => {
-  vi.spyOn(incidentsApi, "getIncident").mockResolvedValue(baseDetail);
+  mockIncident(baseDetail);
   renderPage();
   await waitFor(() => screen.getByText("→ View rule"));
   expect(screen.getByText("→ View rule")).toBeInTheDocument();
 });
 
 test("does not render view rule link when triggered_by_rule_id is null", async () => {
-  vi.spyOn(incidentsApi, "getIncident").mockResolvedValue({
+  mockIncident({
     ...baseDetail,
     triggered_by_rule_id: null,
   });
@@ -102,7 +119,7 @@ test("does not render view rule link when triggered_by_rule_id is null", async (
 });
 
 test("renders runbook_url as link when present", async () => {
-  vi.spyOn(incidentsApi, "getIncident").mockResolvedValue({
+  mockIncident({
     ...baseDetail,
     runbook_url: "https://runbooks.example.com/cpu-high",
   });
@@ -113,28 +130,30 @@ test("renders runbook_url as link when present", async () => {
 });
 
 test("does not render Runbook section when runbook_url is null", async () => {
-  vi.spyOn(incidentsApi, "getIncident").mockResolvedValue(baseDetail);
+  mockIncident(baseDetail);
   renderPage();
   await waitFor(() => screen.getByRole("heading", { level: 1 }));
   expect(screen.queryByText("Runbook")).not.toBeInTheDocument();
 });
 
 test("renders Impacted Services panel when impacted_service is set", async () => {
-  vi.spyOn(incidentsApi, "getIncident").mockResolvedValue({
-    ...baseDetail,
-    impacted_service: "payments",
-  });
-  vi.spyOn(servicesApi, "getTopology").mockResolvedValue({
-    edges: [
-      {
-        caller: "api-gateway",
-        callee: "payments",
-        request_count: 500,
-        error_rate: 0.1,
-        p95_latency_ms: 120,
-      },
-    ],
-  });
+  mockIncident(
+    {
+      ...baseDetail,
+      impacted_service: "payments",
+    },
+    Promise.resolve({
+      edges: [
+        {
+          caller: "api-gateway",
+          callee: "payments",
+          request_count: 500,
+          error_rate: 0.1,
+          p95_latency_ms: 120,
+        },
+      ],
+    })
+  );
   renderPage();
   await waitFor(() => screen.getByText("Impacted Services"));
   expect(screen.getByText("Impacted Services")).toBeInTheDocument();
@@ -142,7 +161,7 @@ test("renders Impacted Services panel when impacted_service is set", async () =>
 });
 
 test("does not render Impacted Services panel when impacted_service is null", async () => {
-  vi.spyOn(incidentsApi, "getIncident").mockResolvedValue({
+  mockIncident({
     ...baseDetail,
     impacted_service: null,
   });

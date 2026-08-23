@@ -1,6 +1,6 @@
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { getIncident, type IncidentEventItem } from "../../api/incidents";
+import type { IncidentEventItem } from "../../api/incidents";
 import { Badge } from "../../components/ui/badge";
 import { LoadingState } from "../../components/ui/loading-state";
 import { Panel } from "../../components/ui/panel";
@@ -8,8 +8,8 @@ import { CopyableText } from "../../components/ui/copy-button";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import { useTimeDisplay } from "../../lib/timeDisplay";
 import { formatTimestamp, isoToNs } from "../../utils/formatTimestamp";
-import { getTopology } from "../../api/services";
 import { TopologyMap } from "../../components/topology/TopologyMap";
+import { useRuntime } from "../../hooks/useRuntime";
 
 function severityColor(severity: string): "bad" | "warn" | "neutral" {
   switch (severity) {
@@ -45,12 +45,13 @@ const LINKED_EVENT_TYPES = new Set(["alert_fired", "alert_resolved"]);
 
 export function IncidentDetailPage() {
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const { format } = useTimeDisplay();
   const { incidentId } = useParams({ from: "/incidents/$incidentId" });
 
   const { data, isLoading } = useQuery({
     queryKey: ["incident", tenantId, incidentId],
-    queryFn: () => getIncident(tenantId, incidentId),
+    queryFn: () => runtime.incidents.get(tenantId, incidentId),
   });
 
   const triggeredAtMs = data ? new Date(data.triggered_at).getTime() : 0;
@@ -63,7 +64,7 @@ export function IncidentDetailPage() {
   } = useQuery({
     queryKey: ["topology-impact", tenantId, data?.impacted_service, triggeredAtMs, resolvedAtMs],
     queryFn: () =>
-      getTopology(tenantId, {
+      runtime.topology.get(tenantId, {
         service: data!.impacted_service!,
         from: triggeredAtMs,
         to: resolvedAtMs ?? Date.now(),

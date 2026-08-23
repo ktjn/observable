@@ -1,12 +1,31 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, expect, test, vi } from "vitest";
-import * as notificationsApi from "../../api/notifications";
+import type { NotificationChannelItem } from "../../api/notifications";
 import { NotificationChannelsList } from "./NotificationChannelsList";
+import type { RuntimeApi } from "../../runtime/types";
 
 vi.mock("../../hooks/useTenantContext", () => ({
   useTenantContext: () => ({ tenantId: "test-tenant" }),
 }));
+
+vi.mock("../../hooks/useRuntime", () => ({
+  useRuntime: vi.fn(),
+}));
+
+import { useRuntime } from "../../hooks/useRuntime";
+
+const listMock = vi.fn<() => Promise<NotificationChannelItem[]>>();
+
+function mockChannels() {
+  vi.mocked(useRuntime).mockReturnValue({
+    notificationChannels: {
+      list: listMock,
+      create: vi.fn(),
+      delete: vi.fn(),
+    },
+  } as unknown as RuntimeApi);
+}
 
 function renderList() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -18,11 +37,12 @@ function renderList() {
 }
 
 beforeEach(() => {
-  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 test("renders EmptyState when there are no channels", async () => {
-  vi.spyOn(notificationsApi, "listNotificationChannels").mockResolvedValue([]);
+  listMock.mockResolvedValue([]);
+  mockChannels();
 
   renderList();
 
@@ -30,14 +50,15 @@ test("renders EmptyState when there are no channels", async () => {
 });
 
 test("renders channel list when channels are present", async () => {
-  vi.spyOn(notificationsApi, "listNotificationChannels").mockResolvedValue([
+  listMock.mockResolvedValue([
     {
       channel_id: "chan-1",
       name: "Prod Webhook",
       channel_type: "webhook",
       config: { url: "https://example.com/hook" },
-    } as unknown as notificationsApi.NotificationChannelItem,
+    } as unknown as NotificationChannelItem,
   ]);
+  mockChannels();
 
   renderList();
 
@@ -45,10 +66,10 @@ test("renders channel list when channels are present", async () => {
 });
 
 test("renders ErrorState with retry when channels fail to load", async () => {
-  const listSpy = vi
-    .spyOn(notificationsApi, "listNotificationChannels")
+  listMock
     .mockRejectedValueOnce(new Error("network error"))
     .mockResolvedValueOnce([]);
+  mockChannels();
 
   renderList();
 
@@ -56,6 +77,6 @@ test("renders ErrorState with retry when channels fail to load", async () => {
 
   fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-  await waitFor(() => expect(listSpy).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(listMock).toHaveBeenCalledTimes(2));
   expect(await screen.findByText("No notification channels")).toBeInTheDocument();
 });

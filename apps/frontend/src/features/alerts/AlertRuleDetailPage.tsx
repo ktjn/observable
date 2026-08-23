@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAlertRule, setAlertRuleRunbook, type FiringItem } from "../../api/alerts";
+import type { FiringItem } from "../../api/alerts";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { EmptyState } from "../../components/ui/empty-state";
@@ -10,6 +10,7 @@ import { LoadingState } from "../../components/ui/loading-state";
 import { Panel } from "../../components/ui/panel";
 import { CopyButton, CopyableText } from "../../components/ui/copy-button";
 import { useTenantContext } from "../../hooks/useTenantContext";
+import { useRuntime } from "../../hooks/useRuntime";
 import { useTimeDisplay } from "../../lib/timeDisplay";
 import { formatTimestamp, isoToNs } from "../../utils/formatTimestamp";
 
@@ -50,12 +51,13 @@ function ConditionSummary({ condition }: { condition: Record<string, unknown> })
 
 export function AlertRuleDetailPage() {
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const { format } = useTimeDisplay();
   const { ruleId } = useParams({ from: "/alerts/$ruleId" });
 
   const { data, isLoading } = useQuery({
     queryKey: ["alertRule", tenantId, ruleId],
-    queryFn: () => getAlertRule(tenantId, ruleId),
+    queryFn: () => runtime.alerts.get(tenantId, ruleId),
   });
 
   const queryClient = useQueryClient();
@@ -63,7 +65,7 @@ export function AlertRuleDetailPage() {
   const [runbookDraft, setRunbookDraft] = useState("");
 
   const runbookMutation = useMutation({
-    mutationFn: (url: string | null) => setAlertRuleRunbook(tenantId, ruleId, url),
+    mutationFn: (url: string | null) => runtime.alerts.setRunbook(tenantId, ruleId, url),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["alertRule", tenantId, ruleId] });
       setEditingRunbook(false);

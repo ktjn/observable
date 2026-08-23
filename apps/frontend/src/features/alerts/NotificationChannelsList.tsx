@@ -1,11 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  listNotificationChannels,
-  createNotificationChannel,
-  deleteNotificationChannel,
-  type CreateChannelRequest,
-  type NotificationChannelConfig,
+import type {
+  CreateChannelRequest,
+  NotificationChannelConfig,
 } from "../../api/notifications";
 import { Button } from "../../components/ui/button";
 import { CopyableText } from "../../components/ui/copy-button";
@@ -15,10 +12,12 @@ import { Toolbar } from "../../components/ui/toolbar";
 import { EmptyState } from "../../components/ui/empty-state";
 import { ErrorState } from "../../components/ui/error-state";
 import { useTenantContext } from "../../hooks/useTenantContext";
+import { useRuntime } from "../../hooks/useRuntime";
 
 export function NotificationChannelsList() {
   const queryClient = useQueryClient();
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const [isCreating, setIsCreating] = useState(false);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
@@ -26,11 +25,11 @@ export function NotificationChannelsList() {
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["notification-channels", tenantId],
-    queryFn: () => listNotificationChannels(tenantId),
+    queryFn: () => runtime.notificationChannels.list(tenantId),
   });
 
   const createMutation = useMutation({
-    mutationFn: (req: CreateChannelRequest) => createNotificationChannel(tenantId, req),
+    mutationFn: (req: CreateChannelRequest) => runtime.notificationChannels.create(tenantId, req),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notification-channels", tenantId] });
       setIsCreating(false);
@@ -42,7 +41,7 @@ export function NotificationChannelsList() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (channelId: string) => deleteNotificationChannel(tenantId, channelId),
+    mutationFn: (channelId: string) => runtime.notificationChannels.delete(tenantId, channelId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notification-channels", tenantId] }),
   });
 

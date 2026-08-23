@@ -1,14 +1,39 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, test, vi, beforeEach } from "vitest";
-import * as alertsApi from "../../api/alerts";
-import * as slosApi from "../../api/slos";
-import * as notificationsApi from "../../api/notifications";
+import type { AlertRuleItem, AlertRuleListResponse } from "../../api/alerts";
 import { AlertsPage } from "./AlertsPage";
+import type { RuntimeApi } from "../../runtime/types";
 
 vi.mock("../../hooks/useTenantContext", () => ({
   useTenantContext: () => ({ tenantId: "test-tenant" }),
 }));
+
+vi.mock("../../hooks/useRuntime", () => ({
+  useRuntime: vi.fn(),
+}));
+
+import { useRuntime } from "../../hooks/useRuntime";
+
+const createMock = vi.fn<(req: unknown) => Promise<{ rule_id: string }>>();
+
+function mockRuntime(rules: AlertRuleItem[]) {
+  vi.mocked(useRuntime).mockReturnValue({
+    alerts: {
+      list: vi.fn(async (): Promise<AlertRuleListResponse> => ({ items: rules })),
+      create: createMock,
+    },
+    slos: {
+      list: vi.fn(async () => ({ items: [] })),
+      create: vi.fn(),
+    },
+    notificationChannels: {
+      list: vi.fn(async () => []),
+      create: vi.fn(),
+      delete: vi.fn(),
+    },
+  } as unknown as RuntimeApi);
+}
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -20,31 +45,27 @@ function renderPage() {
 }
 
 beforeEach(() => {
-  vi.restoreAllMocks();
-  vi.spyOn(slosApi, "listSlos").mockResolvedValue({ items: [] });
-  vi.spyOn(notificationsApi, "listNotificationChannels").mockResolvedValue([]);
+  vi.clearAllMocks();
 });
 
 test("renders a no_data rule with a deadman condition label", async () => {
-  vi.spyOn(alertsApi, "listAlertRules").mockResolvedValue({
-    items: [
-      {
-        rule_id: "rule-1",
-        name: "Checkout silent",
-        metric_name: "checkout",
-        operator: "no_data" as alertsApi.AlertRuleItem["operator"],
-        threshold: 300,
-        severity: "warning",
-        silenced: false,
-        state: "ok",
-        firing: false,
-        last_fired_at: undefined,
-        notification_channels: [],
-        auto_trigger_incident: true,
-        suppressed: false,
-      },
-    ],
-  });
+  mockRuntime([
+    {
+      rule_id: "rule-1",
+      name: "Checkout silent",
+      metric_name: "checkout",
+      operator: "no_data" as AlertRuleItem["operator"],
+      threshold: 300,
+      severity: "warning",
+      silenced: false,
+      state: "ok",
+      firing: false,
+      last_fired_at: undefined,
+      notification_channels: [],
+      auto_trigger_incident: true,
+      suppressed: false,
+    },
+  ]);
 
   renderPage();
 
@@ -54,10 +75,8 @@ test("renders a no_data rule with a deadman condition label", async () => {
 });
 
 test("submitting the No data form sends a deadman create request", async () => {
-  vi.spyOn(alertsApi, "listAlertRules").mockResolvedValue({ items: [] });
-  const createSpy = vi
-    .spyOn(alertsApi, "createAlertRule")
-    .mockResolvedValue({ rule_id: "rule-2" });
+  mockRuntime([]);
+  createMock.mockResolvedValue({ rule_id: "rule-2" });
 
   renderPage();
 
@@ -77,8 +96,8 @@ test("submitting the No data form sends a deadman create request", async () => {
 
   fireEvent.click(screen.getByRole("button", { name: "Create Rule" }));
 
-  await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
-  expect(createSpy).toHaveBeenCalledWith(
+  await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+  expect(createMock).toHaveBeenCalledWith(
     "test-tenant",
     expect.objectContaining({
       name: "Checkout silent",
@@ -89,11 +108,9 @@ test("submitting the No data form sends a deadman create request", async () => {
   );
 });
 
-test("No data form with blank service name succeeds and passes empty string to createAlertRule", async () => {
-  vi.spyOn(alertsApi, "listAlertRules").mockResolvedValue({ items: [] });
-  const createSpy = vi
-    .spyOn(alertsApi, "createAlertRule")
-    .mockResolvedValue({ rule_id: "rule-blank-svc" });
+test("No data form with blank service name succeeds and passes empty string to the create op", async () => {
+  mockRuntime([]);
+  createMock.mockResolvedValue({ rule_id: "rule-blank-svc" });
 
   renderPage();
 
@@ -110,8 +127,8 @@ test("No data form with blank service name succeeds and passes empty string to c
 
   fireEvent.click(screen.getByRole("button", { name: "Create Rule" }));
 
-  await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
-  expect(createSpy).toHaveBeenCalledWith(
+  await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+  expect(createMock).toHaveBeenCalledWith(
     "test-tenant",
     expect.objectContaining({
       name: "Checkout silent",
@@ -123,10 +140,8 @@ test("No data form with blank service name succeeds and passes empty string to c
 });
 
 test("submitting the Change detection form sends a change_detection create request", async () => {
-  vi.spyOn(alertsApi, "listAlertRules").mockResolvedValue({ items: [] });
-  const createSpy = vi
-    .spyOn(alertsApi, "createAlertRule")
-    .mockResolvedValue({ rule_id: "rule-3" });
+  mockRuntime([]);
+  createMock.mockResolvedValue({ rule_id: "rule-3" });
 
   renderPage();
 
@@ -154,8 +169,8 @@ test("submitting the Change detection form sends a change_detection create reque
 
   fireEvent.click(screen.getByRole("button", { name: "Create Rule" }));
 
-  await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
-  expect(createSpy).toHaveBeenCalledWith(
+  await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+  expect(createMock).toHaveBeenCalledWith(
     "test-tenant",
     expect.objectContaining({
       name: "Error rate shift",
@@ -169,8 +184,7 @@ test("submitting the Change detection form sends a change_detection create reque
 });
 
 test("Change detection form rejects a blank metric name", async () => {
-  vi.spyOn(alertsApi, "listAlertRules").mockResolvedValue({ items: [] });
-  const createSpy = vi.spyOn(alertsApi, "createAlertRule");
+  mockRuntime([]);
 
   renderPage();
 
@@ -203,30 +217,28 @@ test("Change detection form rejects a blank metric name", async () => {
   await waitFor(() =>
     expect(screen.getByText("Metric name is required")).toBeInTheDocument(),
   );
-  expect(createSpy).not.toHaveBeenCalled();
+  expect(createMock).not.toHaveBeenCalled();
 });
 
 test("shows Suppressed badge for suppressed rules", async () => {
-  vi.spyOn(alertsApi, "listAlertRules").mockResolvedValue({
-    items: [
-      {
-        rule_id: "rule-1",
-        name: "CPU warning",
-        metric_name: "cpu",
-        operator: "gt" as const,
-        threshold: 80,
-        severity: "warning",
-        silenced: false,
-        state: "suppressed" as const,
-        firing: false,
-        last_fired_at: undefined,
-        notification_channels: [],
-        auto_trigger_incident: false,
-        service_name: "payments",
-        suppressed: true,
-      },
-    ],
-  });
+  mockRuntime([
+    {
+      rule_id: "rule-1",
+      name: "CPU warning",
+      metric_name: "cpu",
+      operator: "gt" as const,
+      threshold: 80,
+      severity: "warning",
+      silenced: false,
+      state: "suppressed" as const,
+      firing: false,
+      last_fired_at: undefined,
+      notification_channels: [],
+      auto_trigger_incident: false,
+      service_name: "payments",
+      suppressed: true,
+    },
+  ]);
 
   renderPage();
 
