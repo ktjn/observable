@@ -347,6 +347,15 @@ export const playgroundRuntime: RuntimeApi = {
         facets: { service_name: [{ value: "checkout", count: 1 }] },
       };
     },
+    async get(_tenantId: string, traceId: string): Promise<TraceResponse> {
+      const { executeTraceDetail } = await import("../playground/engineClient");
+      const { spans } = await executeTraceDetail(traceId);
+      if (spans.length === 0) {
+        // Mirror production's 404 so the page renders "Trace not found."
+        throw new Error(`Not found: ${traceId}`);
+      }
+      return { trace_id: traceId, spans, events: [] };
+    },
     async histogram(_tenantId: string, params: TraceHistogramParams): Promise<TraceHistogramResponse> {
       if (params.from && params.to) {
         const { executeTraceHistogram } = await import("../playground/engineClient");

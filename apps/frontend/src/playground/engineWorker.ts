@@ -155,6 +155,34 @@ interface GeneratedSpan {
   start_time_unix_nano: string;
 }
 
+/**
+ * Full frontend Span shape assembled at read time from the playground's
+ * narrow local `spans` table (which only persists the columns any wired
+ * query actually plans against) plus fixed demo defaults.
+ */
+interface TraceDetailSpan {
+  span_id: string;
+  trace_id: string;
+  parent_span_id?: string;
+  tenant_id: string;
+  service_name: string;
+  service_namespace: string;
+  service_version: string;
+  operation_name: string;
+  span_kind: "INTERNAL" | "SERVER" | "CLIENT" | "PRODUCER" | "CONSUMER";
+  start_time_unix_nano: number;
+  end_time_unix_nano: number;
+  duration_ns: number;
+  status_code: "UNSET" | "OK" | "ERROR";
+  status_message: string;
+  attributes: Record<string, unknown>;
+  resource_attributes: Record<string, unknown>;
+  environment: string;
+  host_id: string;
+  workload: string;
+  deployment_id: string;
+}
+
 interface GeneratedLog {
   log_id: string;
   timestamp_unix_nano: string;
@@ -171,6 +199,7 @@ interface GeneratedLog {
 
 type EngineRequest =
   | { type: "nlq-execute-trace-table"; requestId: string; ir: unknown }
+  | { type: "trace-detail"; requestId: string; traceId: string }
   | {
       type: "trace-histogram";
       requestId: string;
@@ -227,6 +256,7 @@ type EngineRequest =
   | { type: "reset"; requestId: string; seed: number };
 type EngineResponse =
   | { type: "nlq-result"; requestId: string; rows: NlqTraceRow[]; sql: string }
+  | { type: "trace-detail-result"; requestId: string; spans: TraceDetailSpan[] }
   | { type: "histogram-result"; requestId: string; buckets: TraceHistogramBucket[] }
   | { type: "nlq-log-result"; requestId: string; rows: NlqLogRow[]; sql: string }
   | { type: "log-histogram-result"; requestId: string; buckets: LogHistogramBucket[] }
@@ -475,6 +505,45 @@ async function initEngine(): Promise<EngineState> {
 function getEngine(): Promise<EngineState> {
   if (!statePromise) statePromise = initEngine();
   return statePromise;
+}
+
+/**
+ * Fetches every span of one trace (trace-detail page's waterfall shape)
+ * from the playground's local `spans` table and assembles full frontend
+ * Span objects at read time. Root spans (empty parent_span_id) are
+ * reported as SERVER kind; end times are derived from start + duration.
+ */
+async function executeTraceDetail(traceId: string): Promise<TraceDetailSpan[]> {
+  const { conn } = await getEngine();
+  const sql = `SELECT trace_id, span_id, parent_span_id, service_name, operation_name, duration_ns, status_code, environment, start_time_unix_nano FROM spans WHERE trace_id = '${escapeSqlString(traceId)}' ORDER BY start_time_unix_nano`;
+  const result = await conn.query(sql);
+  return result.toArray().map((row) => {
+    const startNs = Number(row.start_time_unix_nano);
+    const durationNs = Number(row.duration_ns);
+    const parentSpanId = String(row.parent_span_id);
+    return {
+      span_id: String(row.span_id),
+      trace_id: String(row.trace_id),
+      parent_span_id: parentSpanId === "" ? undefined : parentSpanId,
+      tenant_id: DEMO_TENANT_ID,
+      service_name: String(row.service_name),
+      service_namespace: "observable-playground",
+      service_version: "",
+      operation_name: String(row.operation_name),
+      span_kind: (parentSpanId === "" ? "SERVER" : "INTERNAL") as TraceDetailSpan["span_kind"],
+      start_time_unix_nano: startNs,
+      end_time_unix_nano: startNs + durationNs,
+      duration_ns: durationNs,
+      status_code: String(row.status_code) as TraceDetailSpan["status_code"],
+      status_message: "",
+      attributes: {},
+      resource_attributes: {},
+      environment: String(row.environment),
+      host_id: "",
+      workload: "",
+      deployment_id: "",
+    };
+  });
 }
 
 async function executeTraceTable(ir: unknown): Promise<{ rows: NlqTraceRow[]; sql: string }> {
@@ -763,6 +832,9 @@ workerSelf.onmessage = async (event) => {
     if (event.data.type === "nlq-execute-trace-table") {
       const { rows, sql } = await executeTraceTable(event.data.ir);
       workerSelf.postMessage({ type: "nlq-result", requestId, rows, sql });
+    } else if (event.data.type === "trace-detail") {
+      const spans = await executeTraceDetail(event.data.traceId);
+      workerSelf.postMessage({ type: "trace-detail-result", requestId, spans });
     } else if (event.data.type === "trace-histogram") {
       const { fromNs, toNs, bucketCount, service } = event.data;
       const buckets = await executeTraceHistogram(fromNs, toNs, bucketCount, service);
