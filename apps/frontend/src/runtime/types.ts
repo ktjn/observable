@@ -34,6 +34,17 @@ import type {
   SignalKind,
   UpdateSavedViewRequest,
 } from "../api/savedViews";
+import type {
+  InfrastructureDetailResponse,
+  InfrastructureEntityType,
+  InfrastructureInventoryResponse,
+} from "../api/infrastructure";
+
+export interface InfrastructureListParams {
+  service?: string;
+  environment?: string;
+  entity_type?: string;
+}
 
 export interface SearchTracesParams {
   service?: string;
@@ -165,6 +176,14 @@ export interface RuntimeApi {
       relation: "owner" | "editor" | "viewer"
     ): Promise<void>;
     revokeGrant(tenantId: string, savedViewId: string, userId: string): Promise<void>;
+  };
+  infrastructure: {
+    list(tenantId: string, params: InfrastructureListParams): Promise<InfrastructureInventoryResponse>;
+    get(
+      tenantId: string,
+      entityType: InfrastructureEntityType,
+      entityId: string
+    ): Promise<InfrastructureDetailResponse>;
   };
   deployments: {
     list(tenantId: string, params: ListDeploymentsParams): Promise<ListDeploymentsResponse>;

@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
-import {
-  getInfrastructureDetail,
-  type InfrastructureEntitySummary,
-  type InfrastructureEntityType,
+import type {
+  InfrastructureEntitySummary,
+  InfrastructureEntityType,
 } from "../api/infrastructure";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { useTimeDisplay } from "../lib/timeDisplay";
@@ -14,17 +13,19 @@ import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { useRuntime } from "../hooks/useRuntime";
 
 export default function InfrastructureDetailPage() {
   const { entityType, entityId } = useParams({ strict: false });
   const { format } = useTimeDisplay();
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
 
   const canonicalEntityId = entityId ? decodeURIComponent(entityId) : "";
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["infrastructure-detail", tenantId, entityType, canonicalEntityId],
-    queryFn: () => getInfrastructureDetail(tenantId, entityType as InfrastructureEntityType, canonicalEntityId),
+    queryFn: () => runtime.infrastructure.get(tenantId, entityType as InfrastructureEntityType, canonicalEntityId),
     enabled: !!entityType && !!entityId,
   });
 

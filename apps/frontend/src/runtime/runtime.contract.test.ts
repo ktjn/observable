@@ -251,6 +251,17 @@ function runContract(name: string, runtime: RuntimeApi) {
       expect(Array.isArray(result.grants)).toBe(true);
     });
 
+    it("infrastructure.list resolves with an inventory response", async () => {
+      const result = await runtime.infrastructure.list(MOCK_TENANT_ID, {});
+      expect(result).toBeDefined();
+    });
+
+    it("infrastructure.get returns the InfrastructureDetailResponse shape", async () => {
+      const result = await runtime.infrastructure.get(MOCK_TENANT_ID, "host", "playground-host-1");
+      expect(typeof result.entity.entity_id).toBe("string");
+      expect(typeof result.links.logs).toBe("string");
+    });
+
     it("dashboards.create returns a Dashboard shape", async () => {
       const result = await runtime.dashboards.create(MOCK_TENANT_ID, {
         name: "contract-test dashboard",
@@ -313,6 +324,25 @@ describe("runtime contract", () => {
           signal_kind: "logs",
           config: { severity_filter: "all", time_range: { mode: "preset", preset: "1h" }, visible_columns: [] },
           grants: [],
+          entity: {
+            entity_type: "host",
+            entity_id: "entity-1",
+            display_name: "demo-node-1",
+            parent_id: null,
+            parent_display_name: null,
+            environment: "production",
+            health_state: "healthy",
+            last_seen_unix_nano: 0,
+            related_services: [],
+            log_rate_per_minute: null,
+            error_rate: null,
+            restart_count: null,
+            cpu_usage: null,
+            memory_usage: null,
+            disk_usage: null,
+            network_io: null,
+          },
+          links: { logs: "/logs", traces: "/traces", metrics: "/metrics" },
           type: "frame",
           frame: {
             frame_type: "table",

@@ -5,13 +5,13 @@ import {
   type InfrastructureEntitySummary,
   type InfrastructureEntityType,
 } from "../api/infrastructure";
-import { submitNlqQuery } from "../api/nlq";
 import type { NlqIrLike } from "../features/nlq/queryFilters";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
+import { useRuntime } from "../hooks/useRuntime";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { ErrorState } from "../components/ui/error-state";
@@ -113,13 +113,14 @@ export default function InfrastructureInventoryPage() {
   const { format } = useTimeDisplay();
   const { fromMs, toMs } = useGlobalDateRange();
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const from = String(BigInt(Math.floor(fromMs)) * 1_000_000n);
   const to = String(BigInt(Math.floor(toMs)) * 1_000_000n);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["infrastructure", "surface", tenantId, userQuery, fromMs, toMs],
     queryFn: async () => {
-      const response = await submitNlqQuery(tenantId, {
+      const response = await runtime.nlq.execute(tenantId, {
         base_ir: { ...INFRA_BASE_IR, time_range: { from, to } },
         question: userQuery ?? undefined,
         mode: "execute",
