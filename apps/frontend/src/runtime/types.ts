@@ -26,6 +26,14 @@ import type { IncidentDetailResponse, IncidentListResponse } from "../api/incide
 import type { ListDeploymentsParams, ListDeploymentsResponse } from "../api/deployments";
 import type { CreateSloRequest, SloDefinitionItem, SloListResponse } from "../api/slos";
 import type { CreateChannelRequest, NotificationChannelItem } from "../api/notifications";
+import type {
+  CreateSavedViewRequest,
+  GrantListResponse,
+  SavedView,
+  SavedViewListResponse,
+  SignalKind,
+  UpdateSavedViewRequest,
+} from "../api/savedViews";
 
 export interface SearchTracesParams {
   service?: string;
@@ -143,6 +151,20 @@ export interface RuntimeApi {
     list(tenantId: string): Promise<NotificationChannelItem[]>;
     create(tenantId: string, req: CreateChannelRequest): Promise<NotificationChannelItem>;
     delete(tenantId: string, channelId: string): Promise<void>;
+  };
+  savedViews: {
+    list(tenantId: string, signalKind: SignalKind): Promise<SavedViewListResponse>;
+    create(tenantId: string, req: CreateSavedViewRequest): Promise<SavedView>;
+    update(tenantId: string, savedViewId: string, req: UpdateSavedViewRequest): Promise<SavedView>;
+    delete(tenantId: string, savedViewId: string): Promise<void>;
+    listGrants(tenantId: string, savedViewId: string): Promise<GrantListResponse>;
+    addGrant(
+      tenantId: string,
+      savedViewId: string,
+      userId: string,
+      relation: "owner" | "editor" | "viewer"
+    ): Promise<void>;
+    revokeGrant(tenantId: string, savedViewId: string, userId: string): Promise<void>;
   };
   deployments: {
     list(tenantId: string, params: ListDeploymentsParams): Promise<ListDeploymentsResponse>;

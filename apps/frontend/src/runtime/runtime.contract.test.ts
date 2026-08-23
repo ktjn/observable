@@ -227,6 +227,30 @@ function runContract(name: string, runtime: RuntimeApi) {
       expect(result).toBeDefined();
     });
 
+    it("savedViews.list returns the SavedViewListResponse shape", async () => {
+      const result = await runtime.savedViews.list(MOCK_TENANT_ID, "logs");
+      expect(Array.isArray(result.items)).toBe(true);
+    });
+
+    it("savedViews.create returns a SavedView shape", async () => {
+      const result = await runtime.savedViews.create(MOCK_TENANT_ID, {
+        name: "contract view",
+        signal_kind: "logs",
+        config: {
+          query: null,
+          severity_filter: "all",
+          time_range: { mode: "preset", preset: "1h" },
+          visible_columns: [],
+        },
+      });
+      expect(typeof result.saved_view_id).toBe("string");
+    });
+
+    it("savedViews.listGrants returns the GrantListResponse shape", async () => {
+      const result = await runtime.savedViews.listGrants(MOCK_TENANT_ID, "view-1");
+      expect(Array.isArray(result.grants)).toBe(true);
+    });
+
     it("dashboards.create returns a Dashboard shape", async () => {
       const result = await runtime.dashboards.create(MOCK_TENANT_ID, {
         name: "contract-test dashboard",
@@ -285,6 +309,10 @@ describe("runtime contract", () => {
           buckets: [],
           tenants: [],
           environments: [],
+          saved_view_id: "view-1",
+          signal_kind: "logs",
+          config: { severity_filter: "all", time_range: { mode: "preset", preset: "1h" }, visible_columns: [] },
+          grants: [],
           type: "frame",
           frame: {
             frame_type: "table",

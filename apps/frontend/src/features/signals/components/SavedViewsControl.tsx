@@ -2,17 +2,11 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../../../components/ui/button";
 import { CopyableText } from "../../../components/ui/copy-button";
-import {
-  addSavedViewGrant,
-  createSavedView,
-  deleteSavedView,
-  fetchSavedViewGrants,
-  fetchSavedViews,
-  revokeSavedViewGrant,
-  updateSavedView,
-  type LogViewConfig,
-  type SavedView,
+import type {
+  LogViewConfig,
+  SavedView,
 } from "../../../api/savedViews";
+import { useRuntime } from "../../../hooks/useRuntime";
 
 export interface SavedViewsControlProps {
   tenantId: string;
@@ -21,6 +15,7 @@ export interface SavedViewsControlProps {
 }
 
 export function SavedViewsControl({ tenantId, currentConfig, onLoad }: SavedViewsControlProps) {
+  const runtime = useRuntime();
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [newViewName, setNewViewName] = useState("");
@@ -31,7 +26,7 @@ export function SavedViewsControl({ tenantId, currentConfig, onLoad }: SavedView
 
   const { data } = useQuery({
     queryKey: ["saved-views", tenantId, "logs"],
-    queryFn: () => fetchSavedViews(tenantId, "logs"),
+    queryFn: () => runtime.savedViews.list(tenantId, "logs"),
     enabled: isOpen,
   });
   const views = data?.items ?? [];
@@ -39,14 +34,14 @@ export function SavedViewsControl({ tenantId, currentConfig, onLoad }: SavedView
 
   const { data: grantsData } = useQuery({
     queryKey: ["saved-view-grants", tenantId, managingViewId],
-    queryFn: () => fetchSavedViewGrants(tenantId, managingViewId as string),
+    queryFn: () => runtime.savedViews.listGrants(tenantId, managingViewId as string),
     enabled: managingViewId !== null,
   });
   const grants = grantsData?.grants ?? [];
 
   const createMutation = useMutation({
     mutationFn: (name: string) =>
-      createSavedView(tenantId, { name, signal_kind: "logs", config: currentConfig }),
+      runtime.savedViews.create(tenantId, { name, signal_kind: "logs", config: currentConfig }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-views", tenantId, "logs"] });
       setIsSaving(false);
@@ -55,7 +50,7 @@ export function SavedViewsControl({ tenantId, currentConfig, onLoad }: SavedView
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (savedViewId: string) => deleteSavedView(tenantId, savedViewId),
+    mutationFn: (savedViewId: string) => runtime.savedViews.delete(tenantId, savedViewId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-views", tenantId, "logs"] });
     },
@@ -63,7 +58,7 @@ export function SavedViewsControl({ tenantId, currentConfig, onLoad }: SavedView
 
   const visibilityMutation = useMutation({
     mutationFn: (view: SavedView) =>
-      updateSavedView(tenantId, view.saved_view_id, {
+      runtime.savedViews.update(tenantId, view.saved_view_id, {
         name: view.name,
         config: view.config,
         visibility: view.visibility === "private" ? "public" : "private",
@@ -75,7 +70,7 @@ export function SavedViewsControl({ tenantId, currentConfig, onLoad }: SavedView
 
   const addGrantMutation = useMutation({
     mutationFn: () =>
-      addSavedViewGrant(tenantId, managingViewId as string, newGrantUserId.trim(), newGrantRelation),
+      runtime.savedViews.addGrant(tenantId, managingViewId as string, newGrantUserId.trim(), newGrantRelation),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-view-grants", tenantId, managingViewId] });
       setNewGrantUserId("");
@@ -83,7 +78,7 @@ export function SavedViewsControl({ tenantId, currentConfig, onLoad }: SavedView
   });
 
   const revokeGrantMutation = useMutation({
-    mutationFn: (userId: string) => revokeSavedViewGrant(tenantId, managingViewId as string, userId),
+    mutationFn: (userId: string) => runtime.savedViews.revokeGrant(tenantId, managingViewId as string, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-view-grants", tenantId, managingViewId] });
     },
