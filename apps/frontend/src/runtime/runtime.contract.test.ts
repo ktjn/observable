@@ -155,6 +155,21 @@ function runContract(name: string, runtime: RuntimeApi) {
       }
     });
 
+    it("alerts.list returns the AlertRuleListResponse shape", async () => {
+      const result = await runtime.alerts.list(MOCK_TENANT_ID);
+      expect(Array.isArray(result.items)).toBe(true);
+    });
+
+    it("incidents.list returns the IncidentListResponse shape", async () => {
+      const result = await runtime.incidents.list(MOCK_TENANT_ID, "open");
+      expect(Array.isArray(result.items)).toBe(true);
+    });
+
+    it("deployments.list returns the ListDeploymentsResponse shape", async () => {
+      const result = await runtime.deployments.list(MOCK_TENANT_ID, { limit: 10 });
+      expect(Array.isArray(result.items)).toBe(true);
+    });
+
     it("dashboards.create returns a Dashboard shape", async () => {
       const result = await runtime.dashboards.create(MOCK_TENANT_ID, {
         name: "contract-test dashboard",
@@ -176,6 +191,7 @@ describe("runtime contract", () => {
           trace_id: "trace-1",
           spans: [],
           events: [],
+          items: [],
           traces: [],
           total: 0,
           facets: {},

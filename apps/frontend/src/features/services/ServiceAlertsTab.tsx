@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { listAlertRules, type AlertRuleItem } from "../../api/alerts";
-import { listIncidents, type IncidentItem } from "../../api/incidents";
+import type { AlertRuleItem } from "../../api/alerts";
+import type { IncidentItem } from "../../api/incidents";
 import { Badge } from "../../components/ui/badge";
 import { useTenantContext } from "../../hooks/useTenantContext";
+import { useRuntime } from "../../hooks/useRuntime";
 import { useTimeDisplay } from "../../lib/timeDisplay";
 import { formatTimestamp } from "../../utils/formatTimestamp";
 
@@ -33,16 +34,17 @@ function statusTone(status: string): "bad" | "warn" | "good" | "neutral" {
 
 export function ServiceAlertsTab() {
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const { format } = useTimeDisplay();
 
   const { data: rulesData } = useQuery({
     queryKey: ["alert-rules", tenantId],
-    queryFn: () => listAlertRules(tenantId),
+    queryFn: () => runtime.alerts.list(tenantId),
   });
 
   const { data: incidentsData } = useQuery({
     queryKey: ["incidents", tenantId],
-    queryFn: () => listIncidents(tenantId),
+    queryFn: () => runtime.incidents.list(tenantId),
   });
 
   const firingRules = (rulesData?.items ?? []).filter(

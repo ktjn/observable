@@ -2,11 +2,16 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { ServiceAlertsTab } from "./ServiceAlertsTab";
-import * as alertsApi from "../../api/alerts";
-import * as incidentsApi from "../../api/incidents";
+import type { AlertRuleItem } from "../../api/alerts";
+import type { IncidentItem } from "../../api/incidents";
+import type { RuntimeApi } from "../../runtime/types";
 
 vi.mock("../../hooks/useTenantContext", () => ({
   useTenantContext: () => ({ tenantId: "test-tenant" }),
+}));
+
+vi.mock("../../hooks/useRuntime", () => ({
+  useRuntime: vi.fn(),
 }));
 
 vi.mock("../../lib/timeDisplay", () => ({
@@ -26,7 +31,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   };
 });
 
-const firingRule: alertsApi.AlertRuleItem = {
+import { useRuntime } from "../../hooks/useRuntime";
+
+const firingRule: AlertRuleItem = {
   rule_id: "rule-1",
   name: "High CPU",
   metric_name: "cpu_usage",
@@ -42,7 +49,7 @@ const firingRule: alertsApi.AlertRuleItem = {
   suppressed: false,
 };
 
-const okRule: alertsApi.AlertRuleItem = {
+const okRule: AlertRuleItem = {
   rule_id: "rule-2",
   name: "Low Memory",
   metric_name: "memory_free",
@@ -57,7 +64,7 @@ const okRule: alertsApi.AlertRuleItem = {
   suppressed: false,
 };
 
-const openIncident: incidentsApi.IncidentItem = {
+const openIncident: IncidentItem = {
   incident_id: "inc-1",
   title: "Database overload",
   severity: "critical",
@@ -66,6 +73,13 @@ const openIncident: incidentsApi.IncidentItem = {
   triggered_by_rule_id: "rule-1",
 };
 
+function mockRuntime(alerts: AlertRuleItem[], incidents: IncidentItem[]) {
+  vi.mocked(useRuntime).mockReturnValue({
+    alerts: { list: vi.fn(async () => ({ items: alerts })) },
+    incidents: { list: vi.fn(async () => ({ items: incidents })) },
+  } as unknown as RuntimeApi);
+}
+
 function wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
@@ -73,12 +87,11 @@ function wrapper({ children }: { children: React.ReactNode }) {
 
 describe("ServiceAlertsTab", () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it("shows section headings", async () => {
-    vi.spyOn(alertsApi, "listAlertRules").mockResolvedValue({ items: [] });
-    vi.spyOn(incidentsApi, "listIncidents").mockResolvedValue({ items: [] });
+    mockRuntime([], []);
 
     render(<ServiceAlertsTab />, { wrapper });
 
@@ -87,10 +100,7 @@ describe("ServiceAlertsTab", () => {
   });
 
   it("shows only firing rules, not OK rules", async () => {
-    vi.spyOn(alertsApi, "listAlertRules").mockResolvedValue({
-      items: [firingRule, okRule],
-    });
-    vi.spyOn(incidentsApi, "listIncidents").mockResolvedValue({ items: [] });
+    mockRuntime([firingRule, okRule], []);
 
     render(<ServiceAlertsTab />, { wrapper });
 
@@ -99,10 +109,7 @@ describe("ServiceAlertsTab", () => {
   });
 
   it("shows open incidents with link to detail", async () => {
-    vi.spyOn(alertsApi, "listAlertRules").mockResolvedValue({ items: [] });
-    vi.spyOn(incidentsApi, "listIncidents").mockResolvedValue({
-      items: [openIncident],
-    });
+    mockRuntime([], [openIncident]);
 
     render(<ServiceAlertsTab />, { wrapper });
 
@@ -111,10 +118,7 @@ describe("ServiceAlertsTab", () => {
   });
 
   it("shows no-firing and no-incidents placeholders when empty", async () => {
-    vi.spyOn(alertsApi, "listAlertRules").mockResolvedValue({
-      items: [okRule],
-    });
-    vi.spyOn(incidentsApi, "listIncidents").mockResolvedValue({ items: [] });
+    mockRuntime([okRule], []);
 
     render(<ServiceAlertsTab />, { wrapper });
 

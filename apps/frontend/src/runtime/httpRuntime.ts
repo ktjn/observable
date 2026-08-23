@@ -20,6 +20,9 @@ import {
 } from "../api/services";
 import { listMetrics, getMetricGroupPoints } from "../api/metrics";
 import { listChangeEvents } from "../api/changeEvents";
+import { listAlertRules } from "../api/alerts";
+import { listIncidents } from "../api/incidents";
+import { listDeployments } from "../api/deployments";
 import type { RuntimeApi } from "./types";
 
 /** Delegates to the existing production `fetch` calls with zero behavior change. */
@@ -52,6 +55,15 @@ export const httpRuntime: RuntimeApi = {
   },
   changeEvents: {
     list: listChangeEvents,
+  },
+  alerts: {
+    list: listAlertRules,
+  },
+  incidents: {
+    list: listIncidents,
+  },
+  deployments: {
+    list: listDeployments,
   },
   nlq: {
     execute: submitNlqQuery,

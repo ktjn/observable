@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "@tanstack/react-router";
-import { listDeployments } from "../api/deployments";
-import { ServiceSummary } from "../api/services";
+import type { ServiceSummary } from "../api/services";
 import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
@@ -281,7 +280,7 @@ function ResponseTimeGraphSection({
   const { data: deploymentData } = useQuery({
     queryKey: ["deployments", tenantId, serviceName, fromMs, toMs],
     queryFn: () =>
-      listDeployments(tenantId, {
+      runtime.deployments.list(tenantId, {
         service_name: serviceName,
         start_time: new Date(fromMs).toISOString(),
         end_time: new Date(toMs).toISOString(),
