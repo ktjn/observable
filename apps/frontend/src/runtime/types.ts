@@ -18,6 +18,9 @@ import type {
 } from "../api/services";
 import type { MetricCatalogResponse, MetricPointsResponse, MetricCatalogEntry } from "../api/metrics";
 import type { ListChangeEventsResponse, ListChangeEventsParams } from "../api/changeEvents";
+import type { AlertRuleListResponse } from "../api/alerts";
+import type { IncidentListResponse } from "../api/incidents";
+import type { ListDeploymentsParams, ListDeploymentsResponse } from "../api/deployments";
 
 export interface SearchTracesParams {
   service?: string;
@@ -96,6 +99,15 @@ export interface RuntimeApi {
   };
   changeEvents: {
     list(tenantId: string, params: ListChangeEventsParams): Promise<ListChangeEventsResponse>;
+  };
+  alerts: {
+    list(tenantId: string): Promise<AlertRuleListResponse>;
+  };
+  incidents: {
+    list(tenantId: string, status?: string): Promise<IncidentListResponse>;
+  };
+  deployments: {
+    list(tenantId: string, params: ListDeploymentsParams): Promise<ListDeploymentsResponse>;
   };
   nlq: {
     execute(tenantId: string, request: NlqRequest): Promise<NlqResponse>;

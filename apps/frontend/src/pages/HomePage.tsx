@@ -1,8 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { listAlertRules } from "../api/alerts";
-import { listIncidents } from "../api/incidents";
 import { Badge } from "../components/ui/badge";
 import { DataFreshness } from "../components/ui/data-freshness";
 import { EmptyState } from "../components/ui/empty-state";
@@ -23,12 +21,12 @@ export default function HomePage() {
 
   const { data: alertsData } = useQuery({
     queryKey: ["alert-rules", tenantId],
-    queryFn: () => listAlertRules(tenantId),
+    queryFn: () => runtime.alerts.list(tenantId),
   });
 
   const { data: incidentsData } = useQuery({
     queryKey: ["incidents", tenantId, "open"],
-    queryFn: () => listIncidents(tenantId, "open"),
+    queryFn: () => runtime.incidents.list(tenantId, "open"),
   });
 
   const services = servicesData?.items ?? [];

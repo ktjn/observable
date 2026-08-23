@@ -4,7 +4,14 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { TimeDisplayProvider } from "../lib/timeDisplay";
 import { TenantContextProvider } from "../hooks/useTenantContext";
 import TraceCompare, { compareTracePaths, summarizeTrace } from "./TraceCompare";
-import * as tracesApi from "../api/traces";
+import type { TraceResponse } from "../api/traces";
+import type { RuntimeApi } from "../runtime/types";
+
+vi.mock("../hooks/useRuntime", () => ({
+  useRuntime: vi.fn(),
+}));
+
+import { useRuntime } from "../hooks/useRuntime";
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -49,7 +56,7 @@ function wrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
-const leftTrace: tracesApi.TraceResponse = {
+const leftTrace: TraceResponse = {
   trace_id: "trace-left",
   spans: [
     {
@@ -99,7 +106,7 @@ const leftTrace: tracesApi.TraceResponse = {
   events: [],
 };
 
-const rightTrace: tracesApi.TraceResponse = {
+const rightTrace: TraceResponse = {
   trace_id: "trace-right",
   spans: [
     {
@@ -172,9 +179,13 @@ const rightTrace: tracesApi.TraceResponse = {
 };
 
 beforeEach(() => {
-  vi.spyOn(tracesApi, "getTrace").mockImplementation(async (_tenantId, traceId) =>
-    traceId === "trace-left" ? leftTrace : rightTrace,
-  );
+  vi.mocked(useRuntime).mockReturnValue({
+    traces: {
+      get: vi.fn(async (_tenantId: string, traceId: string) =>
+        traceId === "trace-left" ? leftTrace : rightTrace,
+      ),
+    },
+  } as unknown as RuntimeApi);
 });
 
 test("summarizeTrace and compareTracePaths derive the diff summary", () => {

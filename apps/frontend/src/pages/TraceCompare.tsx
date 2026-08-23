@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { getTrace, type Span, type TraceResponse } from "../api/traces";
+import type { Span, TraceResponse } from "../api/traces";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { useRuntime } from "../hooks/useRuntime";
 import { useTimeDisplay, type TimeFormat } from "../lib/timeDisplay";
 import { formatTimestamp } from "../utils/formatTimestamp";
 import { formatStatusLabel } from "../utils/traceStatus";
@@ -110,6 +111,7 @@ export default function TraceCompare({
   initialRightTraceId = "",
 }: TraceCompareProps) {
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const navigate = useNavigate();
   const { format } = useTimeDisplay();
   const [leftTraceId, setLeftTraceId] = useState(initialLeftTraceId);
@@ -125,12 +127,12 @@ export default function TraceCompare({
 
   const leftQuery = useQuery({
     queryKey: ["trace-compare", tenantId, "left", leftId],
-    queryFn: () => getTrace(tenantId, leftId),
+    queryFn: () => runtime.traces.get(tenantId, leftId),
     enabled: Boolean(leftId),
   });
   const rightQuery = useQuery({
     queryKey: ["trace-compare", tenantId, "right", rightId],
-    queryFn: () => getTrace(tenantId, rightId),
+    queryFn: () => runtime.traces.get(tenantId, rightId),
     enabled: Boolean(rightId),
   });
 

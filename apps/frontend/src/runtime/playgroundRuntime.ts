@@ -19,6 +19,9 @@ import type {
 } from "../api/services";
 import type { MetricCatalogResponse, MetricPointsResponse, MetricCatalogEntry } from "../api/metrics";
 import type { ListChangeEventsResponse, ListChangeEventsParams } from "../api/changeEvents";
+import type { AlertRuleListResponse, AlertRuleItem } from "../api/alerts";
+import type { IncidentListResponse, IncidentItem } from "../api/incidents";
+import type { ListDeploymentsParams, ListDeploymentsResponse, DeploymentMarker } from "../api/deployments";
 import type {
   RuntimeApi,
   TraceHistogramParams,
@@ -207,6 +210,138 @@ const STUB_LOG_FRAME: VisualizationFrame = {
 const dashboardStore = new Map<string, Dashboard>();
 let nextDashboardId = 1;
 let nextPanelId = 1;
+
+/**
+ * Alert-rule / incident / deployment fixtures. Like the dashboards store,
+ * these are control-plane content with no DuckDB table to plan against, so
+ * they are static demo rows shaped exactly like the production API
+ * responses (Phase 5 contract: response shapes match production frontend
+ * types). Timestamps are derived at call time so the rows always look
+ * recent relative to a page load.
+ */
+function alertRulesFixture(): AlertRuleItem[] {
+  const nowIso = new Date().toISOString();
+  const tenMinAgoIso = new Date(Date.now() - 10 * 60_000).toISOString();
+  return [
+    {
+      rule_id: "playground-rule-1",
+      name: "payment error rate > 5%",
+      metric_name: "http.server.errors.rate",
+      operator: "gt",
+      threshold: 5,
+      severity: "critical",
+      silenced: false,
+      state: "active",
+      firing: true,
+      last_fired_at: tenMinAgoIso,
+      notification_channels: [],
+      auto_trigger_incident: true,
+      service_name: "payment",
+      suppressed: false,
+    },
+    {
+      rule_id: "playground-rule-2",
+      name: "checkout p95 latency > 500ms",
+      metric_name: "http.server.duration",
+      operator: "gt",
+      threshold: 500,
+      severity: "warning",
+      silenced: false,
+      state: "ok",
+      firing: false,
+      notification_channels: [],
+      auto_trigger_incident: false,
+      service_name: "checkout",
+      suppressed: false,
+    },
+    {
+      rule_id: "playground-rule-3",
+      name: "web request rate drop",
+      metric_name: "http.server.request.rate",
+      operator: "lt",
+      threshold: 1,
+      severity: "warning",
+      silenced: false,
+      state: "ok",
+      firing: false,
+      last_fired_at: nowIso,
+      notification_channels: [],
+      auto_trigger_incident: false,
+      service_name: "web",
+      suppressed: false,
+    },
+  ];
+}
+
+function incidentsFixture(): IncidentItem[] {
+  const fortyMinAgoIso = new Date(Date.now() - 40 * 60_000).toISOString();
+  return [
+    {
+      incident_id: "playground-incident-1",
+      title: "High error rate on payment",
+      severity: "critical",
+      status: "triggered",
+      triggered_at: fortyMinAgoIso,
+      triggered_by_rule_id: "playground-rule-1",
+    },
+  ];
+}
+
+function deploymentsFixture(params: ListDeploymentsParams): DeploymentMarker[] {
+  const nowMs = Date.now();
+  const all: DeploymentMarker[] = [
+    {
+      deployment_id: "playground-deployment-3",
+      tenant_id: DEMO_TENANT_ID,
+      project_id: null,
+      service_name: "payment",
+      environment: "production",
+      service_version: "2.4.0",
+      status: "in_progress",
+      started_at: new Date(nowMs - 15 * 60_000).toISOString(),
+      finished_at: null,
+      deployed_by: "playground-user",
+      commit_sha: "a1b2c3d",
+      rollback_of: null,
+      metadata: null,
+    },
+    {
+      deployment_id: "playground-deployment-2",
+      tenant_id: DEMO_TENANT_ID,
+      project_id: null,
+      service_name: "payment",
+      environment: "production",
+      service_version: "2.3.1",
+      status: "success",
+      started_at: new Date(nowMs - 26 * 3_600_000).toISOString(),
+      finished_at: new Date(nowMs - 26 * 3_600_000 + 4 * 60_000).toISOString(),
+      deployed_by: "playground-user",
+      commit_sha: "d4e5f6a",
+      rollback_of: null,
+      metadata: null,
+    },
+    {
+      deployment_id: "playground-deployment-1",
+      tenant_id: DEMO_TENANT_ID,
+      project_id: null,
+      service_name: "checkout",
+      environment: "production",
+      service_version: "1.18.0",
+      status: "success",
+      started_at: new Date(nowMs - 50 * 3_600_000).toISOString(),
+      finished_at: new Date(nowMs - 50 * 3_600_000 + 7 * 60_000).toISOString(),
+      deployed_by: "playground-user",
+      commit_sha: "b8c9d0e",
+      rollback_of: null,
+      metadata: null,
+    },
+  ];
+  return all.filter(
+    (d) =>
+      (!params.service_name || d.service_name === params.service_name) &&
+      (!params.environment || d.environment === params.environment),
+  );
+}
 
 function makeDashboardId(): string {
   return `playground-dashboard-${nextDashboardId++}`;
@@ -483,6 +618,24 @@ export const playgroundRuntime: RuntimeApi = {
         limit: params.limit ?? 50,
       });
       return { items: changeEvents };
+    },
+  },
+  alerts: {
+    async list(): Promise<AlertRuleListResponse> {
+      return { items: alertRulesFixture() };
+    },
+  },
+  incidents: {
+    async list(_tenantId: string, status?: string): Promise<IncidentListResponse> {
+      const items = incidentsFixture();
+      return {
+        items: status ? items.filter((i) => i.status === status) : items,
+      };
+    },
+  },
+  deployments: {
+    async list(_tenantId: string, params: ListDeploymentsParams): Promise<ListDeploymentsResponse> {
+      return { items: deploymentsFixture(params) };
     },
   },
   nlq: {
