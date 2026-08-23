@@ -127,6 +127,7 @@ export interface ResponseTimeHistoryBucket {
 type EngineResult =
   | { rows: NlqTraceRow[]; sql: string }
   | { spans: TraceDetailSpan[] }
+  | { logs: NlqLogRow[] }
   | { buckets: TraceHistogramBucket[] }
   | { rows: NlqLogRow[]; sql: string }
   | { buckets: LogHistogramBucket[] }
@@ -142,6 +143,7 @@ type EngineResult =
 type EngineResponse =
   | { type: "nlq-result"; requestId: string; rows: NlqTraceRow[]; sql: string }
   | { type: "trace-detail-result"; requestId: string; spans: TraceDetailSpan[] }
+  | { type: "logs-result"; requestId: string; logs: NlqLogRow[] }
   | { type: "histogram-result"; requestId: string; buckets: TraceHistogramBucket[] }
   | { type: "nlq-log-result"; requestId: string; rows: NlqLogRow[]; sql: string }
   | { type: "log-histogram-result"; requestId: string; buckets: LogHistogramBucket[] }
@@ -175,6 +177,8 @@ function getWorker(): Worker {
       request.resolve({ rows: event.data.rows, sql: event.data.sql });
     } else if (event.data.type === "trace-detail-result") {
       request.resolve({ spans: event.data.spans });
+    } else if (event.data.type === "logs-result") {
+      request.resolve({ logs: event.data.logs });
     } else if (event.data.type === "nlq-log-result") {
       request.resolve({ rows: event.data.rows, sql: event.data.sql });
     } else if (event.data.type === "histogram-result") {
@@ -284,6 +288,64 @@ export function executeLogHistogram(params: {
       reject,
     });
     getWorker().postMessage({ type: "log-histogram", requestId, ...params });
+  });
+}
+
+/**
+ * Log search (correlated-logs / log-list shapes) over the playground's
+ * local `logs` table through the persistent engine worker. Filters are
+ * optional and ANDed; results come back newest-first.
+ */
+export function executeLogsSearch(params: {
+  traceId?: string;
+  service?: string;
+  limit: number;
+}): Promise<{ logs: NlqLogRow[] }> {
+  const requestId = String(nextRequestId++);
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, {
+      resolve: resolve as (r: EngineResult) => void,
+      reject,
+    });
+    getWorker().postMessage({ type: "logs-search", requestId, ...params });
+  });
+}
+
+/**
+ * Surrounding-log context for one log record through the persistent engine
+ * worker: the pivot record plus the nearest records on either side.
+ */
+export function executeLogsContext(params: {
+  logId: string;
+  window?: number;
+}): Promise<{ logs: NlqLogRow[] }> {
+  const requestId = String(nextRequestId++);
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, {
+      resolve: resolve as (r: EngineResult) => void,
+      reject,
+    });
+    getWorker().postMessage({ type: "logs-context", requestId, ...params, window: params.window ?? 25 });
+  });
+}
+
+/**
+ * Live-tail poll over the playground's local `logs` table through the
+ * persistent engine worker: records newer than the caller's cursor.
+ */
+export function executeLogsTail(params: {
+  service?: string;
+  severity?: number;
+  sinceUnixNano?: string;
+  limit: number;
+}): Promise<{ logs: NlqLogRow[] }> {
+  const requestId = String(nextRequestId++);
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, {
+      resolve: resolve as (r: EngineResult) => void,
+      reject,
+    });
+    getWorker().postMessage({ type: "logs-tail", requestId, ...params });
   });
 }
 

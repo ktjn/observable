@@ -1,5 +1,5 @@
 import type { Span, TraceHistogramResponse, TraceListResponse, TraceResponse } from "../api/traces";
-import type { LogRecord, LogHistogramResponse } from "../api/logs";
+import type { LogRecord, LogHistogramResponse, LogListResponse } from "../api/logs";
 import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants";
 import type { NlqRequest, NlqResponse, NlqIr, VisualizationFrame } from "../api/nlq";
 import type {
@@ -26,9 +26,14 @@ import type {
   RuntimeApi,
   TraceHistogramParams,
   LogHistogramParams,
+  LogSearchParams,
+  LogTailParams,
   ServiceSummaryParams,
   TopologyParams,
 } from "./types";
+// Type-only import (erased at compile time, so the Worker-URL concern in the
+// comment below does not apply).
+import type { NlqLogRow } from "../playground/engineClient";
 // Dynamically imported (not a static import): engineClient statically
 // references a Worker URL, which Vite's dep scanner eagerly resolves at
 // import time. A static import here would drag that into every module that
@@ -287,8 +292,7 @@ function incidentsFixture(): IncidentItem[] {
   ];
 }
 
-function deploymentsFixture(params: ListDeploymentsParams): DeploymentMarker[] {
-  const nowMs = Date.now();
+function deploymentsFixture(params: ListDeploymentsParams): DeploymentMarker[] {  const nowMs = Date.now();
   const all: DeploymentMarker[] = [
     {
       deployment_id: "playground-deployment-3",
@@ -464,6 +468,31 @@ function resolveTimeRange(timeRange: NlqIr["time_range"]): NlqIr["time_range"] {
   };
 }
 
+/**
+ * The engine worker returns log timestamps as decimal strings (avoiding JS
+ * Number precision loss at ns scale); the production `LogRecord` wire shape
+ * carries them as numbers, matching what the HTTP API returns. Convert at
+ * the seam so both runtimes satisfy one contract.
+ */
+function nlqRowToLogRecord(row: NlqLogRow): LogRecord {
+  return {
+    tenant_id: row.tenant_id,
+    log_id: row.log_id,
+    timestamp_unix_nano: Number(row.timestamp_unix_nano),
+    observed_timestamp_unix_nano: Number(row.observed_timestamp_unix_nano),
+    severity_number: row.severity_number,
+    severity_text: row.severity_text,
+    body: row.body,
+    trace_id: row.trace_id,
+    span_id: row.span_id,
+    attributes: row.attributes,
+    resource_attributes: row.resource_attributes,
+    service_name: row.service_name,
+    environment: row.environment,
+    host_id: row.host_id,
+  };
+}
+
 export const playgroundRuntime: RuntimeApi = {
   mode: "playground",
   tenants: {
@@ -518,6 +547,30 @@ export const playgroundRuntime: RuntimeApi = {
         return { buckets };
       }
       return { buckets: [{ start_ms: 0, end_ms: 60_000, counts: { "9": 1, "17": 1 } }] };
+    },
+    async search(_tenantId: string, params: LogSearchParams): Promise<LogListResponse> {
+      const { executeLogsSearch } = await import("../playground/engineClient");
+      const { logs } = await executeLogsSearch({
+        traceId: params.trace_id,
+        service: params.service,
+        limit: params.limit ?? 100,
+      });
+      return { logs: logs.map(nlqRowToLogRecord), total: logs.length, facets: {} };
+    },
+    async context(_tenantId: string, logId: string, params?: { window?: number }): Promise<LogListResponse> {
+      const { executeLogsContext } = await import("../playground/engineClient");
+      const { logs } = await executeLogsContext({ logId, window: params?.window });
+      return { logs: logs.map(nlqRowToLogRecord), total: logs.length, facets: {} };
+    },
+    async tail(_tenantId: string, params: LogTailParams): Promise<LogListResponse> {
+      const { executeLogsTail } = await import("../playground/engineClient");
+      const { logs } = await executeLogsTail({
+        service: params.service,
+        severity: params.severity,
+        sinceUnixNano: params.since_unix_nano,
+        limit: params.limit ?? 100,
+      });
+      return { logs: logs.map(nlqRowToLogRecord), total: logs.length, facets: {} };
     },
   },
   services: {

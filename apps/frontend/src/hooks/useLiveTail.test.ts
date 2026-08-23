@@ -1,10 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { appendAndTrim, useLiveTail } from "./useLiveTail";
-import * as logsApi from "../api/logs";
-import type { LogRecord } from "../api/logs";
+import type { LogRecord, LogListResponse } from "../api/logs";
+import type { RuntimeApi } from "../runtime/types";
 
-// ── appendAndTrim ──────────────────────────────────────────────────────────
+vi.mock("./useRuntime", () => ({
+  useRuntime: vi.fn(),
+}));
+
+import { useRuntime } from "./useRuntime";
+
+const tailMock = vi.fn<(tenantId: string, params: {
+  service?: string;
+  severity?: number;
+  since_unix_nano?: string;
+  limit?: number;
+}) => Promise<LogListResponse>>();
 
 describe("appendAndTrim", () => {
   it("keeps last N when combined length exceeds max", () => {
@@ -15,12 +26,10 @@ describe("appendAndTrim", () => {
     expect(appendAndTrim(["a"], ["b", "c"], 5)).toEqual(["a", "b", "c"]);
   });
 
-  it("empty prev — returns last N of next", () => {
+  it("empty prev - returns last N of next", () => {
     expect(appendAndTrim([], ["a", "b", "c"], 2)).toEqual(["b", "c"]);
   });
 });
-
-// ── useLiveTail ────────────────────────────────────────────────────────────
 
 function makeLog(id: string, timestampNano: number): LogRecord {
   return {
@@ -42,16 +51,15 @@ function makeLog(id: string, timestampNano: number): LogRecord {
 describe("useLiveTail", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.spyOn(logsApi, "tailLogs").mockResolvedValue({
-      logs: [],
-      total: 0,
-      facets: {},
-    });
+    tailMock.mockReset();
+    tailMock.mockResolvedValue({ logs: [], total: 0, facets: {} });
+    vi.mocked(useRuntime).mockReturnValue({
+      logs: { tail: tailMock },
+    } as unknown as RuntimeApi);
   });
 
   afterEach(() => {
     vi.useRealTimers();
-    vi.restoreAllMocks();
   });
 
   it("does not fetch when disabled", async () => {
@@ -59,11 +67,11 @@ describe("useLiveTail", () => {
     await act(async () => {
       vi.advanceTimersByTime(10_000);
     });
-    expect(logsApi.tailLogs).not.toHaveBeenCalled();
+    expect(tailMock).not.toHaveBeenCalled();
   });
 
   it("fetches immediately on enable and accumulates rows", async () => {
-    vi.spyOn(logsApi, "tailLogs").mockResolvedValue({
+    tailMock.mockResolvedValue({
       logs: [makeLog("1", 1000), makeLog("2", 2000)],
       total: 2,
       facets: {},
@@ -80,7 +88,7 @@ describe("useLiveTail", () => {
   it("advances cursor to newest timestamp after fetch", async () => {
     const ts1 = Date.now() * 1_000_000 + 1_000_000;
     const ts2 = Date.now() * 1_000_000 + 5_000_000;
-    vi.spyOn(logsApi, "tailLogs").mockResolvedValue({
+    tailMock.mockResolvedValue({
       logs: [makeLog("1", ts1), makeLog("2", ts2)],
       total: 2,
       facets: {},
@@ -91,7 +99,7 @@ describe("useLiveTail", () => {
       vi.advanceTimersByTime(5_000);
       await Promise.resolve();
     });
-    const calls = vi.mocked(logsApi.tailLogs).mock.calls;
+    const calls = tailMock.mock.calls;
     expect(calls[1][1]).toMatchObject({ since_unix_nano: String(ts2) });
   });
 
@@ -100,7 +108,7 @@ describe("useLiveTail", () => {
       Array.from({ length: 300 }, (_, i) =>
         makeLog(String(offset + i), offset + i + 1)
       );
-    vi.spyOn(logsApi, "tailLogs")
+    tailMock
       .mockResolvedValueOnce({ logs: make300(0), total: 300, facets: {} })
       .mockResolvedValue({ logs: make300(300), total: 300, facets: {} });
 
@@ -117,7 +125,7 @@ describe("useLiveTail", () => {
   });
 
   it("resets state when disabled", async () => {
-    vi.spyOn(logsApi, "tailLogs").mockResolvedValue({
+    tailMock.mockResolvedValue({
       logs: [makeLog("1", 1000)],
       total: 1,
       facets: {},
@@ -134,7 +142,7 @@ describe("useLiveTail", () => {
   });
 
   it("surfaces error and keeps accumulator on fetch failure", async () => {
-    vi.spyOn(logsApi, "tailLogs").mockRejectedValue(new Error("network error"));
+    tailMock.mockRejectedValue(new Error("network error"));
     const { result } = renderHook(() =>
       useLiveTail({ tenantId: "t1", enabled: true })
     );

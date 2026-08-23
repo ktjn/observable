@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { getLogContext } from "../api/logs";
 import { Button } from "./ui/button";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { LogList } from "./shared/LogList";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { useRuntime } from "../hooks/useRuntime";
 
 interface Props {
   logId: string;
@@ -12,9 +12,10 @@ interface Props {
 
 export function LogContextView({ logId, onClose }: Props) {
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const { data, isLoading } = useQuery({
     queryKey: ["logs", "context", tenantId, logId],
-    queryFn: () => getLogContext(tenantId, logId),
+    queryFn: () => runtime.logs.context(tenantId, logId),
   });
   const { format } = useTimeDisplay();
 

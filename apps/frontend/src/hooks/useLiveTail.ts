@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { tailLogs } from "../api/logs";
 import type { LogRecord } from "../api/logs";
 import { LIVE_VIEW_REFRESH_INTERVAL_MS } from "./useLiveRefresh";
+import { useRuntime } from "./useRuntime";
 
 const MAX_LIVE_ROWS = 500;
 
@@ -30,6 +30,7 @@ export interface UseLiveTailResult {
 
 export function useLiveTail(opts: UseLiveTailOptions): UseLiveTailResult {
   const { tenantId, service, severityMin, enabled } = opts;
+  const runtime = useRuntime();
   const [logs, setLogs] = useState<LogRecord[]>([]);
   const [error, setError] = useState<Error | null>(null);
   const cursorRef = useRef<string>("");
@@ -46,7 +47,7 @@ export function useLiveTail(opts: UseLiveTailOptions): UseLiveTailResult {
 
     const tick = async () => {
       try {
-        const res = await tailLogs(tenantId, {
+        const res = await runtime.logs.tail(tenantId, {
           service,
           severity: severityMin,
           since_unix_nano: cursorRef.current,

@@ -23,8 +23,7 @@ vi.mock("../playground/engineClient", () => ({
     sql: "-- mocked",
   })),
   executeTraceDetail: vi.fn(async () => ({
-    spans: [
-      {
+    spans: [      {
         span_id: "mock-span-1",
         trace_id: "mock-trace-1",
         parent_span_id: undefined,
@@ -48,6 +47,9 @@ vi.mock("../playground/engineClient", () => ({
       },
     ],
   })),
+  executeLogsSearch: vi.fn(async () => ({ logs: [] })),
+  executeLogsContext: vi.fn(async () => ({ logs: [] })),
+  executeLogsTail: vi.fn(async () => ({ logs: [] })),
   executeTraceHistogram: vi.fn(async () => ({
     buckets: [{ start_ms: 0, end_ms: 60_000, count: 1 }],
   })),
@@ -144,6 +146,23 @@ function runContract(name: string, runtime: RuntimeApi) {
       }
     });
 
+    it("logs.search returns the LogListResponse shape", async () => {
+      const result = await runtime.logs.search(MOCK_TENANT_ID, { trace_id: "trace-1" });
+      expect(Array.isArray(result.logs)).toBe(true);
+      expect(typeof result.total).toBe("number");
+      expect(typeof result.facets).toBe("object");
+    });
+
+    it("logs.context returns the LogListResponse shape", async () => {
+      const result = await runtime.logs.context(MOCK_TENANT_ID, "log-1");
+      expect(Array.isArray(result.logs)).toBe(true);
+    });
+
+    it("logs.tail returns the LogListResponse shape", async () => {
+      const result = await runtime.logs.tail(MOCK_TENANT_ID, { limit: 10 });
+      expect(Array.isArray(result.logs)).toBe(true);
+    });
+
     it("nlq.execute returns a discriminated NlqResponse", async () => {
       const result = await runtime.nlq.execute(MOCK_TENANT_ID, {
         base_ir: { operation: "table", signals: ["traces"], filters: [], time_range: { from: "now-1h", to: "now" } },
@@ -192,8 +211,9 @@ describe("runtime contract", () => {
           spans: [],
           events: [],
           items: [],
-          traces: [],
+          logs: [],
           total: 0,
+          traces: [],
           facets: {},
           buckets: [],
           tenants: [],

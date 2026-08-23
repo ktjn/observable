@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { tailLogs } from "../api/logs";
 import type { LogRecord } from "../api/logs";
 import { Button } from "./ui/button";
 import { formatLogMessage, severityTextClass } from "../utils/logFormatting";
@@ -9,6 +8,7 @@ import { useTimeDisplay } from "../lib/timeDisplay";
 import { QueryInput } from "../features/nlq/QueryInput";
 import { deriveViewFiltersFromIr, type NlqIrLike } from "../features/nlq/queryFilters";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { useRuntime } from "../hooks/useRuntime";
 
 const POLL_INTERVAL_MS = 1000;
 const MAX_LOGS = 200;
@@ -27,12 +27,13 @@ export function LogLiveTail() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const { format } = useTimeDisplay();
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
 
   const cursor = useMemo(() => latestTimestamp(logs), [logs]);
   const { error } = useQuery({
     queryKey: ["logs", "live-tail", tenantId, service || "all", cursor],
     queryFn: async () => {
-      const result = await tailLogs(tenantId, {
+      const result = await runtime.logs.tail(tenantId, {
         service: service || undefined,
         since_unix_nano: cursor,
         limit: 100,

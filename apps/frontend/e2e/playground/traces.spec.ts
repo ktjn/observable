@@ -50,6 +50,11 @@ test("trace detail waterfall renders from the real engine with no backend calls"
   await expect(page.getByText("Waterfall")).toBeVisible();
   await expect(page.locator('[aria-label="Service color legend"]')).toBeVisible();
 
+  // Correlated logs come through runtime.logs.search -> engine worker too;
+  // the generator emits one log per span, so the panel must have rows.
+  const correlatedPanel = page.locator("section", { hasText: "Trace-correlated logs" }).last();
+  await expect(correlatedPanel.getByRole("listitem").first()).toBeVisible({ timeout: 15_000 });
+
   const blockedPrefixes = ["/v1/traces", "/v1/nlq", "/v1/tenants"];
   const backendCalls = requests.filter((path) => blockedPrefixes.some((prefix) => path.startsWith(prefix)));
   expect(backendCalls).toEqual([]);

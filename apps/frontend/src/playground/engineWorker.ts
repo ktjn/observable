@@ -201,6 +201,22 @@ type EngineRequest =
   | { type: "nlq-execute-trace-table"; requestId: string; ir: unknown }
   | { type: "trace-detail"; requestId: string; traceId: string }
   | {
+      type: "logs-search";
+      requestId: string;
+      traceId?: string;
+      service?: string;
+      limit: number;
+    }
+  | { type: "logs-context"; requestId: string; logId: string; window: number }
+  | {
+      type: "logs-tail";
+      requestId: string;
+      service?: string;
+      severity?: number;
+      sinceUnixNano?: string;
+      limit: number;
+    }
+  | {
       type: "trace-histogram";
       requestId: string;
       fromNs: string;
@@ -257,6 +273,7 @@ type EngineRequest =
 type EngineResponse =
   | { type: "nlq-result"; requestId: string; rows: NlqTraceRow[]; sql: string }
   | { type: "trace-detail-result"; requestId: string; spans: TraceDetailSpan[] }
+  | { type: "logs-result"; requestId: string; logs: NlqLogRow[] }
   | { type: "histogram-result"; requestId: string; buckets: TraceHistogramBucket[] }
   | { type: "nlq-log-result"; requestId: string; rows: NlqLogRow[]; sql: string }
   | { type: "log-histogram-result"; requestId: string; buckets: LogHistogramBucket[] }
@@ -593,11 +610,8 @@ async function executeTraceHistogram(
   return buckets;
 }
 
-async function executeLogTable(ir: unknown): Promise<{ rows: NlqLogRow[]; sql: string }> {
-  const { renderLogSearchSql, conn } = await getEngine();
-  const sql = renderLogSearchSql(JSON.stringify(ir));
-  const result = await conn.query(sql);
-  const rows: NlqLogRow[] = result.toArray().map((row) => ({
+function mapLogRows(raw: Record<string, unknown>[]): NlqLogRow[] {
+  return raw.map((row) => ({
     tenant_id: DEMO_TENANT_ID,
     log_id: String(row.log_id),
     timestamp_unix_nano: String(row.timestamp_unix_nano),
@@ -613,7 +627,84 @@ async function executeLogTable(ir: unknown): Promise<{ rows: NlqLogRow[]; sql: s
     attributes: {},
     resource_attributes: {},
   }));
-  return { rows, sql };
+}
+
+const LOG_COLUMNS =
+  "log_id, timestamp_unix_nano, observed_timestamp_unix_nano, severity_number, severity_text, body, trace_id, span_id, service_name, environment, host_id";
+
+async function executeLogTable(ir: unknown): Promise<{ rows: NlqLogRow[]; sql: string }> {
+  const { renderLogSearchSql, conn } = await getEngine();
+  const sql = renderLogSearchSql(JSON.stringify(ir));
+  const result = await conn.query(sql);
+  return { rows: mapLogRows(result.toArray()), sql };
+}
+
+/**
+ * Log search (correlated-logs panel / log list shapes) over the playground's
+ * local `logs` table. Filters are optional and ANDed; results are newest-first.
+ */
+async function executeLogsSearch(
+  traceId: string | undefined,
+  service: string | undefined,
+  limit: number
+): Promise<NlqLogRow[]> {
+  const { conn } = await getEngine();
+  const conditions: string[] = [];
+  if (traceId) conditions.push(`trace_id = '${escapeSqlString(traceId)}'`);
+  if (service) conditions.push(`service_name = '${escapeSqlString(service)}'`);
+  const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
+  const result = await conn.query(
+    `SELECT ${LOG_COLUMNS} FROM logs${where} ORDER BY timestamp_unix_nano DESC LIMIT ${Math.max(1, Math.floor(limit))}`
+  );
+  return mapLogRows(result.toArray());
+}
+
+/**
+ * Surrounding-log context for one log record: the pivot record plus the
+ * `window` records immediately before and after it in timestamp order.
+ */
+async function executeLogsContext(logId: string, window: number): Promise<NlqLogRow[]> {
+  const { conn } = await getEngine();
+  const pivotResult = await conn.query(
+    `SELECT timestamp_unix_nano FROM logs WHERE log_id = '${escapeSqlString(logId)}'`
+  );
+  const pivot = pivotResult.toArray();
+  if (pivot.length === 0) return [];
+  const pivotTs = BigInt(String(pivot[0].timestamp_unix_nano));
+  const half = Math.max(1, Math.floor(window));
+  // Nearest records around the pivot by timestamp ordering (the pivot's
+  // own timestamp is inclusive on the "before" side).
+  const before = await conn.query(
+    `SELECT ${LOG_COLUMNS} FROM logs WHERE timestamp_unix_nano <= ${pivotTs} ORDER BY timestamp_unix_nano DESC LIMIT ${half}`
+  );
+  const after = await conn.query(
+    `SELECT ${LOG_COLUMNS} FROM logs WHERE timestamp_unix_nano > ${pivotTs} ORDER BY timestamp_unix_nano ASC LIMIT ${half}`
+  );
+  return mapLogRows([...before.toArray(), ...after.toArray()]);
+}
+
+/**
+ * Live-tail poll: records newer than the caller's cursor (`sinceUnixNano`),
+ * oldest-first so callers can append in order.
+ */
+async function executeLogsTail(
+  service: string | undefined,
+  severity: number | undefined,
+  sinceUnixNano: string | undefined,
+  limit: number
+): Promise<NlqLogRow[]> {
+  const { conn } = await getEngine();
+  const conditions: string[] = [];
+  if (sinceUnixNano && /^\d+$/.test(sinceUnixNano.trim())) {
+    conditions.push(`timestamp_unix_nano > ${BigInt(sinceUnixNano.trim())}`);
+  }
+  if (service) conditions.push(`service_name = '${escapeSqlString(service)}'`);
+  if (severity !== undefined) conditions.push(`severity_number >= ${Math.floor(severity)}`);
+  const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
+  const result = await conn.query(
+    `SELECT ${LOG_COLUMNS} FROM logs${where} ORDER BY timestamp_unix_nano ASC LIMIT ${Math.max(1, Math.floor(limit))}`
+  );
+  return mapLogRows(result.toArray());
 }
 
 async function executeLogHistogram(
@@ -835,6 +926,18 @@ workerSelf.onmessage = async (event) => {
     } else if (event.data.type === "trace-detail") {
       const spans = await executeTraceDetail(event.data.traceId);
       workerSelf.postMessage({ type: "trace-detail-result", requestId, spans });
+    } else if (event.data.type === "logs-search") {
+      const { traceId, service, limit } = event.data;
+      const logs = await executeLogsSearch(traceId, service, limit);
+      workerSelf.postMessage({ type: "logs-result", requestId, logs });
+    } else if (event.data.type === "logs-context") {
+      const { logId, window: windowParam } = event.data;
+      const logs = await executeLogsContext(logId, windowParam);
+      workerSelf.postMessage({ type: "logs-result", requestId, logs });
+    } else if (event.data.type === "logs-tail") {
+      const { service, severity, sinceUnixNano, limit } = event.data;
+      const logs = await executeLogsTail(service, severity, sinceUnixNano, limit);
+      workerSelf.postMessage({ type: "logs-result", requestId, logs });
     } else if (event.data.type === "trace-histogram") {
       const { fromNs, toNs, bucketCount, service } = event.data;
       const buckets = await executeTraceHistogram(fromNs, toNs, bucketCount, service);

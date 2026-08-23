@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { LogRecord } from "../api/logs";
-import { searchLogs } from "../api/logs";
 import { LogContextView } from "./LogContextView";
 import { LogList } from "./shared/LogList";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { useRuntime } from "../hooks/useRuntime";
 
 interface Props {
   traceId: string;
@@ -16,9 +16,10 @@ export function LogCorrelatedList({ traceId, spanId }: Props) {
   const [focusedLogId, setFocusedLogId] = useState<string | undefined>();
   const { format } = useTimeDisplay();
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const { data, isLoading } = useQuery({
     queryKey: ["logs", tenantId, traceId],
-    queryFn: () => searchLogs(tenantId, { trace_id: traceId }),
+    queryFn: () => runtime.logs.search(tenantId, { trace_id: traceId }),
   });
 
   const logs = filterCorrelatedLogs(data?.logs ?? [], spanId);

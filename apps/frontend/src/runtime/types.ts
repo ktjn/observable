@@ -1,5 +1,8 @@
 import type { TraceHistogramResponse, TraceListResponse, TraceResponse } from "../api/traces";
-import type { LogHistogramResponse } from "../api/logs";
+import type {
+  LogHistogramResponse,
+  LogListResponse,
+} from "../api/logs";
 import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants";
 import type { NlqRequest, NlqResponse } from "../api/nlq";
 import type {
@@ -44,6 +47,22 @@ export interface LogHistogramParams {
   buckets?: number;
 }
 
+export interface LogSearchParams {
+  service?: string;
+  trace_id?: string;
+  span_id?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+}
+
+export interface LogTailParams {
+  service?: string;
+  severity?: number;
+  since_unix_nano?: string;
+  limit?: number;
+}
+
 export interface ServiceSummaryParams {
   environment?: string;
   from?: number;
@@ -75,6 +94,9 @@ export interface RuntimeApi {
   };
   logs: {
     histogram(tenantId: string, params: LogHistogramParams): Promise<LogHistogramResponse>;
+    search(tenantId: string, params: LogSearchParams): Promise<LogListResponse>;
+    context(tenantId: string, logId: string, params?: { window?: number }): Promise<LogListResponse>;
+    tail(tenantId: string, params: LogTailParams): Promise<LogListResponse>;
   };
   services: {
     list(tenantId: string, params: ServiceSummaryParams): Promise<ServiceSummaryResponse>;
