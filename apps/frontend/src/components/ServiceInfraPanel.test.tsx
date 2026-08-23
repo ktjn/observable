@@ -3,7 +3,22 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { ServiceInfraPanel } from "./ServiceInfraPanel";
 import { TenantContextProvider } from "../hooks/useTenantContext";
-import * as infraApi from "../api/infrastructure";
+import type { InfrastructureInventoryResponse } from "../api/infrastructure";
+import type { RuntimeApi } from "../runtime/types";
+
+vi.mock("../hooks/useRuntime", () => ({
+  useRuntime: vi.fn(),
+}));
+
+import { useRuntime } from "../hooks/useRuntime";
+
+const listMock = vi.fn<(params: { service?: string }) => Promise<InfrastructureInventoryResponse>>();
+
+function mockInfra() {
+  vi.mocked(useRuntime).mockReturnValue({
+    infrastructure: { list: listMock, get: vi.fn() },
+  } as unknown as RuntimeApi);
+}
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -16,11 +31,12 @@ function wrapper({ children }: { children: React.ReactNode }) {
 
 describe("ServiceInfraPanel", () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it("renders entity cards with links", async () => {
-    vi.spyOn(infraApi, "listInfrastructure").mockResolvedValue({
+    mockInfra();
+    listMock.mockResolvedValue({
       items: [
         {
           entity_type: "pod",
@@ -56,7 +72,8 @@ describe("ServiceInfraPanel", () => {
   });
 
   it("encodes entity_id in the link href", async () => {
-    vi.spyOn(infraApi, "listInfrastructure").mockResolvedValue({
+    mockInfra();
+    listMock.mockResolvedValue({
       items: [
         {
           entity_type: "pod",
@@ -91,7 +108,8 @@ describe("ServiceInfraPanel", () => {
   });
 
   it("shows empty state when no entities", async () => {
-    vi.spyOn(infraApi, "listInfrastructure").mockResolvedValue({ items: [] });
+    mockInfra();
+    listMock.mockResolvedValue({ items: [] });
 
     render(<ServiceInfraPanel serviceName="checkout" />, { wrapper });
 
@@ -103,7 +121,8 @@ describe("ServiceInfraPanel", () => {
   });
 
   it("shows error state when fetch fails", async () => {
-    vi.spyOn(infraApi, "listInfrastructure").mockRejectedValue(new Error("fail"));
+    mockInfra();
+    listMock.mockRejectedValue(new Error("fail"));
 
     render(<ServiceInfraPanel serviceName="checkout" />, { wrapper });
 
@@ -113,7 +132,8 @@ describe("ServiceInfraPanel", () => {
   });
 
   it("shows cpu and memory when available", async () => {
-    vi.spyOn(infraApi, "listInfrastructure").mockResolvedValue({
+    mockInfra();
+    listMock.mockResolvedValue({
       items: [
         {
           entity_type: "host",

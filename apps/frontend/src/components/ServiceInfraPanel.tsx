@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { listInfrastructure, type InfrastructureEntitySummary } from "../api/infrastructure";
+import type { InfrastructureEntitySummary } from "../api/infrastructure";
 import { Badge, HealthDot } from "./ui/badge";
 import { EmptyState } from "./ui/empty-state";
 import { ErrorState } from "./ui/error-state";
 import { LoadingState } from "./ui/loading-state";
 import { Panel } from "./ui/panel";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { useRuntime } from "../hooks/useRuntime";
 
 interface Props {
   serviceName: string;
@@ -13,9 +14,10 @@ interface Props {
 
 export function ServiceInfraPanel({ serviceName }: Props) {
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["service-infra", tenantId, serviceName],
-    queryFn: () => listInfrastructure(tenantId, { service: serviceName }),
+    queryFn: () => runtime.infrastructure.list(tenantId, { service: serviceName }),
   });
 
   if (isLoading) return <LoadingState>Loading infrastructure…</LoadingState>;

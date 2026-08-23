@@ -40,6 +40,12 @@ import type {
   UpdateSavedViewRequest,
 } from "../api/savedViews";
 import type {
+  InfrastructureDetailResponse,
+  InfrastructureEntitySummary,
+  InfrastructureEntityType,
+  InfrastructureInventoryResponse,
+} from "../api/infrastructure";
+import type {
   RuntimeApi,
   TraceHistogramParams,
   LogHistogramParams,
@@ -360,6 +366,157 @@ function seedSavedViews(): void {
   ]);
 }
 seedSavedViews();
+
+/**
+ * Infrastructure inventory fixtures: a small deterministic entity tree
+ * (host -> cluster -> namespace -> pods -> containers) covering the demo
+ * services, shaped exactly like the production `InfrastructureEntitySummary`.
+ */
+function infrastructureFixture(): InfrastructureEntitySummary[] {
+  const nowNs = Number(NOW_NS());
+  const fiveMinAgo = nowNs - 5 * 60_000_000_000;
+  const base = {
+    environment: "production" as const,
+    health_state: "healthy" as const,
+    last_seen_unix_nano: nowNs,
+  };
+  return [
+    {
+      ...base,
+      entity_type: "host" as const,
+      entity_id: "playground-host-1",
+      display_name: "demo-node-1",
+      parent_id: null,
+      parent_display_name: null,
+      related_services: ["checkout", "payment", "web", "api-gateway"],
+      log_rate_per_minute: 42,
+      error_rate: 0.02,
+      restart_count: 0,
+      cpu_usage: 38,
+      memory_usage: 61,
+      disk_usage: 47,
+      network_io: 1_204
+    },
+    {
+      ...base,
+      entity_type: "cluster" as const,
+      entity_id: "playground-cluster-1",
+      display_name: "demo-cluster",
+      parent_id: "playground-host-1",
+      parent_display_name: "demo-node-1",
+      related_services: ["checkout", "payment"],
+      log_rate_per_minute: 30,
+      error_rate: 0.03,
+      restart_count: 0,
+      cpu_usage: 45,
+      memory_usage: 58,
+      disk_usage: 40,
+      network_io: 980
+    },
+    {
+      ...base,
+      entity_type: "namespace" as const,
+      entity_id: "playground-ns-demo",
+      display_name: "demo",
+      parent_id: "playground-cluster-1",
+      parent_display_name: "demo-cluster",
+      related_services: ["checkout", "payment"],
+      log_rate_per_minute: 25,
+      error_rate: 0.03,
+      restart_count: 1,
+      cpu_usage: 41,
+      memory_usage: 55,
+      disk_usage: 39,
+      network_io: 860
+    },
+    {
+      ...base,
+      entity_type: "pod" as const,
+      entity_id: "playground-pod-checkout",
+      display_name: "checkout-7f9d8b6c5-x2p4k",
+      parent_id: "playground-ns-demo",
+      parent_display_name: "demo",
+      related_services: ["checkout"],
+      log_rate_per_minute: 12,
+      error_rate: 0.01,
+      restart_count: 0,
+      cpu_usage: 33,
+      memory_usage: 48,
+      disk_usage: null,
+      network_io: 310
+    },
+    {
+      ...base,
+      entity_type: "container" as const,
+      entity_id: "playground-container-checkout",
+      display_name: "checkout",
+      parent_id: "playground-pod-checkout",
+      parent_display_name: "checkout-7f9d8b6c5-x2p4k",
+      related_services: ["checkout"],
+      log_rate_per_minute: 11,
+      error_rate: 0.01,
+      restart_count: 0,
+      cpu_usage: 31,
+      memory_usage: 46,
+      disk_usage: null,
+      network_io: 300
+    },
+    {
+      environment: "production" as const,
+      entity_type: "pod" as const,
+      entity_id: "playground-pod-payment",
+      display_name: "payment-6c4d7a9b8-m8wqz",
+      parent_id: "playground-ns-demo",
+      parent_display_name: "demo",
+      related_services: ["payment"],
+      health_state: "breach" as const,
+      last_seen_unix_nano: fiveMinAgo,
+      log_rate_per_minute: 18,
+      error_rate: 0.14,
+      restart_count: 2,
+      cpu_usage: 72,
+      memory_usage: 81,
+      disk_usage: null,
+      network_io: 420
+    },
+    {
+      environment: "production" as const,
+      entity_type: "container" as const,
+      entity_id: "playground-container-payment",
+      display_name: "payment",
+      parent_id: "playground-pod-payment",
+      parent_display_name: "payment-6c4d7a9b8-m8wqz",
+      related_services: ["payment"],
+      health_state: "watch" as const,
+      last_seen_unix_nano: fiveMinAgo,
+      log_rate_per_minute: 17,
+      error_rate: 0.13,
+      restart_count: 2,
+      cpu_usage: 70,
+      memory_usage: 79,
+      disk_usage: null,
+      network_io: 410
+    },
+  ];
+}
+
+function infrastructureDetailFixture(
+  entityType: InfrastructureEntityType,
+  entityId: string
+): InfrastructureDetailResponse | null {
+  const entity = infrastructureFixture().find(
+    (e) => e.entity_type === entityType && e.entity_id === entityId
+  );
+  if (!entity) return null;
+  return {
+    entity,
+    links: {
+      logs: `/logs?service=${encodeURIComponent(entity.related_services[0] ?? "")}`,
+      traces: `/traces?service=${encodeURIComponent(entity.related_services[0] ?? "")}`,
+      metrics: `/metrics?service=${encodeURIComponent(entity.related_services[0] ?? "")}`,
+    },
+  };
+}
 
 const incidentsData: IncidentItem[] = (() => {
   const fortyMinAgoIso = new Date(Date.now() - 40 * 60_000).toISOString();
@@ -979,6 +1136,35 @@ export const playgroundRuntime: RuntimeApi = {
       );
     },
   },
+  infrastructure: {
+    async list(
+      _tenantId: string,
+      params: { service?: string; environment?: string; entity_type?: string }
+    ): Promise<InfrastructureInventoryResponse> {
+      let items = infrastructureFixture();
+      if (params.service) {
+        items = items.filter((e) => e.related_services.includes(params.service!));
+      }
+      if (params.environment) {
+        items = items.filter((e) => e.environment === params.environment);
+      }
+      if (params.entity_type) {
+        items = items.filter((e) => e.entity_type === params.entity_type);
+      }
+      return { items };
+    },
+    async get(
+      _tenantId: string,
+      entityType: InfrastructureEntityType,
+      entityId: string
+    ): Promise<InfrastructureDetailResponse> {
+      const detail = infrastructureDetailFixture(entityType, entityId);
+      if (!detail) {
+        throw new Error(`Query failed: 404`);
+      }
+      return detail;
+    },
+  },
   deployments: {
     async list(_tenantId: string, params: ListDeploymentsParams): Promise<ListDeploymentsResponse> {
       return { items: deploymentsFixture(params) };
@@ -1046,6 +1232,17 @@ export const playgroundRuntime: RuntimeApi = {
       // *shape* is correct even when the content is static.
       if (!hasFreeTextQuestion && ir?.signals?.length === 1 && ir.signals[0] === "logs") {
         return { type: "frame", frame: STUB_LOG_FRAME };
+      }
+      if (!hasFreeTextQuestion && ir?.operation === "inventory") {
+        return {
+          type: "frame",
+          frame: {
+            ...STUB_NLQ_FRAME,
+            data: infrastructureFixture() as unknown as Record<string, unknown>[],
+            nlq_ir: ir,
+            source_sql: "-- playground infrastructure fixtures, not executed",
+          },
+        };
       }
       return { type: "frame", frame: STUB_NLQ_FRAME };
     },

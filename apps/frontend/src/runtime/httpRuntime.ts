@@ -44,6 +44,7 @@ import {
   revokeSavedViewGrant,
   updateSavedView,
 } from "../api/savedViews";
+import { getInfrastructureDetail, listInfrastructure } from "../api/infrastructure";
 import type { RuntimeApi } from "./types";
 
 /** Delegates to the existing production `fetch` calls with zero behavior change. */
@@ -108,6 +109,15 @@ export const httpRuntime: RuntimeApi = {
     listGrants: fetchSavedViewGrants,
     addGrant: addSavedViewGrant,
     revokeGrant: revokeSavedViewGrant,
+  },
+  infrastructure: {
+    list: (tenantId, params) =>
+      listInfrastructure(tenantId, {
+        ...(params.service ? { service: params.service } : {}),
+        ...(params.environment ? { environment: params.environment } : {}),
+        ...(params.entity_type ? { entity_type: params.entity_type } : {}),
+      }),
+    get: getInfrastructureDetail,
   },
   deployments: {
     list: listDeployments,
