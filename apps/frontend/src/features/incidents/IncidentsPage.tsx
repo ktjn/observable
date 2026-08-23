@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { listIncidents, type IncidentItem } from "../../api/incidents";
+import type { IncidentItem } from "../../api/incidents";
 import { Badge } from "../../components/ui/badge";
 import { EmptyState } from "../../components/ui/empty-state";
 import { LoadingState } from "../../components/ui/loading-state";
@@ -11,6 +11,7 @@ import { CopyButton } from "../../components/ui/copy-button";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import { useTimeDisplay } from "../../lib/timeDisplay";
 import { formatTimestamp, isoToNs } from "../../utils/formatTimestamp";
+import { useRuntime } from "../../hooks/useRuntime";
 
 type StatusFilter = "" | "triggered" | "acknowledged" | "resolved";
 
@@ -33,12 +34,13 @@ function statusColor(status: string): "bad" | "warn" | "good" | "neutral" {
 
 export function IncidentsPage() {
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const { format } = useTimeDisplay();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["incidents", tenantId],
-    queryFn: () => listIncidents(tenantId),
+    queryFn: () => runtime.incidents.list(tenantId),
   });
 
   const items = data?.items ?? [];

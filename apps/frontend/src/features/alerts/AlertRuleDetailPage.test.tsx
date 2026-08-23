@@ -1,11 +1,16 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, test, vi, beforeEach } from "vitest";
-import * as alertsApi from "../../api/alerts";
+import type { AlertRuleDetailResponse } from "../../api/alerts";
 import { AlertRuleDetailPage } from "./AlertRuleDetailPage";
+import type { RuntimeApi } from "../../runtime/types";
 
 vi.mock("../../hooks/useTenantContext", () => ({
   useTenantContext: () => ({ tenantId: "test-tenant" }),
+}));
+
+vi.mock("../../hooks/useRuntime", () => ({
+  useRuntime: vi.fn(),
 }));
 
 vi.mock("../../lib/timeDisplay", () => ({
@@ -20,7 +25,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   };
 });
 
-const sampleRule: alertsApi.AlertRuleDetailResponse = {
+import { useRuntime } from "../../hooks/useRuntime";
+
+const sampleRule: AlertRuleDetailResponse = {
   rule_id: "rule-1",
   name: "High CPU Alert",
   severity: "critical",
@@ -46,6 +53,12 @@ const sampleRule: alertsApi.AlertRuleDetailResponse = {
   runbook_url: null,
 };
 
+function mockRule(rule: AlertRuleDetailResponse) {
+  vi.mocked(useRuntime).mockReturnValue({
+    alerts: { get: vi.fn(async () => rule), setRunbook: vi.fn(async () => {}) },
+  } as unknown as RuntimeApi);
+}
+
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -56,11 +69,11 @@ function renderPage() {
 }
 
 beforeEach(() => {
-  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 test("renders rule name and severity", async () => {
-  vi.spyOn(alertsApi, "getAlertRule").mockResolvedValue(sampleRule);
+  mockRule(sampleRule);
   renderPage();
   await waitFor(() => screen.getByRole("heading", { level: 1, name: "High CPU Alert" }));
   expect(screen.getByText("critical")).toBeInTheDocument();
@@ -68,13 +81,13 @@ test("renders rule name and severity", async () => {
 });
 
 test("renders condition summary for threshold rule", async () => {
-  vi.spyOn(alertsApi, "getAlertRule").mockResolvedValue(sampleRule);
+  mockRule(sampleRule);
   renderPage();
   await waitFor(() => screen.getByText("cpu_usage > 90"));
 });
 
 test("renders firings table with correct row count", async () => {
-  vi.spyOn(alertsApi, "getAlertRule").mockResolvedValue(sampleRule);
+  mockRule(sampleRule);
   renderPage();
   await waitFor(() => screen.getByRole("table", { name: "Firing history" }));
   // 1 header row + 2 data rows
@@ -82,13 +95,13 @@ test("renders firings table with correct row count", async () => {
 });
 
 test("renders empty state when no firings", async () => {
-  vi.spyOn(alertsApi, "getAlertRule").mockResolvedValue({ ...sampleRule, firings: [] });
+  mockRule({ ...sampleRule, firings: [] });
   renderPage();
   await waitFor(() => screen.getByText("No firings recorded."));
 });
 
 test("renders runbook URL as a link when present", async () => {
-  vi.spyOn(alertsApi, "getAlertRule").mockResolvedValue({
+  mockRule({
     ...sampleRule,
     runbook_url: "https://runbooks.example.com/high-cpu",
   });
@@ -102,7 +115,7 @@ test("renders runbook URL as a link when present", async () => {
 });
 
 test("renders dash when runbook URL is null", async () => {
-  vi.spyOn(alertsApi, "getAlertRule").mockResolvedValue({
+  mockRule({
     ...sampleRule,
     runbook_url: null,
   });

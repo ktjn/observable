@@ -20,9 +20,21 @@ import {
 } from "../api/services";
 import { listMetrics, getMetricGroupPoints } from "../api/metrics";
 import { listChangeEvents } from "../api/changeEvents";
-import { listAlertRules } from "../api/alerts";
-import { listIncidents } from "../api/incidents";
+import {
+  listAlertRules,
+  createAlertRule,
+  silenceAlertRule,
+  getAlertRule,
+  setAlertRuleRunbook,
+} from "../api/alerts";
+import { listIncidents, getIncident } from "../api/incidents";
 import { listDeployments } from "../api/deployments";
+import { listSlos, createSlo } from "../api/slos";
+import {
+  listNotificationChannels,
+  createNotificationChannel,
+  deleteNotificationChannel,
+} from "../api/notifications";
 import type { RuntimeApi } from "./types";
 
 /** Delegates to the existing production `fetch` calls with zero behavior change. */
@@ -61,9 +73,23 @@ export const httpRuntime: RuntimeApi = {
   },
   alerts: {
     list: listAlertRules,
+    get: getAlertRule,
+    create: createAlertRule,
+    silence: silenceAlertRule,
+    setRunbook: setAlertRuleRunbook,
   },
   incidents: {
     list: listIncidents,
+    get: getIncident,
+  },
+  slos: {
+    list: listSlos,
+    create: createSlo,
+  },
+  notificationChannels: {
+    list: listNotificationChannels,
+    create: createNotificationChannel,
+    delete: deleteNotificationChannel,
   },
   deployments: {
     list: listDeployments,

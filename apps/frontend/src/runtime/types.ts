@@ -21,9 +21,11 @@ import type {
 } from "../api/services";
 import type { MetricCatalogResponse, MetricPointsResponse, MetricCatalogEntry } from "../api/metrics";
 import type { ListChangeEventsResponse, ListChangeEventsParams } from "../api/changeEvents";
-import type { AlertRuleListResponse } from "../api/alerts";
-import type { IncidentListResponse } from "../api/incidents";
+import type { AlertRuleListResponse, AlertRuleDetailResponse, CreateRuleRequest, CreateRuleResponse } from "../api/alerts";
+import type { IncidentDetailResponse, IncidentListResponse } from "../api/incidents";
 import type { ListDeploymentsParams, ListDeploymentsResponse } from "../api/deployments";
+import type { CreateSloRequest, SloDefinitionItem, SloListResponse } from "../api/slos";
+import type { CreateChannelRequest, NotificationChannelItem } from "../api/notifications";
 
 export interface SearchTracesParams {
   service?: string;
@@ -124,9 +126,23 @@ export interface RuntimeApi {
   };
   alerts: {
     list(tenantId: string): Promise<AlertRuleListResponse>;
+    get(tenantId: string, ruleId: string): Promise<AlertRuleDetailResponse>;
+    create(tenantId: string, req: CreateRuleRequest): Promise<CreateRuleResponse>;
+    silence(tenantId: string, ruleId: string, silenced: boolean): Promise<void>;
+    setRunbook(tenantId: string, ruleId: string, runbookUrl: string | null): Promise<void>;
   };
   incidents: {
     list(tenantId: string, status?: string): Promise<IncidentListResponse>;
+    get(tenantId: string, incidentId: string): Promise<IncidentDetailResponse>;
+  };
+  slos: {
+    list(tenantId: string): Promise<SloListResponse>;
+    create(tenantId: string, req: CreateSloRequest): Promise<SloDefinitionItem>;
+  };
+  notificationChannels: {
+    list(tenantId: string): Promise<NotificationChannelItem[]>;
+    create(tenantId: string, req: CreateChannelRequest): Promise<NotificationChannelItem>;
+    delete(tenantId: string, channelId: string): Promise<void>;
   };
   deployments: {
     list(tenantId: string, params: ListDeploymentsParams): Promise<ListDeploymentsResponse>;

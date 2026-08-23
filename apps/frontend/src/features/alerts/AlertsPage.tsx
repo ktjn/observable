@@ -1,21 +1,15 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  listAlertRules,
-  createAlertRule,
-  silenceAlertRule,
-  type AlertRuleItem,
-  type CreateRuleRequest,
-  type CreateRuleResponse,
+import type {
+  AlertRuleItem,
+  CreateRuleRequest,
+  CreateRuleResponse,
 } from "../../api/alerts";
-import {
-  createSlo,
-  listSlos,
-  type CreateSloRequest,
-  type SloDefinitionItem,
+import type {
+  CreateSloRequest,
+  SloDefinitionItem,
 } from "../../api/slos";
 import {
-  listNotificationChannels,
   type NotificationChannelItem,
 } from "../../api/notifications";
 import { Button } from "../../components/ui/button";
@@ -29,11 +23,13 @@ import { Toolbar } from "../../components/ui/toolbar";
 import { Tabs } from "../../components/ui/tabs";
 import { CopyableText } from "../../components/ui/copy-button";
 import { useTenantContext } from "../../hooks/useTenantContext";
+import { useRuntime } from "../../hooks/useRuntime";
 import { NotificationChannelsList } from "./NotificationChannelsList";
 
 export function AlertsPage() {
   const queryClient = useQueryClient();
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const [ruleFilter, setRuleFilter] = useState<"all" | "firing" | "silenced" | "suppressed">("all");
   const [isCreating, setIsCreating] = useState(false);
   const [formName, setFormName] = useState("");
@@ -59,27 +55,27 @@ export function AlertsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["alert-rules", tenantId],
-    queryFn: () => listAlertRules(tenantId),
+    queryFn: () => runtime.alerts.list(tenantId),
   });
 
   const { data: sloData, isLoading: isLoadingSlos } = useQuery({
     queryKey: ["slos", tenantId],
-    queryFn: () => listSlos(tenantId),
+    queryFn: () => runtime.slos.list(tenantId),
   });
 
   const { data: channelsData } = useQuery({
     queryKey: ["notification-channels", tenantId],
-    queryFn: () => listNotificationChannels(tenantId),
+    queryFn: () => runtime.notificationChannels.list(tenantId),
   });
 
   const silenceMutation = useMutation({
     mutationFn: ({ ruleId, silenced }: { ruleId: string; silenced: boolean }) =>
-      silenceAlertRule(tenantId, ruleId, silenced),
+      runtime.alerts.silence(tenantId, ruleId, silenced),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alert-rules", tenantId] }),
   });
 
   const createMutation = useMutation<CreateRuleResponse, Error, CreateRuleRequest>({
-    mutationFn: (req: CreateRuleRequest) => createAlertRule(tenantId, req),
+    mutationFn: (req: CreateRuleRequest) => runtime.alerts.create(tenantId, req),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["alert-rules", tenantId] });
       setIsCreating(false);
@@ -102,7 +98,7 @@ export function AlertsPage() {
   });
 
   const createSloMutation = useMutation({
-    mutationFn: (req: CreateSloRequest) => createSlo(tenantId, req),
+    mutationFn: (req: CreateSloRequest) => runtime.slos.create(tenantId, req),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["slos", tenantId] });
       setIsCreatingSlo(false);

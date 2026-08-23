@@ -189,6 +189,44 @@ function runContract(name: string, runtime: RuntimeApi) {
       expect(Array.isArray(result.items)).toBe(true);
     });
 
+    it("alerts.get returns the AlertRuleDetailResponse shape", async () => {
+      const result = await runtime.alerts.get(MOCK_TENANT_ID, "playground-rule-1");
+      expect(typeof result.rule_id).toBe("string");
+      expect(Array.isArray(result.firings)).toBe(true);
+    });
+
+    it("alerts.create returns a CreateRuleResponse shape", async () => {
+      const result = await runtime.alerts.create(MOCK_TENANT_ID, {
+        name: "contract rule",
+        metric_name: "cpu",
+        operator: "gt",
+        threshold: 90,
+      });
+      expect(typeof result.rule_id).toBe("string");
+    });
+
+    it("alerts.silence resolves without error", async () => {
+      await expect(
+        runtime.alerts.silence(MOCK_TENANT_ID, "playground-rule-1", true)
+      ).resolves.toBeUndefined();
+    });
+
+    it("incidents.get returns the IncidentDetailResponse shape", async () => {
+      const result = await runtime.incidents.get(MOCK_TENANT_ID, "playground-incident-1");
+      expect(typeof result.incident_id).toBe("string");
+      expect(Array.isArray(result.timeline)).toBe(true);
+    });
+
+    it("slos.list returns the SloListResponse shape", async () => {
+      const result = await runtime.slos.list(MOCK_TENANT_ID);
+      expect(Array.isArray(result.items)).toBe(true);
+    });
+
+    it("notificationChannels.list resolves with a defined result", async () => {
+      const result = await runtime.notificationChannels.list(MOCK_TENANT_ID);
+      expect(result).toBeDefined();
+    });
+
     it("dashboards.create returns a Dashboard shape", async () => {
       const result = await runtime.dashboards.create(MOCK_TENANT_ID, {
         name: "contract-test dashboard",
@@ -215,6 +253,35 @@ describe("runtime contract", () => {
           total: 0,
           traces: [],
           facets: {},
+          rule_id: "rule-1",
+          firings: [],
+          condition: {},
+          name: "rule",
+          severity: "warning",
+          silenced: false,
+          firing: false,
+          incident_id: "incident-1",
+          title: "incident",
+          dedup_key: "dedup",
+          triggered_at: "2026-01-01T00:00:00Z",
+          resolved_at: null,
+          triggered_by_rule_id: null,
+          runbook_url: null,
+          rule_name: null,
+          timeline: [],
+          impacted_service: null,
+          slo_id: "slo-1",
+          service_name: "checkout",
+          environment: "production",
+          sli_type: "availability",
+          target: 99.9,
+          window_days: 30,
+          burn_rate_fast_threshold: 14.4,
+          burn_rate_slow_threshold: 6,
+          description: "",
+          created_at: new Date(0).toISOString(),
+          updated_at: new Date(0).toISOString(),
+          channel_id: "chan-1",
           buckets: [],
           tenants: [],
           environments: [],
@@ -242,10 +309,8 @@ describe("runtime contract", () => {
             approximation_statement: "",
           },
           dashboard_id: "http-dashboard-1",
-          name: "contract-test dashboard",
           visibility: "private",
           panels: [],
-          created_at: new Date(0).toISOString(),
         }),
       })
     );
