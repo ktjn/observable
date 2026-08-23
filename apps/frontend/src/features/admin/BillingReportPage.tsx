@@ -1,6 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { listEnvironments, listTenants } from "../../api/tenants";
-import { getTenantUsageReport } from "../../api/usage";
 import { Badge } from "../../components/ui/badge";
 import { MetricCard } from "../../components/ui/metric-card";
 import { LoadingState } from "../../components/ui/loading-state";
@@ -9,6 +7,7 @@ import { TablePanel } from "../../components/ui/table-panel";
 import { CopyButton, CopyableText } from "../../components/ui/copy-button";
 import { useAuth } from "../../hooks/useAuth";
 import { useTenantContext } from "../../hooks/useTenantContext";
+import { useRuntime } from "../../hooks/useRuntime";
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
 import { useTimeDisplay } from "../../lib/timeDisplay";
 import { AdminSurfaceNav } from "./AdminSurfaceNav";
@@ -16,6 +15,7 @@ import { countTone, formatInterval, roleLabel, roleTone } from "./admin-utils";
 
 export function BillingReportPage() {
   const { tenantId, tenantName, environment } = useTenantContext();
+  const runtime = useRuntime();
   const { fromMs, toMs } = useGlobalDateRange();
   const { format } = useTimeDisplay();
 
@@ -23,13 +23,13 @@ export function BillingReportPage() {
 
   const { data: tenantsData } = useQuery({
     queryKey: ["tenants"],
-    queryFn: listTenants,
+    queryFn: () => runtime.tenants.list(),
     retry: false,
   });
 
   const { data: environmentsData } = useQuery({
     queryKey: ["environments", tenantId],
-    queryFn: () => listEnvironments(tenantId),
+    queryFn: () => runtime.tenants.listEnvironments(tenantId),
     enabled: !!tenantId,
     retry: false,
   });
@@ -42,7 +42,7 @@ export function BillingReportPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["tenant-usage-report", usageTenantId, fromMs, toMs],
-    queryFn: () => getTenantUsageReport(usageTenantId, { from: fromMs, to: toMs }),
+    queryFn: () => runtime.usage.report(usageTenantId, { from: fromMs, to: toMs }),
     enabled: !!meData,
   });
 

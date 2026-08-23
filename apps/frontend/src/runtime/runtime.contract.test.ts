@@ -262,6 +262,49 @@ function runContract(name: string, runtime: RuntimeApi) {
       expect(typeof result.links.logs).toBe("string");
     });
 
+    it("setup.getFirstSignalStatus resolves with a defined result", async () => {
+      const result = await runtime.setup.getFirstSignalStatus(MOCK_TENANT_ID);
+      expect(result).toBeDefined();
+    });
+
+    it("setup.getConfig resolves with a defined result", async () => {
+      const result = await runtime.setup.getConfig(MOCK_TENANT_ID);
+      expect(result).toBeDefined();
+    });
+
+    it("setup.saveLlmConfig resolves without error", async () => {
+      await expect(
+        runtime.setup.saveLlmConfig(MOCK_TENANT_ID, { model: "m" })
+      ).resolves.toBeUndefined();
+    });
+
+    it("setup.fetchAvailableModels resolves with an LlmModelsResult shape", async () => {
+      const result = await runtime.setup.fetchAvailableModels(MOCK_TENANT_ID);
+      expect(typeof result.ok).toBe("boolean");
+      expect(Array.isArray(result.models)).toBe(true);
+    });
+
+    it("tokens.list returns the TokenListResponse shape", async () => {
+      const result = await runtime.tokens.list(MOCK_TENANT_ID);
+      expect(Array.isArray(result.tokens)).toBe(true);
+    });
+
+    it("members.list returns the MemberListResponse shape", async () => {
+      const result = await runtime.members.list(MOCK_TENANT_ID);
+      expect(Array.isArray(result.members)).toBe(true);
+    });
+
+    it("usage.report resolves with a defined result", async () => {
+      const result = await runtime.usage.report(MOCK_TENANT_ID, {});
+      expect(result).toBeDefined();
+    });
+
+    it("auth.me returns the MeResponse shape", async () => {
+      const result = await runtime.auth.me();
+      expect(typeof result.user_id).toBe("string");
+      expect(Array.isArray(result.tenants)).toBe(true);
+    });
+
     it("dashboards.create returns a Dashboard shape", async () => {
       const result = await runtime.dashboards.create(MOCK_TENANT_ID, {
         name: "contract-test dashboard",
@@ -343,6 +386,16 @@ describe("runtime contract", () => {
             network_io: null,
           },
           links: { logs: "/logs", traces: "/traces", metrics: "/metrics" },
+          llm_key_configured: false,
+          llm_url: null,
+          llm_model: null,
+          llm_provider: "remote",
+          webllm_model: null,
+          ok: false,
+          models: [],
+          tokens: [],
+          members: [],
+          user_id: "user-1",
           type: "frame",
           frame: {
             frame_type: "table",

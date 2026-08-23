@@ -1,5 +1,5 @@
 import { Button } from "../components/ui/button"
-import { initiateLogin } from "../api/auth";
+import { useRuntime } from "../hooks/useRuntime";
 import { useSearch } from "@tanstack/react-router";
 import { useEffect } from "react";
 
@@ -12,14 +12,15 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 export default function LoginPage() {
+  const runtime = useRuntime();
   const { error } = useSearch({ from: "/login" });
   const errorMessage = error ? (ERROR_MESSAGES[error] ?? "Sign-in failed. Please try again.") : null;
 
   useEffect(() => {
     if (!error) {
-      initiateLogin();
+      runtime.auth.login();
     }
-  }, [error]);
+  }, [error, runtime]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-8 gap-6">
@@ -33,7 +34,7 @@ export default function LoginPage() {
         </div>
       )}
       <Button
-        onClick={initiateLogin}
+        onClick={() => runtime.auth.login()}
         className="px-8 h-12"
       >
         Sign in

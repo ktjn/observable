@@ -11,13 +11,18 @@ vi.mock("../../api/nlq", () => ({
   completeNlqQuery: vi.fn(),
 }));
 
-vi.mock("../../api/setup", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../api/setup")>();
-  return {
-    ...actual,
-    getConfig: vi.fn(),
-  };
-});
+const { mockGetConfig } = vi.hoisted(() => ({ mockGetConfig: vi.fn() }));
+
+vi.mock("../../hooks/useRuntime", () => ({
+  useRuntime: () => ({
+    setup: {
+      getConfig: mockGetConfig,
+      saveLlmConfig: vi.fn(),
+      fetchAvailableModels: vi.fn(),
+      getFirstSignalStatus: vi.fn(),
+    },
+  }),
+}));
 
 vi.mock("../../lib/webllm/webllmEngine", () => ({
   checkWebGpuSupport: vi.fn(),
@@ -29,12 +34,10 @@ vi.mock("../../hooks/useGlobalDateRange", () => ({
 }));
 
 import { submitNlqQuery, prepareNlqQuery, completeNlqQuery } from "../../api/nlq";
-import { getConfig } from "../../api/setup";
 import { checkWebGpuSupport, getOrCreateEngine } from "../../lib/webllm/webllmEngine";
 const mockSubmit = vi.mocked(submitNlqQuery);
 const mockPrepare = vi.mocked(prepareNlqQuery);
 const mockComplete = vi.mocked(completeNlqQuery);
-const mockGetConfig = vi.mocked(getConfig);
 const mockCheckWebGpuSupport = vi.mocked(checkWebGpuSupport);
 const mockGetOrCreateEngine = vi.mocked(getOrCreateEngine);
 

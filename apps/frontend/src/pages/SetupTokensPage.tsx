@@ -4,15 +4,17 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Panel } from "../components/ui/panel";
 import { CopyButton } from "../components/ui/copy-button";
-import { createToken, deleteToken, listTokens, renewToken, restoreToken, revokeToken, type TokenRecord, type CreateTokenRequest } from "../api/tokens";
+import type { TokenRecord, CreateTokenRequest } from "../api/tokens";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { useRuntime } from "../hooks/useRuntime";
 
 export default function SetupTokensPage() {
   const qc = useQueryClient();
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const { data, isLoading } = useQuery({
     queryKey: ["tokens", tenantId],
-    queryFn: () => listTokens(tenantId),
+    queryFn: () => runtime.tokens.list(tenantId),
   });
 
   const [showForm, setShowForm] = useState(false);
@@ -27,7 +29,7 @@ export default function SetupTokensPage() {
   ).sort();
 
   const createMutation = useMutation({
-    mutationFn: (body: CreateTokenRequest) => createToken(tenantId, body),
+    mutationFn: (body: CreateTokenRequest) => runtime.tokens.create(tenantId, body),
     onSuccess: (res) => {
       void qc.invalidateQueries({ queryKey: ["tokens", tenantId] });
       setNewPlaintext(res.plaintext);
@@ -40,12 +42,12 @@ export default function SetupTokensPage() {
   });
 
   const revokeMutation = useMutation({
-    mutationFn: (id: string) => revokeToken(tenantId, id),
+    mutationFn: (id: string) => runtime.tokens.revoke(tenantId, id),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["tokens", tenantId] }),
   });
 
   const renewMutation = useMutation({
-    mutationFn: (id: string) => renewToken(tenantId, id),
+    mutationFn: (id: string) => runtime.tokens.renew(tenantId, id),
     onSuccess: (res) => {
       void qc.invalidateQueries({ queryKey: ["tokens", tenantId] });
       setNewPlaintext(res.plaintext);
@@ -53,12 +55,12 @@ export default function SetupTokensPage() {
   });
 
   const restoreMutation = useMutation({
-    mutationFn: (id: string) => restoreToken(tenantId, id),
+    mutationFn: (id: string) => runtime.tokens.restore(tenantId, id),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["tokens", tenantId] }),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteToken(tenantId, id),
+    mutationFn: (id: string) => runtime.tokens.delete(tenantId, id),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["tokens", tenantId] }),
   });
 

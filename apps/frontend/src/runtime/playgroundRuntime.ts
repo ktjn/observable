@@ -46,6 +46,20 @@ import type {
   InfrastructureInventoryResponse,
 } from "../api/infrastructure";
 import type {
+  FirstSignalStatus,
+  LlmModelsResult,
+  PlatformConfig,
+  SaveLlmConfigParams,
+} from "../api/setup";
+import type {
+  CreateTokenRequest,
+  CreateTokenResponse,
+  TokenListResponse,
+} from "../api/tokens";
+import type { MemberListResponse, MemberRecord, TenantRole } from "../api/admin-members";
+import type { TenantUsageReportResponse } from "../api/usage";
+import type { MeResponse } from "../api/auth";
+import type {
   RuntimeApi,
   TraceHistogramParams,
   LogHistogramParams,
@@ -517,6 +531,70 @@ function infrastructureDetailFixture(
     },
   };
 }
+
+/**
+ * Control-plane fixtures. The playground has no backend to persist these,
+ * so they are in-memory stores with demo seeds — mutations work for the
+ * page's lifetime, like dashboards.
+ */
+const platformConfig: PlatformConfig = {
+  llm_key_configured: false,
+  llm_url: null,
+  llm_model: null,
+  llm_provider: "remote",
+  webllm_model: null,
+};
+
+const tokenStore = new Map<string, TokenListResponse["tokens"][number]>();
+let nextTokenId = 1;
+
+function seedTokens(): void {
+  const token: TokenListResponse["tokens"][number] = {
+    id: "playground-token-1",
+    name: "demo ingest token",
+    tenant_name: "observable",
+    environment: "production",
+    created_at: new Date(Date.now() - 3_600_000).toISOString(),
+    revoked: false,
+  };
+  tokenStore.set(token.id, token);
+}
+seedTokens();
+
+const memberStore: MemberRecord[] = [
+  {
+    user_id: "playground-user",
+    email: "playground@local",
+    name: "Playground User",
+    role: "tenant_admin",
+    joined_at: new Date(Date.now() - 7 * 86_400_000).toISOString(),
+  },
+];
+
+function usageReportFixture(params: { from?: number; to?: number }): TenantUsageReportResponse {
+  const toMs = params.to ?? Date.now();
+  const fromMs = params.from ?? toMs - 3_600_000;
+  return {
+    tenant_id: DEMO_TENANT_ID,
+    from: new Date(fromMs).toISOString(),
+    to: new Date(toMs).toISOString(),
+    telemetry_summary: { spans: 240, logs: 40, metric_points: 720, metric_series_created: 12 },
+    control_plane_summary: {
+      query_reads: 36,
+      query_rows: 1_842,
+      credential_checks: 4,
+      credential_allows: 4,
+      credential_denies: 0,
+    },
+    estimated_cost_index: 512,
+  };
+}
+
+const PLAYGROUND_ME: MeResponse = {
+  user_id: "playground-user",
+  email: "playground@local",
+  tenants: [{ tenant_id: DEMO_TENANT_ID, role: "admin" }],
+};
 
 const incidentsData: IncidentItem[] = (() => {
   const fortyMinAgoIso = new Date(Date.now() - 40 * 60_000).toISOString();
@@ -1164,6 +1242,125 @@ export const playgroundRuntime: RuntimeApi = {
       }
       return detail;
     },
+  },
+  setup: {
+    async getFirstSignalStatus(_tenantId: string): Promise<FirstSignalStatus> {
+      // The demo dataset is generated at engine init, so the first signal
+      // has always "arrived".
+      return { state: "detected", traces: 40, logs: 40, metrics: 720 };
+    },
+    async getConfig(): Promise<PlatformConfig> {
+      return platformConfig;
+    },
+    async saveLlmConfig(_tenantId: string, params: SaveLlmConfigParams): Promise<void> {
+      if (params.apiKey !== undefined) platformConfig.llm_key_configured = params.apiKey !== "";
+      if (params.url !== undefined) platformConfig.llm_url = params.url || null;
+      if (params.model !== undefined) platformConfig.llm_model = params.model || null;
+      if (params.provider !== undefined) platformConfig.llm_provider = params.provider;
+      if (params.webllmModel !== undefined) platformConfig.webllm_model = params.webllmModel || null;
+    },
+    async fetchAvailableModels(
+      _tenantId: string,
+      url?: string
+    ): Promise<LlmModelsResult> {
+      const effectiveUrl = url ?? platformConfig.llm_url;
+      if (!effectiveUrl) {
+        return { ok: false, models: [], error: "No LLM endpoint configured in the playground." };
+      }
+      return { ok: true, models: ["playground/demo-model"] };
+    },
+  },
+  tokens: {
+    async list(_tenantId: string): Promise<TokenListResponse> {
+      return { tokens: [...tokenStore.values()] };
+    },
+    async create(_tenantId: string, req: CreateTokenRequest): Promise<CreateTokenResponse> {
+      const id = `playground-token-${nextTokenId++}`;
+      const record = {
+        id,
+        name: req.name,
+        tenant_name: DEMO_TENANT_NAME,
+        environment: req.environment,
+        created_at: new Date().toISOString(),
+        revoked: false,
+      };
+      tokenStore.set(id, record);
+      // The plaintext is shown once by the UI; in the playground it is just
+      // a demo value with no backend meaning.
+      return { ...record, plaintext: `demo-${id}-0000` };
+    },
+    async revoke(_tenantId: string, id: string): Promise<void> {
+      const token = tokenStore.get(id);
+      if (token) token.revoked = true;
+    },
+    async renew(_tenantId: string, id: string): Promise<CreateTokenResponse> {
+      const existing = tokenStore.get(id);
+      if (!existing) throw new Error(`renewToken failed: 404`);
+      const created = await this.create(_tenantId, {
+        name: `${existing.name} (renewed)`,
+        environment: existing.environment,
+      });
+      await this.revoke(_tenantId, id);
+      return created;
+    },
+    async restore(_tenantId: string, id: string): Promise<void> {
+      const token = tokenStore.get(id);
+      if (token) token.revoked = false;
+    },
+    async delete(_tenantId: string, id: string): Promise<void> {
+      tokenStore.delete(id);
+    },
+  },
+  members: {
+    async list(_tenantId: string): Promise<MemberListResponse> {
+      return { members: memberStore };
+    },
+    async add(
+      _tenantId: string,
+      body: { email: string; role: TenantRole }
+    ): Promise<MemberRecord> {
+      if (memberStore.some((m) => m.email === body.email)) {
+        throw new Error(`addMember failed: conflict`);
+      }
+      const member: MemberRecord = {
+        user_id: `playground-member-${memberStore.length + 1}`,
+        email: body.email,
+        role: body.role,
+        joined_at: new Date().toISOString(),
+      };
+      memberStore.push(member);
+      return member;
+    },
+    async updateRole(_tenantId: string, userId: string, role: TenantRole): Promise<void> {
+      const member = memberStore.find((m) => m.user_id === userId);
+      if (!member) throw new Error(`updateMemberRole failed: 404`);
+      member.role = role;
+    },
+    async remove(_tenantId: string, userId: string): Promise<void> {
+      const idx = memberStore.findIndex((m) => m.user_id === userId);
+      if (idx >= 0) memberStore.splice(idx, 1);
+    },
+    async revokeSessions(_tenantId: string, _userId: string): Promise<void> {
+      // No sessions to revoke in the playground.
+    },
+  },
+  usage: {
+    async report(
+      _tenantId: string,
+      params: { from?: number; to?: number }
+    ): Promise<TenantUsageReportResponse> {
+      return usageReportFixture(params);
+    },
+  },
+  auth: {
+    async me(): Promise<MeResponse> {
+      return PLAYGROUND_ME;
+    },
+    login(): void {
+      // The playground has no login backend; useAuth already provides the
+      // synthetic identity.
+    },
+    async logout(): Promise<void> {},
   },
   deployments: {
     async list(_tenantId: string, params: ListDeploymentsParams): Promise<ListDeploymentsResponse> {

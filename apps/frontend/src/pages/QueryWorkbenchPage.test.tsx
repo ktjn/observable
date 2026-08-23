@@ -18,19 +18,22 @@ vi.mock("../features/workbench/NotebookEditor", () => ({
   NotebookEditor: () => <textarea aria-label="Notebook editor" />,
 }));
 
-vi.mock("../api/setup", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../api/setup")>();
-  return {
-    ...actual,
-    getConfig: vi.fn().mockResolvedValue({
-      llm_key_configured: true,
-      llm_url: null,
-      llm_model: null,
-      llm_provider: "remote" as const,
-      webllm_model: null,
-    }),
-  };
-});
+vi.mock("../hooks/useRuntime", () => ({
+  useRuntime: () => ({
+    setup: {
+      getConfig: vi.fn().mockResolvedValue({
+        llm_key_configured: true,
+        llm_url: null,
+        llm_model: null,
+        llm_provider: "remote" as const,
+        webllm_model: null,
+      }),
+      saveLlmConfig: vi.fn(),
+      fetchAvailableModels: vi.fn(),
+      getFirstSignalStatus: vi.fn(),
+    },
+  }),
+}));
 
 import { useSearch } from "@tanstack/react-router";
 

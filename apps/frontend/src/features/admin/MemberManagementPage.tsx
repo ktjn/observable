@@ -3,11 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   type MemberRecord,
   type TenantRole,
-  addMember,
-  listMembers,
-  removeMember,
-  revokeMemberSessions,
-  updateMemberRole,
 } from "../../api/admin-members";
 import { Badge } from "../../components/ui/badge";
 import { EmptyState } from "../../components/ui/empty-state";
@@ -17,6 +12,7 @@ import { TablePanel } from "../../components/ui/table-panel";
 import { CopyableText } from "../../components/ui/copy-button";
 import { useAuth } from "../../hooks/useAuth";
 import { useTenantContext } from "../../hooks/useTenantContext";
+import { useRuntime } from "../../hooks/useRuntime";
 import { roleLabel, roleTone } from "./admin-utils";
 import { AdminSurfaceNav } from "./AdminSurfaceNav";
 
@@ -24,6 +20,7 @@ const ROLES: TenantRole[] = ["tenant_admin", "member", "viewer"];
 
 export function MemberManagementPage() {
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const { data: me } = useAuth();
   const qc = useQueryClient();
 
@@ -34,7 +31,7 @@ export function MemberManagementPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-members", tenantId],
-    queryFn: () => listMembers(tenantId),
+    queryFn: () => runtime.members.list(tenantId),
     enabled: !!tenantId,
   });
 
@@ -44,7 +41,7 @@ export function MemberManagementPage() {
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin-members", tenantId] });
 
   const addMutation = useMutation({
-    mutationFn: (vars: { email: string; role: TenantRole }) => addMember(tenantId, vars),
+    mutationFn: (vars: { email: string; role: TenantRole }) => runtime.members.add(tenantId, vars),
     onSuccess: () => {
       setAddEmail("");
       setAddError(null);
@@ -62,7 +59,7 @@ export function MemberManagementPage() {
 
   const roleMutation = useMutation({
     mutationFn: (vars: { userId: string; role: TenantRole }) =>
-      updateMemberRole(tenantId, vars.userId, vars.role),
+      runtime.members.updateRole(tenantId, vars.userId, vars.role),
     onSuccess: () => {
       setStatusMsg("Role updated.");
       void invalidate();
@@ -77,7 +74,7 @@ export function MemberManagementPage() {
   });
 
   const removeMutation = useMutation({
-    mutationFn: (userId: string) => removeMember(tenantId, userId),
+    mutationFn: (userId: string) => runtime.members.remove(tenantId, userId),
     onSuccess: () => {
       setStatusMsg("Member removed.");
       void invalidate();
@@ -92,7 +89,7 @@ export function MemberManagementPage() {
   });
 
   const revokeMutation = useMutation({
-    mutationFn: (userId: string) => revokeMemberSessions(tenantId, userId),
+    mutationFn: (userId: string) => runtime.members.revokeSessions(tenantId, userId),
     onSuccess: () => {
       setStatusMsg("Sessions revoked.");
       void invalidate();

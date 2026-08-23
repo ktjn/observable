@@ -3,19 +3,20 @@ import { Button } from "../components/ui/button";
 import { Panel } from "../components/ui/panel";
 import { Badge } from "../components/ui/badge";
 import {
-  getFirstSignalStatus,
   OTLP_GRPC_ENDPOINT,
   OTLP_HTTP_JSON_LOGS,
   OTLP_HTTP_JSON_METRICS,
   OTLP_HTTP_JSON_TRACES,
 } from "../api/setup";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { useRuntime } from "../hooks/useRuntime";
 
 export default function SetupPage() {
   const { tenantId } = useTenantContext();
+  const runtime = useRuntime();
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["setup", "first-signal", tenantId],
-    queryFn: () => getFirstSignalStatus(tenantId),
+    queryFn: () => runtime.setup.getFirstSignalStatus(tenantId),
   });
 
   const statusText = isLoading

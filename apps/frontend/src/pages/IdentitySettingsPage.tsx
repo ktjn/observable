@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { me } from "../api/auth";
+import { useRuntime } from "../hooks/useRuntime";
 import { CopyButton } from "../components/ui/copy-button";
 
 export default function IdentitySettingsPage() {
+  const runtime = useRuntime();
   const { data: user, isLoading } = useQuery({
     queryKey: ["me"],
-    queryFn: me,
+    queryFn: () => runtime.auth.me(),
     retry: false,
   });
 
