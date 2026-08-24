@@ -74,6 +74,7 @@ import { SqliteNotificationChannelRepository } from "./sqliteNotificationChannel
 import { SqliteTokenRepository } from "./sqliteTokenRepository";
 import { SqliteMemberRepository } from "./sqliteMemberRepository";
 import { SqlitePlatformConfigRepository } from "./sqlitePlatformConfigRepository";
+import { SqliteIncidentRepository } from "./sqliteIncidentRepository";
 // Type-only import (erased at compile time, so the Worker-URL concern in the
 // comment below does not apply).
 import type { NlqLogRow } from "../playground/engineClient";
@@ -489,23 +490,12 @@ const PLAYGROUND_ME: MeResponse = {
   tenants: [{ tenant_id: DEMO_TENANT_ID, role: "admin" }],
 };
 
-const incidentsData: IncidentItem[] = (() => {
-  const fortyMinAgoIso = new Date(Date.now() - 40 * 60_000).toISOString();
-  return [
-    {
-      incident_id: "playground-incident-1",
-      title: "High error rate on payment",
-      severity: "critical",
-      status: "triggered",
-      triggered_at: fortyMinAgoIso,
-      triggered_by_rule_id: "playground-rule-1",
-    },
-  ];
-})();
+let incidentRepository: SqliteIncidentRepository | null = null;
+async function getIncidentRepository(): Promise<SqliteIncidentRepository> {
+  return (incidentRepository ??= await SqliteIncidentRepository.open());
+}
 
-function incidentDetailFixture(incidentId: string): IncidentDetailResponse | null {
-  const incident = incidentsData.find((i) => i.incident_id === incidentId);
-  if (!incident) return null;
+function incidentDetailFixture(incident: IncidentItem): IncidentDetailResponse {
   return {
     ...incident,
     dedup_key: `dedup-${incident.incident_id}`,
@@ -904,17 +894,15 @@ export const playgroundRuntime: RuntimeApi = {
     },
   },
   incidents: {
-    async list(_tenantId: string, status?: string): Promise<IncidentListResponse> {
-      return {
-        items: status ? incidentsData.filter((i) => i.status === status) : incidentsData,
-      };
+    async list(tenantId: string, status?: string): Promise<IncidentListResponse> {
+      return (await getIncidentRepository()).list(tenantId, status);
     },
-    async get(_tenantId: string, incidentId: string): Promise<IncidentDetailResponse> {
-      const detail = incidentDetailFixture(incidentId);
-      if (!detail) {
+    async get(tenantId: string, incidentId: string): Promise<IncidentDetailResponse> {
+      const incident = (await getIncidentRepository()).get(tenantId, incidentId);
+      if (!incident) {
         throw new Error(`Failed to get incident: 404`);
       }
-      return detail;
+      return incidentDetailFixture(incident);
     },
   },
   slos: {
