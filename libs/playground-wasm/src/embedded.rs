@@ -1,4 +1,7 @@
-use domain::{LogRecord, Span, StatusCode, TelemetryEnvelope, processing::MergedTelemetry};
+use domain::{
+    AggregationTemporality, LogRecord, MetricPoint, MetricSeries, MetricType, Span, StatusCode,
+    TelemetryEnvelope, processing::MergedTelemetry,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -33,6 +36,50 @@ struct GeneratedLog {
     service_name: String,
     environment: String,
     host_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GeneratedMetricSeries {
+    metric_series_id: String,
+    metric_name: String,
+    description: String,
+    unit: String,
+    metric_type: String,
+    is_monotonic: bool,
+    aggregation_temporality: String,
+    service_name: String,
+    environment: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GeneratedMetricPoint {
+    metric_series_id: String,
+    time_unix_nano: String,
+    start_time_unix_nano: String,
+    value_double: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ProcessedMetricSeries {
+    pub tenant_id: Uuid,
+    pub metric_series_id: String,
+    pub metric_name: String,
+    pub description: String,
+    pub unit: String,
+    pub metric_type: String,
+    pub is_monotonic: bool,
+    pub aggregation_temporality: String,
+    pub service_name: String,
+    pub environment: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ProcessedMetricPoint {
+    pub tenant_id: Uuid,
+    pub metric_series_id: String,
+    pub time_unix_nano: u64,
+    pub start_time_unix_nano: u64,
+    pub value_double: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -183,6 +230,100 @@ impl EmbeddedStreamProcessor {
             })
             .collect()
     }
+
+    /// Converts generated metric series and points into canonical domain
+    /// records before they reach the browser-local store.
+    pub fn process_generated_metrics(
+        json: &str,
+        tenant_id: Uuid,
+    ) -> Result<(Vec<ProcessedMetricSeries>, Vec<ProcessedMetricPoint>), String> {
+        #[derive(Deserialize)]
+        struct GeneratedMetrics {
+            series: Vec<GeneratedMetricSeries>,
+            points: Vec<GeneratedMetricPoint>,
+        }
+
+        let generated: GeneratedMetrics = serde_json::from_str(json).map_err(|e| e.to_string())?;
+        let series = generated
+            .series
+            .into_iter()
+            .map(|item| {
+                let metric_type = match item.metric_type.as_str() {
+                    "sum" => MetricType::Sum,
+                    "histogram" => MetricType::Histogram,
+                    "exponential_histogram" => MetricType::ExponentialHistogram,
+                    "summary" => MetricType::Summary,
+                    _ => MetricType::Gauge,
+                };
+                let aggregation_temporality = match item.aggregation_temporality.as_str() {
+                    "delta" => Some(AggregationTemporality::Delta),
+                    "cumulative" => Some(AggregationTemporality::Cumulative),
+                    _ => None,
+                };
+                let metric_series_id = item.metric_series_id.clone();
+                let series = domain::processing::normalise_metric_series(
+                    MetricSeries {
+                        tenant_id,
+                        metric_series_id: Uuid::new_v4(),
+                        metric_name: item.metric_name.clone(),
+                        description: item.description.clone(),
+                        unit: item.unit.clone(),
+                        metric_type,
+                        is_monotonic: Some(item.is_monotonic),
+                        aggregation_temporality,
+                        service_name: item.service_name.clone(),
+                        environment: item.environment.clone(),
+                        ..Default::default()
+                    },
+                    tenant_id,
+                );
+                ProcessedMetricSeries {
+                    tenant_id: series.tenant_id,
+                    metric_series_id,
+                    metric_name: series.metric_name,
+                    description: series.description,
+                    unit: series.unit,
+                    metric_type: item.metric_type,
+                    is_monotonic: series.is_monotonic.unwrap_or(false),
+                    aggregation_temporality: item.aggregation_temporality,
+                    service_name: series.service_name,
+                    environment: series.environment,
+                }
+            })
+            .collect();
+        let points = generated
+            .points
+            .into_iter()
+            .map(|item| {
+                let point = domain::processing::normalise_metric_point(
+                    MetricPoint {
+                        tenant_id,
+                        metric_series_id: Uuid::new_v4(),
+                        time_unix_nano: item
+                            .time_unix_nano
+                            .parse::<u64>()
+                            .map_err(|e| e.to_string())?,
+                        start_time_unix_nano: Some(
+                            item.start_time_unix_nano
+                                .parse::<u64>()
+                                .map_err(|e| e.to_string())?,
+                        ),
+                        value_double: Some(item.value_double),
+                        ..Default::default()
+                    },
+                    tenant_id,
+                );
+                Ok(ProcessedMetricPoint {
+                    tenant_id: point.tenant_id,
+                    metric_series_id: item.metric_series_id,
+                    time_unix_nano: point.time_unix_nano,
+                    start_time_unix_nano: point.start_time_unix_nano.unwrap_or_default(),
+                    value_double: point.value_double.unwrap_or_default(),
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        Ok((series, points))
+    }
 }
 
 #[cfg(test)]
@@ -232,5 +373,19 @@ mod tests {
         assert_eq!(processed[0].tenant_id, tenant_id);
         assert_eq!(processed[0].timestamp_unix_nano, 100);
         assert_eq!(processed[0].body, "\"ready\"");
+    }
+
+    #[test]
+    fn generated_metrics_cross_ingest_boundary_with_tenant_stamp() {
+        let tenant_id = Uuid::new_v4();
+        let json = r#"{"series":[{"metric_series_id":"series-1","metric_name":"requests","description":"requests","unit":"1","metric_type":"sum","is_monotonic":true,"aggregation_temporality":"cumulative","service_name":"api","environment":"production"}],"points":[{"metric_series_id":"series-1","time_unix_nano":"100","start_time_unix_nano":"90","value_double":3.0}]}"#;
+
+        let (series, points) =
+            EmbeddedStreamProcessor::process_generated_metrics(json, tenant_id).unwrap();
+
+        assert_eq!(series[0].tenant_id, tenant_id);
+        assert_eq!(series[0].metric_series_id, "series-1");
+        assert_eq!(points[0].tenant_id, tenant_id);
+        assert_eq!(points[0].time_unix_nano, 100);
     }
 }
