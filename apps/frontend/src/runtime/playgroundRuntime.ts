@@ -70,6 +70,7 @@ import { SqliteSavedViewRepository } from "./sqliteSavedViewRepository";
 import { SqliteDashboardRepository } from "./sqliteDashboardRepository";
 import { SqliteAlertRuleRepository } from "./sqliteAlertRuleRepository";
 import { SqliteSloRepository } from "./sqliteSloRepository";
+import { SqliteNotificationChannelRepository } from "./sqliteNotificationChannelRepository";
 // Type-only import (erased at compile time, so the Worker-URL concern in the
 // comment below does not apply).
 import type { NlqLogRow } from "../playground/engineClient";
@@ -278,14 +279,8 @@ function alertRuleRepository(): Promise<SqliteAlertRuleRepository> {
 let sloRepositoryPromise: Promise<SqliteSloRepository> | undefined;
 function sloRepository(): Promise<SqliteSloRepository> { sloRepositoryPromise ??= SqliteSloRepository.open(); return sloRepositoryPromise; }
 
-const notificationChannelStore: NotificationChannelItem[] = [
-  {
-    channel_id: "playground-channel-1",
-    name: "demo webhook",
-    channel_type: "webhook",
-    config: { url: "https://example.invalid/hook" },
-  },
-];
+let notificationChannelRepositoryPromise: Promise<SqliteNotificationChannelRepository> | undefined;
+function notificationChannelRepository(): Promise<SqliteNotificationChannelRepository> { notificationChannelRepositoryPromise ??= SqliteNotificationChannelRepository.open(); return notificationChannelRepositoryPromise; }
 
 /** The browser-local control-plane repository is initialized once per runtime. */
 let savedViewRepositoryPromise: Promise<SqliteSavedViewRepository> | undefined;
@@ -947,22 +942,14 @@ export const playgroundRuntime: RuntimeApi = {
     },
   },
   notificationChannels: {
-    async list(): Promise<NotificationChannelItem[]> {
-      return notificationChannelStore;
+    async list(tenantId: string): Promise<NotificationChannelItem[]> {
+      return (await notificationChannelRepository()).list(tenantId);
     },
-    async create(_tenantId: string, req: CreateChannelRequest): Promise<NotificationChannelItem> {
-      const channel: NotificationChannelItem = {
-        channel_id: `playground-channel-${notificationChannelStore.length + 1}-${Date.now() % 10_000}`,
-        name: req.name,
-        channel_type: req.channel_type,
-        config: req.config,
-      };
-      notificationChannelStore.push(channel);
-      return channel;
+    async create(tenantId: string, req: CreateChannelRequest): Promise<NotificationChannelItem> {
+      return (await notificationChannelRepository()).create(tenantId, req);
     },
-    async delete(_tenantId: string, channelId: string): Promise<void> {
-      const idx = notificationChannelStore.findIndex((c) => c.channel_id === channelId);
-      if (idx >= 0) notificationChannelStore.splice(idx, 1);
+    async delete(tenantId: string, channelId: string): Promise<void> {
+      (await notificationChannelRepository()).delete(tenantId, channelId);
     },
   },
   savedViews: {
