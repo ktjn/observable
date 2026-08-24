@@ -165,6 +165,14 @@ interface ProcessedLog extends Omit<GeneratedLog, "log_id"> {
   log_id: string;
 }
 
+interface ProcessedMetricSeries extends GeneratedMetricSeries {
+  tenant_id: string;
+}
+
+interface ProcessedMetricPoint extends GeneratedMetricPoint {
+  tenant_id: string;
+}
+
 /**
  * Full frontend Span shape assembled at read time from the playground's
  * narrow local `spans` table (which only persists the columns any wired
@@ -332,6 +340,7 @@ interface EngineState {
   ) => string;
   computeTopologyEdges: (rowsJson: string) => string;
   generateMetricsJson: (seed: number, nowUnixNano: string) => string;
+  processGeneratedMetricsJson: (json: string, tenantId: string) => string;
   renderMetricCatalogSql: (service: string | undefined) => string;
   renderMetricGroupPointsSql: (
     metricName: string,
@@ -378,11 +387,11 @@ function insertSpansSql(spans: ProcessedSpan[]): string {
   return `INSERT INTO spans VALUES ${values}`;
 }
 
-function insertMetricSeriesSql(series: GeneratedMetricSeries[]): string {
+function insertMetricSeriesSql(series: ProcessedMetricSeries[]): string {
   const values = series
     .map(
       (s) =>
-        `('${escapeSqlString(s.metric_series_id)}', '${escapeSqlString(s.metric_name)}', ` +
+        `('${escapeSqlString(s.tenant_id)}', '${escapeSqlString(s.metric_series_id)}', '${escapeSqlString(s.metric_name)}', ` +
         `'${escapeSqlString(s.description)}', '${escapeSqlString(s.unit)}', '${escapeSqlString(s.metric_type)}', ` +
         `${s.is_monotonic}, '${escapeSqlString(s.aggregation_temporality)}', ` +
         `'${escapeSqlString(s.service_name)}', '${escapeSqlString(s.environment)}')`
@@ -391,11 +400,11 @@ function insertMetricSeriesSql(series: GeneratedMetricSeries[]): string {
   return `INSERT INTO metric_series VALUES ${values}`;
 }
 
-function insertMetricPointsSql(points: GeneratedMetricPoint[]): string {
+function insertMetricPointsSql(points: ProcessedMetricPoint[]): string {
   const values = points
     .map(
       (p) =>
-        `('${escapeSqlString(p.metric_series_id)}', ${p.time_unix_nano}, ${p.start_time_unix_nano}, ${p.value_double})`
+        `('${escapeSqlString(p.tenant_id)}', '${escapeSqlString(p.metric_series_id)}', ${p.time_unix_nano}, ${p.start_time_unix_nano}, ${p.value_double})`
     )
     .join(", ");
   return `INSERT INTO metric_points VALUES ${values}`;
@@ -448,8 +457,9 @@ async function seedData(state: EngineState, seed: number): Promise<void> {
   }
 
   const metricsJson = state.generateMetricsJson(seed, nowUnixNano);
-  const { series, points }: { series: GeneratedMetricSeries[]; points: GeneratedMetricPoint[] } =
-    JSON.parse(metricsJson);
+  const processedMetricsJson = state.processGeneratedMetricsJson(metricsJson, DEMO_TENANT_ID);
+  const [series, points]: [ProcessedMetricSeries[], ProcessedMetricPoint[]] =
+    JSON.parse(processedMetricsJson);
   if (series.length > 0) {
     await state.conn.query(insertMetricSeriesSql(series));
   }
@@ -496,13 +506,13 @@ async function initEngine(): Promise<EngineState> {
   );
   await conn.query(
     "CREATE TABLE metric_series (" +
-      "metric_series_id VARCHAR, metric_name VARCHAR, description VARCHAR, unit VARCHAR, " +
+      "tenant_id VARCHAR, metric_series_id VARCHAR, metric_name VARCHAR, description VARCHAR, unit VARCHAR, " +
       "metric_type VARCHAR, is_monotonic BOOLEAN, aggregation_temporality VARCHAR, " +
       "service_name VARCHAR, environment VARCHAR)"
   );
   await conn.query(
     "CREATE TABLE metric_points (" +
-      "metric_series_id VARCHAR, time_unix_nano BIGINT, start_time_unix_nano BIGINT, value_double DOUBLE)"
+      "tenant_id VARCHAR, metric_series_id VARCHAR, time_unix_nano BIGINT, start_time_unix_nano BIGINT, value_double DOUBLE)"
   );
   await conn.query(
     "CREATE TABLE change_events (" +
@@ -524,6 +534,7 @@ async function initEngine(): Promise<EngineState> {
     renderTopologySql: wasmModule.render_topology_sql,
     computeTopologyEdges: wasmModule.compute_topology_edges,
     generateMetricsJson: wasmModule.generate_metrics_json,
+    processGeneratedMetricsJson: wasmModule.process_generated_metrics_json,
     renderMetricCatalogSql: wasmModule.render_metric_catalog_sql,
     renderMetricGroupPointsSql: wasmModule.render_metric_group_points_sql,
     generateChangeEventsJson: wasmModule.generate_change_events_json,
