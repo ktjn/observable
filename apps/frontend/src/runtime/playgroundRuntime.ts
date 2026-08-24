@@ -71,6 +71,7 @@ import { SqliteDashboardRepository } from "./sqliteDashboardRepository";
 import { SqliteAlertRuleRepository } from "./sqliteAlertRuleRepository";
 import { SqliteSloRepository } from "./sqliteSloRepository";
 import { SqliteNotificationChannelRepository } from "./sqliteNotificationChannelRepository";
+import { SqliteTokenRepository } from "./sqliteTokenRepository";
 // Type-only import (erased at compile time, so the Worker-URL concern in the
 // comment below does not apply).
 import type { NlqLogRow } from "../playground/engineClient";
@@ -454,21 +455,10 @@ const platformConfig: PlatformConfig = {
   webllm_model: null,
 };
 
-const tokenStore = new Map<string, TokenListResponse["tokens"][number]>();
-let nextTokenId = 1;
-
-function seedTokens(): void {
-  const token: TokenListResponse["tokens"][number] = {
-    id: "playground-token-1",
-    name: "demo ingest token",
-    tenant_name: "observable",
-    environment: "production",
-    created_at: new Date(Date.now() - 3_600_000).toISOString(),
-    revoked: false,
-  };
-  tokenStore.set(token.id, token);
+let tokenRepository: SqliteTokenRepository | null = null;
+async function getTokenRepository(): Promise<SqliteTokenRepository> {
+  return (tokenRepository ??= await SqliteTokenRepository.open());
 }
-seedTokens();
 
 const memberStore: MemberRecord[] = [
   {
@@ -1041,44 +1031,31 @@ export const playgroundRuntime: RuntimeApi = {
     },
   },
   tokens: {
-    async list(_tenantId: string): Promise<TokenListResponse> {
-      return { tokens: [...tokenStore.values()] };
+    async list(tenantId: string): Promise<TokenListResponse> {
+      return (await getTokenRepository()).list(tenantId);
     },
-    async create(_tenantId: string, req: CreateTokenRequest): Promise<CreateTokenResponse> {
-      const id = `playground-token-${nextTokenId++}`;
-      const record = {
-        id,
-        name: req.name,
-        tenant_name: DEMO_TENANT_NAME,
-        environment: req.environment,
-        created_at: new Date().toISOString(),
-        revoked: false,
-      };
-      tokenStore.set(id, record);
-      // The plaintext is shown once by the UI; in the playground it is just
-      // a demo value with no backend meaning.
-      return { ...record, plaintext: `demo-${id}-0000` };
+    async create(tenantId: string, req: CreateTokenRequest): Promise<CreateTokenResponse> {
+      return (await getTokenRepository()).create(tenantId, DEMO_TENANT_NAME, req);
     },
-    async revoke(_tenantId: string, id: string): Promise<void> {
-      const token = tokenStore.get(id);
-      if (token) token.revoked = true;
+    async revoke(tenantId: string, id: string): Promise<void> {
+      (await getTokenRepository()).setRevoked(tenantId, id, true);
     },
-    async renew(_tenantId: string, id: string): Promise<CreateTokenResponse> {
-      const existing = tokenStore.get(id);
+    async renew(tenantId: string, id: string): Promise<CreateTokenResponse> {
+      const repository = await getTokenRepository();
+      const existing = repository.find(tenantId, id);
       if (!existing) throw new Error(`renewToken failed: 404`);
-      const created = await this.create(_tenantId, {
+      const created = await this.create(tenantId, {
         name: `${existing.name} (renewed)`,
         environment: existing.environment,
       });
-      await this.revoke(_tenantId, id);
+      await this.revoke(tenantId, id);
       return created;
     },
-    async restore(_tenantId: string, id: string): Promise<void> {
-      const token = tokenStore.get(id);
-      if (token) token.revoked = false;
+    async restore(tenantId: string, id: string): Promise<void> {
+      (await getTokenRepository()).setRevoked(tenantId, id, false);
     },
-    async delete(_tenantId: string, id: string): Promise<void> {
-      tokenStore.delete(id);
+    async delete(tenantId: string, id: string): Promise<void> {
+      (await getTokenRepository()).delete(tenantId, id);
     },
   },
   members: {
