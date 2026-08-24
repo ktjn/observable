@@ -1,38 +1,11 @@
-use domain::{LogRecord, MetricPoint, MetricSeries, Span};
-use uuid::Uuid;
-
-pub fn normalise_span(mut span: Span, tenant_id: Uuid) -> Span {
-    span.tenant_id = tenant_id;
-    if span.duration_ns == 0 {
-        span.duration_ns = span
-            .end_time_unix_nano
-            .saturating_sub(span.start_time_unix_nano);
-    }
-    span
-}
-
-pub fn normalise_log(mut log: LogRecord, tenant_id: Uuid) -> LogRecord {
-    log.tenant_id = tenant_id;
-    if log.log_id == uuid::Uuid::nil() {
-        log.log_id = uuid::Uuid::new_v4();
-    }
-    log
-}
-
-pub fn normalise_metric_series(mut series: MetricSeries, tenant_id: Uuid) -> MetricSeries {
-    series.tenant_id = tenant_id;
-    series
-}
-
-pub fn normalise_metric_point(mut point: MetricPoint, tenant_id: Uuid) -> MetricPoint {
-    point.tenant_id = tenant_id;
-    point
-}
+pub use domain::processing::{
+    normalise_log, normalise_metric_point, normalise_metric_series, normalise_span,
+};
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domain::{Span, StatusCode};
+    use domain::{LogRecord, MetricPoint, MetricSeries, Span, StatusCode};
     use uuid::Uuid;
 
     #[test]

@@ -4,9 +4,11 @@
 //! `JsValue` cannot be constructed outside an actual wasm/JS runtime, so
 //! native tests exercise the pure inner functions instead.
 
+mod embedded;
 mod generator;
 mod transport;
 
+pub use embedded::EmbeddedStreamProcessor;
 pub use transport::{InMemoryTransport, SendError, SubscriptionId};
 
 use domain_core::nlq::NlqIr;
