@@ -458,7 +458,7 @@ async function seedData(state: EngineState, seed: number): Promise<void> {
 
   const metricsJson = state.generateMetricsJson(seed, nowUnixNano);
   const processedMetricsJson = state.processGeneratedMetricsJson(metricsJson, DEMO_TENANT_ID);
-  const { series, points }: { series: ProcessedMetricSeries[]; points: ProcessedMetricPoint[] } =
+  const [series, points]: [ProcessedMetricSeries[], ProcessedMetricPoint[]] =
     JSON.parse(processedMetricsJson);
   if (series.length > 0) {
     await state.conn.query(insertMetricSeriesSql(series));
