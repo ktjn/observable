@@ -28,6 +28,19 @@ use query_core::trace_query::{
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
+fn process_generated_spans_json_inner(json: &str, tenant_id: &str) -> Result<String, String> {
+    let tenant_id = tenant_id.parse::<uuid::Uuid>().map_err(|e| e.to_string())?;
+    let processed = EmbeddedStreamProcessor::process_generated_spans(json, tenant_id)?;
+    serde_json::to_string(&processed).map_err(|e| e.to_string())
+}
+
+/// Runs generated spans through the embedded ingest/processing boundary.
+/// The browser store receives this output rather than the producer payload.
+#[wasm_bindgen]
+pub fn process_generated_spans_json(json: &str, tenant_id: &str) -> Result<String, JsValue> {
+    process_generated_spans_json_inner(json, tenant_id).map_err(|e| JsValue::from_str(&e))
+}
+
 #[wasm_bindgen]
 pub fn ping(seed: u32) -> String {
     format!("observable-playground-wasm:{seed}")

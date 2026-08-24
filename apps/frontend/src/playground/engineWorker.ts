@@ -155,6 +155,11 @@ interface GeneratedSpan {
   start_time_unix_nano: string;
 }
 
+interface ProcessedSpan extends Omit<GeneratedSpan, "parent_span_id"> {
+  tenant_id: string;
+  parent_span_id: string | null;
+}
+
 /**
  * Full frontend Span shape assembled at read time from the playground's
  * narrow local `spans` table (which only persists the columns any wired
@@ -295,6 +300,7 @@ const workerSelf = self as unknown as WorkerSelf;
 
 interface EngineState {
   generateSpansJson: (seed: number, nowUnixNano: string) => string;
+  processGeneratedSpansJson: (json: string, tenantId: string) => string;
   generateLogsJson: (seed: number, nowUnixNano: string) => string;
   renderTraceSearchSql: (irJson: string) => string;
   renderTraceHistogramSql: (
@@ -353,12 +359,12 @@ function escapeSqlString(value: string): string {
   return value.replace(/'/g, "''");
 }
 
-function insertSpansSql(spans: GeneratedSpan[]): string {
+function insertSpansSql(spans: ProcessedSpan[]): string {
   const values = spans
     .map(
       (s) =>
-        `('${escapeSqlString(s.trace_id)}', '${escapeSqlString(s.span_id)}', ` +
-        `'${escapeSqlString(s.parent_span_id)}', '${escapeSqlString(s.service_name)}', ` +
+        `('${escapeSqlString(s.tenant_id)}', '${escapeSqlString(s.trace_id)}', '${escapeSqlString(s.span_id)}', ` +
+        `${s.parent_span_id === null ? "NULL" : `'${escapeSqlString(s.parent_span_id)}'`}, '${escapeSqlString(s.service_name)}', ` +
         `'${escapeSqlString(s.operation_name)}', ${s.duration_ns}, ` +
         `'${escapeSqlString(s.status_code)}', '${escapeSqlString(s.environment)}', ${s.start_time_unix_nano})`
     )
@@ -422,7 +428,8 @@ async function seedData(state: EngineState, seed: number): Promise<void> {
   // consistent.
   const nowUnixNano = String(BigInt(Date.now()) * 1_000_000n);
   const spansJson = state.generateSpansJson(seed, nowUnixNano);
-  const spans: GeneratedSpan[] = JSON.parse(spansJson);
+  const processedSpansJson = state.processGeneratedSpansJson(spansJson, DEMO_TENANT_ID);
+  const spans: ProcessedSpan[] = JSON.parse(processedSpansJson);
   if (spans.length > 0) {
     await state.conn.query(insertSpansSql(spans));
   }
@@ -469,7 +476,7 @@ async function initEngine(): Promise<EngineState> {
   const conn = await db.connect();
   await conn.query(
     "CREATE TABLE spans (" +
-      "trace_id VARCHAR, span_id VARCHAR, parent_span_id VARCHAR, " +
+      "tenant_id VARCHAR, trace_id VARCHAR, span_id VARCHAR, parent_span_id VARCHAR, " +
       "service_name VARCHAR, operation_name VARCHAR, duration_ns BIGINT, " +
       "status_code VARCHAR, environment VARCHAR, start_time_unix_nano BIGINT)"
   );
@@ -498,6 +505,7 @@ async function initEngine(): Promise<EngineState> {
 
   const state: EngineState = {
     generateSpansJson: wasmModule.generate_spans_json,
+    processGeneratedSpansJson: wasmModule.process_generated_spans_json,
     generateLogsJson: wasmModule.generate_logs_json,
     renderTraceSearchSql: wasmModule.render_trace_search_sql,
     renderTraceHistogramSql: wasmModule.render_trace_histogram_sql,
