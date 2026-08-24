@@ -4,7 +4,6 @@ import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants
 import type { NlqRequest, NlqResponse, NlqIr, VisualizationFrame } from "../api/nlq";
 import type {
   Dashboard,
-  DashboardPanel,
   CreateDashboardRequest,
   UpdateDashboardRequest,
   DashboardListResponse,
@@ -69,6 +68,7 @@ import type {
   TopologyParams,
 } from "./types";
 import { SqliteSavedViewRepository } from "./sqliteSavedViewRepository";
+import { SqliteDashboardRepository } from "./sqliteDashboardRepository";
 // Type-only import (erased at compile time, so the Worker-URL concern in the
 // comment below does not apply).
 import type { NlqLogRow } from "../playground/engineClient";
@@ -243,16 +243,16 @@ const STUB_LOG_FRAME: VisualizationFrame = {
 };
 
 /**
- * Dashboards are user-created content, not generated analytical data, so
- * they live in a plain in-memory `Map` rather than a DuckDB table — no SQL
- * shape to plan, just CRUD over JSON. Cleared on a full page reload, same
- * lifetime as the rest of the playground's demo data, but *not* touched by
- * "Reset playground" (that only regenerates spans/logs/metrics/change
- * events — a user's saved dashboards aren't demo data to discard).
+ * Dashboards are user-created control-plane content. The playground keeps
+ * their production-shaped JSON payloads in a tenant-scoped SQLite adapter;
+ * this browser-local database is intentionally separate from DuckDB telemetry.
  */
-const dashboardStore = new Map<string, Dashboard>();
-let nextDashboardId = 1;
-let nextPanelId = 1;
+let dashboardRepositoryPromise: Promise<SqliteDashboardRepository> | undefined;
+
+function dashboardRepository(): Promise<SqliteDashboardRepository> {
+  dashboardRepositoryPromise ??= SqliteDashboardRepository.open();
+  return dashboardRepositoryPromise;
+}
 
 /**
  * Alert-rule / incident / deployment fixtures. Like the dashboards store,
@@ -664,54 +664,6 @@ function deploymentsFixture(params: ListDeploymentsParams): DeploymentMarker[] {
       (!params.service_name || d.service_name === params.service_name) &&
       (!params.environment || d.environment === params.environment),
   );
-}
-
-function makeDashboardId(): string {
-  return `playground-dashboard-${nextDashboardId++}`;
-}
-
-function makePanelId(): string {
-  return `playground-panel-${nextPanelId++}`;
-}
-
-function panelFromCreateRequest(panel: CreateDashboardRequest["panels"][number]): DashboardPanel {
-  return {
-    panel_id: makePanelId(),
-    title: panel.title,
-    panel_kind: panel.panel_kind ?? "query",
-    query_kind: panel.query_kind ?? undefined,
-    service: panel.service,
-    preset: panel.preset ?? undefined,
-    filters: panel.filters,
-    query_text: panel.query_text ?? undefined,
-    content: panel.content ?? undefined,
-    layout: panel.layout ?? { x: 0, y: 0, w: 6, h: 4 },
-    time_range: panel.time_range ?? { mode: "global" },
-  };
-}
-
-function panelFromUpdateRequest(panel: UpdateDashboardRequest["panels"][number]): DashboardPanel {
-  return {
-    panel_id: panel.panel_id ?? makePanelId(),
-    title: panel.title,
-    panel_kind: panel.panel_kind,
-    query_kind: panel.query_kind ?? undefined,
-    service: panel.service ?? undefined,
-    preset: panel.preset ?? undefined,
-    filters: panel.filters,
-    query_text: panel.query_text ?? undefined,
-    content: panel.content ?? undefined,
-    layout: panel.layout,
-    time_range: panel.time_range,
-  };
-}
-
-function requireDashboard(dashboardId: string): Dashboard {
-  const dashboard = dashboardStore.get(dashboardId);
-  if (!dashboard) {
-    throw new Error(`Dashboard not found: ${dashboardId}`);
-  }
-  return dashboard;
 }
 
 /**
@@ -1381,38 +1333,23 @@ export const playgroundRuntime: RuntimeApi = {
     },
   },
   dashboards: {
-    async list(): Promise<DashboardListResponse> {
-      return { items: Array.from(dashboardStore.values()) };
+    async list(tenantId: string): Promise<DashboardListResponse> {
+      return (await dashboardRepository()).list(tenantId);
     },
-    async get(_tenantId: string, dashboardId: string): Promise<Dashboard> {
-      return requireDashboard(dashboardId);
+    async get(tenantId: string, dashboardId: string): Promise<Dashboard> {
+      return (await dashboardRepository()).get(tenantId, dashboardId);
     },
-    async create(_tenantId: string, request: CreateDashboardRequest): Promise<Dashboard> {
-      const dashboard: Dashboard = {
-        dashboard_id: makeDashboardId(),
-        name: request.name,
-        visibility: "private",
-        panels: request.panels.map(panelFromCreateRequest),
-        created_at: new Date().toISOString(),
-      };
-      dashboardStore.set(dashboard.dashboard_id, dashboard);
-      return dashboard;
+    async create(tenantId: string, request: CreateDashboardRequest): Promise<Dashboard> {
+      return (await dashboardRepository()).create(tenantId, request);
     },
-    async update(_tenantId: string, dashboardId: string, request: UpdateDashboardRequest): Promise<Dashboard> {
-      const existing = requireDashboard(dashboardId);
-      const updated: Dashboard = {
-        ...existing,
-        name: request.name,
-        panels: request.panels.map(panelFromUpdateRequest),
-      };
-      dashboardStore.set(dashboardId, updated);
-      return updated;
+    async update(tenantId: string, dashboardId: string, request: UpdateDashboardRequest): Promise<Dashboard> {
+      return (await dashboardRepository()).update(tenantId, dashboardId, request);
     },
-    async delete(_tenantId: string, dashboardId: string): Promise<void> {
-      dashboardStore.delete(dashboardId);
+    async delete(tenantId: string, dashboardId: string): Promise<void> {
+      (await dashboardRepository()).delete(tenantId, dashboardId);
     },
-    async export(_tenantId: string, dashboardId: string): Promise<DashboardExport> {
-      const dashboard = requireDashboard(dashboardId);
+    async export(tenantId: string, dashboardId: string): Promise<DashboardExport> {
+      const dashboard = (await dashboardRepository()).get(tenantId, dashboardId);
       return {
         schema_version: "1",
         name: dashboard.name,
@@ -1430,13 +1367,10 @@ export const playgroundRuntime: RuntimeApi = {
         })),
       };
     },
-    async import(_tenantId: string, export_: DashboardExport): Promise<Dashboard> {
-      const dashboard: Dashboard = {
-        dashboard_id: makeDashboardId(),
+    async import(tenantId: string, export_: DashboardExport): Promise<Dashboard> {
+      return (await dashboardRepository()).create(tenantId, {
         name: export_.name,
-        visibility: "private",
-        panels: export_.panels.map((panel) =>
-          panelFromCreateRequest({
+        panels: export_.panels.map((panel) => ({
             title: panel.title,
             panel_kind: panel.panel_kind,
             query_kind: panel.query_kind,
@@ -1447,12 +1381,8 @@ export const playgroundRuntime: RuntimeApi = {
             content: panel.content,
             layout: panel.layout,
             time_range: panel.time_range,
-          })
-        ),
-        created_at: new Date().toISOString(),
-      };
-      dashboardStore.set(dashboard.dashboard_id, dashboard);
-      return dashboard;
+          })),
+      });
     },
   },
 };
