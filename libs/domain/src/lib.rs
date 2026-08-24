@@ -1,10 +1,13 @@
 mod generated;
 
+#[cfg(feature = "native")]
 pub mod config;
 pub mod envelope;
 pub mod log;
 pub mod metric;
+pub mod processing;
 pub mod span;
+#[cfg(feature = "native")]
 pub mod telemetry;
 pub mod visualization;
 
