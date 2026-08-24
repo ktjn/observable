@@ -5,6 +5,9 @@
 //! native tests exercise the pure inner functions instead.
 
 mod generator;
+mod transport;
+
+pub use transport::{InMemoryTransport, SendError, SubscriptionId};
 
 use domain_core::nlq::NlqIr;
 use query_core::change_event_query::render_change_events_duckdb;
