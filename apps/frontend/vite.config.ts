@@ -7,6 +7,11 @@ export default defineConfig(({ mode }) => ({
   // GitHub Pages under a repository sub-path; production keeps the default "/".
   base: mode === "playground" ? "/observable/" : "/",
   plugins: [react(), tailwindcss()],
+  optimizeDeps: {
+    // SQLite Wasm supplies its own ESM/Wasm loader and must not be pre-bundled
+    // by Vite's dependency scanner.
+    exclude: ["@sqlite.org/sqlite-wasm"],
+  },
   server: {
     port: 5173,
     // The playground build must never depend on a live backend (it has none on
