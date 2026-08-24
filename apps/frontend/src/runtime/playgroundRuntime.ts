@@ -69,6 +69,7 @@ import type {
 import { SqliteSavedViewRepository } from "./sqliteSavedViewRepository";
 import { SqliteDashboardRepository } from "./sqliteDashboardRepository";
 import { SqliteAlertRuleRepository } from "./sqliteAlertRuleRepository";
+import { SqliteSloRepository } from "./sqliteSloRepository";
 // Type-only import (erased at compile time, so the Worker-URL concern in the
 // comment below does not apply).
 import type { NlqLogRow } from "../playground/engineClient";
@@ -274,22 +275,8 @@ function alertRuleRepository(): Promise<SqliteAlertRuleRepository> {
   return alertRuleRepositoryPromise;
 }
 
-const sloStore: SloDefinitionItem[] = [
-  {
-    slo_id: "playground-slo-1",
-    service_name: "checkout",
-    environment: "production",
-    sli_type: "availability",
-    target: 99.9,
-    window_days: 30,
-    burn_rate_fast_threshold: 14.4,
-    burn_rate_slow_threshold: 6,
-    description: "checkout availability SLO",
-    firing: false,
-    created_at: new Date(Date.now() - 7 * 86_400_000).toISOString(),
-    updated_at: new Date(Date.now() - 7 * 86_400_000).toISOString(),
-  },
-];
+let sloRepositoryPromise: Promise<SqliteSloRepository> | undefined;
+function sloRepository(): Promise<SqliteSloRepository> { sloRepositoryPromise ??= SqliteSloRepository.open(); return sloRepositoryPromise; }
 
 const notificationChannelStore: NotificationChannelItem[] = [
   {
@@ -952,27 +939,11 @@ export const playgroundRuntime: RuntimeApi = {
     },
   },
   slos: {
-    async list(): Promise<SloListResponse> {
-      return { items: sloStore };
+    async list(tenantId: string): Promise<SloListResponse> {
+      return (await sloRepository()).list(tenantId);
     },
-    async create(_tenantId: string, req: CreateSloRequest): Promise<SloDefinitionItem> {
-      const nowIso = new Date().toISOString();
-      const slo: SloDefinitionItem = {
-        slo_id: `playground-slo-${sloStore.length + 1}-${Date.now() % 10_000}`,
-        service_name: req.service_name,
-        environment: req.environment,
-        sli_type: "availability",
-        target: req.target,
-        window_days: req.window_days,
-        burn_rate_fast_threshold: req.burn_rate_fast_threshold,
-        burn_rate_slow_threshold: req.burn_rate_slow_threshold,
-        description: req.description ?? "",
-        firing: false,
-        created_at: nowIso,
-        updated_at: nowIso,
-      };
-      sloStore.push(slo);
-      return slo;
+    async create(tenantId: string, req: CreateSloRequest): Promise<SloDefinitionItem> {
+      return (await sloRepository()).create(tenantId, req);
     },
   },
   notificationChannels: {
