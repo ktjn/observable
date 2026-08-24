@@ -73,6 +73,7 @@ import { SqliteSloRepository } from "./sqliteSloRepository";
 import { SqliteNotificationChannelRepository } from "./sqliteNotificationChannelRepository";
 import { SqliteTokenRepository } from "./sqliteTokenRepository";
 import { SqliteMemberRepository } from "./sqliteMemberRepository";
+import { SqlitePlatformConfigRepository } from "./sqlitePlatformConfigRepository";
 // Type-only import (erased at compile time, so the Worker-URL concern in the
 // comment below does not apply).
 import type { NlqLogRow } from "../playground/engineClient";
@@ -448,13 +449,10 @@ function infrastructureDetailFixture(
  * so they are in-memory stores with demo seeds — mutations work for the
  * page's lifetime, like dashboards.
  */
-const platformConfig: PlatformConfig = {
-  llm_key_configured: false,
-  llm_url: null,
-  llm_model: null,
-  llm_provider: "remote",
-  webllm_model: null,
-};
+let platformConfigRepository: SqlitePlatformConfigRepository | null = null;
+async function getPlatformConfigRepository(): Promise<SqlitePlatformConfigRepository> {
+  return (platformConfigRepository ??= await SqlitePlatformConfigRepository.open());
+}
 
 let tokenRepository: SqliteTokenRepository | null = null;
 async function getTokenRepository(): Promise<SqliteTokenRepository> {
@@ -1005,21 +1003,17 @@ export const playgroundRuntime: RuntimeApi = {
       // has always "arrived".
       return { state: "detected", traces: 40, logs: 40, metrics: 720 };
     },
-    async getConfig(): Promise<PlatformConfig> {
-      return platformConfig;
+    async getConfig(tenantId: string): Promise<PlatformConfig> {
+      return (await getPlatformConfigRepository()).get(tenantId);
     },
-    async saveLlmConfig(_tenantId: string, params: SaveLlmConfigParams): Promise<void> {
-      if (params.apiKey !== undefined) platformConfig.llm_key_configured = params.apiKey !== "";
-      if (params.url !== undefined) platformConfig.llm_url = params.url || null;
-      if (params.model !== undefined) platformConfig.llm_model = params.model || null;
-      if (params.provider !== undefined) platformConfig.llm_provider = params.provider;
-      if (params.webllmModel !== undefined) platformConfig.webllm_model = params.webllmModel || null;
+    async saveLlmConfig(tenantId: string, params: SaveLlmConfigParams): Promise<void> {
+      (await getPlatformConfigRepository()).update(tenantId, params);
     },
     async fetchAvailableModels(
-      _tenantId: string,
+      tenantId: string,
       url?: string
     ): Promise<LlmModelsResult> {
-      const effectiveUrl = url ?? platformConfig.llm_url;
+      const effectiveUrl = url ?? (await getPlatformConfigRepository()).get(tenantId).llm_url;
       if (!effectiveUrl) {
         return { ok: false, models: [], error: "No LLM endpoint configured in the playground." };
       }
