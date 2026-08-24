@@ -160,6 +160,11 @@ interface ProcessedSpan extends Omit<GeneratedSpan, "parent_span_id"> {
   parent_span_id: string | null;
 }
 
+interface ProcessedLog extends Omit<GeneratedLog, "log_id"> {
+  tenant_id: string;
+  log_id: string;
+}
+
 /**
  * Full frontend Span shape assembled at read time from the playground's
  * narrow local `spans` table (which only persists the columns any wired
@@ -302,6 +307,7 @@ interface EngineState {
   generateSpansJson: (seed: number, nowUnixNano: string) => string;
   processGeneratedSpansJson: (json: string, tenantId: string) => string;
   generateLogsJson: (seed: number, nowUnixNano: string) => string;
+  processGeneratedLogsJson: (json: string, tenantId: string) => string;
   renderTraceSearchSql: (irJson: string) => string;
   renderTraceHistogramSql: (
     fromNs: string,
@@ -408,11 +414,11 @@ function insertChangeEventsSql(events: GeneratedChangeEvent[]): string {
   return `INSERT INTO change_events VALUES ${values}`;
 }
 
-function insertLogsSql(logs: GeneratedLog[]): string {
+function insertLogsSql(logs: ProcessedLog[]): string {
   const values = logs
     .map(
       (l) =>
-        `('${escapeSqlString(l.log_id)}', ${l.timestamp_unix_nano}, ${l.observed_timestamp_unix_nano}, ` +
+        `('${escapeSqlString(l.tenant_id)}', '${escapeSqlString(l.log_id)}', ${l.timestamp_unix_nano}, ${l.observed_timestamp_unix_nano}, ` +
         `${l.severity_number}, '${escapeSqlString(l.severity_text)}', '${escapeSqlString(l.body)}', ` +
         `'${escapeSqlString(l.trace_id)}', '${escapeSqlString(l.span_id)}', '${escapeSqlString(l.service_name)}', ` +
         `'${escapeSqlString(l.environment)}', '${escapeSqlString(l.host_id)}')`
@@ -435,7 +441,8 @@ async function seedData(state: EngineState, seed: number): Promise<void> {
   }
 
   const logsJson = state.generateLogsJson(seed, nowUnixNano);
-  const logs: GeneratedLog[] = JSON.parse(logsJson);
+  const processedLogsJson = state.processGeneratedLogsJson(logsJson, DEMO_TENANT_ID);
+  const logs: ProcessedLog[] = JSON.parse(processedLogsJson);
   if (logs.length > 0) {
     await state.conn.query(insertLogsSql(logs));
   }
@@ -482,7 +489,7 @@ async function initEngine(): Promise<EngineState> {
   );
   await conn.query(
     "CREATE TABLE logs (" +
-      "log_id VARCHAR, timestamp_unix_nano BIGINT, observed_timestamp_unix_nano BIGINT, " +
+      "tenant_id VARCHAR, log_id VARCHAR, timestamp_unix_nano BIGINT, observed_timestamp_unix_nano BIGINT, " +
       "severity_number INTEGER, severity_text VARCHAR, body VARCHAR, " +
       "trace_id VARCHAR, span_id VARCHAR, service_name VARCHAR, " +
       "environment VARCHAR, host_id VARCHAR)"
@@ -507,6 +514,7 @@ async function initEngine(): Promise<EngineState> {
     generateSpansJson: wasmModule.generate_spans_json,
     processGeneratedSpansJson: wasmModule.process_generated_spans_json,
     generateLogsJson: wasmModule.generate_logs_json,
+    processGeneratedLogsJson: wasmModule.process_generated_logs_json,
     renderTraceSearchSql: wasmModule.render_trace_search_sql,
     renderTraceHistogramSql: wasmModule.render_trace_histogram_sql,
     renderLogSearchSql: wasmModule.render_log_search_sql,

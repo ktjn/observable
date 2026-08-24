@@ -42,6 +42,16 @@ pub fn process_generated_spans_json(json: &str, tenant_id: &str) -> Result<Strin
 }
 
 #[wasm_bindgen]
+pub fn process_generated_logs_json(json: &str, tenant_id: &str) -> Result<String, JsValue> {
+    let tenant_id = tenant_id
+        .parse::<uuid::Uuid>()
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    EmbeddedStreamProcessor::process_generated_logs(json, tenant_id)
+        .and_then(|logs| serde_json::to_string(&logs).map_err(|e| e.to_string()))
+        .map_err(|e| JsValue::from_str(&e))
+}
+
+#[wasm_bindgen]
 pub fn ping(seed: u32) -> String {
     format!("observable-playground-wasm:{seed}")
 }
