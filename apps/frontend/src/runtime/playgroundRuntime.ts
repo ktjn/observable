@@ -72,6 +72,7 @@ import { SqliteAlertRuleRepository } from "./sqliteAlertRuleRepository";
 import { SqliteSloRepository } from "./sqliteSloRepository";
 import { SqliteNotificationChannelRepository } from "./sqliteNotificationChannelRepository";
 import { SqliteTokenRepository } from "./sqliteTokenRepository";
+import { SqliteMemberRepository } from "./sqliteMemberRepository";
 // Type-only import (erased at compile time, so the Worker-URL concern in the
 // comment below does not apply).
 import type { NlqLogRow } from "../playground/engineClient";
@@ -460,15 +461,10 @@ async function getTokenRepository(): Promise<SqliteTokenRepository> {
   return (tokenRepository ??= await SqliteTokenRepository.open());
 }
 
-const memberStore: MemberRecord[] = [
-  {
-    user_id: "playground-user",
-    email: "playground@local",
-    name: "Playground User",
-    role: "tenant_admin",
-    joined_at: new Date(Date.now() - 7 * 86_400_000).toISOString(),
-  },
-];
+let memberRepository: SqliteMemberRepository | null = null;
+async function getMemberRepository(): Promise<SqliteMemberRepository> {
+  return (memberRepository ??= await SqliteMemberRepository.open());
+}
 
 function usageReportFixture(params: { from?: number; to?: number }): TenantUsageReportResponse {
   const toMs = params.to ?? Date.now();
@@ -1059,33 +1055,20 @@ export const playgroundRuntime: RuntimeApi = {
     },
   },
   members: {
-    async list(_tenantId: string): Promise<MemberListResponse> {
-      return { members: memberStore };
+    async list(tenantId: string): Promise<MemberListResponse> {
+      return { members: (await getMemberRepository()).list(tenantId) };
     },
     async add(
-      _tenantId: string,
+      tenantId: string,
       body: { email: string; role: TenantRole }
     ): Promise<MemberRecord> {
-      if (memberStore.some((m) => m.email === body.email)) {
-        throw new Error(`addMember failed: conflict`);
-      }
-      const member: MemberRecord = {
-        user_id: `playground-member-${memberStore.length + 1}`,
-        email: body.email,
-        role: body.role,
-        joined_at: new Date().toISOString(),
-      };
-      memberStore.push(member);
-      return member;
+      return (await getMemberRepository()).add(tenantId, body.email, body.role);
     },
-    async updateRole(_tenantId: string, userId: string, role: TenantRole): Promise<void> {
-      const member = memberStore.find((m) => m.user_id === userId);
-      if (!member) throw new Error(`updateMemberRole failed: 404`);
-      member.role = role;
+    async updateRole(tenantId: string, userId: string, role: TenantRole): Promise<void> {
+      (await getMemberRepository()).updateRole(tenantId, userId, role);
     },
-    async remove(_tenantId: string, userId: string): Promise<void> {
-      const idx = memberStore.findIndex((m) => m.user_id === userId);
-      if (idx >= 0) memberStore.splice(idx, 1);
+    async remove(tenantId: string, userId: string): Promise<void> {
+      (await getMemberRepository()).remove(tenantId, userId);
     },
     async revokeSessions(_tenantId: string, _userId: string): Promise<void> {
       // No sessions to revoke in the playground.
