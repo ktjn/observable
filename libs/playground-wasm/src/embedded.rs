@@ -216,7 +216,7 @@ impl EmbeddedStreamProcessor {
         tenant_id: Uuid,
     ) -> Result<Vec<ProcessedLog>, String> {
         let generated: Vec<GeneratedLog> = serde_json::from_str(json).map_err(|e| e.to_string())?;
-        generated
+        let logs = generated
             .into_iter()
             .map(|log| {
                 let timestamp_unix_nano = log
@@ -227,40 +227,67 @@ impl EmbeddedStreamProcessor {
                     .observed_timestamp_unix_nano
                     .parse::<u64>()
                     .map_err(|e| e.to_string())?;
-                let record = domain::processing::normalise_log(
-                    LogRecord {
-                        tenant_id,
-                        log_id: Uuid::nil(),
-                        timestamp_unix_nano,
-                        observed_timestamp_unix_nano,
-                        severity_number: log.severity_number,
-                        severity_text: log.severity_text,
-                        body: serde_json::Value::String(log.body),
-                        trace_id: Some(log.trace_id),
-                        span_id: Some(log.span_id),
-                        service_name: log.service_name,
-                        environment: log.environment,
-                        host_id: log.host_id,
-                        ..Default::default()
-                    },
+                Ok(LogRecord {
                     tenant_id,
-                );
-                Ok(ProcessedLog {
-                    tenant_id: record.tenant_id,
-                    log_id: record.log_id,
-                    timestamp_unix_nano: record.timestamp_unix_nano,
-                    observed_timestamp_unix_nano: record.observed_timestamp_unix_nano,
-                    severity_number: record.severity_number,
-                    severity_text: record.severity_text,
-                    body: record.body.to_string(),
-                    trace_id: record.trace_id.unwrap_or_default(),
-                    span_id: record.span_id.unwrap_or_default(),
-                    service_name: record.service_name,
-                    environment: record.environment,
-                    host_id: record.host_id,
+                    log_id: Uuid::nil(),
+                    timestamp_unix_nano,
+                    observed_timestamp_unix_nano,
+                    severity_number: log.severity_number,
+                    severity_text: log.severity_text,
+                    body: serde_json::Value::String(log.body),
+                    trace_id: Some(log.trace_id),
+                    span_id: Some(log.span_id),
+                    service_name: log.service_name,
+                    environment: log.environment,
+                    host_id: log.host_id,
+                    ..Default::default()
                 })
             })
-            .collect()
+            .collect::<Result<Vec<_>, String>>()?;
+
+        let mut transport = InMemoryTransport::new();
+        let storage = transport.subscribe("telemetry", 1);
+        transport
+            .publish(
+                "telemetry",
+                TelemetryEnvelope {
+                    envelope_id: Uuid::new_v4(),
+                    tenant_id,
+                    environment: logs
+                        .first()
+                        .map(|log| log.environment.clone())
+                        .unwrap_or_default(),
+                    received_at_unix_nano: logs
+                        .first()
+                        .map(|log| log.timestamp_unix_nano)
+                        .unwrap_or_default(),
+                    payload: EnvelopePayload::Logs(logs),
+                },
+            )
+            .map_err(|error| format!("embedded telemetry transport failed: {error:?}"))?;
+        let envelope = transport
+            .receive(storage)
+            .ok_or_else(|| "embedded telemetry transport delivered no log batch".to_string())?;
+        let processed = Self.process_batch([envelope]);
+
+        Ok(processed
+            .logs
+            .into_iter()
+            .map(|record| ProcessedLog {
+                tenant_id: record.tenant_id,
+                log_id: record.log_id,
+                timestamp_unix_nano: record.timestamp_unix_nano,
+                observed_timestamp_unix_nano: record.observed_timestamp_unix_nano,
+                severity_number: record.severity_number,
+                severity_text: record.severity_text,
+                body: record.body.to_string(),
+                trace_id: record.trace_id.unwrap_or_default(),
+                span_id: record.span_id.unwrap_or_default(),
+                service_name: record.service_name,
+                environment: record.environment,
+                host_id: record.host_id,
+            })
+            .collect())
     }
 
     /// Converts generated metric series and points into canonical domain
