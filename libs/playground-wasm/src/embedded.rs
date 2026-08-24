@@ -1,9 +1,11 @@
 use domain::{
-    AggregationTemporality, LogRecord, MetricPoint, MetricSeries, MetricType, Span, StatusCode,
-    TelemetryEnvelope, processing::MergedTelemetry,
+    AggregationTemporality, EnvelopePayload, LogRecord, MetricPoint, MetricSeries, MetricType,
+    Span, StatusCode, TelemetryEnvelope, processing::MergedTelemetry,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+use crate::transport::InMemoryTransport;
 
 /// Portable stream-processor core used by the browser composition layer.
 /// Native stream-processor hosts use the same domain processing functions;
@@ -128,7 +130,7 @@ impl EmbeddedStreamProcessor {
     ) -> Result<Vec<ProcessedSpan>, String> {
         let generated: Vec<GeneratedSpan> =
             serde_json::from_str(json).map_err(|e| e.to_string())?;
-        generated
+        let spans = generated
             .into_iter()
             .map(|span| {
                 let start_time_unix_nano = span
@@ -156,26 +158,56 @@ impl EmbeddedStreamProcessor {
                     environment: span.environment,
                     ..Default::default()
                 };
-                let span = domain::processing::normalise_span(span, tenant_id);
-                Ok(ProcessedSpan {
-                    tenant_id: span.tenant_id,
-                    trace_id: span.trace_id,
-                    span_id: span.span_id,
-                    parent_span_id: span.parent_span_id,
-                    service_name: span.service_name,
-                    operation_name: span.operation_name,
-                    duration_ns: span.duration_ns,
-                    status_code: match span.status_code {
-                        StatusCode::Error => "ERROR",
-                        StatusCode::Ok => "OK",
-                        StatusCode::Unset => "UNSET",
-                    }
-                    .to_string(),
-                    environment: span.environment,
-                    start_time_unix_nano: span.start_time_unix_nano,
-                })
+                Ok(span)
             })
-            .collect()
+            .collect::<Result<Vec<_>, String>>()?;
+
+        let mut transport = InMemoryTransport::new();
+        let storage = transport.subscribe("telemetry", 1);
+        transport
+            .publish(
+                "telemetry",
+                TelemetryEnvelope {
+                    envelope_id: Uuid::new_v4(),
+                    tenant_id,
+                    environment: spans
+                        .first()
+                        .map(|span| span.environment.clone())
+                        .unwrap_or_default(),
+                    received_at_unix_nano: spans
+                        .first()
+                        .map(|span| span.start_time_unix_nano)
+                        .unwrap_or_default(),
+                    payload: EnvelopePayload::Spans(spans),
+                },
+            )
+            .map_err(|error| format!("embedded telemetry transport failed: {error:?}"))?;
+        let envelope = transport
+            .receive(storage)
+            .ok_or_else(|| "embedded telemetry transport delivered no span batch".to_string())?;
+        let processed = Self.process_batch([envelope]);
+
+        Ok(processed
+            .spans
+            .into_iter()
+            .map(|span| ProcessedSpan {
+                tenant_id: span.tenant_id,
+                trace_id: span.trace_id,
+                span_id: span.span_id,
+                parent_span_id: span.parent_span_id,
+                service_name: span.service_name,
+                operation_name: span.operation_name,
+                duration_ns: span.duration_ns,
+                status_code: match span.status_code {
+                    StatusCode::Error => "ERROR",
+                    StatusCode::Ok => "OK",
+                    StatusCode::Unset => "UNSET",
+                }
+                .to_string(),
+                environment: span.environment,
+                start_time_unix_nano: span.start_time_unix_nano,
+            })
+            .collect())
     }
 
     /// Converts generated logs into canonical records before local storage.
