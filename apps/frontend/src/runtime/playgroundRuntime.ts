@@ -1162,6 +1162,36 @@ export const playgroundRuntime: RuntimeApi = {
       if (
         !hasFreeTextQuestion &&
         ir &&
+        ir.operation === "timeseries" &&
+        ir.signals?.length === 1 &&
+        ir.signals[0] === "metrics"
+      ) {
+        const { executeMetricCatalog, executeMetricGroupPoints } = await import("../playground/engineClient");
+        const service = nlqServiceFilter(ir);
+        const { metrics } = await executeMetricCatalog(service);
+        const metric = metrics.find((candidate) => candidate.metric_name === ir.metric) ?? metrics[0];
+        const { points } = metric ? await executeMetricGroupPoints(metric) : { points: [] };
+        return {
+          type: "frame",
+          frame: {
+            ...STUB_NLQ_FRAME,
+            frame_type: "timeseries",
+            suggested_visualization: "timeseries",
+            x_field: "time_unix_nano",
+            y_field: "value_double",
+            data: points as unknown as Record<string, unknown>[],
+            nlq_ir: ir,
+            signal_types: ir.signals,
+            time_range: ir.time_range,
+            unit: metric?.unit ?? null,
+            source_sql: "-- playground DuckDB metric points query",
+          },
+        };
+      }
+
+      if (
+        !hasFreeTextQuestion &&
+        ir &&
         ir.operation === "table" &&
         ir.signals?.length === 1 &&
         ir.signals[0] === "traces"

@@ -89,6 +89,17 @@ vi.mock("../playground/engineClient", () => ({
       series_count: 1,
     }],
   })),
+  executeMetricGroupPoints: vi.fn(async () => ({
+    points: [{
+      tenant_id: "00000000-0000-0000-0000-000000000001",
+      metric_series_id: "series-1",
+      metric_name: "http.server.request.duration",
+      service_name: "checkout",
+      environment: "production",
+      time_unix_nano: 1700000000000000000,
+      value_double: 42.5,
+    }],
+  })),
 }));
 
 const MOCK_TENANT_ID = "00000000-0000-0000-0000-000000000001";
@@ -217,6 +228,26 @@ function runContract(name: string, runtime: RuntimeApi) {
       expect(result.type).toBe("frame");
       if (result.type === "frame") {
         expect(result.frame.data[0]).toMatchObject({ metric_name: "http.server.request.duration" });
+        expect(result.frame.source_sql).toContain("DuckDB");
+      }
+    });
+
+    it.skipIf(name !== "playground")("nlq.execute runs metric timeseries IR through the telemetry engine", async () => {
+      const result = await runtime.nlq.execute(MOCK_TENANT_ID, {
+        base_ir: {
+          operation: "timeseries",
+          signals: ["metrics"],
+          filters: [],
+          time_range: { from: "now-1h", to: "now" },
+        },
+        mode: "execute",
+      });
+      expect(result.type).toBe("frame");
+      if (result.type === "frame") {
+        expect(result.frame.frame_type).toBe("timeseries");
+        expect(result.frame.x_field).toBe("time_unix_nano");
+        expect(result.frame.y_field).toBe("value_double");
+        expect(result.frame.data[0]).toMatchObject({ value_double: 42.5 });
         expect(result.frame.source_sql).toContain("DuckDB");
       }
     });
