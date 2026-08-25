@@ -403,6 +403,25 @@ function runContract(name: string, runtime: RuntimeApi) {
       }
     });
 
+    it.skipIf(name !== "playground")("nlq.execute reports unsupported local NLQ capabilities", async () => {
+      const freeText = await runtime.nlq.execute(MOCK_TENANT_ID, {
+        question: "show me the busiest services",
+        mode: "execute",
+      });
+      expect(freeText).toMatchObject({ type: "capabilities" });
+
+      const multiSignal = await runtime.nlq.execute(MOCK_TENANT_ID, {
+        base_ir: {
+          operation: "table",
+          signals: ["traces", "logs"],
+          filters: [],
+          time_range: { from: "now-1h", to: "now" },
+        },
+        mode: "execute",
+      });
+      expect(multiSignal).toMatchObject({ type: "capabilities" });
+    });
+
     it("alerts.list returns the AlertRuleListResponse shape", async () => {
       const result = await runtime.alerts.list(MOCK_TENANT_ID);
       expect(Array.isArray(result.items)).toBe(true);

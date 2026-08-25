@@ -94,7 +94,7 @@ describe("playgroundRuntime.nlq.execute — locked-service raw IR shorthand", ()
     );
   });
 
-  it("still treats a genuine free-text question as free text, not raw IR", async () => {
+  it("reports genuine free-text questions as an unsupported local capability", async () => {
     const { executeTraceTable, executeLogTable } = await import("../playground/engineClient");
     vi.mocked(executeTraceTable).mockClear();
     vi.mocked(executeLogTable).mockClear();
@@ -112,6 +112,6 @@ describe("playgroundRuntime.nlq.execute — locked-service raw IR shorthand", ()
 
     expect(executeTraceTable).not.toHaveBeenCalled();
     expect(executeLogTable).not.toHaveBeenCalled();
-    expect(response.type).toBe("frame");
+    expect(response.type).toBe("capabilities");
   });
 });
