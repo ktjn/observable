@@ -1243,7 +1243,7 @@ export const playgroundRuntime: RuntimeApi = {
             ...STUB_NLQ_FRAME,
             data: (await getInfrastructureRepository()).list(_tenantId) as unknown as Record<string, unknown>[],
             nlq_ir: ir,
-            source_sql: "-- playground infrastructure fixtures, not executed",
+            source_sql: "-- playground SQLite infrastructure inventory",
           },
         };
       }

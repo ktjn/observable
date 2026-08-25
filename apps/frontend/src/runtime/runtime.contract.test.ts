@@ -221,6 +221,23 @@ function runContract(name: string, runtime: RuntimeApi) {
       }
     });
 
+    it.skipIf(name !== "playground")("nlq.execute preserves inventory repository provenance", async () => {
+      const result = await runtime.nlq.execute(MOCK_TENANT_ID, {
+        base_ir: {
+          operation: "inventory",
+          signals: ["metrics"],
+          filters: [],
+          time_range: { from: "now-1h", to: "now" },
+        },
+        mode: "execute",
+      });
+      expect(result.type).toBe("frame");
+      if (result.type === "frame") {
+        expect(result.frame.source_sql).toContain("SQLite infrastructure inventory");
+        expect(result.frame.source_sql).not.toContain("fixtures");
+      }
+    });
+
     it("alerts.list returns the AlertRuleListResponse shape", async () => {
       const result = await runtime.alerts.list(MOCK_TENANT_ID);
       expect(Array.isArray(result.items)).toBe(true);
