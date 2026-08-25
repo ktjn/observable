@@ -78,6 +78,7 @@ import { SqliteIncidentRepository } from "./sqliteIncidentRepository";
 import { SqliteAuthRepository } from "./sqliteAuthRepository";
 import { SqliteInfrastructureRepository } from "./sqliteInfrastructureRepository";
 import { SqliteDeploymentRepository } from "./sqliteDeploymentRepository";
+import { SqliteUsageRepository } from "./sqliteUsageRepository";
 // Type-only import (erased at compile time, so the Worker-URL concern in the
 // comment below does not apply).
 import type { NlqLogRow } from "../playground/engineClient";
@@ -307,6 +308,11 @@ async function getDeploymentRepository(): Promise<SqliteDeploymentRepository> {
   return (deploymentRepository ??= await SqliteDeploymentRepository.open());
 }
 
+let usageRepository: SqliteUsageRepository | null = null;
+async function getUsageRepository(): Promise<SqliteUsageRepository> {
+  return (usageRepository ??= await SqliteUsageRepository.open());
+}
+
 /**
  * Legacy fixture retained temporarily for non-runtime documentation examples.
  * (host -> cluster -> namespace -> pods -> containers) covering the demo
@@ -482,6 +488,7 @@ function usageReportFixture(params: { from?: number; to?: number }): TenantUsage
     estimated_cost_index: 512,
   };
 }
+void usageReportFixture;
 
 let authRepository: SqliteAuthRepository | null = null;
 async function getAuthRepository(): Promise<SqliteAuthRepository> {
@@ -1073,7 +1080,7 @@ export const playgroundRuntime: RuntimeApi = {
       _tenantId: string,
       params: { from?: number; to?: number }
     ): Promise<TenantUsageReportResponse> {
-      return usageReportFixture(params);
+      return (await getUsageRepository()).report(_tenantId, params);
     },
   },
   auth: {
