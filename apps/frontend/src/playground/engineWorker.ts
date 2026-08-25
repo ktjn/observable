@@ -9,6 +9,7 @@ import {
   type ProcessedMetricSeries,
   type ProcessedSpan,
 } from "./duckdbStorageWriter";
+import { DuckDbTraceQueryApi } from "./duckdbTraceQueryApi";
 export {};
 
 // Must match useTenantContext.tsx's DEFAULT_TENANT_ID / playgroundRuntime.ts's
@@ -443,9 +444,9 @@ function getEngine(): Promise<EngineState> {
  */
 async function executeTraceDetail(traceId: string): Promise<TraceDetailSpan[]> {
   const { conn } = await getEngine();
-  const sql = `SELECT trace_id, span_id, parent_span_id, service_name, operation_name, duration_ns, status_code, environment, start_time_unix_nano FROM spans WHERE trace_id = '${escapeSqlString(traceId)}' ORDER BY start_time_unix_nano`;
-  const result = await conn.query(sql);
-  return result.toArray().map((row) => {
+  const queryApi = new DuckDbTraceQueryApi(conn);
+  const rows = await queryApi.findTrace(traceId);
+  return rows.map((row) => {
     const startNs = Number(row.start_time_unix_nano);
     const durationNs = Number(row.duration_ns);
     const parentSpanId = String(row.parent_span_id);
@@ -477,8 +478,9 @@ async function executeTraceDetail(traceId: string): Promise<TraceDetailSpan[]> {
 async function executeTraceTable(ir: unknown): Promise<{ rows: NlqTraceRow[]; sql: string }> {
   const { renderTraceSearchSql, conn } = await getEngine();
   const sql = renderTraceSearchSql(JSON.stringify(ir));
-  const result = await conn.query(sql);
-  const rows: NlqTraceRow[] = result.toArray().map((row) => ({
+  const queryApi = new DuckDbTraceQueryApi(conn);
+  const rawRows = await queryApi.executePlanned(sql);
+  const rows: NlqTraceRow[] = rawRows.map((row) => ({
     trace_id: String(row.trace_id),
     root_service: String(row.root_service),
     root_operation: String(row.root_operation),
