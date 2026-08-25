@@ -129,6 +129,7 @@ const STUB_TRACE: TraceResponse = {
   spans: [STUB_SPAN],
   events: [],
 };
+void STUB_TRACE;
 
 interface NlqTraceRow {
   trace_id: string;
@@ -687,12 +688,29 @@ export const playgroundRuntime: RuntimeApi = {
     },
   },
   traces: {
-    async search(): Promise<TraceListResponse> {
-      return {
-        traces: [STUB_TRACE],
-        total: 1,
-        facets: { service_name: [{ value: "checkout", count: 1 }] },
-      };
+    async search(_tenantId: string, params: { service?: string; limit?: number; from?: string; to?: string }): Promise<TraceListResponse> {
+      const { executeTraceTable } = await import("../playground/engineClient");
+      const filters = params.service ? [{ field: "service_name", op: "=", value: params.service }] : [];
+      const { rows } = await executeTraceTable({
+        operation: "table",
+        signals: ["traces"],
+        filters,
+        time_range: { from: params.from ?? "now-1h", to: params.to ?? "now" },
+      });
+      const traces = rows.slice(0, params.limit ?? 50).map((row) => ({
+        trace_id: row.trace_id,
+        spans: [{
+          span_id: `${row.trace_id}-root`, trace_id: row.trace_id, tenant_id: _tenantId,
+          service_name: row.root_service, service_namespace: "", service_version: "",
+          operation_name: row.root_operation, span_kind: "SERVER", start_time_unix_nano: Number(row.start_time_unix_nano),
+          end_time_unix_nano: Number(row.start_time_unix_nano) + row.duration_ms * 1_000_000,
+          duration_ns: row.duration_ms * 1_000_000, status_code: row.status_code === "ERROR" ? "ERROR" : "OK",
+          status_message: "", attributes: {}, resource_attributes: {}, environment: row.environment ?? "",
+          host_id: "", workload: "", deployment_id: "",
+        } as Span],
+        events: [],
+      }));
+      return { traces, total: rows.length, facets: {} };
     },
     async get(_tenantId: string, traceId: string): Promise<TraceResponse> {
       const { executeTraceDetail } = await import("../playground/engineClient");
