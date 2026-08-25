@@ -718,6 +718,39 @@ function metricDistribution(points: PlaygroundMetricPoint[]): PlaygroundMetricPo
   ];
 }
 
+function traceTopK(rows: NlqTraceRow[], limit: number): Record<string, unknown>[] {
+  const groups = new Map<string, { count: number; totalDuration: number; latest: NlqTraceRow }>();
+  for (const row of rows) {
+    const group = groups.get(row.root_service) ?? { count: 0, totalDuration: 0, latest: row };
+    group.count += 1;
+    group.totalDuration += row.duration_ms;
+    if (String(row.start_time_unix_nano) > String(group.latest.start_time_unix_nano)) group.latest = row;
+    groups.set(row.root_service, group);
+  }
+  return [...groups.entries()]
+    .map(([service_name, group]) => ({
+      service_name,
+      request_count: group.count,
+      average_duration_ms: group.totalDuration / group.count,
+      latest_start_time_unix_nano: group.latest.start_time_unix_nano,
+    }))
+    .sort((a, b) => Number(b.request_count) - Number(a.request_count))
+    .slice(0, Math.max(1, Math.min(100, limit)));
+}
+
+function traceDistribution(rows: NlqTraceRow[]): Record<string, unknown>[] {
+  const values = rows.map((row) => row.duration_ms).sort((a, b) => a - b);
+  if (values.length === 0) return [];
+  const percentile = (fraction: number) => values[Math.min(values.length - 1, Math.floor((values.length - 1) * fraction))];
+  return [
+    { stat: "min", value_double: values[0], unit: "ms" },
+    { stat: "average", value_double: values.reduce((sum, value) => sum + value, 0) / values.length, unit: "ms" },
+    { stat: "p50", value_double: percentile(0.5), unit: "ms" },
+    { stat: "p95", value_double: percentile(0.95), unit: "ms" },
+    { stat: "max", value_double: values[values.length - 1], unit: "ms" },
+  ];
+}
+
 /**
  * The engine worker returns log timestamps as decimal strings (avoiding JS
  * Number precision loss at ns scale); the production `LogRecord` wire shape
@@ -1306,6 +1339,36 @@ export const playgroundRuntime: RuntimeApi = {
             ...STUB_NLQ_FRAME,
             data: rows as unknown as Record<string, unknown>[],
             nlq_ir: ir,
+            source_sql: sql,
+          },
+        };
+      }
+
+      if (
+        !hasFreeTextQuestion &&
+        ir &&
+        (ir.operation === "topk" || ir.operation === "distribution") &&
+        ir.signals?.length === 1 &&
+        ir.signals[0] === "traces"
+      ) {
+        const { executeTraceTable } = await import("../playground/engineClient");
+        const { rows, sql } = await executeTraceTable({ ...ir, operation: "table" });
+        const data = ir.operation === "topk"
+          ? traceTopK(rows, ir.limit ?? 10)
+          : traceDistribution(rows);
+        return {
+          type: "frame",
+          frame: {
+            ...STUB_NLQ_FRAME,
+            frame_type: ir.operation,
+            suggested_visualization: ir.operation,
+            x_field: ir.operation === "topk" ? "service_name" : "stat",
+            y_field: ir.operation === "topk" ? "request_count" : "value_double",
+            data,
+            nlq_ir: ir,
+            signal_types: ir.signals,
+            time_range: ir.time_range,
+            unit: ir.operation === "distribution" ? "ms" : null,
             source_sql: sql,
           },
         };
