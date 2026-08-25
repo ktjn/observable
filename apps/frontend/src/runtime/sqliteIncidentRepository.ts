@@ -1,4 +1,4 @@
-import type { IncidentItem, IncidentListResponse } from "../api/incidents";
+import type { IncidentItem, IncidentListResponse, IncidentDetailResponse } from "../api/incidents";
 
 type SqlValue = string | number | null;
 interface SqlOptions {
@@ -49,6 +49,26 @@ export class SqliteIncidentRepository {
       bind: { $tenant_id: tenantId, $incident_id: incidentId },
     })[0];
     return row ? (JSON.parse(String(row.incident_json)) as IncidentItem) : null;
+  }
+
+  getDetail(tenantId: string, incidentId: string): IncidentDetailResponse | null {
+    const incident = this.get(tenantId, incidentId);
+    if (!incident) return null;
+    return {
+      ...incident,
+      dedup_key: `dedup-${incident.incident_id}`,
+      resolved_at: incident.resolved_at ?? null,
+      triggered_by_rule_id: incident.triggered_by_rule_id ?? null,
+      runbook_url: null,
+      rule_name: incident.triggered_by_rule_id === "playground-rule-1" ? "payment error rate > 5%" : null,
+      timeline: [{
+        event_time: incident.triggered_at,
+        event_type: "triggered",
+        actor: "alert-evaluator",
+        message: `Incident triggered: ${incident.title}`,
+      }],
+      impacted_service: incident.triggered_by_rule_id === "playground-rule-1" ? "payment" : null,
+    };
   }
 
   private insert(tenantId: string, incident: IncidentItem): void {

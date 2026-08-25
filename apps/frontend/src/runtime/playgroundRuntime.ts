@@ -522,6 +522,7 @@ function incidentDetailFixture(incident: IncidentItem): IncidentDetailResponse {
       incident.triggered_by_rule_id === "playground-rule-1" ? "payment" : null,
   };
 }
+void incidentDetailFixture;
 
 function deploymentsFixture(params: ListDeploymentsParams): DeploymentMarker[] {  const nowMs = Date.now();
   const all: DeploymentMarker[] = [
@@ -926,7 +927,8 @@ export const playgroundRuntime: RuntimeApi = {
       if (!incident) {
         throw new Error(`Failed to get incident: 404`);
       }
-      return incidentDetailFixture(incident);
+      return (await getIncidentRepository()).getDetail(tenantId, incidentId) ??
+        (() => { throw new Error(`Failed to get incident: 404`); })();
     },
   },
   slos: {
