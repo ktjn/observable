@@ -98,6 +98,22 @@ vi.mock("../playground/engineClient", () => ({
       environment: "production",
       time_unix_nano: 1700000000000000000,
       value_double: 42.5,
+    }, {
+      tenant_id: "00000000-0000-0000-0000-000000000001",
+      metric_series_id: "series-1",
+      metric_name: "http.server.request.duration",
+      service_name: "checkout",
+      environment: "production",
+      time_unix_nano: 1700000001000000000,
+      value_double: 52.5,
+    }, {
+      tenant_id: "00000000-0000-0000-0000-000000000001",
+      metric_series_id: "series-1",
+      metric_name: "http.server.request.duration",
+      service_name: "checkout",
+      environment: "production",
+      time_unix_nano: 1700000002000000000,
+      value_double: 67.5,
     }],
   })),
 }));
@@ -249,6 +265,25 @@ function runContract(name: string, runtime: RuntimeApi) {
         expect(result.frame.y_field).toBe("value_double");
         expect(result.frame.data[0]).toMatchObject({ value_double: 42.5 });
         expect(result.frame.source_sql).toContain("DuckDB");
+      }
+    });
+
+    it.skipIf(name !== "playground")("nlq.execute derives metric rate, irate, and increase from points", async () => {
+      for (const [operation, expectedValues] of [["rate", [10, 15]], ["irate", [15]], ["increase", [25]]] as const) {
+        const result = await runtime.nlq.execute(MOCK_TENANT_ID, {
+          base_ir: {
+            operation,
+            signals: ["metrics"],
+            filters: [],
+            time_range: { from: "now-1h", to: "now" },
+          },
+          mode: "execute",
+        });
+        expect(result.type).toBe("frame");
+        if (result.type === "frame") {
+          expect(result.frame.data.map((row) => row.value_double)).toEqual(expectedValues);
+          expect(result.frame.suggested_visualization).toBe("timeseries");
+        }
       }
     });
 
