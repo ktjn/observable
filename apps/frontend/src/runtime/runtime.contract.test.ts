@@ -231,6 +231,27 @@ function runContract(name: string, runtime: RuntimeApi) {
       }
     });
 
+    it.skipIf(name !== "playground")("nlq.execute bins metric histogram points through the telemetry engine", async () => {
+      const result = await runtime.nlq.execute(MOCK_TENANT_ID, {
+        base_ir: {
+          operation: "histogram",
+          signals: ["metrics"],
+          filters: [],
+          time_range: { from: "now-1h", to: "now" },
+        },
+        mode: "execute",
+      });
+      expect(result.type).toBe("frame");
+      if (result.type === "frame") {
+        expect(result.frame.frame_type).toBe("histogram");
+        expect(result.frame.x_field).toBe("start");
+        expect(result.frame.y_field).toBe("count");
+        expect(result.frame.data.reduce((sum, row) => sum + Number(row.count), 0)).toBe(3);
+        expect(result.frame.unit).toBe("ms");
+        expect(result.frame.source_sql).toContain("DuckDB");
+      }
+    });
+
     it.skipIf(name !== "playground")("nlq.execute runs metric catalog IR through the telemetry engine", async () => {
       const result = await runtime.nlq.execute(MOCK_TENANT_ID, {
         base_ir: {

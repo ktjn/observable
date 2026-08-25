@@ -718,6 +718,27 @@ function metricDistribution(points: PlaygroundMetricPoint[]): PlaygroundMetricPo
   ];
 }
 
+function metricHistogram(points: PlaygroundMetricPoint[], bucketCount: number): Record<string, unknown>[] {
+  const values = points
+    .map((point) => point.value_double)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  if (values.length === 0) return [];
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const count = Math.max(1, Math.min(240, Math.floor(bucketCount)));
+  const width = (max - min) / count || 1;
+  const buckets = Array.from({ length: count }, (_, index) => ({
+    start: min + index * width,
+    end: min + (index + 1) * width,
+    count: 0,
+  }));
+  for (const value of values) {
+    const index = Math.min(count - 1, Math.max(0, Math.floor((value - min) / width)));
+    buckets[index].count += 1;
+  }
+  return buckets;
+}
+
 function traceTopK(rows: NlqTraceRow[], limit: number): Record<string, unknown>[] {
   const groups = new Map<string, { count: number; totalDuration: number; latest: NlqTraceRow }>();
   for (const row of rows) {
@@ -1398,6 +1419,35 @@ export const playgroundRuntime: RuntimeApi = {
             time_range: ir.time_range,
             unit: ir.operation === "distribution" ? "ms" : null,
             source_sql: sql,
+          },
+        };
+      }
+
+      if (
+        !hasFreeTextQuestion &&
+        ir &&
+        ir.operation === "histogram" &&
+        ir.signals?.length === 1 &&
+        ir.signals[0] === "metrics"
+      ) {
+        const { executeMetricCatalog, executeMetricGroupPoints } = await import("../playground/engineClient");
+        const { metrics } = await executeMetricCatalog(nlqServiceFilter(ir));
+        const metric = metrics.find((candidate) => candidate.metric_name === ir.metric) ?? metrics[0];
+        const { points } = metric ? await executeMetricGroupPoints(metric) : { points: [] };
+        return {
+          type: "frame",
+          frame: {
+            ...STUB_NLQ_FRAME,
+            frame_type: "histogram",
+            suggested_visualization: "histogram",
+            x_field: "start",
+            y_field: "count",
+            data: metricHistogram(points as unknown as PlaygroundMetricPoint[], nlqBucketCount(ir)),
+            nlq_ir: ir,
+            signal_types: ir.signals,
+            time_range: ir.time_range,
+            unit: metric?.unit ?? null,
+            source_sql: "-- playground DuckDB metric points query",
           },
         };
       }
