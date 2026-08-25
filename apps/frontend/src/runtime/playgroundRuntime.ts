@@ -77,6 +77,7 @@ import { SqlitePlatformConfigRepository } from "./sqlitePlatformConfigRepository
 import { SqliteIncidentRepository } from "./sqliteIncidentRepository";
 import { SqliteAuthRepository } from "./sqliteAuthRepository";
 import { SqliteInfrastructureRepository } from "./sqliteInfrastructureRepository";
+import { SqliteDeploymentRepository } from "./sqliteDeploymentRepository";
 // Type-only import (erased at compile time, so the Worker-URL concern in the
 // comment below does not apply).
 import type { NlqLogRow } from "../playground/engineClient";
@@ -299,6 +300,11 @@ function savedViewRepository(): Promise<SqliteSavedViewRepository> {
 let infrastructureRepository: SqliteInfrastructureRepository | null = null;
 async function getInfrastructureRepository(): Promise<SqliteInfrastructureRepository> {
   return (infrastructureRepository ??= await SqliteInfrastructureRepository.open());
+}
+
+let deploymentRepository: SqliteDeploymentRepository | null = null;
+async function getDeploymentRepository(): Promise<SqliteDeploymentRepository> {
+  return (deploymentRepository ??= await SqliteDeploymentRepository.open());
 }
 
 /**
@@ -563,6 +569,7 @@ function deploymentsFixture(params: ListDeploymentsParams): DeploymentMarker[] {
       (!params.environment || d.environment === params.environment),
   );
 }
+void deploymentsFixture;
 
 /**
  * `question` doubles as either free-text NLQ or a raw JSON-encoded `NlqIr`
@@ -1080,8 +1087,8 @@ export const playgroundRuntime: RuntimeApi = {
     async logout(): Promise<void> {},
   },
   deployments: {
-    async list(_tenantId: string, params: ListDeploymentsParams): Promise<ListDeploymentsResponse> {
-      return { items: deploymentsFixture(params) };
+    async list(tenantId: string, params: ListDeploymentsParams): Promise<ListDeploymentsResponse> {
+      return { items: (await getDeploymentRepository()).list(tenantId, params) };
     },
   },
   nlq: {
