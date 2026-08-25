@@ -1378,6 +1378,30 @@ export const playgroundRuntime: RuntimeApi = {
         ir &&
         ir.operation === "table" &&
         ir.signals?.length === 1 &&
+        ir.signals[0] === "metrics"
+      ) {
+        const { executeMetricCatalog } = await import("../playground/engineClient");
+        const { metrics } = await executeMetricCatalog(nlqServiceFilter(ir));
+        return {
+          type: "frame",
+          frame: {
+            ...STUB_NLQ_FRAME,
+            frame_type: "table",
+            suggested_visualization: "table",
+            data: metrics as unknown as Record<string, unknown>[] ,
+            nlq_ir: ir,
+            signal_types: ir.signals,
+            time_range: ir.time_range,
+            source_sql: "-- playground DuckDB metric catalog query",
+          },
+        };
+      }
+
+      if (
+        !hasFreeTextQuestion &&
+        ir &&
+        ir.operation === "table" &&
+        ir.signals?.length === 1 &&
         ir.signals[0] === "traces"
       ) {
         const { executeTraceTable } = await import("../playground/engineClient");
