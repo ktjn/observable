@@ -653,6 +653,15 @@ function resolveTimeRange(timeRange: NlqIr["time_range"]): NlqIr["time_range"] {
   };
 }
 
+function nlqServiceFilter(ir: NlqIr): string | undefined {
+  const filter = ir.filters.find(({ field }) => field === "service" || field === "service_name");
+  return filter?.value || undefined;
+}
+
+function nlqBucketCount(ir: NlqIr): number {
+  return Math.max(1, Math.min(240, Math.floor(ir.limit ?? 24)));
+}
+
 /**
  * The engine worker returns log timestamps as decimal strings (avoiding JS
  * Number precision loss at ns scale); the production `LogRecord` wire shape
@@ -1150,6 +1159,36 @@ export const playgroundRuntime: RuntimeApi = {
             data: rows as unknown as Record<string, unknown>[],
             nlq_ir: ir,
             source_sql: sql,
+          },
+        };
+      }
+
+      if (
+        !hasFreeTextQuestion &&
+        ir &&
+        ir.operation === "histogram" &&
+        ir.signals?.length === 1 &&
+        (ir.signals[0] === "traces" || ir.signals[0] === "logs")
+      ) {
+        const fromNs = ir.time_range.from;
+        const toNs = ir.time_range.to;
+        const bucketCount = nlqBucketCount(ir);
+        const service = nlqServiceFilter(ir);
+        const engine = await import("../playground/engineClient");
+        const { buckets } = ir.signals[0] === "traces"
+          ? await engine.executeTraceHistogram({ fromNs, toNs, bucketCount, service })
+          : await engine.executeLogHistogram({ fromNs, toNs, bucketCount, service });
+        return {
+          type: "frame",
+          frame: {
+            ...STUB_NLQ_FRAME,
+            frame_type: "histogram",
+            suggested_visualization: "histogram",
+            data: buckets as unknown as Record<string, unknown>[],
+            nlq_ir: ir,
+            signal_types: ir.signals,
+            time_range: ir.time_range,
+            source_sql: "-- playground DuckDB histogram query",
           },
         };
       }

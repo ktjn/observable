@@ -174,6 +174,24 @@ function runContract(name: string, runtime: RuntimeApi) {
       }
     });
 
+    it.skipIf(name !== "playground")("nlq.execute runs histogram IR through the telemetry engine", async () => {
+      const result = await runtime.nlq.execute(MOCK_TENANT_ID, {
+        base_ir: {
+          operation: "histogram",
+          signals: ["logs"],
+          filters: [],
+          time_range: { from: "1700000000000000000", to: "1700003600000000000" },
+        },
+        mode: "execute",
+      });
+      expect(result.type).toBe("frame");
+      if (result.type === "frame") {
+        expect(result.frame.frame_type).toBe("histogram");
+        expect(result.frame.source_sql).toContain("DuckDB");
+        expect(result.frame.data).toHaveLength(1);
+      }
+    });
+
     it("alerts.list returns the AlertRuleListResponse shape", async () => {
       const result = await runtime.alerts.list(MOCK_TENANT_ID);
       expect(Array.isArray(result.items)).toBe(true);
