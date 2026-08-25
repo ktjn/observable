@@ -1556,13 +1556,6 @@ export const playgroundRuntime: RuntimeApi = {
         };
       }
 
-      // Free-text NLQ questions and every other operation/signal still use
-      // fixture data — shorthand/IR-merge logic isn't wired yet. Match the
-      // fixture shape to the requested signal so at least the response
-      // *shape* is correct even when the content is static.
-      if (!hasFreeTextQuestion && ir?.signals?.length === 1 && ir.signals[0] === "logs") {
-        return { type: "frame", frame: STUB_LOG_FRAME };
-      }
       if (!hasFreeTextQuestion && ir?.operation === "inventory") {
         return {
           type: "frame",
@@ -1572,6 +1565,24 @@ export const playgroundRuntime: RuntimeApi = {
             nlq_ir: ir,
             source_sql: "-- playground SQLite infrastructure inventory",
           },
+        };
+      }
+      if (hasFreeTextQuestion) {
+        return {
+          type: "capabilities",
+          hint: "The local playground executes raw NlqIr JSON; natural-language interpretation requires an LLM provider.",
+        };
+      }
+      if (ir && ir.signals.length !== 1) {
+        return {
+          type: "capabilities",
+          hint: "The local playground currently executes one telemetry signal per NlqIr request.",
+        };
+      }
+      if (ir) {
+        return {
+          type: "capabilities",
+          hint: `The local playground does not implement the ${ir.operation} operation for ${ir.signals[0] ?? "this signal"}.`,
         };
       }
       return { type: "frame", frame: STUB_NLQ_FRAME };
