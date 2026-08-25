@@ -75,6 +75,7 @@ import { SqliteTokenRepository } from "./sqliteTokenRepository";
 import { SqliteMemberRepository } from "./sqliteMemberRepository";
 import { SqlitePlatformConfigRepository } from "./sqlitePlatformConfigRepository";
 import { SqliteIncidentRepository } from "./sqliteIncidentRepository";
+import { SqliteAuthRepository } from "./sqliteAuthRepository";
 // Type-only import (erased at compile time, so the Worker-URL concern in the
 // comment below does not apply).
 import type { NlqLogRow } from "../playground/engineClient";
@@ -484,11 +485,10 @@ function usageReportFixture(params: { from?: number; to?: number }): TenantUsage
   };
 }
 
-const PLAYGROUND_ME: MeResponse = {
-  user_id: "playground-user",
-  email: "playground@local",
-  tenants: [{ tenant_id: DEMO_TENANT_ID, role: "admin" }],
-};
+let authRepository: SqliteAuthRepository | null = null;
+async function getAuthRepository(): Promise<SqliteAuthRepository> {
+  return (authRepository ??= await SqliteAuthRepository.open());
+}
 
 let incidentRepository: SqliteIncidentRepository | null = null;
 async function getIncidentRepository(): Promise<SqliteIncidentRepository> {
@@ -1066,7 +1066,7 @@ export const playgroundRuntime: RuntimeApi = {
   },
   auth: {
     async me(): Promise<MeResponse> {
-      return PLAYGROUND_ME;
+      return (await getAuthRepository()).me();
     },
     login(): void {
       // The playground has no login backend; useAuth already provides the
