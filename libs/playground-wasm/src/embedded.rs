@@ -303,8 +303,12 @@ impl EmbeddedStreamProcessor {
         }
 
         let generated: GeneratedMetrics = serde_json::from_str(json).map_err(|e| e.to_string())?;
-        let series = generated
-            .series
+        let GeneratedMetrics {
+            series: generated_series,
+            points: generated_points,
+        } = generated;
+        let mut series_ids = Vec::with_capacity(generated_series.len());
+        let series = generated_series
             .into_iter()
             .map(|item| {
                 let metric_type = match item.metric_type.as_str() {
@@ -319,68 +323,112 @@ impl EmbeddedStreamProcessor {
                     "cumulative" => Some(AggregationTemporality::Cumulative),
                     _ => None,
                 };
-                let metric_series_id = item.metric_series_id.clone();
-                let series = domain::processing::normalise_metric_series(
-                    MetricSeries {
-                        tenant_id,
-                        metric_series_id: Uuid::new_v4(),
-                        metric_name: item.metric_name.clone(),
-                        description: item.description.clone(),
-                        unit: item.unit.clone(),
-                        metric_type,
-                        is_monotonic: Some(item.is_monotonic),
-                        aggregation_temporality,
-                        service_name: item.service_name.clone(),
-                        environment: item.environment.clone(),
-                        ..Default::default()
-                    },
+                series_ids.push(item.metric_series_id.clone());
+                Ok(MetricSeries {
                     tenant_id,
-                );
-                ProcessedMetricSeries {
-                    tenant_id: series.tenant_id,
-                    metric_series_id,
-                    metric_name: series.metric_name,
-                    description: series.description,
-                    unit: series.unit,
-                    metric_type: item.metric_type,
-                    is_monotonic: series.is_monotonic.unwrap_or(false),
-                    aggregation_temporality: item.aggregation_temporality,
-                    service_name: series.service_name,
-                    environment: series.environment,
-                }
-            })
-            .collect();
-        let points = generated
-            .points
-            .into_iter()
-            .map(|item| {
-                let point = domain::processing::normalise_metric_point(
-                    MetricPoint {
-                        tenant_id,
-                        metric_series_id: Uuid::new_v4(),
-                        time_unix_nano: item
-                            .time_unix_nano
-                            .parse::<u64>()
-                            .map_err(|e| e.to_string())?,
-                        start_time_unix_nano: Some(
-                            item.start_time_unix_nano
-                                .parse::<u64>()
-                                .map_err(|e| e.to_string())?,
-                        ),
-                        value_double: Some(item.value_double),
-                        ..Default::default()
-                    },
-                    tenant_id,
-                );
-                Ok(ProcessedMetricPoint {
-                    tenant_id: point.tenant_id,
-                    metric_series_id: item.metric_series_id,
-                    time_unix_nano: point.time_unix_nano,
-                    start_time_unix_nano: point.start_time_unix_nano.unwrap_or_default(),
-                    value_double: point.value_double.unwrap_or_default(),
+                    metric_series_id: Uuid::new_v4(),
+                    metric_name: item.metric_name,
+                    description: item.description,
+                    unit: item.unit,
+                    metric_type,
+                    is_monotonic: Some(item.is_monotonic),
+                    aggregation_temporality,
+                    service_name: item.service_name,
+                    environment: item.environment,
+                    ..Default::default()
                 })
             })
             .collect::<Result<Vec<_>, String>>()?;
+        let mut point_ids = Vec::with_capacity(generated_points.len());
+        let points = generated_points
+            .into_iter()
+            .map(|item| {
+                point_ids.push(item.metric_series_id);
+                Ok(MetricPoint {
+                    tenant_id,
+                    metric_series_id: Uuid::new_v4(),
+                    time_unix_nano: item
+                        .time_unix_nano
+                        .parse::<u64>()
+                        .map_err(|e| e.to_string())?,
+                    start_time_unix_nano: Some(
+                        item.start_time_unix_nano
+                            .parse::<u64>()
+                            .map_err(|e| e.to_string())?,
+                    ),
+                    value_double: Some(item.value_double),
+                    ..Default::default()
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+
+        let environment = series
+            .first()
+            .map(|item| item.environment.clone())
+            .unwrap_or_default();
+        let mut transport = InMemoryTransport::new();
+        let storage = transport.subscribe("telemetry", 1);
+        transport
+            .publish(
+                "telemetry",
+                TelemetryEnvelope {
+                    envelope_id: Uuid::new_v4(),
+                    tenant_id,
+                    environment,
+                    received_at_unix_nano: points
+                        .first()
+                        .map(|point| point.time_unix_nano)
+                        .unwrap_or_default(),
+                    payload: EnvelopePayload::Metrics { series, points },
+                },
+            )
+            .map_err(|error| format!("embedded telemetry transport failed: {error:?}"))?;
+        let envelope = transport
+            .receive(storage)
+            .ok_or_else(|| "embedded telemetry transport delivered no metric batch".to_string())?;
+        let processed = Self.process_batch([envelope]);
+
+        let series = processed
+            .series
+            .into_iter()
+            .zip(series_ids)
+            .map(|(series, metric_series_id)| ProcessedMetricSeries {
+                tenant_id: series.tenant_id,
+                metric_series_id,
+                metric_name: series.metric_name,
+                description: series.description,
+                unit: series.unit,
+                metric_type: match series.metric_type {
+                    MetricType::Sum => "sum",
+                    MetricType::Histogram => "histogram",
+                    MetricType::ExponentialHistogram => "exponential_histogram",
+                    MetricType::Summary => "summary",
+                    MetricType::Gauge => "gauge",
+                }
+                .to_string(),
+                is_monotonic: series.is_monotonic.unwrap_or(false),
+                aggregation_temporality: match series.aggregation_temporality {
+                    Some(AggregationTemporality::Delta) => "delta",
+                    Some(AggregationTemporality::Cumulative) => "cumulative",
+                    None => "unspecified",
+                }
+                .to_string(),
+                service_name: series.service_name,
+                environment: series.environment,
+            })
+            .collect();
+        let points = processed
+            .points
+            .into_iter()
+            .zip(point_ids)
+            .map(|(point, metric_series_id)| ProcessedMetricPoint {
+                tenant_id: point.tenant_id,
+                metric_series_id,
+                time_unix_nano: point.time_unix_nano,
+                start_time_unix_nano: point.start_time_unix_nano.unwrap_or_default(),
+                value_double: point.value_double.unwrap_or_default(),
+            })
+            .collect();
         Ok((series, points))
     }
 }
