@@ -751,6 +751,34 @@ function traceDistribution(rows: NlqTraceRow[]): Record<string, unknown>[] {
   ];
 }
 
+function logTopK(rows: NlqLogRow[], limit: number): Record<string, unknown>[] {
+  const groups = new Map<string, { count: number; errorCount: number; latest: NlqLogRow }>();
+  for (const row of rows) {
+    const group = groups.get(row.service_name) ?? { count: 0, errorCount: 0, latest: row };
+    group.count += 1;
+    if (row.severity_number >= 17) group.errorCount += 1;
+    if (String(row.timestamp_unix_nano) > String(group.latest.timestamp_unix_nano)) group.latest = row;
+    groups.set(row.service_name, group);
+  }
+  return [...groups.entries()]
+    .map(([service_name, group]) => ({
+      service_name,
+      log_count: group.count,
+      error_count: group.errorCount,
+      latest_timestamp_unix_nano: group.latest.timestamp_unix_nano,
+    }))
+    .sort((a, b) => Number(b.log_count) - Number(a.log_count))
+    .slice(0, Math.max(1, Math.min(100, limit)));
+}
+
+function logDistribution(rows: NlqLogRow[]): Record<string, unknown>[] {
+  const counts = new Map<string, number>();
+  for (const row of rows) counts.set(row.severity_text, (counts.get(row.severity_text) ?? 0) + 1);
+  return [...counts.entries()]
+    .map(([severity, count]) => ({ severity, value_double: count, unit: "logs" }))
+    .sort((a, b) => Number(b.value_double) - Number(a.value_double));
+}
+
 /**
  * The engine worker returns log timestamps as decimal strings (avoiding JS
  * Number precision loss at ns scale); the production `LogRecord` wire shape
@@ -1419,6 +1447,36 @@ export const playgroundRuntime: RuntimeApi = {
             ...STUB_LOG_FRAME,
             data: rows as unknown as Record<string, unknown>[],
             nlq_ir: ir,
+            source_sql: sql,
+          },
+        };
+      }
+
+      if (
+        !hasFreeTextQuestion &&
+        ir &&
+        (ir.operation === "topk" || ir.operation === "distribution") &&
+        ir.signals?.length === 1 &&
+        ir.signals[0] === "logs"
+      ) {
+        const { executeLogTable } = await import("../playground/engineClient");
+        const { rows, sql } = await executeLogTable({ ...ir, operation: "table" });
+        const data = ir.operation === "topk"
+          ? logTopK(rows, ir.limit ?? 10)
+          : logDistribution(rows);
+        return {
+          type: "frame",
+          frame: {
+            ...STUB_LOG_FRAME,
+            frame_type: ir.operation,
+            suggested_visualization: ir.operation,
+            x_field: ir.operation === "topk" ? "service_name" : "severity",
+            y_field: ir.operation === "topk" ? "log_count" : "value_double",
+            data,
+            nlq_ir: ir,
+            signal_types: ir.signals,
+            time_range: ir.time_range,
+            unit: ir.operation === "distribution" ? "logs" : null,
             source_sql: sql,
           },
         };

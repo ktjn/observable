@@ -327,6 +327,26 @@ function runContract(name: string, runtime: RuntimeApi) {
       }
     });
 
+    it.skipIf(name !== "playground")("nlq.execute runs log topk and distribution through the telemetry engine", async () => {
+      for (const [operation, frameType] of [["topk", "topk"], ["distribution", "distribution"]] as const) {
+        const result = await runtime.nlq.execute(MOCK_TENANT_ID, {
+          base_ir: {
+            operation,
+            signals: ["logs"],
+            filters: [],
+            time_range: { from: "now-1h", to: "now" },
+          },
+          mode: "execute",
+        });
+        expect(result.type).toBe("frame");
+        if (result.type === "frame") {
+          expect(result.frame.frame_type).toBe(frameType);
+          expect(result.frame.data.length).toBeGreaterThan(0);
+          expect(result.frame.source_sql).toContain("mocked");
+        }
+      }
+    });
+
     it.skipIf(name !== "playground")("nlq.execute preserves inventory repository provenance", async () => {
       const result = await runtime.nlq.execute(MOCK_TENANT_ID, {
         base_ir: {
