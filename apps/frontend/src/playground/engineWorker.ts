@@ -12,6 +12,7 @@ import {
 import { DuckDbTraceQueryApi } from "./duckdbTraceQueryApi";
 import { DuckDbLogQueryApi } from "./duckdbLogQueryApi";
 import { DuckDbMetricsQueryApi } from "./duckdbMetricsQueryApi";
+import { DuckDbServiceQueryApi } from "./duckdbServiceQueryApi";
 export {};
 
 // Must match useTenantContext.tsx's DEFAULT_TENANT_ID / playgroundRuntime.ts's
@@ -662,8 +663,9 @@ async function executeServiceSummaries(
 ): Promise<ServiceSummary[]> {
   const { renderServiceSummarySql, computeServiceSummaries, conn } = await getEngine();
   const sql = renderServiceSummarySql(fromNs, toNs, environment);
-  const result = await conn.query(sql);
-  const rows = result.toArray().map((row) => ({
+  const queryApi = new DuckDbServiceQueryApi(conn);
+  const rawRows = await queryApi.executePlanned(sql);
+  const rows = rawRows.map((row) => ({
     service_name: String(row.service_name),
     request_count: Number(row.request_count),
     error_count: Number(row.error_count),
@@ -683,8 +685,9 @@ async function executeTopology(
 ): Promise<TopologyEdge[]> {
   const { renderTopologySql, computeTopologyEdges, conn } = await getEngine();
   const sql = renderTopologySql(fromNs, toNs, environment, service);
-  const result = await conn.query(sql);
-  const rows = result.toArray().map((row) => ({
+  const queryApi = new DuckDbServiceQueryApi(conn);
+  const rawRows = await queryApi.executePlanned(sql);
+  const rows = rawRows.map((row) => ({
     caller: String(row.caller),
     callee: String(row.callee),
     request_count: Number(row.request_count),
@@ -698,10 +701,8 @@ async function executeTopology(
 
 async function executeServiceNames(): Promise<string[]> {
   const { conn } = await getEngine();
-  const result = await conn.query(
-    "SELECT DISTINCT service_name FROM spans WHERE service_name != '' ORDER BY service_name"
-  );
-  return result.toArray().map((row) => String(row.service_name));
+  const queryApi = new DuckDbServiceQueryApi(conn);
+  return (await queryApi.listNames()).map((row) => String(row.service_name));
 }
 
 async function executeMetricCatalog(service: string | undefined): Promise<MetricCatalogEntry[]> {
