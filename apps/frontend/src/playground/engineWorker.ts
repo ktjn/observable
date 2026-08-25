@@ -11,6 +11,7 @@ import {
 } from "./duckdbStorageWriter";
 import { DuckDbTraceQueryApi } from "./duckdbTraceQueryApi";
 import { DuckDbLogQueryApi } from "./duckdbLogQueryApi";
+import { DuckDbMetricsQueryApi } from "./duckdbMetricsQueryApi";
 export {};
 
 // Must match useTenantContext.tsx's DEFAULT_TENANT_ID / playgroundRuntime.ts's
@@ -706,8 +707,9 @@ async function executeServiceNames(): Promise<string[]> {
 async function executeMetricCatalog(service: string | undefined): Promise<MetricCatalogEntry[]> {
   const { renderMetricCatalogSql, conn } = await getEngine();
   const sql = renderMetricCatalogSql(service);
-  const result = await conn.query(sql);
-  return result.toArray().map((row) => ({
+  const queryApi = new DuckDbMetricsQueryApi(conn);
+  const rows = await queryApi.executePlanned(sql);
+  return rows.map((row) => ({
     tenant_id: DEMO_TENANT_ID,
     metric_name: String(row.metric_name),
     description: String(row.description),
@@ -730,8 +732,9 @@ async function executeMetricGroupPoints(metric: MetricCatalogEntry): Promise<Met
     metric.metric_type,
     metric.unit || ""
   );
-  const result = await conn.query(sql);
-  return result.toArray().map((row) => ({
+  const queryApi = new DuckDbMetricsQueryApi(conn);
+  const rows = await queryApi.executePlanned(sql);
+  return rows.map((row) => ({
     tenant_id: DEMO_TENANT_ID,
     metric_series_id: String(row.metric_series_id),
     metric_name: String(row.metric_name),
