@@ -662,6 +662,48 @@ function nlqBucketCount(ir: NlqIr): number {
   return Math.max(1, Math.min(240, Math.floor(ir.limit ?? 24)));
 }
 
+interface PlaygroundMetricPoint {
+  metric_series_id: string;
+  time_unix_nano: number;
+  value_double?: number;
+  [key: string]: unknown;
+}
+
+/** Derives Prometheus-style counter values from the real DuckDB point stream. */
+function deriveMetricPoints(
+  points: PlaygroundMetricPoint[],
+  operation: "rate" | "irate" | "increase",
+): PlaygroundMetricPoint[] {
+  const bySeries = new Map<string, PlaygroundMetricPoint[]>();
+  for (const point of points) {
+    const series = bySeries.get(point.metric_series_id) ?? [];
+    series.push(point);
+    bySeries.set(point.metric_series_id, series);
+  }
+
+  const derived: PlaygroundMetricPoint[] = [];
+  for (const series of bySeries.values()) {
+    const ordered = [...series].sort((a, b) => a.time_unix_nano - b.time_unix_nano);
+    if (ordered.length < 2) continue;
+    const pairs = ordered.slice(1).map((point, index) => {
+      const previous = ordered[index];
+      const elapsedSeconds = (point.time_unix_nano - previous.time_unix_nano) / 1_000_000_000;
+      const currentValue = point.value_double ?? 0;
+      const previousValue = previous.value_double ?? 0;
+      const delta = currentValue >= previousValue ? currentValue - previousValue : currentValue;
+      return { point, rate: elapsedSeconds > 0 ? delta / elapsedSeconds : 0, delta };
+    });
+    const selected = operation === "irate" ? pairs.slice(-1) : pairs;
+    if (operation === "increase") {
+      const last = ordered[ordered.length - 1];
+      derived.push({ ...last, value_double: pairs.reduce((sum, pair) => sum + pair.delta, 0) });
+    } else {
+      derived.push(...selected.map(({ point, rate }) => ({ ...point, value_double: rate })));
+    }
+  }
+  return derived;
+}
+
 /**
  * The engine worker returns log timestamps as decimal strings (avoiding JS
  * Number precision loss at ns scale); the production `LogRecord` wire shape
@@ -1162,7 +1204,7 @@ export const playgroundRuntime: RuntimeApi = {
       if (
         !hasFreeTextQuestion &&
         ir &&
-        ir.operation === "timeseries" &&
+        (ir.operation === "timeseries" || ir.operation === "rate" || ir.operation === "irate" || ir.operation === "increase") &&
         ir.signals?.length === 1 &&
         ir.signals[0] === "metrics"
       ) {
@@ -1171,6 +1213,9 @@ export const playgroundRuntime: RuntimeApi = {
         const { metrics } = await executeMetricCatalog(service);
         const metric = metrics.find((candidate) => candidate.metric_name === ir.metric) ?? metrics[0];
         const { points } = metric ? await executeMetricGroupPoints(metric) : { points: [] };
+        const data = ir.operation === "timeseries"
+          ? points
+          : deriveMetricPoints(points as unknown as PlaygroundMetricPoint[], ir.operation);
         return {
           type: "frame",
           frame: {
@@ -1179,7 +1224,7 @@ export const playgroundRuntime: RuntimeApi = {
             suggested_visualization: "timeseries",
             x_field: "time_unix_nano",
             y_field: "value_double",
-            data: points as unknown as Record<string, unknown>[],
+            data: data as unknown as Record<string, unknown>[],
             nlq_ir: ir,
             signal_types: ir.signals,
             time_range: ir.time_range,
