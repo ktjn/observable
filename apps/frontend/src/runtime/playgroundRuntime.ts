@@ -76,6 +76,7 @@ import { SqliteMemberRepository } from "./sqliteMemberRepository";
 import { SqlitePlatformConfigRepository } from "./sqlitePlatformConfigRepository";
 import { SqliteIncidentRepository } from "./sqliteIncidentRepository";
 import { SqliteAuthRepository } from "./sqliteAuthRepository";
+import { SqliteInfrastructureRepository } from "./sqliteInfrastructureRepository";
 // Type-only import (erased at compile time, so the Worker-URL concern in the
 // comment below does not apply).
 import type { NlqLogRow } from "../playground/engineClient";
@@ -295,8 +296,13 @@ function savedViewRepository(): Promise<SqliteSavedViewRepository> {
   return savedViewRepositoryPromise;
 }
 
+let infrastructureRepository: SqliteInfrastructureRepository | null = null;
+async function getInfrastructureRepository(): Promise<SqliteInfrastructureRepository> {
+  return (infrastructureRepository ??= await SqliteInfrastructureRepository.open());
+}
+
 /**
- * Infrastructure inventory fixtures: a small deterministic entity tree
+ * Legacy fixture retained temporarily for non-runtime documentation examples.
  * (host -> cluster -> namespace -> pods -> containers) covering the demo
  * services, shaped exactly like the production `InfrastructureEntitySummary`.
  */
@@ -428,23 +434,9 @@ function infrastructureFixture(): InfrastructureEntitySummary[] {
   ];
 }
 
-function infrastructureDetailFixture(
-  entityType: InfrastructureEntityType,
-  entityId: string
-): InfrastructureDetailResponse | null {
-  const entity = infrastructureFixture().find(
-    (e) => e.entity_type === entityType && e.entity_id === entityId
-  );
-  if (!entity) return null;
-  return {
-    entity,
-    links: {
-      logs: `/logs?service=${encodeURIComponent(entity.related_services[0] ?? "")}`,
-      traces: `/traces?service=${encodeURIComponent(entity.related_services[0] ?? "")}`,
-      metrics: `/metrics?service=${encodeURIComponent(entity.related_services[0] ?? "")}`,
-    },
-  };
-}
+// Kept only as a migration reference while the embedded repository seed is
+// reconciled with the generated browser inventory.
+void infrastructureFixture;
 
 /**
  * Control-plane fixtures. The playground has no backend to persist these,
@@ -958,10 +950,13 @@ export const playgroundRuntime: RuntimeApi = {
   },
   infrastructure: {
     async list(
-      _tenantId: string,
+      tenantId: string,
       params: { service?: string; environment?: string; entity_type?: string }
     ): Promise<InfrastructureInventoryResponse> {
-      let items = infrastructureFixture();
+      let items = (await getInfrastructureRepository()).list(
+        tenantId,
+        params.entity_type as InfrastructureEntityType | undefined
+      );
       if (params.service) {
         items = items.filter((e) => e.related_services.includes(params.service!));
       }
@@ -974,11 +969,21 @@ export const playgroundRuntime: RuntimeApi = {
       return { items };
     },
     async get(
-      _tenantId: string,
+      tenantId: string,
       entityType: InfrastructureEntityType,
       entityId: string
     ): Promise<InfrastructureDetailResponse> {
-      const detail = infrastructureDetailFixture(entityType, entityId);
+      const entity = (await getInfrastructureRepository()).get(tenantId, entityType, entityId);
+      const detail = entity
+        ? {
+            entity,
+            links: {
+              logs: `/logs?service=${encodeURIComponent(entity.related_services[0] ?? "")}`,
+              traces: `/traces?service=${encodeURIComponent(entity.related_services[0] ?? "")}`,
+              metrics: `/metrics?service=${encodeURIComponent(entity.related_services[0] ?? "")}`,
+            },
+          }
+        : null;
       if (!detail) {
         throw new Error(`Query failed: 404`);
       }
@@ -1147,7 +1152,7 @@ export const playgroundRuntime: RuntimeApi = {
           type: "frame",
           frame: {
             ...STUB_NLQ_FRAME,
-            data: infrastructureFixture() as unknown as Record<string, unknown>[],
+            data: (await getInfrastructureRepository()).list(_tenantId) as unknown as Record<string, unknown>[],
             nlq_ir: ir,
             source_sql: "-- playground infrastructure fixtures, not executed",
           },
