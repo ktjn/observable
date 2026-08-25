@@ -10,6 +10,7 @@ import {
   type ProcessedSpan,
 } from "./duckdbStorageWriter";
 import { DuckDbTraceQueryApi } from "./duckdbTraceQueryApi";
+import { DuckDbLogQueryApi } from "./duckdbLogQueryApi";
 export {};
 
 // Must match useTenantContext.tsx's DEFAULT_TENANT_ID / playgroundRuntime.ts's
@@ -548,8 +549,8 @@ const LOG_COLUMNS =
 async function executeLogTable(ir: unknown): Promise<{ rows: NlqLogRow[]; sql: string }> {
   const { renderLogSearchSql, conn } = await getEngine();
   const sql = renderLogSearchSql(JSON.stringify(ir));
-  const result = await conn.query(sql);
-  return { rows: mapLogRows(result.toArray()), sql };
+  const queryApi = new DuckDbLogQueryApi(conn);
+  return { rows: mapLogRows(await queryApi.executePlanned(sql)), sql };
 }
 
 /**
@@ -562,14 +563,8 @@ async function executeLogsSearch(
   limit: number
 ): Promise<NlqLogRow[]> {
   const { conn } = await getEngine();
-  const conditions: string[] = [];
-  if (traceId) conditions.push(`trace_id = '${escapeSqlString(traceId)}'`);
-  if (service) conditions.push(`service_name = '${escapeSqlString(service)}'`);
-  const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
-  const result = await conn.query(
-    `SELECT ${LOG_COLUMNS} FROM logs${where} ORDER BY timestamp_unix_nano DESC LIMIT ${Math.max(1, Math.floor(limit))}`
-  );
-  return mapLogRows(result.toArray());
+  const queryApi = new DuckDbLogQueryApi(conn);
+  return mapLogRows(await queryApi.search(traceId, service, limit));
 }
 
 /**
