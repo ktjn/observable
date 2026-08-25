@@ -77,6 +77,18 @@ vi.mock("../playground/engineClient", () => ({
   executeLogHistogram: vi.fn(async () => ({
     buckets: [{ start_ms: 0, end_ms: 60_000, counts: { "9": 1, "17": 1 } }],
   })),
+  executeMetricCatalog: vi.fn(async () => ({
+    metrics: [{
+      tenant_id: "00000000-0000-0000-0000-000000000001",
+      metric_name: "http.server.request.duration",
+      description: "Request duration",
+      unit: "ms",
+      metric_type: "histogram",
+      service_name: "checkout",
+      environment: "production",
+      series_count: 1,
+    }],
+  })),
 }));
 
 const MOCK_TENANT_ID = "00000000-0000-0000-0000-000000000001";
@@ -189,6 +201,23 @@ function runContract(name: string, runtime: RuntimeApi) {
         expect(result.frame.frame_type).toBe("histogram");
         expect(result.frame.source_sql).toContain("DuckDB");
         expect(result.frame.data).toHaveLength(1);
+      }
+    });
+
+    it.skipIf(name !== "playground")("nlq.execute runs metric catalog IR through the telemetry engine", async () => {
+      const result = await runtime.nlq.execute(MOCK_TENANT_ID, {
+        base_ir: {
+          operation: "catalog",
+          signals: ["metrics"],
+          filters: [],
+          time_range: { from: "now-1h", to: "now" },
+        },
+        mode: "execute",
+      });
+      expect(result.type).toBe("frame");
+      if (result.type === "frame") {
+        expect(result.frame.data[0]).toMatchObject({ metric_name: "http.server.request.duration" });
+        expect(result.frame.source_sql).toContain("DuckDB");
       }
     });
 

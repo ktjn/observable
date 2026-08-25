@@ -1143,6 +1143,22 @@ export const playgroundRuntime: RuntimeApi = {
       // same as before.
       const hasFreeTextQuestion = Boolean(request.question) && !rawIr;
 
+      if (!hasFreeTextQuestion && ir && ir.operation === "catalog" && ir.signals?.length === 1 && ir.signals[0] === "metrics") {
+        const { executeMetricCatalog } = await import("../playground/engineClient");
+        const { metrics } = await executeMetricCatalog(nlqServiceFilter(ir));
+        return {
+          type: "frame",
+          frame: {
+            ...STUB_NLQ_FRAME,
+            data: metrics as unknown as Record<string, unknown>[],
+            nlq_ir: ir,
+            signal_types: ir.signals,
+            time_range: ir.time_range,
+            source_sql: "-- playground DuckDB metric catalog query",
+          },
+        };
+      }
+
       if (
         !hasFreeTextQuestion &&
         ir &&
