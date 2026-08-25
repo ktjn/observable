@@ -704,6 +704,20 @@ function deriveMetricPoints(
   return derived;
 }
 
+function metricDistribution(points: PlaygroundMetricPoint[]): PlaygroundMetricPoint[] {
+  const values = points.map((point) => point.value_double ?? 0).sort((a, b) => a - b);
+  if (values.length === 0) return [];
+  const percentile = (fraction: number) => values[Math.min(values.length - 1, Math.floor((values.length - 1) * fraction))];
+  const last = points[points.length - 1];
+  return [
+    { ...last, stat: "min", value_double: values[0] },
+    { ...last, stat: "average", value_double: values.reduce((sum, value) => sum + value, 0) / values.length },
+    { ...last, stat: "p50", value_double: percentile(0.5) },
+    { ...last, stat: "p95", value_double: percentile(0.95) },
+    { ...last, stat: "max", value_double: values[values.length - 1] },
+  ];
+}
+
 /**
  * The engine worker returns log timestamps as decimal strings (avoiding JS
  * Number precision loss at ns scale); the production `LogRecord` wire shape
@@ -1229,6 +1243,49 @@ export const playgroundRuntime: RuntimeApi = {
             signal_types: ir.signals,
             time_range: ir.time_range,
             unit: metric?.unit ?? null,
+            source_sql: "-- playground DuckDB metric points query",
+          },
+        };
+      }
+
+      if (
+        !hasFreeTextQuestion &&
+        ir &&
+        (ir.operation === "topk" || ir.operation === "distribution") &&
+        ir.signals?.length === 1 &&
+        ir.signals[0] === "metrics"
+      ) {
+        const { executeMetricCatalog, executeMetricGroupPoints } = await import("../playground/engineClient");
+        const { metrics } = await executeMetricCatalog(nlqServiceFilter(ir));
+        const selectedMetrics = ir.operation === "distribution"
+          ? metrics.filter((candidate) => !ir.metric || candidate.metric_name === ir.metric).slice(0, 1)
+          : metrics;
+        const groups = await Promise.all(selectedMetrics.map(async (candidate) => ({
+          metric: candidate,
+          points: (await executeMetricGroupPoints(candidate)).points as unknown as PlaygroundMetricPoint[],
+        })));
+        const data = ir.operation === "distribution"
+          ? metricDistribution(groups[0]?.points ?? [])
+          : groups
+            .flatMap(({ metric, points }) => {
+              const point = points.at(-1);
+              return point ? [{ ...point, metric_name: metric.metric_name, value_double: point.value_double ?? 0 }] : [];
+            })
+            .sort((a, b) => (b.value_double ?? 0) - (a.value_double ?? 0))
+            .slice(0, Math.max(1, Math.min(100, ir.limit ?? 10)));
+        return {
+          type: "frame",
+          frame: {
+            ...STUB_NLQ_FRAME,
+            frame_type: ir.operation,
+            suggested_visualization: ir.operation,
+            x_field: ir.operation === "topk" ? "metric_name" : "stat",
+            y_field: "value_double",
+            data: data as unknown as Record<string, unknown>[],
+            nlq_ir: ir,
+            signal_types: ir.signals,
+            time_range: ir.time_range,
+            unit: selectedMetrics[0]?.unit ?? null,
             source_sql: "-- playground DuckDB metric points query",
           },
         };
