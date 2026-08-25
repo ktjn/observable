@@ -269,6 +269,24 @@ function runContract(name: string, runtime: RuntimeApi) {
       }
     });
 
+    it.skipIf(name !== "playground")("nlq.execute runs metric table IR through the telemetry engine", async () => {
+      const result = await runtime.nlq.execute(MOCK_TENANT_ID, {
+        base_ir: {
+          operation: "table",
+          signals: ["metrics"],
+          filters: [],
+          time_range: { from: "now-1h", to: "now" },
+        },
+        mode: "execute",
+      });
+      expect(result.type).toBe("frame");
+      if (result.type === "frame") {
+        expect(result.frame.frame_type).toBe("table");
+        expect(result.frame.data[0]).toMatchObject({ metric_name: "http.server.request.duration" });
+        expect(result.frame.source_sql).toContain("DuckDB");
+      }
+    });
+
     it.skipIf(name !== "playground")("nlq.execute runs metric timeseries IR through the telemetry engine", async () => {
       const result = await runtime.nlq.execute(MOCK_TENANT_ID, {
         base_ir: {
