@@ -12,6 +12,23 @@ ok()   { echo -e "${GREEN}OK${NC}  $1"; }
 fail() { echo -e "${RED}FAIL${NC} $1"; exit 1; }
 
 SMOKE_COMPOSE_STARTED=0
+REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# These artifacts remain intentionally frozen until the upstream ClickHouse
+# projection fix ships. Keep them out of this drift check without weakening
+# checks for any other generated artifact.
+is_frozen_modelable_artifact() {
+  case "$1" in
+    apps/frontend/src/api/generated/tracing/tracing.SpanRow.v1.ts|\
+    libs/domain/src/generated/tracing/tracing_span_event_row_v1.rs|\
+    libs/domain/src/generated/tracing/tracing_span_row_v1.rs)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
 
 cleanup_smoke_compose() {
   local status=$?
@@ -59,16 +76,28 @@ if [[ $SKIP_MODELABLE -eq 0 ]]; then
     uv run --project models modelable validate models/ && ok "modelable validate" || fail "modelable validate"
 
     step "Modelable regenerate diff-check"
-    TMP_TS="$(mktemp -d)"
-    TMP_RS="$(mktemp -d)"
+    # WSL and Windows uv.exe have different /tmp namespaces. Keep temporary
+    # outputs on the mounted repository so Bash and Windows tools see the same
+    # files, and pass Windows uv the Windows spelling of those paths.
+    TMP_TS="$(mktemp -d "$REPO_ROOT/.modelable-check.XXXXXX")"
+    TMP_RS="$(mktemp -d "$REPO_ROOT/.modelable-check.XXXXXX")"
+    TMP_TS_TOOL="$TMP_TS"
+    TMP_RS_TOOL="$TMP_RS"
+    if uv --version 2>&1 | grep -q "windows-msvc" && command -v wslpath >/dev/null 2>&1; then
+      TMP_TS_TOOL="$(wslpath -w "$TMP_TS")"
+      TMP_RS_TOOL="$(wslpath -w "$TMP_RS")"
+    fi
     TMP_RS_FILES="$TMP_RS/.rust-files"
     FAILED=0
 
-    uv run --project models modelable compile models/ --target typescript --out "$TMP_TS" >/dev/null 2>&1 || fail "modelable compile (typescript)"
-    uv run --project models modelable compile models/ --target rust --out "$TMP_RS" >/dev/null 2>&1 || fail "modelable compile (rust)"
+    uv run --project models modelable compile models/ --target typescript --out "$TMP_TS_TOOL" >/dev/null 2>&1 || fail "modelable compile (typescript)"
+    uv run --project models modelable compile models/ --target rust --out "$TMP_RS_TOOL" >/dev/null 2>&1 || fail "modelable compile (rust)"
 
     # TypeScript — main frontend
     while IFS= read -r -d '' f; do
+      if is_frozen_modelable_artifact "$f"; then
+        continue
+      fi
       name="$(basename "$f")"
       if [ ! -f "$TMP_TS/$name" ]; then
         echo "  MISSING in generated: $f"
@@ -92,6 +121,9 @@ if [[ $SKIP_MODELABLE -eq 0 ]]; then
 
     # Rust — only subdirectory files, not hand-maintained module files
     while IFS= read -r -d '' f; do
+      if is_frozen_modelable_artifact "$f"; then
+        continue
+      fi
       name="$(basename "$f")"
       domain="$(basename "$(dirname "$f")")"
       if [ ! -f "$TMP_RS/$domain/$name" ]; then
