@@ -36,6 +36,7 @@ domain logs {
   // resourceAttributes use @wire(clickhouse: "string") to generate as String
   // (JSON-encoded), matching the ClickHouse column types. tenantId/logId use
   // @wire(clickhouse: "uuid") for #[serde(with = "clickhouse::serde::uuid")].
+  @wire(json.fieldCase: "snake_case")
   projection LogRow @ 1
     from logs.LogRecord @ 1 as l
   {

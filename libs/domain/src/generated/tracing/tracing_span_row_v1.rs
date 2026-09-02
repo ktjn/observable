@@ -6,26 +6,43 @@
 #[cfg(feature = "storage")]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, clickhouse::Row)]
 pub struct TracingSpanRowV1 {
+    #[serde(rename = "tenantId")]
     #[serde(with = "clickhouse::serde::uuid")]
     pub tenant_id: uuid::Uuid,
+    #[serde(rename = "traceId")]
     pub trace_id: String,
+    #[serde(rename = "spanId")]
     pub span_id: String,
+    #[serde(rename = "serviceName")]
     pub service_name: String,
+    #[serde(rename = "serviceNamespace")]
     pub service_namespace: String,
+    #[serde(rename = "serviceVersion")]
     pub service_version: String,
+    #[serde(rename = "operationName")]
     pub operation_name: String,
+    #[serde(rename = "spanKind")]
     pub span_kind: String,
+    #[serde(rename = "startTimeUnixNano")]
     pub start_time_unix_nano: u64,
+    #[serde(rename = "endTimeUnixNano")]
     pub end_time_unix_nano: u64,
+    #[serde(rename = "durationNs")]
     pub duration_ns: u64,
+    #[serde(rename = "statusCode")]
     pub status_code: String,
+    #[serde(rename = "statusMessage")]
     pub status_message: String,
     pub attributes: String,
+    #[serde(rename = "resourceAttributes")]
     pub resource_attributes: String,
     pub environment: String,
+    #[serde(rename = "hostId")]
     pub host_id: String,
     pub workload: String,
+    #[serde(rename = "deploymentId")]
     pub deployment_id: String,
+    #[serde(rename = "parentSpanId")]
     pub parent_span_id: Option<String>,
 }
 

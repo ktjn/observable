@@ -6,12 +6,17 @@
 #[cfg(feature = "storage")]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, clickhouse::Row)]
 pub struct TracingSpanEventRowV1 {
+    #[serde(rename = "tenantId")]
     #[serde(with = "clickhouse::serde::uuid")]
     pub tenant_id: uuid::Uuid,
+    #[serde(rename = "traceId")]
     pub trace_id: String,
+    #[serde(rename = "spanId")]
     pub span_id: String,
+    #[serde(rename = "eventIndex")]
     pub event_index: u32,
     pub name: String,
+    #[serde(rename = "timestampUnixNano")]
     pub timestamp_unix_nano: u64,
     pub attributes: String,
 }

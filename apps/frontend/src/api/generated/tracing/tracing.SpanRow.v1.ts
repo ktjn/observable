@@ -10,7 +10,7 @@ export interface TracingSpanRowV1 {
   tenantId: string;
   traceId: string;
   spanId: string;
-  parentSpanId: string;
+  parentSpanId?: string;
   serviceName: string;
   serviceNamespace: string;
   serviceVersion: string;
