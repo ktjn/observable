@@ -7,20 +7,20 @@
  * @modelable source: logs.LogRecord@1
  */
 export interface LogsLogRowV1 {
-  tenantId: string;
-  logId: string;
-  timestampUnixNano: number;
-  observedTimestampUnixNano: number;
-  severityNumber: number;
-  severityText: string;
+  tenant_id: string;
+  log_id: string;
+  timestamp_unix_nano: number;
+  observed_timestamp_unix_nano: number;
+  severity_number: number;
+  severity_text: string;
   body: unknown;
-  traceId: string;
-  spanId: string;
+  trace_id?: string;
+  span_id?: string;
   attributes: Record<string, unknown>;
-  resourceAttributes: Record<string, unknown>;
-  serviceName: string;
+  resource_attributes: Record<string, unknown>;
+  service_name: string;
   environment: string;
-  hostId: string;
-  fingerprint: number;
+  host_id: string;
+  fingerprint?: number;
 }
 export type LogRow = LogsLogRowV1;

@@ -48,6 +48,7 @@ domain tracing {
   // enum→string conversion, which modelable cannot generate today). attributes/
   // resourceAttributes use @wire(clickhouse: "string") to generate as String
   // (JSON-encoded), matching the ClickHouse column type.
+  @wire(json.fieldCase: "snake_case")
   projection SpanRow @ 1
     from tracing.Span @ 1 as s
   {
@@ -96,6 +97,7 @@ domain tracing {
   }
 
   // ClickHouse storage projection for SpanEvent.
+  @wire(json.fieldCase: "snake_case")
   projection SpanEventRow @ 1
     from tracing.SpanEvent @ 1 as e
   {
