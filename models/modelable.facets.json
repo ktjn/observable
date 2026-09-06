@@ -1,0 +1,61 @@
+{
+  "$schema": "modelable.facets/v1",
+  "schemas": [
+    {
+      "identity": "observable/confidentiality@1",
+      "value_schema": {
+        "type": "string",
+        "enum": ["internal", "restricted"]
+      },
+      "allowed_subjects": ["declaration"],
+      "propagation": "inherit"
+    },
+    {
+      "identity": "observable/data-classification@1",
+      "value_schema": {
+        "type": "string",
+        "enum": ["public", "personal-data", "may-contain-pii"]
+      },
+      "allowed_subjects": ["field"],
+      "propagation": "project"
+    }
+  ],
+  "facets": [
+    {
+      "identity": "observable/confidentiality@1",
+      "value": "restricted",
+      "subject": "declaration:admin.Member@1",
+      "propagation": "inherit"
+    },
+    {
+      "identity": "observable/data-classification@1",
+      "value": "personal-data",
+      "subject": "field:admin.Member@1#email",
+      "propagation": "project"
+    },
+    {
+      "identity": "observable/data-classification@1",
+      "value": "personal-data",
+      "subject": "field:admin.Member@1#name",
+      "propagation": "project"
+    },
+    {
+      "identity": "observable/data-classification@1",
+      "value": "may-contain-pii",
+      "subject": "field:logs.LogRecord@1#body",
+      "propagation": "project"
+    },
+    {
+      "identity": "observable/data-classification@1",
+      "value": "may-contain-pii",
+      "subject": "field:logs.LogRecord@1#attributes",
+      "propagation": "project"
+    },
+    {
+      "identity": "observable/data-classification@1",
+      "value": "may-contain-pii",
+      "subject": "field:logs.LogRecord@1#resourceAttributes",
+      "propagation": "project"
+    }
+  ]
+}
