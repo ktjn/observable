@@ -7,12 +7,12 @@
  * @modelable source: tracing.SpanEvent@1
  */
 export interface TracingSpanEventRowV1 {
-  tenantId: string;
-  traceId: string;
-  spanId: string;
-  eventIndex: number;
+  tenant_id: string;
+  trace_id: string;
+  span_id: string;
+  event_index: number;
   name: string;
-  timestampUnixNano: number;
+  timestamp_unix_nano: number;
   attributes: Record<string, unknown>;
 }
 export type SpanEventRow = TracingSpanEventRowV1;

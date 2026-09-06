@@ -7,25 +7,25 @@
  * @modelable source: tracing.Span@1
  */
 export interface TracingSpanRowV1 {
-  tenantId: string;
-  traceId: string;
-  spanId: string;
-  parentSpanId?: string;
-  serviceName: string;
-  serviceNamespace: string;
-  serviceVersion: string;
-  operationName: string;
-  spanKind: 'INTERNAL' | 'SERVER' | 'CLIENT' | 'PRODUCER' | 'CONSUMER';
-  startTimeUnixNano: number;
-  endTimeUnixNano: number;
-  durationNs: number;
-  statusCode: 'UNSET' | 'OK' | 'ERROR';
-  statusMessage: string;
+  tenant_id: string;
+  trace_id: string;
+  span_id: string;
+  parent_span_id?: string;
+  service_name: string;
+  service_namespace: string;
+  service_version: string;
+  operation_name: string;
+  span_kind: 'INTERNAL' | 'SERVER' | 'CLIENT' | 'PRODUCER' | 'CONSUMER';
+  start_time_unix_nano: number;
+  end_time_unix_nano: number;
+  duration_ns: number;
+  status_code: 'UNSET' | 'OK' | 'ERROR';
+  status_message: string;
   attributes: Record<string, unknown>;
-  resourceAttributes: Record<string, unknown>;
+  resource_attributes: Record<string, unknown>;
   environment: string;
-  hostId: string;
+  host_id: string;
   workload: string;
-  deploymentId: string;
+  deployment_id: string;
 }
 export type SpanRow = TracingSpanRowV1;
