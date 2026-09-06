@@ -114,4 +114,24 @@ describe("playgroundRuntime.nlq.execute — locked-service raw IR shorthand", ()
     expect(executeLogTable).not.toHaveBeenCalled();
     expect(response.type).toBe("capabilities");
   });
+
+  it("executes a service shorthand against the locked base IR", async () => {
+    const { executeTraceTable } = await import("../playground/engineClient");
+    vi.mocked(executeTraceTable).mockClear();
+
+    await playgroundRuntime.nlq.execute(TENANT_ID, {
+      question: "service:checkout",
+      mode: "execute",
+      base_ir: {
+        operation: "table",
+        signals: ["traces"],
+        filters: [],
+        time_range: { from: "1700000000000000000", to: "1700003600000000000" },
+      },
+    });
+
+    expect(executeTraceTable).toHaveBeenCalledWith(expect.objectContaining({
+      filters: [{ field: "service", op: "=", value: "checkout" }],
+    }));
+  });
 });

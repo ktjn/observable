@@ -1,7 +1,7 @@
 import type { Span, TraceHistogramResponse, TraceListResponse, TraceResponse } from "../api/traces";
 import type { LogRecord, LogHistogramResponse, LogListResponse } from "../api/logs";
 import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants";
-import type { NlqRequest, NlqResponse, NlqIr, VisualizationFrame } from "../api/nlq";
+import type { NlqRequest, NlqResponse, NlqIr, NlqFilter, VisualizationFrame } from "../api/nlq";
 import type {
   Dashboard,
   CreateDashboardRequest,
@@ -602,6 +602,62 @@ function parseRawIrQuestion(question: string | undefined): NlqIr | null {
     // Not JSON — a genuine free-text question, handled by the caller.
   }
   return null;
+}
+
+function parseShorthandQuestion(question: string | undefined, baseIr?: NlqIr): NlqIr | null {
+  if (!question) return null;
+  const trimmed = question.trim();
+  const explicit = trimmed.startsWith("/");
+  const input = explicit ? trimmed.slice(1).trim() : trimmed;
+  if (!input || (!explicit && /\s/.test(input))) return null;
+  const tokens = input.match(/"[^"]*"|\S+/g) ?? [];
+  const filters: NlqFilter[] = [];
+  const queryParts: string[] = [];
+  let metric: string | null = null;
+  let operation: NlqIr["operation"] | null = null;
+  for (const rawToken of tokens) {
+    const token = rawToken.startsWith('"') && rawToken.endsWith('"')
+      ? rawToken.slice(1, -1)
+      : rawToken;
+    if (token.startsWith("m:") && token.length > 2) {
+      metric = token.slice(2);
+    } else if (token.startsWith("f:")) {
+      const separator = token.indexOf(":", 2);
+      if (separator > 2) filters.push({ field: token.slice(2, separator), op: "=", value: token.slice(separator + 1) });
+      else queryParts.push(token);
+    } else if (token.startsWith("op:")) {
+      const candidate = token.slice(3) as NlqIr["operation"];
+      if (["timeseries", "rate", "irate", "increase", "histogram", "topk", "table", "distribution", "catalog", "inventory"].includes(candidate)) {
+        operation = candidate;
+      } else {
+        queryParts.push(token);
+      }
+    } else {
+      const separator = token.indexOf(":");
+      if (separator > 0 && separator < token.length - 1) {
+        filters.push({ field: token.slice(0, separator), op: "=", value: token.slice(separator + 1) });
+      } else if (token) {
+        queryParts.push(token);
+      }
+    }
+  }
+  if (!metric && !operation && filters.length === 0 && queryParts.length === 0) return null;
+  const shorthand: NlqIr = {
+    operation: operation ?? baseIr?.operation ?? "timeseries",
+    signals: baseIr?.signals ?? (metric ? ["metrics"] : ["logs"]),
+    metric,
+    window: null,
+    filters,
+    group_by: [],
+    resolution: null,
+    time_range: baseIr?.time_range ?? { from: "now-1h", to: "now" },
+    visualization_hint: null,
+    percentiles: undefined,
+    catalog_field: undefined,
+    limit: undefined,
+    query: queryParts.length > 0 ? queryParts.join(" ") : undefined,
+  };
+  return baseIr ? mergeIrs(baseIr, shorthand) : shorthand;
 }
 
 /** Mirrors `llm_adapter.rs::merge_irs` (operation/signals always come from `base`). */
@@ -1267,7 +1323,8 @@ export const playgroundRuntime: RuntimeApi = {
   },
   nlq: {
     async execute(_tenantId: string, request: NlqRequest): Promise<NlqResponse> {
-      const rawIr = parseRawIrQuestion(request.question);
+      const rawIr = parseRawIrQuestion(request.question) ??
+        parseShorthandQuestion(request.question, request.base_ir as NlqIr | undefined);
       let ir = rawIr
         ? request.base_ir
           ? mergeIrs(request.base_ir as NlqIr, rawIr)

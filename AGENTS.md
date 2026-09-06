@@ -19,9 +19,13 @@ Refer to `spec/10-process.md` for the official development process and AI agent 
 
 **Never hand-edit a file under a `generated/` directory.** Files generated from `.mdl` sources (e.g. `apps/frontend/src/api/generated/`, `libs/domain/src/generated/`) are overwritten by `scripts/regenerate-models.sh` and must never be edited directly to add or change fields — doing so silently drifts the generated code from its `.mdl` source of truth, and the next regeneration silently reverts the hand-edit, breaking anything that depended on it. To add or change a field, edit the relevant `models/*.mdl` file and run `scripts/regenerate-models.sh`; the only edits allowed directly in a `generated/` file are the documented manual patches listed below, which the script is not yet able to apply automatically.
 
-The modelable codegen emitter (PyPI 1.8.0, pinned in `models/pyproject.toml` and `models/uv.lock`) has known limitations that require manual post-processing after regeneration. Modelable 1.8.0 supports shared binding declarations across the workspace: declare the `ch-observable` adapter once in `models/tracing.mdl` and reference it from the logs binding; do not reintroduce duplicate adapter declarations.
+The modelable codegen emitter (PyPI 1.13.0, pinned in `models/pyproject.toml` and `models/uv.lock`) has known limitations that require manual post-processing after regeneration. Modelable 1.8.0 supports shared binding declarations across the workspace: declare the `ch-observable` adapter once in `models/tracing.mdl` and reference it from the logs binding; do not reintroduce duplicate adapter declarations.
 
-- **Rust ClickHouse enum serialization** (issue #119, partially fixed): clickhouse-rs 0.15 panics on `serialize_unit_variant` for String columns — typed enums cannot be used directly as `String` ClickHouse column fields. `TracingSpanRowV1.span_kind` and `.status_code` are kept as `String` (SCREAMING\_SNAKE\_CASE values) rather than the typed enums that modelable generates. The `From<TracingSpanV1>` impl in `tracing_span_row_v1.rs` converts enum values to strings via explicit match. `scripts/regenerate-models.sh` applies this patch automatically after regeneration.
+- **`tracing.mdl`'s regeneration freeze is lifted.** Modelable 1.10.0–1.13.1's Rust emitter emitted an orphaned `impl From<TracingSpanV1SpanKind> for TracingSpanRowV1SpanKind` (and the `StatusCode` equivalent) for `SpanRow`/`SpanEventRow`'s ClickHouse-forced-`String` enum fields, referencing a projection enum type that was never actually defined — the generated Rust did not compile. Fixed upstream in [ktjn/modelable#710](https://github.com/ktjn/modelable/pull/710) (root cause: `_lineage_enum_from_impl_lines` in `rust.py` didn't check the same `clickhouse_row` condition the struct-field renderer uses to force `String`), shipped in modelable 1.13.2. `models/tracing.mdl` now declares its own `@wire(json.fieldCase: "snake_case")` hint and its generated artifacts are regenerated normally like every other domain — there is no longer a frozen-file allowlist in `scripts/check-generated-drift.sh`/`scripts/local-ci.sh`.
+
+- **Row/event projections need their own `@wire(json.fieldCase: "snake_case")`.** As of 1.13.0, a projection no longer inherits `@wire(json.fieldCase: ...)` from its source entity — omitting it makes the Rust emitter add explicit camelCase `#[serde(rename = ...)]` attributes to ClickHouse-bound row structs, which breaks column-name matching against the actual (snake_case) ClickHouse schema. `logs.LogRow` and `tracing.SpanRow`/`SpanEventRow` all declare this hint explicitly now; do the same for any new ClickHouse-bound projection.
+
+- **Rust ClickHouse enum serialization** (issue #119, partially fixed): clickhouse-rs 0.15 panics on `serialize_unit_variant` for String columns — typed enums cannot be used directly as `String` ClickHouse column fields. `TracingSpanRowV1.span_kind` and `.status_code` are kept as `String` (SCREAMING\_SNAKE\_CASE values) rather than the typed enums that modelable generates. The `From<TracingSpanV1>` impl in `tracing_span_row_v1.rs` converts enum values to strings via explicit match. This is now the emitter's default behavior for ClickHouse-bound enum fields (no manual patch needed as of 1.13.0), except for the orphaned-impl bug noted above.
 
 - **Rust enum variant casing**: The emitter emits enum variants verbatim from `.mdl` source (SCREAMING\_SNAKE\_CASE), which triggers `clippy::upper_case_acronyms`. Suppressed via `#![allow(clippy::upper_case_acronyms)]` in `libs/domain/src/generated/tracing.rs`. Do not remove that allow — re-add it after any regeneration that touches the tracing module file.
 
@@ -85,6 +89,13 @@ Use flags to skip stages when Docker or Node are unavailable:
 - `--skip-frontend` — skip all npm checks
 - `--skip-helm` — skip Helm chart lint
 - `--skip-smoke` — build image but skip smoke test
+
+On Windows, prefer native Git Bash. If WSL invokes Windows `uv.exe`, the
+Modelable drift check keeps temporary outputs under the mounted repository so
+both environments see the same files. An unmodified WSL `/tmp` is unsafe for
+this check because Windows and Bash resolve it differently and every artifact
+can appear missing. Use Scalable's Docker/Rust validation path for a fully
+Linux-hosted Rust check.
 
 If any check fails, you **MUST** fix it before pushing.
 

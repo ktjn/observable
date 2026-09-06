@@ -36,6 +36,13 @@ Current State table below). Specifically:
 - Modelable `1.8.0`'s shared binding capability is adopted: the ClickHouse adapter binding is
   declared once in `models/tracing.mdl` and reused by the logs binding, eliminating the former
   duplicate declaration workaround.
+- Upgraded the toolchain pin from `1.8.0`, through `1.13.0`/`1.13.2`. `tracing.mdl` was
+  temporarily excluded from the `1.10.0`–`1.13.1` upgrade window due to an upstream
+  Rust-emitter bug (orphaned enum-lineage conversion for ClickHouse-forced-`String`
+  fields); fixed upstream in [ktjn/modelable#710](https://github.com/ktjn/modelable/pull/710),
+  shipped in `1.13.2`. `tracing.mdl` now declares its own `@wire(json.fieldCase:
+  "snake_case")` hint and regenerates normally with every other domain — see `AGENTS.md`'s
+  Modelable section.
 - A Python/uv toolchain plus a `modelable` checkout is a **dev-time-only** dependency for
   editing `.mdl` sources or regenerating artifacts — not a CI/build dependency for unrelated
   changes.

@@ -14,22 +14,6 @@ fail() { echo -e "${RED}FAIL${NC} $1"; exit 1; }
 SMOKE_COMPOSE_STARTED=0
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# These artifacts remain intentionally frozen until the upstream ClickHouse
-# projection fix ships. Keep them out of this drift check without weakening
-# checks for any other generated artifact.
-is_frozen_modelable_artifact() {
-  case "$1" in
-    apps/frontend/src/api/generated/tracing/tracing.SpanRow.v1.ts|\
-    libs/domain/src/generated/tracing/tracing_span_event_row_v1.rs|\
-    libs/domain/src/generated/tracing/tracing_span_row_v1.rs)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
 cleanup_smoke_compose() {
   local status=$?
 
@@ -95,9 +79,6 @@ if [[ $SKIP_MODELABLE -eq 0 ]]; then
 
     # TypeScript — main frontend
     while IFS= read -r -d '' f; do
-      if is_frozen_modelable_artifact "$f"; then
-        continue
-      fi
       name="$(basename "$f")"
       if [ ! -f "$TMP_TS/$name" ]; then
         echo "  MISSING in generated: $f"
@@ -121,9 +102,6 @@ if [[ $SKIP_MODELABLE -eq 0 ]]; then
 
     # Rust — only subdirectory files, not hand-maintained module files
     while IFS= read -r -d '' f; do
-      if is_frozen_modelable_artifact "$f"; then
-        continue
-      fi
       name="$(basename "$f")"
       domain="$(basename "$(dirname "$f")")"
       if [ ! -f "$TMP_RS/$domain/$name" ]; then
