@@ -23,7 +23,7 @@ tracing-subscriber = { workspace = true }
 sqlx               = { workspace = true }
 clickhouse         = { workspace = true }
 reqwest            = { workspace = true }
-async-openai       = { version = "0.41", features = ["chat-completion", "model"] }
+async-openai       = { version = "0.42", features = ["chat-completion", "model"] }
 prometheus         = { version = "0.14.0", features = ["process"] }
 rand               = "0.10"
 sha2               = "0.11"

@@ -155,7 +155,7 @@ wheels = [
 
 [[package]]
 name = "modelable"
-version = "1.14.0"
+version = "1.15.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -171,9 +171,9 @@ dependencies = [
     { name = "searchable" },
     { name = "wasmtime" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/11/8b/07b09872b47dc4ba78d46b498311950350245e8244759a41719d5e46cc97/modelable-1.14.0.tar.gz", hash = "sha256:1ac30de1fcf6f92c84cf29ee1752521c0c130a9ae244a93652b3275cef8489e6", size = 5173893, upload-time = "2026-09-06T08:14:11.181Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d9/95/828ad4ff20a32e2bd8da568a7b687f3a8851cd15bdd9767320c89242ac4e/modelable-1.15.1.tar.gz", hash = "sha256:aacd30e89b799b531ac6058687456e93d9eb3a6689fd924fdd44dd7c72f92263", size = 5179784, upload-time = "2026-09-08T05:41:45.067Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c3/f7/aeb564288aadcfb6ee28c631da90463836b51a5580f9deba3461638b37dc/modelable-1.14.0-py3-none-any.whl", hash = "sha256:69e8ff4a262ac3d6566c53b0893549337124a2adf3f0df4678d8b8a029819fd5", size = 3319401, upload-time = "2026-09-06T08:14:09.265Z" },
+    { url = "https://files.pythonhosted.org/packages/62/e1/6a157f82d0d51d1f633e129b0ff52ff9ef78707d42cb4b648577cf5ec8f1/modelable-1.15.1-py3-none-any.whl", hash = "sha256:3c679bc41ff0be909ad6667e7accbbec838afc17c0edeee0d3be974acf4a287a", size = 3323208, upload-time = "2026-09-08T05:41:43.063Z" },
 ]
 
 [[package]]
@@ -185,7 +185,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "modelable", specifier = "==1.14.0" }]
+requires-dist = [{ name = "modelable", specifier = "==1.15.1" }]
 
 [[package]]
 name = "openapi-schema-validator"
