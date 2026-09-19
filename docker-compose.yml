@@ -6,7 +6,7 @@ x-platform-self-observability-env: &platform-self-observability-env
 services:
   # --- INFRASTRUCTURE ---
   clickhouse:
-    image: clickhouse/clickhouse-server:26.7
+    image: clickhouse/clickhouse-server:26.8
     ports: ["8123:8123", "9000:9000"]
     environment:
       CLICKHOUSE_DB: observable
@@ -20,7 +20,7 @@ services:
       retries: 30
 
   redpanda:
-    image: redpandadata/redpanda:v26.2.1
+    image: redpandadata/redpanda:v26.2.3
     command:
       - redpanda
       - start
@@ -52,7 +52,7 @@ services:
       retries: 20
 
   openfga:
-    image: openfga/openfga:v1.18.3
+    image: openfga/openfga:v1.20.0
     command: run
     ports: ["8083:8080", "8081:8081"]
     environment:
@@ -69,7 +69,7 @@ services:
       - zitadel-bootstrap:/bootstrap
 
   zitadel:
-    image: ghcr.io/zitadel/zitadel:v4.17.1
+    image: ghcr.io/zitadel/zitadel:v4.17.3
     command: start-from-init --masterkeyFromEnv --tlsMode disabled --steps /zitadel-steps.yaml
     environment:
       ZITADEL_DATABASE_POSTGRES_HOST: postgres
@@ -117,7 +117,7 @@ services:
 
   # --- SETUP & MIGRATIONS ---
   clickhouse-setup:
-    image: clickhouse/clickhouse-server:26.7
+    image: clickhouse/clickhouse-server:26.8
     entrypoint:
       - /bin/bash
       - -c
@@ -170,7 +170,7 @@ services:
       postgres: { condition: service_healthy }
 
   redpanda-setup:
-    image: redpandadata/redpanda:v26.2.1
+    image: redpandadata/redpanda:v26.2.3
     entrypoint:
       - /bin/bash
       - -c
@@ -376,7 +376,7 @@ services:
 
   # --- VERIFICATION ---
   otel-collector-verification:
-    image: otel/opentelemetry-collector-contrib:0.158.0
+    image: otel/opentelemetry-collector-contrib:0.161.0
     profiles: ["verification"]
     volumes:
       - ./tests/e2e/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro

@@ -24,7 +24,7 @@ tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 clickhouse         = { workspace = true }
 sqlx               = { workspace = true }
-async-openai       = { version = "0.41", features = ["chat-completion", "model"] }
+async-openai       = { version = "0.42", features = ["chat-completion", "model"] }
 async-trait        = "0.1"
 prometheus         = { version = "0.14.0", features = ["process"] }
 
