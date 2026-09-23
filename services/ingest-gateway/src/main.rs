@@ -226,8 +226,13 @@ async fn main() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
     #[test]
     fn grpc_max_message_bytes_defaults_to_4mib() {
+        let _guard = ENV_LOCK.lock().unwrap();
         unsafe {
             std::env::remove_var("INGEST_GRPC_MAX_MESSAGE_BYTES");
         }
@@ -240,6 +245,7 @@ mod tests {
 
     #[test]
     fn grpc_max_message_bytes_parses_env_var() {
+        let _guard = ENV_LOCK.lock().unwrap();
         unsafe {
             std::env::set_var("INGEST_GRPC_MAX_MESSAGE_BYTES", "8388608");
         }
