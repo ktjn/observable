@@ -31,11 +31,11 @@ uuid               = { version = "1", features = ["v4", "serde", "js"] }
 anyhow             = "1"
 tracing              = "0.1"
 tracing-subscriber   = { version = "0.3", features = ["env-filter", "json"] }
-opentelemetry        = { version = "0.32", features = ["logs"] }
-opentelemetry_sdk    = { version = "0.32", features = ["rt-tokio", "logs"] }
-opentelemetry-otlp   = { version = "0.32", features = ["grpc-tonic", "logs"] }
-opentelemetry-appender-tracing = "0.32"
-tracing-opentelemetry = "0.33"
+opentelemetry        = { version = "0.33", features = ["logs"] }
+opentelemetry_sdk    = { version = "0.33", features = ["rt-tokio", "logs"] }
+opentelemetry-otlp   = { version = "0.33", features = ["grpc-tonic", "logs"] }
+opentelemetry-appender-tracing = "0.33"
+tracing-opentelemetry = "0.34"
 bytes              = "1"
 prost              = "0.14"
 tonic              = { version = "0.14", features = ["gzip"] }

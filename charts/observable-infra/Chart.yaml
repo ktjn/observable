@@ -7,5 +7,5 @@ appVersion: "0.1.0"
 
 dependencies:
   - name: openfga
-    version: "0.3.14"
+    version: "0.3.15"
     repository: "https://openfga.github.io/helm-charts"
