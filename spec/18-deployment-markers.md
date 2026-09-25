@@ -41,7 +41,7 @@ To maximize the utility of deployment markers, the following properties are reco
 
 ### 18.3 API Requirements
 
-Deployment markers are control-plane metadata owned by `observable-control` under ADR-035.
+Deployment markers are control-plane metadata owned by `observable-control` under [ADR-035](adr/ADR-035-component-independence.md).
 Public endpoint paths remain stable while internal routing changes.
 
 #### Control API
