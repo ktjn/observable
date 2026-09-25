@@ -136,8 +136,6 @@ Derived from `services/admin-service` plus control-plane handlers currently spre
 Owns:
 
 - tenants, projects, and environments
-- members and privilege administration
-- API-key administration
 - platform configuration
 - dashboards
 - saved views
@@ -145,6 +143,9 @@ Owns:
 - deployment markers
 - change events
 - setup/onboarding metadata
+
+Identity administration exposed through control-plane UX delegates to the Auth API; Control does
+not own credential or membership tables.
 
 Target runtime dependencies:
 
@@ -161,10 +162,11 @@ Derived from `services/auth-service`.
 Owns:
 
 - OIDC integration
+- users and identity mappings
+- tenant memberships and roles
 - sessions
-- API-key validation
+- API-key lifecycle and validation
 - credential audit
-- identity mappings
 
 Consumers use the released Auth API contract. The current `libs/observable-auth` HTTP wrapper is
 not a permanent shared implementation package; callers should use generated contract clients plus
@@ -298,8 +300,8 @@ schema and credentials.
 
 | Owner | PostgreSQL scope |
 | --- | --- |
-| `observable-auth` | identity/session validation data |
-| `observable-control` | tenants, configuration, dashboards, deployment/change metadata |
+| `observable-auth` | users, memberships/roles, sessions, API keys, credential audit |
+| `observable-control` | tenants/projects/environments, configuration, dashboards, deployment/change metadata |
 | `observable-alerting` | alert rules, SLOs, firings, notifications, incidents |
 
 Rules:
@@ -431,8 +433,9 @@ Exit evidence:
 
 ### Phase 4 — Shrink query
 
-Move control-plane CRUD out of query:
+Move control-plane CRUD out of query and split the current admin surface by owner:
 
+- member/role/API-key lifecycle -> auth
 - dashboards
 - saved views
 - tenants
