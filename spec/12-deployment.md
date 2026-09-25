@@ -68,6 +68,24 @@ directories; runtime images must receive only compiled binaries or static fronte
 - Production builds must be release-candidate artifacts that passed staging, canary, automated analysis, and rollback checks.
 - Rebuilding the same commit for promotion is disallowed; promote the same signed artifact across environments.
 
+### 19.3.2 Independent Component Releases
+
+[ADR-035](adr/ADR-035-component-independence.md) changes the target artifact topology.
+
+During roadmap `0.2`, the current monorepo and shared `observable-services` image are migration
+mechanisms. Before repository extraction, CI must produce independent images and versions for auth,
+control, ingest, process, ClickHouse storage, query, alerting, and web.
+
+Each component release owns its changelog, SBOM, provenance, and immutable OCI image. A component
+release must not rebuild unrelated components.
+
+`observable-distribution` owns the product release. It pins an exact compatible set of component
+versions and owns Docker Compose composition, the Helm umbrella chart, full-system E2E, component
+compatibility, upgrade/rollback tests, and deployment documentation.
+
+Component repositories run their own unit, contract, component-integration, security, and image
+gates. Cross-component acceptance runs from the distribution repository against released artifacts.
+
 ### 19.4 Environment Topology
 
 - local dev
@@ -192,7 +210,13 @@ cases where the primary OTLP ingest path or observer instance is unavailable.
 
 ### 19.6 Local Development
 
-Local development uses Docker Compose for external dependencies, Rust services, and the React frontend. The frontend is served from an nginx container built from `apps/frontend/Dockerfile`.
+The current monorepo uses Docker Compose for external dependencies, Rust services, and the React
+frontend. This remains the supported developer workflow during roadmap `0.2`.
+
+After extraction, the same developer entry point belongs to `observable-distribution` and consumes
+released component images by default, with explicit local-component overrides for a component under
+development. The frontend is currently served from an nginx container built from
+`apps/frontend/Dockerfile`.
 
 **Quick start**
 
@@ -219,7 +243,9 @@ E2E setup see `spec/15-frontend-local-dev.md`.
 
 **Application services**
 
-The Rust service containers are built from the repo-root `Dockerfile`. The frontend container is built from `apps/frontend/Dockerfile` and serves static Vite assets through nginx.
+Currently the Rust service containers are built from the repo-root `Dockerfile`. ADR-035 replaces
+this with one image per target component before repository extraction. The frontend container is
+built from `apps/frontend/Dockerfile` and serves static Vite assets through nginx.
 
 | Service          | Host port | Internal dependencies                    |
 |------------------|-----------|------------------------------------------|
@@ -252,13 +278,14 @@ The Rust service containers are built from the repo-root `Dockerfile`. The front
 
 ### 19.7 Helm Chart Layout and Rollback
 
-**Helm** (v3) is the chosen deployment tool (ADR-020). Charts live under `charts/` in the
-monorepo root:
+**Helm** (v3) is the chosen deployment tool (ADR-020). The chart currently lives under `charts/`
+in the monorepo. Under ADR-035 it moves to `observable-distribution` and pins independently
+versioned component images:
 
 ```
 charts/
   observable-common/    # Library chart — shared Deployment, Service, and label templates
-  observable/           # Application chart — all six services + migration Job
+  observable/           # Application chart — full Observable distribution
 ```
 
 **Common library chart (`observable-common`):**  
@@ -268,9 +295,9 @@ application chart. Adding a new service requires one new template file in `chart
 that calls the common templates; no scaffolding code is duplicated.
 
 **Application chart (`observable`):**  
-Declares `observable-common` as a local file dependency. One template file per service. Values
-(`charts/observable/values.yaml`) are keyed to mirror `docker-compose.yml` environment variable
-names so an operator can cross-reference both without separate documentation.
+Declares `observable-common` as a local file dependency. One template file per component.
+Distribution values pin each component's image repository and version independently while retaining
+shared environment-variable conventions where they remain part of a public operational contract.
 
 When the shared Gateway API listener is enabled, the browser-facing origin is shared between
 the frontend and Zitadel. The frontend serves `/`, while Zitadel owns the OIDC and login

@@ -1,7 +1,11 @@
 # ADR-029: Span Metrics Generation
 
 ## Status
-Accepted
+Accepted; transport refined by ADR-035
+
+> **Refined by [ADR-035](ADR-035-component-independence.md):** span-metric generation remains in
+> the processing component. The direct processor-to-storage HTTP transport is transitional; derived
+> metrics are emitted on the versioned normalized telemetry stream with other processed telemetry.
 
 ## Context
 As the volume of trace data grows, calculating RED (Rate, Error, Duration) metrics directly from the raw `spans` table becomes computationally expensive and slow for dashboard rendering. OpenTelemetry typically addresses this by deriving metrics from spans at ingestion time.
@@ -12,7 +16,9 @@ We need a scalable, consistent way to generate these metrics and store them in o
 We implemented an **In-Stream Span Metrics Generator** within the `stream-processor` service.
 
 ### 1. Architecture Overview
-The `stream-processor` consumes spans from the `ingest-topic` (Redpanda), aggregates them in-memory over short windows (60 seconds), and emits OTLP-compliant metrics to the `storage-writer`.
+The processing component consumes spans from the raw telemetry topic, aggregates them in-memory
+over short windows (60 seconds), and emits OTLP-compliant metrics into the normalized telemetry
+stream consumed by the ClickHouse storage component.
 
 ### 2. Key Components
 
@@ -37,8 +43,9 @@ To ensure that metrics generated from spans are consistent with metrics from oth
 3. **Aggregate:** The aggregator updates its in-memory state.
 4. **Emit:** Every 60 seconds, a background task flushes the state:
    - For each unique dimension set, it creates a `MetricSeries` and `MetricPoint`.
-   - It sends these to the `storage-writer` via the internal `/internal/metrics` HTTP endpoint.
-5. **Storage:** `storage-writer` persists the metrics to ClickHouse.
+   - The current implementation sends these to `storage-writer` over `/internal/metrics`.
+   - The ADR-035 target publishes them as `telemetry.normalized.v1` events instead.
+5. **Storage:** the storage component consumes normalized metrics and persists them to ClickHouse.
 
 ## Consequences
 

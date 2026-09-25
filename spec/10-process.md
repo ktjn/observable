@@ -28,14 +28,24 @@ Maintain ADRs from day 1.
 
 ### 16.1 Repo Strategy
 
-Monorepo preferred when:
+[ADR-035](adr/ADR-035-component-independence.md) sets a **polyrepo target with an explicit distribution repository**.
 
-- shared protobuf/schema packages
-- shared UI packages
-- shared infra modules
-- many internal APIs evolving together
+The current monorepo remains the migration workspace until the boundaries are real. Do not move
+directories into repositories while they still rely on sibling source, shared database ownership,
+or lockstep build artifacts.
 
-Polyrepo acceptable if org scale requires it.
+Target rules:
+
+- `observable-contracts` owns released OpenAPI/event/wire contracts.
+- Deployable components consume released contracts, not sibling service source.
+- Each component owns its CI, SemVer lifecycle, container image, changelog, SBOM, and provenance.
+- `observable-distribution` pins compatible component versions and owns Compose, Helm, kind, and
+  full-platform E2E/upgrade/rollback verification.
+- Cross-component PostgreSQL access is forbidden; APIs/events cross ownership boundaries.
+- Repository extraction is the final decomposition phase after independent buildability is proven.
+
+The complete component map and extraction order are defined in
+[docs/component-decomposition.md](../docs/component-decomposition.md).
 
 ### 16.2 Branching
 
@@ -78,7 +88,10 @@ Polyrepo acceptable if org scale requires it.
 
 ### 16.6 CI and Build Process
 
-CI must make every change reproducible, reviewable, and releasable before merge. The default target is a monorepo with Rust services, TypeScript frontend packages, protobuf/OpenAPI contracts, containerized services, and Kubernetes deployment artifacts.
+CI must make every change reproducible, reviewable, and releasable before merge. During the
+ADR-035 migration the monorepo provides this gate. The target is component-local CI for unit,
+contract, component-integration, image, SBOM, and provenance checks, with cross-component
+compatibility and full-platform gates in `observable-distribution`.
 
 **Pipeline triggers**
 

@@ -1,10 +1,14 @@
 # ADR-024: Deployment Marker Write Path Belongs in the Ingest Gateway
 
 **Date:** 2026-04-26
-**Status:** Accepted
+**Status:** Superseded by ADR-035
 **Authors:** Tommy Alander
 **Deciders:** Project Stakeholders
 **Review date:** 2026-04-26
+
+> **Superseded:** [ADR-035](ADR-035-component-independence.md) makes deployment markers and generic
+> change events part of `observable-control`. The implementation may continue to serve these
+> routes from `ingest-gateway` during migration, but this ADR is no longer the target boundary.
 
 ## Context
 

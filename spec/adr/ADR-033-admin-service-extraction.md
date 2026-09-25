@@ -1,10 +1,15 @@
 # ADR-033: Admin Service Extraction
 
 **Date:** 2026-06-19
-**Status:** Implemented (all 3 slices complete, 2026-06-20)
+**Status:** Implemented; target boundary refined by ADR-035
 **Authors:** Claude (architecture review), ktjn
 **Deciders:** Project Stakeholders
 **Review date:** 2026-06-19
+
+> **Refined by [ADR-035](ADR-035-component-independence.md):** `admin-service` remains a valid
+> intermediate extraction from query-api. The target split moves credential/membership state to
+> `observable-auth`, product control-plane state to `observable-control`, and usage reads through
+> `observable-query`.
 
 ## Context
 

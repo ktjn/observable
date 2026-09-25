@@ -201,28 +201,37 @@ through P2-S1c are done; current follow-on backlog tracking lives in `ROADMAP.md
 for an existing query surface and does not change architecture, data model, security model, or
 technology choice.
 
-### 14.2 Deployment Marker API
+### 14.2 Control and Alerting API Ownership
 
-The Query API and Ingest API must support the deployment marker schema and logic defined in `spec/18-deployment-markers.md`.
+The deployment marker schema and behavior are defined in
+[spec/18-deployment-markers.md](18-deployment-markers.md).
 
-#### Ingest Deployment Marker
-- **Endpoints**: `POST /v1/deployments`, `PATCH /v1/deployments/{id}`
-- **Port**: Platform API port (4321) — separate from OTLP ports (4317/4318). See ADR-023.
-- **Behavior**: Enables lifecycle tracking of releases (start, finish, fail, rollback).
-- **Authentication**: Requires `Member` or higher project-level role.
+#### Deployment Markers
 
-#### List Deployment Markers
-- **Endpoint**: `GET /v1/deployments`
-- **Behavior**: Returns deployment events for UI timeline overlays, filterable by service and environment.
+Target owner: `observable-control`.
+
+- **Endpoints**: `POST /v1/deployments`, `PATCH /v1/deployments/{id}`,
+  `GET /v1/deployments`
+- **Behavior**: lifecycle tracking and tenant-scoped retrieval for release correlation
+- **Authentication**: `Member` or higher for writes; read roles follow the deployment-marker spec
+- **Routing**: public paths remain stable; the distribution/gateway layer routes to the owning
+  component
+
+The current split where ingest owns writes and query owns reads is transitional under [ADR-035](adr/ADR-035-component-independence.md).
 
 #### Alert Rule Management
+
+Target owner: `observable-alerting`.
+
 - **Endpoints**:
   - `GET /v1/alerts/rules`
   - `POST /v1/alerts/rules`
   - `PATCH /v1/alerts/rules/{rule_id}/silence`
-- **Behavior**: Enables management of threshold-based alert rules.
-- **Filtering**: `GET` returns rules for the authenticated tenant.
-- **Auth**: Requires `Member` role for create/silence.
+- **Behavior**: management of tenant-scoped alert rules
+- **Auth**: requires `Member` role for create/silence
+
+Current query/admin routing may remain during the `0.2` migration but does not define permanent
+ownership.
 
 ### 14.3 Saved Views API
 

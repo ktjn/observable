@@ -6,6 +6,11 @@
 **Deciders:** Project Stakeholders
 **Review date:** 2027-06-15
 
+> **ADR-035 migration note:** Modelable remains the source of truth for shared wire/domain contracts.
+> During component decomposition, cross-component `.mdl` sources and generated contract artifacts
+> move to `observable-contracts`. Component-private persistence or implementation types remain with
+> their owning component rather than becoming a global shared model package.
+
 ## Context
 
 An audit at the start of this migration found 19 domain types (`libs/domain/src/*.rs`), 47
@@ -16,7 +21,7 @@ structs, API request/response structs, and frontend TS interfaces were each main
 hand, with no mechanism to detect drift between them.
 
 [modelable](https://github.com/ktjn/modelable) is a declarative compiler: canonical domain
-models are defined once in `.mdl` files under `models/`, and per-language artifacts (Rust,
+models are currently defined once in `.mdl` files under `models/`, and per-language artifacts (Rust,
 TypeScript, JSON Schema, SQL) are generated with field-level lineage tracking and
 breaking-change detection (`modelable lineage <Type@version>`).
 

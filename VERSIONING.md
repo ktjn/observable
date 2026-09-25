@@ -17,6 +17,25 @@ To bump the product version, update `VERSION` and every location reported by the
 pull request. Do not derive the product version independently from branch names, commit counts, or
 mutable image tags.
 
+### Component-decomposition transition
+
+[ADR-035](spec/adr/ADR-035-component-independence.md) changes the target release model, but not the
+current release mechanics immediately.
+
+During roadmap `0.2`:
+
+- the root `VERSION` remains authoritative until independent artifact/version boundaries are ready
+- the shared `observable-services` image remains a transitional artifact
+- component versions must not diverge merely by editing workspace package versions
+
+At the independent-artifact milestone, each deployable component owns its own SemVer lifecycle and
+OCI image. `observable-distribution` then owns the product version and a manifest of the exact
+component versions verified together. Product releases no longer require rebuilding unchanged
+components.
+
+The migration and exit criteria are defined in
+[docs/component-decomposition.md](docs/component-decomposition.md).
+
 ## Tag-bound artifact builds
 
 The `Release Artifacts` workflow runs only for tags matching `v*`. Before building, it verifies that:
