@@ -70,7 +70,7 @@ directories; runtime images must receive only compiled binaries or static fronte
 
 ### 19.3.2 Independent Component Releases
 
-ADR-035 changes the target artifact topology.
+[ADR-035](adr/ADR-035-component-independence.md) changes the target artifact topology.
 
 During roadmap `0.2`, the current monorepo and shared `observable-services` image are migration
 mechanisms. Before repository extraction, CI must produce independent images and versions for auth,
