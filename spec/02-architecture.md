@@ -185,8 +185,8 @@ The target bounded contexts are:
 | Component | Primary ownership |
 | --- | --- |
 | `observable-contracts` | OpenAPI, event schemas, shared wire definitions, compatibility rules |
-| `observable-auth` | OIDC, sessions, credential validation, identity mappings |
-| `observable-control` | tenants, configuration, dashboards, deployment/change metadata |
+| `observable-auth` | OIDC, users, memberships/roles, sessions, API-key lifecycle/validation |
+| `observable-control` | tenants/projects/environments, configuration, dashboards, deployment/change metadata |
 | `observable-ingest` | OTLP/Prometheus intake, admission, tenant/environment stamping |
 | `observable-process` | normalization, enrichment, derived telemetry |
 | `observable-store-clickhouse` | telemetry writes, ClickHouse migrations, retention |
