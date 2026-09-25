@@ -167,9 +167,49 @@ flowchart TB
 **Boundary rules**
 - Control plane services never store high-volume telemetry.
 - Data plane services must be horizontally scalable and tenant-aware.
-- Storage engines are hidden behind service APIs; UI and SDK clients do not call storage engines directly.
+- UI and SDK clients never call storage engines directly.
+- ClickHouse writes and migrations belong to the storage component; only the dedicated query
+  component may read ClickHouse directly, within an explicit tested schema compatibility range.
+- Every PostgreSQL table/schema has exactly one component owner; cross-owner SQL is forbidden.
+- Cross-component integration uses released OpenAPI/event contracts, not sibling source packages.
 - Every service emits health, metrics, traces, and logs.
 - Tenant context is mandatory on every API, queue message, storage write, query, and audit record.
+
+### 3.3 Independent Component Target
+
+[ADR-035](adr/ADR-035-component-independence.md) makes component independence the architectural
+target before the platform resumes broader production-maturity work.
+
+The target bounded contexts are:
+
+| Component | Primary ownership |
+| --- | --- |
+| `observable-contracts` | OpenAPI, event schemas, shared wire definitions, compatibility rules |
+| `observable-auth` | OIDC, sessions, credential validation, identity mappings |
+| `observable-control` | tenants, configuration, dashboards, deployment/change metadata |
+| `observable-ingest` | OTLP/Prometheus intake, admission, tenant/environment stamping |
+| `observable-process` | normalization, enrichment, derived telemetry |
+| `observable-store-clickhouse` | telemetry writes, ClickHouse migrations, retention |
+| `observable-query` | telemetry query, correlation, topology, NLQ/MCP planning |
+| `observable-alerting` | alert/SLO evaluation and state, notifications, incidents |
+| `observable-web` | browser UX |
+| `observable-distribution` | Compose/Helm composition, version pins, full-system verification |
+
+The telemetry data path becomes:
+
+```text
+observable-ingest
+    -> telemetry.raw.v1
+    -> observable-process
+    -> telemetry.normalized.v1
+    -> observable-store-clickhouse
+    -> ClickHouse
+    -> observable-query
+```
+
+The current monorepo is the migration workspace. Repository extraction happens only after a
+component has an independent contract boundary, state ownership, image, version, and test surface.
+See [docs/component-decomposition.md](../docs/component-decomposition.md) for the extraction plan.
 
 ---
 
