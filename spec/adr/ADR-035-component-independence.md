@@ -110,8 +110,13 @@ per-component image/version values as independent artifacts are introduced.
 ### Admin-service evolution
 
 ADR-033 correctly established the need to isolate privilege-granting administration from query.
-This decision extends that direction into the broader `observable-control` boundary and removes
-its direct telemetry-store dependency.
+ADR-035 further splits that temporary service by state owner:
+
+- users, memberships/roles, API-key lifecycle, and credential audit move to `observable-auth`
+- platform configuration and other product control-plane metadata move to `observable-control`
+- usage data is obtained through `observable-query` rather than direct ClickHouse access
+
+This keeps credential validation and credential lifecycle on one PostgreSQL ownership boundary.
 
 ## Consequences
 
