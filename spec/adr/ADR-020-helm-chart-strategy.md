@@ -23,8 +23,8 @@ decision so that:
 3. Local Kubernetes testing is possible without a shared cluster.
 4. Maximum configuration is shared with the existing Docker Compose local-dev stack.
 
-The platform currently has six Rust services plus four infrastructure components (ClickHouse,
-PostgreSQL, Redpanda, OpenFGA). All six services are built from a single Dockerfile with
+The platform currently has seven Rust services plus four infrastructure components (ClickHouse,
+PostgreSQL, Redpanda, OpenFGA). All seven services are built from a single Dockerfile with
 per-service command entrypoints, share the same environment-variable naming conventions, and expose
 a common `/health` endpoint. This uniformity makes a shared chart template viable.
 
@@ -54,7 +54,7 @@ Under ADR-035 these charts move to `observable-distribution` once component arti
 independent. The chart structure remains the same; only source ownership and image inputs change.
 
 **`observable-common` (library chart):** Defines reusable named templates for the three
-resources all six services need: `Deployment`, `Service`, and the common label/selector set.
+resources all seven services need: `Deployment`, `Service`, and the common label/selector set.
 A library chart produces no manifests on its own; it is only a provider of shared Go template
 blocks. Consuming charts declare it as a dependency.
 
