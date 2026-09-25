@@ -25,6 +25,11 @@ for how it works.
 The current release is `0.1.0`. [ROADMAP.md](ROADMAP.md) is the authoritative, outcome-based path
 from the shipped evaluation baseline through a stable `1.0.0` self-hosted contract.
 
+The current `0.2` goal is
+[independent component architecture](docs/component-decomposition.md): establish versioned
+contracts, state ownership, independent artifacts, and compatibility gates before extracting the
+platform into separately versioned component repositories.
+
 > Observable 0.1 is intended for evaluation and small non-critical deployments. Storage schemas,
 > APIs, Helm values, and upgrade procedures may change without backward compatibility before 1.0.
 
