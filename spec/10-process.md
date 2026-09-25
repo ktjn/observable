@@ -28,7 +28,7 @@ Maintain ADRs from day 1.
 
 ### 16.1 Repo Strategy
 
-ADR-035 sets a **polyrepo target with an explicit distribution repository**.
+[ADR-035](adr/ADR-035-component-independence.md) sets a **polyrepo target with an explicit distribution repository**.
 
 The current monorepo remains the migration workspace until the boundaries are real. Do not move
 directories into repositories while they still rely on sibling source, shared database ownership,
