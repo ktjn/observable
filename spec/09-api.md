@@ -217,7 +217,7 @@ Target owner: `observable-control`.
 - **Routing**: public paths remain stable; the distribution/gateway layer routes to the owning
   component
 
-The current split where ingest owns writes and query owns reads is transitional under ADR-035.
+The current split where ingest owns writes and query owns reads is transitional under [ADR-035](adr/ADR-035-component-independence.md).
 
 #### Alert Rule Management
 
