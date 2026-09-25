@@ -9,6 +9,8 @@
 5. **Custom query DSL too early** — Start with minimal semantics and evolve.
 6. **AI-first roadmap** — Wrong order. Reliability first.
 7. **No cost model** — Observability products fail economically before technically.
+8. **Distributed monolith** — Splitting repositories before contracts, state ownership, and release
+   independence turns source coupling into network and operational coupling.
 
 ---
 
@@ -36,11 +38,15 @@ operational maturity remain separate evidence requirements; see the roadmap's `0
 
 The stable self-hosted contract is built in dependency order:
 
-1. dependable Docker Compose evaluation from published artifacts;
-2. one operator-ready Kubernetes topology;
-3. enforceable governance for shared team adoption;
-4. a complete service-reliability workflow; and
-5. verified compatibility, security, performance, recovery, and support boundaries for `1.0.0`.
+1. independent component contracts, state ownership, artifacts, versions, and repositories;
+2. dependable Docker Compose evaluation from a pinned distribution of released components;
+3. one operator-ready Kubernetes topology;
+4. enforceable governance for shared team adoption;
+5. a complete service-reliability workflow; and
+6. verified compatibility, security, performance, recovery, and support boundaries for `1.0.0`.
+
+The component decomposition is defined by [ADR-035](adr/ADR-035-component-independence.md) and
+[docs/component-decomposition.md](../docs/component-decomposition.md).
 
 Every stage must close its documented evidence gates before the dependent stability claim is made.
 Kubernetes remains the production target under [ADR-010](adr/ADR-010-deployment-model.md); Compose is
@@ -69,6 +75,7 @@ Recommended technology shape:
 | Authorization       | RBAC + OpenFGA-style fine-grained model                       |
 | Runtime             | Kubernetes                                                    |
 | Delivery            | GitOps + progressive rollout                                  |
-| Process             | trunk-based, ADR-driven, test-heavy, telemetry-contract aware |
+| Component model     | Independent component repos + version-pinned distribution      |
+| Process             | trunk-based, ADR-driven, test-heavy, contract-aware             |
 
 This is a credible path to a production-ready observability platform that stays aligned with current ecosystem direction without copying Dynatrace/New Relic internals blindly.
