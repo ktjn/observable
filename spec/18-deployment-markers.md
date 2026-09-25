@@ -41,27 +41,27 @@ To maximize the utility of deployment markers, the following properties are reco
 
 ### 18.3 API Requirements
 
-#### Ingestion API
+Deployment markers are control-plane metadata owned by `observable-control` under ADR-035.
+Public endpoint paths remain stable while internal routing changes.
 
-The platform MUST provide endpoints for lifecycle management of deployments.
-These endpoints are served on the **Platform API port (4321)** of the ingest-gateway,
-separate from the OTLP ports (4317/4318). CI/CD pipelines and tooling MUST target
-port 4321 (env var `OBSERVABLE_URL=http://<host>:4321`).
+#### Control API
 
-1.  **Start Deployment**: `POST /v1/deployments`
-    *   Creates a new marker with status `in_progress`.
-    *   Returns the `deployment_id`.
-2.  **Finish Deployment**: `PATCH /v1/deployments/{deployment_id}`
-    *   Updates the `status`, `finished_at`, and adds any final metadata.
-    *   Transition to `success`, `failed`, or `rolled_back`.
+1. **Start Deployment**: `POST /v1/deployments`
+   - Creates a new marker with status `in_progress`.
+   - Returns the `deployment_id`.
+2. **Finish Deployment**: `PATCH /v1/deployments/{deployment_id}`
+   - Updates `status`, `finished_at`, and final metadata.
+   - Supports transition to `success`, `failed`, or `rolled_back`.
+3. **List Deployments**: `GET /v1/deployments`
+   - Filters: `service_name`, `environment`, `start_time`, `end_time`.
+   - Used by the frontend and query/correlation surfaces.
 
-#### Query API
+The public gateway/distribution layer routes these endpoints to `observable-control`; clients do not
+address component-specific ports.
 
-The Query API MUST support retrieving deployment markers to enable UI overlays.
-
-1.  **List Deployments**: `GET /v1/deployments`
-    *   Filters: `service_name`, `environment`, `start_time`, `end_time`.
-    *   Used by the frontend to render vertical markers on time-series charts.
+**Migration note:** the current implementation serves writes from the ingest-gateway Platform API
+and reads from query-api. That routing is a compatibility bridge during roadmap `0.2`, not the
+target ownership boundary.
 
 ### 18.4 UI Visualization
 
@@ -69,15 +69,24 @@ The Query API MUST support retrieving deployment markers to enable UI overlays.
 *   **Status Indicators**: Markers should be color-coded by status (e.g., green for success, red for failure).
 *   **Hover Context**: Hovering over a marker should display version, committer, and a link to the CI/CD pipeline.
 
-### 18.5 Ingest Enrichment Logic
+### 18.5 Deployment Correlation Enrichment
 
-To enable correlation without requiring agents to be aware of `deployment_id`, the ingestion pipeline MUST enrich incoming signals with the active `deployment_id`.
+Telemetry components must not query control-plane PostgreSQL tables directly.
 
-1.  **Registry Lookup**: The ingestor maintains a cache of active deployments (status = `in_progress` or the latest `success`) indexed by `(tenant_id, service_name, environment, service_version)`.
-2.  **Disambiguation**:
-    *   If a signal carries `service.version`, the ingestor MUST match against the deployment record for that specific version.
-    *   If `service.version` is missing or no version-specific match is found, the ingestor SHOULD match against the latest `success` or `in_progress` deployment for that `(service_name, environment)`.
-3.  **Injection**: The resolved `deployment_id` is added to the internal signal representation before it is written to the storage layer (ClickHouse/VictoriaMetrics).
+The target correlation path is:
+
+1. **Control publication:** `observable-control` publishes a versioned
+   `DeploymentChanged.v1` event when deployment state changes.
+2. **Processor cache:** `observable-process` maintains a bounded local projection keyed by
+   `(tenant_id, service_name, environment, service_version)`.
+3. **Disambiguation:** when `service.version` is present, processing matches that version first;
+   otherwise it may use the latest applicable successful/in-progress deployment.
+4. **Injection:** the resolved `deployment_id` is stamped into normalized telemetry before storage.
+5. **Fallback:** telemetry remains valid if no deployment mapping is available. Query-time
+   correlation may reconstruct relationships from service/environment/version and event time.
+
+The current ingest-gateway PostgreSQL deployment registry is transitional and is removed when the
+control/event projection path is proven.
 
 ### 18.6 Security and RBAC
 
@@ -100,7 +109,10 @@ Access to the Deployment API is controlled by the project-level roles defined in
 
 To ensure markers are consistent and accurate, deployment tooling MUST automate interaction with the Deployment API.
 
-1.  **CI/CD Integration**: Pipelines (GitHub Actions, Argo CD hooks) SHOULD call `POST /v1/deployments` at the start of a rollout and `PATCH /v1/deployments/{id}` upon completion or failure.
+1.  **CI/CD Integration**: Pipelines (GitHub Actions, Argo CD hooks) SHOULD call the stable public
+    `POST /v1/deployments` endpoint at the start of a rollout and
+    `PATCH /v1/deployments/{id}` upon completion or failure. Internal service routing is owned by
+    the distribution/gateway layer.
 2.  **Canary Support**: The `scripts/canary-promote.sh` utility (see `spec/12-deployment.md`) SHOULD be updated to create a deployment marker when a canary is initiated and update it when promoted or reverted.
 3.  **Automatic Rollback Detection**: If a deployment is rolled back (either manually or via automated gates), a new deployment record with status `rolled_back` and `rollback_of` set to the failed deployment ID MUST be created.
 
@@ -126,11 +138,11 @@ against telemetry that isn't a service deploy.
 | created_by | string | no | Identity of the user or system that recorded the event. |
 | metadata | JSON | no | Arbitrary key-value context. |
 
-**Ingestion API**: `POST /v1/events/changes` on the ingest-gateway Platform API port
-(4321), behind the same auth as `POST /v1/deployments`. Returns `change_event_id`.
-
-**Query API**: `GET /v1/events/changes` on the Query API, filters `service_name`,
-`environment`, `event_type`, `start_time`, `end_time`; `limit` default 50, max 200.
+**Control API**: `POST /v1/events/changes` and `GET /v1/events/changes` are owned by
+`observable-control`. The list endpoint filters `service_name`, `environment`, `event_type`,
+`start_time`, and `end_time`; `limit` defaults to 50 and is capped at 200. Query/correlation
+surfaces consume this control-plane contract or a versioned change-event stream rather than reading
+the control database directly.
 
 **UI Visualization**: change events render as dashed vertical markers alongside
 deployment markers on the same service-level time-series chart
