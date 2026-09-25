@@ -6,6 +6,12 @@
 **Deciders:** Project Stakeholders
 **Review date:** 2026-04-19
 
+> **Amended by ADR-035 (2026-09-25):** Helm, the umbrella distribution chart, the shared library
+> chart, and kind testing remain the deployment strategy. References below to a monorepo-local
+> chart, a single `observable-services` image, and repo-root migration bundles describe the current
+> implementation during decomposition. The target distribution consumes independently versioned
+> component images and component-owned migration bundles.
+
 ## Context
 
 ADR-010 established Kubernetes as the target deployment platform and noted that "Helm or Kustomize
@@ -36,13 +42,16 @@ does not require cloud credentials, and is well-supported in GitHub Actions.
 
 ### Chart Layout
 
-Two charts live under `charts/` in the monorepo:
+The current implementation keeps two charts under `charts/` in the monorepo:
 
 ```
 charts/
   observable-common/    # Helm library chart (type: library)
   observable/           # Helm application chart (type: application)
 ```
+
+Under ADR-035 these charts move to `observable-distribution` once component artifacts are
+independent. The chart structure remains the same; only source ownership and image inputs change.
 
 **`observable-common` (library chart):** Defines reusable named templates for the three
 resources all six services need: `Deployment`, `Service`, and the common label/selector set.
@@ -56,7 +65,8 @@ that calls the shared library templates, and adds a migration `Job` hook.
 ### Sharing With Docker Compose
 
 The Helm chart and Docker Compose share:
-- The same container image (`observable-services`, built from the repo-root `Dockerfile`).
+- During migration, the current `observable-services` image. The ADR-035 target replaces this
+  with one independently versioned image per deployable component, pinned by the distribution.
 - The same environment variable names (`DATABASE_URL`, `CLICKHOUSE_URL`, `REDPANDA_BROKERS`, etc.).
 - The same infrastructure images (`clickhouse/clickhouse-server:24.3`, `postgres:16`,
   `redpandadata/redpanda:v23.3.1`, `openfga/openfga:v1.5`).
@@ -96,11 +106,12 @@ The Job uses two init containers — one for PostgreSQL (`postgres:16`) and one 
 (`clickhouse/clickhouse-server:24.3`) — that mount migration SQL from two ConfigMaps:
 `observable-migrations-postgres` and `observable-migrations-clickhouse`.
 
-These ConfigMaps are created by the deployment pipeline **before** `helm install` using
-`kubectl create configmap --from-file=migrations/<db>/`. This keeps migration SQL authoritative
-in the `migrations/` directory at the repo root (ADR-013) without duplicating files inside the
-chart. The kind test script (`scripts/kind-test.sh`) and any future CI release pipeline must
-create these ConfigMaps before invoking Helm.
+These ConfigMaps are currently created by the deployment pipeline **before** `helm install` using
+`kubectl create configmap --from-file=migrations/<db>/`. During ADR-035 decomposition, migration
+ownership moves with the owning component: ClickHouse migrations are released by
+`observable-store-clickhouse`, while PostgreSQL migrations are released by their owning control,
+auth, or alerting component. `observable-distribution` materializes the pinned migration bundles
+before invoking Helm.
 
 ### Rollback Path
 
@@ -131,7 +142,8 @@ See `spec/11-testing.md §18.7` for the full Kubernetes test strategy. In summar
 - Single rollback command (`helm rollback`) for application tier.
 - Library chart eliminates per-service copy-paste for Deployment/Service scaffolding.
 - kind allows any developer or CI runner to exercise Kubernetes behaviour without cloud access.
-- Compose and Helm share image tags and env var names; configuration drift is visible immediately.
+- Compose and Helm share component image/version pins and env var names; configuration drift is
+  visible immediately.
 
 **Harder:**
 - Helm dependency management (`helm dependency update`) must run before `helm install`/`lint`.
