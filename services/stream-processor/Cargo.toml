@@ -14,6 +14,7 @@ path = "src/main.rs"
 [dependencies]
 domain             = { path = "../../libs/domain" }
 observable-config = { path = "../../libs/observable-config" }
+observable-process = { path = "../../libs/observable-process" }
 observable-telemetry = { path = "../../libs/observable-telemetry" }
 tokio              = { workspace = true }
 axum               = { workspace = true }

@@ -1,4 +1,4 @@
-pub use domain::processing::{
+pub use observable_process::{
     normalise_log, normalise_metric_point, normalise_metric_series, normalise_span,
 };
 

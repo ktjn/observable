@@ -39,10 +39,15 @@ Owns versioned integration contracts:
 - Modelable source definitions that are genuinely cross-component contracts
 
 The current `libs/domain` crate must not become a cross-repository shared implementation package.
-It currently mixes wire types, ClickHouse rows, processing types, and visualization types. Those
-responsibilities must be separated before extraction. Configuration/env-var loading and OTel
-telemetry setup have been split out into `libs/observable-config` and `libs/observable-telemetry`,
-component-local implementation utilities, not cross-component contracts.
+It currently mixes wire types, ClickHouse rows, and visualization types. Those responsibilities must
+be separated before extraction. Configuration/env-var loading, OTel telemetry setup, and
+stream-processor's envelope normalization/merge logic have been split out into
+`libs/observable-config`, `libs/observable-telemetry`, and `libs/observable-process` respectively —
+component-local implementation utilities, not cross-component contracts. The WASM playground vendors
+`observable-process` as a monorepo path dependency to simulate the ingest-to-process pipeline
+client-side; this in-repo reuse is acceptable during decomposition but must be resolved (vendored
+copy or dropped) before `observable-web` and `observable-process` extract into separate
+repositories, since the target dependency graph does not have web depend on process.
 
 ### observable-ingest
 

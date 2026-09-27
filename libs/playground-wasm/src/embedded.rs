@@ -1,15 +1,17 @@
 use domain::{
     AggregationTemporality, EnvelopePayload, LogRecord, MetricPoint, MetricSeries, MetricType,
-    Span, StatusCode, TelemetryEnvelope, processing::MergedTelemetry,
+    Span, StatusCode, TelemetryEnvelope,
 };
+use observable_process::MergedTelemetry;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::transport::InMemoryTransport;
 
 /// Portable stream-processor core used by the browser composition layer.
-/// Native stream-processor hosts use the same domain processing functions;
-/// this wrapper keeps the WASM binding focused on composition and transport.
+/// Native stream-processor hosts use the same observable-process normalization
+/// functions; this wrapper keeps the WASM binding focused on composition and
+/// transport.
 #[derive(Debug, Default)]
 pub struct EmbeddedStreamProcessor;
 
@@ -119,7 +121,7 @@ impl EmbeddedStreamProcessor {
         &self,
         batch: impl IntoIterator<Item = TelemetryEnvelope>,
     ) -> MergedTelemetry {
-        domain::processing::merge_telemetry(batch)
+        observable_process::merge_telemetry(batch)
     }
 
     /// Converts the playground producer's compact span payload into the

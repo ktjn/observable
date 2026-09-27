@@ -3,7 +3,6 @@ mod generated;
 pub mod envelope;
 pub mod log;
 pub mod metric;
-pub mod processing;
 pub mod span;
 pub mod visualization;
 

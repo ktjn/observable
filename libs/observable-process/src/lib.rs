@@ -1,4 +1,4 @@
-use crate::{EnvelopePayload, LogRecord, MetricPoint, MetricSeries, Span, TelemetryEnvelope};
+use domain::{EnvelopePayload, LogRecord, MetricPoint, MetricSeries, Span, TelemetryEnvelope};
 use uuid::Uuid;
 
 #[derive(Debug, Default)]

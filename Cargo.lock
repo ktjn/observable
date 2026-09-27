@@ -2645,6 +2645,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "observable-process"
+version = "0.1.0"
+dependencies = [
+ "domain",
+ "uuid",
+]
+
+[[package]]
 name = "observable-telemetry"
 version = "0.1.0"
 dependencies = [
@@ -2945,6 +2953,7 @@ version = "0.1.0"
 dependencies = [
  "domain",
  "domain-core",
+ "observable-process",
  "query-core",
  "serde",
  "serde_json",
@@ -4336,6 +4345,7 @@ dependencies = [
  "domain",
  "http-body-util",
  "observable-config",
+ "observable-process",
  "observable-telemetry",
  "prometheus",
  "rdkafka",
