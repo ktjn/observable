@@ -29,7 +29,7 @@ async fn base_url() -> String {
     let container = CONTAINER
         .get_or_init(|| async {
             let container = ClickHouse::default()
-                .with_tag("25.3")
+                .with_tag("26.9")
                 .with_env_var("CLICKHOUSE_USER", USER)
                 .with_env_var("CLICKHOUSE_PASSWORD", PASSWORD)
                 .start()
@@ -59,6 +59,9 @@ pub async fn shared_client() -> Client {
         .with_user(USER)
         .with_password(PASSWORD)
         .with_database("observable")
+        // See docs/agent-context.md: clickhouse-rs 0.15.2 can't decompress
+        // ClickHouse 26.9's response framing. Remove once a fixed release ships.
+        .with_compression(clickhouse::Compression::None)
 }
 
 async fn apply_migrations(base_url: &str) {

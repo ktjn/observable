@@ -399,11 +399,26 @@ Remove all four `.with_compression(...)` calls (and this note) once a `clickhous
 fixes 26.9's response framing (check `cargo info clickhouse` for a version newer than 0.15.2
 mentioning it) — at that point compression can be re-enabled.
 
-**Separate, still-open gap:** the Docker-gated integration test containers (`libs/test-support`'s
-`shared_client()`, and several `tests/*.rs` files with their own duplicated `start_clickhouse()`
-helpers) are independently pinned to ClickHouse `25.3`, disconnected from whatever
-`docker-compose.yml` uses. They would not have caught this regression even if run in CI. Not
-addressed here — out of scope for the compression fix.
+**Update:** the Docker-gated integration test containers were also independently pinned to
+ClickHouse `25.3` in 11 places (`libs/test-support`'s `shared_client()`, plus 10 `tests/*.rs`/
+`src/*.rs` files with their own duplicated `start_clickhouse()`-style helpers), disconnected from
+whatever `docker-compose.yml` uses — they would not have caught this regression even running in
+CI. All 11 are now bumped to `26.9` with the same `.with_compression(Compression::None)` fix, so
+these tests actually exercise the same ClickHouse version as production. Verified by running every
+affected suite for real (`cargo test -p <crate> --tests`) against a live ClickHouse 26.9 container:
+all passed except one pre-existing bug this surfaced —
+`clickhouse_container_filters_logs_by_timestamp_cutoff` in
+`services/query-api/tests/it/clickhouse_integration.rs` inserted logs at hardcoded epoch-era
+timestamps (e.g. `1_000` ns since 1970), which the logs table's 60-day TTL (`002_create_logs.sql`)
+silently drops before they're queryable. This worked by accident on ClickHouse 25.3 (lazier TTL
+enforcement) and broke on 26.9. Fixed by using `now - relative offset` timestamps instead of
+absolute epoch values — the general lesson: never hardcode a small absolute
+`timestamp_unix_nano`/`start_time_unix_nano` in a ClickHouse-backed test; every telemetry table here
+has a TTL, and a value TTL-old-enough is invisible regardless of ClickHouse version.
+
+The 11 helpers remain independently duplicated per test file rather than consolidated onto
+`test_support::clickhouse::shared_client()` — that consolidation is a separate, larger refactor not
+attempted here.
 
 **Also found:** `contracts/schemas/` (added for the JSON-Schema compat-check test in
 `libs/domain/src/contract_schema_test.rs`) was both `.dockerignore`d and never `COPY`'d in the

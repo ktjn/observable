@@ -90,6 +90,7 @@ async fn apply_ch_migrations(base_url: &str, user: &str, password: &str) -> clic
         .with_user(user)
         .with_password(password)
         .with_database("observable")
+        .with_compression(clickhouse::Compression::None)
 }
 
 async fn start_clickhouse() -> (
@@ -97,7 +98,7 @@ async fn start_clickhouse() -> (
     testcontainers::ContainerAsync<ClickHouse>,
 ) {
     let container = ClickHouse::default()
-        .with_tag("25.3")
+        .with_tag("26.9")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()

@@ -58,7 +58,7 @@ async fn alert_evaluator_readyz_returns_200_when_dependencies_reachable() {
     let pg_url = format!("postgres://postgres:postgres@127.0.0.1:{pg_port}/postgres");
 
     let ch = ClickHouse::default()
-        .with_tag("25.3")
+        .with_tag("26.9")
         .start()
         .await
         .expect("clickhouse started");
@@ -92,7 +92,9 @@ async fn alert_evaluator_readyz_returns_200_when_dependencies_reachable() {
 
     let state = AppState {
         db: Arc::new(pool),
-        ch: clickhouse::Client::default().with_url(format!("http://127.0.0.1:{ch_port}")),
+        ch: clickhouse::Client::default()
+            .with_url(format!("http://127.0.0.1:{ch_port}"))
+            .with_compression(clickhouse::Compression::None),
         metrics: Arc::new(alert_evaluator::observability::AlertEvaluatorMetrics::new()),
     };
 

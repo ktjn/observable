@@ -43,7 +43,7 @@ async fn storage_writer_readyz_returns_200_when_clickhouse_is_reachable() {
     use testcontainers_modules::clickhouse::ClickHouse;
 
     let container = ClickHouse::default()
-        .with_tag("25.3")
+        .with_tag("26.9")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -53,7 +53,8 @@ async fn storage_writer_readyz_returns_200_when_clickhouse_is_reachable() {
     let ch = clickhouse::Client::default()
         .with_url(format!("http://127.0.0.1:{port}"))
         .with_user("default")
-        .with_password("test");
+        .with_password("test")
+        .with_compression(clickhouse::Compression::None);
 
     let app = test_app(test_state(ch));
 

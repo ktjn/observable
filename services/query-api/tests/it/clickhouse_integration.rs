@@ -169,10 +169,22 @@ async fn clickhouse_container_filters_logs_by_timestamp_cutoff() {
 
     let tenant = Uuid::new_v4();
 
-    insert_log(&ch, make_log_row_at(tenant, "old-svc", 1_000)).await;
-    insert_log(&ch, make_log_row_at(tenant, "new-svc", 10_000)).await;
+    // Timestamps must be recent enough to stay inside the logs table's 60-day
+    // TTL (migrations/clickhouse/002_create_logs.sql) -- absolute epoch-era
+    // values (e.g. 1_000ns) are silently dropped by ClickHouse's TTL
+    // enforcement rather than being returned as "expired but still queryable".
+    let now_ns = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+    let old_ns = now_ns - 60_000_000_000; // 60s ago
+    let new_ns = now_ns - 10_000_000_000; // 10s ago
+    let cutoff_ns = now_ns - 30_000_000_000; // 30s ago, between old and new
 
-    let result = fetch_log_rows_since(&ch, tenant, 5_000)
+    insert_log(&ch, make_log_row_at(tenant, "old-svc", old_ns)).await;
+    insert_log(&ch, make_log_row_at(tenant, "new-svc", new_ns)).await;
+
+    let result = fetch_log_rows_since(&ch, tenant, cutoff_ns)
         .await
         .expect("log query succeeded");
 

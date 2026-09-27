@@ -36,7 +36,7 @@ const DEV_API_KEY: &str = "dev-api-key-0000";
 
 async fn start_clickhouse() -> (ChClient, testcontainers::ContainerAsync<ClickHouse>) {
     let container = ClickHouse::default()
-        .with_tag("25.3")
+        .with_tag("26.9")
         .with_env_var("CLICKHOUSE_USER", "default")
         .with_env_var("CLICKHOUSE_PASSWORD", "test")
         .start()
@@ -88,6 +88,7 @@ async fn apply_ch_migrations(base_url: &str, user: &str, password: &str) -> ChCl
         .with_user(user)
         .with_password(password)
         .with_database("observable")
+        .with_compression(clickhouse::Compression::None)
 }
 
 // ── App builder ──────────────────────────────────────────────────────────────

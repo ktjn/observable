@@ -184,7 +184,7 @@ mod tests {
         use testcontainers_modules::clickhouse::ClickHouse;
 
         let container = ClickHouse::default()
-            .with_tag("25.3")
+            .with_tag("26.9")
             .with_env_var("CLICKHOUSE_USER", "default")
             .with_env_var("CLICKHOUSE_PASSWORD", "test")
             .start()
@@ -229,7 +229,8 @@ mod tests {
             .with_url(&base_url)
             .with_user("default")
             .with_password("test")
-            .with_database("observable");
+            .with_database("observable")
+            .with_compression(clickhouse::Compression::None);
 
         let tenant_id = Uuid::new_v4();
         let now_ns = std::time::SystemTime::now()
