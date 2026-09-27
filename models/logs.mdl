@@ -1,4 +1,4 @@
-// Domain: logs. Generated: libs/domain/src/generated/logs/ (Rust Row types), apps/frontend/src/api/generated/logs/ (TypeScript).
+// Domain: logs. Generated: libs/observable-storage-contracts/src/generated/logs/ (Rust Row types), apps/frontend/src/api/generated/logs/ (TypeScript).
 // Canonical Rust LogRecord remains hand-written (enum and conversion gaps; see Phase 1 backlog items 1-3).
 domain logs {
   owner: "platform-team"

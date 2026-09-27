@@ -235,9 +235,11 @@ backlog and per-domain design specs.
 modelable compile <observable-checkout>/models --target <rust|typescript> --out <scratch-dir>`,
   then copy the relevant generated files into this repo and commit them (generated code is
   committed, not built in CI — see "Resolved Decisions" in the migration plan).
-- **Generated Rust artifacts:** `libs/domain/src/generated/<domain>/`, re-exported via a
-  `mod.rs` with `#![allow(dead_code)]`; hand-written domain types reference generated row types
-  via `pub type FooRow = generated::<domain>::FooRowV1;` where the shapes are 1:1.
+- **Generated Rust artifacts:** `libs/<crate>/src/generated/<domain>/` (tracing/logs live under
+  `libs/observable-storage-contracts`; other domains may add a `libs/domain/src/generated/<domain>`
+  directory), re-exported via a `mod.rs` with `#![allow(dead_code)]`; hand-written domain types
+  reference generated row types via `pub type FooRow = generated::<domain>::FooRowV1;` where the
+  shapes are 1:1.
 - **Generated TypeScript artifacts:** `apps/frontend/src/api/generated/<domain>/`. Each file is
   copied verbatim from the compiler output plus a short "do not edit, regenerate with..." header
   comment. Hand-written `apps/frontend/src/api/<domain>.ts` re-exports the generated types

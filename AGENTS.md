@@ -17,7 +17,7 @@ Refer to `spec/10-process.md` for the official development process and AI agent 
 
 ## Modelable Emitter Limitations (Manual Patches Required)
 
-**Never hand-edit a file under a `generated/` directory.** Files generated from `.mdl` sources (e.g. `apps/frontend/src/api/generated/`, `libs/domain/src/generated/`) are overwritten by `scripts/regenerate-models.sh` and must never be edited directly to add or change fields — doing so silently drifts the generated code from its `.mdl` source of truth, and the next regeneration silently reverts the hand-edit, breaking anything that depended on it. To add or change a field, edit the relevant `models/*.mdl` file and run `scripts/regenerate-models.sh`; the only edits allowed directly in a `generated/` file are the documented manual patches listed below, which the script is not yet able to apply automatically.
+**Never hand-edit a file under a `generated/` directory.** Files generated from `.mdl` sources (e.g. `apps/frontend/src/api/generated/`, `libs/observable-storage-contracts/src/generated/`) are overwritten by `scripts/regenerate-models.sh` and must never be edited directly to add or change fields — doing so silently drifts the generated code from its `.mdl` source of truth, and the next regeneration silently reverts the hand-edit, breaking anything that depended on it. To add or change a field, edit the relevant `models/*.mdl` file and run `scripts/regenerate-models.sh`; the only edits allowed directly in a `generated/` file are the documented manual patches listed below, which the script is not yet able to apply automatically.
 
 The modelable codegen emitter (PyPI 1.13.0, pinned in `models/pyproject.toml` and `models/uv.lock`) has known limitations that require manual post-processing after regeneration. Modelable 1.8.0 supports shared binding declarations across the workspace: declare the `ch-observable` adapter once in `models/tracing.mdl` and reference it from the logs binding; do not reintroduce duplicate adapter declarations.
 
@@ -27,7 +27,7 @@ The modelable codegen emitter (PyPI 1.13.0, pinned in `models/pyproject.toml` an
 
 - **Rust ClickHouse enum serialization** (issue #119, partially fixed): clickhouse-rs 0.15 panics on `serialize_unit_variant` for String columns — typed enums cannot be used directly as `String` ClickHouse column fields. `TracingSpanRowV1.span_kind` and `.status_code` are kept as `String` (SCREAMING\_SNAKE\_CASE values) rather than the typed enums that modelable generates. The `From<TracingSpanV1>` impl in `tracing_span_row_v1.rs` converts enum values to strings via explicit match. This is now the emitter's default behavior for ClickHouse-bound enum fields (no manual patch needed as of 1.13.0), except for the orphaned-impl bug noted above.
 
-- **Rust enum variant casing**: The emitter emits enum variants verbatim from `.mdl` source (SCREAMING\_SNAKE\_CASE), which triggers `clippy::upper_case_acronyms`. Suppressed via `#![allow(clippy::upper_case_acronyms)]` in `libs/domain/src/generated/tracing.rs`. Do not remove that allow — re-add it after any regeneration that touches the tracing module file.
+- **Rust enum variant casing**: The emitter emits enum variants verbatim from `.mdl` source (SCREAMING\_SNAKE\_CASE), which triggers `clippy::upper_case_acronyms`. Suppressed via `#![allow(clippy::upper_case_acronyms)]` in `libs/observable-storage-contracts/src/generated/tracing.rs`. Do not remove that allow — re-add it after any regeneration that touches the tracing module file.
 
 - **Rust NamedType warnings** (issue #120, partially fixed): The Rust emitter emits `WARN [EMIT003]` for NamedType field references lacking `rust.type` adapter annotations. The warning fires even for models not targeting Rust (e.g., `nlq`, `dashboards`). The underlying field is still emitted as a bare Pascal-cased type name without an import — see the warning output when running `scripts/regenerate-models.sh`.
 
@@ -39,6 +39,7 @@ The `scripts/regenerate-models.sh` script runs both target compilations with the
 3. Run `cargo check --lib` to verify the Rust side compiles.
 4. Run `bash scripts/check-generated-drift.sh` and confirm a second regeneration produces no diff.
 5. Run relevant `modelable validate`, target compilation, and `modelable lineage <Type@version>` checks, then review `git diff --stat`.
+6. If you changed an existing entity/projection version's fields (not just added a new version), run `bash scripts/check-breaking-changes.sh <base-ref> HEAD` — it fails if a field was removed, retyped, or renamed without bumping the version number. CI runs this automatically on PRs that touch `models/`.
 
 ## Before Starting Any Implementation Task
 

@@ -432,6 +432,8 @@ JSON with no separate schema document or compatibility check, so exit evidence b
 — this only renamed the topic to match the target name, it did not add a real schema/compat-check
 layer.
 
+Breaking-change detection is implemented for Modelable `.mdl` contracts: `scripts/check-generated-drift.sh`'s `modelable compile` step already rejects a subset of breaking changes (removing a field that a `projection` still references crashes compilation with a referential-integrity error), but does not reject a self-consistent field removal/retype that leaves no dangling reference. `scripts/check-breaking-changes.py` (invoked by `scripts/check-breaking-changes.sh BASE_REF HEAD_REF`, and wired into the `generated-code` CI job and `scripts/local-ci.sh`) closes that gap: for every entity/projection ref unchanged in version number between the base and head `models/` trees, it diffs `modelable describe`'s field list and fails if a field was removed, retyped, or renamed without a version bump; additive entities may still gain new fields on the same version. This only covers Modelable contracts, not the `telemetry.raw.v1` envelope above, which has no schema document to diff against yet.
+
 Exit evidence:
 
 - no cross-component wire format exists only as an application-language struct

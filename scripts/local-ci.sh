@@ -113,7 +113,7 @@ if [[ $SKIP_MODELABLE -eq 0 ]]; then
         echo "  DRIFTED: $f"
         FAILED=1
       fi
-    done < <(find libs/domain/src/generated -mindepth 2 -name '*.rs' -print0)
+    done < <(find libs/*/src/generated -mindepth 2 -name '*.rs' -print0)
 
     rm -rf "$TMP_TS" "$TMP_RS"
 
@@ -125,6 +125,16 @@ if [[ $SKIP_MODELABLE -eq 0 ]]; then
       fail "modelable diff-check"
     fi
     ok "generated artifacts match .mdl files"
+
+    step "Modelable breaking-change check"
+    BREAKING_CHANGE_BASE_REF="$(git merge-base origin/main HEAD 2>/dev/null || git merge-base main HEAD 2>/dev/null || echo "")"
+    if [[ -n "$BREAKING_CHANGE_BASE_REF" ]]; then
+      bash "$REPO_ROOT/scripts/check-breaking-changes.sh" "$BREAKING_CHANGE_BASE_REF" HEAD \
+        && ok "no unversioned breaking model/projection changes" \
+        || fail "modelable breaking-change check"
+    else
+      echo "SKIP  no local main/origin/main ref to diff against"
+    fi
   else
     step "Modelable check"
     echo "SKIP  modelable (uv not installed — see https://docs.astral.sh/uv/)"
