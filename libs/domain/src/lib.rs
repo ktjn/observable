@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod contract_schema_test;
 pub mod envelope;
 pub mod log;
 pub mod metric;

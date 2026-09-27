@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "metrics.MetricPoint.v1",
+  "type": "object",
+  "title": "MetricPoint",
+  "x-modelable": {
+    "domain": "metrics",
+    "name": "MetricPoint",
+    "kind": "entity",
+    "version": 1,
+    "changeKind": "additive",
+    "owner": "platform-team"
+  },
+  "x-modelable-por": {
+    "model": "metrics.MetricPoint.v1",
+    "issuer": "modelable-registry.local",
+    "issuedAt": "1970-01-01T00:00:00Z"
+  },
+  "properties": {
+    "tenantId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "metricSeriesId": {
+      "type": "string",
+      "format": "uuid",
+      "x-modelable-field": {
+        "key": true
+      }
+    },
+    "metricName": {
+      "type": "string"
+    },
+    "serviceName": {
+      "type": "string"
+    },
+    "timeUnixNano": {
+      "type": "integer",
+      "format": "int64",
+      "x-modelable-wire": {
+        "rust": {
+          "type": "u64"
+        }
+      }
+    },
+    "startTimeUnixNano": {
+      "type": "integer",
+      "format": "int64",
+      "x-modelable-wire": {
+        "rust": {
+          "type": "u64"
+        }
+      }
+    },
+    "valueDouble": {
+      "type": "number"
+    },
+    "valueInt": {
+      "type": "integer",
+      "format": "int64"
+    },
+    "histogramCount": {
+      "type": "integer",
+      "format": "int64",
+      "x-modelable-wire": {
+        "rust": {
+          "type": "u64"
+        }
+      }
+    },
+    "histogramSum": {
+      "type": "number"
+    },
+    "histogramBucketCounts": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "format": "int64"
+      }
+    },
+    "histogramExplicitBounds": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      }
+    }
+  },
+  "required": [
+    "tenantId",
+    "metricSeriesId",
+    "metricName",
+    "serviceName",
+    "timeUnixNano"
+  ]
+}

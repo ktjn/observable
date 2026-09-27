@@ -427,12 +427,28 @@ Create the contracts boundary.
 The Redpanda topic ingest publishes to and stream-processor consumes from is now named
 `telemetry.raw.v1` (was the unversioned `telemetry.raw`) in `libs/observable-config`'s dev default,
 Helm `values.yaml`/`values.production-example.yaml`, `charts/observable-infra`, and
-`docker-compose.yml`. The payload on that topic is still `TelemetryEnvelope` serialized directly as
-JSON with no separate schema document or compatibility check, so exit evidence below is not yet met
-— this only renamed the topic to match the target name, it did not add a real schema/compat-check
-layer.
+`docker-compose.yml`.
 
-Breaking-change detection is implemented for Modelable `.mdl` contracts: `scripts/check-generated-drift.sh`'s `modelable compile` step already rejects a subset of breaking changes (removing a field that a `projection` still references crashes compilation with a referential-integrity error), but does not reject a self-consistent field removal/retype that leaves no dangling reference. `scripts/check-breaking-changes.py` (invoked by `scripts/check-breaking-changes.sh BASE_REF HEAD_REF`, and wired into the `generated-code` CI job and `scripts/local-ci.sh`) closes that gap: for every entity/projection ref unchanged in version number between the base and head `models/` trees, it diffs `modelable describe`'s field list and fails if a field was removed, retyped, or renamed without a version bump; additive entities may still gain new fields on the same version. This only covers Modelable contracts, not the `telemetry.raw.v1` envelope above, which has no schema document to diff against yet.
+Breaking-change detection is implemented for Modelable `.mdl` contracts: `scripts/check-generated-drift.sh`'s `modelable compile` step already rejects a subset of breaking changes (removing a field that a `projection` still references crashes compilation with a referential-integrity error), but does not reject a self-consistent field removal/retype that leaves no dangling reference. `scripts/check-breaking-changes.py` (invoked by `scripts/check-breaking-changes.sh BASE_REF HEAD_REF`, and wired into the `generated-code` CI job and `scripts/local-ci.sh`) closes that gap: for every entity/projection ref unchanged in version number between the base and head `models/` trees, it diffs `modelable describe`'s field list and fails if a field was removed, retyped, or renamed without a version bump; additive entities may still gain new fields on the same version.
+
+`contracts/schemas/<domain>/*.json` now holds committed JSON Schema (2020-12) artifacts, generated
+by Modelable alongside the Rust/TypeScript targets, for the signal types that make up
+`telemetry.raw.v1`'s payload: `tracing.Span`, `tracing.SpanEvent`, `logs.LogRecord`,
+`metrics.MetricPoint`. `scripts/regenerate-models.sh`/`check-generated-drift.sh` keep them in sync
+with `.mdl` sources the same way as the Rust/TS artifacts. `libs/domain/src/contract_schema_test.rs`
+(a `#[cfg(test)]` module, so it runs under the same `cargo test --lib` CI already uses) validates
+that the hand-authored Rust structs' actual serde output — not just the `.mdl` definitions — still
+conforms to these schemas; it caught a real drift scenario (a `#[serde(rename)]` silently diverging
+from the schema) during development. Two gaps remain, both documented in AGENTS.md: the json-schema
+emitter doesn't honor `@wire(json.fieldCase: "snake_case")` (schemas are camelCase, real wire JSON is
+snake_case, so the test converts field names before validating), and optional fields are typed
+non-nullable even though `Option::None` serializes as JSON `null`.
+
+This still does not fully satisfy the exit evidence below: `MetricSeries` (the other half of the
+`Metrics` envelope variant) isn't modeled in Modelable at all, and the `TelemetryEnvelope`/
+`EnvelopePayload` wrapper itself — the actual `telemetry.raw.v1` payload shape, not just its
+constituent signal types — isn't modeled or schema-checked, likely blocked by the same
+no-native-enum/nested-type limitation documented in `tracing.mdl`'s header for the Rust emitter.
 
 Exit evidence:
 

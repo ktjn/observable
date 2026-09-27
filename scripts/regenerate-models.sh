@@ -17,8 +17,9 @@ cd "$REPO_ROOT"
 
 TMP_TS="$(mktemp -d)"
 TMP_RS="$(mktemp -d)"
+TMP_SCHEMA="$(mktemp -d)"
 REGISTRY_IDS="$REPO_ROOT/registry-ids.lock"
-trap 'rm -rf "$TMP_TS" "$TMP_RS"' EXIT
+trap 'rm -rf "$TMP_TS" "$TMP_RS" "$TMP_SCHEMA"' EXIT
 
 echo "==> Compiling TypeScript artifacts"
 uv run --project models modelable compile models/ --target typescript --out "$TMP_TS" --registry-ids "$REGISTRY_IDS"
@@ -54,6 +55,25 @@ for domain_dir in "$TMP_RS"/*/; do
   done
   if [ "$copied" -eq 0 ]; then
     echo "  skipped $domain (no checked-in generated/$domain directory)"
+  fi
+done
+echo ""
+
+echo "==> Compiling JSON Schema artifacts"
+uv run --project models modelable compile models/ --target json-schema --out "$TMP_SCHEMA" --registry-ids "$REGISTRY_IDS"
+echo ""
+
+echo "==> Copying JSON Schema files to their checked-in contracts/schemas/ directories"
+# json-schema output is flat (domain.Type.vN.json, no per-domain subdirectory), unlike
+# the rust/typescript targets. Only copy files whose domain already has a checked-in
+# contracts/schemas/<domain>/ directory; this is the wire-schema counterpart to the
+# telemetry.raw.v1 event contract, not a general schema-publishing pipeline.
+for f in "$TMP_SCHEMA"/*.json; do
+  name="$(basename "$f")"
+  domain="${name%%.*}"
+  if [ -d "contracts/schemas/$domain" ] && [ -f "contracts/schemas/$domain/$name" ]; then
+    cp "$f" "contracts/schemas/$domain/$name"
+    echo "  copied $name -> contracts/schemas/$domain/"
   fi
 done
 echo ""

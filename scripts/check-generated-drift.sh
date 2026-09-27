@@ -6,12 +6,13 @@ set -euo pipefail
 
 TMP_TS="$(mktemp -d)"
 TMP_RS="$(mktemp -d)"
+TMP_SCHEMA="$(mktemp -d)"
 TMP_RS_FILES="$TMP_RS/.rust-files"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REGISTRY_IDS="$REPO_ROOT/registry-ids.lock"
 FAILED=0
 
-trap 'rm -rf "$TMP_TS" "$TMP_RS"' EXIT
+trap 'rm -rf "$TMP_TS" "$TMP_RS" "$TMP_SCHEMA"' EXIT
 
 if ! command -v uv >/dev/null 2>&1; then
   echo "SKIP: uv not installed, skipping drift check."
@@ -21,6 +22,7 @@ fi
 echo "Compiling .mdl files..."
 uv run --project models modelable compile models/ --target typescript --out "$TMP_TS" --registry-ids "$REGISTRY_IDS"
 uv run --project models modelable compile models/ --target rust --out "$TMP_RS" --registry-ids "$REGISTRY_IDS"
+uv run --project models modelable compile models/ --target json-schema --out "$TMP_SCHEMA" --registry-ids "$REGISTRY_IDS"
 
 # TypeScript — main frontend
 while IFS= read -r -d '' f; do
@@ -59,6 +61,20 @@ while IFS= read -r -d '' f; do
     FAILED=1
   fi
 done < <(find libs/*/src/generated -mindepth 2 -name '*.rs' -print0)
+
+# JSON Schema — checked in under contracts/schemas/<domain>/
+while IFS= read -r -d '' f; do
+  name="$(basename "$f")"
+  if [ ! -f "$TMP_SCHEMA/$name" ]; then
+    echo "MISSING in generated: $f"
+    FAILED=1
+    continue
+  fi
+  if ! diff -q "$f" "$TMP_SCHEMA/$name" >/dev/null 2>&1; then
+    echo "DRIFTED: $f"
+    FAILED=1
+  fi
+done < <(find contracts/schemas -mindepth 2 -name '*.json' -print0)
 
 if [ "$FAILED" -eq 1 ]; then
   echo ""

@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "logs.LogRecord.v1",
+  "type": "object",
+  "title": "LogRecord",
+  "x-modelable": {
+    "domain": "logs",
+    "name": "LogRecord",
+    "kind": "entity",
+    "version": 1,
+    "changeKind": "additive",
+    "owner": "platform-team"
+  },
+  "x-modelable-por": {
+    "model": "logs.LogRecord.v1",
+    "issuer": "modelable-registry.local",
+    "issuedAt": "1970-01-01T00:00:00Z"
+  },
+  "properties": {
+    "tenantId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "logId": {
+      "type": "string",
+      "format": "uuid",
+      "x-modelable-field": {
+        "key": true
+      }
+    },
+    "timestampUnixNano": {
+      "type": "integer",
+      "format": "int64",
+      "x-modelable-wire": {
+        "rust": {
+          "type": "u64"
+        }
+      }
+    },
+    "observedTimestampUnixNano": {
+      "type": "integer",
+      "format": "int64",
+      "x-modelable-wire": {
+        "rust": {
+          "type": "u64"
+        }
+      }
+    },
+    "severityNumber": {
+      "type": "integer",
+      "format": "int64",
+      "x-modelable-wire": {
+        "rust": {
+          "type": "i32"
+        }
+      }
+    },
+    "severityText": {
+      "type": "string"
+    },
+    "body": {},
+    "traceId": {
+      "type": "string"
+    },
+    "spanId": {
+      "type": "string"
+    },
+    "attributes": {
+      "type": "object",
+      "additionalProperties": {}
+    },
+    "resourceAttributes": {
+      "type": "object",
+      "additionalProperties": {}
+    },
+    "serviceName": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "string"
+    },
+    "hostId": {
+      "type": "string"
+    },
+    "fingerprint": {
+      "type": "integer",
+      "format": "int64",
+      "x-modelable-wire": {
+        "rust": {
+          "type": "u64"
+        }
+      }
+    }
+  },
+  "required": [
+    "tenantId",
+    "logId",
+    "timestampUnixNano",
+    "observedTimestampUnixNano",
+    "severityNumber",
+    "severityText",
+    "body",
+    "attributes",
+    "resourceAttributes",
+    "serviceName",
+    "environment",
+    "hostId"
+  ]
+}

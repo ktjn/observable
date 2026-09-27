@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tracing.Span.v1",
+  "type": "object",
+  "title": "Span",
+  "x-modelable": {
+    "domain": "tracing",
+    "name": "Span",
+    "kind": "entity",
+    "version": 1,
+    "changeKind": "additive",
+    "owner": "platform-team"
+  },
+  "x-modelable-por": {
+    "model": "tracing.Span.v1",
+    "issuer": "modelable-registry.local",
+    "issuedAt": "1970-01-01T00:00:00Z"
+  },
+  "properties": {
+    "spanId": {
+      "type": "string",
+      "x-modelable-field": {
+        "key": true
+      }
+    },
+    "traceId": {
+      "type": "string"
+    },
+    "parentSpanId": {
+      "type": "string"
+    },
+    "tenantId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "serviceName": {
+      "type": "string"
+    },
+    "serviceNamespace": {
+      "type": "string"
+    },
+    "serviceVersion": {
+      "type": "string"
+    },
+    "operationName": {
+      "type": "string"
+    },
+    "spanKind": {
+      "type": "string",
+      "enum": [
+        "INTERNAL",
+        "SERVER",
+        "CLIENT",
+        "PRODUCER",
+        "CONSUMER"
+      ]
+    },
+    "startTimeUnixNano": {
+      "type": "integer",
+      "format": "int64",
+      "x-modelable-wire": {
+        "rust": {
+          "type": "u64"
+        }
+      }
+    },
+    "endTimeUnixNano": {
+      "type": "integer",
+      "format": "int64",
+      "x-modelable-wire": {
+        "rust": {
+          "type": "u64"
+        }
+      }
+    },
+    "durationNs": {
+      "type": "integer",
+      "format": "int64",
+      "x-modelable-wire": {
+        "rust": {
+          "type": "u64"
+        }
+      }
+    },
+    "statusCode": {
+      "type": "string",
+      "enum": [
+        "UNSET",
+        "OK",
+        "ERROR"
+      ]
+    },
+    "statusMessage": {
+      "type": "string"
+    },
+    "attributes": {
+      "type": "object",
+      "additionalProperties": {}
+    },
+    "resourceAttributes": {
+      "type": "object",
+      "additionalProperties": {}
+    },
+    "environment": {
+      "type": "string"
+    },
+    "hostId": {
+      "type": "string"
+    },
+    "workload": {
+      "type": "string"
+    },
+    "deploymentId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "spanId",
+    "traceId",
+    "tenantId",
+    "serviceName",
+    "serviceNamespace",
+    "serviceVersion",
+    "operationName",
+    "spanKind",
+    "startTimeUnixNano",
+    "endTimeUnixNano",
+    "durationNs",
+    "statusCode",
+    "statusMessage",
+    "attributes",
+    "resourceAttributes",
+    "environment",
+    "hostId",
+    "workload",
+    "deploymentId"
+  ]
+}
