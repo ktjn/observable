@@ -45,7 +45,6 @@ npm-debug.log*
 archived/
 collectable/
 config/
-contracts/
 docs/
 migrations/
 scripts/*

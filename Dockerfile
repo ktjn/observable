@@ -31,6 +31,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY libs libs
 COPY services services
 COPY proto proto
+COPY contracts contracts
 RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \

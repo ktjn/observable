@@ -49,7 +49,12 @@ async fn main() -> anyhow::Result<()> {
         .with_url(ch_url)
         .with_user(ch_user)
         .with_password(ch_password)
-        .with_database("observable");
+        .with_database("observable")
+        // clickhouse-rs 0.15.2's LZ4 response decoder is incompatible with
+        // ClickHouse 26.9's compressed block framing (decompression error:
+        // incorrect magic number) -- see docs/agent-context.md. Remove this
+        // once a clickhouse-rs release fixes it.
+        .with_compression(clickhouse::Compression::None);
     let port: u16 = std::env::var("STORAGE_WRITER_PORT")
         .unwrap_or_else(|_| "4320".into())
         .parse()?;

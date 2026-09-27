@@ -24,7 +24,12 @@ async fn main() -> anyhow::Result<()> {
         .with_url(ch_url)
         .with_user(ch_user)
         .with_password(ch_password)
-        .with_database("observable");
+        .with_database("observable")
+        // clickhouse-rs 0.15.2's LZ4 response decoder is incompatible with
+        // ClickHouse 26.9's compressed block framing (decompression error:
+        // incorrect magic number) -- see docs/agent-context.md. Remove this
+        // once a clickhouse-rs release fixes it.
+        .with_compression(clickhouse::Compression::None);
 
     let database_url = observable_config::require_env("DATABASE_URL")?;
     let db = PgPoolOptions::new()

@@ -369,39 +369,58 @@ The same pattern applies if ClickHouse changes on-disk formats across major vers
 `make reset-volumes` (default, no flags) now drops `postgres_data`, `shop_db_data`, and
 `redpanda_data`. Use `--all` to also wipe ClickHouse and Zitadel bootstrap volumes.
 
-### ClickHouse 26.9 breaks the smoke test — pin to 26.8
+### ClickHouse 26.9 requires Compression::None on the Rust client
 
-`clickhouse/clickhouse-server:26.9` makes the smoke test's trace-detail query
-(`GET /v1/traces/{id}` in query-api) return HTTP 500 with an empty body, even though ingest
-accepts the OTLP request fine. This has been hit and reverted twice already (`2e4e27b5`,
-`8eaca7ca`) without being root-caused; it now has been.
+`clickhouse/clickhouse-server:26.9` broke the smoke test's trace-detail query
+(`GET /v1/traces/{id}` in query-api): HTTP 500 with an empty body, even though ingest accepted the
+OTLP request fine. Hit and reverted twice before (`2e4e27b5`, `8eaca7ca`) by staying on 26.8
+without root-causing it.
 
-**Root cause:** `clickhouse-rs` 0.15.2 (pinned in `Cargo.toml`, no newer release exists as of this
-writing) fails to decompress query results from a ClickHouse 26.9 server: `decompression error:
-incorrect magic number`. `clickhouse-rs`'s LZ4 frame decoder
-(`compression/lz4.rs::LZ4_MAGIC = 0x82`) expects a fixed magic byte at the start of every
-compressed block; the byte ClickHouse 26.9 actually sends there doesn't match. `INSERT` isn't
-affected (the client writes the request body itself), only reading query results back is. This is
-a client/server wire-compatibility break, not an application bug — reproduced directly by
-temporarily changing `storage-writer/src/spans.rs`'s `insert_spans_writes_events_to_clickhouse`
-test's `.with_tag("25.3")` to `"26.9"` and running it with `--ignored`; the same test passes
-against `26.8`. No code or `.mdl` change caused this or can fix it from this side; it needs either
-a `clickhouse-rs` release that handles 26.9's response framing, or an upstream ClickHouse fix.
+**Root cause:** `clickhouse-rs` 0.15.2 (no newer release exists as of this writing) fails to
+decompress query results from a ClickHouse 26.9 server: `decompression error: incorrect magic
+number`. Its LZ4 frame decoder (`compression/lz4.rs::LZ4_MAGIC = 0x82`) expects a fixed magic byte
+at the start of every compressed block; the byte ClickHouse 26.9 actually sends there doesn't
+match. `INSERT` isn't affected (the client writes the request body itself), only reading query
+results back is. Reproduced directly by temporarily changing `storage-writer/src/spans.rs`'s
+`insert_spans_writes_events_to_clickhouse` test's `.with_tag("25.3")` to `"26.9"` and running it
+with `--ignored`; the same test passes against `26.8`.
 
-Renovate keeps proposing 26.9 again regardless; `renovate.json`'s
-`allowedVersions: "!/^26\\.9(\\.|$)/"` rule for `clickhouse/clickhouse-server` blocks it, but if
-Renovate's dependency dashboard or a manual bump reintroduces 26.9 in `docker-compose.yml`, the
-smoke job will fail exactly like this again. Once a `clickhouse-rs` release fixes this (check
-`cargo info clickhouse` for a version newer than 0.15.2 that mentions 26.9/wire-protocol
-compatibility), bump both `Cargo.toml`'s `clickhouse` dependency and remove the `allowedVersions`
-rule together — bumping only one half leaves the pair back out of sync.
+**Fix applied:** all four ClickHouse-connecting services (`storage-writer`, `query-api`,
+`admin-service`, `alert-evaluator`) call `.with_compression(clickhouse::Compression::None)` when
+constructing their `clickhouse::Client` in `main.rs`. Disabling compression entirely sidesteps the
+decoder bug regardless of server version. `Compression::Zstd` was not viable without also enabling
+the crate's `zstd` Cargo feature (not currently on) — not pursued once `None` was confirmed
+working. The tradeoff: more bytes over the wire between each service and ClickHouse; for
+same-cluster traffic this is expected to be a minor cost, not measured here. Verified by running
+the real `docker compose --profile verification up smoke-test` end-to-end against a locally built
+image on ClickHouse 26.9 — full smoke suite passed (`=== ALL CHECKS PASSED ===`).
 
-**Why this evaded review:** the Renovate PR that bumped `docker-compose.yml` to 26.9 had its own
-CI run cancelled mid-flight (the `concurrency: cancel-in-progress: true` group cancels an
-in-progress run on `main` whenever a newer push lands on the same ref), so it merged without ever
-actually running the smoke test against 26.9. The regression only surfaced on the next unrelated
-push. Don't treat a Renovate PR's merge as evidence its smoke test passed — check the merge
-commit's own `Build & Test` run status, not just that the PR's checks were green at merge time.
+Remove all four `.with_compression(...)` calls (and this note) once a `clickhouse-rs` release
+fixes 26.9's response framing (check `cargo info clickhouse` for a version newer than 0.15.2
+mentioning it) — at that point compression can be re-enabled.
+
+**Separate, still-open gap:** the Docker-gated integration test containers (`libs/test-support`'s
+`shared_client()`, and several `tests/*.rs` files with their own duplicated `start_clickhouse()`
+helpers) are independently pinned to ClickHouse `25.3`, disconnected from whatever
+`docker-compose.yml` uses. They would not have caught this regression even if run in CI. Not
+addressed here — out of scope for the compression fix.
+
+**Also found:** `contracts/schemas/` (added for the JSON-Schema compat-check test in
+`libs/domain/src/contract_schema_test.rs`) was both `.dockerignore`d and never `COPY`'d in the
+Dockerfile's `rust-ci` stage, so the Docker image's `cargo test --workspace --lib --bins` step
+failed with file-not-found inside the container even though it passed on the host. Fixed by
+removing `contracts/` from `.dockerignore` and adding `COPY contracts contracts` to the `rust-ci`
+stage. This means the JSON Schema compat-check test was silently never verified in the actual
+Docker build path until this investigation — the local `cargo test` runs in prior sessions never
+would have caught it since they don't go through the container.
+
+**Why the original regression evaded review:** the Renovate PR that bumped `docker-compose.yml` to
+26.9 had its own CI run cancelled mid-flight (the `concurrency: cancel-in-progress: true` group
+cancels an in-progress run on `main` whenever a newer push lands on the same ref), so it merged
+without ever actually running the smoke test against 26.9. The regression only surfaced on the next
+unrelated push. Don't treat a Renovate PR's merge as evidence its smoke test passed — check the
+merge commit's own `Build & Test` run status, not just that the PR's checks were green at merge
+time.
 
 ### Browser auth routing uses the shared Gateway
 
