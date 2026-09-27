@@ -1,5 +1,7 @@
 # 19 — Test Bench
 
+The kind testbench is owned by `observable-distribution`; it contains no production service implementation. See [ADR-035](adr/ADR-035-component-independence.md).
+
 ## Purpose
 
 The Observable test bench is a self-contained synthetic workload that runs inside a `kind` cluster alongside the Observable platform. It provides a realistic multi-service application — a small "shop" — whose traffic continuously produces traces, metrics, and logs so that the full ingest-to-query pipeline can be exercised, demonstrated, and performance-tested without any external dependencies.
