@@ -176,6 +176,7 @@ services:
       - -c
       - |
         rpk topic create telemetry.raw.v1 --brokers redpanda:9092 2>/dev/null || true
+        rpk topic create telemetry.normalized.v1 --brokers redpanda:9092 2>/dev/null || true
     depends_on:
       redpanda: { condition: service_healthy }
 
@@ -222,6 +223,8 @@ services:
       CLICKHOUSE_USER: ${CH_USER:-default}
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
       STORAGE_WRITER_PORT: "4320"
+      REDPANDA_BROKERS: redpanda:9092
+      NORMALIZED_TOPIC: telemetry.normalized.v1
     ports: ["4320:4320"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4320/health"]
@@ -230,6 +233,7 @@ services:
       retries: 10
     depends_on:
       clickhouse-setup: { condition: service_completed_successfully }
+      redpanda-setup: { condition: service_completed_successfully }
       ingest-gateway: { condition: service_healthy }
 
   stream-processor:
@@ -241,6 +245,8 @@ services:
       OBSERVABLE_ENV: dev
       REDPANDA_BROKERS: redpanda:9092
       INGEST_TOPIC: telemetry.raw.v1
+      NORMALIZED_TOPIC: telemetry.normalized.v1
+      # STORAGE_WRITE_MODE: queue  # opt in once the queue path is verified; default is http
       STORAGE_WRITER_URL: http://storage-writer:4320
       STREAM_PROCESSOR_PLATFORM_PORT: "4323"
     ports: ["4323:4323"]

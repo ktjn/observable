@@ -1,7 +1,9 @@
 mod consumer;
 mod metrics;
+mod normalized_producer;
 
-use domain::{EnvelopePayload, TelemetryEnvelope};
+use domain::{EnvelopePayload, NormalizedTelemetryBatch, TelemetryEnvelope};
+use normalized_producer::NormalizedProducer;
 use std::sync::Arc;
 use std::time::Duration;
 use stream_processor::{
@@ -11,6 +13,19 @@ use stream_processor::{
 use tokio::time;
 use tracing::Instrument as _;
 
+/// How stream-processor delivers a normalized batch downstream. `Http` is the
+/// current default (POSTs to storage-writer's /internal/* endpoints); `Queue`
+/// publishes to `telemetry.normalized.v1` instead, per the Phase 2 target in
+/// docs/component-decomposition.md. Selectable via STORAGE_WRITE_MODE so the
+/// two paths can be dual-run during verification without a code change. The
+/// span-derived-metrics background flush below is unaffected by this switch
+/// -- it's a separate aggregation path, out of scope for this migration.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WriteMode {
+    Http,
+    Queue,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _telemetry = observable_telemetry::init_self_observability_telemetry("stream-processor")?;
@@ -18,6 +33,19 @@ async fn main() -> anyhow::Result<()> {
     let topic = observable_config::require_env("INGEST_TOPIC")?;
     let writer_url = observable_config::require_env("STORAGE_WRITER_URL")?;
     let http = reqwest::Client::new();
+    let write_mode = match std::env::var("STORAGE_WRITE_MODE").as_deref() {
+        Ok("queue") => WriteMode::Queue,
+        _ => WriteMode::Http,
+    };
+    let normalized_producer = if write_mode == WriteMode::Queue {
+        let normalized_topic = observable_config::require_env("NORMALIZED_TOPIC")?;
+        Some(Arc::new(NormalizedProducer::new(
+            &brokers,
+            &normalized_topic,
+        )?))
+    } else {
+        None
+    };
 
     let max_size: usize = std::env::var("STREAM_PROCESSOR_BATCH_SIZE")
         .unwrap_or_else(|_| "500".into())
@@ -93,6 +121,7 @@ async fn main() -> anyhow::Result<()> {
             let http = http.clone();
             let writer_url = writer_url.clone();
             let aggregator = aggregator.clone();
+            let normalized_producer = normalized_producer.clone();
 
             let is_all_observable = envelopes
                 .iter()
@@ -118,6 +147,24 @@ async fn main() -> anyhow::Result<()> {
                 }
 
                 let merged = batch::merge_batch(envelopes);
+
+                if let Some(producer) = normalized_producer {
+                    if !merged.spans.is_empty()
+                        || !merged.logs.is_empty()
+                        || !merged.series.is_empty()
+                        || !merged.points.is_empty()
+                    {
+                        let normalized = NormalizedTelemetryBatch {
+                            spans: merged.spans,
+                            logs: merged.logs,
+                            series: merged.series,
+                            points: merged.points,
+                        };
+                        let key = uuid::Uuid::new_v4().to_string();
+                        producer.publish(&normalized, &key).await?;
+                    }
+                    return Ok(());
+                }
 
                 let mut headers = reqwest::header::HeaderMap::new();
                 if !is_all_observable {

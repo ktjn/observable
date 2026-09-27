@@ -1,6 +1,7 @@
 pub mod buffer;
 pub mod logs;
 pub mod metrics;
+pub mod normalized_consumer;
 pub mod observability;
 pub mod spans;
 

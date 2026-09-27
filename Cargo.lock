@@ -4507,6 +4507,7 @@ dependencies = [
  "observable-telemetry",
  "opentelemetry",
  "prometheus",
+ "rdkafka",
  "serde",
  "serde_json",
  "testcontainers",

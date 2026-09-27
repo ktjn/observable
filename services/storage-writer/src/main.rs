@@ -9,7 +9,7 @@ use axum::{
 use clickhouse::Client;
 use serde::Deserialize;
 use std::sync::Arc;
-use storage_writer::{AppState, buffer, observability};
+use storage_writer::{AppState, buffer, normalized_consumer, observability};
 use tower_http::trace::TraceLayer;
 
 async fn write_spans(
@@ -78,6 +78,29 @@ async fn main() -> anyhow::Result<()> {
         ch.clone(),
         retention_config,
     ));
+
+    // Consumes telemetry.normalized.v1 unconditionally -- the target Phase 2
+    // ingress path (docs/component-decomposition.md). Harmless no-op today if
+    // stream-processor is running in its default HTTP write mode, since
+    // nothing is published to this topic in that case.
+    let brokers = observable_config::require_env("REDPANDA_BROKERS")?;
+    let normalized_topic = observable_config::require_env("NORMALIZED_TOPIC")?;
+    let normalized_buffer = buffer.clone();
+    tokio::spawn(async move {
+        match normalized_consumer::NormalizedConsumer::new(
+            &brokers,
+            "storage-writer",
+            &normalized_topic,
+        ) {
+            Ok(consumer) => {
+                if let Err(e) = consumer.run(&normalized_buffer).await {
+                    tracing::error!(error = %e, "normalized consumer stopped");
+                }
+            }
+            Err(e) => tracing::error!(error = %e, "failed to start normalized consumer"),
+        }
+    });
+
     let state = AppState {
         buffer,
         ch,

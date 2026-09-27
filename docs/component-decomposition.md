@@ -462,6 +462,26 @@ Exit evidence:
 - add idempotency based on stable event identity
 - remove `/internal/spans`, `/internal/logs`, and `/internal/metrics`
 
+The dual-run path is implemented: `domain::NormalizedTelemetryBatch` is the `telemetry.normalized.v1`
+wire type (spans/logs/series/points together, since one stream-processor batch interval typically
+mixes signal types). `storage-writer` always runs a `NormalizedConsumer` subscribed to that topic,
+forwarding straight into the existing `WriteBuffer` — the same code path the HTTP handlers use.
+`stream-processor` still defaults to its original HTTP push (`STORAGE_WRITE_MODE` unset/`http`);
+setting `STORAGE_WRITE_MODE=queue` switches it to publish `NormalizedTelemetryBatch` to the topic
+instead. Only one path is active at a time (no double-write into ClickHouse); the HTTP endpoints
+are not yet removed, and the span-derived-metrics background flush (a separate aggregation path)
+still always uses HTTP regardless of this switch. Verified end-to-end with the real
+`docker compose --profile verification` smoke suite in both modes: default HTTP, and with
+`STORAGE_WRITE_MODE=queue` set (confirmed via `storage-writer`'s
+`storage_writer_http_requests_total` Prometheus counter that zero HTTP calls to the ingestion
+endpoints occurred in queue mode, aside from the one expected metrics-aggregator flush).
+
+No idempotency mechanism has been added yet — rdkafka's default auto-commit means a
+`NormalizedConsumer` handler failure (e.g. a ClickHouse write error) still advances the consumer
+offset, silently dropping the batch, matching stream-processor's existing raw-ingest consumer's
+behavior. Not yet addressed: cutting `stream-processor`'s default over to `queue` mode, adding
+idempotency, and removing the HTTP endpoints — those remain open exit-evidence items below.
+
 Exit evidence:
 
 - processing continues through storage outages up to Redpanda retention limits
