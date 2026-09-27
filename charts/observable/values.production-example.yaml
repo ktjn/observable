@@ -32,7 +32,7 @@ postgres:
 
 redpanda:
   brokers: "redpanda.infra.svc.cluster.local:9093"
-  ingestTopic: "telemetry.raw"
+  ingestTopic: "telemetry.raw.v1"
 
 selfObservability:
   mode: "self"

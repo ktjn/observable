@@ -27,7 +27,7 @@ fn dev_default(name: &str) -> String {
         "CLICKHOUSE_USER" => "default".into(),
         "CLICKHOUSE_PASSWORD" => String::new(),
         "REDPANDA_BROKERS" => "localhost:9092".into(),
-        "INGEST_TOPIC" => "telemetry.raw".into(),
+        "INGEST_TOPIC" => "telemetry.raw.v1".into(),
         "AUTH_SERVICE_URL" => "http://localhost:4319".into(),
         "STORAGE_WRITER_URL" => "http://localhost:4320".into(),
         "ZITADEL_ISSUER" => "http://localhost:8082".into(),

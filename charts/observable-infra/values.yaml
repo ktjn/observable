@@ -7,7 +7,7 @@
 infraSetup:
   redpanda:
     enabled: true
-    topic: telemetry.raw
+    topic: telemetry.raw.v1
 
 selfObservability:
   mode: "self"

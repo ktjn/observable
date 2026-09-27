@@ -360,7 +360,7 @@ at a time. A too-large version jump crashes with:
 Assert failure: 'false' Attempted to upgrade from incompatible logical version N to M!
 ```
 
-Fix: same as above — `make reset-volumes` drops `redpanda_data`. The `telemetry.raw` topic is
+Fix: same as above — `make reset-volumes` drops `redpanda_data`. The `telemetry.raw.v1` topic is
 re-created automatically by the `redpanda-setup` container on next startup.
 
 The same pattern applies if ClickHouse changes on-disk formats across major versions.

@@ -34,7 +34,7 @@ postgres:
 
 redpanda:
   brokers: "redpanda:9093"
-  ingestTopic: "telemetry.raw"
+  ingestTopic: "telemetry.raw.v1"
 
 selfObservability:
   # Supported modes:

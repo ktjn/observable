@@ -175,7 +175,7 @@ services:
       - /bin/bash
       - -c
       - |
-        rpk topic create telemetry.raw --brokers redpanda:9092 2>/dev/null || true
+        rpk topic create telemetry.raw.v1 --brokers redpanda:9092 2>/dev/null || true
     depends_on:
       redpanda: { condition: service_healthy }
 
@@ -240,7 +240,7 @@ services:
       <<: *platform-self-observability-env
       OBSERVABLE_ENV: dev
       REDPANDA_BROKERS: redpanda:9092
-      INGEST_TOPIC: telemetry.raw
+      INGEST_TOPIC: telemetry.raw.v1
       STORAGE_WRITER_URL: http://storage-writer:4320
       STREAM_PROCESSOR_PLATFORM_PORT: "4323"
     ports: ["4323:4323"]
@@ -266,7 +266,7 @@ services:
       INGEST_GATEWAY_PLATFORM_PORT: "4321"
       DATABASE_URL: postgres://observable:observable@postgres:5432/observable
       REDPANDA_BROKERS: redpanda:9092
-      INGEST_TOPIC: telemetry.raw
+      INGEST_TOPIC: telemetry.raw.v1
       AUTH_SERVICE_URL: http://auth-service:4319
     ports: ["4317:4317", "4318:4318", "4321:4321"]
     healthcheck:

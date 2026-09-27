@@ -423,6 +423,14 @@ Create the contracts boundary.
 - generate Rust/TypeScript clients/types from released contracts
 - add breaking-change detection
 
+The Redpanda topic ingest publishes to and stream-processor consumes from is now named
+`telemetry.raw.v1` (was the unversioned `telemetry.raw`) in `libs/observable-config`'s dev default,
+Helm `values.yaml`/`values.production-example.yaml`, `charts/observable-infra`, and
+`docker-compose.yml`. The payload on that topic is still `TelemetryEnvelope` serialized directly as
+JSON with no separate schema document or compatibility check, so exit evidence below is not yet met
+— this only renamed the topic to match the target name, it did not add a real schema/compat-check
+layer.
+
 Exit evidence:
 
 - no cross-component wire format exists only as an application-language struct
