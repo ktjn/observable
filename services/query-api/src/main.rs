@@ -37,15 +37,15 @@ use tower_http::trace::TraceLayer;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _telemetry = domain::telemetry::init_self_observability_telemetry("query-api")?;
-    let ch_url = domain::config::require_env("CLICKHOUSE_URL")?;
-    let ch_user = domain::config::require_env("CLICKHOUSE_USER")?;
-    let ch_password = domain::config::require_env_or("CLICKHOUSE_PASSWORD", "");
+    let ch_url = observable_config::require_env("CLICKHOUSE_URL")?;
+    let ch_user = observable_config::require_env("CLICKHOUSE_USER")?;
+    let ch_password = observable_config::require_env_or("CLICKHOUSE_PASSWORD", "");
     let ch = Client::default()
         .with_url(ch_url)
         .with_user(ch_user)
         .with_password(ch_password)
         .with_database("observable");
-    let database_url = domain::config::require_env("DATABASE_URL")?;
+    let database_url = observable_config::require_env("DATABASE_URL")?;
     let db = PgPoolOptions::new()
         .max_connections(5)
         .connect(&database_url)
@@ -61,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
              (supports Ollama and other no-auth providers)"
         );
     }
-    let auth_service_url = domain::config::require_env("AUTH_SERVICE_URL")?;
+    let auth_service_url = observable_config::require_env("AUTH_SERVICE_URL")?;
     let state = traces::AppState {
         ch,
         db,

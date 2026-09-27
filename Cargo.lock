@@ -20,6 +20,7 @@ dependencies = [
  "domain",
  "http-body-util",
  "observable-auth",
+ "observable-config",
  "prometheus",
  "rand 0.10.3",
  "reqwest",
@@ -57,6 +58,7 @@ dependencies = [
  "clickhouse",
  "domain",
  "http-body-util",
+ "observable-config",
  "prometheus",
  "reqwest",
  "serde",
@@ -223,6 +225,7 @@ dependencies = [
  "domain",
  "http-body-util",
  "jsonwebtoken",
+ "observable-config",
  "opentelemetry",
  "prometheus",
  "rand 0.10.3",
@@ -2145,6 +2148,7 @@ dependencies = [
  "hex",
  "http-body-util",
  "observable-auth",
+ "observable-config",
  "opentelemetry",
  "opentelemetry-proto",
  "prometheus",
@@ -2641,6 +2645,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "observable-config"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "tracing",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3132,6 +3144,7 @@ dependencies = [
  "domain",
  "http-body-util",
  "observable-auth",
+ "observable-config",
  "prometheus",
  "query-core",
  "reqwest",
@@ -4286,6 +4299,7 @@ dependencies = [
  "clickhouse",
  "domain",
  "http-body-util",
+ "observable-config",
  "opentelemetry",
  "prometheus",
  "serde",
@@ -4309,6 +4323,7 @@ dependencies = [
  "axum",
  "domain",
  "http-body-util",
+ "observable-config",
  "prometheus",
  "rdkafka",
  "reqwest",

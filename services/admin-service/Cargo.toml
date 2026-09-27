@@ -9,6 +9,7 @@ path = "src/lib.rs"
 
 [dependencies]
 domain             = { path = "../../libs/domain", features = ["storage"] }
+observable-config = { path = "../../libs/observable-config" }
 observable-auth    = { path = "../../libs/observable-auth" }
 chrono             = { workspace = true }
 tokio              = { workspace = true }

@@ -9,6 +9,7 @@ path = "src/lib.rs"
 
 [dependencies]
 domain             = { path = "../../libs/domain" }
+observable-config = { path = "../../libs/observable-config" }
 opentelemetry      = { workspace = true }
 tracing-opentelemetry = { workspace = true }
 tokio              = { workspace = true }

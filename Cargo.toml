@@ -4,6 +4,7 @@ members = [
     "libs/domain",
     "libs/domain-core",
     "libs/observable-auth",
+    "libs/observable-config",
     "libs/playground-wasm",
     "libs/query-core",
     "libs/test-support",
