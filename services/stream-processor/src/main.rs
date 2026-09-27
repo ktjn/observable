@@ -13,7 +13,7 @@ use tracing::Instrument as _;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let _telemetry = domain::telemetry::init_self_observability_telemetry("stream-processor")?;
+    let _telemetry = observable_telemetry::init_self_observability_telemetry("stream-processor")?;
     let brokers = observable_config::require_env("REDPANDA_BROKERS")?;
     let topic = observable_config::require_env("INGEST_TOPIC")?;
     let writer_url = observable_config::require_env("STORAGE_WRITER_URL")?;
@@ -96,10 +96,10 @@ async fn main() -> anyhow::Result<()> {
 
             let is_all_observable = envelopes
                 .iter()
-                .all(|e| domain::telemetry::is_self_telemetry_env(&e.environment));
+                .all(|e| observable_telemetry::is_self_telemetry_env(&e.environment));
             let first_non_obs_env = envelopes
                 .iter()
-                .find(|e| !domain::telemetry::is_self_telemetry_env(&e.environment))
+                .find(|e| !observable_telemetry::is_self_telemetry_env(&e.environment))
                 .map(|e| e.environment.clone());
             let span = if is_all_observable {
                 tracing::Span::none()
@@ -121,11 +121,11 @@ async fn main() -> anyhow::Result<()> {
 
                 let mut headers = reqwest::header::HeaderMap::new();
                 if !is_all_observable {
-                    domain::telemetry::inject_current_context(&mut headers);
+                    observable_telemetry::inject_current_context(&mut headers);
                 }
                 let env_val = first_non_obs_env
                     .as_deref()
-                    .unwrap_or(domain::telemetry::SELF_TELEMETRY_ENV);
+                    .unwrap_or(observable_telemetry::SELF_TELEMETRY_ENV);
                 headers.insert(
                     "x-observable-environment",
                     env_val

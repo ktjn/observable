@@ -21,6 +21,7 @@ dependencies = [
  "http-body-util",
  "observable-auth",
  "observable-config",
+ "observable-telemetry",
  "prometheus",
  "rand 0.10.3",
  "reqwest",
@@ -59,6 +60,7 @@ dependencies = [
  "domain",
  "http-body-util",
  "observable-config",
+ "observable-telemetry",
  "prometheus",
  "reqwest",
  "serde",
@@ -226,6 +228,7 @@ dependencies = [
  "http-body-util",
  "jsonwebtoken",
  "observable-config",
+ "observable-telemetry",
  "opentelemetry",
  "prometheus",
  "rand 0.10.3",
@@ -1139,23 +1142,11 @@ dependencies = [
 name = "domain"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "axum",
  "chrono",
  "clickhouse",
  "domain-core",
- "opentelemetry",
- "opentelemetry-appender-tracing",
- "opentelemetry-otlp",
- "opentelemetry_sdk",
- "reqwest",
  "serde",
  "serde_json",
- "tonic",
- "tower-http 0.7.1",
- "tracing",
- "tracing-opentelemetry",
- "tracing-subscriber",
  "uuid",
 ]
 
@@ -2149,6 +2140,7 @@ dependencies = [
  "http-body-util",
  "observable-auth",
  "observable-config",
+ "observable-telemetry",
  "opentelemetry",
  "opentelemetry-proto",
  "prometheus",
@@ -2634,7 +2626,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
- "domain",
+ "observable-telemetry",
  "reqwest",
  "serde",
  "serde_json",
@@ -2650,6 +2642,24 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "tracing",
+]
+
+[[package]]
+name = "observable-telemetry"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "opentelemetry",
+ "opentelemetry-appender-tracing",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "reqwest",
+ "tonic",
+ "tower-http 0.7.1",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -3145,6 +3155,7 @@ dependencies = [
  "http-body-util",
  "observable-auth",
  "observable-config",
+ "observable-telemetry",
  "prometheus",
  "query-core",
  "reqwest",
@@ -4300,6 +4311,7 @@ dependencies = [
  "domain",
  "http-body-util",
  "observable-config",
+ "observable-telemetry",
  "opentelemetry",
  "prometheus",
  "serde",
@@ -4324,6 +4336,7 @@ dependencies = [
  "domain",
  "http-body-util",
  "observable-config",
+ "observable-telemetry",
  "prometheus",
  "rdkafka",
  "reqwest",

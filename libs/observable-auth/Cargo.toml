@@ -10,7 +10,7 @@ serde              = { workspace = true }
 uuid               = { workspace = true }
 anyhow             = { workspace = true }
 tracing            = { workspace = true }
-domain             = { path = "../domain" }
+observable-telemetry = { path = "../observable-telemetry" }
 
 [dev-dependencies]
 tokio      = { workspace = true }

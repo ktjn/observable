@@ -7,7 +7,7 @@ use tower_http::trace::TraceLayer;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let _telemetry = domain::telemetry::init_self_observability_telemetry("alert-evaluator")?;
+    let _telemetry = observable_telemetry::init_self_observability_telemetry("alert-evaluator")?;
 
     let database_url = observable_config::require_env("DATABASE_URL")?;
     let db = Arc::new(

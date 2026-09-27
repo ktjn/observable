@@ -5,8 +5,6 @@ pub mod log;
 pub mod metric;
 pub mod processing;
 pub mod span;
-#[cfg(feature = "native")]
-pub mod telemetry;
 pub mod visualization;
 
 pub use domain_core::nlq::{

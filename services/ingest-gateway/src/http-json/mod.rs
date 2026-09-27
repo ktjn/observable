@@ -95,7 +95,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
         .layer(
             TraceLayer::new_for_http()
-                .make_span_with(domain::telemetry::OtelMakeSpan::new(Level::INFO)),
+                .make_span_with(observable_telemetry::OtelMakeSpan::new(Level::INFO)),
         )
         .with_state(state)
 }
@@ -131,7 +131,7 @@ pub fn build_platform_router(
 
     Router::new().merge(authenticated).merge(probes).layer(
         TraceLayer::new_for_http()
-            .make_span_with(domain::telemetry::OtelMakeSpan::new(Level::INFO)),
+            .make_span_with(observable_telemetry::OtelMakeSpan::new(Level::INFO)),
     )
 }
 

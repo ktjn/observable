@@ -15,7 +15,7 @@ use tracing::Level;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let _telemetry = domain::telemetry::init_self_observability_telemetry("admin-service")?;
+    let _telemetry = observable_telemetry::init_self_observability_telemetry("admin-service")?;
 
     let ch_url = observable_config::require_env("CLICKHOUSE_URL")?;
     let ch_user = observable_config::require_env("CLICKHOUSE_USER")?;
@@ -103,7 +103,7 @@ async fn main() -> anyhow::Result<()> {
         ))
         .layer(
             TraceLayer::new_for_http()
-                .make_span_with(domain::telemetry::OtelMakeSpan::new(Level::INFO)),
+                .make_span_with(observable_telemetry::OtelMakeSpan::new(Level::INFO)),
         )
         .with_state(state);
 

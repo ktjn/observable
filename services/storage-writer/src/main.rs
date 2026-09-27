@@ -41,7 +41,7 @@ async fn write_metrics(State(state): State<AppState>, Json(b): Json<MetricsBatch
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let _telemetry = domain::telemetry::init_self_observability_telemetry("storage-writer")?;
+    let _telemetry = observable_telemetry::init_self_observability_telemetry("storage-writer")?;
     let ch_url = observable_config::require_env("CLICKHOUSE_URL")?;
     let ch_user = observable_config::require_env("CLICKHOUSE_USER")?;
     let ch_password = observable_config::require_env_or("CLICKHOUSE_PASSWORD", "");
@@ -100,7 +100,7 @@ async fn main() -> anyhow::Result<()> {
                     .headers()
                     .get("x-observable-environment")
                     .and_then(|v| v.to_str().ok())
-                    .map(|v| v == domain::telemetry::SELF_TELEMETRY_ENV)
+                    .map(|v| v == observable_telemetry::SELF_TELEMETRY_ENV)
                     .unwrap_or(false);
                 if is_observable {
                     return tracing::Span::none();

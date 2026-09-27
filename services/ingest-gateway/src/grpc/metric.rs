@@ -59,7 +59,7 @@ impl MetricsService for OltpMetricService {
 
         let inner = request.into_inner();
         let producer = self.state.producer.clone();
-        let span = if domain::telemetry::is_self_telemetry_env(&environment) {
+        let span = if observable_telemetry::is_self_telemetry_env(&environment) {
             tracing::Span::none()
         } else {
             tracing::info_span!("grpc.export.metrics", %tenant_id, %environment)

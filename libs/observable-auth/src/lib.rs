@@ -80,7 +80,7 @@ pub async fn verify_api_key(
     api_key: &str,
 ) -> Result<ApiKeyContext, AuthError> {
     let mut headers = reqwest::header::HeaderMap::new();
-    domain::telemetry::inject_current_context(&mut headers);
+    observable_telemetry::inject_current_context(&mut headers);
 
     let resp = http
         .post(format!("{auth_service_url}/internal/validate"))
@@ -117,7 +117,7 @@ pub async fn verify_session(
     session_token: &str,
 ) -> Result<SessionContext, AuthError> {
     let mut headers = reqwest::header::HeaderMap::new();
-    domain::telemetry::inject_current_context(&mut headers);
+    observable_telemetry::inject_current_context(&mut headers);
 
     let resp = http
         .post(format!("{auth_service_url}/internal/validate-session"))

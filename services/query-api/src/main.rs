@@ -36,7 +36,7 @@ use tower_http::trace::TraceLayer;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let _telemetry = domain::telemetry::init_self_observability_telemetry("query-api")?;
+    let _telemetry = observable_telemetry::init_self_observability_telemetry("query-api")?;
     let ch_url = observable_config::require_env("CLICKHOUSE_URL")?;
     let ch_user = observable_config::require_env("CLICKHOUSE_USER")?;
     let ch_password = observable_config::require_env_or("CLICKHOUSE_PASSWORD", "");

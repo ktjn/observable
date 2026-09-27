@@ -69,7 +69,7 @@ async fn validate_handler(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let _telemetry = domain::telemetry::init_self_observability_telemetry("auth-service")?;
+    let _telemetry = observable_telemetry::init_self_observability_telemetry("auth-service")?;
 
     let db_url = observable_config::require_env("DATABASE_URL")?;
     let db = PgPool::connect(&db_url).await?;
@@ -128,7 +128,7 @@ async fn main() -> anyhow::Result<()> {
         ))
         .layer(
             TraceLayer::new_for_http()
-                .make_span_with(domain::telemetry::OtelMakeSpan::new(Level::INFO)),
+                .make_span_with(observable_telemetry::OtelMakeSpan::new(Level::INFO)),
         )
         .with_state(state);
 
