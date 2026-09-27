@@ -1,5 +1,5 @@
 use alert_evaluator::evaluator::{eval_alert_rules, eval_threshold_rules};
-use domain::MetricPointRow;
+use observable_storage_contracts::MetricPointRow;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::path::Path;
 use testcontainers::{ImageExt, runners::AsyncRunner};

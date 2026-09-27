@@ -31,6 +31,7 @@ rand               = "0.10"
 sha2               = "0.11"
 
 [dev-dependencies]
+observable-storage-contracts = { path = "../../libs/observable-storage-contracts" }
 testcontainers         = "0.27.0"
 testcontainers-modules = { version = "0.15.0", features = ["postgres", "clickhouse"] }
 tokio                  = { version = "1", features = ["full"] }

@@ -21,6 +21,7 @@ dependencies = [
  "http-body-util",
  "observable-auth",
  "observable-config",
+ "observable-storage-contracts",
  "observable-telemetry",
  "prometheus",
  "rand 0.10.3",
@@ -60,6 +61,7 @@ dependencies = [
  "domain",
  "http-body-util",
  "observable-config",
+ "observable-storage-contracts",
  "observable-telemetry",
  "prometheus",
  "reqwest",
@@ -2653,6 +2655,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "observable-storage-contracts"
+version = "0.1.0"
+dependencies = [
+ "clickhouse",
+ "domain",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "observable-telemetry"
 version = "0.1.0"
 dependencies = [
@@ -3164,6 +3177,7 @@ dependencies = [
  "http-body-util",
  "observable-auth",
  "observable-config",
+ "observable-storage-contracts",
  "observable-telemetry",
  "prometheus",
  "query-core",
@@ -4320,6 +4334,7 @@ dependencies = [
  "domain",
  "http-body-util",
  "observable-config",
+ "observable-storage-contracts",
  "observable-telemetry",
  "opentelemetry",
  "prometheus",

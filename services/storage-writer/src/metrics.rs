@@ -1,5 +1,6 @@
 use clickhouse::Client;
-use domain::{MetricPoint, MetricPointRow, MetricSeries, MetricSeriesRow};
+use domain::{MetricPoint, MetricSeries};
+use observable_storage_contracts::{MetricPointRow, MetricSeriesRow};
 
 pub async fn insert_metric_series(ch: &Client, series: Vec<MetricSeries>) -> anyhow::Result<()> {
     let mut insert = ch.insert::<MetricSeriesRow>("metric_series").await?;

@@ -7,7 +7,7 @@
 //
 // Per ADR-025, all ClickHouse-touching functions require a Testcontainers test.
 
-use domain::MetricSeriesRow;
+use observable_storage_contracts::MetricSeriesRow;
 use query_api::mcp_tools::fetch_label_keys;
 use uuid::Uuid;
 

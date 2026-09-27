@@ -3,7 +3,8 @@ use axum::{
     extract::{Extension, Path, Query, State},
     http::StatusCode,
 };
-use domain::{MetricPoint, MetricPointRow};
+use domain::MetricPoint;
+use observable_storage_contracts::MetricPointRow;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

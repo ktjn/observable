@@ -39,15 +39,28 @@ Owns versioned integration contracts:
 - Modelable source definitions that are genuinely cross-component contracts
 
 The current `libs/domain` crate must not become a cross-repository shared implementation package.
-It currently mixes wire types, ClickHouse rows, and visualization types. Those responsibilities must
-be separated before extraction. Configuration/env-var loading, OTel telemetry setup, and
-stream-processor's envelope normalization/merge logic have been split out into
-`libs/observable-config`, `libs/observable-telemetry`, and `libs/observable-process` respectively —
-component-local implementation utilities, not cross-component contracts. The WASM playground vendors
+Configuration/env-var loading, OTel telemetry setup, and stream-processor's envelope
+normalization/merge logic have been split out into `libs/observable-config`,
+`libs/observable-telemetry`, and `libs/observable-process` respectively — component-local
+implementation utilities, not cross-component contracts. The WASM playground vendors
 `observable-process` as a monorepo path dependency to simulate the ingest-to-process pipeline
 client-side; this in-repo reuse is acceptable during decomposition but must be resolved (vendored
 copy or dropped) before `observable-web` and `observable-process` extract into separate
 repositories, since the target dependency graph does not have web depend on process.
+
+`libs/domain` still holds the wire DTOs (`Span`, `LogRecord`, `MetricSeries`/`MetricPoint`,
+`TelemetryEnvelope`, `VisualizationFrame`) plus the Modelable-generated ClickHouse row types for
+tracing and logs (`SpanRow`, `SpanEventRow`, `LogRow`, behind the `storage` feature). That mixing is
+intentional, not remaining tech debt: per ADR-035, the ClickHouse schema is itself a versioned
+storage contract between `observable-store-clickhouse` and `observable-query`, not a private
+implementation detail of either. The hand-written (non-Modelable) metric row types
+(`MetricSeriesRow`, `MetricPointRow`) have been split into `libs/observable-storage-contracts`,
+depended on by `storage-writer`, `query-api`, and their integration tests, to establish that same
+storage-contract crate as the target home once `SpanRow`/`LogRow` can also move there. Moving the
+Modelable-generated span/log rows requires first updating `scripts/regenerate-models.sh`'s
+per-domain output path (it copies each `models/*.mdl` domain's generated Rust to a single
+`libs/domain/src/generated/<domain>` directory) to split wire and row artifacts across two
+directories — a codegen-pipeline change, not a plain Rust refactor, and out of scope for this pass.
 
 ### observable-ingest
 

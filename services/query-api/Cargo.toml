@@ -9,6 +9,7 @@ path = "src/lib.rs"
 
 [dependencies]
 domain             = { path = "../../libs/domain", features = ["storage"] }
+observable-storage-contracts = { path = "../../libs/observable-storage-contracts" }
 observable-config = { path = "../../libs/observable-config" }
 observable-telemetry = { path = "../../libs/observable-telemetry" }
 query-core         = { path = "../../libs/query-core" }

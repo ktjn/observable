@@ -13,6 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 domain             = { path = "../../libs/domain", features = ["storage"] }
+observable-storage-contracts = { path = "../../libs/observable-storage-contracts" }
 observable-config = { path = "../../libs/observable-config" }
 observable-telemetry = { path = "../../libs/observable-telemetry" }
 opentelemetry      = { workspace = true }

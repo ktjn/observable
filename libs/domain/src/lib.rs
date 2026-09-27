@@ -16,8 +16,6 @@ pub use log::LogRow;
 pub use metric::{
     AggregationTemporality, MetricPoint, MetricSeries, MetricType, deterministic_metric_series_id,
 };
-#[cfg(feature = "storage")]
-pub use metric::{MetricPointRow, MetricSeriesRow};
 pub use span::{Span, SpanEvent, SpanKind, StatusCode};
 #[cfg(feature = "storage")]
 pub use span::{SpanEventRow, SpanRow};

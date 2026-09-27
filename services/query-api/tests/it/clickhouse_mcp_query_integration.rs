@@ -9,7 +9,8 @@
 //   - Tenant isolation: tenant_b sees no data from tenant_a series
 
 use clickhouse::Client as ChClient;
-use domain::{MetricPointRow, MetricSeriesRow, NlqIr, NlqOperation, NlqSignal, NlqTimeRange};
+use domain::{NlqIr, NlqOperation, NlqSignal, NlqTimeRange};
+use observable_storage_contracts::{MetricPointRow, MetricSeriesRow};
 use query_api::mcp_query::execute_mcp_query;
 use sqlx::PgPool;
 use uuid::Uuid;

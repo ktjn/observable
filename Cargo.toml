@@ -6,6 +6,7 @@ members = [
     "libs/observable-auth",
     "libs/observable-config",
     "libs/observable-process",
+    "libs/observable-storage-contracts",
     "libs/observable-telemetry",
     "libs/playground-wasm",
     "libs/query-core",
