@@ -27,6 +27,8 @@ intelligence features are introduced broadly. See [ADR-014](adr/ADR-014-ai-featu
 
 ### 13.1 Natural Language Query
 
+NLQ/MCP translation and query planning are owned by `observable-query`; this stays a query-time capability rather than a separate deployable component unless it later develops an independent lifecycle. See [ADR-035](adr/ADR-035-component-independence.md).
+
 #### Concept
 
 The platform's telemetry store — ClickHouse-backed, Arrow/DataFusion query layer, rich OTel schema —
