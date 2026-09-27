@@ -374,12 +374,27 @@ The same pattern applies if ClickHouse changes on-disk formats across major vers
 `clickhouse/clickhouse-server:26.9` makes the smoke test's trace-detail query
 (`GET /v1/traces/{id}` in query-api) return HTTP 500 with an empty body, even though ingest
 accepts the OTLP request fine. This has been hit and reverted twice already (`2e4e27b5`,
-`8eaca7ca`) — the actual ClickHouse-side error was never root-caused, just worked around by
-staying on 26.8. Renovate keeps proposing 26.9 again regardless; `renovate.json`'s
+`8eaca7ca`) without being root-caused; it now has been.
+
+**Root cause:** `clickhouse-rs` 0.15.2 (pinned in `Cargo.toml`, no newer release exists as of this
+writing) fails to decompress query results from a ClickHouse 26.9 server: `decompression error:
+incorrect magic number`. `clickhouse-rs`'s LZ4 frame decoder
+(`compression/lz4.rs::LZ4_MAGIC = 0x82`) expects a fixed magic byte at the start of every
+compressed block; the byte ClickHouse 26.9 actually sends there doesn't match. `INSERT` isn't
+affected (the client writes the request body itself), only reading query results back is. This is
+a client/server wire-compatibility break, not an application bug — reproduced directly by
+temporarily changing `storage-writer/src/spans.rs`'s `insert_spans_writes_events_to_clickhouse`
+test's `.with_tag("25.3")` to `"26.9"` and running it with `--ignored`; the same test passes
+against `26.8`. No code or `.mdl` change caused this or can fix it from this side; it needs either
+a `clickhouse-rs` release that handles 26.9's response framing, or an upstream ClickHouse fix.
+
+Renovate keeps proposing 26.9 again regardless; `renovate.json`'s
 `allowedVersions: "!/^26\\.9(\\.|$)/"` rule for `clickhouse/clickhouse-server` blocks it, but if
 Renovate's dependency dashboard or a manual bump reintroduces 26.9 in `docker-compose.yml`, the
-smoke job will fail exactly like this again. If someone eventually diagnoses the real
-incompatibility, remove the `allowedVersions` rule at the same time as the version bump.
+smoke job will fail exactly like this again. Once a `clickhouse-rs` release fixes this (check
+`cargo info clickhouse` for a version newer than 0.15.2 that mentions 26.9/wire-protocol
+compatibility), bump both `Cargo.toml`'s `clickhouse` dependency and remove the `allowedVersions`
+rule together — bumping only one half leaves the pair back out of sync.
 
 **Why this evaded review:** the Renovate PR that bumped `docker-compose.yml` to 26.9 had its own
 CI run cancelled mid-flight (the `concurrency: cancel-in-progress: true` group cancels an
