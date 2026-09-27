@@ -184,6 +184,12 @@
         "rabbitmq"
       ],
       "addLabels": ["manual-update", "testcontainers"]
+    },
+    {
+      "description": "ClickHouse 26.9 breaks the smoke test's trace-detail query (HTTP 500) -- reverted twice already (2e4e27b5, 8eaca7ca). Block it until a newer release is confirmed compatible; see docs/agent-context.md.",
+      "matchManagers": ["docker-compose"],
+      "matchPackageNames": ["clickhouse/clickhouse-server"],
+      "allowedVersions": "!/^26\\.9(\\.|$)/"
     }
   ]
 }

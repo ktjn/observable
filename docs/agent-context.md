@@ -369,6 +369,25 @@ The same pattern applies if ClickHouse changes on-disk formats across major vers
 `make reset-volumes` (default, no flags) now drops `postgres_data`, `shop_db_data`, and
 `redpanda_data`. Use `--all` to also wipe ClickHouse and Zitadel bootstrap volumes.
 
+### ClickHouse 26.9 breaks the smoke test — pin to 26.8
+
+`clickhouse/clickhouse-server:26.9` makes the smoke test's trace-detail query
+(`GET /v1/traces/{id}` in query-api) return HTTP 500 with an empty body, even though ingest
+accepts the OTLP request fine. This has been hit and reverted twice already (`2e4e27b5`,
+`8eaca7ca`) — the actual ClickHouse-side error was never root-caused, just worked around by
+staying on 26.8. Renovate keeps proposing 26.9 again regardless; `renovate.json`'s
+`allowedVersions: "!/^26\\.9(\\.|$)/"` rule for `clickhouse/clickhouse-server` blocks it, but if
+Renovate's dependency dashboard or a manual bump reintroduces 26.9 in `docker-compose.yml`, the
+smoke job will fail exactly like this again. If someone eventually diagnoses the real
+incompatibility, remove the `allowedVersions` rule at the same time as the version bump.
+
+**Why this evaded review:** the Renovate PR that bumped `docker-compose.yml` to 26.9 had its own
+CI run cancelled mid-flight (the `concurrency: cancel-in-progress: true` group cancels an
+in-progress run on `main` whenever a newer push lands on the same ref), so it merged without ever
+actually running the smoke test against 26.9. The regression only surfaced on the next unrelated
+push. Don't treat a Renovate PR's merge as evidence its smoke test passed — check the merge
+commit's own `Build & Test` run status, not just that the PR's checks were green at merge time.
+
 ### Browser auth routing uses the shared Gateway
 
 The live k8s cluster currently exposes the frontend through `observable/testbench-gateway`
