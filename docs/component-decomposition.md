@@ -39,8 +39,10 @@ Owns versioned integration contracts:
 - Modelable source definitions that are genuinely cross-component contracts
 
 The current `libs/domain` crate must not become a cross-repository shared implementation package.
-It currently mixes wire types, ClickHouse rows, telemetry setup, configuration, processing types,
-and visualization types. Those responsibilities must be separated before extraction.
+It currently mixes wire types, ClickHouse rows, telemetry setup, processing types, and visualization
+types. Those responsibilities must be separated before extraction. Configuration/env-var loading has
+been split out into `libs/observable-config`, a component-local implementation utility, not a
+cross-component contract.
 
 ### observable-ingest
 

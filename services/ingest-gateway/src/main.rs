@@ -156,8 +156,8 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "4321".into())
         .parse()?;
 
-    let brokers = domain::config::require_env("REDPANDA_BROKERS")?;
-    let topic = domain::config::require_env("INGEST_TOPIC")?;
+    let brokers = observable_config::require_env("REDPANDA_BROKERS")?;
+    let topic = observable_config::require_env("INGEST_TOPIC")?;
     let producer = Arc::new(QueueProducer::new(&brokers, &topic)?);
     let trace_rate_limit: u32 = std::env::var("TRACE_INGEST_RATE_LIMIT_PER_SECOND")
         .ok()
@@ -180,7 +180,7 @@ async fn main() -> anyhow::Result<()> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(4_194_304);
 
-    let database_url = domain::config::require_env("DATABASE_URL")?;
+    let database_url = observable_config::require_env("DATABASE_URL")?;
     let db = Arc::new(
         PgPoolOptions::new()
             .max_connections(5)
@@ -189,7 +189,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let state = AppState {
-        auth_service_url: domain::config::require_env("AUTH_SERVICE_URL")?,
+        auth_service_url: observable_config::require_env("AUTH_SERVICE_URL")?,
         http_client: reqwest::Client::new(),
         producer: Some(producer),
         trace_rate_limiter: build_rate_limiter(trace_rate_limit),

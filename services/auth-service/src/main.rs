@@ -71,7 +71,7 @@ async fn validate_handler(
 async fn main() -> anyhow::Result<()> {
     let _telemetry = domain::telemetry::init_self_observability_telemetry("auth-service")?;
 
-    let db_url = domain::config::require_env("DATABASE_URL")?;
+    let db_url = observable_config::require_env("DATABASE_URL")?;
     let db = PgPool::connect(&db_url).await?;
 
     let port: u16 = std::env::var("AUTH_SERVICE_PORT")
@@ -83,10 +83,10 @@ async fn main() -> anyhow::Result<()> {
         auth_service::resolve_session_secret(std::env::var("SESSION_SECRET").ok(), dev_mode)?;
 
     let oidc_config = OidcConfig {
-        issuer: domain::config::require_env("ZITADEL_ISSUER")?,
-        api_base: domain::config::require_env("ZITADEL_API_BASE")?,
-        client_id: domain::config::require_env("ZITADEL_CLIENT_ID")?,
-        redirect_uri: domain::config::require_env("ZITADEL_REDIRECT_URI")?,
+        issuer: observable_config::require_env("ZITADEL_ISSUER")?,
+        api_base: observable_config::require_env("ZITADEL_API_BASE")?,
+        client_id: observable_config::require_env("ZITADEL_CLIENT_ID")?,
+        redirect_uri: observable_config::require_env("ZITADEL_REDIRECT_URI")?,
         session_secret,
         dev_mode,
     };
