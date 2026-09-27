@@ -12,7 +12,8 @@ architecture, and the metadata injection contract.
 [ADR-026](adr/ADR-026-no-proprietary-query-dsl.md) (no proprietary DSL),
 [ADR-027](adr/ADR-027-local-llm-backend.md) (LLM backend config),
 [ADR-034](adr/ADR-034-simple-ir-shorthand.md) (shorthand / deterministic fallback),
-[ADR-030](adr/ADR-030-timestamp-representation.md) (timestamp format)
+[ADR-030](adr/ADR-030-timestamp-representation.md) (timestamp format),
+[ADR-035](adr/ADR-035-component-independence.md) (the IR is internal to `observable-query`, not a cross-component wire contract)
 
 ---
 
