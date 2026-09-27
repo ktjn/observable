@@ -22,6 +22,7 @@ Full-stack observability platform specification — Dynatrace / New Relic class,
 | [14-domain-model.md](14-domain-model.md)             | Data models, entities, and relationships                                                                                                        |
 | [15-frontend-local-dev.md](15-frontend-local-dev.md) | Frontend local development, storybook, mock data, and developer experience                                                                      |
 | [17-self-observability.md](17-self-observability.md) | Platform self-observability, monitoring, and health checks                                                                                      |
+| [19-formal-verification.md](19-formal-verification.md)   | TLA+/TLC models for telemetry durability, recovery, and component compatibility invariants                                                                    |
 | [18-deployment-markers.md](18-deployment-markers.md) | Deployment markers and release correlation                                                                                                      |
 | [19-testbench.md](19-testbench.md)                   | Test bench: kind-based synthetic workload with full OTel + k8s cluster monitoring                                                               |
 | [20-nlq-ir-reference.md](20-nlq-ir-reference.md)     | NLQ IR canonical reference: DSL grammar, semantic rules, system prompt architecture, metadata injection, shorthand syntax, SQL template library |

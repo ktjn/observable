@@ -121,6 +121,25 @@ separate distribution component.
 splitting every database on day one, replacing ClickHouse/Redpanda/PostgreSQL, or performing a
 big-bang repository move.
 
+
+### Formal verification gate
+
+Stateful cross-component correctness in the 0.2 architecture is verified with bounded TLA+/TLC
+models in addition to contract, integration, and chaos tests. The implementation specification is
+[spec/19-formal-verification.md](spec/19-formal-verification.md).
+
+- [ ] Model the `telemetry.normalized.v1` process-to-storage durability boundary, including
+  acknowledgement ordering, storage outage, worker crash/recovery, redelivery, duplicates, and
+  backpressure.
+- [ ] Add pinned, bounded TLC execution to PR CI with actionable counterexample traces.
+- [ ] Map formal invariants to concrete Testcontainers/integration/chaos regression boundaries.
+- [ ] Model component-version, storage-schema, distribution-manifest, upgrade, and rollback
+  compatibility as independent component releases become executable.
+
+**Exit evidence:** deliberately broken acknowledgement/order transitions produce useful TLC
+counterexamples; the committed finite models pass in PR CI; and TLA+ remains development-only with
+no production runtime dependency.
+
 ## 0.3 — Effortless self-hosted evaluation
 
 **Outcome:** A new self-hoster can evaluate the independently packaged Observable distribution
