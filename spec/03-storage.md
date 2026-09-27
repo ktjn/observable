@@ -22,6 +22,8 @@ Use ClickHouse for metrics in Phase 1 and until a concrete performance or cardin
 
 **Revisit condition:** If Phase 2 or Phase 3 cardinality testing reveals that ClickHouse cannot meet the P50 < 1 s query target under production-representative label cardinality, open a new ADR to evaluate a dedicated TSDB (e.g., VictoriaMetrics). The query facade abstracts storage engines from clients, so a later migration is contained.
 
+ClickHouse writes and migrations are owned by `observable-store-clickhouse`; `observable-query` reads within a declared schema compatibility range and does not write or migrate. See [ADR-035](adr/ADR-035-component-independence.md).
+
 **Profiles**
 
 Separate profile storage/indexing is acceptable initially; converge later behind a unified API. OTel profiles are still emerging, so design the domain model now but keep implementation modular.
@@ -140,7 +142,7 @@ The Schema Registry is a control plane service that tracks and versions the sche
 - Enforces the `ADR-013` schema governance tiers: standard (strictly enforced), high-velocity (auto-indexed), low-velocity (schema-on-read)
 - Versioned: schema changes increment a monotonic version; breaking changes require a migration plan
 
-**Storage:** Schema Registry metadata is stored in the relational control plane store (PostgreSQL). It is not stored in ClickHouse.
+**Storage:** Schema Registry metadata is stored in the relational control plane store (PostgreSQL). It is not stored in ClickHouse. Schema Registry state is owned by `observable-control` under [ADR-035](adr/ADR-035-component-independence.md); other components resolve schema/catalog data through its API rather than direct SQL.
 
 **API surface:**
 - `GET /schemas/{signal_type}` — current schema for a signal type

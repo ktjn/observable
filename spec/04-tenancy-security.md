@@ -9,6 +9,8 @@ Support:
 2. isolated tenant storage
 3. single-tenant dedicated deployment
 
+Tenant, project, and environment records are owned by `observable-control`. Identity administration (users, memberships, roles, sessions, API-key lifecycle) is owned by `observable-auth` and exposed to control-plane UX through the Auth API rather than shared tables. See [ADR-035](adr/ADR-035-component-independence.md).
+
 ### 7.2 Isolation Levels
 
 - auth isolation

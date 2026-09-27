@@ -1,5 +1,7 @@
 # Alerting, Incidents, and SLOs
 
+Alert rules, SLOs, evaluation, firings, notifications, incidents, and silencing are consolidated under one owner, `observable-alerting`, rather than split across `alert-evaluator`, `query-api`, and `admin-service`. See [ADR-035](adr/ADR-035-component-independence.md).
+
 ## 11. Alerting and Incident Management
 
 ### 11.1 Alert Types
