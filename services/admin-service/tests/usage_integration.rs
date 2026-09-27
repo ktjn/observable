@@ -13,9 +13,8 @@ use axum::{
     routing::get,
 };
 use clickhouse::Client as ChClient;
-use domain::{LogRow, SpanRow};
 use http_body_util::BodyExt;
-use observable_storage_contracts::{MetricPointRow, MetricSeriesRow};
+use observable_storage_contracts::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use serde_json::Value;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::{path::Path, sync::Arc};

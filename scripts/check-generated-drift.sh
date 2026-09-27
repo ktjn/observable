@@ -43,7 +43,9 @@ while IFS= read -r -d '' f; do
 done < "$TMP_RS_FILES"
 rm -f "$TMP_RS_FILES"
 
-# Rust — only subdirectory files, not hand-maintained module files
+# Rust — only subdirectory files, not hand-maintained module files. Generated
+# domains are checked in under whichever crate owns them (e.g. tracing/logs
+# ClickHouse row projections live under libs/observable-storage-contracts).
 while IFS= read -r -d '' f; do
   name="$(basename "$f")"
   domain="$(basename "$(dirname "$f")")"
@@ -56,7 +58,7 @@ while IFS= read -r -d '' f; do
     echo "DRIFTED: $f"
     FAILED=1
   fi
-done < <(find libs/domain/src/generated -mindepth 2 -name '*.rs' -print0)
+done < <(find libs/*/src/generated -mindepth 2 -name '*.rs' -print0)
 
 if [ "$FAILED" -eq 1 ]; then
   echo ""

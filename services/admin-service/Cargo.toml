@@ -8,7 +8,7 @@ name = "admin_service"
 path = "src/lib.rs"
 
 [dependencies]
-domain             = { path = "../../libs/domain", features = ["storage"] }
+domain             = { path = "../../libs/domain" }
 observable-config = { path = "../../libs/observable-config" }
 observable-telemetry = { path = "../../libs/observable-telemetry" }
 observable-auth    = { path = "../../libs/observable-auth" }

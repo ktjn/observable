@@ -48,19 +48,20 @@ client-side; this in-repo reuse is acceptable during decomposition but must be r
 copy or dropped) before `observable-web` and `observable-process` extract into separate
 repositories, since the target dependency graph does not have web depend on process.
 
-`libs/domain` still holds the wire DTOs (`Span`, `LogRecord`, `MetricSeries`/`MetricPoint`,
-`TelemetryEnvelope`, `VisualizationFrame`) plus the Modelable-generated ClickHouse row types for
-tracing and logs (`SpanRow`, `SpanEventRow`, `LogRow`, behind the `storage` feature). That mixing is
-intentional, not remaining tech debt: per ADR-035, the ClickHouse schema is itself a versioned
-storage contract between `observable-store-clickhouse` and `observable-query`, not a private
-implementation detail of either. The hand-written (non-Modelable) metric row types
-(`MetricSeriesRow`, `MetricPointRow`) have been split into `libs/observable-storage-contracts`,
-depended on by `storage-writer`, `query-api`, and their integration tests, to establish that same
-storage-contract crate as the target home once `SpanRow`/`LogRow` can also move there. Moving the
-Modelable-generated span/log rows requires first updating `scripts/regenerate-models.sh`'s
-per-domain output path (it copies each `models/*.mdl` domain's generated Rust to a single
-`libs/domain/src/generated/<domain>` directory) to split wire and row artifacts across two
-directories — a codegen-pipeline change, not a plain Rust refactor, and out of scope for this pass.
+`libs/domain` now holds only wire DTOs (`Span`, `SpanEvent`, `LogRecord`, `MetricSeries`/
+`MetricPoint`, `TelemetryEnvelope`, `VisualizationFrame`) and has no generated code and no
+ClickHouse/`storage` feature of its own. All ClickHouse row projections — both the hand-written
+metric rows and the Modelable-generated tracing/log rows (`SpanRow`, `SpanEventRow`, `LogRow`) —
+live in `libs/observable-storage-contracts`, depended on by `storage-writer`, `query-api`, and their
+integration tests. Per ADR-035 this crate, not either service, is the versioned storage contract
+between `observable-store-clickhouse` and `observable-query`.
+
+`scripts/regenerate-models.sh` and `scripts/check-generated-drift.sh` route each Modelable domain's
+generated Rust to whichever `libs/*/src/generated/<domain>` directory is already checked in (tracing
+and logs under `libs/observable-storage-contracts`), rather than assuming a single fixed crate.
+Modelable's Rust emitter gates ClickHouse projection types behind `cfg(feature = "storage")`
+regardless of target crate, so `observable-storage-contracts` carries its own always-on `storage`
+feature purely to satisfy that generated cfg.
 
 ### observable-ingest
 

@@ -1,5 +1,5 @@
 use alert_evaluator::evaluator::eval_deadman_rules;
-use domain::SpanRow;
+use observable_storage_contracts::SpanRow;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::path::Path;
 use testcontainers::{ImageExt, runners::AsyncRunner};

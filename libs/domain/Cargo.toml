@@ -9,7 +9,3 @@ serde       = { workspace = true }
 serde_json  = { workspace = true }
 uuid        = { workspace = true }
 chrono      = { workspace = true }
-clickhouse  = { workspace = true, optional = true }
-
-[features]
-storage = ["dep:clickhouse"]

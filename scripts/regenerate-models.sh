@@ -37,12 +37,23 @@ echo "==> Compiling Rust artifacts"
 uv run --project models modelable compile models/ --target rust --out "$TMP_RS" --registry-ids "$REGISTRY_IDS"
 echo ""
 
-echo "==> Copying Rust files to libs/domain/src/generated/"
+echo "==> Copying Rust files to their checked-in generated/ directories"
+# Each modelable domain's output directory is copied to whichever crate already
+# has a matching libs/*/src/generated/<domain> directory checked in. tracing and
+# logs live under libs/observable-storage-contracts (ClickHouse row projections);
+# other domains may add a libs/domain/src/generated/<domain> directory later.
 for domain_dir in "$TMP_RS"/*/; do
   domain="$(basename "$domain_dir")"
-  if [ -d "libs/domain/src/generated/$domain" ]; then
-    cp "$domain_dir"/*.rs "libs/domain/src/generated/$domain/"
-    echo "  copied $domain/*.rs"
+  copied=0
+  for crate_generated in libs/*/src/generated; do
+    if [ -d "$crate_generated/$domain" ]; then
+      cp "$domain_dir"/*.rs "$crate_generated/$domain/"
+      echo "  copied $domain/*.rs -> $crate_generated/$domain/"
+      copied=1
+    fi
+  done
+  if [ "$copied" -eq 0 ]; then
+    echo "  skipped $domain (no checked-in generated/$domain directory)"
   fi
 done
 echo ""

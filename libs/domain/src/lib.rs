@@ -1,5 +1,3 @@
-mod generated;
-
 pub mod envelope;
 pub mod log;
 pub mod metric;
@@ -11,12 +9,8 @@ pub use domain_core::nlq::{
 };
 pub use envelope::{EnvelopePayload, TelemetryEnvelope};
 pub use log::LogRecord;
-#[cfg(feature = "storage")]
-pub use log::LogRow;
 pub use metric::{
     AggregationTemporality, MetricPoint, MetricSeries, MetricType, deterministic_metric_series_id,
 };
 pub use span::{Span, SpanEvent, SpanKind, StatusCode};
-#[cfg(feature = "storage")]
-pub use span::{SpanEventRow, SpanRow};
 pub use visualization::{FieldRole, FieldRoleKind, VisualizationFrame, VisualizationFrameType};

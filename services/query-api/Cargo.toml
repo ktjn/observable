@@ -8,7 +8,7 @@ name = "query_api"
 path = "src/lib.rs"
 
 [dependencies]
-domain             = { path = "../../libs/domain", features = ["storage"] }
+domain             = { path = "../../libs/domain" }
 observable-storage-contracts = { path = "../../libs/observable-storage-contracts" }
 observable-config = { path = "../../libs/observable-config" }
 observable-telemetry = { path = "../../libs/observable-telemetry" }

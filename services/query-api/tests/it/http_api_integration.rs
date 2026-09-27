@@ -6,9 +6,8 @@ use axum::{
     routing::{get, post, put},
 };
 use clickhouse::Client as ChClient;
-use domain::{LogRow, SpanRow};
 use http_body_util::BodyExt;
-use observable_storage_contracts::{MetricPointRow, MetricSeriesRow};
+use observable_storage_contracts::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use query_api::{
     alerts, dashboards, discovery, incidents, llm_adapter, logs, metrics,
     middleware::auth::TenantContext, middleware::auth::require_tenant, observability,

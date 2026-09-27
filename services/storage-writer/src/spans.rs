@@ -1,5 +1,6 @@
 use clickhouse::Client;
-use domain::{Span, SpanEvent, SpanEventRow, SpanRow};
+use domain::{Span, SpanEvent};
+use observable_storage_contracts::{SpanEventRow, SpanRow};
 
 pub async fn insert_spans(ch: &Client, spans: Vec<Span>) -> anyhow::Result<()> {
     // Collect events before consuming spans

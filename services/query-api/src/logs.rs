@@ -4,7 +4,8 @@ use axum::{
     http::StatusCode,
 };
 use chrono::{DateTime, Utc};
-use domain::{LogRecord, LogRow};
+use domain::LogRecord;
+use observable_storage_contracts::LogRow;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;

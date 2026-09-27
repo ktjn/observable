@@ -9,3 +9,9 @@ serde      = { workspace = true }
 serde_json = { workspace = true }
 uuid       = { workspace = true }
 clickhouse = { workspace = true }
+
+[features]
+# Modelable's Rust emitter gates ClickHouse projection types behind
+# `cfg(feature = "storage")`; this crate exists to hold them, so keep it always on.
+default = ["storage"]
+storage = []

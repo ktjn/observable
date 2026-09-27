@@ -1,6 +1,5 @@
 use clickhouse::Client;
-use domain::{LogRow, SpanRow};
-use observable_storage_contracts::MetricSeriesRow;
+use observable_storage_contracts::{LogRow, MetricSeriesRow, SpanRow};
 use query_api::logs::{LogSearchParams, fetch_log_rows, fetch_log_rows_since};
 use query_api::planner::QueryPlanner;
 use query_api::setup::compute_setup_status;

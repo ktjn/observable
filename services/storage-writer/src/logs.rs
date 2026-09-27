@@ -1,5 +1,6 @@
 use clickhouse::Client;
-use domain::{LogRecord, LogRow};
+use domain::LogRecord;
+use observable_storage_contracts::LogRow;
 
 pub async fn insert_logs(ch: &Client, logs: Vec<LogRecord>) -> anyhow::Result<()> {
     let mut insert = ch.insert::<LogRow>("logs").await?;

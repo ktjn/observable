@@ -5,7 +5,8 @@ use axum::{
 };
 use chrono::Utc;
 use clickhouse::Client;
-use domain::{Span, SpanEvent, SpanEventRow, SpanRow};
+use domain::{Span, SpanEvent};
+use observable_storage_contracts::{SpanEventRow, SpanRow};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::{
