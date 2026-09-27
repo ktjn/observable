@@ -143,6 +143,7 @@ Owns:
 - deployment markers
 - change events
 - setup/onboarding metadata
+- agent/collector fleet registration, health status, and remote-config versioning
 
 Identity administration exposed through control-plane UX delegates to the Auth API; Control does
 not own credential or membership tables.

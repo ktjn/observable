@@ -138,6 +138,8 @@ Never silently discard. Emit a drop counter as an agent self-metric for every dr
 
 ### 10.6 Remote Configuration
 
+Remote-config versioning is control-plane state owned by `observable-control`, not `observable-ingest`; the ingest gateway's `429`/`Retry-After` overload signal below is a runtime backpressure signal, not a persisted config record. See [ADR-035](adr/ADR-035-component-independence.md).
+
 **Contract**
 
 - The platform pushes configuration changes via an OpAMP-compatible channel.
@@ -170,6 +172,8 @@ Never silently discard. Emit a drop counter as an agent self-metric for every dr
 ---
 
 ### 10.7 Fleet Management Contract
+
+Fleet registration records and health-status derivation are owned by `observable-control`. See [ADR-035](adr/ADR-035-component-independence.md).
 
 The fleet management UI (§9.2) requires agents to provide:
 
