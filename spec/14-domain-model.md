@@ -2,6 +2,8 @@
 
 This document is the authoritative domain model for the Observable platform. It defines all core entities, their relationships, telemetry schemas, cross-signal join keys, state machines, and authorization model. Other specs (query language, ADRs, storage) should reference this document rather than define their own entity schemas.
 
+This is the design-time source for cross-component wire contracts owned by `observable-contracts`; it is not itself a shared implementation package, and component-local persistence ownership (§1, §5) follows the boundaries in [ADR-035](adr/ADR-035-component-independence.md) and [docs/component-decomposition.md](../docs/component-decomposition.md), not this document.
+
 ---
 
 ## 1. Entity Glossary
