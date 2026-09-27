@@ -1,5 +1,7 @@
 # Frontend Architecture
 
+`apps/frontend` is `observable-web`. It depends only on released APIs from auth, control, query, and alerting, and owns no persistent state of its own. See [ADR-035](adr/ADR-035-component-independence.md).
+
 ## 9. Frontend Architecture
 
 ### 9.1 Stack
