@@ -3,7 +3,7 @@ use observable_storage_contracts::MetricPointRow;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::path::Path;
 use testcontainers::{ImageExt, runners::AsyncRunner};
-use testcontainers_modules::{clickhouse::ClickHouse, postgres::Postgres};
+use testcontainers_modules::postgres::Postgres;
 use uuid::Uuid;
 
 async fn apply_pg_migrations(pool: &PgPool) {
@@ -45,69 +45,6 @@ async fn start_postgres() -> (PgPool, testcontainers::ContainerAsync<Postgres>) 
         .expect("postgres pool connected");
     apply_pg_migrations(&pool).await;
     (pool, container)
-}
-
-async fn apply_ch_migrations(base_url: &str, user: &str, password: &str) -> clickhouse::Client {
-    let root = clickhouse::Client::default()
-        .with_url(base_url)
-        .with_user(user)
-        .with_password(password);
-
-    root.query("CREATE DATABASE IF NOT EXISTS observable")
-        .execute()
-        .await
-        .expect("create database");
-
-    let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/clickhouse");
-
-    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
-        .expect("migrations/clickhouse must exist")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        for stmt in sql.split(';') {
-            let stmt = stmt.trim();
-            if !stmt.is_empty() {
-                root.query(stmt)
-                    .execute()
-                    .await
-                    .expect("ch migration applied");
-            }
-        }
-    }
-
-    clickhouse::Client::default()
-        .with_url(base_url)
-        .with_user(user)
-        .with_password(password)
-        .with_database("observable")
-        .with_compression(clickhouse::Compression::None)
-}
-
-async fn start_clickhouse() -> (
-    clickhouse::Client,
-    testcontainers::ContainerAsync<ClickHouse>,
-) {
-    let container = ClickHouse::default()
-        .with_tag("26.9")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_ch_migrations(&base_url, "default", "test").await;
-    (ch, container)
 }
 
 async fn insert_metric_point(
@@ -199,7 +136,7 @@ async fn create_threshold_rule_with_runbook(
 #[tokio::test]
 async fn auto_trigger_incident_created_on_active_firing() {
     let (pool, _pg) = start_postgres().await;
-    let (ch, _ch) = start_clickhouse().await;
+    let ch = test_support::clickhouse::shared_client().await;
     let tenant_id = Uuid::new_v4();
     let metric_name = "incident_test_metric";
     let rule_id =
@@ -239,7 +176,7 @@ async fn auto_trigger_incident_created_on_active_firing() {
 #[tokio::test]
 async fn auto_trigger_incident_resolved_when_alert_resolves() {
     let (pool, _pg) = start_postgres().await;
-    let (ch, _ch) = start_clickhouse().await;
+    let ch = test_support::clickhouse::shared_client().await;
     let tenant_id = Uuid::new_v4();
     let metric_name = "incident_resolve_metric";
     let rule_id =
@@ -289,7 +226,7 @@ async fn auto_trigger_incident_resolved_when_alert_resolves() {
 #[tokio::test]
 async fn no_incident_when_auto_trigger_is_false() {
     let (pool, _pg) = start_postgres().await;
-    let (ch, _ch) = start_clickhouse().await;
+    let ch = test_support::clickhouse::shared_client().await;
     let tenant_id = Uuid::new_v4();
     let metric_name = "no_incident_metric";
     let rule_id =
@@ -316,7 +253,7 @@ async fn no_incident_when_auto_trigger_is_false() {
 #[tokio::test]
 async fn runbook_url_copied_from_rule_to_incident() {
     let (pool, _pg) = start_postgres().await;
-    let (ch, _ch) = start_clickhouse().await;
+    let ch = test_support::clickhouse::shared_client().await;
     let tenant_id = Uuid::new_v4();
     let metric_name = "runbook_propagation_metric";
     let runbook = "https://runbooks.example.com/high-error-rate";

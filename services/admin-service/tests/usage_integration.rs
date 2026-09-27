@@ -19,7 +19,7 @@ use serde_json::Value;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::{path::Path, sync::Arc};
 use testcontainers::{ImageExt, runners::AsyncRunner};
-use testcontainers_modules::{clickhouse::ClickHouse, postgres::Postgres};
+use testcontainers_modules::postgres::Postgres;
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -30,20 +30,6 @@ use uuid::Uuid;
 const DEV_TENANT_ID: &str = "00000000-0000-0000-0000-000000000002";
 
 // ── Container helpers ────────────────────────────────────────────────────────
-
-async fn start_clickhouse() -> (ChClient, testcontainers::ContainerAsync<ClickHouse>) {
-    let container = ClickHouse::default()
-        .with_tag("26.9")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-    let ch = apply_ch_migrations(&base_url, "default", "test").await;
-    (ch, container)
-}
 
 async fn start_postgres() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
     let container = Postgres::default()
@@ -84,49 +70,6 @@ async fn apply_pg_migrations(pool: &PgPool) {
             .await
             .expect("pg migration applied");
     }
-}
-
-async fn apply_ch_migrations(base_url: &str, user: &str, password: &str) -> ChClient {
-    let root = ChClient::default()
-        .with_url(base_url)
-        .with_user(user)
-        .with_password(password);
-
-    root.query("CREATE DATABASE IF NOT EXISTS observable")
-        .execute()
-        .await
-        .expect("create database");
-
-    let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/clickhouse");
-
-    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
-        .expect("migrations/clickhouse must exist")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        for stmt in sql.split(';') {
-            let stmt = stmt.trim();
-            if !stmt.is_empty() {
-                root.query(stmt).execute().await.expect("migration applied");
-            }
-        }
-    }
-
-    ChClient::default()
-        .with_url(base_url)
-        .with_user(user)
-        .with_password(password)
-        .with_database("observable")
-        .with_compression(clickhouse::Compression::None)
 }
 
 // ── App builder ──────────────────────────────────────────────────────────────
@@ -275,7 +218,7 @@ fn make_metric_point(
 
 #[tokio::test]
 async fn get_tenant_usage_report_scopes_to_tenant_and_interval() {
-    let (ch, _ch_container) = start_clickhouse().await;
+    let ch = test_support::clickhouse::shared_client().await;
     let (pg, _pg_container) = start_postgres().await;
     let app = build_app(ch.clone(), pg.clone());
     let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
@@ -475,7 +418,7 @@ async fn get_tenant_usage_report_scopes_to_tenant_and_interval() {
 
 #[tokio::test]
 async fn get_tenant_usage_report_returns_zeroes_for_empty_interval() {
-    let (ch, _ch_container) = start_clickhouse().await;
+    let ch = test_support::clickhouse::shared_client().await;
     let (pg, _pg_container) = start_postgres().await;
     let app = build_app(ch, pg.clone());
 
