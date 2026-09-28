@@ -13,13 +13,14 @@ use stream_processor::{
 use tokio::time;
 use tracing::Instrument as _;
 
-/// How stream-processor delivers a normalized batch downstream. `Http` is the
-/// current default (POSTs to storage-writer's /internal/* endpoints); `Queue`
-/// publishes to `telemetry.normalized.v1` instead, per the Phase 2 target in
-/// docs/component-decomposition.md. Selectable via STORAGE_WRITE_MODE so the
-/// two paths can be dual-run during verification without a code change. The
-/// span-derived-metrics background flush below is unaffected by this switch
-/// -- it's a separate aggregation path, out of scope for this migration.
+/// How stream-processor delivers a normalized batch downstream. `Queue` is the
+/// default: publishes `NormalizedTelemetryBatch` to `telemetry.normalized.v1`,
+/// per the Phase 2 target in docs/component-decomposition.md. `Http` (the
+/// original path -- POSTs to storage-writer's now-legacy /internal/*
+/// endpoints) remains available via `STORAGE_WRITE_MODE=http` as a rollback
+/// path until those endpoints are removed. The span-derived-metrics
+/// background flush below is unaffected by this switch -- it's a separate
+/// aggregation path, out of scope for this migration.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum WriteMode {
     Http,
@@ -34,8 +35,8 @@ async fn main() -> anyhow::Result<()> {
     let writer_url = observable_config::require_env("STORAGE_WRITER_URL")?;
     let http = reqwest::Client::new();
     let write_mode = match std::env::var("STORAGE_WRITE_MODE").as_deref() {
-        Ok("queue") => WriteMode::Queue,
-        _ => WriteMode::Http,
+        Ok("http") => WriteMode::Http,
+        _ => WriteMode::Queue,
     };
     let normalized_producer = if write_mode == WriteMode::Queue {
         let normalized_topic = observable_config::require_env("NORMALIZED_TOPIC")?;

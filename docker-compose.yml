@@ -246,7 +246,7 @@ services:
       REDPANDA_BROKERS: redpanda:9092
       INGEST_TOPIC: telemetry.raw.v1
       NORMALIZED_TOPIC: telemetry.normalized.v1
-      # STORAGE_WRITE_MODE: queue  # opt in once the queue path is verified; default is http
+      # STORAGE_WRITE_MODE: http  # rollback: revert to the legacy HTTP push if needed; default is queue
       STORAGE_WRITER_URL: http://storage-writer:4320
       STREAM_PROCESSOR_PLATFORM_PORT: "4323"
     ports: ["4323:4323"]

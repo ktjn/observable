@@ -504,8 +504,13 @@ here. Verified end-to-end with the real `docker compose --profile verification` 
 `STORAGE_WRITE_MODE=http` and `=queue`, confirming no retry/error noise in either service's logs
 under normal (non-outage) operation.
 
-Not yet addressed: cutting `stream-processor`'s default over to `queue` mode, the row-level dedup
-above, and removing the HTTP endpoints — those remain open exit-evidence items below.
+`stream-processor`'s default is now `queue` (`STORAGE_WRITE_MODE=http` remains available as an
+explicit rollback path until the HTTP endpoints are removed). Verified with the real
+`docker compose --profile verification` smoke suite after the flip, using no `STORAGE_WRITE_MODE`
+override — i.e. exercising the actual new default, not an explicit opt-in.
+
+Not yet addressed: the row-level dedup above, and removing the now-legacy HTTP endpoints — those
+remain open exit-evidence items below.
 
 Exit evidence:
 
