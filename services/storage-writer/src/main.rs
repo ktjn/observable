@@ -12,22 +12,11 @@ use std::sync::Arc;
 use storage_writer::{AppState, buffer, normalized_consumer, observability};
 use tower_http::trace::TraceLayer;
 
-async fn write_spans(
-    State(state): State<AppState>,
-    Json(batch): Json<Vec<domain::Span>>,
-) -> StatusCode {
-    state.buffer.send_spans(batch);
-    StatusCode::NO_CONTENT
-}
-
-async fn write_logs(
-    State(state): State<AppState>,
-    Json(batch): Json<Vec<domain::LogRecord>>,
-) -> StatusCode {
-    state.buffer.send_logs(batch);
-    StatusCode::NO_CONTENT
-}
-
+// /internal/metrics stays: it's still used by stream-processor's
+// span-derived-metrics flush (a separate aggregation path -- see ADR-029),
+// unrelated to the telemetry.normalized.v1 pipeline that replaced
+// /internal/spans and /internal/logs (removed; see docs/component-
+// decomposition.md Phase 2).
 #[derive(Deserialize)]
 struct MetricsBatch {
     series: Vec<domain::MetricSeries>,
@@ -110,8 +99,6 @@ async fn main() -> anyhow::Result<()> {
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))
-        .route("/internal/spans", post(write_spans))
-        .route("/internal/logs", post(write_logs))
         .route("/internal/metrics", post(write_metrics))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),

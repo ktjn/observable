@@ -12,22 +12,23 @@ const INITIAL_RETRY_BACKOFF: Duration = Duration::from_millis(500);
 const MAX_RETRY_BACKOFF: Duration = Duration::from_secs(30);
 
 /// Optional per-submission completion signal. `None` for the fire-and-forget
-/// HTTP-handler path (`send_spans`/`send_logs`/`send_metrics`); `Some` for the
-/// durable path (`send_spans_durable`/...) used by `NormalizedConsumer`, which
-/// awaits it before committing the Kafka offset that produced these rows.
+/// path (`send_metrics`, still used by the /internal/metrics HTTP handler --
+/// see ADR-029); `Some` for the durable path (`send_spans_durable`/...) used
+/// by `NormalizedConsumer`, which awaits it before committing the Kafka
+/// offset that produced these rows.
 type Ack = Option<oneshot::Sender<()>>;
 
 /// Async write buffer for storage-writer.
 ///
-/// Accumulates rows across HTTP calls and flushes to ClickHouse in large
-/// blocks on a count threshold or idle timeout. A flush that fails retries
-/// with backoff indefinitely rather than dropping the batch -- see
-/// `retry_until_success`. The channel-full case (`try_send` in `send_spans`
-/// etc.) remains a best-effort drop: those callers cannot block, so sustained
-/// backpressure still surfaces as data loss for the HTTP path, same as
-/// before. The durable path (`send_spans_durable` etc.) blocks on a full
-/// channel instead of dropping, which is what lets its caller
-/// (`NormalizedConsumer`) translate a storage outage into Kafka backpressure.
+/// Accumulates rows and flushes to ClickHouse in large blocks on a count
+/// threshold or idle timeout. A flush that fails retries with backoff
+/// indefinitely rather than dropping the batch -- see `retry_until_success`.
+/// The channel-full case (`try_send` in `send_metrics`) remains a
+/// best-effort drop: that caller cannot block, so sustained backpressure
+/// still surfaces as data loss on that path, same as before. The durable
+/// path (`send_spans_durable` etc.) blocks on a full channel instead of
+/// dropping, which is what lets its caller (`NormalizedConsumer`) translate
+/// a storage outage into Kafka backpressure.
 pub struct WriteBuffer {
     spans_tx: tokio::sync::mpsc::Sender<(Vec<Span>, Ack)>,
     logs_tx: tokio::sync::mpsc::Sender<(Vec<LogRecord>, Ack)>,
@@ -64,18 +65,10 @@ impl WriteBuffer {
     }
 
     /// Non-blocking send. Drops the batch and logs if the channel is full.
-    pub fn send_spans(&self, spans: Vec<Span>) {
-        if let Err(e) = self.spans_tx.try_send((spans, None)) {
-            tracing::error!(error = %e, "spans buffer channel full, dropping batch");
-        }
-    }
-
-    pub fn send_logs(&self, logs: Vec<LogRecord>) {
-        if let Err(e) = self.logs_tx.try_send((logs, None)) {
-            tracing::error!(error = %e, "logs buffer channel full, dropping batch");
-        }
-    }
-
+    /// Still used by storage-writer's /internal/metrics handler, which
+    /// remains live for stream-processor's span-derived-metrics flush (see
+    /// ADR-029) -- the spans/logs equivalents were removed along with the
+    /// /internal/spans and /internal/logs endpoints (Phase 2 queue cutover).
     pub fn send_metrics(&self, series: Vec<MetricSeries>, points: Vec<MetricPoint>) {
         if let Err(e) = self.metrics_tx.try_send((series, points, None)) {
             tracing::error!(error = %e, "metrics buffer channel full, dropping batch");

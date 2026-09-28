@@ -460,57 +460,45 @@ Exit evidence:
 - make processor publish normalized events
 - dual-run HTTP and queue paths during verification if required
 - add idempotency based on stable event identity
-- remove `/internal/spans`, `/internal/logs`, and `/internal/metrics`
+- remove `/internal/spans` and `/internal/logs`
 
-The dual-run path is implemented: `domain::NormalizedTelemetryBatch` is the `telemetry.normalized.v1`
-wire type (spans/logs/series/points together, since one stream-processor batch interval typically
-mixes signal types). `storage-writer` always runs a `NormalizedConsumer` subscribed to that topic,
-forwarding straight into the existing `WriteBuffer` — the same code path the HTTP handlers use.
-`stream-processor` still defaults to its original HTTP push (`STORAGE_WRITE_MODE` unset/`http`);
-setting `STORAGE_WRITE_MODE=queue` switches it to publish `NormalizedTelemetryBatch` to the topic
-instead. Only one path is active at a time (no double-write into ClickHouse); the HTTP endpoints
-are not yet removed, and the span-derived-metrics background flush (a separate aggregation path)
-still always uses HTTP regardless of this switch. Verified end-to-end with the real
-`docker compose --profile verification` smoke suite in both modes: default HTTP, and with
-`STORAGE_WRITE_MODE=queue` set (confirmed via `storage-writer`'s
-`storage_writer_http_requests_total` Prometheus counter that zero HTTP calls to the ingestion
-endpoints occurred in queue mode, aside from the one expected metrics-aggregator flush).
+**Current state:** `domain::NormalizedTelemetryBatch` is the `telemetry.normalized.v1` wire type
+(spans/logs/series/points together, since one stream-processor batch interval typically mixes
+signal types). `stream-processor` publishes it unconditionally; `storage-writer` runs a
+`NormalizedConsumer` that consumes it directly and forwards into `WriteBuffer`. The dual-run/
+`STORAGE_WRITE_MODE` switch and the original HTTP push existed only during migration and have been
+removed now that the queue path is the sole, verified path — there is no rollback toggle anymore;
+reverting means reverting the commit. `/internal/spans` and `/internal/logs` are gone.
+`/internal/metrics` **stays**: unlike the other two, it also serves `stream-processor`'s
+span-derived-metrics background flush, a separate aggregation path from a different data source
+(locally-computed span metrics, not `telemetry.raw.v1`) — see ADR-029. The original Phase 2 bullet
+above listing all three for removal was never fully achievable without also migrating that
+aggregator flush, which is out of scope here.
 
-**Outage-survival (not row-level dedup) idempotency is now in place**, covering both hops:
+**Idempotency is outage-survival (at-least-once), not exactly-once row-level dedup:**
+`stream-processor`'s `QueueConsumer` and `storage-writer`'s `NormalizedConsumer` both disable
+`enable.auto.commit` and commit an offset only after the corresponding write actually succeeds
+(the Kafka publish, or — via `WriteBuffer`'s new `send_*_durable` methods and a per-submission
+`oneshot` ack — a confirmed ClickHouse insert), retrying with exponential backoff (500 ms → 30 s
+cap, indefinitely) instead of silently dropping on failure. A process crash between a successful
+ClickHouse insert and the (async, fire-and-forget) Kafka commit can still redeliver and re-insert a
+batch on restart. `spans`, `logs`, and `span_events` are plain `MergeTree` (no dedup on re-insert);
+of the metrics tables, `metric_series` is `ReplacingMergeTree` but `metric_points` is plain
+`MergeTree` too. Closing that crash-window gap needs a stable per-row identity plus a schema change
+across all three non-deduped signal tables (and `ReplacingMergeTree`'s lazy background-merge
+dedup would also need either query-side `FINAL` — a real performance cost on `query-api`'s hot
+paths — or accepting non-deterministic-timing eventual consistency) — a separate, larger piece of
+work, deliberately not attempted here.
 
-- `stream-processor`'s `QueueConsumer` (consuming `telemetry.raw.v1`) disables `enable.auto.commit`
-  and commits each batch's offset only after its handler (the HTTP POST or the queue-mode Kafka
-  publish, whichever `STORAGE_WRITE_MODE` selects) succeeds, retrying with exponential backoff
-  (500 ms → 30 s cap, indefinitely) on failure rather than dropping the batch.
-- `storage-writer`'s `WriteBuffer` flush loops (`buffer.rs`) now retry a failed ClickHouse insert
-  with the same backoff policy instead of logging-and-dropping. Two send APIs exist on the same
-  underlying channels: `send_spans`/`send_logs`/`send_metrics` remain non-blocking best-effort
-  (drop-on-full-channel) for the HTTP handlers, unchanged in external contract; new
-  `send_spans_durable`/`send_logs_durable`/`send_metrics_durable` block until the submitted rows
-  are confirmed flushed (an per-submission `oneshot` ack fired only after a successful — possibly
-  retried — ClickHouse write), backpressuring on a full channel instead of dropping.
-- `NormalizedConsumer` also disables auto-commit and calls the `_durable` variants, committing each
-  message's offset only after its rows are confirmed durably written. A storage outage therefore
-  blocks the consumer loop (no further `recv()`) rather than silently dropping data, and offsets
-  are never committed past data that isn't actually in ClickHouse yet.
+All of the above verified for real, not just unit tests: the actual
+`docker compose --profile verification` smoke suite, run repeatedly through this migration
+(dual-run in both modes, the default flip, and the final HTTP-removal state), confirmed via
+`storage-writer`'s `storage_writer_http_requests_total` Prometheus counter and log inspection that
+the queue path carries real data with no silent HTTP fallback, and that normal (non-outage)
+operation produces no retry/error noise.
 
-This is at-least-once outage survival, not exactly-once/row-level idempotency: a process crash
-between a successful ClickHouse insert and the (async, fire-and-forget) Kafka commit can still
-redeliver and re-insert a batch on restart. `spans`/`logs`/`span_events` are plain `MergeTree`
-(no dedup on re-insert); only `metric_points`/`metric_series` use `ReplacingMergeTree`. Making
-writes idempotent against that crash window (a stable per-row identity + `ReplacingMergeTree` or
-equivalent for the other three tables) is a separate, schema-touching change, deliberately not done
-here. Verified end-to-end with the real `docker compose --profile verification` smoke suite in both
-`STORAGE_WRITE_MODE=http` and `=queue`, confirming no retry/error noise in either service's logs
-under normal (non-outage) operation.
-
-`stream-processor`'s default is now `queue` (`STORAGE_WRITE_MODE=http` remains available as an
-explicit rollback path until the HTTP endpoints are removed). Verified with the real
-`docker compose --profile verification` smoke suite after the flip, using no `STORAGE_WRITE_MODE`
-override — i.e. exercising the actual new default, not an explicit opt-in.
-
-Not yet addressed: the row-level dedup above, and removing the now-legacy HTTP endpoints — those
-remain open exit-evidence items below.
+Not yet addressed: the row-level dedup described above — the only remaining open exit-evidence item
+below.
 
 Exit evidence:
 

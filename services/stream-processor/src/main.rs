@@ -13,40 +13,19 @@ use stream_processor::{
 use tokio::time;
 use tracing::Instrument as _;
 
-/// How stream-processor delivers a normalized batch downstream. `Queue` is the
-/// default: publishes `NormalizedTelemetryBatch` to `telemetry.normalized.v1`,
-/// per the Phase 2 target in docs/component-decomposition.md. `Http` (the
-/// original path -- POSTs to storage-writer's now-legacy /internal/*
-/// endpoints) remains available via `STORAGE_WRITE_MODE=http` as a rollback
-/// path until those endpoints are removed. The span-derived-metrics
-/// background flush below is unaffected by this switch -- it's a separate
-/// aggregation path, out of scope for this migration.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum WriteMode {
-    Http,
-    Queue,
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _telemetry = observable_telemetry::init_self_observability_telemetry("stream-processor")?;
     let brokers = observable_config::require_env("REDPANDA_BROKERS")?;
     let topic = observable_config::require_env("INGEST_TOPIC")?;
+    let normalized_topic = observable_config::require_env("NORMALIZED_TOPIC")?;
+    let normalized_producer = Arc::new(NormalizedProducer::new(&brokers, &normalized_topic)?);
+
+    // Still used by the span-derived-metrics flush below, a separate
+    // aggregation path unrelated to the telemetry.normalized.v1 pipeline
+    // above -- see ADR-029.
     let writer_url = observable_config::require_env("STORAGE_WRITER_URL")?;
     let http = reqwest::Client::new();
-    let write_mode = match std::env::var("STORAGE_WRITE_MODE").as_deref() {
-        Ok("http") => WriteMode::Http,
-        _ => WriteMode::Queue,
-    };
-    let normalized_producer = if write_mode == WriteMode::Queue {
-        let normalized_topic = observable_config::require_env("NORMALIZED_TOPIC")?;
-        Some(Arc::new(NormalizedProducer::new(
-            &brokers,
-            &normalized_topic,
-        )?))
-    } else {
-        None
-    };
 
     let max_size: usize = std::env::var("STREAM_PROCESSOR_BATCH_SIZE")
         .unwrap_or_else(|_| "500".into())
@@ -90,7 +69,10 @@ async fn main() -> anyhow::Result<()> {
             .expect("probe server error");
     });
 
-    // Background task to flush span metrics every 60 s
+    // Background task to flush span metrics every 60 s. Kept on its original
+    // HTTP path to storage-writer's /internal/metrics -- a different data
+    // source (locally-aggregated span metrics) from the telemetry.raw.v1
+    // pipeline below, out of scope for the Phase 2 queue migration.
     let agg_clone = aggregator.clone();
     let http_clone = http.clone();
     let writer_url_clone = writer_url.clone();
@@ -119,18 +101,15 @@ async fn main() -> anyhow::Result<()> {
         max_size,
         max_wait,
         move |envelopes: Vec<TelemetryEnvelope>| {
-            let http = http.clone();
-            let writer_url = writer_url.clone();
             let aggregator = aggregator.clone();
             let normalized_producer = normalized_producer.clone();
 
+            // Suppresses span creation for self-observability data to avoid a
+            // feedback loop (this service's own traces would otherwise
+            // generate more traces through this same pipeline).
             let is_all_observable = envelopes
                 .iter()
                 .all(|e| observable_telemetry::is_self_telemetry_env(&e.environment));
-            let first_non_obs_env = envelopes
-                .iter()
-                .find(|e| !observable_telemetry::is_self_telemetry_env(&e.environment))
-                .map(|e| e.environment.clone());
             let span = if is_all_observable {
                 tracing::Span::none()
             } else {
@@ -149,60 +128,19 @@ async fn main() -> anyhow::Result<()> {
 
                 let merged = batch::merge_batch(envelopes);
 
-                if let Some(producer) = normalized_producer {
-                    if !merged.spans.is_empty()
-                        || !merged.logs.is_empty()
-                        || !merged.series.is_empty()
-                        || !merged.points.is_empty()
-                    {
-                        let normalized = NormalizedTelemetryBatch {
-                            spans: merged.spans,
-                            logs: merged.logs,
-                            series: merged.series,
-                            points: merged.points,
-                        };
-                        let key = uuid::Uuid::new_v4().to_string();
-                        producer.publish(&normalized, &key).await?;
-                    }
-                    return Ok(());
-                }
-
-                let mut headers = reqwest::header::HeaderMap::new();
-                if !is_all_observable {
-                    observable_telemetry::inject_current_context(&mut headers);
-                }
-                let env_val = first_non_obs_env
-                    .as_deref()
-                    .unwrap_or(observable_telemetry::SELF_TELEMETRY_ENV);
-                headers.insert(
-                    "x-observable-environment",
-                    env_val
-                        .parse()
-                        .unwrap_or_else(|_| "unknown".parse().unwrap()),
-                );
-
-                if !merged.spans.is_empty() {
-                    http.post(format!("{writer_url}/internal/spans"))
-                        .headers(headers.clone())
-                        .json(&merged.spans)
-                        .send()
-                        .await?;
-                }
-                if !merged.logs.is_empty() {
-                    http.post(format!("{writer_url}/internal/logs"))
-                        .headers(headers.clone())
-                        .json(&merged.logs)
-                        .send()
-                        .await?;
-                }
-                if !merged.series.is_empty() || !merged.points.is_empty() {
-                    http.post(format!("{writer_url}/internal/metrics"))
-                        .headers(headers)
-                        .json(
-                            &serde_json::json!({ "series": merged.series, "points": merged.points }),
-                        )
-                        .send()
-                        .await?;
+                if !merged.spans.is_empty()
+                    || !merged.logs.is_empty()
+                    || !merged.series.is_empty()
+                    || !merged.points.is_empty()
+                {
+                    let normalized = NormalizedTelemetryBatch {
+                        spans: merged.spans,
+                        logs: merged.logs,
+                        series: merged.series,
+                        points: merged.points,
+                    };
+                    let key = uuid::Uuid::new_v4().to_string();
+                    normalized_producer.publish(&normalized, &key).await?;
                 }
                 Ok(())
             }
