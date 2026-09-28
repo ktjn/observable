@@ -476,11 +476,36 @@ still always uses HTTP regardless of this switch. Verified end-to-end with the r
 `storage_writer_http_requests_total` Prometheus counter that zero HTTP calls to the ingestion
 endpoints occurred in queue mode, aside from the one expected metrics-aggregator flush).
 
-No idempotency mechanism has been added yet — rdkafka's default auto-commit means a
-`NormalizedConsumer` handler failure (e.g. a ClickHouse write error) still advances the consumer
-offset, silently dropping the batch, matching stream-processor's existing raw-ingest consumer's
-behavior. Not yet addressed: cutting `stream-processor`'s default over to `queue` mode, adding
-idempotency, and removing the HTTP endpoints — those remain open exit-evidence items below.
+**Outage-survival (not row-level dedup) idempotency is now in place**, covering both hops:
+
+- `stream-processor`'s `QueueConsumer` (consuming `telemetry.raw.v1`) disables `enable.auto.commit`
+  and commits each batch's offset only after its handler (the HTTP POST or the queue-mode Kafka
+  publish, whichever `STORAGE_WRITE_MODE` selects) succeeds, retrying with exponential backoff
+  (500 ms → 30 s cap, indefinitely) on failure rather than dropping the batch.
+- `storage-writer`'s `WriteBuffer` flush loops (`buffer.rs`) now retry a failed ClickHouse insert
+  with the same backoff policy instead of logging-and-dropping. Two send APIs exist on the same
+  underlying channels: `send_spans`/`send_logs`/`send_metrics` remain non-blocking best-effort
+  (drop-on-full-channel) for the HTTP handlers, unchanged in external contract; new
+  `send_spans_durable`/`send_logs_durable`/`send_metrics_durable` block until the submitted rows
+  are confirmed flushed (an per-submission `oneshot` ack fired only after a successful — possibly
+  retried — ClickHouse write), backpressuring on a full channel instead of dropping.
+- `NormalizedConsumer` also disables auto-commit and calls the `_durable` variants, committing each
+  message's offset only after its rows are confirmed durably written. A storage outage therefore
+  blocks the consumer loop (no further `recv()`) rather than silently dropping data, and offsets
+  are never committed past data that isn't actually in ClickHouse yet.
+
+This is at-least-once outage survival, not exactly-once/row-level idempotency: a process crash
+between a successful ClickHouse insert and the (async, fire-and-forget) Kafka commit can still
+redeliver and re-insert a batch on restart. `spans`/`logs`/`span_events` are plain `MergeTree`
+(no dedup on re-insert); only `metric_points`/`metric_series` use `ReplacingMergeTree`. Making
+writes idempotent against that crash window (a stable per-row identity + `ReplacingMergeTree` or
+equivalent for the other three tables) is a separate, schema-touching change, deliberately not done
+here. Verified end-to-end with the real `docker compose --profile verification` smoke suite in both
+`STORAGE_WRITE_MODE=http` and `=queue`, confirming no retry/error noise in either service's logs
+under normal (non-outage) operation.
+
+Not yet addressed: cutting `stream-processor`'s default over to `queue` mode, the row-level dedup
+above, and removing the HTTP endpoints — those remain open exit-evidence items below.
 
 Exit evidence:
 
