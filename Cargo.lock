@@ -4682,6 +4682,7 @@ version = "0.1.0"
 dependencies = [
  "clickhouse",
  "dtor",
+ "observable-config",
  "sqlx",
  "testcontainers",
  "testcontainers-modules",

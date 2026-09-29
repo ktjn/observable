@@ -59,9 +59,15 @@ pub async fn shared_pool() -> PgPool {
     .expect("test database created");
     admin_pool.close().await;
 
-    let pool = PgPool::connect(&format!("{base_url}/{db_name}"))
-        .await
-        .expect("test database pool connected");
+    // See migrations/postgres/040_component_ownership_schemas.sql: the
+    // connection URL must carry the search_path option itself, since a
+    // server-side ALTER DATABASE default doesn't apply retroactively to
+    // pooled connections opened before it ran.
+    let pool = PgPool::connect(&observable_config::with_search_path(&format!(
+        "{base_url}/{db_name}"
+    )))
+    .await
+    .expect("test database pool connected");
     apply_migrations(&pool).await;
     pool
 }

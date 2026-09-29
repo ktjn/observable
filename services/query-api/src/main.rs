@@ -50,7 +50,7 @@ async fn main() -> anyhow::Result<()> {
         // incorrect magic number) -- see docs/agent-context.md. Remove this
         // once a clickhouse-rs release fixes it.
         .with_compression(clickhouse::Compression::None);
-    let database_url = observable_config::require_env("DATABASE_URL")?;
+    let database_url = observable_config::require_database_url()?;
     let db = PgPoolOptions::new()
         .max_connections(5)
         .connect(&database_url)

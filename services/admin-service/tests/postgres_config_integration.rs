@@ -47,7 +47,9 @@ async fn start_pool() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
         .expect("postgres container started");
     let host = container.get_host().await.expect("host");
     let port = container.get_host_port_ipv4(5432).await.expect("port");
-    let url = format!("postgres://postgres:postgres@{host}:{port}/postgres");
+    let url = observable_config::with_search_path(&format!(
+        "postgres://postgres:postgres@{host}:{port}/postgres"
+    ));
     let pool = PgPool::connect(&url).await.expect("pool connected");
     apply_migrations(&pool).await;
     (pool, container)

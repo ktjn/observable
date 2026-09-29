@@ -25,7 +25,9 @@ async fn start_postgres() -> (PgPool, testcontainers::ContainerAsync<Postgres>) 
         .await
         .expect("postgres container started");
     let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
+    let url = observable_config::with_search_path(&format!(
+        "postgres://postgres:postgres@127.0.0.1:{port}/postgres"
+    ));
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)

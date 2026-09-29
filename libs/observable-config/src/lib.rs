@@ -44,3 +44,27 @@ pub fn warn_default(name: &str, value: &str) {
         tracing::info!("{name} not set, using dev default: {value}");
     }
 }
+
+/// Appends the component-ownership schemas' `search_path` to a PostgreSQL
+/// connection URL via libpq's `options` startup parameter, so every
+/// connection resolves unqualified table references (`FROM tenants`, `INSERT
+/// INTO alert_rules`, ...) across `auth`/`control`/`alerting` regardless of
+/// when the connection is opened relative to any prior migration run. This
+/// must go through the connection string rather than a server-side `ALTER
+/// DATABASE ... SET search_path` (which was tried first and reverted):
+/// pooled connections opened before that statement ran never pick up the new
+/// default, which broke every integration test harness that runs migrations
+/// and then queries through the same pool. See migrations/postgres/
+/// 040_component_ownership_schemas.sql and docs/component-decomposition.md
+/// Phase 3.
+pub fn with_search_path(database_url: &str) -> String {
+    let sep = if database_url.contains('?') { '&' } else { '?' };
+    format!("{database_url}{sep}options=-c%20search_path%3Dpublic,auth,control,alerting")
+}
+
+/// `require_env("DATABASE_URL")` with the component-ownership search_path
+/// appended. All production PostgreSQL connections in this codebase should
+/// go through this rather than `require_env("DATABASE_URL")` directly.
+pub fn require_database_url() -> anyhow::Result<String> {
+    Ok(with_search_path(&require_env("DATABASE_URL")?))
+}

@@ -180,7 +180,7 @@ async fn main() -> anyhow::Result<()> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(4_194_304);
 
-    let database_url = observable_config::require_env("DATABASE_URL")?;
+    let database_url = observable_config::require_database_url()?;
     let db = Arc::new(
         PgPoolOptions::new()
             .max_connections(5)

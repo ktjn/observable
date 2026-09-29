@@ -71,7 +71,7 @@ async fn validate_handler(
 async fn main() -> anyhow::Result<()> {
     let _telemetry = observable_telemetry::init_self_observability_telemetry("auth-service")?;
 
-    let db_url = observable_config::require_env("DATABASE_URL")?;
+    let db_url = observable_config::require_database_url()?;
     let db = PgPool::connect(&db_url).await?;
 
     let port: u16 = std::env::var("AUTH_SERVICE_PORT")

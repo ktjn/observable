@@ -55,7 +55,9 @@ async fn alert_evaluator_readyz_returns_200_when_dependencies_reachable() {
         .await
         .expect("postgres started");
     let pg_port = pg.get_host_port_ipv4(5432).await.unwrap();
-    let pg_url = format!("postgres://postgres:postgres@127.0.0.1:{pg_port}/postgres");
+    let pg_url = observable_config::with_search_path(&format!(
+        "postgres://postgres:postgres@127.0.0.1:{pg_port}/postgres"
+    ));
 
     let ch = ClickHouse::default()
         .with_tag("26.9")

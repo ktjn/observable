@@ -333,6 +333,44 @@ Rules:
 - cross-component access uses an API or event
 - physical databases may be split later without changing application contracts
 
+**Phase 3 prep — done:** every table above now physically lives in a matching PostgreSQL schema
+(`auth`, `control`, `alerting`; `migrations/postgres/040_component_ownership_schemas.sql`), instead
+of all sharing `public`. This is documentation, not enforcement: the "no cross-owner SQL" and
+"no shared write credentials" rules above are **not yet true** — one shared application role can
+still read/write across all three schemas, since real separation is blocked on Phase 4 (shrink
+query-api) and Phase 6 (consolidate alerting) first moving the code that issues cross-owner SQL out
+of `query-api`, which today queries tables in all three schemas directly.
+
+| Owner | Tables (in schema of the same name) |
+| --- | --- |
+| `auth` | `users`, `user_tenant_roles`, `user_sessions`, `api_keys`, `credential_audit_log` |
+| `control` | `tenants`, `projects`, `change_events`, `deployment_markers`, `platform_config`, `schema_entries`, `semantic_annotations`, `dashboards`, `dashboard_panels`, `dashboard_grants`, `saved_views`, `saved_view_grants` |
+| `alerting` | `alert_rules`, `alert_firings`, `slo_definitions`, `notification_channels`, `notification_audit_log`, `incidents`, `incident_events` |
+
+`query_audit_log` (query-api's own read-audit trail) deliberately stays in `public`, unassigned to
+any of the three owners above — `observable-query` has no target PostgreSQL ownership in this
+model at all (the target architecture's exit evidence is "core query runs without PostgreSQL"), so
+assigning it to one of the three would be guessing a decision nobody has made. Flagged as an
+explicit open question, not resolved by this migration.
+
+**Known existing cross-owner foreign keys** (all still functionally valid post-move — PostgreSQL
+permits cross-schema FKs — but exactly the coupling the "no cross-owner SQL" rule targets removing):
+`auth.api_keys.tenant_id`, `auth.user_tenant_roles.tenant_id`, and `auth.user_sessions.tenant_id`
+all reference `control.tenants(id)`; `control.dashboard_grants.user_id`,
+`control.saved_views.owner_user_id`, and `control.saved_view_grants.user_id` all reference
+`auth.users(id)`. Resolving these (replacing the DB-enforced FK with an application-level check) is
+part of the not-yet-done "remove cross-owner SQL" work, not this migration.
+
+**Implementation note for anyone touching PostgreSQL connection setup:** every connection URL in
+this codebase (production and test) must carry `?options=-c%20search_path%3Dpublic,auth,control,alerting`
+so unqualified table references keep resolving after the schema move —
+`observable_config::with_search_path`/`require_database_url` in production,
+`libs/test-support::postgres::shared_pool()`, and the same pattern applied directly in every
+Postgres-testcontainer test harness. A server-side `ALTER DATABASE ... SET search_path` was tried
+first and reverted: it only affects connections opened *after* it runs, which broke every test
+harness that runs migrations and then queries through the same connection pool. See the comment in
+`migrations/postgres/040_component_ownership_schemas.sql` for the full explanation.
+
 ClickHouse ownership:
 
 | Component | Access |
@@ -512,10 +550,16 @@ Exit evidence:
 - move ClickHouse migrations under storage ownership
 - introduce explicit ClickHouse schema compatibility metadata
 
+Logical PostgreSQL schemas are introduced (see the Data Ownership section above) — every table now
+enumerably belongs to one owner. Separate credentials and removing cross-owner SQL are not done:
+both are blocked on Phase 4/6 first moving the code that issues cross-owner SQL out of `query-api`.
+ClickHouse migration ownership and schema-compatibility metadata are untouched by this slice.
+
 Exit evidence:
 
-- every component can enumerate the tables it owns
-- no component executes SQL against another component's PostgreSQL schema
+- every component can enumerate the tables it owns — **met**, via the schema assignment above
+- no component executes SQL against another component's PostgreSQL schema — **not met**: one shared
+  role can still query any schema, and `query-api` does so today against all three
 
 ### Phase 4 — Shrink query
 

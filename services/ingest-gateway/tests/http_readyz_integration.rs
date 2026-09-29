@@ -50,7 +50,9 @@ async fn ingest_gateway_readyz_returns_200_when_postgres_reachable() {
         .await
         .expect("postgres started");
     let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let pg_url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
+    let pg_url = observable_config::with_search_path(&format!(
+        "postgres://postgres:postgres@127.0.0.1:{port}/postgres"
+    ));
 
     let pool = sqlx::PgPool::connect(&pg_url).await.expect("connect");
     let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))

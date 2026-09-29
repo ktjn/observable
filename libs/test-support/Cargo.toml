@@ -11,6 +11,7 @@ path = "src/lib.rs"
 tokio                  = { workspace = true }
 sqlx                   = { workspace = true }
 clickhouse             = { workspace = true }
+observable-config      = { path = "../observable-config" }
 testcontainers         = "0.27.0"
 testcontainers-modules  = { version = "0.15.0", features = ["postgres", "clickhouse"] }
 uuid                   = { workspace = true }
