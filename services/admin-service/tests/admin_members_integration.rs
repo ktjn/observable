@@ -83,6 +83,7 @@ fn build_admin_members_app(db: PgPool) -> (Router, Uuid, Uuid) {
         ch,
         db: db.clone(),
         auth_service_url: "http://auth-service:4319".into(),
+        http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
     };
     let tenant_id = Uuid::parse_str(DEV_TENANT_ID).unwrap();
@@ -389,6 +390,7 @@ async fn admin_members_returns_403_for_non_admin() {
         ch,
         db: pg.clone(),
         auth_service_url: "http://auth-service:4319".into(),
+        http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
     };
     let app = Router::new()

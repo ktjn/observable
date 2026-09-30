@@ -178,7 +178,6 @@ mod tests {
             planner: Arc::new(crate::planner::QueryPlanner),
             llm: None,
             auth_service_url: "http://auth-service:4319".into(),
-            http_client: reqwest::Client::new(),
             metrics: Arc::new(QueryApiMetrics::new()),
             sessions: crate::nlq_session::NlqSessionStore::default(),
         }

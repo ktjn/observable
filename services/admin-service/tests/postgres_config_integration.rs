@@ -141,6 +141,7 @@ fn admin_state(db: PgPool) -> AdminServiceAppState {
         db,
         ch: ChClient::default().with_url("http://127.0.0.1:19999"),
         auth_service_url: "http://auth-service:4319".into(),
+        http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
     }
 }

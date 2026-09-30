@@ -4,11 +4,7 @@ use axum::{
     http::{Request, StatusCode, header},
     routing::get,
 };
-use http_body_util::BodyExt;
-use query_api::{
-    middleware::auth::require_tenant, planner::QueryPlanner, tenants, traces::AppState,
-};
-use serde_json::Value;
+use query_api::{middleware::auth::require_tenant, planner::QueryPlanner, traces::AppState};
 use sqlx::postgres::PgPool;
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -25,26 +21,15 @@ fn build_app(db: PgPool, auth_service_url: String) -> Router {
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: auth_service_url.clone(),
-        http_client: reqwest::Client::new(),
         metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
         sessions: query_api::nlq_session::NlqSessionStore::default(),
     };
     Router::new()
         .route("/v1/traces/histogram", get(|| async { StatusCode::OK }))
         .layer(axum::middleware::from_fn(require_tenant))
-        .route("/v1/tenants", get(tenants::list_tenants))
-        .route(
-            "/v1/tenants/{id}/environments",
-            get(tenants::list_tenant_environments),
-        )
         .layer(axum::Extension(db))
         .layer(axum::Extension(Arc::new(auth_service_url)))
         .with_state(state)
-}
-
-async fn response_body_json(body: axum::body::Body) -> Value {
-    let bytes = body.collect().await.expect("body collected").to_bytes();
-    serde_json::from_slice(&bytes).expect("valid JSON")
 }
 
 #[tokio::test]
@@ -122,188 +107,4 @@ async fn session_auth_tenant_mismatch_rejected() {
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
-}
-
-#[tokio::test]
-async fn list_tenants_filtered_by_session() {
-    let db = test_support::postgres::shared_pool().await;
-    let mock_server = MockServer::start().await;
-
-    let user_id = Uuid::new_v4();
-    let tenant1 = Uuid::new_v4();
-    let tenant2 = Uuid::new_v4();
-    let tenant3 = Uuid::new_v4();
-
-    // Setup DB: user exists and belongs to tenant1 and tenant2, but not tenant3.
-    sqlx::query("INSERT INTO users (id, idp_subject, email) VALUES ($1, 'sub1', 'u1@example.com')")
-        .bind(user_id)
-        .execute(&db)
-        .await
-        .unwrap();
-
-    sqlx::query("INSERT INTO tenants (id, name) VALUES ($1, 'Tenant 1'), ($2, 'Tenant 2'), ($3, 'Tenant 3')")
-        .bind(tenant1).bind(tenant2).bind(tenant3)
-        .execute(&db).await.unwrap();
-
-    sqlx::query("INSERT INTO user_tenant_roles (user_id, tenant_id, role) VALUES ($1, $2, 'tenant_admin'), ($1, $3, 'viewer')")
-        .bind(user_id).bind(tenant1).bind(tenant2)
-        .execute(&db).await.unwrap();
-
-    Mock::given(method("POST"))
-        .and(path("/internal/validate-session"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "user_id": user_id.to_string(),
-            "tenant_id": tenant1.to_string(),
-            "role": "admin",
-            "environment": "prod"
-        })))
-        .mount(&mock_server)
-        .await;
-
-    let app = build_app(db, mock_server.uri());
-
-    // Request list tenants with session
-    let req = Request::builder()
-        .uri("/v1/tenants")
-        .header(header::AUTHORIZATION, "Bearer some-session")
-        .body(Body::empty())
-        .unwrap();
-
-    let resp = app.oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let json = response_body_json(resp.into_body()).await;
-    let tenants = json["tenants"].as_array().unwrap();
-    assert_eq!(tenants.len(), 2);
-    let ids: Vec<_> = tenants.iter().map(|t| t["id"].as_str().unwrap()).collect();
-    assert!(ids.contains(&tenant1.to_string().as_str()));
-    assert!(ids.contains(&tenant2.to_string().as_str()));
-    assert!(!ids.contains(&tenant3.to_string().as_str()));
-}
-
-#[tokio::test]
-async fn list_environments_filtered_by_session() {
-    let db = test_support::postgres::shared_pool().await;
-    let mock_server = MockServer::start().await;
-
-    let user_id = Uuid::new_v4();
-    let tenant1 = Uuid::new_v4();
-    let tenant2 = Uuid::new_v4();
-
-    sqlx::query("INSERT INTO users (id, idp_subject, email) VALUES ($1, 'sub2', 'u2@example.com')")
-        .bind(user_id)
-        .execute(&db)
-        .await
-        .unwrap();
-
-    sqlx::query("INSERT INTO tenants (id, name) VALUES ($1, 'Tenant 1'), ($2, 'Tenant 2')")
-        .bind(tenant1)
-        .bind(tenant2)
-        .execute(&db)
-        .await
-        .unwrap();
-
-    sqlx::query(
-        "INSERT INTO user_tenant_roles (user_id, tenant_id, role) VALUES ($1, $2, 'tenant_admin')",
-    )
-    .bind(user_id)
-    .bind(tenant1)
-    .execute(&db)
-    .await
-    .unwrap();
-
-    Mock::given(method("POST"))
-        .and(path("/internal/validate-session"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "user_id": user_id.to_string(),
-            "tenant_id": tenant1.to_string(),
-            "role": "admin",
-            "environment": "prod"
-        })))
-        .mount(&mock_server)
-        .await;
-
-    let app = build_app(db, mock_server.uri());
-
-    // 1. Access authorized tenant environments
-    let req = Request::builder()
-        .uri(format!("/v1/tenants/{}/environments", tenant1))
-        .header(header::COOKIE, "session=valid")
-        .body(Body::empty())
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    // 2. Access unauthorized tenant environments
-    let req = Request::builder()
-        .uri(format!("/v1/tenants/{}/environments", tenant2))
-        .header(header::COOKIE, "session=valid")
-        .body(Body::empty())
-        .unwrap();
-    let resp = app.oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
-}
-
-#[tokio::test]
-async fn bootstrap_endpoints_public_without_session() {
-    let db = test_support::postgres::shared_pool().await;
-
-    sqlx::query("INSERT INTO tenants (id, name) VALUES ($1, 'Tenant 1')")
-        .bind(Uuid::new_v4())
-        .execute(&db)
-        .await
-        .unwrap();
-
-    let app = build_app(db.clone(), "http://unreachable".to_string());
-
-    // list_tenants is public
-    let req = Request::builder()
-        .uri("/v1/tenants")
-        .body(Body::empty())
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    // list_environments is public
-    let tenant_id = Uuid::new_v4();
-    sqlx::query("INSERT INTO tenants (id, name) VALUES ($1, 'Tenant 2')")
-        .bind(tenant_id)
-        .execute(&db)
-        .await
-        .unwrap();
-
-    let req = Request::builder()
-        .uri(format!("/v1/tenants/{}/environments", tenant_id))
-        .body(Body::empty())
-        .unwrap();
-    let resp = app.oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-}
-
-// Helper to get db from app state? No, I'll just keep the db handle.
-
-#[tokio::test]
-async fn list_tenants_public_without_session() {
-    let db = test_support::postgres::shared_pool().await;
-    let t1 = Uuid::new_v4();
-    let t2 = Uuid::new_v4();
-    sqlx::query("INSERT INTO tenants (id, name) VALUES ($1, 'T1'), ($2, 'T2')")
-        .bind(t1)
-        .bind(t2)
-        .execute(&db)
-        .await
-        .unwrap();
-
-    let app = build_app(db.clone(), "http://unreachable".to_string());
-
-    let req = Request::builder()
-        .uri("/v1/tenants")
-        .body(Body::empty())
-        .unwrap();
-    let resp = app.oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let json = response_body_json(resp.into_body()).await;
-    let tenants = json["tenants"].as_array().unwrap();
-    assert!(tenants.len() >= 2);
 }

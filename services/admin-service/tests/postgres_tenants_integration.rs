@@ -6,6 +6,7 @@
 // Tests use a real Postgres instance via Testcontainers and exercise the full
 // handler path via tower::ServiceExt::oneshot.
 
+use admin_service::{AdminServiceAppState, observability, tenants};
 use axum::{
     Router,
     body::Body,
@@ -13,25 +14,66 @@ use axum::{
     routing::get,
 };
 use http_body_util::BodyExt;
-use query_api::{tenants, traces::AppState};
 use serde_json::Value;
 use sqlx::PgPool;
+use std::path::Path;
+use std::sync::Arc;
+use testcontainers::{ImageExt, runners::AsyncRunner};
+use testcontainers_modules::postgres::Postgres;
 use tower::ServiceExt;
 use uuid::Uuid;
+
+// ── Container helpers ────────────────────────────────────────────────────────
+
+async fn apply_migrations(pool: &PgPool) {
+    let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("migrations/postgres");
+
+    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
+        .expect("migrations/postgres must exist")
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+
+    for entry in entries {
+        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
+        sqlx::raw_sql(sqlx::AssertSqlSafe(sql))
+            .execute(pool)
+            .await
+            .expect("migration applied");
+    }
+}
+
+async fn start_pool() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
+    let container = Postgres::default()
+        .with_tag("17")
+        .start()
+        .await
+        .expect("postgres container started");
+    let host = container.get_host().await.expect("host");
+    let port = container.get_host_port_ipv4(5432).await.expect("port");
+    let url = observable_config::with_search_path(&format!(
+        "postgres://postgres:postgres@{host}:{port}/postgres"
+    ));
+    let pool = PgPool::connect(&url).await.expect("pool connected");
+    apply_migrations(&pool).await;
+    (pool, container)
+}
 
 // ── App builder ──────────────────────────────────────────────────────────────
 
 fn build_tenants_app(pool: PgPool) -> Router {
-    let ch = clickhouse::Client::default().with_url("http://127.0.0.1:19999");
-    let state = AppState {
-        ch,
+    let state = AdminServiceAppState {
         db: pool,
-        planner: std::sync::Arc::new(query_api::planner::QueryPlanner),
-        llm: None,
+        ch: clickhouse::Client::default().with_url("http://127.0.0.1:19999"),
         auth_service_url: "http://auth-service:4319".into(),
         http_client: reqwest::Client::new(),
-        metrics: std::sync::Arc::new(query_api::observability::QueryApiMetrics::new()),
-        sessions: query_api::nlq_session::NlqSessionStore::default(),
+        metrics: Arc::new(observability::AdminServiceMetrics::new()),
     };
     // No tenant-auth middleware — these are bootstrap endpoints.
     Router::new()
@@ -43,9 +85,9 @@ fn build_tenants_app(pool: PgPool) -> Router {
         .with_state(state)
 }
 
-/// Seeds an `api_keys` row directly (token issuance now lives in admin-service,
-/// out of scope for query-api's test app; we only need the row's side effect of
-/// making an environment visible to `list_tenant_environments`).
+/// Seeds an `api_keys` row directly to make an environment visible to
+/// `list_tenant_environments` (token issuance itself is exercised in
+/// `postgres_tokens_integration.rs`).
 async fn seed_token_environment(pool: &PgPool, tenant_id: Uuid, name: &str, environment: &str) {
     let hash = format!("{name}-{environment}-test-hash");
     sqlx::query(
@@ -90,7 +132,7 @@ async fn body_json(body: Body) -> Value {
 
 #[tokio::test]
 async fn list_tenants_returns_seeded_tenant() {
-    let pool = test_support::postgres::shared_pool().await;
+    let (pool, _container) = start_pool().await;
     let app = build_tenants_app(pool);
 
     let resp = app.oneshot(plain_get("/v1/tenants")).await.unwrap();
@@ -109,7 +151,7 @@ async fn list_tenants_returns_seeded_tenant() {
 
 #[tokio::test]
 async fn list_tenants_response_shape() {
-    let pool = test_support::postgres::shared_pool().await;
+    let (pool, _container) = start_pool().await;
     let app = build_tenants_app(pool);
 
     let resp = app.oneshot(plain_get("/v1/tenants")).await.unwrap();
@@ -125,7 +167,7 @@ async fn list_tenants_response_shape() {
 
 #[tokio::test]
 async fn list_tenant_environments_returns_seeded_environments() {
-    let pool = test_support::postgres::shared_pool().await;
+    let (pool, _container) = start_pool().await;
     let app = build_tenants_app(pool);
 
     let resp = app
@@ -151,11 +193,11 @@ async fn list_tenant_environments_returns_seeded_environments() {
 
 #[tokio::test]
 async fn list_tenant_environments_includes_newly_created_token_environment() {
-    let pool = test_support::postgres::shared_pool().await;
+    let (pool, _container) = start_pool().await;
     let tenant_id = dev_tenant_id();
 
     // Seed a token for a new environment (token issuance itself is exercised
-    // in admin-service's own test suite; here we only need the side effect).
+    // in admin-service's own token test suite; here we only need the side effect).
     seed_token_environment(&pool, tenant_id, "ci-token", "ci-unique-env").await;
 
     let app = build_tenants_app(pool);
@@ -184,7 +226,7 @@ async fn list_tenant_environments_includes_newly_created_token_environment() {
 
 #[tokio::test]
 async fn list_tenant_environments_excludes_revoked_token_only_environments() {
-    let pool = test_support::postgres::shared_pool().await;
+    let (pool, _container) = start_pool().await;
     let tenant_id = dev_tenant_id();
 
     // Insert a token directly via SQL with a revoked_at set so no active
@@ -226,7 +268,7 @@ async fn list_tenant_environments_excludes_revoked_token_only_environments() {
 
 #[tokio::test]
 async fn list_tenant_environments_unknown_tenant_returns_empty() {
-    let pool = test_support::postgres::shared_pool().await;
+    let (pool, _container) = start_pool().await;
     let app = build_tenants_app(pool);
     let unknown_id = Uuid::new_v4();
 

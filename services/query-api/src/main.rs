@@ -22,7 +22,6 @@ mod schemas;
 mod setup;
 mod slos;
 mod sql_templates;
-mod tenants;
 mod traces;
 
 use axum::{
@@ -73,7 +72,6 @@ async fn main() -> anyhow::Result<()> {
         planner: Arc::new(planner::QueryPlanner),
         llm,
         auth_service_url,
-        http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::QueryApiMetrics::new()),
         sessions: nlq_session::NlqSessionStore::default(),
     };
@@ -216,13 +214,6 @@ async fn main() -> anyhow::Result<()> {
         .layer(axum::Extension(state.db.clone()))
         .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
         .layer(axum::Extension(reqwest::Client::new()))
-        // Bootstrap endpoints — no tenant-auth required; used to populate the
-        // global tenant+environment selector before a scope is chosen.
-        .route("/v1/tenants", get(tenants::list_tenants))
-        .route(
-            "/v1/tenants/{id}/environments",
-            get(tenants::list_tenant_environments),
-        )
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))

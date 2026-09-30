@@ -1,5 +1,6 @@
 use admin_service::{
-    AdminServiceAppState, admin_members, alerts, config, middleware, observability, tokens, usage,
+    AdminServiceAppState, admin_members, alerts, config, middleware, observability, tenants,
+    tokens, usage,
 };
 use axum::{
     Router,
@@ -42,11 +43,13 @@ async fn main() -> anyhow::Result<()> {
         .parse()?;
 
     let auth_service_url = observable_config::require_env("AUTH_SERVICE_URL")?;
+    let http_client = reqwest::Client::new();
 
     let state = AdminServiceAppState {
         db,
         ch,
         auth_service_url,
+        http_client: http_client.clone(),
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
     };
 
@@ -98,7 +101,15 @@ async fn main() -> anyhow::Result<()> {
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))
         .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
-        .layer(axum::Extension(reqwest::Client::new()))
+        .layer(axum::Extension(http_client))
+        // Bootstrap endpoints — no tenant-auth required; used to populate the
+        // global tenant+environment selector before a scope is chosen. Must stay
+        // outside the require_tenant layer above.
+        .route("/v1/tenants", get(tenants::list_tenants))
+        .route(
+            "/v1/tenants/{id}/environments",
+            get(tenants::list_tenant_environments),
+        )
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))

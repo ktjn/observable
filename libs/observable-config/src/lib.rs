@@ -51,15 +51,23 @@ pub fn warn_default(name: &str, value: &str) {
 /// INTO alert_rules`, ...) across `auth`/`control`/`alerting` regardless of
 /// when the connection is opened relative to any prior migration run. This
 /// must go through the connection string rather than a server-side `ALTER
-/// DATABASE ... SET search_path` (which was tried first and reverted):
-/// pooled connections opened before that statement ran never pick up the new
-/// default, which broke every integration test harness that runs migrations
-/// and then queries through the same pool. See migrations/postgres/
-/// 040_component_ownership_schemas.sql and docs/component-decomposition.md
-/// Phase 3.
+/// DATABASE ... SET search_path` alone: pooled connections opened before
+/// that statement runs never pick up the new default, which broke every
+/// integration test harness that runs migrations and then queries through
+/// the same pool.
+///
+/// The owner schemas come *before* `public` so application code always
+/// resolves directly to the real, moved tables. This is deliberately the
+/// opposite order from the database-level default search_path that
+/// `migrations/postgres/040_component_ownership_schemas.sql` sets (`public`
+/// first) -- that migration leaves replay-safety placeholder tables behind
+/// in `public` under the original names, and needs `public` to stay the
+/// default CREATE target for historical migrations to keep no-opping
+/// correctly on replay. See that migration file for the full explanation
+/// and docs/component-decomposition.md Phase 3.
 pub fn with_search_path(database_url: &str) -> String {
     let sep = if database_url.contains('?') { '&' } else { '?' };
-    format!("{database_url}{sep}options=-c%20search_path%3Dpublic,auth,control,alerting")
+    format!("{database_url}{sep}options=-c%20search_path%3Dauth,control,alerting,public")
 }
 
 /// `require_env("DATABASE_URL")` with the component-ownership search_path

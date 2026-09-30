@@ -4,6 +4,7 @@ pub mod config;
 pub mod llm_probe;
 pub mod middleware;
 pub mod observability;
+pub mod tenants;
 pub mod tokens;
 pub mod usage;
 
@@ -15,11 +16,14 @@ use sqlx::PgPool;
 ///
 /// `auth_service_url` is used by `middleware::auth::require_tenant`; `ch` (ClickHouse) is
 /// used only by `usage.rs`'s tenant usage report — the other three handler modules
-/// (`admin_members`, `tokens`, `config`) use `db` only.
+/// (`admin_members`, `tokens`, `config`) use `db` only. `http_client` is used by `tenants.rs`'s
+/// bootstrap endpoints, which validate an optional session directly (they sit outside the
+/// `require_tenant` middleware, so they can't rely on its `Extension<reqwest::Client>` layer).
 #[derive(Clone)]
 pub struct AdminServiceAppState {
     pub db: PgPool,
     pub ch: clickhouse::Client,
     pub auth_service_url: String,
+    pub http_client: reqwest::Client,
     pub metrics: Arc<observability::AdminServiceMetrics>,
 }

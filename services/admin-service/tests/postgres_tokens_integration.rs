@@ -95,6 +95,7 @@ fn build_tokens_app(pool: PgPool) -> Router {
         ch,
         db: pool,
         auth_service_url: "http://auth-service:4319".into(),
+        http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
     };
     Router::new()

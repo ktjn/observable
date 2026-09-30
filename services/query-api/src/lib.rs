@@ -22,5 +22,4 @@ pub mod schemas;
 pub mod setup;
 pub mod slos;
 pub mod sql_templates;
-pub mod tenants;
 pub mod traces;
