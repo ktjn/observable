@@ -19,6 +19,7 @@ INGEST="${INGEST_URL:-http://localhost:4318}"
 GRPC_INGEST="${GRPC_INGEST_URL:-http://localhost:4317}"
 PLATFORM="${PLATFORM_URL:-http://localhost:4321}"
 QUERY="${QUERY_URL:-http://localhost:8090}"
+ADMIN="${ADMIN_URL:-http://localhost:4324}"
 COLLECTOR="${COLLECTOR_URL:-http://localhost:4318}"
 COLLECTOR_GRPC="${COLLECTOR_GRPC_URL:-http://localhost:4317}"
 TOKEN="dev-api-key-0000"
@@ -246,9 +247,10 @@ main() {
     -d "{\"status\":\"success\"}"
 
   echo "7b. Verifying deployment is queryable..."
+  # Deployment listing lives in admin-service (observable-control), not query-api.
   wait_for_json_count \
     "deployments" \
-    "$QUERY/v1/deployments?service_name=$SERVICE_NAME" \
+    "$ADMIN/v1/deployments?service_name=$SERVICE_NAME" \
     '.items | length'
 
   echo ""

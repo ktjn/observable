@@ -1,5 +1,5 @@
+use crate::AdminServiceAppState;
 use crate::middleware::auth::TenantContext;
-use crate::traces::AppState;
 use axum::{
     Json,
     extract::{Extension, Query, State},
@@ -40,8 +40,9 @@ pub struct ListDeploymentsResponse {
     pub items: Vec<DeploymentMarker>,
 }
 
+/// GET /v1/deployments
 pub async fn list_deployments(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Query(params): Query<ListDeploymentsParams>,
 ) -> Result<Json<ListDeploymentsResponse>, StatusCode> {

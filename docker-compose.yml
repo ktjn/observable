@@ -397,6 +397,7 @@ services:
       GRPC_INGEST_URL: http://ingest-gateway:4317
       PLATFORM_URL: http://ingest-gateway:4321
       QUERY_URL: http://query-api:8090
+      ADMIN_URL: http://admin-service:4324
       COLLECTOR_URL: http://otel-collector-verification:4318
       COLLECTOR_GRPC_URL: http://otel-collector-verification:4317
     entrypoint: ["/bin/bash", "/app/tests/e2e/smoke_test.sh"]
@@ -405,6 +406,7 @@ services:
     depends_on:
       ingest-gateway: { condition: service_healthy }
       query-api: { condition: service_healthy }
+      admin-service: { condition: service_healthy }
       stream-processor: { condition: service_healthy }
       otel-collector-verification: { condition: service_started }
 

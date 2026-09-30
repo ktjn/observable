@@ -1,4 +1,3 @@
-use crate::deployments::DeploymentMarker;
 use crate::incidents::IncidentItem;
 use crate::middleware::auth::TenantContext;
 use crate::slos::SloDefinitionItem;
@@ -17,6 +16,27 @@ pub struct ReliabilityReportQuery {
     pub from: DateTime<Utc>,
     pub to: DateTime<Utc>,
     pub environment: Option<String>,
+}
+
+/// Deployment-marker row shape for this report's correlation query. Deployment
+/// listing/management itself lives in admin-service (observable-control); this
+/// is a local, read-only projection for correlating deployments with the
+/// reliability window, not a shared type.
+#[derive(Serialize, sqlx::FromRow)]
+pub struct DeploymentMarker {
+    pub deployment_id: Uuid,
+    pub tenant_id: Uuid,
+    pub project_id: Option<Uuid>,
+    pub service_name: String,
+    pub environment: String,
+    pub service_version: String,
+    pub status: String,
+    pub started_at: DateTime<Utc>,
+    pub finished_at: Option<DateTime<Utc>>,
+    pub deployed_by: Option<String>,
+    pub commit_sha: Option<String>,
+    pub rollback_of: Option<Uuid>,
+    pub metadata: Option<serde_json::Value>,
 }
 
 #[derive(Serialize)]

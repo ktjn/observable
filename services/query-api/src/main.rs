@@ -2,7 +2,6 @@ mod alerts;
 mod audit;
 mod change_events;
 mod dashboards;
-mod deployments;
 mod discovery;
 mod incidents;
 mod llm_adapter;
@@ -110,7 +109,6 @@ async fn main() -> anyhow::Result<()> {
             get(discovery::get_service_response_time_history),
         )
         .route("/v1/environments", get(discovery::list_environments))
-        .route("/v1/deployments", get(deployments::list_deployments))
         .route(
             "/v1/events/changes",
             get(change_events::handle_list_change_events),

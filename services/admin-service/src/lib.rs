@@ -1,6 +1,7 @@
 pub mod admin_members;
 pub mod alerts;
 pub mod config;
+pub mod deployments;
 pub mod llm_probe;
 pub mod middleware;
 pub mod observability;
