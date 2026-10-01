@@ -567,7 +567,10 @@ Move control-plane CRUD out of query and split the current admin surface by owne
 
 - member/role/API-key lifecycle -> auth (done, predates this phase)
 - dashboards
-- saved views
+- saved views (done: all `/v1/saved-views*` CRUD and grant routes now live in admin-service; the
+  `grant_satisfies_read`/`_write`/`_delete` ReBAC predicates are duplicated from
+  `dashboards.rs` rather than shared, since dashboards still lives in query-api -- dedupe once it
+  moves here too)
 - tenants (done: `GET /v1/tenants`, `GET /v1/tenants/{id}/environments` now live in admin-service)
 - schemas/annotations (done: `GET /v1/schemas/{signal_type}/attributes` and the
   `GET`/`PUT`/`PATCH`/`DELETE /v1/schemas/{signal_type}/attributes/{key}/annotations` routes now
@@ -589,8 +592,8 @@ Move reliability state to alerting:
 
 Exit evidence:
 
-- core query operation requires no PostgreSQL connection -- **not yet met**: dashboards, saved
-  views, and all of reliability (alerts/SLOs/notifications/incidents) still live in query-api (plus
+- core query operation requires no PostgreSQL connection -- **not yet met**: dashboards and all of
+  reliability (alerts/SLOs/notifications/incidents) still live in query-api (plus
   `mcp_tools.rs`'s direct cross-owner reads of `schema_entries`/`semantic_annotations`, tracked
   separately)
 

@@ -6,6 +6,7 @@ pub mod deployments;
 pub mod llm_probe;
 pub mod middleware;
 pub mod observability;
+pub mod saved_views;
 pub mod schemas;
 pub mod tenants;
 pub mod tokens;

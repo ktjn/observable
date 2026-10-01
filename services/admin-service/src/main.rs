@@ -1,6 +1,6 @@
 use admin_service::{
     AdminServiceAppState, admin_members, alerts, change_events, config, deployments, middleware,
-    observability, schemas, tenants, tokens, usage,
+    observability, saved_views, schemas, tenants, tokens, usage,
 };
 use axum::{
     Router,
@@ -113,6 +113,25 @@ async fn main() -> anyhow::Result<()> {
                 .put(schemas::handle_upsert_annotation)
                 .patch(schemas::handle_patch_annotation)
                 .delete(schemas::handle_delete_annotation),
+        )
+        .route(
+            "/v1/saved-views",
+            get(saved_views::handle_list_saved_views).post(saved_views::handle_create_saved_view),
+        )
+        .route(
+            "/v1/saved-views/{id}",
+            get(saved_views::handle_get_saved_view)
+                .put(saved_views::handle_update_saved_view)
+                .delete(saved_views::handle_delete_saved_view),
+        )
+        .route(
+            "/v1/saved-views/{id}/grants",
+            get(saved_views::handle_list_saved_view_grants)
+                .post(saved_views::handle_add_saved_view_grant),
+        )
+        .route(
+            "/v1/saved-views/{id}/grants/{user_id}",
+            delete(saved_views::handle_revoke_saved_view_grant),
         )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))

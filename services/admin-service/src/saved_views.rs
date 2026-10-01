@@ -1,6 +1,5 @@
-use crate::dashboards::{grant_satisfies_delete, grant_satisfies_read, grant_satisfies_write};
+use crate::AdminServiceAppState;
 use crate::middleware::auth::TenantContext;
-use crate::traces::AppState;
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -11,6 +10,24 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 const VALID_SIGNAL_KINDS: &[&str] = &["logs"];
+
+// Same ReBAC predicates as dashboards.rs (query-api). Duplicated rather than shared because
+// dashboards still lives in query-api — once it moves here too, these can be deduplicated.
+
+/// True if the caller is allowed to read this saved view.
+fn grant_satisfies_read(visibility: &str, relation: Option<&str>) -> bool {
+    visibility == "public" || relation.is_some_and(|r| matches!(r, "owner" | "editor" | "viewer"))
+}
+
+/// True if the caller is allowed to write (update) this saved view.
+fn grant_satisfies_write(tenant_role: &str, relation: Option<&str>) -> bool {
+    tenant_role == "tenant_admin" || relation.is_some_and(|r| matches!(r, "owner" | "editor"))
+}
+
+/// True if the caller is allowed to delete this saved view.
+fn grant_satisfies_delete(tenant_role: &str, relation: Option<&str>) -> bool {
+    tenant_role == "tenant_admin" || relation.is_some_and(|r| r == "owner")
+}
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct SavedViewItem {
@@ -321,7 +338,7 @@ pub async fn delete_saved_view(
 }
 
 pub async fn handle_list_saved_views(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Query(params): Query<ListSavedViewsQuery>,
 ) -> Result<Json<SavedViewListResponse>, StatusCode> {
@@ -338,7 +355,7 @@ pub async fn handle_list_saved_views(
 }
 
 pub async fn handle_create_saved_view(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Json(req): Json<CreateSavedViewRequest>,
 ) -> Result<(StatusCode, Json<SavedViewItem>), StatusCode> {
@@ -356,7 +373,7 @@ pub async fn handle_create_saved_view(
 }
 
 pub async fn handle_get_saved_view(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path(saved_view_id): Path<Uuid>,
 ) -> Result<Json<SavedViewItem>, StatusCode> {
@@ -401,7 +418,7 @@ async fn saved_view_exists(
 }
 
 pub async fn handle_update_saved_view(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path(saved_view_id): Path<Uuid>,
     Json(req): Json<UpdateSavedViewRequest>,
@@ -435,7 +452,7 @@ pub async fn handle_update_saved_view(
 }
 
 pub async fn handle_delete_saved_view(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path(saved_view_id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
@@ -464,7 +481,7 @@ pub async fn handle_delete_saved_view(
 }
 
 pub async fn handle_list_saved_view_grants(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path(saved_view_id): Path<Uuid>,
 ) -> Result<Json<GrantListResponse>, StatusCode> {
@@ -500,7 +517,7 @@ pub async fn handle_list_saved_view_grants(
 }
 
 pub async fn handle_add_saved_view_grant(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path(saved_view_id): Path<Uuid>,
     Json(req): Json<AddGrantRequest>,
@@ -554,7 +571,7 @@ pub async fn handle_add_saved_view_grant(
 }
 
 pub async fn handle_revoke_saved_view_grant(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path((saved_view_id, target_user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, StatusCode> {
@@ -682,5 +699,33 @@ mod tests {
             visibility: Some("public".into()),
         };
         assert!(validate_update_request(&req).is_ok());
+    }
+
+    #[test]
+    fn public_view_visible_without_grant() {
+        assert!(grant_satisfies_read("public", None));
+    }
+
+    #[test]
+    fn private_view_hidden_without_grant() {
+        assert!(!grant_satisfies_read("private", None));
+    }
+
+    #[test]
+    fn owner_grant_can_write_and_delete() {
+        assert!(grant_satisfies_write("member", Some("owner")));
+        assert!(grant_satisfies_delete("member", Some("owner")));
+    }
+
+    #[test]
+    fn viewer_grant_cannot_write_or_delete() {
+        assert!(!grant_satisfies_write("member", Some("viewer")));
+        assert!(!grant_satisfies_delete("member", Some("viewer")));
+    }
+
+    #[test]
+    fn tenant_admin_bypasses_grant_checks() {
+        assert!(grant_satisfies_write("tenant_admin", None));
+        assert!(grant_satisfies_delete("tenant_admin", None));
     }
 }
