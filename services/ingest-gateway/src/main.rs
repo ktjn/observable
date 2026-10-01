@@ -1,8 +1,6 @@
 mod auth;
 mod cardinality;
-mod change_events;
 mod deployment_registry;
-mod deployments;
 mod grpc;
 #[path = "http-json/mod.rs"]
 mod http_json;

@@ -101,10 +101,17 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
-        .route("/v1/deployments", get(deployments::list_deployments))
+        .route(
+            "/v1/deployments",
+            get(deployments::list_deployments).post(deployments::create_deployment),
+        )
+        .route(
+            "/v1/deployments/{deployment_id}",
+            patch(deployments::finish_deployment),
+        )
         .route(
             "/v1/events/changes",
-            get(change_events::handle_list_change_events),
+            get(change_events::handle_list_change_events).post(change_events::create_change_event),
         )
         .route(
             "/v1/schemas/{signal_type}/attributes",

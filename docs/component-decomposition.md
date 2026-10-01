@@ -645,20 +645,35 @@ Sub-steps:
    platform-port auth semantics exactly. Covered by two new unit tests
    (`api_key_alone_without_tenant_header_resolves_tenant_from_key`,
    `invalid_api_key_alone_is_rejected`); all 6 pre-existing auth tests still pass unchanged.
-2. Move `POST /v1/deployments`, `PATCH /v1/deployments/{id}`, `POST /v1/events/changes` from
-   ingest-gateway's platform port to admin-service, using the now-extended auth.
+2. **Done:** `POST /v1/deployments`, `PATCH /v1/deployments/{id}`, and `POST /v1/events/changes`
+   moved from ingest-gateway's platform port to admin-service (merged into the existing
+   `deployments.rs`/`change_events.rs` read modules there), using the now-extended auth.
+   ingest-gateway's `deployments.rs` and `change_events.rs` are deleted entirely -- they carried
+   only these write handlers, nothing else. Role authorization (`member`/`admin` may write,
+   `viewer` may not) is preserved via a `can_ingest()` check ported from ingest-gateway's
+   `TenantContext::can_ingest()`, now in `admin-service::deployments::can_ingest` (shared with
+   `change_events.rs`) -- **not** admin-service's own `require_admin`, since API-key roles
+   (`viewer`/`member`/`admin`) and session roles (`viewer`/`member`/`tenant_admin`) are a different
+   vocabulary. `scripts/deployment-marker.sh` and `tests/e2e/smoke_test.sh` updated to call
+   admin-service's port instead of ingest-gateway's platform port; both send only `Authorization:
+   Bearer <key>` with no `X-Tenant-ID`, exercising the new auth path for real. nginx's existing
+   `/v1/deployments` and `/v1/events/changes` prefix blocks already routed to admin-service for
+   every HTTP method, so no nginx change was needed.
+   `deployment_registry.rs` is untouched -- ingest-gateway still holds a direct Postgres dependency
+   through it, tracked in step 4 below.
 3. Add a Kafka/Redpanda producer to admin-service's deployment create/finish handlers, publishing
    deployment-marker lifecycle events to a new topic.
 4. Replace `deployment_registry.rs`'s Postgres-backed cache in ingest-gateway with a consumer of
    that topic, maintaining the same in-memory lookup interface
    (`DeploymentRegistry::lookup(tenant_id, service_name, environment, service_version)`) used by the
    HTTP/JSON trace-ingest path today.
-5. Update `tests/e2e/smoke_test.sh`'s deployment-marker steps (currently hit `$PLATFORM/v1/deployments`)
-   and `docker-compose.yml` wiring for the new topic/consumer.
+5. Update `docker-compose.yml` wiring for the new topic/consumer.
 
 Exit evidence:
 
-- ingest runtime dependencies are auth + Redpanda only -- **not yet met**: steps 2-5 above remain
+- ingest runtime dependencies are auth + Redpanda only -- **not yet met**: steps 3-5 above remain;
+  ingest-gateway's Postgres connection is now used only by `deployment_registry.rs` (hot-path
+  correlation cache) and `readyz.rs` (health probe), both intentionally deferred to step 4
 
 ### Phase 6 — Consolidate alerting
 

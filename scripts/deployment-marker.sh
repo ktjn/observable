@@ -12,14 +12,16 @@
 #     --id "$DEPLOYMENT_ID" --status success
 #
 # Environment variables:
-#   OBSERVABLE_URL        Base URL of the Observable ingest-gateway Platform API
-#                         (default: http://localhost:4321)
+#   OBSERVABLE_URL        Base URL of Observable's admin-service (deployment-marker
+#                         creation lives here, not ingest-gateway, as of Phase 5
+#                         "clean ingest" -- docs/component-decomposition.md)
+#                         (default: http://localhost:4324)
 #   OBSERVABLE_API_KEY    Bearer token for the Authorization header
 #                         (default: dev-api-key-0000 for local dev)
 
 set -euo pipefail
 
-BASE_URL="${OBSERVABLE_URL:-http://localhost:4321}"
+BASE_URL="${OBSERVABLE_URL:-http://localhost:4324}"
 API_KEY="${OBSERVABLE_API_KEY:-dev-api-key-0000}"
 SUBCOMMAND="${1:-}"
 shift || true
