@@ -1,6 +1,5 @@
 mod audit;
 mod discovery;
-mod incidents;
 mod llm_adapter;
 mod llm_config;
 mod logs;
@@ -102,11 +101,6 @@ async fn main() -> anyhow::Result<()> {
             get(discovery::get_service_response_time_history),
         )
         .route("/v1/environments", get(discovery::list_environments))
-        .route("/v1/incidents", get(incidents::handle_list_incidents))
-        .route(
-            "/v1/incidents/{incident_id}",
-            get(incidents::handle_get_incident),
-        )
         .route(
             "/v1/services/{service_name}/reliability-report",
             get(reliability::handle_get_service_reliability_report),

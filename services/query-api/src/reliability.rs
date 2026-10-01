@@ -1,4 +1,3 @@
-use crate::incidents::IncidentItem;
 use crate::middleware::auth::TenantContext;
 use crate::traces::AppState;
 use axum::{
@@ -57,6 +56,21 @@ pub struct SloDefinitionItem {
     pub last_fired_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// Incident summary row shape for this report. Incident listing/detail itself
+/// lives in admin-service (observable-control); this is a local, read-only
+/// projection for correlating incidents with the reliability window, not a
+/// shared type.
+#[derive(Serialize)]
+pub struct IncidentItem {
+    pub incident_id: Uuid,
+    pub title: String,
+    pub severity: String,
+    pub status: String,
+    pub triggered_at: DateTime<Utc>,
+    pub resolved_at: Option<DateTime<Utc>>,
+    pub triggered_by_rule_id: Option<Uuid>,
 }
 
 #[derive(Serialize)]

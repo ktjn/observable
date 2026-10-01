@@ -4,6 +4,7 @@ pub mod change_events;
 pub mod config;
 pub mod dashboards;
 pub mod deployments;
+pub mod incidents;
 pub mod llm_probe;
 pub mod middleware;
 pub mod notifications;

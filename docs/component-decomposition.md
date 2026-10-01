@@ -606,15 +606,21 @@ Move reliability state to alerting:
   every create/list call against real Postgres with a `ColumnDecode` error. Fixed in the same commit
   as the move by adding `type::text AS type` to both queries; not a behavior change this slice
   intentionally set out to make, but a latent crash this slice's required test coverage caught.)
-- incidents
+- incidents (done: `GET /v1/incidents` and `GET /v1/incidents/{id}` now live in a new admin-service
+  `incidents.rs` module. `reliability.rs` in query-api keeps its own local `IncidentItem`
+  projection for its cross-cutting correlation query, same pattern as the `DeploymentMarker`/
+  `SloDefinitionItem` precedents -- not incident ownership.)
 
 Exit evidence:
 
-- core query operation requires no PostgreSQL connection -- **not yet met**: incidents still live
-  in query-api (plus `discovery.rs`/`reliability.rs`/`incidents.rs`'s direct cross-owner reads of
-  `alert_rules`/`alert_firings`/`slo_definitions`/`deployment_markers`/`schema_entries`/
-  `semantic_annotations`, tracked separately). Every control-plane CRUD slice and
-  the alerts/SLOs/notifications slices of the reliability group are moved; incidents remains.
+- core query operation requires no PostgreSQL connection -- **not yet met**: every control-plane
+  CRUD slice and the full "move reliability state to alerting" group (alerts, SLOs, notifications,
+  incidents) listed above have moved their owning routes/modules to admin-service, but query-api's
+  `discovery.rs`/`reliability.rs` still hold a PostgreSQL connection for their own direct,
+  cross-owner correlation reads against `alert_rules`/`alert_firings`/`slo_definitions`/
+  `deployment_markers`/`schema_entries`/`semantic_annotations`/`incidents` -- removing those reads
+  is the separately-tracked "remove cross-owner SQL" work (Phase 4/6's listed follow-on), not this
+  phase's own route-ownership scope.
 
 ### Phase 5 — Clean ingest
 

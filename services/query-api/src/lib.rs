@@ -1,6 +1,5 @@
 pub mod audit;
 pub mod discovery;
-pub mod incidents;
 pub mod llm_adapter;
 pub mod llm_config;
 pub mod logs;
