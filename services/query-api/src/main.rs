@@ -16,7 +16,6 @@ mod observability;
 mod planner;
 mod reliability;
 mod saved_views;
-mod schemas;
 mod setup;
 mod slos;
 mod sql_templates;
@@ -175,17 +174,6 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/v1/slos", get(slos::handle_list_slos))
         .route("/v1/slos", post(slos::handle_create_slo))
-        .route(
-            "/v1/schemas/{signal_type}/attributes",
-            get(schemas::handle_list_attributes),
-        )
-        .route(
-            "/v1/schemas/{signal_type}/attributes/{key}/annotations",
-            get(schemas::handle_get_annotation)
-                .put(schemas::handle_upsert_annotation)
-                .patch(schemas::handle_patch_annotation)
-                .delete(schemas::handle_delete_annotation),
-        )
         .route(
             "/v1/mcp/tools/metric-schema/{metric_name}",
             get(mcp_tools::handle_get_metric_schema),

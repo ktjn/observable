@@ -569,7 +569,12 @@ Move control-plane CRUD out of query and split the current admin surface by owne
 - dashboards
 - saved views
 - tenants (done: `GET /v1/tenants`, `GET /v1/tenants/{id}/environments` now live in admin-service)
-- schemas/annotations
+- schemas/annotations (done: `GET /v1/schemas/{signal_type}/attributes` and the
+  `GET`/`PUT`/`PATCH`/`DELETE /v1/schemas/{signal_type}/attributes/{key}/annotations` routes now
+  live in admin-service; `mcp_tools.rs` in query-api still reads `schema_entries`/
+  `semantic_annotations` directly via its own SQL for NLQ metric-schema lookups -- same
+  already-tracked "remove cross-owner SQL" concern as the deployment-marker correlation reads, not
+  schema/annotation CRUD ownership)
 - deployments (done: `GET /v1/deployments` now lives in admin-service; `discovery.rs`/`reliability.rs`
   still read `deployment_markers` directly for cross-cutting correlation reports -- that's a separate,
   still-open "remove cross-owner SQL" concern, not deployment-listing ownership)
@@ -585,8 +590,9 @@ Move reliability state to alerting:
 Exit evidence:
 
 - core query operation requires no PostgreSQL connection -- **not yet met**: dashboards, saved
-  views, schemas/annotations, and all of reliability (alerts/SLOs/notifications/incidents) still
-  live in query-api
+  views, and all of reliability (alerts/SLOs/notifications/incidents) still live in query-api (plus
+  `mcp_tools.rs`'s direct cross-owner reads of `schema_entries`/`semantic_annotations`, tracked
+  separately)
 
 ### Phase 5 — Clean ingest
 

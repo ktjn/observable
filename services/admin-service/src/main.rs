@@ -1,6 +1,6 @@
 use admin_service::{
     AdminServiceAppState, admin_members, alerts, change_events, config, deployments, middleware,
-    observability, tenants, tokens, usage,
+    observability, schemas, tenants, tokens, usage,
 };
 use axum::{
     Router,
@@ -102,6 +102,17 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/events/changes",
             get(change_events::handle_list_change_events),
+        )
+        .route(
+            "/v1/schemas/{signal_type}/attributes",
+            get(schemas::handle_list_attributes),
+        )
+        .route(
+            "/v1/schemas/{signal_type}/attributes/{key}/annotations",
+            get(schemas::handle_get_annotation)
+                .put(schemas::handle_upsert_annotation)
+                .patch(schemas::handle_patch_annotation)
+                .delete(schemas::handle_delete_annotation),
         )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))
