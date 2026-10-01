@@ -9,7 +9,6 @@ mod mcp_tools;
 mod metrics;
 mod middleware;
 mod nlq_session;
-mod notifications;
 mod observability;
 mod planner;
 mod reliability;
@@ -19,7 +18,7 @@ mod traces;
 
 use axum::{
     Router, middleware as axum_middleware,
-    routing::{delete, get, post},
+    routing::{get, post},
 };
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
@@ -111,18 +110,6 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/services/{service_name}/reliability-report",
             get(reliability::handle_get_service_reliability_report),
-        )
-        .route(
-            "/v1/notifications/channels",
-            get(notifications::handle_list_channels),
-        )
-        .route(
-            "/v1/notifications/channels",
-            post(notifications::handle_create_channel),
-        )
-        .route(
-            "/v1/notifications/channels/{id}",
-            delete(notifications::handle_delete_channel),
         )
         .route(
             "/v1/mcp/tools/metric-schema/{metric_name}",

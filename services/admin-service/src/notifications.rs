@@ -1,5 +1,5 @@
+use crate::AdminServiceAppState;
 use crate::middleware::auth::TenantContext;
-use crate::traces::AppState;
 use axum::{
     Json,
     extract::{Extension, Path, State},
@@ -65,7 +65,8 @@ pub async fn list_notification_channels(
     tenant_id: Uuid,
 ) -> Result<Vec<NotificationChannelResponse>, sqlx::Error> {
     let rows = sqlx::query_as::<_, NotificationChannelItem>(
-        "SELECT channel_id, name, type, config FROM notification_channels WHERE tenant_id = $1 ORDER BY created_at DESC",
+        "SELECT channel_id, name, type::text AS type, config FROM notification_channels \
+         WHERE tenant_id = $1 ORDER BY created_at DESC",
     )
     .bind(tenant_id)
     .fetch_all(db)
@@ -86,7 +87,7 @@ pub async fn create_notification_channel(
     let item = sqlx::query_as::<_, NotificationChannelItem>(
         "INSERT INTO notification_channels (tenant_id, name, type, config) \
          VALUES ($1, $2, $3::notification_channel_type, $4) \
-         RETURNING channel_id, name, type, config",
+         RETURNING channel_id, name, type::text AS type, config",
     )
     .bind(tenant_id)
     .bind(&req.name)
@@ -113,7 +114,7 @@ pub async fn delete_notification_channel(
 }
 
 pub async fn handle_list_channels(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
 ) -> Result<Json<Vec<NotificationChannelResponse>>, StatusCode> {
     let items = list_notification_channels(&state.db, ctx.tenant_id)
@@ -126,7 +127,7 @@ pub async fn handle_list_channels(
 }
 
 pub async fn handle_create_channel(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Json(req): Json<CreateChannelRequest>,
 ) -> Result<(StatusCode, Json<NotificationChannelResponse>), StatusCode> {
@@ -140,7 +141,7 @@ pub async fn handle_create_channel(
 }
 
 pub async fn handle_delete_channel(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path(channel_id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {

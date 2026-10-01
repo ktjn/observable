@@ -1,6 +1,6 @@
 use admin_service::{
     AdminServiceAppState, admin_members, alerts, change_events, config, dashboards, deployments,
-    middleware, observability, saved_views, schemas, slos, tenants, tokens, usage,
+    middleware, notifications, observability, saved_views, schemas, slos, tenants, tokens, usage,
 };
 use axum::{
     Router,
@@ -164,6 +164,14 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/slos",
             get(slos::handle_list_slos).post(slos::handle_create_slo),
+        )
+        .route(
+            "/v1/notifications/channels",
+            get(notifications::handle_list_channels).post(notifications::handle_create_channel),
+        )
+        .route(
+            "/v1/notifications/channels/{id}",
+            delete(notifications::handle_delete_channel),
         )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))

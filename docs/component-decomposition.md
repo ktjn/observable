@@ -598,16 +598,23 @@ Move reliability state to alerting:
   in query-api keeps its own local `SloDefinitionItem` projection for its cross-cutting correlation
   query against `slo_definitions`/`alert_rules`/`alert_firings` -- same already-tracked "remove
   cross-owner SQL" concern as the alerts/deployment-marker/schema reads, not SLO ownership)
-- notifications
+- notifications (done: `GET`/`POST /v1/notifications/channels` and `DELETE
+  /v1/notifications/channels/{id}` now live in a new admin-service `notifications.rs` module. This
+  surface had zero prior test coverage in query-api; adding the first Testcontainers test for it
+  during the move surfaced a real, pre-existing bug -- `type` (a Postgres enum column) was selected
+  without a `::text` cast, so decoding it into `NotificationChannelItem.channel_type: String` failed
+  every create/list call against real Postgres with a `ColumnDecode` error. Fixed in the same commit
+  as the move by adding `type::text AS type` to both queries; not a behavior change this slice
+  intentionally set out to make, but a latent crash this slice's required test coverage caught.)
 - incidents
 
 Exit evidence:
 
-- core query operation requires no PostgreSQL connection -- **not yet met**: notifications and
-  incidents still live in query-api (plus `discovery.rs`/`reliability.rs`/`incidents.rs`'s direct
-  cross-owner reads of `alert_rules`/`alert_firings`/`slo_definitions`/`deployment_markers`/
-  `schema_entries`/`semantic_annotations`, tracked separately). Every control-plane CRUD slice and
-  the alerts/SLOs slices of the reliability group are moved; notifications and incidents remain.
+- core query operation requires no PostgreSQL connection -- **not yet met**: incidents still live
+  in query-api (plus `discovery.rs`/`reliability.rs`/`incidents.rs`'s direct cross-owner reads of
+  `alert_rules`/`alert_firings`/`slo_definitions`/`deployment_markers`/`schema_entries`/
+  `semantic_annotations`, tracked separately). Every control-plane CRUD slice and
+  the alerts/SLOs/notifications slices of the reliability group are moved; incidents remains.
 
 ### Phase 5 — Clean ingest
 
