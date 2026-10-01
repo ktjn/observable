@@ -1,10 +1,14 @@
 # ADR-006: React/Vite Frontend
 
 **Date:** 2026-04-15  
-**Status:** Accepted  
+**Status:** Accepted; modularity refined by ADR-036  
 **Authors:** Gemini CLI  
 **Deciders:** Project Stakeholders  
 **Review date:** 2026-04-15  
+
+> **Refined by [ADR-036](ADR-036-frontend-module-boundaries.md):** React/Vite remains the frontend
+> stack. Feature folders are no longer the target boundary by themselves; `observable-web` moves
+> toward independently buildable/runnable/testable UI module packages composed by a thin shell.
 
 ## Context
 
@@ -26,8 +30,9 @@ We will use **TanStack Query** for server-state management and **TanStack Router
 To maintain a scalable and maintainable codebase, we mandate the use of **reusable components** and **minimal logic duplication**. 
 - UI primitives are owned and styled locally in `src/components/ui/` (Shadcn pattern).
 - Domain-agnostic layout and shared components live in `src/components/shared/`.
-- Domain-specific components are kept within their respective `src/features/**/components/` directories but must be made reusable within that domain.
-- Common business logic, data fetching patterns, and UI behaviors must be extracted into custom hooks and utility functions to avoid "copy-paste" development.
+- Domain-specific components are kept within their respective feature/module boundary and must be reusable within that domain.
+- Common business logic, data fetching patterns, and UI behaviors must be extracted into feature-local or domain-agnostic hooks/utilities rather than copied between modules.
+- ADR-036 defines the package-level dependency rules and standalone runtime/test contract that supersede folder layout as the primary modularity mechanism.
 
 ### Styling Choice: Tailwind CSS v4 over CSS Modules
 Initially, CSS Modules were considered for their scoping and performance. However, **Tailwind CSS v4** provides a superior developer experience for building high-density observability UIs. Its new Rust-based compiler handles the thousands of utility classes required for complex dashboards with zero runtime overhead and significantly faster build times.
@@ -66,5 +71,8 @@ Rejected because React offers a more flexible and modern ecosystem, aligning wit
 
 ## Related
 
-- `spec/05-frontend.md` (Frontend Architecture)
-- `spec/13-risks-roadmap.md` (Final Recommendation)
+- [ADR-036](ADR-036-frontend-module-boundaries.md)
+- [spec/05-frontend.md](../05-frontend.md)
+- [spec/21-frontend-modules.md](../21-frontend-modules.md)
+- [docs/frontend-module-decomposition.md](../../docs/frontend-module-decomposition.md)
+- [spec/13-risks-roadmap.md](../13-risks-roadmap.md)
