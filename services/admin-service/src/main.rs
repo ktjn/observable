@@ -1,6 +1,6 @@
 use admin_service::{
-    AdminServiceAppState, admin_members, alerts, change_events, config, deployments, middleware,
-    observability, saved_views, schemas, tenants, tokens, usage,
+    AdminServiceAppState, admin_members, alerts, change_events, config, dashboards, deployments,
+    middleware, observability, saved_views, schemas, tenants, tokens, usage,
 };
 use axum::{
     Router,
@@ -132,6 +132,32 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/saved-views/{id}/grants/{user_id}",
             delete(saved_views::handle_revoke_saved_view_grant),
+        )
+        .route(
+            "/v1/dashboards",
+            get(dashboards::handle_list_dashboards).post(dashboards::handle_create_dashboard),
+        )
+        .route(
+            "/v1/dashboards/{id}",
+            get(dashboards::handle_get_dashboard)
+                .put(dashboards::handle_update_dashboard)
+                .delete(dashboards::handle_delete_dashboard),
+        )
+        .route(
+            "/v1/dashboards/import",
+            post(dashboards::handle_import_dashboard),
+        )
+        .route(
+            "/v1/dashboards/{id}/export",
+            get(dashboards::handle_get_dashboard_export),
+        )
+        .route(
+            "/v1/dashboards/{id}/grants",
+            get(dashboards::handle_list_grants).post(dashboards::handle_add_grant),
+        )
+        .route(
+            "/v1/dashboards/{id}/grants/{user_id}",
+            delete(dashboards::handle_revoke_grant),
         )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))

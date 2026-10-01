@@ -1,6 +1,5 @@
 mod alerts;
 mod audit;
-mod dashboards;
 mod discovery;
 mod incidents;
 mod llm_adapter;
@@ -22,7 +21,7 @@ mod traces;
 
 use axum::{
     Router, middleware as axum_middleware,
-    routing::{delete, get, post, put},
+    routing::{delete, get, post},
 };
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
@@ -106,29 +105,6 @@ async fn main() -> anyhow::Result<()> {
             get(discovery::get_service_response_time_history),
         )
         .route("/v1/environments", get(discovery::list_environments))
-        .route("/v1/dashboards", get(dashboards::handle_list_dashboards))
-        .route("/v1/dashboards", post(dashboards::handle_create_dashboard))
-        .route("/v1/dashboards/{id}", get(dashboards::handle_get_dashboard))
-        .route(
-            "/v1/dashboards/{id}",
-            put(dashboards::handle_update_dashboard).delete(dashboards::handle_delete_dashboard),
-        )
-        .route(
-            "/v1/dashboards/import",
-            post(dashboards::handle_import_dashboard),
-        )
-        .route(
-            "/v1/dashboards/{id}/export",
-            get(dashboards::handle_get_dashboard_export),
-        )
-        .route(
-            "/v1/dashboards/{id}/grants",
-            get(dashboards::handle_list_grants).post(dashboards::handle_add_grant),
-        )
-        .route(
-            "/v1/dashboards/{id}/grants/{user_id}",
-            axum::routing::delete(dashboards::handle_revoke_grant),
-        )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
         .route("/v1/incidents", get(incidents::handle_list_incidents))

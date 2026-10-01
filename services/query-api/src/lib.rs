@@ -1,6 +1,5 @@
 pub mod alerts;
 pub mod audit;
-pub mod dashboards;
 pub mod discovery;
 pub mod incidents;
 pub mod llm_adapter;

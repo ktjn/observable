@@ -3,15 +3,15 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
     middleware as axum_middleware,
-    routing::{get, post, put},
+    routing::{get, post},
 };
 use clickhouse::Client as ChClient;
 use http_body_util::BodyExt;
 use observable_storage_contracts::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use query_api::{
-    alerts, dashboards, discovery, incidents, llm_adapter, logs, metrics,
-    middleware::auth::TenantContext, middleware::auth::require_tenant, observability,
-    planner::QueryPlanner, reliability, slos, traces,
+    alerts, discovery, incidents, llm_adapter, logs, metrics, middleware::auth::TenantContext,
+    middleware::auth::require_tenant, observability, planner::QueryPlanner, reliability, slos,
+    traces,
 };
 use serde_json::Value;
 use sqlx::postgres::PgPool;
@@ -142,11 +142,6 @@ fn build_app_with_pg_at(ch: ChClient, db: PgPool, auth_service_url: String) -> R
         .route("/v1/metrics", get(metrics::list_metrics))
         .route("/v1/metrics/points", get(metrics::get_metric_group_points))
         .route("/v1/nlq", post(llm_adapter::handle_nlq_query))
-        .route("/v1/dashboards/{id}", get(dashboards::handle_get_dashboard))
-        .route(
-            "/v1/dashboards/{id}",
-            put(dashboards::handle_update_dashboard),
-        )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
         .route("/v1/slos", get(slos::handle_list_slos))
@@ -1156,105 +1151,6 @@ async fn service_summary_reports_slo_breach_alert_count_and_latest_deploy() {
     assert_eq!(billing["active_alert_count"], 0);
     assert!(billing["latest_deployment"].is_null());
     assert_eq!(billing["health_state"], "healthy");
-}
-
-#[tokio::test]
-async fn dashboard_get_http_returns_v2_panel_shape() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-
-    let created = dashboards::create_dashboard(
-        &pg,
-        tenant,
-        &dashboards::CreateDashboardRequest {
-            name: "HTTP dashboard".into(),
-            panels: vec![dashboards::DashboardPanelRequest {
-                title: "Notes".into(),
-                panel_kind: Some("text".into()),
-                query_kind: None,
-                content: Some("HTTP text panel".into()),
-                layout: Some(serde_json::json!({"x":0,"y":0,"w":12,"h":2})),
-                ..Default::default()
-            }],
-        },
-        None,
-    )
-    .await
-    .expect("dashboard created");
-
-    let response = app
-        .oneshot(dev_request(
-            "GET",
-            &format!("/v1/dashboards/{}", created.dashboard_id),
-        ))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response_body_json(response.into_body()).await;
-    assert_eq!(body["name"], "HTTP dashboard");
-    assert_eq!(body["panels"][0]["panel_kind"], "text");
-    assert_eq!(body["panels"][0]["content"], "HTTP text panel");
-    assert_eq!(body["panels"][0]["layout"]["w"], 12);
-}
-
-#[tokio::test]
-async fn dashboard_put_http_updates_panel_layout() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-
-    let created = dashboards::create_dashboard(
-        &pg,
-        tenant,
-        &dashboards::CreateDashboardRequest {
-            name: "HTTP dashboard".into(),
-            panels: vec![dashboards::DashboardPanelRequest {
-                title: "Notes".into(),
-                panel_kind: Some("text".into()),
-                query_kind: None,
-                content: Some("Before".into()),
-                layout: Some(serde_json::json!({"x":0,"y":0,"w":6,"h":2})),
-                ..Default::default()
-            }],
-        },
-        None,
-    )
-    .await
-    .expect("dashboard created");
-
-    let body = serde_json::json!({
-        "name": "Updated dashboard",
-        "panels": [{
-            "title": "Notes",
-            "panel_kind": "text",
-            "query_kind": null,
-            "preset": null,
-            "filters": {},
-            "content": "After",
-            "layout": {"x":0,"y":0,"w":8,"h":3},
-            "time_range": {"mode":"global"}
-        }]
-    });
-    let req = Request::builder()
-        .method("PUT")
-        .uri(format!("/v1/dashboards/{}", created.dashboard_id))
-        .header("Authorization", format!("Bearer {DEV_API_KEY}"))
-        .header("X-Tenant-ID", DEV_TENANT_ID)
-        .header("Content-Type", "application/json")
-        .body(Body::from(serde_json::to_vec(&body).unwrap()))
-        .unwrap();
-
-    let response = app.oneshot(req).await.unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response_body_json(response.into_body()).await;
-    assert_eq!(body["name"], "Updated dashboard");
-    assert_eq!(body["panels"][0]["content"], "After");
-    assert_eq!(body["panels"][0]["layout"]["w"], 8);
 }
 
 #[tokio::test]

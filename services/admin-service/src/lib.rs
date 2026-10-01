@@ -2,6 +2,7 @@ pub mod admin_members;
 pub mod alerts;
 pub mod change_events;
 pub mod config;
+pub mod dashboards;
 pub mod deployments;
 pub mod llm_probe;
 pub mod middleware;

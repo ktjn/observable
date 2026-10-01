@@ -1,4 +1,5 @@
 use crate::AdminServiceAppState;
+use crate::dashboards::{grant_satisfies_delete, grant_satisfies_read, grant_satisfies_write};
 use crate::middleware::auth::TenantContext;
 use axum::{
     Extension, Json,
@@ -10,24 +11,6 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 const VALID_SIGNAL_KINDS: &[&str] = &["logs"];
-
-// Same ReBAC predicates as dashboards.rs (query-api). Duplicated rather than shared because
-// dashboards still lives in query-api — once it moves here too, these can be deduplicated.
-
-/// True if the caller is allowed to read this saved view.
-fn grant_satisfies_read(visibility: &str, relation: Option<&str>) -> bool {
-    visibility == "public" || relation.is_some_and(|r| matches!(r, "owner" | "editor" | "viewer"))
-}
-
-/// True if the caller is allowed to write (update) this saved view.
-fn grant_satisfies_write(tenant_role: &str, relation: Option<&str>) -> bool {
-    tenant_role == "tenant_admin" || relation.is_some_and(|r| matches!(r, "owner" | "editor"))
-}
-
-/// True if the caller is allowed to delete this saved view.
-fn grant_satisfies_delete(tenant_role: &str, relation: Option<&str>) -> bool {
-    tenant_role == "tenant_admin" || relation.is_some_and(|r| r == "owner")
-}
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct SavedViewItem {

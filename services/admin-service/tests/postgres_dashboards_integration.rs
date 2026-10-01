@@ -1,4 +1,4 @@
-use query_api::dashboards::{
+use admin_service::dashboards::{
     CreateDashboardRequest, DashboardExport, DashboardExportPanel, DashboardPanelRequest,
     UpdateDashboardRequest, create_dashboard, export_dashboard, get_dashboard, import_dashboard,
     list_dashboards, update_dashboard,
