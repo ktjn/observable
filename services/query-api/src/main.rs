@@ -1,6 +1,5 @@
 mod alerts;
 mod audit;
-mod change_events;
 mod dashboards;
 mod discovery;
 mod incidents;
@@ -109,10 +108,6 @@ async fn main() -> anyhow::Result<()> {
             get(discovery::get_service_response_time_history),
         )
         .route("/v1/environments", get(discovery::list_environments))
-        .route(
-            "/v1/events/changes",
-            get(change_events::handle_list_change_events),
-        )
         .route("/v1/dashboards", get(dashboards::handle_list_dashboards))
         .route("/v1/dashboards", post(dashboards::handle_create_dashboard))
         .route("/v1/dashboards/{id}", get(dashboards::handle_get_dashboard))

@@ -1,5 +1,5 @@
+use crate::AdminServiceAppState;
 use crate::middleware::auth::TenantContext;
-use crate::traces::AppState;
 use axum::{
     Json,
     extract::{Extension, Query, State},
@@ -72,8 +72,9 @@ pub async fn list_change_events(
     .await
 }
 
+/// GET /v1/events/changes
 pub async fn handle_list_change_events(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Query(params): Query<ListChangeEventsParams>,
 ) -> Result<Json<ListChangeEventsResponse>, StatusCode> {

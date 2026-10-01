@@ -1,6 +1,5 @@
 pub mod alerts;
 pub mod audit;
-pub mod change_events;
 pub mod dashboards;
 pub mod discovery;
 pub mod incidents;

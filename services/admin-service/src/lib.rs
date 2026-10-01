@@ -1,5 +1,6 @@
 pub mod admin_members;
 pub mod alerts;
+pub mod change_events;
 pub mod config;
 pub mod deployments;
 pub mod llm_probe;
