@@ -1,6 +1,5 @@
 use crate::incidents::IncidentItem;
 use crate::middleware::auth::TenantContext;
-use crate::slos::SloDefinitionItem;
 use crate::traces::AppState;
 use axum::{
     Json,
@@ -37,6 +36,27 @@ pub struct DeploymentMarker {
     pub commit_sha: Option<String>,
     pub rollback_of: Option<Uuid>,
     pub metadata: Option<serde_json::Value>,
+}
+
+/// SLO-definition row shape for this report's correlation query. SLO CRUD
+/// itself lives in admin-service (observable-control); this is a local,
+/// read-only projection for correlating SLOs with the reliability window,
+/// not a shared type.
+#[derive(Serialize, sqlx::FromRow)]
+pub struct SloDefinitionItem {
+    pub slo_id: Uuid,
+    pub service_name: String,
+    pub environment: String,
+    pub sli_type: String,
+    pub target: f64,
+    pub window_days: i32,
+    pub burn_rate_fast_threshold: f64,
+    pub burn_rate_slow_threshold: f64,
+    pub description: String,
+    pub firing: bool,
+    pub last_fired_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Serialize)]

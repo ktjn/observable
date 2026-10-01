@@ -593,17 +593,21 @@ Move reliability state to alerting:
   reads, not alert-rule read/write ownership. This moves the routes into admin-service, the interim
   "control" owner -- it does not yet give alerting state a single dedicated owner component, which
   is Phase 6's concern.)
-- SLOs
+- SLOs (done: `GET`/`POST /v1/slos` -- list and create, including the `slo_burn_rate` alert-rule
+  side effect of create -- now live in admin-service, in a new `slos.rs` module there. `reliability.rs`
+  in query-api keeps its own local `SloDefinitionItem` projection for its cross-cutting correlation
+  query against `slo_definitions`/`alert_rules`/`alert_firings` -- same already-tracked "remove
+  cross-owner SQL" concern as the alerts/deployment-marker/schema reads, not SLO ownership)
 - notifications
 - incidents
 
 Exit evidence:
 
-- core query operation requires no PostgreSQL connection -- **not yet met**: SLOs, notifications,
-  and incidents still live in query-api (plus `discovery.rs`/`reliability.rs`/`incidents.rs`'s
-  direct cross-owner reads of `alert_rules`/`alert_firings`/`deployment_markers`/`schema_entries`/
-  `semantic_annotations`, tracked separately). Every control-plane CRUD slice and the alerts slice
-  of the reliability group are moved; SLOs, notifications, and incidents remain.
+- core query operation requires no PostgreSQL connection -- **not yet met**: notifications and
+  incidents still live in query-api (plus `discovery.rs`/`reliability.rs`/`incidents.rs`'s direct
+  cross-owner reads of `alert_rules`/`alert_firings`/`slo_definitions`/`deployment_markers`/
+  `schema_entries`/`semantic_annotations`, tracked separately). Every control-plane CRUD slice and
+  the alerts/SLOs slices of the reliability group are moved; notifications and incidents remain.
 
 ### Phase 5 — Clean ingest
 

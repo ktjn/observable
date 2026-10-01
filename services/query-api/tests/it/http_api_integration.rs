@@ -10,8 +10,7 @@ use http_body_util::BodyExt;
 use observable_storage_contracts::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use query_api::{
     discovery, incidents, llm_adapter, logs, metrics, middleware::auth::TenantContext,
-    middleware::auth::require_tenant, observability, planner::QueryPlanner, reliability, slos,
-    traces,
+    middleware::auth::require_tenant, observability, planner::QueryPlanner, reliability, traces,
 };
 use serde_json::Value;
 use sqlx::postgres::PgPool;
@@ -142,8 +141,6 @@ fn build_app_with_pg_at(ch: ChClient, db: PgPool, auth_service_url: String) -> R
         .route("/v1/metrics", get(metrics::list_metrics))
         .route("/v1/metrics/points", get(metrics::get_metric_group_points))
         .route("/v1/nlq", post(llm_adapter::handle_nlq_query))
-        .route("/v1/slos", get(slos::handle_list_slos))
-        .route("/v1/slos", post(slos::handle_create_slo))
         .route(
             "/v1/services/summary",
             get(discovery::list_service_summaries),
@@ -193,7 +190,6 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
         .route("/v1/logs/histogram", get(logs::log_histogram))
         .route("/v1/metrics", get(metrics::list_metrics))
         .route("/v1/metrics/points", get(metrics::get_metric_group_points))
-        .route("/v1/slos", get(slos::handle_list_slos))
         .route("/v1/incidents", get(incidents::handle_list_incidents))
         .route(
             "/v1/incidents/{incident_id}",
@@ -890,103 +886,6 @@ async fn metric_group_points_sum_label_specific_series_at_same_timestamp() {
     assert_eq!(points.len(), 1, "same timestamp should be aggregated");
     assert_eq!(points[0]["metric_name"], "span.calls_total");
     assert_eq!(points[0]["value_double"], 5.0);
-}
-
-// ── SLO API ─────────────────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn post_slo_creates_tenant_scoped_definition() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg).await;
-
-    let body = serde_json::json!({
-        "service_name": "payments",
-        "environment": "prod",
-        "target": 0.999,
-        "window_days": 30,
-        "burn_rate_fast_threshold": 14.4,
-        "burn_rate_slow_threshold": 1.0,
-        "description": "Payments availability SLO"
-    });
-    let req = Request::builder()
-        .method("POST")
-        .uri("/v1/slos")
-        .header("Authorization", format!("Bearer {DEV_API_KEY}"))
-        .header("X-Tenant-ID", DEV_TENANT_ID)
-        .header("Content-Type", "application/json")
-        .body(Body::from(serde_json::to_vec(&body).unwrap()))
-        .unwrap();
-
-    let response = app.oneshot(req).await.unwrap();
-
-    assert_eq!(response.status(), StatusCode::CREATED);
-    let body = response_body_json(response.into_body()).await;
-    assert_eq!(body["service_name"], "payments");
-    assert_eq!(body["environment"], "prod");
-    assert_eq!(body["sli_type"], "availability");
-    assert_eq!(body["target"], 0.999);
-    assert_eq!(body["firing"], false);
-    assert!(body["last_fired_at"].is_null());
-}
-
-#[tokio::test]
-async fn post_slo_rejects_invalid_target() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg).await;
-
-    let body = serde_json::json!({
-        "service_name": "payments",
-        "environment": "prod",
-        "target": 1.0,
-        "window_days": 30,
-        "burn_rate_fast_threshold": 14.4,
-        "burn_rate_slow_threshold": 1.0
-    });
-    let req = Request::builder()
-        .method("POST")
-        .uri("/v1/slos")
-        .header("Authorization", format!("Bearer {DEV_API_KEY}"))
-        .header("X-Tenant-ID", DEV_TENANT_ID)
-        .header("Content-Type", "application/json")
-        .body(Body::from(serde_json::to_vec(&body).unwrap()))
-        .unwrap();
-
-    let response = app.oneshot(req).await.unwrap();
-
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-}
-
-#[tokio::test]
-async fn get_slos_does_not_return_other_tenant_definitions() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let other_tenant = Uuid::new_v4();
-
-    sqlx::query(
-        "INSERT INTO slo_definitions \
-         (tenant_id, service_name, environment, sli_type, target, window_days, \
-          burn_rate_fast_threshold, burn_rate_slow_threshold, description) \
-         VALUES ($1, 'private-svc', 'prod', 'availability', 0.99, 30, 14.4, 1.0, 'Private SLO')",
-    )
-    .bind(other_tenant)
-    .execute(&pg)
-    .await
-    .expect("other tenant SLO inserted");
-
-    let response = app.oneshot(dev_request("GET", "/v1/slos")).await.unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response_body_json(response.into_body()).await;
-    let items = body["items"].as_array().expect("items array");
-    assert!(
-        items
-            .iter()
-            .all(|item| item["service_name"] != "private-svc"),
-        "tenant-scoped list must not include other tenant SLOs"
-    );
 }
 
 // ── Service Catalog Health Signals (P9-S5) ──────────────────────────────────

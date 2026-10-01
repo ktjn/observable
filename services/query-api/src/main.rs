@@ -14,7 +14,6 @@ mod observability;
 mod planner;
 mod reliability;
 mod setup;
-mod slos;
 mod sql_templates;
 mod traces;
 
@@ -125,8 +124,6 @@ async fn main() -> anyhow::Result<()> {
             "/v1/notifications/channels/{id}",
             delete(notifications::handle_delete_channel),
         )
-        .route("/v1/slos", get(slos::handle_list_slos))
-        .route("/v1/slos", post(slos::handle_create_slo))
         .route(
             "/v1/mcp/tools/metric-schema/{metric_name}",
             get(mcp_tools::handle_get_metric_schema),

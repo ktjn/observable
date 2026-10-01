@@ -9,6 +9,7 @@ pub mod middleware;
 pub mod observability;
 pub mod saved_views;
 pub mod schemas;
+pub mod slos;
 pub mod tenants;
 pub mod tokens;
 pub mod usage;

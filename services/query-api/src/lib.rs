@@ -14,6 +14,5 @@ pub mod observability;
 pub mod planner;
 pub mod reliability;
 pub mod setup;
-pub mod slos;
 pub mod sql_templates;
 pub mod traces;

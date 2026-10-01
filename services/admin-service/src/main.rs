@@ -1,6 +1,6 @@
 use admin_service::{
     AdminServiceAppState, admin_members, alerts, change_events, config, dashboards, deployments,
-    middleware, observability, saved_views, schemas, tenants, tokens, usage,
+    middleware, observability, saved_views, schemas, slos, tenants, tokens, usage,
 };
 use axum::{
     Router,
@@ -160,6 +160,10 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/dashboards/{id}/grants/{user_id}",
             delete(dashboards::handle_revoke_grant),
+        )
+        .route(
+            "/v1/slos",
+            get(slos::handle_list_slos).post(slos::handle_create_slo),
         )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))
