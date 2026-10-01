@@ -149,10 +149,56 @@ pub async fn create_deployment(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
+    publish_deployment_event(
+        &state,
+        deployment_id,
+        ctx.tenant_id,
+        &req.service_name,
+        &req.environment,
+        &req.service_version,
+        "in_progress",
+    )
+    .await;
+
     Ok((
         StatusCode::CREATED,
         Json(CreateDeploymentResponse { deployment_id }),
     ))
+}
+
+/// Best-effort publish to `deployment.markers.v1` for ingest-gateway's cache
+/// (Phase 5 "clean ingest", docs/component-decomposition.md). A publish
+/// failure (or no producer configured, e.g. in tests) only logs a warning --
+/// it must never fail the deployment-marker write itself, since the Postgres
+/// row is the source of truth and the event is a freshness optimization for
+/// ingest-gateway's in-memory cache, not a correctness requirement.
+async fn publish_deployment_event(
+    state: &AdminServiceAppState,
+    deployment_id: Uuid,
+    tenant_id: Uuid,
+    service_name: &str,
+    environment: &str,
+    service_version: &str,
+    status: &str,
+) {
+    let Some(producer) = &state.producer else {
+        return;
+    };
+    let event = domain::DeploymentMarkerEvent {
+        deployment_id,
+        tenant_id,
+        service_name: service_name.to_string(),
+        environment: environment.to_string(),
+        service_version: service_version.to_string(),
+        status: status.to_string(),
+        started_at_unix_nano: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64,
+    };
+    if let Err(e) = producer.publish(&event).await {
+        tracing::warn!(error = %e, %deployment_id, "failed to publish deployment marker event");
+    }
 }
 
 /// PATCH /v1/deployments/{deployment_id}
@@ -172,26 +218,38 @@ pub async fn finish_deployment(
 
     let finished_at = req.finished_at.unwrap_or_else(Utc::now);
 
-    let result = sqlx::query(
+    let updated: Option<(String, String, String)> = sqlx::query_as(
         "UPDATE deployment_markers \
          SET status = $1, finished_at = $2, rollback_of = $3 \
-         WHERE deployment_id = $4 AND tenant_id = $5",
+         WHERE deployment_id = $4 AND tenant_id = $5 \
+         RETURNING service_name, environment, service_version",
     )
     .bind(&req.status)
     .bind(finished_at)
     .bind(req.rollback_of)
     .bind(deployment_id)
     .bind(ctx.tenant_id)
-    .execute(&state.db)
+    .fetch_optional(&state.db)
     .await
     .map_err(|e| {
         tracing::error!(error = %e, "failed to finish deployment marker");
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    if result.rows_affected() == 0 {
+    let Some((service_name, environment, service_version)) = updated else {
         return Err(StatusCode::NOT_FOUND);
-    }
+    };
+
+    publish_deployment_event(
+        &state,
+        deployment_id,
+        ctx.tenant_id,
+        &service_name,
+        &environment,
+        &service_version,
+        &req.status,
+    )
+    .await;
 
     Ok(StatusCode::NO_CONTENT)
 }

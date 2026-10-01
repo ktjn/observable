@@ -33,3 +33,24 @@ pub struct NormalizedTelemetryBatch {
     pub series: Vec<crate::metric::MetricSeries>,
     pub points: Vec<crate::metric::MetricPoint>,
 }
+
+/// The `deployment.markers.v1` wire contract: published by admin-service on
+/// every deployment-marker create/finish, consumed by ingest-gateway to
+/// maintain its in-process deployment-correlation cache without a direct
+/// Postgres dependency (Phase 5 "clean ingest",
+/// docs/component-decomposition.md). One message per lifecycle transition,
+/// not a diff -- `status` always carries the marker's current status, so a
+/// consumer only ever needs the latest message per
+/// (tenant_id, service_name, environment, service_version) key.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeploymentMarkerEvent {
+    pub deployment_id: Uuid,
+    pub tenant_id: Uuid,
+    pub service_name: String,
+    pub environment: String,
+    pub service_version: String,
+    /// `in_progress` | `success` | `failed` | `rolled_back` -- mirrors
+    /// `deployment_markers.status` in `migrations/postgres`.
+    pub status: String,
+    pub started_at_unix_nano: u64,
+}

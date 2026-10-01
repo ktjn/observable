@@ -81,6 +81,7 @@ fn build_app_with_role(db: PgPool, tenant_id: Uuid, role: &str) -> Router {
         auth_service_url: "http://auth-service:4319".into(),
         http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
+        producer: None,
     };
     Router::new()
         .route(

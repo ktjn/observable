@@ -46,12 +46,20 @@ async fn main() -> anyhow::Result<()> {
     let auth_service_url = observable_config::require_env("AUTH_SERVICE_URL")?;
     let http_client = reqwest::Client::new();
 
+    let brokers = observable_config::require_env("REDPANDA_BROKERS")?;
+    let deployment_markers_topic = observable_config::require_env("DEPLOYMENT_MARKERS_TOPIC")?;
+    let producer = Arc::new(admin_service::queue::DeploymentEventProducer::new(
+        &brokers,
+        &deployment_markers_topic,
+    )?);
+
     let state = AdminServiceAppState {
         db,
         ch,
         auth_service_url,
         http_client: http_client.clone(),
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
+        producer: Some(producer),
     };
 
     let app = Router::new()

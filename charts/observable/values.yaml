@@ -36,6 +36,7 @@ redpanda:
   brokers: "redpanda:9093"
   ingestTopic: "telemetry.raw.v1"
   normalizedTopic: "telemetry.normalized.v1"
+  deploymentMarkersTopic: "deployment.markers.v1"
 
 selfObservability:
   # Supported modes:

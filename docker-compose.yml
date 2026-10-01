@@ -177,6 +177,7 @@ services:
       - |
         rpk topic create telemetry.raw.v1 --brokers redpanda:9092 2>/dev/null || true
         rpk topic create telemetry.normalized.v1 --brokers redpanda:9092 2>/dev/null || true
+        rpk topic create deployment.markers.v1 --brokers redpanda:9092 2>/dev/null || true
     depends_on:
       redpanda: { condition: service_healthy }
 
@@ -272,6 +273,7 @@ services:
       DATABASE_URL: postgres://observable:observable@postgres:5432/observable
       REDPANDA_BROKERS: redpanda:9092
       INGEST_TOPIC: telemetry.raw.v1
+      DEPLOYMENT_MARKERS_TOPIC: deployment.markers.v1
       AUTH_SERVICE_URL: http://auth-service:4319
     ports: ["4317:4317", "4318:4318", "4321:4321"]
     healthcheck:
@@ -324,6 +326,8 @@ services:
       CLICKHOUSE_USER: ${CH_USER:-default}
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
       AUTH_SERVICE_URL: http://auth-service:4319
+      REDPANDA_BROKERS: redpanda:9092
+      DEPLOYMENT_MARKERS_TOPIC: deployment.markers.v1
     ports: ["4324:4324"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4324/health"]
@@ -334,6 +338,7 @@ services:
       clickhouse-setup: { condition: service_completed_successfully }
       postgres-setup: { condition: service_completed_successfully }
       auth-service: { condition: service_healthy }
+      redpanda-setup: { condition: service_completed_successfully }
 
   alert-evaluator:
     image: observable-services:local

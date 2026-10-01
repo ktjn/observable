@@ -89,6 +89,7 @@ fn build_app(ch: ChClient, db: PgPool) -> Router {
         auth_service_url: "http://auth-service:4319".into(),
         http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
+        producer: None,
     };
     let tenant_id = Uuid::parse_str(DEV_TENANT_ID).unwrap();
     Router::new()

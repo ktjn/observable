@@ -1,204 +1,155 @@
-use ingest_gateway::deployment_registry::DeploymentRegistry;
-use sqlx::PgPool;
-use std::path::Path;
-use std::sync::Arc;
-use testcontainers::{ImageExt, runners::AsyncRunner};
-use testcontainers_modules::postgres::Postgres;
+// DeploymentRegistry is now fed by deployment.markers.v1 Kafka events, not a
+// direct Postgres lookup (Phase 5 "clean ingest",
+// docs/component-decomposition.md). Its lib-level unit tests in
+// src/deployment_registry.rs cover the exact-match/empty-version/status-filter/
+// most-recent-wins semantics directly (no Testcontainers needed for those
+// anymore, since there's no longer a database involved). This file instead
+// covers the Kafka consumer wiring end-to-end against a real Redpanda broker,
+// following the same container setup as
+// services/stream-processor/tests/redpanda_integration.rs.
+
+use domain::DeploymentMarkerEvent;
+use ingest_gateway::deployment_registry::{DeploymentRegistry, run_consumer};
+use rdkafka::{
+    ClientConfig,
+    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
+    client::DefaultClientContext,
+    consumer::{BaseConsumer, Consumer},
+    producer::{FutureProducer, FutureRecord},
+};
+use std::{net::TcpListener, time::Duration};
+use testcontainers::{
+    ContainerAsync, GenericImage, ImageExt,
+    core::{IntoContainerPort, WaitFor},
+    runners::AsyncRunner,
+};
 use uuid::Uuid;
 
-async fn apply_migrations(pool: &PgPool) {
-    let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/postgres");
+fn pick_free_port() -> u16 {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind to 0 to get free port");
+    listener.local_addr().unwrap().port()
+}
 
-    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
-        .expect("migrations/postgres must exist")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
+async fn wait_for_kafka_ready(brokers: &str) {
+    let checker: BaseConsumer = ClientConfig::new()
+        .set("bootstrap.servers", brokers)
+        .create()
+        .expect("readiness checker created");
+    for _ in 0..30 {
+        if checker
+            .fetch_metadata(None, Duration::from_millis(1_000))
+            .is_ok()
+        {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+    panic!("Redpanda Kafka API did not become ready within 15 s");
+}
 
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        sqlx::raw_sql(sqlx::AssertSqlSafe(sql))
-            .execute(pool)
+async fn create_topic(brokers: &str, topic: &str) {
+    let admin: AdminClient<DefaultClientContext> = ClientConfig::new()
+        .set("bootstrap.servers", brokers)
+        .create()
+        .expect("admin client created");
+
+    let new_topic = NewTopic::new(topic, 1, TopicReplication::Fixed(1));
+    admin
+        .create_topics(&[new_topic], &AdminOptions::default())
+        .await
+        .expect("topic creation request sent");
+}
+
+async fn start_redpanda() -> (String, ContainerAsync<GenericImage>) {
+    let host_port = pick_free_port();
+    let advertise_addr = format!("127.0.0.1:{host_port}");
+    let brokers = advertise_addr.clone();
+
+    let container: ContainerAsync<GenericImage> =
+        GenericImage::new("redpandadata/redpanda", "v23.3.1")
+            .with_wait_for(WaitFor::message_on_stderr("Successfully started Redpanda!"))
+            .with_cmd(vec![
+                "redpanda".to_string(),
+                "start".to_string(),
+                "--smp=1".to_string(),
+                "--memory=512M".to_string(),
+                "--overprovisioned".to_string(),
+                "--kafka-addr=0.0.0.0:9092".to_string(),
+                format!("--advertise-kafka-addr={advertise_addr}"),
+            ])
+            .with_mapped_port(host_port, 9092_u16.tcp())
+            .start()
             .await
-            .expect("migration applied");
-    }
-}
+            .expect("redpanda container started");
 
-async fn start_pool() -> (
-    PgPool,
-    testcontainers::ContainerAsync<testcontainers_modules::postgres::Postgres>,
-) {
-    let container = Postgres::default()
-        .with_tag("17")
-        .start()
-        .await
-        .expect("postgres container started");
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = observable_config::with_search_path(&format!(
-        "postgres://postgres:postgres@127.0.0.1:{port}/postgres"
-    ));
-    let pool = PgPool::connect(&url).await.expect("pool connected");
-    apply_migrations(&pool).await;
-    (pool, container)
+    wait_for_kafka_ready(&brokers).await;
+    (brokers, container)
 }
 
 #[tokio::test]
-async fn lookup_resolves_active_deployment_by_service_and_version() {
-    let (pool, _container) = start_pool().await;
-    let db = Arc::new(pool);
-    let registry = DeploymentRegistry::new(db.clone());
+async fn consumer_applies_published_event_to_registry() {
+    let (brokers, _container) = start_redpanda().await;
+    let topic = format!("deployment-markers-{}", Uuid::new_v4());
+    create_topic(&brokers, &topic).await;
 
+    let registry = DeploymentRegistry::new();
     let tenant_id = Uuid::new_v4();
-    let deployment_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO deployment_markers \
-         (tenant_id, service_name, environment, service_version, status, started_at) \
-         VALUES ($1, 'api', 'prod', 'v2.0.0', 'in_progress', now()) \
-         RETURNING deployment_id",
-    )
-    .bind(tenant_id)
-    .fetch_one(db.as_ref())
-    .await
-    .expect("insert deployment marker");
+    let deployment_id = Uuid::new_v4();
 
-    let result = registry.lookup(tenant_id, "api", "prod", "v2.0.0").await;
-    assert_eq!(result, deployment_id.to_string());
-}
-
-#[tokio::test]
-async fn lookup_matches_success_status() {
-    let (pool, _container) = start_pool().await;
-    let db = Arc::new(pool);
-    let registry = DeploymentRegistry::new(db.clone());
-
-    let tenant_id = Uuid::new_v4();
-    let deployment_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO deployment_markers \
-         (tenant_id, service_name, environment, service_version, status, started_at) \
-         VALUES ($1, 'worker', 'staging', 'v1.5.0', 'success', now()) \
-         RETURNING deployment_id",
-    )
-    .bind(tenant_id)
-    .fetch_one(db.as_ref())
-    .await
-    .expect("insert deployment marker");
-
-    let result = registry
-        .lookup(tenant_id, "worker", "staging", "v1.5.0")
-        .await;
-    assert_eq!(result, deployment_id.to_string());
-}
-
-#[tokio::test]
-async fn lookup_ignores_failed_and_rolled_back_deployments() {
-    let (pool, _container) = start_pool().await;
-    let db = Arc::new(pool);
-    let registry = DeploymentRegistry::new(db.clone());
-
-    let tenant_id = Uuid::new_v4();
-    for status in ["failed", "rolled_back"] {
-        sqlx::query(
-            "INSERT INTO deployment_markers \
-             (tenant_id, service_name, environment, service_version, status, started_at) \
-             VALUES ($1, 'svc', 'prod', 'v3.0.0', $2, now())",
+    let consumer_registry = registry.clone();
+    let consumer_brokers = brokers.clone();
+    let consumer_topic = topic.clone();
+    let consumer = tokio::spawn(async move {
+        run_consumer(
+            &consumer_brokers,
+            "ingest-gateway-test",
+            &consumer_topic,
+            consumer_registry,
         )
-        .bind(tenant_id)
-        .bind(status)
-        .execute(db.as_ref())
         .await
-        .expect("insert");
+    });
+
+    let producer: FutureProducer = ClientConfig::new()
+        .set("bootstrap.servers", &brokers)
+        .set("message.timeout.ms", "5000")
+        .create()
+        .expect("producer created");
+
+    let event = DeploymentMarkerEvent {
+        deployment_id,
+        tenant_id,
+        service_name: "checkout".into(),
+        environment: "production".into(),
+        service_version: "v1.2.3".into(),
+        status: "in_progress".into(),
+        started_at_unix_nano: 1,
+    };
+    let payload = serde_json::to_vec(&event).expect("event serialises");
+    producer
+        .send(
+            FutureRecord::to(&topic)
+                .key(&tenant_id.to_string())
+                .payload(&payload),
+            Duration::from_secs(5),
+        )
+        .await
+        .expect("event delivered");
+
+    let mut result = String::new();
+    for _ in 0..40 {
+        result = registry
+            .lookup(tenant_id, "checkout", "production", "v1.2.3")
+            .await;
+        if !result.is_empty() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
     }
 
-    let result = registry.lookup(tenant_id, "svc", "prod", "v3.0.0").await;
-    assert_eq!(
-        result, "",
-        "failed/rolled_back deployments must not be stamped"
-    );
-}
-
-#[tokio::test]
-async fn lookup_empty_version_matches_latest_active() {
-    let (pool, _container) = start_pool().await;
-    let db = Arc::new(pool);
-    let registry = DeploymentRegistry::new(db.clone());
-
-    let tenant_id = Uuid::new_v4();
-    let deployment_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO deployment_markers \
-         (tenant_id, service_name, environment, service_version, status, started_at) \
-         VALUES ($1, 'frontend', 'staging', 'v4.1.0', 'in_progress', now()) \
-         RETURNING deployment_id",
-    )
-    .bind(tenant_id)
-    .fetch_one(db.as_ref())
-    .await
-    .expect("insert deployment marker");
-
-    let result = registry.lookup(tenant_id, "frontend", "staging", "").await;
-    assert_eq!(result, deployment_id.to_string());
-}
-
-#[tokio::test]
-async fn lookup_is_tenant_scoped() {
-    let (pool, _container) = start_pool().await;
-    let db = Arc::new(pool);
-    let registry = DeploymentRegistry::new(db.clone());
-
-    let tenant_a = Uuid::new_v4();
-    let tenant_b = Uuid::new_v4();
-
-    sqlx::query(
-        "INSERT INTO deployment_markers \
-         (tenant_id, service_name, environment, service_version, status, started_at) \
-         VALUES ($1, 'svc', 'prod', 'v1.0.0', 'in_progress', now())",
-    )
-    .bind(tenant_a)
-    .execute(db.as_ref())
-    .await
-    .expect("insert for tenant_a");
-
-    let result = registry.lookup(tenant_b, "svc", "prod", "v1.0.0").await;
-    assert_eq!(result, "", "lookup must not cross tenant boundaries");
-}
-
-#[tokio::test]
-async fn lookup_returns_most_recent_when_multiple_match() {
-    let (pool, _container) = start_pool().await;
-    let db = Arc::new(pool);
-    let registry = DeploymentRegistry::new(db.clone());
-
-    let tenant_id = Uuid::new_v4();
-
-    sqlx::query(
-        "INSERT INTO deployment_markers \
-         (tenant_id, service_name, environment, service_version, status, started_at) \
-         VALUES ($1, 'api', 'prod', 'v1.0.0', 'success', now() - interval '1 hour')",
-    )
-    .bind(tenant_id)
-    .execute(db.as_ref())
-    .await
-    .expect("insert old");
-
-    let newest_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO deployment_markers \
-         (tenant_id, service_name, environment, service_version, status, started_at) \
-         VALUES ($1, 'api', 'prod', 'v1.0.0', 'in_progress', now()) \
-         RETURNING deployment_id",
-    )
-    .bind(tenant_id)
-    .fetch_one(db.as_ref())
-    .await
-    .expect("insert new");
-
-    let result = registry.lookup(tenant_id, "api", "prod", "v1.0.0").await;
+    consumer.abort();
     assert_eq!(
         result,
-        newest_id.to_string(),
-        "must return most recent deployment"
+        deployment_id.to_string(),
+        "consumer must apply the published event to the registry"
     );
 }

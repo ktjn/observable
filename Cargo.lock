@@ -25,6 +25,7 @@ dependencies = [
  "observable-telemetry",
  "prometheus",
  "rand 0.10.3",
+ "rdkafka",
  "reqwest",
  "serde",
  "serde_json",

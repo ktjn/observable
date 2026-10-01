@@ -661,19 +661,50 @@ Sub-steps:
    every HTTP method, so no nginx change was needed.
    `deployment_registry.rs` is untouched -- ingest-gateway still holds a direct Postgres dependency
    through it, tracked in step 4 below.
-3. Add a Kafka/Redpanda producer to admin-service's deployment create/finish handlers, publishing
-   deployment-marker lifecycle events to a new topic.
-4. Replace `deployment_registry.rs`'s Postgres-backed cache in ingest-gateway with a consumer of
-   that topic, maintaining the same in-memory lookup interface
-   (`DeploymentRegistry::lookup(tenant_id, service_name, environment, service_version)`) used by the
-   HTTP/JSON trace-ingest path today.
-5. Update `docker-compose.yml` wiring for the new topic/consumer.
+3. **Done:** `admin-service` publishes `domain::DeploymentMarkerEvent` to `deployment.markers.v1`
+   (new shared type in `libs/domain/src/envelope.rs`, alongside `TelemetryEnvelope`/
+   `NormalizedTelemetryBatch`, since both producer and consumer already depend on `domain`) from a
+   new `DeploymentEventProducer` in `admin-service::queue`, called from `create_deployment` (status
+   `in_progress`) and `finish_deployment` (status `success`/`failed`/`rolled_back`, via a `RETURNING
+   service_name, environment, service_version` added to the finish UPDATE so the event has the
+   coordinates). Publish is best-effort: `AdminServiceAppState.producer` is `Option`, and a publish
+   failure only logs a warning -- the Postgres row is the source of truth; the event is a
+   cache-freshness optimization for ingest-gateway, not a correctness requirement for the
+   deployment-marker write itself.
+4. **Done:** `deployment_registry.rs` in ingest-gateway is rewritten from a Postgres-backed,
+   30 s-TTL cache to a pure in-memory `HashMap<Uuid, DeploymentState>` fed entirely by a
+   `run_consumer` background task (spawned unconditionally in `main.rs`, auto-commit, mirroring
+   `storage-writer`'s `NormalizedConsumer` wiring style) consuming `deployment.markers.v1`.
+   `lookup()` now scans the map (deploy events are orders of magnitude rarer than spans, so this is
+   cheap) applying the exact same filter/ordering semantics the old SQL query used --
+   tenant/service/environment match, optional-version wildcard, `status IN ('in_progress',
+   'success')`, most-recent `started_at` wins -- rather than building secondary indexes, so the
+   existing lookup test suite (tenant scoping, status filtering, empty-version wildcard,
+   most-recent-wins) ports over unchanged in semantics, now driven by `apply_event` calls instead
+   of Postgres inserts. A new `finish_event_supersedes_in_progress_status` test covers the
+   replace-not-merge semantics (a later event for the same `deployment_id` fully replaces its
+   state). `DeploymentRegistry::new()` no longer takes a `PgPool`.
+   `AppState.db` (Postgres) still exists in ingest-gateway for `readyz.rs`'s health probe and the
+   prometheus_rw test harness -- **not removed in this step**; whether ingest-gateway's readiness
+   signal should still depend on Postgres once nothing in its request-handling path needs it is a
+   separate, not-yet-made decision, tracked as a gap in the exit evidence below rather than silently
+   folded into this change.
+5. **Done:** `docker-compose.yml` creates `deployment.markers.v1` alongside the existing two topics,
+   sets `REDPANDA_BROKERS`/`DEPLOYMENT_MARKERS_TOPIC` on both `admin-service` and `ingest-gateway`,
+   and adds `redpanda-setup` to `admin-service`'s `depends_on`. `charts/observable`'s Helm values
+   and the `admin-service`/`ingest-gateway` templates updated the same way
+   (`.Values.redpanda.deploymentMarkersTopic`); `helm template`/`helm lint` both pass with the new
+   env var rendering into both manifests.
 
 Exit evidence:
 
-- ingest runtime dependencies are auth + Redpanda only -- **not yet met**: steps 3-5 above remain;
-  ingest-gateway's Postgres connection is now used only by `deployment_registry.rs` (hot-path
-  correlation cache) and `readyz.rs` (health probe), both intentionally deferred to step 4
+- ingest runtime dependencies are auth + Redpanda only -- **not yet met**: ingest-gateway's
+  Postgres connection remains for `readyz.rs`'s health probe (see step 4's note above) -- the
+  hot-path `deployment_registry.rs` dependency this phase set out to remove is gone, verified by a
+  real Testcontainers Redpanda integration test
+  (`consumer_applies_published_event_to_registry`) that publishes an event to a live broker and
+  confirms the consumer applies it to the registry end-to-end, not just via mocked/unit-level
+  coverage
 
 ### Phase 6 — Consolidate alerting
 

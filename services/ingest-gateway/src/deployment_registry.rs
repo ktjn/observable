@@ -1,42 +1,62 @@
-use sqlx::PgPool;
+use domain::DeploymentMarkerEvent;
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-const CACHE_TTL: Duration = Duration::from_secs(30);
+/// Deployment statuses that should still be stamped onto ingested telemetry.
+/// Mirrors the `status IN ('in_progress', 'success')` filter the old
+/// Postgres-backed lookup used.
+const ACTIVE_STATUSES: &[&str] = &["in_progress", "success"];
 
-#[derive(Clone, Hash, Eq, PartialEq, Debug)]
-struct CacheKey {
+#[derive(Clone, Debug)]
+struct DeploymentState {
+    deployment_id: Uuid,
     tenant_id: Uuid,
     service_name: String,
     environment: String,
     service_version: String,
+    status: String,
+    started_at_unix_nano: u64,
 }
 
-struct CacheEntry {
-    deployment_id: String,
-    fetched_at: Instant,
-}
-
-/// Thread-safe registry that resolves the active deployment marker for a
-/// (tenant, service, environment, version) tuple.
-///
-/// Results are cached for 30 s to bound PostgreSQL load at high ingest rates.
-/// On DB error the lookup returns an empty string so that ingestion is never
-/// blocked by a failing deployment-marker query.
+/// In-process registry that resolves the active deployment marker for a
+/// (tenant, service, environment, version) tuple, fed entirely by
+/// `deployment.markers.v1` Kafka events published by admin-service (Phase 5
+/// "clean ingest", docs/component-decomposition.md) -- no direct Postgres
+/// dependency. Each event carries a deployment's *current* status (not a
+/// diff), keyed by `deployment_id`, so applying one just replaces that
+/// deployment's prior state; `lookup` scans the (small -- deploy events are
+/// orders of magnitude rarer than spans) in-memory set for the most recent
+/// match each call, exactly mirroring the old SQL query's semantics
+/// (`ORDER BY started_at DESC LIMIT 1`, status filter, optional version
+/// wildcard) rather than maintaining secondary indexes.
 pub struct DeploymentRegistry {
-    db: Arc<PgPool>,
-    cache: RwLock<HashMap<CacheKey, CacheEntry>>,
+    deployments: RwLock<HashMap<Uuid, DeploymentState>>,
 }
 
 impl DeploymentRegistry {
-    pub fn new(db: Arc<PgPool>) -> Arc<Self> {
-        Arc::new(Self {
-            db,
-            cache: RwLock::new(HashMap::new()),
+    pub fn new() -> std::sync::Arc<Self> {
+        std::sync::Arc::new(Self {
+            deployments: RwLock::new(HashMap::new()),
         })
+    }
+
+    /// Apply an event from `deployment.markers.v1`, replacing any prior state
+    /// for that `deployment_id`.
+    pub async fn apply_event(&self, event: DeploymentMarkerEvent) {
+        let mut deployments = self.deployments.write().await;
+        deployments.insert(
+            event.deployment_id,
+            DeploymentState {
+                deployment_id: event.deployment_id,
+                tenant_id: event.tenant_id,
+                service_name: event.service_name,
+                environment: event.environment,
+                service_version: event.service_version,
+                status: event.status,
+                started_at_unix_nano: event.started_at_unix_nano,
+            },
+        );
     }
 
     /// Return the deployment_id for the most-recent active or in-progress
@@ -51,63 +71,56 @@ impl DeploymentRegistry {
         environment: &str,
         service_version: &str,
     ) -> String {
-        let key = CacheKey {
-            tenant_id,
-            service_name: service_name.to_string(),
-            environment: environment.to_string(),
-            service_version: service_version.to_string(),
-        };
-
-        {
-            let cache = self.cache.read().await;
-            if let Some(entry) = cache.get(&key)
-                && entry.fetched_at.elapsed() < CACHE_TTL
-            {
-                return entry.deployment_id.clone();
-            }
-        }
-
-        let deployment_id = self.fetch_from_db(&key).await;
-        {
-            let mut cache = self.cache.write().await;
-            cache.insert(
-                key,
-                CacheEntry {
-                    deployment_id: deployment_id.clone(),
-                    fetched_at: Instant::now(),
-                },
-            );
-        }
-        deployment_id
+        let deployments = self.deployments.read().await;
+        deployments
+            .values()
+            .filter(|d| {
+                d.tenant_id == tenant_id
+                    && d.service_name == service_name
+                    && d.environment == environment
+                    && (service_version.is_empty() || d.service_version == service_version)
+                    && ACTIVE_STATUSES.contains(&d.status.as_str())
+            })
+            .max_by_key(|d| d.started_at_unix_nano)
+            .map(|d| d.deployment_id.to_string())
+            .unwrap_or_default()
     }
+}
 
-    async fn fetch_from_db(&self, key: &CacheKey) -> String {
-        let result: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT deployment_id FROM deployment_markers \
-             WHERE tenant_id = $1 \
-               AND service_name = $2 \
-               AND environment = $3 \
-               AND ($4 = '' OR service_version = $4) \
-               AND status IN ('in_progress', 'success') \
-             ORDER BY started_at DESC \
-             LIMIT 1",
-        )
-        .bind(key.tenant_id)
-        .bind(&key.service_name)
-        .bind(&key.environment)
-        .bind(&key.service_version)
-        .fetch_optional(self.db.as_ref())
-        .await
-        .unwrap_or_else(|e| {
-            tracing::warn!(
-                error = %e,
-                service_name = %key.service_name,
-                "deployment registry DB lookup failed; stamping empty deployment_id"
-            );
-            None
-        });
+/// Consumes `deployment.markers.v1` and applies each event to `registry`.
+/// Runs indefinitely; intended to be spawned as a background task for the
+/// process lifetime. Uses auto-commit (unlike storage-writer's durable
+/// `NormalizedConsumer`) since a missed or re-delivered event only affects
+/// cache freshness, not correctness -- there is no downstream write to
+/// guard.
+pub async fn run_consumer(
+    brokers: &str,
+    group_id: &str,
+    topic: &str,
+    registry: std::sync::Arc<DeploymentRegistry>,
+) -> anyhow::Result<()> {
+    use rdkafka::{
+        ClientConfig, Message,
+        consumer::{Consumer, StreamConsumer},
+    };
 
-        result.map(|(id,)| id.to_string()).unwrap_or_default()
+    let consumer: StreamConsumer = ClientConfig::new()
+        .set("bootstrap.servers", brokers)
+        .set("group.id", group_id)
+        .set("auto.offset.reset", "earliest")
+        .set("enable.auto.commit", "true")
+        .create()?;
+    consumer.subscribe(&[topic])?;
+
+    loop {
+        let msg = consumer.recv().await?;
+        let Some(payload) = msg.payload() else {
+            continue;
+        };
+        match serde_json::from_slice::<DeploymentMarkerEvent>(payload) {
+            Ok(event) => registry.apply_event(event).await,
+            Err(e) => tracing::warn!(error = %e, "deployment marker event deserialise failed"),
+        }
     }
 }
 
@@ -115,66 +128,213 @@ impl DeploymentRegistry {
 mod tests {
     use super::*;
 
-    fn disconnected_registry() -> Arc<DeploymentRegistry> {
-        let pool = Arc::new(sqlx::PgPool::connect_lazy("postgres://localhost/test").unwrap());
-        DeploymentRegistry::new(pool)
+    fn event(
+        deployment_id: Uuid,
+        tenant_id: Uuid,
+        service_name: &str,
+        environment: &str,
+        service_version: &str,
+        status: &str,
+        started_at_unix_nano: u64,
+    ) -> DeploymentMarkerEvent {
+        DeploymentMarkerEvent {
+            deployment_id,
+            tenant_id,
+            service_name: service_name.into(),
+            environment: environment.into(),
+            service_version: service_version.into(),
+            status: status.into(),
+            started_at_unix_nano,
+        }
     }
 
     #[tokio::test]
-    async fn lookup_returns_empty_on_db_error() {
-        let registry = disconnected_registry();
-        let result = registry
-            .lookup(Uuid::new_v4(), "svc", "prod", "v1.0.0")
+    async fn lookup_resolves_active_deployment_by_service_and_version() {
+        let registry = DeploymentRegistry::new();
+        let tenant_id = Uuid::new_v4();
+        let deployment_id = Uuid::new_v4();
+
+        registry
+            .apply_event(event(
+                deployment_id,
+                tenant_id,
+                "api",
+                "prod",
+                "v2.0.0",
+                "in_progress",
+                1,
+            ))
             .await;
-        assert_eq!(result, "");
+
+        let result = registry.lookup(tenant_id, "api", "prod", "v2.0.0").await;
+        assert_eq!(result, deployment_id.to_string());
     }
 
     #[tokio::test]
-    async fn cache_is_populated_after_first_lookup() {
-        let registry = disconnected_registry();
-        let tid = Uuid::new_v4();
-        registry.lookup(tid, "svc", "staging", "v1").await;
-        let cache = registry.cache.read().await;
-        let key = CacheKey {
-            tenant_id: tid,
-            service_name: "svc".into(),
-            environment: "staging".into(),
-            service_version: "v1".into(),
-        };
-        assert!(
-            cache.contains_key(&key),
-            "cache must hold entry after lookup"
+    async fn lookup_matches_success_status() {
+        let registry = DeploymentRegistry::new();
+        let tenant_id = Uuid::new_v4();
+        let deployment_id = Uuid::new_v4();
+
+        registry
+            .apply_event(event(
+                deployment_id,
+                tenant_id,
+                "worker",
+                "staging",
+                "v1.5.0",
+                "success",
+                1,
+            ))
+            .await;
+
+        let result = registry
+            .lookup(tenant_id, "worker", "staging", "v1.5.0")
+            .await;
+        assert_eq!(result, deployment_id.to_string());
+    }
+
+    #[tokio::test]
+    async fn lookup_ignores_failed_and_rolled_back_deployments() {
+        let registry = DeploymentRegistry::new();
+        let tenant_id = Uuid::new_v4();
+
+        for (i, status) in ["failed", "rolled_back"].iter().enumerate() {
+            registry
+                .apply_event(event(
+                    Uuid::new_v4(),
+                    tenant_id,
+                    "svc",
+                    "prod",
+                    "v3.0.0",
+                    status,
+                    i as u64 + 1,
+                ))
+                .await;
+        }
+
+        let result = registry.lookup(tenant_id, "svc", "prod", "v3.0.0").await;
+        assert_eq!(
+            result, "",
+            "failed/rolled_back deployments must not be stamped"
         );
     }
 
     #[tokio::test]
-    async fn stale_cache_entry_is_replaced() {
-        let registry = disconnected_registry();
-        let tid = Uuid::new_v4();
-        let key = CacheKey {
-            tenant_id: tid,
-            service_name: "svc".into(),
-            environment: "prod".into(),
-            service_version: "v2".into(),
-        };
-        {
-            let mut cache = registry.cache.write().await;
-            cache.insert(
-                key.clone(),
-                CacheEntry {
-                    deployment_id: "old-id".into(),
-                    fetched_at: Instant::now() - CACHE_TTL - Duration::from_secs(1),
-                },
-            );
-        }
-        // Lookup bypasses stale entry and re-fetches (returns "" from disconnected DB).
-        let result = registry.lookup(tid, "svc", "prod", "v2").await;
-        assert_eq!(result, "");
-        let cache = registry.cache.read().await;
-        let entry = cache.get(&key).unwrap();
-        assert_ne!(
-            entry.deployment_id, "old-id",
-            "stale entry must be replaced"
+    async fn lookup_empty_version_matches_latest_active() {
+        let registry = DeploymentRegistry::new();
+        let tenant_id = Uuid::new_v4();
+        let deployment_id = Uuid::new_v4();
+
+        registry
+            .apply_event(event(
+                deployment_id,
+                tenant_id,
+                "frontend",
+                "staging",
+                "v4.1.0",
+                "in_progress",
+                1,
+            ))
+            .await;
+
+        let result = registry.lookup(tenant_id, "frontend", "staging", "").await;
+        assert_eq!(result, deployment_id.to_string());
+    }
+
+    #[tokio::test]
+    async fn lookup_is_tenant_scoped() {
+        let registry = DeploymentRegistry::new();
+        let tenant_a = Uuid::new_v4();
+        let tenant_b = Uuid::new_v4();
+
+        registry
+            .apply_event(event(
+                Uuid::new_v4(),
+                tenant_a,
+                "svc",
+                "prod",
+                "v1.0.0",
+                "in_progress",
+                1,
+            ))
+            .await;
+
+        let result = registry.lookup(tenant_b, "svc", "prod", "v1.0.0").await;
+        assert_eq!(result, "", "lookup must not cross tenant boundaries");
+    }
+
+    #[tokio::test]
+    async fn lookup_returns_most_recent_when_multiple_match() {
+        let registry = DeploymentRegistry::new();
+        let tenant_id = Uuid::new_v4();
+
+        registry
+            .apply_event(event(
+                Uuid::new_v4(),
+                tenant_id,
+                "api",
+                "prod",
+                "v1.0.0",
+                "success",
+                1,
+            ))
+            .await;
+
+        let newest_id = Uuid::new_v4();
+        registry
+            .apply_event(event(
+                newest_id,
+                tenant_id,
+                "api",
+                "prod",
+                "v1.0.0",
+                "in_progress",
+                2,
+            ))
+            .await;
+
+        let result = registry.lookup(tenant_id, "api", "prod", "v1.0.0").await;
+        assert_eq!(
+            result,
+            newest_id.to_string(),
+            "must return most recent deployment"
+        );
+    }
+
+    #[tokio::test]
+    async fn finish_event_supersedes_in_progress_status() {
+        let registry = DeploymentRegistry::new();
+        let tenant_id = Uuid::new_v4();
+        let deployment_id = Uuid::new_v4();
+
+        registry
+            .apply_event(event(
+                deployment_id,
+                tenant_id,
+                "api",
+                "prod",
+                "v1.0.0",
+                "in_progress",
+                1,
+            ))
+            .await;
+        registry
+            .apply_event(event(
+                deployment_id,
+                tenant_id,
+                "api",
+                "prod",
+                "v1.0.0",
+                "failed",
+                1,
+            ))
+            .await;
+
+        let result = registry.lookup(tenant_id, "api", "prod", "v1.0.0").await;
+        assert_eq!(
+            result, "",
+            "a finish event replaces the deployment's state, not just adds to it"
         );
     }
 }
