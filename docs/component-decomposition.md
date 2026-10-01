@@ -629,9 +629,36 @@ Move deployment/change-event APIs and deployment-registry state out of ingest.
 For enrichment that still requires deployment correlation, prefer a control-plane event-fed local
 cache or query-time correlation rather than direct PostgreSQL access.
 
+**In progress.** Decided approach (both confirmed by repo owner): extend admin-service's
+`require_tenant` auth middleware to accept an ingest-style bearer-token-only credential (no
+`X-Tenant-ID`, tenant resolved from the key itself) so existing CI/CD callers of the
+deployment/change-event write routes keep working unchanged after the move; replace
+`deployment_registry.rs`'s direct Postgres lookup with an event-fed local cache (admin-service
+publishes deployment-marker lifecycle changes to a new Redpanda topic; ingest-gateway consumes them
+into an in-memory map) rather than switching to query-time correlation.
+
+Sub-steps:
+
+1. **Done:** `admin-service`'s `require_tenant` middleware accepts `Authorization: Bearer <api-key>`
+   alone (no `X-Tenant-ID`, no session cookie), resolving tenant from the key's own
+   `/internal/validate` response with no tenant-match check — mirrors ingest-gateway's current
+   platform-port auth semantics exactly. Covered by two new unit tests
+   (`api_key_alone_without_tenant_header_resolves_tenant_from_key`,
+   `invalid_api_key_alone_is_rejected`); all 6 pre-existing auth tests still pass unchanged.
+2. Move `POST /v1/deployments`, `PATCH /v1/deployments/{id}`, `POST /v1/events/changes` from
+   ingest-gateway's platform port to admin-service, using the now-extended auth.
+3. Add a Kafka/Redpanda producer to admin-service's deployment create/finish handlers, publishing
+   deployment-marker lifecycle events to a new topic.
+4. Replace `deployment_registry.rs`'s Postgres-backed cache in ingest-gateway with a consumer of
+   that topic, maintaining the same in-memory lookup interface
+   (`DeploymentRegistry::lookup(tenant_id, service_name, environment, service_version)`) used by the
+   HTTP/JSON trace-ingest path today.
+5. Update `tests/e2e/smoke_test.sh`'s deployment-marker steps (currently hit `$PLATFORM/v1/deployments`)
+   and `docker-compose.yml` wiring for the new topic/consumer.
+
 Exit evidence:
 
-- ingest runtime dependencies are auth + Redpanda only
+- ingest runtime dependencies are auth + Redpanda only -- **not yet met**: steps 2-5 above remain
 
 ### Phase 6 — Consolidate alerting
 

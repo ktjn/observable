@@ -10,13 +10,21 @@ pub struct TenantContext {
     pub role: String,
 }
 
-/// Middleware that accepts either:
+/// Middleware that accepts any of:
 ///   1. `Authorization: Bearer <api-key>` + `X-Tenant-ID` — forwarded to
 ///      auth-service `POST /internal/validate` (existing SDK / CLI path).
 ///   2. `Cookie: session=<jwt>` — forwarded to auth-service
 ///      `POST /internal/validate-session` (browser / UI path after OIDC login).
+///   3. `Authorization: Bearer <api-key>` alone (no `X-Tenant-ID`, no session
+///      cookie) — forwarded to auth-service `POST /internal/validate` with the
+///      tenant resolved directly from the key's own response, matching
+///      ingest-gateway's platform-port auth. No tenant-match check applies
+///      since the caller never asserted a tenant. Used by CI/CD deploy
+///      pipelines and other machine callers of admin-service's ingest-adjacent
+///      write routes (deployment markers, change events) that predate
+///      X-Tenant-ID and are not expected to start sending it.
 ///
-/// Both paths now route through auth-service so that every credential check
+/// All three paths route through auth-service so that every credential check
 /// gains an entry in auth-service's `credential_audit_log` table.
 ///
 /// Extensions required in the tower stack (via `.layer(axum::Extension(...))`):
@@ -63,6 +71,22 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
         }
     } else if let Err(observable_auth::AuthError::BadRequest) = tenant_id_res {
         return Err(StatusCode::BAD_REQUEST);
+    } else if let (Some(token), None) = (bearer.as_ref(), session_cookie.as_ref()) {
+        // Ingest-style caller: API key present, no X-Tenant-ID, no session
+        // cookie. Resolve tenant directly from the key.
+        let auth_url = auth_service_url.as_deref().ok_or_else(|| {
+            tracing::error!("auth_service_url extension missing — misconfigured middleware stack");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+        match verify_api_key_only(&http_client, token.clone(), auth_url).await {
+            Ok(ctx) => {
+                req.extensions_mut().insert(ctx);
+                return Ok(next.run(req).await);
+            }
+            Err(StatusCode::UNAUTHORIZED) => {}
+            Err(e) => return Err(e),
+        }
     }
 
     let session_token = session_cookie.or(bearer).ok_or_else(|| {
@@ -153,6 +177,24 @@ async fn verify_credentials(
 
     Ok(TenantContext {
         tenant_id,
+        user_id: None,
+        role: ctx.role,
+    })
+}
+
+/// Same as `verify_credentials` but with no tenant to match against — the
+/// caller never asserted one, so the key's own tenant is authoritative.
+async fn verify_api_key_only(
+    client: &reqwest::Client,
+    token: String,
+    auth_url: &str,
+) -> Result<TenantContext, StatusCode> {
+    let ctx = observable_auth::verify_api_key(client, auth_url, &token)
+        .await
+        .map_err(StatusCode::from)?;
+
+    Ok(TenantContext {
+        tenant_id: ctx.tenant_id,
         user_id: None,
         role: ctx.role,
     })
@@ -292,6 +334,60 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn api_key_alone_without_tenant_header_resolves_tenant_from_key() {
+        let mock_server = MockServer::start().await;
+        let tenant_id = Uuid::new_v4();
+
+        Mock::given(method("POST"))
+            .and(path("/internal/validate"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "tenant_id": tenant_id,
+                "role": "member",
+                "environment": "production"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let response = app(mock_server.uri())
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header("authorization", "Bearer valid-key")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_text(response).await, tenant_id.to_string());
+    }
+
+    #[tokio::test]
+    async fn invalid_api_key_alone_is_rejected() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/internal/validate"))
+            .respond_with(ResponseTemplate::new(401))
+            .mount(&mock_server)
+            .await;
+
+        let response = app(mock_server.uri())
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header("authorization", "Bearer bad-key")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]
