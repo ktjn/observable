@@ -1,4 +1,3 @@
-pub mod alerts;
 pub mod audit;
 pub mod discovery;
 pub mod incidents;

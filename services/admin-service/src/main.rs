@@ -98,6 +98,8 @@ async fn main() -> anyhow::Result<()> {
             "/v1/admin/alerts/rules/{rule_id}",
             patch(alerts::handle_update_rule),
         )
+        .route("/v1/alerts/rules", get(alerts::handle_list_rules))
+        .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
         .route("/v1/deployments", get(deployments::list_deployments))
         .route(
             "/v1/events/changes",

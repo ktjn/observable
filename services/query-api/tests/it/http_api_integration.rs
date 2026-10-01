@@ -9,7 +9,7 @@ use clickhouse::Client as ChClient;
 use http_body_util::BodyExt;
 use observable_storage_contracts::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use query_api::{
-    alerts, discovery, incidents, llm_adapter, logs, metrics, middleware::auth::TenantContext,
+    discovery, incidents, llm_adapter, logs, metrics, middleware::auth::TenantContext,
     middleware::auth::require_tenant, observability, planner::QueryPlanner, reliability, slos,
     traces,
 };
@@ -142,8 +142,6 @@ fn build_app_with_pg_at(ch: ChClient, db: PgPool, auth_service_url: String) -> R
         .route("/v1/metrics", get(metrics::list_metrics))
         .route("/v1/metrics/points", get(metrics::get_metric_group_points))
         .route("/v1/nlq", post(llm_adapter::handle_nlq_query))
-        .route("/v1/alerts/rules", get(alerts::handle_list_rules))
-        .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
         .route("/v1/slos", get(slos::handle_list_slos))
         .route("/v1/slos", post(slos::handle_create_slo))
         .route(
@@ -195,7 +193,6 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
         .route("/v1/logs/histogram", get(logs::log_histogram))
         .route("/v1/metrics", get(metrics::list_metrics))
         .route("/v1/metrics/points", get(metrics::get_metric_group_points))
-        .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .route("/v1/slos", get(slos::handle_list_slos))
         .route("/v1/incidents", get(incidents::handle_list_incidents))
         .route(
@@ -895,58 +892,6 @@ async fn metric_group_points_sum_label_specific_series_at_same_timestamp() {
     assert_eq!(points[0]["value_double"], 5.0);
 }
 
-// ── Alert lifecycle API ─────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn list_alert_rules_http_returns_lifecycle_state() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-    let rule_id = Uuid::new_v4();
-
-    sqlx::query(
-        "INSERT INTO alert_rules \
-         (rule_id, tenant_id, name, alert_type, severity, condition) \
-         VALUES ($1, $2, 'HTTP lifecycle rule', 'threshold', 'warning', $3)",
-    )
-    .bind(rule_id)
-    .bind(tenant)
-    .bind(serde_json::json!({
-        "metric_name": "http_lifecycle_metric",
-        "operator": "gt",
-        "threshold": 0.05,
-    }))
-    .execute(&pg)
-    .await
-    .expect("alert rule inserted");
-    sqlx::query(
-        "INSERT INTO alert_firings (rule_id, tenant_id, state, value) \
-         VALUES ($1, $2, 'pending', 0.10)",
-    )
-    .bind(rule_id)
-    .bind(tenant)
-    .execute(&pg)
-    .await
-    .expect("alert firing inserted");
-
-    let response = app
-        .oneshot(dev_request("GET", "/v1/alerts/rules"))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response_body_json(response.into_body()).await;
-    let item = body["items"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|item| item["rule_id"] == rule_id.to_string())
-        .expect("inserted rule appears in HTTP response");
-    assert_eq!(item["state"], "pending");
-    assert_eq!(item["firing"], false);
-}
-
 // ── SLO API ─────────────────────────────────────────────────────────────────
 
 #[tokio::test]
@@ -1449,83 +1394,6 @@ async fn get_incident_detail_rule_name_null_when_no_rule() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = response_body_json(response.into_body()).await;
     assert!(body["rule_name"].is_null());
-}
-
-#[tokio::test]
-async fn get_alert_rule_returns_detail_with_firings() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-
-    let rule_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO alert_rules \
-         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
-         VALUES ($1, 'High Error Rate', 'threshold', 'critical', \
-                 '{\"metric_name\":\"error_rate\",\"operator\":\"gt\",\"threshold\":0.05}', \
-                 '{}', false) \
-         RETURNING rule_id",
-    )
-    .bind(tenant)
-    .fetch_one(&pg)
-    .await
-    .expect("rule inserted");
-
-    for state in ["active", "resolved"] {
-        sqlx::query(
-            "INSERT INTO alert_firings (rule_id, tenant_id, state, value) \
-             VALUES ($1, $2, $3, $4)",
-        )
-        .bind(rule_id)
-        .bind(tenant)
-        .bind(state)
-        .bind(0.08_f64)
-        .execute(&pg)
-        .await
-        .expect("firing inserted");
-    }
-
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let response = app
-        .oneshot(dev_request("GET", &format!("/v1/alerts/rules/{rule_id}")))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response_body_json(response.into_body()).await;
-    assert_eq!(body["name"], "High Error Rate");
-    assert_eq!(body["severity"], "critical");
-    assert_eq!(body["alert_type"], "threshold");
-    let firings = body["firings"].as_array().unwrap();
-    assert_eq!(firings.len(), 2);
-}
-
-#[tokio::test]
-async fn get_alert_rule_returns_404_for_wrong_tenant() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let _tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-
-    let rule_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO alert_rules \
-         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
-         VALUES ($1, 'Other Tenant Rule', 'threshold', 'warning', \
-                 '{\"metric_name\":\"m\",\"operator\":\"gt\",\"threshold\":1.0}', \
-                 '{}', false) \
-         RETURNING rule_id",
-    )
-    .bind(Uuid::new_v4()) // different tenant — NOT DEV_TENANT_ID
-    .fetch_one(&pg)
-    .await
-    .expect("rule inserted");
-
-    // Request is authenticated as DEV_TENANT_ID
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let response = app
-        .oneshot(dev_request("GET", &format!("/v1/alerts/rules/{rule_id}")))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

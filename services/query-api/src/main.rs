@@ -1,4 +1,3 @@
-mod alerts;
 mod audit;
 mod discovery;
 mod incidents;
@@ -105,8 +104,6 @@ async fn main() -> anyhow::Result<()> {
             get(discovery::get_service_response_time_history),
         )
         .route("/v1/environments", get(discovery::list_environments))
-        .route("/v1/alerts/rules", get(alerts::handle_list_rules))
-        .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
         .route("/v1/incidents", get(incidents::handle_list_incidents))
         .route(
             "/v1/incidents/{incident_id}",

@@ -585,18 +585,25 @@ Move control-plane CRUD out of query and split the current admin surface by owne
 
 Move reliability state to alerting:
 
-- alerts
+- alerts (done: `GET /v1/alerts/rules` and `GET /v1/alerts/rules/{id}` now live in admin-service,
+  alongside the alert-rule mutation routes (`/v1/admin/alerts/rules*`) that already lived there.
+  `discovery.rs`/`reliability.rs`/`incidents.rs` in query-api still read `alert_rules`/
+  `alert_firings` directly via their own SQL for cross-cutting correlation reports -- same
+  already-tracked "remove cross-owner SQL" concern as the deployment-marker and schema/annotation
+  reads, not alert-rule read/write ownership. This moves the routes into admin-service, the interim
+  "control" owner -- it does not yet give alerting state a single dedicated owner component, which
+  is Phase 6's concern.)
 - SLOs
 - notifications
 - incidents
 
 Exit evidence:
 
-- core query operation requires no PostgreSQL connection -- **not yet met**: all of reliability
-  (alerts/SLOs/notifications/incidents) still lives in query-api (plus `mcp_tools.rs`'s direct
-  cross-owner reads of `schema_entries`/`semantic_annotations`, tracked separately). Every listed
-  control-plane CRUD slice in this phase is otherwise moved; only the "move reliability state to
-  alerting" group below remains.
+- core query operation requires no PostgreSQL connection -- **not yet met**: SLOs, notifications,
+  and incidents still live in query-api (plus `discovery.rs`/`reliability.rs`/`incidents.rs`'s
+  direct cross-owner reads of `alert_rules`/`alert_firings`/`deployment_markers`/`schema_entries`/
+  `semantic_annotations`, tracked separately). Every control-plane CRUD slice and the alerts slice
+  of the reliability group are moved; SLOs, notifications, and incidents remain.
 
 ### Phase 5 — Clean ingest
 

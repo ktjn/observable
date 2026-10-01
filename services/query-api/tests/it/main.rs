@@ -5,7 +5,6 @@ mod clickhouse_mcp_query_integration;
 mod http_api_integration;
 mod nlq_provider_integration;
 mod nlq_shorthand_integration;
-mod postgres_alerts_integration;
 mod postgres_mcp_tools_integration;
 mod postgres_slos_integration;
 mod session_auth_integration;
