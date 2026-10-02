@@ -573,7 +573,7 @@ Move control-plane CRUD out of query and split the current admin surface by owne
 - deployments (done: `GET /v1/deployments` now lives in admin-service; `discovery.rs`/`reliability.rs`
   still read `deployment_markers` directly for cross-cutting correlation reports -- that's a separate,
   still-open "remove cross-owner SQL" concern, not deployment-listing ownership)
-- change events
+- change events (done: `GET /v1/events/changes` now lives in admin-service)
 
 Move reliability state to alerting:
 
@@ -585,8 +585,8 @@ Move reliability state to alerting:
 Exit evidence:
 
 - core query operation requires no PostgreSQL connection -- **not yet met**: dashboards, saved
-  views, schemas/annotations, change events, and all of reliability (alerts/SLOs/notifications/
-  incidents) still live in query-api
+  views, schemas/annotations, and all of reliability (alerts/SLOs/notifications/incidents) still
+  live in query-api
 
 ### Phase 5 — Clean ingest
 

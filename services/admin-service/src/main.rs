@@ -1,6 +1,6 @@
 use admin_service::{
-    AdminServiceAppState, admin_members, alerts, config, deployments, middleware, observability,
-    tenants, tokens, usage,
+    AdminServiceAppState, admin_members, alerts, change_events, config, deployments, middleware,
+    observability, tenants, tokens, usage,
 };
 use axum::{
     Router,
@@ -99,6 +99,10 @@ async fn main() -> anyhow::Result<()> {
             patch(alerts::handle_update_rule),
         )
         .route("/v1/deployments", get(deployments::list_deployments))
+        .route(
+            "/v1/events/changes",
+            get(change_events::handle_list_change_events),
+        )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))
         .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
