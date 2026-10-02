@@ -566,10 +566,18 @@ Exit evidence:
 Move control-plane CRUD out of query and split the current admin surface by owner:
 
 - member/role/API-key lifecycle -> auth (done, predates this phase)
-- dashboards
-- saved views
+- dashboards (done: all `/v1/dashboards*` CRUD, grants, and export/import routes now live in
+  admin-service)
+- saved views (done: all `/v1/saved-views*` CRUD and grant routes now live in admin-service; the
+  `grant_satisfies_read`/`_write`/`_delete` ReBAC predicates are imported from `crate::dashboards`,
+  now that dashboards lives here too, rather than duplicated)
 - tenants (done: `GET /v1/tenants`, `GET /v1/tenants/{id}/environments` now live in admin-service)
-- schemas/annotations
+- schemas/annotations (done: `GET /v1/schemas/{signal_type}/attributes` and the
+  `GET`/`PUT`/`PATCH`/`DELETE /v1/schemas/{signal_type}/attributes/{key}/annotations` routes now
+  live in admin-service; `mcp_tools.rs` in query-api still reads `schema_entries`/
+  `semantic_annotations` directly via its own SQL for NLQ metric-schema lookups -- same
+  already-tracked "remove cross-owner SQL" concern as the deployment-marker correlation reads, not
+  schema/annotation CRUD ownership)
 - deployments (done: `GET /v1/deployments` now lives in admin-service; `discovery.rs`/`reliability.rs`
   still read `deployment_markers` directly for cross-cutting correlation reports -- that's a separate,
   still-open "remove cross-owner SQL" concern, not deployment-listing ownership)
@@ -577,16 +585,97 @@ Move control-plane CRUD out of query and split the current admin surface by owne
 
 Move reliability state to alerting:
 
-- alerts
-- SLOs
-- notifications
-- incidents
+- alerts (done: `GET /v1/alerts/rules` and `GET /v1/alerts/rules/{id}` now live in admin-service,
+  alongside the alert-rule mutation routes (`/v1/admin/alerts/rules*`) that already lived there.
+  `discovery.rs`/`reliability.rs`/`incidents.rs` in query-api still read `alert_rules`/
+  `alert_firings` directly via their own SQL for cross-cutting correlation reports -- same
+  already-tracked "remove cross-owner SQL" concern as the deployment-marker and schema/annotation
+  reads, not alert-rule read/write ownership. This moves the routes into admin-service, the interim
+  "control" owner -- it does not yet give alerting state a single dedicated owner component, which
+  is Phase 6's concern.)
+- SLOs (done: `GET`/`POST /v1/slos` -- list and create, including the `slo_burn_rate` alert-rule
+  side effect of create -- now live in admin-service, in a new `slos.rs` module there. `reliability.rs`
+  in query-api keeps its own local `SloDefinitionItem` projection for its cross-cutting correlation
+  query against `slo_definitions`/`alert_rules`/`alert_firings` -- same already-tracked "remove
+  cross-owner SQL" concern as the alerts/deployment-marker/schema reads, not SLO ownership)
+- notifications (done: `GET`/`POST /v1/notifications/channels` and `DELETE
+  /v1/notifications/channels/{id}` now live in a new admin-service `notifications.rs` module. This
+  surface had zero prior test coverage in query-api; adding the first Testcontainers test for it
+  during the move surfaced a real, pre-existing bug -- `type` (a Postgres enum column) was selected
+  without a `::text` cast, so decoding it into `NotificationChannelItem.channel_type: String` failed
+  every create/list call against real Postgres with a `ColumnDecode` error. Fixed in the same commit
+  as the move by adding `type::text AS type` to both queries; not a behavior change this slice
+  intentionally set out to make, but a latent crash this slice's required test coverage caught.)
+- incidents (done: `GET /v1/incidents` and `GET /v1/incidents/{id}` now live in a new admin-service
+  `incidents.rs` module. `reliability.rs` in query-api keeps its own local `IncidentItem`
+  projection for its cross-cutting correlation query, same pattern as the `DeploymentMarker`/
+  `SloDefinitionItem` precedents -- not incident ownership.)
 
 Exit evidence:
 
-- core query operation requires no PostgreSQL connection -- **not yet met**: dashboards, saved
-  views, schemas/annotations, and all of reliability (alerts/SLOs/notifications/incidents) still
-  live in query-api
+- core query operation requires no PostgreSQL connection -- **not yet met**: every control-plane
+  CRUD slice and the full "move reliability state to alerting" group (alerts, SLOs, notifications,
+  incidents) listed above have moved their owning routes/modules to admin-service, but query-api's
+  `discovery.rs`/`reliability.rs` still hold a PostgreSQL connection for their own direct,
+  cross-owner correlation reads against `alert_rules`/`alert_firings`/`slo_definitions`/
+  `deployment_markers`/`schema_entries`/`semantic_annotations`/`incidents` -- removing those reads
+  is the separately-tracked "remove cross-owner SQL" work (Phase 4/6's listed follow-on), not this
+  phase's own route-ownership scope.
+
+#### Remove cross-owner SQL (partial)
+
+Scoped by repo-owner decision to two call sites, deliberately excluding a third:
+
+- **`discovery.rs`'s service-catalog enrichment -- done.** The SLO/alert/deployment join that used
+  to run as direct SQL in query-api now runs in admin-service, behind a new
+  `GET /internal/service-catalog-enrichment` route, and query-api calls it over HTTP. One batched
+  call per catalog listing (not per-service), so the network hop doesn't add per-row latency.
+- **`reliability.rs`'s reliability-report correlation -- done.** Same treatment: the three SQL
+  queries (incidents/SLOs/deployments, each already filtered by service+environment+interval) moved
+  to a new `GET /internal/reliability-correlation` admin-service route; query-api's
+  `IncidentItem`/`SloDefinitionItem`/`DeploymentMarker` structs gained `Deserialize` (they already
+  had `Serialize` for query-api's own response) so the JSON deserializes straight into the existing
+  types. Summary computation (`compute_incident_summary`/`compute_slo_summary`/
+  `compute_deployment_summary`) stayed in query-api -- that's presentation logic over the correlated
+  data, not data-ownership logic.
+- **`mcp_tools.rs`'s NLQ schema/annotation lookups -- deliberately NOT done.** These reads
+  (`get_metric_schema`, `list_signal_fields`, `resolve_label_to_column`) run synchronously during
+  interactive NLQ query generation, potentially several times per user query. Converting them to
+  HTTP calls to admin-service would add real network latency to a latency-sensitive feature for no
+  correctness benefit today. Left as direct Postgres reads; documented here as an intentional
+  exception to "remove cross-owner SQL," not an oversight.
+
+New shared infrastructure for the two converted call sites:
+
+- `observable_auth::verify_internal_token` -- constant-time comparison of an `X-Internal-Token`
+  header against a shared secret (`INTERNAL_SERVICE_TOKEN`, same value configured on both
+  admin-service and query-api). Distinct from per-tenant API-key/session auth: the caller passes
+  `tenant_id` explicitly as a request parameter since there's no end-user credential on these calls.
+- `admin-service::middleware::auth::require_internal_service` -- the middleware gating a new
+  `/internal/*` sub-router in admin-service's `main.rs`, built and `.merge()`-d separately so
+  `require_internal_service` never wraps the tenant-scoped `/v1/*` routes.
+- `admin-service::internal` -- the new module hosting both routes; their SQL is moved verbatim from
+  query-api's old `fetch_service_catalog_enrichment`/`get_service_reliability_report`.
+
+Query-api's `AppState` gained `admin_service_url`, `internal_service_token`, and `http_client`
+fields (required updating every test file that constructs `traces::AppState` literally -- the same
+`producer: None`-style mechanical fallout Phase 5's producer change caused in admin-service).
+
+Both admin-service's `discovery.rs`/`reliability.rs` test scenarios (the exact seeded-Postgres
+cases the old query-api tests used) were ported to new admin-service integration tests
+(`internal_integration.rs`) proving the moved SQL is correct against real Postgres. Query-api's own
+two tests were rewritten to mock admin-service's responses via `wiremock` instead of seeding
+Postgres directly, verifying the HTTP call + summary-computation logic rather than re-proving the
+join -- that split avoids duplicating "is the SQL correct" coverage across two services while still
+covering "does query-api call admin-service correctly."
+
+Verified for real (Docker available this session): cargo check/clippy clean across
+`observable-auth`, `domain`, `admin-service`, `query-api`, and the full workspace. `observable-auth`:
+18 tests (14 + 4 new). `admin-service`: full suite passes including the 4 new `internal_integration.rs`
+tests against real Postgres. `query-api`: full `it` suite passes at 84 tests (unchanged count --
+the two rewritten tests replace the two removed-then-readded in place), lib unit tests unchanged at
+183. `helm template`/`helm lint` pass with `INTERNAL_SERVICE_TOKEN`/`ADMIN_SERVICE_URL` rendering
+into both services' manifests.
 
 ### Phase 5 — Clean ingest
 
@@ -595,9 +684,82 @@ Move deployment/change-event APIs and deployment-registry state out of ingest.
 For enrichment that still requires deployment correlation, prefer a control-plane event-fed local
 cache or query-time correlation rather than direct PostgreSQL access.
 
+**In progress.** Decided approach (both confirmed by repo owner): extend admin-service's
+`require_tenant` auth middleware to accept an ingest-style bearer-token-only credential (no
+`X-Tenant-ID`, tenant resolved from the key itself) so existing CI/CD callers of the
+deployment/change-event write routes keep working unchanged after the move; replace
+`deployment_registry.rs`'s direct Postgres lookup with an event-fed local cache (admin-service
+publishes deployment-marker lifecycle changes to a new Redpanda topic; ingest-gateway consumes them
+into an in-memory map) rather than switching to query-time correlation.
+
+Sub-steps:
+
+1. **Done:** `admin-service`'s `require_tenant` middleware accepts `Authorization: Bearer <api-key>`
+   alone (no `X-Tenant-ID`, no session cookie), resolving tenant from the key's own
+   `/internal/validate` response with no tenant-match check — mirrors ingest-gateway's current
+   platform-port auth semantics exactly. Covered by two new unit tests
+   (`api_key_alone_without_tenant_header_resolves_tenant_from_key`,
+   `invalid_api_key_alone_is_rejected`); all 6 pre-existing auth tests still pass unchanged.
+2. **Done:** `POST /v1/deployments`, `PATCH /v1/deployments/{id}`, and `POST /v1/events/changes`
+   moved from ingest-gateway's platform port to admin-service (merged into the existing
+   `deployments.rs`/`change_events.rs` read modules there), using the now-extended auth.
+   ingest-gateway's `deployments.rs` and `change_events.rs` are deleted entirely -- they carried
+   only these write handlers, nothing else. Role authorization (`member`/`admin` may write,
+   `viewer` may not) is preserved via a `can_ingest()` check ported from ingest-gateway's
+   `TenantContext::can_ingest()`, now in `admin-service::deployments::can_ingest` (shared with
+   `change_events.rs`) -- **not** admin-service's own `require_admin`, since API-key roles
+   (`viewer`/`member`/`admin`) and session roles (`viewer`/`member`/`tenant_admin`) are a different
+   vocabulary. `scripts/deployment-marker.sh` and `tests/e2e/smoke_test.sh` updated to call
+   admin-service's port instead of ingest-gateway's platform port; both send only `Authorization:
+   Bearer <key>` with no `X-Tenant-ID`, exercising the new auth path for real. nginx's existing
+   `/v1/deployments` and `/v1/events/changes` prefix blocks already routed to admin-service for
+   every HTTP method, so no nginx change was needed.
+   `deployment_registry.rs` is untouched -- ingest-gateway still holds a direct Postgres dependency
+   through it, tracked in step 4 below.
+3. **Done:** `admin-service` publishes `domain::DeploymentMarkerEvent` to `deployment.markers.v1`
+   (new shared type in `libs/domain/src/envelope.rs`, alongside `TelemetryEnvelope`/
+   `NormalizedTelemetryBatch`, since both producer and consumer already depend on `domain`) from a
+   new `DeploymentEventProducer` in `admin-service::queue`, called from `create_deployment` (status
+   `in_progress`) and `finish_deployment` (status `success`/`failed`/`rolled_back`, via a `RETURNING
+   service_name, environment, service_version` added to the finish UPDATE so the event has the
+   coordinates). Publish is best-effort: `AdminServiceAppState.producer` is `Option`, and a publish
+   failure only logs a warning -- the Postgres row is the source of truth; the event is a
+   cache-freshness optimization for ingest-gateway, not a correctness requirement for the
+   deployment-marker write itself.
+4. **Done:** `deployment_registry.rs` in ingest-gateway is rewritten from a Postgres-backed,
+   30 s-TTL cache to a pure in-memory `HashMap<Uuid, DeploymentState>` fed entirely by a
+   `run_consumer` background task (spawned unconditionally in `main.rs`, auto-commit, mirroring
+   `storage-writer`'s `NormalizedConsumer` wiring style) consuming `deployment.markers.v1`.
+   `lookup()` now scans the map (deploy events are orders of magnitude rarer than spans, so this is
+   cheap) applying the exact same filter/ordering semantics the old SQL query used --
+   tenant/service/environment match, optional-version wildcard, `status IN ('in_progress',
+   'success')`, most-recent `started_at` wins -- rather than building secondary indexes, so the
+   existing lookup test suite (tenant scoping, status filtering, empty-version wildcard,
+   most-recent-wins) ports over unchanged in semantics, now driven by `apply_event` calls instead
+   of Postgres inserts. A new `finish_event_supersedes_in_progress_status` test covers the
+   replace-not-merge semantics (a later event for the same `deployment_id` fully replaces its
+   state). `DeploymentRegistry::new()` no longer takes a `PgPool`.
+   `AppState.db` (Postgres) still exists in ingest-gateway for `readyz.rs`'s health probe and the
+   prometheus_rw test harness -- **not removed in this step**; whether ingest-gateway's readiness
+   signal should still depend on Postgres once nothing in its request-handling path needs it is a
+   separate, not-yet-made decision, tracked as a gap in the exit evidence below rather than silently
+   folded into this change.
+5. **Done:** `docker-compose.yml` creates `deployment.markers.v1` alongside the existing two topics,
+   sets `REDPANDA_BROKERS`/`DEPLOYMENT_MARKERS_TOPIC` on both `admin-service` and `ingest-gateway`,
+   and adds `redpanda-setup` to `admin-service`'s `depends_on`. `charts/observable`'s Helm values
+   and the `admin-service`/`ingest-gateway` templates updated the same way
+   (`.Values.redpanda.deploymentMarkersTopic`); `helm template`/`helm lint` both pass with the new
+   env var rendering into both manifests.
+
 Exit evidence:
 
-- ingest runtime dependencies are auth + Redpanda only
+- ingest runtime dependencies are auth + Redpanda only -- **not yet met**: ingest-gateway's
+  Postgres connection remains for `readyz.rs`'s health probe (see step 4's note above) -- the
+  hot-path `deployment_registry.rs` dependency this phase set out to remove is gone, verified by a
+  real Testcontainers Redpanda integration test
+  (`consumer_applies_published_event_to_registry`) that publishes an event to a live broker and
+  confirms the consumer applies it to the registry end-to-end, not just via mocked/unit-level
+  coverage
 
 ### Phase 6 — Consolidate alerting
 

@@ -16,7 +16,7 @@ use std::io::Read;
 use tower_http::trace::TraceLayer;
 use tracing::Level;
 
-use crate::{AppState, auth, change_events, deployments, prometheus_rw};
+use crate::{AppState, auth, prometheus_rw};
 
 pub enum DecodedBody {
     Json(Value),
@@ -82,7 +82,7 @@ fn matches_content_type(actual: &str, expected: &str) -> bool {
 }
 
 /// OTLP/HTTP router — strictly OTLP signals only (ADR-001, ADR-023).
-/// Non-OTLP platform writes (e.g. deployment markers) belong on the platform port.
+/// Non-OTLP platform writes belong on the platform port.
 pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/v1/traces", post(traces::export_traces))
@@ -102,20 +102,15 @@ pub fn build_router(state: AppState) -> Router {
 
 /// Platform API router — Observable-specific authenticated write operations.
 /// Hosted on a separate port so the OTLP port (4318) remains strictly OTLP.
+/// Deployment-marker and change-event creation (POST/PATCH) moved to
+/// admin-service as part of Phase 5 "clean ingest"
+/// (docs/component-decomposition.md) -- this now carries only the Prometheus
+/// remote-write ingestion path.
 pub fn build_platform_router(
     state: AppState,
     probe_state: crate::readyz::IngestGatewayProbeState,
 ) -> Router {
     let authenticated = Router::new()
-        .route("/v1/deployments", post(deployments::create_deployment))
-        .route(
-            "/v1/deployments/{deployment_id}",
-            axum::routing::patch(deployments::finish_deployment),
-        )
-        .route(
-            "/v1/events/changes",
-            post(change_events::create_change_event),
-        )
         .route("/api/v1/write", post(prometheus_rw::write))
         .layer(middleware::from_fn_with_state(
             state.clone(),

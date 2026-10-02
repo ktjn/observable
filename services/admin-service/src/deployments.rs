@@ -2,12 +2,23 @@ use crate::AdminServiceAppState;
 use crate::middleware::auth::TenantContext;
 use axum::{
     Json,
-    extract::{Extension, Query, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+/// API-key roles ('viewer'/'member'/'admin', from auth-service's api_keys-backed
+/// validation) that may create or modify deployment markers and change events.
+/// Mirrors ingest-gateway's TenantContext::can_ingest() -- these are
+/// ingest-adjacent write routes moved here from ingest-gateway's platform
+/// port, not generic admin-service CRUD, so they keep ingest's authorization
+/// shape rather than admin-service's session-role `require_admin`
+/// ('tenant_admin'), which checks a different role vocabulary entirely.
+pub(crate) fn can_ingest(ctx: &TenantContext) -> bool {
+    matches!(ctx.role.as_str(), "member" | "admin")
+}
 
 #[derive(Deserialize)]
 pub struct ListDeploymentsParams {
@@ -77,6 +88,172 @@ pub async fn list_deployments(
     Ok(Json(ListDeploymentsResponse { items }))
 }
 
+#[derive(Deserialize)]
+pub struct CreateDeploymentRequest {
+    pub service_name: String,
+    pub environment: String,
+    pub service_version: String,
+    pub project_id: Option<Uuid>,
+    pub deployed_by: Option<String>,
+    pub commit_sha: Option<String>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Serialize)]
+pub struct CreateDeploymentResponse {
+    pub deployment_id: Uuid,
+}
+
+#[derive(Deserialize)]
+pub struct FinishDeploymentRequest {
+    pub status: String,
+    pub finished_at: Option<DateTime<Utc>>,
+    pub rollback_of: Option<Uuid>,
+}
+
+/// POST /v1/deployments
+pub async fn create_deployment(
+    State(state): State<AdminServiceAppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Json(req): Json<CreateDeploymentRequest>,
+) -> Result<(StatusCode, Json<CreateDeploymentResponse>), StatusCode> {
+    if !can_ingest(&ctx) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    if req.service_name.trim().is_empty()
+        || req.environment.trim().is_empty()
+        || req.service_version.trim().is_empty()
+    {
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    let deployment_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO deployment_markers \
+         (tenant_id, project_id, service_name, environment, service_version, \
+          status, deployed_by, commit_sha, metadata) \
+         VALUES ($1, $2, $3, $4, $5, 'in_progress', $6, $7, $8) \
+         RETURNING deployment_id",
+    )
+    .bind(ctx.tenant_id)
+    .bind(req.project_id)
+    .bind(&req.service_name)
+    .bind(&req.environment)
+    .bind(&req.service_version)
+    .bind(&req.deployed_by)
+    .bind(&req.commit_sha)
+    .bind(&req.metadata)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to create deployment marker");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    publish_deployment_event(
+        &state,
+        deployment_id,
+        ctx.tenant_id,
+        &req.service_name,
+        &req.environment,
+        &req.service_version,
+        "in_progress",
+    )
+    .await;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateDeploymentResponse { deployment_id }),
+    ))
+}
+
+/// Best-effort publish to `deployment.markers.v1` for ingest-gateway's cache
+/// (Phase 5 "clean ingest", docs/component-decomposition.md). A publish
+/// failure (or no producer configured, e.g. in tests) only logs a warning --
+/// it must never fail the deployment-marker write itself, since the Postgres
+/// row is the source of truth and the event is a freshness optimization for
+/// ingest-gateway's in-memory cache, not a correctness requirement.
+async fn publish_deployment_event(
+    state: &AdminServiceAppState,
+    deployment_id: Uuid,
+    tenant_id: Uuid,
+    service_name: &str,
+    environment: &str,
+    service_version: &str,
+    status: &str,
+) {
+    let Some(producer) = &state.producer else {
+        return;
+    };
+    let event = domain::DeploymentMarkerEvent {
+        deployment_id,
+        tenant_id,
+        service_name: service_name.to_string(),
+        environment: environment.to_string(),
+        service_version: service_version.to_string(),
+        status: status.to_string(),
+        started_at_unix_nano: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64,
+    };
+    if let Err(e) = producer.publish(&event).await {
+        tracing::warn!(error = %e, %deployment_id, "failed to publish deployment marker event");
+    }
+}
+
+/// PATCH /v1/deployments/{deployment_id}
+pub async fn finish_deployment(
+    State(state): State<AdminServiceAppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(deployment_id): Path<Uuid>,
+    Json(req): Json<FinishDeploymentRequest>,
+) -> Result<StatusCode, StatusCode> {
+    if !can_ingest(&ctx) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let allowed = ["success", "failed", "rolled_back"];
+    if !allowed.contains(&req.status.as_str()) {
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    let finished_at = req.finished_at.unwrap_or_else(Utc::now);
+
+    let updated: Option<(String, String, String)> = sqlx::query_as(
+        "UPDATE deployment_markers \
+         SET status = $1, finished_at = $2, rollback_of = $3 \
+         WHERE deployment_id = $4 AND tenant_id = $5 \
+         RETURNING service_name, environment, service_version",
+    )
+    .bind(&req.status)
+    .bind(finished_at)
+    .bind(req.rollback_of)
+    .bind(deployment_id)
+    .bind(ctx.tenant_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to finish deployment marker");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let Some((service_name, environment, service_version)) = updated else {
+        return Err(StatusCode::NOT_FOUND);
+    };
+
+    publish_deployment_event(
+        &state,
+        deployment_id,
+        ctx.tenant_id,
+        &service_name,
+        &environment,
+        &service_version,
+        &req.status,
+    )
+    .await;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -127,5 +304,61 @@ mod tests {
         assert_eq!(v["service_name"], "shop-api");
         assert_eq!(v["status"], "success");
         assert!(v["finished_at"].is_null());
+    }
+
+    #[test]
+    fn finish_allows_success() {
+        let allowed = ["success", "failed", "rolled_back"];
+        assert!(allowed.contains(&"success"));
+    }
+
+    #[test]
+    fn finish_rejects_in_progress() {
+        let allowed = ["success", "failed", "rolled_back"];
+        assert!(!allowed.contains(&"in_progress"));
+    }
+
+    #[test]
+    fn finish_rejects_unknown_status() {
+        let allowed = ["success", "failed", "rolled_back"];
+        assert!(!allowed.contains(&"garbage"));
+    }
+
+    #[test]
+    fn create_response_serializes_deployment_id() {
+        let id = Uuid::new_v4();
+        let resp = CreateDeploymentResponse { deployment_id: id };
+        let v = serde_json::to_value(&resp).unwrap();
+        assert_eq!(v["deployment_id"].as_str().unwrap(), id.to_string());
+    }
+
+    #[test]
+    fn member_can_ingest() {
+        let ctx = TenantContext {
+            tenant_id: Uuid::new_v4(),
+            user_id: None,
+            role: "member".into(),
+        };
+        assert!(can_ingest(&ctx));
+    }
+
+    #[test]
+    fn admin_can_ingest() {
+        let ctx = TenantContext {
+            tenant_id: Uuid::new_v4(),
+            user_id: None,
+            role: "admin".into(),
+        };
+        assert!(can_ingest(&ctx));
+    }
+
+    #[test]
+    fn viewer_cannot_ingest() {
+        let ctx = TenantContext {
+            tenant_id: Uuid::new_v4(),
+            user_id: None,
+            role: "viewer".into(),
+        };
+        assert!(!can_ingest(&ctx));
     }
 }

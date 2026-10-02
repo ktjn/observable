@@ -126,6 +126,9 @@ fn build_app(db: PgPool, auth_service_url: String) -> Router {
         auth_service_url: auth_service_url.clone(),
         metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
         sessions: query_api::nlq_session::NlqSessionStore::default(),
+        admin_service_url: "http://admin-service:4324".into(),
+        internal_service_token: "test-internal-token".into(),
+        http_client: reqwest::Client::new(),
     };
     Router::new()
         .route("/v1/traces/histogram", get(|| async { StatusCode::OK }))

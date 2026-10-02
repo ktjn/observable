@@ -1,8 +1,5 @@
-mod alerts;
 mod audit;
-mod dashboards;
 mod discovery;
-mod incidents;
 mod llm_adapter;
 mod llm_config;
 mod logs;
@@ -11,20 +8,16 @@ mod mcp_tools;
 mod metrics;
 mod middleware;
 mod nlq_session;
-mod notifications;
 mod observability;
 mod planner;
 mod reliability;
-mod saved_views;
-mod schemas;
 mod setup;
-mod slos;
 mod sql_templates;
 mod traces;
 
 use axum::{
     Router, middleware as axum_middleware,
-    routing::{delete, get, post, put},
+    routing::{get, post},
 };
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
@@ -64,6 +57,8 @@ async fn main() -> anyhow::Result<()> {
         );
     }
     let auth_service_url = observable_config::require_env("AUTH_SERVICE_URL")?;
+    let admin_service_url = observable_config::require_env("ADMIN_SERVICE_URL")?;
+    let internal_service_token = observable_config::require_env("INTERNAL_SERVICE_TOKEN")?;
     let state = traces::AppState {
         ch,
         db,
@@ -72,6 +67,9 @@ async fn main() -> anyhow::Result<()> {
         auth_service_url,
         metrics: Arc::new(observability::QueryApiMetrics::new()),
         sessions: nlq_session::NlqSessionStore::default(),
+        admin_service_url,
+        internal_service_token,
+        http_client: reqwest::Client::new(),
     };
     let app = Router::new()
         .route("/v1/traces", get(traces::search_traces))
@@ -108,83 +106,9 @@ async fn main() -> anyhow::Result<()> {
             get(discovery::get_service_response_time_history),
         )
         .route("/v1/environments", get(discovery::list_environments))
-        .route("/v1/dashboards", get(dashboards::handle_list_dashboards))
-        .route("/v1/dashboards", post(dashboards::handle_create_dashboard))
-        .route("/v1/dashboards/{id}", get(dashboards::handle_get_dashboard))
-        .route(
-            "/v1/dashboards/{id}",
-            put(dashboards::handle_update_dashboard).delete(dashboards::handle_delete_dashboard),
-        )
-        .route(
-            "/v1/dashboards/import",
-            post(dashboards::handle_import_dashboard),
-        )
-        .route(
-            "/v1/dashboards/{id}/export",
-            get(dashboards::handle_get_dashboard_export),
-        )
-        .route(
-            "/v1/dashboards/{id}/grants",
-            get(dashboards::handle_list_grants).post(dashboards::handle_add_grant),
-        )
-        .route(
-            "/v1/dashboards/{id}/grants/{user_id}",
-            axum::routing::delete(dashboards::handle_revoke_grant),
-        )
-        .route(
-            "/v1/saved-views",
-            get(saved_views::handle_list_saved_views).post(saved_views::handle_create_saved_view),
-        )
-        .route(
-            "/v1/saved-views/{id}",
-            get(saved_views::handle_get_saved_view)
-                .put(saved_views::handle_update_saved_view)
-                .delete(saved_views::handle_delete_saved_view),
-        )
-        .route(
-            "/v1/saved-views/{id}/grants",
-            get(saved_views::handle_list_saved_view_grants)
-                .post(saved_views::handle_add_saved_view_grant),
-        )
-        .route(
-            "/v1/saved-views/{id}/grants/{user_id}",
-            axum::routing::delete(saved_views::handle_revoke_saved_view_grant),
-        )
-        .route("/v1/alerts/rules", get(alerts::handle_list_rules))
-        .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
-        .route("/v1/incidents", get(incidents::handle_list_incidents))
-        .route(
-            "/v1/incidents/{incident_id}",
-            get(incidents::handle_get_incident),
-        )
         .route(
             "/v1/services/{service_name}/reliability-report",
             get(reliability::handle_get_service_reliability_report),
-        )
-        .route(
-            "/v1/notifications/channels",
-            get(notifications::handle_list_channels),
-        )
-        .route(
-            "/v1/notifications/channels",
-            post(notifications::handle_create_channel),
-        )
-        .route(
-            "/v1/notifications/channels/{id}",
-            delete(notifications::handle_delete_channel),
-        )
-        .route("/v1/slos", get(slos::handle_list_slos))
-        .route("/v1/slos", post(slos::handle_create_slo))
-        .route(
-            "/v1/schemas/{signal_type}/attributes",
-            get(schemas::handle_list_attributes),
-        )
-        .route(
-            "/v1/schemas/{signal_type}/attributes/{key}/annotations",
-            get(schemas::handle_get_annotation)
-                .put(schemas::handle_upsert_annotation)
-                .patch(schemas::handle_patch_annotation)
-                .delete(schemas::handle_delete_annotation),
         )
         .route(
             "/v1/mcp/tools/metric-schema/{metric_name}",

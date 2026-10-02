@@ -321,7 +321,7 @@ pub async fn list_service_summaries(
     })?;
 
     let enrichment =
-        fetch_service_catalog_enrichment(&state.db, ctx.tenant_id, params.environment.as_deref())
+        fetch_service_catalog_enrichment(&state, ctx.tenant_id, params.environment.as_deref())
             .await
             .map_err(|e| {
                 tracing::error!(error = %e, "failed to fetch service catalog enrichment");
@@ -398,7 +398,7 @@ pub async fn get_service_summary(
         .ok_or(StatusCode::NOT_FOUND)?;
 
     let enrichment =
-        fetch_service_catalog_enrichment(&state.db, ctx.tenant_id, params.environment.as_deref())
+        fetch_service_catalog_enrichment(&state, ctx.tenant_id, params.environment.as_deref())
             .await
             .map_err(|e| {
                 tracing::error!(error = %e, "failed to fetch service catalog enrichment");
@@ -630,7 +630,14 @@ pub async fn get_infrastructure_detail(
     Ok(Json(InfrastructureDetailResponse { entity, links }))
 }
 
-/// Per-service catalog enrichment sourced from Postgres (SLO-linked alerts and deployments).
+/// Per-service catalog enrichment sourced from admin-service's
+/// `/internal/service-catalog-enrichment` (SLO-linked alerts and
+/// deployments). The join itself lives in admin-service, which owns
+/// `slo_definitions`/`alert_rules`/`alert_firings`/`deployment_markers`
+/// (Phase 4's "remove cross-owner SQL" follow-on,
+/// docs/component-decomposition.md) -- this is a single batched call per
+/// catalog listing, not per-service, so the extra network hop doesn't add
+/// per-row latency.
 ///
 /// `active_alert_count` and `slo_breaching` are scoped to alerts reachable via
 /// `slo_definitions.service_name` (i.e. `alert_type = 'slo_burn_rate'` rules whose
@@ -642,80 +649,58 @@ struct ServiceCatalogEnrichment {
     latest_deployment: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct ServiceCatalogEnrichmentItem {
+    service_name: String,
+    active_alert_count: i64,
+    slo_breaching: bool,
+    latest_deployment: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ServiceCatalogEnrichmentResponse {
+    items: Vec<ServiceCatalogEnrichmentItem>,
+}
+
 async fn fetch_service_catalog_enrichment(
-    db: &sqlx::PgPool,
+    state: &AppState,
     tenant_id: Uuid,
     environment: Option<&str>,
-) -> Result<HashMap<String, ServiceCatalogEnrichment>, sqlx::Error> {
-    let mut enrichment: HashMap<String, ServiceCatalogEnrichment> = HashMap::new();
-
-    #[derive(sqlx::FromRow)]
-    struct SloAlertRow {
-        service_name: String,
-        active_alert_count: i64,
-        slo_breaching: bool,
+) -> Result<HashMap<String, ServiceCatalogEnrichment>, reqwest::Error> {
+    let url = format!(
+        "{}/internal/service-catalog-enrichment",
+        state.admin_service_url
+    );
+    let mut query_params = vec![("tenant_id", tenant_id.to_string())];
+    if let Some(env) = environment {
+        query_params.push(("environment", env.to_string()));
     }
 
-    let slo_rows: Vec<SloAlertRow> = sqlx::query_as(
-        "SELECT sd.service_name, \
-                COUNT(af.firing_id) FILTER (WHERE af.state = 'active') AS active_alert_count, \
-                COALESCE(BOOL_OR(af.state = 'active'), false) AS slo_breaching \
-         FROM slo_definitions sd \
-         LEFT JOIN alert_rules ar \
-             ON ar.tenant_id = sd.tenant_id \
-            AND ar.alert_type = 'slo_burn_rate' \
-            AND ar.condition->>'slo_id' = sd.slo_id::text \
-         LEFT JOIN alert_firings af ON af.rule_id = ar.rule_id \
-         WHERE sd.tenant_id = $1 \
-           AND ($2::TEXT IS NULL OR sd.environment = $2) \
-         GROUP BY sd.service_name",
-    )
-    .bind(tenant_id)
-    .bind(environment)
-    .fetch_all(db)
-    .await?;
+    let response: ServiceCatalogEnrichmentResponse = state
+        .http_client
+        .get(&url)
+        .query(&query_params)
+        .header("X-Internal-Token", &state.internal_service_token)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
 
-    for row in slo_rows {
-        enrichment.insert(
-            row.service_name,
-            ServiceCatalogEnrichment {
-                active_alert_count: row.active_alert_count.max(0) as u64,
-                slo_breaching: row.slo_breaching,
-                latest_deployment: None,
-            },
-        );
-    }
-
-    #[derive(sqlx::FromRow)]
-    struct LatestDeploymentRow {
-        service_name: String,
-        service_version: String,
-    }
-
-    let deployment_rows: Vec<LatestDeploymentRow> = sqlx::query_as(
-        "SELECT DISTINCT ON (service_name) service_name, service_version \
-         FROM deployment_markers \
-         WHERE tenant_id = $1 \
-           AND ($2::TEXT IS NULL OR environment = $2) \
-         ORDER BY service_name, started_at DESC",
-    )
-    .bind(tenant_id)
-    .bind(environment)
-    .fetch_all(db)
-    .await?;
-
-    for row in deployment_rows {
-        enrichment
-            .entry(row.service_name)
-            .or_insert(ServiceCatalogEnrichment {
-                active_alert_count: 0,
-                slo_breaching: false,
-                latest_deployment: None,
-            })
-            .latest_deployment = Some(row.service_version);
-    }
-
-    Ok(enrichment)
+    Ok(response
+        .items
+        .into_iter()
+        .map(|item| {
+            (
+                item.service_name,
+                ServiceCatalogEnrichment {
+                    active_alert_count: item.active_alert_count.max(0) as u64,
+                    slo_breaching: item.slo_breaching,
+                    latest_deployment: item.latest_deployment,
+                },
+            )
+        })
+        .collect())
 }
 
 fn apply_catalog_enrichment(

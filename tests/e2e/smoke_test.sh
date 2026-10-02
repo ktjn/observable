@@ -228,7 +228,9 @@ main() {
     "[.items[] | select(. == \"$SERVICE_NAME\")] | length"
 
   echo "7. Creating deployment marker..."
-  DEPLOYMENT_CREATE_RESULT=$(curl -sf -X POST "$PLATFORM/v1/deployments" \
+  # Deployment-marker creation lives in admin-service, not ingest-gateway, as of
+  # Phase 5 "clean ingest" (docs/component-decomposition.md).
+  DEPLOYMENT_CREATE_RESULT=$(curl -sf -X POST "$ADMIN/v1/deployments" \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
     -d "{\"service_name\":\"$SERVICE_NAME\",\"environment\":\"prod\",\"service_version\":\"smoke-$RUN_ID\"}")
@@ -241,7 +243,7 @@ main() {
   echo " OK (created) - $DEPLOYMENT_ID"
 
   echo "7a. Finishing deployment marker..."
-  assert_http_status "finish deployment" "204" -X PATCH "$PLATFORM/v1/deployments/$DEPLOYMENT_ID" \
+  assert_http_status "finish deployment" "204" -X PATCH "$ADMIN/v1/deployments/$DEPLOYMENT_ID" \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
     -d "{\"status\":\"success\"}"

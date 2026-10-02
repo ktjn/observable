@@ -12,7 +12,7 @@ use axum::{
     routing::get,
 };
 use http_body_util::BodyExt;
-use serde_json::Value;
+use serde_json::{Value, json};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::{path::Path, sync::Arc};
 use testcontainers::{ImageExt, runners::AsyncRunner};
@@ -71,22 +71,27 @@ async fn response_body_json(body: Body) -> Value {
 }
 
 fn build_app(db: PgPool, tenant_id: Uuid) -> Router {
+    build_app_with_role(db, tenant_id, "tenant_admin")
+}
+
+fn build_app_with_role(db: PgPool, tenant_id: Uuid, role: &str) -> Router {
     let state = AdminServiceAppState {
         db: db.clone(),
         ch: clickhouse::Client::default().with_url("http://127.0.0.1:19999"),
         auth_service_url: "http://auth-service:4319".into(),
         http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
+        producer: None,
     };
     Router::new()
         .route(
             "/v1/events/changes",
-            get(change_events::handle_list_change_events),
+            get(change_events::handle_list_change_events).post(change_events::create_change_event),
         )
         .layer(axum::Extension(TenantContext {
             tenant_id,
             user_id: Some(Uuid::new_v4()),
-            role: "tenant_admin".into(),
+            role: role.into(),
         }))
         .with_state(state)
 }
@@ -203,4 +208,121 @@ async fn list_change_events_filters_by_service_name() {
     let items = body["items"].as_array().expect("items array");
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["title"], "Billing schema migration");
+}
+
+#[tokio::test]
+async fn create_change_event_then_appears_in_list() {
+    let (db, _container) = start_postgres().await;
+    let tenant_id = Uuid::new_v4();
+    sqlx::query("INSERT INTO tenants (id, name) VALUES ($1, 't')")
+        .bind(tenant_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let app = build_app_with_role(db, tenant_id, "member");
+
+    let create_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/events/changes")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "event_type": "feature_flag",
+                        "environment": "production",
+                        "title": "Enabled new-checkout-flow",
+                        "service_name": "checkout"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(create_resp.status(), StatusCode::CREATED);
+
+    let list_resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/events/changes")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(list_resp.status(), StatusCode::OK);
+    let body = response_body_json(list_resp.into_body()).await;
+    let items = body["items"].as_array().expect("items array");
+    assert!(
+        items
+            .iter()
+            .any(|i| i["title"] == "Enabled new-checkout-flow")
+    );
+}
+
+#[tokio::test]
+async fn create_change_event_rejects_unknown_event_type() {
+    let (db, _container) = start_postgres().await;
+    let tenant_id = Uuid::new_v4();
+    sqlx::query("INSERT INTO tenants (id, name) VALUES ($1, 't')")
+        .bind(tenant_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let app = build_app_with_role(db, tenant_id, "admin");
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/events/changes")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "event_type": "deploy",
+                        "environment": "production",
+                        "title": "bad event type"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn create_change_event_forbidden_for_viewer_role() {
+    let (db, _container) = start_postgres().await;
+    let tenant_id = Uuid::new_v4();
+    sqlx::query("INSERT INTO tenants (id, name) VALUES ($1, 't')")
+        .bind(tenant_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let app = build_app_with_role(db, tenant_id, "viewer");
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/events/changes")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "event_type": "feature_flag",
+                        "environment": "production",
+                        "title": "Enabled new-checkout-flow"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 }

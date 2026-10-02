@@ -63,6 +63,9 @@ fn build_nlq_app(ch: ChClient, db: PgPool) -> Router {
         auth_service_url: "http://auth-service:4319".into(),
         metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
         sessions: query_api::nlq_session::NlqSessionStore::default(),
+        admin_service_url: "http://admin-service:4324".into(),
+        internal_service_token: "test-internal-token".into(),
+        http_client: reqwest::Client::new(),
     };
     Router::new()
         .route("/v1/nlq", post(llm_adapter::handle_nlq_query))

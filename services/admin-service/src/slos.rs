@@ -1,5 +1,5 @@
+use crate::AdminServiceAppState;
 use crate::middleware::auth::TenantContext;
-use crate::traces::AppState;
 use axum::{Extension, Json, extract::State, http::StatusCode};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -175,7 +175,7 @@ pub async fn create_slo(
 }
 
 pub async fn handle_list_slos(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
 ) -> Result<Json<SloListResponse>, StatusCode> {
     let items = list_slos(&state.db, ctx.tenant_id).await.map_err(|e| {
@@ -186,7 +186,7 @@ pub async fn handle_list_slos(
 }
 
 pub async fn handle_create_slo(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Json(req): Json<CreateSloRequest>,
 ) -> Result<(StatusCode, Json<SloDefinitionItem>), StatusCode> {

@@ -72,6 +72,7 @@ fn build_app(db: PgPool, auth_service_url: String) -> Router {
         auth_service_url,
         http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
+        producer: None,
     };
     Router::new()
         .route("/v1/tenants", get(tenants::list_tenants))

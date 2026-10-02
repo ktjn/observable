@@ -1,11 +1,13 @@
 use query_api::mcp_tools::{
     ResolveLabelResult, get_metric_schema, list_signal_fields, resolve_label_to_column,
 };
-use query_api::schemas::{UpsertAnnotationRequest, upsert_annotation};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+//
+// `semantic_annotations` writes now live in admin-service (schemas.rs); this test only
+// needs to seed rows directly via SQL, not exercise the write path itself.
 
 const TENANT_A: Uuid = Uuid::from_u128(0xAAAA_0000_0000_0000_0000_0000_0000_0001);
 const TENANT_B: Uuid = Uuid::from_u128(0xBBBB_0000_0000_0000_0000_0000_0000_0002);
@@ -22,6 +24,46 @@ async fn insert_schema_entry(pool: &PgPool, signal_type: &str, field_name: &str,
     .execute(pool)
     .await
     .expect("inserted schema_entry");
+}
+
+#[derive(Default)]
+struct AnnotationSeed {
+    display_name: Option<&'static str>,
+    metric_type: Option<&'static str>,
+    timestamp_column: Option<&'static str>,
+    unit: Option<&'static str>,
+    recommended_downsampling: Option<&'static str>,
+    interpretation_rule: Option<&'static str>,
+    not_for_billing: Option<bool>,
+}
+
+// Insert a semantic_annotations row directly (the write handlers now live in admin-service).
+async fn insert_annotation(
+    pool: &PgPool,
+    tenant_id: Uuid,
+    signal_type: &str,
+    field_name: &str,
+    seed: AnnotationSeed,
+) {
+    sqlx::query(
+        "INSERT INTO semantic_annotations \
+         (tenant_id, signal_type, field_name, display_name, metric_type, \
+          timestamp_column, unit, recommended_downsampling, interpretation_rule, not_for_billing) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+    )
+    .bind(tenant_id)
+    .bind(signal_type)
+    .bind(field_name)
+    .bind(seed.display_name)
+    .bind(seed.metric_type)
+    .bind(seed.timestamp_column)
+    .bind(seed.unit)
+    .bind(seed.recommended_downsampling)
+    .bind(seed.interpretation_rule)
+    .bind(seed.not_for_billing.unwrap_or(false))
+    .execute(pool)
+    .await
+    .expect("inserted semantic_annotation");
 }
 
 // ── get_metric_schema ─────────────────────────────────────────────────────────
@@ -58,24 +100,22 @@ async fn get_metric_schema_includes_tenant_annotation_overlay() {
     let pool = test_support::postgres::shared_pool().await;
     insert_schema_entry(&pool, "metrics", "error_rate", "float64").await;
 
-    upsert_annotation(
+    insert_annotation(
         &pool,
         TENANT_A,
         "metrics",
         "error_rate",
-        &UpsertAnnotationRequest {
-            display_name: Some("Error Rate".into()),
-            metric_type: Some("gauge".into()),
-            timestamp_column: Some("ts".into()),
-            unit: Some("req/s".into()),
-            recommended_downsampling: Some("1m".into()),
-            interpretation_rule: Some("higher_is_worse".into()),
+        AnnotationSeed {
+            display_name: Some("Error Rate"),
+            metric_type: Some("gauge"),
+            timestamp_column: Some("ts"),
+            unit: Some("req/s"),
+            recommended_downsampling: Some("1m"),
+            interpretation_rule: Some("higher_is_worse"),
             not_for_billing: Some(true),
-            ..Default::default()
         },
     )
-    .await
-    .unwrap();
+    .await;
 
     let schema = get_metric_schema(&pool, TENANT_A, "error_rate")
         .await
@@ -101,20 +141,19 @@ async fn get_metric_schema_tenant_scoped_annotation_not_visible_to_other_tenant(
     let pool = test_support::postgres::shared_pool().await;
     insert_schema_entry(&pool, "metrics", "tenant_metric", "float64").await;
 
-    upsert_annotation(
+    insert_annotation(
         &pool,
         TENANT_A,
         "metrics",
         "tenant_metric",
-        &UpsertAnnotationRequest {
-            display_name: Some("Tenant A Metric".into()),
-            metric_type: Some("counter".into()),
-            timestamp_column: Some("ts".into()),
+        AnnotationSeed {
+            display_name: Some("Tenant A Metric"),
+            metric_type: Some("counter"),
+            timestamp_column: Some("ts"),
             ..Default::default()
         },
     )
-    .await
-    .unwrap();
+    .await;
 
     // Tenant B queries the same metric → sees structural data but not A's annotation
     let schema = get_metric_schema(&pool, TENANT_B, "tenant_metric")
@@ -179,19 +218,18 @@ async fn list_signal_fields_merges_tenant_annotation() {
     let pool = test_support::postgres::shared_pool().await;
     insert_schema_entry(&pool, "metrics", "heap_used", "float64").await;
 
-    upsert_annotation(
+    insert_annotation(
         &pool,
         TENANT_A,
         "metrics",
         "heap_used",
-        &UpsertAnnotationRequest {
-            display_name: Some("Heap Used".into()),
-            unit: Some("bytes".into()),
+        AnnotationSeed {
+            display_name: Some("Heap Used"),
+            unit: Some("bytes"),
             ..Default::default()
         },
     )
-    .await
-    .unwrap();
+    .await;
 
     let fields = list_signal_fields(&pool, TENANT_A, "metrics")
         .await
@@ -210,18 +248,17 @@ async fn list_signal_fields_annotation_absent_for_other_tenant() {
     let pool = test_support::postgres::shared_pool().await;
     insert_schema_entry(&pool, "metrics", "disk_writes", "float64").await;
 
-    upsert_annotation(
+    insert_annotation(
         &pool,
         TENANT_A,
         "metrics",
         "disk_writes",
-        &UpsertAnnotationRequest {
-            display_name: Some("Disk Writes".into()),
+        AnnotationSeed {
+            display_name: Some("Disk Writes"),
             ..Default::default()
         },
     )
-    .await
-    .unwrap();
+    .await;
 
     // Tenant B sees the structural field but not A's display_name
     let fields = list_signal_fields(&pool, TENANT_B, "metrics")
@@ -269,18 +306,17 @@ async fn resolve_label_display_name_case_insensitive_match() {
     let pool = test_support::postgres::shared_pool().await;
     insert_schema_entry(&pool, "metrics", "net_rx_bytes", "float64").await;
 
-    upsert_annotation(
+    insert_annotation(
         &pool,
         TENANT_A,
         "metrics",
         "net_rx_bytes",
-        &UpsertAnnotationRequest {
-            display_name: Some("Network Receive Bytes".into()),
+        AnnotationSeed {
+            display_name: Some("Network Receive Bytes"),
             ..Default::default()
         },
     )
-    .await
-    .unwrap();
+    .await;
 
     // Query with different case and extra whitespace
     let result = resolve_label_to_column(&pool, TENANT_A, "metrics", "  network receive bytes  ")
@@ -298,18 +334,17 @@ async fn resolve_label_display_name_not_visible_to_other_tenant() {
     let pool = test_support::postgres::shared_pool().await;
     insert_schema_entry(&pool, "metrics", "auth_failures", "float64").await;
 
-    upsert_annotation(
+    insert_annotation(
         &pool,
         TENANT_A,
         "metrics",
         "auth_failures",
-        &UpsertAnnotationRequest {
-            display_name: Some("Auth Failures".into()),
+        AnnotationSeed {
+            display_name: Some("Auth Failures"),
             ..Default::default()
         },
     )
-    .await
-    .unwrap();
+    .await;
 
     // Tenant B uses the display_name — must not resolve (cross-tenant isolation)
     let result = resolve_label_to_column(&pool, TENANT_B, "metrics", "Auth Failures")
@@ -329,30 +364,28 @@ async fn resolve_label_ambiguous_when_multiple_fields_share_display_name() {
     insert_schema_entry(&pool, "metrics", "field_beta", "float64").await;
 
     // Both fields get the same display_name for the same tenant (ambiguous)
-    upsert_annotation(
+    insert_annotation(
         &pool,
         TENANT_A,
         "metrics",
         "field_alpha",
-        &UpsertAnnotationRequest {
-            display_name: Some("Shared Display Name".into()),
+        AnnotationSeed {
+            display_name: Some("Shared Display Name"),
             ..Default::default()
         },
     )
-    .await
-    .unwrap();
-    upsert_annotation(
+    .await;
+    insert_annotation(
         &pool,
         TENANT_A,
         "metrics",
         "field_beta",
-        &UpsertAnnotationRequest {
-            display_name: Some("Shared Display Name".into()),
+        AnnotationSeed {
+            display_name: Some("Shared Display Name"),
             ..Default::default()
         },
     )
-    .await
-    .unwrap();
+    .await;
 
     let result = resolve_label_to_column(&pool, TENANT_A, "metrics", "Shared Display Name")
         .await

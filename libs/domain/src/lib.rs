@@ -9,7 +9,9 @@ pub mod visualization;
 pub use domain_core::nlq::{
     NlqFilter, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, NlqTimeRange, NlqVisualizationHint,
 };
-pub use envelope::{EnvelopePayload, NormalizedTelemetryBatch, TelemetryEnvelope};
+pub use envelope::{
+    DeploymentMarkerEvent, EnvelopePayload, NormalizedTelemetryBatch, TelemetryEnvelope,
+};
 pub use log::LogRecord;
 pub use metric::{
     AggregationTemporality, MetricPoint, MetricSeries, MetricType, deterministic_metric_series_id,

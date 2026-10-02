@@ -1,5 +1,5 @@
+use crate::AdminServiceAppState;
 use crate::middleware::auth::TenantContext;
-use crate::traces::AppState;
 use axum::{
     Json,
     extract::{Extension, Path, State},
@@ -361,7 +361,7 @@ pub async fn delete_annotation(
 // ── HTTP handlers ─────────────────────────────────────────────────────────────
 
 pub async fn handle_list_attributes(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     _ctx: Extension<TenantContext>,
     Path(signal_type): Path<String>,
 ) -> Result<Json<SchemaAttributesResponse>, StatusCode> {
@@ -381,7 +381,7 @@ pub async fn handle_list_attributes(
 }
 
 pub async fn handle_get_annotation(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path((signal_type, field_name)): Path<(String, String)>,
 ) -> Result<Json<SemanticAnnotation>, StatusCode> {
@@ -399,7 +399,7 @@ pub async fn handle_get_annotation(
 }
 
 pub async fn handle_upsert_annotation(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path((signal_type, field_name)): Path<(String, String)>,
     Json(req): Json<UpsertAnnotationRequest>,
@@ -418,7 +418,7 @@ pub async fn handle_upsert_annotation(
 }
 
 pub async fn handle_patch_annotation(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path((signal_type, field_name)): Path<(String, String)>,
     Json(req): Json<PatchAnnotationRequest>,
@@ -438,7 +438,7 @@ pub async fn handle_patch_annotation(
 }
 
 pub async fn handle_delete_annotation(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path((signal_type, field_name)): Path<(String, String)>,
 ) -> Result<StatusCode, StatusCode> {
