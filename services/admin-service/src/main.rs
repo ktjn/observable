@@ -1,7 +1,7 @@
 use admin_service::{
     AdminServiceAppState, admin_members, alerts, change_events, config, dashboards, deployments,
-    incidents, middleware, notifications, observability, saved_views, schemas, slos, tenants,
-    tokens, usage,
+    incidents, internal, middleware, notifications, observability, saved_views, schemas, slos,
+    tenants, tokens, usage,
 };
 use axum::{
     Router,
@@ -52,6 +52,7 @@ async fn main() -> anyhow::Result<()> {
         &brokers,
         &deployment_markers_topic,
     )?);
+    let internal_service_token = observable_config::require_env("INTERNAL_SERVICE_TOKEN")?;
 
     let state = AdminServiceAppState {
         db,
@@ -217,7 +218,35 @@ async fn main() -> anyhow::Result<()> {
             TraceLayer::new_for_http()
                 .make_span_with(observable_telemetry::OtelMakeSpan::new(Level::INFO)),
         )
+        .with_state(state.clone());
+
+    // Service-to-service only routes (Phase 4's "remove cross-owner SQL"
+    // follow-on, docs/component-decomposition.md) -- gated by a shared
+    // internal token instead of require_tenant, since there is no end-user
+    // credential on these calls. Built as a separate sub-router so
+    // require_internal_service never wraps the tenant-scoped routes above.
+    let internal_router = Router::new()
+        .route(
+            "/internal/service-catalog-enrichment",
+            get(internal::handle_service_catalog_enrichment),
+        )
+        .route(
+            "/internal/reliability-correlation",
+            get(internal::handle_reliability_correlation),
+        )
+        .layer(axum_middleware::from_fn(
+            middleware::auth::require_internal_service,
+        ))
+        .layer(axum::Extension(middleware::auth::InternalServiceToken(
+            internal_service_token,
+        )))
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(observable_telemetry::OtelMakeSpan::new(Level::INFO)),
+        )
         .with_state(state);
+
+    let app = app.merge(internal_router);
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "admin-service listening");

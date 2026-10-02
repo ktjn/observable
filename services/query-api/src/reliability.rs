@@ -19,8 +19,11 @@ pub struct ReliabilityReportQuery {
 /// Deployment-marker row shape for this report's correlation query. Deployment
 /// listing/management itself lives in admin-service (observable-control); this
 /// is a local, read-only projection for correlating deployments with the
-/// reliability window, not a shared type.
-#[derive(Serialize, sqlx::FromRow)]
+/// reliability window, not a shared type. Deserialized from admin-service's
+/// `/internal/reliability-correlation` response (Phase 4's "remove
+/// cross-owner SQL" follow-on, docs/component-decomposition.md) -- field
+/// names must match `admin_service::internal::ReliabilityDeploymentRow`.
+#[derive(Serialize, Deserialize)]
 pub struct DeploymentMarker {
     pub deployment_id: Uuid,
     pub tenant_id: Uuid,
@@ -40,8 +43,10 @@ pub struct DeploymentMarker {
 /// SLO-definition row shape for this report's correlation query. SLO CRUD
 /// itself lives in admin-service (observable-control); this is a local,
 /// read-only projection for correlating SLOs with the reliability window,
-/// not a shared type.
-#[derive(Serialize, sqlx::FromRow)]
+/// not a shared type. Deserialized from admin-service's
+/// `/internal/reliability-correlation` response -- field names must match
+/// `admin_service::internal::ReliabilitySloRow`.
+#[derive(Serialize, Deserialize)]
 pub struct SloDefinitionItem {
     pub slo_id: Uuid,
     pub service_name: String,
@@ -61,8 +66,10 @@ pub struct SloDefinitionItem {
 /// Incident summary row shape for this report. Incident listing/detail itself
 /// lives in admin-service (observable-control); this is a local, read-only
 /// projection for correlating incidents with the reliability window, not a
-/// shared type.
-#[derive(Serialize)]
+/// shared type. Deserialized from admin-service's
+/// `/internal/reliability-correlation` response -- field names must match
+/// `admin_service::internal::ReliabilityIncidentRow`.
+#[derive(Serialize, Deserialize)]
 pub struct IncidentItem {
     pub incident_id: Uuid,
     pub title: String,
@@ -106,15 +113,11 @@ pub struct ReliabilityReportResponse {
     pub deployments: Vec<DeploymentMarker>,
 }
 
-#[derive(sqlx::FromRow)]
-struct ReliabilityIncidentRow {
-    incident_id: Uuid,
-    title: String,
-    severity: String,
-    status: String,
-    triggered_at: DateTime<Utc>,
-    resolved_at: Option<DateTime<Utc>>,
-    triggered_by_rule_id: Option<Uuid>,
+#[derive(Deserialize)]
+struct ReliabilityCorrelationResponse {
+    incidents: Vec<IncidentItem>,
+    slos: Vec<SloDefinitionItem>,
+    deployments: Vec<DeploymentMarker>,
 }
 
 fn compute_incident_summary(
@@ -170,109 +173,63 @@ fn compute_deployment_summary(deployments: &[DeploymentMarker]) -> DeploymentSum
     }
 }
 
+/// Fetches the incident/SLO/deployment correlation from admin-service's
+/// `/internal/reliability-correlation` (Phase 4's "remove cross-owner SQL"
+/// follow-on, docs/component-decomposition.md) -- the three joins that used
+/// to run as direct SQL here now happen once, in Postgres, in admin-service;
+/// this is a single batched call per report, not per-row.
 pub async fn get_service_reliability_report(
-    db: &sqlx::PgPool,
+    state: &AppState,
     tenant_id: Uuid,
     service_name: &str,
     query: &ReliabilityReportQuery,
-) -> Result<Option<ReliabilityReportResponse>, sqlx::Error> {
-    let incidents: Vec<ReliabilityIncidentRow> = sqlx::query_as(
-        "SELECT i.incident_id, i.title, i.severity, i.status, i.triggered_at, i.resolved_at, i.triggered_by_rule_id \
-         FROM incidents i \
-         LEFT JOIN alert_rules r ON i.triggered_by_rule_id = r.rule_id \
-         LEFT JOIN slo_definitions s \
-                ON r.alert_type = 'slo_burn_rate' \
-               AND (r.condition->>'slo_id')::uuid = s.slo_id \
-               AND s.tenant_id = i.tenant_id \
-         WHERE i.tenant_id = $1 \
-           AND s.service_name = $2 \
-           AND i.triggered_at <= $4 \
-           AND (i.resolved_at IS NULL OR i.resolved_at >= $3) \
-           AND ($5::TEXT IS NULL OR s.environment = $5) \
-         ORDER BY i.triggered_at DESC",
-    )
-    .bind(tenant_id)
-    .bind(service_name)
-    .bind(query.from)
-    .bind(query.to)
-    .bind(query.environment.as_deref())
-    .fetch_all(db)
-    .await?;
+) -> Result<Option<ReliabilityReportResponse>, reqwest::Error> {
+    let url = format!(
+        "{}/internal/reliability-correlation",
+        state.admin_service_url
+    );
+    let mut query_params = vec![
+        ("tenant_id", tenant_id.to_string()),
+        ("service_name", service_name.to_string()),
+        (
+            "from",
+            query
+                .from
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        ),
+        (
+            "to",
+            query
+                .to
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        ),
+    ];
+    if let Some(env) = &query.environment {
+        query_params.push(("environment", env.clone()));
+    }
 
-    let slos: Vec<SloDefinitionItem> = sqlx::query_as(
-        "SELECT slo_id, service_name, environment, sli_type, target, window_days, \
-                burn_rate_fast_threshold, burn_rate_slow_threshold, description, \
-                EXISTS( \
-                    SELECT 1 FROM alert_rules ar \
-                    JOIN alert_firings af ON af.rule_id = ar.rule_id \
-                    WHERE ar.tenant_id = slo_definitions.tenant_id \
-                      AND ar.alert_type = 'slo_burn_rate' \
-                      AND ar.condition->>'slo_id' = slo_definitions.slo_id::text \
-                      AND af.state = 'active' \
-                ) AS firing, \
-                (SELECT MAX(af.occurred_at) FROM alert_rules ar \
-                 JOIN alert_firings af ON af.rule_id = ar.rule_id \
-                 WHERE ar.tenant_id = slo_definitions.tenant_id \
-                   AND ar.alert_type = 'slo_burn_rate' \
-                   AND ar.condition->>'slo_id' = slo_definitions.slo_id::text \
-                   AND af.state = 'active') AS last_fired_at, \
-                created_at, updated_at \
-         FROM slo_definitions \
-         WHERE tenant_id = $1 \
-           AND service_name = $2 \
-           AND ($3::TEXT IS NULL OR environment = $3) \
-         ORDER BY updated_at DESC",
-    )
-    .bind(tenant_id)
-    .bind(service_name)
-    .bind(query.environment.as_deref())
-    .fetch_all(db)
-    .await?;
-
-    let deployments: Vec<DeploymentMarker> = sqlx::query_as(
-        "SELECT deployment_id, tenant_id, project_id, service_name, environment, \
-                service_version, status, started_at, finished_at, deployed_by, \
-                commit_sha, rollback_of, metadata \
-         FROM deployment_markers \
-         WHERE tenant_id = $1 \
-           AND service_name = $2 \
-           AND started_at <= $4 \
-           AND (finished_at IS NULL OR finished_at >= $3) \
-           AND ($5::TEXT IS NULL OR environment = $5) \
-         ORDER BY started_at DESC",
-    )
-    .bind(tenant_id)
-    .bind(service_name)
-    .bind(query.from)
-    .bind(query.to)
-    .bind(query.environment.as_deref())
-    .fetch_all(db)
-    .await?;
-
-    let incidents: Vec<IncidentItem> = incidents
-        .into_iter()
-        .map(|row| IncidentItem {
-            incident_id: row.incident_id,
-            title: row.title,
-            severity: row.severity,
-            status: row.status,
-            triggered_at: row.triggered_at,
-            resolved_at: row.resolved_at,
-            triggered_by_rule_id: row.triggered_by_rule_id,
-        })
-        .collect();
+    let correlation: ReliabilityCorrelationResponse = state
+        .http_client
+        .get(&url)
+        .query(&query_params)
+        .header("X-Internal-Token", &state.internal_service_token)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
 
     Ok(Some(ReliabilityReportResponse {
         service_name: service_name.to_string(),
         environment: query.environment.clone(),
         from: query.from,
         to: query.to,
-        incident_summary: compute_incident_summary(query.from, query.to, &incidents),
-        slo_summary: compute_slo_summary(&slos),
-        deployment_summary: compute_deployment_summary(&deployments),
-        incidents,
-        slos,
-        deployments,
+        incident_summary: compute_incident_summary(query.from, query.to, &correlation.incidents),
+        slo_summary: compute_slo_summary(&correlation.slos),
+        deployment_summary: compute_deployment_summary(&correlation.deployments),
+        incidents: correlation.incidents,
+        slos: correlation.slos,
+        deployments: correlation.deployments,
     }))
 }
 
@@ -282,7 +239,7 @@ pub async fn handle_get_service_reliability_report(
     Path(service_name): Path<String>,
     Query(query): Query<ReliabilityReportQuery>,
 ) -> Result<Json<ReliabilityReportResponse>, StatusCode> {
-    match get_service_reliability_report(&state.db, ctx.tenant_id, &service_name, &query).await {
+    match get_service_reliability_report(&state, ctx.tenant_id, &service_name, &query).await {
         Ok(Some(report)) => Ok(Json(report)),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(e) => {

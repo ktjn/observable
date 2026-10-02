@@ -299,6 +299,8 @@ services:
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
       DATABASE_URL: postgres://observable:observable@postgres:5432/observable
       AUTH_SERVICE_URL: http://auth-service:4319
+      ADMIN_SERVICE_URL: http://admin-service:4324
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000}
       LLM_API_KEY: ${LLM_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
@@ -312,6 +314,7 @@ services:
       clickhouse-setup: { condition: service_completed_successfully }
       postgres-setup: { condition: service_completed_successfully }
       ingest-gateway: { condition: service_healthy }
+      admin-service: { condition: service_healthy }
 
   admin-service:
     image: observable-services:local
@@ -328,6 +331,7 @@ services:
       AUTH_SERVICE_URL: http://auth-service:4319
       REDPANDA_BROKERS: redpanda:9092
       DEPLOYMENT_MARKERS_TOPIC: deployment.markers.v1
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000}
     ports: ["4324:4324"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4324/health"]

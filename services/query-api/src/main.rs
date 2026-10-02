@@ -57,6 +57,8 @@ async fn main() -> anyhow::Result<()> {
         );
     }
     let auth_service_url = observable_config::require_env("AUTH_SERVICE_URL")?;
+    let admin_service_url = observable_config::require_env("ADMIN_SERVICE_URL")?;
+    let internal_service_token = observable_config::require_env("INTERNAL_SERVICE_TOKEN")?;
     let state = traces::AppState {
         ch,
         db,
@@ -65,6 +67,9 @@ async fn main() -> anyhow::Result<()> {
         auth_service_url,
         metrics: Arc::new(observability::QueryApiMetrics::new()),
         sessions: nlq_session::NlqSessionStore::default(),
+        admin_service_url,
+        internal_service_token,
+        http_client: reqwest::Client::new(),
     };
     let app = Router::new()
         .route("/v1/traces", get(traces::search_traces))

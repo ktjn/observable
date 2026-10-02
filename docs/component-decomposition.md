@@ -622,6 +622,61 @@ Exit evidence:
   is the separately-tracked "remove cross-owner SQL" work (Phase 4/6's listed follow-on), not this
   phase's own route-ownership scope.
 
+#### Remove cross-owner SQL (partial)
+
+Scoped by repo-owner decision to two call sites, deliberately excluding a third:
+
+- **`discovery.rs`'s service-catalog enrichment -- done.** The SLO/alert/deployment join that used
+  to run as direct SQL in query-api now runs in admin-service, behind a new
+  `GET /internal/service-catalog-enrichment` route, and query-api calls it over HTTP. One batched
+  call per catalog listing (not per-service), so the network hop doesn't add per-row latency.
+- **`reliability.rs`'s reliability-report correlation -- done.** Same treatment: the three SQL
+  queries (incidents/SLOs/deployments, each already filtered by service+environment+interval) moved
+  to a new `GET /internal/reliability-correlation` admin-service route; query-api's
+  `IncidentItem`/`SloDefinitionItem`/`DeploymentMarker` structs gained `Deserialize` (they already
+  had `Serialize` for query-api's own response) so the JSON deserializes straight into the existing
+  types. Summary computation (`compute_incident_summary`/`compute_slo_summary`/
+  `compute_deployment_summary`) stayed in query-api -- that's presentation logic over the correlated
+  data, not data-ownership logic.
+- **`mcp_tools.rs`'s NLQ schema/annotation lookups -- deliberately NOT done.** These reads
+  (`get_metric_schema`, `list_signal_fields`, `resolve_label_to_column`) run synchronously during
+  interactive NLQ query generation, potentially several times per user query. Converting them to
+  HTTP calls to admin-service would add real network latency to a latency-sensitive feature for no
+  correctness benefit today. Left as direct Postgres reads; documented here as an intentional
+  exception to "remove cross-owner SQL," not an oversight.
+
+New shared infrastructure for the two converted call sites:
+
+- `observable_auth::verify_internal_token` -- constant-time comparison of an `X-Internal-Token`
+  header against a shared secret (`INTERNAL_SERVICE_TOKEN`, same value configured on both
+  admin-service and query-api). Distinct from per-tenant API-key/session auth: the caller passes
+  `tenant_id` explicitly as a request parameter since there's no end-user credential on these calls.
+- `admin-service::middleware::auth::require_internal_service` -- the middleware gating a new
+  `/internal/*` sub-router in admin-service's `main.rs`, built and `.merge()`-d separately so
+  `require_internal_service` never wraps the tenant-scoped `/v1/*` routes.
+- `admin-service::internal` -- the new module hosting both routes; their SQL is moved verbatim from
+  query-api's old `fetch_service_catalog_enrichment`/`get_service_reliability_report`.
+
+Query-api's `AppState` gained `admin_service_url`, `internal_service_token`, and `http_client`
+fields (required updating every test file that constructs `traces::AppState` literally -- the same
+`producer: None`-style mechanical fallout Phase 5's producer change caused in admin-service).
+
+Both admin-service's `discovery.rs`/`reliability.rs` test scenarios (the exact seeded-Postgres
+cases the old query-api tests used) were ported to new admin-service integration tests
+(`internal_integration.rs`) proving the moved SQL is correct against real Postgres. Query-api's own
+two tests were rewritten to mock admin-service's responses via `wiremock` instead of seeding
+Postgres directly, verifying the HTTP call + summary-computation logic rather than re-proving the
+join -- that split avoids duplicating "is the SQL correct" coverage across two services while still
+covering "does query-api call admin-service correctly."
+
+Verified for real (Docker available this session): cargo check/clippy clean across
+`observable-auth`, `domain`, `admin-service`, `query-api`, and the full workspace. `observable-auth`:
+18 tests (14 + 4 new). `admin-service`: full suite passes including the 4 new `internal_integration.rs`
+tests against real Postgres. `query-api`: full `it` suite passes at 84 tests (unchanged count --
+the two rewritten tests replace the two removed-then-readded in place), lib unit tests unchanged at
+183. `helm template`/`helm lint` pass with `INTERNAL_SERVICE_TOKEN`/`ADMIN_SERVICE_URL` rendering
+into both services' manifests.
+
 ### Phase 5 — Clean ingest
 
 Move deployment/change-event APIs and deployment-registry state out of ingest.

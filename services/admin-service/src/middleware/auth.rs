@@ -10,6 +10,13 @@ pub struct TenantContext {
     pub role: String,
 }
 
+/// Shared secret for `require_internal_service`, distinct from the
+/// `Arc<String>` extension that already carries `auth_service_url` (axum
+/// extensions are keyed by type, so a second bare `Arc<String>` would
+/// collide with it).
+#[derive(Clone)]
+pub struct InternalServiceToken(pub String);
+
 /// Middleware that accepts any of:
 ///   1. `Authorization: Bearer <api-key>` + `X-Tenant-ID` — forwarded to
 ///      auth-service `POST /internal/validate` (existing SDK / CLI path).
@@ -36,6 +43,32 @@ pub fn require_admin(ctx: &TenantContext) -> Result<(), StatusCode> {
     } else {
         Ok(())
     }
+}
+
+/// Gate for `/internal/*` service-to-service routes (e.g. query-api's
+/// cross-owner correlation reads, Phase 4's "remove cross-owner SQL"
+/// follow-on, docs/component-decomposition.md). Checks `X-Internal-Token`
+/// against a shared secret rather than going through auth-service -- there is
+/// no end-user credential on these calls, only a trusted caller within the
+/// cluster. Callers pass `tenant_id` explicitly as a request parameter.
+///
+/// Requires an `InternalServiceToken` extension in the tower stack (via
+/// `.layer(axum::Extension(...))`).
+pub async fn require_internal_service(req: Request, next: Next) -> Result<Response, StatusCode> {
+    let expected = req
+        .extensions()
+        .get::<InternalServiceToken>()
+        .cloned()
+        .ok_or_else(|| {
+            tracing::error!(
+                "InternalServiceToken extension missing — misconfigured middleware stack"
+            );
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    observable_auth::verify_internal_token(req.headers(), &expected.0).map_err(StatusCode::from)?;
+
+    Ok(next.run(req).await)
 }
 
 pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, StatusCode> {
@@ -437,5 +470,51 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    fn internal_app(expected_token: &str) -> Router {
+        Router::new()
+            .route("/", get(|| async { "ok" }))
+            .layer(middleware::from_fn(require_internal_service))
+            .layer(Extension(InternalServiceToken(expected_token.to_string())))
+    }
+
+    #[tokio::test]
+    async fn internal_service_with_matching_token_is_accepted() {
+        let response = internal_app("shared-secret")
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header("x-internal-token", "shared-secret")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn internal_service_with_wrong_token_is_rejected() {
+        let response = internal_app("shared-secret")
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header("x-internal-token", "wrong")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn internal_service_with_no_token_is_rejected() {
+        let response = internal_app("shared-secret")
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 }
