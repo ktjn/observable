@@ -180,6 +180,9 @@ mod tests {
             auth_service_url: "http://auth-service:4319".into(),
             metrics: Arc::new(QueryApiMetrics::new()),
             sessions: crate::nlq_session::NlqSessionStore::default(),
+            admin_service_url: "http://admin-service:4324".into(),
+            internal_service_token: "test-internal-token".into(),
+            http_client: reqwest::Client::new(),
         }
     }
 

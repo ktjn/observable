@@ -1,4 +1,4 @@
-use query_api::alerts::list_alert_rules;
+use admin_service::alerts::list_alert_rules;
 use uuid::Uuid;
 
 #[tokio::test]

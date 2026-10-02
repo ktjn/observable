@@ -6,6 +6,7 @@
     (dict "name" "INGEST_GATEWAY_PLATFORM_PORT" "value" (toString .Values.services.ingestGateway.platformPort))
     (dict "name" "REDPANDA_BROKERS"         "value" .Values.redpanda.brokers)
     (dict "name" "INGEST_TOPIC"             "value" .Values.redpanda.ingestTopic)
+    (dict "name" "DEPLOYMENT_MARKERS_TOPIC" "value" .Values.redpanda.deploymentMarkersTopic)
     (dict "name" "AUTH_SERVICE_URL"         "value" (printf "http://auth-service:%d" (int .Values.services.authService.port)))
     (dict "name" "DATABASE_URL"             "value" .Values.postgres.url)
     (dict "name" "OBSERVABLE_ENV"          "value" .Values.identity.env)

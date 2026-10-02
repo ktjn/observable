@@ -32,6 +32,16 @@ pub struct AppState {
     /// Server-side session store backing the two-phase `/v1/nlq/prepare` +
     /// `/v1/nlq/complete` pipeline (in-memory; see `nlq_session` module docs).
     pub sessions: NlqSessionStore,
+    /// Base URL for admin-service's internal API. Used by discovery.rs's
+    /// service-catalog enrichment and reliability.rs's reliability-report
+    /// correlation to read alert/SLO/deployment/incident data admin-service
+    /// owns, instead of querying those tables directly (Phase 4's "remove
+    /// cross-owner SQL" follow-on, docs/component-decomposition.md).
+    pub admin_service_url: String,
+    /// Shared secret sent as `X-Internal-Token` on calls to
+    /// admin-service's `/internal/*` routes.
+    pub internal_service_token: String,
+    pub http_client: reqwest::Client,
 }
 
 #[derive(Serialize)]

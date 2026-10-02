@@ -3,15 +3,14 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
     middleware as axum_middleware,
-    routing::{get, post, put},
+    routing::{get, post},
 };
 use clickhouse::Client as ChClient;
 use http_body_util::BodyExt;
 use observable_storage_contracts::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use query_api::{
-    alerts, dashboards, discovery, incidents, llm_adapter, logs, metrics,
-    middleware::auth::TenantContext, middleware::auth::require_tenant, observability,
-    planner::QueryPlanner, reliability, saved_views, slos, traces,
+    discovery, llm_adapter, logs, metrics, middleware::auth::TenantContext,
+    middleware::auth::require_tenant, observability, planner::QueryPlanner, reliability, traces,
 };
 use serde_json::Value;
 use sqlx::postgres::PgPool;
@@ -125,7 +124,28 @@ async fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
     build_app_with_pg_at(ch, db, mock_server.uri())
 }
 
+/// Like `build_app_with_pg`, but also points discovery.rs/reliability.rs's
+/// admin-service calls at a caller-supplied mock, for tests that need to
+/// control the service-catalog-enrichment/reliability-correlation response.
+async fn build_app_with_pg_and_admin_mock(
+    ch: ChClient,
+    db: PgPool,
+    admin_service_url: String,
+) -> Router {
+    let mock_server = Box::leak(Box::new(start_dev_auth_mock().await));
+    build_app_with_pg_at_with_admin(ch, db, mock_server.uri(), admin_service_url)
+}
+
 fn build_app_with_pg_at(ch: ChClient, db: PgPool, auth_service_url: String) -> Router {
+    build_app_with_pg_at_with_admin(ch, db, auth_service_url, "http://admin-service:4324".into())
+}
+
+fn build_app_with_pg_at_with_admin(
+    ch: ChClient,
+    db: PgPool,
+    auth_service_url: String,
+    admin_service_url: String,
+) -> Router {
     let state = traces::AppState {
         ch,
         db: db.clone(),
@@ -134,6 +154,9 @@ fn build_app_with_pg_at(ch: ChClient, db: PgPool, auth_service_url: String) -> R
         auth_service_url,
         metrics: Arc::new(observability::QueryApiMetrics::new()),
         sessions: query_api::nlq_session::NlqSessionStore::default(),
+        admin_service_url,
+        internal_service_token: "test-internal-token".into(),
+        http_client: reqwest::Client::new(),
     };
     let auth_service_url = Arc::new(state.auth_service_url.clone());
     Router::new()
@@ -142,31 +165,9 @@ fn build_app_with_pg_at(ch: ChClient, db: PgPool, auth_service_url: String) -> R
         .route("/v1/metrics", get(metrics::list_metrics))
         .route("/v1/metrics/points", get(metrics::get_metric_group_points))
         .route("/v1/nlq", post(llm_adapter::handle_nlq_query))
-        .route("/v1/dashboards/{id}", get(dashboards::handle_get_dashboard))
-        .route(
-            "/v1/dashboards/{id}",
-            put(dashboards::handle_update_dashboard),
-        )
-        .route(
-            "/v1/saved-views",
-            get(saved_views::handle_list_saved_views).post(saved_views::handle_create_saved_view),
-        )
-        .route(
-            "/v1/saved-views/{id}",
-            get(saved_views::handle_get_saved_view).put(saved_views::handle_update_saved_view),
-        )
-        .route("/v1/alerts/rules", get(alerts::handle_list_rules))
-        .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
-        .route("/v1/slos", get(slos::handle_list_slos))
-        .route("/v1/slos", post(slos::handle_create_slo))
         .route(
             "/v1/services/summary",
             get(discovery::list_service_summaries),
-        )
-        .route("/v1/incidents", get(incidents::handle_list_incidents))
-        .route(
-            "/v1/incidents/{incident_id}",
-            get(incidents::handle_get_incident),
         )
         .route(
             "/v1/services/{service_name}/reliability-report",
@@ -201,6 +202,9 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
         auth_service_url: auth_service_url.clone(),
         metrics: Arc::new(observability::QueryApiMetrics::new()),
         sessions: query_api::nlq_session::NlqSessionStore::default(),
+        admin_service_url: "http://admin-service:4324".into(),
+        internal_service_token: "test-internal-token".into(),
+        http_client: reqwest::Client::new(),
     };
     let auth_service_url_ext = Arc::new(auth_service_url);
     Router::new()
@@ -208,13 +212,6 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
         .route("/v1/logs/histogram", get(logs::log_histogram))
         .route("/v1/metrics", get(metrics::list_metrics))
         .route("/v1/metrics/points", get(metrics::get_metric_group_points))
-        .route("/v1/alerts/rules", get(alerts::handle_list_rules))
-        .route("/v1/slos", get(slos::handle_list_slos))
-        .route("/v1/incidents", get(incidents::handle_list_incidents))
-        .route(
-            "/v1/incidents/{incident_id}",
-            get(incidents::handle_get_incident),
-        )
         .route(
             "/v1/services/{service_name}/reliability-report",
             get(reliability::handle_get_service_reliability_report),
@@ -244,6 +241,9 @@ fn fake_nlq_app_no_db() -> Router {
         auth_service_url: "http://auth-service:4319".into(),
         metrics: Arc::new(observability::QueryApiMetrics::new()),
         sessions: query_api::nlq_session::NlqSessionStore::default(),
+        admin_service_url: "http://admin-service:4324".into(),
+        internal_service_token: "test-internal-token".into(),
+        http_client: reqwest::Client::new(),
     };
     let tenant_id = Uuid::parse_str(DEV_TENANT_ID).unwrap();
     Router::new()
@@ -908,155 +908,6 @@ async fn metric_group_points_sum_label_specific_series_at_same_timestamp() {
     assert_eq!(points[0]["value_double"], 5.0);
 }
 
-// ── Alert lifecycle API ─────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn list_alert_rules_http_returns_lifecycle_state() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-    let rule_id = Uuid::new_v4();
-
-    sqlx::query(
-        "INSERT INTO alert_rules \
-         (rule_id, tenant_id, name, alert_type, severity, condition) \
-         VALUES ($1, $2, 'HTTP lifecycle rule', 'threshold', 'warning', $3)",
-    )
-    .bind(rule_id)
-    .bind(tenant)
-    .bind(serde_json::json!({
-        "metric_name": "http_lifecycle_metric",
-        "operator": "gt",
-        "threshold": 0.05,
-    }))
-    .execute(&pg)
-    .await
-    .expect("alert rule inserted");
-    sqlx::query(
-        "INSERT INTO alert_firings (rule_id, tenant_id, state, value) \
-         VALUES ($1, $2, 'pending', 0.10)",
-    )
-    .bind(rule_id)
-    .bind(tenant)
-    .execute(&pg)
-    .await
-    .expect("alert firing inserted");
-
-    let response = app
-        .oneshot(dev_request("GET", "/v1/alerts/rules"))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response_body_json(response.into_body()).await;
-    let item = body["items"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|item| item["rule_id"] == rule_id.to_string())
-        .expect("inserted rule appears in HTTP response");
-    assert_eq!(item["state"], "pending");
-    assert_eq!(item["firing"], false);
-}
-
-// ── SLO API ─────────────────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn post_slo_creates_tenant_scoped_definition() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg).await;
-
-    let body = serde_json::json!({
-        "service_name": "payments",
-        "environment": "prod",
-        "target": 0.999,
-        "window_days": 30,
-        "burn_rate_fast_threshold": 14.4,
-        "burn_rate_slow_threshold": 1.0,
-        "description": "Payments availability SLO"
-    });
-    let req = Request::builder()
-        .method("POST")
-        .uri("/v1/slos")
-        .header("Authorization", format!("Bearer {DEV_API_KEY}"))
-        .header("X-Tenant-ID", DEV_TENANT_ID)
-        .header("Content-Type", "application/json")
-        .body(Body::from(serde_json::to_vec(&body).unwrap()))
-        .unwrap();
-
-    let response = app.oneshot(req).await.unwrap();
-
-    assert_eq!(response.status(), StatusCode::CREATED);
-    let body = response_body_json(response.into_body()).await;
-    assert_eq!(body["service_name"], "payments");
-    assert_eq!(body["environment"], "prod");
-    assert_eq!(body["sli_type"], "availability");
-    assert_eq!(body["target"], 0.999);
-    assert_eq!(body["firing"], false);
-    assert!(body["last_fired_at"].is_null());
-}
-
-#[tokio::test]
-async fn post_slo_rejects_invalid_target() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg).await;
-
-    let body = serde_json::json!({
-        "service_name": "payments",
-        "environment": "prod",
-        "target": 1.0,
-        "window_days": 30,
-        "burn_rate_fast_threshold": 14.4,
-        "burn_rate_slow_threshold": 1.0
-    });
-    let req = Request::builder()
-        .method("POST")
-        .uri("/v1/slos")
-        .header("Authorization", format!("Bearer {DEV_API_KEY}"))
-        .header("X-Tenant-ID", DEV_TENANT_ID)
-        .header("Content-Type", "application/json")
-        .body(Body::from(serde_json::to_vec(&body).unwrap()))
-        .unwrap();
-
-    let response = app.oneshot(req).await.unwrap();
-
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-}
-
-#[tokio::test]
-async fn get_slos_does_not_return_other_tenant_definitions() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let other_tenant = Uuid::new_v4();
-
-    sqlx::query(
-        "INSERT INTO slo_definitions \
-         (tenant_id, service_name, environment, sli_type, target, window_days, \
-          burn_rate_fast_threshold, burn_rate_slow_threshold, description) \
-         VALUES ($1, 'private-svc', 'prod', 'availability', 0.99, 30, 14.4, 1.0, 'Private SLO')",
-    )
-    .bind(other_tenant)
-    .execute(&pg)
-    .await
-    .expect("other tenant SLO inserted");
-
-    let response = app.oneshot(dev_request("GET", "/v1/slos")).await.unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response_body_json(response.into_body()).await;
-    let items = body["items"].as_array().expect("items array");
-    assert!(
-        items
-            .iter()
-            .all(|item| item["service_name"] != "private-svc"),
-        "tenant-scoped list must not include other tenant SLOs"
-    );
-}
-
 // ── Service Catalog Health Signals (P9-S5) ──────────────────────────────────
 
 #[tokio::test]
@@ -1094,51 +945,28 @@ async fn service_summary_reports_slo_breach_alert_count_and_latest_deploy() {
     )
     .await;
 
-    let slo_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO slo_definitions \
-         (tenant_id, service_name, environment, sli_type, target, window_days, \
-          burn_rate_fast_threshold, burn_rate_slow_threshold, description) \
-         VALUES ($1, 'checkout', 'prod', 'availability', 0.99, 30, 14.4, 1.0, 'Checkout SLO') \
-         RETURNING slo_id",
-    )
-    .bind(dev_tenant)
-    .fetch_one(&pg)
-    .await
-    .expect("slo inserted");
+    // The checkout/billing enrichment join now lives in admin-service
+    // (Phase 4's "remove cross-owner SQL" follow-on,
+    // docs/component-decomposition.md); its own
+    // service_catalog_enrichment_reports_slo_breach_alert_count_and_latest_deploy
+    // test covers the real SQL join against Postgres. This test mocks that
+    // response to verify query-api calls admin-service correctly and applies
+    // the enrichment to the ClickHouse-derived summary correctly.
+    let admin_mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/internal/service-catalog-enrichment"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "items": [{
+                "service_name": "checkout",
+                "active_alert_count": 1,
+                "slo_breaching": true,
+                "latest_deployment": "v2.3.1"
+            }]
+        })))
+        .mount(&admin_mock)
+        .await;
 
-    let rule_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO alert_rules \
-         (tenant_id, name, alert_type, severity, condition) \
-         VALUES ($1, 'Checkout SLO burn', 'slo_burn_rate', 'critical', $2) \
-         RETURNING rule_id",
-    )
-    .bind(dev_tenant)
-    .bind(serde_json::json!({ "slo_id": slo_id.to_string() }))
-    .fetch_one(&pg)
-    .await
-    .expect("alert rule inserted");
-
-    sqlx::query(
-        "INSERT INTO alert_firings (rule_id, tenant_id, state, value) \
-         VALUES ($1, $2, 'active', 5.0)",
-    )
-    .bind(rule_id)
-    .bind(dev_tenant)
-    .execute(&pg)
-    .await
-    .expect("alert firing inserted");
-
-    sqlx::query(
-        "INSERT INTO deployment_markers \
-         (tenant_id, service_name, environment, service_version, status, started_at) \
-         VALUES ($1, 'checkout', 'prod', 'v2.3.1', 'success', NOW())",
-    )
-    .bind(dev_tenant)
-    .execute(&pg)
-    .await
-    .expect("deployment marker inserted");
-
-    let app = build_app_with_pg(ch, pg).await;
+    let app = build_app_with_pg_and_admin_mock(ch, pg, admin_mock.uri()).await;
 
     let response = app
         .oneshot(dev_request("GET", "/v1/services/summary"))
@@ -1164,105 +992,6 @@ async fn service_summary_reports_slo_breach_alert_count_and_latest_deploy() {
     assert_eq!(billing["active_alert_count"], 0);
     assert!(billing["latest_deployment"].is_null());
     assert_eq!(billing["health_state"], "healthy");
-}
-
-#[tokio::test]
-async fn dashboard_get_http_returns_v2_panel_shape() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-
-    let created = dashboards::create_dashboard(
-        &pg,
-        tenant,
-        &dashboards::CreateDashboardRequest {
-            name: "HTTP dashboard".into(),
-            panels: vec![dashboards::DashboardPanelRequest {
-                title: "Notes".into(),
-                panel_kind: Some("text".into()),
-                query_kind: None,
-                content: Some("HTTP text panel".into()),
-                layout: Some(serde_json::json!({"x":0,"y":0,"w":12,"h":2})),
-                ..Default::default()
-            }],
-        },
-        None,
-    )
-    .await
-    .expect("dashboard created");
-
-    let response = app
-        .oneshot(dev_request(
-            "GET",
-            &format!("/v1/dashboards/{}", created.dashboard_id),
-        ))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response_body_json(response.into_body()).await;
-    assert_eq!(body["name"], "HTTP dashboard");
-    assert_eq!(body["panels"][0]["panel_kind"], "text");
-    assert_eq!(body["panels"][0]["content"], "HTTP text panel");
-    assert_eq!(body["panels"][0]["layout"]["w"], 12);
-}
-
-#[tokio::test]
-async fn dashboard_put_http_updates_panel_layout() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-
-    let created = dashboards::create_dashboard(
-        &pg,
-        tenant,
-        &dashboards::CreateDashboardRequest {
-            name: "HTTP dashboard".into(),
-            panels: vec![dashboards::DashboardPanelRequest {
-                title: "Notes".into(),
-                panel_kind: Some("text".into()),
-                query_kind: None,
-                content: Some("Before".into()),
-                layout: Some(serde_json::json!({"x":0,"y":0,"w":6,"h":2})),
-                ..Default::default()
-            }],
-        },
-        None,
-    )
-    .await
-    .expect("dashboard created");
-
-    let body = serde_json::json!({
-        "name": "Updated dashboard",
-        "panels": [{
-            "title": "Notes",
-            "panel_kind": "text",
-            "query_kind": null,
-            "preset": null,
-            "filters": {},
-            "content": "After",
-            "layout": {"x":0,"y":0,"w":8,"h":3},
-            "time_range": {"mode":"global"}
-        }]
-    });
-    let req = Request::builder()
-        .method("PUT")
-        .uri(format!("/v1/dashboards/{}", created.dashboard_id))
-        .header("Authorization", format!("Bearer {DEV_API_KEY}"))
-        .header("X-Tenant-ID", DEV_TENANT_ID)
-        .header("Content-Type", "application/json")
-        .body(Body::from(serde_json::to_vec(&body).unwrap()))
-        .unwrap();
-
-    let response = app.oneshot(req).await.unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response_body_json(response.into_body()).await;
-    assert_eq!(body["name"], "Updated dashboard");
-    assert_eq!(body["panels"][0]["content"], "After");
-    assert_eq!(body["panels"][0]["layout"]["w"], 8);
 }
 
 #[tokio::test]
@@ -1353,6 +1082,9 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
         auth_service_url: mock_server.uri(),
         metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
         sessions: query_api::nlq_session::NlqSessionStore::default(),
+        admin_service_url: "http://admin-service:4324".into(),
+        internal_service_token: "test-internal-token".into(),
+        http_client: reqwest::Client::new(),
     };
 
     let app = Router::new()
@@ -1401,543 +1133,83 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
     );
 }
 
-// ── Incident API ────────────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn list_incidents_returns_tenant_scoped_incidents() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-
-    sqlx::query(
-        "INSERT INTO incidents (incident_id, tenant_id, title, severity, status, dedup_key) \
-         VALUES ($1, $2, 'HTTP test incident', 'critical', 'triggered', 'dedup-1')",
-    )
-    .bind(Uuid::new_v4())
-    .bind(tenant)
-    .execute(&pg)
-    .await
-    .expect("incident inserted");
-
-    let response = app
-        .oneshot(dev_request("GET", "/v1/incidents"))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response_body_json(response.into_body()).await;
-    let items = body["items"].as_array().unwrap();
-    assert!(
-        items.iter().any(|i| i["title"] == "HTTP test incident"),
-        "incident must appear in list"
-    );
-}
-
-#[tokio::test]
-async fn get_incident_returns_detail_with_timeline() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-    let incident_id = Uuid::new_v4();
-
-    sqlx::query(
-        "INSERT INTO incidents (incident_id, tenant_id, title, severity, status, dedup_key) \
-         VALUES ($1, $2, 'Detail incident', 'warning', 'resolved', 'dedup-2')",
-    )
-    .bind(incident_id)
-    .bind(tenant)
-    .execute(&pg)
-    .await
-    .expect("incident inserted");
-
-    sqlx::query(
-        "INSERT INTO incident_events (incident_id, event_type, actor, message) \
-         VALUES ($1, 'triggered', 'system', 'Alert fired')",
-    )
-    .bind(incident_id)
-    .execute(&pg)
-    .await
-    .expect("event inserted");
-
-    let response = app
-        .oneshot(dev_request("GET", &format!("/v1/incidents/{incident_id}")))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response_body_json(response.into_body()).await;
-    assert_eq!(body["title"], "Detail incident");
-    assert_eq!(body["status"], "resolved");
-    let timeline = body["timeline"].as_array().unwrap();
-    assert_eq!(timeline.len(), 1);
-    assert_eq!(timeline[0]["event_type"], "triggered");
-    assert_eq!(timeline[0]["actor"], "system");
-}
-
-#[tokio::test]
-async fn get_incident_returns_404_for_unknown_id() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let unknown_id = Uuid::new_v4();
-
-    let response = app
-        .oneshot(dev_request("GET", &format!("/v1/incidents/{unknown_id}")))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
-}
-
-#[tokio::test]
-async fn get_incident_detail_includes_rule_name() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-
-    let rule_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO alert_rules \
-         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
-         VALUES ($1, 'CPU High', 'threshold', 'critical', \
-                 '{\"metric_name\":\"cpu\",\"operator\":\"gt\",\"threshold\":90}', \
-                 '{}', true) \
-         RETURNING rule_id",
-    )
-    .bind(tenant)
-    .fetch_one(&pg)
-    .await
-    .expect("rule inserted");
-
-    let incident_id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO incidents \
-         (incident_id, tenant_id, title, severity, status, dedup_key, triggered_by_rule_id) \
-         VALUES ($1, $2, 'CPU spike', 'critical', 'triggered', 'dedup-rule-1', $3)",
-    )
-    .bind(incident_id)
-    .bind(tenant)
-    .bind(rule_id)
-    .execute(&pg)
-    .await
-    .expect("incident inserted");
-
-    let response = app
-        .oneshot(dev_request("GET", &format!("/v1/incidents/{incident_id}")))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response_body_json(response.into_body()).await;
-    assert_eq!(body["rule_name"], "CPU High");
-}
-
-#[tokio::test]
-async fn get_incident_detail_rule_name_null_when_no_rule() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-
-    let incident_id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO incidents \
-         (incident_id, tenant_id, title, severity, status, dedup_key) \
-         VALUES ($1, $2, 'Manual incident', 'warning', 'triggered', 'dedup-norule')",
-    )
-    .bind(incident_id)
-    .bind(tenant)
-    .execute(&pg)
-    .await
-    .expect("incident inserted");
-
-    let response = app
-        .oneshot(dev_request("GET", &format!("/v1/incidents/{incident_id}")))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response_body_json(response.into_body()).await;
-    assert!(body["rule_name"].is_null());
-}
-
-#[tokio::test]
-async fn get_alert_rule_returns_detail_with_firings() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-
-    let rule_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO alert_rules \
-         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
-         VALUES ($1, 'High Error Rate', 'threshold', 'critical', \
-                 '{\"metric_name\":\"error_rate\",\"operator\":\"gt\",\"threshold\":0.05}', \
-                 '{}', false) \
-         RETURNING rule_id",
-    )
-    .bind(tenant)
-    .fetch_one(&pg)
-    .await
-    .expect("rule inserted");
-
-    for state in ["active", "resolved"] {
-        sqlx::query(
-            "INSERT INTO alert_firings (rule_id, tenant_id, state, value) \
-             VALUES ($1, $2, $3, $4)",
-        )
-        .bind(rule_id)
-        .bind(tenant)
-        .bind(state)
-        .bind(0.08_f64)
-        .execute(&pg)
-        .await
-        .expect("firing inserted");
-    }
-
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let response = app
-        .oneshot(dev_request("GET", &format!("/v1/alerts/rules/{rule_id}")))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response_body_json(response.into_body()).await;
-    assert_eq!(body["name"], "High Error Rate");
-    assert_eq!(body["severity"], "critical");
-    assert_eq!(body["alert_type"], "threshold");
-    let firings = body["firings"].as_array().unwrap();
-    assert_eq!(firings.len(), 2);
-}
-
-#[tokio::test]
-async fn get_alert_rule_returns_404_for_wrong_tenant() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let _tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-
-    let rule_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO alert_rules \
-         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
-         VALUES ($1, 'Other Tenant Rule', 'threshold', 'warning', \
-                 '{\"metric_name\":\"m\",\"operator\":\"gt\",\"threshold\":1.0}', \
-                 '{}', false) \
-         RETURNING rule_id",
-    )
-    .bind(Uuid::new_v4()) // different tenant — NOT DEV_TENANT_ID
-    .fetch_one(&pg)
-    .await
-    .expect("rule inserted");
-
-    // Request is authenticated as DEV_TENANT_ID
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let response = app
-        .oneshot(dev_request("GET", &format!("/v1/alerts/rules/{rule_id}")))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
-}
-
-#[tokio::test]
-async fn get_incident_detail_includes_impacted_service_for_slo_rule() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-
-    // Seed an SLO definition for "payments" service
-    let slo_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO slo_definitions \
-         (tenant_id, service_name, environment, sli_type, target, window_days, \
-          burn_rate_fast_threshold, burn_rate_slow_threshold, description) \
-         VALUES ($1, 'payments', 'prod', 'availability', 0.99, 30, 14.4, 1.0, 'Payments SLO') \
-         RETURNING slo_id",
-    )
-    .bind(tenant)
-    .fetch_one(&pg)
-    .await
-    .expect("slo inserted");
-
-    // Seed an slo_burn_rate alert rule referencing the SLO
-    let rule_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO alert_rules \
-         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
-         VALUES ($1, 'Payments SLO burn', 'slo_burn_rate', 'critical', $2, '{}', true) \
-         RETURNING rule_id",
-    )
-    .bind(tenant)
-    .bind(serde_json::json!({
-        "slo_id": slo_id,
-        "fast_window_minutes": 60,
-        "slow_window_minutes": 360,
-    }))
-    .fetch_one(&pg)
-    .await
-    .expect("slo_burn_rate rule inserted");
-
-    // Seed an incident linked to that rule
-    let incident_id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO incidents \
-         (incident_id, tenant_id, title, severity, status, dedup_key, triggered_by_rule_id) \
-         VALUES ($1, $2, 'Payments SLO burn', 'critical', 'triggered', 'slo-dedup-1', $3)",
-    )
-    .bind(incident_id)
-    .bind(tenant)
-    .bind(rule_id)
-    .execute(&pg)
-    .await
-    .expect("slo incident inserted");
-
-    let response = app
-        .oneshot(dev_request("GET", &format!("/v1/incidents/{incident_id}")))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response_body_json(response.into_body()).await;
-    assert_eq!(
-        body["impacted_service"], "payments",
-        "slo_burn_rate incident must carry impacted_service from slo_definitions"
-    );
-}
-
-#[tokio::test]
-async fn get_incident_detail_impacted_service_null_for_threshold_rule() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-
-    let rule_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO alert_rules \
-         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
-         VALUES ($1, 'High CPU', 'threshold', 'warning', \
-                 '{\"metric_name\":\"cpu\",\"operator\":\"gt\",\"threshold\":80}', \
-                 '{}', true) \
-         RETURNING rule_id",
-    )
-    .bind(tenant)
-    .fetch_one(&pg)
-    .await
-    .expect("threshold rule inserted");
-
-    let incident_id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO incidents \
-         (incident_id, tenant_id, title, severity, status, dedup_key, triggered_by_rule_id) \
-         VALUES ($1, $2, 'High CPU', 'warning', 'triggered', 'threshold-dedup-1', $3)",
-    )
-    .bind(incident_id)
-    .bind(tenant)
-    .bind(rule_id)
-    .execute(&pg)
-    .await
-    .expect("threshold incident inserted");
-
-    let response = app
-        .oneshot(dev_request("GET", &format!("/v1/incidents/{incident_id}")))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response_body_json(response.into_body()).await;
-    assert!(
-        body["impacted_service"].is_null(),
-        "threshold incident must have null impacted_service"
-    );
-}
-
 #[tokio::test]
 async fn get_service_reliability_report_filters_service_environment_and_interval() {
     let pg = test_support::postgres::shared_pool().await;
     let ch = ChClient::default().with_url("http://127.0.0.1:19999");
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
     let service_name = "checkout";
     let from = chrono::Utc::now() - chrono::Duration::hours(6);
     let to = chrono::Utc::now();
 
-    let checkout_prod_slo_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO slo_definitions \
-         (tenant_id, service_name, environment, sli_type, target, window_days, \
-          burn_rate_fast_threshold, burn_rate_slow_threshold, description) \
-         VALUES ($1, $2, 'prod', 'availability', 0.99, 30, 14.4, 1.0, 'Checkout prod SLO') \
-         RETURNING slo_id",
-    )
-    .bind(tenant)
-    .bind(service_name)
-    .fetch_one(&pg)
-    .await
-    .expect("slo inserted");
+    // The service+environment+interval correlation join (incidents/SLOs/
+    // deployments) now lives in admin-service (Phase 4's "remove cross-owner
+    // SQL" follow-on, docs/component-decomposition.md); its own
+    // reliability_correlation_filters_service_environment_and_interval test
+    // covers the real SQL filtering against Postgres with this exact
+    // scenario. This test mocks that already-filtered response to verify
+    // query-api calls admin-service with the right params and correctly
+    // computes summaries (including MTTR) from what it gets back.
+    let resolved_incident_triggered_at = from + chrono::Duration::hours(1);
+    let resolved_incident_resolved_at = from + chrono::Duration::hours(2);
+    let admin_mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/internal/reliability-correlation"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "incidents": [
+                {
+                    "incident_id": Uuid::new_v4(),
+                    "title": "Checkout prod resolved",
+                    "severity": "critical",
+                    "status": "resolved",
+                    "triggered_at": resolved_incident_triggered_at.to_rfc3339(),
+                    "resolved_at": resolved_incident_resolved_at.to_rfc3339(),
+                    "triggered_by_rule_id": Uuid::new_v4(),
+                },
+                {
+                    "incident_id": Uuid::new_v4(),
+                    "title": "Checkout prod open",
+                    "severity": "warning",
+                    "status": "triggered",
+                    "triggered_at": (from + chrono::Duration::hours(3)).to_rfc3339(),
+                    "resolved_at": null,
+                    "triggered_by_rule_id": Uuid::new_v4(),
+                }
+            ],
+            "slos": [{
+                "slo_id": Uuid::new_v4(),
+                "service_name": service_name,
+                "environment": "prod",
+                "sli_type": "availability",
+                "target": 0.99,
+                "window_days": 30,
+                "burn_rate_fast_threshold": 14.4,
+                "burn_rate_slow_threshold": 1.0,
+                "description": "Checkout prod SLO",
+                "firing": true,
+                "last_fired_at": chrono::Utc::now().to_rfc3339(),
+                "created_at": chrono::Utc::now().to_rfc3339(),
+                "updated_at": chrono::Utc::now().to_rfc3339(),
+            }],
+            "deployments": [{
+                "deployment_id": Uuid::new_v4(),
+                "tenant_id": Uuid::parse_str(DEV_TENANT_ID).unwrap(),
+                "project_id": null,
+                "service_name": service_name,
+                "environment": "prod",
+                "service_version": "2026.05.22",
+                "status": "success",
+                "started_at": (from + chrono::Duration::hours(4)).to_rfc3339(),
+                "finished_at": (from + chrono::Duration::hours(5)).to_rfc3339(),
+                "deployed_by": "ci-bot",
+                "commit_sha": "abc123",
+                "rollback_of": null,
+                "metadata": null,
+            }]
+        })))
+        .mount(&admin_mock)
+        .await;
 
-    let checkout_prod_rule_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO alert_rules \
-         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
-         VALUES ($1, 'Checkout prod SLO burn', 'slo_burn_rate', 'critical', $2, '{}', true) \
-         RETURNING rule_id",
-    )
-    .bind(tenant)
-    .bind(serde_json::json!({
-        "slo_id": checkout_prod_slo_id,
-        "fast_window_minutes": 60,
-        "slow_window_minutes": 360,
-    }))
-    .fetch_one(&pg)
-    .await
-    .expect("slo rule inserted");
-
-    sqlx::query(
-        "INSERT INTO alert_firings (rule_id, tenant_id, state, value, occurred_at) \
-         VALUES ($1, $2, 'active', 0.42, NOW())",
-    )
-    .bind(checkout_prod_rule_id)
-    .bind(tenant)
-    .execute(&pg)
-    .await
-    .expect("slo firing inserted");
-
-    let checkout_staging_slo_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO slo_definitions \
-         (tenant_id, service_name, environment, sli_type, target, window_days, \
-          burn_rate_fast_threshold, burn_rate_slow_threshold, description) \
-         VALUES ($1, $2, 'staging', 'availability', 0.99, 30, 14.4, 1.0, 'Checkout staging SLO') \
-         RETURNING slo_id",
-    )
-    .bind(tenant)
-    .bind(service_name)
-    .fetch_one(&pg)
-    .await
-    .expect("staging slo inserted");
-
-    let checkout_staging_rule_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO alert_rules \
-         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
-         VALUES ($1, 'Checkout staging SLO burn', 'slo_burn_rate', 'critical', $2, '{}', true) \
-         RETURNING rule_id",
-    )
-    .bind(tenant)
-    .bind(serde_json::json!({
-        "slo_id": checkout_staging_slo_id,
-        "fast_window_minutes": 60,
-        "slow_window_minutes": 360,
-    }))
-    .fetch_one(&pg)
-    .await
-    .expect("staging slo rule inserted");
-
-    let payments_prod_slo_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO slo_definitions \
-         (tenant_id, service_name, environment, sli_type, target, window_days, \
-          burn_rate_fast_threshold, burn_rate_slow_threshold, description) \
-         VALUES ($1, 'payments', 'prod', 'availability', 0.99, 30, 14.4, 1.0, 'Payments prod SLO') \
-         RETURNING slo_id",
-    )
-    .bind(tenant)
-    .fetch_one(&pg)
-    .await
-    .expect("payments slo inserted");
-
-    let payments_prod_rule_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO alert_rules \
-         (tenant_id, name, alert_type, severity, condition, notification_channels, auto_trigger_incident) \
-         VALUES ($1, 'Payments prod SLO burn', 'slo_burn_rate', 'critical', $2, '{}', true) \
-         RETURNING rule_id",
-    )
-    .bind(tenant)
-    .bind(serde_json::json!({
-        "slo_id": payments_prod_slo_id,
-        "fast_window_minutes": 60,
-        "slow_window_minutes": 360,
-    }))
-    .fetch_one(&pg)
-    .await
-    .expect("payments slo rule inserted");
-
-    sqlx::query(
-        "INSERT INTO incidents \
-         (incident_id, tenant_id, title, severity, status, dedup_key, triggered_by_rule_id, triggered_at, resolved_at) \
-         VALUES ($1, $2, 'Checkout prod resolved', 'critical', 'resolved', 'checkout-prod-resolved', $3, $4, $5)",
-    )
-    .bind(Uuid::new_v4())
-    .bind(tenant)
-    .bind(checkout_prod_rule_id)
-    .bind(from + chrono::Duration::hours(1))
-    .bind(from + chrono::Duration::hours(2))
-    .execute(&pg)
-    .await
-    .expect("resolved incident inserted");
-
-    sqlx::query(
-        "INSERT INTO incidents \
-         (incident_id, tenant_id, title, severity, status, dedup_key, triggered_by_rule_id, triggered_at) \
-         VALUES ($1, $2, 'Checkout prod open', 'warning', 'triggered', 'checkout-prod-open', $3, $4)",
-    )
-    .bind(Uuid::new_v4())
-    .bind(tenant)
-    .bind(checkout_prod_rule_id)
-    .bind(from + chrono::Duration::hours(3))
-    .execute(&pg)
-    .await
-    .expect("open incident inserted");
-
-    sqlx::query(
-        "INSERT INTO incidents \
-         (incident_id, tenant_id, title, severity, status, dedup_key, triggered_by_rule_id, triggered_at, resolved_at) \
-         VALUES ($1, $2, 'Checkout staging incident', 'warning', 'resolved', 'checkout-staging', $3, $4, $5)",
-    )
-    .bind(Uuid::new_v4())
-    .bind(tenant)
-    .bind(checkout_staging_rule_id)
-    .bind(from + chrono::Duration::hours(1))
-    .bind(from + chrono::Duration::hours(2))
-    .execute(&pg)
-    .await
-    .expect("staging incident inserted");
-
-    sqlx::query(
-        "INSERT INTO incidents \
-         (incident_id, tenant_id, title, severity, status, dedup_key, triggered_by_rule_id, triggered_at, resolved_at) \
-         VALUES ($1, $2, 'Payments prod incident', 'critical', 'resolved', 'payments-prod', $3, $4, $5)",
-    )
-    .bind(Uuid::new_v4())
-    .bind(tenant)
-    .bind(payments_prod_rule_id)
-    .bind(from + chrono::Duration::hours(1))
-    .bind(from + chrono::Duration::hours(2))
-    .execute(&pg)
-    .await
-    .expect("other service incident inserted");
-
-    sqlx::query(
-        "INSERT INTO deployment_markers \
-         (deployment_id, tenant_id, project_id, service_name, environment, service_version, status, started_at, finished_at, deployed_by, commit_sha, rollback_of, metadata) \
-         VALUES ($1, $2, NULL, $3, 'prod', '2026.05.22', 'success', $4, $5, 'ci-bot', 'abc123', NULL, NULL)",
-    )
-    .bind(Uuid::new_v4())
-    .bind(tenant)
-    .bind(service_name)
-    .bind(from + chrono::Duration::hours(4))
-    .bind(from + chrono::Duration::hours(5))
-    .execute(&pg)
-    .await
-    .expect("prod deployment inserted");
-
-    sqlx::query(
-        "INSERT INTO deployment_markers \
-         (deployment_id, tenant_id, project_id, service_name, environment, service_version, status, started_at, finished_at, deployed_by, commit_sha, rollback_of, metadata) \
-         VALUES ($1, $2, NULL, $3, 'staging', '2026.05.21', 'success', $4, $5, 'ci-bot', 'def456', NULL, NULL)",
-    )
-    .bind(Uuid::new_v4())
-    .bind(tenant)
-    .bind(service_name)
-    .bind(from + chrono::Duration::hours(4))
-    .bind(from + chrono::Duration::hours(5))
-    .execute(&pg)
-    .await
-    .expect("staging deployment inserted");
+    let app = build_app_with_pg_and_admin_mock(ch, pg, admin_mock.uri()).await;
 
     let uri = format!(
         "/v1/services/{service_name}/reliability-report?from={}&to={}&environment=prod",
@@ -1957,15 +1229,6 @@ async fn get_service_reliability_report_filters_service_environment_and_interval
     assert_eq!(body["slo_summary"]["firing"], 1);
     assert_eq!(body["deployments"].as_array().unwrap().len(), 1);
 
-    let incidents = body["incidents"].as_array().unwrap();
-    assert!(
-        incidents.iter().all(|incident| {
-            incident["title"] != "Checkout staging incident"
-                && incident["title"] != "Payments prod incident"
-        }),
-        "report must only include the target service and environment"
-    );
-
     let mean_time = body["incident_summary"]["mean_time_to_resolve_minutes"]
         .as_f64()
         .expect("MTTR value");
@@ -1973,58 +1236,4 @@ async fn get_service_reliability_report_filters_service_environment_and_interval
         mean_time >= 59.0,
         "expected MTTR to reflect the resolved incident duration, got {mean_time}"
     );
-}
-
-#[tokio::test]
-async fn saved_view_create_then_list_then_get_round_trips_config() {
-    let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, pg.clone()).await;
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
-
-    let created = saved_views::create_saved_view(
-        &pg,
-        tenant,
-        &saved_views::CreateSavedViewRequest {
-            name: "Errors in checkout".into(),
-            signal_kind: "logs".into(),
-            config: serde_json::json!({
-                "query": null,
-                "severity_filter": "error",
-                "message_search": "",
-                "time_range": {"mode": "preset", "preset": "1h"},
-                "visible_columns": ["level", "service"]
-            }),
-        },
-        None,
-    )
-    .await
-    .expect("saved view created");
-
-    let list_response = app
-        .clone()
-        .oneshot(dev_request("GET", "/v1/saved-views?signal_kind=logs"))
-        .await
-        .unwrap();
-    assert_eq!(list_response.status(), StatusCode::OK);
-    let list_body = response_body_json(list_response.into_body()).await;
-    let items = list_body["items"].as_array().expect("items array");
-    assert!(
-        items
-            .iter()
-            .any(|item| item["saved_view_id"] == created.saved_view_id.to_string())
-    );
-
-    let get_response = app
-        .oneshot(dev_request(
-            "GET",
-            &format!("/v1/saved-views/{}", created.saved_view_id),
-        ))
-        .await
-        .unwrap();
-    assert_eq!(get_response.status(), StatusCode::OK);
-    let get_body = response_body_json(get_response.into_body()).await;
-    assert_eq!(get_body["name"], "Errors in checkout");
-    assert_eq!(get_body["config"]["severity_filter"], "error");
-    assert_eq!(get_body["config"]["visible_columns"][0], "level");
 }

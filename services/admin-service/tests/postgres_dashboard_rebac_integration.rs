@@ -1,7 +1,7 @@
 //! Integration tests for dashboard ReBAC enforcement.
 //! All tests use Testcontainers Postgres with all migrations applied.
 
-use query_api::dashboards::{
+use admin_service::dashboards::{
     CreateDashboardRequest, DashboardPanelRequest, UpdateDashboardRequest, create_dashboard,
     get_dashboard, list_dashboards, update_dashboard,
 };

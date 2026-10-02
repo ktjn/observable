@@ -1,4 +1,4 @@
-use query_api::slos::list_slos;
+use admin_service::slos::list_slos;
 use uuid::Uuid;
 
 #[tokio::test]

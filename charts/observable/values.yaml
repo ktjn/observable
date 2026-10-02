@@ -36,6 +36,14 @@ redpanda:
   brokers: "redpanda:9093"
   ingestTopic: "telemetry.raw.v1"
   normalizedTopic: "telemetry.normalized.v1"
+  deploymentMarkersTopic: "deployment.markers.v1"
+
+# Shared secret for service-to-service calls to admin-service's /internal/*
+# routes (query-api's discovery.rs/reliability.rs correlation reads -- Phase
+# 4's "remove cross-owner SQL" follow-on, docs/component-decomposition.md).
+# Rotate via ExternalSecret in production; this is a dev-only default matching
+# docker-compose.yml's.
+internalServiceToken: "dev-internal-token-0000"
 
 selfObservability:
   # Supported modes:

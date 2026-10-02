@@ -210,6 +210,49 @@ pub fn extract_tenant_id_header(headers: &axum::http::HeaderMap) -> Result<Uuid,
         })
 }
 
+/// Verify the `X-Internal-Token` header against a shared secret for trusted
+/// service-to-service calls within the cluster (e.g. query-api calling
+/// admin-service's internal correlation endpoints -- Phase 4's "remove
+/// cross-owner SQL" follow-on, docs/component-decomposition.md). This is
+/// deliberately not per-tenant credential verification: the caller passes
+/// `tenant_id` explicitly as a request parameter, and this function only
+/// establishes that the caller is a trusted internal service.
+///
+/// Returns `Err(AuthError::Unauthorized)` if the header is missing or
+/// doesn't match `expected_token`.
+pub fn verify_internal_token(
+    headers: &axum::http::HeaderMap,
+    expected_token: &str,
+) -> Result<(), AuthError> {
+    let provided = headers
+        .get("X-Internal-Token")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| {
+            tracing::warn!(reason = "missing_internal_token", "internal auth rejected");
+            AuthError::Unauthorized
+        })?;
+
+    if constant_time_eq(provided.as_bytes(), expected_token.as_bytes()) {
+        Ok(())
+    } else {
+        tracing::warn!(reason = "internal_token_mismatch", "internal auth rejected");
+        Err(AuthError::Unauthorized)
+    }
+}
+
+/// Constant-time byte comparison to avoid leaking the shared secret's value
+/// through response-timing differences.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -425,5 +468,38 @@ mod tests {
             .unwrap_err();
 
         assert_eq!(err, AuthError::Internal);
+    }
+
+    #[test]
+    fn matching_internal_token_is_accepted() {
+        let headers = headers_from(&[("X-Internal-Token", "shared-secret")]);
+        assert!(verify_internal_token(&headers, "shared-secret").is_ok());
+    }
+
+    #[test]
+    fn mismatched_internal_token_is_rejected() {
+        let headers = headers_from(&[("X-Internal-Token", "wrong-secret")]);
+        assert_eq!(
+            verify_internal_token(&headers, "shared-secret").unwrap_err(),
+            AuthError::Unauthorized
+        );
+    }
+
+    #[test]
+    fn missing_internal_token_is_rejected() {
+        let headers = headers_from(&[]);
+        assert_eq!(
+            verify_internal_token(&headers, "shared-secret").unwrap_err(),
+            AuthError::Unauthorized
+        );
+    }
+
+    #[test]
+    fn different_length_internal_token_is_rejected() {
+        let headers = headers_from(&[("X-Internal-Token", "short")]);
+        assert_eq!(
+            verify_internal_token(&headers, "a-much-longer-shared-secret").unwrap_err(),
+            AuthError::Unauthorized
+        );
     }
 }

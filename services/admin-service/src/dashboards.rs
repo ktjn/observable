@@ -1,5 +1,5 @@
+use crate::AdminServiceAppState;
 use crate::middleware::auth::TenantContext;
-use crate::traces::AppState;
 use axum::{
     Extension, Json,
     extract::{Path, State},
@@ -887,7 +887,7 @@ fn validate_time_range(time_range: &serde_json::Value) -> Result<(), CreateDashb
 }
 
 pub async fn handle_list_dashboards(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
 ) -> Result<Json<DashboardListResponse>, StatusCode> {
     let items = list_dashboards(&state.db, ctx.tenant_id, ctx.user_id)
@@ -900,7 +900,7 @@ pub async fn handle_list_dashboards(
 }
 
 pub async fn handle_create_dashboard(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Json(req): Json<CreateDashboardRequest>,
 ) -> Result<(StatusCode, Json<DashboardItem>), StatusCode> {
@@ -918,7 +918,7 @@ pub async fn handle_create_dashboard(
 }
 
 pub async fn handle_get_dashboard(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path(dashboard_id): Path<Uuid>,
 ) -> Result<Json<DashboardItem>, StatusCode> {
@@ -948,7 +948,7 @@ pub async fn handle_get_dashboard(
 }
 
 pub async fn handle_update_dashboard(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path(dashboard_id): Path<Uuid>,
     Json(req): Json<UpdateDashboardRequest>,
@@ -997,7 +997,7 @@ pub async fn handle_update_dashboard(
 }
 
 pub async fn handle_delete_dashboard(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path(dashboard_id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
@@ -1040,7 +1040,7 @@ pub async fn handle_delete_dashboard(
 }
 
 pub async fn handle_list_grants(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path(dashboard_id): Path<Uuid>,
 ) -> Result<Json<GrantListResponse>, StatusCode> {
@@ -1093,7 +1093,7 @@ pub async fn handle_list_grants(
 }
 
 pub async fn handle_add_grant(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path(dashboard_id): Path<Uuid>,
     Json(req): Json<AddGrantRequest>,
@@ -1166,7 +1166,7 @@ pub async fn handle_add_grant(
 }
 
 pub async fn handle_revoke_grant(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path((dashboard_id, target_user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, StatusCode> {
@@ -1256,7 +1256,7 @@ pub async fn handle_revoke_grant(
 }
 
 pub async fn handle_get_dashboard_export(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Path(dashboard_id): Path<Uuid>,
 ) -> Result<Json<DashboardExport>, StatusCode> {
@@ -1271,7 +1271,7 @@ pub async fn handle_get_dashboard_export(
 }
 
 pub async fn handle_import_dashboard(
-    State(state): State<AppState>,
+    State(state): State<AdminServiceAppState>,
     Extension(ctx): Extension<TenantContext>,
     Json(export): Json<DashboardExport>,
 ) -> Result<(StatusCode, Json<DashboardItem>), StatusCode> {

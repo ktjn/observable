@@ -1,8 +1,6 @@
 mod auth;
 mod cardinality;
-mod change_events;
 mod deployment_registry;
-mod deployments;
 mod grpc;
 #[path = "http-json/mod.rs"]
 mod http_json;
@@ -77,7 +75,7 @@ impl AppState {
             log_rate_limiter: build_rate_limiter(1000),
             metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
-            deployment_registry: DeploymentRegistry::new(db.clone()),
+            deployment_registry: DeploymentRegistry::new(),
             db,
             stub_tenant: None,
         }
@@ -94,7 +92,7 @@ impl AppState {
             log_rate_limiter: build_rate_limiter(1000),
             metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
-            deployment_registry: DeploymentRegistry::new(db.clone()),
+            deployment_registry: DeploymentRegistry::new(),
             db,
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
@@ -111,7 +109,7 @@ impl AppState {
             log_rate_limiter: build_rate_limiter(per_second),
             metric_rate_limiter: build_rate_limiter(per_second),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
-            deployment_registry: DeploymentRegistry::new(db.clone()),
+            deployment_registry: DeploymentRegistry::new(),
             db,
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
@@ -128,7 +126,7 @@ impl AppState {
             log_rate_limiter: build_rate_limiter(1000),
             metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(budget),
-            deployment_registry: DeploymentRegistry::new(db.clone()),
+            deployment_registry: DeploymentRegistry::new(),
             db,
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
@@ -188,6 +186,28 @@ async fn main() -> anyhow::Result<()> {
             .await?,
     );
 
+    let deployment_registry = DeploymentRegistry::new();
+    // Feeds the registry from admin-service's deployment.markers.v1 events
+    // instead of querying Postgres directly (Phase 5 "clean ingest",
+    // docs/component-decomposition.md). Runs unconditionally for the process
+    // lifetime; a Redpanda outage here only means stale/empty
+    // deployment_id stamping on ingested spans, not an ingest failure.
+    let deployment_markers_topic = observable_config::require_env("DEPLOYMENT_MARKERS_TOPIC")?;
+    let consumer_registry = deployment_registry.clone();
+    let consumer_brokers = brokers.clone();
+    tokio::spawn(async move {
+        if let Err(e) = deployment_registry::run_consumer(
+            &consumer_brokers,
+            "ingest-gateway",
+            &deployment_markers_topic,
+            consumer_registry,
+        )
+        .await
+        {
+            tracing::error!(error = %e, "deployment marker consumer stopped");
+        }
+    });
+
     let state = AppState {
         auth_service_url: observable_config::require_env("AUTH_SERVICE_URL")?,
         http_client: reqwest::Client::new(),
@@ -196,7 +216,7 @@ async fn main() -> anyhow::Result<()> {
         log_rate_limiter: build_rate_limiter(log_rate_limit),
         metric_rate_limiter: build_rate_limiter(metric_rate_limit),
         metric_cardinality: cardinality::MetricCardinalityBudget::new(metric_series_budget),
-        deployment_registry: DeploymentRegistry::new(db.clone()),
+        deployment_registry,
         db: db.clone(),
         #[cfg(test)]
         stub_tenant: None,
