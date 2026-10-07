@@ -20,7 +20,7 @@ services:
       retries: 30
 
   redpanda:
-    image: redpandadata/redpanda:v26.2.3
+    image: redpandadata/redpanda:v26.2.4
     command:
       - redpanda
       - start
@@ -52,7 +52,7 @@ services:
       retries: 20
 
   openfga:
-    image: openfga/openfga:v1.21.0
+    image: openfga/openfga:v1.22.0
     command: run
     ports: ["8083:8080", "8081:8081"]
     environment:
@@ -170,7 +170,7 @@ services:
       postgres: { condition: service_healthy }
 
   redpanda-setup:
-    image: redpandadata/redpanda:v26.2.3
+    image: redpandadata/redpanda:v26.2.4
     entrypoint:
       - /bin/bash
       - -c
@@ -390,7 +390,7 @@ services:
 
   # --- VERIFICATION ---
   otel-collector-verification:
-    image: otel/opentelemetry-collector-contrib:0.161.0
+    image: otel/opentelemetry-collector-contrib:0.162.0
     profiles: ["verification"]
     volumes:
       - ./tests/e2e/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
