@@ -20,7 +20,6 @@ tower-http         = { workspace = true }
 serde              = { workspace = true }
 serde_json         = { workspace = true }
 uuid               = { workspace = true }
-sqlx               = { workspace = true }
 chrono             = { workspace = true }
 anyhow             = { workspace = true }
 tracing            = { workspace = true }
@@ -43,6 +42,5 @@ prometheus         = { version = "0.14.0", features = ["process"] }
 axum-test              = "21"
 tokio-stream           = { version = "0.1", features = ["net"] }
 testcontainers         = "0.27.0"
-testcontainers-modules = { version = "0.15.0", features = ["postgres"] }
 tower              = { version = "0.5", features = ["util"] }
 http-body-util     = "0.1"

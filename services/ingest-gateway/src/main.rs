@@ -11,7 +11,6 @@ mod readyz;
 
 use deployment_registry::DeploymentRegistry;
 use observable_auth::{ApiKeyContext, AuthError};
-use sqlx::postgres::PgPoolOptions;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -27,7 +26,6 @@ pub struct AppState {
     pub log_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
     pub metric_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
     pub metric_cardinality: Arc<cardinality::MetricCardinalityBudget>,
-    pub db: Arc<sqlx::PgPool>,
     pub deployment_registry: Arc<DeploymentRegistry>,
     #[cfg(test)]
     pub stub_tenant: Option<Uuid>,
@@ -66,7 +64,6 @@ impl AppState {
 
     #[cfg(test)]
     pub fn test_stub() -> Self {
-        let db = test_pool();
         Self {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
@@ -76,14 +73,12 @@ impl AppState {
             metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
             deployment_registry: DeploymentRegistry::new(),
-            db,
             stub_tenant: None,
         }
     }
 
     #[cfg(test)]
     pub fn with_stub_auth(tenant_id: &str) -> Self {
-        let db = test_pool();
         Self {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
@@ -93,14 +88,12 @@ impl AppState {
             metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
             deployment_registry: DeploymentRegistry::new(),
-            db,
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
     }
 
     #[cfg(test)]
     pub fn with_stub_auth_and_rate_limit(tenant_id: &str, per_second: u32) -> Self {
-        let db = test_pool();
         Self {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
@@ -110,14 +103,12 @@ impl AppState {
             metric_rate_limiter: build_rate_limiter(per_second),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
             deployment_registry: DeploymentRegistry::new(),
-            db,
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
     }
 
     #[cfg(test)]
     pub fn with_stub_auth_and_metric_budget(tenant_id: &str, budget: u64) -> Self {
-        let db = test_pool();
         Self {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
@@ -127,16 +118,9 @@ impl AppState {
             metric_rate_limiter: build_rate_limiter(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(budget),
             deployment_registry: DeploymentRegistry::new(),
-            db,
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
     }
-}
-
-#[cfg(test)]
-fn test_pool() -> Arc<sqlx::PgPool> {
-    // Disconnected pool — unit tests that don't touch the DB can use this.
-    Arc::new(sqlx::PgPool::connect_lazy("postgres://localhost/test").unwrap())
 }
 
 #[tokio::main]
@@ -178,14 +162,6 @@ async fn main() -> anyhow::Result<()> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(4_194_304);
 
-    let database_url = observable_config::require_database_url()?;
-    let db = Arc::new(
-        PgPoolOptions::new()
-            .max_connections(5)
-            .connect(&database_url)
-            .await?,
-    );
-
     let deployment_registry = DeploymentRegistry::new();
     // Feeds the registry from admin-service's deployment.markers.v1 events
     // instead of querying Postgres directly (Phase 5 "clean ingest",
@@ -217,7 +193,6 @@ async fn main() -> anyhow::Result<()> {
         metric_rate_limiter: build_rate_limiter(metric_rate_limit),
         metric_cardinality: cardinality::MetricCardinalityBudget::new(metric_series_budget),
         deployment_registry,
-        db: db.clone(),
         #[cfg(test)]
         stub_tenant: None,
     };
@@ -227,7 +202,7 @@ async fn main() -> anyhow::Result<()> {
     let grpc_state = state.clone();
     let platform_state = state.clone();
     let probe_state = readyz::IngestGatewayProbeState {
-        db: db.clone(),
+        brokers: brokers.clone(),
         metrics_registry: Some(metrics_registry),
     };
     let grpc_future = grpc::start_grpc_server(grpc_state, grpc_port, grpc_max_message_bytes);

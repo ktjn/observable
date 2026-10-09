@@ -40,15 +40,25 @@ async fn stream_processor_readyz_returns_503_when_redpanda_unavailable() {
 #[tokio::test]
 #[ignore]
 async fn stream_processor_readyz_returns_200_when_redpanda_reachable() {
+    use std::net::TcpListener;
     use testcontainers::{
         GenericImage, ImageExt,
         core::{IntoContainerPort, WaitFor},
         runners::AsyncRunner,
     };
 
-    let container = GenericImage::new("redpandadata/redpanda", "v24.3.1")
-        .with_wait_for(WaitFor::message_on_stdout("Successfully started Redpanda!"))
-        .with_exposed_port(9092_u16.tcp())
+    // Bind to port 0 to let the OS pick a free host port, then release it and tell
+    // Redpanda to advertise exactly that address. This keeps rdkafka's metadata
+    // discovery working for the single-node setup: it follows the advertised broker
+    // address from the metadata response, which must resolve back to the mapped port.
+    let host_port = {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind to 0 to get free port");
+        listener.local_addr().unwrap().port()
+    };
+    let advertise_addr = format!("127.0.0.1:{host_port}");
+
+    let _container = GenericImage::new("redpandadata/redpanda", "v26.2.4")
+        .with_wait_for(WaitFor::message_on_stderr("Successfully started Redpanda!"))
         .with_cmd([
             "redpanda",
             "start",
@@ -62,13 +72,17 @@ async fn stream_processor_readyz_returns_200_when_redpanda_reachable() {
             "--node-id",
             "0",
             "--check=false",
+            "--kafka-addr",
+            "0.0.0.0:9092",
+            "--advertise-kafka-addr",
+            &advertise_addr,
         ])
+        .with_mapped_port(host_port, 9092_u16.tcp())
         .start()
         .await
         .expect("redpanda started");
-    let port = container.get_host_port_ipv4(9092).await.unwrap();
 
-    let app = test_probe_app(&format!("127.0.0.1:{port}"));
+    let app = test_probe_app(&advertise_addr);
 
     let response = app
         .oneshot(

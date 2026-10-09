@@ -155,9 +155,8 @@ mod tests {
 
     fn platform_server() -> TestServer {
         let state = AppState::with_stub_auth(TENANT);
-        let db = state.db.clone();
         let probe = IngestGatewayProbeState {
-            db,
+            brokers: "127.0.0.1:1".to_string(),
             metrics_registry: None,
         };
         TestServer::new(build_platform_router(state, probe))
@@ -216,9 +215,8 @@ mod tests {
     #[tokio::test]
     async fn rate_limit_exceeded_returns_429() {
         let state = AppState::with_stub_auth_and_rate_limit(TENANT, 1);
-        let db = state.db.clone();
         let probe = IngestGatewayProbeState {
-            db,
+            brokers: "127.0.0.1:1".to_string(),
             metrics_registry: None,
         };
         let server = TestServer::new(build_platform_router(state, probe));

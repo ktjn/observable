@@ -5,12 +5,12 @@ use axum::{
     routing::get,
 };
 use ingest_gateway::readyz::{IngestGatewayProbeState, readyz};
-use std::sync::Arc;
+use std::net::TcpListener;
 use tower::ServiceExt;
 
-fn test_probe_app(pg_url: &str) -> Router {
+fn test_probe_app(brokers: &str) -> Router {
     let probe_state = IngestGatewayProbeState {
-        db: Arc::new(sqlx::PgPool::connect_lazy(pg_url).expect("lazy pool")),
+        brokers: brokers.to_string(),
         metrics_registry: None,
     };
     Router::new()
@@ -20,8 +20,9 @@ fn test_probe_app(pg_url: &str) -> Router {
 }
 
 #[tokio::test]
-async fn ingest_gateway_readyz_returns_503_when_postgres_unavailable() {
-    let app = test_probe_app("postgres://localhost:1/nonexistent");
+async fn ingest_gateway_readyz_returns_503_when_redpanda_unavailable() {
+    // Port 1 is never valid; rdkafka metadata fetch fails immediately.
+    let app = test_probe_app("127.0.0.1:1");
 
     let response = app
         .oneshot(
@@ -39,49 +40,50 @@ async fn ingest_gateway_readyz_returns_503_when_postgres_unavailable() {
 
 #[tokio::test]
 #[ignore]
-async fn ingest_gateway_readyz_returns_200_when_postgres_reachable() {
-    use std::path::Path;
-    use testcontainers::{ImageExt, runners::AsyncRunner};
-    use testcontainers_modules::postgres::Postgres;
+async fn ingest_gateway_readyz_returns_200_when_redpanda_reachable() {
+    use testcontainers::{
+        GenericImage, ImageExt,
+        core::{IntoContainerPort, WaitFor},
+        runners::AsyncRunner,
+    };
 
-    let container = Postgres::default()
-        .with_tag("17")
+    // Bind to port 0 to let the OS pick a free host port, then release it and tell
+    // Redpanda to advertise exactly that address. This keeps rdkafka's metadata
+    // discovery working for the single-node setup: it follows the advertised broker
+    // address from the metadata response, which must resolve back to the mapped port.
+    let host_port = {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind to 0 to get free port");
+        listener.local_addr().unwrap().port()
+    };
+    let advertise_addr = format!("127.0.0.1:{host_port}");
+    let brokers = advertise_addr.clone();
+
+    let _container = GenericImage::new("redpandadata/redpanda", "v26.2.4")
+        .with_wait_for(WaitFor::message_on_stderr("Successfully started Redpanda!"))
+        .with_cmd([
+            "redpanda",
+            "start",
+            "--overprovisioned",
+            "--smp",
+            "1",
+            "--memory",
+            "512M",
+            "--reserve-memory",
+            "0M",
+            "--node-id",
+            "0",
+            "--check=false",
+            "--kafka-addr",
+            "0.0.0.0:9092",
+            "--advertise-kafka-addr",
+            &advertise_addr,
+        ])
+        .with_mapped_port(host_port, 9092_u16.tcp())
         .start()
         .await
-        .expect("postgres started");
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let pg_url = observable_config::with_search_path(&format!(
-        "postgres://postgres:postgres@127.0.0.1:{port}/postgres"
-    ));
+        .expect("redpanda started");
 
-    let pool = sqlx::PgPool::connect(&pg_url).await.expect("connect");
-    let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/postgres");
-    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
-        .expect("dir exists")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        sqlx::raw_sql(sqlx::AssertSqlSafe(sql))
-            .execute(&pool)
-            .await
-            .expect("migration applied");
-    }
-
-    let probe_state = IngestGatewayProbeState {
-        db: Arc::new(pool),
-        metrics_registry: None,
-    };
-    let app = Router::new()
-        .route("/readyz", get(readyz))
-        .with_state(probe_state);
+    let app = test_probe_app(&brokers);
 
     let response = app
         .oneshot(

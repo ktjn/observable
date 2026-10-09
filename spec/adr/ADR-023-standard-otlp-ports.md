@@ -4,6 +4,10 @@
 
 Accepted
 
+> **Amended by ADR-035 / Phase 5 "clean ingest":** the Platform API on port 4321 now carries only
+> Prometheus remote-write ingestion. Deployment-marker and change-event writes moved from
+> ingest-gateway to admin-service, so the "(e.g. deployment markers)" example below is historical.
+
 ## Context
 
 The OpenTelemetry Protocol (OTLP) specification defines standard ports for ingestion:

@@ -66,7 +66,7 @@ async fn start_redpanda() -> (String, ContainerAsync<GenericImage>) {
     let brokers = advertise_addr.clone();
 
     let container: ContainerAsync<GenericImage> =
-        GenericImage::new("redpandadata/redpanda", "v23.3.1")
+        GenericImage::new("redpandadata/redpanda", "v26.2.4")
             .with_wait_for(WaitFor::message_on_stderr("Successfully started Redpanda!"))
             .with_cmd(vec![
                 "redpanda".to_string(),

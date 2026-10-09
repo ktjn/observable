@@ -59,9 +59,9 @@ Public endpoint paths remain stable while internal routing changes.
 The public gateway/distribution layer routes these endpoints to `observable-control`; clients do not
 address component-specific ports.
 
-**Migration note:** the current implementation serves writes from the ingest-gateway Platform API
-and reads from query-api. That routing is a compatibility bridge during roadmap `0.2`, not the
-target ownership boundary.
+**Migration note:** the current implementation serves writes from admin-service (the interim
+"control" owner during roadmap `0.2`) and reads from query-api. That routing is a compatibility
+bridge, not the target ownership boundary.
 
 ### 18.4 UI Visualization
 
@@ -85,8 +85,9 @@ The target correlation path is:
 5. **Fallback:** telemetry remains valid if no deployment mapping is available. Query-time
    correlation may reconstruct relationships from service/environment/version and event time.
 
-The current ingest-gateway PostgreSQL deployment registry is transitional and is removed when the
-control/event projection path is proven.
+The current ingest-gateway deployment registry is a transitional in-memory cache fed by
+`deployment.markers.v1` events published by admin-service (not a PostgreSQL projection); it is
+replaced when the control/event projection path is proven.
 
 ### 18.6 Security and RBAC
 

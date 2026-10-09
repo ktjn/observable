@@ -185,7 +185,7 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 
 - All six Rust services expose `/readyz` on their respective ports; Prometheus `/metrics` was intentionally omitted (services already emit OTLP metrics via the self-observability pipeline).
 - `alert-evaluator` (4322): readyz checks PostgreSQL + ClickHouse; AppState introduced in this slice.
-- `ingest-gateway` (4321 platform port): readyz checks PostgreSQL; `IngestGatewayProbeState` keeps probe routes independent of the full AppState.
+- `ingest-gateway` (4321 platform port): readyz fetches Redpanda broker metadata (mirrors `stream-processor`); `IngestGatewayProbeState` keeps probe routes independent of the full AppState.
 - `stream-processor` (4323 new probe port): readyz fetches Redpanda broker metadata via `spawn_blocking`; probe server runs as a background tokio task alongside the consumer loop.
 - Docker Compose: `stream-processor` now has a healthcheck; `smoke-test` and `perf-smoke` upgraded from `service_started` to `service_healthy`.
 - Helm: `streamProcessor.platformPort: 4323` added to values.yaml.

@@ -128,7 +128,7 @@ Automated rollback tooling is planned for a future release.
 
 | Scenario | Behavior |
 |----------|----------|
-| PostgreSQL unavailable | auth-service, admin-service, query-api, ingest-gateway, alert-evaluator fail health checks. Ingestion stops (API key validation fails). |
+| PostgreSQL unavailable | auth-service, admin-service, query-api, alert-evaluator fail health checks. Ingestion stops (API key validation fails). |
 | ClickHouse unavailable | storage-writer fails health checks. Ingestion queues in Redpanda until ClickHouse recovers. Queries fail. |
 | Redpanda unavailable | ingest-gateway accepts but cannot enqueue telemetry (rejects with 503). stream-processor stops processing. |
 | Zitadel unavailable | Browser login fails. API-key ingestion continues working. |
