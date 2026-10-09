@@ -18,8 +18,10 @@ fn test_app(state: AppState) -> Router {
 
 fn disconnected_state(ch_url: &str) -> AppState {
     AppState {
-        db: Arc::new(sqlx::PgPool::connect_lazy("postgres://localhost/test").expect("lazy pool")),
+        db: sqlx::PgPool::connect_lazy("postgres://localhost/test").expect("lazy pool"),
         ch: clickhouse::Client::default().with_url(ch_url),
+        auth_service_url: "http://auth-service:4319".into(),
+        http_client: reqwest::Client::new(),
         metrics: Arc::new(alert_evaluator::observability::AlertEvaluatorMetrics::new()),
     }
 }
@@ -93,10 +95,12 @@ async fn alert_evaluator_readyz_returns_200_when_dependencies_reachable() {
     }
 
     let state = AppState {
-        db: Arc::new(pool),
+        db: pool,
         ch: clickhouse::Client::default()
             .with_url(format!("http://127.0.0.1:{ch_port}"))
             .with_compression(clickhouse::Compression::None),
+        auth_service_url: "http://auth-service:4319".into(),
+        http_client: reqwest::Client::new(),
         metrics: Arc::new(alert_evaluator::observability::AlertEvaluatorMetrics::new()),
     };
 

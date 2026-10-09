@@ -13,8 +13,8 @@ are documented below.
 | **storage-writer** | 4320 | Internal HTTP | Writes spans, logs, and metrics to ClickHouse |
 | **query-api** | 8090 | HTTP/JSON | Read-path API for traces, logs, metrics, dashboards, alerts |
 | **auth-service** | 4319 | HTTP/JSON | OIDC login, session management, API-key validation |
-| **admin-service** | 4324 | HTTP/JSON | Member management, token CRUD, alert rule CRUD, config |
-| **alert-evaluator** | 4322 (platform) | Internal | Polls alert rules on a timer, fires notifications |
+| **admin-service** | 4324 | HTTP/JSON | Member management, token CRUD, config |
+| **alert-evaluator** | 4322 (platform) | HTTP/JSON + internal | Alert-rule CRUD; polls rules on a timer, fires notifications |
 | **frontend** | 80 | HTTP | React SPA served by nginx |
 
 ### Infrastructure dependencies
@@ -111,7 +111,7 @@ string or omit it for non-development environments.
 | `DATABASE_URL` | auth, query-api, admin, alert-evaluator | PostgreSQL connection string |
 | `CLICKHOUSE_URL` | query-api, admin, storage-writer, alert-evaluator | ClickHouse HTTP endpoint |
 | `CLICKHOUSE_USER` | query-api, admin, storage-writer, alert-evaluator | ClickHouse username |
-| `AUTH_SERVICE_URL` | query-api, admin, ingest-gateway | Internal URL of auth-service |
+| `AUTH_SERVICE_URL` | query-api, admin, ingest-gateway, alert-evaluator | Internal URL of auth-service |
 | `REDPANDA_BROKERS` | ingest-gateway, stream-processor | Kafka-compatible broker addresses |
 | `INGEST_TOPIC` | ingest-gateway, stream-processor | Kafka topic for raw telemetry |
 | `STORAGE_WRITER_URL` | stream-processor | Internal URL of storage-writer |

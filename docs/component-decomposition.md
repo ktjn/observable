@@ -777,10 +777,38 @@ Move all alert/SLO/incident/notification APIs and persistence into one component
 
 Prefer query API calls for telemetry evaluation.
 
+**In progress.** The alerting component is `alert-evaluator` (it already owns evaluation and the
+firing/incident/notification-audit writes). The target is for it to own all alerting APIs and
+persistence; the interim "control" owner (`admin-service`) currently holds the remaining alerting
+CRUD.
+
+Sub-steps:
+
+1. **Done:** alert-rule CRUD moved from `admin-service` to `alert-evaluator`.
+   `GET /v1/alerts/rules`, `GET /v1/alerts/rules/{id}`, `POST /v1/admin/alerts/rules`,
+   `PATCH /v1/admin/alerts/rules/{id}`, `PATCH /v1/admin/alerts/rules/{id}/silence`, and
+   `PATCH /v1/admin/alerts/rules/{id}/runbook` are now served by `alert-evaluator` (port 4322),
+   which gained a component-local copy of `admin-service`'s `require_tenant` auth middleware and the
+   `AUTH_SERVICE_URL`/`http_client` state it needs. nginx routes `^~ /v1/admin/alerts` and
+   `^~ /v1/alerts` to `alert-evaluator:4322` (the longer `/v1/admin/alerts` prefix wins over
+   `/v1/admin/`). `admin-service`'s `alerts.rs` module, its routes, and its two integration tests
+   moved with the handlers (`services/alert-evaluator/tests/postgres_alerts_{,http_}integration.rs`).
+   Remaining transitional coupling, tracked for later sub-steps: `admin-service`'s `slos.rs` still
+   `INSERT`s the `slo_burn_rate` side-effect rule into `alert_rules`, and `internal.rs` still reads
+   `alert_rules`/`alert_firings`/`slo_definitions` for the correlation endpoints — both move when
+   SLOs and the internal endpoints follow.
+2. **Not done:** move SLO, notification-channel, and incident CRUD to `alert-evaluator`.
+3. **Not done:** split `admin-service/internal.rs` by owner so the alerting joins move to
+   `alert-evaluator` and only the `deployment_markers` (control) queries stay in `admin-service`.
+
 Exit evidence:
 
-- alerting state has one owner
-- query and control do not write alerting tables
+- alerting state has one owner -- **partially met**: alert-rule writes now have a single owner
+  (`alert-evaluator`), but SLO/notification/incident CRUD is still served by `admin-service`.
+- query and control do not write alerting tables -- **not met**: `query-api` no longer writes
+  alerting tables (it reads them via `admin-service`'s internal endpoints), but `admin-service`
+  still writes `slo_definitions`, `notification_channels`, and the `slo_burn_rate` rule in
+  `alert_rules`.
 
 ### Phase 7 — Independent build artifacts
 

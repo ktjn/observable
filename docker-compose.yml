@@ -355,6 +355,7 @@ services:
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
       ALERT_EVALUATOR_PORT: "4322"
       ALERT_EVAL_INTERVAL_SECONDS: "60"
+      AUTH_SERVICE_URL: http://auth-service:4319
     ports: ["4322:4322"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4322/health"]
@@ -405,6 +406,7 @@ services:
       PLATFORM_URL: http://ingest-gateway:4321
       QUERY_URL: http://query-api:8090
       ADMIN_URL: http://admin-service:4324
+      ALERT_URL: http://alert-evaluator:4322
       COLLECTOR_URL: http://otel-collector-verification:4318
       COLLECTOR_GRPC_URL: http://otel-collector-verification:4317
     entrypoint: ["/bin/bash", "/app/tests/e2e/smoke_test.sh"]
@@ -414,6 +416,7 @@ services:
       ingest-gateway: { condition: service_healthy }
       query-api: { condition: service_healthy }
       admin-service: { condition: service_healthy }
+      alert-evaluator: { condition: service_healthy }
       stream-processor: { condition: service_healthy }
       otel-collector-verification: { condition: service_started }
 

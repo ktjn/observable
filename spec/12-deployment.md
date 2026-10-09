@@ -253,7 +253,7 @@ built from `apps/frontend/Dockerfile` and serves static Vite assets through ngin
 | auth-service     | 4319      | postgres                                 |
 | storage-writer   | 4320      | clickhouse                               |
 | stream-processor | none      | redpanda, storage-writer                 |
-| alert-evaluator  | 4322      | postgres, clickhouse                     |
+| alert-evaluator  | 4322      | postgres, clickhouse, auth-service       |
 | query-api        | 8090      | clickhouse                               |
 | frontend         | 5173      | query-api                                |
 

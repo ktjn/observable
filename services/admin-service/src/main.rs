@@ -1,7 +1,7 @@
 use admin_service::{
-    AdminServiceAppState, admin_members, alerts, change_events, config, dashboards, deployments,
-    incidents, internal, middleware, notifications, observability, saved_views, schemas, slos,
-    tenants, tokens, usage,
+    AdminServiceAppState, admin_members, change_events, config, dashboards, deployments, incidents,
+    internal, middleware, notifications, observability, saved_views, schemas, slos, tenants,
+    tokens, usage,
 };
 use axum::{
     Router,
@@ -95,21 +95,6 @@ async fn main() -> anyhow::Result<()> {
             "/v1/tenants/usage-report",
             get(usage::handle_get_tenant_usage_report),
         )
-        .route("/v1/admin/alerts/rules", post(alerts::handle_create_rule))
-        .route(
-            "/v1/admin/alerts/rules/{rule_id}/silence",
-            patch(alerts::handle_silence_rule),
-        )
-        .route(
-            "/v1/admin/alerts/rules/{rule_id}/runbook",
-            patch(alerts::handle_update_rule_runbook),
-        )
-        .route(
-            "/v1/admin/alerts/rules/{rule_id}",
-            patch(alerts::handle_update_rule),
-        )
-        .route("/v1/alerts/rules", get(alerts::handle_list_rules))
-        .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
         .route(
             "/v1/deployments",
             get(deployments::list_deployments).post(deployments::create_deployment),

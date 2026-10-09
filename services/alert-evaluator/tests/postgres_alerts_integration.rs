@@ -1,4 +1,4 @@
-use admin_service::alerts::list_alert_rules;
+use alert_evaluator::alerts::list_alert_rules;
 use uuid::Uuid;
 
 #[tokio::test]

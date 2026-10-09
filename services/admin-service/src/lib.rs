@@ -1,5 +1,4 @@
 pub mod admin_members;
-pub mod alerts;
 pub mod change_events;
 pub mod config;
 pub mod dashboards;

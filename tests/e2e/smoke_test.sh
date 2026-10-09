@@ -20,6 +20,7 @@ GRPC_INGEST="${GRPC_INGEST_URL:-http://localhost:4317}"
 PLATFORM="${PLATFORM_URL:-http://localhost:4321}"
 QUERY="${QUERY_URL:-http://localhost:8090}"
 ADMIN="${ADMIN_URL:-http://localhost:4324}"
+ALERT="${ALERT_URL:-http://localhost:4322}"
 COLLECTOR="${COLLECTOR_URL:-http://localhost:4318}"
 COLLECTOR_GRPC="${COLLECTOR_GRPC_URL:-http://localhost:4317}"
 TOKEN="dev-api-key-0000"
@@ -254,6 +255,14 @@ main() {
     "deployments" \
     "$ADMIN/v1/deployments?service_name=$SERVICE_NAME" \
     '.items | length'
+
+  echo "7c. Verifying alert-rule read is served by alert-evaluator..."
+  # Alert-rule CRUD moved from admin-service to alert-evaluator, the alerting
+  # component, as of Phase 6 "consolidate alerting" (docs/component-decomposition.md).
+  assert_http_status "alert rules" "200" \
+    -H "X-Tenant-ID: $TENANT_ID" \
+    -H "Authorization: Bearer $TOKEN" \
+    "$ALERT/v1/alerts/rules"
 
   echo ""
   echo "=== Phase 2: Collector-based Ingestion (Black-box) ==="
