@@ -1,4 +1,4 @@
-use crate::AdminServiceAppState;
+use crate::AppState;
 use crate::middleware::auth::TenantContext;
 use axum::{
     Json,
@@ -114,7 +114,7 @@ pub async fn delete_notification_channel(
 }
 
 pub async fn handle_list_channels(
-    State(state): State<AdminServiceAppState>,
+    State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
 ) -> Result<Json<Vec<NotificationChannelResponse>>, StatusCode> {
     let items = list_notification_channels(&state.db, ctx.tenant_id)
@@ -127,7 +127,7 @@ pub async fn handle_list_channels(
 }
 
 pub async fn handle_create_channel(
-    State(state): State<AdminServiceAppState>,
+    State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
     Json(req): Json<CreateChannelRequest>,
 ) -> Result<(StatusCode, Json<NotificationChannelResponse>), StatusCode> {
@@ -141,7 +141,7 @@ pub async fn handle_create_channel(
 }
 
 pub async fn handle_delete_channel(
-    State(state): State<AdminServiceAppState>,
+    State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
     Path(channel_id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {

@@ -256,13 +256,22 @@ main() {
     "$ADMIN/v1/deployments?service_name=$SERVICE_NAME" \
     '.items | length'
 
-  echo "7c. Verifying alert-rule read is served by alert-evaluator..."
-  # Alert-rule CRUD moved from admin-service to alert-evaluator, the alerting
-  # component, as of Phase 6 "consolidate alerting" (docs/component-decomposition.md).
+  echo "7c. Verifying alerting routes are served by alert-evaluator..."
+  # Alert-rule, SLO, notification, and incident CRUD moved from admin-service to
+  # alert-evaluator, the alerting component, as of Phase 6 "consolidate
+  # alerting" (docs/component-decomposition.md).
   assert_http_status "alert rules" "200" \
     -H "X-Tenant-ID: $TENANT_ID" \
     -H "Authorization: Bearer $TOKEN" \
     "$ALERT/v1/alerts/rules"
+  assert_http_status "slos" "200" \
+    -H "X-Tenant-ID: $TENANT_ID" \
+    -H "Authorization: Bearer $TOKEN" \
+    "$ALERT/v1/slos"
+  assert_http_status "incidents" "200" \
+    -H "X-Tenant-ID: $TENANT_ID" \
+    -H "Authorization: Bearer $TOKEN" \
+    "$ALERT/v1/incidents"
 
   echo ""
   echo "=== Phase 2: Collector-based Ingestion (Black-box) ==="

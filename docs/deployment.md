@@ -14,7 +14,7 @@ are documented below.
 | **query-api** | 8090 | HTTP/JSON | Read-path API for traces, logs, metrics, dashboards, alerts |
 | **auth-service** | 4319 | HTTP/JSON | OIDC login, session management, API-key validation |
 | **admin-service** | 4324 | HTTP/JSON | Member management, token CRUD, config |
-| **alert-evaluator** | 4322 (platform) | HTTP/JSON + internal | Alert-rule CRUD; polls rules on a timer, fires notifications |
+| **alert-evaluator** | 4322 (platform) | HTTP/JSON + internal | Alert-rule, SLO, notification, and incident APIs; polls rules on a timer, fires notifications |
 | **frontend** | 80 | HTTP | React SPA served by nginx |
 
 ### Infrastructure dependencies

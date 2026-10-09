@@ -1,4 +1,4 @@
-use admin_service::slos::list_slos;
+use alert_evaluator::slos::list_slos;
 use uuid::Uuid;
 
 #[tokio::test]

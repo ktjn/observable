@@ -1,8 +1,11 @@
 pub mod alerts;
 pub mod evaluator;
+pub mod incidents;
 pub mod middleware;
+pub mod notifications;
 pub mod observability;
 pub mod readyz;
+pub mod slos;
 
 use clickhouse::Client;
 use std::sync::Arc;

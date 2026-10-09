@@ -1,4 +1,4 @@
-use crate::AdminServiceAppState;
+use crate::AppState;
 use crate::middleware::auth::TenantContext;
 use axum::{
     Json,
@@ -205,7 +205,7 @@ pub async fn get_incident(
 }
 
 pub async fn handle_list_incidents(
-    State(state): State<AdminServiceAppState>,
+    State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
     Query(query): Query<ListIncidentsQuery>,
 ) -> Result<Json<IncidentListResponse>, StatusCode> {
@@ -219,7 +219,7 @@ pub async fn handle_list_incidents(
 }
 
 pub async fn handle_get_incident(
-    State(state): State<AdminServiceAppState>,
+    State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
     Path(incident_id): Path<Uuid>,
 ) -> Result<Json<IncidentDetailResponse>, StatusCode> {

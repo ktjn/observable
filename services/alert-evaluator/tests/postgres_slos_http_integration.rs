@@ -2,7 +2,7 @@
 // instance via Testcontainers, exercising the full handler path via
 // tower::ServiceExt::oneshot.
 
-use admin_service::{AdminServiceAppState, middleware::auth::TenantContext, observability, slos};
+use alert_evaluator::{AppState, middleware::auth::TenantContext, observability, slos};
 use axum::{
     Router,
     body::Body,
@@ -76,13 +76,12 @@ async fn insert_tenant(pool: &PgPool, tenant_id: Uuid) {
 }
 
 fn build_app(db: PgPool, tenant_id: Uuid) -> Router {
-    let state = AdminServiceAppState {
+    let state = AppState {
         db: db.clone(),
         ch: clickhouse::Client::default().with_url("http://127.0.0.1:19999"),
         auth_service_url: "http://auth-service:4319".into(),
         http_client: reqwest::Client::new(),
-        metrics: Arc::new(observability::AdminServiceMetrics::new()),
-        producer: None,
+        metrics: Arc::new(observability::AlertEvaluatorMetrics::new()),
     };
     Router::new()
         .route(

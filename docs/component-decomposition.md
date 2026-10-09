@@ -793,22 +793,28 @@ Sub-steps:
    `^~ /v1/alerts` to `alert-evaluator:4322` (the longer `/v1/admin/alerts` prefix wins over
    `/v1/admin/`). `admin-service`'s `alerts.rs` module, its routes, and its two integration tests
    moved with the handlers (`services/alert-evaluator/tests/postgres_alerts_{,http_}integration.rs`).
-   Remaining transitional coupling, tracked for later sub-steps: `admin-service`'s `slos.rs` still
-   `INSERT`s the `slo_burn_rate` side-effect rule into `alert_rules`, and `internal.rs` still reads
-   `alert_rules`/`alert_firings`/`slo_definitions` for the correlation endpoints — both move when
-   SLOs and the internal endpoints follow.
-2. **Not done:** move SLO, notification-channel, and incident CRUD to `alert-evaluator`.
+2. **Done:** SLO, notification-channel, and incident CRUD also moved from `admin-service` to
+   `alert-evaluator`: `GET`/`POST /v1/slos`, `GET`/`POST /v1/notifications/channels` and
+   `DELETE /v1/notifications/channels/{id}`, and `GET /v1/incidents` / `GET /v1/incidents/{id}`.
+   Their modules and integration tests moved with them
+   (`services/alert-evaluator/tests/postgres_{slos,slos_http,notifications,incidents}_integration.rs`),
+   and nginx routes `^~ /v1/slos`, `^~ /v1/notifications`, and `^~ /v1/incidents` to
+   `alert-evaluator:4322`. The `slo_burn_rate` alert-rule side effect of SLO creation moved with
+   `slos.rs`, so `admin-service` no longer writes `alert_rules`/`slo_definitions`.
+   Remaining transitional coupling, tracked for sub-step 3: `admin-service`'s `internal.rs` still
+   reads `alert_rules`/`alert_firings`/`slo_definitions`/`incidents` for the correlation endpoints.
 3. **Not done:** split `admin-service/internal.rs` by owner so the alerting joins move to
    `alert-evaluator` and only the `deployment_markers` (control) queries stay in `admin-service`.
 
 Exit evidence:
 
-- alerting state has one owner -- **partially met**: alert-rule writes now have a single owner
-  (`alert-evaluator`), but SLO/notification/incident CRUD is still served by `admin-service`.
-- query and control do not write alerting tables -- **not met**: `query-api` no longer writes
-  alerting tables (it reads them via `admin-service`'s internal endpoints), but `admin-service`
-  still writes `slo_definitions`, `notification_channels`, and the `slo_burn_rate` rule in
-  `alert_rules`.
+- alerting state has one owner -- **met for the API surface**: `alert-evaluator` now serves all
+  alert-rule, SLO, notification-channel, and incident routes. `admin-service` still holds
+  transitional read-only correlation SQL over alerting tables (sub-step 3).
+- query and control do not write alerting tables -- **met**: `query-api` never writes alerting
+  tables, and after sub-steps 1-2 `admin-service` no longer writes any alerting table
+  (`alert_rules`, `slo_definitions`, `notification_channels`, `incidents`); the only remaining
+  `admin-service` access is read-only correlation in `internal.rs`.
 
 ### Phase 7 — Independent build artifacts
 

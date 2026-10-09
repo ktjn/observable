@@ -1,7 +1,9 @@
-use alert_evaluator::{AppState, alerts, evaluator, middleware, observability, readyz};
+use alert_evaluator::{
+    AppState, alerts, evaluator, incidents, middleware, notifications, observability, readyz, slos,
+};
 use axum::{
     Extension, Router, middleware as axum_middleware,
-    routing::{get, patch, post},
+    routing::{delete, get, patch, post},
 };
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
@@ -83,6 +85,23 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
+        .route(
+            "/v1/slos",
+            get(slos::handle_list_slos).post(slos::handle_create_slo),
+        )
+        .route(
+            "/v1/notifications/channels",
+            get(notifications::handle_list_channels).post(notifications::handle_create_channel),
+        )
+        .route(
+            "/v1/notifications/channels/{id}",
+            delete(notifications::handle_delete_channel),
+        )
+        .route("/v1/incidents", get(incidents::handle_list_incidents))
+        .route(
+            "/v1/incidents/{incident_id}",
+            get(incidents::handle_get_incident),
+        )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(Extension(state.db.clone()))
         .layer(Extension(Arc::new(state.auth_service_url.clone())))
