@@ -842,9 +842,37 @@ Before repository extraction:
 - change Helm values to per-component image/version pins
 - create the distribution component manifest
 
+**In progress.** Sub-step 1 (per-component images and the distribution manifest) is done; the
+Compose/CI/Helm migration onto them is not.
+
+Sub-steps:
+
+1. **Done:** per-component image build capability and the distribution manifest.
+   - The root `Dockerfile` gained a `component-builder`/`component-runtime` target pair parameterized
+     by `SERVICE` (the Cargo package name); the builder compiles only that package, so a change to
+     one component does not rebuild another component's binary. The existing shared
+     `observable-services` image and its `runtime`/`runtime-ci` targets are unchanged during the
+     migration.
+   - `scripts/build-component-images.sh` builds one image per deployable component
+     (`observable-auth`, `observable-control`, `observable-ingest`, `observable-process`,
+     `observable-store-clickhouse`, `observable-query`, `observable-alerting`, `observable-web`),
+     optionally scoped to a subset and tagged with `TAG`/`REGISTRY`.
+   - `distribution/manifest.yaml` pins the product version and one version per target component;
+     `scripts/check-distribution-manifest.sh` validates it, wired into `scripts/local-ci.sh` and a
+     new `distribution` CI job/surface. `distribution/README.md` documents both.
+2. **Not done:** give each component an independent version and tag its image with it (components
+   currently share the root `VERSION`, recorded in the manifest).
+3. **Not done:** switch Compose and CI to build/publish per-component images and make the backend
+   build service-scoped (only changed components rebuild).
+4. **Not done:** change Helm values to per-component image/version pins.
+5. **Not done:** make `observable-distribution` consume the manifest for a pinned install.
+
 Exit evidence:
 
-- changing query does not rebuild auth, ingest, process, or storage
+- changing query does not rebuild auth, ingest, process, or storage -- **partially met**: the
+  per-component image build compiles only the changed component's package, but Compose/CI still
+  build the shared `observable-services` image and have not been switched to per-component
+  build/publish with per-service change detection (sub-step 3).
 
 ### Phase 8 — Extract repositories
 

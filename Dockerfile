@@ -54,6 +54,36 @@ RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/regi
           /app/target/release/admin-service \
           /app/bin/
 
+# --- Per-component images (Phase 7, docs/component-decomposition.md) ---
+# One image per deployable component. `SERVICE` is the Cargo package name
+# (auth-service, query-api, ...); the component-builder builds only that
+# package, so a source change to one component does not rebuild another
+# component's binary. The existing shared `observable-services` image above is
+# unchanged during the migration.
+FROM cacher AS component-builder
+ARG SERVICE
+COPY Cargo.toml Cargo.lock ./
+COPY libs libs
+COPY services services
+COPY proto proto
+RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
+    cargo build --release -p "${SERVICE}"
+
+FROM debian:bookworm-slim AS component-runtime
+ARG SERVICE
+ENV SERVICE=${SERVICE}
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates libssl3 curl \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=component-builder /app/target/release/${SERVICE} /usr/local/bin/${SERVICE}
+COPY proto/otlp /proto/otlp
+USER 65532:65532
+ENTRYPOINT ["/bin/sh", "-c", "exec /usr/local/bin/$SERVICE"]
+
 # --- grpcurl downloader ---
 FROM debian:bookworm-slim AS grpcurl-downloader
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \

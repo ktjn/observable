@@ -141,6 +141,9 @@ if [[ $SKIP_MODELABLE -eq 0 ]]; then
   fi
 fi
 
+step "Distribution manifest"
+bash "$REPO_ROOT/scripts/check-distribution-manifest.sh" && ok "distribution manifest" || fail "distribution manifest"
+
 step "Rust fmt"
 cargo fmt --all -- --check && ok "cargo fmt" || fail "cargo fmt"
 

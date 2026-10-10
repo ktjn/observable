@@ -34,12 +34,22 @@ jobs:
       helm: ${{ steps.surfaces.outputs.helm }}
       smoke: ${{ steps.surfaces.outputs.smoke }}
       models: ${{ steps.surfaces.outputs.models }}
+      distribution: ${{ steps.surfaces.outputs.distribution }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
       - id: surfaces
         run: bash scripts/ci-changed-surfaces.sh "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}"
+
+  distribution:
+    needs: [changes]
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.distribution == '1'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Validate distribution manifest
+        run: bash scripts/check-distribution-manifest.sh
 
   backend:
     needs: [changes]

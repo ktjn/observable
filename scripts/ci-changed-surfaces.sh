@@ -10,6 +10,7 @@ frontend=0
 helm=0
 smoke=0
 models=0
+distribution=0
 
 mark_all() {
   backend=1
@@ -17,6 +18,7 @@ mark_all() {
   helm=1
   smoke=1
   models=1
+  distribution=1
 }
 
 write_output() {
@@ -56,6 +58,9 @@ else
       models/*|models/**|libs/*/src/generated/*|libs/*/src/generated/**|apps/frontend/src/api/generated/*|apps/frontend/src/api/generated/**)
         models=1
         ;;
+      distribution/*|distribution/**|scripts/check-distribution-manifest.sh|scripts/build-component-images.sh)
+        distribution=1
+        ;;
     esac
   done < <(git diff --name-only "$BASE_REF" "$HEAD_REF")
 fi
@@ -65,3 +70,4 @@ write_output frontend "$frontend"
 write_output helm "$helm"
 write_output smoke "$smoke"
 write_output models "$models"
+write_output distribution "$distribution"

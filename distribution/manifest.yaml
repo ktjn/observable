@@ -1,0 +1,24 @@
+# Observable distribution manifest (Phase 7, docs/component-decomposition.md).
+#
+# Pins the tested component-version set for a product release. During the 0.2
+# decomposition the deployable components are still built from this monorepo
+# and share the root VERSION, so every component currently tracks `0.1.0`.
+# Independent per-component versions are introduced as each component gains its
+# own image and release lifecycle; `observable-distribution` (the future
+# composition repository) consumes this manifest to install a pinned set.
+#
+# Keys are the target component names from docs/component-decomposition.md.
+# `contracts` is the versioned integration-contract component (no runtime
+# image); `web` is the frontend image; the rest map to one Rust service image
+# each (see scripts/build-component-images.sh).
+productVersion: 0.1.0
+components:
+  contracts: 0.1.0
+  auth: 0.1.0
+  control: 0.1.0
+  ingest: 0.1.0
+  process: 0.1.0
+  storeClickhouse: 0.1.0
+  query: 0.1.0
+  alerting: 0.1.0
+  web: 0.1.0
