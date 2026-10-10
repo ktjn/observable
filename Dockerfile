@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.27
+# syntax=docker/dockerfile:1.28
 
 # --- Rust Build ---
 FROM lukemathwalker/cargo-chef:0.1.77-rust-1.97.0-bookworm AS chef
