@@ -24,6 +24,7 @@ fn build_app(db: PgPool, auth_service_url: String) -> Router {
         metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
         sessions: query_api::nlq_session::NlqSessionStore::default(),
         admin_service_url: "http://admin-service:4324".into(),
+        alert_evaluator_url: "http://alert-evaluator:4322".into(),
         internal_service_token: "test-internal-token".into(),
         http_client: reqwest::Client::new(),
     };

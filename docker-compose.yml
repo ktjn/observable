@@ -298,6 +298,7 @@ services:
       DATABASE_URL: postgres://observable:observable@postgres:5432/observable
       AUTH_SERVICE_URL: http://auth-service:4319
       ADMIN_SERVICE_URL: http://admin-service:4324
+      ALERT_EVALUATOR_URL: http://alert-evaluator:4322
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000}
       LLM_API_KEY: ${LLM_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
@@ -356,6 +357,7 @@ services:
       ALERT_EVALUATOR_PORT: "4322"
       ALERT_EVAL_INTERVAL_SECONDS: "60"
       AUTH_SERVICE_URL: http://auth-service:4319
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000}
     ports: ["4322:4322"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4322/health"]

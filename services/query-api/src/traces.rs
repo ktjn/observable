@@ -33,11 +33,15 @@ pub struct AppState {
     /// `/v1/nlq/complete` pipeline (in-memory; see `nlq_session` module docs).
     pub sessions: NlqSessionStore,
     /// Base URL for admin-service's internal API. Used by discovery.rs's
-    /// service-catalog enrichment and reliability.rs's reliability-report
-    /// correlation to read alert/SLO/deployment/incident data admin-service
-    /// owns, instead of querying those tables directly (Phase 4's "remove
-    /// cross-owner SQL" follow-on, docs/component-decomposition.md).
+    /// deployment enrichment and reliability.rs's deployment correlation to
+    /// read `deployment_markers` (control-owned) instead of querying those
+    /// tables directly (docs/component-decomposition.md).
     pub admin_service_url: String,
+    /// Base URL for alert-evaluator's internal API (the alerting component).
+    /// Used by discovery.rs's alerting enrichment and reliability.rs's
+    /// alerting correlation to read alert/SLO/incident data (Phase 6's
+    /// internal-endpoint split by owner, docs/component-decomposition.md).
+    pub alert_evaluator_url: String,
     /// Shared secret sent as `X-Internal-Token` on calls to
     /// admin-service's `/internal/*` routes.
     pub internal_service_token: String,

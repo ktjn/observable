@@ -677,6 +677,13 @@ the two rewritten tests replace the two removed-then-readded in place), lib unit
 183. `helm template`/`helm lint` pass with `INTERNAL_SERVICE_TOKEN`/`ADMIN_SERVICE_URL` rendering
 into both services' manifests.
 
+**Superseded by Phase 6:** the two combined admin-service endpoints described above
+(`/internal/service-catalog-enrichment`, `/internal/reliability-correlation`) were split by owner in
+Phase 6's sub-step 3 — the alerting joins moved to `alert-evaluator`'s
+`/internal/alerting-enrichment`/`/internal/alerting-correlation`, the deployment joins stayed in
+`admin-service` as `/internal/deployment-enrichment`/`/internal/deployment-correlation`, and query-api
+now calls both services and merges. See the Phase 6 section below.
+
 ### Phase 5 — Clean ingest
 
 Move deployment/change-event APIs and deployment-registry state out of ingest.
@@ -803,18 +810,27 @@ Sub-steps:
    `slos.rs`, so `admin-service` no longer writes `alert_rules`/`slo_definitions`.
    Remaining transitional coupling, tracked for sub-step 3: `admin-service`'s `internal.rs` still
    reads `alert_rules`/`alert_firings`/`slo_definitions`/`incidents` for the correlation endpoints.
-3. **Not done:** split `admin-service/internal.rs` by owner so the alerting joins move to
-   `alert-evaluator` and only the `deployment_markers` (control) queries stay in `admin-service`.
+3. **Done:** `admin-service/internal.rs` split by owner. Its two combined `/internal/*` endpoints
+   became four: `alert-evaluator` now serves `/internal/alerting-enrichment` (SLO-linked alert
+   counts) and `/internal/alerting-correlation` (incidents + SLOs), while `admin-service` keeps
+   `/internal/deployment-enrichment` (latest deployment per service) and
+   `/internal/deployment-correlation` (deployments), each with the same SQL moved verbatim. The
+   alerting endpoints are gated by `require_internal_service` + `INTERNAL_SERVICE_TOKEN` on
+   `alert-evaluator`. `query-api`'s `discovery.rs`/`reliability.rs` now call both services (in
+   parallel) and merge; `AppState` gained `alert_evaluator_url`. `admin-service` no longer reads any
+   alerting table. New tests:
+   `services/alert-evaluator/tests/internal_integration.rs` covers the moved alerting SQL, and
+   `services/admin-service/tests/internal_integration.rs` was rewritten deployment-only.
 
 Exit evidence:
 
-- alerting state has one owner -- **met for the API surface**: `alert-evaluator` now serves all
-  alert-rule, SLO, notification-channel, and incident routes. `admin-service` still holds
-  transitional read-only correlation SQL over alerting tables (sub-step 3).
-- query and control do not write alerting tables -- **met**: `query-api` never writes alerting
-  tables, and after sub-steps 1-2 `admin-service` no longer writes any alerting table
-  (`alert_rules`, `slo_definitions`, `notification_channels`, `incidents`); the only remaining
-  `admin-service` access is read-only correlation in `internal.rs`.
+- alerting state has one owner -- **met**: `alert-evaluator` serves every alert-rule/SLO/
+  notification/incident route and is the only component that reads or writes
+  `alert_rules`/`alert_firings`/`slo_definitions`/`notification_channels`/`notification_audit_log`/
+  `incidents`/`incident_events`.
+- query and control do not write alerting tables -- **met**: `query-api` and `admin-service` neither
+  read nor write alerting tables (each calls `alert-evaluator`'s `/internal/*` endpoints for the
+  alerting halves of their enrichment/correlation reports).
 
 ### Phase 7 — Independent build artifacts
 

@@ -194,12 +194,12 @@ async fn main() -> anyhow::Result<()> {
     // require_internal_service never wraps the tenant-scoped routes above.
     let internal_router = Router::new()
         .route(
-            "/internal/service-catalog-enrichment",
-            get(internal::handle_service_catalog_enrichment),
+            "/internal/deployment-enrichment",
+            get(internal::handle_deployment_enrichment),
         )
         .route(
-            "/internal/reliability-correlation",
-            get(internal::handle_reliability_correlation),
+            "/internal/deployment-correlation",
+            get(internal::handle_deployment_correlation),
         )
         .layer(axum_middleware::from_fn(
             middleware::auth::require_internal_service,

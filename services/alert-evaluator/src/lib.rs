@@ -1,6 +1,7 @@
 pub mod alerts;
 pub mod evaluator;
 pub mod incidents;
+pub mod internal;
 pub mod middleware;
 pub mod notifications;
 pub mod observability;

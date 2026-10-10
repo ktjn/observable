@@ -1,5 +1,7 @@
+use alert_evaluator::middleware::auth::InternalServiceToken;
 use alert_evaluator::{
-    AppState, alerts, evaluator, incidents, middleware, notifications, observability, readyz, slos,
+    AppState, alerts, evaluator, incidents, internal, middleware, notifications, observability,
+    readyz, slos,
 };
 use axum::{
     Extension, Router, middleware as axum_middleware,
@@ -47,6 +49,9 @@ async fn main() -> anyhow::Result<()> {
     // callers against auth-service.
     let auth_service_url = observable_config::require_env("AUTH_SERVICE_URL")?;
     let http_client = reqwest::Client::new();
+
+    // Gates the service-to-service `/internal/*` routes below.
+    let internal_service_token = observable_config::require_env("INTERNAL_SERVICE_TOKEN")?;
 
     tokio::spawn(evaluator::start_eval_worker(
         db.clone(),
@@ -114,7 +119,29 @@ async fn main() -> anyhow::Result<()> {
             observability::record_http_metrics,
         ))
         .layer(TraceLayer::new_for_http())
+        .with_state(state.clone());
+
+    // Service-to-service only routes (Phase 6's internal.rs split by owner,
+    // docs/component-decomposition.md) -- gated by a shared internal token
+    // instead of require_tenant. Built as a separate sub-router so
+    // require_internal_service never wraps the tenant-scoped routes above.
+    let internal_router = Router::new()
+        .route(
+            "/internal/alerting-enrichment",
+            get(internal::handle_alerting_enrichment),
+        )
+        .route(
+            "/internal/alerting-correlation",
+            get(internal::handle_alerting_correlation),
+        )
+        .layer(axum_middleware::from_fn(
+            middleware::auth::require_internal_service,
+        ))
+        .layer(Extension(InternalServiceToken(internal_service_token)))
+        .layer(TraceLayer::new_for_http())
         .with_state(state);
+
+    let app = app.merge(internal_router);
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "alert-evaluator listening");

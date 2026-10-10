@@ -125,26 +125,40 @@ async fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
 }
 
 /// Like `build_app_with_pg`, but also points discovery.rs/reliability.rs's
-/// admin-service calls at a caller-supplied mock, for tests that need to
-/// control the service-catalog-enrichment/reliability-correlation response.
-async fn build_app_with_pg_and_admin_mock(
+/// internal calls at caller-supplied mocks, for tests that need to control the
+/// alerting-enrichment/deployment-enrichment (or -correlation) responses.
+async fn build_app_with_pg_and_internal_mocks(
     ch: ChClient,
     db: PgPool,
     admin_service_url: String,
+    alert_evaluator_url: String,
 ) -> Router {
     let mock_server = Box::leak(Box::new(start_dev_auth_mock().await));
-    build_app_with_pg_at_with_admin(ch, db, mock_server.uri(), admin_service_url)
+    build_app_with_pg_at_with_internal(
+        ch,
+        db,
+        mock_server.uri(),
+        admin_service_url,
+        alert_evaluator_url,
+    )
 }
 
 fn build_app_with_pg_at(ch: ChClient, db: PgPool, auth_service_url: String) -> Router {
-    build_app_with_pg_at_with_admin(ch, db, auth_service_url, "http://admin-service:4324".into())
+    build_app_with_pg_at_with_internal(
+        ch,
+        db,
+        auth_service_url,
+        "http://admin-service:4324".into(),
+        "http://alert-evaluator:4322".into(),
+    )
 }
 
-fn build_app_with_pg_at_with_admin(
+fn build_app_with_pg_at_with_internal(
     ch: ChClient,
     db: PgPool,
     auth_service_url: String,
     admin_service_url: String,
+    alert_evaluator_url: String,
 ) -> Router {
     let state = traces::AppState {
         ch,
@@ -155,6 +169,7 @@ fn build_app_with_pg_at_with_admin(
         metrics: Arc::new(observability::QueryApiMetrics::new()),
         sessions: query_api::nlq_session::NlqSessionStore::default(),
         admin_service_url,
+        alert_evaluator_url,
         internal_service_token: "test-internal-token".into(),
         http_client: reqwest::Client::new(),
     };
@@ -203,6 +218,7 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
         metrics: Arc::new(observability::QueryApiMetrics::new()),
         sessions: query_api::nlq_session::NlqSessionStore::default(),
         admin_service_url: "http://admin-service:4324".into(),
+        alert_evaluator_url: "http://alert-evaluator:4322".into(),
         internal_service_token: "test-internal-token".into(),
         http_client: reqwest::Client::new(),
     };
@@ -242,6 +258,7 @@ fn fake_nlq_app_no_db() -> Router {
         metrics: Arc::new(observability::QueryApiMetrics::new()),
         sessions: query_api::nlq_session::NlqSessionStore::default(),
         admin_service_url: "http://admin-service:4324".into(),
+        alert_evaluator_url: "http://alert-evaluator:4322".into(),
         internal_service_token: "test-internal-token".into(),
         http_client: reqwest::Client::new(),
     };
@@ -945,28 +962,39 @@ async fn service_summary_reports_slo_breach_alert_count_and_latest_deploy() {
     )
     .await;
 
-    // The checkout/billing enrichment join now lives in admin-service
-    // (Phase 4's "remove cross-owner SQL" follow-on,
-    // docs/component-decomposition.md); its own
-    // service_catalog_enrichment_reports_slo_breach_alert_count_and_latest_deploy
-    // test covers the real SQL join against Postgres. This test mocks that
-    // response to verify query-api calls admin-service correctly and applies
-    // the enrichment to the ClickHouse-derived summary correctly.
+    // The alerting/deployment enrichment joins now live in alert-evaluator
+    // and admin-service respectively (Phase 6's internal-endpoint split by
+    // owner, docs/component-decomposition.md); their own tests cover the real
+    // SQL joins against Postgres. This test mocks both responses to verify
+    // query-api calls each service correctly and merges + applies the
+    // enrichment to the ClickHouse-derived summary correctly.
     let admin_mock = MockServer::start().await;
     Mock::given(method("GET"))
-        .and(path("/internal/service-catalog-enrichment"))
+        .and(path("/internal/deployment-enrichment"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "items": [{
                 "service_name": "checkout",
-                "active_alert_count": 1,
-                "slo_breaching": true,
                 "latest_deployment": "v2.3.1"
             }]
         })))
         .mount(&admin_mock)
         .await;
 
-    let app = build_app_with_pg_and_admin_mock(ch, pg, admin_mock.uri()).await;
+    let alert_mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/internal/alerting-enrichment"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "items": [{
+                "service_name": "checkout",
+                "active_alert_count": 1,
+                "slo_breaching": true
+            }]
+        })))
+        .mount(&alert_mock)
+        .await;
+
+    let app =
+        build_app_with_pg_and_internal_mocks(ch, pg, admin_mock.uri(), alert_mock.uri()).await;
 
     let response = app
         .oneshot(dev_request("GET", "/v1/services/summary"))
@@ -1083,6 +1111,7 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
         metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
         sessions: query_api::nlq_session::NlqSessionStore::default(),
         admin_service_url: "http://admin-service:4324".into(),
+        alert_evaluator_url: "http://alert-evaluator:4322".into(),
         internal_service_token: "test-internal-token".into(),
         http_client: reqwest::Client::new(),
     };
@@ -1151,9 +1180,9 @@ async fn get_service_reliability_report_filters_service_environment_and_interval
     // computes summaries (including MTTR) from what it gets back.
     let resolved_incident_triggered_at = from + chrono::Duration::hours(1);
     let resolved_incident_resolved_at = from + chrono::Duration::hours(2);
-    let admin_mock = MockServer::start().await;
+    let alert_mock = MockServer::start().await;
     Mock::given(method("GET"))
-        .and(path("/internal/reliability-correlation"))
+        .and(path("/internal/alerting-correlation"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "incidents": [
                 {
@@ -1189,7 +1218,15 @@ async fn get_service_reliability_report_filters_service_environment_and_interval
                 "last_fired_at": chrono::Utc::now().to_rfc3339(),
                 "created_at": chrono::Utc::now().to_rfc3339(),
                 "updated_at": chrono::Utc::now().to_rfc3339(),
-            }],
+            }]
+        })))
+        .mount(&alert_mock)
+        .await;
+
+    let admin_mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/internal/deployment-correlation"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "deployments": [{
                 "deployment_id": Uuid::new_v4(),
                 "tenant_id": Uuid::parse_str(DEV_TENANT_ID).unwrap(),
@@ -1209,7 +1246,8 @@ async fn get_service_reliability_report_filters_service_environment_and_interval
         .mount(&admin_mock)
         .await;
 
-    let app = build_app_with_pg_and_admin_mock(ch, pg, admin_mock.uri()).await;
+    let app =
+        build_app_with_pg_and_internal_mocks(ch, pg, admin_mock.uri(), alert_mock.uri()).await;
 
     let uri = format!(
         "/v1/services/{service_name}/reliability-report?from={}&to={}&environment=prod",

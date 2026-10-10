@@ -630,14 +630,13 @@ pub async fn get_infrastructure_detail(
     Ok(Json(InfrastructureDetailResponse { entity, links }))
 }
 
-/// Per-service catalog enrichment sourced from admin-service's
-/// `/internal/service-catalog-enrichment` (SLO-linked alerts and
-/// deployments). The join itself lives in admin-service, which owns
-/// `slo_definitions`/`alert_rules`/`alert_firings`/`deployment_markers`
-/// (Phase 4's "remove cross-owner SQL" follow-on,
-/// docs/component-decomposition.md) -- this is a single batched call per
-/// catalog listing, not per-service, so the extra network hop doesn't add
-/// per-row latency.
+/// Per-service catalog enrichment merged from alert-evaluator's
+/// `/internal/alerting-enrichment` (SLO-linked alerts) and admin-service's
+/// `/internal/deployment-enrichment` (latest deployment). Phase 6's
+/// internal-endpoint split by owner (docs/component-decomposition.md) keeps
+/// each join in its owning component; query-api makes one batched call to
+/// each, not per-service, so the extra network hop doesn't add per-row
+/// latency.
 ///
 /// `active_alert_count` and `slo_breaching` are scoped to alerts reachable via
 /// `slo_definitions.service_name` (i.e. `alert_type = 'slo_burn_rate'` rules whose
@@ -650,16 +649,26 @@ struct ServiceCatalogEnrichment {
 }
 
 #[derive(Deserialize)]
-struct ServiceCatalogEnrichmentItem {
+struct AlertingEnrichmentItem {
     service_name: String,
     active_alert_count: i64,
     slo_breaching: bool,
+}
+
+#[derive(Deserialize)]
+struct AlertingEnrichmentResponse {
+    items: Vec<AlertingEnrichmentItem>,
+}
+
+#[derive(Deserialize)]
+struct DeploymentEnrichmentItem {
+    service_name: String,
     latest_deployment: Option<String>,
 }
 
 #[derive(Deserialize)]
-struct ServiceCatalogEnrichmentResponse {
-    items: Vec<ServiceCatalogEnrichmentItem>,
+struct DeploymentEnrichmentResponse {
+    items: Vec<DeploymentEnrichmentItem>,
 }
 
 async fn fetch_service_catalog_enrichment(
@@ -667,18 +676,17 @@ async fn fetch_service_catalog_enrichment(
     tenant_id: Uuid,
     environment: Option<&str>,
 ) -> Result<HashMap<String, ServiceCatalogEnrichment>, reqwest::Error> {
-    let url = format!(
-        "{}/internal/service-catalog-enrichment",
-        state.admin_service_url
-    );
     let mut query_params = vec![("tenant_id", tenant_id.to_string())];
     if let Some(env) = environment {
         query_params.push(("environment", env.to_string()));
     }
 
-    let response: ServiceCatalogEnrichmentResponse = state
+    let alerting: AlertingEnrichmentResponse = state
         .http_client
-        .get(&url)
+        .get(format!(
+            "{}/internal/alerting-enrichment",
+            state.alert_evaluator_url
+        ))
         .query(&query_params)
         .header("X-Internal-Token", &state.internal_service_token)
         .send()
@@ -687,7 +695,21 @@ async fn fetch_service_catalog_enrichment(
         .json()
         .await?;
 
-    Ok(response
+    let deployments: DeploymentEnrichmentResponse = state
+        .http_client
+        .get(format!(
+            "{}/internal/deployment-enrichment",
+            state.admin_service_url
+        ))
+        .query(&query_params)
+        .header("X-Internal-Token", &state.internal_service_token)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+
+    let mut merged: HashMap<String, ServiceCatalogEnrichment> = alerting
         .items
         .into_iter()
         .map(|item| {
@@ -696,11 +718,24 @@ async fn fetch_service_catalog_enrichment(
                 ServiceCatalogEnrichment {
                     active_alert_count: item.active_alert_count.max(0) as u64,
                     slo_breaching: item.slo_breaching,
-                    latest_deployment: item.latest_deployment,
+                    latest_deployment: None,
                 },
             )
         })
-        .collect())
+        .collect();
+
+    for item in deployments.items {
+        merged
+            .entry(item.service_name)
+            .or_insert(ServiceCatalogEnrichment {
+                active_alert_count: 0,
+                slo_breaching: false,
+                latest_deployment: None,
+            })
+            .latest_deployment = item.latest_deployment;
+    }
+
+    Ok(merged)
 }
 
 fn apply_catalog_enrichment(

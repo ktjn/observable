@@ -112,6 +112,9 @@ string or omit it for non-development environments.
 | `CLICKHOUSE_URL` | query-api, admin, storage-writer, alert-evaluator | ClickHouse HTTP endpoint |
 | `CLICKHOUSE_USER` | query-api, admin, storage-writer, alert-evaluator | ClickHouse username |
 | `AUTH_SERVICE_URL` | query-api, admin, ingest-gateway, alert-evaluator | Internal URL of auth-service |
+| `ADMIN_SERVICE_URL` | query-api | Internal URL of admin-service (deployment enrichment/correlation) |
+| `ALERT_EVALUATOR_URL` | query-api | Internal URL of alert-evaluator (alerting enrichment/correlation) |
+| `INTERNAL_SERVICE_TOKEN` | query-api, admin, alert-evaluator | Shared secret for `/internal/*` service-to-service calls |
 | `REDPANDA_BROKERS` | ingest-gateway, stream-processor | Kafka-compatible broker addresses |
 | `INGEST_TOPIC` | ingest-gateway, stream-processor | Kafka topic for raw telemetry |
 | `STORAGE_WRITER_URL` | stream-processor | Internal URL of storage-writer |

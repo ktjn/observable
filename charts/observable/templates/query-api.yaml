@@ -7,6 +7,7 @@
     (dict "name" "DATABASE_URL"        "value" .Values.postgres.url)
     (dict "name" "AUTH_SERVICE_URL"   "value" (printf "http://auth-service:%d" (int .Values.services.authService.port)))
     (dict "name" "ADMIN_SERVICE_URL"  "value" (printf "http://admin-service:%d" (int .Values.services.adminService.port)))
+    (dict "name" "ALERT_EVALUATOR_URL" "value" (printf "http://alert-evaluator:%d" (int .Values.services.alertEvaluator.port)))
     (dict "name" "INTERNAL_SERVICE_TOKEN" "value" .Values.internalServiceToken)
     (dict "name" "OBSERVABLE_ENV"     "value" .Values.identity.env)
     (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)
