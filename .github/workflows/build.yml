@@ -17,8 +17,6 @@ on:
       - '**/*.md'
       - '.github/ISSUE_TEMPLATE/**'
       - '.github/PULL_REQUEST_TEMPLATE.md'
-  schedule:
-    - cron: "0 2 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -187,18 +185,20 @@ jobs:
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
-      - name: Build and load final image (prebuilt-binary stage)
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
-        with:
-          context: .
-          target: runtime-ci
-          load: true
-          tags: observable-services:local
-          cache-from: type=gha,scope=observable-services-runtime
-          cache-to: type=gha,mode=max,scope=observable-services-runtime
+      - name: Build component images (prebuilt binaries)
+        env:
+          BUILD_TARGET: component-runtime-ci
+        run: bash scripts/build-component-images.sh auth control ingest process store-clickhouse query alerting
 
-      - name: Export image
-        run: docker save observable-services:local | gzip > /tmp/image.tar.gz
+      - name: Build test harness image
+        run: docker buildx build --load --tag observable-test-tools:local -f tests/e2e/Dockerfile .
+
+      - name: Export images
+        run: |
+          docker save \
+            observable-auth:local observable-control:local observable-ingest:local \
+            observable-process:local observable-store-clickhouse:local observable-query:local \
+            observable-alerting:local observable-test-tools:local | gzip > /tmp/image.tar.gz
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: docker-image
