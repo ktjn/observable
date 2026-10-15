@@ -1,10 +1,7 @@
 name: Deploy Playground
 
-# Builds the browser-only WASM playground (docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md)
-# and publishes it to GitHub Pages. The build+smoke-test job runs on every
-# PR that touches playground-relevant paths so regressions are caught
-# before merge; the deploy job only runs on pushes to main, so PRs never
-# publish anything.
+# Build the browser-only WASM playground and publish main to GitHub Pages.
+# Browser smoke tests run locally through scripts/local-ci.sh.
 
 on:
   push:
@@ -59,16 +56,6 @@ jobs:
 
       - name: Build playground artifact
         run: bash scripts/build-playground.sh
-
-      # Asset-integrity smoke check: proves the built static artifact
-      # actually boots the wasm/DuckDB pipeline end-to-end (not just that
-      # the build succeeded) before it's ever published.
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-        working-directory: apps/frontend
-      - name: Playground e2e smoke test
-        run: npx playwright test --config=playwright.playground.config.ts
-        working-directory: apps/frontend
 
       - name: Configure Pages
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

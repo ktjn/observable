@@ -88,19 +88,29 @@ The complete component map and extraction order are defined in
 
 ### 16.6 CI and Build Process
 
-CI must make every change reproducible, reviewable, and releasable before merge. During the
-ADR-035 migration the monorepo provides this gate. The target is component-local CI for unit,
-contract, component-integration, image, SBOM, and provenance checks, with cross-component
-compatibility and full-platform gates in `observable-distribution`.
+Validation must make every change reproducible, reviewable, and releasable before merge.
+Per [ADR-019](adr/ADR-019-ci-scripts-runnable-locally.md), run `bash scripts/local-ci.sh`
+locally before pushing; GitHub Actions only builds/packages artifacts and publishes/deploys
+them. Record local results and any validation gaps in the PR. During the ADR-035 migration
+the monorepo owns this gate; extracted components retain local validation ownership,
+with cross-component compatibility and full-platform gates in `observable-distribution`.
 
 **Pipeline triggers**
 
-- Pull request to `main`: run validation, build, unit, contract, integration smoke, security, and documentation checks.
-- Merge to `main`: repeat required checks, publish versioned build artifacts, and update the integration environment through GitOps.
+- Before push: run local validation, including the checks below and applicable security/documentation review.
+- Pull request to `main`: build artifacts without repeating local validation suites.
+- Merge to `main`: build artifacts and deploy the playground for relevant changes.
 - Release tag: build immutable release artifacts, sign them, generate SBOM/provenance, and promote through staging to production.
-- Nightly: run extended integration, E2E, performance, high-cardinality, chaos, dependency, and vulnerability scans.
+- Extended integration, E2E, performance, high-cardinality, chaos, dependency, and vulnerability verification runs locally when applicable; GitHub does not schedule validation runs.
 
-**Required PR checks**
+**Required local validation and PR evidence**
+
+The default local gate covers Rust format/clippy/unit/integration, frontend
+typecheck/lint/unit/browser, playground build/smoke, Helm lint, distribution/version
+metadata, generated TypeScript/Rust/JSON Schema drift, model breaking changes, and
+Compose smoke/performance. Missing tools fail the gate; explicit skip flags only
+provide partial evidence and must be disclosed. The broader checks below remain
+required for relevant changes; they are not all automated by `local-ci.sh`.
 
 1. repository hygiene: formatting, linting, dependency policy, secret scan, and generated-code drift
 2. contract checks: protobuf/OpenAPI linting, breaking-change detection, and SDK/client generation
@@ -124,13 +134,13 @@ compatibility and full-platform gates in `observable-distribution`.
 
 - Every artifact must be traceable to a git commit, CI run, source branch, and dependency lockfile.
 - Container images must use immutable tags based on commit SHA and release version; mutable tags are aliases only.
-- Generated code must be committed only when required by the repo layout and must be checked for drift in CI.
+- Generated code must be committed only when required by the repo layout and must be checked for drift locally before pushing.
 - Build scripts must be deterministic and runnable locally without requiring production credentials.
 - Secrets must never be baked into artifacts, images, generated config, or test fixtures.
 
 **Promotion gates**
 
-1. PR validation passes and human review approves.
+1. Recorded local validation passes, applicable GitHub artifact builds pass, and human review approves.
 2. Merge to `main` publishes artifacts and deploys to shared integration.
 3. Integration smoke and contract suites pass.
 4. Release candidate deploys to perf/staging.
@@ -141,7 +151,7 @@ compatibility and full-platform gates in `observable-distribution`.
 
 **Failure handling**
 
-- Required PR checks block merge.
+- Failed local validation or applicable GitHub artifact builds block merge; GitHub build success alone is not validation evidence.
 - Failed artifact signing, SBOM generation, provenance generation, or secret scanning blocks release.
 - Failed integration or staging deployment blocks promotion, not unrelated PR validation.
 - Flaky checks must be quarantined only with an owner, expiry date, linked issue, and replacement signal.
@@ -363,7 +373,7 @@ Dependency and image changes must use the ecosystem-native tool:
 #### Automation
 
 Dependabot or Renovate is the preferred tool for surfacing routine update PRs. Configuration lives in `.github/dependabot.yml` or `renovate.json`. Automation is not required immediately but is the target state. Configure it once the core CI pipeline described in §16.6 is operational.
-For CI-level dependency audit, SBOM generation, and license policy enforcement, see §16.6 PR check #6.
+For local dependency audit, artifact SBOM generation, and license policy enforcement, see §16.6 item 6.
 
 #### Ownership
 

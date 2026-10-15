@@ -24,7 +24,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash scripts/verify-version.sh
 
           version="$(tr -d '[:space:]' < VERSION)"
           expected_tag="v${version}"

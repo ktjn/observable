@@ -26,12 +26,13 @@ RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/regi
     --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
     cargo chef cook --release --all-targets --recipe-path recipe.json
 
-FROM cacher AS rust-ci
+FROM cacher AS rust-source
 COPY Cargo.toml Cargo.lock ./
 COPY libs libs
 COPY services services
 COPY proto proto
 COPY contracts contracts
+FROM rust-source AS rust-ci
 RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
@@ -39,7 +40,7 @@ RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/regi
     && cargo clippy --workspace --all-targets -- -D warnings \
     && cargo test --workspace --lib --bins
 
-FROM rust-ci AS rust-builder
+FROM rust-source AS rust-builder
 RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
@@ -108,6 +109,20 @@ COPY bin/admin-service /usr/local/bin/admin-service
 COPY proto/otlp /proto/otlp
 
 USER 65532:65532
+
+# --- Per-component runtime, CI variant (prebuilt binaries staged in bin/) ---
+FROM debian:bookworm-slim AS component-runtime-ci
+ARG SERVICE
+ENV SERVICE=${SERVICE}
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates libssl3 curl \
+    && rm -rf /var/lib/apt/lists/*
+COPY bin/${SERVICE} /usr/local/bin/${SERVICE}
+COPY proto/otlp /proto/otlp
+USER 65532:65532
+ENTRYPOINT ["/bin/sh", "-c", "exec /usr/local/bin/$SERVICE"]
 
 # --- Final Runtime Image ---
 FROM debian:bookworm-slim AS runtime

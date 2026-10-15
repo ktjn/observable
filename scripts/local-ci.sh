@@ -35,6 +35,7 @@ cleanup_smoke_compose() {
 }
 
 trap cleanup_smoke_compose EXIT
+cd "$REPO_ROOT"
 
 SKIP_DOCKER=${SKIP_DOCKER:-0}
 SKIP_FRONTEND=${SKIP_FRONTEND:-0}
@@ -54,6 +55,12 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+step "CI policy regression tests"
+python -m unittest discover -s scripts/tests -p test_ci_policy.py || fail "CI policy regression tests"
+
+step "Version metadata"
+bash scripts/verify-version.sh && ok "version metadata" || fail "version metadata"
+
 if [[ $SKIP_MODELABLE -eq 0 ]]; then
   if command -v uv >/dev/null 2>&1; then
     step "Modelable validate"
@@ -65,9 +72,12 @@ if [[ $SKIP_MODELABLE -eq 0 ]]; then
     # files, and pass Windows uv the Windows spelling of those paths.
     TMP_TS="$(mktemp -d "$REPO_ROOT/.modelable-check.XXXXXX")"
     TMP_RS="$(mktemp -d "$REPO_ROOT/.modelable-check.XXXXXX")"
+    TMP_SCHEMA="$(mktemp -d "$REPO_ROOT/.modelable-check.XXXXXX")"
+    TMP_SCHEMA_TOOL="$TMP_SCHEMA"
     TMP_TS_TOOL="$TMP_TS"
     TMP_RS_TOOL="$TMP_RS"
     if uv --version 2>&1 | grep -q "windows-msvc" && command -v wslpath >/dev/null 2>&1; then
+      TMP_SCHEMA_TOOL="$(wslpath -w "$TMP_SCHEMA")"
       TMP_TS_TOOL="$(wslpath -w "$TMP_TS")"
       TMP_RS_TOOL="$(wslpath -w "$TMP_RS")"
     fi
@@ -76,6 +86,8 @@ if [[ $SKIP_MODELABLE -eq 0 ]]; then
 
     uv run --project models modelable compile models/ --target typescript --out "$TMP_TS_TOOL" >/dev/null 2>&1 || fail "modelable compile (typescript)"
     uv run --project models modelable compile models/ --target rust --out "$TMP_RS_TOOL" >/dev/null 2>&1 || fail "modelable compile (rust)"
+
+    uv run --project models modelable compile models/ --target json-schema --out "$TMP_SCHEMA_TOOL" >/dev/null 2>&1 || fail "modelable compile (json-schema)"
 
     # TypeScript — main frontend
     while IFS= read -r -d '' f; do
@@ -115,7 +127,16 @@ if [[ $SKIP_MODELABLE -eq 0 ]]; then
       fi
     done < <(find libs/*/src/generated -mindepth 2 -name '*.rs' -print0)
 
-    rm -rf "$TMP_TS" "$TMP_RS"
+    # JSON Schema — preserve the former GitHub generated-code coverage.
+    while IFS= read -r -d '' f; do
+      name="$(basename "$f")"
+      if [[ ! -f "$TMP_SCHEMA/$name" ]] || ! diff -q "$f" "$TMP_SCHEMA/$name" >/dev/null 2>&1; then
+        echo "  DRIFTED or MISSING in generated: $f"
+        FAILED=1
+      fi
+    done < <(find contracts/schemas -mindepth 2 -name '*.json' -print0)
+
+    rm -rf "$TMP_TS" "$TMP_RS" "$TMP_SCHEMA"
 
     if [ "$FAILED" -eq 1 ]; then
       echo ""
@@ -133,11 +154,11 @@ if [[ $SKIP_MODELABLE -eq 0 ]]; then
         && ok "no unversioned breaking model/projection changes" \
         || fail "modelable breaking-change check"
     else
-      echo "SKIP  no local main/origin/main ref to diff against"
+      fail "no local main/origin/main ref for model breaking-change check"
     fi
   else
     step "Modelable check"
-    echo "SKIP  modelable (uv not installed — see https://docs.astral.sh/uv/)"
+    fail "uv is required (https://docs.astral.sh/uv/)"
   fi
 fi
 
@@ -166,16 +187,14 @@ if [[ $SKIP_FRONTEND -eq 0 ]]; then
   step "Frontend tests"
   npm run test --workspace=apps/frontend -- --run && ok "tests" || fail "tests"
 
-  step "Frontend accessibility tests"
-  if node -e "
-    const { chromium } = require('./apps/frontend/node_modules/playwright-core');
-    const fs = require('fs');
-    process.exit(fs.existsSync(chromium.executablePath()) ? 0 : 1);
-  " 2>/dev/null; then
-    npm run test:a11y --workspace=apps/frontend && ok "a11y" || fail "a11y"
-  else
-    echo "SKIP  a11y (Chromium not installed — run: cd apps/frontend && npx playwright install chromium)"
-  fi
+  step "Frontend browser tests"
+  CI=true npm run test:a11y --workspace=apps/frontend && ok "frontend browser tests" || fail "frontend browser tests (install Chromium with: npx playwright install chromium)"
+
+  step "Playground build"
+  bash scripts/build-playground.sh && ok "playground build" || fail "playground build"
+
+  step "Playground browser smoke"
+  (cd apps/frontend && CI=true npx playwright test --config=playwright.playground.config.ts) && ok "playground smoke" || fail "playground smoke"
 fi
 
 if [[ $SKIP_HELM -eq 0 ]]; then
@@ -183,7 +202,7 @@ if [[ $SKIP_HELM -eq 0 ]]; then
   if command -v helm >/dev/null 2>&1; then
     bash scripts/helm-lint.sh && ok "helm lint" || fail "helm lint"
   else
-    echo "SKIP  helm lint (helm not installed — run: bash scripts/helm-lint.sh)"
+    fail "helm is required (run: bash scripts/helm-lint.sh)"
   fi
 fi
 
@@ -208,6 +227,8 @@ if [[ $SKIP_DOCKER -eq 0 ]]; then
     SMOKE_COMPOSE_STARTED=1
     if docker compose up smoke-test --abort-on-container-exit; then
       ok "smoke-test"
+      step "Performance smoke"
+      docker compose up perf-smoke --abort-on-container-exit && ok "perf-smoke" || fail "perf-smoke"
     else
       docker compose logs --no-color --tail=120 ingest-gateway query-api stream-processor storage-writer || true
       fail "smoke-test"
@@ -215,4 +236,8 @@ if [[ $SKIP_DOCKER -eq 0 ]]; then
   fi
 fi
 
-echo -e "\n${GREEN}${BOLD}All checks passed.${NC}"
+if [[ $SKIP_DOCKER -eq 1 || $SKIP_FRONTEND -eq 1 || $SKIP_HELM -eq 1 || $SKIP_MODELABLE -eq 1 || $SKIP_SMOKE -eq 1 ]]; then
+  echo -e "\n${YELLOW}${BOLD}Selected checks passed; skipped stages are NOT validated.${NC}"
+else
+  echo -e "\n${GREEN}${BOLD}All checks passed.${NC}"
+fi

@@ -26,12 +26,14 @@ if [[ -z "$BASE_REF" ]] || ! git cat-file -e "${BASE_REF}^{commit}" 2>/dev/null;
   exit 0
 fi
 
-if git diff --quiet "$BASE_REF" "$HEAD_REF" -- models/ 2>/dev/null; then
+if git diff --quiet "$BASE_REF" "$HEAD_REF" -- models/ 2>/dev/null \
+    && git diff --quiet "$HEAD_REF" -- models/ \
+    && [[ -z "$(git ls-files --others --exclude-standard -- models/)" ]]; then
   echo "No models/ changes between $BASE_REF and $HEAD_REF; skipping breaking-change check."
   exit 0
 fi
 
-BASE_TREE="$(mktemp -d)"
+BASE_TREE="$(mktemp -d "$REPO_ROOT/.modelable-breaking.XXXXXX")"
 trap 'rm -rf "$BASE_TREE"' EXIT
 
 if git cat-file -e "${BASE_REF}:models" 2>/dev/null; then
@@ -41,5 +43,13 @@ else
   mkdir -p "$BASE_TREE/models"
 fi
 
-uv run --project models python "$REPO_ROOT/scripts/check_breaking_changes.py" \
-  --base "$BASE_TREE/models" --head "$REPO_ROOT/models"
+CHECK_SCRIPT="$REPO_ROOT/scripts/check_breaking_changes.py"
+BASE_MODELS="$BASE_TREE/models"
+HEAD_MODELS="$REPO_ROOT/models"
+if uv --version 2>&1 | grep -q "windows-msvc" && command -v wslpath >/dev/null 2>&1; then
+  CHECK_SCRIPT="$(wslpath -w "$CHECK_SCRIPT")"
+  BASE_MODELS="$(wslpath -w "$BASE_MODELS")"
+  HEAD_MODELS="$(wslpath -w "$HEAD_MODELS")"
+fi
+
+uv run --project models python "$CHECK_SCRIPT" --base "$BASE_MODELS" --head "$HEAD_MODELS"

@@ -16,6 +16,8 @@ set -euo pipefail
 # Environment:
 #   TAG       image tag (default: local)
 #   REGISTRY  optional registry/namespace prefix, e.g. ghcr.io/ktjn (default: none)
+#   BUILD_TARGET Dockerfile target for Rust components (default: component-runtime).
+#             CI uses component-runtime-ci to copy prebuilt binaries from bin/.
 
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
@@ -23,6 +25,7 @@ cd "$REPO_ROOT"
 TAG="${TAG:-local}"
 REGISTRY="${REGISTRY:-}"
 REGISTRY="${REGISTRY%/}"
+BUILD_TARGET="${BUILD_TARGET:-component-runtime}"
 
 # component name -> Cargo package (empty for components with a separate build).
 component_package() {
@@ -64,7 +67,7 @@ for component in "${components[@]}"; do
   if [[ "$component" == "web" ]]; then
     docker buildx build --load --tag "$ref" -f apps/frontend/Dockerfile .
   else
-    docker buildx build --load --target component-runtime \
+    docker buildx build --load --target "$BUILD_TARGET" \
       --build-arg "SERVICE=${package}" --tag "$ref" .
   fi
   echo "OK  ${ref}"

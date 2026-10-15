@@ -80,17 +80,19 @@
 | tenant cross-read | zero in all policy tests |
 | data loss | zero for committed buffered ingest under single-node failure |
 
-### 18.4 CI Test Gates
+### 18.4 Local Validation and Release Gates
 
-CI gates map the test strategy to merge and release decisions.
+Per [ADR-019](adr/ADR-019-ci-scripts-runnable-locally.md), validation runs locally;
+GitHub builds and publishes/deploys artifacts. Local evidence maps the test strategy
+to merge and release decisions; build success alone does not establish test success.
 
 | Gate | Trigger | Required scope |
 |------|---------|----------------|
-| PR fast path | pull request | formatting, linting, unit tests, contract linting, changed-package builds, docs checks |
-| PR integration smoke | pull request | changed service integration tests, applicable Testcontainers suites, tenant isolation policy tests, migration dry-runs |
-| Main integration | merge to `main` | full unit suite, contract suite, integration suite, generated client drift checks |
-| Nightly extended | scheduled | E2E workflows, performance smoke baseline (`scripts/perf-smoke.sh`), high-cardinality datasets, malformed payload corpus, chaos/resilience, dependency scans |
-| Release candidate | release tag or promotion branch | full E2E, performance, security, backup/restore, rollback, upgrade, and migration tests |
+| Local fast path | before push | formatting, linting, unit tests, contract linting, changed-package builds, docs checks |
+| Local integration smoke | before push | changed service integration tests, applicable Testcontainers suites, tenant isolation policy tests, migration dry-runs |
+| Local integration | before merge | full unit suite, contract suite, integration suite, generated client drift checks |
+| Local extended | applicable change or release preparation | E2E workflows, performance smoke baseline (`scripts/perf-smoke.sh`), high-cardinality datasets, malformed payload corpus, chaos/resilience, dependency scans |
+| Local release candidate | before release tag or promotion | full E2E, performance, security, backup/restore, rollback, upgrade, and migration tests |
 | Production canary | progressive rollout | SLO analysis, alert latency, queue lag, ingest error rate, query latency, tenant isolation smoke |
 
 **Performance smoke baseline** (`scripts/perf-smoke.sh`): runs 20 samples against every ingest and query endpoint, reports P50 and P95 per path, and exits non-zero if any path exceeds its threshold (ingest P50 < 500 ms / P95 < 1000 ms; query P50 < 1000 ms / P95 < 3000 ms per §18.3). Run locally with `docker compose up perf-smoke --abort-on-container-exit`. Thresholds are overridable via env vars (`P50_INGEST_MAX_MS`, `P95_INGEST_MAX_MS`, `P50_QUERY_MAX_MS`, `P95_QUERY_MAX_MS`).
@@ -222,16 +224,16 @@ exceptions.
 Kubernetes-specific testing follows the same layered model as other test categories, with
 additional gates at the manifest and cluster-level.
 
-**Layer 1 — Manifest validation (every PR)**
+**Layer 1 — Local manifest validation (before push)**
 
 - `helm lint` validates YAML syntax, required fields, and Helm template correctness for
   both `charts/observable-common` (library) and `charts/observable` (application).
 - `helm template --dry-run` renders the full manifest set and confirms all library template
   calls resolve without errors.
 - Run locally: `bash scripts/helm-lint.sh`
-- Run in CI: `.github/workflows/pr.yml` → `helm` job.
+- Run before push through `bash scripts/local-ci.sh`; GitHub does not repeat Helm validation.
 
-**Layer 2 — kind cluster integration (every push to main + nightly)**
+**Layer 2 — local kind cluster integration (deployment changes and release preparation)**
 
 - `scripts/kind-test.sh` creates a fresh kind cluster, loads the local Docker image, deploys
   the infrastructure Helm chart (`charts/observable-infra`), creates migration ConfigMaps,
@@ -241,7 +243,7 @@ additional gates at the manifest and cluster-level.
 - Rollback verification: the test upgrades to revision 2 and executes `helm rollback 1`,
   then asserts Deployment replica counts match revision 1 values.
 - Run locally: `bash scripts/kind-test.sh`
-- Run in CI: `.github/workflows/kind-test.yml` (triggered on push to main and nightly).
+- Record local kind results for deployment changes and release candidates; there is no GitHub kind-validation workflow.
 
 **Layer 3 — Shared integration cluster (release candidates)**
 
@@ -272,7 +274,7 @@ A Kubernetes slice is considered verified when:
 **Schema rollback policy (referenced in 18.4 and ADR-013)**
 
 Schema migrations are forward-only. Every migration file must be backward-compatible with the
-immediately preceding application image version. CI gates for release candidates include a
+immediately preceding application image version. Local release-candidate verification requires a
 matrix test that deploys the new schema against the previous image to verify compatibility.
 If compatibility cannot be maintained, the migration is split into a zero-downtime multi-step
 deployment (expand–migrate–contract pattern).
