@@ -112,6 +112,10 @@ Compose smoke/performance. Missing tools fail the gate; explicit skip flags only
 provide partial evidence and must be disclosed. The broader checks below remain
 required for relevant changes; they are not all automated by `local-ci.sh`.
 
+Set `COMPOSE_PROJECT_NAME` to an unused project name for isolated local full-stack
+validation. Record the project name and any local Compose port overrides in the PR.
+Keep the test assertions, polling windows, and performance thresholds unchanged.
+
 1. repository hygiene: formatting, linting, dependency policy, secret scan, and generated-code drift
 2. contract checks: protobuf/OpenAPI linting, breaking-change detection, and SDK/client generation
 3. backend checks: Rust format, clippy, unit tests, service-level contract tests, and applicable Testcontainers integration tests for real dependency boundaries
