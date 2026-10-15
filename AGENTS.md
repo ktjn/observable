@@ -41,7 +41,7 @@ The `scripts/regenerate-models.sh` script runs both target compilations with the
 3. Run `cargo check --lib` to verify the Rust side compiles.
 4. Run `bash scripts/check-generated-drift.sh` and confirm a second regeneration produces no diff.
 5. Run relevant `modelable validate`, target compilation, and `modelable lineage <Type@version>` checks, then review `git diff --stat`.
-6. If you changed an existing entity/projection version's fields (not just added a new version), run `bash scripts/check-breaking-changes.sh <base-ref> HEAD` — it fails if a field was removed, retyped, or renamed without bumping the version number. CI runs this automatically on PRs that touch `models/`.
+6. If you changed an existing entity/projection version's fields (not just added a new version), run `bash scripts/check-breaking-changes.sh <base-ref> HEAD` — it fails if a field was removed, retyped, or renamed without bumping the version number. The local pre-push gate runs this check, including uncommitted model edits.
 
 ## Before Starting Any Implementation Task
 
@@ -75,7 +75,7 @@ building on different branches at once), use a separate full clone instead.
 
 ## MANDATORY: Before Pushing ANY Code
 
-You **MUST** run `bash scripts/local-ci.sh` before pushing **ANY** code changes. No exceptions. GitHub CI runs on pull requests and pushes to `main` (see `.github/workflows/build.yml`), but local-ci catches issues before they reach CI.
+You **MUST** run `bash scripts/local-ci.sh` before pushing **ANY** code changes. No exceptions. GitHub Actions builds artifacts on pull requests and pushes to `main` (see `.github/workflows/build.yml`); validation suites run locally only (ADR-019).
 
 **Note:** Pure documentation changes (files under `docs/`, `spec/`, or any `.md` files) are exempt.
 
@@ -83,9 +83,9 @@ You **MUST** run `bash scripts/local-ci.sh` before pushing **ANY** code changes.
 ```
 cargo fmt --all
 ```
-Run it before staging, before committing, and before local-ci. Rust formatting is enforced inside the Docker build; a format error will fail CI. Do not skip this step.
+Run it before staging, before committing, and before local-ci. Rust formatting is enforced by the local validation gate and the explicit Docker `rust-ci` target. Artifact builds do not run validation. Do not skip this step.
 
-`scripts/local-ci.sh` runs: frontend typecheck/lint/build/test, Helm lint, Docker image build (which includes Rust fmt, clippy, and unit tests), and smoke test.
+`scripts/local-ci.sh` runs: CI policy tests, version/distribution metadata, Modelable validation and TypeScript/Rust/JSON Schema drift, model compatibility, Rust fmt/clippy/unit/integration tests, frontend typecheck/lint/build/unit/browser tests, playground build/smoke, Helm lint, Docker image builds, and Compose smoke/performance. Missing tools fail the default gate; explicit skip flags provide partial validation only.
 
 Use flags to skip stages when Docker or Node are unavailable:
 - `--skip-docker` — skip image build and smoke test

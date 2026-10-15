@@ -16,6 +16,26 @@ GitHub Actions workflows have a tendency to accumulate inline shell logic — mu
 
 ## Decision
 
+### Local validation and GitHub artifact automation (2026-10-15)
+
+Validation runs locally before pushing through `bash scripts/local-ci.sh`.
+GitHub Actions builds and packages artifacts, publishes releases, and deploys
+the playground; it does not repeat lint, test, smoke, performance, version-metadata,
+or generated-code validation suites. Release tag/source eligibility checks,
+checksums, SBOMs, and provenance remain part of artifact publication.
+
+The local gate owns Rust format/clippy/unit/integration tests; frontend
+typecheck/lint/unit/browser tests; playground artifact smoke; Helm lint;
+distribution and version metadata; TypeScript/Rust/JSON Schema generated drift;
+model breaking changes; and Compose smoke/performance checks. Missing required
+tools fail the default gate. Explicit skip flags are partial validation only.
+The existing assertions and test fixtures remain intact.
+
+Docker artifact targets must not inherit the `rust-ci` validation stage.
+`scripts/ci.sh` explicitly builds that stage for its local Docker validation path.
+PRs record local results and gaps; human review is still required before merge.
+See [development process §16.6](../10-process.md#166-ci-and-build-process).
+
 All non-trivial logic in GitHub Actions `run:` steps must live in a versioned shell script under `scripts/`. Workflow YAML steps invoke those scripts with a single line (`bash scripts/foo.sh`). Steps that are truly one-liners (`cargo build --release`, `npm ci`) may remain inline.
 
 To ensure consistency and ease of use, these scripts should delegate to **Docker Compose** whenever possible. This centralizes initialization logic, health checks, and service dependencies in `docker-compose.yml`, while keeping the scripts as stable entry points for both developers and CI.
@@ -30,13 +50,15 @@ The `Makefile` `migrate` target calls `scripts/migrate.sh` so that `make dev && 
 ## Consequences
 
 **Easier:**
-- Any developer can reproduce a CI failure locally with `bash scripts/<name>.sh`.
+- Validation runs before push, without duplicate GitHub runner work.
+- Any developer can reproduce a validation failure locally with `bash scripts/<name>.sh`.
 - Script logic is testable, diffable, and searchable like any other code.
 - New CI jobs (PR checks, release pipelines) compose from the same scripts without copy-paste.
 
 **Harder:**
 - Scripts need to be written defensively (`set -euo pipefail`, explicit paths) so they work both in the repo root and from CI working directories.
 - Script authors must consider both local (`.env.local` may be present) and CI (Docker-only, no extra CLI tools) execution contexts.
+- GitHub build success does not prove local validation passed; reviewers must inspect the recorded local results.
 
 **Constrained:**
 - Host-installed CLI tools (`clickhouse-client`, `sqlx-cli`) must not be assumed present on CI runners. Migrations and other database operations must go through Docker-based setup containers or `docker compose exec`.
@@ -54,4 +76,4 @@ Document which tools must be pre-installed on self-hosted runners. Rejected: sel
 - `scripts/migrate.sh` — implements this decision for migrations
 - `scripts/start-services.sh` — implements this decision for Docker Compose service startup
 - `tests/e2e/smoke_test.sh` — pre-existing example of the pattern
-- `.github/workflows/nightly.yml` — first workflow refactored to comply
+- `.github/workflows/build.yml` — artifact builds, with validation delegated to the local gate

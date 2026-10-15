@@ -208,13 +208,13 @@ Run from `apps/frontend/`:
 |---------|---------|--------------|
 | `npm run dev` | Start dev server with HMR | — |
 | `npm run dev:mock` | Start dev server with MSW mocks active | — |
-| `npm run typecheck` | Run `tsc --noEmit` | ✅ PR check |
-| `npm run lint` | Run ESLint | ✅ PR check |
-| `npm run test` | Run Vitest unit/component tests | ✅ PR check |
+| `npm run typecheck` | Run `tsc --noEmit` | local pre-push |
+| `npm run lint` | Run ESLint | local pre-push |
+| `npm run test` | Run Vitest unit/component tests | local pre-push |
 | `npm run test:watch` | Vitest in watch mode | — |
 | `npm run build` | Production build to `dist/` | ✅ PR check |
 | `npm run build:analyze` | Production build + bundle size report | on demand |
-| `npm run e2e` | Run Playwright E2E suite (requires running app) | nightly |
+| `npm run e2e` | Run Playwright E2E suite (requires running app) | local pre-push |
 | `npm run e2e:ui` | Playwright UI mode for debugging | — |
 
 **Run all required PR checks locally before pushing:**
@@ -249,8 +249,9 @@ This maximises cache reuse: a product feature change does not invalidate the lar
 ### 23.2 Bundle Size Targets
 
 ADR-016 requires monitoring bundle size due to `@grafana/ui` and `@grafana/scenes` being
-large packages. CI enforces the following gzip limits via `vite-bundle-visualizer` or
-`bundlesize` in the PR check pipeline:
+large packages. Validate the following gzip limits locally using an available bundle
+size reporting tool and record the evidence in the PR; the current local gate does
+not automate these limits:
 
 | Chunk | Gzip limit |
 |-------|-----------|
@@ -419,8 +420,9 @@ npm run dev &
 npm run e2e
 ```
 
-In CI, E2E runs nightly against the ephemeral environment (not on every PR). See
-`spec/10-process.md §16.6` pipeline triggers.
+Run E2E locally before pushing through `bash scripts/local-ci.sh`, including the
+playground artifact smoke. GitHub builds/deploys artifacts without rerunning E2E.
+See [development process §16.6](10-process.md#166-ci-and-build-process).
 
 ### 25.3 Test Scope
 
@@ -440,7 +442,7 @@ In CI, E2E runs nightly against the ephemeral environment (not on every PR). See
 Managing npm dependencies is a critical security and stability concern for a production-grade UI.
 
 ### 27.1 Vulnerability Scanning
-- **`npm audit`**: Run automatically in CI on every PR. Any "High" or "Critical" vulnerability blocks the PR.
+- **`npm audit`**: Run locally for dependency changes and record results in the PR. Any "High" or "Critical" vulnerability blocks the PR.
 - **Snyk/GitHub Advanced Security**: Used for continuous monitoring of vulnerabilities in the dependency tree.
 
 ### 27.2 Automated Updates
@@ -451,7 +453,7 @@ Managing npm dependencies is a critical security and stability concern for a pro
 ### 27.3 License Compliance
 - **Allowed Licenses**: MIT, Apache-2.0, BSD-3-Clause, ISC.
 - **Restricted Licenses**: AGPL, GPL, LGPL (requires manual review).
-- **Tooling**: `license-checker` runs in CI to ensure no restricted licenses are introduced via new dependencies.
+- **Tooling**: Run available license tooling locally for dependency changes to ensure no restricted licenses are introduced; record manual review when tooling is unavailable.
 
 ### 27.4 Package Pinning
 - Always use `npm ci` in CI and Docker builds to ensure exact versions from `package-lock.json` are used.

@@ -1,4 +1,4 @@
-name: Build & Test
+name: Build Artifacts
 
 on:
   pull_request:
@@ -29,10 +29,6 @@ jobs:
     outputs:
       backend: ${{ steps.surfaces.outputs.backend }}
       frontend: ${{ steps.surfaces.outputs.frontend }}
-      helm: ${{ steps.surfaces.outputs.helm }}
-      smoke: ${{ steps.surfaces.outputs.smoke }}
-      models: ${{ steps.surfaces.outputs.models }}
-      distribution: ${{ steps.surfaces.outputs.distribution }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -40,18 +36,9 @@ jobs:
       - id: surfaces
         run: bash scripts/ci-changed-surfaces.sh "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}"
 
-  distribution:
-    needs: [changes]
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.distribution == '1'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Validate distribution manifest
-        run: bash scripts/check-distribution-manifest.sh
-
   backend:
     needs: [changes]
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.backend == '1'
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.backend == '1'
     runs-on: ubuntu-latest
     env:
       RUST_VERSION: 1.97.1-bookworm
@@ -87,42 +74,16 @@ jobs:
             cargo-sccache-v1-${{ env.RUST_VERSION }}-
             cargo-sccache-v1-
 
-      # sccache and cargo-nextest are static musl binaries pinned by version
-      # below; they never change for a given key, so (unlike the cache above)
-      # an exact-key hit is exactly what we want here — it just skips the
-      # re-download instead of ever going stale.
+      # Cache the static sccache binary between artifact builds.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         id: tool-cache
         with:
           path: ~/.cache/ci-tools
-          key: ci-tools-v1-sccache-0.16.0-nextest-0.9.140
+          key: ci-tools-v2-sccache-0.16.0
 
-      # Build/lint/test inside rust:1.97.1-bookworm (same glibc as the
-      # debian:bookworm-slim runtime image) rather than natively on the
-      # ubuntu-latest runner — ubuntu-latest's glibc is newer than bookworm's,
-      # and binaries built against it fail to load in the runtime image.
-      # sccache and cargo-nextest are static musl binaries (avoids glibc
-      # version mismatch with the host) fetched once and cached above by
-      # ~/.cache/ci-tools, rather than re-downloaded every run.
-      #
-      # sccache's GHA cache backend (SCCACHE_GHA_ENABLED) targets GitHub's
-      # old cache service API and silently fails every write against the
-      # current one (0 hits, all "Cache write errors") — use sccache's local
-      # disk cache instead, persisted across runs via actions/cache above.
-      #
-      # target/ must ALSO persist across runs (not just registry/sccache):
-      # a fresh checkout has no target/, so every build-script crate (most
-      # of the dependency tree) gets a fresh OUT_DIR hash, which leaks into
-      # its rustc invocation and busts sccache's cache key even when the
-      # source is byte-identical to the previous run.
-      #
-      # Tests run under --release (not the default debug profile): sccache
-      # caches per exact rustc flags, so debug tests and the release build
-      # below used to compile the entire dependency graph twice under
-      # different profiles. Running both under --release lets sccache share
-      # one compile across both. overflow-checks stays on in [profile.release]
-      # (Cargo.toml) so this doesn't lose overflow-panic coverage.
-      - name: Build, lint, test
+      # Compile against bookworm, matching the runtime image glibc.
+      # Validation runs locally through scripts/local-ci.sh.
+      - name: Build release binaries
         env:
           RUSTC_WRAPPER: sccache
           CC: sccache cc
@@ -147,23 +108,15 @@ jobs:
                 curl -L https://github.com/mozilla/sccache/releases/download/v0.16.0/sccache-v0.16.0-x86_64-unknown-linux-musl.tar.gz | tar xz --strip-components=1 -C /ci-tools sccache-v0.16.0-x86_64-unknown-linux-musl/sccache
                 chmod +x /ci-tools/sccache
               fi
-              if [ ! -x /ci-tools/cargo-nextest ]; then
-                curl -L https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.140/cargo-nextest-0.9.140-x86_64-unknown-linux-musl.tar.gz | tar xz -C /ci-tools cargo-nextest
-                chmod +x /ci-tools/cargo-nextest
-              fi
               export PATH="/ci-tools:$PATH"
 
               # Ensure stats are shown and server is stopped even on failure
               trap "sccache --show-stats; sccache --stop-server || true" EXIT
 
-              rustup component add rustfmt clippy
               apt-get update -qq
               apt-get install -y -qq --no-install-recommends \
                 build-essential cmake libcurl4-openssl-dev libssl-dev pkg-config zlib1g-dev
               sccache --start-server
-              cargo fmt --check
-              cargo clippy --workspace --all-targets -- -D warnings
-              cargo nextest run --workspace --lib --bins --release
               cargo build --release --workspace
             '
 
@@ -190,15 +143,12 @@ jobs:
           BUILD_TARGET: component-runtime-ci
         run: bash scripts/build-component-images.sh auth control ingest process store-clickhouse query alerting
 
-      - name: Build test harness image
-        run: docker buildx build --load --tag observable-test-tools:local -f tests/e2e/Dockerfile .
-
       - name: Export images
         run: |
           docker save \
             observable-auth:local observable-control:local observable-ingest:local \
             observable-process:local observable-store-clickhouse:local observable-query:local \
-            observable-alerting:local observable-test-tools:local | gzip > /tmp/image.tar.gz
+            observable-alerting:local | gzip > /tmp/image.tar.gz
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: docker-image
@@ -207,81 +157,11 @@ jobs:
 
   frontend:
     needs: changes
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == '1'
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == '1'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with: { node-version: "24", cache: "npm" }
       - run: npm ci
-      - run: npm run typecheck --workspace=apps/frontend
-      - run: npm run lint --workspace=apps/frontend
       - run: npm run build --workspace=apps/frontend
-      - run: npm run test --workspace=apps/frontend -- --run
-      - run: npx playwright install --with-deps chromium
-      - run: npx playwright test --project=chromium
-        working-directory: apps/frontend
-        env:
-          CI: "true"
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        if: failure()
-        with:
-          name: playwright-report
-          path: apps/frontend/test-results/
-          retention-days: 7
-
-  helm:
-    needs: changes
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.helm == '1'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
-        with:
-          version: "4.3.0"
-      - run: bash scripts/helm-lint.sh
-
-  smoke:
-    needs: [changes, backend]
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.smoke == '1'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        with:
-          name: docker-image
-          path: /tmp
-      - run: docker load < /tmp/image.tar.gz
-      - run: docker compose up smoke-test --abort-on-container-exit
-
-  perf-smoke:
-    needs: [changes, backend]
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        with:
-          name: docker-image
-          path: /tmp
-      - run: docker load < /tmp/image.tar.gz
-      - run: docker compose up smoke-test --abort-on-container-exit
-      - run: docker compose up perf-smoke --abort-on-container-exit
-
-  generated-code:
-    needs: [changes]
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.models == '1'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
-      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
-        with:
-          components: rustfmt
-      - name: Verify generated code matches .mdl sources
-        run: bash scripts/check-generated-drift.sh
-      - name: Check for breaking changes to unversioned model/projection fields
-        if: github.event_name == 'pull_request' || github.event_name == 'push'
-        run: bash scripts/check-breaking-changes.sh "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}"

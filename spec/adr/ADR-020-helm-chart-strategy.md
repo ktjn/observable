@@ -127,11 +127,12 @@ version is safe as long as:
 
 ### Kubernetes Test Strategy
 
-See `spec/11-testing.md §18.7` for the full Kubernetes test strategy. In summary:
+See [test strategy §18.9](../11-testing.md#189-kubernetes-test-strategy) for Kubernetes
+coverage and [ADR-019](ADR-019-ci-scripts-runnable-locally.md) for local-only validation. In summary:
 
-- **Helm lint** runs on every PR via `.github/workflows/pr.yml`.
-- **kind integration test** runs on every push to `main` and nightly via
-  `.github/workflows/kind-test.yml`. It creates a fresh kind cluster, deploys infra, runs
+- **Helm lint** runs locally before push through `scripts/local-ci.sh`.
+- **kind integration test** runs locally for deployment changes and release preparation
+  through `scripts/kind-test.sh`. It creates a fresh kind cluster, deploys infra, runs
   migrations, installs the chart, verifies all service health endpoints respond, exercises the
   ingest-to-query smoke path, validates `helm rollback`, and tears down.
 - **Release candidate** environments use the same chart against a shared integration cluster.
@@ -184,9 +185,9 @@ Minikube adds a hypervisor dependency that is not available in all CI runners.
 - `ADR-013`: Schema Governance (SQL migrations) — authoritative migration source
 - `ADR-019`: CI Scripts Runnable Locally
 - `spec/12-deployment.md §19.7`: Rollback documentation
-- `spec/11-testing.md §18.7`: Kubernetes test strategy
+- `spec/11-testing.md §18.9`: Kubernetes test strategy
 - `charts/observable-common/`: Library chart
 - `charts/observable-infra/`: Infrastructure chart
 - `charts/observable/`: Application chart
 - `scripts/kind-test.sh`: Local kind cluster test script
-- `scripts/helm-lint.sh`: Helm lint script (runnable locally, used in CI)
+- `scripts/helm-lint.sh`: Helm lint script (local pre-push gate)
