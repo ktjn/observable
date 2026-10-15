@@ -87,6 +87,8 @@ Run it before staging, before committing, and before local-ci. Rust formatting i
 
 `scripts/local-ci.sh` runs: CI policy tests, version/distribution metadata, Modelable validation and TypeScript/Rust/JSON Schema drift, model compatibility, Rust fmt/clippy/unit/integration tests, frontend typecheck/lint/build/unit/browser tests, playground build/smoke, Helm lint, Docker image builds, and Compose smoke/performance. Missing tools fail the default gate; explicit skip flags provide partial validation only.
 
+Set `COMPOSE_PROJECT_NAME` to an unused name for isolated full-stack validation. Record the project name and any local Compose port overrides in the PR; preserve all assertions, polling windows, and performance thresholds.
+
 Use flags to skip stages when Docker or Node are unavailable:
 - `--skip-docker` — skip image build and smoke test
 - `--skip-frontend` — skip all npm checks
