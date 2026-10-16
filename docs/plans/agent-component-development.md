@@ -137,3 +137,33 @@ The subsystem is opt-in. Remove the agentbuild invocation and continue with the 
 - Existing local-ci can be expensive; use narrow checks during iteration, but retain mandatory final checks.
 - Worktrees alone do not isolate untrusted agent execution; sandbox before granting tool access.
 - Requirement coverage does not prove requirement correctness; require human review of acceptance criteria.
+
+## Formal verification workstream (Alloy + TLA+)
+
+Implement formal models alongside the corresponding executable feature, not as a disconnected final phase. Reuse the conventions and tool-version pinning approach of `spec/19-formal-verification.md`; these are development-only checks.
+
+| Delivery | Formal addition | Executable alignment / exit evidence |
+| --- | --- | --- |
+| PR 1 — Schema and ownership | Alloy model for unique source ownership, requirements and accepted-test coverage | Intentionally overlapping ownership and uncovered requirements yield counterexamples and validator failures |
+| PR 2 — Capability resolution | Alloy model for provider eligibility, unique binding and implementation DAG acyclicity | Resolver fixtures match valid and invalid Alloy examples, including contract-only edges |
+| PR 3 — Work packages | Extend Alloy with scoped requirements and immutable evidence references | Work-package compiler rejects mismatched requirement or digest references |
+| PR 5 — Independent verifier | TLA+ state transitions for submit, verify, reject, retry and invalidate | TLC catches acceptance without required checks or acceptance with stale/tampered evidence |
+| PR 6 — Scheduler | TLA+ concurrency, lease acquisition/expiry, worker crash/recovery, prerequisite and fairness model | TLC catches double writers and premature starts; scheduler integration tests reproduce traces |
+| PR 7 — Integration | Extend TLA+ with candidate rebasing, stale evidence and integration gates | TLC catches integration against outdated evidence; executable integration test reproduces it |
+| PR 8 — Pilot | Run pinned model suites and cross-check representative real component workflows | Report model bounds, checked properties, negative-case counterexamples and matching regression tests |
+
+### Formal tooling and artifacts
+
+- `agentbuild/formal/alloy/`: `.als` models and bounded valid/invalid fixtures.
+- `agentbuild/formal/tla/`: `.tla` models, TLC configurations and expected counterexample scenarios.
+- `agentbuild/formal/README.md`: exact pinned Alloy Analyzer and TLC versions, local invocation, bounds, fairness assumptions, limitations and links to executable regression tests.
+- Add local commands (for example `agentbuild formal check`) only after reproducible tool invocation is established. Do not silently download unpinned binaries or require production services.
+
+### Exit conditions
+
+1. At least one intentionally invalid ownership/provider graph produces an Alloy counterexample.
+2. At least one intentionally broken scheduler/acceptance transition produces a TLC counterexample.
+3. Correct bounded models pass with documented scopes, assumptions and state-space limits.
+4. Every modeled invariant has an associated executable test.
+5. No ordinary source-code change requires formal checking unless it affects the modeled orchestration or formal specifications.
+6. Formal results do not bypass `scripts/local-ci.sh`, protected acceptance tests or human PR review.
