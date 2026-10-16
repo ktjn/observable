@@ -29,3 +29,9 @@ No runtime component registry, service topology change, automatic main merge, re
 - Runtime orchestration: wrong lifecycle and unnecessary production complexity.
 - Replace native build systems: excessive migration and risk.
 - Immediate repository split: conflicts with ADR-035 sequencing.
+
+## Formal verification decision
+
+Use **Alloy** to validate bounded structural properties of component ownership, capability resolution, dependency graphs and requirement/evidence relationships. Use **TLA+/TLC** to explore temporal properties of agent scheduling, leases, failure/retry, stale verification and integration. Models are development-time artifacts only; deterministic runtime-of-the-CLI validators and independent executable tests remain the enforcement mechanisms.
+
+Keep bounded-model counterexamples mapped to executable regression fixtures and document model scope and fairness assumptions. This extends the existing formal-verification approach in `spec/19-formal-verification.md` without changing Observable's production runtime architecture. See section 17 of `spec/20-agent-component-development.md` and the formal workstream in the implementation plan.
