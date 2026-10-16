@@ -193,3 +193,39 @@ No runtime component registry, runtime provider selection, distributed agent fle
 - Which existing contract artifacts can be reused without introducing a duplicate source of truth.
 
 See the [implementation plan](../docs/plans/agent-component-development.md) for staged delivery and exit gates.
+
+## 17. Formal model verification: Alloy and TLA+
+
+Formal verification complements, but does not replace, executable validators, native tests, Testcontainers, or the required local CI gate. The models describe **build-time agent development behavior**, not Observable's production service topology. Follow the development-only principles of [spec/19-formal-verification.md](19-formal-verification.md).
+
+### 17.1 Alloy: structural constraints
+
+Maintain a bounded Alloy model for Component, SourcePath, Capability, Provider, Requirement, AcceptanceTest, WorkPackage and Dependency. Check:
+
+- **Unique write ownership:** any concrete writable source path has at most one owner in an execution plan. Explicit shared-resource locks are distinct from ownership.
+- **Capability resolution:** each required capability binds to exactly one approved provider satisfying version, mandatory features and compatible contract/binding constraints.
+- **Graph validity:** implementation-prerequisite edges form an acyclic graph; contract-only edges are not incorrectly treated as execution prerequisites.
+- **Traceability:** every mandatory requirement has at least one approved verification obligation; work packages cannot claim unrelated requirements.
+- **Evidence provenance:** accepted evidence references the same source/specification/verification-plan digests as the certified candidate.
+
+Use Alloy Analyzer to find counterexamples in finite scopes. Document chosen bounds; passing a bounded check is not an unbounded proof. Prefer small, deliberately invalid fixtures alongside valid fixtures. Map counterexamples into resolver, manifest-validator and evidence-validator regression tests.
+
+### 17.2 TLA+/TLC: lifecycle and concurrency
+
+Maintain a bounded TLA+ model for work-package states, implementation prerequisites, contract baseline revisions, ownership/resource leases, worker failure, retries, verification, integration and invalidation. Model at least these actions: Plan, MakeReady, AcquireLease, Start, Submit, VerifyPass, VerifyFail, ReleaseLease, ExpireLease, Retry, InvalidateContract, RebaseCandidate and Integrate.
+
+Required safety properties:
+
+- **Mutual exclusion:** conflicting work packages are never active with overlapping write ownership or exclusive resource leases.
+- **Prerequisite safety:** a task starts only after its implementation prerequisites are accepted and its contract baseline is current.
+- **Acceptance integrity:** failed, skipped, zero-discovery, tampered or stale verification cannot transition to accepted.
+- **Integration integrity:** integration is impossible unless evidence matches the actual candidate tree and approved specification/test plan.
+- **Retry integrity:** retries cannot inherit an invalid lease, bypass a required gate or reuse stale evidence.
+
+Check bounded liveness under explicit fairness and environment assumptions: a ready task with available resources can eventually execute; a crashed worker's lease can eventually be reclaimed. Do not claim unconditional progress when a worker, reviewer or external dependency may remain unavailable.
+
+### 17.3 Executable alignment
+
+Keep models in `agentbuild/formal/alloy/` and `agentbuild/formal/tla/` with pinned tool versions and reproducible local commands. Model fixtures should cover valid and intentionally broken cases, with expected counterexamples. A passing model must be connected to at least one executable validator/scheduler/verifier test covering the same invariant. CI/local checks run when relevant formal models or orchestration code change, respecting Observable's local-validation policy; do not impose full model checking on unrelated component-only edits.
+
+Alloy/TLC output is evidence for the correctness of bounded orchestration designs, **not** certification of an agent's generated application code. Application changes still require independent requirement and integration verification.
