@@ -131,8 +131,12 @@ models in addition to contract, integration, and chaos tests. The implementation
 - [x] Model the `telemetry.normalized.v1` process-to-storage durability boundary, including
   acknowledgement ordering, storage outage, worker crash/recovery, redelivery, duplicates, and
   backpressure.
-- [ ] Add pinned, bounded TLC execution to PR CI with actionable counterexample traces.
-- [ ] Map formal invariants to concrete Testcontainers/integration/chaos regression boundaries.
+- [x] Add pinned, bounded TLC execution to PR CI with actionable counterexample traces.
+  Runs as the `scripts/local-ci.sh` "Formal verification (TLC)" step (ADR-019 keeps validation off
+  GitHub workflows): the tool is pinned by sha256, each model has a wall-clock budget, and
+  `.tla/<model>.log` preserves the trace.
+- [x] Map formal invariants to concrete Testcontainers/integration/chaos regression boundaries.
+  See the "Regression boundaries" table in `formal/tla/README.md`.
 - [ ] Model component-version, storage-schema, distribution-manifest, upgrade, and rollback
   compatibility as independent component releases become executable.
 

@@ -317,21 +317,31 @@ the durability, retry, duplicate, and backpressure assumptions it verifies.
 
 ### Slice 2 — required CI gate
 
-- [ ] Pin TLA+ tooling by version and digest.
-- [ ] Add the `formal-verification` PR job.
-- [ ] Preserve counterexample output on failure.
-- [ ] Add a runtime/state budget.
+- [x] Pin TLA+ tooling by version and digest.
+- [x] Add the `formal-verification` PR job.
+- [x] Preserve counterexample output on failure.
+- [x] Add a runtime/state budget.
 - [ ] Add a larger nightly configuration only if it finds materially different interleavings.
+
+> The gate runs as the "Formal verification (TLC)" step of `scripts/local-ci.sh` rather than a GitHub
+> job, because ADR-019 keeps validation suites off GitHub workflows
+> (`scripts/tests/test_ci_policy.py` enforces this); the tool is pinned by sha256, each model runs
+> under a wall-clock budget, and `.tla/<model>.log` preserves the counterexample trace. A nightly or
+> larger configuration is deferred until a larger bound finds materially different interleavings.
 
 **Done when:** a PR violating a telemetry-delivery invariant fails without starting the Observable
 runtime stack.
 
 ### Slice 3 — implementation correspondence
 
-- [ ] Map each formal transition to the relevant process/store/Redpanda implementation boundary.
-- [ ] Map invariants to Testcontainers, integration, and chaos tests where practical.
+- [x] Map each formal transition to the relevant process/store/Redpanda implementation boundary.
+- [x] Map invariants to Testcontainers, integration, and chaos tests where practical.
 - [ ] Add regression tests for bugs found by TLC.
-- [ ] Document differences between the finite model and production Redpanda/ClickHouse behavior.
+- [x] Document differences between the finite model and production Redpanda/ClickHouse behavior.
+
+> The transition and regression-boundary mappings are in `formal/tla/README.md`. No TLC-found bug has
+> required a new regression test yet; the one behavioral discrepancy found (at-least-once duplicate
+> delivery vs `spec/02`'s "idempotent writes" claim) is tracked in issue #768.
 
 **Done when:** maintainers can identify which production behavior each formal invariant constrains.
 

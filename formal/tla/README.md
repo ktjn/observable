@@ -26,6 +26,12 @@ Pin the version and verify the digest before use; never fetch a mutable `latest`
 bash scripts/run-formal-verification.sh
 ```
 
+The wrapper downloads the pinned JAR into `.tla/` (gitignored) and verifies its sha256, runs every
+`formal/tla/*.cfg` under a wall-clock budget (`TLC_TIMEOUT` seconds, default 300), and writes each
+model's full output to `.tla/<model>.log`. On failure it prints the counterexample trace and the log
+path, so the trace survives the run. It is the "Formal verification (TLC)" step of
+`scripts/local-ci.sh`.
+
 or directly:
 
 ```bash
@@ -129,6 +135,25 @@ key, so a redelivered record produces a **duplicate row**; only `metric_series` 
 
 Reconciling the two — either add record-identity deduplication in the storage writer, or record the
 duplicate-tolerant guarantee explicitly in the spec — is follow-up work, not done here.
+
+## Regression boundaries
+
+Each invariant constrains a concrete production boundary. This table maps them to the existing
+regression signals, and records where a boundary has no direct test yet.
+
+| Invariant / property | Production boundary | Concrete regression signal |
+|---|---|---|
+| `CommitImpliesDurability`, `NoCommittedLoss` | store acknowledges only after a durable write | `services/storage-writer/src/buffer.rs` `send_spans_durable_resolves_only_after_flush_succeeds`; `flush_retries_until_success_instead_of_dropping` |
+| `OutageDoesNotStore` | ClickHouse outage during a write | `services/storage-writer/src/buffer.rs` `flush_retries_until_success_instead_of_dropping`; `services/storage-writer/tests/http_api_integration.rs` `storage_writer_readyz_returns_503_when_clickhouse_is_unavailable` |
+| `BacklogBounded` | bounded buffer/backpressure before commit | `services/storage-writer/src/buffer.rs` `flush_on_count`, `flush_on_timeout` (bounded accumulation) |
+| `NoOffsetGapCommit` | Redpanda consumer offset commit | queue boundary covered by `services/stream-processor/tests/redpanda_integration.rs`; no direct offset-gap test yet |
+| `DurableMonotonic` | store process lifecycle (crash/recovery) | no direct crash test yet; `tests/e2e/chaos_smoke_unit.sh` is the closest chaos signal |
+| `RedeliveryPreservesIdentity`, `TenantIdentityPreserved` | tenant/environment stamping across the queue | `services/stream-processor/tests/redpanda_integration.rs` `redpanda_container_preserves_tenant_id_and_payload_across_queue_boundary` |
+| duplicate-at-least-once | `MergeTree` duplicate rows | no direct redelivery test yet; tracked in issue #768 |
+
+Where a boundary has no direct test, the model is still the only automated check for that transition —
+that is the point of the formal layer. Add a Testcontainers/integration/chaos regression when a
+concrete gap matters (see `spec/19-formal-verification.md` Slice 3).
 
 ## Adding an invariant
 
