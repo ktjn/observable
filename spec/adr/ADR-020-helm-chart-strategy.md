@@ -149,7 +149,10 @@ coverage and [ADR-019](ADR-019-ci-scripts-runnable-locally.md) for local-only va
   visible immediately.
 
 **Harder:**
-- Helm dependency management (`helm dependency update`) must run before `helm install`/`lint`.
+- Helm dependency management must run before `helm install`/`lint`. The lint gate
+  (`scripts/helm-lint.sh`) uses `helm dependency build` from the committed `Chart.lock` so the lock
+  stays the reproducible source of truth and is not rewritten; install/cluster flows
+  (`kind-test.sh`, `testbench.sh`) may use `helm dependency update`.
 - Migration ConfigMaps must be created by the pipeline before chart install; forgetting this step
   is a deployment failure mode.
 - kind clusters are ephemeral and do not test persistent-volume behaviour; storage HA tests
