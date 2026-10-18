@@ -1,10 +1,18 @@
-# TelemetryDelivery.tla
+# Formal verification models
 
-Executable finite model of the 0.2 `telemetry.normalized.v1` process-to-storage durability boundary
-(`spec/19-formal-verification.md`, ROADMAP 0.2 formal-verification gate). It checks the durability,
-retry, duplicate, and backpressure assumptions the architecture actually makes — not an exactly-once
-guarantee it does not provide. TLA+ is a development-time tool only; no Observable service depends on
-it.
+Finite TLA+ models for the 0.2 architecture (`spec/19-formal-verification.md`). TLA+ is a
+development-time tool only: no Observable service depends on it and no Rust is generated from it.
+This file documents the models in this directory; `TelemetryDelivery.tla` is covered first, then
+`ComponentCompatibility.tla`.
+
+| Model | Verifies |
+|---|---|
+| [`TelemetryDelivery.tla`](TelemetryDelivery.tla) | the `telemetry.normalized.v1` process-to-storage durability boundary (durability, retry, duplicate, backpressure) |
+| [`ComponentCompatibility.tla`](ComponentCompatibility.tla) | the distribution's component-composition rules (manifest selection, storage-schema compatibility, upgrade/rollback) |
+
+`TelemetryDelivery.tla`: executable finite model of the 0.2 `telemetry.normalized.v1`
+process-to-storage durability boundary. It checks the durability, retry, duplicate, and backpressure
+assumptions the architecture actually makes — not an exactly-once guarantee it does not provide.
 
 ## Tooling
 
@@ -154,6 +162,60 @@ regression signals, and records where a boundary has no direct test yet.
 Where a boundary has no direct test, the model is still the only automated check for that transition —
 that is the point of the formal layer. Add a Testcontainers/integration/chaos regression when a
 concrete gap matters (see `spec/19-formal-verification.md` Slice 3).
+
+## ComponentCompatibility.tla
+
+Executable finite model of the distribution's component-composition rules. It verifies the
+compatibility rules that are executable today: the distribution manifest selects a component set, and
+`observable-query` must never serve against a ClickHouse storage schema it does not support.
+
+### Bounds
+
+The constants are defined in the module (small finite sets):
+
+| Constant | Value |
+|---|---|
+| `StoreVersions` | `{"s1", "s2", "s3"}` |
+| `QueryVersions` | `{"q1", "q2"}` |
+| `Schemas` | `1..3` |
+| `StoreSchemaOf` | `s1→1, s2→2, s3→3` |
+| `QuerySupports` | `q1→{1}, q2→{1,2}` |
+
+This explores the complete reachable state space: **81 distinct states** (669 generated, depth 7) on
+TLC 2.19.
+
+### Invariants
+
+| Invariant | Meaning |
+|---|---|
+| `TypeOK` | every variable stays in its finite domain |
+| `InstalledManifestIsCompatible` | the declared distribution set is compatible (the store's schema is one the selected query supports) |
+| `QueryOnlyRunsOnSupportedSchema` | query serves only while the applied schema is in its supported set — this also covers the rollback rule, since `SetQuery` refuses a version that cannot read the applied schema |
+
+### Interpreting a counterexample
+
+Three deliberately broken transitions are caught (revert them after inspecting):
+
+- `Migrate` no longer stops query when the new schema is unsupported → `QueryOnlyRunsOnSupportedSchema`
+  violated (query keeps serving on a schema it cannot read);
+- `Install` drops its compatibility guard → `InstalledManifestIsCompatible` violated (the distribution
+  admits an incompatible set);
+- `SetQuery` drops its schema guard → `QueryOnlyRunsOnSupportedSchema` violated (a rollback lands on an
+  unsupported schema).
+
+### Production correspondence
+
+| TLA+ | Observable |
+|---|---|
+| `manifest` | `distribution/manifest.yaml` (the pinned component set) |
+| `running` | the component versions actually deployed |
+| `schema` | `migrations/clickhouse/SCHEMA_VERSION` applied by the store |
+| `queryRunning` | `observable-query` serving traffic |
+| `StoreSchemaOf` | the schema a store version migrates to |
+| `QuerySupports` | `services/query-api/clickhouse-schema-support.yaml` |
+
+Per-component image publishing is not modeled (release publishing is still open), so version identity
+is abstract. Upgrade/rollback are modeled as changing the running query version.
 
 ## Adding an invariant
 

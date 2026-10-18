@@ -347,10 +347,16 @@ runtime stack.
 
 ### Slice 4 — component compatibility model
 
-- [ ] Add `ComponentCompatibility.tla` as independent component releases and the distribution
+- [x] Add `ComponentCompatibility.tla` as independent component releases and the distribution
       manifest become executable.
-- [ ] Model supported version/schema ranges and upgrade/rollback transitions.
-- [ ] Verify unsupported component combinations cannot be admitted by the distribution.
+- [x] Model supported version/schema ranges and upgrade/rollback transitions.
+- [x] Verify unsupported component combinations cannot be admitted by the distribution.
+
+> `formal/tla/ComponentCompatibility.tla` models the distribution manifest selection, the
+> store/query storage-schema compatibility range, and query upgrade/rollback, and verifies that an
+> incompatible manifest cannot be installed and that query never serves on an unsupported schema.
+> Version identity is abstract: per-component image publishing (the immutable-tag rule) is still open,
+> so the model does not yet assert anything about published artifacts.
 
 **Done when:** the distribution's component-composition rules have an executable finite model in
 addition to contract and E2E tests.
