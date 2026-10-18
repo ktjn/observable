@@ -36,6 +36,11 @@ making changes.
   not `dev`; the dev-mode default is unchanged. `charts/observable/values.yaml`'s
   `identity.sessionSecret` default was changed from a fixed literal to `""` so installs must set a
   real secret explicitly.
+- **2026-10-18 (0.2 status sync)**: `docs/component-decomposition.md` marks Phase 6 (consolidate
+  alerting) **Done** (its exit evidence is met; `admin-service` no longer reads any alerting table) and
+  adds a "Remaining 0.2 work" table listing the open items and their blockers (cross-owner SQL / NLQ
+  quality gate; per-component release publishing / immutable tags + registry; Helm/kind pinned install
+  and upgrade/rollback; repository extraction).
 - **2026-10-18 (0.2 Helm render pins)**: `scripts/helm-lint.sh` now asserts that the rendered chart
   contains every component image at its manifest-pinned version (`scripts/component-version.sh`), not
   just that some tag is present. Previously only `charts/observable/values.yaml` was checked (by

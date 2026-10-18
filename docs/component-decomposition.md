@@ -336,10 +336,11 @@ Rules:
 **Phase 3 prep — done:** every table above now physically lives in a matching PostgreSQL schema
 (`auth`, `control`, `alerting`; `migrations/postgres/040_component_ownership_schemas.sql`), instead
 of all sharing `public`. This is documentation, not enforcement: the "no cross-owner SQL" and
-"no shared write credentials" rules above are **not yet true** — one shared application role can
+"no shared write credentials" rules above are **not yet true** - one shared application role can
 still read/write across all three schemas, since real separation is blocked on Phase 4 (shrink
-query-api) and Phase 6 (consolidate alerting) first moving the code that issues cross-owner SQL out
-of `query-api`, which today queries tables in all three schemas directly.
+query-api) moving the last cross-owner SQL out of `query-api`; `query-api` still queries the
+control-plane schema directly. The alerting schema is no longer queried directly by any component
+(Phase 6 is done).
 
 | Owner | Tables (in schema of the same name) |
 | --- | --- |
@@ -557,7 +558,8 @@ Exit evidence:
 
 Logical PostgreSQL schemas are introduced (see the Data Ownership section above) — every table now
 enumerably belongs to one owner. Separate credentials and removing cross-owner SQL are not done:
-both are blocked on Phase 4/6 first moving the code that issues cross-owner SQL out of `query-api`.
+both are blocked on Phase 4 first moving the last cross-owner SQL out of `query-api` (Phase 6 moved
+the alerting and deployment-marker reads out already).
 
 ClickHouse migration ownership is settled: `migrations/clickhouse/*.sql` are owned by
 `observable-store-clickhouse`. The store declares its current schema version in
@@ -571,7 +573,9 @@ Exit evidence:
 
 - every component can enumerate the tables it owns — **met**, via the schema assignment above
 - no component executes SQL against another component's PostgreSQL schema — **not met**: one shared
-  role can still query any schema, and `query-api` does so today against all three
+  role can still query any schema, and `query-api` does so today against the auth (`user_tenant_roles`)
+  and control (`schema_entries`/`semantic_annotations`/`platform_config`) schemas; the alerting schema
+  is no longer queried directly by any component (Phase 6)
 - `observable-query` declares and enforces a tested ClickHouse storage-schema range — **met**, via
   `services/query-api/clickhouse-schema-support.yaml` and `scripts/check-clickhouse-schema-compat.sh`
 
@@ -589,29 +593,27 @@ Move control-plane CRUD out of query and split the current admin surface by owne
 - schemas/annotations (done: `GET /v1/schemas/{signal_type}/attributes` and the
   `GET`/`PUT`/`PATCH`/`DELETE /v1/schemas/{signal_type}/attributes/{key}/annotations` routes now
   live in admin-service; `mcp_tools.rs` in query-api still reads `schema_entries`/
-  `semantic_annotations` directly via its own SQL for NLQ metric-schema lookups -- same
-  already-tracked "remove cross-owner SQL" concern as the deployment-marker correlation reads, not
-  schema/annotation CRUD ownership)
-- deployments (done: `GET /v1/deployments` now lives in admin-service; `discovery.rs`/`reliability.rs`
-  still read `deployment_markers` directly for cross-cutting correlation reports -- that's a separate,
-  still-open "remove cross-owner SQL" concern, not deployment-listing ownership)
+  `semantic_annotations` directly via its own SQL for NLQ metric-schema lookups -- the remaining
+  tracked "remove cross-owner SQL" concern, not schema/annotation CRUD ownership)
+- deployments (done: `GET /v1/deployments` now lives in admin-service. The deployment-marker
+  correlation reads in `discovery.rs`/`reliability.rs` were later moved to admin-service's
+  `/internal/deployment-*` endpoints in Phase 6, so query-api no longer reads `deployment_markers`
+  directly)
 - change events (done: `GET /v1/events/changes` now lives in admin-service)
 
 Move reliability state to alerting:
 
-- alerts (done: `GET /v1/alerts/rules` and `GET /v1/alerts/rules/{id}` now live in admin-service,
+- alerts (done: `GET /v1/alerts/rules` and `GET /v1/alerts/rules/{id}` moved to admin-service here,
   alongside the alert-rule mutation routes (`/v1/admin/alerts/rules*`) that already lived there.
-  `discovery.rs`/`reliability.rs`/`incidents.rs` in query-api still read `alert_rules`/
-  `alert_firings` directly via their own SQL for cross-cutting correlation reports -- same
-  already-tracked "remove cross-owner SQL" concern as the deployment-marker and schema/annotation
-  reads, not alert-rule read/write ownership. This moves the routes into admin-service, the interim
-  "control" owner -- it does not yet give alerting state a single dedicated owner component, which
-  is Phase 6's concern.)
+  Phase 6 then moved the alerting routes to `alert-evaluator` and the alerting correlation reads in
+  `discovery.rs`/`reliability.rs` to `alert-evaluator`'s `/internal/alerting-*` endpoints, so
+  query-api no longer reads `alert_rules`/`alert_firings` directly and alerting state has a single
+  owner component.)
 - SLOs (done: `GET`/`POST /v1/slos` -- list and create, including the `slo_burn_rate` alert-rule
-  side effect of create -- now live in admin-service, in a new `slos.rs` module there. `reliability.rs`
-  in query-api keeps its own local `SloDefinitionItem` projection for its cross-cutting correlation
-  query against `slo_definitions`/`alert_rules`/`alert_firings` -- same already-tracked "remove
-  cross-owner SQL" concern as the alerts/deployment-marker/schema reads, not SLO ownership)
+  side effect of create -- moved to admin-service here, in a new `slos.rs` module there. Phase 6 then
+  moved the SLO routes to `alert-evaluator` and the `slo_definitions`/`alert_rules`/`alert_firings`
+  correlation reads out of `reliability.rs` to `alert-evaluator`'s `/internal/alerting-*` endpoints,
+  so query-api no longer reads those tables directly)
 - notifications (done: `GET`/`POST /v1/notifications/channels` and `DELETE
   /v1/notifications/channels/{id}` now live in a new admin-service `notifications.rs` module. This
   surface had zero prior test coverage in query-api; adding the first Testcontainers test for it
@@ -620,21 +622,21 @@ Move reliability state to alerting:
   every create/list call against real Postgres with a `ColumnDecode` error. Fixed in the same commit
   as the move by adding `type::text AS type` to both queries; not a behavior change this slice
   intentionally set out to make, but a latent crash this slice's required test coverage caught.)
-- incidents (done: `GET /v1/incidents` and `GET /v1/incidents/{id}` now live in a new admin-service
-  `incidents.rs` module. `reliability.rs` in query-api keeps its own local `IncidentItem`
-  projection for its cross-cutting correlation query, same pattern as the `DeploymentMarker`/
-  `SloDefinitionItem` precedents -- not incident ownership.)
+- incidents (done: `GET /v1/incidents` and `GET /v1/incidents/{id}` moved to a new admin-service
+  `incidents.rs` module here. Phase 6 then moved them to `alert-evaluator` and the `incidents`
+  correlation read out of `reliability.rs` to `/internal/alerting-correlation`, so query-api no
+  longer reads `incidents` directly.)
 
 Exit evidence:
 
 - core query operation requires no PostgreSQL connection -- **not yet met**: every control-plane
   CRUD slice and the full "move reliability state to alerting" group (alerts, SLOs, notifications,
-  incidents) listed above have moved their owning routes/modules to admin-service, but query-api's
-  `discovery.rs`/`reliability.rs` still hold a PostgreSQL connection for their own direct,
-  cross-owner correlation reads against `alert_rules`/`alert_firings`/`slo_definitions`/
-  `deployment_markers`/`schema_entries`/`semantic_annotations`/`incidents` -- removing those reads
-  is the separately-tracked "remove cross-owner SQL" work (Phase 4/6's listed follow-on), not this
-  phase's own route-ownership scope.
+  incidents) listed above have moved their owning routes/modules out of query-api, and the
+  alerting/deployment correlation reads now go through `alert-evaluator`/`admin-service`
+  `/internal/*` endpoints (Phase 6). The remaining direct cross-owner reads in query-api are
+  `mcp_tools.rs`'s `schema_entries`/`semantic_annotations` (NLQ metadata) and `llm_config.rs`'s
+  `platform_config` (LLM settings) -- removing those is the separately-tracked "remove cross-owner
+  SQL" work (Phase 4's listed follow-on), not this phase's own route-ownership scope.
 
 #### Remove cross-owner SQL (partial)
 
@@ -798,10 +800,11 @@ Move all alert/SLO/incident/notification APIs and persistence into one component
 
 Prefer query API calls for telemetry evaluation.
 
-**In progress.** The alerting component is `alert-evaluator` (it already owns evaluation and the
-firing/incident/notification-audit writes). The target is for it to own all alerting APIs and
-persistence; the interim "control" owner (`admin-service`) currently holds the remaining alerting
-CRUD.
+**Done.** The alerting component is `alert-evaluator`: it owns evaluation and all alert-rule/SLO/
+notification/incident APIs and persistence. The interim "control" owner (`admin-service`) no longer
+serves or reads any alerting table. `query-api` calls `alert-evaluator`'s `/internal/alerting-*`
+endpoints alongside `admin-service`'s `/internal/deployment-*` endpoints and merges the halves;
+`admin-service` itself no longer calls `alert-evaluator`.
 
 Sub-steps:
 
@@ -843,8 +846,10 @@ Exit evidence:
   `alert_rules`/`alert_firings`/`slo_definitions`/`notification_channels`/`notification_audit_log`/
   `incidents`/`incident_events`.
 - query and control do not write alerting tables -- **met**: `query-api` and `admin-service` neither
-  read nor write alerting tables (each calls `alert-evaluator`'s `/internal/*` endpoints for the
-  alerting halves of their enrichment/correlation reports).
+  read nor write alerting tables. `query-api` calls `alert-evaluator`'s
+  `/internal/alerting-enrichment` and `/internal/alerting-correlation` alongside `admin-service`'s
+  `/internal/deployment-enrichment` and `/internal/deployment-correlation`, and merges the halves;
+  `admin-service` no longer calls `alert-evaluator`.
 
 ### Phase 7 — Independent build artifacts
 
@@ -992,6 +997,18 @@ For each extraction:
 4. replace monorepo source coupling with the released artifact
 5. run distribution E2E
 6. remove the old source only after compatibility passes
+
+## Remaining 0.2 work
+
+Status as of 2026-10-18. The phases above are otherwise complete; these are the open items and what
+each is waiting on.
+
+| Item | State | Blocker / next step |
+|---|---|---|
+| Remove cross-owner SQL (Phase 3 exit evidence) | Not met | `observable-query` still reads control-owned `schema_entries`/`semantic_annotations` and `platform_config` for NLQ. Moving them changes NLQ metadata injection, so the **NLQ quality gate** applies (`tests/nlq/cases.json` + `scripts/nlq-eval.py` against a running cluster **with an OpenAI-compatible LLM endpoint**). |
+| Per-component release publishing (Phase 7 sub-step 5) | Not started | Needs an **immutable-tag rule** first (an unchanged component keeps its version across product releases) and a container registry. `observable-services` is still the only published image. |
+| Helm/kind pinned install, compatibility, upgrade/rollback (Phase 7 sub-step 5) | Compose done | `scripts/pinned-install.sh` installs and verifies the pinned Compose set (web UI + smoke). Helm/kind and upgrade/rollback verification need a kind cluster and more than one real component version. |
+| Repository extraction (Phase 8) | Not started | Deliberately last: each component needs independent CI/release and released-artifact consumption before its source is removed. Needs separate repositories. |
 
 ## Component Definition of Done
 
