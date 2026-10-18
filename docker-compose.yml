@@ -183,8 +183,12 @@ services:
 
   # --- SERVICES ---
   auth-service:
-    image: observable-services:local
-    build: { context: ., dockerfile: Dockerfile }
+    image: observable-auth:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: component-runtime
+      args: { SERVICE: auth-service }
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -214,9 +218,12 @@ services:
       zitadel-bootstrap: { condition: service_completed_successfully }
 
   storage-writer:
-    image: observable-services:local
-    build: { context: ., dockerfile: Dockerfile }
-    command: ["storage-writer"]
+    image: observable-store-clickhouse:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: component-runtime
+      args: { SERVICE: storage-writer }
     environment:
       <<: *platform-self-observability-env
       OBSERVABLE_ENV: dev
@@ -238,9 +245,12 @@ services:
       ingest-gateway: { condition: service_healthy }
 
   stream-processor:
-    image: observable-services:local
-    build: { context: ., dockerfile: Dockerfile }
-    command: ["stream-processor"]
+    image: observable-process:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: component-runtime
+      args: { SERVICE: stream-processor }
     environment:
       <<: *platform-self-observability-env
       OBSERVABLE_ENV: dev
@@ -261,9 +271,12 @@ services:
       ingest-gateway: { condition: service_healthy }
 
   ingest-gateway:
-    image: observable-services:local
-    build: { context: ., dockerfile: Dockerfile }
-    command: ["ingest-gateway"]
+    image: observable-ingest:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: component-runtime
+      args: { SERVICE: ingest-gateway }
     environment:
       <<: *platform-self-observability-env
       OBSERVABLE_ENV: dev
@@ -285,9 +298,12 @@ services:
       redpanda-setup: { condition: service_completed_successfully }
 
   query-api:
-    image: observable-services:local
-    build: { context: ., dockerfile: Dockerfile }
-    command: ["query-api"]
+    image: observable-query:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: component-runtime
+      args: { SERVICE: query-api }
     environment:
       <<: *platform-self-observability-env
       OBSERVABLE_ENV: dev
@@ -316,9 +332,12 @@ services:
       admin-service: { condition: service_healthy }
 
   admin-service:
-    image: observable-services:local
-    build: { context: ., dockerfile: Dockerfile }
-    command: ["admin-service"]
+    image: observable-control:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: component-runtime
+      args: { SERVICE: admin-service }
     environment:
       <<: *platform-self-observability-env
       OBSERVABLE_ENV: dev
@@ -344,9 +363,12 @@ services:
       redpanda-setup: { condition: service_completed_successfully }
 
   alert-evaluator:
-    image: observable-services:local
-    build: { context: ., dockerfile: Dockerfile }
-    command: ["alert-evaluator"]
+    image: observable-alerting:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: component-runtime
+      args: { SERVICE: alert-evaluator }
     environment:
       <<: *platform-self-observability-env
       OBSERVABLE_ENV: dev
@@ -399,8 +421,8 @@ services:
       ingest-gateway: { condition: service_healthy }
 
   smoke-test:
-    image: observable-services:local
-    build: { context: ., dockerfile: Dockerfile }
+    image: observable-verification:local
+    build: { context: ., dockerfile: Dockerfile, target: verification-tools }
     profiles: ["verification"]
     environment:
       INGEST_URL: http://ingest-gateway:4318
@@ -423,8 +445,8 @@ services:
       otel-collector-verification: { condition: service_started }
 
   perf-smoke:
-    image: observable-services:local
-    build: { context: ., dockerfile: Dockerfile }
+    image: observable-verification:local
+    build: { context: ., dockerfile: Dockerfile, target: verification-tools }
     profiles: ["verification"]
     environment:
       INGEST_URL: http://ingest-gateway:4318
@@ -439,8 +461,8 @@ services:
       stream-processor: { condition: service_healthy }
 
   soak-test:
-    image: observable-services:local
-    build: { context: ., dockerfile: Dockerfile }
+    image: observable-verification:local
+    build: { context: ., dockerfile: Dockerfile, target: verification-tools }
     profiles: ["verification"]
     environment:
       INGEST_URL: http://ingest-gateway:4318

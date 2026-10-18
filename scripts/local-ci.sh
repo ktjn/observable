@@ -210,12 +210,17 @@ if [[ $SKIP_DOCKER -eq 0 ]]; then
   step "Rust integration tests"
   cargo test --workspace --tests && ok "cargo integration tests" || fail "cargo integration tests"
 
-  step "Docker image build"
+  step "Shared image build (release/Helm)"
   if command -v docker-buildx >/dev/null 2>&1 || docker help buildx >/dev/null 2>&1; then
     docker buildx build --load --tag observable-services:local . && ok "docker build" || fail "docker build"
   else
     docker build --tag observable-services:local . && ok "docker build" || fail "docker build"
   fi
+
+  step "Component image build (Compose)"
+  docker compose --profile verification build \
+    auth-service storage-writer stream-processor ingest-gateway query-api admin-service alert-evaluator \
+    smoke-test && ok "component image build" || fail "component image build"
 
   if [[ $SKIP_FRONTEND -eq 0 ]]; then
     step "Frontend image build"

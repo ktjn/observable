@@ -35,10 +35,11 @@ write_output() {
 if [[ -z "$BASE_REF" || -z "$HEAD_REF" || "$BASE_REF" =~ ^0+$ ]]; then
   mark_all
   models=1
+  components="$(python3 scripts/ci_changed_components.py --all)"
 else
   while IFS= read -r path; do
     case "$path" in
-      .github/workflows/build.yml|scripts/ci-changed-surfaces.sh)
+      .github/workflows/build.yml|scripts/ci-changed-surfaces.sh|scripts/ci_changed_components.py)
         mark_all
         ;;
       Cargo.toml|Cargo.lock|Dockerfile|.dockerignore|docker-compose*.yml|proto/*|proto/**|services/*|services/**|libs/*|libs/**|migrations/*|migrations/**|tests/*|tests/**)
@@ -63,7 +64,12 @@ else
         ;;
     esac
   done < <(git diff --name-only "$BASE_REF" "$HEAD_REF")
+  components="$(python3 scripts/ci_changed_components.py "$BASE_REF" "$HEAD_REF")"
 fi
+
+# Rust components whose release binary the diff affects, for service-scoped
+# artifact builds (Phase 7, docs/component-decomposition.md).
+rust_components="$(tr ' ' '\n' <<<"$components" | grep -vx 'web' | paste -sd' ' - || true)"
 
 write_output backend "$backend"
 write_output frontend "$frontend"
@@ -71,3 +77,5 @@ write_output helm "$helm"
 write_output smoke "$smoke"
 write_output models "$models"
 write_output distribution "$distribution"
+write_output components "$components"
+write_output rust_components "$rust_components"
