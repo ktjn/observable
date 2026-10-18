@@ -18,5 +18,10 @@ __pycache__/
 .modelable/
 .superpowers/
 
+# modelable lock files written next to the models directory; the canonical,
+# committed registry lock is registry-ids.lock at the repository root
+models/registry-ids.lock
+models/enum-numbers.lock
+
 # TLA+ tool cache (pinned tla2tools.jar downloaded by scripts/run-formal-verification.sh)
 .tla/

@@ -4,6 +4,6 @@ dependencies:
   version: 0.1.0
 - name: zitadel
   repository: https://charts.zitadel.com
-  version: 10.0.4
-digest: sha256:35cc9fb992efd6fc1f007ccfea5250649d43e3d6cc513ee8d07b01f1466be3f9
-generated: "2026-06-26T07:14:47.714327735+02:00"
+  version: 10.4.0
+digest: sha256:16612ce134212e4d01c39a519dc8a589f04582427bbce3980b300b4d1bf96877
+generated: "2026-10-18T16:38:50.4592004+02:00"
