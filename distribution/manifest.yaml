@@ -1,11 +1,15 @@
 # Observable distribution manifest (Phase 7, docs/component-decomposition.md).
 #
-# Pins the tested component-version set for a product release. During the 0.2
-# decomposition the deployable components are still built from this monorepo
-# and share the root VERSION, so every component currently tracks `0.1.0`.
-# Independent per-component versions are introduced as each component gains its
-# own image and release lifecycle; `observable-distribution` (the future
-# composition repository) consumes this manifest to install a pinned set.
+# Pins the tested component-version set for a product release. This file is the
+# authoritative source of per-component versions (see VERSIONING.md):
+# - productVersion must equal the root VERSION;
+# - each component version must equal its own package version (Cargo package for
+#   Rust services, apps/frontend/package.json for web), so a component version
+#   changes only by editing both together;
+# - component versions may diverge from productVersion.
+# `observable-distribution` (the future composition repository) consumes this
+# manifest to install a pinned set. Validate with
+# scripts/check-distribution-manifest.sh.
 #
 # Keys are the target component names from docs/component-decomposition.md.
 # `contracts` is the versioned integration-contract component (no runtime

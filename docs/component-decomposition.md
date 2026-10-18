@@ -842,8 +842,8 @@ Before repository extraction:
 - change Helm values to per-component image/version pins
 - create the distribution component manifest
 
-**In progress.** Sub-step 1 (per-component images and the distribution manifest) is done; the
-Compose/CI/Helm migration onto them is not.
+**In progress.** Sub-steps 1 (per-component images and the distribution manifest) and 2
+(independent component versions) are done; the Compose/CI/Helm migration onto them is not.
 
 Sub-steps:
 
@@ -860,8 +860,20 @@ Sub-steps:
    - `distribution/manifest.yaml` pins the product version and one version per target component;
      `scripts/check-distribution-manifest.sh` validates it, wired into `scripts/local-ci.sh` and a
      new `distribution` CI job/surface. `distribution/README.md` documents both.
-2. **Not done:** give each component an independent version and tag its image with it (components
-   currently share the root `VERSION`, recorded in the manifest).
+2. **Done:** independent component versions.
+   - `distribution/manifest.yaml` is the authoritative per-component version source;
+     `productVersion` must equal the root `VERSION`.
+   - `scripts/check-distribution-manifest.sh` requires each component's own package version (its
+     `services/*` crate, or `apps/frontend/package.json` for `web`) to equal its manifest entry, so
+     a component version changes only by editing both together. `contracts` stays manifest-only
+     until it has a single owning package. `scripts/verify-version.sh` delegates component packages
+     to this check instead of comparing them with the root `VERSION`.
+   - `scripts/component-version.sh <component>` prints a component's version.
+     `scripts/build-component-images.sh` labels every image with
+     `org.opencontainers.image.version` and, with `TAG=manifest`, tags it with the component
+     version. The default `TAG=local` is unchanged.
+   - Regression tests: `scripts/tests/test_component_versions.py`.
+   - All components still carry `0.1.0`; no component has diverged yet.
 3. **Not done:** switch Compose and CI to build/publish per-component images and make the backend
    build service-scoped (only changed components rebuild).
 4. **Not done:** change Helm values to per-component image/version pins.
