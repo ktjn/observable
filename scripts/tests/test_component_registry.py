@@ -52,6 +52,38 @@ class ComponentRegistryConsistencyTests(unittest.TestCase):
                           if key != "contracts")
         self.assertEqual(sorted(builder), expected)
 
+    def _function_body(self, rel: str, name: str) -> str:
+        text = (ROOT / rel).read_text()
+        match = re.search(rf"(?ms)^{re.escape(name)}\(\) \{{\n(.*?)^\}}", text)
+        self.assertIsNotNone(match, f"{rel}: function {name}() not found")
+        return match[1]
+
+    def _case_arms(self, rel: str, name: str) -> list:
+        return re.findall(r"^\s+([A-Za-z][A-Za-z-]*)\)", self._function_body(rel, name), re.MULTILINE)
+
+    def test_case_maps_cover_every_component(self):
+        camel = self._expected_list("scripts/check-distribution-manifest.sh")
+        kebab_components = [kebab(key) for key in camel if key != "contracts"]
+        maps = [
+            ("scripts/check-distribution-manifest.sh", "component_source", camel),
+            ("scripts/check-distribution-manifest.sh", "component_helm_key", camel),
+            ("scripts/check-component-changelogs.sh", "component_changelog", camel),
+            ("scripts/render-pinned-compose.sh", "component_compose", camel),
+            ("scripts/build-component-images.sh", "component_package", kebab_components),
+        ]
+        for rel, name, expected in maps:
+            arms = self._case_arms(rel, name)
+            with self.subTest(file=rel, function=name, direction="missing"):
+                missing = [key for key in expected if key not in arms]
+                self.assertEqual(
+                    missing, [], f"{rel}: {name}() has no case arm for {missing} (silently skipped)"
+                )
+            with self.subTest(file=rel, function=name, direction="stale"):
+                stale = [arm for arm in arms if arm not in expected]
+                self.assertEqual(
+                    stale, [], f"{rel}: {name}() has arms for non-components {stale}"
+                )
+
     def test_ci_changed_components_matches_the_builder(self):
         text = (ROOT / "scripts/build-component-images.sh").read_text()
         match = re.search(r"^ALL_COMPONENTS=\(([^)]*)\)", text, re.MULTILINE)
