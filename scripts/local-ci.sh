@@ -171,6 +171,9 @@ bash "$REPO_ROOT/scripts/check-component-boundaries.sh" && ok "component boundar
 step "ClickHouse schema compatibility"
 bash "$REPO_ROOT/scripts/check-clickhouse-schema-compat.sh" && ok "clickhouse schema compatibility" || fail "clickhouse schema compatibility"
 
+step "Formal verification (TLC)"
+bash "$REPO_ROOT/scripts/run-formal-verification.sh" && ok "formal verification" || fail "formal verification"
+
 step "Rust fmt"
 cargo fmt --all -- --check && ok "cargo fmt" || fail "cargo fmt"
 

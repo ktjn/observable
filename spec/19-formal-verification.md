@@ -305,12 +305,12 @@ supported query path returning the deleted tenant data.
 
 ### Slice 1 — executable telemetry delivery model
 
-- [ ] Add `formal/tla/TelemetryDelivery.tla`.
-- [ ] Add bounded `TelemetryDelivery.cfg`.
-- [ ] Encode the safety properties above.
-- [ ] During development, deliberately break commit ordering/acknowledgement and verify TLC produces
+- [x] Add `formal/tla/TelemetryDelivery.tla`.
+- [x] Add bounded `TelemetryDelivery.cfg`.
+- [x] Encode the safety properties above.
+- [x] During development, deliberately break commit ordering/acknowledgement and verify TLC produces
       a useful counterexample; do not commit the broken transition.
-- [ ] Document local execution and architecture mapping.
+- [x] Document local execution and architecture mapping.
 
 **Done when:** TLC exhaustively checks the configured finite state space and the model clearly states
 the durability, retry, duplicate, and backpressure assumptions it verifies.

@@ -128,7 +128,7 @@ Stateful cross-component correctness in the 0.2 architecture is verified with bo
 models in addition to contract, integration, and chaos tests. The implementation specification is
 [spec/19-formal-verification.md](spec/19-formal-verification.md).
 
-- [ ] Model the `telemetry.normalized.v1` process-to-storage durability boundary, including
+- [x] Model the `telemetry.normalized.v1` process-to-storage durability boundary, including
   acknowledgement ordering, storage outage, worker crash/recovery, redelivery, duplicates, and
   backpressure.
 - [ ] Add pinned, bounded TLC execution to PR CI with actionable counterexample traces.
