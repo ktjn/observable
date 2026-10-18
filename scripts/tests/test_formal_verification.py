@@ -39,28 +39,30 @@ class FormalVerificationConsistencyTests(unittest.TestCase):
         self.assertIn("timeout", runner)
         self.assertIn("${name}.log", runner)
 
-    def test_model_and_config_exist(self):
+    def test_models_and_configs_exist(self):
         self.assertTrue((MODEL_DIR / "TelemetryDelivery.tla").is_file())
         self.assertTrue((MODEL_DIR / "TelemetryDelivery.cfg").is_file())
+        self.assertTrue((MODEL_DIR / "ComponentCompatibility.tla").is_file())
+        self.assertTrue((MODEL_DIR / "ComponentCompatibility.cfg").is_file())
 
     def test_every_configured_invariant_is_documented(self):
-        cfg = (MODEL_DIR / "TelemetryDelivery.cfg").read_text()
         readme = README.read_text()
-        names = []
-        section = None
-        for line in cfg.splitlines():
-            stripped = line.strip()
-            if stripped in ("INVARIANTS", "PROPERTIES"):
-                section = stripped
-                continue
-            if section and stripped:
-                names.append(stripped)
-            elif not stripped:
-                section = None
-        self.assertGreaterEqual(len(names), 8, f"expected invariants+properties, got {names}")
-        for name in names:
-            with self.subTest(name=name):
-                self.assertIn(name, readme, f"{name} is not documented in formal/tla/README.md")
+        for cfg in sorted(MODEL_DIR.glob("*.cfg")):
+            names = []
+            section = None
+            for line in cfg.read_text().splitlines():
+                stripped = line.strip()
+                if stripped in ("INVARIANTS", "PROPERTIES"):
+                    section = stripped
+                    continue
+                if section and stripped:
+                    names.append(stripped)
+                elif not stripped:
+                    section = None
+            self.assertTrue(names, f"{cfg.name} declares no invariants/properties")
+            for name in names:
+                with self.subTest(model=cfg.name, name=name):
+                    self.assertIn(name, readme, f"{name} is not documented in formal/tla/README.md")
 
 
 if __name__ == "__main__":

@@ -137,8 +137,11 @@ models in addition to contract, integration, and chaos tests. The implementation
   `.tla/<model>.log` preserves the trace.
 - [x] Map formal invariants to concrete Testcontainers/integration/chaos regression boundaries.
   See the "Regression boundaries" table in `formal/tla/README.md`.
-- [ ] Model component-version, storage-schema, distribution-manifest, upgrade, and rollback
+- [x] Model component-version, storage-schema, distribution-manifest, upgrade, and rollback
   compatibility as independent component releases become executable.
+  `formal/tla/ComponentCompatibility.tla` verifies the composition rules (incompatible manifests are
+  rejected; query never serves on an unsupported schema); per-component image publishing remains open,
+  so version identity is abstract.
 
 **Exit evidence:** deliberately broken acknowledgement/order transitions produce useful TLC
 counterexamples; the committed finite models pass in PR CI; and TLA+ remains development-only with
