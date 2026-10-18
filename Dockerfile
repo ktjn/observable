@@ -61,6 +61,13 @@ RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/regi
 # package, so a source change to one component does not rebuild another
 # component's binary. The existing shared `observable-services` image above is
 # unchanged during the migration.
+#
+# The /app/target mount is a BuildKit cache: it exists only for the duration of
+# the RUN that declares it. Copy the built binary to a real path under /app
+# inside the same RUN (mirroring rust-builder) so the stage actually carries it
+# forward; otherwise component-runtime copies the cargo-chef `cook` dummy
+# binary baked into the cacher layer, and every component image exits
+# immediately on start.
 FROM cacher AS component-builder
 ARG SERVICE
 COPY Cargo.toml Cargo.lock ./
@@ -70,7 +77,9 @@ COPY proto proto
 RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=observable-cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=observable-cargo-target,target=/app/target,sharing=locked \
-    cargo build --release -p "${SERVICE}"
+    cargo build --release -p "${SERVICE}" \
+    && mkdir -p /app/bin \
+    && cp "/app/target/release/${SERVICE}" "/app/bin/${SERVICE}"
 
 FROM debian:bookworm-slim AS component-runtime
 ARG SERVICE
@@ -80,7 +89,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates libssl3 curl \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=component-builder /app/target/release/${SERVICE} /usr/local/bin/${SERVICE}
+COPY --from=component-builder /app/bin/${SERVICE} /usr/local/bin/${SERVICE}
 COPY proto/otlp /proto/otlp
 USER 65532:65532
 ENTRYPOINT ["/bin/sh", "-c", "exec /usr/local/bin/$SERVICE"]

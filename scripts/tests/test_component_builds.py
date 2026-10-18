@@ -90,5 +90,43 @@ class WorkflowScopeTests(unittest.TestCase):
         self.assertIn("needs.changes.outputs.rust_components", workflow)
 
 
+class DockerfileComponentStageTests(unittest.TestCase):
+    """Guard the per-component images against shipping a cache-mount stub.
+
+    `component-builder` builds into a BuildKit cache at /app/target, which only
+    exists for the duration of that RUN. The built binary must be copied to a
+    real layer path inside the same RUN (bash by analogy with rust-builder);
+    otherwise component-runtime copies the cargo-chef `cook` dummy binary baked
+    into the cacher layer and every component image exits on start.
+    """
+
+    def _stage(self, name):
+        dockerfile = (ROOT / "Dockerfile").read_text()
+        block = re.search(rf"(?ms)^FROM \S+ AS {re.escape(name)}\n(.*?)(?=^FROM |\Z)", dockerfile)
+        self.assertIsNotNone(block, f"{name} stage missing")
+        return block[1]
+
+    def test_component_builder_copies_binary_within_build_run(self):
+        body = self._stage("component-builder")
+        self.assertIn('cargo build --release -p "${SERVICE}"', body)
+        self.assertIn('cp "/app/target/release/${SERVICE}" "/app/bin/${SERVICE}"', body)
+
+    def test_component_runtime_takes_binary_from_bin_dir(self):
+        body = self._stage("component-runtime")
+        self.assertIn(
+            "COPY --from=component-builder /app/bin/${SERVICE} /usr/local/bin/${SERVICE}",
+            body,
+        )
+        self.assertNotIn("/app/target/release/${SERVICE}", body)
+
+
+class ComponentImageCheckTests(unittest.TestCase):
+    def test_check_script_covers_every_rust_component(self):
+        script = (ROOT / "scripts/check-component-images.sh").read_text()
+        for component, package in changed.RUST_COMPONENTS.items():
+            with self.subTest(component=component):
+                self.assertIn(f"{component}:{package}", script)
+
+
 if __name__ == "__main__":
     unittest.main()

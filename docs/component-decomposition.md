@@ -892,6 +892,11 @@ Sub-steps:
      only those images.
    - `scripts/local-ci.sh` builds the Compose component and verification images before the smoke
      suite, and keeps building the shared image while release and Helm still use it.
+   - `scripts/local-ci.sh` then runs `scripts/check-component-images.sh`, which fails the gate if a
+     component image is missing its binary or ships the sub-1 MiB `cargo-chef` stub.
+     `component-builder` mounts `/app/target` as a build cache (valid only for the RUN that declares
+     it) and copies the built binary to `/app/bin/` inside that same RUN — mirroring `rust-builder` —
+     so `component-runtime` copies the real binary instead of the `cook` dummy.
    - Regression tests: `scripts/tests/test_component_builds.py`.
    - Not in this step: release publishing of per-component images. The release workflow still
      publishes only `observable-services`. Publishing per-component images needs an

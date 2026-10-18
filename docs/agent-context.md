@@ -36,6 +36,14 @@ making changes.
   not `dev`; the dev-mode default is unchanged. `charts/observable/values.yaml`'s
   `identity.sessionSecret` default was changed from a fixed literal to `""` so installs must set a
   real secret explicitly.
+- **2026-10-18 (0.2 component images)**: the per-component Docker images carried a 438 KB
+  `cargo-chef` dummy instead of the service binary, so every component exited immediately and
+  Compose/kind could not run. `component-builder` built into a BuildKit cache at `/app/target`
+  (valid only for that RUN), and `component-runtime` copied `/app/target/release/${SERVICE}` — the
+  `cook` stub baked into the `cacher` layer. The stage now copies the binary to `/app/bin/`
+  inside the same RUN, mirroring `rust-builder`, and `scripts/check-component-images.sh` (run by
+  `scripts/local-ci.sh` after the Compose image build) fails the gate if an image is missing a
+  binary or ships one under 1 MiB.
 - **2026-10-18 (0.2 component boundaries)**: `scripts/check-component-boundaries.sh` is enforced
   by `scripts/local-ci.sh` ("Component boundary lint") and flags a file owned by one deployable
   component that imports another component's unpublished source (the ADR-035 "no new

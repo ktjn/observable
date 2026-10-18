@@ -92,6 +92,7 @@ class CiPolicyTests(unittest.TestCase):
         for command in (
             "scripts/verify-version.sh",
             "scripts/check-component-boundaries.sh",
+        "scripts/check-component-images.sh",
             "--target json-schema",
             "scripts/build-playground.sh",
             "playwright.playground.config.ts",
