@@ -26,6 +26,12 @@ COMPOSE=(docker compose -f docker-compose.yml -f distribution/compose.pinned.yam
 # The override must match the manifest before anything is built or started.
 bash "$REPO_ROOT/scripts/render-pinned-compose.sh" --check
 
+# Always tear the stack down, even when a step above fails under `set -e`.
+cleanup() {
+  "${COMPOSE[@]}" down --remove-orphans >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
 echo "==> Building every component image tagged with its manifest version"
 TAG=manifest bash "$REPO_ROOT/scripts/build-component-images.sh"
 
@@ -37,8 +43,6 @@ docker compose -f docker-compose.yml -f distribution/compose.pinned.yaml up -d -
 echo "==> Running the end-to-end smoke test against the pinned set"
 status=0
 "${COMPOSE[@]}" up smoke-test --abort-on-container-exit || status=$?
-
-"${COMPOSE[@]}" down --remove-orphans >/dev/null 2>&1 || true
 
 if [[ $status -ne 0 ]]; then
   echo "FAIL: pinned install verification failed (exit $status)" >&2
