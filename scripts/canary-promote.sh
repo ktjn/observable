@@ -246,7 +246,7 @@ stop_port_forward
 helm upgrade "$RELEASE" "$APP_CHART" \
   --namespace "$NAMESPACE" \
   --reuse-values \
-  --set "global.image.tag=$CANARY_TAG" \
+  --set "services.ingestGateway.image.tag=$CANARY_TAG" \
   --set "services.ingestGateway.canary.enabled=false" \
   --wait --timeout 5m
 

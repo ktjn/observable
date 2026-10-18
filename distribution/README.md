@@ -21,8 +21,10 @@ It is the authoritative source of per-component versions:
   `web`. `contracts` has no single owning package yet and is manifest-only.
 - Component versions may diverge from `productVersion`.
 
-To release a component independently, bump its manifest entry and its package
-version in the same pull request. Editing only one of them fails validation.
+To release a component independently, bump its manifest entry, its package
+version, and its Helm pin (`charts/observable/values.yaml`
+`services.<name>.image.tag`) in the same pull request. Editing only some of them
+fails validation.
 
 ```bash
 bash scripts/check-distribution-manifest.sh   # also run by scripts/verify-version.sh
@@ -71,5 +73,8 @@ Component name → image → Cargo package:
 CI builds only the components a change affects. Run
 `python3 scripts/ci_changed_components.py BASE HEAD` to see the set for a diff.
 
-The shared `observable-services` image remains for the release workflow, Helm,
-and kind until Helm moves to per-component image/version pins.
+Helm (`charts/observable`) pins each component as
+`services.<name>.image: { repository, tag }`; the tags must equal this
+manifest's component versions. `kind-test.sh` and `dev-reload.sh` build and load
+the per-component images. Only the release workflow still publishes the shared
+`observable-services` image, until per-component release publishing lands.

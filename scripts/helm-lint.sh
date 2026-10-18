@@ -62,11 +62,23 @@ if ! grep -q "kind: Service" <<<"$FULL_RENDER" || ! grep -q "name: frontend" <<<
   exit 1
 fi
 
+if grep -q "observable-services" <<<"$FULL_RENDER"; then
+  echo "ERROR: observable chart must not reference the shared observable-services image" >&2
+  exit 1
+fi
+
+for component in auth control ingest process store-clickhouse query alerting web; do
+  if ! grep -qE "image: (\S+/)?observable-${component}:" <<<"$FULL_RENDER"; then
+    echo "ERROR: observable chart must render the observable-${component} component image" >&2
+    exit 1
+  fi
+done
+
 echo ""
 echo "==> Template rendering with example override"
 helm template observable-dev "$APP_CHART" \
   --namespace observable \
-  --set global.image.tag=abc123 \
+  --set services.authService.image.tag=abc123 \
   --set services.authService.replicas=2 \
   --dry-run \
   > /dev/null

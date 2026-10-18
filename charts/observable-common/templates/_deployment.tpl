@@ -5,9 +5,9 @@ Required context keys (passed as a dict via include):
   name     — service name, used for metadata.name and selector labels (string)
   command  — binary name to execute as container command (string)
   port     — HTTP port the service listens on; 0 or absent means headless (int)
-  service  — the .Values.services.<name> sub-tree (must contain replicas, resources)
+  service  — the .Values.services.<name> sub-tree (must contain replicas, resources, image)
   env      — list of {name, value} env var dicts
-  Values   — root .Values (for global.image)
+  Values   — root .Values (for global.image.registry/pullPolicy)
   Chart    — Helm .Chart object
   Release  — Helm .Release object
 
@@ -39,7 +39,7 @@ spec:
         runAsGroup: 65532
       containers:
         - name: {{ .name }}
-          image: {{ include "observable-common.image" . }}
+          image: {{ include "observable-common.componentImage" (dict "Values" .Values "image" .service.image) }}
           imagePullPolicy: {{ .Values.global.image.pullPolicy | default "IfNotPresent" }}
           command: [{{ .command | quote }}]
           {{- with .args }}

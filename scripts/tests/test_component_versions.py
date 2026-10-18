@@ -20,6 +20,7 @@ COMPONENT_SOURCES = [
     "services/alert-evaluator/Cargo.toml",
     "apps/frontend/package.json",
 ]
+HELM_VALUES = "charts/observable/values.yaml"
 
 
 def find_bash():
@@ -38,7 +39,7 @@ class ComponentVersionTests(unittest.TestCase):
         self.assertIsNotNone(self.bash, "Bash is required for shell gate regression tests")
         self._tmp = tempfile.TemporaryDirectory(prefix="observable-component-versions-")
         self.repo = Path(self._tmp.name)
-        for rel in ["VERSION", "distribution/manifest.yaml", *COMPONENT_SOURCES]:
+        for rel in ["VERSION", "distribution/manifest.yaml", HELM_VALUES, *COMPONENT_SOURCES]:
             target = self.repo / rel
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(ROOT / rel, target)
@@ -84,6 +85,7 @@ class ComponentVersionTests(unittest.TestCase):
     def test_component_may_diverge_from_product_version(self):
         self.set_cargo_version("services/query-api/Cargo.toml", "9.9.9")
         self.set_manifest_component("query", "9.9.9")
+        self.set_helm_image("queryApi", "observable-query", "9.9.9")
         result = self.check()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
@@ -92,6 +94,35 @@ class ComponentVersionTests(unittest.TestCase):
         result = self.check()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("does not match VERSION", result.stderr)
+
+    def set_helm_image(self, key, repository, tag):
+        path = self.repo / HELM_VALUES
+        text, count = re.subn(
+            rf'(?m)(^  {key}:\n(?:    .*\n)*?    image: )\{{[^}}]*\}}',
+            rf'\g<1>{{ repository: {repository}, tag: "{tag}" }}',
+            path.read_text(),
+        )
+        self.assertEqual(count, 1)
+        path.write_text(text)
+
+    def test_helm_pin_must_match_manifest(self):
+        self.set_helm_image("queryApi", "observable-query", "9.9.9")
+        result = self.check()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("services.queryApi.image.tag", result.stderr)
+
+    def test_helm_repository_must_name_component_image(self):
+        self.set_helm_image("frontend", "observable-frontend", "0.1.0")
+        result = self.check()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("services.frontend.image.repository", result.stderr)
+
+    def test_coordinated_bump_includes_helm_pin(self):
+        self.set_cargo_version("services/storage-writer/Cargo.toml", "9.9.9")
+        self.set_manifest_component("storeClickhouse", "9.9.9")
+        self.set_helm_image("storageWriter", "observable-store-clickhouse", "9.9.9")
+        result = self.check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_component_version_lookup(self):
         self.set_manifest_component("storeClickhouse", "9.9.9")

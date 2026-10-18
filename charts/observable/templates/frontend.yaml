@@ -20,8 +20,8 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: {{ .Values.global.frontendImage.repository }}:{{ .Values.global.frontendImage.tag | default "latest" }}
-          imagePullPolicy: {{ .Values.global.frontendImage.pullPolicy | default "IfNotPresent" }}
+          image: {{ include "observable-common.componentImage" (dict "Values" .Values "image" .Values.services.frontend.image) }}
+          imagePullPolicy: {{ .Values.global.image.pullPolicy | default "IfNotPresent" }}
           ports:
             - name: http
               containerPort: {{ .Values.services.frontend.port }}

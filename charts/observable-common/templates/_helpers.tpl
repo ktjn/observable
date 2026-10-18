@@ -19,11 +19,22 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Full image reference from global.image values.
-Context must contain .Values.global.image.{repository,tag}.
+Full image reference for one component (Phase 7, docs/component-decomposition.md).
+Context keys:
+  Values — root .Values (for global.image.registry)
+  image  — the component's .Values.services.<name>.image ({repository, tag})
+  tag    — optional tag override (e.g. a canary tag); wins over image.tag
+Renders [registry/]repository:tag. Fails when no tag is set.
 */}}
-{{- define "observable-common.image" -}}
-{{ .Values.global.image.repository }}:{{ .Values.global.image.tag | default "latest" }}
+{{- define "observable-common.componentImage" -}}
+{{- $registry := trimSuffix "/" (.Values.global.image.registry | default "") -}}
+{{- $repository := required "services.<name>.image.repository is required" .image.repository -}}
+{{- $tag := required (printf "an image tag is required for %s" $repository) (.tag | default .image.tag) -}}
+{{- if $registry -}}
+{{ $registry }}/{{ $repository }}:{{ $tag }}
+{{- else -}}
+{{ $repository }}:{{ $tag }}
+{{- end -}}
 {{- end }}
 
 {{/*

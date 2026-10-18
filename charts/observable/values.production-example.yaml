@@ -9,12 +9,7 @@
 
 global:
   image:
-    repository: ghcr.io/ktjn/observable
-    tag: "0.1.0"          # Pin to a release tag
-    pullPolicy: IfNotPresent
-  frontendImage:
-    repository: ghcr.io/ktjn/observable-frontend
-    tag: "0.1.0"
+    registry: ghcr.io/ktjn
     pullPolicy: IfNotPresent
 
 # Infrastructure — replace with your actual connection details.
@@ -53,6 +48,7 @@ identity:
 
 services:
   authService:
+    image: { repository: observable-auth, tag: "0.1.0" }   # Pin to the component version
     replicas: 2
     resources:
       requests:
@@ -63,6 +59,7 @@ services:
         memory: 512Mi
 
   adminService:
+    image: { repository: observable-control, tag: "0.1.0" }   # Pin to the component version
     replicas: 2
     authServiceUrl: "http://auth-service:4319"
     resources:
@@ -74,6 +71,7 @@ services:
         memory: 512Mi
 
   ingestGateway:
+    image: { repository: observable-ingest, tag: "0.1.0" }   # Pin to the component version
     replicas: 3
     resources:
       requests:
@@ -84,6 +82,7 @@ services:
         memory: 1Gi
 
   streamProcessor:
+    image: { repository: observable-process, tag: "0.1.0" }   # Pin to the component version
     replicas: 2
     resources:
       requests:
@@ -94,6 +93,7 @@ services:
         memory: 512Mi
 
   storageWriter:
+    image: { repository: observable-store-clickhouse, tag: "0.1.0" }   # Pin to the component version
     replicas: 2
     resources:
       requests:
@@ -104,6 +104,7 @@ services:
         memory: 1Gi
 
   queryApi:
+    image: { repository: observable-query, tag: "0.1.0" }   # Pin to the component version
     replicas: 2
     resources:
       requests:
@@ -114,6 +115,7 @@ services:
         memory: 1Gi
 
   alertEvaluator:
+    image: { repository: observable-alerting, tag: "0.1.0" }   # Pin to the component version
     replicas: 1
     evalIntervalSeconds: "60"
     resources:
@@ -125,6 +127,7 @@ services:
         memory: 512Mi
 
   frontend:
+    image: { repository: observable-web, tag: "0.1.0" }   # Pin to the component version
     replicas: 2
     resources:
       requests:

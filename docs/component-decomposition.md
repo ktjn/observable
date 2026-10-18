@@ -843,8 +843,9 @@ Before repository extraction:
 - create the distribution component manifest
 
 **In progress.** Sub-steps 1 (per-component images and the distribution manifest), 2
-(independent component versions), and 3 (Compose and service-scoped CI builds) are done; per-component
-release publishing and the Helm migration are not.
+(independent component versions), 3 (Compose and service-scoped CI builds), and 4 (Helm
+per-component pins) are done. Per-component release publishing and the pinned distribution install
+(sub-step 5) are not.
 
 Sub-steps:
 
@@ -899,7 +900,33 @@ Sub-steps:
      sub-step 5, together with the pinned distribution install. `scripts/kind-test.sh`,
      `scripts/dev-reload.sh`, and `scripts/ci.sh` stay on the shared image until sub-step 4. The
      Compose frontend image keeps its `observable-frontend:local` name.
-4. **Not done:** change Helm values to per-component image/version pins.
+4. **Done:** Helm values pin each component's image and version.
+   - `charts/observable/values.yaml` gives every component a
+     `services.<name>.image: { repository: observable-<component>, tag: <version> }`. The frontend
+     uses `observable-web`. `global.image` keeps only `registry` (an optional prefix such as
+     `ghcr.io/ktjn`) and `pullPolicy`. The shared `global.image.repository`/`tag` and
+     `global.frontendImage` are removed.
+   - There is no global tag override: a component's own tag always applies. This lets canary
+     promotion (`scripts/canary-promote.sh`) set `services.ingestGateway.image.tag` alone, so no
+     global value can mask it or move other components. The canary tag defaults to the stable
+     ingest-gateway tag.
+   - `observable-common.componentImage` renders `[registry/]repository:tag` and fails rendering
+     when a component has no tag.
+   - `scripts/check-distribution-manifest.sh` requires each Helm pin to name the component image
+     and equal its manifest version. A component bump now edits the manifest, the package version
+     and the Helm pin together.
+   - `scripts/helm-lint.sh` asserts that the render contains every component image and no
+     `observable-services`. `scripts/kind-test.sh` builds and loads all component images
+     (`build-component-images.sh`, tag `local`) and sets `services.<name>.image.tag=local`.
+     `scripts/dev-reload.sh` rebuilds and reloads one component image per deployment, and now
+     covers `admin-service`.
+   - Regression tests: Helm pin cases in `scripts/tests/test_component_versions.py`; the
+     tooling guard in `scripts/tests/test_component_builds.py`.
+   - Not yet consumable from a registry: the release workflow still publishes only
+     `observable-services`, so `values.production-example.yaml`'s
+     `ghcr.io/ktjn/observable-<component>:<version>` images do not exist until per-component
+     release publishing lands (sub-step 5). The published chart's defaults were not pullable
+     before this step either: they used bare `observable-services:latest`.
 5. **Not done:** make `observable-distribution` consume the manifest for a pinned install.
 
 Exit evidence:

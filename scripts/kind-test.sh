@@ -5,8 +5,8 @@
 #
 # What this script does:
 #   1. Creates a kind cluster named "observable-test"
-#   2. Builds the observable-services Docker image (if not already built)
-#   3. Loads the image into the kind cluster (no registry needed)
+#   2. Builds one image per component (scripts/build-component-images.sh)
+#   3. Loads the images into the kind cluster (no registry needed)
 #   4. Installs the infra Helm chart (ClickHouse, PostgreSQL, Redpanda, OpenFGA)
 #   5. Waits for infra to become ready
 #   6. Creates migration ConfigMaps from migrations/ directory
@@ -25,7 +25,7 @@
 # Usage:
 #   bash scripts/kind-test.sh [--skip-build] [--keep-cluster] [--reuse-cluster] [--cluster-name <name>]
 #
-#   --skip-build    skip docker build (use existing observable-services:local image)
+#   --skip-build    skip docker build (use existing observable-<component>:local images)
 #   --keep-cluster  do not delete the kind cluster on exit (useful for debugging)
 #   --reuse-cluster use an existing kind cluster instead of recreating it
 #   --cluster-name  target kind cluster name (default: observable-test)
@@ -41,8 +41,35 @@ source "$SCRIPT_DIR/lib.sh"
 CLUSTER_NAME="observable-test"
 NAMESPACE="observable"
 RELEASE_NAME="observable"
-IMAGE_NAME="observable-services:local"
-FRONTEND_IMAGE="observable-frontend:local"
+# Component images (Phase 7, docs/component-decomposition.md): component name
+# -> Helm services.<key>. Images are observable-<component>:local.
+declare -A COMPONENT_HELM_KEYS=(
+  [auth]=authService
+  [control]=adminService
+  [ingest]=ingestGateway
+  [process]=streamProcessor
+  [store-clickhouse]=storageWriter
+  [query]=queryApi
+  [alerting]=alertEvaluator
+  [web]=frontend
+)
+COMPONENTS=(auth control ingest process store-clickhouse query alerting web)
+COMPONENT_IMAGES=()
+for component in "${COMPONENTS[@]}"; do
+  COMPONENT_IMAGES+=("observable-${component}:local")
+done
+
+# Helm overrides pointing every component at its locally loaded image.
+helm_local_image_args() {
+  local component
+  echo "--set"
+  echo "global.image.pullPolicy=Never"
+  for component in "${COMPONENTS[@]}"; do
+    echo "--set"
+    echo "services.${COMPONENT_HELM_KEYS[$component]}.image.tag=local"
+  done
+}
+mapfile -t HELM_LOCAL_IMAGE_ARGS < <(helm_local_image_args)
 APP_CHART="$REPO_ROOT/charts/observable"
 
 SKIP_BUILD=false
@@ -139,18 +166,10 @@ info "docker:  $(docker version --format '{{.Client.Version}}')"
 # ---------------------------------------------------------------------------
 
 if [[ "$SKIP_BUILD" == "false" ]]; then
-  log "Building Docker images in parallel"
-  docker build --tag "$IMAGE_NAME" "$REPO_ROOT" &
-  BUILD_SERVICES=$!
-  docker build \
-    --tag "$FRONTEND_IMAGE" \
-    --file "$REPO_ROOT/apps/frontend/Dockerfile" \
-    "$REPO_ROOT" &
-  BUILD_FRONTEND=$!
-  wait "$BUILD_SERVICES" || { echo "ERROR: observable-services build failed" >&2; exit 1; }
-  info "observable-services image built"
-  wait "$BUILD_FRONTEND"  || { echo "ERROR: observable-frontend build failed" >&2; exit 1; }
-  info "observable-frontend image built"
+  log "Building component images"
+  TAG=local bash "$REPO_ROOT/scripts/build-component-images.sh" "${COMPONENTS[@]}" \
+    || { echo "ERROR: component image build failed" >&2; exit 1; }
+  info "component images built: ${COMPONENT_IMAGES[*]}"
 else
   log "Skipping Docker build (--skip-build)"
 fi
@@ -187,16 +206,12 @@ kubectl describe nodes | grep -A8 "Allocatable:"
 # ---------------------------------------------------------------------------
 
 log "Loading images into kind cluster and resolving app chart dependencies"
-kind load docker-image "$IMAGE_NAME" --name "$CLUSTER_NAME" &
-LOAD_SERVICES=$!
-kind load docker-image "$FRONTEND_IMAGE" --name "$CLUSTER_NAME" &
-LOAD_FRONTEND=$!
+kind load docker-image "${COMPONENT_IMAGES[@]}" --name "$CLUSTER_NAME" &
+LOAD_IMAGES=$!
 helm dependency update "$APP_CHART" &
 DEP_UPDATE=$!
-wait "$LOAD_SERVICES"  || { echo "ERROR: failed to load $IMAGE_NAME" >&2; exit 1; }
-info "$IMAGE_NAME loaded"
-wait "$LOAD_FRONTEND"  || { echo "ERROR: failed to load $FRONTEND_IMAGE" >&2; exit 1; }
-info "$FRONTEND_IMAGE loaded"
+wait "$LOAD_IMAGES"    || { echo "ERROR: failed to load component images" >&2; exit 1; }
+info "component images loaded"
 wait "$DEP_UPDATE"     || { echo "ERROR: helm dependency update failed for observable" >&2; exit 1; }
 info "observable chart dependencies resolved"
 
@@ -297,12 +312,7 @@ watch_pods "$NAMESPACE" 20 &
 WATCH_APP=$!
 helm upgrade --install "$RELEASE_NAME" "$APP_CHART" \
   --namespace "$NAMESPACE" \
-  --set global.image.repository=observable-services \
-  --set global.image.tag=local \
-  --set global.image.pullPolicy=Never \
-  --set global.frontendImage.repository=observable-frontend \
-  --set global.frontendImage.tag=local \
-  --set global.frontendImage.pullPolicy=Never \
+  "${HELM_LOCAL_IMAGE_ARGS[@]}" \
   --set selfObservability.bearerToken=observable-api-key-0000 \
   --timeout 10m \
   || { KEEP_CLUSTER=true; kill "$WATCH_APP" 2>/dev/null || true; dump_pod_events "$NAMESPACE"; exit 1; }
@@ -456,12 +466,7 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
   info "Upgrading release to create a new revision"
   helm upgrade "$RELEASE_NAME" "$APP_CHART" \
     --namespace "$NAMESPACE" \
-    --set global.image.repository=observable-services \
-    --set global.image.tag=local \
-    --set global.image.pullPolicy=Never \
-    --set global.frontendImage.repository=observable-frontend \
-    --set global.frontendImage.tag=local \
-    --set global.frontendImage.pullPolicy=Never \
+    "${HELM_LOCAL_IMAGE_ARGS[@]}" \
     --set services.queryApi.replicas=2 \
     --wait \
     --timeout 3m
