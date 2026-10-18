@@ -435,6 +435,11 @@ observable-web:vX.Y.Z
 The distribution repository has its own product version and records the exact supported component
 combination.
 
+Each component owns a per-component `CHANGELOG.md` (Keep a Changelog format). A component release
+adds an entry for its new version; `scripts/check-component-changelogs.sh` (run by
+`scripts/local-ci.sh`) fails when a component in the manifest has no changelog entry for its current
+version.
+
 ## Migration Plan
 
 ### Phase 0 — Define ownership
