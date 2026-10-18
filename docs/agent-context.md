@@ -36,6 +36,13 @@ making changes.
   not `dev`; the dev-mode default is unchanged. `charts/observable/values.yaml`'s
   `identity.sessionSecret` default was changed from a fixed literal to `""` so installs must set a
   real secret explicitly.
+- **2026-10-18 (0.2 migration immutability)**: `migrations/clickhouse/MIGRATION_CHECKSUMS` records a
+  sha256 per applied ClickHouse migration, and
+  `scripts/check-clickhouse-migration-immutability.sh` (run by `scripts/local-ci.sh` as "ClickHouse
+  migration immutability") fails when a recorded migration is edited or removed, or when a migration
+  is not recorded. Add a new numbered migration and record it with `--update` rather than editing a
+  shipped one, which would silently change the schema a fresh deployment gets. See
+  [docs/component-decomposition.md](component-decomposition.md) Phase 3.
 - **2026-10-18 (0.2 status sync)**: `docs/component-decomposition.md` marks Phase 6 (consolidate
   alerting) **Done** (its exit evidence is met; `admin-service` no longer reads any alerting table) and
   adds a "Remaining 0.2 work" table listing the open items and their blockers (cross-owner SQL / NLQ

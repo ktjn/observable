@@ -177,6 +177,9 @@ bash "$REPO_ROOT/scripts/check-component-boundaries.sh" && ok "component boundar
 step "ClickHouse schema compatibility"
 bash "$REPO_ROOT/scripts/check-clickhouse-schema-compat.sh" && ok "clickhouse schema compatibility" || fail "clickhouse schema compatibility"
 
+step "ClickHouse migration immutability"
+bash "$REPO_ROOT/scripts/check-clickhouse-migration-immutability.sh" && ok "clickhouse migration immutability" || fail "clickhouse migration immutability"
+
 step "Formal verification (TLC)"
 bash "$REPO_ROOT/scripts/run-formal-verification.sh" && ok "formal verification" || fail "formal verification"
 

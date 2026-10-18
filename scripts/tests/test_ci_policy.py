@@ -94,6 +94,7 @@ class CiPolicyTests(unittest.TestCase):
             "scripts/check-component-boundaries.sh",
         "scripts/check-component-images.sh",
         "scripts/check-clickhouse-schema-compat.sh",
+        "scripts/check-clickhouse-migration-immutability.sh",
         "scripts/check-component-changelogs.sh",
         "scripts/render-pinned-compose.sh",
         "scripts/run-formal-verification.sh",
