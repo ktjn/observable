@@ -90,9 +90,10 @@ Install the pinned set and run the end-to-end smoke test against it:
 bash scripts/pinned-install.sh
 ```
 
-That builds each component image tagged with its manifest version
-(`TAG=manifest`), brings up `docker-compose.yml` plus `compose.pinned.yaml`, and
-runs `smoke-test`. Set `COMPOSE_PROJECT_NAME` to isolate the run.
+That builds every component image tagged with its manifest version
+(`TAG=manifest`), brings up `docker-compose.yml` plus `compose.pinned.yaml`
+(including the pinned `observable-web` UI, waiting for its healthcheck), and runs
+`smoke-test` against the pinned set. Set `COMPOSE_PROJECT_NAME` to isolate the run.
 
 Helm (`charts/observable`) pins each component as
 `services.<name>.image: { repository, tag }`; the tags must equal this

@@ -3,11 +3,12 @@ set -euo pipefail
 
 # pinned-install.sh
 #
-# Installs the distribution's pinned component set through Compose and runs the
-# end-to-end smoke test against it (docs/component-decomposition.md Phase 7
-# sub-step 5). It builds each Rust component image tagged with its manifest
-# version, then brings the stack up with distribution/compose.pinned.yaml so the
-# exact pinned versions run, not the `local` developer tags.
+# Installs the distribution's pinned component set through Compose and verifies
+# it end to end (docs/component-decomposition.md Phase 7 sub-step 5). It builds
+# every deployable component image tagged with its manifest version, brings the
+# full stack up from distribution/compose.pinned.yaml (waiting for the web UI
+# healthcheck), then runs the end-to-end smoke test against the pinned versions
+# rather than the `local` developer tags.
 #
 # Usage:
 #   bash scripts/pinned-install.sh
@@ -20,24 +21,28 @@ cd "$REPO_ROOT"
 
 command -v docker >/dev/null 2>&1 || { echo "FAIL: docker not found" >&2; exit 1; }
 
+COMPOSE=(docker compose -f docker-compose.yml -f distribution/compose.pinned.yaml --profile verification)
+
 # The override must match the manifest before anything is built or started.
 bash "$REPO_ROOT/scripts/render-pinned-compose.sh" --check
 
-echo "==> Building component images tagged with their manifest versions"
-TAG=manifest bash "$REPO_ROOT/scripts/build-component-images.sh" \
-  auth control ingest process store-clickhouse query alerting
+echo "==> Building every component image tagged with its manifest version"
+TAG=manifest bash "$REPO_ROOT/scripts/build-component-images.sh"
 
-echo "==> Bringing up the pinned component set and running the smoke test"
+echo "==> Starting the pinned application stack (web UI + backends) and waiting for health"
+# The web UI's nginx resolves every backend upstream at startup, so the whole
+# stack must be up before it can become healthy.
+docker compose -f docker-compose.yml -f distribution/compose.pinned.yaml up -d --wait
+
+echo "==> Running the end-to-end smoke test against the pinned set"
 status=0
-docker compose -f docker-compose.yml -f distribution/compose.pinned.yaml \
-  --profile verification up smoke-test --abort-on-container-exit || status=$?
+"${COMPOSE[@]}" up smoke-test --abort-on-container-exit || status=$?
 
-docker compose -f docker-compose.yml -f distribution/compose.pinned.yaml \
-  --profile verification down --remove-orphans >/dev/null 2>&1 || true
+"${COMPOSE[@]}" down --remove-orphans >/dev/null 2>&1 || true
 
 if [[ $status -ne 0 ]]; then
-  echo "FAIL: pinned install smoke test failed (exit $status)" >&2
+  echo "FAIL: pinned install verification failed (exit $status)" >&2
   exit "$status"
 fi
 
-echo "OK  pinned install smoke test passed"
+echo "OK  pinned install verified (web UI healthy, smoke test passed)"

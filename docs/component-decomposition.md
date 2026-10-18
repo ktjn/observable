@@ -951,9 +951,10 @@ Sub-steps:
      `distribution/manifest.yaml`) pins every deployable component image to its manifest version.
      `scripts/local-ci.sh` runs `--check`, so a component version bump must update the override in the
      same change.
-   - `scripts/pinned-install.sh` installs the pinned set through Compose and runs the end-to-end smoke
-     test against it, building each component image with `TAG=manifest` so the pinned versions run
-     rather than the `local` developer tags.
+   - `scripts/pinned-install.sh` installs the pinned set through Compose and verifies it end to end:
+     it builds every component image with `TAG=manifest`, brings up the full stack including the
+     pinned `observable-web` UI (waiting for its healthcheck), and runs the smoke test against the
+     pinned versions rather than the `local` developer tags.
    - Not yet: Helm/kind E2E, compatibility, and upgrade/rollback verification against the pinned set,
      and per-component release publishing (needs an immutable-tag rule) so the pinned images exist in a
      registry.
