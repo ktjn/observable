@@ -41,7 +41,8 @@ making changes.
   every deployable component image to its manifest version. `scripts/local-ci.sh` runs
   `render-pinned-compose.sh --check` ("Pinned install artifact"), so a component version bump must
   update the override in the same change. `scripts/pinned-install.sh` installs the pinned set through
-  Compose and runs the end-to-end smoke test against it (`TAG=manifest`). See
+  Compose — building every component image with `TAG=manifest`, bringing up the full stack including
+  the pinned `observable-web` UI — and runs the end-to-end smoke test against it. See
   [docs/component-decomposition.md](component-decomposition.md) Phase 7 sub-step 5 and
   `distribution/README.md`.
 - **2026-10-18 (0.2 component changelogs)**: every component in `distribution/manifest.yaml` now
