@@ -842,8 +842,9 @@ Before repository extraction:
 - change Helm values to per-component image/version pins
 - create the distribution component manifest
 
-**In progress.** Sub-steps 1 (per-component images and the distribution manifest) and 2
-(independent component versions) are done; the Compose/CI/Helm migration onto them is not.
+**In progress.** Sub-steps 1 (per-component images and the distribution manifest), 2
+(independent component versions), and 3 (Compose and service-scoped CI builds) are done; per-component
+release publishing and the Helm migration are not.
 
 Sub-steps:
 
@@ -874,17 +875,40 @@ Sub-steps:
      version. The default `TAG=local` is unchanged.
    - Regression tests: `scripts/tests/test_component_versions.py`.
    - All components still carry `0.1.0`; no component has diverged yet.
-3. **Not done:** switch Compose and CI to build/publish per-component images and make the backend
-   build service-scoped (only changed components rebuild).
+3. **Done:** Compose and CI build per-component images; the CI backend build is service-scoped.
+   - `docker-compose.yml` runs each Rust service from its own `observable-<component>:local` image
+     (Dockerfile target `component-runtime`, `SERVICE` build arg). The smoke/perf/soak runners use
+     a new `verification-tools` target (`observable-verification:local`: curl, jq, grpcurl, OTLP
+     protos, no service binaries). Compose no longer references `observable-services`.
+   - `scripts/ci_changed_components.py` maps a diff to affected components: a change inside a
+     workspace crate affects every component whose release binary transitively depends on it
+     (normal/build dependencies from the Cargo manifests; dev-dependencies excluded). Root Cargo
+     manifest/lockfile, `Dockerfile`, `.dockerignore`, `proto/`, and the build tooling affect every
+     Rust component; an unknown crate path under `libs/`/`services/` also fails safe to all.
+     `scripts/ci-changed-surfaces.sh` exports the result as `components`/`rust_components`.
+   - The `backend` job in `.github/workflows/build.yml` runs only when `rust_components` is
+     non-empty, compiles only those packages (`cargo build --release -p ...`), and builds/exports
+     only those images.
+   - `scripts/local-ci.sh` builds the Compose component and verification images before the smoke
+     suite, and keeps building the shared image while release and Helm still use it.
+   - Regression tests: `scripts/tests/test_component_builds.py`.
+   - Not in this step: release publishing of per-component images. The release workflow still
+     publishes only `observable-services`. Publishing per-component images needs an
+     immutable-tag rule first: an unchanged component keeps its version across product releases, so
+     a naive push would overwrite the existing tag with a new digest. This is deferred to
+     sub-step 5, together with the pinned distribution install. `scripts/kind-test.sh`,
+     `scripts/dev-reload.sh`, and `scripts/ci.sh` stay on the shared image until sub-step 4. The
+     Compose frontend image keeps its `observable-frontend:local` name.
 4. **Not done:** change Helm values to per-component image/version pins.
 5. **Not done:** make `observable-distribution` consume the manifest for a pinned install.
 
 Exit evidence:
 
-- changing query does not rebuild auth, ingest, process, or storage -- **partially met**: the
-  per-component image build compiles only the changed component's package, but Compose/CI still
-  build the shared `observable-services` image and have not been switched to per-component
-  build/publish with per-service change detection (sub-step 3).
+- changing query does not rebuild auth, ingest, process, or storage -- **met for builds**: CI
+  compiles and images only components whose dependency closure the diff touches (a `query-api` or
+  `query-core` change builds `query` only), and Compose builds each component from its own target.
+  Root `Cargo.lock`/`Cargo.toml`/`Dockerfile` changes still rebuild every Rust component by design.
+  Independent per-component release publishing remains open (sub-step 5).
 
 ### Phase 8 — Extract repositories
 

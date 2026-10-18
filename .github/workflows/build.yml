@@ -27,8 +27,8 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      backend: ${{ steps.surfaces.outputs.backend }}
       frontend: ${{ steps.surfaces.outputs.frontend }}
+      rust_components: ${{ steps.surfaces.outputs.rust_components }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -36,12 +36,15 @@ jobs:
       - id: surfaces
         run: bash scripts/ci-changed-surfaces.sh "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}"
 
+  # Service-scoped: builds only the Rust components whose release binary the
+  # diff affects (scripts/ci_changed_components.py).
   backend:
     needs: [changes]
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.backend == '1'
+    if: needs.changes.outputs.rust_components != ''
     runs-on: ubuntu-latest
     env:
       RUST_VERSION: 1.97.1-bookworm
+      COMPONENTS: ${{ needs.changes.outputs.rust_components }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -83,6 +86,9 @@ jobs:
 
       # Compile against bookworm, matching the runtime image glibc.
       # Validation runs locally through scripts/local-ci.sh.
+      - name: Resolve component packages
+        run: echo "PACKAGES=$(python3 scripts/ci_changed_components.py --packages $COMPONENTS)" >> "$GITHUB_ENV"
+
       - name: Build release binaries
         env:
           RUSTC_WRAPPER: sccache
@@ -99,7 +105,7 @@ jobs:
             -v "$HOME/.cargo-ci/target":/app/target \
             -v "$HOME/.cache/sccache":/sccache \
             -v "$HOME/.cache/ci-tools":/ci-tools \
-            -e RUSTC_WRAPPER -e CC -e CXX -e SCCACHE_DIR -e CARGO_INCREMENTAL \
+            -e RUSTC_WRAPPER -e CC -e CXX -e SCCACHE_DIR -e CARGO_INCREMENTAL -e PACKAGES \
             -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
             rust:${{ env.RUST_VERSION }} bash -c '
               set -euo pipefail
@@ -117,7 +123,7 @@ jobs:
               apt-get install -y -qq --no-install-recommends \
                 build-essential cmake libcurl4-openssl-dev libssl-dev pkg-config zlib1g-dev
               sccache --start-server
-              cargo build --release --workspace
+              cargo build --release $(printf -- "-p %s " $PACKAGES)
             '
 
       - name: Fix permissions for caching
@@ -131,24 +137,20 @@ jobs:
       - name: Stage release binaries for Docker context
         run: |
           mkdir -p bin
-          cp ~/.cargo-ci/target/release/auth-service ~/.cargo-ci/target/release/storage-writer \
-             ~/.cargo-ci/target/release/stream-processor ~/.cargo-ci/target/release/ingest-gateway \
-             ~/.cargo-ci/target/release/query-api ~/.cargo-ci/target/release/alert-evaluator \
-             ~/.cargo-ci/target/release/admin-service bin/
+          for package in $PACKAGES; do
+            cp ~/.cargo-ci/target/release/"$package" bin/
+          done
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - name: Build component images (prebuilt binaries)
         env:
           BUILD_TARGET: component-runtime-ci
-        run: bash scripts/build-component-images.sh auth control ingest process store-clickhouse query alerting
+        run: bash scripts/build-component-images.sh $COMPONENTS
 
       - name: Export images
         run: |
-          docker save \
-            observable-auth:local observable-control:local observable-ingest:local \
-            observable-process:local observable-store-clickhouse:local observable-query:local \
-            observable-alerting:local | gzip > /tmp/image.tar.gz
+          docker save $(printf 'observable-%s:local ' $COMPONENTS) | gzip > /tmp/image.tar.gz
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: docker-image

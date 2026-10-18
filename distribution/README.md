@@ -64,6 +64,12 @@ Component name → image → Cargo package:
 | `alerting` | `observable-alerting` | `services/alert-evaluator` |
 | `web` | `observable-web` | `apps/frontend` |
 
-The shared `observable-services` image and the current Compose/Helm wiring remain
-in place during the migration; Compose and Helm are switched to per-component
-images and version pins in a later Phase 7 slice.
+`docker-compose.yml` runs each Rust service from its own
+`observable-<component>:local` image. The smoke, perf, and soak runners use the
+`verification-tools` Dockerfile target (`observable-verification:local`).
+
+CI builds only the components a change affects. Run
+`python3 scripts/ci_changed_components.py BASE HEAD` to see the set for a diff.
+
+The shared `observable-services` image remains for the release workflow, Helm,
+and kind until Helm moves to per-component image/version pins.
