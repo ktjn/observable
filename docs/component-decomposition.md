@@ -934,8 +934,10 @@ Sub-steps:
    - `scripts/check-distribution-manifest.sh` requires each Helm pin to name the component image
      and equal its manifest version. A component bump now edits the manifest, the package version
      and the Helm pin together.
-   - `scripts/helm-lint.sh` asserts that the render contains every component image and no
-     `observable-services`. `scripts/kind-test.sh` builds and loads all component images
+   - `scripts/helm-lint.sh` asserts that the render contains every component image at its
+     manifest-pinned version (reading `scripts/component-version.sh`) and no `observable-services`, so a
+     template that hardcodes a tag cannot diverge from the manifest. `scripts/kind-test.sh` builds and
+     loads all component images
      (`build-component-images.sh`, tag `local`) and sets `services.<name>.image.tag=local`.
      `scripts/dev-reload.sh` rebuilds and reloads one component image per deployment, and now
      covers `admin-service`.
