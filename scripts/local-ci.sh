@@ -165,6 +165,9 @@ fi
 step "Distribution manifest"
 bash "$REPO_ROOT/scripts/check-distribution-manifest.sh" && ok "distribution manifest" || fail "distribution manifest"
 
+step "Component changelogs"
+bash "$REPO_ROOT/scripts/check-component-changelogs.sh" && ok "component changelogs" || fail "component changelogs"
+
 step "Component boundary lint"
 bash "$REPO_ROOT/scripts/check-component-boundaries.sh" && ok "component boundaries" || fail "component boundary lint"
 

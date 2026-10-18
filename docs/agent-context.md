@@ -36,6 +36,12 @@ making changes.
   not `dev`; the dev-mode default is unchanged. `charts/observable/values.yaml`'s
   `identity.sessionSecret` default was changed from a fixed literal to `""` so installs must set a
   real secret explicitly.
+- **2026-10-18 (0.2 component changelogs)**: every component in `distribution/manifest.yaml` now
+  owns a per-component `CHANGELOG.md` (Keep a Changelog format) with an entry for its current version.
+  `scripts/check-component-changelogs.sh` (run by `scripts/local-ci.sh` as "Component changelogs")
+  fails when a component has no changelog file or no entry for its manifest version, so a component
+  version bump must add a changelog entry in the same change. See `VERSIONING.md` §Component versions
+  and [docs/component-decomposition.md](component-decomposition.md) §Release Model.
 - **2026-10-18 (0.2 formal verification)**: `formal/tla/TelemetryDelivery.tla` (with
   `TelemetryDelivery.cfg` and `README.md`) is an executable finite model of the
   `telemetry.normalized.v1` process-to-storage durability boundary (Slice 1 of
