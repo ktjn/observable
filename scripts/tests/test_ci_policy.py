@@ -93,6 +93,7 @@ class CiPolicyTests(unittest.TestCase):
             "scripts/verify-version.sh",
             "scripts/check-component-boundaries.sh",
         "scripts/check-component-images.sh",
+        "scripts/check-clickhouse-schema-compat.sh",
             "--target json-schema",
             "scripts/build-playground.sh",
             "playwright.playground.config.ts",

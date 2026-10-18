@@ -1,0 +1,13 @@
+# ClickHouse storage-schema versions observable-query has been tested against.
+#
+# observable-store-clickhouse declares its current schema version in
+# migrations/clickhouse/SCHEMA_VERSION (validated against the highest-numbered
+# migration). scripts/check-clickhouse-schema-compat.sh fails when that version
+# falls outside this inclusive range, so the store cannot migrate ahead of query
+# without a deliberate update here.
+#
+# query reads observable.spans (migration 001), observable.logs (002),
+# observable.metric_series and observable.metric_points (003), and
+# observable.span_events (004), so it requires at least schema version 4.
+min: 4
+max: 4

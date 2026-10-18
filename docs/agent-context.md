@@ -36,6 +36,13 @@ making changes.
   not `dev`; the dev-mode default is unchanged. `charts/observable/values.yaml`'s
   `identity.sessionSecret` default was changed from a fixed literal to `""` so installs must set a
   real secret explicitly.
+- **2026-10-18 (0.2 ClickHouse schema compatibility)**: `observable-store-clickhouse` declares its
+  current ClickHouse schema version in `migrations/clickhouse/SCHEMA_VERSION` (must equal the
+  highest-numbered migration) and `observable-query` declares the inclusive range of store schema
+  versions it has been tested against in `services/query-api/clickhouse-schema-support.yaml`.
+  `scripts/check-clickhouse-schema-compat.sh` (run by `scripts/local-ci.sh`) fails when the store's
+  version falls outside query's range. Bump the range in the same change that re-tests query against
+  a new schema; see [docs/component-decomposition.md](component-decomposition.md) Phase 3.
 - **2026-10-18 (0.2 component images)**: the per-component Docker images carried a 438 KB
   `cargo-chef` dummy instead of the service binary, so every component exited immediately and
   Compose/kind could not run. `component-builder` built into a BuildKit cache at `/app/target`
