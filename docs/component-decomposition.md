@@ -569,6 +569,13 @@ in `services/query-api/clickhouse-schema-support.yaml`. `scripts/check-clickhous
 (run by `scripts/local-ci.sh`) fails when the store's version falls outside query's range, so the
 store cannot migrate ahead of query without a deliberate compatibility update.
 
+Applied migrations are immutable: `migrations/clickhouse/MIGRATION_CHECKSUMS` records a sha256 per
+migration, and `scripts/check-clickhouse-migration-immutability.sh` (run by `scripts/local-ci.sh`)
+fails when a recorded migration is edited or removed, or when a migration is present but not
+recorded. Editing a shipped migration would silently change the schema a fresh deployment gets and
+diverge it from deployments that already migrated — add a new numbered migration instead (and record
+it with `--update`).
+
 Exit evidence:
 
 - every component can enumerate the tables it owns — **met**, via the schema assignment above
