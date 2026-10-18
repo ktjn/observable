@@ -168,6 +168,9 @@ bash "$REPO_ROOT/scripts/check-distribution-manifest.sh" && ok "distribution man
 step "Component boundary lint"
 bash "$REPO_ROOT/scripts/check-component-boundaries.sh" && ok "component boundaries" || fail "component boundary lint"
 
+step "ClickHouse schema compatibility"
+bash "$REPO_ROOT/scripts/check-clickhouse-schema-compat.sh" && ok "clickhouse schema compatibility" || fail "clickhouse schema compatibility"
+
 step "Rust fmt"
 cargo fmt --all -- --check && ok "cargo fmt" || fail "cargo fmt"
 
