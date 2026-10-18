@@ -36,6 +36,13 @@ making changes.
   not `dev`; the dev-mode default is unchanged. `charts/observable/values.yaml`'s
   `identity.sessionSecret` default was changed from a fixed literal to `""` so installs must set a
   real secret explicitly.
+- **2026-10-18 (0.2 formal verification)**: `formal/tla/TelemetryDelivery.tla` (with
+  `TelemetryDelivery.cfg` and `README.md`) is an executable finite model of the
+  `telemetry.normalized.v1` process-to-storage durability boundary (Slice 1 of
+  [spec/19-formal-verification.md](../spec/19-formal-verification.md)). `scripts/run-formal-verification.sh`
+  pins `tla2tools.jar` v1.7.4 by sha256, caches it under `.tla/`, and runs TLC against every
+  committed `formal/tla/*.cfg`; `scripts/local-ci.sh` runs it as the "Formal verification (TLC)" step.
+  TLA+ is development-time only — no service depends on it and no Rust is generated from it.
 - **2026-10-18 (0.2 ClickHouse schema compatibility)**: `observable-store-clickhouse` declares its
   current ClickHouse schema version in `migrations/clickhouse/SCHEMA_VERSION` (must equal the
   highest-numbered migration) and `observable-query` declares the inclusive range of store schema
