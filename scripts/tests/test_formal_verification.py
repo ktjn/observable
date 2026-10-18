@@ -60,6 +60,9 @@ class FormalVerificationConsistencyTests(unittest.TestCase):
                 elif not stripped:
                     section = None
             self.assertTrue(names, f"{cfg.name} declares no invariants/properties")
+            self.assertGreaterEqual(
+                len(names), 2, f"{cfg.name} declares fewer invariants than expected: {names}"
+            )
             for name in names:
                 with self.subTest(model=cfg.name, name=name):
                     self.assertIn(name, readme, f"{name} is not documented in formal/tla/README.md")
