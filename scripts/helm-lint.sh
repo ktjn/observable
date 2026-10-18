@@ -30,16 +30,16 @@ helm repo add --force-update open-telemetry https://open-telemetry.github.io/ope
 helm repo update
 
 echo ""
-echo "==> Resolving dependencies for observable-infra"
-helm dependency update "$INFRA_CHART"
+echo "==> Building dependencies for observable-infra (from Chart.lock)"
+helm dependency build "$INFRA_CHART"
 
 echo ""
 echo "==> Linting observable-infra"
 helm lint "$INFRA_CHART"
 
 echo ""
-echo "==> Resolving dependencies for observable"
-helm dependency update "$APP_CHART"
+echo "==> Building dependencies for observable (from Chart.lock)"
+helm dependency build "$APP_CHART"
 
 echo ""
 echo "==> Linting observable"
@@ -84,8 +84,8 @@ helm template observable-dev "$APP_CHART" \
   > /dev/null
 
 echo ""
-echo "==> Resolving dependencies for observable-testbench"
-helm dependency update "$TESTBENCH_CHART"
+echo "==> Building dependencies for observable-testbench (from Chart.lock)"
+helm dependency build "$TESTBENCH_CHART"
 
 echo ""
 echo "==> Linting observable-testbench"
