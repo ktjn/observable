@@ -1057,7 +1057,7 @@ Additional control/alert topics may exist; each must be owned by a single compon
 - **Durable telemetry boundary.** `telemetry.normalized.v1` is the Redpanda-backed process→storage boundary; processor publishes, storage consumes with at-least-once ack semantics.
 - **Query has no control-plane PG (target).** Core `observable-query` operation must not depend on PostgreSQL (control-plane CRUD moved out). Direct CH reads allowed for performance.
 - **Alerting prefers query API.** Prefer `observable-alerting` → `observable-query` for telemetry evaluation; direct CH access only with explicit performance evidence.
-- **Boundary lint.** `scripts/check-component-boundaries.sh` detects accidental cross-component source imports and runs as the "Component boundary lint" step of `scripts/local-ci.sh`. A deliberate transitional coupling must be recorded with a reason in `scripts/component-boundary-allowlist.txt`; a new coupling fails the gate. (See the script header for what is and is not flagged.)
+- **Boundary lint.** `scripts/check-component-boundaries.sh` detects accidental cross-component source imports — Rust module paths (`auth_service::`), frontend path imports (`apps/frontend/`), and a `Cargo.toml` `path` dependency on another component's service crate — and runs as the "Component boundary lint" step of `scripts/local-ci.sh`. A deliberate transitional coupling must be recorded with a reason in `scripts/component-boundary-allowlist.txt`; a new coupling fails the gate. (See the script header for what is and is not flagged.)
 
 ## Distribution & Images
 

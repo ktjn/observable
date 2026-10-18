@@ -16,11 +16,18 @@ set -euo pipefail
 # - A file owned by one deployable component referencing another component's
 #   unpublished source (Rust crate/module paths such as `auth_service::` or
 #   `admin_service::`, and direct frontend path imports `apps/frontend/`).
+# - A component Cargo manifest with a `path` dependency on another component's
+#   service crate (`services/<other>`), which is a direct source dependency even
+#   if no symbol is referenced yet.
 #
 # What it does not flag:
 # - The shared `contracts` sources (`contracts/**`,
 #   `libs/observable-storage-contracts/**`): consuming the published contracts
 #   is the supported boundary.
+# - The contract-wrapper libs (`libs/observable-auth/**`, and the shared
+#   `libs/domain`, `libs/observable-config`, `libs/observable-telemetry`,
+#   `libs/test-support`): these are the supported client/utility boundary, not
+#   another component's service implementation.
 # - `distribution/**`: the distribution component names every other component's
 #   package path by design and contains no importable service source.
 # - Files whose path is not mapped to a component (root config, `scripts/`,
@@ -151,6 +158,52 @@ done < <(
     ! \( "${exclude_args[@]}" \) \
     -exec grep -HnIE "$combined" {} + 2>/dev/null || true
 )
+
+# ── Cross-component Cargo path dependencies ──────────────────────────────────
+# A component manifest with a `path` dependency on another component's service
+# crate is a direct source dependency even if no symbol is referenced yet. Only
+# `services/<other>` targets are considered here; the shared and contract-wrapper
+# libs are the supported boundary (see the header).
+normalize_path() {
+  local joined="$1/$2" part out=() parts=()
+  IFS='/' read -r -a parts <<<"$joined"
+  for part in "${parts[@]}"; do
+    case "$part" in
+      ''|'.') ;;
+      '..') if [[ ${#out[@]} -gt 0 ]]; then out=("${out[@]:0:${#out[@]}-1}"); fi ;;
+      *) out+=("$part") ;;
+    esac
+  done
+  (IFS='/'; printf '%s' "${out[*]}")
+}
+
+while IFS= read -r manifest; do
+  [[ -z "$manifest" ]] && continue
+  file="${manifest#./}"
+  owner=$(owner_of "$file")
+  case "$owner" in
+    unknown|contracts|distribution) continue ;;
+  esac
+  dir="$(dirname "$file")"
+  while IFS= read -r dep; do
+    [[ -z "$dep" ]] && continue
+    resolved="$(normalize_path "$dir" "$dep")"
+    case "$resolved" in services/*) ;; *) continue ;; esac
+    target=$(owner_of "$resolved/index")
+    case "$target" in
+      unknown|contracts|distribution) continue ;;
+    esac
+    if [[ "$target" == "$owner" ]]; then continue; fi
+    if allowed "$file" "$target"; then
+      accepted=$((accepted + 1))
+      continue
+    fi
+    violations+=("$file: Cargo path dependency on $target ($dep)")
+  done < <(
+    grep -oE '\bpath[[:space:]]*=[[:space:]]*"[^"]+"' "$file" 2>/dev/null \
+      | sed -E 's/.*"([^"]+)"$/\1/' || true
+  )
+done < <(find services libs -type f -name Cargo.toml 2>/dev/null || true)
 
 if [[ ${#violations[@]} -eq 0 ]]; then
   echo "✓ No cross-component source import violations detected."

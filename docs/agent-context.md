@@ -61,10 +61,13 @@ making changes.
 - **2026-10-18 (0.2 component boundaries)**: `scripts/check-component-boundaries.sh` is enforced
   by `scripts/local-ci.sh` ("Component boundary lint") and flags a file owned by one deployable
   component that imports another component's unpublished source (the ADR-035 "no new
-  cross-component source dependency" constraint). Deliberate transitional coupling must be
-  recorded with a reason in `scripts/component-boundary-allowlist.txt`; the single current entry
-  is query-api's `api_key_audit_integration.rs` standing up auth-service's in-process
-  `/internal/validate` handler. See
+  cross-component source dependency" constraint). It covers Rust module paths (`auth_service::`),
+  frontend path imports (`apps/frontend/`), and a `Cargo.toml` `path` dependency on another
+  component's service crate (`services/<other>`); shared/contract-wrapper libs
+  (`libs/domain`, `libs/observable-auth`, `libs/observable-storage-contracts`, ...) are the supported
+  boundary. Deliberate transitional coupling must be recorded with a reason in
+  `scripts/component-boundary-allowlist.txt`; the single current coupling is query-api's
+  `api_key_audit_integration.rs` test plus its `auth-service` `[dev-dependencies]` path entry. See
   [docs/component-decomposition.md](component-decomposition.md) §Cross-Boundary Rules.
 - **2026-07-02**: Whole-repo code-level review (`docs/analysis/2026-07-02-repo-review.md`) added a
   new roadmap §3.6 "Security, Observability & Reliability Hardening" with 9 findings, highest

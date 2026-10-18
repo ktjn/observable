@@ -121,6 +121,52 @@ class ComponentBoundaryLintTests(unittest.TestCase):
             for rel in excluded:
                 self.assertNotIn(rel, result.stdout)
 
+    def test_cross_component_cargo_path_dependency_is_flagged(self):
+        with tempfile.TemporaryDirectory(prefix="observable-boundary-") as directory:
+            repo = self._fixture(directory)
+            (repo / "services/query-api/Cargo.toml").write_text(
+                '[dev-dependencies]\nauth-service = { path = "../auth-service" }\n'
+            )
+            result = self._run(repo)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn("services/query-api/Cargo.toml", result.stdout)
+            self.assertIn("path dependency on auth", result.stdout)
+
+    def test_cargo_path_to_shared_or_same_component_lib_is_allowed(self):
+        with tempfile.TemporaryDirectory(prefix="observable-boundary-") as directory:
+            repo = self._fixture(directory)
+            (repo / "services/query-api/Cargo.toml").write_text(
+                "[dependencies]\n"
+                'query-core = { path = "../../libs/query-core" }\n'
+                'domain = { path = "../../libs/domain" }\n'
+                'observable-auth = { path = "../../libs/observable-auth" }\n'
+                'observable-storage-contracts = { path = "../../libs/observable-storage-contracts" }\n'
+            )
+            result = self._run(repo)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_cargo_lib_path_field_is_not_a_dependency(self):
+        with tempfile.TemporaryDirectory(prefix="observable-boundary-") as directory:
+            repo = self._fixture(directory)
+            (repo / "services/query-api/Cargo.toml").write_text(
+                '[lib]\nname = "query_api"\npath = "src/lib.rs"\n'
+            )
+            result = self._run(repo)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_documented_cargo_path_dependency_is_accepted(self):
+        with tempfile.TemporaryDirectory(prefix="observable-boundary-") as directory:
+            repo = self._fixture(directory)
+            (repo / "services/query-api/Cargo.toml").write_text(
+                '[dev-dependencies]\nauth-service = { path = "../auth-service" }\n'
+            )
+            (repo / "scripts/component-boundary-allowlist.txt").write_text(
+                "services/query-api/Cargo.toml auth transitional fixture coupling\n"
+            )
+            result = self._run(repo)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("transitional coupling", result.stdout)
+
     def test_repository_tree_is_clean(self):
         result = subprocess.run(
             [bash_path(), "scripts/check-component-boundaries.sh"],

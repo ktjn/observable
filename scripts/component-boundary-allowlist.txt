@@ -16,3 +16,4 @@
 # `auth-service` dev-dependency means running auth-service as a real process in
 # this suite or moving the assertion into auth-service's own suite.
 services/query-api/tests/it/api_key_audit_integration.rs auth Standing up auth-service's real in-process /internal/validate handler (dev-dependency) to verify query-api's API-key path writes credential_audit_log.
+services/query-api/Cargo.toml auth The [dev-dependencies] path entry that provides the auth-service crate for the integration test above; same coupling, tracked for removal together.
