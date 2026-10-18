@@ -590,29 +590,27 @@ Move control-plane CRUD out of query and split the current admin surface by owne
 - schemas/annotations (done: `GET /v1/schemas/{signal_type}/attributes` and the
   `GET`/`PUT`/`PATCH`/`DELETE /v1/schemas/{signal_type}/attributes/{key}/annotations` routes now
   live in admin-service; `mcp_tools.rs` in query-api still reads `schema_entries`/
-  `semantic_annotations` directly via its own SQL for NLQ metric-schema lookups -- same
-  already-tracked "remove cross-owner SQL" concern as the deployment-marker correlation reads, not
-  schema/annotation CRUD ownership)
-- deployments (done: `GET /v1/deployments` now lives in admin-service; `discovery.rs`/`reliability.rs`
-  still read `deployment_markers` directly for cross-cutting correlation reports -- that's a separate,
-  still-open "remove cross-owner SQL" concern, not deployment-listing ownership)
+  `semantic_annotations` directly via its own SQL for NLQ metric-schema lookups -- the remaining
+  tracked "remove cross-owner SQL" concern, not schema/annotation CRUD ownership)
+- deployments (done: `GET /v1/deployments` now lives in admin-service. The deployment-marker
+  correlation reads in `discovery.rs`/`reliability.rs` were later moved to admin-service's
+  `/internal/deployment-*` endpoints in Phase 6, so query-api no longer reads `deployment_markers`
+  directly)
 - change events (done: `GET /v1/events/changes` now lives in admin-service)
 
 Move reliability state to alerting:
 
-- alerts (done: `GET /v1/alerts/rules` and `GET /v1/alerts/rules/{id}` now live in admin-service,
+- alerts (done: `GET /v1/alerts/rules` and `GET /v1/alerts/rules/{id}` moved to admin-service here,
   alongside the alert-rule mutation routes (`/v1/admin/alerts/rules*`) that already lived there.
-  `discovery.rs`/`reliability.rs`/`incidents.rs` in query-api still read `alert_rules`/
-  `alert_firings` directly via their own SQL for cross-cutting correlation reports -- same
-  already-tracked "remove cross-owner SQL" concern as the deployment-marker and schema/annotation
-  reads, not alert-rule read/write ownership. This moves the routes into admin-service, the interim
-  "control" owner -- it does not yet give alerting state a single dedicated owner component, which
-  is Phase 6's concern.)
+  Phase 6 then moved the alerting routes to `alert-evaluator` and the alerting correlation reads in
+  `discovery.rs`/`reliability.rs` to `alert-evaluator`'s `/internal/alerting-*` endpoints, so
+  query-api no longer reads `alert_rules`/`alert_firings` directly and alerting state has a single
+  owner component.)
 - SLOs (done: `GET`/`POST /v1/slos` -- list and create, including the `slo_burn_rate` alert-rule
-  side effect of create -- now live in admin-service, in a new `slos.rs` module there. `reliability.rs`
-  in query-api keeps its own local `SloDefinitionItem` projection for its cross-cutting correlation
-  query against `slo_definitions`/`alert_rules`/`alert_firings` -- same already-tracked "remove
-  cross-owner SQL" concern as the alerts/deployment-marker/schema reads, not SLO ownership)
+  side effect of create -- moved to admin-service here, in a new `slos.rs` module there. Phase 6 then
+  moved the SLO routes to `alert-evaluator` and the `slo_definitions`/`alert_rules`/`alert_firings`
+  correlation reads out of `reliability.rs` to `alert-evaluator`'s `/internal/alerting-*` endpoints,
+  so query-api no longer reads those tables directly)
 - notifications (done: `GET`/`POST /v1/notifications/channels` and `DELETE
   /v1/notifications/channels/{id}` now live in a new admin-service `notifications.rs` module. This
   surface had zero prior test coverage in query-api; adding the first Testcontainers test for it
@@ -621,21 +619,21 @@ Move reliability state to alerting:
   every create/list call against real Postgres with a `ColumnDecode` error. Fixed in the same commit
   as the move by adding `type::text AS type` to both queries; not a behavior change this slice
   intentionally set out to make, but a latent crash this slice's required test coverage caught.)
-- incidents (done: `GET /v1/incidents` and `GET /v1/incidents/{id}` now live in a new admin-service
-  `incidents.rs` module. `reliability.rs` in query-api keeps its own local `IncidentItem`
-  projection for its cross-cutting correlation query, same pattern as the `DeploymentMarker`/
-  `SloDefinitionItem` precedents -- not incident ownership.)
+- incidents (done: `GET /v1/incidents` and `GET /v1/incidents/{id}` moved to a new admin-service
+  `incidents.rs` module here. Phase 6 then moved them to `alert-evaluator` and the `incidents`
+  correlation read out of `reliability.rs` to `/internal/alerting-correlation`, so query-api no
+  longer reads `incidents` directly.)
 
 Exit evidence:
 
 - core query operation requires no PostgreSQL connection -- **not yet met**: every control-plane
   CRUD slice and the full "move reliability state to alerting" group (alerts, SLOs, notifications,
-  incidents) listed above have moved their owning routes/modules to admin-service, but query-api's
-  `discovery.rs`/`reliability.rs` still hold a PostgreSQL connection for their own direct,
-  cross-owner correlation reads against `alert_rules`/`alert_firings`/`slo_definitions`/
-  `deployment_markers`/`schema_entries`/`semantic_annotations`/`incidents` -- removing those reads
-  is the separately-tracked "remove cross-owner SQL" work (Phase 4/6's listed follow-on), not this
-  phase's own route-ownership scope.
+  incidents) listed above have moved their owning routes/modules out of query-api, and the
+  alerting/deployment correlation reads now go through `alert-evaluator`/`admin-service`
+  `/internal/*` endpoints (Phase 6). The remaining direct cross-owner reads in query-api are
+  `mcp_tools.rs`'s `schema_entries`/`semantic_annotations` (NLQ metadata) and `llm_config.rs`'s
+  `platform_config` (LLM settings) -- removing those is the separately-tracked "remove cross-owner
+  SQL" work (Phase 4's listed follow-on), not this phase's own route-ownership scope.
 
 #### Remove cross-owner SQL (partial)
 
