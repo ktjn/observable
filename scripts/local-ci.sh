@@ -168,6 +168,9 @@ bash "$REPO_ROOT/scripts/check-distribution-manifest.sh" && ok "distribution man
 step "Component changelogs"
 bash "$REPO_ROOT/scripts/check-component-changelogs.sh" && ok "component changelogs" || fail "component changelogs"
 
+step "Pinned install artifact"
+bash "$REPO_ROOT/scripts/render-pinned-compose.sh" --check && ok "pinned install artifact" || fail "pinned install artifact"
+
 step "Component boundary lint"
 bash "$REPO_ROOT/scripts/check-component-boundaries.sh" && ok "component boundaries" || fail "component boundary lint"
 

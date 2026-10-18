@@ -73,6 +73,27 @@ Component name → image → Cargo package:
 CI builds only the components a change affects. Run
 `python3 scripts/ci_changed_components.py BASE HEAD` to see the set for a diff.
 
+## Pinned install
+
+`compose.pinned.yaml` is a Compose override that pins every deployable component
+image to its manifest version, so the distribution installs the exact tested set
+rather than the `local` developer tags. It is generated from `manifest.yaml`:
+
+```bash
+bash scripts/render-pinned-compose.sh          # regenerate the override
+bash scripts/render-pinned-compose.sh --check  # fail if out of date (run by scripts/local-ci.sh)
+```
+
+Install the pinned set and run the end-to-end smoke test against it:
+
+```bash
+bash scripts/pinned-install.sh
+```
+
+That builds each component image tagged with its manifest version
+(`TAG=manifest`), brings up `docker-compose.yml` plus `compose.pinned.yaml`, and
+runs `smoke-test`. Set `COMPOSE_PROJECT_NAME` to isolate the run.
+
 Helm (`charts/observable`) pins each component as
 `services.<name>.image: { repository, tag }`; the tags must equal this
 manifest's component versions. `kind-test.sh` and `dev-reload.sh` build and load

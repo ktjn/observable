@@ -95,6 +95,7 @@ class CiPolicyTests(unittest.TestCase):
         "scripts/check-component-images.sh",
         "scripts/check-clickhouse-schema-compat.sh",
         "scripts/check-component-changelogs.sh",
+        "scripts/render-pinned-compose.sh",
         "scripts/run-formal-verification.sh",
             "--target json-schema",
             "scripts/build-playground.sh",
