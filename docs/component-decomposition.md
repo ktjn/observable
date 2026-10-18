@@ -973,6 +973,93 @@ A component is independent when:
 6. its container can be deployed and scaled independently
 7. full-platform compatibility is verified by the distribution repository
 
+## Ownership Matrix
+
+The following tables are the canonical source for 0.2 boundaries. Every item must have exactly one owning component.
+
+### Source Ownership
+
+| Component | Source paths (monorepo) | Notes |
+| --- | --- | --- |
+| `observable-contracts` | `contracts/**`, `libs/observable-storage-contracts/**`, cross-component contract sources (Modelable domains that define wire contracts) | Storage contract types live here; avoid implementation utils crossing boundaries. |
+| `observable-auth` | `services/auth-service/**`, `libs/observable-auth/**` | Identity, API keys, sessions, roles/memberships, audit. |
+| `observable-control` | `services/admin-service/**` (control-plane APIs/state) | Tenants/projects/envs, config, dashboards, deployment markers, change events, schemas/annotations, saved views. Ingest/query must not own control-plane PG. |
+| `observable-ingest` | `services/ingest-gateway/**`, `services/processor/**` | OTLP/gRPC/HTTP, Prometheus remote_write, ingest tokens, cardinality, publish raw/normalized via topics. No PG/CH ownership. |
+| `observable-process` | `services/stream-processor/**` (normalization pipeline) | Consumes raw, produces normalized. Transitional HTTP paths removed; see durable boundary below. |
+| `observable-store-clickhouse` | `services/storage-writer/**`, ClickHouse migrations under storage ownership (`migrations/clickhouse/**` as owned by storage), storage adapters | Owns CH writes/migrations. Query reads within declared compatibility range. |
+| `observable-query` | `services/query-api/**`, `libs/query-core/**`, portable parts of `libs/domain-core/**` | Traces/logs/metrics/topology/services/infrastructure/correlation/NLQ. Target has no PostgreSQL dependency for core operation. |
+| `observable-alerting` | `services/alert-evaluator/**`, alerting logic/state (rules/SLOs/firings/notifications/incidents/escalation) | Owns alerting persistence/APIs. Prefers calling `observable-query` for telemetry evaluation. |
+| `observable-web` | `apps/frontend/**` | Browser UI; depends only on released APIs of auth/control/query/alerting. |
+| `observable-distribution` | `distribution/**`, Docker Compose, Helm umbrella chart, demos, E2E/kind tests, deployment docs | No production service implementation; pins tested component versions. |
+
+### API Surface
+
+| Component | Public/owned APIs (examples) | Notes |
+| --- | --- | --- |
+| `observable-auth` | OIDC, users/memberships/roles/sessions, API keys, audit | Internal token validation (`/internal/validate`) used by consumers. |
+| `observable-control` | Tenants, projects, envs, config, dashboards, deployment markers, change events, schemas/annotations, saved views, fleet/agent registration | Control-plane CRUD. |
+| `observable-ingest` | OTLP/gRPC/HTTP, Prometheus remote_write | Platform/authenticated ingest; no control-plane PG ownership. |
+| `observable-query` | Trace/log/metric/topology/service/infrastructure/correlation/NLQ endpoints | Control-plane CRUD removed from query; core runs without PG in target. |
+| `observable-alerting` | Alert rules, SLOs, firings, notifications, incidents, silencing/escalation | Consolidated alerting owner. |
+| `observable-web` | Frontend app (SPA) | Consumes released APIs only. |
+
+### Events/Topics
+
+| Topic | Producer | Consumer(s) | Purpose |
+| --- | --- | --- | --- |
+| `telemetry.raw.v1` | `observable-ingest` | `observable-process` | Raw ingest events (durable boundary start). |
+| `telemetry.normalized.v1` | `observable-process` | `observable-store-clickhouse` | **Durable normalized boundary** (process → storage). Processor publishes normalized batches; storage consumes directly from Redpanda. Acknowledgement: commit offsets only after successful write (at-least-once; dedup gap documented in Phase 2). |
+| `deployment.markers.v1` | `observable-control` | `observable-ingest` (cache) | Deployment marker lifecycle events for ingest enrichment cache (event-fed). |
+
+Additional control/alert topics may exist; each must be owned by a single component. Do not serialize arbitrary Rust domain structs as the durable cross-component contract.
+
+### PostgreSQL Ownership
+
+| Owner | Schema | Tables | Notes |
+| --- | --- | --- | --- |
+| `observable-auth` | `auth` | `users`, `user_tenant_roles`, `user_sessions`, `api_keys`, `credential_audit_log` | Owns identity/keys/credentials. |
+| `observable-control` | `control` | `tenants`, `projects`, `change_events`, `deployment_markers`, `platform_config`, `schema_entries`, `semantic_annotations`, `dashboards`, `dashboard_panels`, `dashboard_grants`, `saved_views`, `saved_view_grants` | Consolidates control-plane state. Ingest/query must not own/control-plane PG. |
+| `observable-alerting` | `alerting` | `alert_rules`, `alert_firings`, `slo_definitions`, `notification_channels`, `notification_audit_log`, `incidents`, `incident_events` | Consolidated alerting persistence. |
+
+- **No cross-owner SQL.** No shared write credentials across owners. Cross-component access uses API or event.
+- **query_audit_log** remains in `public` (unassigned) as an open question (core query target has no PG ownership).
+- **Known cross-schema FKs exist** (e.g. `auth.*`→`control.tenants`, `control.*`→`auth.users`) — these are the coupling the "no cross-owner SQL" rule targets removing.
+- Connections must carry `?options=-c%20search_path%3Dpublic,auth,control,alerting` (see Data Ownership section for details).
+
+### ClickHouse Ownership
+
+| Component | Access | Notes |
+| --- | --- | --- |
+| `observable-store-clickhouse` | Writes + migrations | Owns CH schema, retention, and storage health. |
+| `observable-query` | Reads | Within a **declared schema compatibility range** (documented/covered by compatibility tests). Query may read CH directly for performance. |
+
+## Cross-Boundary Rules
+
+- **Share contracts, not implementation.** Use `contracts/` + `observable-contracts`. Do not import another deployable component's unpublished source.
+- **Single owner per persistent boundary.** Exactly one owner per PG table/schema, per CH migration, per API, per event/topic.
+- **No cross-owner SQL.** Components must not execute SQL against another component's PostgreSQL ownership boundary.
+- **No cross-owner PG credentials.** Separate credentials per owner (logical separation now; physical split later).
+- **API/event boundary.** Cross-component writes use APIs or versioned events; synchronous HTTP only when caller needs result before continuing.
+- **Durable telemetry boundary.** `telemetry.normalized.v1` is the Redpanda-backed process→storage boundary; processor publishes, storage consumes with at-least-once ack semantics.
+- **Query has no control-plane PG (target).** Core `observable-query` operation must not depend on PostgreSQL (control-plane CRUD moved out). Direct CH reads allowed for performance.
+- **Alerting prefers query API.** Prefer `observable-alerting` → `observable-query` for telemetry evaluation; direct CH access only with explicit performance evidence.
+- **Boundary lint.** Run `bash scripts/check-component-boundaries.sh` to detect accidental cross-component source imports. (See script header for details.)
+
+## Distribution & Images
+
+- **Per-component images.** Each deployable component gets its own image (`observable-<component>:<version>`), built from `Dockerfile` component target (`SERVICE` build arg). One image per lifecycle.
+- **Independent versioning.** Components release with SemVer, changelog, SBOM, and provenance. `distribution/manifest.yaml` pins tested component versions; `productVersion` equals root `VERSION`. Package versions must match manifest (see `scripts/check-distribution-manifest.sh`).
+- **Distribution manifest.** `observable-distribution` installs a pinned component set; Compose/kind E2E, compatibility, upgrade/rollback verification run against pinned artifacts.
+- **No shared image in target.** The shared `observable-services` image remains transitional until per-component release publishing is complete; `distribution` validates boundaries and pinned sets.
+
+## Formal Verification
+
+Stateful cross-component correctness is verified via TLA+/TLC as specified in [spec/19-formal-verification.md](../spec/19-formal-verification.md):
+- Model `telemetry.normalized.v1` durability (ack ordering, storage outage, worker crash/recovery, redelivery, duplicates, backpressure).
+- Pinned bounded TLC in PR CI with actionable counterexamples.
+- Map invariants to concrete regression boundaries.
+- Model component-version/storage-schema/distribution-manifest/upgrade/rollback compatibility as components become executable.
+
 ## Migration Constraint
 
 The platform must remain runnable throughout decomposition. Do not perform a big-bang repository
