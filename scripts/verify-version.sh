@@ -39,10 +39,13 @@ while IFS= read -r manifest; do
   if [[ -n "$package_version" ]]; then
     check_value "$manifest" "package.version" "$package_version"
   fi
-done < <(find libs services -name Cargo.toml -type f | sort)
+done < <(find libs -name Cargo.toml -type f | sort)
 
-frontend_version="$(node -p "require('./apps/frontend/package.json').version")"
-check_value "apps/frontend/package.json" "version" "$frontend_version"
+# Deployable component packages (services/*, apps/frontend) carry their own
+# version from distribution/manifest.yaml rather than the product VERSION.
+if ! bash scripts/check-distribution-manifest.sh; then
+  failures=1
+fi
 
 chart_version="$(awk '/^version:/ { print $2; exit }' charts/observable/Chart.yaml | tr -d '"')"
 check_value "charts/observable/Chart.yaml" "version" "$chart_version"

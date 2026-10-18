@@ -56,7 +56,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 step "CI policy regression tests"
-python -m unittest discover -s scripts/tests -p test_ci_policy.py || fail "CI policy regression tests"
+python -m unittest discover -s scripts/tests -p "test_*.py" || fail "CI policy regression tests"
 
 step "Version metadata"
 bash scripts/verify-version.sh && ok "version metadata" || fail "version metadata"

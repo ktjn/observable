@@ -14,7 +14,8 @@ set -euo pipefail
 # frontend image from apps/frontend/Dockerfile; the rest map to a Cargo package.
 #
 # Environment:
-#   TAG       image tag (default: local)
+#   TAG       image tag (default: local). TAG=manifest tags each image with its
+#             component version from distribution/manifest.yaml.
 #   REGISTRY  optional registry/namespace prefix, e.g. ghcr.io/ktjn (default: none)
 #   BUILD_TARGET Dockerfile target for Rust components (default: component-runtime).
 #             CI uses component-runtime-ci to copy prebuilt binaries from bin/.
@@ -51,24 +52,30 @@ else
 fi
 
 image_ref() {
-  local component="$1"
+  local component="$1" tag="$2"
   if [[ -n "$REGISTRY" ]]; then
-    echo "${REGISTRY}/observable-${component}:${TAG}"
+    echo "${REGISTRY}/observable-${component}:${tag}"
   else
-    echo "observable-${component}:${TAG}"
+    echo "observable-${component}:${tag}"
   fi
 }
 
 for component in "${components[@]}"; do
   package="$(component_package "$component")"
-  ref="$(image_ref "$component")"
+  version="$(bash scripts/component-version.sh "$component")"
+  if [[ "$TAG" == "manifest" ]]; then
+    ref="$(image_ref "$component" "$version")"
+  else
+    ref="$(image_ref "$component" "$TAG")"
+  fi
+  label="org.opencontainers.image.version=${version}"
 
   echo "==> Building ${ref}"
   if [[ "$component" == "web" ]]; then
-    docker buildx build --load --tag "$ref" -f apps/frontend/Dockerfile .
+    docker buildx build --load --tag "$ref" --label "$label" -f apps/frontend/Dockerfile .
   else
     docker buildx build --load --target "$BUILD_TARGET" \
-      --build-arg "SERVICE=${package}" --tag "$ref" .
+      --build-arg "SERVICE=${package}" --tag "$ref" --label "$label" .
   fi
   echo "OK  ${ref}"
 done

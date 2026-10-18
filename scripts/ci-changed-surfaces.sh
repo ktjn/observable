@@ -58,7 +58,7 @@ else
       models/*|models/**|libs/*/src/generated/*|libs/*/src/generated/**|apps/frontend/src/api/generated/*|apps/frontend/src/api/generated/**)
         models=1
         ;;
-      distribution/*|distribution/**|scripts/check-distribution-manifest.sh|scripts/build-component-images.sh)
+      distribution/*|distribution/**|scripts/check-distribution-manifest.sh|scripts/build-component-images.sh|scripts/component-version.sh)
         distribution=1
         ;;
     esac

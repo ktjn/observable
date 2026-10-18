@@ -13,15 +13,20 @@ The distribution manifest pins one version per target component plus the
 product version. `observable-distribution` consumes it to install a pinned
 component set rather than tracking a single source commit.
 
-During the `0.2` decomposition the deployable components are still built from
-this monorepo and share the root `VERSION`, so every component currently tracks
-`0.1.0`. Independent per-component versions and image tags are introduced as
-each component gains its own image and release lifecycle.
+It is the authoritative source of per-component versions:
 
-Validate it with:
+- `productVersion` must equal the root `VERSION`.
+- Each component version must equal its own package version: the Cargo
+  `package.version` of its service crate, or `apps/frontend/package.json` for
+  `web`. `contracts` has no single owning package yet and is manifest-only.
+- Component versions may diverge from `productVersion`.
+
+To release a component independently, bump its manifest entry and its package
+version in the same pull request. Editing only one of them fails validation.
 
 ```bash
-bash scripts/check-distribution-manifest.sh
+bash scripts/check-distribution-manifest.sh   # also run by scripts/verify-version.sh
+bash scripts/component-version.sh query       # prints one component's version
 ```
 
 ## Per-component images
@@ -38,7 +43,13 @@ bash scripts/build-component-images.sh
 
 # A subset, with a registry prefix and tag
 REGISTRY=ghcr.io/ktjn TAG=0.1.0 bash scripts/build-component-images.sh query alerting
+
+# Tag each image with its own manifest component version
+REGISTRY=ghcr.io/ktjn TAG=manifest bash scripts/build-component-images.sh
 ```
+
+Every image carries the `org.opencontainers.image.version` label set to its
+manifest component version, whatever `TAG` is. `TAG` defaults to `local`.
 
 Component name → image → Cargo package:
 

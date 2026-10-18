@@ -5,10 +5,14 @@
 The repository root [`VERSION`](VERSION) file is the authoritative Observable product version.
 Release-facing metadata must match it, including:
 
-- Rust workspace package versions under `libs/` and `services/`.
-- `apps/frontend/package.json`.
+- Rust workspace package versions under `libs/`.
+- `productVersion` in [`distribution/manifest.yaml`](distribution/manifest.yaml).
 - The Observable Helm chart `version` and `appVersion`.
 - Git release tags, which use the form `v{VERSION}`.
+
+Deployable component packages (`services/*` crates and `apps/frontend/package.json`) carry their
+own component version from `distribution/manifest.yaml` instead; see
+[Component versions](#component-versions).
 
 Run `bash scripts/verify-version.sh` before opening a release pull request. CI runs the same check
 for pull requests, `main`, and release tags.
@@ -24,9 +28,26 @@ current release mechanics immediately.
 
 During roadmap `0.2`:
 
-- the root `VERSION` remains authoritative until independent artifact/version boundaries are ready
+- the root `VERSION` remains the authoritative product version
 - the shared `observable-services` image remains a transitional artifact
 - component versions must not diverge merely by editing workspace package versions
+
+### Component versions
+
+[`distribution/manifest.yaml`](distribution/manifest.yaml) is the authoritative source of
+per-component versions. `scripts/check-distribution-manifest.sh` (also run by
+`scripts/verify-version.sh`) enforces:
+
+- `productVersion` equals `VERSION`.
+- Each component's package version equals its manifest entry: the `services/*` crate for Rust
+  components, `apps/frontend/package.json` for `web`. `contracts` is manifest-only until it has a
+  single owning package.
+- Component versions may diverge from `productVersion`.
+
+To release a component, bump its manifest entry and package version together, following SemVer for
+that component's own contract. A package-only or manifest-only edit fails validation.
+`scripts/build-component-images.sh` labels each image with its component version
+(`org.opencontainers.image.version`) and, with `TAG=manifest`, tags it with that version.
 
 At the independent-artifact milestone, each deployable component owns its own SemVer lifecycle and
 OCI image. `observable-distribution` then owns the product version and a manifest of the exact
