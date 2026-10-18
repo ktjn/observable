@@ -36,6 +36,12 @@ making changes.
   not `dev`; the dev-mode default is unchanged. `charts/observable/values.yaml`'s
   `identity.sessionSecret` default was changed from a fixed literal to `""` so installs must set a
   real secret explicitly.
+- **2026-10-18 (0.2 Helm render pins)**: `scripts/helm-lint.sh` now asserts that the rendered chart
+  contains every component image at its manifest-pinned version (`scripts/component-version.sh`), not
+  just that some tag is present. Previously only `charts/observable/values.yaml` was checked (by
+  `scripts/check-distribution-manifest.sh`), so a template that hardcoded a tag could diverge from the
+  manifest while the gate still passed. See [docs/component-decomposition.md](component-decomposition.md)
+  Phase 7 sub-step 4.
 - **2026-10-18 (0.2 component compatibility model)**: `formal/tla/ComponentCompatibility.tla` models the
   distribution's component-composition rules (manifest selection, store/query storage-schema
   compatibility, query upgrade/rollback) and verifies that an incompatible manifest cannot be

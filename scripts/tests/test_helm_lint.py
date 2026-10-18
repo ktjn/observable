@@ -25,6 +25,13 @@ class HelmLintDeterminismTests(unittest.TestCase):
         )
         self.assertIn("helm dependency build", script)
 
+    def test_gate_asserts_the_manifest_version_in_the_render(self):
+        script = (ROOT / "scripts/helm-lint.sh").read_text()
+        # The render assertion must read the manifest version, not just check
+        # that some tag is present.
+        self.assertIn("component-version.sh", script)
+        self.assertIn("manifest pin", script)
+
     def test_committed_locks_match_their_chart_versions(self):
         for chart_yaml in sorted((ROOT / "charts").glob("*/Chart.yaml")):
             lock = chart_yaml.with_name("Chart.lock")

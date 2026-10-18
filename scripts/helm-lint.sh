@@ -68,8 +68,13 @@ if grep -q "observable-services" <<<"$FULL_RENDER"; then
 fi
 
 for component in auth control ingest process store-clickhouse query alerting web; do
-  if ! grep -qE "image: (\S+/)?observable-${component}:" <<<"$FULL_RENDER"; then
-    echo "ERROR: observable chart must render the observable-${component} component image" >&2
+  # The rendered image must be the manifest-pinned version, not just any tag: a
+  # template could otherwise hardcode a tag and diverge from the manifest while
+  # scripts/check-distribution-manifest.sh (which reads values.yaml) still passes.
+  version="$(bash "$SCRIPT_DIR/component-version.sh" "$component")"
+  escaped="${version//./\\.}"
+  if ! grep -qE "image: (\S+/)?observable-${component}:${escaped}([[:space:]]|$)" <<<"$FULL_RENDER"; then
+    echo "ERROR: observable chart must render observable-${component}:${version} (manifest pin)" >&2
     exit 1
   fi
 done
