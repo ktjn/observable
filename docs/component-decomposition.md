@@ -558,7 +558,8 @@ Exit evidence:
 
 Logical PostgreSQL schemas are introduced (see the Data Ownership section above) — every table now
 enumerably belongs to one owner. Separate credentials and removing cross-owner SQL are not done:
-both are blocked on Phase 4/6 first moving the code that issues cross-owner SQL out of `query-api`.
+both are blocked on Phase 4 first moving the last cross-owner SQL out of `query-api` (Phase 6 moved
+the alerting and deployment-marker reads out already).
 
 ClickHouse migration ownership is settled: `migrations/clickhouse/*.sql` are owned by
 `observable-store-clickhouse`. The store declares its current schema version in
@@ -572,7 +573,9 @@ Exit evidence:
 
 - every component can enumerate the tables it owns — **met**, via the schema assignment above
 - no component executes SQL against another component's PostgreSQL schema — **not met**: one shared
-  role can still query any schema, and `query-api` does so today against all three
+  role can still query any schema, and `query-api` does so today against the auth (`user_tenant_roles`)
+  and control (`schema_entries`/`semantic_annotations`/`platform_config`) schemas; the alerting schema
+  is no longer queried directly by any component (Phase 6)
 - `observable-query` declares and enforces a tested ClickHouse storage-schema range — **met**, via
   `services/query-api/clickhouse-schema-support.yaml` and `scripts/check-clickhouse-schema-compat.sh`
 
