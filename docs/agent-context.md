@@ -36,6 +36,22 @@ making changes.
   not `dev`; the dev-mode default is unchanged. `charts/observable/values.yaml`'s
   `identity.sessionSecret` default was changed from a fixed literal to `""` so installs must set a
   real secret explicitly.
+- **2026-10-18 (0.2 component images)**: the per-component Docker images carried a 438 KB
+  `cargo-chef` dummy instead of the service binary, so every component exited immediately and
+  Compose/kind could not run. `component-builder` built into a BuildKit cache at `/app/target`
+  (valid only for that RUN), and `component-runtime` copied `/app/target/release/${SERVICE}` — the
+  `cook` stub baked into the `cacher` layer. The stage now copies the binary to `/app/bin/`
+  inside the same RUN, mirroring `rust-builder`, and `scripts/check-component-images.sh` (run by
+  `scripts/local-ci.sh` after the Compose image build) fails the gate if an image is missing a
+  binary or ships one under 1 MiB.
+- **2026-10-18 (0.2 component boundaries)**: `scripts/check-component-boundaries.sh` is enforced
+  by `scripts/local-ci.sh` ("Component boundary lint") and flags a file owned by one deployable
+  component that imports another component's unpublished source (the ADR-035 "no new
+  cross-component source dependency" constraint). Deliberate transitional coupling must be
+  recorded with a reason in `scripts/component-boundary-allowlist.txt`; the single current entry
+  is query-api's `api_key_audit_integration.rs` standing up auth-service's in-process
+  `/internal/validate` handler. See
+  [docs/component-decomposition.md](component-decomposition.md) §Cross-Boundary Rules.
 - **2026-07-02**: Whole-repo code-level review (`docs/analysis/2026-07-02-repo-review.md`) added a
   new roadmap §3.6 "Security, Observability & Reliability Hardening" with 9 findings, highest
   severity first: `auth-service` shipped a hardcoded default session-signing secret in both code

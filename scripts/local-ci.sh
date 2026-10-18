@@ -165,6 +165,9 @@ fi
 step "Distribution manifest"
 bash "$REPO_ROOT/scripts/check-distribution-manifest.sh" && ok "distribution manifest" || fail "distribution manifest"
 
+step "Component boundary lint"
+bash "$REPO_ROOT/scripts/check-component-boundaries.sh" && ok "component boundaries" || fail "component boundary lint"
+
 step "Rust fmt"
 cargo fmt --all -- --check && ok "cargo fmt" || fail "cargo fmt"
 
@@ -221,6 +224,9 @@ if [[ $SKIP_DOCKER -eq 0 ]]; then
   docker compose --profile verification build \
     auth-service storage-writer stream-processor ingest-gateway query-api admin-service alert-evaluator \
     smoke-test && ok "component image build" || fail "component image build"
+
+  step "Component image verification"
+  bash scripts/check-component-images.sh && ok "component image verification" || fail "component image verification"
 
   if [[ $SKIP_FRONTEND -eq 0 ]]; then
     step "Frontend image build"

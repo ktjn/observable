@@ -892,6 +892,11 @@ Sub-steps:
      only those images.
    - `scripts/local-ci.sh` builds the Compose component and verification images before the smoke
      suite, and keeps building the shared image while release and Helm still use it.
+   - `scripts/local-ci.sh` then runs `scripts/check-component-images.sh`, which fails the gate if a
+     component image is missing its binary or ships the sub-1 MiB `cargo-chef` stub.
+     `component-builder` mounts `/app/target` as a build cache (valid only for the RUN that declares
+     it) and copies the built binary to `/app/bin/` inside that same RUN — mirroring `rust-builder` —
+     so `component-runtime` copies the real binary instead of the `cook` dummy.
    - Regression tests: `scripts/tests/test_component_builds.py`.
    - Not in this step: release publishing of per-component images. The release workflow still
      publishes only `observable-services`. Publishing per-component images needs an
@@ -1043,7 +1048,7 @@ Additional control/alert topics may exist; each must be owned by a single compon
 - **Durable telemetry boundary.** `telemetry.normalized.v1` is the Redpanda-backed process→storage boundary; processor publishes, storage consumes with at-least-once ack semantics.
 - **Query has no control-plane PG (target).** Core `observable-query` operation must not depend on PostgreSQL (control-plane CRUD moved out). Direct CH reads allowed for performance.
 - **Alerting prefers query API.** Prefer `observable-alerting` → `observable-query` for telemetry evaluation; direct CH access only with explicit performance evidence.
-- **Boundary lint.** Run `bash scripts/check-component-boundaries.sh` to detect accidental cross-component source imports. (See script header for details.)
+- **Boundary lint.** `scripts/check-component-boundaries.sh` detects accidental cross-component source imports and runs as the "Component boundary lint" step of `scripts/local-ci.sh`. A deliberate transitional coupling must be recorded with a reason in `scripts/component-boundary-allowlist.txt`; a new coupling fails the gate. (See the script header for what is and is not flagged.)
 
 ## Distribution & Images
 

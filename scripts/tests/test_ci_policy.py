@@ -91,6 +91,8 @@ class CiPolicyTests(unittest.TestCase):
         local = (ROOT / "scripts/local-ci.sh").read_text()
         for command in (
             "scripts/verify-version.sh",
+            "scripts/check-component-boundaries.sh",
+        "scripts/check-component-images.sh",
             "--target json-schema",
             "scripts/build-playground.sh",
             "playwright.playground.config.ts",
