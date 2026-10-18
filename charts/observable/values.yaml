@@ -7,14 +7,16 @@
 
 global:
   image:
-    # Built from the repo-root Dockerfile.  In CI set to the immutable commit-tag.
-    repository: observable-services
-    tag: "latest"
+    # Optional registry/namespace prefix applied to every component image,
+    # e.g. ghcr.io/ktjn. Blank uses the bare repository names (local/kind).
+    registry: ""
     pullPolicy: IfNotPresent
-  frontendImage:
-    repository: observable-frontend
-    tag: "latest"
-    pullPolicy: IfNotPresent
+
+# Component images (Phase 7, docs/component-decomposition.md): each service
+# below pins its own `image.repository` and `image.tag`. Tags must equal the
+# component versions in distribution/manifest.yaml
+# (scripts/check-distribution-manifest.sh enforces this). There is no global
+# tag override; set services.<name>.image.tag per component.
 
 # Infrastructure connection strings.
 # These are consumed by multiple services and centralised here to avoid
@@ -61,6 +63,7 @@ selfObservability:
 services:
   authService:
     enabled: true
+    image: { repository: observable-auth, tag: "0.1.0" }
     port: 4319
     replicas: 1
     resources:
@@ -73,6 +76,7 @@ services:
 
   adminService:
     enabled: true
+    image: { repository: observable-control, tag: "0.1.0" }
     port: 4324
     replicas: 1
     authServiceUrl: "http://auth-service:4319"
@@ -86,6 +90,7 @@ services:
 
   ingestGateway:
     enabled: true
+    image: { repository: observable-ingest, tag: "0.1.0" }
     port: 4318
     grpcPort: 4317
     platformPort: 4321
@@ -95,7 +100,7 @@ services:
     # analysis-gated promotion (see scripts/canary-promote.sh).
     canary:
       enabled: false
-      tag: ""      # defaults to global.image.tag when blank
+      tag: ""      # defaults to services.ingestGateway.image.tag when blank
       replicas: 1
     resources:
       requests:
@@ -107,6 +112,7 @@ services:
 
   streamProcessor:
     enabled: true
+    image: { repository: observable-process, tag: "0.1.0" }
     replicas: 1
     platformPort: 4323
     resources:
@@ -119,6 +125,7 @@ services:
 
   storageWriter:
     enabled: true
+    image: { repository: observable-store-clickhouse, tag: "0.1.0" }
     port: 4320
     replicas: 1
     resources:
@@ -131,6 +138,7 @@ services:
 
   queryApi:
     enabled: true
+    image: { repository: observable-query, tag: "0.1.0" }
     port: 8090
     replicas: 1
     resources:
@@ -143,6 +151,7 @@ services:
 
   alertEvaluator:
     enabled: true
+    image: { repository: observable-alerting, tag: "0.1.0" }
     port: 4322
     replicas: 1
     # Interval at which the evaluator polls for alert conditions (seconds).
@@ -157,6 +166,7 @@ services:
 
   frontend:
     enabled: true
+    image: { repository: observable-web, tag: "0.1.0" }
     port: 80
     replicas: 1
     resources:

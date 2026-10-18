@@ -6,7 +6,9 @@ set -euo pipefail
 # component, all valid SemVer, with no missing or unexpected component keys.
 # Each component's own package version (Cargo package or frontend package.json)
 # must equal its manifest version, so a component version changes only by
-# editing both together. Runnable locally (ADR-019); depends only on
+# editing both together. The Helm chart's per-component image pins
+# (charts/observable/values.yaml services.<key>.image) must name the component
+# image and carry the same version. Runnable locally (ADR-019); depends only on
 # grep/awk/sed.
 #
 # Usage:
@@ -63,6 +65,37 @@ cargo_package_version() {
   ' "$1"
 }
 
+# manifest key -> Helm services.<key> and image repository.
+component_helm_key() {
+  case "$1" in
+    auth) echo "authService observable-auth" ;;
+    control) echo "adminService observable-control" ;;
+    ingest) echo "ingestGateway observable-ingest" ;;
+    process) echo "streamProcessor observable-process" ;;
+    storeClickhouse) echo "storageWriter observable-store-clickhouse" ;;
+    query) echo "queryApi observable-query" ;;
+    alerting) echo "alertEvaluator observable-alerting" ;;
+    web) echo "frontend observable-web" ;;
+    contracts) echo "" ;;
+  esac
+}
+
+# Prints "repository tag" for services.<key>.image in a Helm values file.
+helm_component_image() {
+  awk -v key="$2" '
+    /^services:/ { in_services=1; next }
+    in_services && /^[^[:space:]#]/ { exit }
+    in_services && /^  [A-Za-z]/ { current=$1; sub(/:$/, "", current); next }
+    in_services && current == key && /^    image:/ {
+      line=$0
+      repo=line; sub(/.*repository:[[:space:]]*/, "", repo); sub(/[,[:space:]}].*/, "", repo)
+      tag=line; sub(/.*tag:[[:space:]]*"?/, "", tag); sub(/["[:space:],}].*/, "", tag)
+      print repo, tag
+      exit
+    }
+  ' "$1"
+}
+
 package_json_version() {
   sed -n -E 's/^  "version":[[:space:]]*"([^"]+)".*/\1/p' "$1" | head -1
 }
@@ -110,6 +143,19 @@ for component in "${EXPECTED[@]}"; do
   fi
   [[ "$actual" == "${versions[$component]}" ]] \
     || fail "$source version '$actual' does not match manifest component '$component' version '${versions[$component]}'"
+done
+
+HELM_VALUES="$SOURCE_ROOT/charts/observable/values.yaml"
+[[ -f "$HELM_VALUES" ]] || fail "Helm values not found: charts/observable/values.yaml"
+for component in "${EXPECTED[@]}"; do
+  mapping="$(component_helm_key "$component")"
+  [[ -n "$mapping" ]] || continue
+  read -r helm_key expected_repo <<<"$mapping"
+  read -r repo tag <<<"$(helm_component_image "$HELM_VALUES" "$helm_key")"
+  [[ "$repo" == "$expected_repo" ]] \
+    || fail "Helm services.$helm_key.image.repository '$repo' does not match '$expected_repo'"
+  [[ "$tag" == "${versions[$component]}" ]] \
+    || fail "Helm services.$helm_key.image.tag '$tag' does not match manifest component '$component' version '${versions[$component]}'"
 done
 
 echo "OK  distribution manifest valid (productVersion ${product_version}, ${#EXPECTED[@]} components)"

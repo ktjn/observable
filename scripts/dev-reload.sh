@@ -28,9 +28,10 @@
 #   --service <name>     Which service(s) to rebuild and redeploy.
 #                        Default: all
 #
-#                        Rust backend (share observable-services:local image):
+#                        Rust backend (one observable-<component>:local image each):
 #                          query-api, stream-processor, ingest-gateway,
-#                          storage-writer, auth-service, alert-evaluator
+#                          storage-writer, auth-service, alert-evaluator,
+#                          admin-service
 #                        Shorthand for all Rust services:
 #                          backend
 #                        Frontend:
@@ -124,35 +125,53 @@ ok "cluster '$CLUSTER_NAME' is running"
 
 # Each entry: "img|context|ns|deployments[|dockerfile]"
 # The optional 5th field overrides the Dockerfile path (passed as --file to docker build).
-# Required when the Dockerfile uses repo-root-relative COPY paths but lives in a sub-directory
-# (e.g. apps/frontend/Dockerfile copies from the repo root).
+# Required when the Dockerfile uses repo-root-relative COPY paths but lives in a sub-directory.
+# A 5th field of "component:<name>" builds the image with
+# scripts/build-component-images.sh instead (Phase 7 per-component images).
 RELOAD_TARGETS=()
 
-rust_backend_target() {
-  echo "observable-services:local|${REPO_ROOT}|${OBSERVABLE_NS}|query-api,stream-processor,ingest-gateway,storage-writer,auth-service,alert-evaluator"
+# deployment name -> component name (scripts/build-component-images.sh).
+component_for_deployment() {
+  case "$1" in
+    auth-service) echo "auth" ;;
+    admin-service) echo "control" ;;
+    ingest-gateway) echo "ingest" ;;
+    stream-processor) echo "process" ;;
+    storage-writer) echo "store-clickhouse" ;;
+    query-api) echo "query" ;;
+    alert-evaluator) echo "alerting" ;;
+    frontend) echo "web" ;;
+  esac
 }
 
-rust_single_target() {
+component_target() {
   # $1 = deployment name
-  echo "observable-services:local|${REPO_ROOT}|${OBSERVABLE_NS}|$1"
+  local component
+  component="$(component_for_deployment "$1")"
+  echo "observable-${component}:local|${REPO_ROOT}|${OBSERVABLE_NS}|$1|component:${component}"
+}
+
+rust_backend_targets() {
+  local dep
+  for dep in query-api stream-processor ingest-gateway storage-writer auth-service alert-evaluator admin-service; do
+    component_target "$dep"
+  done
 }
 
 case "$SERVICE" in
   all)
-    RELOAD_TARGETS=(
-      "$(rust_backend_target)"
-      "observable-frontend:local|${REPO_ROOT}|${OBSERVABLE_NS}|frontend|${REPO_ROOT}/apps/frontend/Dockerfile"
+    mapfile -t RELOAD_TARGETS < <(rust_backend_targets)
+    RELOAD_TARGETS+=(
+      "$(component_target frontend)"
       "testbench-api:local|${REPO_ROOT}/testbench/api|${TESTBENCH_NS}|shop-api"
       "testbench-frontend:local|${REPO_ROOT}/testbench/frontend|${TESTBENCH_NS}|shop-frontend"
       "testbench-worker:local|${REPO_ROOT}/testbench/worker|${TESTBENCH_NS}|shop-worker"
       "testbench-loadgen:local|${REPO_ROOT}/testbench/loadgen|${TESTBENCH_NS}|shop-loadgen"
     ) ;;
   backend)
-    RELOAD_TARGETS=("$(rust_backend_target)") ;;
-  query-api|stream-processor|ingest-gateway|storage-writer|auth-service|alert-evaluator)
-    RELOAD_TARGETS=("$(rust_single_target "$SERVICE")") ;;
-  frontend)
-    RELOAD_TARGETS=("observable-frontend:local|${REPO_ROOT}|${OBSERVABLE_NS}|frontend|${REPO_ROOT}/apps/frontend/Dockerfile") ;;
+    mapfile -t RELOAD_TARGETS < <(rust_backend_targets) ;;
+  query-api|stream-processor|ingest-gateway|storage-writer|auth-service|alert-evaluator|admin-service|frontend)
+    RELOAD_TARGETS=("$(component_target "$SERVICE")") ;;
   testbench)
     RELOAD_TARGETS=(
       "testbench-api:local|${REPO_ROOT}/testbench/api|${TESTBENCH_NS}|shop-api"
@@ -171,7 +190,7 @@ case "$SERVICE" in
   *)
     echo "ERROR: unknown service '$SERVICE'." >&2
     echo "       Valid values: all, backend, query-api, stream-processor, ingest-gateway," >&2
-    echo "       storage-writer, auth-service, alert-evaluator, frontend," >&2
+    echo "       storage-writer, auth-service, alert-evaluator, admin-service, frontend," >&2
     echo "       testbench, testbench-api, testbench-frontend, testbench-worker, testbench-loadgen" >&2
     exit 1 ;;
 esac
@@ -183,8 +202,7 @@ esac
 NEED_RUST_TESTS=false
 NEED_FRONTEND_TESTS=false
 
-# Track which images have already been loaded (the observable-services image is
-# shared by multiple single-service targets; we only need to build+load it once).
+# Track which images have already been built+loaded so each is handled once.
 declare -A LOADED_IMAGES=()
 
 for target in "${RELOAD_TARGETS[@]}"; do
@@ -194,7 +212,9 @@ for target in "${RELOAD_TARGETS[@]}"; do
   if [[ "$SKIP_BUILD" == "false" && -z "${LOADED_IMAGES[$img]:-}" ]]; then
     log "Building $img"
     info "context: $img_context"
-    if [[ -n "${dockerfile_path:-}" ]]; then
+    if [[ "${dockerfile_path:-}" == component:* ]]; then
+      TAG=local bash "$REPO_ROOT/scripts/build-component-images.sh" "${dockerfile_path#component:}"
+    elif [[ -n "${dockerfile_path:-}" ]]; then
       docker build --tag "$img" --file "$dockerfile_path" "$img_context"
     else
       docker build --tag "$img" "$img_context"
@@ -214,12 +234,8 @@ for target in "${RELOAD_TARGETS[@]}"; do
 
   # Track which test suites are affected
   case "$img" in
-    observable-services:local|observable-frontend:local)
-      if [[ "$img" == "observable-frontend:local" ]]; then
-        NEED_FRONTEND_TESTS=true
-      else
-        NEED_RUST_TESTS=true
-      fi ;;
+    observable-web:local) NEED_FRONTEND_TESTS=true ;;
+    observable-*:local) NEED_RUST_TESTS=true ;;
   esac
 
   # Rolling restart each deployment

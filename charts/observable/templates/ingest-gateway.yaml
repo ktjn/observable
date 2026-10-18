@@ -40,7 +40,7 @@ spec:
         runAsGroup: 65532
       containers:
         - name: ingest-gateway
-          image: {{ include "observable-common.image" . }}
+          image: {{ include "observable-common.componentImage" (dict "Values" .Values "image" .Values.services.ingestGateway.image) }}
           imagePullPolicy: {{ .Values.global.image.pullPolicy | default "IfNotPresent" }}
           command: ["ingest-gateway"]
           ports:

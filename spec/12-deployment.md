@@ -380,8 +380,9 @@ helm upgrade (canary.enabled=true) → analysis gates → promote or revert
    - **Gate 1 (health):** `GET /health` must return HTTP 200 with body containing `ok`.
    - **Gate 2 (smoke ingest):** `POST /v1/traces` must return HTTP 200.
    - **Gate 3 (error rate):** zero HTTP 5xx responses in canary pod logs after the soak period.
-3. **Promote (all gates pass):** stable is upgraded to the new tag and the canary Deployment
-   and Service are removed in the same `helm upgrade` call.
+3. **Promote (all gates pass):** the stable ingest-gateway is upgraded to the new tag
+   (`services.ingestGateway.image.tag`) and the canary Deployment and Service are removed in the
+   same `helm upgrade` call. Other components keep their pinned tags.
 4. **Revert (any gate fails):** canary is removed via `helm upgrade --set canary.enabled=false`.
    The stable release is untouched. The script exits with status 1.
 

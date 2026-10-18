@@ -42,10 +42,12 @@ per-component versions. `scripts/check-distribution-manifest.sh` (also run by
 - Each component's package version equals its manifest entry: the `services/*` crate for Rust
   components, `apps/frontend/package.json` for `web`. `contracts` is manifest-only until it has a
   single owning package.
+- Each component's Helm image pin (`charts/observable/values.yaml` `services.<name>.image`) names
+  its `observable-<component>` image and equals its manifest entry.
 - Component versions may diverge from `productVersion`.
 
-To release a component, bump its manifest entry and package version together, following SemVer for
-that component's own contract. A package-only or manifest-only edit fails validation.
+To release a component, bump its manifest entry, package version, and Helm pin together, following
+SemVer for that component's own contract. A partial edit fails validation.
 `scripts/build-component-images.sh` labels each image with its component version
 (`org.opencontainers.image.version`) and, with `TAG=manifest`, tags it with that version.
 

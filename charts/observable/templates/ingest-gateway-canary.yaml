@@ -1,5 +1,4 @@
 {{- if .Values.services.ingestGateway.canary.enabled -}}
-{{- $canaryTag := .Values.services.ingestGateway.canary.tag | default .Values.global.image.tag -}}
 {{- $env := list
     (dict "name" "INGEST_GATEWAY_HTTP_JSON_PORT" "value" (toString .Values.services.ingestGateway.port))
     (dict "name" "REDPANDA_BROKERS"    "value" .Values.redpanda.brokers)
@@ -42,7 +41,7 @@ spec:
         runAsGroup: 65532
       containers:
         - name: ingest-gateway-canary
-          image: {{ .Values.global.image.repository }}:{{ $canaryTag }}
+          image: {{ include "observable-common.componentImage" (dict "Values" .Values "image" .Values.services.ingestGateway.image "tag" .Values.services.ingestGateway.canary.tag) }}
           imagePullPolicy: {{ .Values.global.image.pullPolicy | default "IfNotPresent" }}
           command: ["ingest-gateway"]
           ports:

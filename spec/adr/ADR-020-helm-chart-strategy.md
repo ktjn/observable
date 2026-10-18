@@ -65,8 +65,10 @@ that calls the shared library templates, and adds a migration `Job` hook.
 ### Sharing With Docker Compose
 
 The Helm chart and Docker Compose share:
-- During migration, the current `observable-services` image. The ADR-035 target replaces this
-  with one independently versioned image per deployable component, pinned by the distribution.
+- One image per deployable component (`observable-<component>`, Phase 7 of
+  [docs/component-decomposition.md](../../docs/component-decomposition.md)). Helm pins each
+  component's repository and tag in `services.<name>.image`; the tags equal the component versions
+  in `distribution/manifest.yaml`.
 - The same environment variable names (`DATABASE_URL`, `CLICKHOUSE_URL`, `REDPANDA_BROKERS`, etc.).
 - The same infrastructure images (`clickhouse/clickhouse-server:24.3`, `postgres:16`,
   `redpandadata/redpanda:v23.3.1`, `openfga/openfga:v1.5`).

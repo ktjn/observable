@@ -66,6 +66,23 @@ class ComposeComponentImageTests(unittest.TestCase):
                 self.assertIn(f"args: {{ SERVICE: {package} }}", body)
 
 
+class HelmComponentImageTests(unittest.TestCase):
+    def test_helm_and_kind_tooling_use_component_images(self):
+        paths = [
+            *sorted((ROOT / "charts/observable/templates").glob("*.yaml")),
+            *sorted((ROOT / "charts/observable-common/templates").glob("*.tpl")),
+            ROOT / "charts/observable/values.yaml",
+            ROOT / "charts/observable/values.production-example.yaml",
+            ROOT / "scripts/kind-test.sh",
+            ROOT / "scripts/dev-reload.sh",
+            ROOT / "scripts/canary-promote.sh",
+        ]
+        forbidden = re.compile(r"observable-services|global\.image\.(?:repository|tag)|frontendImage")
+        for path in paths:
+            with self.subTest(path=str(path.relative_to(ROOT))):
+                self.assertIsNone(forbidden.search(path.read_text()))
+
+
 class WorkflowScopeTests(unittest.TestCase):
     def test_artifact_build_is_service_scoped(self):
         workflow = (ROOT / ".github/workflows/build.yml").read_text()
