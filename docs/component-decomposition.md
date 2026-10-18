@@ -336,10 +336,11 @@ Rules:
 **Phase 3 prep — done:** every table above now physically lives in a matching PostgreSQL schema
 (`auth`, `control`, `alerting`; `migrations/postgres/040_component_ownership_schemas.sql`), instead
 of all sharing `public`. This is documentation, not enforcement: the "no cross-owner SQL" and
-"no shared write credentials" rules above are **not yet true** — one shared application role can
+"no shared write credentials" rules above are **not yet true** - one shared application role can
 still read/write across all three schemas, since real separation is blocked on Phase 4 (shrink
-query-api) and Phase 6 (consolidate alerting) first moving the code that issues cross-owner SQL out
-of `query-api`, which today queries tables in all three schemas directly.
+query-api) moving the last cross-owner SQL out of `query-api`; `query-api` still queries the
+control-plane schema directly. The alerting schema is no longer queried directly by any component
+(Phase 6 is done).
 
 | Owner | Tables (in schema of the same name) |
 | --- | --- |
@@ -800,8 +801,9 @@ Prefer query API calls for telemetry evaluation.
 
 **Done.** The alerting component is `alert-evaluator`: it owns evaluation and all alert-rule/SLO/
 notification/incident APIs and persistence. The interim "control" owner (`admin-service`) no longer
-serves or reads any alerting table; it calls `alert-evaluator`'s `/internal/*` endpoints for the
-alerting halves of its enrichment/correlation reports.
+serves or reads any alerting table. `query-api` calls `alert-evaluator`'s `/internal/alerting-*`
+endpoints alongside `admin-service`'s `/internal/deployment-*` endpoints and merges the halves;
+`admin-service` itself no longer calls `alert-evaluator`.
 
 Sub-steps:
 
@@ -843,8 +845,10 @@ Exit evidence:
   `alert_rules`/`alert_firings`/`slo_definitions`/`notification_channels`/`notification_audit_log`/
   `incidents`/`incident_events`.
 - query and control do not write alerting tables -- **met**: `query-api` and `admin-service` neither
-  read nor write alerting tables (each calls `alert-evaluator`'s `/internal/*` endpoints for the
-  alerting halves of their enrichment/correlation reports).
+  read nor write alerting tables. `query-api` calls `alert-evaluator`'s
+  `/internal/alerting-enrichment` and `/internal/alerting-correlation` alongside `admin-service`'s
+  `/internal/deployment-enrichment` and `/internal/deployment-correlation`, and merges the halves;
+  `admin-service` no longer calls `alert-evaluator`.
 
 ### Phase 7 — Independent build artifacts
 
