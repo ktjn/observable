@@ -36,15 +36,16 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 ALLOWLIST="$ROOT/scripts/component-boundary-allowlist.txt"
 
 # Directories whose contents are build output, generated, vendored, or VCS data
-# rather than component source.
+# rather than component source. These are OR-ed into a single negated group
+# below; a bare list of `-path` predicates would AND together.
 EXCLUDES=(
-  -path "*/target/*"
-  -path "*/generated/*"
-  -path "*/node_modules/*"
-  -path "*/.git/*"
-  -path "*/dist/*"
-  -path "*/build/*"
-  -path "*/__pycache__/*"
+  "*/target/*"
+  "*/generated/*"
+  "*/node_modules/*"
+  "*/.git/*"
+  "*/dist/*"
+  "*/build/*"
+  "*/__pycache__/*"
 )
 
 # Owner of a path, by longest matching component root. `find .` emits paths
@@ -106,6 +107,16 @@ for component in "${!COMPONENT_SOURCE_REFS[@]}"; do
   combined+="${COMPONENT_SOURCE_REFS[$component]}"
 done
 
+# `! \( -path A -o -path B -o ... \)`: the patterns must be OR-ed inside the
+# group. AND-ing them (the original bug) makes the negated group always true,
+# so nothing is excluded; appending `-o` to a bare list leaves a trailing
+# operator and breaks `find`.
+exclude_args=()
+for pattern in "${EXCLUDES[@]}"; do
+  [[ ${#exclude_args[@]} -gt 0 ]] && exclude_args+=(-o)
+  exclude_args+=(-path "$pattern")
+done
+
 violations=()
 accepted=0
 
@@ -137,7 +148,7 @@ done < <(
   find . -type f \( \
     -name "*.rs" -o -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" \
     -o -name "*.py" -o -name "*.toml" -o -name "*.yaml" -o -name "*.yml" \) \
-    ! \( "${EXCLUDES[@]}" \) \
+    ! \( "${exclude_args[@]}" \) \
     -exec grep -HnIE "$combined" {} + 2>/dev/null || true
 )
 

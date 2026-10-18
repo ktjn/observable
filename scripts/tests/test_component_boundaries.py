@@ -96,6 +96,31 @@ class ComponentBoundaryLintTests(unittest.TestCase):
             self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
             self.assertIn("reason required", result.stderr)
 
+    def test_excluded_build_dirs_are_skipped_but_source_is_not(self):
+        with tempfile.TemporaryDirectory(prefix="observable-boundary-") as directory:
+            repo = self._fixture(directory)
+            excluded = {
+                "services/query-api/target/generated.rs": "use auth_service::Thing;\n",
+                "services/query-api/build/out.rs": "use auth_service::Thing;\n",
+                "services/admin-service/src/generated/api.rs": "use auth_service::Thing;\n",
+                "services/ingest-gateway/node_modules/pkg/index.ts": "use auth_service::Thing;\n",
+                "services/query-api/dist/bundle.js": "apps/frontend/main.tsx\n",
+                "libs/query-core/target/x.rs": "use auth_service::Thing;\n",
+            }
+            for rel, content in excluded.items():
+                path = repo / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content)
+            (repo / "services/query-api/src/lib.rs").write_text(
+                "use auth_service::Thing;\n"
+            )
+
+            result = self._run(repo)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn("services/query-api/src/lib.rs", result.stdout)
+            for rel in excluded:
+                self.assertNotIn(rel, result.stdout)
+
     def test_repository_tree_is_clean(self):
         result = subprocess.run(
             [bash_path(), "scripts/check-component-boundaries.sh"],
