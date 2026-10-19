@@ -219,3 +219,48 @@ image reuse or publication. The current recipes still resolve mutable base image
 apt packages, toolchains, and downloaded dependencies; platform/build arguments,
 external material resolution, checkout/build binding, and attestation verification
 remain required before a trusted full build identity can be constructed.
+
+### Read-only registry inspection
+
+`python scripts/inspect_component_registry.py query 0.1.0` requests the exact
+component tag from `https://ghcr.io/v2/ktjn/observable-query/manifests/0.1.0`.
+Only the eight known deployable repositories and OCI-compatible SemVer tags are
+accepted. The implementation follows the
+[OCI manifest pull protocol](https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pulling-manifests).
+
+It uses GET only, accepts OCI manifests/indexes and Docker schema-2 manifests/lists,
+and verifies SHA256 over the raw response bytes against a mandatory, unambiguous
+`Docker-Content-Digest`. It rejects malformed/duplicate-key JSON, invalid manifest
+structure or descriptors, mismatched media types, ambiguous headers/framing,
+compressed bodies, and responses larger than 4 MiB. Socket operations have a
+10-second timeout; response reads use a shrinking 20-second request budget,
+including status/header and chunk-trailer parsing. DNS resolution remains subject
+to the host resolver's behavior. No retries or redirects occur.
+
+A valid HTTP 404 JSON error containing exclusively `MANIFEST_UNKNOWN` produces
+`{"status":"missing","component":"query","version":"0.1.0"}`. Other 404s,
+authentication/authorization failures, rate limits, server errors, TLS/network
+failures, truncation, and invalid responses exit 1 with no observation on stdout.
+Diagnostics do not echo upstream bodies, credential values, or exception messages.
+
+Found output includes `status`, `component`, `version`, `image`, `digest`,
+`media_type`, and `identity_verified: false`. This verifies only the returned
+manifest's integrity. It does not fetch layers, verify platforms, validate build
+identity, authenticate SBOM/provenance, or establish authoritative release history.
+The planner deliberately rejects this found shape: a trusted adapter must first
+verify those release properties and construct a complete planner record.
+
+For an authenticated read, supply an already-scoped registry bearer via
+`--bearer-stdin` (up to 16 KiB, plus a terminal newline). Do not put credentials in
+arguments. The library's `inspect(..., bearer=...)` accepts the same token in
+memory. It never reads host credential stores or obtains a token automatically;
+an unauthenticated challenge fails closed. Requests remain on the fixed GHCR
+origin, so redirects cannot forward the bearer elsewhere.
+
+Regression tests use an isolated loopback HTTP server for actual transport reads,
+including slow headers/trailers, chunked bodies, redirects, limits, and two fresh
+missing observations through the planner. No production backend or containerized
+dependency implementation changes, so Testcontainers is not applicable to this
+tooling slice. These fixtures do not establish live GHCR authentication or
+published-artifact acceptance. Publishing remains disabled pending complete build
+identity, trusted history/attestations, and race protection at publication.
