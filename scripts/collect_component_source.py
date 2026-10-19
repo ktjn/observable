@@ -57,49 +57,58 @@ def collect(root, component, ref="HEAD"):
         raise InvalidSource("invalid or unsupported Git source layout") from None
 
 
-def _collect(root, component, ref):
-    """Return a source inventory and digest; worktree bytes are never read."""
-    if component not in ALL_COMPONENTS:
-        raise InvalidSource("unknown runtime component")
-    revision = git(root, "rev-parse", "--verify", "--end-of-options", ref + "^{commit}").decode().strip()
-    if re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", revision) is None:
-        raise InvalidSource("invalid source revision")
-    entries = {}
-    for raw in git(root, "ls-tree", "-rz", "--full-tree", revision).split(b"\0"):
-        if not raw:
-            continue
-        metadata, path = raw.split(b"\t", 1)
-        mode, kind, oid = metadata.decode("ascii").split()
-        entries[path.decode("utf-8")] = (mode, kind, oid)
+class GitSnapshot:
+    """Read raw, regular Git blobs at one immutable commit, without extraction."""
 
-    contents = {}
-    def read_many(paths):
-        pending = sorted(set(paths) - contents.keys())
+    def __init__(self, root, ref):
+        self.root = root
+        self.revision = git(root, "rev-parse", "--verify", "--end-of-options", ref + "^{commit}").decode().strip()
+        if re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", self.revision) is None:
+            raise InvalidSource("invalid source revision")
+        self.entries, self.contents = {}, {}
+        for raw in git(root, "ls-tree", "-rz", "--full-tree", self.revision).split(b"\0"):
+            if not raw:
+                continue
+            metadata, path = raw.split(b"\t", 1)
+            mode, kind, oid = metadata.decode("ascii").split()
+            self.entries[path.decode("utf-8")] = (mode, kind, oid)
+
+    def read_many(self, paths):
+        pending = sorted(set(paths) - self.contents.keys())
         for path in pending:
-            if path not in entries or entries[path][:2] not in (("100644", "blob"), ("100755", "blob")):
+            if path not in self.entries or self.entries[path][:2] not in (("100644", "blob"), ("100755", "blob")):
                 raise InvalidSource("missing or unsupported source file")
         if not pending:
             return
-        output = git(root, "cat-file", "--batch",
-                     data="".join(entries[path][2] + "\n" for path in pending).encode("ascii"))
+        output = git(self.root, "cat-file", "--batch",
+                     data="".join(self.entries[path][2] + "\n" for path in pending).encode("ascii"))
         offset = 0
         for path in pending:
             end = output.index(b"\n", offset)
             oid, kind, size = output[offset:end].decode("ascii").split()
-            if oid != entries[path][2] or kind != "blob":
+            if oid != self.entries[path][2] or kind != "blob":
                 raise InvalidSource("unexpected Git object")
             start = end + 1
             offset = start + int(size)
             if output[offset:offset + 1] != b"\n":
                 raise InvalidSource("incomplete Git object")
-            contents[path] = output[start:offset]
+            self.contents[path] = output[start:offset]
             offset += 1
         if offset != len(output):
             raise InvalidSource("unexpected Git object data")
 
-    def read_bytes(path):
-        read_many([path])
-        return contents[path]
+    def read_bytes(self, path):
+        self.read_many([path])
+        return self.contents[path]
+
+
+def _collect(root, component, ref):
+    """Return a source inventory and digest; worktree bytes are never read."""
+    if component not in ALL_COMPONENTS:
+        raise InvalidSource("unknown runtime component")
+    snapshot = GitSnapshot(root, ref)
+    revision, entries = snapshot.revision, snapshot.entries
+    read_bytes, read_many = snapshot.read_bytes, snapshot.read_many
 
     recipe = "apps/frontend/Dockerfile" if component == "web" else "Dockerfile"
     if hashlib.sha256(read_bytes(recipe)).hexdigest() != RECIPES[recipe]:

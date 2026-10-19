@@ -264,3 +264,57 @@ dependency implementation changes, so Testcontainers is not applicable to this
 tooling slice. These fixtures do not establish live GHCR authentication or
 published-artifact acceptance. Publishing remains disabled pending complete build
 identity, trusted history/attestations, and race protection at publication.
+
+### Committed snapshot builds
+
+```text
+python scripts/build_component_snapshot.py web --ref HEAD --output NEW_DIRECTORY
+```
+
+Replace `NEW_DIRECTORY` with a new directory under an existing parent. The command
+rejects existing output directories and never overwrites their contents. `--repo`
+selects a local clone; `--platform` selects `linux/amd64` (default) or `linux/arm64`.
+Only a fixed local snapshot tag is built, using `docker buildx build --load` and
+tar stdin. There is no push, registry destination, arbitrary Docker option, or
+prebuilt CI binary path. Existing developer/Compose image builds are unchanged.
+
+The context contains raw regular Git blobs at one resolved full commit ID. Dirty
+and untracked files never enter it; Git archive export/line-ending transformations
+are not used. Sorted paths, fixed ownership/timestamps and preserved executable
+modes make the tar repeatable. Symlinks, submodules, and unsafe path names in the
+copied context are rejected before Docker runs.
+
+Web includes root package files, `.dockerignore`, and the committed frontend tree.
+Rust includes Cargo root files, `.dockerignore`, Dockerfile, and **all** committed
+`libs/`, `services/`, and `proto/` files: cargo-chef prepares/cooks the whole
+workspace even when the final service build is scoped. This broader context digest
+is recorded separately from the component's transitive source digest. Reviewed
+recipe guards still apply. Component package versions must match the distribution
+manifest at that same source revision.
+
+The fresh output directory contains `context.tar`, `context.json`, `source.json`,
+`request.json`, BuildKit's `metadata.json`, and, only after success, `result.json`.
+The execution API rejects changed requests, altered tar bytes, and stale metadata.
+It hashes the same in-memory tar bytes passed to Docker, then checks the loaded
+image's revision/version/source/context labels and requested platform. Classic
+image stores must match BuildKit's configuration digest to the local image ID;
+containerd stores must match the local root descriptor **and** image ID to BuildKit's
+image digest. The result records which binding was checked. See
+[Buildx metadata](https://docs.docker.com/reference/cli/docker/buildx/build/#metadata-file).
+
+Failures retain the attempt directory without a success record, and raw subprocess
+diagnostics are not echoed or stored by the wrapper. Use a new directory for another
+attempt. Successful images remain available under the recorded local snapshot tag;
+rebuilding that local tag may change its digest. This does not publish or replace a
+component release tag.
+
+All results retain `identity_verified: false`. BuildKit metadata and local labels
+bind this local build to source/context assertions; they do not authenticate a
+published release, lock external build materials, prove reproducibility, verify
+attestations/history, or prevent registry races. Those remain release gates.
+
+Validation includes a real `linux/amd64` web snapshot build and local container
+checks for index/referenced JavaScript HTTP 200. Upstream API names were mapped to
+loopback solely to allow standalone nginx startup; backend APIs were not exercised.
+The ephemeral container was stopped. Rust image builds and arm64 execution were not
+run for this tooling slice; their context/command paths are covered by script tests.
