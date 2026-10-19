@@ -326,5 +326,8 @@ checks for index/referenced JavaScript HTTP 200. Upstream API names were mapped 
 loopback solely to allow standalone nginx startup; backend APIs were not exercised.
 The ephemeral container was stopped. All seven Rust `linux/amd64` component images
 have also been built from committed source and passed isolated dynamic-library
-checks. Their temporary verification containers auto-removed. Arm64 execution,
-service startup and cluster integration remain unverified by these image checks.
+checks. Their temporary verification containers auto-removed. A real web
+`linux/arm64` build and nginx static-serving check also passed under Docker Desktop
+emulation on an x86_64 host; see the [arm64 evidence](../docs/component-web-arm64-verification.md).
+Rust arm64 execution, native arm64 hardware, service connectivity and cluster
+integration remain unverified by these image checks.
