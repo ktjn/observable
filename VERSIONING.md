@@ -98,10 +98,12 @@ workflow. It does not change the transitional shared-image release path below.
   never roll back publication by deleting or replacing a tag. Missing attestations may be retried
   against the original digest without rebuilding the image.
 
-The next slice must implement and test this publish/reuse/reject decision locally, including
-unchanged components across product releases, changed inputs without a bump, registry errors,
-partial retries, and concurrent writers. Registry publishing and published-artifact installation
-evidence remain separate acceptance gates; this policy does not establish either.
+The [local release planner](distribution/README.md#local-immutable-release-planning) implements
+publish/reuse/reject decisions from supplied observations, including unchanged inputs across source
+revisions, missing evidence, registry errors, and a tag appearing during reinspection. It does not
+authenticate those observations or provide locking. Trusted input-identity and registry/history
+adapters, publication-boundary race protection, registry publishing, and published-artifact
+installation evidence remain open acceptance gates.
 
 ## Tag-bound artifact builds
 

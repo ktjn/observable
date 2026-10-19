@@ -100,3 +100,77 @@ Helm (`charts/observable`) pins each component as
 manifest's component versions. `kind-test.sh` and `dev-reload.sh` build and load
 the per-component images. Only the release workflow still publishes the shared
 `observable-services` image, until per-component release publishing lands.
+
+## Local immutable-release planning
+
+`python scripts/plan_component_release.py INPUT.json` evaluates the
+[immutable release policy](../VERSIONING.md#immutable-component-releases) without
+building images, contacting the registry, or changing tags. It prints one JSON
+intent (`publish`, `reuse`, or `complete-evidence`); rejected input exits 1 with
+no plan on stdout. Every intent has `publication_authorized: false`.
+
+Input has `request`, `observations`, and optional `history` keys. This example
+describes a first publication after two definitive missing-tag observations:
+
+```json
+{
+  "request": {
+    "component": "query",
+    "version": "0.1.0",
+    "source_revision": "1111111111111111111111111111111111111111",
+    "input_algorithm": "fixture-v1",
+    "input_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "platforms": ["linux/amd64"]
+  },
+  "observations": [
+    {"status": "missing", "component": "query", "version": "0.1.0"},
+    {"status": "missing", "component": "query", "version": "0.1.0"}
+  ]
+}
+```
+
+This is illustrative data, not release evidence. Component names match the image
+builder (`store-clickhouse`, not the manifest's `storeClickhouse`); `contracts`
+has no runtime image. Versions must be valid SemVer usable as OCI tags: build
+metadata containing `+` is rejected. Revisions are full Git object IDs; digests
+are lowercase SHA256. Platforms are a nonempty set of Linux platform strings;
+ordering does not affect identity.
+
+A found observation is `{"status": "found", "record": RECORD}`. `RECORD` has
+exactly these keys:
+
+| Key | Meaning |
+| --- | --- |
+| `identity` | Same fields as `request`, from the original publication |
+| `digest` | Original image's OCI manifest digest (`sha256:` plus 64 hex digits) |
+| `identity_verified` | Boolean `true`, asserted by a trusted verifier |
+| `sbom_subject` | Verified attestation subject digest, or `null` if missing |
+| `provenance_subject` | Verified attestation subject digest, or `null` if missing |
+
+`history`, when supplied, is the same record format for this exact
+component/version from authoritative release history. History may have incomplete
+attestations, but its identity must be verified. A missing historical image or a
+changed historical digest/identity rejects the plan. A found image with matching
+verified inputs reuses its original digest and source revision, even when the
+request's source revision differs. Missing attestations produce `complete-evidence`
+for that digest; attestations naming a different subject reject the plan.
+
+Only `found` and definitive `missing` observations are accepted. All errors,
+unknown statuses, unverified identity, duplicate JSON keys, and unexpected fields
+reject the plan. A missing observation must target the requested component/version.
+The API `plan_release(request, inspect, history=None)` calls `inspect()` again
+after an initial miss when there is no historical publication. A newly found
+matching tag becomes reuse/evidence completion; a conflicting tag or inspection
+error rejects the intent. The CLI requires both
+observations for that path and rejects unused observations.
+
+**Trust boundary and remaining gates:** the planner checks the consistency of
+assertions, not their authenticity. A hash and `identity_verified: true` in a JSON
+file do not verify build inputs or attestations. `input_algorithm` must name the
+verifier's documented, versioned fingerprint algorithm (for example, `fixture-v1`
+above is only for tests); the planner treats its name as opaque and rejects a
+mismatch with published identity. Before enabling publishing, implement a trusted
+build-input collector/verifier, registry/history adapter, live reinspection,
+serialization and overwrite prevention at publication, and digest-bound release
+evidence. Offline observations cannot establish freshness or prevent a race after
+the final lookup. Existing build-selection logic is not a fingerprint algorithm.
