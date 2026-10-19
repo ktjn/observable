@@ -61,6 +61,48 @@ components.
 The migration and exit criteria are defined in
 [docs/component-decomposition.md](docs/component-decomposition.md).
 
+### Immutable component releases
+
+This is the policy for Phase 7 per-component publishing; it is not yet implemented by the release
+workflow. It does not change the transitional shared-image release path below.
+
+- Publish deployable components as `ghcr.io/ktjn/observable-<component>:<version>`, using the
+  manifest version without a `v` prefix and the existing image names (including
+  `observable-store-clickhouse`). `contracts` has no runtime image.
+- A published component version identifies one immutable OCI manifest digest. Never overwrite or
+  delete and recreate its tag, including on retries. A product release that keeps that component
+  version reuses the existing digest without rebuilding or pushing it. Rollback reuses the earlier
+  digest; it does not rebuild an earlier source revision.
+- Compare component inputs with the source recorded for that component's published version, not
+  merely with the previous product tag. A change to release inputs requires a new component version
+  before publishing: service source, transitive production/build dependencies, lockfiles, generated
+  artifacts, migrations/assets included in the image, Docker build context and recipe inputs, and
+  target platforms/base-image digests and build arguments. Include playground/WASM dependencies only
+  when the artifact actually consumes them; the separate Pages build is not the web OCI build.
+  Product-only metadata outside those inputs does not force unchanged components to release.
+- Record enough release identity to verify reuse: component name/version, source revision, build
+  input identity, target platforms, and resulting OCI digest, with SBOM and provenance bound to that
+  digest. Build input identity must use a documented, versioned algorithm; the current changed-path
+  build selector alone is not proof of release identity. If identity cannot be verified or inputs
+  differ under an existing version, fail and require investigation or a version bump.
+- Inspect the registry before building. An existing tag is reusable only after identity and required
+  release evidence are verified. Only a definitive missing-tag response permits a first publication;
+  authentication, authorization, network, and registry errors fail closed. A missing image claimed
+  by an earlier published release is a recovery failure, not permission to recreate its tag.
+- Serialize writers for each component/version and prevent tag replacement at the publication
+  boundary. A preflight lookup alone is insufficient: if a concurrent publication appears, verify
+  and reuse its identity/digest or fail without overwriting it. Publishing must remain disabled
+  until the implementation can enforce this rule.
+- Complete and verify each component's release evidence before promoting a distribution manifest.
+  After a partial failure, retain already published artifacts and retry by verifying/reusing them;
+  never roll back publication by deleting or replacing a tag. Missing attestations may be retried
+  against the original digest without rebuilding the image.
+
+The next slice must implement and test this publish/reuse/reject decision locally, including
+unchanged components across product releases, changed inputs without a bump, registry errors,
+partial retries, and concurrent writers. Registry publishing and published-artifact installation
+evidence remain separate acceptance gates; this policy does not establish either.
+
 ## Tag-bound artifact builds
 
 The `Release Artifacts` workflow runs only for tags matching `v*`. Before building, it verifies that:
