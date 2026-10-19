@@ -79,6 +79,14 @@ control, ingest, process, ClickHouse storage, query, alerting, and web.
 Each component release owns its changelog, SBOM, provenance, and immutable OCI image. A component
 release must not rebuild unrelated components.
 
+Component version tags must identify immutable OCI digests as defined by
+[the component release policy](../VERSIONING.md#immutable-component-releases). Product releases
+reuse verified existing component digests; changed release inputs require a component version bump.
+Publishing must verify recorded build identity, fail closed on registry errors, and prevent tag
+replacement by concurrent writers. A partial retry completes evidence against the original digest;
+rollback selects previously released digests. Per-component publishing cannot be enabled until these
+rules are enforced and locally tested. The current workflow still publishes the shared image.
+
 `observable-distribution` owns the product release. It pins an exact compatible set of component
 versions and owns Docker Compose composition, the Helm umbrella chart, full-system E2E, component
 compatibility, upgrade/rollback tests, and deployment documentation.

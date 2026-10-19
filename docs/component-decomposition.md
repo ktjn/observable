@@ -926,8 +926,8 @@ Sub-steps:
    - Regression tests: `scripts/tests/test_component_builds.py`.
    - Not in this step: release publishing of per-component images. The release workflow still
      publishes only `observable-services`. Publishing per-component images needs an
-     immutable-tag rule first: an unchanged component keeps its version across product releases, so
-     a naive push would overwrite the existing tag with a new digest. This is deferred to
+     immutable-tag implementation first: an unchanged component keeps its version across product
+     releases, so a naive push would overwrite the existing tag with a new digest. This is deferred to
      sub-step 5, together with the pinned distribution install. `scripts/kind-test.sh`,
      `scripts/dev-reload.sh`, and `scripts/ci.sh` stay on the shared image until sub-step 4. The
      Compose frontend image keeps its `observable-frontend:local` name.
@@ -970,8 +970,8 @@ Sub-steps:
      pinned `observable-web` UI (waiting for its healthcheck), and runs the smoke test against the
      pinned versions rather than the `local` developer tags.
    - Not yet: Helm/kind E2E, compatibility, and upgrade/rollback verification against the pinned set,
-     and per-component release publishing (needs an immutable-tag rule) so the pinned images exist in a
-     registry.
+     and per-component release publishing (must enforce the immutable release policy) so the pinned
+     images exist in a registry.
 
 Exit evidence:
 
@@ -1007,13 +1007,13 @@ For each extraction:
 
 ## Remaining 0.2 work
 
-Status as of 2026-10-18. The phases above are otherwise complete; these are the open items and what
+Status as of 2026-10-19. The phases above are otherwise complete; these are the open items and what
 each is waiting on.
 
 | Item | State | Blocker / next step |
 |---|---|---|
 | Remove cross-owner SQL (Phase 3 exit evidence) | Not met | `observable-query` still reads control-owned `schema_entries`/`semantic_annotations` and `platform_config` for NLQ. Moving them changes NLQ metadata injection, so the **NLQ quality gate** applies (`tests/nlq/cases.json` + `scripts/nlq-eval.py` against a running cluster **with an OpenAI-compatible LLM endpoint**). |
-| Per-component release publishing (Phase 7 sub-step 5) | Not started | Needs an **immutable-tag rule** first (an unchanged component keeps its version across product releases) and a container registry. `observable-services` is still the only published image. |
+| Per-component release publishing (Phase 7 sub-step 5) | Policy defined; implementation open | [Immutable release policy](../VERSIONING.md#immutable-component-releases) defines verified digest reuse, input-based version bumps, fail-closed lookup, and concurrent-writer protection. Next: locally test the publish/reuse/reject planner, then implement publishing to the existing GHCR namespace with SBOM/provenance. `observable-services` is still the only published image. |
 | Helm/kind pinned install, compatibility, upgrade/rollback (Phase 7 sub-step 5) | Compose done | `scripts/pinned-install.sh` installs and verifies the pinned Compose set (web UI + smoke). Helm/kind and upgrade/rollback verification need a kind cluster and more than one real component version. |
 | Repository extraction (Phase 8) | Not started | Deliberately last: each component needs independent CI/release and released-artifact consumption before its source is removed. Needs separate repositories. |
 

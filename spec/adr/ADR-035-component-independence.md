@@ -84,6 +84,21 @@ versions.
 The current single root `VERSION` and `observable-services` image remain valid only during the
 migration.
 
+#### Immutable component release identity
+
+Per-component OCI version tags are immutable: an unchanged version reuses the original verified
+digest across product releases without a rebuild or push. Changed release inputs require a new
+component version. Release identity covers transitive build inputs as well as service source;
+the previous product tag or a changed-path selector alone is not a sufficient baseline.
+
+Publishing must fail closed on unverifiable identity or registry errors and prevent concurrent
+writers from replacing a component/version tag. Partial retries reuse published digests and
+finish their release evidence; rollback never deletes or replaces them. The detailed policy and
+implementation acceptance cases are in
+[VERSIONING.md](../../VERSIONING.md#immutable-component-releases) and
+[the deployment specification](../12-deployment.md#1932-independent-component-releases).
+This is a target requirement; per-component registry publishing remains unimplemented.
+
 ### Repository rule
 
 The current monorepo remains the migration workspace until component boundaries are proven.
