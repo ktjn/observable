@@ -174,3 +174,48 @@ build-input collector/verifier, registry/history adapter, live reinspection,
 serialization and overwrite prevention at publication, and digest-bound release
 evidence. Offline observations cannot establish freshness or prevent a race after
 the final lookup. Existing build-selection logic is not a fingerprint algorithm.
+
+### Committed source evidence
+
+`python scripts/collect_component_source.py query --ref HEAD` inventories the
+selected component's committed source. `--repo PATH` selects another local clone.
+The collector reads Git trees and blobs at the resolved full commit ID, without
+reading checkout source bytes or extracting files. Dirty files and host line-ending
+conversion cannot change the snapshot. Git/manifest/layout failures exit 1 with no
+inventory on stdout and no raw upstream diagnostics.
+
+The `component-source-v1` algorithm computes each file's SHA256 from its raw Git
+blob bytes, then hashes canonical JSON with `algorithm`, `component`, and `files`
+keys. Each file record contains `path`, Git `mode`, and `digest`; records are sorted
+by path. Canonical JSON uses sorted object keys, ASCII escapes, and compact comma/
+colon separators. The full commit ID is output as `source_revision` outside this
+hash, so an unrelated documentation commit preserves source identity.
+
+Rust selection includes the service's normal/build dependency closure (including
+target-specific dependencies), all workspace member manifests, root `Cargo.toml`
+and `Cargo.lock`, all `proto/` files, root Dockerfile and `.dockerignore`, and tracked
+build-selection/workflow/collector scripts. All member manifests matter because
+Cargo resolution and the current cargo-chef stage read workspace metadata. Unrelated
+service and dev-only dependency source do not enter the selected closure. Files
+within selected crates are conservatively included even when Docker would ignore
+them. Web selection includes root package/lock files, root `.dockerignore`, all
+tracked frontend files, and those build scripts; the separate playground build's
+Rust sources are not inputs to the current web OCI recipe.
+
+The collector rejects missing required files, unknown crate layouts, duplicate
+packages, unresolved local production/build dependencies, dependency overrides,
+selected symlinks/submodules, build scripts requiring additional selection review,
+and expanded npm workspaces. It pins the two reviewed Dockerfile content hashes:
+a changed recipe must be reviewed alongside source selection before updating the
+guard. Changes to the algorithm's selection or canonicalization require an algorithm
+version bump. Tests run through the existing script regression suite.
+
+Existing `services/.junie/` agent notes are classified as non-build metadata and
+excluded from the unknown-crate check; an otherwise unowned source directory fails.
+
+This output is **source-only evidence**, marked `identity_verified: false`. Its
+`source_digest` is not the planner's complete `input_digest`, and it cannot authorize
+image reuse or publication. The current recipes still resolve mutable base images,
+apt packages, toolchains, and downloaded dependencies; platform/build arguments,
+external material resolution, checkout/build binding, and attestation verification
+remain required before a trusted full build identity can be constructed.

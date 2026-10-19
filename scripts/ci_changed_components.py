@@ -53,10 +53,17 @@ WEB_PATHS = {"package.json", "package-lock.json"}
 WEB_PREFIXES = ("apps/frontend/",)
 
 
-def load_workspace(root):
+def load_workspace(root, read_text=None, strict=False):
     """Return {package: (member_dir, {workspace path dependency packages})}."""
-    manifest = tomllib.loads((root / "Cargo.toml").read_text())
+    read_text = read_text or (lambda relative: (root / relative).read_text())
+    manifest = tomllib.loads(read_text("Cargo.toml"))
+    if strict and any(key in manifest for key in ("patch", "replace")):
+        raise ValueError("unsupported dependency override")
     workspace = manifest["workspace"]
+    if strict and (not isinstance(workspace, dict)
+                   or not isinstance(workspace.get("members"), list)
+                   or not all(isinstance(member, str) for member in workspace["members"])):
+        raise ValueError("unsupported workspace members")
     workspace_paths = {
         name: spec["path"]
         for name, spec in workspace.get("dependencies", {}).items()
@@ -66,7 +73,12 @@ def load_workspace(root):
     members = {}
     dir_to_package = {}
     for member in workspace["members"]:
-        package = tomllib.loads((root / member / "Cargo.toml").read_text())["package"]["name"]
+        if strict and (not member.startswith(("libs/", "services/"))
+                       or any(part in ("..", ".", "*") for part in member.split("/"))):
+            raise ValueError("unsupported workspace layout")
+        package = tomllib.loads(read_text(member + "/Cargo.toml"))["package"]["name"]
+        if strict and (package in members or member in dir_to_package):
+            raise ValueError("duplicate workspace member")
         members[package] = member
         dir_to_package[member] = package
 
@@ -79,7 +91,9 @@ def load_workspace(root):
 
     graph = {}
     for package, member in members.items():
-        crate = tomllib.loads((root / member / "Cargo.toml").read_text())
+        crate = tomllib.loads(read_text(member + "/Cargo.toml"))
+        if strict and crate["package"].get("build", False) is not False:
+            raise ValueError("explicit build script requires source selection review")
         deps = set()
         for table in dependency_tables(crate):
             for name, spec in table.items():
@@ -95,6 +109,8 @@ def load_workspace(root):
                 normalized = str(PurePosixPath(*_normalize(target.parts)))
                 if normalized in dir_to_package:
                     deps.add(dir_to_package[normalized])
+                elif strict:
+                    raise ValueError("unresolved local dependency")
         graph[package] = (member, deps)
     return graph
 
