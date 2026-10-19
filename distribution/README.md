@@ -302,6 +302,14 @@ containerd stores must match the local root descriptor **and** image ID to Build
 image digest. The result records which binding was checked. See
 [Buildx metadata](https://docs.docker.com/reference/cli/docker/buildx/build/#metadata-file).
 
+Rust builds then run `ldd` on the mapped service binary in an ephemeral container
+with networking disabled and image pulling prohibited, using the verified image ID
+rather than the mutable snapshot tag. A nonzero exit or `not found` in either output
+stream rejects the build, since `ldd` can report missing libraries while exiting zero.
+Only then is `dynamic-linkage` added to `runtime_checks` in the success result. Web records an
+empty list for this Rust-specific check. This verifies loader dependencies, not
+service startup, readiness, database/broker connectivity, or full-system behavior.
+
 Failures retain the attempt directory without a success record, and raw subprocess
 diagnostics are not echoed or stored by the wrapper. Use a new directory for another
 attempt. Successful images remain available under the recorded local snapshot tag;
@@ -316,5 +324,7 @@ attestations/history, or prevent registry races. Those remain release gates.
 Validation includes a real `linux/amd64` web snapshot build and local container
 checks for index/referenced JavaScript HTTP 200. Upstream API names were mapped to
 loopback solely to allow standalone nginx startup; backend APIs were not exercised.
-The ephemeral container was stopped. Rust image builds and arm64 execution were not
-run for this tooling slice; their context/command paths are covered by script tests.
+The ephemeral container was stopped. All seven Rust `linux/amd64` component images
+have also been built from committed source and passed isolated dynamic-library
+checks. Their temporary verification containers auto-removed. Arm64 execution,
+service startup and cluster integration remain unverified by these image checks.

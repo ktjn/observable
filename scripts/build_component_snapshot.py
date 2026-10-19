@@ -111,6 +111,19 @@ def labels(request):
             "io.observable.context.digest": request["context_digest"]}
 
 
+def verify_runtime(request, image_id, run):
+    if request["component"] == "web":
+        return []
+    package = RUST_COMPONENTS[request["component"]]
+    checked = run(["docker", "run", "--rm", "--pull", "never", "--network", "none", "--platform", request["platform"],
+                   "--entrypoint", "/usr/bin/ldd", image_id, f"/usr/local/bin/{package}"], capture_output=True)
+    # glibc ldd can exit zero even when a needed shared library is missing.
+    if (checked.returncode != 0 or b"not found" in checked.stdout.lower()
+            or b"not found" in checked.stderr.lower()):
+        raise BuildFailed("Rust snapshot has unresolved runtime linkage")
+    return ["dynamic-linkage"]
+
+
 def execute(request, output, *, run=subprocess.run):
     try:
         return _execute(request, Path(output), run)
@@ -171,8 +184,10 @@ def _execute(request, output, run):
     if (f"{image['Os']}/{image['Architecture']}" != request["platform"]
             or any(image_labels.get(key) != value for key, value in labels(request).items())):
         raise BuildFailed("local image does not match the build evidence")
+    runtime_checks = verify_runtime(request, image["Id"], run)
     result = request | {"image_id": image["Id"], "image_digest": image_digest,
                         "image_identity_binding": binding, "identity_verified": False,
+                        "runtime_checks": runtime_checks,
                         "builder_digest": digest(Path(__file__).read_bytes())}
     write_json(output / "result.json", result)
     return result

@@ -108,6 +108,8 @@ class SnapshotBuildTests(unittest.TestCase):
                     metadata = {}
                 (self.output/'metadata.json').write_text(json.dumps(metadata))
                 return subprocess.CompletedProcess(command, 7 if malformed=='exit' else 0, b'', b'private diagnostic')
+            if command[:2]==['docker','run']:
+                return subprocess.CompletedProcess(command,0,b'libc.so.6 => /lib/libc.so.6\n',b'')
             self.assertEqual(command[:3], ['docker','image','inspect'])
             image = {'Id':'sha256:'+'a'*64, 'Os':'linux', 'Architecture':'amd64',
                      'Config':{'Labels':self.labels}}
@@ -126,6 +128,38 @@ class SnapshotBuildTests(unittest.TestCase):
         self.assertFalse(result['identity_verified'])
         self.assertTrue((self.output/'result.json').exists())
 
+    def test_rust_success_requires_network_isolated_linkage_on_verified_image_id(self):
+        prepared=self.prepare()
+        original=self.fake_runner()
+        calls=[]
+        def run(command,**kwargs):
+            calls.append(command)
+            if command[:2]==['docker','run']:
+                return subprocess.CompletedProcess(command,0,b'libc.so.6 => /lib/libc.so.6\n',b'')
+            return original(command,**kwargs)
+        result=build.execute(prepared,self.output,run=run)
+        runtime=[command for command in calls if command[:2]==['docker','run']]
+        self.assertEqual(runtime,[['docker','run','--rm','--pull','never','--network','none','--platform','linux/amd64',
+                                  '--entrypoint','/usr/bin/ldd','sha256:'+'a'*64,'/usr/local/bin/query-api']])
+        self.assertEqual(result['runtime_checks'],['dynamic-linkage'])
+
+    def test_missing_libraries_or_linker_failure_prevent_success(self):
+        for index,(exit_code,stdout,stderr) in enumerate([(0,b'libstdc++.so.6 => not found\n',b''),
+                                                        (1,b'',b'private diagnostic'),
+                                                        (0,b'',b'libssl.so.3 => not found\n')]):
+            self.output=self.root/f'linkage-{index}'
+            prepared=self.prepare()
+            original=self.fake_runner()
+            def run(command,**kwargs):
+                if command[:2]==['docker','run']:
+                    return subprocess.CompletedProcess(command,exit_code,stdout,stderr)
+                return original(command,**kwargs)
+            with self.subTest(exit_code=exit_code):
+                with self.assertRaises(build.BuildFailed) as failure:
+                    build.execute(prepared,self.output,run=run)
+                self.assertNotIn('private',str(failure.exception))
+                self.assertFalse((self.output/'result.json').exists())
+
     def test_containerd_store_binds_root_descriptor_when_config_digest_is_absent(self):
         prepared = self.prepare('web')
         original = self.fake_runner()
@@ -141,6 +175,7 @@ class SnapshotBuildTests(unittest.TestCase):
             return result
         result = build.execute(prepared,self.output,run=run)
         self.assertEqual(result['image_id'],'sha256:'+'b'*64)
+        self.assertEqual(result['runtime_checks'],[])
 
     def test_mismatched_containerd_root_descriptor_rejected(self):
         prepared = self.prepare('web')
