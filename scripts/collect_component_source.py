@@ -20,9 +20,12 @@ from ci_changed_components import ALL_COMPONENTS, RUST_COMPONENTS, closure, load
 ROOT = Path(__file__).resolve().parents[1]
 ALGORITHM = "component-source-v1"
 RECIPES = {
-    "Dockerfile": "01aad6c34cd117086c08e1191a9eef9275d7548811a76f8e7a9c4bd8b309db39",
-    "apps/frontend/Dockerfile": "b266bac294742c4cb2a5f136f2598514fdbfe1474452917ef05040c9cf80361d",
+    "Dockerfile": "81ccccef973009f7bfcd5e821f372a424e771fbbe9c4622dd3284cbf53c0a2ff",
+    "apps/frontend/Dockerfile": "f1f4d8b71fad48003126f31a12de7eeb9a234c03c1c97ea1334cae7407932c36",
 }
+# The image stage each recipe builds into a deployable component artifact. A
+# `None` target is the recipe's last stage (the frontend serves from nginx).
+RECIPE_TARGETS = {"Dockerfile": "component-runtime", "apps/frontend/Dockerfile": None}
 BUILD_SCRIPTS = {".github/workflows/build.yml", "scripts/build-component-images.sh",
                  "scripts/ci_changed_components.py", "scripts/ci-changed-surfaces.sh",
                  "scripts/collect_component_source.py"}

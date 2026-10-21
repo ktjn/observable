@@ -83,7 +83,10 @@ workflow. It does not change the transitional shared-image release path below.
 - Record enough release identity to verify reuse: component name/version, source revision, build
   input identity, target platforms, and resulting OCI digest, with SBOM and provenance bound to that
   digest. Build input identity must use a documented, versioned algorithm; the current changed-path
-  build selector alone is not proof of release identity. If identity cannot be verified or inputs
+  build selector alone is not proof of release identity. `component-input-v1`
+  ([declared build-input identity](distribution/README.md#declared-build-input-identity)) is the
+  current algorithm: it fingerprints committed source, the digest-pinned recipe, the reachable
+  external image references and the target platforms. If identity cannot be verified or inputs
   differ under an existing version, fail and require investigation or a version bump.
 - Inspect the registry before building. An existing tag is reusable only after identity and required
   release evidence are verified. Only a definitive missing-tag response permits a first publication;
@@ -101,9 +104,9 @@ workflow. It does not change the transitional shared-image release path below.
 The [local release planner](distribution/README.md#local-immutable-release-planning) implements
 publish/reuse/reject decisions from supplied observations, including unchanged inputs across source
 revisions, missing evidence, registry errors, and a tag appearing during reinspection. It does not
-authenticate those observations or provide locking. Trusted input-identity and registry/history
-adapters, publication-boundary race protection, registry publishing, and published-artifact
-installation evidence remain open acceptance gates.
+authenticate those observations or provide locking. Trusted verification of the declared build
+inputs and registry/history adapters, publication-boundary race protection, registry publishing, and
+published-artifact installation evidence remain open acceptance gates.
 
 ## Tag-bound artifact builds
 

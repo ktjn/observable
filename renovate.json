@@ -83,7 +83,7 @@
         "/(^|/)Dockerfile\\.[^/]*$/"
       ],
       "matchStrings": [
-        "#\\s*syntax=docker/dockerfile:(?<currentValue>[^\\s]+)"
+        "#\\s*syntax=docker/dockerfile:(?<currentValue>[^\\s@]+)(?:@(?<currentDigest>sha256:[0-9a-fA-F]{64}))?"
       ],
       "datasourceTemplate": "docker",
       "depNameTemplate": "docker/dockerfile"

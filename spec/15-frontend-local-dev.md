@@ -297,12 +297,14 @@ as a prerequisite for Phase 1.
 
 ### 24.2 Frontend Dockerfile
 
-`apps/frontend/Dockerfile`:
+`apps/frontend/Dockerfile` (every `FROM` and the `# syntax=` frontend image carry a
+`@sha256:` digest in the committed recipe; see
+[declared build-input identity](../distribution/README.md#declared-build-input-identity)):
 
 ```dockerfile
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.28@sha256:<digest>
 
-FROM node:22-alpine AS deps
+FROM node:24-alpine@sha256:<digest> AS deps
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -313,9 +315,13 @@ RUN --mount=type=cache,id=observable-npm,target=/root/.npm,sharing=locked \
 FROM deps AS build
 COPY apps/frontend apps/frontend
 WORKDIR /app/apps/frontend
+ARG VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE=self
+ARG VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT=
+ENV VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE=$VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE
+ENV VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT=$VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT
 RUN npm run build
 
-FROM nginx:1.27-alpine AS runtime
+FROM nginx:1.31-alpine@sha256:<digest> AS runtime
 
 RUN rm -rf /usr/share/nginx/html/*
 COPY --from=build /app/apps/frontend/dist /usr/share/nginx/html

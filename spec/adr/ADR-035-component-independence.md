@@ -99,6 +99,13 @@ implementation acceptance cases are in
 [the deployment specification](../12-deployment.md#1932-independent-component-releases).
 This is a target requirement; per-component registry publishing remains unimplemented.
 
+The monorepo recipes pin every base and Dockerfile-frontend image by digest, and the
+[declared build-input identity](../../distribution/README.md#declared-build-input-identity)
+fingerprints the source closure, the recipe, the reachable pinned images, and the target platforms as
+`component-input-v1`. It does not authenticate those digests, cover externally supplied build
+arguments, or pin the materials apt, rustup and the language package managers resolve at build time,
+so it supplies a declared-input fingerprint rather than verified release identity.
+
 The initial monorepo attestation verifier trusts GitHub Actions OIDC certificates
 for `ktjn/observable` and its direct `.github/workflows/release-artifacts.yml`
 workflow, with both source and signer commits equal to the caller's approved full

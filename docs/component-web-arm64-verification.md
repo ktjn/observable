@@ -68,3 +68,8 @@ records an executed check of the existing ADR-035 artifact boundary. No source,
 Docker recipe, dependency, test or protected regression gate changed. Full local CI
 was not run for this documentation-only update; it remains required before any
 later code push.
+
+> **Note (2026-10-21):** this build predates the
+> [declared build-input identity](../distribution/README.md#declared-build-input-identity) change.
+> Both recipes now pin their base and `# syntax=` images by digest; the digests recorded above are
+> unchanged and were produced from the tag-based recipe at revision `71da53c1`.
