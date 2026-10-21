@@ -87,6 +87,13 @@ replacement by concurrent writers. A partial retry completes evidence against th
 rollback selects previously released digests. Per-component publishing cannot be enabled until these
 rules are enforced and locally tested. The current workflow still publishes the shared image.
 
+The initial monorepo [attestation verifier](../distribution/README.md#authenticated-image-attestations)
+enforces ADR-035's fixed repository/direct-workflow, approved source/signer commit,
+GitHub OIDC and hosted-runner policy. Both SLSA v1 and SPDX statements must name the
+exact component image and digest. This read-only evidence is not a complete build-input
+identity or a trusted release-planner record; external-material completeness,
+source eligibility, history and publication race protection remain required.
+
 `observable-distribution` owns the product release. It pins an exact compatible set of component
 versions and owns Docker Compose composition, the Helm umbrella chart, full-system E2E, component
 compatibility, upgrade/rollback tests, and deployment documentation.

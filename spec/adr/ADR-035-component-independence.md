@@ -99,6 +99,18 @@ implementation acceptance cases are in
 [the deployment specification](../12-deployment.md#1932-independent-component-releases).
 This is a target requirement; per-component registry publishing remains unimplemented.
 
+The initial monorepo attestation verifier trusts GitHub Actions OIDC certificates
+for `ktjn/observable` and its direct `.github/workflows/release-artifacts.yml`
+workflow, with both source and signer commits equal to the caller's approved full
+commit. It rejects self-hosted runners and requires separate SLSA v1 provenance
+and SPDX statements about the exact component repository and immutable image
+digest. Verification uses GitHub CLI's cryptographic policy enforcement, not
+caller-supplied verification JSON. This authenticates signed image evidence only;
+it does not establish complete external-material identity, source main/tag
+eligibility, per-platform SBOM completeness, release history or publication safety.
+Future extracted repositories/reusable builders require an explicit trust-policy
+revision before acceptance. See the [verifier contract](../../distribution/README.md#authenticated-image-attestations).
+
 ### Repository rule
 
 The current monorepo remains the migration workspace until component boundaries are proven.

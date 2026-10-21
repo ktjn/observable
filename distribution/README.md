@@ -265,6 +265,60 @@ tooling slice. These fixtures do not establish live GHCR authentication or
 published-artifact acceptance. Publishing remains disabled pending complete build
 identity, trusted history/attestations, and race protection at publication.
 
+### Authenticated image attestations
+
+```text
+python scripts/verify_component_attestations.py query sha256:DIGEST_HEX FULL_SOURCE_COMMIT
+```
+
+Replace `DIGEST_HEX` with 64 lowercase hexadecimal characters and `FULL_SOURCE_COMMIT`
+with the approved full Git object ID (40 or 64 lowercase hexadecimal characters).
+Only the eight known runtime components are accepted. The adapter constructs an
+immutable `oci://ghcr.io/ktjn/observable-<component>@sha256:...` target; it never
+accepts a mutable tag, arbitrary image URL, repository, workflow, host or extra flags.
+
+Installed trusted `gh` performs two cryptographic verifications: SLSA v1 provenance
+(`https://slsa.dev/provenance/v1`) and SPDX (`https://spdx.dev/Document`). Both use
+fixed `github.com`, repository `ktjn/observable`, signer workflow
+`ktjn/observable/.github/workflows/release-artifacts.yml`, GitHub Actions OIDC issuer,
+the expected source **and signer** commit, and rejection of self-hosted runners.
+The current workflow is direct; a reusable builder or extracted repository needs
+a reviewed trust-policy update. The caller must select an approved expected commit:
+the adapter does not establish membership in main or release-tag eligibility.
+
+The adapter invokes `gh` directly with an argument array, closed stdin and a
+30-second timeout per predicate. It captures subprocess diagnostics in memory and
+never echoes or persists them. Verification JSON larger than 16 MiB is rejected
+after capture; this is not a streaming memory bound. Strict duplicate-key parsing
+requires nonempty results, in-toto v1 statements, the requested predicate, a nonempty
+predicate object and exactly one matching component image/SHA256 subject per result.
+All returned statements must match. Signature/certificate verification is delegated
+to `gh`; a JSON file or a claimed verified flag is never an input to this CLI.
+See [GitHub CLI verification](https://cli.github.com/manual/gh_attestation_verify).
+
+Success returns only `component`, image repository, `digest`, `source_revision`,
+`sbom_subject`, `provenance_subject`, `attestations_verified: true` and
+`identity_verified: false`. No raw predicate, certificate or bundle is returned.
+This proves constrained-workflow signatures about the image digest, not SBOM schema
+validity/completeness, per-platform coverage, complete external build materials,
+reproducibility, authenticated release history or immutable tags. The release planner
+rejects this partial evidence shape; a later trusted full-input adapter must combine
+and verify the remaining properties before constructing a release record.
+
+Existing GitHub/GHCR authentication must already be configured for `gh`; the wrapper
+does not log in, read/export tokens or accept credentials in arguments. Missing
+attestations, authentication/network failures, timeout, missing tools, nonzero exit
+or invalid output all exit 1 with no evidence on stdout and one generic diagnostic.
+No partial result is emitted when only one predicate succeeds. It never signs,
+uploads, publishes or changes a registry tag.
+
+Regression tests exercise the adapter's policy and parsing through a controlled
+runner. Installed `gh 2.102.0` supports the enforced flags; a live read-only check
+against an unpublished query digest rejected with sanitized output. No positive
+live component verification is claimed: the current release workflow still signs
+only `observable-services`. No backend/dependency boundary changes, so Testcontainers
+does not apply; fixtures do not substitute for future live signed-component acceptance.
+
 ### Committed snapshot builds
 
 ```text
