@@ -1005,6 +1005,12 @@ For each extraction:
 5. run distribution E2E
 6. remove the old source only after compatibility passes
 
+The [npm material preparer](../distribution/README.md#verified-npm-materials-and-offline-installation) verifies locked web archive bytes and revalidates them against
+approved Git metadata before an isolated `npm ci --offline --ignore-scripts` installation. A native
+Windows/amd64 full-lock install passed for 421 archives and 434 external package records. This is
+partial consumption evidence: offline OCI builds, complete external materials, authenticated history
+and publication safety remain open; it grants no release identity or publication authorization.
+
 ## Remaining 0.2 work
 
 Status as of 2026-10-22. The phases above are otherwise complete; these are the open items and what

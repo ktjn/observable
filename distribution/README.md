@@ -520,3 +520,36 @@ The v2 argument-binding change was verified with script regressions and preparat
 committed recipes. Docker's engine was unavailable on the validation host, so no real image
 build or JavaScript-bundle inspection of this new path is claimed. The earlier image checks
 above predate v2 and are not acceptance evidence for argument-bearing builds.
+
+## Verified npm materials and offline installation
+
+The web dependency preparer reads `package.json`, `package-lock.json` and
+`apps/frontend/package.json` from one approved Git revision, without using dirty checkout files:
+
+```bash
+python scripts/prepare_component_npm.py fetch --ref APPROVED_COMMIT --output /fresh/npm-bundle
+python scripts/prepare_component_npm.py install --ref APPROVED_COMMIT --bundle /fresh/npm-bundle --output /fresh/npm-install
+```
+
+Both output directories must be new. Fetch accepts lockfile-v3 SHA512 archives only from HTTPS
+`registry.npmjs.org`, rejects redirects and credentials, verifies downloaded bytes and safe archive
+layout, and writes a content-addressed inventory. Four downloads run at most; rejection cancels
+queued work. Limits are 64 MiB per compressed archive, 512 MiB per expanded archive and 1 GiB of
+compressed material per bundle. Traversal, duplicate paths, links and special files are rejected.
+
+Install rederives the expected inventory from the caller's approved Git metadata and rechecks every
+archive before invoking npm. It stages copies, creates an isolated cache and empty user/global
+configuration, restricts the child environment, and uses the installed Node/npm CLI directly.
+[`npm cache add`](https://docs.npmjs.com/cli/v11/commands/npm-cache/) consumes local archives;
+[`npm ci`](https://docs.npmjs.com/cli/v11/commands/npm-ci/) runs with `--offline --ignore-scripts`,
+audit/funding disabled and npm log files disabled. The normal checkout and host cache are untouched.
+Success requires unchanged metadata bytes and produces `result.json` only after installation succeeds.
+
+Local acceptance on Windows/amd64 with Node 24.22.1 and npm 11.19.1 verified 421 unique archives
+covering 434 external lock records at source `d1af6f400c78a94b8e167a90d8a9ad09ebfc9c6a`, then
+installed from those materials offline. Optional package installation follows the native platform;
+the bundle includes all locked platform archives. This proves npm's offline install path, not OS
+network isolation, lifecycle execution, compilation or an offline OCI build. Cargo, apt, rustup,
+builder inputs, authenticated history and publication race protection remain separate gates.
+`identity_verified` and `publication_authorized` remain false. Failed attempts can leave partial
+output; use a fresh destination for a retry. No dependency or recipe change is made by this tooling.

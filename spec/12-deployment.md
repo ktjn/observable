@@ -119,6 +119,12 @@ compatibility, upgrade/rollback tests, and deployment documentation.
 Component repositories run their own unit, contract, component-integration, security, and image
 gates. Cross-component acceptance runs from the distribution repository against released artifacts.
 
+The [npm material preparer](../distribution/README.md#verified-npm-materials-and-offline-installation) verifies locked web archive bytes and revalidates them against
+approved Git metadata before an isolated `npm ci --offline --ignore-scripts` installation. A native
+Windows/amd64 full-lock install passed for 421 archives and 434 external package records. This is
+partial consumption evidence: offline OCI builds, complete external materials, authenticated history
+and publication safety remain open; it grants no release identity or publication authorization.
+
 ### 19.4 Environment Topology
 
 - local dev

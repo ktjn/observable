@@ -106,6 +106,10 @@ manifests against Docker Hub; live checks passed for both recipe families. This 
 evidence, not independent artifact publication. Authenticated history, complete build materials and
 publication safety remain open in [Remaining 0.2 work](docs/component-decomposition.md#remaining-02-work).
 
+Web npm material preparation now verifies all locked archive bytes and supplies an isolated native
+offline install (421 archives, 434 records). Offline image builds and complete release identity remain
+open; see [material acceptance](distribution/README.md#verified-npm-materials-and-offline-installation).
+
 **Exit evidence:**
 
 - Every source area, API, event/topic, PostgreSQL table, and ClickHouse migration has one documented

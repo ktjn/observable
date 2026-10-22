@@ -13,6 +13,12 @@ making changes.
 5. Inspect the actual code, tests, scripts, specs, and docs touched by the task before editing.
 6. Create or switch to a dedicated short-lived branch before changing files.
 
+## Latest local material evidence
+
+- Web npm archive preparation and isolated offline installation passed on Windows/amd64 for 421
+  archives and 434 external lock records. No release authorization or offline image-build claim.
+  See [commands and limits](../distribution/README.md#verified-npm-materials-and-offline-installation).
+
 ## Current Source Of Truth
 
 > **Note (0.1 open source release cleanup):** this changelog contains historical entries that
