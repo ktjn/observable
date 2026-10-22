@@ -98,12 +98,17 @@ def http_get(url, headers, *, connection_factory=HTTPSConnection):
     if (parsed.scheme != "https" or parsed.netloc != "ghcr.io"
             or parsed.query or parsed.fragment or not parsed.path.startswith("/v2/ktjn/observable-")):
         raise InspectionFailed("unsupported registry origin")
+    return bounded_https_get("ghcr.io", parsed.path, headers, connection_factory=connection_factory)
+
+
+def bounded_https_get(host, target, headers, *, connection_factory=HTTPSConnection):
+    """Bounded GET mechanics; callers must enforce their fixed origin/path policy."""
     deadline = time.monotonic() + REQUEST_BUDGET
-    connection = connection_factory("ghcr.io", timeout=SOCKET_TIMEOUT)
+    connection = connection_factory(host, timeout=SOCKET_TIMEOUT)
     connection.response_class = lambda sock, *args, **kwargs: DeadlineResponse(sock, deadline, *args, **kwargs)
     response = None
     try:
-        connection.request("GET", parsed.path, headers=headers)
+        connection.request("GET", target, headers=headers)
         response = connection.getresponse()
         response_headers = response.getheaders()
         expected = framing(response_headers)

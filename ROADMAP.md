@@ -101,6 +101,11 @@ separate distribution component.
 - Extract repositories one at a time only after each component builds and tests without sibling
   source.
 
+Local release tooling now verifies the pinned base/frontend indexes and requested amd64/arm64
+manifests against Docker Hub; live checks passed for both recipe families. This is partial registry
+evidence, not independent artifact publication. Authenticated history, complete build materials and
+publication safety remain open in [Remaining 0.2 work](docs/component-decomposition.md#remaining-02-work).
+
 **Exit evidence:**
 
 - Every source area, API, event/topic, PostgreSQL table, and ClickHouse migration has one documented

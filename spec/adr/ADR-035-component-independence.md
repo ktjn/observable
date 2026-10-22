@@ -109,6 +109,15 @@ interchangeable with v2. This does not authenticate image digests or pin the mat
 and the language package managers resolve at build time,
 so it supplies a declared-input fingerprint rather than verified release identity.
 
+The read-only [recipe-image verifier](../../distribution/README.md#pinned-recipe-image-verification)
+checks those approved pins against fixed Docker Hub token/registry endpoints, using anonymous
+repository-scoped pull tokens held only in memory. Raw index digests and direct requested-platform
+manifest digests/sizes/media types must match their committed declarations. Origins/repositories
+are allowlisted; redirects, credential discovery and registry writes are prohibited. This supplies
+registry-bound manifest evidence, not publisher signatures, independently measured architecture,
+actual builder/frontend selection, layer availability or complete build-material identity.
+It never promotes declared inputs into trusted release-planner records.
+
 The initial monorepo attestation verifier trusts GitHub Actions OIDC certificates
 for `ktjn/observable` and its direct `.github/workflows/release-artifacts.yml`
 workflow, with both source and signer commits equal to the caller's approved full

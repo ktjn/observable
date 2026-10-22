@@ -49,9 +49,14 @@ making changes.
   unreviewed recipe edits fail closed; only stages reachable from the build target contribute
   image/material entries (the whole-file recipe digest covers the rest). The recipe edits required
   re-reviewing the `RECIPES` hashes in `collect_component_source.py`. Results stay
-  `identity_verified: false`: digests are not
-  registry-authenticated, and apt/rustup/crates.io/npm content
-  stays mutable. See
+  `identity_verified: false`: the collector alone verifies no registry, and apt/rustup/crates.io/npm
+  content stays mutable. The 2026-10-22 `scripts/verify_component_base_images.py` follow-up checks
+  the five allowlisted Docker Hub base/frontend repositories through anonymous pull-scoped,
+  fixed-origin GETs: raw pinned index bytes and unique baseline amd64/arm64 child manifest
+  digest/size/media matches. Live web/query checks at `fdfa7f73` passed for both platforms.
+  Tokens stay in memory; no credential discovery, redirects, layers or registry writes. This is
+  registry-bound manifest evidence, not publisher provenance, independent architecture, actual
+  builder selection, full input identity or authenticated release history. See
   [distribution/README.md](../distribution/README.md#declared-build-input-identity) and
   [docs/component-decomposition.md](component-decomposition.md) "Remaining 0.2 work".
 - **2026-10-18 (0.2 migration immutability)**: `migrations/clickhouse/MIGRATION_CHECKSUMS` records a

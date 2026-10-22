@@ -272,15 +272,72 @@ Output is deterministic and lists `images` (reference, digest, and the reaching 
 `unresolved_materials` (apt packages, rustup components, and build-time download URLs the reachable
 stages install or fetch), alongside the source/recipe evidence and `input_algorithm`/`input_digest`.
 
-**Remaining gaps:** every result keeps `identity_verified: false`. The recorded digests are not
-authenticated against a registry, and the
+**Remaining gaps:** every collector result keeps `identity_verified: false`. The collector alone
+does not check a registry; the [recipe-image verifier](#pinned-recipe-image-verification) supplies
+separate registry-bound manifest evidence. The
 content that apt, rustup, crates.io and npm resolve at build time stays mutable even though the
-recipe and lockfiles that declare it are inside the digest. Registry authentication of the pinned
-digests, complete external-material identity, and authenticated release
+recipe and lockfiles that declare it are inside the digest. Complete external-material identity and authenticated release
 history remain release gates before this shape can satisfy the planner's trusted-record interface.
 The argument map covers the supported recipe arguments, not arbitrary Docker options, secret
 mounts, proxy settings or automatically provided BuildKit arguments. Selected target platforms
 are fingerprinted separately.
+
+### Pinned recipe-image verification
+
+```text
+python scripts/verify_component_base_images.py web --platform linux/amd64 --platform linux/arm64
+```
+
+The verifier recomputes declared inputs from one resolved committed ref (`--ref`, default `HEAD`)
+in a local clone (`--repo`). It accepts the same supported web `--build-arg NAME=VALUE` values as
+the collector. It accepts no imported verification JSON, arbitrary registry URL, credential or
+repository override. The caller selects the approved source revision.
+
+Only the reviewed Docker Hub repositories `library/node`, `library/nginx`, `library/debian`,
+`lukemathwalker/cargo-chef` and `docker/dockerfile` are supported. All references are validated
+before any network request. Anonymous pull tokens are requested from fixed
+`https://auth.docker.io/token`, for service `registry.docker.io` and one
+`repository:<name>:pull` scope. No login, host credential discovery, refresh/offline token request,
+push permission or registry write occurs. Tokens stay in memory and are sent only to
+`https://registry-1.docker.io` for that repository's digest-addressed manifest reads; neither
+tokens nor raw responses/errors are emitted or persisted. Alternate authentication challenges and
+redirects are not followed. See [Docker token authentication](https://docs.docker.com/reference/api/registry/auth/).
+
+Root pins must identify OCI or Docker schema-2 indexes. Raw root bytes must match both the
+committed SHA256 pin and the unambiguous `Docker-Content-Digest` header. For each requested platform
+the index must have exactly one compatible direct manifest descriptor. Baseline `linux/amd64`
+(absent/empty variant or `v1`) and `linux/arm64` (absent/empty variant or `v8`) are supported;
+required OS/CPU features and OS versions are not assumed. Unrelated platform/attestation entries
+are not selected. The child is read by digest and its raw SHA256, digest header, byte size and
+media type must agree with the index descriptor. Nested indexes are not accepted as selected
+platform manifests. See [OCI platform descriptors](https://github.com/opencontainers/image-spec/blob/v1.1.1/image-index.md).
+
+Both fixed-origin clients share bounded HTTPS GET mechanics: responses are limited to 4 MiB,
+socket operations to 10 seconds and response reads to a shrinking 20-second per-request budget,
+including status/headers/chunk trailers. DNS still depends on the host resolver. Invalid/duplicate
+JSON or headers, ambiguous/truncated framing, encoded/oversized responses, missing manifests,
+authentication errors, rate limits and transport failures all reject the entire operation with
+one generic diagnostic and no evidence on stdout. No partial success, retries, proxy discovery or
+redirect forwarding occurs. The GHCR inspector's existing origin policy remains unchanged.
+
+Success returns component/source/input/platform identity fields plus image references, roles
+(`base`/`frontend`), root digests and selected child digest/media/size records.
+`registry_images_verified: true` means TLS registry content matched the committed digest
+declarations. `identity_verified` and `publication_authorized` remain `false`, and the release
+planner rejects this partial evidence. No publisher signature, config architecture, config/layer
+availability, SBOM, vulnerability status, actual build usage, reproducibility, complete material
+identity or release history is proven. Platform association is the verified index's declaration,
+not an independent architecture measurement. The Dockerfile frontend runs on BuildKit's executor,
+which may differ from the output target: checking its requested target-platform manifests proves
+availability only, not which frontend image a builder actually selected.
+
+Live read-only verification on 2026-10-22 passed for `web` and `query` at committed revision
+`fdfa7f7340444ba5b11dfa352afa926b2fe3630d`, requesting both platforms. Each checked three indexes
+(two bases and the frontend) and six child manifests, covering all five distinct repositories.
+Loopback HTTP fixtures cover failure and credential-isolation cases; the unchanged GHCR protocol
+suite covers the shared framing/timeout machinery. No backend dependency behavior changed, so
+Testcontainers does not apply to this tooling slice. Full local CI and actual v2 image builds
+remain separate checks; this command needs no Docker engine.
 
 ### Read-only registry inspection
 

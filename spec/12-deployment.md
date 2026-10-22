@@ -94,8 +94,16 @@ component's build target contribute image/material entries (the whole-file recip
 the rest). Effective build arguments are fingerprinted: fixed Rust SERVICE selection, or the
 reviewed web mode and public OTLP endpoint defaults/overrides. Snapshot builds recompute the
 declared evidence from their tar recipe, pass explicit argument values and verify the input-digest
-image label. Version 1 omitted these values and cannot be treated as equivalent. Registry
-authentication of pinned digests and complete external-material identity remain required.
+image label. Version 1 omitted these values and cannot be treated as equivalent.
+
+The [recipe-image verifier](../distribution/README.md#pinned-recipe-image-verification) separately
+checks the pinned Docker Hub indexes and unique baseline amd64/arm64 child manifests through
+fixed-origin, anonymous pull-scoped reads. Raw digests, descriptor size and media type must agree.
+Tokens are never persisted/returned, and no credentials are discovered or registry state changed.
+This verifies registry manifest content and declared platform association, not publisher signatures,
+layer/config availability, independently measured architecture or actual frontend/build usage.
+Complete external-material identity and authenticated release history remain required; these
+partial results never authorize publication.
 
 The initial monorepo [attestation verifier](../distribution/README.md#authenticated-image-attestations)
 enforces ADR-035's fixed repository/direct-workflow, approved source/signer commit,
