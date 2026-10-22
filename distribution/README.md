@@ -553,3 +553,40 @@ network isolation, lifecycle execution, compilation or an offline OCI build. Car
 builder inputs, authenticated history and publication race protection remain separate gates.
 `identity_verified` and `publication_authorized` remain false. Failed attempts can leave partial
 output; use a fresh destination for a retry. No dependency or recipe change is made by this tooling.
+
+## Native web compilation from verified materials
+
+Compile an approved commit using the bundle above and a fresh destination:
+
+```bash
+python scripts/build_component_web.py --ref APPROVED_COMMIT --bundle /fresh/npm-bundle --output /fresh/web-build
+```
+
+`--build-arg NAME=VALUE` accepts the same two reviewed public self-observability arguments as
+[declared build inputs](#declared-build-input-identity). This helper performs a fresh isolated offline
+npm installation, stages raw committed frontend source, then invokes the nearest locked TypeScript
+and Vite entrypoints directly with Node. TypeScript can be workspace-local while Vite is hoisted.
+It requires the reviewed `tsc && vite build` package script, uses explicit production mode and
+`NODE_ENV=production`, and does not execute npm lifecycle scripts or a shell. Inherited Node/Vite,
+proxy and npm options are excluded from the compiler environment.
+
+Committed `node_modules`, `dist`, `.npmrc` and production `.env*` files are rejected before npm runs;
+`.env.playground` and `.env.example` are omitted, consistent with the image's production env-file
+exclusion. Only committed frontend files are staged, so ignored/untracked playground Wasm and dirty
+checkout changes cannot enter the build. Selected source and npm metadata must remain byte-identical
+after compilation. Nonempty `index.html` and emitted JavaScript are required; artifact links and
+special files are rejected, with at most 100,000 files and 512 MiB of total static output.
+
+`result.json` records `native-web-build-v1`, source/material digests, explicit arguments, host platform,
+and a sorted relative-path/size/SHA256 inventory of `dependencies/workspace/apps/frontend/dist`.
+Its `artifact_digest` hashes that canonical inventory. The nested npm install success record is
+separate: only the top-level result proves both compiler steps and artifact checks passed.
+Failed attempts retain diagnostic workspace state but emit no build success record or raw compiler
+output; retry in a fresh directory.
+
+Local acceptance compiled source `3b92b0aa549715738c68114a183d0feeb0294a1c` on Windows/amd64 from the
+421-archive verified bundle, producing 11 static files. This establishes actual TypeScript/Vite
+consumption and usable native compiler dependencies. It does not establish network isolation,
+trusted Node/compiler provenance, reproducibility, Docker image equivalence or runtime/browser
+acceptance. `network_isolation_verified`, `identity_verified` and `publication_authorized` remain
+false. Network-isolated OCI compilation and complete image materials remain required release gates.

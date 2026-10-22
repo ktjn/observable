@@ -124,6 +124,10 @@ approved Git metadata before an isolated `npm ci --offline --ignore-scripts` ins
 Windows/amd64 full-lock install passed for 421 archives and 434 external package records. This is
 partial consumption evidence: offline OCI builds, complete external materials, authenticated history
 and publication safety remain open; it grants no release identity or publication authorization.
+The [native web build](../distribution/README.md#native-web-compilation-from-verified-materials) additionally compiles committed production source
+from those materials and records a static-output digest inventory. Its compiler environment is
+restricted, but native execution has no network isolation or verified toolchain provenance; this
+compilation evidence does not satisfy the offline OCI build or publication gates.
 
 ### 19.4 Environment Topology
 

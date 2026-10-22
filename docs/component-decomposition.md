@@ -1011,6 +1011,11 @@ Windows/amd64 full-lock install passed for 421 archives and 434 external package
 partial consumption evidence: offline OCI builds, complete external materials, authenticated history
 and publication safety remain open; it grants no release identity or publication authorization.
 
+The [native web compiler](../distribution/README.md#native-web-compilation-from-verified-materials)
+now builds committed production source from the verified npm bundle and inventories the emitted
+static files. Windows/amd64 acceptance produced 11 files; network-isolated OCI builds and verified
+builder/toolchain identity remain open release gates.
+
 ## Remaining 0.2 work
 
 Status as of 2026-10-22. The phases above are otherwise complete; these are the open items and what

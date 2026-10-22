@@ -13,6 +13,13 @@ making changes.
 5. Inspect the actual code, tests, scripts, specs, and docs touched by the task before editing.
 6. Create or switch to a dedicated short-lived branch before changing files.
 
+## Latest local compilation evidence
+
+- Committed web production source compiled from the verified npm bundle on Windows/amd64, yielding
+  11 static files and a digest inventory. Native execution is not network isolated; no trusted
+  toolchain, reproducibility, OCI or browser acceptance claim.
+  See [commands and limits](../distribution/README.md#native-web-compilation-from-verified-materials).
+
 ## Latest local material evidence
 
 - Web npm archive preparation and isolated offline installation passed on Windows/amd64 for 421

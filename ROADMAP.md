@@ -109,6 +109,9 @@ publication safety remain open in [Remaining 0.2 work](docs/component-decomposit
 Web npm material preparation now verifies all locked archive bytes and supplies an isolated native
 offline install (421 archives, 434 records). Offline image builds and complete release identity remain
 open; see [material acceptance](distribution/README.md#verified-npm-materials-and-offline-installation).
+Native committed web compilation now consumes those materials successfully and inventories 11 static
+files; [compilation evidence](distribution/README.md#native-web-compilation-from-verified-materials)
+keeps network isolation and OCI acceptance explicit and open.
 
 **Exit evidence:**
 
