@@ -589,4 +589,62 @@ Local acceptance compiled source `3b92b0aa549715738c68114a183d0feeb0294a1c` on W
 consumption and usable native compiler dependencies. It does not establish network isolation,
 trusted Node/compiler provenance, reproducibility, Docker image equivalence or runtime/browser
 acceptance. `network_isolation_verified`, `identity_verified` and `publication_authorized` remain
-false. Network-isolated OCI compilation and complete image materials remain required release gates.
+false. Network-isolated OCI compilation is a separate gate, exercised for web amd64 by the
+[offline image builder](#offline-web-oci-image-builds); complete image identity remains open.
+
+## Offline web OCI image builds
+
+With Docker Desktop/BuildKit available and a verified bundle, build a local image from an approved
+commit in a fresh output directory:
+
+```bash
+python scripts/build_component_web_image.py --ref APPROVED_COMMIT --bundle /fresh/npm-bundle --output /fresh/web-image --platform linux/amd64
+```
+
+The only supported targets are `linux/amd64` and `linux/arm64`. The same two reviewed public
+`--build-arg NAME=VALUE` options are accepted. Source and material selection reuse the guards above.
+Every archive is revalidated before Docker runs. A deterministic tar context contains only selected
+committed source, metadata, verified archives and the reviewed offline runner. Its `.dockerignore`
+is deliberately empty: the context is already explicitly selected and contains no checkout files.
+
+`offline-web-image-v1` generates a distinct Dockerfile using the original approved Node, nginx and
+Dockerfile-frontend digest pins. The generated recipe and exact context have separate SHA256 digests;
+`declared_input_digest` associates the original recipe's input declaration but does not claim that
+original recipe was executed. The helper sends the verified context through stdin and supplies
+`--network none --no-cache --load`. Every generated `RUN` also specifies `--network=none`.
+There are no mounted npm caches, credentials, secrets, SSH forwarding, arbitrary Docker flags,
+release tags or pushes. BuildKit may resolve/pull the pinned base/frontend images using its network;
+network denial applies to `RUN` execution, not the registry transport or builder control plane.
+
+Inside the Node image, a private cache is populated from verified local archives in bounded batches.
+Empty user/global npm config, a restricted environment and `--offline --include=dev --ignore-scripts`
+prevent online fallback, lifecycle execution and accidental omission of compiler dev dependencies.
+The nearest locked TypeScript and Vite entrypoints run directly with Node, explicit production mode
+and reviewed public environment values. Source hashes are checked before and after compilation;
+nonempty index/JavaScript output, regular artifact files, a 512 MiB bound and 100,000-file limit are
+enforced before nginx receives the static files. Runtime nginx configuration stays committed source.
+
+`request.json` records source/material/platform/arguments and generated recipe/context digests.
+`result.json` is written only after Docker metadata and immutable image inspection agree on digest,
+platform and evidence labels. Runtime checks should use its `image_id`, never a mutable local tag.
+This local mode does not set a tag. A failed attempt may retain context/partial builder output;
+retry with a fresh destination. Raw build diagnostics are not emitted by the helper.
+
+Local acceptance on Docker Engine 29.9.2 / Buildx 0.38.1 built `linux/amd64` and emulated
+`linux/arm64` from source `6ccfb925a07284243be19810ca5f595cc2813a92` and the 421-archive bundle:
+
+- amd64 image ID/digest: `sha256:6e8cf6006b637047e116024272f31222decb08a5a5ce01163d9a8389440169bc`.
+- Emulated arm64 image ID/digest: `sha256:bec6aa81ced4107848996b3888b530fcde764e0f2b049203e3bd67fd4cd1791a`.
+- Exact generated context: `sha256:63c7c08ced43171abf048bf98f3d9b1c773cf729290f3370291401ed5f0827d5`.
+- Both images served index, both referenced JS/CSS assets and `/traces` fallback with `--network none` and
+  no published ports. Temporary host mappings for auth-service, alert-evaluator, admin-service and
+  query-api allowed committed nginx upstream names to resolve; upstream APIs were not tested.
+- An uncached build with an empty private npm cache failed, rather than downloading dependencies.
+  A separate uncached `RUN --network=none` had no external network interface and could not connect
+  to a numeric-IP HTTP endpoint.
+
+`run_network_disabled` records the local BuildKit invocation evidence. `identity_verified` and
+`publication_authorized` remain false: this does not authenticate the builder, base-image publishers,
+complete toolchain provenance, release history or reproducibility. Rust external materials,
+native arm64 hardware acceptance, publication race protection, signed component releases, browser/API and
+full-system acceptance remain open. The normal release workflow and source Dockerfiles are unchanged.

@@ -140,6 +140,13 @@ from those materials and records a static-output digest inventory. Its compiler 
 restricted, but native execution has no network isolation or verified toolchain provenance; this
 compilation evidence does not satisfy the offline OCI build or publication gates.
 
+The [offline web image builder](../../distribution/README.md#offline-web-oci-image-builds) now executes the generated npm install and production
+compile recipe with BuildKit RUN networking disabled and cache reuse disabled. Web amd64 and emulated arm64 image
+binding and isolated nginx static serving passed. Its generated recipe/context identity is separate
+from the original Dockerfile declaration; pinned image resolution still uses registry transport.
+Trusted builder/material provenance, native arm64 hardware, release history and publication protection
+remain required. The local result grants no publication authorization.
+
 ### Repository rule
 
 The current monorepo remains the migration workspace until component boundaries are proven.

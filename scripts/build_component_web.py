@@ -65,31 +65,37 @@ def artifact_inventory(directory):
     return result
 
 
+def prepare_source(root, ref, build_args=None):
+    """Review committed web inputs without touching output or invoking tools."""
+    snapshot = GitSnapshot(root, ref)
+    revision, metadata, plan = materials.source_plan(root, snapshot.revision)
+    source = collect(root, 'web', revision)
+    recipe = snapshot.read_bytes('apps/frontend/Dockerfile').decode('utf-8')
+    arguments = inputs.effective_build_args('web', recipe, build_args)
+    package = materials.registry.parse_json(metadata['apps/frontend/package.json'])
+    if package.get('scripts', {}).get('build') != 'tsc && vite build':
+        raise BuildFailed('production build script requires review')
+    selected = {}
+    for item in source['files']:
+        name = item['path']
+        if not name.startswith('apps/frontend/') or name == 'apps/frontend/package.json':
+            continue
+        materials.safe_path(name)
+        parts = Path(name).parts[2:]
+        if any(part.lower() in ('node_modules', 'dist', '.npmrc') for part in parts):
+            raise BuildFailed('unsupported committed build artifacts or configuration')
+        env_files = [part for part in parts if part.lower().startswith('.env')]
+        if env_files:
+            if len(parts) == 1 and parts[0] in ('.env.playground', '.env.example'):
+                continue
+            raise BuildFailed('production environment files require review')
+        selected[name] = snapshot.read_bytes(name)
+    return revision, metadata, plan, source, arguments, selected
+
+
 def build(root, ref, bundle, output, *, build_args=None, run=subprocess.run):
     try:
-        snapshot = GitSnapshot(root, ref)
-        revision, metadata, plan = materials.source_plan(root, snapshot.revision)
-        source = collect(root, 'web', revision)
-        recipe = snapshot.read_bytes('apps/frontend/Dockerfile').decode('utf-8')
-        arguments = inputs.effective_build_args('web', recipe, build_args)
-        package = materials.registry.parse_json(metadata['apps/frontend/package.json'])
-        if package.get('scripts', {}).get('build') != 'tsc && vite build':
-            raise BuildFailed('production build script requires review')
-        selected = {}
-        for item in source['files']:
-            name = item['path']
-            if not name.startswith('apps/frontend/') or name == 'apps/frontend/package.json':
-                continue
-            materials.safe_path(name)
-            parts = Path(name).parts[2:]
-            if any(part.lower() in ('node_modules', 'dist', '.npmrc') for part in parts):
-                raise BuildFailed('unsupported committed build artifacts or configuration')
-            env_files = [part for part in parts if part.lower().startswith('.env')]
-            if env_files:
-                if len(parts) == 1 and parts[0] in ('.env.playground', '.env.example'):
-                    continue
-                raise BuildFailed('production environment files require review')
-            selected[name] = snapshot.read_bytes(name)
+        revision, metadata, plan, source, arguments, selected = prepare_source(root, ref, build_args)
         output = materials.fresh_directory(Path(output).absolute())
         installation = npm.install(root, revision, bundle, output / 'dependencies', run=run)
         workspace = output / 'dependencies/workspace'

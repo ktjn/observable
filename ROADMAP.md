@@ -113,6 +113,11 @@ Native committed web compilation now consumes those materials successfully and i
 files; [compilation evidence](distribution/README.md#native-web-compilation-from-verified-materials)
 keeps network isolation and OCI acceptance explicit and open.
 
+The [offline web OCI build](distribution/README.md#offline-web-oci-image-builds) now passes on amd64 and emulated arm64:
+verified npm archives feed a network-disabled, uncached BuildKit install/compile and the immutable
+images serve static assets. Native arm64 hardware, Rust materials, authenticated provenance/history and
+publication protection remain open.
+
 **Exit evidence:**
 
 - Every source area, API, event/topic, PostgreSQL table, and ClickHouse migration has one documented

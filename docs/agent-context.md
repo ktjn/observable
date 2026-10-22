@@ -13,6 +13,14 @@ making changes.
 5. Inspect the actual code, tests, scripts, specs, and docs touched by the task before editing.
 6. Create or switch to a dedicated short-lived branch before changing files.
 
+## Latest offline image evidence
+
+- Docker Desktop is available at its per-user installation. The offline web OCI helper passed on
+  linux/amd64 and emulated linux/arm64 with verified archives, network-disabled uncached RUN steps and immutable-image nginx
+  static serving; empty-cache/network-denial negatives also passed. No complete provenance,
+  reproducibility, release-history or publication claim. Native arm64 hardware remains unverified.
+  See [commands, evidence and limits](../distribution/README.md#offline-web-oci-image-builds).
+
 ## Latest local compilation evidence
 
 - Committed web production source compiled from the verified npm bundle on Windows/amd64, yielding
