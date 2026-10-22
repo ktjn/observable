@@ -88,12 +88,14 @@ rollback selects previously released digests. Per-component publishing cannot be
 rules are enforced and locally tested. The current workflow still publishes the shared image.
 
 The monorepo [declared build-input identity](../distribution/README.md#declared-build-input-identity)
-resolves `component-input-v1` from committed bytes and digest-pinned recipes: every `FROM` image and
+resolves `component-input-v2` from committed bytes and digest-pinned recipes: every `FROM` image and
 the Dockerfile frontend is bound to an immutable index digest, and only stages reachable from the
 component's build target contribute image/material entries (the whole-file recipe digest still covers
-the rest). It fingerprints those declared inputs but authenticates nothing; registry authentication
-of the pinned digests, build-argument binding, and complete external-material identity remain
-required.
+the rest). Effective build arguments are fingerprinted: fixed Rust SERVICE selection, or the
+reviewed web mode and public OTLP endpoint defaults/overrides. Snapshot builds recompute the
+declared evidence from their tar recipe, pass explicit argument values and verify the input-digest
+image label. Version 1 omitted these values and cannot be treated as equivalent. Registry
+authentication of pinned digests and complete external-material identity remain required.
 
 The initial monorepo [attestation verifier](../distribution/README.md#authenticated-image-attestations)
 enforces ADR-035's fixed repository/direct-workflow, approved source/signer commit,

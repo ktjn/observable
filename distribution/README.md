@@ -167,7 +167,7 @@ observations for that path and rejects unused observations.
 **Trust boundary and remaining gates:** the planner checks the consistency of
 assertions, not their authenticity. A hash and `identity_verified: true` in a JSON
 file do not verify build inputs or attestations. `input_algorithm` must name the
-verifier's documented, versioned fingerprint algorithm; `component-input-v1`
+verifier's documented, versioned fingerprint algorithm; `component-input-v2`
 ([declared build-input identity](#declared-build-input-identity)) is the current
 declared-input algorithm, while `fixture-v1` above is only for tests. The planner
 treats the name as opaque and rejects a mismatch with published identity. Before
@@ -232,13 +232,31 @@ be constructed.
 python scripts/collect_component_inputs.py query [--ref HEAD] [--repo PATH] [--platform linux/arm64]
 ```
 
-`component-input-v1` fingerprints one component image's *declared* build inputs from committed
+`component-input-v2` fingerprints one component image's *declared* build inputs from committed
 bytes: the `component-source-v1` source digest, the reviewed recipe (path, build target, content
 digest and Dockerfile frontend), every external image reference reachable from that target's stage
-graph, and the target platforms. It reports the six `component`, `version`, `source_revision`,
+graph, target platforms and effective supported `build_args`. It reports the six `component`, `version`, `source_revision`,
 `input_algorithm`, `input_digest` and `platforms` request-identity fields the
 [release planner](#local-immutable-release-planning) requires, plus the source/recipe/image evidence,
 so the fingerprint algorithm is no longer a fixture placeholder.
+
+Version 1 omitted effective arguments; its digest is not interchangeable with v2. Rust always
+records the mapped Cargo package as `SERVICE` and rejects caller overrides. Web records both
+`VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE=self` and
+`VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT=` by default. Either web value can be set using
+repeated `--build-arg NAME=VALUE`, for example:
+
+```text
+python scripts/collect_component_inputs.py web --build-arg VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE=observer_instance --build-arg VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT=https://observer.example/otlp
+```
+
+Only these two public web values are supported. Modes are `self` or `observer_instance`;
+unknown/duplicate names, missing `=`, non-string/control-character values and URL credentials
+are rejected without echoing values. Arguments are persisted in evidence and embedded in public
+JavaScript: never supply secrets. Empty endpoint values are retained explicitly, `=` inside a
+value is preserved, and input-map order does not change the fingerprint. Omitted and explicit
+defaults have identical identity. New reachable ARG declarations or changed defaults require a
+reviewed resolver-policy update in addition to a reviewed recipe hash.
 
 Both OCI recipes pin every `FROM` image and the `# syntax=` frontend by `@sha256:` index digest
 (Docker Hub multi-platform index digests). A mutable tag, an unsupported stage flag, an instruction
@@ -255,11 +273,14 @@ Output is deterministic and lists `images` (reference, digest, and the reaching 
 stages install or fetch), alongside the source/recipe evidence and `input_algorithm`/`input_digest`.
 
 **Remaining gaps:** every result keeps `identity_verified: false`. The recorded digests are not
-authenticated against a registry, no externally supplied build-argument value is covered, and the
+authenticated against a registry, and the
 content that apt, rustup, crates.io and npm resolve at build time stays mutable even though the
 recipe and lockfiles that declare it are inside the digest. Registry authentication of the pinned
-digests, build-argument binding, complete external-material identity, and authenticated release
+digests, complete external-material identity, and authenticated release
 history remain release gates before this shape can satisfy the planner's trusted-record interface.
+The argument map covers the supported recipe arguments, not arbitrary Docker options, secret
+mounts, proxy settings or automatically provided BuildKit arguments. Selected target platforms
+are fingerprinted separately.
 
 ### Read-only registry inspection
 
@@ -369,9 +390,15 @@ python scripts/build_component_snapshot.py web --ref HEAD --output NEW_DIRECTORY
 Replace `NEW_DIRECTORY` with a new directory under an existing parent. The command
 rejects existing output directories and never overwrites their contents. `--repo`
 selects a local clone; `--platform` selects `linux/amd64` (default) or `linux/arm64`.
-Only a fixed local snapshot tag is built, using `docker buildx build --load` and
+Only a derived local snapshot tag is built, using `docker buildx build --load` and
 tar stdin. There is no push, registry destination, arbitrary Docker option, or
 prebuilt CI binary path. Existing developer/Compose image builds are unchanged.
+The two web `--build-arg NAME=VALUE` overrides above are supported here as well. All effective
+values, including the empty default endpoint, are passed explicitly to Docker, so no bare
+`--build-arg NAME` can inherit a host environment value. Rust SERVICE selection cannot be overridden.
+The local tag is `observable-<component>:snapshot-<hash>`, with SHA256 over canonical
+`source_revision`, `platform` and `input_digest`; different argument identities get different
+tags. The returned immutable image ID remains authoritative.
 
 The context contains raw regular Git blobs at one resolved full commit ID. Dirty
 and untracked files never enter it; Git archive export/line-ending transformations
@@ -387,11 +414,16 @@ is recorded separately from the component's transitive source digest. Reviewed
 recipe guards still apply. Component package versions must match the distribution
 manifest at that same source revision.
 
-The fresh output directory contains `context.tar`, `context.json`, `source.json`,
+The fresh output directory contains `context.tar`, `context.json`, `source.json`, `inputs.json`,
 `request.json`, BuildKit's `metadata.json`, and, only after success, `result.json`.
 The execution API rejects changed requests, altered tar bytes, and stale metadata.
-It hashes the same in-memory tar bytes passed to Docker, then checks the loaded
-image's revision/version/source/context labels and requested platform. Classic
+It hashes the same in-memory tar bytes passed to Docker and recomputes declared input evidence
+from that tar's unique regular recipe entry. Reviewed recipe guards and supported argument
+declarations are enforced again; request arguments, input digest and saved evidence must agree.
+The independent parsed request is used throughout execution so caller mutation during a long
+build cannot change the recorded outcome. Old prepared attempts lacking v2 evidence must use a
+fresh output directory. It then checks the loaded image's revision/version/source/context and
+input-algorithm/digest labels and requested platform. Classic
 image stores must match BuildKit's configuration digest to the local image ID;
 containerd stores must match the local root descriptor **and** image ID to BuildKit's
 image digest. The result records which binding was checked. See
@@ -426,3 +458,8 @@ checks. Their temporary verification containers auto-removed. A real web
 emulation on an x86_64 host; see the [arm64 evidence](../docs/component-web-arm64-verification.md).
 Rust arm64 execution, native arm64 hardware, service connectivity and cluster
 integration remain unverified by these image checks.
+
+The v2 argument-binding change was verified with script regressions and preparation against
+committed recipes. Docker's engine was unavailable on the validation host, so no real image
+build or JavaScript-bundle inspection of this new path is claimed. The earlier image checks
+above predate v2 and are not acceptance evidence for argument-bearing builds.

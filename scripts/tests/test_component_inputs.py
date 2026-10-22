@@ -29,8 +29,8 @@ class InputIdentityTests(unittest.TestCase):
         self.write('apps/frontend/package.json', '{"name":"web","version":"0.1.0"}')
         self.commit()
 
-    def resolve(self, component='query', targets=('linux/amd64',), ref='HEAD'):
-        return inputs.resolve(self.root, component, ref, targets)
+    def resolve(self, component='query', targets=('linux/amd64',), ref='HEAD', **kwargs):
+        return inputs.resolve(self.root, component, ref, targets, **kwargs)
 
     def review_recipe(self, name, text):
         """Simulate a reviewed recipe change so only the pin rules can reject it."""
@@ -46,11 +46,62 @@ class InputIdentityTests(unittest.TestCase):
     def test_identity_is_deterministic_and_never_authorizing(self):
         first, second = self.resolve(), self.resolve()
         self.assertEqual(first, second)
-        self.assertEqual(first['input_algorithm'], 'component-input-v1')
+        self.assertEqual(first['input_algorithm'], 'component-input-v2')
         self.assertTrue(first['input_digest'].startswith('sha256:'))
         self.assertEqual(first['version'], '0.1.0')
         self.assertFalse(first['identity_verified'])
         self.assertEqual(first['recipe']['target'], 'component-runtime')
+
+    def test_effective_defaults_and_explicit_defaults_have_identical_identity(self):
+        self.assertEqual(self.resolve()['build_args'], {'SERVICE': 'query-api'})
+        defaults = {'VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE': 'self',
+                    'VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT': ''}
+        self.assertEqual(self.resolve('web')['build_args'], defaults)
+        self.assertEqual(self.resolve('web'), self.resolve('web', build_args=defaults))
+
+    def test_supported_overrides_change_inputs_but_not_source_and_order_is_irrelevant(self):
+        args = {'VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE': 'observer_instance',
+                'VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT': 'https://observer.example/otlp?x=a=b'}
+        normal=self.resolve('web')
+        changed=self.resolve('web', build_args=args)
+        self.assertNotEqual(normal['input_digest'], changed['input_digest'])
+        self.assertEqual(normal['source_digest'], changed['source_digest'])
+        self.assertEqual(changed, self.resolve('web', build_args=dict(reversed(list(args.items())))))
+        self.assertEqual(changed['build_args'], args)
+
+    def test_invalid_arguments_are_rejected_without_echoing_values(self):
+        for component, args in [('query', {'SERVICE': 'auth-service'}),
+                                ('query', {'SERVICE': 'query-api'}),
+                                ('web', {'UNKNOWN': 'PRIVATE_SENTINEL'}),
+                                ('web', {'VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE': 'PRIVATE_SENTINEL'}),
+                                ('web', {'VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT': 'https://user:PRIVATE_SENTINEL@example.com'}),
+                                ('web', {'VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT': 'PRIVATE_SENTINEL\n'}),
+                                ('web', {'VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT': 7})]:
+            with self.subTest(component=component, args=args), self.assertRaises(inputs.InvalidInputs) as caught:
+                self.resolve(component, build_args=args)
+            self.assertNotIn('PRIVATE_SENTINEL', str(caught.exception))
+
+    def test_unknown_reachable_argument_or_changed_default_fails_closed(self):
+        for index, suffix in enumerate(['ARG UNREVIEWED=value\n',
+                                        'ARG\tUNREVIEWED=value\n',
+                                        'ARG VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE=observer_instance\n']):
+            text=(ROOT/'apps/frontend/Dockerfile').read_text()+suffix
+            self.review_recipe('apps/frontend/Dockerfile', text)
+            with self.subTest(index=index), self.assertRaises(inputs.InvalidInputs):
+                self.resolve('web')
+
+    def test_cli_argument_parser_preserves_equals_and_rejects_duplicates(self):
+        self.assertEqual(inputs.parse_build_args(['VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT=/otlp?x=a=b']),
+                         {'VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT':'/otlp?x=a=b'})
+        for values in [['NAME'], ['NAME=a', 'NAME=b'], ['=value']]:
+            with self.subTest(values=values), self.assertRaises(inputs.InvalidInputs):
+                inputs.parse_build_args(values)
+
+    def test_recipe_evidence_cannot_bypass_reviewed_recipe_guard(self):
+        recipe=(self.root/'apps/frontend/Dockerfile').read_bytes()+b'\nRUN echo changed\n'
+        with self.assertRaises(inputs.InvalidInputs):
+            inputs.recipe_evidence('web',['linux/amd64'],self.resolve('web'),
+                                   'apps/frontend/Dockerfile',recipe)
 
     def test_only_reachable_stage_images_are_inputs(self):
         self.assertEqual(self.references(self.resolve('query')),

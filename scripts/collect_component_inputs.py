@@ -3,14 +3,14 @@
 Usage: python scripts/collect_component_inputs.py COMPONENT [--ref HEAD]
        [--repo PATH] [--platform linux/amd64]...
 
-`component-input-v1` fingerprints the *declared* inputs of one component image:
+`component-input-v2` fingerprints the *declared* inputs of one component image:
 the committed source closure, the reviewed recipe, every external image
 reference reachable from the component's build target (each pinned by
-`@sha256:` digest), and the target platforms. The recipe must keep every base
+`@sha256:` digest), target platforms and effective supported build arguments. The recipe must keep every base
 and frontend image digest-pinned; an unreviewed mutable tag fails closed.
 
 This is not complete or authenticated input identity. The digests are not
-verified against a registry, no build argument values are covered, and what
+verified against a registry, and what
 apt, rustup, crates.io and npm resolve at build time stays mutable. Those remain
 release gates; this tool never authorizes publication.
 """
@@ -21,13 +21,16 @@ import json
 from pathlib import Path
 import re
 import sys
+from urllib.parse import urlsplit
 
-from build_component_snapshot import component_version
-from ci_changed_components import ALL_COMPONENTS
-from collect_component_source import (RECIPE_TARGETS, ROOT, GitSnapshot, canonical, collect, digest)
+from component_snapshot_metadata import component_version
+from ci_changed_components import ALL_COMPONENTS, RUST_COMPONENTS
+from collect_component_source import (RECIPES, RECIPE_TARGETS, ROOT, GitSnapshot, canonical, collect, digest)
 
 
-ALGORITHM = "component-input-v1"
+ALGORITHM = "component-input-v2"
+WEB_DEFAULTS = {"VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE": "self",
+                "VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT": ""}
 STAGE_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_.-]*")
 IMAGE_DIGEST = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._:/-]*@sha256:[0-9a-f]{64}$")
 PLATFORM = re.compile(r"linux/(?:amd64|arm64)")
@@ -95,10 +98,15 @@ def resolve_reference(stages, names, value):
     return None
 
 
+def instruction_parts(line):
+    parts = line.split(maxsplit=1)
+    return parts[0], parts[1] if len(parts) == 2 else ""
+
+
 def record_instruction(stage, stages, names, line):
     """Append one stage instruction, resolving any `COPY --from` immediately."""
     stage["instructions"].append(line)
-    keyword, _, rest = line.partition(" ")
+    keyword, rest = instruction_parts(line)
     if keyword.lower() != "copy":
         return
     for token in rest.split():
@@ -111,7 +119,7 @@ def stage_graph(text):
     """Return (stages, names); reject unreviewed instruction shapes."""
     stages, names = [], {}
     for line in instructions(text):
-        keyword, _, rest = line.partition(" ")
+        keyword, rest = instruction_parts(line)
         if keyword.lower() == "from":
             tokens = rest.split()
             # A per-stage platform or unknown flag changes build inputs in an
@@ -151,24 +159,14 @@ def reachable(stages, start):
     """Walk the target stage's base and `COPY --from` graph."""
     images = {}
     materials = {"apt": set(), "rustup": set(), "downloads": set()}
-    pending, seen = [start], set()
-    while pending:
-        index = pending.pop()
-        if index in seen:
-            continue
-        seen.add(index)
-        stage = stages[index]
+    for stage in reachable_stages(stages, start):
         if stage["internal"] is None:
             add_image(images, stage["reference"], stage)
-        else:
-            pending.append(stage["internal"])
         for target, value in stage["copies"]:
             if target is None:
                 add_image(images, value, stage)
-            else:
-                pending.append(target)
         for line in stage["instructions"]:
-            keyword, _, rest = line.partition(" ")
+            keyword, rest = instruction_parts(line)
             if keyword.lower() != "run":
                 continue
             for pattern, kind in ((APT, "apt"), (RUSTUP, "rustup")):
@@ -176,6 +174,71 @@ def reachable(stages, start):
                     materials[kind].update(t for t in args.split() if not t.startswith("-"))
             materials["downloads"].update(DOWNLOAD.findall(rest))
     return images, materials
+
+
+def reachable_stages(stages, start):
+    pending, seen = [start], set()
+    while pending:
+        index = pending.pop()
+        if index in seen:
+            continue
+        seen.add(index)
+        stage = stages[index]
+        yield stage
+        if stage["internal"] is not None:
+            pending.append(stage["internal"])
+        for target, value in stage["copies"]:
+            if target is not None:
+                pending.append(target)
+
+
+def effective_build_args(component, text, overrides=None):
+    """Accept only reviewed ARG declarations and explicit public configuration."""
+    stages, names = stage_graph(text)
+    start = len(stages) - 1 if component == "web" else names["component-runtime"]
+    expected = WEB_DEFAULTS if component == "web" else {"SERVICE": None}
+    declarations = {}
+    for stage in reachable_stages(stages, start):
+        for line in stage["instructions"]:
+            keyword, rest = instruction_parts(line)
+            if keyword.lower() != "arg":
+                continue
+            name, separator, value = rest.partition("=")
+            default = value if separator else None
+            if name not in expected or default != expected[name]:
+                raise InvalidInputs("unsupported recipe argument declaration")
+            declarations[name] = default
+    if declarations != expected:
+        raise InvalidInputs("missing recipe argument declaration")
+    if overrides is None:
+        overrides = {}
+    if not isinstance(overrides, dict):
+        raise InvalidInputs("invalid build arguments")
+    if component != "web":
+        if overrides:
+            raise InvalidInputs("Rust service selection is fixed")
+        return {"SERVICE": RUST_COMPONENTS[component]}
+    if any(key not in WEB_DEFAULTS or not isinstance(value, str)
+           or any(ord(char) < 32 or ord(char) == 127 for char in value)
+           for key, value in overrides.items()):
+        raise InvalidInputs("unsupported build argument")
+    args = WEB_DEFAULTS | overrides
+    if args["VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE"] not in ("self", "observer_instance"):
+        raise InvalidInputs("unsupported web mode")
+    endpoint = urlsplit(args["VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT"])
+    if endpoint.username is not None or endpoint.password is not None:
+        raise InvalidInputs("build arguments must not contain URL credentials")
+    return args
+
+
+def parse_build_args(values):
+    result = {}
+    for value in values:
+        key, separator, argument = value.partition("=")
+        if not separator or not key or key in result:
+            raise InvalidInputs("invalid or duplicate build arguments")
+        result[key] = argument
+    return result
 
 
 def parse_recipe(text, target):
@@ -208,9 +271,9 @@ def build_platforms(values):
     return sorted(values)
 
 
-def declared_identity(component, targets, source, recipe, recipe_digest, images, frontend):
+def declared_identity(component, targets, source, recipe, recipe_digest, images, frontend, build_args):
     """Canonical declared inputs; the value the release planner would fingerprint."""
-    return {"algorithm": ALGORITHM, "component": component, "platforms": targets,
+    return {"algorithm": ALGORITHM, "component": component, "platforms": targets, "build_args": build_args,
             "source": {"algorithm": source["source_algorithm"], "digest": source["source_digest"]},
             "recipe": {"path": recipe, "target": RECIPE_TARGETS[recipe], "digest": recipe_digest,
                        "frontend": frontend},
@@ -218,17 +281,17 @@ def declared_identity(component, targets, source, recipe, recipe_digest, images,
                        for reference, entry in sorted(images.items())]}
 
 
-def resolve(root, component, ref="HEAD", targets=("linux/amd64",)):
+def resolve(root, component, ref="HEAD", targets=("linux/amd64",), *, build_args=None):
     """Return declared build-input evidence for one component; never authorization."""
     try:
-        return _resolve(root, component, ref, targets)
+        return _resolve(root, component, ref, targets, build_args)
     except InvalidInputs:
         raise
     except Exception:
         raise InvalidInputs("invalid or unsupported component build inputs") from None
 
 
-def _resolve(root, component, ref, targets):
+def _resolve(root, component, ref, targets, build_args):
     if component not in ALL_COMPONENTS:
         raise InvalidInputs("unknown runtime component")
     platform_list = build_platforms(targets)
@@ -237,22 +300,32 @@ def _resolve(root, component, ref, targets):
     version = component_version(snapshot, component)
     recipe = "apps/frontend/Dockerfile" if component == "web" else "Dockerfile"
     recipe_bytes = snapshot.read_bytes(recipe)
-    images, materials, frontend = parse_recipe(recipe_bytes.decode("utf-8"), RECIPE_TARGETS[recipe])
+    return {"component": component, "version": version, "platforms": platform_list,
+            "source_revision": source["source_revision"],
+            "source_algorithm": source["source_algorithm"], "source_digest": source["source_digest"],
+            **recipe_evidence(component, platform_list, source, recipe, recipe_bytes, build_args),
+            "identity_verified": False}
+
+
+def recipe_evidence(component, platforms, source, recipe, recipe_bytes, overrides=None):
+    """Recompute the declared recipe/input evidence without reading checkout files."""
+    if hashlib.sha256(recipe_bytes).hexdigest() != RECIPES[recipe]:
+        raise InvalidInputs("unreviewed build recipe")
+    text = recipe_bytes.decode("utf-8")
+    images, materials, frontend = parse_recipe(text, RECIPE_TARGETS[recipe])
     if not images or frontend is None:
         raise InvalidInputs("no external image inputs found")
     recipe_digest = "sha256:" + hashlib.sha256(recipe_bytes).hexdigest()
-    declared = declared_identity(component, platform_list, source, recipe, recipe_digest, images,
-                                frontend)
+    arguments = effective_build_args(component, text, overrides)
+    declared = declared_identity(component, platforms, source, recipe, recipe_digest, images,
+                                frontend, arguments)
     return {
-        "component": component, "version": version, "platforms": platform_list,
-        "source_revision": source["source_revision"],
-        "source_algorithm": source["source_algorithm"], "source_digest": source["source_digest"],
         "recipe": declared["recipe"],
         "images": [{"reference": reference, "digest": entry["digest"], "stages": entry["stages"]}
                    for reference, entry in sorted(images.items())],
         "unresolved_materials": materials,
         "input_algorithm": ALGORITHM, "input_digest": digest(canonical(declared)),
-        "identity_verified": False,
+        "build_args": arguments,
     }
 
 
@@ -262,9 +335,11 @@ def main(argv):
     parser.add_argument("--ref", default="HEAD")
     parser.add_argument("--repo", type=Path, default=ROOT)
     parser.add_argument("--platform", action="append", dest="targets")
+    parser.add_argument("--build-arg", action="append", default=[], dest="build_args")
     args = parser.parse_args(argv)
     try:
-        result = resolve(args.repo, args.component, args.ref, args.targets or ["linux/amd64"])
+        result = resolve(args.repo, args.component, args.ref, args.targets or ["linux/amd64"],
+                         build_args=parse_build_args(args.build_args))
     except (InvalidInputs, OSError, UnicodeError, ValueError, TypeError, KeyError, IndexError):
         print("build-input collection rejected: invalid or unsupported component inputs",
               file=sys.stderr)

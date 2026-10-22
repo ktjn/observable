@@ -101,9 +101,12 @@ This is a target requirement; per-component registry publishing remains unimplem
 
 The monorepo recipes pin every base and Dockerfile-frontend image by digest, and the
 [declared build-input identity](../../distribution/README.md#declared-build-input-identity)
-fingerprints the source closure, the recipe, the reachable pinned images, and the target platforms as
-`component-input-v1`. It does not authenticate those digests, cover externally supplied build
-arguments, or pin the materials apt, rustup and the language package managers resolve at build time,
+fingerprints the source closure, the recipe, the reachable pinned images, target platforms and
+effective supported build arguments as `component-input-v2`. Rust SERVICE selection stays fixed;
+web accepts only the two reviewed recipe arguments. Snapshot execution passes exactly the recorded
+values and verifies their input-digest image label. Version 1 omitted argument values and is not
+interchangeable with v2. This does not authenticate image digests or pin the materials apt, rustup
+and the language package managers resolve at build time,
 so it supplies a declared-input fingerprint rather than verified release identity.
 
 The initial monorepo attestation verifier trusts GitHub Actions OIDC certificates

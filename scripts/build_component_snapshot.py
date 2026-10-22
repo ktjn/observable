@@ -1,7 +1,7 @@
 """Build a local snapshot image from immutable committed Git bytes.
 
 Usage: python scripts/build_component_snapshot.py COMPONENT --output NEW_DIRECTORY
-       [--ref HEAD] [--repo PATH] [--platform linux/amd64]
+       [--ref HEAD] [--repo PATH] [--platform linux/amd64] [--build-arg NAME=VALUE]...
 
 No push, arbitrary Docker arguments, release tags, or prebuilt binaries. Local
 build evidence does not authenticate a complete immutable release identity.
@@ -11,13 +11,13 @@ import argparse
 import io
 import json
 from pathlib import Path, PurePosixPath
-import re
 import subprocess
 import sys
 import tarfile
-import tomllib
 
-from ci_changed_components import ALL_COMPONENTS, RUST_COMPONENTS, load_workspace
+from ci_changed_components import ALL_COMPONENTS, RUST_COMPONENTS
+import collect_component_inputs as inputs
+from component_snapshot_metadata import component_version
 from collect_component_source import (ROOT, RECIPE_TARGETS, GitSnapshot, canonical, collect, digest)
 from plan_component_release import DIGEST, VERSION, matches, unique_object
 
@@ -30,31 +30,20 @@ def write_json(path, value):
     path.write_bytes(canonical(value) + b"\n")
 
 
-def component_version(snapshot, component):
-    key = "storeClickhouse" if component == "store-clickhouse" else component
-    manifest = snapshot.read_bytes("distribution/manifest.yaml").decode("utf-8")
-    versions = re.findall(rf"^  {key}:[ \t]+([^\s#]+)[ \t]*$", manifest, re.MULTILINE)
-    if len(versions) != 1 or not matches(VERSION, versions[0]) or len(versions[0]) > 128:
-        raise BuildFailed("invalid snapshot component version")
-    if component == "web":
-        actual = json.loads(snapshot.read_bytes("apps/frontend/package.json"))["version"]
-    else:
-        graph = load_workspace(snapshot.root, lambda path: snapshot.read_bytes(path).decode(), strict=True)
-        member = graph[RUST_COMPONENTS[component]][0]
-        actual = tomllib.loads(snapshot.read_bytes(member + "/Cargo.toml").decode())["package"]["version"]
-    if actual != versions[0]:
-        raise BuildFailed("snapshot package and distribution version disagree")
-    return actual
-
-
-def prepare(root, component, ref, output, platform="linux/amd64"):
+def prepare(root, component, ref, output, platform="linux/amd64", *, build_args=None):
     try:
-        return _prepare(root, component, ref, Path(output), platform)
+        return _prepare(root, component, ref, Path(output), platform, build_args)
     except Exception:
         raise BuildFailed("snapshot preparation failed; use a fresh output directory and supported Git source") from None
 
 
-def _prepare(root, component, ref, output, platform):
+def snapshot_image(component, revision, platform, input_digest):
+    tag = digest(canonical({"source_revision": revision, "platform": platform,
+                            "input_digest": input_digest}))[7:]
+    return f"observable-{component}:snapshot-{tag}"
+
+
+def _prepare(root, component, ref, output, platform, build_args):
     if platform not in ("linux/amd64", "linux/arm64"):
         raise BuildFailed("unsupported local build platform")
     if output.exists() or output.is_symlink():
@@ -62,6 +51,7 @@ def _prepare(root, component, ref, output, platform):
     snapshot = GitSnapshot(root, ref)
     source = collect(root, component, snapshot.revision)
     version = component_version(snapshot, component)
+    evidence = inputs.resolve(root, component, snapshot.revision, (platform,), build_args=build_args)
     if component == "web":
         required = {".dockerignore", "package.json", "package-lock.json", "apps/frontend/Dockerfile"}
         prefixes = ("apps/frontend/",)
@@ -91,11 +81,14 @@ def _prepare(root, component, ref, output, platform):
     request = {"component": component, "version": version, "source_revision": snapshot.revision,
                "source_algorithm": source["source_algorithm"], "source_digest": source["source_digest"],
                "context_digest": digest(context_bytes), "recipe": recipe, "platform": platform,
-               "image": f"observable-{component}:snapshot-{snapshot.revision}-{platform.replace('/', '-')}",
+               "input_algorithm": evidence["input_algorithm"], "input_digest": evidence["input_digest"],
+               "build_args": evidence["build_args"],
+               "image": snapshot_image(component, snapshot.revision, platform, evidence["input_digest"]),
                "identity_verified": False}
     output.mkdir()
     (output / "context.tar").write_bytes(context_bytes)
     write_json(output / "source.json", source)
+    write_json(output / "inputs.json", evidence)
     write_json(output / "context.json", {"digest": request["context_digest"], "files": [
         {"path": path, "mode": snapshot.entries[path][0], "digest": digest(snapshot.read_bytes(path))}
         for path in paths]})
@@ -108,7 +101,9 @@ def labels(request):
             "org.opencontainers.image.version": request["version"],
             "io.observable.source.algorithm": request["source_algorithm"],
             "io.observable.source.digest": request["source_digest"],
-            "io.observable.context.digest": request["context_digest"]}
+            "io.observable.context.digest": request["context_digest"],
+            "io.observable.input.algorithm": request["input_algorithm"],
+            "io.observable.input.digest": request["input_digest"]}
 
 
 def verify_runtime(request, image_id, run):
@@ -138,24 +133,46 @@ def _execute(request, output, run):
     persisted = json.loads((output / "request.json").read_text(encoding="utf-8"), object_pairs_hook=unique_object)
     if persisted != request or request.get("identity_verified") is not False:
         raise BuildFailed("prepared build request changed")
+    # The parsed JSON is an independent snapshot; never retain the caller's
+    # mutable dictionary while a potentially long Docker subprocess runs.
+    request = persisted
     component, revision, platform = request["component"], request["source_revision"], request["platform"]
-    expected_image = f"observable-{component}:snapshot-{revision}-{platform.replace('/', '-')}"
+    expected_image = snapshot_image(component, revision, platform, request["input_digest"])
     if (component not in ALL_COMPONENTS or platform not in ("linux/amd64", "linux/arm64")
             or not matches(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", revision)
             or request["recipe"] != ("apps/frontend/Dockerfile" if component == "web" else "Dockerfile")
             or request["image"] != expected_image or not matches(VERSION, request["version"])
+            or request["input_algorithm"] != inputs.ALGORITHM or not matches(DIGEST, request["input_digest"])
             or not matches(DIGEST, request["source_digest"]) or not matches(DIGEST, request["context_digest"])):
         raise BuildFailed("unsupported build request")
     # Feed the exact bytes checked here through stdin, eliminating a later file reread.
     context = (output / "context.tar").read_bytes()
     if digest(context) != request["context_digest"]:
         raise BuildFailed("build context changed")
+    # Recompute the declared inputs from exactly the recipe bytes sent to Docker.
+    # No extraction or checkout reads; duplicate/symlink recipe entries are rejected.
+    with tarfile.open(fileobj=io.BytesIO(context)) as archive:
+        recipes = [member for member in archive.getmembers() if member.name == request["recipe"]]
+        if len(recipes) != 1 or not recipes[0].isfile():
+            raise BuildFailed("invalid context recipe")
+        recipe_bytes = archive.extractfile(recipes[0]).read()
+    overrides = request["build_args"] if component == "web" else None
+    recomputed = inputs.recipe_evidence(component, [platform], request, request["recipe"], recipe_bytes, overrides)
+    expected_evidence = {"component": component, "version": request["version"], "platforms": [platform],
+                         "source_revision": revision, "source_algorithm": request["source_algorithm"],
+                         "source_digest": request["source_digest"], **recomputed, "identity_verified": False}
+    saved_evidence = json.loads((output / "inputs.json").read_text(encoding="utf-8"), object_pairs_hook=unique_object)
+    if (saved_evidence != expected_evidence or request["build_args"] != recomputed["build_args"]
+            or request["input_digest"] != recomputed["input_digest"]):
+        raise BuildFailed("declared build inputs changed")
     command = ["docker", "buildx", "build", "--load", "--platform", request["platform"],
                "--metadata-file", str(output / "metadata.json"), "--tag", request["image"],
                "--file", request["recipe"]]
     target = RECIPE_TARGETS[request["recipe"]]
     if target is not None:
-        command += ["--target", target, "--build-arg", f"SERVICE={RUST_COMPONENTS[request['component']]}"]
+        command += ["--target", target]
+    for key, value in sorted(request["build_args"].items()):
+        command += ["--build-arg", f"{key}={value}"]
     for key, value in labels(request).items():
         command += ["--label", f"{key}={value}"]
     command.append("-")
@@ -201,12 +218,14 @@ def main(argv):
     parser.add_argument("--ref", default="HEAD")
     parser.add_argument("--repo", type=Path, default=ROOT)
     parser.add_argument("--platform", default="linux/amd64", choices=("linux/amd64", "linux/arm64"))
+    parser.add_argument("--build-arg", action="append", default=[], dest="build_args")
     args = parser.parse_args(argv)
     try:
-        request = prepare(args.repo, args.component, args.ref, args.output, args.platform)
+        request = prepare(args.repo, args.component, args.ref, args.output, args.platform,
+                          build_args=inputs.parse_build_args(args.build_args))
         result = execute(request, args.output.resolve())
-    except BuildFailed as error:
-        print(str(error), file=sys.stderr)
+    except (BuildFailed, inputs.InvalidInputs):
+        print("snapshot preparation, build or verification failed", file=sys.stderr)
         return 1
     print(json.dumps(result, sort_keys=True))
     return 0

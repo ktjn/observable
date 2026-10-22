@@ -38,16 +38,19 @@ making changes.
   real secret explicitly.
 - **2026-10-21 (0.2 declared build-input identity)**: both OCI recipes (`Dockerfile`,
   `apps/frontend/Dockerfile`) now pin every `FROM` image and the `# syntax=` frontend by `@sha256:`
-  index digest, and `scripts/collect_component_inputs.py` resolves `component-input-v1` — the
+  index digest, and `scripts/collect_component_inputs.py` resolves `component-input-v2` — the
   planner's real `input_algorithm`/`input_digest` — from the committed source digest, the recipe
   (path/target/content digest/frontend), the external images reachable from the component's build
-  target, and the target platforms. Mutable tags, unreviewed stage flags, unknown targets, unresolved
+  target, target platforms and effective supported build arguments. The 2026-10-22 update replaces
+  v1 (which omitted arguments): Rust SERVICE stays fixed, web mode/public endpoint overrides are
+  allowlisted, and snapshot preparation/execution bind the same explicit values through `inputs.json`
+  and verified input labels. Old prepared attempts need a fresh directory. Mutable tags, unreviewed stage flags, unknown targets, unresolved
   `COPY --from`, missing or misplaced frontend digests, instructions before the first stage, and
   unreviewed recipe edits fail closed; only stages reachable from the build target contribute
   image/material entries (the whole-file recipe digest covers the rest). The recipe edits required
   re-reviewing the `RECIPES` hashes in `collect_component_source.py`. Results stay
   `identity_verified: false`: digests are not
-  registry-authenticated, build-argument values are uncovered, and apt/rustup/crates.io/npm content
+  registry-authenticated, and apt/rustup/crates.io/npm content
   stays mutable. See
   [distribution/README.md](../distribution/README.md#declared-build-input-identity) and
   [docs/component-decomposition.md](component-decomposition.md) "Remaining 0.2 work".
