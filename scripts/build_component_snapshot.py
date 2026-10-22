@@ -18,7 +18,7 @@ import tarfile
 import tomllib
 
 from ci_changed_components import ALL_COMPONENTS, RUST_COMPONENTS, load_workspace
-from collect_component_source import ROOT, GitSnapshot, canonical, collect, digest
+from collect_component_source import (ROOT, RECIPE_TARGETS, GitSnapshot, canonical, collect, digest)
 from plan_component_release import DIGEST, VERSION, matches, unique_object
 
 
@@ -153,8 +153,9 @@ def _execute(request, output, run):
     command = ["docker", "buildx", "build", "--load", "--platform", request["platform"],
                "--metadata-file", str(output / "metadata.json"), "--tag", request["image"],
                "--file", request["recipe"]]
-    if request["component"] != "web":
-        command += ["--target", "component-runtime", "--build-arg", f"SERVICE={RUST_COMPONENTS[request['component']]}"]
+    target = RECIPE_TARGETS[request["recipe"]]
+    if target is not None:
+        command += ["--target", target, "--build-arg", f"SERVICE={RUST_COMPONENTS[request['component']]}"]
     for key, value in labels(request).items():
         command += ["--label", f"{key}={value}"]
     command.append("-")

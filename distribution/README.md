@@ -167,13 +167,16 @@ observations for that path and rejects unused observations.
 **Trust boundary and remaining gates:** the planner checks the consistency of
 assertions, not their authenticity. A hash and `identity_verified: true` in a JSON
 file do not verify build inputs or attestations. `input_algorithm` must name the
-verifier's documented, versioned fingerprint algorithm (for example, `fixture-v1`
-above is only for tests); the planner treats its name as opaque and rejects a
-mismatch with published identity. Before enabling publishing, implement a trusted
-build-input collector/verifier, registry/history adapter, live reinspection,
-serialization and overwrite prevention at publication, and digest-bound release
-evidence. Offline observations cannot establish freshness or prevent a race after
-the final lookup. Existing build-selection logic is not a fingerprint algorithm.
+verifier's documented, versioned fingerprint algorithm; `component-input-v1`
+([declared build-input identity](#declared-build-input-identity)) is the current
+declared-input algorithm, while `fixture-v1` above is only for tests. The planner
+treats the name as opaque and rejects a mismatch with published identity. Before
+enabling publishing, implement a trusted verifier for those declared inputs (the
+collector resolves and fingerprints them but authenticates nothing), a
+registry/history adapter, live reinspection, serialization and overwrite prevention
+at publication, and digest-bound release evidence. Offline observations cannot
+establish freshness or prevent a race after the final lookup. Existing
+build-selection logic is not a fingerprint algorithm.
 
 ### Committed source evidence
 
@@ -215,10 +218,48 @@ excluded from the unknown-crate check; an otherwise unowned source directory fai
 
 This output is **source-only evidence**, marked `identity_verified: false`. Its
 `source_digest` is not the planner's complete `input_digest`, and it cannot authorize
-image reuse or publication. The current recipes still resolve mutable base images,
-apt packages, toolchains, and downloaded dependencies; platform/build arguments,
-external material resolution, checkout/build binding, and attestation verification
-remain required before a trusted full build identity can be constructed.
+image reuse or publication. The recipes digest-pin their base and frontend images,
+but the declared inputs are still resolved by the separate
+[declared build-input identity](#declared-build-input-identity) step, and the
+materials apt, rustup, crates.io and npm resolve at build time stay mutable;
+registry authentication, build-argument values, checkout/build binding, and
+attestation verification remain required before a trusted full build identity can
+be constructed.
+
+### Declared build-input identity
+
+```text
+python scripts/collect_component_inputs.py query [--ref HEAD] [--repo PATH] [--platform linux/arm64]
+```
+
+`component-input-v1` fingerprints one component image's *declared* build inputs from committed
+bytes: the `component-source-v1` source digest, the reviewed recipe (path, build target, content
+digest and Dockerfile frontend), every external image reference reachable from that target's stage
+graph, and the target platforms. It reports the six `component`, `version`, `source_revision`,
+`input_algorithm`, `input_digest` and `platforms` request-identity fields the
+[release planner](#local-immutable-release-planning) requires, plus the source/recipe/image evidence,
+so the fingerprint algorithm is no longer a fixture placeholder.
+
+Both OCI recipes pin every `FROM` image and the `# syntax=` frontend by `@sha256:` index digest
+(Docker Hub multi-platform index digests). A mutable tag, an unsupported stage flag, an instruction
+before the first stage, an unknown build target, an unresolved `COPY --from`, an absent or misplaced
+frontend digest, or an unreviewed recipe change (the reviewed `RECIPES` hashes in
+`collect_component_source.py` are enforced first) all fail closed. Only the stages reachable from the
+build target contribute `images` and `unresolved_materials` entries, so an unrelated stage
+(`verification-tools`, `runtime`) cannot add inputs; the whole-file recipe digest still covers those
+stages, so editing one is caught by the reviewed-hash gate. Platforms are restricted to
+`linux/amd64` and `linux/arm64`, the platforms the local snapshot builder can produce.
+
+Output is deterministic and lists `images` (reference, digest, and the reaching stages) and
+`unresolved_materials` (apt packages, rustup components, and build-time download URLs the reachable
+stages install or fetch), alongside the source/recipe evidence and `input_algorithm`/`input_digest`.
+
+**Remaining gaps:** every result keeps `identity_verified: false`. The recorded digests are not
+authenticated against a registry, no externally supplied build-argument value is covered, and the
+content that apt, rustup, crates.io and npm resolve at build time stays mutable even though the
+recipe and lockfiles that declare it are inside the digest. Registry authentication of the pinned
+digests, build-argument binding, complete external-material identity, and authenticated release
+history remain release gates before this shape can satisfy the planner's trusted-record interface.
 
 ### Read-only registry inspection
 

@@ -36,6 +36,21 @@ making changes.
   not `dev`; the dev-mode default is unchanged. `charts/observable/values.yaml`'s
   `identity.sessionSecret` default was changed from a fixed literal to `""` so installs must set a
   real secret explicitly.
+- **2026-10-21 (0.2 declared build-input identity)**: both OCI recipes (`Dockerfile`,
+  `apps/frontend/Dockerfile`) now pin every `FROM` image and the `# syntax=` frontend by `@sha256:`
+  index digest, and `scripts/collect_component_inputs.py` resolves `component-input-v1` — the
+  planner's real `input_algorithm`/`input_digest` — from the committed source digest, the recipe
+  (path/target/content digest/frontend), the external images reachable from the component's build
+  target, and the target platforms. Mutable tags, unreviewed stage flags, unknown targets, unresolved
+  `COPY --from`, missing or misplaced frontend digests, instructions before the first stage, and
+  unreviewed recipe edits fail closed; only stages reachable from the build target contribute
+  image/material entries (the whole-file recipe digest covers the rest). The recipe edits required
+  re-reviewing the `RECIPES` hashes in `collect_component_source.py`. Results stay
+  `identity_verified: false`: digests are not
+  registry-authenticated, build-argument values are uncovered, and apt/rustup/crates.io/npm content
+  stays mutable. See
+  [distribution/README.md](../distribution/README.md#declared-build-input-identity) and
+  [docs/component-decomposition.md](component-decomposition.md) "Remaining 0.2 work".
 - **2026-10-18 (0.2 migration immutability)**: `migrations/clickhouse/MIGRATION_CHECKSUMS` records a
   sha256 per applied ClickHouse migration, and
   `scripts/check-clickhouse-migration-immutability.sh` (run by `scripts/local-ci.sh` as "ClickHouse

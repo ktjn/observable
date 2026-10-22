@@ -87,6 +87,14 @@ replacement by concurrent writers. A partial retry completes evidence against th
 rollback selects previously released digests. Per-component publishing cannot be enabled until these
 rules are enforced and locally tested. The current workflow still publishes the shared image.
 
+The monorepo [declared build-input identity](../distribution/README.md#declared-build-input-identity)
+resolves `component-input-v1` from committed bytes and digest-pinned recipes: every `FROM` image and
+the Dockerfile frontend is bound to an immutable index digest, and only stages reachable from the
+component's build target contribute image/material entries (the whole-file recipe digest still covers
+the rest). It fingerprints those declared inputs but authenticates nothing; registry authentication
+of the pinned digests, build-argument binding, and complete external-material identity remain
+required.
+
 The initial monorepo [attestation verifier](../distribution/README.md#authenticated-image-attestations)
 enforces ADR-035's fixed repository/direct-workflow, approved source/signer commit,
 GitHub OIDC and hosted-runner policy. Both SLSA v1 and SPDX statements must name the
