@@ -187,6 +187,12 @@ against the four committed ClickHouse migrations. Non-root runtime checks and Cl
 readiness 503/liveness 200 also passed. Offset durability, dependency recovery, other signals and
 remaining component/platform acceptance remain open; release identity/publication flags stay false.
 
+The [ingest image acceptance](../../docs/component-ingest-offline-verification.md) passes on amd64 using the
+actual offline auth image, migrated PostgreSQL and Redpanda. Missing/invalid tokens returned 401
+without advancing the raw topic; authenticated OTLP logs reached the broker with token-bound
+tenant/environment and all fields checked. Runtime and broker-loss readiness/liveness checks
+passed. Recovery, other signals/platforms and full release authority remain open.
+
 
 Full identity and publication flags remain false.
 

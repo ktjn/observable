@@ -20,6 +20,15 @@ making changes.
 - See [exact source/image evidence](../distribution/README.md#committed-snapshot-builds).
   Complete material identity, provenance and publication authorization remain separate gates.
 
+## Latest ingest offline acceptance
+
+- The native amd64 offline ingest image passed runtime checks and actual auth-backed OTLP log
+  delivery to Redpanda with all fields and token-bound tenant/environment checked. Missing/invalid
+  tokens returned 401 without advancing the raw topic. The actual offline auth image used migrated
+  PostgreSQL with a schema-qualified dummy fixture. Broker-loss readiness/liveness also passed.
+- Owned fixtures were removed. See [exact evidence and limits](component-ingest-offline-verification.md).
+  Recovery, other signals/platforms and release authority remain open; no service code changed.
+
 ## Latest storage offline acceptance
 
 - The amd64 offline storage image passed non-root runtime/linkage/package/proto checks and actual

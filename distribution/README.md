@@ -869,6 +869,12 @@ amd64 offline storage image against isolated Redpanda and migrated ClickHouse: a
 fields persisted unchanged, runtime contract checks passed, and ClickHouse loss produced readiness
 503 while liveness remained 200. Recovery and offset durability are separate gates.
 
+The [ingest acceptance record](../docs/component-ingest-offline-verification.md) verifies the exact
+amd64 offline ingest image against the actual offline auth image, migrated PostgreSQL and Redpanda.
+Missing/invalid tokens returned 401 without appending; accepted OTLP logs preserved the checked
+fields and token-bound tenant/environment at the raw broker boundary. Runtime and broker-loss
+readiness/liveness passed. Auth OIDC, recovery and other signals/platforms remain separate gates.
+
 These are local construction checks, not signed builder provenance or complete release identity.
 `identity_verified` and `publication_authorized` remain false. Reproducibility, native arm64 hardware,
 other Rust build/runtime paths, full cluster acceptance, history and publication protection remain
