@@ -1021,9 +1021,15 @@ install/compilation with every RUN network-disabled, plus immutable-image nginx 
 Empty-cache and network-denial negatives passed. Generated recipe/context identity is distinct from
 the source recipe; native arm64 hardware and authenticated complete release identity remain unverified.
 
+The [Cargo material preparer](../distribution/README.md#verified-cargo-materials-and-frozen-resolution)
+now verifies 526 locked crates.io archives and reconstructs local directory sources. Frozen resolution
+of all 543 packages/17 workspace members passed without network or host Cargo caches. The auth-service
+release binary also compiled offline and passed linkage without new apt/rustup downloads. Other
+service builds, remaining native/system materials and full release authority are separate gates.
+
 ## Remaining 0.2 work
 
-Status as of 2026-10-22. The phases above are otherwise complete; these are the open items and what
+Status as of 2026-10-23. The phases above are otherwise complete; these are the open items and what
 each is waiting on.
 
 | Item | State | Blocker / next step |

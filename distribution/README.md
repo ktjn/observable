@@ -648,3 +648,86 @@ Local acceptance on Docker Engine 29.9.2 / Buildx 0.38.1 built `linux/amd64` and
 complete toolchain provenance, release history or reproducibility. Rust external materials,
 native arm64 hardware acceptance, publication race protection, signed component releases, browser/API and
 full-system acceptance remain open. The normal release workflow and source Dockerfiles are unchanged.
+
+## Verified Cargo materials and frozen resolution
+
+Prepare the registry archives declared by an approved Git snapshot, then reconstruct a fresh local
+directory source and workspace:
+
+```bash
+python scripts/prepare_component_cargo.py fetch --ref APPROVED_COMMIT --output /fresh/cargo-bundle
+python scripts/prepare_component_cargo.py stage --ref APPROVED_COMMIT --bundle /fresh/cargo-bundle --output /fresh/cargo-stage
+```
+
+`cargo-materials-v1` accepts Cargo.lock v4, crates.io registry entries with SHA256 checksums, and local
+packages whose names/versions match the committed workspace manifests. It checks direct, inherited,
+target-specific, dev/build and unused workspace dependency declarations. Git/alternate registries,
+source overrides, unresolved/escaping local paths, local build scripts and injected Cargo/toolchain
+configuration require review and are rejected. Metadata and source come from immutable Git blobs;
+dirty or untracked files cannot enter the stage. All 17 workspace members are staged because Cargo
+resolution covers the workspace, even when compiling one deployable package.
+
+Fetch constructs fixed HTTPS `static.crates.io` archive URLs, using no credentials, proxy discovery
+or redirects. Four downloads run at most; queued work is cancelled on failure. SHA256 bytes and
+safe tar layout must agree before each archive is retained. Limits are 64 MiB compressed and 512 MiB
+expanded per archive, 1 GiB compressed per bundle and 1 GiB total reconstructed vendor file bytes.
+Traversal, duplicate entries, links, special files, foreign package roots, reserved checksum files
+and nonzero trailing archive content are rejected. Bundle manifests bind metadata and package
+archive identities; the recorded origin revision is informational, not authenticated release history.
+
+Stage rederives expectations from the caller's Git metadata and rechecks the exact archive bytes
+before writing any vendor source. It creates per-file SHA256 `.cargo-checksum.json` records, a
+private committed workspace and a `.cargo/config.toml` replacing crates.io with `../vendor` and
+setting offline mode. It never accepts caller-supplied vendor checksum assertions. Unchanged Cargo
+metadata can reuse the bundle across source commits; the staged workspace always comes from the
+caller's approved revision. Fresh destinations are required; failures can leave partial output.
+
+The generated layout uses Cargo's documented [directory-source replacement](https://doc.rust-lang.org/cargo/reference/source-replacement.html#directory-sources).
+Those checksum files protect against accidental changes; archive checksums rederived from Git are
+the material verification boundary. Cargo's [`--frozen`](https://doc.rust-lang.org/cargo/commands/cargo-vendor.html#manifest-options)
+combines locked resolution and offline mode. The tool does not invoke networked `cargo vendor` or
+read the host's registry/cache/configuration. Staging produces `result.json` with material/workspace
+digests, package count and `directory_source_verified`; it does not itself run Cargo or compile code.
+
+Local acceptance at source `a54735ce9d48990729f962bb8d83b180d5184886` downloaded and verified all
+526 registry archives. The reconstructed directory source resolved 543 packages across 17 members
+using `cargo metadata --frozen --format-version 1` in the existing digest-pinned Rust 1.97.0 builder,
+with `--network none`, read-only workspace/vendor mounts, an empty private Cargo home and a cleared
+environment. Hiding required serde vendor material caused exit 101 with no matching package, without
+modifying host materials or permitting network fallback.
+
+The same network-disabled container then passed `cargo build --frozen --release --package auth-service
+--jobs 2` and an `ldd` check with no unresolved libraries. The 18,359,960-byte linux/amd64 binary has
+SHA256 `366cdaba3e92cd7ede2b2f03b53aac0a2ff6949a2790350bcd8cd4224caa45cd`. Compilation used the existing
+pinned Rust 1.97.0 image's compiler, headers and native libraries; it installed no apt packages or
+rustup components. This proves the auth binary path only, not all seven service builds or a deployed
+auth runtime. In particular, cmake is absent from that base and remains relevant to other components.
+
+A matching acceptance command uses only read-only staged sources and a fresh output directory:
+
+```bash
+mkdir /fresh/cargo-acceptance
+docker run --rm --network none --pull never --platform linux/amd64 \
+  --mount type=bind,src=/fresh/cargo-stage/workspace,dst=/app,readonly \
+  --mount type=bind,src=/fresh/cargo-stage/vendor,dst=/vendor,readonly \
+  --mount type=bind,src=/fresh/cargo-acceptance,dst=/output \
+  --tmpfs /tmp:exec --workdir /app --entrypoint /usr/bin/env \
+  lukemathwalker/cargo-chef:0.1.77-rust-1.97.0-bookworm@sha256:974d873357408b6ececac8729285204664e23f5aab21a34e353ae5bf9bb899a2 \
+  -i PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/tmp/cargo-home \
+  CARGO_TARGET_DIR=/tmp/target HOME=/tmp/cargo-home /bin/sh -ec '
+    mkdir -p /tmp/cargo-home
+    cargo metadata --frozen --format-version 1 > /output/metadata.json
+    cargo build --frozen --release --package auth-service --jobs 2
+    cp /tmp/target/release/auth-service /output/auth-service
+    ldd /output/auth-service > /output/linkage.txt
+    ! grep -qi "not found" /output/linkage.txt
+  '
+```
+
+Use read-only workspace/vendor mounts and a fresh private target directory for later Cargo execution;
+never use an arbitrary modified vendor tree as release evidence. Other deployable compilation paths,
+verified toolchain/base provenance, apt/cmake/rustup inputs, runtime image/cluster acceptance,
+authenticated release history and publication race protection remain separate gates.
+`identity_verified` and `publication_authorized` remain false. Normal dependencies, lockfiles,
+Dockerfiles and release workflows are unchanged.

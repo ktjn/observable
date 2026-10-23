@@ -13,6 +13,14 @@ making changes.
 5. Inspect the actual code, tests, scripts, specs, and docs touched by the task before editing.
 6. Create or switch to a dedicated short-lived branch before changing files.
 
+## Latest Cargo material evidence
+
+- All 526 locked crates.io archives verified; a reconstructed directory source resolved 543 packages
+  across 17 workspace members under frozen Cargo in a network-disabled pinned Rust container.
+  Auth-service release compilation and linkage also passed without network or new apt/rustup inputs.
+  No host Cargo state/config or online fallback. Other native/system inputs and full release identity
+  remain open; see [Cargo material commands](../distribution/README.md#verified-cargo-materials-and-frozen-resolution).
+
 ## Latest offline image evidence
 
 - Docker Desktop is available at its per-user installation. The offline web OCI helper passed on

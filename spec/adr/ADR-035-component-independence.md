@@ -147,6 +147,15 @@ from the original Dockerfile declaration; pinned image resolution still uses reg
 Trusted builder/material provenance, native arm64 hardware, release history and publication protection
 remain required. The local result grants no publication authorization.
 
+The [Cargo material preparer](../../distribution/README.md#verified-cargo-materials-and-frozen-resolution) verifies exact committed crates.io archive SHA256 values,
+then reconstructs a directory source with independently generated per-file checksums. All 526
+registry archives verified, and frozen resolution passed for 543 packages/17 workspace members in a
+network-disabled pinned Rust container with private Cargo state. The auth-service release binary
+also compiled frozen/offline and passed dynamic linkage without additional apt/rustup downloads.
+This verifies registry source consumption and that binary path, not all native toolchain materials,
+deployable image behavior or release authority.
+Full identity and publication flags remain false.
+
 ### Repository rule
 
 The current monorepo remains the migration workspace until component boundaries are proven.

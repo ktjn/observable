@@ -125,12 +125,17 @@ def source_plan(root, ref):
 
 def http_get(url, *, connection_factory=HTTPSConnection):
     parsed = archive_url(url)
+    return http_archive_get('registry.npmjs.org', parsed.path, connection_factory=connection_factory)
+
+
+def http_archive_get(host, path, *, connection_factory=HTTPSConnection):
+    """Bounded transport; callers supply only their validated fixed-origin archive paths."""
     deadline = time.monotonic() + 60
-    connection = connection_factory('registry.npmjs.org', timeout=10)
+    connection = connection_factory(host, timeout=10)
     connection.response_class = lambda sock, *args, **kwargs: registry.DeadlineResponse(sock, deadline, *args, **kwargs)
     response = None
     try:
-        connection.request('GET', parsed.path, headers={'Accept-Encoding': 'identity'})
+        connection.request('GET', path, headers={'Accept-Encoding': 'identity'})
         response = connection.getresponse()
         headers = response.getheaders()
         length = registry.one(headers, 'Content-Length')

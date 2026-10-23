@@ -118,6 +118,11 @@ verified npm archives feed a network-disabled, uncached BuildKit install/compile
 images serve static assets. Native arm64 hardware, Rust materials, authenticated provenance/history and
 publication protection remain open.
 
+The [Cargo material stage](distribution/README.md#verified-cargo-materials-and-frozen-resolution)
+now verifies all 526 locked registry archives and resolves the full workspace offline in the pinned
+Rust container. Auth-service also compiles frozen/offline and passes linkage there without new
+apt/rustup inputs. Other native/system materials and deployable runtime acceptance remain open.
+
 **Exit evidence:**
 
 - Every source area, API, event/topic, PostgreSQL table, and ClickHouse migration has one documented
