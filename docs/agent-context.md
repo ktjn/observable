@@ -20,6 +20,15 @@ making changes.
 - See [exact source/image evidence](../distribution/README.md#committed-snapshot-builds).
   Complete material identity, provenance and publication authorization remain separate gates.
 
+## Latest storage offline acceptance
+
+- The amd64 offline storage image passed non-root runtime/linkage/package/proto checks and actual
+  normalized-log persistence through isolated Redpanda and migrated ClickHouse, preserving all 15 fields.
+- ClickHouse loss returned readiness 503 while liveness remained 200. All owned fixture resources
+  were removed. See [exact evidence and limits](component-store-offline-verification.md).
+- Dependency recovery, offsets across restarts, other signals/platforms and full release authority
+  remain unverified. This adds acceptance evidence without changing architecture or service code.
+
 ## Latest process offline acceptance
 
 - The process amd64 image built and passed normal broker readiness and actual raw-to-normalized log

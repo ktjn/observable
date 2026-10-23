@@ -864,6 +864,11 @@ network were removed after acceptance.
 For process native Kafka/CMake build and broker recovery evidence, see the
 [process acceptance record](../docs/component-process-offline-verification.md).
 
+The [storage acceptance record](../docs/component-store-offline-verification.md) verifies the exact
+amd64 offline storage image against isolated Redpanda and migrated ClickHouse: all 15 normalized-log
+fields persisted unchanged, runtime contract checks passed, and ClickHouse loss produced readiness
+503 while liveness remained 200. Recovery and offset durability are separate gates.
+
 These are local construction checks, not signed builder provenance or complete release identity.
 `identity_verified` and `publication_authorized` remain false. Reproducibility, native arm64 hardware,
 other Rust build/runtime paths, full cluster acceptance, history and publication protection remain

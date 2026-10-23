@@ -150,6 +150,12 @@ propagated. Testcontainers stop/restart recovery and focused package checks pass
 image passed non-root runtime checks, raw-to-normalized log delivery and broker-loss readiness 503
 while liveness remained 200. Other component/platform and full durability/integration gates remain open.
 
+The [storage image acceptance](docs/component-store-offline-verification.md) now passes on amd64: the
+actual offline-built executable persisted a normalized broker log with all 15 fields preserved
+against the four committed ClickHouse migrations. Non-root runtime checks and ClickHouse-loss
+readiness 503/liveness 200 also passed. Offset durability, dependency recovery, other signals and
+remaining component/platform acceptance remain open; release identity/publication flags stay false.
+
 
 **Exit evidence:**
 
