@@ -855,6 +855,9 @@ credentials. The schema-free database intentionally exercised connection/readine
 not verify migrations, credential validation, OIDC or full cluster behavior. Owned containers and
 network were removed after acceptance.
 
+For process native Kafka/CMake build and broker recovery evidence, see the
+[process acceptance record](../docs/component-process-offline-verification.md).
+
 These are local construction checks, not signed builder provenance or complete release identity.
 `identity_verified` and `publication_authorized` remain false. Reproducibility, native arm64 hardware,
 other Rust build/runtime paths, full cluster acceptance, history and publication protection remain

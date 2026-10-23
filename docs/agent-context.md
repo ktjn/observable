@@ -13,6 +13,16 @@ making changes.
 5. Inspect the actual code, tests, scripts, specs, and docs touched by the task before editing.
 6. Create or switch to a dedicated short-lived branch before changing files.
 
+## Latest process offline acceptance
+
+- The process amd64 image built and passed normal broker readiness and actual raw-to-normalized log
+  delivery. Broker stop exposed a receive error exiting the process with status 1.
+- Local source fix `527e4368` keeps the consumer alive for nonfatal transport/DNS errors; fatal/other
+  errors still propagate. Package tests, Testcontainers stop/restart recovery and clippy passed.
+- The corrected immutable amd64 image passed non-root runtime checks, exact runtime package/proto
+  bytes, real normalized-log delivery and broker-loss readiness 503 while liveness stayed 200.
+  See [exact evidence and limits](component-process-offline-verification.md).
+
 ## Latest Rust OCI helper
 
 - The [offline Rust OCI helper](../distribution/README.md#offline-rust-oci-image-builds) combines

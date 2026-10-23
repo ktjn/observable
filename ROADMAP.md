@@ -143,6 +143,14 @@ runtime linkage/CA/proto checks, exact runtime package versions and HTTP 200 `/h
 against an isolated disposable PostgreSQL instance. Other Rust components/platforms, migrations,
 OIDC and full cluster acceptance remain open.
 
+The [process image acceptance](docs/component-process-offline-verification.md) additionally exercises native Kafka/CMake compilation and
+real log delivery. Broker-loss verification exposed a transient receive error terminating process;
+the source fix now preserves the consumer across transport loss, with fatal/other errors still
+propagated. Testcontainers stop/restart recovery and focused package checks pass. The corrected
+image passed non-root runtime checks, raw-to-normalized log delivery and broker-loss readiness 503
+while liveness remained 200. Other component/platform and full durability/integration gates remain open.
+
+
 **Exit evidence:**
 
 - Every source area, API, event/topic, PostgreSQL table, and ClickHouse migration has one documented
