@@ -13,6 +13,20 @@ const INITIAL_RETRY_BACKOFF: Duration = Duration::from_millis(500);
 /// at a fixed interval rather than growing unbounded.
 const MAX_RETRY_BACKOFF: Duration = Duration::from_secs(30);
 
+/// librdkafka reconnects after these nonfatal transport events. They do not consume a
+/// record, so neither buffered envelopes nor partition watermarks may advance.
+fn retryable_receive_error(error: &rdkafka::error::KafkaError) -> bool {
+    use rdkafka::error::{KafkaError, RDKafkaErrorCode};
+    matches!(
+        error,
+        KafkaError::MessageConsumption(
+            RDKafkaErrorCode::BrokerTransportFailure
+                | RDKafkaErrorCode::AllBrokersDown
+                | RDKafkaErrorCode::Resolve
+        )
+    )
+}
+
 pub struct QueueConsumer {
     consumer: StreamConsumer,
     topic: String,
@@ -75,7 +89,15 @@ impl QueueConsumer {
         loop {
             tokio::select! {
                 result = self.consumer.recv() => {
-                    let msg = result?;
+                    let msg = match result {
+                        Ok(msg) => msg,
+                        Err(error) if retryable_receive_error(&error) => {
+                            tracing::warn!(error = %error, "transient broker receive error; waiting for reconnect");
+                            tokio::time::sleep(INITIAL_RETRY_BACKOFF).await;
+                            continue;
+                        }
+                        Err(error) => return Err(error.into()),
+                    };
                     watermark.insert(msg.partition(), msg.offset());
                     if let Some(payload) = msg.payload() {
                         match serde_json::from_slice::<TelemetryEnvelope>(payload) {
@@ -199,6 +221,33 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use uuid::Uuid;
+
+    #[test]
+    fn retries_only_nonfatal_broker_transport_receive_errors() {
+        use rdkafka::error::{KafkaError, RDKafkaErrorCode};
+        for code in [
+            RDKafkaErrorCode::BrokerTransportFailure,
+            RDKafkaErrorCode::AllBrokersDown,
+            RDKafkaErrorCode::Resolve,
+        ] {
+            assert!(retryable_receive_error(&KafkaError::MessageConsumption(
+                code
+            )));
+        }
+        for error in [
+            KafkaError::MessageConsumptionFatal(RDKafkaErrorCode::BrokerTransportFailure),
+            KafkaError::MessageConsumption(RDKafkaErrorCode::SaslAuthenticationFailed),
+            KafkaError::MessageConsumption(RDKafkaErrorCode::TopicAuthorizationFailed),
+            KafkaError::MessageConsumption(RDKafkaErrorCode::InvalidMessage),
+            KafkaError::ConsumerCommit(RDKafkaErrorCode::BrokerTransportFailure),
+            KafkaError::Subscription("invalid subscription".into()),
+        ] {
+            assert!(
+                !retryable_receive_error(&error),
+                "must propagate: {error:?}"
+            );
+        }
+    }
 
     fn make_env() -> TelemetryEnvelope {
         TelemetryEnvelope {
