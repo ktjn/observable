@@ -13,6 +13,15 @@ making changes.
 5. Inspect the actual code, tests, scripts, specs, and docs touched by the task before editing.
 6. Create or switch to a dedicated short-lived branch before changing files.
 
+## Latest APT material evidence
+
+- Native signed APT resolution produced four locked closures: runtime 18/builder 16 archives on
+  amd64 and arm64, with exact archive bytes, index/keyring and base dpkg fingerprints.
+- All four closures installed with network disabled; package versions, tools, CA and curl linkage
+  passed. Unlisted archives were ignored; a missing archive failed before installation. Arm64 is emulated.
+- See [APT commands and limits](../distribution/README.md#locked-apt-materials-and-offline-installation).
+  Runtime image/cluster acceptance, full identity and publication remain open.
+
 ## Latest Cargo material evidence
 
 - All 526 locked crates.io archives verified; a reconstructed directory source resolved 543 packages

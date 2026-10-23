@@ -1,0 +1,823 @@
+{
+  "algorithm": "apt-material-lock-v1",
+  "sets": [
+    {
+      "algorithm": "apt-materials-v1",
+      "resolved_from": "0a63612de0a7586a8317333257403b6012cbbe82",
+      "kind": "builder",
+      "platform": "linux/amd64",
+      "base": "lukemathwalker/cargo-chef:0.1.77-rust-1.97.0-bookworm@sha256:974d873357408b6ececac8729285204664e23f5aab21a34e353ae5bf9bb899a2",
+      "recipe_digest": "sha256:81ccccef973009f7bfcd5e821f372a424e771fbbe9c4622dd3284cbf53c0a2ff",
+      "requested": [
+        "build-essential",
+        "cmake",
+        "libcurl4-openssl-dev",
+        "libssl-dev",
+        "pkg-config",
+        "zlib1g-dev"
+      ],
+      "sources_digest": "sha256:151c914353aee810efcae46db19bb01fcf4abfab9865bbd99e4f5ccad1873db9",
+      "base_status_digest": "sha256:3b1c988b4a39967fc3ec2dd4a067e313a5639e8cc86e31cdc84a874476ec142e",
+      "keyring_digest": "sha256:506b815cbb32d9b6066b4a2aa524071e071761e7e7f68c3ac74f3061ba852017",
+      "indexes": [
+        {
+          "path": "lists/deb.debian.org_debian-security_dists_bookworm-security_InRelease",
+          "digest": "sha256:f7aedc4fd3869d04571daac1c7247bf255420d73e44f3daf7512228a012f2065",
+          "size": 34770
+        },
+        {
+          "path": "lists/deb.debian.org_debian-security_dists_bookworm-security_main_binary-amd64_Packages.lz4",
+          "digest": "sha256:67618352c03b2f95e73987467802ea7f862c6cb4859ac1490964527e0e3995e7",
+          "size": 713027
+        },
+        {
+          "path": "lists/deb.debian.org_debian_dists_bookworm-updates_InRelease",
+          "digest": "sha256:f888c814b2492a5c92766565ac863a2e283fd9c6f0082077836610d6ef030aee",
+          "size": 55403
+        },
+        {
+          "path": "lists/deb.debian.org_debian_dists_bookworm-updates_main_binary-amd64_Packages.lz4",
+          "digest": "sha256:8ae7b65cb4858ac692572b6989be68da6505ae90fe4a3b4e0bf842d266209e53",
+          "size": 11648
+        },
+        {
+          "path": "lists/deb.debian.org_debian_dists_bookworm_InRelease",
+          "digest": "sha256:77737fa4b34f2693e982cc9ee35736816c35a7778fc2d326cc1bbf5b301fe1aa",
+          "size": 151075
+        },
+        {
+          "path": "lists/deb.debian.org_debian_dists_bookworm_main_binary-amd64_Packages.lz4",
+          "digest": "sha256:38163a87d0269f1af22bdddc092bf8e6c605f981642a09561e60565358f15e07",
+          "size": 18840233
+        }
+      ],
+      "packages": [
+        {
+          "name": "build-essential",
+          "version": "12.9",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/b/build-essential/build-essential_12.9_amd64.deb",
+          "digest": "sha256:bbfd38de41898a06326f2a6ce4cc43e8e399f5566381231065b01d70499d5ba5",
+          "size": 7704,
+          "archive": "archives/bbfd38de41898a06326f2a6ce4cc43e8e399f5566381231065b01d70499d5ba5.deb"
+        },
+        {
+          "name": "cmake",
+          "version": "3.25.1-1",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/c/cmake/cmake_3.25.1-1_amd64.deb",
+          "digest": "sha256:257a11063855f09e48696057fdb1ba2bcf1069502e0302576831dc2fb1571d7f",
+          "size": 8692248,
+          "archive": "archives/257a11063855f09e48696057fdb1ba2bcf1069502e0302576831dc2fb1571d7f.deb"
+        },
+        {
+          "name": "cmake-data",
+          "version": "3.25.1-1",
+          "architecture": "all",
+          "url": "https://deb.debian.org/debian/pool/main/c/cmake/cmake-data_3.25.1-1_all.deb",
+          "digest": "sha256:8371f9694da94fd551a3ea653e2e25d99747471ca0b48cc029bf5c792ea590a3",
+          "size": 2026484,
+          "archive": "archives/8371f9694da94fd551a3ea653e2e25d99747471ca0b48cc029bf5c792ea590a3.deb"
+        },
+        {
+          "name": "curl",
+          "version": "7.88.1-10+deb12u15",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/c/curl/curl_7.88.1-10%2bdeb12u15_amd64.deb",
+          "digest": "sha256:0dd9b6bf7a0bd11af2d68a52ec44c2a223fa7c11f9104c36ce1047e1137d4a8f",
+          "size": 315764,
+          "archive": "archives/0dd9b6bf7a0bd11af2d68a52ec44c2a223fa7c11f9104c36ce1047e1137d4a8f.deb"
+        },
+        {
+          "name": "libarchive13",
+          "version": "3.6.2-1+deb12u5",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian-security/pool/updates/main/liba/libarchive/libarchive13_3.6.2-1%2bdeb12u5_amd64.deb",
+          "digest": "sha256:45419b8c7646c1af12783ae31906ce2da4c465c1a948b01f8f44152d8269f403",
+          "size": 345488,
+          "archive": "archives/45419b8c7646c1af12783ae31906ce2da4c465c1a948b01f8f44152d8269f403.deb"
+        },
+        {
+          "name": "libcurl3-gnutls",
+          "version": "7.88.1-10+deb12u15",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/c/curl/libcurl3-gnutls_7.88.1-10%2bdeb12u15_amd64.deb",
+          "digest": "sha256:bf430ecf80f7808704e0187cddc582fd57fc98789ea356d4797651edad387ef3",
+          "size": 386008,
+          "archive": "archives/bf430ecf80f7808704e0187cddc582fd57fc98789ea356d4797651edad387ef3.deb"
+        },
+        {
+          "name": "libcurl4",
+          "version": "7.88.1-10+deb12u15",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/c/curl/libcurl4_7.88.1-10%2bdeb12u15_amd64.deb",
+          "digest": "sha256:3042904de01f9c4fbdcf1452b8f81abedcf2b015f9b9deba109063322b5bd68b",
+          "size": 392184,
+          "archive": "archives/3042904de01f9c4fbdcf1452b8f81abedcf2b015f9b9deba109063322b5bd68b.deb"
+        },
+        {
+          "name": "libcurl4-openssl-dev",
+          "version": "7.88.1-10+deb12u15",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/c/curl/libcurl4-openssl-dev_7.88.1-10%2bdeb12u15_amd64.deb",
+          "digest": "sha256:dbd69b15ecb49331f53fbc3483b0508997e2fab551e48c53951391f254b73890",
+          "size": 492864,
+          "archive": "archives/dbd69b15ecb49331f53fbc3483b0508997e2fab551e48c53951391f254b73890.deb"
+        },
+        {
+          "name": "libjsoncpp25",
+          "version": "1.9.5-4",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/libj/libjsoncpp/libjsoncpp25_1.9.5-4_amd64.deb",
+          "digest": "sha256:4ab06b9ce67470579be3112bf2b6b314012f93bfff619580b93a902d6b1221c5",
+          "size": 78572,
+          "archive": "archives/4ab06b9ce67470579be3112bf2b6b314012f93bfff619580b93a902d6b1221c5.deb"
+        },
+        {
+          "name": "librhash0",
+          "version": "1.4.3-3",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/r/rhash/librhash0_1.4.3-3_amd64.deb",
+          "digest": "sha256:d9ba48a51fd4734aaaf3a75fd94b6352a02f9eaa88d3bec84cd0b5d3090f9d2a",
+          "size": 134112,
+          "archive": "archives/d9ba48a51fd4734aaaf3a75fd94b6352a02f9eaa88d3bec84cd0b5d3090f9d2a.deb"
+        },
+        {
+          "name": "libssl-dev",
+          "version": "3.0.22-1~deb12u1",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian-security/pool/updates/main/o/openssl/libssl-dev_3.0.22-1%7edeb12u1_amd64.deb",
+          "digest": "sha256:67033caa8a90696856c2967fbdae51e62b85878f055e01f03b0c732158c1682e",
+          "size": 2449908,
+          "archive": "archives/67033caa8a90696856c2967fbdae51e62b85878f055e01f03b0c732158c1682e.deb"
+        },
+        {
+          "name": "libssl3",
+          "version": "3.0.22-1~deb12u1",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian-security/pool/updates/main/o/openssl/libssl3_3.0.22-1%7edeb12u1_amd64.deb",
+          "digest": "sha256:f0a8aa8429209e556c278a9936bbd5f7d2cdb9f7e4e23b1e43ed399217ba80c1",
+          "size": 2039240,
+          "archive": "archives/f0a8aa8429209e556c278a9936bbd5f7d2cdb9f7e4e23b1e43ed399217ba80c1.deb"
+        },
+        {
+          "name": "libuv1",
+          "version": "1.44.2-1+deb12u1",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/libu/libuv1/libuv1_1.44.2-1%2bdeb12u1_amd64.deb",
+          "digest": "sha256:204f0e13354b44e6d19317887a53dab6f26696e8d95838db970b81f2a393f7fd",
+          "size": 135616,
+          "archive": "archives/204f0e13354b44e6d19317887a53dab6f26696e8d95838db970b81f2a393f7fd.deb"
+        },
+        {
+          "name": "openssl",
+          "version": "3.0.22-1~deb12u1",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian-security/pool/updates/main/o/openssl/openssl_3.0.22-1%7edeb12u1_amd64.deb",
+          "digest": "sha256:6f43fb5e9f3ceb0e36c91d0a148282a8eaf174b441c17d3665b6ba049b33d2c2",
+          "size": 1442052,
+          "archive": "archives/6f43fb5e9f3ceb0e36c91d0a148282a8eaf174b441c17d3665b6ba049b33d2c2.deb"
+        },
+        {
+          "name": "pkg-config",
+          "version": "1.8.1-1",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/p/pkgconf/pkg-config_1.8.1-1_amd64.deb",
+          "digest": "sha256:312b2bdeff4671f8e0d589c124554890e944dd083061e9ad6f129bc76a970765",
+          "size": 13688,
+          "archive": "archives/312b2bdeff4671f8e0d589c124554890e944dd083061e9ad6f129bc76a970765.deb"
+        },
+        {
+          "name": "zlib1g-dev",
+          "version": "1:1.2.13.dfsg-1",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/z/zlib/zlib1g-dev_1.2.13.dfsg-1_amd64.deb",
+          "digest": "sha256:f9ce531f60cbd5df37996af9370e0171be96902a17ec2bdbd8d62038c354094f",
+          "size": 916272,
+          "archive": "archives/f9ce531f60cbd5df37996af9370e0171be96902a17ec2bdbd8d62038c354094f.deb"
+        }
+      ]
+    },
+    {
+      "algorithm": "apt-materials-v1",
+      "resolved_from": "0a63612de0a7586a8317333257403b6012cbbe82",
+      "kind": "builder",
+      "platform": "linux/arm64",
+      "base": "lukemathwalker/cargo-chef:0.1.77-rust-1.97.0-bookworm@sha256:974d873357408b6ececac8729285204664e23f5aab21a34e353ae5bf9bb899a2",
+      "recipe_digest": "sha256:81ccccef973009f7bfcd5e821f372a424e771fbbe9c4622dd3284cbf53c0a2ff",
+      "requested": [
+        "build-essential",
+        "cmake",
+        "libcurl4-openssl-dev",
+        "libssl-dev",
+        "pkg-config",
+        "zlib1g-dev"
+      ],
+      "sources_digest": "sha256:ca5d2a3b95fc7c244801d075f205a91ee5e07a4fbde11235f2579bc40c76a6ee",
+      "base_status_digest": "sha256:a1fdb840c68e17b24b7f5dfe8d0dd205d104e4a97d921a4e201239afc418e502",
+      "keyring_digest": "sha256:506b815cbb32d9b6066b4a2aa524071e071761e7e7f68c3ac74f3061ba852017",
+      "indexes": [
+        {
+          "path": "lists/deb.debian.org_debian-security_dists_bookworm-security_InRelease",
+          "digest": "sha256:f7aedc4fd3869d04571daac1c7247bf255420d73e44f3daf7512228a012f2065",
+          "size": 34770
+        },
+        {
+          "path": "lists/deb.debian.org_debian-security_dists_bookworm-security_main_binary-arm64_Packages.lz4",
+          "digest": "sha256:8def55f1f0a6b0b295371a0566fc0cd4f5106b2936e4bac4365a1e2aa6abd3f0",
+          "size": 709543
+        },
+        {
+          "path": "lists/deb.debian.org_debian_dists_bookworm-updates_InRelease",
+          "digest": "sha256:f888c814b2492a5c92766565ac863a2e283fd9c6f0082077836610d6ef030aee",
+          "size": 55403
+        },
+        {
+          "path": "lists/deb.debian.org_debian_dists_bookworm-updates_main_binary-arm64_Packages.lz4",
+          "digest": "sha256:482222dc46746019562e87a6df5ed291123eca9dd834b49de5ca882c5c740f2d",
+          "size": 11617
+        },
+        {
+          "path": "lists/deb.debian.org_debian_dists_bookworm_InRelease",
+          "digest": "sha256:77737fa4b34f2693e982cc9ee35736816c35a7778fc2d326cc1bbf5b301fe1aa",
+          "size": 151075
+        },
+        {
+          "path": "lists/deb.debian.org_debian_dists_bookworm_main_binary-arm64_Packages.lz4",
+          "digest": "sha256:3fac58d293b1e36b08fe3c34733771c5233b3f6cd57c7f2397de7ab81b8270e9",
+          "size": 18630901
+        }
+      ],
+      "packages": [
+        {
+          "name": "build-essential",
+          "version": "12.9",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/b/build-essential/build-essential_12.9_arm64.deb",
+          "digest": "sha256:cb14b62d98e911ae8cb32248f9f46de50cc09d46ec9dcb3b9bfda1ff2e0abf49",
+          "size": 7704,
+          "archive": "archives/cb14b62d98e911ae8cb32248f9f46de50cc09d46ec9dcb3b9bfda1ff2e0abf49.deb"
+        },
+        {
+          "name": "cmake",
+          "version": "3.25.1-1",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/c/cmake/cmake_3.25.1-1_arm64.deb",
+          "digest": "sha256:457c1e246b50bbfc2cd6f0f0d1da09889c8bc24677b9acb8946c4c778eaa74e5",
+          "size": 6806404,
+          "archive": "archives/457c1e246b50bbfc2cd6f0f0d1da09889c8bc24677b9acb8946c4c778eaa74e5.deb"
+        },
+        {
+          "name": "cmake-data",
+          "version": "3.25.1-1",
+          "architecture": "all",
+          "url": "https://deb.debian.org/debian/pool/main/c/cmake/cmake-data_3.25.1-1_all.deb",
+          "digest": "sha256:8371f9694da94fd551a3ea653e2e25d99747471ca0b48cc029bf5c792ea590a3",
+          "size": 2026484,
+          "archive": "archives/8371f9694da94fd551a3ea653e2e25d99747471ca0b48cc029bf5c792ea590a3.deb"
+        },
+        {
+          "name": "curl",
+          "version": "7.88.1-10+deb12u15",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/c/curl/curl_7.88.1-10%2bdeb12u15_arm64.deb",
+          "digest": "sha256:880d20cb636d2c36b2f57c58ab284b442a1680365b488d3e696c147c4d84ef25",
+          "size": 309524,
+          "archive": "archives/880d20cb636d2c36b2f57c58ab284b442a1680365b488d3e696c147c4d84ef25.deb"
+        },
+        {
+          "name": "libarchive13",
+          "version": "3.6.2-1+deb12u5",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian-security/pool/updates/main/liba/libarchive/libarchive13_3.6.2-1%2bdeb12u5_arm64.deb",
+          "digest": "sha256:0be76b2a5c9f1ff3f97ed44731175a5bf69fe0b89a8ebfb3cee7ad77777ee918",
+          "size": 318348,
+          "archive": "archives/0be76b2a5c9f1ff3f97ed44731175a5bf69fe0b89a8ebfb3cee7ad77777ee918.deb"
+        },
+        {
+          "name": "libcurl3-gnutls",
+          "version": "7.88.1-10+deb12u15",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/c/curl/libcurl3-gnutls_7.88.1-10%2bdeb12u15_arm64.deb",
+          "digest": "sha256:053f0518249c0be7f476b73b28d9c9922ea5597d744e86736f89ced17e4a1ec1",
+          "size": 362416,
+          "archive": "archives/053f0518249c0be7f476b73b28d9c9922ea5597d744e86736f89ced17e4a1ec1.deb"
+        },
+        {
+          "name": "libcurl4",
+          "version": "7.88.1-10+deb12u15",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/c/curl/libcurl4_7.88.1-10%2bdeb12u15_arm64.deb",
+          "digest": "sha256:e54bdd269c960b643ded903c3dbde36fe5d4d5f5b6389b47a0344d4a711cf70a",
+          "size": 367496,
+          "archive": "archives/e54bdd269c960b643ded903c3dbde36fe5d4d5f5b6389b47a0344d4a711cf70a.deb"
+        },
+        {
+          "name": "libcurl4-openssl-dev",
+          "version": "7.88.1-10+deb12u15",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/c/curl/libcurl4-openssl-dev_7.88.1-10%2bdeb12u15_arm64.deb",
+          "digest": "sha256:b64c072a4cf1a5bbf2e7ced12564c73ce4ba6810c7e1de4c861c46c7d5eae6b0",
+          "size": 476592,
+          "archive": "archives/b64c072a4cf1a5bbf2e7ced12564c73ce4ba6810c7e1de4c861c46c7d5eae6b0.deb"
+        },
+        {
+          "name": "libjsoncpp25",
+          "version": "1.9.5-4",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/libj/libjsoncpp/libjsoncpp25_1.9.5-4_arm64.deb",
+          "digest": "sha256:6d2f5cbc0b8ae2c263262fc1f3d891ebc46f9dcc73d0c4013eddb20e20079a91",
+          "size": 72340,
+          "archive": "archives/6d2f5cbc0b8ae2c263262fc1f3d891ebc46f9dcc73d0c4013eddb20e20079a91.deb"
+        },
+        {
+          "name": "librhash0",
+          "version": "1.4.3-3",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/r/rhash/librhash0_1.4.3-3_arm64.deb",
+          "digest": "sha256:9ec3a2819dd2b66837b11bb961347aca9f5c7fc215e0709f78ec7e5da4748a53",
+          "size": 130904,
+          "archive": "archives/9ec3a2819dd2b66837b11bb961347aca9f5c7fc215e0709f78ec7e5da4748a53.deb"
+        },
+        {
+          "name": "libssl-dev",
+          "version": "3.0.22-1~deb12u1",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian-security/pool/updates/main/o/openssl/libssl-dev_3.0.22-1%7edeb12u1_arm64.deb",
+          "digest": "sha256:21cb93e43cc78372ad23acb32337d960bf7955e96687f4083eb8b335f7553f28",
+          "size": 2317608,
+          "archive": "archives/21cb93e43cc78372ad23acb32337d960bf7955e96687f4083eb8b335f7553f28.deb"
+        },
+        {
+          "name": "libssl3",
+          "version": "3.0.22-1~deb12u1",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian-security/pool/updates/main/o/openssl/libssl3_3.0.22-1%7edeb12u1_arm64.deb",
+          "digest": "sha256:026105b99749b437b03d0de5b3a58c0cabefb9791bc6f9cf916d18691ee7519a",
+          "size": 1827612,
+          "archive": "archives/026105b99749b437b03d0de5b3a58c0cabefb9791bc6f9cf916d18691ee7519a.deb"
+        },
+        {
+          "name": "libuv1",
+          "version": "1.44.2-1+deb12u1",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/libu/libuv1/libuv1_1.44.2-1%2bdeb12u1_arm64.deb",
+          "digest": "sha256:96022663d045c9599cf664b98db45e254b05b0661860ad89f1501b7dbf0da258",
+          "size": 129764,
+          "archive": "archives/96022663d045c9599cf664b98db45e254b05b0661860ad89f1501b7dbf0da258.deb"
+        },
+        {
+          "name": "openssl",
+          "version": "3.0.22-1~deb12u1",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian-security/pool/updates/main/o/openssl/openssl_3.0.22-1%7edeb12u1_arm64.deb",
+          "digest": "sha256:d7d7fc0e2e9ba60b00679a8335b7a9bd9a63eb486254575a2243e8a2e9b9e762",
+          "size": 1410160,
+          "archive": "archives/d7d7fc0e2e9ba60b00679a8335b7a9bd9a63eb486254575a2243e8a2e9b9e762.deb"
+        },
+        {
+          "name": "pkg-config",
+          "version": "1.8.1-1",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/p/pkgconf/pkg-config_1.8.1-1_arm64.deb",
+          "digest": "sha256:9fa52c7b352fec0bfdb4cfb17f64bb17939207e04c88022635f43a8c9ad2fc11",
+          "size": 13688,
+          "archive": "archives/9fa52c7b352fec0bfdb4cfb17f64bb17939207e04c88022635f43a8c9ad2fc11.deb"
+        },
+        {
+          "name": "zlib1g-dev",
+          "version": "1:1.2.13.dfsg-1",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/z/zlib/zlib1g-dev_1.2.13.dfsg-1_arm64.deb",
+          "digest": "sha256:afb60f0bae432f2f0edfe2d674e99c1a13a147c9aa2b52f2f23e3df19ece76f5",
+          "size": 912840,
+          "archive": "archives/afb60f0bae432f2f0edfe2d674e99c1a13a147c9aa2b52f2f23e3df19ece76f5.deb"
+        }
+      ]
+    },
+    {
+      "algorithm": "apt-materials-v1",
+      "resolved_from": "0a63612de0a7586a8317333257403b6012cbbe82",
+      "kind": "runtime",
+      "platform": "linux/amd64",
+      "base": "debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8",
+      "recipe_digest": "sha256:81ccccef973009f7bfcd5e821f372a424e771fbbe9c4622dd3284cbf53c0a2ff",
+      "requested": [
+        "ca-certificates",
+        "curl",
+        "libssl3"
+      ],
+      "sources_digest": "sha256:151c914353aee810efcae46db19bb01fcf4abfab9865bbd99e4f5ccad1873db9",
+      "base_status_digest": "sha256:ea8063c43d82b45fe00bfc01b7636c2738b89d7f163ff77c180710d02af9d6e8",
+      "keyring_digest": "sha256:506b815cbb32d9b6066b4a2aa524071e071761e7e7f68c3ac74f3061ba852017",
+      "indexes": [
+        {
+          "path": "lists/deb.debian.org_debian-security_dists_bookworm-security_InRelease",
+          "digest": "sha256:f7aedc4fd3869d04571daac1c7247bf255420d73e44f3daf7512228a012f2065",
+          "size": 34770
+        },
+        {
+          "path": "lists/deb.debian.org_debian-security_dists_bookworm-security_main_binary-amd64_Packages.lz4",
+          "digest": "sha256:67618352c03b2f95e73987467802ea7f862c6cb4859ac1490964527e0e3995e7",
+          "size": 713027
+        },
+        {
+          "path": "lists/deb.debian.org_debian_dists_bookworm-updates_InRelease",
+          "digest": "sha256:f888c814b2492a5c92766565ac863a2e283fd9c6f0082077836610d6ef030aee",
+          "size": 55403
+        },
+        {
+          "path": "lists/deb.debian.org_debian_dists_bookworm-updates_main_binary-amd64_Packages.lz4",
+          "digest": "sha256:8ae7b65cb4858ac692572b6989be68da6505ae90fe4a3b4e0bf842d266209e53",
+          "size": 11648
+        },
+        {
+          "path": "lists/deb.debian.org_debian_dists_bookworm_InRelease",
+          "digest": "sha256:77737fa4b34f2693e982cc9ee35736816c35a7778fc2d326cc1bbf5b301fe1aa",
+          "size": 151075
+        },
+        {
+          "path": "lists/deb.debian.org_debian_dists_bookworm_main_binary-amd64_Packages.lz4",
+          "digest": "sha256:38163a87d0269f1af22bdddc092bf8e6c605f981642a09561e60565358f15e07",
+          "size": 18840233
+        }
+      ],
+      "packages": [
+        {
+          "name": "ca-certificates",
+          "version": "20250419~deb12u2",
+          "architecture": "all",
+          "url": "https://deb.debian.org/debian-security/pool/updates/main/c/ca-certificates/ca-certificates_20250419%7edeb12u2_all.deb",
+          "digest": "sha256:b9f76b5271a7ac373fd5e7e1b5b826a71ddd702b42a0d104955ecb1acfffc94b",
+          "size": 160948,
+          "archive": "archives/b9f76b5271a7ac373fd5e7e1b5b826a71ddd702b42a0d104955ecb1acfffc94b.deb"
+        },
+        {
+          "name": "curl",
+          "version": "7.88.1-10+deb12u15",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/c/curl/curl_7.88.1-10%2bdeb12u15_amd64.deb",
+          "digest": "sha256:0dd9b6bf7a0bd11af2d68a52ec44c2a223fa7c11f9104c36ce1047e1137d4a8f",
+          "size": 315764,
+          "archive": "archives/0dd9b6bf7a0bd11af2d68a52ec44c2a223fa7c11f9104c36ce1047e1137d4a8f.deb"
+        },
+        {
+          "name": "libbrotli1",
+          "version": "1.0.9-2+b6",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/b/brotli/libbrotli1_1.0.9-2%2bb6_amd64.deb",
+          "digest": "sha256:563b4caec1aa5e876bd3355b36e7a38e1484baf5a293b48d1e8bd22db786e4d7",
+          "size": 275248,
+          "archive": "archives/563b4caec1aa5e876bd3355b36e7a38e1484baf5a293b48d1e8bd22db786e4d7.deb"
+        },
+        {
+          "name": "libcurl4",
+          "version": "7.88.1-10+deb12u15",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/c/curl/libcurl4_7.88.1-10%2bdeb12u15_amd64.deb",
+          "digest": "sha256:3042904de01f9c4fbdcf1452b8f81abedcf2b015f9b9deba109063322b5bd68b",
+          "size": 392184,
+          "archive": "archives/3042904de01f9c4fbdcf1452b8f81abedcf2b015f9b9deba109063322b5bd68b.deb"
+        },
+        {
+          "name": "libgssapi-krb5-2",
+          "version": "1.20.1-2+deb12u5",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/k/krb5/libgssapi-krb5-2_1.20.1-2%2bdeb12u5_amd64.deb",
+          "digest": "sha256:d8b87aea91b956b416c01a28c44ff6228315ae3b73de40acddac3dc5043607d2",
+          "size": 135168,
+          "archive": "archives/d8b87aea91b956b416c01a28c44ff6228315ae3b73de40acddac3dc5043607d2.deb"
+        },
+        {
+          "name": "libk5crypto3",
+          "version": "1.20.1-2+deb12u5",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/k/krb5/libk5crypto3_1.20.1-2%2bdeb12u5_amd64.deb",
+          "digest": "sha256:7b6e47d15c5c9cdcd456137533d8308aeba608a54cec73b28bd59bfc4b54cf06",
+          "size": 79712,
+          "archive": "archives/7b6e47d15c5c9cdcd456137533d8308aeba608a54cec73b28bd59bfc4b54cf06.deb"
+        },
+        {
+          "name": "libkeyutils1",
+          "version": "1.6.3-2",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/k/keyutils/libkeyutils1_1.6.3-2_amd64.deb",
+          "digest": "sha256:cfac89e6a7a54ff3c6a4f843310e25efeddaa771baeae470bd98bd588c373563",
+          "size": 8808,
+          "archive": "archives/cfac89e6a7a54ff3c6a4f843310e25efeddaa771baeae470bd98bd588c373563.deb"
+        },
+        {
+          "name": "libkrb5-3",
+          "version": "1.20.1-2+deb12u5",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/k/krb5/libkrb5-3_1.20.1-2%2bdeb12u5_amd64.deb",
+          "digest": "sha256:c90801be09701af221b54dd502a59cb378b7284ff31e480738baca317d2f7653",
+          "size": 332280,
+          "archive": "archives/c90801be09701af221b54dd502a59cb378b7284ff31e480738baca317d2f7653.deb"
+        },
+        {
+          "name": "libkrb5support0",
+          "version": "1.20.1-2+deb12u5",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/k/krb5/libkrb5support0_1.20.1-2%2bdeb12u5_amd64.deb",
+          "digest": "sha256:8b9c05f2d8d461a10d657b118f572af5bf8fd6c8f93dcef81e852c5ab0f428ab",
+          "size": 33212,
+          "archive": "archives/8b9c05f2d8d461a10d657b118f572af5bf8fd6c8f93dcef81e852c5ab0f428ab.deb"
+        },
+        {
+          "name": "libldap-2.5-0",
+          "version": "2.5.13+dfsg-5",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/o/openldap/libldap-2.5-0_2.5.13%2bdfsg-5_amd64.deb",
+          "digest": "sha256:4b6c30f6554149c594628d945edc6003f0eea8d0cc1341638c0e71375db147ed",
+          "size": 183248,
+          "archive": "archives/4b6c30f6554149c594628d945edc6003f0eea8d0cc1341638c0e71375db147ed.deb"
+        },
+        {
+          "name": "libnghttp2-14",
+          "version": "1.52.0-1+deb12u3",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/n/nghttp2/libnghttp2-14_1.52.0-1%2bdeb12u3_amd64.deb",
+          "digest": "sha256:5a5736cee57e51c1baed869979e6ecdbc6495e939e33203d6cfe3b6e5a149e3f",
+          "size": 72404,
+          "archive": "archives/5a5736cee57e51c1baed869979e6ecdbc6495e939e33203d6cfe3b6e5a149e3f.deb"
+        },
+        {
+          "name": "libpsl5",
+          "version": "0.21.2-1",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/libp/libpsl/libpsl5_0.21.2-1_amd64.deb",
+          "digest": "sha256:4f0d35610204e4e754b057748719744114621f2f6f4202d846c314860a981afb",
+          "size": 58684,
+          "archive": "archives/4f0d35610204e4e754b057748719744114621f2f6f4202d846c314860a981afb.deb"
+        },
+        {
+          "name": "librtmp1",
+          "version": "2.4+20151223.gitfa8646d.1-2+b2",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/r/rtmpdump/librtmp1_2.4%2b20151223.gitfa8646d.1-2%2bb2_amd64.deb",
+          "digest": "sha256:e1f69020dc2c466e421ec6a58406b643be8b5c382abf0f8989011c1d3df91c87",
+          "size": 60824,
+          "archive": "archives/e1f69020dc2c466e421ec6a58406b643be8b5c382abf0f8989011c1d3df91c87.deb"
+        },
+        {
+          "name": "libsasl2-2",
+          "version": "2.1.28+dfsg-10",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/c/cyrus-sasl2/libsasl2-2_2.1.28%2bdfsg-10_amd64.deb",
+          "digest": "sha256:11ee190ad39f8d7af441d2c8347388b9449434c73acc67b4b372445ac4152efa",
+          "size": 59712,
+          "archive": "archives/11ee190ad39f8d7af441d2c8347388b9449434c73acc67b4b372445ac4152efa.deb"
+        },
+        {
+          "name": "libsasl2-modules-db",
+          "version": "2.1.28+dfsg-10",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian/pool/main/c/cyrus-sasl2/libsasl2-modules-db_2.1.28%2bdfsg-10_amd64.deb",
+          "digest": "sha256:3ac4fd6cbe3b3b06e68d24b931bf3eb9385b42f15604a37ed25310e948ca0ee6",
+          "size": 20336,
+          "archive": "archives/3ac4fd6cbe3b3b06e68d24b931bf3eb9385b42f15604a37ed25310e948ca0ee6.deb"
+        },
+        {
+          "name": "libssh2-1",
+          "version": "1.10.0-3+deb12u1",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian-security/pool/updates/main/libs/libssh2/libssh2-1_1.10.0-3%2bdeb12u1_amd64.deb",
+          "digest": "sha256:fff72a194e493f88e100a2567e22472bb4ab828d429c2956965c6f2f134f1b3a",
+          "size": 175976,
+          "archive": "archives/fff72a194e493f88e100a2567e22472bb4ab828d429c2956965c6f2f134f1b3a.deb"
+        },
+        {
+          "name": "libssl3",
+          "version": "3.0.22-1~deb12u1",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian-security/pool/updates/main/o/openssl/libssl3_3.0.22-1%7edeb12u1_amd64.deb",
+          "digest": "sha256:f0a8aa8429209e556c278a9936bbd5f7d2cdb9f7e4e23b1e43ed399217ba80c1",
+          "size": 2039240,
+          "archive": "archives/f0a8aa8429209e556c278a9936bbd5f7d2cdb9f7e4e23b1e43ed399217ba80c1.deb"
+        },
+        {
+          "name": "openssl",
+          "version": "3.0.22-1~deb12u1",
+          "architecture": "amd64",
+          "url": "https://deb.debian.org/debian-security/pool/updates/main/o/openssl/openssl_3.0.22-1%7edeb12u1_amd64.deb",
+          "digest": "sha256:6f43fb5e9f3ceb0e36c91d0a148282a8eaf174b441c17d3665b6ba049b33d2c2",
+          "size": 1442052,
+          "archive": "archives/6f43fb5e9f3ceb0e36c91d0a148282a8eaf174b441c17d3665b6ba049b33d2c2.deb"
+        }
+      ]
+    },
+    {
+      "algorithm": "apt-materials-v1",
+      "resolved_from": "0a63612de0a7586a8317333257403b6012cbbe82",
+      "kind": "runtime",
+      "platform": "linux/arm64",
+      "base": "debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8",
+      "recipe_digest": "sha256:81ccccef973009f7bfcd5e821f372a424e771fbbe9c4622dd3284cbf53c0a2ff",
+      "requested": [
+        "ca-certificates",
+        "curl",
+        "libssl3"
+      ],
+      "sources_digest": "sha256:ca5d2a3b95fc7c244801d075f205a91ee5e07a4fbde11235f2579bc40c76a6ee",
+      "base_status_digest": "sha256:8bcc34366e6bdc80ef0144c2559c072766e8c3f59edb5eeb79f139f106fffd5f",
+      "keyring_digest": "sha256:506b815cbb32d9b6066b4a2aa524071e071761e7e7f68c3ac74f3061ba852017",
+      "indexes": [
+        {
+          "path": "lists/deb.debian.org_debian-security_dists_bookworm-security_InRelease",
+          "digest": "sha256:f7aedc4fd3869d04571daac1c7247bf255420d73e44f3daf7512228a012f2065",
+          "size": 34770
+        },
+        {
+          "path": "lists/deb.debian.org_debian-security_dists_bookworm-security_main_binary-arm64_Packages.lz4",
+          "digest": "sha256:8def55f1f0a6b0b295371a0566fc0cd4f5106b2936e4bac4365a1e2aa6abd3f0",
+          "size": 709543
+        },
+        {
+          "path": "lists/deb.debian.org_debian_dists_bookworm-updates_InRelease",
+          "digest": "sha256:f888c814b2492a5c92766565ac863a2e283fd9c6f0082077836610d6ef030aee",
+          "size": 55403
+        },
+        {
+          "path": "lists/deb.debian.org_debian_dists_bookworm-updates_main_binary-arm64_Packages.lz4",
+          "digest": "sha256:482222dc46746019562e87a6df5ed291123eca9dd834b49de5ca882c5c740f2d",
+          "size": 11617
+        },
+        {
+          "path": "lists/deb.debian.org_debian_dists_bookworm_InRelease",
+          "digest": "sha256:77737fa4b34f2693e982cc9ee35736816c35a7778fc2d326cc1bbf5b301fe1aa",
+          "size": 151075
+        },
+        {
+          "path": "lists/deb.debian.org_debian_dists_bookworm_main_binary-arm64_Packages.lz4",
+          "digest": "sha256:3fac58d293b1e36b08fe3c34733771c5233b3f6cd57c7f2397de7ab81b8270e9",
+          "size": 18630901
+        }
+      ],
+      "packages": [
+        {
+          "name": "ca-certificates",
+          "version": "20250419~deb12u2",
+          "architecture": "all",
+          "url": "https://deb.debian.org/debian-security/pool/updates/main/c/ca-certificates/ca-certificates_20250419%7edeb12u2_all.deb",
+          "digest": "sha256:b9f76b5271a7ac373fd5e7e1b5b826a71ddd702b42a0d104955ecb1acfffc94b",
+          "size": 160948,
+          "archive": "archives/b9f76b5271a7ac373fd5e7e1b5b826a71ddd702b42a0d104955ecb1acfffc94b.deb"
+        },
+        {
+          "name": "curl",
+          "version": "7.88.1-10+deb12u15",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/c/curl/curl_7.88.1-10%2bdeb12u15_arm64.deb",
+          "digest": "sha256:880d20cb636d2c36b2f57c58ab284b442a1680365b488d3e696c147c4d84ef25",
+          "size": 309524,
+          "archive": "archives/880d20cb636d2c36b2f57c58ab284b442a1680365b488d3e696c147c4d84ef25.deb"
+        },
+        {
+          "name": "libbrotli1",
+          "version": "1.0.9-2+b6",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/b/brotli/libbrotli1_1.0.9-2%2bb6_arm64.deb",
+          "digest": "sha256:3137de7f71952e710ee9f0df05026b3c6f463be9369a502d57c7696732f1ed22",
+          "size": 269124,
+          "archive": "archives/3137de7f71952e710ee9f0df05026b3c6f463be9369a502d57c7696732f1ed22.deb"
+        },
+        {
+          "name": "libcurl4",
+          "version": "7.88.1-10+deb12u15",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/c/curl/libcurl4_7.88.1-10%2bdeb12u15_arm64.deb",
+          "digest": "sha256:e54bdd269c960b643ded903c3dbde36fe5d4d5f5b6389b47a0344d4a711cf70a",
+          "size": 367496,
+          "archive": "archives/e54bdd269c960b643ded903c3dbde36fe5d4d5f5b6389b47a0344d4a711cf70a.deb"
+        },
+        {
+          "name": "libgssapi-krb5-2",
+          "version": "1.20.1-2+deb12u5",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/k/krb5/libgssapi-krb5-2_1.20.1-2%2bdeb12u5_arm64.deb",
+          "digest": "sha256:a00678963f692a929312968f19b77a61a8fc0011690d7dc909a8a2c4810fc7b3",
+          "size": 124152,
+          "archive": "archives/a00678963f692a929312968f19b77a61a8fc0011690d7dc909a8a2c4810fc7b3.deb"
+        },
+        {
+          "name": "libk5crypto3",
+          "version": "1.20.1-2+deb12u5",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/k/krb5/libk5crypto3_1.20.1-2%2bdeb12u5_arm64.deb",
+          "digest": "sha256:8ae2c31cde0b3e6f80c573a495b0f90bf6d9efb4455d900728278bb54d9092e5",
+          "size": 79880,
+          "archive": "archives/8ae2c31cde0b3e6f80c573a495b0f90bf6d9efb4455d900728278bb54d9092e5.deb"
+        },
+        {
+          "name": "libkeyutils1",
+          "version": "1.6.3-2",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/k/keyutils/libkeyutils1_1.6.3-2_arm64.deb",
+          "digest": "sha256:aac46cb6faec4e737502b3c2290b7b02f8ba04e8accd5af7fd07934df0c867b1",
+          "size": 8844,
+          "archive": "archives/aac46cb6faec4e737502b3c2290b7b02f8ba04e8accd5af7fd07934df0c867b1.deb"
+        },
+        {
+          "name": "libkrb5-3",
+          "version": "1.20.1-2+deb12u5",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/k/krb5/libkrb5-3_1.20.1-2%2bdeb12u5_arm64.deb",
+          "digest": "sha256:c3c7227f5db903a7a8b8936d47d1d79643edcda36365c4c992e1a96bcc2d4c7e",
+          "size": 315528,
+          "archive": "archives/c3c7227f5db903a7a8b8936d47d1d79643edcda36365c4c992e1a96bcc2d4c7e.deb"
+        },
+        {
+          "name": "libkrb5support0",
+          "version": "1.20.1-2+deb12u5",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/k/krb5/libkrb5support0_1.20.1-2%2bdeb12u5_arm64.deb",
+          "digest": "sha256:3043fd4a54b945a1b503170749527f825dcfc7add2f8bf5abb4a329deeb48f4a",
+          "size": 32592,
+          "archive": "archives/3043fd4a54b945a1b503170749527f825dcfc7add2f8bf5abb4a329deeb48f4a.deb"
+        },
+        {
+          "name": "libldap-2.5-0",
+          "version": "2.5.13+dfsg-5",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/o/openldap/libldap-2.5-0_2.5.13%2bdfsg-5_arm64.deb",
+          "digest": "sha256:71e6ae4291a20db999c62cd0a4f30a92a799c46b99205d5e787d4acd7c343b91",
+          "size": 170832,
+          "archive": "archives/71e6ae4291a20db999c62cd0a4f30a92a799c46b99205d5e787d4acd7c343b91.deb"
+        },
+        {
+          "name": "libnghttp2-14",
+          "version": "1.52.0-1+deb12u3",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/n/nghttp2/libnghttp2-14_1.52.0-1%2bdeb12u3_arm64.deb",
+          "digest": "sha256:7767833033739adb2e2e374f2c4b36134d9f36fcdfe8e2aab7029bf850146da9",
+          "size": 68976,
+          "archive": "archives/7767833033739adb2e2e374f2c4b36134d9f36fcdfe8e2aab7029bf850146da9.deb"
+        },
+        {
+          "name": "libpsl5",
+          "version": "0.21.2-1",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/libp/libpsl/libpsl5_0.21.2-1_arm64.deb",
+          "digest": "sha256:90a68e4a6d9eb95abee32595762dbf67974f13c158e4ce4a05c7c2b54440db73",
+          "size": 58600,
+          "archive": "archives/90a68e4a6d9eb95abee32595762dbf67974f13c158e4ce4a05c7c2b54440db73.deb"
+        },
+        {
+          "name": "librtmp1",
+          "version": "2.4+20151223.gitfa8646d.1-2+b2",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/r/rtmpdump/librtmp1_2.4%2b20151223.gitfa8646d.1-2%2bb2_arm64.deb",
+          "digest": "sha256:a3a1a6e4b02bcd3254e932b1972ed744082fd7dd5cc1545eec3dd3d539ce6c93",
+          "size": 59364,
+          "archive": "archives/a3a1a6e4b02bcd3254e932b1972ed744082fd7dd5cc1545eec3dd3d539ce6c93.deb"
+        },
+        {
+          "name": "libsasl2-2",
+          "version": "2.1.28+dfsg-10",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/c/cyrus-sasl2/libsasl2-2_2.1.28%2bdfsg-10_arm64.deb",
+          "digest": "sha256:61dcbb6560e2eb20bff256f1b445ac9af13aa61c6a6ae115ad8cb96c9c50ea38",
+          "size": 58016,
+          "archive": "archives/61dcbb6560e2eb20bff256f1b445ac9af13aa61c6a6ae115ad8cb96c9c50ea38.deb"
+        },
+        {
+          "name": "libsasl2-modules-db",
+          "version": "2.1.28+dfsg-10",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian/pool/main/c/cyrus-sasl2/libsasl2-modules-db_2.1.28%2bdfsg-10_arm64.deb",
+          "digest": "sha256:56d9c35ac6729b02f78900175557dd36bef26611dab89584f29da15631628869",
+          "size": 20820,
+          "archive": "archives/56d9c35ac6729b02f78900175557dd36bef26611dab89584f29da15631628869.deb"
+        },
+        {
+          "name": "libssh2-1",
+          "version": "1.10.0-3+deb12u1",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian-security/pool/updates/main/libs/libssh2/libssh2-1_1.10.0-3%2bdeb12u1_arm64.deb",
+          "digest": "sha256:72db6dc64cb0dd4c8a6b0f1b998063338956a7b3eb8a27125beb27bee0d7cc46",
+          "size": 169420,
+          "archive": "archives/72db6dc64cb0dd4c8a6b0f1b998063338956a7b3eb8a27125beb27bee0d7cc46.deb"
+        },
+        {
+          "name": "libssl3",
+          "version": "3.0.22-1~deb12u1",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian-security/pool/updates/main/o/openssl/libssl3_3.0.22-1%7edeb12u1_arm64.deb",
+          "digest": "sha256:026105b99749b437b03d0de5b3a58c0cabefb9791bc6f9cf916d18691ee7519a",
+          "size": 1827612,
+          "archive": "archives/026105b99749b437b03d0de5b3a58c0cabefb9791bc6f9cf916d18691ee7519a.deb"
+        },
+        {
+          "name": "openssl",
+          "version": "3.0.22-1~deb12u1",
+          "architecture": "arm64",
+          "url": "https://deb.debian.org/debian-security/pool/updates/main/o/openssl/openssl_3.0.22-1%7edeb12u1_arm64.deb",
+          "digest": "sha256:d7d7fc0e2e9ba60b00679a8335b7a9bd9a63eb486254575a2243e8a2e9b9e762",
+          "size": 1410160,
+          "archive": "archives/d7d7fc0e2e9ba60b00679a8335b7a9bd9a63eb486254575a2243e8a2e9b9e762.deb"
+        }
+      ]
+    }
+  ]
+}

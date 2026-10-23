@@ -731,3 +731,69 @@ verified toolchain/base provenance, apt/cmake/rustup inputs, runtime image/clust
 authenticated release history and publication race protection remain separate gates.
 `identity_verified` and `publication_authorized` remain false. Normal dependencies, lockfiles,
 Dockerfiles and release workflows are unchanged.
+
+
+## Locked APT materials and offline installation
+
+Resolve the existing Rust builder/runtime package families in the approved digest-pinned base,
+using the requested platform and fresh native APT lists/cache:
+
+```bash
+python scripts/prepare_component_apt.py resolve runtime --platform linux/amd64 --ref APPROVED_COMMIT --output /fresh/apt-resolution
+```
+
+Repeat for `builder` and `linux/arm64`. Resolution produces `proposal.json` and a verified `bundle/`.
+Review the four proposals and adopt them as the `sets` in
+[`apt-materials.lock.json`](apt-materials.lock.json), with algorithm `apt-material-lock-v1`, in Git.
+Resolve is an online preparation step; its proposal alone is not an approved release input.
+The current lock contains 18 runtime archives and 16 builder archives per architecture, resolved
+from source `0a63612d`. No production Dockerfile, language dependency lock or image pin is changed.
+
+`apt-materials-v1` selects only the existing chef/runtime image references from the committed auth
+recipe. Its fixed Debian Bookworm/main, updates and security sources use the pinned base's Debian
+archive keyring. HTTP bootstrap supports the runtime base before CA installation; native APT
+signature and archive-hash enforcement remain enabled. The resolver ignores inherited APT source
+configuration, uses fresh package indexes and download-only/reinstall resolution, and checks that
+base dpkg state did not change. It matches the complete printed archive set, downloaded SHA256/size,
+control identity and fresh index metadata before recording package name/version/architecture/origin,
+index digests, keyring digest and base-status digest. The native signature chain is described in
+[Debian apt-secure](https://manpages.debian.org/bookworm/apt/apt-secure.8.en.html).
+It authenticates repository metadata, not a separate publisher signature for every package.
+
+After the lock is committed, fetch or stage against that approved Git revision:
+
+```bash
+python scripts/prepare_component_apt.py fetch runtime --platform linux/amd64 --ref APPROVED_COMMIT --output /fresh/apt-bundle
+python scripts/prepare_component_apt.py stage runtime --platform linux/amd64 --ref APPROVED_COMMIT --bundle /fresh/apt-bundle --output /fresh/apt-stage
+```
+
+Fetch accepts only fixed HTTPS `deb.debian.org` pool URLs, without redirects, credentials or host
+proxy discovery. Four downloads run at most; archives are limited to 64 MiB each and 1 GiB total.
+Stage rederives the exact lock/base/recipe from Git, ignores dirty lock edits and rechecks all bytes
+before writing fresh content-addressed archives, checksums and `install.sh`. The resolver's bundle
+can be reused after approval when it exactly matches the committed lock. Failures may leave partial
+output; all operations require fresh destinations.
+
+Execute `sh /materials/install.sh` in the exact recorded base/platform with the stage mounted
+read-only at `/materials`, a cleared environment and Docker `--network none`. The installer checks
+architecture, exact initial dpkg status and archive checksums before native APT installation. It uses
+an empty private lists/cache directory populated only with locked bytes under canonical package names,
+no configured package sources, `--no-download`, and explicit
+locked archive arguments; extra archives are never selected. Native dpkg metadata, dependencies and
+maintainer scripts remain authoritative. Network isolation is the container caller's responsibility;
+staging itself does not execute installation. Do not reuse a modified stage as release evidence.
+
+Local acceptance installed all four closures in fresh pinned-base containers with `--network none`,
+read-only stages and cleared environments. Every locked package version matched native dpkg state;
+curl and its dynamic linkage, the CA bundle, and builder cc/cmake/OpenSSL/libcurl pkg-config checks
+passed on amd64 and emulated arm64. An extra invalid unlisted archive was ignored on all four paths.
+A missing locked runtime archive failed checksum verification before APT ran. Initial acceptance
+exposed APT's canonical-cache requirement; the installer now populates that private cache from the
+verified content-addressed archives while retaining `--no-download`. Native arm64 hardware remains
+unverified.
+
+This is native package-material preparation, not a completed service OCI build. Auth runtime behavior,
+remaining Rust compilation paths, toolchain provenance, rustup materials, authenticated release
+history and publication race protection remain open. Repository/index fingerprints and informational
+`resolved_from` do not establish reproducibility or release authority. `identity_verified` and
+`publication_authorized` stay false. Normal release workflows are unchanged.

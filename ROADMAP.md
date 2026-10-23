@@ -123,6 +123,16 @@ now verifies all 526 locked registry archives and resolves the full workspace of
 Rust container. Auth-service also compiles frozen/offline and passes linkage there without new
 apt/rustup inputs. Other native/system materials and deployable runtime acceptance remain open.
 
+
+The [APT material preparer](distribution/README.md#locked-apt-materials-and-offline-installation) records native signed
+Debian resolution for the pinned Rust builder/runtime bases on amd64 and arm64: 16 builder and
+18 runtime archives per platform. A committed lock governs later HTTPS fetch and byte-revalidated
+staging; generated installers guard base dpkg state, select only locked archives and prohibit
+downloads. All four closures installed in network-disabled containers with exact dpkg versions,
+tool/CA/linkage checks and unlisted archives ignored; a missing archive failed before installation.
+Arm64 used emulation. This supplies native package material evidence, not a completed service image,
+reproducibility or publication authority.
+
 **Exit evidence:**
 
 - Every source area, API, event/topic, PostgreSQL table, and ClickHouse migration has one documented

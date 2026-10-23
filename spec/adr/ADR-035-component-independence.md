@@ -154,6 +154,16 @@ network-disabled pinned Rust container with private Cargo state. The auth-servic
 also compiled frozen/offline and passed dynamic linkage without additional apt/rustup downloads.
 This verifies registry source consumption and that binary path, not all native toolchain materials,
 deployable image behavior or release authority.
+
+The [APT material preparer](../../distribution/README.md#locked-apt-materials-and-offline-installation) records native signed
+Debian resolution for the pinned Rust builder/runtime bases on amd64 and arm64: 16 builder and
+18 runtime archives per platform. A committed lock governs later HTTPS fetch and byte-revalidated
+staging; generated installers guard base dpkg state, select only locked archives and prohibit
+downloads. All four closures installed in network-disabled containers with exact dpkg versions,
+tool/CA/linkage checks and unlisted archives ignored; a missing archive failed before installation.
+Arm64 used emulation. This supplies native package material evidence, not a completed service image,
+reproducibility or publication authority.
+
 Full identity and publication flags remain false.
 
 ### Repository rule

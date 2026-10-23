@@ -1027,6 +1027,16 @@ of all 543 packages/17 workspace members passed without network or host Cargo ca
 release binary also compiled offline and passed linkage without new apt/rustup downloads. Other
 service builds, remaining native/system materials and full release authority are separate gates.
 
+The [APT material preparer](../distribution/README.md#locked-apt-materials-and-offline-installation) records native signed
+Debian resolution for the pinned Rust builder/runtime bases on amd64 and arm64: 16 builder and
+18 runtime archives per platform. A committed lock governs later HTTPS fetch and byte-revalidated
+staging; generated installers guard base dpkg state, select only locked archives and prohibit
+downloads. All four closures installed in network-disabled containers with exact dpkg versions,
+tool/CA/linkage checks and unlisted archives ignored; a missing archive failed before installation.
+Arm64 used emulation. This supplies native package material evidence, not a completed service image,
+reproducibility or publication authority.
+
+
 ## Remaining 0.2 work
 
 Status as of 2026-10-23. The phases above are otherwise complete; these are the open items and what
