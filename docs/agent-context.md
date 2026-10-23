@@ -20,6 +20,15 @@ making changes.
 - See [exact source/image evidence](../distribution/README.md#committed-snapshot-builds).
   Complete material identity, provenance and publication authorization remain separate gates.
 
+## Latest control offline acceptance
+
+- The native amd64 offline control/admin-service image passed runtime checks, actual auth, deployment
+  create/finish/list, independent PostgreSQL persistence and both broker events. Missing/viewer write
+  rejections left rows/offsets unchanged. During broker loss, a deployment still persisted with 201
+  and PG-only readiness stayed 200, matching existing best-effort publication semantics.
+- Owned fixtures were removed. See [exact evidence and limits](component-control-offline-verification.md).
+  Other APIs, full target control separation, recovery/platforms and release authority remain open.
+
 ## Latest ingest offline acceptance
 
 - The native amd64 offline ingest image passed runtime checks and actual auth-backed OTLP log

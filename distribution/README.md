@@ -875,6 +875,12 @@ Missing/invalid tokens returned 401 without appending; accepted OTLP logs preser
 fields and token-bound tenant/environment at the raw broker boundary. Runtime and broker-loss
 readiness/liveness passed. Auth OIDC, recovery and other signals/platforms remain separate gates.
 
+The [control acceptance record](../docs/component-control-offline-verification.md) verifies the exact
+amd64 offline admin-service image through actual member/viewer auth, deployment HTTP operations,
+independent PostgreSQL row checks and both broker events. Rejected writes leave rows/offsets unchanged.
+Broker loss still permits a persisted deployment with 201 and PG-only readiness 200, as required by
+the current best-effort event contract. This does not prove full target control independence.
+
 These are local construction checks, not signed builder provenance or complete release identity.
 `identity_verified` and `publication_authorized` remain false. Reproducibility, native arm64 hardware,
 other Rust build/runtime paths, full cluster acceptance, history and publication protection remain

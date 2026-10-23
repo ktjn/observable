@@ -193,6 +193,12 @@ without advancing the raw topic; authenticated OTLP logs reached the broker with
 tenant/environment and all fields checked. Runtime and broker-loss readiness/liveness checks
 passed. Recovery, other signals/platforms and full release authority remain open.
 
+The [control image acceptance](../../docs/component-control-offline-verification.md) passes on amd64: actual auth,
+PostgreSQL persistence and both deployment create/finish broker events were checked. Rejected
+writes changed neither rows nor offsets. During broker loss, another deployment still persisted
+with 201 and PG-only readiness stayed 200, matching the existing best-effort event policy. Other
+control paths, full target independence, recovery/platform and release-authority gates remain open.
+
 
 Full identity and publication flags remain false.
 
