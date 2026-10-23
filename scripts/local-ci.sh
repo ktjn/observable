@@ -19,7 +19,7 @@ cleanup_smoke_compose() {
 
   if [[ $SMOKE_COMPOSE_STARTED -eq 1 ]]; then
     step "Compose cleanup"
-    if docker compose down --remove-orphans; then
+    if docker compose --profile verification down --remove-orphans; then
       ok "docker compose down"
     else
       local cleanup_status=$?
