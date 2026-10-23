@@ -516,10 +516,16 @@ emulation on an x86_64 host; see the [arm64 evidence](../docs/component-web-arm6
 Rust arm64 execution, native arm64 hardware, service connectivity and cluster
 integration remain unverified by these image checks.
 
-The v2 argument-binding change was verified with script regressions and preparation against
-committed recipes. Docker's engine was unavailable on the validation host, so no real image
-build or JavaScript-bundle inspection of this new path is claimed. The earlier image checks
-above predate v2 and are not acceptance evidence for argument-bearing builds.
+The v2 argument-binding path additionally passed a real linux/amd64 snapshot build at source
+`37cbccca72f41299e44127fd854ecdfbe4c17a60`, with mode `observer_instance` and the public endpoint
+`https://collector.example.test/otlp`. The effective overrides changed the input digest from defaults;
+explicit Docker arguments, inspected image labels and immutable digest binding agreed. The emitted
+JavaScript assets contained that endpoint. Image
+`sha256:37b2d8f4e491650835e382f9e0bdac4f6141a68cc817c922b9da441c95466994` binds input digest
+`sha256:ef2be45f568d6fdec9c9d39b25d8d9bc9ae5ae9ed9ca190e3d34444011895073`.
+This closes the earlier Docker-unavailable argument-execution gap; the older image checks above
+remain distinct historical evidence. It proves public argument consumption, not complete materials,
+trusted provenance or release authorization.
 
 ## Verified npm materials and offline installation
 

@@ -13,6 +13,13 @@ making changes.
 5. Inspect the actual code, tests, scripts, specs, and docs touched by the task before editing.
 6. Create or switch to a dedicated short-lived branch before changing files.
 
+## Latest build-argument acceptance
+
+- The v2 snapshot path passed an actual amd64 web build with `observer_instance` and a public
+  endpoint override; image labels/input digest matched and emitted JavaScript contained the endpoint.
+- See [exact source/image evidence](../distribution/README.md#committed-snapshot-builds).
+  Complete material identity, provenance and publication authorization remain separate gates.
+
 ## Latest process offline acceptance
 
 - The process amd64 image built and passed normal broker readiness and actual raw-to-normalized log
