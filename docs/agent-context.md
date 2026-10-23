@@ -13,6 +13,15 @@ making changes.
 5. Inspect the actual code, tests, scripts, specs, and docs touched by the task before editing.
 6. Create or switch to a dedicated short-lived branch before changing files.
 
+## Latest Rust OCI helper
+
+- The [offline Rust OCI helper](../distribution/README.md#offline-rust-oci-image-builds) combines
+  committed workspace source and verified Cargo/APT bytes in an immutable context; all RUN steps
+  disable networking and cache reuse. Local image evidence does not authorize publication.
+- Auth linux/amd64 built and passed non-root auth/curl linkage, CA/proto checks, all 18 locked
+  runtime package versions and HTTP 200 health/readiness against an isolated disposable PostgreSQL.
+  Other components/platforms, migrations/OIDC and full cluster acceptance remain open.
+
 ## Latest APT material evidence
 
 - Native signed APT resolution produced four locked closures: runtime 18/builder 16 archives on
@@ -20,7 +29,7 @@ making changes.
 - All four closures installed with network disabled; package versions, tools, CA and curl linkage
   passed. Unlisted archives were ignored; a missing archive failed before installation. Arm64 is emulated.
 - See [APT commands and limits](../distribution/README.md#locked-apt-materials-and-offline-installation).
-  Runtime image/cluster acceptance, full identity and publication remain open.
+  Other component/platform runtime and full cluster acceptance, full identity and publication remain open.
 
 ## Latest Cargo material evidence
 

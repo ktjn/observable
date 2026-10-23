@@ -797,3 +797,65 @@ remaining Rust compilation paths, toolchain provenance, rustup materials, authen
 history and publication race protection remain open. Repository/index fingerprints and informational
 `resolved_from` do not establish reproducibility or release authority. `identity_verified` and
 `publication_authorized` stay false. Normal release workflows are unchanged.
+
+
+## Offline Rust OCI image builds
+
+Build a component from committed source and previously verified Cargo/APT bundles:
+
+```bash
+python scripts/build_component_rust_image.py auth --ref APPROVED_COMMIT \
+  --cargo-bundle /fresh/cargo-bundle --builder-bundle /fresh/builder-apt-bundle \
+  --runtime-bundle /fresh/runtime-apt-bundle --platform linux/amd64 --output /fresh/auth-image
+```
+
+Use the [Cargo preparer](#verified-cargo-materials-and-frozen-resolution) and
+[APT preparer](#locked-apt-materials-and-offline-installation) first. Both APT selections must be
+present in the caller's approved Git lock for the requested platform. The helper accepts the seven
+existing Rust component names; execution evidence is recorded separately for each component/platform.
+It creates a local image only and never pushes, tags releases or changes production recipes/workflows.
+
+`offline-rust-image-v1` reuses committed source/declared-input inspection and material staging, then
+constructs immutable Docker stdin bytes directly from Git blobs and freshly reverified original
+archives. Mutations to intermediate staging trees cannot enter that context. Vendor executable bits
+are preserved and Cargo checksum files are independently generated. All committed workspace members
+are included for native Cargo resolution. The tar has fixed ownership/timestamps and an empty
+`.dockerignore`; host configuration, credentials, caches and untracked/dirty files are excluded.
+
+The generated recipe is distinct from the original Dockerfile and its declared-input fingerprint.
+It uses the approved digest-pinned frontend, chef and Debian bases. Both native
+APT installs and frozen release compilation run with BuildKit networking disabled and restricted
+environments. Cargo has a private empty home/target and directory-source replacement; APT receives
+only the locked archives. The build uses `--no-cache`, `--network none`, and `--load`, without shared
+cache mounts, secrets or caller recipe arguments. Base/frontend transport can still contact the
+registry; RUN network denial does not authenticate those image publishers or prove layer availability.
+
+The final runtime preserves `SERVICE`, the original shell exec entrypoint, `/proto/otlp`, and
+`65532:65532`; it installs the native runtime closure instead of copying arbitrary libraries from the
+builder. Compile-time linkage is checked inside the builder. Runtime linkage and process readiness
+require separate acceptance against the finished image. Auth connects to PostgreSQL before opening
+its listener, so file/linkage inspection alone does not establish `/health` or `/readyz` behavior.
+
+`request.json`, `context.tar` and successful `result.json` bind the source/workspace, declared inputs,
+Cargo material digest, both APT lock digests, generated recipe/context, platform and immutable image.
+The helper checks Docker metadata against inspected image/config digests, labels, platform, user,
+SERVICE and entrypoint. Classic config-digest and descriptor image-store forms are supported.
+Failures produce no success record and return a static diagnostic; partial output may remain.
+Native acceptance at source `d89cad5cf7bc19e6ce8c1ddc77d3d193822428eb` built auth on linux/amd64:
+image `sha256:de8b304a88fdf3428969f1c34045d3c8336a7c285a18dba4a4bee95ffa930750`, context
+`sha256:e466b91bf1cab7dfcc1b67e4b7c30ec5dae3170c0013bc4f1fffc0e3642e22e3`.
+The finished image matched all 18 locked runtime package versions and passed auth/curl dynamic
+linkage, CA readability and exact committed proto-byte checks as UID/GID `65532:65532` with runtime
+networking disabled. Its original entrypoint then returned HTTP 200 for `/health` and `/readyz`
+against a disposable PostgreSQL instance on an internal Docker network with no published ports.
+That database used the existing cached Compose `postgres:18` image, resolved locally to
+`sha256:06cad38a5d9f5d24b4d83d86def30795d5e4b757fedbf5281172b576dedcd941`; this is recorded test
+infrastructure, not a new immutable production PostgreSQL pin. Development defaults avoided OIDC
+credentials. The schema-free database intentionally exercised connection/readiness only; it does
+not verify migrations, credential validation, OIDC or full cluster behavior. Owned containers and
+network were removed after acceptance.
+
+These are local construction checks, not signed builder provenance or complete release identity.
+`identity_verified` and `publication_authorized` remain false. Reproducibility, native arm64 hardware,
+other Rust build/runtime paths, full cluster acceptance, history and publication protection remain
+separate gates. Full local CI remains required before any future code push.

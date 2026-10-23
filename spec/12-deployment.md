@@ -153,6 +153,16 @@ tool/CA/linkage checks and unlisted archives ignored; a missing archive failed b
 Arm64 used emulation. This supplies native package material evidence, not a completed service image,
 reproducibility or publication authority.
 
+The [offline Rust image builder](../distribution/README.md#offline-rust-oci-image-builds) now combines Git-only workspace
+source with reverified Cargo archives and committed builder/runtime APT closures. Its generated
+recipe disables RUN networking and cache reuse, compiles a frozen release and preserves the non-root
+runtime/proto/entrypoint contract. Inspected image digests, platform, labels and runtime configuration
+must match the local request. Component/platform runtime acceptance is separate; full release identity
+and publication authorization remain false. Auth amd64 built successfully and passed non-root
+runtime linkage/CA/proto checks, exact runtime package versions and HTTP 200 `/health`/`/readyz`
+against an isolated disposable PostgreSQL instance. Other Rust components/platforms, migrations,
+OIDC and full cluster acceptance remain open.
+
 Full identity and publication flags remain false.
 
 ### 19.4 Environment Topology
