@@ -101,6 +101,56 @@ separate distribution component.
 - Extract repositories one at a time only after each component builds and tests without sibling
   source.
 
+Local release tooling now verifies the pinned base/frontend indexes and requested amd64/arm64
+manifests against Docker Hub; live checks passed for both recipe families. This is partial registry
+evidence, not independent artifact publication. Authenticated history, complete build materials and
+publication safety remain open in [Remaining 0.2 work](docs/component-decomposition.md#remaining-02-work).
+
+Web npm material preparation now verifies all locked archive bytes and supplies an isolated native
+offline install (421 archives, 434 records). Offline image builds and complete release identity remain
+open; see [material acceptance](distribution/README.md#verified-npm-materials-and-offline-installation).
+Native committed web compilation now consumes those materials successfully and inventories 11 static
+files; [compilation evidence](distribution/README.md#native-web-compilation-from-verified-materials)
+keeps network isolation and OCI acceptance explicit and open.
+
+The [offline web OCI build](distribution/README.md#offline-web-oci-image-builds) now passes on amd64 and emulated arm64:
+verified npm archives feed a network-disabled, uncached BuildKit install/compile and the immutable
+images serve static assets. Native arm64 hardware, Rust materials, authenticated provenance/history and
+publication protection remain open.
+
+The [Cargo material stage](distribution/README.md#verified-cargo-materials-and-frozen-resolution)
+now verifies all 526 locked registry archives and resolves the full workspace offline in the pinned
+Rust container. Auth-service also compiles frozen/offline and passes linkage there without new
+apt/rustup inputs. Other native/system materials and deployable runtime acceptance remain open.
+
+
+The [APT material preparer](distribution/README.md#locked-apt-materials-and-offline-installation) records native signed
+Debian resolution for the pinned Rust builder/runtime bases on amd64 and arm64: 16 builder and
+18 runtime archives per platform. A committed lock governs later HTTPS fetch and byte-revalidated
+staging; generated installers guard base dpkg state, select only locked archives and prohibit
+downloads. All four closures installed in network-disabled containers with exact dpkg versions,
+tool/CA/linkage checks and unlisted archives ignored; a missing archive failed before installation.
+Arm64 used emulation. This supplies native package material evidence, not a completed service image,
+reproducibility or publication authority.
+
+The [offline Rust image builder](distribution/README.md#offline-rust-oci-image-builds) now combines Git-only workspace
+source with reverified Cargo archives and committed builder/runtime APT closures. Its generated
+recipe disables RUN networking and cache reuse, compiles a frozen release and preserves the non-root
+runtime/proto/entrypoint contract. Inspected image digests, platform, labels and runtime configuration
+must match the local request. Component/platform runtime acceptance is separate; full release identity
+and publication authorization remain false. Auth amd64 built successfully and passed non-root
+runtime linkage/CA/proto checks, exact runtime package versions and HTTP 200 `/health`/`/readyz`
+against an isolated disposable PostgreSQL instance. Other Rust components/platforms, migrations,
+OIDC and full cluster acceptance remain open.
+
+The [process image acceptance](docs/component-process-offline-verification.md) additionally exercises native Kafka/CMake compilation and
+real log delivery. Broker-loss verification exposed a transient receive error terminating process;
+the source fix now preserves the consumer across transport loss, with fatal/other errors still
+propagated. Testcontainers stop/restart recovery and focused package checks pass. The corrected
+image passed non-root runtime checks, raw-to-normalized log delivery and broker-loss readiness 503
+while liveness remained 200. Other component/platform and full durability/integration gates remain open.
+
+
 **Exit evidence:**
 
 - Every source area, API, event/topic, PostgreSQL table, and ClickHouse migration has one documented

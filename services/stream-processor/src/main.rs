@@ -1,4 +1,3 @@
-mod consumer;
 mod metrics;
 mod normalized_producer;
 
@@ -7,7 +6,7 @@ use normalized_producer::NormalizedProducer;
 use std::sync::Arc;
 use std::time::Duration;
 use stream_processor::{
-    batch, observability,
+    batch, consumer, observability,
     readyz::{StreamProcessorProbeState, readyz},
 };
 use tokio::time;

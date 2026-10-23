@@ -128,6 +128,74 @@ class SnapshotBuildTests(unittest.TestCase):
         self.assertFalse(result['identity_verified'])
         self.assertTrue((self.output/'result.json').exists())
 
+    def test_effective_arguments_are_fingerprinted_and_sent_explicitly_to_docker(self):
+        args={'VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE':'observer_instance',
+              'VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT':'https://observer.example/otlp'}
+        prepared=build.prepare(self.root,'web','HEAD',self.output,build_args=args)
+        self.assertEqual(prepared['build_args'], args)
+        self.assertEqual(prepared['input_algorithm'], 'component-input-v2')
+        evidence=json.loads((self.output/'inputs.json').read_text())
+        self.assertEqual(evidence['input_digest'], prepared['input_digest'])
+        calls=[]; original=self.fake_runner()
+        def run(command,**kwargs):
+            calls.append(command)
+            return original(command,**kwargs)
+        result=build.execute(prepared,self.output,run=run)
+        pairs=[calls[0][i+1] for i,arg in enumerate(calls[0]) if arg=='--build-arg']
+        self.assertEqual(pairs,[f'{key}={value}' for key,value in sorted(args.items())])
+        self.assertEqual(self.labels['io.observable.input.digest'],evidence['input_digest'])
+        self.assertEqual(result['input_digest'],evidence['input_digest'])
+
+    def test_default_empty_endpoint_is_explicit_and_input_changes_get_distinct_local_tags(self):
+        first=self.prepare('web')
+        other=build.prepare(self.root,'web','HEAD',self.root/'other-output',build_args={
+            'VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE':'observer_instance'})
+        self.assertEqual(first['context_digest'],other['context_digest'])
+        self.assertNotEqual(first['image'],other['image'])
+        calls=[]; original=self.fake_runner()
+        def run(command,**kwargs): calls.append(command); return original(command,**kwargs)
+        build.execute(first,self.output,run=run)
+        self.assertIn('VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT=',calls[0])
+
+    def test_tampered_effective_arguments_or_input_evidence_reject_before_docker(self):
+        for index, kind in enumerate(['arguments','digest','evidence','recipe']):
+            self.output=self.root/f'tamper-{index}'
+            prepared=self.prepare('web')
+            if kind=='arguments': prepared['build_args']['UNKNOWN']='PRIVATE_SENTINEL'
+            if kind=='digest': prepared['input_digest']='sha256:'+'f'*64
+            if kind in ('arguments','digest'):
+                (self.output/'request.json').write_text(json.dumps(prepared))
+            if kind=='evidence':
+                data=json.loads((self.output/'inputs.json').read_text()); data['build_args']={}
+                (self.output/'inputs.json').write_text(json.dumps(data))
+            if kind=='recipe':
+                # Even a self-consistent new tar digest must not bypass input recomputation.
+                import io
+                context=io.BytesIO()
+                with tarfile.open(fileobj=context,mode='w') as archive:
+                    recipe=b'FROM something:mutable\n'; info=tarfile.TarInfo('apps/frontend/Dockerfile')
+                    info.size=len(recipe); archive.addfile(info,io.BytesIO(recipe))
+                raw=context.getvalue(); (self.output/'context.tar').write_bytes(raw)
+                prepared['context_digest']=build.digest(raw)
+                (self.output/'request.json').write_text(json.dumps(prepared))
+            calls=[]
+            def forbidden(*args,**kwargs): calls.append(args); raise RuntimeError('must not run')
+            with self.subTest(kind=kind),self.assertRaises(build.BuildFailed):
+                build.execute(prepared,self.output,run=forbidden)
+            self.assertEqual(calls,[])
+
+    def test_caller_mutation_during_build_cannot_change_the_recorded_arguments(self):
+        prepared=self.prepare('web')
+        original=self.fake_runner()
+        def run(command,**kwargs):
+            result=original(command,**kwargs)
+            if command[:3]==['docker','buildx','build']:
+                prepared['build_args']['VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE']='observer_instance'
+            return result
+        result=build.execute(prepared,self.output,run=run)
+        self.assertEqual(result['build_args']['VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE'],'self')
+        self.assertEqual(json.loads((self.output/'result.json').read_text())['build_args'],result['build_args'])
+
     def test_rust_success_requires_network_isolated_linkage_on_verified_image_id(self):
         prepared=self.prepare()
         original=self.fake_runner()

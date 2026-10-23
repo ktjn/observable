@@ -13,6 +13,70 @@ making changes.
 5. Inspect the actual code, tests, scripts, specs, and docs touched by the task before editing.
 6. Create or switch to a dedicated short-lived branch before changing files.
 
+## Latest build-argument acceptance
+
+- The v2 snapshot path passed an actual amd64 web build with `observer_instance` and a public
+  endpoint override; image labels/input digest matched and emitted JavaScript contained the endpoint.
+- See [exact source/image evidence](../distribution/README.md#committed-snapshot-builds).
+  Complete material identity, provenance and publication authorization remain separate gates.
+
+## Latest process offline acceptance
+
+- The process amd64 image built and passed normal broker readiness and actual raw-to-normalized log
+  delivery. Broker stop exposed a receive error exiting the process with status 1.
+- Local source fix `527e4368` keeps the consumer alive for nonfatal transport/DNS errors; fatal/other
+  errors still propagate. Package tests, Testcontainers stop/restart recovery and clippy passed.
+- The corrected immutable amd64 image passed non-root runtime checks, exact runtime package/proto
+  bytes, real normalized-log delivery and broker-loss readiness 503 while liveness stayed 200.
+  See [exact evidence and limits](component-process-offline-verification.md).
+
+## Latest Rust OCI helper
+
+- The [offline Rust OCI helper](../distribution/README.md#offline-rust-oci-image-builds) combines
+  committed workspace source and verified Cargo/APT bytes in an immutable context; all RUN steps
+  disable networking and cache reuse. Local image evidence does not authorize publication.
+- Auth linux/amd64 built and passed non-root auth/curl linkage, CA/proto checks, all 18 locked
+  runtime package versions and HTTP 200 health/readiness against an isolated disposable PostgreSQL.
+  Other components/platforms, migrations/OIDC and full cluster acceptance remain open.
+
+## Latest APT material evidence
+
+- Native signed APT resolution produced four locked closures: runtime 18/builder 16 archives on
+  amd64 and arm64, with exact archive bytes, index/keyring and base dpkg fingerprints.
+- All four closures installed with network disabled; package versions, tools, CA and curl linkage
+  passed. Unlisted archives were ignored; a missing archive failed before installation. Arm64 is emulated.
+- See [APT commands and limits](../distribution/README.md#locked-apt-materials-and-offline-installation).
+  Other component/platform runtime and full cluster acceptance, full identity and publication remain open.
+
+## Latest Cargo material evidence
+
+- All 526 locked crates.io archives verified; a reconstructed directory source resolved 543 packages
+  across 17 workspace members under frozen Cargo in a network-disabled pinned Rust container.
+  Auth-service release compilation and linkage also passed without network or new apt/rustup inputs.
+  No host Cargo state/config or online fallback. Other native/system inputs and full release identity
+  remain open; see [Cargo material commands](../distribution/README.md#verified-cargo-materials-and-frozen-resolution).
+
+## Latest offline image evidence
+
+- Docker Desktop is available at its per-user installation. The offline web OCI helper passed on
+  linux/amd64 and emulated linux/arm64 with verified archives, network-disabled uncached RUN steps and immutable-image nginx
+  static serving; empty-cache/network-denial negatives also passed. No complete provenance,
+  reproducibility, release-history or publication claim. Native arm64 hardware remains unverified.
+  See [commands, evidence and limits](../distribution/README.md#offline-web-oci-image-builds).
+
+## Latest local compilation evidence
+
+- Committed web production source compiled from the verified npm bundle on Windows/amd64, yielding
+  11 static files and a digest inventory. Native execution is not network isolated; no trusted
+  toolchain, reproducibility, OCI or browser acceptance claim.
+  See [commands and limits](../distribution/README.md#native-web-compilation-from-verified-materials).
+
+## Latest local material evidence
+
+- Web npm archive preparation and isolated offline installation passed on Windows/amd64 for 421
+  archives and 434 external lock records. No release authorization or offline image-build claim.
+  See [commands and limits](../distribution/README.md#verified-npm-materials-and-offline-installation).
+
 ## Current Source Of Truth
 
 > **Note (0.1 open source release cleanup):** this changelog contains historical entries that
@@ -38,17 +102,25 @@ making changes.
   real secret explicitly.
 - **2026-10-21 (0.2 declared build-input identity)**: both OCI recipes (`Dockerfile`,
   `apps/frontend/Dockerfile`) now pin every `FROM` image and the `# syntax=` frontend by `@sha256:`
-  index digest, and `scripts/collect_component_inputs.py` resolves `component-input-v1` — the
+  index digest, and `scripts/collect_component_inputs.py` resolves `component-input-v2` — the
   planner's real `input_algorithm`/`input_digest` — from the committed source digest, the recipe
   (path/target/content digest/frontend), the external images reachable from the component's build
-  target, and the target platforms. Mutable tags, unreviewed stage flags, unknown targets, unresolved
+  target, target platforms and effective supported build arguments. The 2026-10-22 update replaces
+  v1 (which omitted arguments): Rust SERVICE stays fixed, web mode/public endpoint overrides are
+  allowlisted, and snapshot preparation/execution bind the same explicit values through `inputs.json`
+  and verified input labels. Old prepared attempts need a fresh directory. Mutable tags, unreviewed stage flags, unknown targets, unresolved
   `COPY --from`, missing or misplaced frontend digests, instructions before the first stage, and
   unreviewed recipe edits fail closed; only stages reachable from the build target contribute
   image/material entries (the whole-file recipe digest covers the rest). The recipe edits required
   re-reviewing the `RECIPES` hashes in `collect_component_source.py`. Results stay
-  `identity_verified: false`: digests are not
-  registry-authenticated, build-argument values are uncovered, and apt/rustup/crates.io/npm content
-  stays mutable. See
+  `identity_verified: false`: the collector alone verifies no registry, and apt/rustup/crates.io/npm
+  content stays mutable. The 2026-10-22 `scripts/verify_component_base_images.py` follow-up checks
+  the five allowlisted Docker Hub base/frontend repositories through anonymous pull-scoped,
+  fixed-origin GETs: raw pinned index bytes and unique baseline amd64/arm64 child manifest
+  digest/size/media matches. Live web/query checks at `fdfa7f73` passed for both platforms.
+  Tokens stay in memory; no credential discovery, redirects, layers or registry writes. This is
+  registry-bound manifest evidence, not publisher provenance, independent architecture, actual
+  builder selection, full input identity or authenticated release history. See
   [distribution/README.md](../distribution/README.md#declared-build-input-identity) and
   [docs/component-decomposition.md](component-decomposition.md) "Remaining 0.2 work".
 - **2026-10-18 (0.2 migration immutability)**: `migrations/clickhouse/MIGRATION_CHECKSUMS` records a

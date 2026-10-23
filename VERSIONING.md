@@ -83,10 +83,11 @@ workflow. It does not change the transitional shared-image release path below.
 - Record enough release identity to verify reuse: component name/version, source revision, build
   input identity, target platforms, and resulting OCI digest, with SBOM and provenance bound to that
   digest. Build input identity must use a documented, versioned algorithm; the current changed-path
-  build selector alone is not proof of release identity. `component-input-v1`
+  build selector alone is not proof of release identity. `component-input-v2`
   ([declared build-input identity](distribution/README.md#declared-build-input-identity)) is the
   current algorithm: it fingerprints committed source, the digest-pinned recipe, the reachable
-  external image references and the target platforms. If identity cannot be verified or inputs
+  external image references, target platforms and effective supported build arguments. It replaces
+  the incomplete v1 fingerprint; old fingerprints are not silently promoted. If identity cannot be verified or inputs
   differ under an existing version, fail and require investigation or a version bump.
 - Inspect the registry before building. An existing tag is reusable only after identity and required
   release evidence are verified. Only a definitive missing-tag response permits a first publication;

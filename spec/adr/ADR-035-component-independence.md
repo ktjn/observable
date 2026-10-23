@@ -101,10 +101,22 @@ This is a target requirement; per-component registry publishing remains unimplem
 
 The monorepo recipes pin every base and Dockerfile-frontend image by digest, and the
 [declared build-input identity](../../distribution/README.md#declared-build-input-identity)
-fingerprints the source closure, the recipe, the reachable pinned images, and the target platforms as
-`component-input-v1`. It does not authenticate those digests, cover externally supplied build
-arguments, or pin the materials apt, rustup and the language package managers resolve at build time,
+fingerprints the source closure, the recipe, the reachable pinned images, target platforms and
+effective supported build arguments as `component-input-v2`. Rust SERVICE selection stays fixed;
+web accepts only the two reviewed recipe arguments. Snapshot execution passes exactly the recorded
+values and verifies their input-digest image label. Version 1 omitted argument values and is not
+interchangeable with v2. This does not authenticate image digests or pin the materials apt, rustup
+and the language package managers resolve at build time,
 so it supplies a declared-input fingerprint rather than verified release identity.
+
+The read-only [recipe-image verifier](../../distribution/README.md#pinned-recipe-image-verification)
+checks those approved pins against fixed Docker Hub token/registry endpoints, using anonymous
+repository-scoped pull tokens held only in memory. Raw index digests and direct requested-platform
+manifest digests/sizes/media types must match their committed declarations. Origins/repositories
+are allowlisted; redirects, credential discovery and registry writes are prohibited. This supplies
+registry-bound manifest evidence, not publisher signatures, independently measured architecture,
+actual builder/frontend selection, layer availability or complete build-material identity.
+It never promotes declared inputs into trusted release-planner records.
 
 The initial monorepo attestation verifier trusts GitHub Actions OIDC certificates
 for `ktjn/observable` and its direct `.github/workflows/release-artifacts.yml`
@@ -117,6 +129,60 @@ it does not establish complete external-material identity, source main/tag
 eligibility, per-platform SBOM completeness, release history or publication safety.
 Future extracted repositories/reusable builders require an explicit trust-policy
 revision before acceptance. See the [verifier contract](../../distribution/README.md#authenticated-image-attestations).
+
+The [npm material preparer](../../distribution/README.md#verified-npm-materials-and-offline-installation) verifies locked web archive bytes and revalidates them against
+approved Git metadata before an isolated `npm ci --offline --ignore-scripts` installation. A native
+Windows/amd64 full-lock install passed for 421 archives and 434 external package records. This is
+partial consumption evidence: offline OCI builds, complete external materials, authenticated history
+and publication safety remain open; it grants no release identity or publication authorization.
+The [native web build](../../distribution/README.md#native-web-compilation-from-verified-materials) additionally compiles committed production source
+from those materials and records a static-output digest inventory. Its compiler environment is
+restricted, but native execution has no network isolation or verified toolchain provenance; this
+compilation evidence does not satisfy the offline OCI build or publication gates.
+
+The [offline web image builder](../../distribution/README.md#offline-web-oci-image-builds) now executes the generated npm install and production
+compile recipe with BuildKit RUN networking disabled and cache reuse disabled. Web amd64 and emulated arm64 image
+binding and isolated nginx static serving passed. Its generated recipe/context identity is separate
+from the original Dockerfile declaration; pinned image resolution still uses registry transport.
+Trusted builder/material provenance, native arm64 hardware, release history and publication protection
+remain required. The local result grants no publication authorization.
+
+The [Cargo material preparer](../../distribution/README.md#verified-cargo-materials-and-frozen-resolution) verifies exact committed crates.io archive SHA256 values,
+then reconstructs a directory source with independently generated per-file checksums. All 526
+registry archives verified, and frozen resolution passed for 543 packages/17 workspace members in a
+network-disabled pinned Rust container with private Cargo state. The auth-service release binary
+also compiled frozen/offline and passed dynamic linkage without additional apt/rustup downloads.
+This verifies registry source consumption and that binary path, not all native toolchain materials,
+deployable image behavior or release authority.
+
+The [APT material preparer](../../distribution/README.md#locked-apt-materials-and-offline-installation) records native signed
+Debian resolution for the pinned Rust builder/runtime bases on amd64 and arm64: 16 builder and
+18 runtime archives per platform. A committed lock governs later HTTPS fetch and byte-revalidated
+staging; generated installers guard base dpkg state, select only locked archives and prohibit
+downloads. All four closures installed in network-disabled containers with exact dpkg versions,
+tool/CA/linkage checks and unlisted archives ignored; a missing archive failed before installation.
+Arm64 used emulation. This supplies native package material evidence, not a completed service image,
+reproducibility or publication authority.
+
+The [offline Rust image builder](../../distribution/README.md#offline-rust-oci-image-builds) now combines Git-only workspace
+source with reverified Cargo archives and committed builder/runtime APT closures. Its generated
+recipe disables RUN networking and cache reuse, compiles a frozen release and preserves the non-root
+runtime/proto/entrypoint contract. Inspected image digests, platform, labels and runtime configuration
+must match the local request. Component/platform runtime acceptance is separate; full release identity
+and publication authorization remain false. Auth amd64 built successfully and passed non-root
+runtime linkage/CA/proto checks, exact runtime package versions and HTTP 200 `/health`/`/readyz`
+against an isolated disposable PostgreSQL instance. Other Rust components/platforms, migrations,
+OIDC and full cluster acceptance remain open.
+
+The [process image acceptance](../../docs/component-process-offline-verification.md) additionally exercises native Kafka/CMake compilation and
+real log delivery. Broker-loss verification exposed a transient receive error terminating process;
+the source fix now preserves the consumer across transport loss, with fatal/other errors still
+propagated. Testcontainers stop/restart recovery and focused package checks pass. The corrected
+image passed non-root runtime checks, raw-to-normalized log delivery and broker-loss readiness 503
+while liveness remained 200. Other component/platform and full durability/integration gates remain open.
+
+
+Full identity and publication flags remain false.
 
 ### Repository rule
 

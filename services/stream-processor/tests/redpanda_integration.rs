@@ -145,3 +145,107 @@ async fn redpanda_container_preserves_tenant_id_and_payload_across_queue_boundar
         "serialised payload length must be identical"
     );
 }
+
+#[tokio::test]
+async fn queue_consumer_survives_broker_transport_loss_and_resumes_delivery() {
+    let host_port = pick_free_port();
+    let brokers = format!("127.0.0.1:{host_port}");
+    let broker = GenericImage::new("redpandadata/redpanda", "v26.2.4")
+        .with_wait_for(WaitFor::message_on_stderr("Successfully started Redpanda!"))
+        .with_cmd(vec![
+            "redpanda".to_string(),
+            "start".to_string(),
+            "--smp=1".to_string(),
+            "--memory=512M".to_string(),
+            "--overprovisioned".to_string(),
+            "--kafka-addr=0.0.0.0:9092".to_string(),
+            format!("--advertise-kafka-addr={brokers}"),
+        ])
+        .with_mapped_port(host_port, 9092_u16.tcp())
+        .start()
+        .await
+        .expect("broker started");
+    wait_for_kafka_ready(&brokers).await;
+    let topic = format!("consumer-reconnect-{}", Uuid::new_v4());
+    create_topic(&brokers, &topic).await;
+    let consumer =
+        stream_processor::consumer::QueueConsumer::new(&brokers, "reconnect-test", &topic)
+            .expect("consumer created");
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let mut tasks = tokio::task::JoinSet::new();
+    tasks.spawn(async move {
+        consumer
+            .run_batch(1, Duration::from_millis(100), move |batch| {
+                let tx = tx.clone();
+                async move {
+                    tx.send(batch).expect("test receiver alive");
+                    Ok(())
+                }
+            })
+            .await
+    });
+    let producer: FutureProducer = ClientConfig::new()
+        .set("bootstrap.servers", &brokers)
+        .set("message.timeout.ms", "5000")
+        .create()
+        .expect("producer created");
+    let first = TelemetryEnvelope {
+        envelope_id: Uuid::new_v4(),
+        tenant_id: Uuid::new_v4(),
+        environment: "reconnect".into(),
+        received_at_unix_nano: 0,
+        payload: EnvelopePayload::Spans(vec![]),
+    };
+    let bytes = serde_json::to_vec(&first).expect("serialize first envelope");
+    producer
+        .send(
+            FutureRecord::to(&topic).payload(&bytes).key("before"),
+            Duration::from_secs(5),
+        )
+        .await
+        .expect("baseline delivered to broker");
+    let received = tokio::time::timeout(Duration::from_secs(15), rx.recv())
+        .await
+        .expect("baseline consumed within timeout")
+        .expect("consumer channel open");
+    assert_eq!(received[0].envelope_id, first.envelope_id);
+    broker
+        .stop_with_timeout(Some(2))
+        .await
+        .expect("broker stopped");
+    let exited = tokio::time::timeout(Duration::from_secs(5), tasks.join_next()).await;
+    assert!(
+        exited.is_err(),
+        "consumer must remain alive across broker transport loss: {exited:?}"
+    );
+    broker.start().await.expect("same broker restarted");
+    wait_for_kafka_ready(&brokers).await;
+    let second = TelemetryEnvelope {
+        envelope_id: Uuid::new_v4(),
+        ..first
+    };
+    let bytes = serde_json::to_vec(&second).expect("serialize second envelope");
+    producer
+        .send(
+            FutureRecord::to(&topic).payload(&bytes).key("after"),
+            Duration::from_secs(5),
+        )
+        .await
+        .expect("recovery delivered to broker");
+    tokio::time::timeout(Duration::from_secs(20), async {
+        loop {
+            let received = rx.recv().await.expect("consumer channel open");
+            assert_eq!(received.len(), 1);
+            assert_eq!(received[0].tenant_id, second.tenant_id);
+            if received[0].envelope_id == second.envelope_id {
+                break;
+            }
+            // Async offset commit may be lost during the outage; at-least-once replay is valid.
+            assert_eq!(received[0].envelope_id, first.envelope_id);
+        }
+    })
+    .await
+    .expect("same consumer resumes after broker restart");
+    tasks.abort_all();
+    while tasks.join_next().await.is_some() {}
+}

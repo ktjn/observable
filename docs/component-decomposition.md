@@ -1005,15 +1005,65 @@ For each extraction:
 5. run distribution E2E
 6. remove the old source only after compatibility passes
 
+The [npm material preparer](../distribution/README.md#verified-npm-materials-and-offline-installation) verifies locked web archive bytes and revalidates them against
+approved Git metadata before an isolated `npm ci --offline --ignore-scripts` installation. A native
+Windows/amd64 full-lock install passed for 421 archives and 434 external package records. This is
+partial consumption evidence: offline OCI builds, complete external materials, authenticated history
+and publication safety remain open; it grants no release identity or publication authorization.
+
+The [native web compiler](../distribution/README.md#native-web-compilation-from-verified-materials)
+now builds committed production source from the verified npm bundle and inventories the emitted
+static files. Windows/amd64 native acceptance produced 11 files. The offline image evidence below
+adds RUN isolation; verified builder/toolchain identity remains an open release gate.
+
+The [offline web OCI builder](../distribution/README.md#offline-web-oci-image-builds) passes amd64 and emulated arm64
+install/compilation with every RUN network-disabled, plus immutable-image nginx static serving.
+Empty-cache and network-denial negatives passed. Generated recipe/context identity is distinct from
+the source recipe; native arm64 hardware and authenticated complete release identity remain unverified.
+
+The [Cargo material preparer](../distribution/README.md#verified-cargo-materials-and-frozen-resolution)
+now verifies 526 locked crates.io archives and reconstructs local directory sources. Frozen resolution
+of all 543 packages/17 workspace members passed without network or host Cargo caches. The auth-service
+release binary also compiled offline and passed linkage without new apt/rustup downloads. Other
+service builds, remaining native/system materials and full release authority are separate gates.
+
+The [APT material preparer](../distribution/README.md#locked-apt-materials-and-offline-installation) records native signed
+Debian resolution for the pinned Rust builder/runtime bases on amd64 and arm64: 16 builder and
+18 runtime archives per platform. A committed lock governs later HTTPS fetch and byte-revalidated
+staging; generated installers guard base dpkg state, select only locked archives and prohibit
+downloads. All four closures installed in network-disabled containers with exact dpkg versions,
+tool/CA/linkage checks and unlisted archives ignored; a missing archive failed before installation.
+Arm64 used emulation. This supplies native package material evidence, not a completed service image,
+reproducibility or publication authority.
+
+The [offline Rust image builder](../distribution/README.md#offline-rust-oci-image-builds) now combines Git-only workspace
+source with reverified Cargo archives and committed builder/runtime APT closures. Its generated
+recipe disables RUN networking and cache reuse, compiles a frozen release and preserves the non-root
+runtime/proto/entrypoint contract. Inspected image digests, platform, labels and runtime configuration
+must match the local request. Component/platform runtime acceptance is separate; full release identity
+and publication authorization remain false. Auth amd64 built successfully and passed non-root
+runtime linkage/CA/proto checks, exact runtime package versions and HTTP 200 `/health`/`/readyz`
+against an isolated disposable PostgreSQL instance. Other Rust components/platforms, migrations,
+OIDC and full cluster acceptance remain open.
+
+The [process image acceptance](component-process-offline-verification.md) additionally exercises native Kafka/CMake compilation and
+real log delivery. Broker-loss verification exposed a transient receive error terminating process;
+the source fix now preserves the consumer across transport loss, with fatal/other errors still
+propagated. Testcontainers stop/restart recovery and focused package checks pass. The corrected
+image passed non-root runtime checks, raw-to-normalized log delivery and broker-loss readiness 503
+while liveness remained 200. Other component/platform and full durability/integration gates remain open.
+
+
+
 ## Remaining 0.2 work
 
-Status as of 2026-10-21. The phases above are otherwise complete; these are the open items and what
+Status as of 2026-10-23. The phases above are otherwise complete; these are the open items and what
 each is waiting on.
 
 | Item | State | Blocker / next step |
 |---|---|---|
 | Remove cross-owner SQL (Phase 3 exit evidence) | Not met | `observable-query` still reads control-owned `schema_entries`/`semantic_annotations` and `platform_config` for NLQ. Moving them changes NLQ metadata injection, so the **NLQ quality gate** applies (`tests/nlq/cases.json` + `scripts/nlq-eval.py` against a running cluster **with an OpenAI-compatible LLM endpoint**). |
-| Per-component release publishing (Phase 7 sub-step 5) | Policy, planner, source evidence, declared build-input identity, attestation verifier, registry inspection and local snapshot builds implemented; publishing open | [Local planner](../distribution/README.md#local-immutable-release-planning), [source evidence](../distribution/README.md#committed-source-evidence), [declared build-input identity](../distribution/README.md#declared-build-input-identity), [registry inspection](../distribution/README.md#read-only-registry-inspection), [image attestations](../distribution/README.md#authenticated-image-attestations), and [committed builds](../distribution/README.md#committed-snapshot-builds) cover decisions, Git inputs, digest-pinned recipe inputs, manifest integrity, signed image evidence, and local source/context-to-image binding. All eight amd64 images built; Rust linkage and web static serving passed. [Web arm64 build/static serving](component-web-arm64-verification.md) passed under emulation. Rust arm64, native arm64 hardware, service/cluster operation and live GHCR acceptance remain unverified here. Next: authenticate the pinned image digests and release history, bind externally supplied build arguments, enforce publication races, then GHCR publishing. Local labels/metadata do not authenticate release identity. `observable-services` is still the only published image. |
+| Per-component release publishing (Phase 7 sub-step 5) | Policy, planner, source evidence, declared build-input identity, recipe-image verification, attestation verifier, registry inspection and local snapshot builds implemented; publishing open | [Local planner](../distribution/README.md#local-immutable-release-planning), [source evidence](../distribution/README.md#committed-source-evidence), [declared build-input identity](../distribution/README.md#declared-build-input-identity), [registry inspection](../distribution/README.md#read-only-registry-inspection), [image attestations](../distribution/README.md#authenticated-image-attestations), and [committed builds](../distribution/README.md#committed-snapshot-builds) cover decisions, Git inputs, digest-pinned recipe inputs and effective build arguments, manifest integrity, signed image evidence, and local source/context-to-image binding. [Recipe-image registry verification](../distribution/README.md#pinned-recipe-image-verification) passed for all five base/frontend repositories on amd64/arm64, without claiming actual builder selection or layer availability. All eight amd64 images built; Rust linkage and web static serving passed. [Web arm64 build/static serving](component-web-arm64-verification.md) passed under emulation. Rust arm64, native arm64 hardware, remaining service/cluster operation and live GHCR acceptance remain unverified here. [Offline web amd64/emulated-arm64 OCI install/compile and static serving](../distribution/README.md#offline-web-oci-image-builds) now pass using verified npm archives; native arm64 hardware remains unverified. Next: verify remaining Rust component/platform builds and runtime behavior, authenticate toolchain/material provenance and release history, enforce publication races, then GHCR publishing. Local labels/metadata do not authenticate release identity. `observable-services` is still the only published image. |
 | Helm/kind pinned install, compatibility, upgrade/rollback (Phase 7 sub-step 5) | Compose done | `scripts/pinned-install.sh` installs and verifies the pinned Compose set (web UI + smoke). Helm/kind and upgrade/rollback verification need a kind cluster and more than one real component version. |
 | Repository extraction (Phase 8) | Not started | Deliberately last: each component needs independent CI/release and released-artifact consumption before its source is removed. Needs separate repositories. |
 
