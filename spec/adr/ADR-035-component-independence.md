@@ -199,6 +199,12 @@ writes changed neither rows nor offsets. During broker loss, another deployment 
 with 201 and PG-only readiness stayed 200, matching the existing best-effort event policy. Other
 control paths, full target independence, recovery/platform and release-authority gates remain open.
 
+The [alerting image acceptance](../../docs/component-alerting-offline-verification.md) passes on amd64: the actual
+background worker created, updated without a duplicate ID and resolved a threshold firing from
+real ClickHouse samples. Authenticated tenant-scoped reads, cross-tenant detail 404s, runtime
+checks and ClickHouse-loss readiness 503/liveness 200 passed. Other rule types, notifications,
+incidents, recovery/platform and release-authority gates remain open.
+
 
 Full identity and publication flags remain false.
 

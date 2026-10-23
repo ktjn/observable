@@ -20,6 +20,15 @@ making changes.
 - See [exact source/image evidence](../distribution/README.md#committed-snapshot-builds).
   Complete material identity, provenance and publication authorization remain separate gates.
 
+## Latest alerting offline acceptance
+
+- The native amd64 offline alert-evaluator image passed runtime checks and actual background
+  threshold firing, updated-value same-ID deduplication and resolution against real data. Actual
+  auth-backed tenant-scoped lists, cross-tenant detail 404s and resolved read responses passed.
+- ClickHouse loss returned readiness 503/liveness 200. Owned fixtures were removed. See
+  [exact evidence and limits](component-alerting-offline-verification.md). Pending-duration, other
+  rules, notifications/incidents, recovery/platforms and release authority remain open.
+
 ## Latest control offline acceptance
 
 - The native amd64 offline control/admin-service image passed runtime checks, actual auth, deployment

@@ -881,6 +881,12 @@ independent PostgreSQL row checks and both broker events. Rejected writes leave 
 Broker loss still permits a persisted deployment with 201 and PG-only readiness 200, as required by
 the current best-effort event contract. This does not prove full target control independence.
 
+The [alerting acceptance record](../docs/component-alerting-offline-verification.md) verifies the
+exact amd64 offline evaluator image: real background threshold firing, same-ID updates and
+resolution against migrated PostgreSQL/ClickHouse, with actual auth-backed tenant-scoped reads.
+Runtime and ClickHouse-loss readiness/liveness checks passed. Other rule types, notifications,
+incidents, recovery and platform coverage remain separate gates.
+
 These are local construction checks, not signed builder provenance or complete release identity.
 `identity_verified` and `publication_authorized` remain false. Reproducibility, native arm64 hardware,
 other Rust build/runtime paths, full cluster acceptance, history and publication protection remain
