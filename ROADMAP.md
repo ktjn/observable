@@ -181,6 +181,11 @@ events. Runtime and ClickHouse-loss readiness/liveness passed. All seven Rust co
 [recorded amd64 offline builds](distribution/README.md#rust-amd64-acceptance-inventory) at their listed revisions; this is not a single-revision distribution
 or full-runtime acceptance. Rust arm64, remaining runtime/cluster and release-authority gates stay open.
 
+The [release history and publication boundary adapter](distribution/README.md#release-history-and-publication-boundary-adapter)
+bridges registry inspection, attestation verification and authoritative release history into
+verified observations for the release planner, enforcing live reinspection, writer serialization
+and tag overwrite prevention. Live publishing, Rust arm64 and full cluster gates remain open.
+
 
 **Exit evidence:**
 

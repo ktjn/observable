@@ -29,6 +29,9 @@ making changes.
 - All seven Rust deployables have [historical amd64 offline build records](../distribution/README.md#rust-amd64-acceptance-inventory)
   at their explicit revisions. This does not establish one tested distribution or full API/runtime
   coverage. Rust arm64, remaining runtime/cluster, provenance/history/publication gates stay open.
+- The [release history and publication boundary adapter](../distribution/README.md#release-history-and-publication-boundary-adapter)
+  connects GHCR inspection, attestation verification, and authoritative history, enforcing live reinspection,
+  writer serialization, and tag overwrite prevention.
 
 ## Latest alerting offline acceptance
 
