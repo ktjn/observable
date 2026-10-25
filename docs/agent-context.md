@@ -32,6 +32,9 @@ making changes.
 - The [release history and publication boundary adapter](../distribution/README.md#release-history-and-publication-boundary-adapter)
   connects GHCR inspection, attestation verification, and authoritative history, enforcing live reinspection,
   writer serialization, and tag overwrite prevention.
+- The [verified build-input identity](../distribution/README.md#verified-build-input-identity)
+  verifier checks source closure integrity, package manifest version parity, base image registry manifests,
+  and locked external materials, producing authenticated records with identity_verified: true.
 
 ## Latest alerting offline acceptance
 

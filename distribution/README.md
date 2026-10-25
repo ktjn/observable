@@ -353,6 +353,22 @@ suite covers the shared framing/timeout machinery. No backend dependency behavio
 Testcontainers does not apply to this tooling slice. Full local CI and actual v2 image builds
 remain separate checks; this command needs no Docker engine.
 
+### Verified build-input identity
+
+```text
+python scripts/verify_component_inputs.py query [--ref HEAD] [--platform linux/amd64]... [--build-arg NAME=VALUE]... [--declared-input FILE]
+```
+
+`verify_component_inputs.py` transforms a declared build input into an authenticated release identity record (`identity_verified: true`). It validates:
+- Source closure integrity (`component-source-v1`) and component package version parity with `distribution/manifest.yaml`.
+- Pinned Dockerfile recipe digest and syntax frontend.
+- Pinned base images against Docker Hub OCI indexes and child platform manifests via [recipe-image verification](#pinned-recipe-image-verification).
+- Frozen external material closures: Cargo registry dependencies (`component_cargo_materials.py`) and APT package locks (`component_apt_materials.py`) for Rust deployables; npm SRI hashes (`component_npm_materials.py`) for Web.
+- Strict input digest matching against `component-input-v2` rederivation.
+- Optional consistency checking against an existing declared input document.
+
+Output is deterministic and authenticated with `identity_verified: true` and `publication_authorized: false`.
+
 ### Read-only registry inspection
 
 `python scripts/inspect_component_registry.py query 0.1.0` requests the exact
