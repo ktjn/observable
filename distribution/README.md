@@ -178,6 +178,20 @@ at publication, and digest-bound release evidence. Offline observations cannot
 establish freshness or prevent a race after the final lookup. Existing
 build-selection logic is not a fingerprint algorithm.
 
+### Release history and publication boundary adapter
+
+`python scripts/component_release_adapter.py REQUEST.json [--history FILE] [--enforce] [--write] [--lock-token TOKEN]`
+bridges registry inspection ([`inspect_component_registry.py`](#read-only-registry-inspection)),
+attestation verification ([`verify_component_attestations.py`](#authenticated-image-attestations)),
+and authoritative release history (`release-history-v1`) into verified observations for the
+[release planner](#local-immutable-release-planning).
+
+It enforces:
+- Authoritative release history loading and schema validation (`release-history-v1`), ensuring immutable records and detecting duplicate or conflicting entries.
+- Registry observation adaptation: maps raw manifest presence from GHCR inspection and attested metadata into trusted planner records.
+- Live reinspection and race protection: automatically queries the registry again on an initial miss to detect concurrent publications before planning a publish action.
+- Publication boundary safety (`--enforce`): requires explicit write authorization (`--write`) and an exclusive concurrency lock token (`--lock-token`) before authorizing any publish action. Reused or evidence-completion tags prohibit image rebuilds or pushes.
+
 ### Committed source evidence
 
 `python scripts/collect_component_source.py query --ref HEAD` inventories the
