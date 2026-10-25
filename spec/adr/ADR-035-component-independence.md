@@ -205,6 +205,13 @@ real ClickHouse samples. Authenticated tenant-scoped reads, cross-tenant detail 
 checks and ClickHouse-loss readiness 503/liveness 200 passed. Other rule types, notifications,
 incidents, recovery/platform and release-authority gates remain open.
 
+The [query image acceptance](../../docs/component-query-offline-verification.md) passes on amd64: actual log
+reads round-trip all 15 fields with tenant-scoped search/facets/tail/context, rejected tenant
+headers and cross-tenant pivot 404s. PostgreSQL contains the exact 10 query/15 credential audit
+events. Runtime and ClickHouse-loss readiness/liveness passed. All seven Rust components now have
+[recorded amd64 offline builds](../../distribution/README.md#rust-amd64-acceptance-inventory) at their listed revisions; this is not a single-revision distribution
+or full-runtime acceptance. Rust arm64, remaining runtime/cluster and release-authority gates stay open.
+
 
 Full identity and publication flags remain false.
 

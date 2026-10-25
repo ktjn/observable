@@ -887,6 +887,28 @@ resolution against migrated PostgreSQL/ClickHouse, with actual auth-backed tenan
 Runtime and ClickHouse-loss readiness/liveness checks passed. Other rule types, notifications,
 incidents, recovery and platform coverage remain separate gates.
 
+The [query acceptance record](../docs/component-query-offline-verification.md) verifies the exact
+amd64 offline query image: actual auth-backed log search/facets/tail/context, all 15 fields, tenant
+isolation and exact PostgreSQL query/credential audit rows. Runtime and ClickHouse-loss readiness/
+liveness checks passed. Other query paths, NLQ, recovery and platforms remain separate gates.
+
+### Rust amd64 acceptance inventory
+
+These historical local records cover each Rust deployable on amd64 at the listed source revision.
+Image IDs below are prefixes for navigation; linked records contain full identities and limits.
+They do not establish one tested distribution revision, complete API coverage, signed provenance
+or publication authority. No source/runtime acceptance is inferred for arm64.
+
+| Component | Source commit | Image ID prefix | Bounded runtime evidence |
+| --- | --- | --- | --- |
+| auth | `d89cad5c` | `de8b304a88fd` | PostgreSQL connectivity and health/readiness, described above |
+| process | `527e4368` | `6b2a02eb4955` | [Raw-to-normalized log and broker-loss probes](../docs/component-process-offline-verification.md) |
+| store-clickhouse | `28c18ee3` | `03e5d9e00a44` | [Normalized log persistence and ClickHouse-loss probes](../docs/component-store-offline-verification.md) |
+| ingest | `80b989bf` | `41a74885f32a` | [Authenticated OTLP log and raw broker boundary](../docs/component-ingest-offline-verification.md) |
+| control | `03fc54ae` | `6d82e480f133` | [Deployment persistence/events and best-effort outage behavior](../docs/component-control-offline-verification.md) |
+| alerting | `47d1baea` | `e0fa2b6957e4` | [Threshold worker lifecycle and tenant-scoped reads](../docs/component-alerting-offline-verification.md) |
+| query | `039b4468` | `d2c66fe402e9` | [Tenant-scoped log reads and persisted audits](../docs/component-query-offline-verification.md) |
+
 These are local construction checks, not signed builder provenance or complete release identity.
 `identity_verified` and `publication_authorized` remain false. Reproducibility, native arm64 hardware,
 other Rust build/runtime paths, full cluster acceptance, history and publication protection remain

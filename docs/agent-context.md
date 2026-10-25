@@ -20,6 +20,16 @@ making changes.
 - See [exact source/image evidence](../distribution/README.md#committed-snapshot-builds).
   Complete material identity, provenance and publication authorization remain separate gates.
 
+## Latest query offline acceptance
+
+- The native amd64 offline query-api image passed runtime checks and actual authenticated log
+  search/facets/tail/context, all 15 fields, tenant isolation and exact query/credential audit rows.
+  ClickHouse loss returned readiness 503/liveness 200; owned fixtures were removed. See
+  [exact evidence and limits](component-query-offline-verification.md).
+- All seven Rust deployables have [historical amd64 offline build records](../distribution/README.md#rust-amd64-acceptance-inventory)
+  at their explicit revisions. This does not establish one tested distribution or full API/runtime
+  coverage. Rust arm64, remaining runtime/cluster, provenance/history/publication gates stay open.
+
 ## Latest alerting offline acceptance
 
 - The native amd64 offline alert-evaluator image passed runtime checks and actual background
