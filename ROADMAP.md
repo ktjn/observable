@@ -184,7 +184,12 @@ or full-runtime acceptance. Rust arm64, remaining runtime/cluster and release-au
 The [release history and publication boundary adapter](distribution/README.md#release-history-and-publication-boundary-adapter)
 bridges registry inspection, attestation verification and authoritative release history into
 verified observations for the release planner, enforcing live reinspection, writer serialization
-and tag overwrite prevention. Live publishing, Rust arm64 and full cluster gates remain open.
+and tag overwrite prevention.
+
+The [verified build-input identity](distribution/README.md#verified-build-input-identity)
+verifier binds source closure integrity, package manifest version parity, pinned base image manifests,
+and locked Cargo/APT/npm materials, yielding authenticated records with identity_verified: true. Live publishing,
+Rust arm64 and full cluster gates remain open.
 
 
 **Exit evidence:**
