@@ -1,10 +1,10 @@
 // Shared LLM configuration helpers used by the `/v1/nlq` chat path (see `llm_adapter`).
 //
-// Env vars take priority over DB values (LLM_API_KEY, LLM_URL / OPENAI_BASE_URL,
-// LLM_MODEL / OPENAI_MODEL). DB values live in the `platform_config` PostgreSQL table
-// and are managed via the admin-service config endpoints.
+// Env vars take priority over admin-service platform_config values (LLM_API_KEY,
+// LLM_URL / OPENAI_BASE_URL, LLM_MODEL / OPENAI_MODEL, LLM_PROVIDER).
+// platform_config is owned by admin-service and queried over internal HTTP.
 
-use sqlx::PgPool;
+use serde::{Deserialize, Serialize};
 
 /// Returns the LLM model from env vars (LLM_MODEL, then OPENAI_MODEL as fallback).
 pub fn env_llm_model() -> Option<String> {
@@ -22,30 +22,32 @@ pub fn env_llm_url() -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
-/// Fetches and deobfuscates the LLM API key from the database.
-/// Gracefully handles legacy plaintext keys that were stored before XOR obfuscation.
-pub async fn fetch_db_key(db: &PgPool) -> Result<Option<String>, sqlx::Error> {
-    let row: Option<(String,)> =
-        sqlx::query_as("SELECT value FROM platform_config WHERE key = 'llm_api_key'")
-            .fetch_optional(db)
-            .await?;
-    Ok(row.and_then(|(v,)| {
-        if v.is_empty() {
-            None
-        } else {
-            // Try deobfuscation first; fall back to treating as plaintext.
-            Some(xor_deobfuscate(&v).unwrap_or(v))
-        }
-    }))
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct InternalLlmConfig {
+    pub api_key: Option<String>,
+    pub url: Option<String>,
+    pub model: Option<String>,
+    pub provider: Option<String>,
+    pub webllm_model: Option<String>,
 }
 
-/// Fetches an arbitrary key from `platform_config`.
-pub async fn fetch_db_value(db: &PgPool, key: &str) -> Result<Option<String>, sqlx::Error> {
-    let row: Option<(String,)> = sqlx::query_as("SELECT value FROM platform_config WHERE key = $1")
-        .bind(key)
-        .fetch_optional(db)
-        .await?;
-    Ok(row.map(|(v,)| v))
+/// Fetches LLM configuration from admin-service via internal service-to-service endpoint.
+pub async fn fetch_remote_llm_config(
+    client: &reqwest::Client,
+    admin_service_url: &str,
+    internal_token: &str,
+) -> Option<InternalLlmConfig> {
+    client
+        .get(format!("{admin_service_url}/internal/config/llm"))
+        .header("X-Internal-Token", internal_token)
+        .send()
+        .await
+        .ok()?
+        .error_for_status()
+        .ok()?
+        .json()
+        .await
+        .ok()
 }
 
 // ── Provider selection (Remote vs. WebLLM) ───────────────────────────────────
@@ -71,12 +73,13 @@ fn parse_provider(raw: &str) -> Option<LlmProvider> {
 }
 
 /// Resolves the configured LLM provider: `LLM_PROVIDER` env var first, then
-/// `platform_config.llm_provider` DB value, defaulting to `LlmProvider::Remote` when
-/// neither is set (or either is an unrecognized value). Mirrors the env-then-DB
-/// lookup pattern used by `env_llm_model`/`env_llm_url`/`fetch_db_value` above: any
-/// lookup failure (including a DB error) is treated as "not configured" rather than
-/// propagated, since an unreachable provider config should never block the NLQ path.
-pub async fn fetch_provider(db: &PgPool) -> LlmProvider {
+/// `platform_config.llm_provider` fetched from admin-service, defaulting to `LlmProvider::Remote` when
+/// neither is set (or either is an unrecognized value).
+pub async fn fetch_provider(
+    client: &reqwest::Client,
+    admin_service_url: &str,
+    internal_token: &str,
+) -> LlmProvider {
     if let Ok(raw) = std::env::var("LLM_PROVIDER") {
         match parse_provider(&raw) {
             Some(provider) => return provider,
@@ -87,8 +90,10 @@ pub async fn fetch_provider(db: &PgPool) -> LlmProvider {
         }
     }
 
-    if let Some(raw) = fetch_db_value(db, "llm_provider").await.ok().flatten() {
-        match parse_provider(&raw) {
+    if let Some(config) = fetch_remote_llm_config(client, admin_service_url, internal_token).await
+        && let Some(ref raw) = config.provider
+    {
+        match parse_provider(raw) {
             Some(provider) => return provider,
             None => {
                 tracing::warn!(value = %raw, "platform_config.llm_provider is an unrecognized value — falling back to remote");
@@ -99,81 +104,14 @@ pub async fn fetch_provider(db: &PgPool) -> LlmProvider {
     LlmProvider::Remote
 }
 
-// ── XOR obfuscation (key-at-rest helper for `fetch_db_key`) ──────────────────
-//
-// Provides basic obfuscation for the API key at rest. This is NOT cryptographically
-// secure — it only prevents casual reads of the key from a database dump. The XOR
-// key is embedded in source code; real encryption would require an operator-managed
-// secret, which is out of scope for this local-dev tool.
-
-const XOR_KEY: &[u8; 32] = b"ObservableLLMKeyProtect!!KeyXOR!";
-
-/// Reverses the obfuscation applied when the key was stored. Returns `None` if the
-/// input is not valid hex. Falls back gracefully: if decoding fails, returns `None`
-/// so callers can treat the stored value as missing (rather than returning garbage).
-fn xor_deobfuscate(hex: &str) -> Option<String> {
-    if !hex.len().is_multiple_of(2) {
-        return None;
-    }
-    let bytes: Option<Vec<u8>> = (0..hex.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).ok())
-        .collect();
-    let orig: Vec<u8> = bytes?
-        .into_iter()
-        .enumerate()
-        .map(|(i, b)| b ^ XOR_KEY[i % XOR_KEY.len()])
-        .collect();
-    String::from_utf8(orig).ok()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Test-only mirror of the obfuscation step (the real obfuscation helper lives in
-    /// admin-service now and isn't needed in query-api outside of round-trip testing
-    /// `xor_deobfuscate`).
-    fn xor_obfuscate(s: &str) -> String {
-        s.bytes()
-            .enumerate()
-            .map(|(i, b)| b ^ XOR_KEY[i % XOR_KEY.len()])
-            .map(|b| format!("{b:02x}"))
-            .collect()
-    }
-
-    #[test]
-    fn xor_roundtrip() {
-        let key = "sk-test-api-key-1234567890abcdef";
-        assert_eq!(xor_deobfuscate(&xor_obfuscate(key)), Some(key.to_string()));
-    }
-
-    #[test]
-    fn xor_deobfuscate_invalid_hex_returns_none() {
-        assert_eq!(xor_deobfuscate("not-hex!"), None);
-    }
-
-    #[test]
-    fn xor_deobfuscate_odd_length_returns_none() {
-        assert_eq!(xor_deobfuscate("abc"), None);
-    }
-
-    // ── fetch_provider ────────────────────────────────────────────────────────
-    //
-    // These tests read/write the process-wide `LLM_PROVIDER` env var, so they're
-    // serialized via `ENV_LOCK` to avoid racing each other under the default
-    // parallel test runner (no other test in this crate touches `LLM_PROVIDER`).
-
-    // A `tokio::sync::Mutex` (not `std::sync::Mutex`) so the guard can be held across the
-    // `.await` in `fetch_provider` without tripping `clippy::await_holding_lock`.
     static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
-    /// A pool that is never actually connected — `fetch_db_value` against it fails
-    /// immediately, which `fetch_provider` treats as "not configured", matching the
-    /// existing `fetch_db_key`/`fetch_db_value` fallback convention used elsewhere in
-    /// this module and in `llm_adapter.rs`'s DB-fallback tests.
-    fn fake_db() -> PgPool {
-        PgPool::connect_lazy("postgres://x:x@127.0.0.1:5432/x").expect("valid url")
+    fn dummy_client() -> (reqwest::Client, &'static str, &'static str) {
+        (reqwest::Client::new(), "http://127.0.0.1:1", "dummy-token")
     }
 
     #[tokio::test]
@@ -182,16 +120,21 @@ mod tests {
         unsafe {
             std::env::remove_var("LLM_PROVIDER");
         }
-        assert_eq!(fetch_provider(&fake_db()).await, LlmProvider::Remote);
+        let (client, url, token) = dummy_client();
+        assert_eq!(
+            fetch_provider(&client, url, token).await,
+            LlmProvider::Remote
+        );
     }
 
     #[tokio::test]
-    async fn fetch_provider_env_webllm_wins_regardless_of_db() {
+    async fn fetch_provider_env_webllm_wins_regardless_of_remote() {
         let _guard = ENV_LOCK.lock().await;
         unsafe {
             std::env::set_var("LLM_PROVIDER", "webllm");
         }
-        let result = fetch_provider(&fake_db()).await;
+        let (client, url, token) = dummy_client();
+        let result = fetch_provider(&client, url, token).await;
         unsafe {
             std::env::remove_var("LLM_PROVIDER");
         }
@@ -204,7 +147,8 @@ mod tests {
         unsafe {
             std::env::set_var("LLM_PROVIDER", "ReMoTe");
         }
-        let result = fetch_provider(&fake_db()).await;
+        let (client, url, token) = dummy_client();
+        let result = fetch_provider(&client, url, token).await;
         unsafe {
             std::env::remove_var("LLM_PROVIDER");
         }
@@ -217,7 +161,8 @@ mod tests {
         unsafe {
             std::env::set_var("LLM_PROVIDER", "not-a-real-provider");
         }
-        let result = fetch_provider(&fake_db()).await;
+        let (client, url, token) = dummy_client();
+        let result = fetch_provider(&client, url, token).await;
         unsafe {
             std::env::remove_var("LLM_PROVIDER");
         }

@@ -218,14 +218,18 @@ Env vars take priority over Setup page values. Leaving API Key blank is valid fo
 other unauthenticated OpenAI-compatible endpoints (point Endpoint URL at your vLLM server).
 
 The API key is XOR-obfuscated before storage in the `platform_config` PostgreSQL table.
-Config is stored in the `platform_config` key-value table; no schema migration is required
-for new config keys. See [ADR-027](adr/ADR-027-local-llm-backend.md) for the full decision record.
+Config is stored in the `platform_config` key-value table (owned by `observable-control` / `admin-service`).
+In multi-service deployments, `observable-query` fetches platform configuration via internal HTTP (`/internal/config/llm`),
+preserving component ownership boundaries without cross-owner SQL access. See [ADR-027](adr/ADR-027-local-llm-backend.md)
+for the full decision record.
 
 #### Prerequisite
 
 The Schema Registry semantic annotations layer ([spec/03 §5.4.1](03-storage.md)) must be in place,
 including the metric-type extensions (`metric_type`, `timestamp_column`, `recommended_downsampling`),
-before the MCP server can generate correct time-series SQL.
+before the MCP server can generate correct time-series SQL. In accordance with [ADR-035](adr/ADR-035-component-independence.md),
+these schema entries and annotations are owned by `observable-control` (`admin-service`), and `observable-query`
+retrieves them over internal HTTP (`/internal/schemas/*`) rather than executing SQL against PostgreSQL.
 
 ---
 

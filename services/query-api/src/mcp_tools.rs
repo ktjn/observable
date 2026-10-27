@@ -50,6 +50,7 @@ pub struct MetricSchema {
     pub unit: Option<String>,
     pub recommended_downsampling: Option<String>,
     /// True when metric_type and timestamp_column are both non-null (sufficient for Step 3 SQL).
+    #[serde(default)]
     pub schema_complete: bool,
 }
 
@@ -72,6 +73,7 @@ pub struct SignalField {
     pub recommended_downsampling: Option<String>,
     /// True when both `metric_type` and `timestamp_column` are non-null — the minimum
     /// annotation required for the MCP server to generate correct time-series SQL.
+    #[serde(default)]
     pub schema_complete: bool,
 }
 
@@ -87,211 +89,95 @@ pub enum ResolveLabelResult {
 }
 
 // HTTP response shape for resolve_label — serialisable, LLM-friendly.
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ResolveLabelResponse {
     /// The resolved canonical field name; null when not found or ambiguous.
     pub field_name: Option<String>,
     /// True when more than one field matched the given label.
     pub ambiguous: bool,
     /// Non-empty only when ambiguous is true.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub candidates: Vec<String>,
 }
 
-// ── sqlx FromRow intermediaries ───────────────────────────────────────────────
-
-#[derive(sqlx::FromRow)]
-struct MetricSchemaRow {
-    field_name: String,
-    field_type: String,
-    otel_spec_version: Option<String>,
-    display_name: Option<String>,
-    business_description: Option<String>,
-    interpretation_rule: Option<String>,
-    effective_sample_rate: Option<f64>,
-    // Option<bool> because LEFT JOIN may produce SQL NULL even though the column is NOT NULL
-    not_for_billing: Option<bool>,
-    metric_type: Option<String>,
-    timestamp_column: Option<String>,
-    unit: Option<String>,
-    recommended_downsampling: Option<String>,
-}
-
-impl From<MetricSchemaRow> for MetricSchema {
-    fn from(row: MetricSchemaRow) -> Self {
-        let schema_complete = row.metric_type.is_some() && row.timestamp_column.is_some();
-        Self {
-            field_name: row.field_name,
-            field_type: row.field_type,
-            otel_spec_version: row.otel_spec_version,
-            display_name: row.display_name,
-            business_description: row.business_description,
-            interpretation_rule: row.interpretation_rule,
-            effective_sample_rate: row.effective_sample_rate,
-            not_for_billing: row.not_for_billing,
-            metric_type: row.metric_type,
-            timestamp_column: row.timestamp_column,
-            unit: row.unit,
-            recommended_downsampling: row.recommended_downsampling,
-            schema_complete,
-        }
-    }
-}
-
-#[derive(sqlx::FromRow)]
-struct SignalFieldRow {
-    field_name: String,
-    field_type: String,
-    otel_spec_version: Option<String>,
-    display_name: Option<String>,
-    business_description: Option<String>,
-    interpretation_rule: Option<String>,
-    effective_sample_rate: Option<f64>,
-    metric_type: Option<String>,
-    timestamp_column: Option<String>,
-    unit: Option<String>,
-    recommended_downsampling: Option<String>,
-}
-
-impl From<SignalFieldRow> for SignalField {
-    fn from(row: SignalFieldRow) -> Self {
-        let schema_complete = row.metric_type.is_some() && row.timestamp_column.is_some();
-        Self {
-            field_name: row.field_name,
-            field_type: row.field_type,
-            otel_spec_version: row.otel_spec_version,
-            display_name: row.display_name,
-            business_description: row.business_description,
-            interpretation_rule: row.interpretation_rule,
-            effective_sample_rate: row.effective_sample_rate,
-            metric_type: row.metric_type,
-            timestamp_column: row.timestamp_column,
-            unit: row.unit,
-            recommended_downsampling: row.recommended_downsampling,
-            schema_complete,
-        }
-    }
-}
-
-// ── Core data-access functions ────────────────────────────────────────────────
+// ── Core data-access functions (delegated to admin-service over HTTP) ─────────
 
 /// Returns the structural + annotation schema for one metric field.
 ///
-/// `schema_entries` is the source of truth for structural existence.
-/// The annotation overlay is LEFT JOINed and may be absent.
-/// Returns `None` when `metric_name` does not exist in `schema_entries` at all.
+/// Queries admin-service `/internal/schemas/metrics/schema/:metric_name`.
+/// Returns `None` when `metric_name` does not exist in the schema registry.
 pub async fn get_metric_schema(
-    db: &sqlx::PgPool,
+    client: &reqwest::Client,
+    admin_service_url: &str,
+    internal_token: &str,
     tenant_id: Uuid,
     metric_name: &str,
-) -> Result<Option<MetricSchema>, sqlx::Error> {
-    let row = sqlx::query_as::<_, MetricSchemaRow>(
-        "SELECT \
-             se.field_name, se.field_type, se.otel_spec_version, \
-             sa.display_name, sa.business_description, sa.interpretation_rule, \
-             sa.effective_sample_rate, sa.not_for_billing, \
-             sa.metric_type, sa.timestamp_column, sa.unit, sa.recommended_downsampling \
-         FROM schema_entries se \
-         LEFT JOIN semantic_annotations sa \
-             ON  sa.signal_type = se.signal_type \
-             AND sa.field_name  = se.field_name \
-             AND sa.tenant_id   = $1 \
-         WHERE se.signal_type = 'metrics' \
-           AND se.field_name  = $2",
-    )
-    .bind(tenant_id)
-    .bind(metric_name)
-    .fetch_optional(db)
-    .await?;
-
-    Ok(row.map(MetricSchema::from))
+) -> Result<Option<MetricSchema>, reqwest::Error> {
+    let resp = client
+        .get(format!(
+            "{admin_service_url}/internal/schemas/metrics/schema/{metric_name}"
+        ))
+        .query(&[("tenant_id", tenant_id.to_string())])
+        .header("X-Internal-Token", internal_token)
+        .send()
+        .await?
+        .error_for_status()?;
+    resp.json().await
 }
 
 /// Returns all fields in the structural catalog for a signal type, with the tenant's
-/// annotation overlay merged in (LEFT JOIN — annotated fields have annotation data,
-/// unannotated fields have None annotation columns).
-/// `schema_complete` is set to true on fields where both `metric_type` and `timestamp_column`
-/// are present — the minimum required for MCP SQL generation.
+/// annotation overlay merged in.
+/// Queries admin-service `/internal/schemas/:signal_type/fields`.
 pub async fn list_signal_fields(
-    db: &sqlx::PgPool,
+    client: &reqwest::Client,
+    admin_service_url: &str,
+    internal_token: &str,
     tenant_id: Uuid,
     signal_type: &str,
-) -> Result<Vec<SignalField>, sqlx::Error> {
-    let rows = sqlx::query_as::<_, SignalFieldRow>(
-        "SELECT \
-             se.field_name, se.field_type, se.otel_spec_version, \
-             sa.display_name, sa.business_description, sa.interpretation_rule, \
-             sa.effective_sample_rate, sa.metric_type, sa.timestamp_column, \
-             sa.unit, sa.recommended_downsampling \
-         FROM schema_entries se \
-         LEFT JOIN semantic_annotations sa \
-             ON  sa.signal_type = se.signal_type \
-             AND sa.field_name  = se.field_name \
-             AND sa.tenant_id   = $2 \
-         WHERE se.signal_type = $1 \
-         ORDER BY se.field_name",
-    )
-    .bind(signal_type)
-    .bind(tenant_id)
-    .fetch_all(db)
-    .await?;
-
-    Ok(rows.into_iter().map(SignalField::from).collect())
+) -> Result<Vec<SignalField>, reqwest::Error> {
+    let resp = client
+        .get(format!(
+            "{admin_service_url}/internal/schemas/{signal_type}/fields"
+        ))
+        .query(&[("tenant_id", tenant_id.to_string())])
+        .header("X-Internal-Token", internal_token)
+        .send()
+        .await?
+        .error_for_status()?;
+    resp.json().await
 }
 
 /// Resolves a human-readable label to a canonical `field_name`.
-///
-/// Resolution order:
-/// 1. Exact match on `field_name` in `schema_entries` for the given signal type.
-/// 2. Case-insensitive, whitespace-trimmed match on `display_name` in `semantic_annotations`
-///    (restricted to fields that exist in `schema_entries`).
-///
-/// If multiple fields share a `display_name` that matches the label, returns
-/// `Ambiguous` with all candidates so the caller can disambiguate.
+/// Queries admin-service `/internal/schemas/:signal_type/resolve-label`.
 pub async fn resolve_label_to_column(
-    db: &sqlx::PgPool,
+    client: &reqwest::Client,
+    admin_service_url: &str,
+    internal_token: &str,
     tenant_id: Uuid,
     signal_type: &str,
     label: &str,
-) -> Result<ResolveLabelResult, sqlx::Error> {
-    // Step 1: exact field_name match (fast path, no annotation required)
-    let exact: Option<String> = sqlx::query_scalar(
-        "SELECT field_name FROM schema_entries \
-         WHERE signal_type = $1 AND field_name = $2",
-    )
-    .bind(signal_type)
-    .bind(label)
-    .fetch_optional(db)
-    .await?;
+) -> Result<ResolveLabelResult, reqwest::Error> {
+    let resp: ResolveLabelResponse = client
+        .get(format!(
+            "{admin_service_url}/internal/schemas/{signal_type}/resolve-label"
+        ))
+        .query(&[
+            ("tenant_id", tenant_id.to_string()),
+            ("label", label.to_string()),
+        ])
+        .header("X-Internal-Token", internal_token)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
 
-    if let Some(field) = exact {
-        return Ok(ResolveLabelResult::Found(field));
-    }
-
-    // Step 2: case-insensitive display_name match (only for fields in the global catalog)
-    let candidates: Vec<String> = sqlx::query_scalar(
-        "SELECT DISTINCT se.field_name \
-         FROM schema_entries se \
-         JOIN semantic_annotations sa \
-             ON  sa.signal_type = se.signal_type \
-             AND sa.field_name  = se.field_name \
-             AND sa.tenant_id   = $3 \
-         WHERE se.signal_type = $1 \
-           AND LOWER(TRIM(sa.display_name)) = LOWER(TRIM($2)) \
-         ORDER BY se.field_name",
-    )
-    .bind(signal_type)
-    .bind(label)
-    .bind(tenant_id)
-    .fetch_all(db)
-    .await?;
-
-    match candidates.len() {
-        0 => Ok(ResolveLabelResult::NotFound),
-        1 => Ok(ResolveLabelResult::Found(
-            candidates.into_iter().next().unwrap(),
-        )),
-        _ => Ok(ResolveLabelResult::Ambiguous(candidates)),
+    if resp.ambiguous {
+        Ok(ResolveLabelResult::Ambiguous(resp.candidates))
+    } else if let Some(field) = resp.field_name {
+        Ok(ResolveLabelResult::Found(field))
+    } else {
+        Ok(ResolveLabelResult::NotFound)
     }
 }
 
@@ -352,10 +238,18 @@ pub async fn handle_get_metric_schema(
     Extension(ctx): Extension<TenantContext>,
     Path(metric_name): Path<String>,
 ) -> Result<Json<Option<MetricSchema>>, StatusCode> {
-    match get_metric_schema(&state.db, ctx.tenant_id, &metric_name).await {
+    match get_metric_schema(
+        &state.http_client,
+        &state.admin_service_url,
+        &state.internal_service_token,
+        ctx.tenant_id,
+        &metric_name,
+    )
+    .await
+    {
         Ok(schema) => Ok(Json(schema)),
         Err(e) => {
-            tracing::error!(error = %e, metric_name, "get_metric_schema db error");
+            tracing::error!(error = %e, metric_name, "get_metric_schema admin-service error");
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -381,7 +275,15 @@ pub async fn handle_list_signal_fields(
     if !VALID_SIGNAL_TYPES.contains(&signal_type.as_str()) {
         return Err(StatusCode::BAD_REQUEST);
     }
-    match list_signal_fields(&state.db, ctx.tenant_id, &signal_type).await {
+    match list_signal_fields(
+        &state.http_client,
+        &state.admin_service_url,
+        &state.internal_service_token,
+        ctx.tenant_id,
+        &signal_type,
+    )
+    .await
+    {
         Ok(mut fields) => {
             if params.annotated_only {
                 fields.retain(|f| f.display_name.is_some() || f.metric_type.is_some());
@@ -389,7 +291,7 @@ pub async fn handle_list_signal_fields(
             Ok(Json(fields))
         }
         Err(e) => {
-            tracing::error!(error = %e, signal_type, "list_signal_fields db error");
+            tracing::error!(error = %e, signal_type, "list_signal_fields admin-service error");
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -414,7 +316,16 @@ pub async fn handle_resolve_label(
     if !VALID_SIGNAL_TYPES.contains(&signal_type.as_str()) {
         return Err(StatusCode::BAD_REQUEST);
     }
-    match resolve_label_to_column(&state.db, ctx.tenant_id, &signal_type, &params.label).await {
+    match resolve_label_to_column(
+        &state.http_client,
+        &state.admin_service_url,
+        &state.internal_service_token,
+        ctx.tenant_id,
+        &signal_type,
+        &params.label,
+    )
+    .await
+    {
         Ok(ResolveLabelResult::Found(field)) => Ok(Json(ResolveLabelResponse {
             field_name: Some(field),
             ambiguous: false,
@@ -431,7 +342,7 @@ pub async fn handle_resolve_label(
             candidates,
         })),
         Err(e) => {
-            tracing::error!(error = %e, signal_type, label = params.label, "resolve_label db error");
+            tracing::error!(error = %e, signal_type, label = params.label, "resolve_label admin-service error");
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -446,8 +357,8 @@ mod tests {
     // ── MetricSchema ──────────────────────────────────────────────────────────
 
     #[test]
-    fn schema_complete_requires_both_metric_type_and_timestamp_column() {
-        let row = MetricSchemaRow {
+    fn metric_schema_complete_flag_preserves_semantics() {
+        let schema = MetricSchema {
             field_name: "latency".into(),
             field_type: "Float64".into(),
             otel_spec_version: None,
@@ -460,105 +371,14 @@ mod tests {
             timestamp_column: Some("ts".into()),
             unit: None,
             recommended_downsampling: None,
+            schema_complete: true,
         };
-        let schema: MetricSchema = row.into();
         assert!(schema.schema_complete, "both fields present → complete");
     }
 
     #[test]
-    fn schema_incomplete_when_timestamp_column_missing() {
-        let row = MetricSchemaRow {
-            field_name: "latency".into(),
-            field_type: "Float64".into(),
-            otel_spec_version: None,
-            display_name: None,
-            business_description: None,
-            interpretation_rule: None,
-            effective_sample_rate: None,
-            not_for_billing: None,
-            metric_type: Some("gauge".into()),
-            timestamp_column: None,
-            unit: None,
-            recommended_downsampling: None,
-        };
-        let schema: MetricSchema = row.into();
-        assert!(
-            !schema.schema_complete,
-            "missing timestamp_column → incomplete"
-        );
-    }
-
-    #[test]
-    fn schema_incomplete_when_metric_type_missing() {
-        let row = MetricSchemaRow {
-            field_name: "latency".into(),
-            field_type: "Float64".into(),
-            otel_spec_version: None,
-            display_name: None,
-            business_description: None,
-            interpretation_rule: None,
-            effective_sample_rate: None,
-            not_for_billing: None,
-            metric_type: None,
-            timestamp_column: Some("ts".into()),
-            unit: None,
-            recommended_downsampling: None,
-        };
-        let schema: MetricSchema = row.into();
-        assert!(!schema.schema_complete, "missing metric_type → incomplete");
-    }
-
-    #[test]
-    fn schema_incomplete_when_no_annotation() {
-        let row = MetricSchemaRow {
-            field_name: "latency".into(),
-            field_type: "Float64".into(),
-            otel_spec_version: None,
-            display_name: None,
-            business_description: None,
-            interpretation_rule: None,
-            effective_sample_rate: None,
-            not_for_billing: None,
-            metric_type: None,
-            timestamp_column: None,
-            unit: None,
-            recommended_downsampling: None,
-        };
-        let schema: MetricSchema = row.into();
-        assert!(!schema.schema_complete, "no annotation → incomplete");
-        assert!(schema.not_for_billing.is_none(), "null LEFT JOIN → None");
-    }
-
-    // ── SignalField ───────────────────────────────────────────────────────────
-
-    #[test]
-    fn signal_field_without_annotation_has_none_overlay() {
-        let row = SignalFieldRow {
-            field_name: "trace_id".into(),
-            field_type: "String".into(),
-            otel_spec_version: Some("1.26.0".into()),
-            display_name: None,
-            business_description: None,
-            interpretation_rule: None,
-            effective_sample_rate: None,
-            metric_type: None,
-            timestamp_column: None,
-            unit: None,
-            recommended_downsampling: None,
-        };
-        let field: SignalField = row.into();
-        assert_eq!(field.field_name, "trace_id");
-        assert!(field.display_name.is_none());
-        assert!(field.metric_type.is_none());
-        assert!(
-            !field.schema_complete,
-            "no metric_type/timestamp_column → not complete"
-        );
-    }
-
-    #[test]
-    fn signal_field_with_annotation_has_overlay_data() {
-        let row = SignalFieldRow {
+    fn signal_field_properties_preserved() {
+        let field = SignalField {
             field_name: "latency_ms".into(),
             field_type: "Float64".into(),
             otel_spec_version: None,
@@ -570,15 +390,12 @@ mod tests {
             timestamp_column: Some("timestamp_unix_nano".into()),
             unit: Some("ms".into()),
             recommended_downsampling: Some("1m".into()),
+            schema_complete: true,
         };
-        let field: SignalField = row.into();
         assert_eq!(field.display_name.as_deref(), Some("Request Latency"));
         assert_eq!(field.metric_type.as_deref(), Some("gauge"));
         assert_eq!(field.unit.as_deref(), Some("ms"));
-        assert!(
-            field.schema_complete,
-            "metric_type + timestamp_column → complete"
-        );
+        assert!(field.schema_complete);
     }
 
     // ── ResolveLabelResponse serialisation ───────────────────────────────────

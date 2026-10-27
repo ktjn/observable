@@ -1,14 +1,10 @@
 // Integration tests for Task 3's `platform_config.llm_provider` plumbing:
-//   - `fetch_provider` resolves a real DB-stored value (env-only cases are covered by
-//     fast unit tests in `llm_config.rs` itself).
+//   - `fetch_provider` resolves a remote config value over HTTP from admin-service.
 //   - `POST /v1/nlq` returns 503 for a Webllm-configured tenant, and is unaffected for
 //     the default Remote provider (existing shorthand-fallback behavior still applies).
 //   - `POST /v1/nlq/prepare` behavior is unchanged for both provider values (Task 2's
 //     pipeline logic doesn't branch on provider — this task only adds the resolution
 //     call).
-//
-// All tests use a real Postgres container (via `test_support::postgres::shared_pool`,
-// one fresh database per test) so `platform_config` reads/writes are legitimate.
 
 use axum::{
     Router,
@@ -32,6 +28,10 @@ use sqlx::postgres::PgPool;
 use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
+
+const TEST_TOKEN: &str = "test-internal-token";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -54,7 +54,31 @@ fn fake_ch() -> ChClient {
     ChClient::default().with_url("http://127.0.0.1:19999")
 }
 
-fn build_nlq_app(ch: ChClient, db: PgPool) -> Router {
+async fn start_admin_mock_with_provider(provider: Option<&str>) -> MockServer {
+    let mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/internal/config/llm"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "api_key": null,
+            "url": null,
+            "model": null,
+            "provider": provider,
+            "webllm_model": null
+        })))
+        .mount(&mock)
+        .await;
+
+    // Also mount default empty schema responses so prepare/query pipelines can fetch schema context
+    Mock::given(method("GET"))
+        .and(path("/internal/schemas/metrics/fields"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .mount(&mock)
+        .await;
+
+    mock
+}
+
+fn build_nlq_app(ch: ChClient, db: PgPool, admin_service_url: String) -> Router {
     let state = traces::AppState {
         ch,
         db,
@@ -63,9 +87,9 @@ fn build_nlq_app(ch: ChClient, db: PgPool) -> Router {
         auth_service_url: "http://auth-service:4319".into(),
         metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
         sessions: query_api::nlq_session::NlqSessionStore::default(),
-        admin_service_url: "http://admin-service:4324".into(),
+        admin_service_url,
         alert_evaluator_url: "http://alert-evaluator:4322".into(),
-        internal_service_token: "test-internal-token".into(),
+        internal_service_token: TEST_TOKEN.into(),
         http_client: reqwest::Client::new(),
     };
     Router::new()
@@ -90,50 +114,48 @@ async fn body_json(body: axum::body::Body) -> Value {
     serde_json::from_slice(&bytes).expect("valid JSON")
 }
 
-async fn set_llm_provider(db: &PgPool, value: &str) {
-    sqlx::query(
-        "INSERT INTO platform_config (key, value, updated_at)
-         VALUES ('llm_provider', $1, now())
-         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
-    )
-    .bind(value)
-    .execute(db)
-    .await
-    .expect("llm_provider upserted");
-}
-
-// ── fetch_provider (DB-backed cases) ────────────────────────────────────────
+// ── fetch_provider (Admin-backed cases) ───────────────────────────────────────
 
 #[tokio::test]
-async fn fetch_provider_reads_webllm_from_db_when_no_env() {
-    let db = test_support::postgres::shared_pool().await;
-    set_llm_provider(&db, "webllm").await;
+async fn fetch_provider_reads_webllm_from_remote_when_no_env() {
+    let admin_mock = start_admin_mock_with_provider(Some("webllm")).await;
+    let client = reqwest::Client::new();
 
-    assert_eq!(fetch_provider(&db).await, LlmProvider::Webllm);
+    assert_eq!(
+        fetch_provider(&client, &admin_mock.uri(), TEST_TOKEN).await,
+        LlmProvider::Webllm
+    );
 }
 
 #[tokio::test]
-async fn fetch_provider_invalid_db_value_falls_back_to_remote() {
-    let db = test_support::postgres::shared_pool().await;
-    set_llm_provider(&db, "not-a-real-provider").await;
+async fn fetch_provider_invalid_remote_value_falls_back_to_remote() {
+    let admin_mock = start_admin_mock_with_provider(Some("not-a-real-provider")).await;
+    let client = reqwest::Client::new();
 
-    assert_eq!(fetch_provider(&db).await, LlmProvider::Remote);
+    assert_eq!(
+        fetch_provider(&client, &admin_mock.uri(), TEST_TOKEN).await,
+        LlmProvider::Remote
+    );
 }
 
 #[tokio::test]
-async fn fetch_provider_defaults_to_remote_in_fresh_db() {
-    let db = test_support::postgres::shared_pool().await;
+async fn fetch_provider_defaults_to_remote_in_fresh_admin() {
+    let admin_mock = start_admin_mock_with_provider(None).await;
+    let client = reqwest::Client::new();
 
-    assert_eq!(fetch_provider(&db).await, LlmProvider::Remote);
+    assert_eq!(
+        fetch_provider(&client, &admin_mock.uri(), TEST_TOKEN).await,
+        LlmProvider::Remote
+    );
 }
 
 // ── POST /v1/nlq ─────────────────────────────────────────────────────────────
 
 #[tokio::test]
 async fn nlq_query_returns_503_when_provider_is_webllm() {
+    let admin_mock = start_admin_mock_with_provider(Some("webllm")).await;
     let db = test_support::postgres::shared_pool().await;
-    set_llm_provider(&db, "webllm").await;
-    let app = build_nlq_app(fake_ch(), db);
+    let app = build_nlq_app(fake_ch(), db, admin_mock.uri());
     let tenant = Uuid::new_v4();
 
     let resp = app
@@ -153,14 +175,15 @@ async fn nlq_query_returns_503_when_provider_is_webllm() {
     );
 }
 
-/// Default provider (no DB row) must behave completely unchanged: no LLM configured →
+/// Default provider (no remote row) must behave completely unchanged: no LLM configured →
 /// shorthand fallback, not a 503 (mirrors `nlq_shorthand_integration.rs`'s existing
 /// coverage of this path, re-asserted here specifically to confirm this task didn't
 /// alter Remote's behavior).
 #[tokio::test]
 async fn nlq_query_remote_default_falls_back_to_shorthand_unchanged() {
+    let admin_mock = start_admin_mock_with_provider(None).await;
     let db = test_support::postgres::shared_pool().await;
-    let app = build_nlq_app(fake_ch(), db);
+    let app = build_nlq_app(fake_ch(), db, admin_mock.uri());
     let tenant = Uuid::new_v4();
 
     let resp = app
@@ -185,8 +208,9 @@ async fn nlq_query_remote_default_falls_back_to_shorthand_unchanged() {
 /// Task 2 built).
 #[tokio::test]
 async fn nlq_prepare_reaches_prepared_for_remote_provider() {
+    let admin_mock = start_admin_mock_with_provider(Some("remote")).await;
     let db = test_support::postgres::shared_pool().await;
-    let app = build_nlq_app(fake_ch(), db);
+    let app = build_nlq_app(fake_ch(), db, admin_mock.uri());
     let tenant = Uuid::new_v4();
 
     let resp = app
@@ -205,9 +229,9 @@ async fn nlq_prepare_reaches_prepared_for_remote_provider() {
 
 #[tokio::test]
 async fn nlq_prepare_reaches_prepared_for_webllm_provider() {
+    let admin_mock = start_admin_mock_with_provider(Some("webllm")).await;
     let db = test_support::postgres::shared_pool().await;
-    set_llm_provider(&db, "webllm").await;
-    let app = build_nlq_app(fake_ch(), db);
+    let app = build_nlq_app(fake_ch(), db, admin_mock.uri());
     let tenant = Uuid::new_v4();
 
     let resp = app
@@ -230,9 +254,9 @@ async fn nlq_prepare_reaches_prepared_for_webllm_provider() {
 
 #[tokio::test]
 async fn nlq_prepare_shorthand_bypass_unaffected_by_webllm_provider() {
+    let admin_mock = start_admin_mock_with_provider(Some("webllm")).await;
     let db = test_support::postgres::shared_pool().await;
-    set_llm_provider(&db, "webllm").await;
-    let app = build_nlq_app(fake_ch(), db);
+    let app = build_nlq_app(fake_ch(), db, admin_mock.uri());
     let tenant = Uuid::new_v4();
 
     let resp = app

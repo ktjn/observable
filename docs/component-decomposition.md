@@ -335,12 +335,12 @@ Rules:
 
 **Phase 3 prep — done:** every table above now physically lives in a matching PostgreSQL schema
 (`auth`, `control`, `alerting`; `migrations/postgres/040_component_ownership_schemas.sql`), instead
-of all sharing `public`. This is documentation, not enforcement: the "no cross-owner SQL" and
-"no shared write credentials" rules above are **not yet true** - one shared application role can
-still read/write across all three schemas, since real separation is blocked on Phase 4 (shrink
-query-api) moving the last cross-owner SQL out of `query-api`; `query-api` still queries the
-control-plane schema directly. The alerting schema is no longer queried directly by any component
-(Phase 6 is done).
+of all sharing `public`. Cross-owner SQL against the `control` and `alerting` schemas has been
+eliminated: `query-api` queries deployment markers and schema/annotation/LLM config metadata over
+internal HTTP from `admin-service` (`/internal/deployment-*`, `/internal/schemas/*`,
+`/internal/config/llm`), and alerting/incident correlation from `alert-evaluator`
+(`/internal/alerting-*`). Direct cross-component SQL against `control` and `alerting` tables is
+completely removed.
 
 | Owner | Tables (in schema of the same name) |
 | --- | --- |
@@ -579,10 +579,11 @@ it with `--update`).
 Exit evidence:
 
 - every component can enumerate the tables it owns — **met**, via the schema assignment above
-- no component executes SQL against another component's PostgreSQL schema — **not met**: one shared
-  role can still query any schema, and `query-api` does so today against the auth (`user_tenant_roles`)
-  and control (`schema_entries`/`semantic_annotations`/`platform_config`) schemas; the alerting schema
-  is no longer queried directly by any component (Phase 6)
+- no component executes SQL against another component's PostgreSQL schema — **met for control and alerting**:
+  `query-api` reads deployment markers, schema entries, semantic annotations, and LLM config over
+  internal HTTP from `admin-service` (`/internal/deployment-*`, `/internal/schemas/*`, `/internal/config/llm`),
+  and alerting/incident correlation from `alert-evaluator` (`/internal/alerting-*`). All cross-owner SQL against
+  control and alerting schemas has been eliminated.
 - `observable-query` declares and enforces a tested ClickHouse storage-schema range — **met**, via
   `services/query-api/clickhouse-schema-support.yaml` and `scripts/check-clickhouse-schema-compat.sh`
 
@@ -598,10 +599,10 @@ Move control-plane CRUD out of query and split the current admin surface by owne
   now that dashboards lives here too, rather than duplicated)
 - tenants (done: `GET /v1/tenants`, `GET /v1/tenants/{id}/environments` now live in admin-service)
 - schemas/annotations (done: `GET /v1/schemas/{signal_type}/attributes` and the
-  `GET`/`PUT`/`PATCH`/`DELETE /v1/schemas/{signal_type}/attributes/{key}/annotations` routes now
-  live in admin-service; `mcp_tools.rs` in query-api still reads `schema_entries`/
-  `semantic_annotations` directly via its own SQL for NLQ metric-schema lookups -- the remaining
-  tracked "remove cross-owner SQL" concern, not schema/annotation CRUD ownership)
+  `GET`/`PUT`/`PATCH`/`DELETE /v1/schemas/{signal_type}/attributes/{key}/annotations` routes live
+  in admin-service; `mcp_tools.rs` in query-api now reads `schema_entries`/`semantic_annotations`
+  over internal HTTP (`/internal/schemas/*`), and `llm_config.rs` fetches remote LLM config via
+  `/internal/config/llm`, completing the removal of cross-owner SQL for NLQ tables)
 - deployments (done: `GET /v1/deployments` now lives in admin-service. The deployment-marker
   correlation reads in `discovery.rs`/`reliability.rs` were later moved to admin-service's
   `/internal/deployment-*` endpoints in Phase 6, so query-api no longer reads `deployment_markers`
@@ -1093,7 +1094,7 @@ each is waiting on.
 
 | Item | State | Blocker / next step |
 |---|---|---|
-| Remove cross-owner SQL (Phase 3 exit evidence) | Not met | `observable-query` still reads control-owned `schema_entries`/`semantic_annotations` and `platform_config` for NLQ. Moving them changes NLQ metadata injection, so the **NLQ quality gate** applies (`tests/nlq/cases.json` + `scripts/nlq-eval.py` against a running cluster **with an OpenAI-compatible LLM endpoint**). |
+| Remove cross-owner SQL for NLQ schema tables (Phase 3 exit evidence) | Done | Cross-owner SQL against `control.schema_entries`, `control.semantic_annotations`, and `control.platform_config` has been removed from `observable-query`. Metadata is queried over internal HTTP via `admin-service` (`/internal/schemas/*`, `/internal/config/llm`). |
 | Per-component release publishing (Phase 7 sub-step 5) | Policy, planner, source evidence, declared build-input identity, verified build-input identity, recipe-image verification, attestation verifier, registry inspection, release history/boundary adapter and local snapshot builds implemented; publishing open | [Local planner](../distribution/README.md#local-immutable-release-planning), [release history and publication boundary adapter](../distribution/README.md#release-history-and-publication-boundary-adapter), [source evidence](../distribution/README.md#committed-source-evidence), [declared build-input identity](../distribution/README.md#declared-build-input-identity), [verified build-input identity](../distribution/README.md#verified-build-input-identity), [registry inspection](../distribution/README.md#read-only-registry-inspection), [image attestations](../distribution/README.md#authenticated-image-attestations), and [committed builds](../distribution/README.md#committed-snapshot-builds) cover decisions, Git inputs, digest-pinned recipe inputs and effective build arguments, manifest integrity, signed image evidence, and local source/context-to-image binding. [Recipe-image registry verification](../distribution/README.md#pinned-recipe-image-verification) passed for all five base/frontend repositories on amd64/arm64, without claiming actual builder selection or layer availability. All eight amd64 images built; Rust linkage and web static serving passed. [Web arm64 build/static serving](component-web-arm64-verification.md) passed under emulation. Rust arm64, native arm64 hardware, remaining service/cluster operation and live GHCR acceptance remain unverified here. [Offline web amd64/emulated-arm64 OCI install/compile and static serving](../distribution/README.md#offline-web-oci-image-builds) now pass using verified npm archives; native arm64 hardware remains unverified. Next: verify Rust arm64 builds and remaining runtime/cluster behavior, then GHCR publishing. Local labels/metadata do not authenticate release identity. `observable-services` is still the only published image. |
 | Helm/kind pinned install, compatibility, upgrade/rollback (Phase 7 sub-step 5) | Compose done | `scripts/pinned-install.sh` installs and verifies the pinned Compose set (web UI + smoke). Helm/kind and upgrade/rollback verification need a kind cluster and more than one real component version. |
 | Repository extraction (Phase 8) | Not started | Deliberately last: each component needs independent CI/release and released-artifact consumption before its source is removed. Needs separate repositories. |

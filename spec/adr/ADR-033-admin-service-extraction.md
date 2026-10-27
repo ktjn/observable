@@ -31,6 +31,12 @@ new standalone service, `services/admin-service`, deployed and scaled independen
 change there. URL paths are unchanged; only ingress routing targets change, so the frontend
 requires no code changes.
 
+To eliminate cross-owner SQL from other components (`observable-query`), `admin-service` also
+exposes internal service-to-service endpoints authenticated via `X-Internal-Token`:
+`/internal/config/llm` (exposing deobfuscated platform configuration) and
+`/internal/schemas/*` (exposing structural schema entries, tenant annotations, and semantic
+label resolution for NLQ queries).
+
 As part of the same slice sequence, extract a shared `observable-auth` crate (`libs/observable-auth`,
 completed 2026-06-20). **Correction to
 this ADR's original framing:** neither `query-api` nor `ingest-gateway` did local session-JWT

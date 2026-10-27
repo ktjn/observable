@@ -1,7 +1,7 @@
 // Testcontainers integration test for the end-to-end MCP query path (P8-S6 Step 5).
 //
-// Spins up both PostgreSQL 16 and ClickHouse containers, applies all migrations, inserts
-// test data, and calls `execute_mcp_query` directly to assert:
+// Spins up a ClickHouse container, applies all migrations, inserts
+// test data, and calls `execute_mcp_query` directly with a schema mock to assert:
 //   - Data rows are returned from ClickHouse
 //   - All 6 provenance fields are populated
 //   - tenant_id appears in source_sql (tenant isolation)
@@ -12,38 +12,65 @@ use clickhouse::Client as ChClient;
 use domain::{NlqIr, NlqOperation, NlqSignal, NlqTimeRange};
 use observable_storage_contracts::{MetricPointRow, MetricSeriesRow};
 use query_api::mcp_query::execute_mcp_query;
-use sqlx::PgPool;
 use uuid::Uuid;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const METRIC: &str = "latency_ms";
+const TEST_TOKEN: &str = "test-internal-token";
 
-// ── PostgreSQL helpers ────────────────────────────────────────────────────────
+// ── Mock helpers ──────────────────────────────────────────────────────────────
 
-async fn seed_schema_registry(pool: &PgPool, tenant_id: Uuid) {
-    // Insert global schema entry
-    sqlx::query(
-        "INSERT INTO schema_entries (signal_type, field_name, field_type)
-         VALUES ('metrics', $1, 'Float64') ON CONFLICT DO NOTHING",
-    )
-    .bind(METRIC)
-    .execute(pool)
-    .await
-    .expect("schema_entry inserted");
+async fn start_schema_mock() -> MockServer {
+    let mock = MockServer::start().await;
 
-    // Insert tenant annotation with metric_type + timestamp_column
-    sqlx::query(
-        "INSERT INTO semantic_annotations
-           (tenant_id, signal_type, field_name, metric_type, timestamp_column, unit)
-         VALUES ($1, 'metrics', $2, 'gauge', 'ts', 'ms')
-         ON CONFLICT (tenant_id, signal_type, field_name) DO NOTHING",
-    )
-    .bind(tenant_id)
-    .bind(METRIC)
-    .execute(pool)
-    .await
-    .expect("semantic_annotation inserted");
+    Mock::given(method("GET"))
+        .and(path(format!("/internal/schemas/metrics/schema/{METRIC}")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "field_name": METRIC,
+            "field_type": "Float64",
+            "display_name": null,
+            "metric_type": "gauge",
+            "timestamp_column": "ts",
+            "unit": "ms",
+            "recommended_downsampling": null,
+            "interpretation_rule": null,
+            "not_for_billing": false,
+            "schema_complete": true
+        })))
+        .mount(&mock)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/internal/schemas/metrics/schema/nonexistent_metric"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::Value::Null))
+        .mount(&mock)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/internal/schemas/metrics/fields"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
+            {
+                "field_name": METRIC,
+                "field_type": "Float64",
+                "otel_spec_version": null,
+                "display_name": null,
+                "business_description": null,
+                "interpretation_rule": null,
+                "effective_sample_rate": null,
+                "metric_type": "gauge",
+                "timestamp_column": "ts",
+                "unit": "ms",
+                "recommended_downsampling": null,
+                "schema_complete": true
+            }
+        ])))
+        .mount(&mock)
+        .await;
+
+    mock
 }
 
 // ── ClickHouse helpers ────────────────────────────────────────────────────────
@@ -133,12 +160,11 @@ fn base_ir(op: NlqOperation) -> NlqIr {
 
 #[tokio::test]
 async fn timeseries_query_returns_data_with_all_provenance_fields() {
-    let db = test_support::postgres::shared_pool().await;
+    let mock = start_schema_mock().await;
+    let client = reqwest::Client::new();
     let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_a = Uuid::new_v4();
-
-    seed_schema_registry(&db, tenant_a).await;
 
     let series_id = Uuid::new_v4();
     insert_metric_series(&ch, make_series(tenant_a, series_id)).await;
@@ -148,7 +174,7 @@ async fn timeseries_query_returns_data_with_all_provenance_fields() {
     insert_metric_point(&ch, make_point(tenant_a, series_id, 200.0, 15 * 60 * 1000)).await;
 
     let ir = base_ir(NlqOperation::Timeseries);
-    let frame = execute_mcp_query(&db, &ch, tenant_a, &ir)
+    let frame = execute_mcp_query(&client, &mock.uri(), TEST_TOKEN, &ch, tenant_a, &ir)
         .await
         .expect("execute_mcp_query succeeded");
 
@@ -157,7 +183,6 @@ async fn timeseries_query_returns_data_with_all_provenance_fields() {
         !frame.data.is_empty(),
         "expected data rows from timeseries query"
     );
-
     // All 6 provenance fields must be non-empty
     assert!(!frame.source_sql.is_empty(), "source_sql must be populated");
     assert!(
@@ -186,19 +211,18 @@ async fn timeseries_query_returns_data_with_all_provenance_fields() {
 
 #[tokio::test]
 async fn source_sql_contains_tenant_id_for_tenant_isolation() {
-    let db = test_support::postgres::shared_pool().await;
+    let mock = start_schema_mock().await;
+    let client = reqwest::Client::new();
     let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_a = Uuid::new_v4();
-
-    seed_schema_registry(&db, tenant_a).await;
 
     let series_id = Uuid::new_v4();
     insert_metric_series(&ch, make_series(tenant_a, series_id)).await;
     insert_metric_point(&ch, make_point(tenant_a, series_id, 42.0, 60_000)).await;
 
     let ir = base_ir(NlqOperation::Timeseries);
-    let frame = execute_mcp_query(&db, &ch, tenant_a, &ir)
+    let frame = execute_mcp_query(&client, &mock.uri(), TEST_TOKEN, &ch, tenant_a, &ir)
         .await
         .expect("execute_mcp_query succeeded");
 
@@ -212,19 +236,18 @@ async fn source_sql_contains_tenant_id_for_tenant_isolation() {
 
 #[tokio::test]
 async fn generated_sql_is_select_only_advisory_invariant() {
-    let db = test_support::postgres::shared_pool().await;
+    let mock = start_schema_mock().await;
+    let client = reqwest::Client::new();
     let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_a = Uuid::new_v4();
-
-    seed_schema_registry(&db, tenant_a).await;
 
     let series_id = Uuid::new_v4();
     insert_metric_series(&ch, make_series(tenant_a, series_id)).await;
     insert_metric_point(&ch, make_point(tenant_a, series_id, 99.0, 60_000)).await;
 
     let ir = base_ir(NlqOperation::Timeseries);
-    let frame = execute_mcp_query(&db, &ch, tenant_a, &ir)
+    let frame = execute_mcp_query(&client, &mock.uri(), TEST_TOKEN, &ch, tenant_a, &ir)
         .await
         .expect("execute_mcp_query succeeded");
 
@@ -248,19 +271,18 @@ async fn generated_sql_is_select_only_advisory_invariant() {
 
 #[tokio::test]
 async fn approximation_statement_is_non_empty_and_advisory() {
-    let db = test_support::postgres::shared_pool().await;
+    let mock = start_schema_mock().await;
+    let client = reqwest::Client::new();
     let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_a = Uuid::new_v4();
-
-    seed_schema_registry(&db, tenant_a).await;
 
     let series_id = Uuid::new_v4();
     insert_metric_series(&ch, make_series(tenant_a, series_id)).await;
     insert_metric_point(&ch, make_point(tenant_a, series_id, 1.0, 60_000)).await;
 
     let ir = base_ir(NlqOperation::Timeseries);
-    let frame = execute_mcp_query(&db, &ch, tenant_a, &ir)
+    let frame = execute_mcp_query(&client, &mock.uri(), TEST_TOKEN, &ch, tenant_a, &ir)
         .await
         .expect("execute_mcp_query succeeded");
 
@@ -273,12 +295,11 @@ async fn approximation_statement_is_non_empty_and_advisory() {
 
 #[tokio::test]
 async fn table_operation_returns_data_rows() {
-    let db = test_support::postgres::shared_pool().await;
+    let mock = start_schema_mock().await;
+    let client = reqwest::Client::new();
     let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_a = Uuid::new_v4();
-
-    seed_schema_registry(&db, tenant_a).await;
 
     let series_id = Uuid::new_v4();
     insert_metric_series(&ch, make_series(tenant_a, series_id)).await;
@@ -286,7 +307,7 @@ async fn table_operation_returns_data_rows() {
     insert_metric_point(&ch, make_point(tenant_a, series_id, 88.0, 10 * 60 * 1000)).await;
 
     let ir = base_ir(NlqOperation::Table);
-    let frame = execute_mcp_query(&db, &ch, tenant_a, &ir)
+    let frame = execute_mcp_query(&client, &mock.uri(), TEST_TOKEN, &ch, tenant_a, &ir)
         .await
         .expect("execute_mcp_query succeeded for table op");
 
@@ -304,15 +325,12 @@ async fn table_operation_returns_data_rows() {
 
 #[tokio::test]
 async fn tenant_b_sees_no_data_from_tenant_a_series() {
-    let db = test_support::postgres::shared_pool().await;
+    let mock = start_schema_mock().await;
+    let client = reqwest::Client::new();
     let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
-
-    // Register metric for both tenants (tenant_b has annotation too)
-    seed_schema_registry(&db, tenant_a).await;
-    seed_schema_registry(&db, tenant_b).await;
 
     // Only insert data for tenant_a
     let series_id_a = Uuid::new_v4();
@@ -321,7 +339,7 @@ async fn tenant_b_sees_no_data_from_tenant_a_series() {
 
     // Query as tenant_b — must get empty data set
     let ir = base_ir(NlqOperation::Timeseries);
-    let frame = execute_mcp_query(&db, &ch, tenant_b, &ir)
+    let frame = execute_mcp_query(&client, &mock.uri(), TEST_TOKEN, &ch, tenant_b, &ir)
         .await
         .expect("execute_mcp_query succeeded for tenant_b");
 
@@ -339,18 +357,19 @@ async fn tenant_b_sees_no_data_from_tenant_a_series() {
 
 #[tokio::test]
 async fn unknown_metric_returns_error() {
-    let db = test_support::postgres::shared_pool().await;
-    let _ch = test_support::clickhouse::shared_client().await;
+    let mock = start_schema_mock().await;
+    let client = reqwest::Client::new();
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_a = Uuid::new_v4();
 
-    // Do not seed schema registry — metric is unknown
+    // Query nonexistent_metric — mock returns 404
     let ir = NlqIr {
         metric: Some("nonexistent_metric".into()),
         ..base_ir(NlqOperation::Timeseries)
     };
 
-    let result = execute_mcp_query(&db, &_ch, tenant_a, &ir).await;
+    let result = execute_mcp_query(&client, &mock.uri(), TEST_TOKEN, &ch, tenant_a, &ir).await;
 
     assert!(
         matches!(
@@ -363,8 +382,9 @@ async fn unknown_metric_returns_error() {
 
 #[tokio::test]
 async fn missing_metric_field_returns_error() {
-    let db = test_support::postgres::shared_pool().await;
-    let _ch = test_support::clickhouse::shared_client().await;
+    let mock = start_schema_mock().await;
+    let client = reqwest::Client::new();
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_a = Uuid::new_v4();
 
@@ -373,7 +393,7 @@ async fn missing_metric_field_returns_error() {
         ..base_ir(NlqOperation::Timeseries)
     };
 
-    let result = execute_mcp_query(&db, &_ch, tenant_a, &ir).await;
+    let result = execute_mcp_query(&client, &mock.uri(), TEST_TOKEN, &ch, tenant_a, &ir).await;
 
     assert!(
         matches!(
@@ -388,23 +408,22 @@ async fn missing_metric_field_returns_error() {
 //
 // Asserts:
 //   1. Every NLQ response includes all 6 provenance fields with non-empty values.
-//   2. The query is read-only: row counts in both PostgreSQL and ClickHouse are unchanged.
+//   2. The query is read-only: row counts in ClickHouse are unchanged.
 
 #[tokio::test]
 async fn provenance_gate_all_six_fields_non_empty() {
-    let db = test_support::postgres::shared_pool().await;
+    let mock = start_schema_mock().await;
+    let client = reqwest::Client::new();
     let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_a = Uuid::new_v4();
-
-    seed_schema_registry(&db, tenant_a).await;
 
     let series_id = Uuid::new_v4();
     insert_metric_series(&ch, make_series(tenant_a, series_id)).await;
     insert_metric_point(&ch, make_point(tenant_a, series_id, 42.0, 5 * 60 * 1000)).await;
 
     let ir = base_ir(NlqOperation::Timeseries);
-    let frame = execute_mcp_query(&db, &ch, tenant_a, &ir)
+    let frame = execute_mcp_query(&client, &mock.uri(), TEST_TOKEN, &ch, tenant_a, &ir)
         .await
         .expect("execute_mcp_query must succeed");
 
@@ -444,57 +463,58 @@ async fn provenance_gate_all_six_fields_non_empty() {
 
 #[tokio::test]
 async fn provenance_gate_query_is_read_only_no_row_mutations() {
-    let db = test_support::postgres::shared_pool().await;
+    let mock = start_schema_mock().await;
+    let client = reqwest::Client::new();
     let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_a = Uuid::new_v4();
-
-    seed_schema_registry(&db, tenant_a).await;
 
     let series_id = Uuid::new_v4();
     insert_metric_series(&ch, make_series(tenant_a, series_id)).await;
     insert_metric_point(&ch, make_point(tenant_a, series_id, 99.0, 5 * 60 * 1000)).await;
 
     // Count rows BEFORE query
-    let pg_series_count_before: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM schema_entries WHERE signal_type = 'metrics'")
-            .fetch_one(&db)
-            .await
-            .expect("pre-query count");
+    let ch_series_count_before: u64 = ch
+        .query("SELECT count() FROM metric_series WHERE tenant_id = ?")
+        .bind(tenant_a)
+        .fetch_one()
+        .await
+        .expect("pre-query count");
 
-    let pg_annotations_count_before: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM semantic_annotations WHERE tenant_id = $1")
-            .bind(tenant_a)
-            .fetch_one(&db)
-            .await
-            .expect("pre-query annotations count");
+    let ch_points_count_before: u64 = ch
+        .query("SELECT count() FROM metric_points WHERE tenant_id = ?")
+        .bind(tenant_a)
+        .fetch_one()
+        .await
+        .expect("pre-query points count");
 
     // Execute the NLQ query
     let ir = base_ir(NlqOperation::Timeseries);
-    execute_mcp_query(&db, &ch, tenant_a, &ir)
+    execute_mcp_query(&client, &mock.uri(), TEST_TOKEN, &ch, tenant_a, &ir)
         .await
         .expect("execute_mcp_query must succeed");
 
     // Count rows AFTER query — must be identical
-    let pg_series_count_after: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM schema_entries WHERE signal_type = 'metrics'")
-            .fetch_one(&db)
-            .await
-            .expect("post-query count");
+    let ch_series_count_after: u64 = ch
+        .query("SELECT count() FROM metric_series WHERE tenant_id = ?")
+        .bind(tenant_a)
+        .fetch_one()
+        .await
+        .expect("post-query count");
 
-    let pg_annotations_count_after: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM semantic_annotations WHERE tenant_id = $1")
-            .bind(tenant_a)
-            .fetch_one(&db)
-            .await
-            .expect("post-query annotations count");
+    let ch_points_count_after: u64 = ch
+        .query("SELECT count() FROM metric_points WHERE tenant_id = ?")
+        .bind(tenant_a)
+        .fetch_one()
+        .await
+        .expect("post-query points count");
 
     assert_eq!(
-        pg_series_count_before, pg_series_count_after,
-        "schema_entries row count must not change after NLQ query (read-only)"
+        ch_series_count_before, ch_series_count_after,
+        "metric_series row count must not change after NLQ query (read-only)"
     );
     assert_eq!(
-        pg_annotations_count_before, pg_annotations_count_after,
-        "semantic_annotations row count must not change after NLQ query (read-only)"
+        ch_points_count_before, ch_points_count_after,
+        "metric_points row count must not change after NLQ query (read-only)"
     );
 }
