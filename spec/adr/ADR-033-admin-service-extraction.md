@@ -46,6 +46,9 @@ shared HTTP-client wrappers around `auth-service`'s existing `/internal/validate
 genuinely duplicated. Building this surfaced a real bug along the way: `query-api`'s API-key path
 bypassed `auth-service` entirely and queried `api_keys` directly, producing no audit trail; it now
 routes through `/internal/validate` like `ingest-gateway` already did, closing that gap.
+In follow-up 0.2 work, `/internal/validate-session` accepts `requested_tenant_id` to validate
+and rebind tenant/role against `auth.user_tenant_roles`, eliminating the last cross-owner SQL in service
+auth middleware (`query-api`, `alert-evaluator`, and `admin-service`).
 
 ## Consequences
 

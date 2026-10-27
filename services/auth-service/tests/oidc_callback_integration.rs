@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use uuid::Uuid;
 
 use auth_service::{
     observability::AuthServiceMetrics,
@@ -266,6 +267,124 @@ async fn validate_session_handler_accepts_valid_jwt() {
         .unwrap();
 
     assert_eq!(validate_response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn validate_session_cross_tenant_allowed_and_forbidden() {
+    let (pool, _container) = start_pool().await;
+    let tenant_a = Uuid::new_v4();
+    let tenant_b = Uuid::new_v4();
+    let tenant_c = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    sqlx::query("INSERT INTO tenants (id, name) VALUES ($1, 'Tenant A'), ($2, 'Tenant B'), ($3, 'Tenant C')")
+        .bind(tenant_a)
+        .bind(tenant_b)
+        .bind(tenant_c)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO users (id, idp_subject, email, name) VALUES ($1, 'idp-sub-test', 'test@example.com', 'Test User')")
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO user_tenant_roles (user_id, tenant_id, role) VALUES ($1, $2, 'tenant_admin'), ($1, $3, 'viewer')")
+        .bind(user_id)
+        .bind(tenant_a)
+        .bind(tenant_b)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let session_id = Uuid::new_v4();
+    sqlx::query("INSERT INTO user_sessions (id, user_id, tenant_id, environment, expires_at) VALUES ($1, $2, $3, 'production', now() + interval '1 hour')")
+        .bind(session_id)
+        .bind(user_id)
+        .bind(tenant_a)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let jwt = auth_service::session::sign_session_jwt(
+        SESSION_SECRET,
+        user_id,
+        tenant_a,
+        "tenant_admin",
+        "production",
+        session_id,
+    )
+    .unwrap();
+
+    let state = OidcState {
+        db: pool,
+        config: OidcConfig {
+            issuer: "http://localhost:1".to_string(),
+            api_base: "http://localhost:1".to_string(),
+            client_id: "test-client".to_string(),
+            redirect_uri: "http://localhost:5173/auth/callback".to_string(),
+            session_secret: SESSION_SECRET.to_string(),
+            dev_mode: true,
+        },
+        http_client: reqwest::Client::new(),
+        metrics: Arc::new(AuthServiceMetrics::new()),
+    };
+
+    let app = Router::new()
+        .route("/internal/validate-session", post(validate_session_handler))
+        .with_state(state.clone());
+
+    // 1. Cross-tenant switch to tenant_b (where user is a viewer) -> OK, role is viewer
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(axum::http::Method::POST)
+                .uri("/internal/validate-session")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "session_token": jwt,
+                        "requested_tenant_id": tenant_b
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = http_body_util::BodyExt::collect(resp.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["tenant_id"], tenant_b.to_string());
+    assert_eq!(body["role"], "viewer");
+
+    // 2. Cross-tenant switch to tenant_c (where user has NO role) -> 403 FORBIDDEN
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method(axum::http::Method::POST)
+                .uri("/internal/validate-session")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "session_token": jwt,
+                        "requested_tenant_id": tenant_c
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]

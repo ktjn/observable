@@ -528,6 +528,8 @@ pub async fn me_handler(
 #[derive(Deserialize)]
 pub struct ValidateSessionRequest {
     pub session_token: String,
+    #[serde(default)]
+    pub requested_tenant_id: Option<Uuid>,
 }
 
 #[derive(Serialize)]
@@ -570,10 +572,44 @@ pub async fn validate_session_handler(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
+    let (tenant_id, role) = if let Some(req_tid) = req.requested_tenant_id {
+        let session_tid = Uuid::parse_str(&claims.tid).map_err(|_| StatusCode::UNAUTHORIZED)?;
+        if req_tid != session_tid {
+            let role_opt: Option<String> = sqlx::query_scalar(
+                "SELECT role FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2",
+            )
+            .bind(user_id)
+            .bind(req_tid)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "db error checking cross-tenant role");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+            match role_opt {
+                Some(r) => (req_tid.to_string(), r),
+                None => {
+                    tracing::warn!(
+                        %user_id,
+                        session_tenant = %claims.tid,
+                        requested_tenant = %req_tid,
+                        "user does not have access to requested tenant"
+                    );
+                    return Err(StatusCode::FORBIDDEN);
+                }
+            }
+        } else {
+            (claims.tid, claims.role)
+        }
+    } else {
+        (claims.tid, claims.role)
+    };
+
     Ok(Json(ValidateSessionResponse {
         user_id: claims.sub,
-        tenant_id: claims.tid,
-        role: claims.role,
+        tenant_id,
+        role,
         environment: claims.env,
     }))
 }

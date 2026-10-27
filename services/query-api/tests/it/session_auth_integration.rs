@@ -84,24 +84,17 @@ async fn session_auth_tenant_mismatch_rejected() {
     let db = test_support::postgres::shared_pool().await;
     let mock_server = MockServer::start().await;
 
-    let user_id = Uuid::new_v4();
-    let session_tenant_id = Uuid::new_v4();
     let requested_tenant_id = Uuid::new_v4();
 
     Mock::given(method("POST"))
         .and(path("/internal/validate-session"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "user_id": user_id.to_string(),
-            "tenant_id": session_tenant_id.to_string(),
-            "role": "tenant_admin",
-            "environment": "prod"
-        })))
+        .respond_with(ResponseTemplate::new(403))
         .mount(&mock_server)
         .await;
 
     let app = build_app(db, mock_server.uri());
 
-    // Request with session for tenant A but X-Tenant-ID for tenant B
+    // Request with session for tenant A but X-Tenant-ID for tenant B (user not a member)
     let req = Request::builder()
         .uri("/v1/traces/histogram")
         .header(header::COOKIE, "session=valid-token")
@@ -111,4 +104,36 @@ async fn session_auth_tenant_mismatch_rejected() {
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn session_auth_cross_tenant_switch_success() {
+    let db = test_support::postgres::shared_pool().await;
+    let mock_server = MockServer::start().await;
+
+    let user_id = Uuid::new_v4();
+    let requested_tenant_id = Uuid::new_v4();
+
+    Mock::given(method("POST"))
+        .and(path("/internal/validate-session"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "user_id": user_id.to_string(),
+            "tenant_id": requested_tenant_id.to_string(),
+            "role": "viewer",
+            "environment": "prod"
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let app = build_app(db, mock_server.uri());
+
+    let req = Request::builder()
+        .uri("/v1/traces/histogram")
+        .header(header::COOKIE, "session=valid-token")
+        .header("X-Tenant-ID", requested_tenant_id.to_string())
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
 }

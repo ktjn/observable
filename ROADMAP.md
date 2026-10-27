@@ -92,7 +92,7 @@ separate distribution component.
 - Remove control-plane PostgreSQL ownership from ingest and query.
 - Consolidate tenant/config/dashboard/deployment/change-event state into `observable-control`.
 - Consolidate alert/SLO/firing/notification/incident state into `observable-alerting`.
-- Establish logical PostgreSQL ownership with separate credentials and no cross-owner SQL.
+- Establish logical PostgreSQL ownership with separate credentials and no cross-owner SQL (no cross-owner SQL complete across all components; separate credentials pending physical separation).
 - Make `observable-store-clickhouse` the owner of ClickHouse writes/migrations and declare a tested
   storage-schema compatibility range for `observable-query`.
 - Replace the shared `observable-services` image with one image and release lifecycle per

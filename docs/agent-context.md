@@ -152,6 +152,11 @@ making changes.
   not `dev`; the dev-mode default is unchanged. `charts/observable/values.yaml`'s
   `identity.sessionSecret` default was changed from a fixed literal to `""` so installs must set a
   real secret explicitly.
+- **2026-10-27 (0.2 cross-tenant session SQL removed)**: auth middleware across `query-api`,
+  `alert-evaluator`, and `admin-service` now delegates cross-tenant role revalidation to `auth-service`
+  via `POST /internal/validate-session` (`requested_tenant_id` field in payload). Direct SQL queries against
+  `auth.user_tenant_roles` in service middleware have been removed, meeting the Phase 3 exit criterion
+  for elimination of cross-owner SQL across all components.
 - **2026-10-21 (0.2 declared build-input identity)**: both OCI recipes (`Dockerfile`,
   `apps/frontend/Dockerfile`) now pin every `FROM` image and the `# syntax=` frontend by `@sha256:`
   index digest, and `scripts/collect_component_inputs.py` resolves `component-input-v2` — the
