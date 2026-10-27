@@ -191,6 +191,7 @@ verifier binds source closure integrity, package manifest version parity, pinned
 and locked Cargo/APT/npm materials, yielding authenticated records with identity_verified: true. Live publishing,
 Rust arm64 and full cluster gates remain open.
 
+Cross-owner SQL from `observable-query` against `control` tables (`schema_entries`, `semantic_annotations`, `platform_config`) has been completely eliminated. `query-api` retrieves schema metadata and platform configuration via internal HTTP endpoints exposed by `admin-service` (`/internal/schemas/*`, `/internal/config/llm`), preserving component ownership boundaries without direct database access.
 
 **Exit evidence:**
 

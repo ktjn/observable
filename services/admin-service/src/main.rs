@@ -201,6 +201,19 @@ async fn main() -> anyhow::Result<()> {
             "/internal/deployment-correlation",
             get(internal::handle_deployment_correlation),
         )
+        .route("/internal/config/llm", get(internal::handle_get_llm_config))
+        .route(
+            "/internal/schemas/{signal_type}/fields",
+            get(internal::handle_list_signal_fields),
+        )
+        .route(
+            "/internal/schemas/metrics/schema/{metric_name}",
+            get(internal::handle_get_metric_schema),
+        )
+        .route(
+            "/internal/schemas/{signal_type}/resolve-label",
+            get(internal::handle_resolve_label),
+        )
         .layer(axum_middleware::from_fn(
             middleware::auth::require_internal_service,
         ))

@@ -103,6 +103,19 @@ fn build_app(db: PgPool) -> Router {
             "/internal/deployment-correlation",
             get(internal::handle_deployment_correlation),
         )
+        .route("/internal/config/llm", get(internal::handle_get_llm_config))
+        .route(
+            "/internal/schemas/{signal_type}/fields",
+            get(internal::handle_list_signal_fields),
+        )
+        .route(
+            "/internal/schemas/metrics/schema/{metric_name}",
+            get(internal::handle_get_metric_schema),
+        )
+        .route(
+            "/internal/schemas/{signal_type}/resolve-label",
+            get(internal::handle_resolve_label),
+        )
         .layer(axum_middleware::from_fn(
             admin_service::middleware::auth::require_internal_service,
         ))
@@ -253,4 +266,163 @@ async fn deployment_correlation_filters_service_environment_and_interval() {
     let deployments = body["deployments"].as_array().expect("deployments array");
     assert_eq!(deployments.len(), 1, "only the prod checkout deployment");
     assert_eq!(deployments[0]["service_version"], "2026.05.22");
+}
+
+#[tokio::test]
+async fn internal_llm_config_returns_deobfuscated_keys_and_values() {
+    let (db, _container) = start_postgres().await;
+
+    let secret_key = "sk-test-secret-key-12345";
+    let obfuscated = admin_service::config::xor_obfuscate(secret_key);
+
+    sqlx::query(
+        "INSERT INTO platform_config (key, value, updated_at) VALUES \
+         ('llm_api_key', $1, NOW()), \
+         ('llm_url', 'https://api.openai.com/v1', NOW()), \
+         ('llm_model', 'gpt-4o-mini', NOW()), \
+         ('llm_provider', 'remote', NOW()), \
+         ('webllm_model', 'Llama-3-8B-Instruct-q4f32_1-MLC', NOW())",
+    )
+    .bind(obfuscated)
+    .execute(&db)
+    .await
+    .expect("inserted platform config");
+
+    let app = build_app(db);
+    let resp = app
+        .oneshot(authed_request("/internal/config/llm".into()))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = response_body_json(resp.into_body()).await;
+    assert_eq!(body["api_key"], secret_key);
+    assert_eq!(body["url"], "https://api.openai.com/v1");
+    assert_eq!(body["model"], "gpt-4o-mini");
+    assert_eq!(body["provider"], "remote");
+    assert_eq!(body["webllm_model"], "Llama-3-8B-Instruct-q4f32_1-MLC");
+}
+
+#[tokio::test]
+async fn internal_schemas_metric_schema_and_fields_and_resolve_label() {
+    let (db, _container) = start_postgres().await;
+    let tenant_id = Uuid::new_v4();
+    insert_tenant(&db, tenant_id).await;
+
+    // Insert schema entry
+    sqlx::query(
+        "INSERT INTO schema_entries (signal_type, field_name, field_type, otel_spec_version) \
+         VALUES ('metrics', 'cpu_usage', 'gauge', '1.24.0') \
+         ON CONFLICT DO NOTHING",
+    )
+    .execute(&db)
+    .await
+    .expect("schema entry inserted");
+
+    // Insert semantic annotation
+    sqlx::query(
+        "INSERT INTO semantic_annotations \
+         (tenant_id, signal_type, field_name, display_name, business_description, metric_type, timestamp_column, unit, updated_at) \
+         VALUES ($1, 'metrics', 'cpu_usage', 'CPU Usage Percent', 'Cluster CPU utilization', 'gauge', 'timestamp_unix_nano', 'percent', NOW()) \
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(tenant_id)
+    .execute(&db)
+    .await
+    .expect("semantic annotation inserted");
+
+    let app = build_app(db.clone());
+
+    // 1. Get metric schema
+    let resp = app
+        .oneshot(authed_request(format!(
+            "/internal/schemas/metrics/schema/cpu_usage?tenant_id={tenant_id}"
+        )))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = response_body_json(resp.into_body()).await;
+    assert_eq!(body["field_name"], "cpu_usage");
+    assert_eq!(body["display_name"], "CPU Usage Percent");
+    assert_eq!(body["schema_complete"], true);
+
+    // 2. List signal fields
+    let app = build_app(db.clone());
+    let resp = app
+        .oneshot(authed_request(format!(
+            "/internal/schemas/metrics/fields?tenant_id={tenant_id}"
+        )))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = response_body_json(resp.into_body()).await;
+    let fields = body.as_array().expect("fields array");
+    assert!(fields.iter().any(|f| f["field_name"] == "cpu_usage"));
+
+    // 3. Resolve label - exact match
+    let app = build_app(db.clone());
+    let resp = app
+        .oneshot(authed_request(format!(
+            "/internal/schemas/metrics/resolve-label?tenant_id={tenant_id}&label=cpu_usage"
+        )))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = response_body_json(resp.into_body()).await;
+    assert_eq!(body["field_name"], "cpu_usage");
+    assert_eq!(body["ambiguous"], false);
+
+    // 4. Resolve label - display_name match (case-insensitive)
+    let app = build_app(db.clone());
+    let resp = app
+        .oneshot(authed_request(format!(
+            "/internal/schemas/metrics/resolve-label?tenant_id={tenant_id}&label=cpu%20usage%20percent"
+        )))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = response_body_json(resp.into_body()).await;
+    assert_eq!(body["field_name"], "cpu_usage");
+    assert_eq!(body["ambiguous"], false);
+
+    // 5. Cross-tenant isolation: Tenant B sees structural entry but no Tenant A annotation
+    let tenant_b = Uuid::new_v4();
+    insert_tenant(&db, tenant_b).await;
+    let app = build_app(db.clone());
+    let resp = app
+        .oneshot(authed_request(format!(
+            "/internal/schemas/metrics/schema/cpu_usage?tenant_id={tenant_b}"
+        )))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = response_body_json(resp.into_body()).await;
+    assert_eq!(body["field_name"], "cpu_usage");
+    assert!(body["display_name"].is_null());
+    assert_eq!(body["schema_complete"], false);
+
+    // 6. Unknown metric returns 200 with null
+    let app = build_app(db.clone());
+    let resp = app
+        .oneshot(authed_request(format!(
+            "/internal/schemas/metrics/schema/nonexistent_metric?tenant_id={tenant_id}"
+        )))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = response_body_json(resp.into_body()).await;
+    assert!(body.is_null());
+
+    // 7. Unknown label returns 200 with field_name = null
+    let app = build_app(db);
+    let resp = app
+        .oneshot(authed_request(format!(
+            "/internal/schemas/metrics/resolve-label?tenant_id={tenant_id}&label=totally_unknown_label"
+        )))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = response_body_json(resp.into_body()).await;
+    assert!(body["field_name"].is_null());
+    assert_eq!(body["ambiguous"], false);
 }

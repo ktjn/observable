@@ -14,7 +14,7 @@
 use crate::AdminServiceAppState;
 use axum::{
     Json,
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::StatusCode,
 };
 use chrono::{DateTime, Utc};
@@ -143,4 +143,320 @@ pub async fn handle_deployment_correlation(
     })?;
 
     Ok(Json(DeploymentCorrelationResponse { deployments }))
+}
+
+// ── NLQ Schema Registry & Platform Config Endpoints ─────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InternalLlmConfigResponse {
+    pub api_key: Option<String>,
+    pub url: Option<String>,
+    pub model: Option<String>,
+    pub provider: Option<String>,
+    pub webllm_model: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MetricSchema {
+    pub field_name: String,
+    pub field_type: String,
+    pub otel_spec_version: Option<String>,
+    pub display_name: Option<String>,
+    pub business_description: Option<String>,
+    pub interpretation_rule: Option<String>,
+    pub effective_sample_rate: Option<f64>,
+    pub not_for_billing: Option<bool>,
+    pub metric_type: Option<String>,
+    pub timestamp_column: Option<String>,
+    pub unit: Option<String>,
+    pub recommended_downsampling: Option<String>,
+    pub schema_complete: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SignalField {
+    pub field_name: String,
+    pub field_type: String,
+    pub otel_spec_version: Option<String>,
+    pub display_name: Option<String>,
+    pub business_description: Option<String>,
+    pub interpretation_rule: Option<String>,
+    pub effective_sample_rate: Option<f64>,
+    pub metric_type: Option<String>,
+    pub timestamp_column: Option<String>,
+    pub unit: Option<String>,
+    pub recommended_downsampling: Option<String>,
+    pub schema_complete: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResolveLabelResponse {
+    pub field_name: Option<String>,
+    pub ambiguous: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub candidates: Vec<String>,
+}
+
+#[derive(Deserialize)]
+pub struct TenantQuery {
+    pub tenant_id: Uuid,
+}
+
+#[derive(Deserialize)]
+pub struct ResolveLabelQuery {
+    pub tenant_id: Uuid,
+    pub label: String,
+}
+
+#[derive(sqlx::FromRow)]
+struct MetricSchemaRow {
+    field_name: String,
+    field_type: String,
+    otel_spec_version: Option<String>,
+    display_name: Option<String>,
+    business_description: Option<String>,
+    interpretation_rule: Option<String>,
+    effective_sample_rate: Option<f64>,
+    not_for_billing: Option<bool>,
+    metric_type: Option<String>,
+    timestamp_column: Option<String>,
+    unit: Option<String>,
+    recommended_downsampling: Option<String>,
+}
+
+impl From<MetricSchemaRow> for MetricSchema {
+    fn from(row: MetricSchemaRow) -> Self {
+        let schema_complete = row.metric_type.is_some() && row.timestamp_column.is_some();
+        Self {
+            field_name: row.field_name,
+            field_type: row.field_type,
+            otel_spec_version: row.otel_spec_version,
+            display_name: row.display_name,
+            business_description: row.business_description,
+            interpretation_rule: row.interpretation_rule,
+            effective_sample_rate: row.effective_sample_rate,
+            not_for_billing: row.not_for_billing,
+            metric_type: row.metric_type,
+            timestamp_column: row.timestamp_column,
+            unit: row.unit,
+            recommended_downsampling: row.recommended_downsampling,
+            schema_complete,
+        }
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct SignalFieldRow {
+    field_name: String,
+    field_type: String,
+    otel_spec_version: Option<String>,
+    display_name: Option<String>,
+    business_description: Option<String>,
+    interpretation_rule: Option<String>,
+    effective_sample_rate: Option<f64>,
+    metric_type: Option<String>,
+    timestamp_column: Option<String>,
+    unit: Option<String>,
+    recommended_downsampling: Option<String>,
+}
+
+impl From<SignalFieldRow> for SignalField {
+    fn from(row: SignalFieldRow) -> Self {
+        let schema_complete = row.metric_type.is_some() && row.timestamp_column.is_some();
+        Self {
+            field_name: row.field_name,
+            field_type: row.field_type,
+            otel_spec_version: row.otel_spec_version,
+            display_name: row.display_name,
+            business_description: row.business_description,
+            interpretation_rule: row.interpretation_rule,
+            effective_sample_rate: row.effective_sample_rate,
+            metric_type: row.metric_type,
+            timestamp_column: row.timestamp_column,
+            unit: row.unit,
+            recommended_downsampling: row.recommended_downsampling,
+            schema_complete,
+        }
+    }
+}
+
+/// GET /internal/config/llm
+pub async fn handle_get_llm_config(
+    State(state): State<AdminServiceAppState>,
+) -> Result<Json<InternalLlmConfigResponse>, StatusCode> {
+    let rows: Vec<(String, String)> = sqlx::query_as(
+        "SELECT key, value FROM platform_config WHERE key IN ('llm_api_key', 'llm_url', 'llm_model', 'llm_provider', 'webllm_model')",
+    )
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to fetch platform_config for LLM");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let mut api_key = None;
+    let mut url = None;
+    let mut model = None;
+    let mut provider = None;
+    let mut webllm_model = None;
+
+    for (k, v) in rows {
+        if v.is_empty() {
+            continue;
+        }
+        match k.as_str() {
+            "llm_api_key" => {
+                let deobfuscated = crate::config::xor_deobfuscate(&v).unwrap_or(v);
+                if !deobfuscated.is_empty() {
+                    api_key = Some(deobfuscated);
+                }
+            }
+            "llm_url" => url = Some(v),
+            "llm_model" => model = Some(v),
+            "llm_provider" => provider = Some(v),
+            "webllm_model" => webllm_model = Some(v),
+            _ => {}
+        }
+    }
+
+    Ok(Json(InternalLlmConfigResponse {
+        api_key,
+        url,
+        model,
+        provider,
+        webllm_model,
+    }))
+}
+
+/// GET /internal/schemas/:signal_type/fields?tenant_id=...
+pub async fn handle_list_signal_fields(
+    State(state): State<AdminServiceAppState>,
+    Path(signal_type): Path<String>,
+    Query(params): Query<TenantQuery>,
+) -> Result<Json<Vec<SignalField>>, StatusCode> {
+    let rows = sqlx::query_as::<_, SignalFieldRow>(
+        "SELECT \
+             se.field_name, se.field_type, se.otel_spec_version, \
+             sa.display_name, sa.business_description, sa.interpretation_rule, \
+             sa.effective_sample_rate, sa.metric_type, sa.timestamp_column, \
+             sa.unit, sa.recommended_downsampling \
+         FROM schema_entries se \
+         LEFT JOIN semantic_annotations sa \
+             ON  sa.signal_type = se.signal_type \
+             AND sa.field_name  = se.field_name \
+             AND sa.tenant_id   = $2 \
+         WHERE se.signal_type = $1 \
+         ORDER BY se.field_name",
+    )
+    .bind(&signal_type)
+    .bind(params.tenant_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, signal_type = %signal_type, "failed to list signal fields");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(rows.into_iter().map(SignalField::from).collect()))
+}
+
+/// GET /internal/schemas/metrics/schema/:metric_name?tenant_id=...
+pub async fn handle_get_metric_schema(
+    State(state): State<AdminServiceAppState>,
+    Path(metric_name): Path<String>,
+    Query(params): Query<TenantQuery>,
+) -> Result<Json<Option<MetricSchema>>, StatusCode> {
+    let row = sqlx::query_as::<_, MetricSchemaRow>(
+        "SELECT \
+             se.field_name, se.field_type, se.otel_spec_version, \
+             sa.display_name, sa.business_description, sa.interpretation_rule, \
+             sa.effective_sample_rate, sa.not_for_billing, \
+             sa.metric_type, sa.timestamp_column, sa.unit, sa.recommended_downsampling \
+         FROM schema_entries se \
+         LEFT JOIN semantic_annotations sa \
+             ON  sa.signal_type = se.signal_type \
+             AND sa.field_name  = se.field_name \
+             AND sa.tenant_id   = $1 \
+         WHERE se.signal_type = 'metrics' \
+           AND se.field_name  = $2",
+    )
+    .bind(params.tenant_id)
+    .bind(&metric_name)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, metric_name = %metric_name, "failed to get metric schema");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(row.map(MetricSchema::from)))
+}
+
+/// GET /internal/schemas/:signal_type/resolve-label?tenant_id=...&label=...
+pub async fn handle_resolve_label(
+    State(state): State<AdminServiceAppState>,
+    Path(signal_type): Path<String>,
+    Query(params): Query<ResolveLabelQuery>,
+) -> Result<Json<ResolveLabelResponse>, StatusCode> {
+    // Step 1: exact field_name match
+    let exact: Option<String> = sqlx::query_scalar(
+        "SELECT field_name FROM schema_entries \
+         WHERE signal_type = $1 AND field_name = $2",
+    )
+    .bind(&signal_type)
+    .bind(&params.label)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed checking exact field_name match");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if let Some(field) = exact {
+        return Ok(Json(ResolveLabelResponse {
+            field_name: Some(field),
+            ambiguous: false,
+            candidates: vec![],
+        }));
+    }
+
+    // Step 2: case-insensitive display_name match
+    let candidates: Vec<String> = sqlx::query_scalar(
+        "SELECT DISTINCT se.field_name \
+         FROM schema_entries se \
+         JOIN semantic_annotations sa \
+             ON  sa.signal_type = se.signal_type \
+             AND sa.field_name  = se.field_name \
+             AND sa.tenant_id   = $3 \
+         WHERE se.signal_type = $1 \
+           AND LOWER(TRIM(sa.display_name)) = LOWER(TRIM($2)) \
+         ORDER BY se.field_name",
+    )
+    .bind(&signal_type)
+    .bind(&params.label)
+    .bind(params.tenant_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed checking display_name match");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    match candidates.len() {
+        0 => Ok(Json(ResolveLabelResponse {
+            field_name: None,
+            ambiguous: false,
+            candidates: vec![],
+        })),
+        1 => Ok(Json(ResolveLabelResponse {
+            field_name: Some(candidates.into_iter().next().unwrap()),
+            ambiguous: false,
+            candidates: vec![],
+        })),
+        _ => Ok(Json(ResolveLabelResponse {
+            field_name: None,
+            ambiguous: true,
+            candidates,
+        })),
+    }
 }

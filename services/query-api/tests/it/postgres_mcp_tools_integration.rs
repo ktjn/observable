@@ -1,400 +1,231 @@
 use query_api::mcp_tools::{
     ResolveLabelResult, get_metric_schema, list_signal_fields, resolve_label_to_column,
 };
-use sqlx::PgPool;
 use uuid::Uuid;
-
-// ── helpers ───────────────────────────────────────────────────────────────────
-//
-// `semantic_annotations` writes now live in admin-service (schemas.rs); this test only
-// needs to seed rows directly via SQL, not exercise the write path itself.
+use wiremock::matchers::{header, method, path, query_param};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const TENANT_A: Uuid = Uuid::from_u128(0xAAAA_0000_0000_0000_0000_0000_0000_0001);
-const TENANT_B: Uuid = Uuid::from_u128(0xBBBB_0000_0000_0000_0000_0000_0000_0002);
-
-// Insert a schema_entry row directly (the seeded migration only covers request_duration_ms)
-async fn insert_schema_entry(pool: &PgPool, signal_type: &str, field_name: &str, field_type: &str) {
-    sqlx::query(
-        "INSERT INTO schema_entries (signal_type, field_name, field_type) \
-         VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
-    )
-    .bind(signal_type)
-    .bind(field_name)
-    .bind(field_type)
-    .execute(pool)
-    .await
-    .expect("inserted schema_entry");
-}
-
-#[derive(Default)]
-struct AnnotationSeed {
-    display_name: Option<&'static str>,
-    metric_type: Option<&'static str>,
-    timestamp_column: Option<&'static str>,
-    unit: Option<&'static str>,
-    recommended_downsampling: Option<&'static str>,
-    interpretation_rule: Option<&'static str>,
-    not_for_billing: Option<bool>,
-}
-
-// Insert a semantic_annotations row directly (the write handlers now live in admin-service).
-async fn insert_annotation(
-    pool: &PgPool,
-    tenant_id: Uuid,
-    signal_type: &str,
-    field_name: &str,
-    seed: AnnotationSeed,
-) {
-    sqlx::query(
-        "INSERT INTO semantic_annotations \
-         (tenant_id, signal_type, field_name, display_name, metric_type, \
-          timestamp_column, unit, recommended_downsampling, interpretation_rule, not_for_billing) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
-    )
-    .bind(tenant_id)
-    .bind(signal_type)
-    .bind(field_name)
-    .bind(seed.display_name)
-    .bind(seed.metric_type)
-    .bind(seed.timestamp_column)
-    .bind(seed.unit)
-    .bind(seed.recommended_downsampling)
-    .bind(seed.interpretation_rule)
-    .bind(seed.not_for_billing.unwrap_or(false))
-    .execute(pool)
-    .await
-    .expect("inserted semantic_annotation");
-}
-
-// ── get_metric_schema ─────────────────────────────────────────────────────────
+const TEST_TOKEN: &str = "test-internal-token";
 
 #[tokio::test]
-async fn get_metric_schema_returns_none_for_unknown_metric() {
-    let pool = test_support::postgres::shared_pool().await;
-    let result = get_metric_schema(&pool, TENANT_A, "nonexistent_metric")
-        .await
-        .unwrap();
-    assert!(result.is_none(), "unknown metric must return None");
+async fn get_metric_schema_returns_none_for_unknown_metric_null() {
+    let mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/internal/schemas/metrics/schema/nonexistent_metric"))
+        .and(query_param("tenant_id", TENANT_A.to_string()))
+        .and(header("x-internal-token", TEST_TOKEN))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::Value::Null))
+        .mount(&mock)
+        .await;
+
+    let client = reqwest::Client::new();
+    let result = get_metric_schema(
+        &client,
+        &mock.uri(),
+        TEST_TOKEN,
+        TENANT_A,
+        "nonexistent_metric",
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        result.is_none(),
+        "null body from admin-service must return None"
+    );
 }
 
 #[tokio::test]
-async fn get_metric_schema_returns_structural_data_without_annotation() {
-    let pool = test_support::postgres::shared_pool().await;
-    insert_schema_entry(&pool, "metrics", "cpu_usage", "float64").await;
+async fn get_metric_schema_returns_parsed_schema_on_200() {
+    let mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/internal/schemas/metrics/schema/cpu_usage"))
+        .and(query_param("tenant_id", TENANT_A.to_string()))
+        .and(header("x-internal-token", TEST_TOKEN))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "field_name": "cpu_usage",
+            "field_type": "Float64",
+            "display_name": "CPU Usage Percent",
+            "metric_type": "gauge",
+            "timestamp_column": "time_unix_nano",
+            "unit": "%",
+            "recommended_downsampling": "1m",
+            "interpretation_rule": "higher_is_worse",
+            "not_for_billing": true,
+            "schema_complete": true
+        })))
+        .mount(&mock)
+        .await;
 
-    let result = get_metric_schema(&pool, TENANT_A, "cpu_usage")
+    let client = reqwest::Client::new();
+    let result = get_metric_schema(&client, &mock.uri(), TEST_TOKEN, TENANT_A, "cpu_usage")
         .await
         .unwrap();
-    let schema = result.expect("cpu_usage must be found");
 
+    let schema = result.expect("cpu_usage schema must be present");
     assert_eq!(schema.field_name, "cpu_usage");
-    assert_eq!(schema.field_type, "float64");
-    // no annotation for this tenant
-    assert!(schema.metric_type.is_none());
-    assert!(schema.not_for_billing.is_none());
-    assert!(!schema.schema_complete, "no annotation → incomplete");
-}
-
-#[tokio::test]
-async fn get_metric_schema_includes_tenant_annotation_overlay() {
-    let pool = test_support::postgres::shared_pool().await;
-    insert_schema_entry(&pool, "metrics", "error_rate", "float64").await;
-
-    insert_annotation(
-        &pool,
-        TENANT_A,
-        "metrics",
-        "error_rate",
-        AnnotationSeed {
-            display_name: Some("Error Rate"),
-            metric_type: Some("gauge"),
-            timestamp_column: Some("ts"),
-            unit: Some("req/s"),
-            recommended_downsampling: Some("1m"),
-            interpretation_rule: Some("higher_is_worse"),
-            not_for_billing: Some(true),
-        },
-    )
-    .await;
-
-    let schema = get_metric_schema(&pool, TENANT_A, "error_rate")
-        .await
-        .unwrap()
-        .expect("error_rate must be found");
-
+    assert_eq!(schema.display_name.as_deref(), Some("CPU Usage Percent"));
     assert_eq!(schema.metric_type.as_deref(), Some("gauge"));
-    assert_eq!(schema.timestamp_column.as_deref(), Some("ts"));
-    assert_eq!(schema.unit.as_deref(), Some("req/s"));
-    assert_eq!(
-        schema.interpretation_rule.as_deref(),
-        Some("higher_is_worse")
-    );
-    assert_eq!(schema.not_for_billing, Some(true));
-    assert!(
-        schema.schema_complete,
-        "metric_type + timestamp_column present → complete"
-    );
+    assert_eq!(schema.unit.as_deref(), Some("%"));
+    assert!(schema.schema_complete);
 }
 
 #[tokio::test]
-async fn get_metric_schema_tenant_scoped_annotation_not_visible_to_other_tenant() {
-    let pool = test_support::postgres::shared_pool().await;
-    insert_schema_entry(&pool, "metrics", "tenant_metric", "float64").await;
+async fn get_metric_schema_returns_err_on_500() {
+    let mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/internal/schemas/metrics/schema/error_metric"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&mock)
+        .await;
 
-    insert_annotation(
-        &pool,
-        TENANT_A,
-        "metrics",
-        "tenant_metric",
-        AnnotationSeed {
-            display_name: Some("Tenant A Metric"),
-            metric_type: Some("counter"),
-            timestamp_column: Some("ts"),
-            ..Default::default()
-        },
-    )
-    .await;
-
-    // Tenant B queries the same metric → sees structural data but not A's annotation
-    let schema = get_metric_schema(&pool, TENANT_B, "tenant_metric")
-        .await
-        .unwrap()
-        .expect("structural entry must be found");
-
-    assert!(
-        schema.display_name.is_none(),
-        "Tenant B must not see Tenant A's annotation"
-    );
-    assert!(schema.metric_type.is_none());
-    assert!(!schema.schema_complete);
-}
-
-#[tokio::test]
-async fn get_metric_schema_uses_seeded_data() {
-    let pool = test_support::postgres::shared_pool().await;
-    // The migration seeds tenant 00000000-0000-0000-0000-000000000001 with request_duration_ms
-    let seed_tenant = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-
-    let schema = get_metric_schema(&pool, seed_tenant, "request_duration_ms")
-        .await
-        .unwrap()
-        .expect("seeded metric must be found");
-
-    assert_eq!(schema.field_name, "request_duration_ms");
-    assert_eq!(schema.metric_type.as_deref(), Some("gauge"));
-    assert_eq!(schema.unit.as_deref(), Some("ms"));
-    assert!(
-        schema.schema_complete,
-        "seeded data has metric_type + timestamp_column"
-    );
-}
-
-// ── list_signal_fields ────────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn list_signal_fields_returns_empty_for_unknown_signal_type() {
-    let pool = test_support::postgres::shared_pool().await;
-    // "profiles" signal type has no seeded schema_entries
-    let fields = list_signal_fields(&pool, TENANT_A, "profiles")
-        .await
-        .unwrap();
-    assert!(fields.is_empty(), "no entries for profiles → empty list");
-}
-
-#[tokio::test]
-async fn list_signal_fields_returns_seeded_metrics_fields() {
-    let pool = test_support::postgres::shared_pool().await;
-    let fields = list_signal_fields(&pool, TENANT_A, "metrics")
-        .await
-        .unwrap();
-    assert!(
-        fields.iter().any(|f| f.field_name == "request_duration_ms"),
-        "seeded request_duration_ms must appear"
-    );
-}
-
-#[tokio::test]
-async fn list_signal_fields_merges_tenant_annotation() {
-    let pool = test_support::postgres::shared_pool().await;
-    insert_schema_entry(&pool, "metrics", "heap_used", "float64").await;
-
-    insert_annotation(
-        &pool,
-        TENANT_A,
-        "metrics",
-        "heap_used",
-        AnnotationSeed {
-            display_name: Some("Heap Used"),
-            unit: Some("bytes"),
-            ..Default::default()
-        },
-    )
-    .await;
-
-    let fields = list_signal_fields(&pool, TENANT_A, "metrics")
-        .await
-        .unwrap();
-    let field = fields
-        .iter()
-        .find(|f| f.field_name == "heap_used")
-        .expect("heap_used must be in list");
-
-    assert_eq!(field.display_name.as_deref(), Some("Heap Used"));
-    assert_eq!(field.unit.as_deref(), Some("bytes"));
-}
-
-#[tokio::test]
-async fn list_signal_fields_annotation_absent_for_other_tenant() {
-    let pool = test_support::postgres::shared_pool().await;
-    insert_schema_entry(&pool, "metrics", "disk_writes", "float64").await;
-
-    insert_annotation(
-        &pool,
-        TENANT_A,
-        "metrics",
-        "disk_writes",
-        AnnotationSeed {
-            display_name: Some("Disk Writes"),
-            ..Default::default()
-        },
-    )
-    .await;
-
-    // Tenant B sees the structural field but not A's display_name
-    let fields = list_signal_fields(&pool, TENANT_B, "metrics")
-        .await
-        .unwrap();
-    let field = fields
-        .iter()
-        .find(|f| f.field_name == "disk_writes")
-        .expect("disk_writes must be in list (structural)");
-
-    assert!(
-        field.display_name.is_none(),
-        "Tenant B must not see Tenant A's display_name"
-    );
-}
-
-// ── resolve_label_to_column ───────────────────────────────────────────────────
-
-#[tokio::test]
-async fn resolve_label_exact_field_name_match() {
-    let pool = test_support::postgres::shared_pool().await;
-    // "request_duration_ms" is in schema_entries (seeded)
-    let result = resolve_label_to_column(&pool, TENANT_A, "metrics", "request_duration_ms")
-        .await
-        .unwrap();
-    assert_eq!(
-        result,
-        ResolveLabelResult::Found("request_duration_ms".into()),
-        "exact field_name match must resolve"
-    );
-}
-
-#[tokio::test]
-async fn resolve_label_not_found_for_unknown_label() {
-    let pool = test_support::postgres::shared_pool().await;
+    let client = reqwest::Client::new();
     let result =
-        resolve_label_to_column(&pool, TENANT_A, "metrics", "completely_unknown_label_xyz")
-            .await
-            .unwrap();
-    assert_eq!(result, ResolveLabelResult::NotFound);
+        get_metric_schema(&client, &mock.uri(), TEST_TOKEN, TENANT_A, "error_metric").await;
+
+    assert!(result.is_err(), "500 from admin-service must return Err");
 }
 
 #[tokio::test]
-async fn resolve_label_display_name_case_insensitive_match() {
-    let pool = test_support::postgres::shared_pool().await;
-    insert_schema_entry(&pool, "metrics", "net_rx_bytes", "float64").await;
+async fn list_signal_fields_returns_parsed_fields_on_200() {
+    let mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/internal/schemas/metrics/fields"))
+        .and(query_param("tenant_id", TENANT_A.to_string()))
+        .and(header("x-internal-token", TEST_TOKEN))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
+            {
+                "field_name": "latency_ms",
+                "field_type": "Float64",
+                "otel_spec_version": null,
+                "display_name": "Latency (ms)",
+                "business_description": "Request latency",
+                "interpretation_rule": null,
+                "effective_sample_rate": null,
+                "metric_type": "gauge",
+                "timestamp_column": "time_unix_nano",
+                "unit": "ms",
+                "recommended_downsampling": null,
+                "schema_complete": true
+            }
+        ])))
+        .mount(&mock)
+        .await;
 
-    insert_annotation(
-        &pool,
-        TENANT_A,
-        "metrics",
-        "net_rx_bytes",
-        AnnotationSeed {
-            display_name: Some("Network Receive Bytes"),
-            ..Default::default()
-        },
-    )
-    .await;
-
-    // Query with different case and extra whitespace
-    let result = resolve_label_to_column(&pool, TENANT_A, "metrics", "  network receive bytes  ")
+    let client = reqwest::Client::new();
+    let fields = list_signal_fields(&client, &mock.uri(), TEST_TOKEN, TENANT_A, "metrics")
         .await
         .unwrap();
-    assert_eq!(
-        result,
-        ResolveLabelResult::Found("net_rx_bytes".into()),
-        "case-insensitive trimmed display_name match must resolve"
-    );
+
+    assert_eq!(fields.len(), 1);
+    assert_eq!(fields[0].field_name, "latency_ms");
+    assert_eq!(fields[0].display_name.as_deref(), Some("Latency (ms)"));
+    assert_eq!(fields[0].unit.as_deref(), Some("ms"));
 }
 
 #[tokio::test]
-async fn resolve_label_display_name_not_visible_to_other_tenant() {
-    let pool = test_support::postgres::shared_pool().await;
-    insert_schema_entry(&pool, "metrics", "auth_failures", "float64").await;
+async fn list_signal_fields_returns_err_on_500() {
+    let mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/internal/schemas/metrics/fields"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&mock)
+        .await;
 
-    insert_annotation(
-        &pool,
-        TENANT_A,
-        "metrics",
-        "auth_failures",
-        AnnotationSeed {
-            display_name: Some("Auth Failures"),
-            ..Default::default()
-        },
-    )
-    .await;
+    let client = reqwest::Client::new();
+    let result = list_signal_fields(&client, &mock.uri(), TEST_TOKEN, TENANT_A, "metrics").await;
 
-    // Tenant B uses the display_name — must not resolve (cross-tenant isolation)
-    let result = resolve_label_to_column(&pool, TENANT_B, "metrics", "Auth Failures")
-        .await
-        .unwrap();
-    assert_eq!(
-        result,
-        ResolveLabelResult::NotFound,
-        "Tenant B must not see Tenant A's display_name annotations"
-    );
+    assert!(result.is_err(), "500 from admin-service must return Err");
 }
 
 #[tokio::test]
-async fn resolve_label_ambiguous_when_multiple_fields_share_display_name() {
-    let pool = test_support::postgres::shared_pool().await;
-    insert_schema_entry(&pool, "metrics", "field_alpha", "float64").await;
-    insert_schema_entry(&pool, "metrics", "field_beta", "float64").await;
+async fn resolve_label_to_column_returns_resolved_column_on_200() {
+    let mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/internal/schemas/metrics/resolve-label"))
+        .and(query_param("tenant_id", TENANT_A.to_string()))
+        .and(query_param("label", "CPU Usage"))
+        .and(header("x-internal-token", TEST_TOKEN))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "field_name": "cpu_usage",
+            "ambiguous": false,
+            "candidates": []
+        })))
+        .mount(&mock)
+        .await;
 
-    // Both fields get the same display_name for the same tenant (ambiguous)
-    insert_annotation(
-        &pool,
+    let client = reqwest::Client::new();
+    let result = resolve_label_to_column(
+        &client,
+        &mock.uri(),
+        TEST_TOKEN,
         TENANT_A,
         "metrics",
-        "field_alpha",
-        AnnotationSeed {
-            display_name: Some("Shared Display Name"),
-            ..Default::default()
-        },
+        "CPU Usage",
     )
-    .await;
-    insert_annotation(
-        &pool,
-        TENANT_A,
-        "metrics",
-        "field_beta",
-        AnnotationSeed {
-            display_name: Some("Shared Display Name"),
-            ..Default::default()
-        },
-    )
-    .await;
+    .await
+    .unwrap();
 
-    let result = resolve_label_to_column(&pool, TENANT_A, "metrics", "Shared Display Name")
-        .await
-        .unwrap();
     match result {
-        ResolveLabelResult::Ambiguous(candidates) => {
-            assert!(candidates.contains(&"field_alpha".to_string()));
-            assert!(candidates.contains(&"field_beta".to_string()));
-        }
-        other => panic!("expected Ambiguous, got {other:?}"),
+        ResolveLabelResult::Found(col) => assert_eq!(col, "cpu_usage"),
+        other => panic!("expected Found, got {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn resolve_label_to_column_returns_not_found_when_unmatched() {
+    let mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/internal/schemas/metrics/resolve-label"))
+        .and(query_param("tenant_id", TENANT_A.to_string()))
+        .and(query_param("label", "Unknown Label"))
+        .and(header("x-internal-token", TEST_TOKEN))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "field_name": null,
+            "ambiguous": false,
+            "candidates": []
+        })))
+        .mount(&mock)
+        .await;
+
+    let client = reqwest::Client::new();
+    let result = resolve_label_to_column(
+        &client,
+        &mock.uri(),
+        TEST_TOKEN,
+        TENANT_A,
+        "metrics",
+        "Unknown Label",
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        matches!(result, ResolveLabelResult::NotFound),
+        "unmatched label must map to ResolveLabelResult::NotFound"
+    );
+}
+
+#[tokio::test]
+async fn resolve_label_to_column_returns_err_on_500() {
+    let mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/internal/schemas/metrics/resolve-label"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&mock)
+        .await;
+
+    let client = reqwest::Client::new();
+    let result = resolve_label_to_column(
+        &client,
+        &mock.uri(),
+        TEST_TOKEN,
+        TENANT_A,
+        "metrics",
+        "Some Label",
+    )
+    .await;
+
+    assert!(result.is_err(), "500 must return Err");
 }

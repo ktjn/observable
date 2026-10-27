@@ -32,7 +32,6 @@ use domain::{
     NlqFilter, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, NlqTimeRange, VisualizationFrame,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 use uuid::Uuid;
 
 // ── LlmCaller trait ───────────────────────────────────────────────────────────
@@ -269,14 +268,24 @@ pub fn server_side_deny_gate(question: &str) -> Option<String> {
 /// Label key fetch errors are non-fatal: on failure a warning is logged and an empty list
 /// is returned so the rest of the pipeline continues unimpeded.
 async fn fetch_schema_context(
-    db: &PgPool,
+    client: &reqwest::Client,
+    admin_service_url: &str,
+    internal_token: &str,
     ch: &clickhouse::Client,
     tenant_id: Uuid,
     limit: usize,
 ) -> Result<(Vec<crate::mcp_tools::SignalField>, Vec<String>), LlmAdapterError> {
     // Non-fatal on error: if the schema registry is temporarily unreachable the
     // prompt will have no metric metadata but the pipeline can still proceed.
-    let mut fields = match crate::mcp_tools::list_signal_fields(db, tenant_id, "metrics").await {
+    let mut fields = match crate::mcp_tools::list_signal_fields(
+        client,
+        admin_service_url,
+        internal_token,
+        tenant_id,
+        "metrics",
+    )
+    .await
+    {
         Ok(f) => f,
         Err(e) => {
             tracing::warn!(
@@ -1402,7 +1411,9 @@ const COMPACT_PROMPT_METRIC_LIMIT: usize = 8;
 /// Never produces a repair-turn prompt — the returned `question` is always the
 /// original question. Repair prompts are built by `resume_nlq_pipeline`.
 pub async fn prepare_nlq_pipeline(
-    db: &PgPool,
+    client: &reqwest::Client,
+    admin_service_url: &str,
+    internal_token: &str,
     ch: &clickhouse::Client,
     tenant_id: Uuid,
     req: &NlqQueryRequest,
@@ -1436,7 +1447,15 @@ pub async fn prepare_nlq_pipeline(
         PromptStyle::Full => FULL_PROMPT_METRIC_LIMIT,
         PromptStyle::Compact => COMPACT_PROMPT_METRIC_LIMIT,
     };
-    let (metrics, label_keys) = fetch_schema_context(db, ch, tenant_id, metric_limit).await?;
+    let (metrics, label_keys) = fetch_schema_context(
+        client,
+        admin_service_url,
+        internal_token,
+        ch,
+        tenant_id,
+        metric_limit,
+    )
+    .await?;
 
     // 3. Build system prompt
     let system_prompt = match prompt_style {
@@ -1479,8 +1498,11 @@ pub enum NlqResumeOutcome {
 /// it, and either produces a final response (today's steps 6–9, unchanged) or — on an
 /// `InvalidResponse` parse error within the repair budget — a repair-turn prompt for the
 /// caller to send back to the LLM. The repair loop itself lives in the caller.
+#[allow(clippy::too_many_arguments)]
 pub async fn resume_nlq_pipeline(
-    db: &PgPool,
+    client: &reqwest::Client,
+    admin_service_url: &str,
+    internal_token: &str,
     ch: &clickhouse::Client,
     tenant_id: Uuid,
     req: &NlqQueryRequest,
@@ -1594,9 +1616,15 @@ pub async fn resume_nlq_pipeline(
         && !is_trace_query
         && let Some(ref llm_metric) = ir.metric
     {
-        let all_fields = crate::mcp_tools::list_signal_fields(db, tenant_id, "metrics")
-            .await
-            .unwrap_or_default();
+        let all_fields = crate::mcp_tools::list_signal_fields(
+            client,
+            admin_service_url,
+            internal_token,
+            tenant_id,
+            "metrics",
+        )
+        .await
+        .unwrap_or_default();
         let known_names: Vec<&str> = all_fields.iter().map(|m| m.field_name.as_str()).collect();
         if !known_names.iter().any(|k| k == &llm_metric.as_str())
             && let Some(resolved) = fuzzy_resolve_metric(llm_metric, &known_names)
@@ -1635,9 +1663,16 @@ pub async fn resume_nlq_pipeline(
 
     // 9. Execute MCP query
     let mcp_start = std::time::Instant::now();
-    let frame = execute_mcp_query(db, ch, tenant_id, &ir)
-        .await
-        .map_err(LlmAdapterError::QueryExecution)?;
+    let frame = execute_mcp_query(
+        client,
+        admin_service_url,
+        internal_token,
+        ch,
+        tenant_id,
+        &ir,
+    )
+    .await
+    .map_err(LlmAdapterError::QueryExecution)?;
     let mcp_elapsed_ms = mcp_start.elapsed().as_millis();
 
     tracing::debug!(
@@ -1655,7 +1690,9 @@ pub async fn resume_nlq_pipeline(
 /// Advisory-only: every VisualizationFrame carries provenance (source_sql, approximation_statement).
 /// Callers must not use results for billing, SLA enforcement, or regulatory compliance.
 pub async fn run_nlq_pipeline(
-    db: &PgPool,
+    client: &reqwest::Client,
+    admin_service_url: &str,
+    internal_token: &str,
     ch: &clickhouse::Client,
     llm: &dyn LlmCaller,
     tenant_id: Uuid,
@@ -1663,7 +1700,17 @@ pub async fn run_nlq_pipeline(
 ) -> Result<NlqQueryResponse, LlmAdapterError> {
     let pipeline_start = std::time::Instant::now();
 
-    let prepared = match prepare_nlq_pipeline(db, ch, tenant_id, req, PromptStyle::Full).await? {
+    let prepared = match prepare_nlq_pipeline(
+        client,
+        admin_service_url,
+        internal_token,
+        ch,
+        tenant_id,
+        req,
+        PromptStyle::Full,
+    )
+    .await?
+    {
         NlqPrepareOutcome::Declined(response) => return Ok(response),
         NlqPrepareOutcome::Prepared(prepared) => prepared,
     };
@@ -1687,7 +1734,9 @@ pub async fn run_nlq_pipeline(
         );
 
         match resume_nlq_pipeline(
-            db,
+            client,
+            admin_service_url,
+            internal_token,
             ch,
             tenant_id,
             req,
@@ -1788,7 +1837,16 @@ async fn try_pre_llm_shortcuts(
                 return Some(Ok(NlqQueryResponse::Ir { ir }));
             }
             return Some(
-                match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
+                match execute_mcp_query(
+                    &state.http_client,
+                    &state.admin_service_url,
+                    &state.internal_service_token,
+                    &state.ch,
+                    ctx.tenant_id,
+                    &ir,
+                )
+                .await
+                {
                     Ok(frame) => Ok(NlqQueryResponse::Frame { frame }),
                     Err(e) => Err(map_mcp_error(e, ctx.tenant_id)),
                 },
@@ -1814,7 +1872,16 @@ async fn try_pre_llm_shortcuts(
                 ir = merge_irs(base, ir);
             }
             return Some(
-                match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
+                match execute_mcp_query(
+                    &state.http_client,
+                    &state.admin_service_url,
+                    &state.internal_service_token,
+                    &state.ch,
+                    ctx.tenant_id,
+                    &ir,
+                )
+                .await
+                {
                     Ok(frame) => Ok(NlqQueryResponse::Frame { frame }),
                     Err(e) => Err(map_mcp_error(e, ctx.tenant_id)),
                 },
@@ -1845,7 +1912,16 @@ async fn try_pre_llm_shortcuts(
             return Some(Ok(NlqQueryResponse::Ir { ir }));
         }
         return Some(
-            match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
+            match execute_mcp_query(
+                &state.http_client,
+                &state.admin_service_url,
+                &state.internal_service_token,
+                &state.ch,
+                ctx.tenant_id,
+                &ir,
+            )
+            .await
+            {
                 Ok(frame) => Ok(NlqQueryResponse::Frame { frame }),
                 Err(e) => Err(map_mcp_error(e, ctx.tenant_id)),
             },
@@ -1927,7 +2003,13 @@ pub async fn handle_nlq_query(
     // client is expected to use `/v1/nlq/prepare` + `/v1/nlq/complete` instead, which run
     // inference in-browser. This is a guard against a stale/misrouted client, not a path
     // any correctly written client should hit in normal operation.
-    if crate::llm_config::fetch_provider(&state.db).await == crate::llm_config::LlmProvider::Webllm
+    if crate::llm_config::fetch_provider(
+        &state.http_client,
+        &state.admin_service_url,
+        &state.internal_service_token,
+    )
+    .await
+        == crate::llm_config::LlmProvider::Webllm
     {
         return Err((
             StatusCode::SERVICE_UNAVAILABLE,
@@ -1940,33 +2022,36 @@ pub async fn handle_nlq_query(
     let question = req.question.as_deref().unwrap_or("").trim();
 
     // Resolve the LLM caller: prefer pre-built caller in AppState (from env var at startup),
-    // fall back to constructing one from the DB-stored config at call time.
+    // fall back to constructing one from the admin-service remote config at call time.
     //
     // No-auth providers (Ollama, local vLLM) may have only a URL + model configured and no API
     // key. An absent key is treated as an empty string so those providers work out of the box,
     // mirroring what `test_llm_connection` does.  503 is only returned when neither key nor URL
-    // is configured in env or DB — i.e., the user has not done any LLM setup at all.
+    // is configured in env or admin-service — i.e., the user has not done any LLM setup at all.
     let db_caller: Option<OpenAiLlmCaller>;
     let llm: &dyn LlmCaller = if let Some(ref arc) = state.llm {
         arc.as_ref()
     } else {
-        let api_key = crate::llm_config::fetch_db_key(&state.db)
-            .await
-            .map_err(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({"error": "database error resolving LLM config"})),
-                )
-            })?;
-        let url = crate::llm_config::fetch_db_value(&state.db, "llm_url")
-            .await
+        let remote_config = crate::llm_config::fetch_remote_llm_config(
+            &state.http_client,
+            &state.admin_service_url,
+            &state.internal_service_token,
+        )
+        .await
+        .unwrap_or_default();
+
+        let api_key = std::env::var("LLM_API_KEY")
+            .or_else(|_| std::env::var("OPENAI_API_KEY"))
             .ok()
-            .flatten()
+            .filter(|v| !v.is_empty())
+            .or(remote_config.api_key);
+
+        let url = crate::llm_config::env_llm_url()
+            .or(remote_config.url)
             .filter(|v| !v.is_empty());
-        let model = crate::llm_config::fetch_db_value(&state.db, "llm_model")
-            .await
-            .ok()
-            .flatten()
+
+        let model = crate::llm_config::env_llm_model()
+            .or(remote_config.model)
             .filter(|v| !v.is_empty());
 
         if api_key.is_none() && url.is_none() {
@@ -1984,7 +2069,16 @@ pub async fn handle_nlq_query(
             if req.mode == NlqQueryMode::Interpret {
                 return Ok(Json(NlqQueryResponse::Ir { ir }));
             }
-            return match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
+            return match execute_mcp_query(
+                &state.http_client,
+                &state.admin_service_url,
+                &state.internal_service_token,
+                &state.ch,
+                ctx.tenant_id,
+                &ir,
+            )
+            .await
+            {
                 Ok(frame) => Ok(Json(NlqQueryResponse::Frame { frame })),
                 Err(e) => {
                     tracing::error!(error = %e, tenant_id = %ctx.tenant_id, "shorthand fallback MCP query failed");
@@ -2006,7 +2100,17 @@ pub async fn handle_nlq_query(
         db_caller.as_ref().unwrap()
     };
 
-    match run_nlq_pipeline(&state.db, &state.ch, llm, ctx.tenant_id, &req).await {
+    match run_nlq_pipeline(
+        &state.http_client,
+        &state.admin_service_url,
+        &state.internal_service_token,
+        &state.ch,
+        llm,
+        ctx.tenant_id,
+        &req,
+    )
+    .await
+    {
         Ok(response) => Ok(Json(response)),
         Err(LlmAdapterError::LlmCall(e)) => {
             tracing::error!(error = %e, tenant_id = %ctx.tenant_id, "LLM call failed");
@@ -2103,13 +2207,28 @@ pub async fn handle_nlq_prepare(
     // runs inference locally and posts the raw response to `/v1/nlq/complete`) — every
     // prebuilt WebLLM model tops out at a 4096-token context window, so those tenants get
     // the compact prompt (see `PromptStyle`/`build_system_prompt_compact`).
-    let provider = crate::llm_config::fetch_provider(&state.db).await;
+    let provider = crate::llm_config::fetch_provider(
+        &state.http_client,
+        &state.admin_service_url,
+        &state.internal_service_token,
+    )
+    .await;
     let prompt_style = match provider {
         crate::llm_config::LlmProvider::Remote => PromptStyle::Full,
         crate::llm_config::LlmProvider::Webllm => PromptStyle::Compact,
     };
 
-    match prepare_nlq_pipeline(&state.db, &state.ch, ctx.tenant_id, &req, prompt_style).await {
+    match prepare_nlq_pipeline(
+        &state.http_client,
+        &state.admin_service_url,
+        &state.internal_service_token,
+        &state.ch,
+        ctx.tenant_id,
+        &req,
+        prompt_style,
+    )
+    .await
+    {
         Ok(NlqPrepareOutcome::Declined(response)) => {
             Ok(Json(NlqPrepareResponse::Final { response }))
         }
@@ -2167,7 +2286,9 @@ pub async fn handle_nlq_complete(
     };
 
     match resume_nlq_pipeline(
-        &state.db,
+        &state.http_client,
+        &state.admin_service_url,
+        &state.internal_service_token,
         &state.ch,
         session.tenant_id,
         &session.req,
@@ -2220,14 +2341,21 @@ pub async fn handle_nlq_metadata(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
 ) -> Result<Json<NlqMetadataResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let (metrics, label_keys) = fetch_schema_context(&state.db, &state.ch, ctx.tenant_id, 20)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": e.to_string()})),
-            )
-        })?;
+    let (metrics, label_keys) = fetch_schema_context(
+        &state.http_client,
+        &state.admin_service_url,
+        &state.internal_service_token,
+        &state.ch,
+        ctx.tenant_id,
+        20,
+    )
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+    })?;
     Ok(Json(NlqMetadataResponse {
         metrics,
         label_keys,
@@ -2246,6 +2374,7 @@ pub async fn handle_nlq_metadata(
 mod tests {
     use super::*;
     use domain::{NlqOperation, NlqSignal, NlqTimeRange, NlqVisualizationHint};
+    use sqlx::PgPool;
 
     // ── Mock LlmCaller ────────────────────────────────────────────────────────
 
@@ -3424,16 +3553,24 @@ mod tests {
 
     #[tokio::test]
     async fn prepare_pipeline_deny_gate_short_circuits() {
-        let db = fake_db();
+        let client = reqwest::Client::new();
         let ch = fake_ch();
         let req = default_req(
             "What is our billing total this month?",
             NlqQueryMode::Execute,
         );
 
-        let outcome = prepare_nlq_pipeline(&db, &ch, Uuid::nil(), &req, PromptStyle::Full)
-            .await
-            .unwrap();
+        let outcome = prepare_nlq_pipeline(
+            &client,
+            "http://admin-service:4324",
+            "test-token",
+            &ch,
+            Uuid::nil(),
+            &req,
+            PromptStyle::Full,
+        )
+        .await
+        .unwrap();
 
         match outcome {
             NlqPrepareOutcome::Declined(NlqQueryResponse::Decline { reason }) => {
@@ -3448,15 +3585,25 @@ mod tests {
 
     #[tokio::test]
     async fn resume_pipeline_valid_ir_produces_final() {
-        let db = fake_db();
+        let client = reqwest::Client::new();
         let ch = fake_ch();
         let ir = log_ir();
         let raw = serde_json::to_string(&serde_json::json!({"type": "ir", "ir": ir})).unwrap();
         let req = default_req("show me errors", NlqQueryMode::Interpret);
 
-        let outcome = resume_nlq_pipeline(&db, &ch, Uuid::nil(), &req, "show me errors", 0, &raw)
-            .await
-            .unwrap();
+        let outcome = resume_nlq_pipeline(
+            &client,
+            "http://admin-service:4324",
+            "test-token",
+            &ch,
+            Uuid::nil(),
+            &req,
+            "show me errors",
+            0,
+            &raw,
+        )
+        .await
+        .unwrap();
 
         match outcome {
             NlqResumeOutcome::Final(NlqQueryResponse::Ir { ir: got }) => {
@@ -3468,12 +3615,14 @@ mod tests {
 
     #[tokio::test]
     async fn resume_pipeline_invalid_response_under_cap_returns_needs_repair() {
-        let db = fake_db();
+        let client = reqwest::Client::new();
         let ch = fake_ch();
         let req = default_req("original question", NlqQueryMode::Execute);
 
         let outcome = resume_nlq_pipeline(
-            &db,
+            &client,
+            "http://admin-service:4324",
+            "test-token",
             &ch,
             Uuid::nil(),
             &req,
@@ -3497,12 +3646,14 @@ mod tests {
 
     #[tokio::test]
     async fn resume_pipeline_invalid_response_at_cap_returns_final_invalid_response() {
-        let db = fake_db();
+        let client = reqwest::Client::new();
         let ch = fake_ch();
         let req = default_req("q", NlqQueryMode::Execute);
 
         let outcome = resume_nlq_pipeline(
-            &db,
+            &client,
+            "http://admin-service:4324",
+            "test-token",
             &ch,
             Uuid::nil(),
             &req,

@@ -13,7 +13,7 @@
 use crate::discovery::{
     InfrastructureEntityType, all_infrastructure_entity_types, fetch_infrastructure_summaries,
 };
-use crate::mcp_tools::get_metric_schema;
+use crate::mcp_tools::{get_metric_schema, list_signal_fields};
 use crate::middleware::auth::TenantContext;
 use crate::sql_templates::{
     LogSqlContext, SchemaMetricType, SqlContext, SqlTemplateError, escape_string_value,
@@ -29,7 +29,6 @@ use domain::{
     FieldRole, FieldRoleKind, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, VisualizationFrame,
     VisualizationFrameType,
 };
-use sqlx::Row;
 use std::collections::HashSet;
 use uuid::Uuid;
 
@@ -77,7 +76,9 @@ impl From<clickhouse::error::Error> for McpQueryError {
 /// Advisory-only: every returned frame has a non-empty `approximation_statement`.
 /// Callers must not feed the result into automated alert evaluation, billing, or SLA enforcement.
 pub async fn execute_mcp_query(
-    db: &sqlx::PgPool,
+    client: &reqwest::Client,
+    admin_service_url: &str,
+    internal_token: &str,
     ch: &clickhouse::Client,
     tenant_id: Uuid,
     ir: &NlqIr,
@@ -105,31 +106,40 @@ pub async fn execute_mcp_query(
     // Step 1: Resolve metric name and schema
     let metric_name = ir.metric.as_deref().ok_or(McpQueryError::MissingMetric)?;
 
-    let schema_opt = get_metric_schema(db, tenant_id, metric_name)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, metric_name, "schema registry lookup failed");
-            // Wrap as ClickHouse error won't do; treat as internal
-            McpQueryError::SqlTemplate(SqlTemplateError::MissingMetricName)
-        })?;
+    let schema_opt = get_metric_schema(
+        client,
+        admin_service_url,
+        internal_token,
+        tenant_id,
+        metric_name,
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, metric_name, "schema registry lookup failed");
+        // Wrap as ClickHouse error won't do; treat as internal
+        McpQueryError::SqlTemplate(SqlTemplateError::MissingMetricName)
+    })?;
 
     let schema = schema_opt.ok_or_else(|| McpQueryError::UnknownMetric(metric_name.into()))?;
 
     let mut allowed_fields = allowed_metric_filter_fields();
-    let field_rows = sqlx::query("SELECT field_name FROM schema_entries WHERE signal_type = $1")
-        .bind("metrics")
-        .fetch_all(db)
-        .await
-        .map_err(|e| {
-            McpQueryError::SqlTemplate(SqlTemplateError::InvalidFilterValue(format!(
-                "schema field query failed: {}",
-                e
-            )))
-        })?;
+    let fields = list_signal_fields(
+        client,
+        admin_service_url,
+        internal_token,
+        tenant_id,
+        "metrics",
+    )
+    .await
+    .map_err(|e| {
+        McpQueryError::SqlTemplate(SqlTemplateError::InvalidFilterValue(format!(
+            "schema field query failed: {}",
+            e
+        )))
+    })?;
 
-    for row in field_rows {
-        let field_name: String = row.get("field_name");
-        allowed_fields.insert(field_name.to_lowercase());
+    for field in fields {
+        allowed_fields.insert(field.field_name.to_lowercase());
     }
 
     for filter in &ir.filters {
@@ -692,7 +702,16 @@ pub async fn handle_mcp_query(
     Extension(ctx): Extension<TenantContext>,
     Json(ir): Json<NlqIr>,
 ) -> Result<Json<VisualizationFrame>, (StatusCode, Json<serde_json::Value>)> {
-    match execute_mcp_query(&state.db, &state.ch, ctx.tenant_id, &ir).await {
+    match execute_mcp_query(
+        &state.http_client,
+        &state.admin_service_url,
+        &state.internal_service_token,
+        &state.ch,
+        ctx.tenant_id,
+        &ir,
+    )
+    .await
+    {
         Ok(frame) => Ok(Json(frame)),
         Err(McpQueryError::MissingMetric) => Err((
             StatusCode::BAD_REQUEST,

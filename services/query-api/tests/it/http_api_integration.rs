@@ -1102,6 +1102,53 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
     let (ch_client, _ch_container) = start_clickhouse().await;
     let mock_server = start_dev_auth_mock().await;
 
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path_regex(
+            r"^/internal/schemas/metrics/schema/.*",
+        ))
+        .respond_with(
+            wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "field_name": "request_duration_ms",
+                "field_type": "Float64",
+                "otel_spec_version": null,
+                "display_name": "Request Duration",
+                "business_description": null,
+                "interpretation_rule": null,
+                "effective_sample_rate": null,
+                "not_for_billing": false,
+                "metric_type": "gauge",
+                "timestamp_column": "timestamp_unix_nano",
+                "unit": "ms",
+                "recommended_downsampling": null,
+                "schema_complete": true
+            })),
+        )
+        .mount(&mock_server)
+        .await;
+
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/internal/schemas/metrics/fields"))
+        .respond_with(
+            wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!([
+                {
+                    "field_name": "request_duration_ms",
+                    "field_type": "Float64",
+                    "otel_spec_version": null,
+                    "display_name": "Request Duration",
+                    "business_description": null,
+                    "interpretation_rule": null,
+                    "effective_sample_rate": null,
+                    "metric_type": "gauge",
+                    "timestamp_column": "timestamp_unix_nano",
+                    "unit": "ms",
+                    "recommended_downsampling": null,
+                    "schema_complete": true
+                }
+            ])),
+        )
+        .mount(&mock_server)
+        .await;
+
     let state = query_api::traces::AppState {
         ch: ch_client,
         db: db.clone(),
@@ -1110,7 +1157,7 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
         auth_service_url: mock_server.uri(),
         metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
         sessions: query_api::nlq_session::NlqSessionStore::default(),
-        admin_service_url: "http://admin-service:4324".into(),
+        admin_service_url: mock_server.uri(),
         alert_evaluator_url: "http://alert-evaluator:4322".into(),
         internal_service_token: "test-internal-token".into(),
         http_client: reqwest::Client::new(),
@@ -1160,6 +1207,138 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
         body_str.contains("field 'invalid_foo' not in schema catalog"),
         "unexpected response body: {body_str}"
     );
+}
+
+#[tokio::test]
+async fn test_mcp_tools_endpoints_delegate_to_admin_service() {
+    let db = test_support::postgres::shared_pool().await;
+    let mock_server = start_dev_auth_mock().await;
+
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path_regex(
+            r"^/internal/schemas/metrics/schema/.*",
+        ))
+        .respond_with(
+            wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "field_name": "request_duration_ms",
+                "field_type": "Float64",
+                "otel_spec_version": null,
+                "display_name": "Request Duration",
+                "business_description": null,
+                "interpretation_rule": null,
+                "effective_sample_rate": null,
+                "not_for_billing": false,
+                "metric_type": "gauge",
+                "timestamp_column": "timestamp_unix_nano",
+                "unit": "ms",
+                "recommended_downsampling": null,
+                "schema_complete": true
+            })),
+        )
+        .mount(&mock_server)
+        .await;
+
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/internal/schemas/metrics/fields"))
+        .respond_with(
+            wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!([
+                {
+                    "field_name": "request_duration_ms",
+                    "field_type": "Float64",
+                    "otel_spec_version": null,
+                    "display_name": "Request Duration",
+                    "business_description": null,
+                    "interpretation_rule": null,
+                    "effective_sample_rate": null,
+                    "metric_type": "gauge",
+                    "timestamp_column": "timestamp_unix_nano",
+                    "unit": "ms",
+                    "recommended_downsampling": null,
+                    "schema_complete": true
+                }
+            ])),
+        )
+        .mount(&mock_server)
+        .await;
+
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path(
+            "/internal/schemas/metrics/resolve-label",
+        ))
+        .respond_with(
+            wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "field_name": "request_duration_ms",
+                "ambiguous": false,
+                "candidates": []
+            })),
+        )
+        .mount(&mock_server)
+        .await;
+
+    let state = query_api::traces::AppState {
+        ch: ChClient::default().with_url("http://127.0.0.1:19999"),
+        db: db.clone(),
+        planner: Arc::new(QueryPlanner),
+        llm: None,
+        auth_service_url: mock_server.uri(),
+        metrics: Arc::new(query_api::observability::QueryApiMetrics::new()),
+        sessions: query_api::nlq_session::NlqSessionStore::default(),
+        admin_service_url: mock_server.uri(),
+        alert_evaluator_url: "http://alert-evaluator:4322".into(),
+        internal_service_token: "test-internal-token".into(),
+        http_client: reqwest::Client::new(),
+    };
+
+    let app = Router::new()
+        .route(
+            "/v1/mcp/tools/metric-schema/{metric_name}",
+            get(query_api::mcp_tools::handle_get_metric_schema),
+        )
+        .route(
+            "/v1/mcp/tools/signal-fields/{signal_type}",
+            get(query_api::mcp_tools::handle_list_signal_fields),
+        )
+        .route(
+            "/v1/mcp/tools/resolve-label/{signal_type}",
+            get(query_api::mcp_tools::handle_resolve_label),
+        )
+        .layer(axum_middleware::from_fn(require_tenant))
+        .layer(axum::Extension(db.clone()))
+        .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
+        .with_state(state.clone());
+
+    // 1. Metric schema
+    let req = Request::builder()
+        .method("GET")
+        .uri("/v1/mcp/tools/metric-schema/request_duration_ms")
+        .header("Authorization", format!("Bearer {}", DEV_API_KEY))
+        .header("X-Tenant-ID", DEV_TENANT_ID)
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // 2. Signal fields
+    let req = Request::builder()
+        .method("GET")
+        .uri("/v1/mcp/tools/signal-fields/metrics")
+        .header("Authorization", format!("Bearer {}", DEV_API_KEY))
+        .header("X-Tenant-ID", DEV_TENANT_ID)
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // 3. Resolve label
+    let req = Request::builder()
+        .method("GET")
+        .uri("/v1/mcp/tools/resolve-label/metrics?label=request_duration_ms")
+        .header("Authorization", format!("Bearer {}", DEV_API_KEY))
+        .header("X-Tenant-ID", DEV_TENANT_ID)
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
 }
 
 #[tokio::test]

@@ -235,8 +235,12 @@ Full-platform Compose, Helm, upgrade, rollback, and E2E verification move to
 
 ### Control-plane ownership
 
-Deployment markers and generic change events are control-plane metadata and move to
-`observable-control`.
+Deployment markers, generic change events, platform configuration, and schema registry entries
+and annotations are control-plane metadata and belong to `observable-control`.
+
+Cross-owner SQL against `control` tables is prohibited; other components (`observable-query`)
+access control-plane metadata via internal APIs (`/internal/deployment-*`, `/internal/schemas/*`,
+`/internal/config/llm`).
 
 This supersedes ADR-024's decision that deployment writes permanently belong in
 `ingest-gateway`. The existing route remains a temporary implementation detail until the
