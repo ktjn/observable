@@ -1,5 +1,4 @@
 use axum::{extract::Request, http::StatusCode, middleware::Next, response::Response};
-use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -72,10 +71,6 @@ pub async fn require_internal_service(req: Request, next: Next) -> Result<Respon
 }
 
 pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, StatusCode> {
-    let db = req.extensions().get::<PgPool>().cloned().ok_or_else(|| {
-        tracing::error!("PgPool not found in request extensions — misconfigured middleware stack");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
     let auth_service_url = req.extensions().get::<Arc<String>>().cloned();
     let http_client = req
         .extensions()
@@ -132,47 +127,7 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    let ctx = validate_session(&http_client, &auth_url, &session_token).await?;
-
-    if let Some(requested_tenant_id) = tenant_id_hdr
-        && requested_tenant_id != ctx.tenant_id
-    {
-        let user_id = ctx.user_id.ok_or_else(|| {
-            tracing::error!("session context missing user_id for cross-tenant check");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-        let requested_role = sqlx::query_scalar::<_, String>(
-            "SELECT role FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2",
-        )
-        .bind(user_id)
-        .bind(requested_tenant_id)
-        .fetch_optional(&db)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "db error checking cross-tenant access");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-        let Some(role) = requested_role else {
-            tracing::warn!(
-                %user_id,
-                session_tenant = %ctx.tenant_id,
-                requested_tenant = %requested_tenant_id,
-                "user does not have access to requested tenant"
-            );
-            return Err(StatusCode::FORBIDDEN);
-        };
-
-        let ctx = TenantContext {
-            tenant_id: requested_tenant_id,
-            user_id: Some(user_id),
-            role,
-        };
-        req.extensions_mut().insert(ctx);
-        return Ok(next.run(req).await);
-    }
-
+    let ctx = validate_session(&http_client, &auth_url, &session_token, tenant_id_hdr).await?;
     req.extensions_mut().insert(ctx);
     Ok(next.run(req).await)
 }
@@ -181,10 +136,12 @@ async fn validate_session(
     client: &reqwest::Client,
     auth_url: &str,
     token: &str,
+    requested_tenant_id: Option<Uuid>,
 ) -> Result<TenantContext, StatusCode> {
-    let session = observable_auth::verify_session(client, auth_url, token)
-        .await
-        .map_err(StatusCode::from)?;
+    let session =
+        observable_auth::verify_session_with_tenant(client, auth_url, token, requested_tenant_id)
+            .await
+            .map_err(StatusCode::from)?;
 
     Ok(TenantContext {
         tenant_id: session.tenant_id,
@@ -250,10 +207,6 @@ mod tests {
         matchers::{method, path},
     };
 
-    fn test_pool() -> PgPool {
-        PgPool::connect_lazy("postgres://postgres:postgres@127.0.0.1:1/observable").unwrap()
-    }
-
     fn app(auth_service_url: String) -> Router {
         Router::new()
             .route(
@@ -263,7 +216,6 @@ mod tests {
                 }),
             )
             .layer(middleware::from_fn(require_tenant))
-            .layer(Extension(test_pool()))
             .layer(Extension(Arc::new(auth_service_url)))
     }
 

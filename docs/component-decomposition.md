@@ -557,9 +557,13 @@ Exit evidence:
 - introduce explicit ClickHouse schema compatibility metadata
 
 Logical PostgreSQL schemas are introduced (see the Data Ownership section above) — every table now
-enumerably belongs to one owner. Separate credentials and removing cross-owner SQL are not done:
-both are blocked on Phase 4 first moving the last cross-owner SQL out of `query-api` (Phase 6 moved
-the alerting and deployment-marker reads out already).
+enumerably belongs to one owner. Cross-owner SQL has been removed across all components:
+`query-api` queries control-plane metadata (`schema_entries`, `semantic_annotations`, `platform_config`)
+over internal HTTP via `admin-service` (`/internal/schemas/*`, `/internal/config/llm`), and alerting/incident
+correlation via `alert-evaluator` (`/internal/alerting-*`). In addition, cross-tenant session revalidation
+(`auth.user_tenant_roles`) in `query-api`, `alert-evaluator`, and `admin-service` auth middleware now delegates
+via `observable-auth` to `auth-service`'s `POST /internal/validate-session`. Separate credentials per owner
+remain the follow-on step before physical database separation.
 
 ClickHouse migration ownership is settled: `migrations/clickhouse/*.sql` are owned by
 `observable-store-clickhouse`. The store declares its current schema version in
@@ -579,11 +583,13 @@ it with `--update`).
 Exit evidence:
 
 - every component can enumerate the tables it owns — **met**, via the schema assignment above
-- no component executes SQL against another component's PostgreSQL schema — **met for control and alerting**:
+- no component executes SQL against another component's PostgreSQL schema — **met across all components**:
   `query-api` reads deployment markers, schema entries, semantic annotations, and LLM config over
   internal HTTP from `admin-service` (`/internal/deployment-*`, `/internal/schemas/*`, `/internal/config/llm`),
-  and alerting/incident correlation from `alert-evaluator` (`/internal/alerting-*`). All cross-owner SQL against
-  control and alerting schemas has been eliminated.
+  and alerting/incident correlation from `alert-evaluator` (`/internal/alerting-*`). In addition, cross-tenant
+  session revalidation (`auth.user_tenant_roles`) in `query-api`, `alert-evaluator`, and `admin-service` auth
+  middleware now delegates via `observable-auth` to `auth-service`'s `POST /internal/validate-session`.
+  No component executes cross-owner SQL against another component's PostgreSQL schema.
 - `observable-query` declares and enforces a tested ClickHouse storage-schema range — **met**, via
   `services/query-api/clickhouse-schema-support.yaml` and `scripts/check-clickhouse-schema-compat.sh`
 
@@ -1095,6 +1101,7 @@ each is waiting on.
 | Item | State | Blocker / next step |
 |---|---|---|
 | Remove cross-owner SQL for NLQ schema tables (Phase 3 exit evidence) | Done | Cross-owner SQL against `control.schema_entries`, `control.semantic_annotations`, and `control.platform_config` has been removed from `observable-query`. Metadata is queried over internal HTTP via `admin-service` (`/internal/schemas/*`, `/internal/config/llm`). |
+| Remove cross-tenant session SQL across query/alerting/admin middleware (Phase 3 exit evidence) | Done | Auth middleware in `query-api`, `alert-evaluator`, and `admin-service` delegates cross-tenant role validation to `auth-service` via `POST /internal/validate-session`, eliminating direct SQL against `auth.user_tenant_roles`. |
 | Per-component release publishing (Phase 7 sub-step 5) | Policy, planner, source evidence, declared build-input identity, verified build-input identity, recipe-image verification, attestation verifier, registry inspection, release history/boundary adapter and local snapshot builds implemented; publishing open | [Local planner](../distribution/README.md#local-immutable-release-planning), [release history and publication boundary adapter](../distribution/README.md#release-history-and-publication-boundary-adapter), [source evidence](../distribution/README.md#committed-source-evidence), [declared build-input identity](../distribution/README.md#declared-build-input-identity), [verified build-input identity](../distribution/README.md#verified-build-input-identity), [registry inspection](../distribution/README.md#read-only-registry-inspection), [image attestations](../distribution/README.md#authenticated-image-attestations), and [committed builds](../distribution/README.md#committed-snapshot-builds) cover decisions, Git inputs, digest-pinned recipe inputs and effective build arguments, manifest integrity, signed image evidence, and local source/context-to-image binding. [Recipe-image registry verification](../distribution/README.md#pinned-recipe-image-verification) passed for all five base/frontend repositories on amd64/arm64, without claiming actual builder selection or layer availability. All eight amd64 images built; Rust linkage and web static serving passed. [Web arm64 build/static serving](component-web-arm64-verification.md) passed under emulation. Rust arm64, native arm64 hardware, remaining service/cluster operation and live GHCR acceptance remain unverified here. [Offline web amd64/emulated-arm64 OCI install/compile and static serving](../distribution/README.md#offline-web-oci-image-builds) now pass using verified npm archives; native arm64 hardware remains unverified. Next: verify Rust arm64 builds and remaining runtime/cluster behavior, then GHCR publishing. Local labels/metadata do not authenticate release identity. `observable-services` is still the only published image. |
 | Helm/kind pinned install, compatibility, upgrade/rollback (Phase 7 sub-step 5) | Compose done | `scripts/pinned-install.sh` installs and verifies the pinned Compose set (web UI + smoke). Helm/kind and upgrade/rollback verification need a kind cluster and more than one real component version. |
 | Repository extraction (Phase 8) | Not started | Deliberately last: each component needs independent CI/release and released-artifact consumption before its source is removed. Needs separate repositories. |

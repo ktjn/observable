@@ -1,4 +1,4 @@
-use std::{path::Path, sync::Arc};
+use std::sync::Arc;
 
 use admin_service::middleware::auth::{TenantContext, require_tenant};
 use axum::{
@@ -8,9 +8,6 @@ use axum::{
     middleware,
     routing::get,
 };
-use sqlx::postgres::{PgPool, PgPoolOptions};
-use testcontainers::{ImageExt, runners::AsyncRunner};
-use testcontainers_modules::postgres::Postgres;
 use tower::ServiceExt;
 use uuid::Uuid;
 use wiremock::{
@@ -18,50 +15,7 @@ use wiremock::{
     matchers::{method, path},
 };
 
-async fn start_postgres() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
-    let container = Postgres::default()
-        .with_tag("17")
-        .start()
-        .await
-        .expect("postgres container started");
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = observable_config::with_search_path(&format!(
-        "postgres://postgres:postgres@127.0.0.1:{port}/postgres"
-    ));
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&url)
-        .await
-        .expect("postgres pool connected");
-    apply_pg_migrations(&pool).await;
-    (pool, container)
-}
-
-async fn apply_pg_migrations(pool: &PgPool) {
-    let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/postgres");
-
-    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
-        .expect("migrations/postgres must exist")
-        .filter_map(|entry| entry.ok())
-        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "sql"))
-        .collect();
-    entries.sort_by_key(|entry| entry.file_name());
-
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        sqlx::raw_sql(sqlx::AssertSqlSafe(sql))
-            .execute(pool)
-            .await
-            .expect("postgres migration applied");
-    }
-}
-
-fn app(db: PgPool, auth_service_url: String) -> Router {
+fn app(auth_service_url: String) -> Router {
     Router::new()
         .route(
             "/",
@@ -70,33 +24,22 @@ fn app(db: PgPool, auth_service_url: String) -> Router {
             }),
         )
         .layer(middleware::from_fn(require_tenant))
-        .layer(Extension(db))
         .layer(Extension(Arc::new(auth_service_url)))
-}
-
-async fn mock_session(mock_server: &MockServer, user_id: Uuid, session_tenant_id: Uuid) {
-    Mock::given(method("POST"))
-        .and(path("/internal/validate-session"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "user_id": user_id.to_string(),
-            "tenant_id": session_tenant_id.to_string(),
-            "role": "tenant_admin",
-            "environment": "production"
-        })))
-        .mount(mock_server)
-        .await;
 }
 
 #[tokio::test]
 async fn session_cannot_switch_to_unrelated_tenant() {
-    let (db, _container) = start_postgres().await;
     let mock_server = MockServer::start().await;
-    let user_id = Uuid::new_v4();
-    let session_tenant_id = Uuid::new_v4();
     let requested_tenant_id = Uuid::new_v4();
-    mock_session(&mock_server, user_id, session_tenant_id).await;
 
-    let response = app(db, mock_server.uri())
+    // When requested tenant is unauthorized, auth-service returns 403 Forbidden
+    Mock::given(method("POST"))
+        .and(path("/internal/validate-session"))
+        .respond_with(ResponseTemplate::new(403))
+        .mount(&mock_server)
+        .await;
+
+    let response = app(mock_server.uri())
         .oneshot(
             Request::builder()
                 .uri("/")
@@ -113,38 +56,23 @@ async fn session_cannot_switch_to_unrelated_tenant() {
 
 #[tokio::test]
 async fn session_switch_rebinds_role_from_requested_tenant() {
-    let (db, _container) = start_postgres().await;
     let mock_server = MockServer::start().await;
     let user_id = Uuid::new_v4();
-    let session_tenant_id = Uuid::new_v4();
     let requested_tenant_id = Uuid::new_v4();
-    mock_session(&mock_server, user_id, session_tenant_id).await;
 
-    sqlx::query(
-        "INSERT INTO tenants (id, name) VALUES ($1, 'Session Tenant'), ($2, 'Requested Tenant')",
-    )
-    .bind(session_tenant_id)
-    .bind(requested_tenant_id)
-    .execute(&db)
-    .await
-    .expect("tenants inserted");
+    // When user has access to requested tenant, auth-service returns 200 with that tenant and role
+    Mock::given(method("POST"))
+        .and(path("/internal/validate-session"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "user_id": user_id.to_string(),
+            "tenant_id": requested_tenant_id.to_string(),
+            "role": "member",
+            "environment": "production"
+        })))
+        .mount(&mock_server)
+        .await;
 
-    sqlx::query("INSERT INTO users (id, idp_subject, email) VALUES ($1, $2, $3)")
-        .bind(user_id)
-        .bind(format!("idp|{user_id}"))
-        .bind(format!("{user_id}@example.com"))
-        .execute(&db)
-        .await
-        .expect("user inserted");
-    sqlx::query("INSERT INTO user_tenant_roles (user_id, tenant_id, role) VALUES ($1, $2, $3)")
-        .bind(user_id)
-        .bind(requested_tenant_id)
-        .bind("member")
-        .execute(&db)
-        .await
-        .expect("membership inserted");
-
-    let response = app(db, mock_server.uri())
+    let response = app(mock_server.uri())
         .oneshot(
             Request::builder()
                 .uri("/")
@@ -169,37 +97,21 @@ async fn session_switch_rebinds_role_from_requested_tenant() {
 
 #[tokio::test]
 async fn session_switch_enforces_target_role() {
-    let (db, _container) = start_postgres().await;
     let mock_server = MockServer::start().await;
     let user_id = Uuid::new_v4();
-    let session_tenant_id = Uuid::new_v4();
     let requested_tenant_id = Uuid::new_v4();
-    mock_session(&mock_server, user_id, session_tenant_id).await;
 
-    // User is an admin in their current session tenant, but only a member in the requested tenant.
-    sqlx::query(
-        "INSERT INTO tenants (id, name) VALUES ($1, 'Session Tenant'), ($2, 'Requested Tenant')",
-    )
-    .bind(session_tenant_id)
-    .bind(requested_tenant_id)
-    .execute(&db)
-    .await
-    .expect("tenants inserted");
-
-    sqlx::query("INSERT INTO users (id, idp_subject, email) VALUES ($1, $2, $3)")
-        .bind(user_id)
-        .bind(format!("idp|{user_id}"))
-        .bind(format!("{user_id}@example.com"))
-        .execute(&db)
-        .await
-        .expect("user inserted");
-    sqlx::query("INSERT INTO user_tenant_roles (user_id, tenant_id, role) VALUES ($1, $2, $3)")
-        .bind(user_id)
-        .bind(requested_tenant_id)
-        .bind("member")
-        .execute(&db)
-        .await
-        .expect("membership inserted");
+    // User is only a member in the requested tenant
+    Mock::given(method("POST"))
+        .and(path("/internal/validate-session"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "user_id": user_id.to_string(),
+            "tenant_id": requested_tenant_id.to_string(),
+            "role": "member",
+            "environment": "production"
+        })))
+        .mount(&mock_server)
+        .await;
 
     // A mock handler that requires admin role.
     let app = Router::new()
@@ -211,7 +123,6 @@ async fn session_switch_enforces_target_role() {
             }),
         )
         .layer(middleware::from_fn(require_tenant))
-        .layer(Extension(db))
         .layer(Extension(Arc::new(mock_server.uri())));
 
     let response = app

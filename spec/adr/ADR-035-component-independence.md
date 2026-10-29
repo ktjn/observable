@@ -59,7 +59,10 @@ between independently released components.
 ### Persistence rule
 
 Each PostgreSQL table/schema has exactly one component owner. Components do not execute SQL against
-another component's owned PostgreSQL schema.
+another component's owned PostgreSQL schema. Cross-component authorization and metadata reads
+(such as cross-tenant session revalidation against `auth.user_tenant_roles` or query metadata lookups
+against `control.schema_entries`) route over authenticated internal service APIs (`auth-service`'s
+`POST /internal/validate-session`, `admin-service`'s `/internal/schemas/*`).
 
 ClickHouse is intentionally different because the query path requires storage-engine-level
 performance: the storage component owns writes and migrations; the query component may read the

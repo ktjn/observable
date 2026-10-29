@@ -64,6 +64,8 @@ struct ValidateApiKeyResponse {
 #[derive(Serialize)]
 struct ValidateSessionRequest<'a> {
     session_token: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    requested_tenant_id: Option<Uuid>,
 }
 
 #[derive(Deserialize)]
@@ -116,19 +118,38 @@ pub async fn verify_session(
     auth_service_url: &str,
     session_token: &str,
 ) -> Result<SessionContext, AuthError> {
+    verify_session_with_tenant(http, auth_service_url, session_token, None).await
+}
+
+/// Verify a session token against auth-service's `/internal/validate-session` endpoint,
+/// optionally requesting access to a specific tenant (for cross-tenant switching).
+pub async fn verify_session_with_tenant(
+    http: &reqwest::Client,
+    auth_service_url: &str,
+    session_token: &str,
+    requested_tenant_id: Option<Uuid>,
+) -> Result<SessionContext, AuthError> {
     let mut headers = reqwest::header::HeaderMap::new();
     observable_telemetry::inject_current_context(&mut headers);
 
     let resp = http
         .post(format!("{auth_service_url}/internal/validate-session"))
         .headers(headers)
-        .json(&ValidateSessionRequest { session_token })
+        .json(&ValidateSessionRequest {
+            session_token,
+            requested_tenant_id,
+        })
         .send()
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "auth-service unreachable");
             AuthError::ServiceUnavailable
         })?;
+
+    if resp.status() == reqwest::StatusCode::FORBIDDEN {
+        tracing::warn!(reason = "cross_tenant_forbidden", "auth rejected");
+        return Err(AuthError::Forbidden);
+    }
 
     if !resp.status().is_success() {
         tracing::warn!(status = %resp.status(), reason = "session_invalid", "auth rejected");
@@ -441,6 +462,34 @@ mod tests {
             .unwrap_err();
 
         assert_eq!(err, AuthError::Unauthorized);
+    }
+
+    #[tokio::test]
+    async fn verify_session_with_tenant_forbidden_on_403() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/internal/validate-session"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&mock_server)
+            .await;
+
+        let http = reqwest::Client::new();
+        let err = verify_session_with_tenant(
+            &http,
+            &mock_server.uri(),
+            "valid-session",
+            Some(Uuid::new_v4()),
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(err, AuthError::Forbidden);
     }
 
     #[tokio::test]
