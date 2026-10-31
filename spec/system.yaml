@@ -693,7 +693,7 @@ requirements:
     category: contract
     mandatory: true
     criteria:
-      - "observable-alerting does not depend on query-telemetry while observable-query depends on evaluate-alerts, preserving DAG (COMP-06) and layer ordering (COMP-05)"
+      - "observable-alerting (domain) consumes store-telemetry within its declared ClickHouse schema compatibility range (services/alert-evaluator/clickhouse-schema-support.yaml) and never depends on query-telemetry while observable-query (application) depends on evaluate-alerts, preserving DAG (COMP-06) and layer ordering (COMP-05)"
 
   - id: req-pg-schema-isolation
     version: "0.1.0"
@@ -886,9 +886,9 @@ evidence:
     requirement_version: "0.1.0"
     subject_id: evaluate-alerts
     subject_revision: "0.1.0"
-    method: inspection
+    method: test
     passed: true
-    provenance: scripts/check-component-boundaries.sh
+    provenance: scripts/tests/test_system_spec.py
     timestamp: "2026-10-30T20:00:00Z"
     verifier: ci-boundary-gate
 
