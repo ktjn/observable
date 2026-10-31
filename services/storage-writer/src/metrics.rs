@@ -3,18 +3,28 @@ use domain::{MetricPoint, MetricSeries};
 use observable_storage_contracts::{MetricPointRow, MetricSeriesRow};
 
 pub async fn insert_metric_series(ch: &Client, series: Vec<MetricSeries>) -> anyhow::Result<()> {
-    let mut insert = ch.insert::<MetricSeriesRow>("metric_series").await?;
-    for s in series {
-        insert.write(&MetricSeriesRow::from(s)).await?;
+    if series.is_empty() {
+        return Ok(());
+    }
+    let rows: Vec<MetricSeriesRow> = series.into_iter().map(MetricSeriesRow::from).collect();
+    let dedup_ch = crate::deduplicated_client(ch, "metric_series", &rows);
+    let mut insert = dedup_ch.insert::<MetricSeriesRow>("metric_series").await?;
+    for row in &rows {
+        insert.write(row).await?;
     }
     insert.end().await?;
     Ok(())
 }
 
 pub async fn insert_metric_points(ch: &Client, points: Vec<MetricPoint>) -> anyhow::Result<()> {
-    let mut insert = ch.insert::<MetricPointRow>("metric_points").await?;
-    for p in points {
-        insert.write(&MetricPointRow::from(p)).await?;
+    if points.is_empty() {
+        return Ok(());
+    }
+    let rows: Vec<MetricPointRow> = points.into_iter().map(MetricPointRow::from).collect();
+    let dedup_ch = crate::deduplicated_client(ch, "metric_points", &rows);
+    let mut insert = dedup_ch.insert::<MetricPointRow>("metric_points").await?;
+    for row in &rows {
+        insert.write(row).await?;
     }
     insert.end().await?;
     Ok(())

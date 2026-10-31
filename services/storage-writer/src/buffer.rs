@@ -64,17 +64,6 @@ impl WriteBuffer {
         }
     }
 
-    /// Non-blocking send. Drops the batch and logs if the channel is full.
-    /// Still used by storage-writer's /internal/metrics handler, which
-    /// remains live for stream-processor's span-derived-metrics flush (see
-    /// ADR-029) -- the spans/logs equivalents were removed along with the
-    /// /internal/spans and /internal/logs endpoints (Phase 2 queue cutover).
-    pub fn send_metrics(&self, series: Vec<MetricSeries>, points: Vec<MetricPoint>) {
-        if let Err(e) = self.metrics_tx.try_send((series, points, None)) {
-            tracing::error!(error = %e, "metrics buffer channel full, dropping batch");
-        }
-    }
-
     /// Blocks until `spans` has been durably written to ClickHouse (retried
     /// indefinitely on failure) or the flush loop has stopped. Backpressures
     /// on a full channel instead of dropping.

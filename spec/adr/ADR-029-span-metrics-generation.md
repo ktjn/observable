@@ -43,9 +43,8 @@ To ensure that metrics generated from spans are consistent with metrics from oth
 3. **Aggregate:** The aggregator updates its in-memory state.
 4. **Emit:** Every 60 seconds, a background task flushes the state:
    - For each unique dimension set, it creates a `MetricSeries` and `MetricPoint`.
-   - The current implementation sends these to `storage-writer` over `/internal/metrics`.
-   - The ADR-035 target publishes them as `telemetry.normalized.v1` events instead.
-5. **Storage:** the storage component consumes normalized metrics and persists them to ClickHouse.
+   - It publishes them as a `NormalizedTelemetryBatch` to `telemetry.normalized.v1` (retiring the transitional `/internal/metrics` HTTP push per ADR-035).
+5. **Storage:** the storage component consumes normalized metrics and persists them to ClickHouse with deterministic batch deduplication tokens.
 
 ## Consequences
 

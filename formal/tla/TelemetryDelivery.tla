@@ -2,25 +2,25 @@
 (***************************************************************************)
 (* Finite model of the 0.2 telemetry.normalized.v1 process-to-storage        *)
 (* durability boundary (spec/19-formal-verification.md, ROADMAP 0.2 formal   *)
-(* verification gate). It verifies the durability, retry, duplicate, and     *)
-(* backpressure assumptions the architecture actually makes -- not an        *)
-(* exactly-once guarantee it does not provide.                               *)
+(* verification gate). It verifies the durability, retry, deduplicated       *)
+(* idempotency, and backpressure guarantees of the storage boundary.         *)
 (*                                                                           *)
 (* Production correspondence:                                                *)
 (*   Produce        -> observable-process publishes telemetry.normalized.v1   *)
 (*   Consume        -> observable-store-clickhouse consumes the stream        *)
 (*   Store          -> storage writes through its ClickHouse ownership bound. *)
+(*                     with deterministic insert_deduplication_token         *)
 (*   Commit         -> durable Redpanda consumer progress (offset ack)        *)
 (*   WorkerCrash/Recover, Redeliver -> store process lifecycle / broker       *)
 (*                     redelivery of uncommitted records                      *)
 (*                                                                           *)
-(* Duplicate policy (at-least-once, NOT exactly-once): `stored` counts the    *)
-(* durable copies of each record, and Store increments that count. Redelivery *)
-(* after a successful write but before commit therefore produces stored[r]>=2 *)
-(* -- the actual guarantee, because the ClickHouse spans/logs/span_events/    *)
-(* metric_points tables are plain MergeTree with no record-identity           *)
-(* deduplication (only metric_series uses ReplacingMergeTree). The model does *)
-(* not strengthen this to idempotent exactly-once.                            *)
+(* Duplicate policy (idempotent batch deduplication): `stored[r]` tracks     *)
+(* visible durable copies of record `r` (0 or 1). Because `storage-writer`   *)
+(* attaches a deterministic `insert_deduplication_token` (with               *)
+(* `non_replicated_deduplication_window`) to every ClickHouse insert block,  *)
+(* a redelivery after a successful write but before offset commit is         *)
+(* deduplicated by ClickHouse (`stored[r]` remains 1), satisfying            *)
+(* `NoDuplicateVisibleRows`.                                                 *)
 (***************************************************************************)
 EXTENDS Naturals, FiniteSets
 
@@ -36,11 +36,11 @@ VARIABLES produced, inFlight, stored, committed, storeAvailable, workerState, at
 
 vars == <<produced, inFlight, stored, committed, storeAvailable, workerState, attempts>>
 
-\* `stored[r]` is the number of durable copies of record `r` (0, 1, or more).
+\* `stored[r]` is the number of visible durable copies of record `r` (0 or 1).
 TypeOK ==
   /\ produced \in Offsets
   /\ inFlight \subseteq Records
-  /\ stored \in [Records -> 0..MaxAttempts]
+  /\ stored \in [Records -> 0..1]
   /\ committed \in Offsets
   /\ committed <= produced
   /\ storeAvailable \in BOOLEAN
@@ -63,15 +63,14 @@ Consume(r) ==
   /\ inFlight' = inFlight \cup {r}
   /\ UNCHANGED <<produced, stored, committed, storeAvailable, workerState, attempts>>
 
-\* A store attempt either durably admits a copy of the record or fails without
-\* acknowledging. Redelivery can call it again for the same record, so the
-\* count may exceed 1 (at-least-once).
+\* A store attempt durably admits the record with a deterministic
+\* insert_deduplication_token, so redelivered writes are idempotent (stored[r] = 1).
 Store(r) ==
   /\ workerState = "running"
   /\ storeAvailable
   /\ r \in inFlight
   /\ attempts[r] < MaxAttempts
-  /\ stored' = [stored EXCEPT ![r] = @ + 1]
+  /\ stored' = [stored EXCEPT ![r] = 1]
   /\ attempts' = [attempts EXCEPT ![r] = attempts[r] + 1]
   /\ UNCHANGED <<produced, inFlight, committed, storeAvailable, workerState>>
 
@@ -151,6 +150,9 @@ InFlightBounded == Cardinality(inFlight) <= WorkerCapacity
 
 \* Every committed record has a durable copy (no committed loss).
 NoCommittedLoss == \A r \in 1..committed : stored[r] >= 1
+
+\* Deterministic ClickHouse insert_deduplication_token prevents duplicate visible rows on redelivery.
+NoDuplicateVisibleRows == \A r \in Records : stored[r] <= 1
 
 (***************************************************************************)
 (* Temporal properties.                                                      *)

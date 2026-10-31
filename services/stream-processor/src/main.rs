@@ -20,12 +20,6 @@ async fn main() -> anyhow::Result<()> {
     let normalized_topic = observable_config::require_env("NORMALIZED_TOPIC")?;
     let normalized_producer = Arc::new(NormalizedProducer::new(&brokers, &normalized_topic)?);
 
-    // Still used by the span-derived-metrics flush below, a separate
-    // aggregation path unrelated to the telemetry.normalized.v1 pipeline
-    // above -- see ADR-029.
-    let writer_url = observable_config::require_env("STORAGE_WRITER_URL")?;
-    let http = reqwest::Client::new();
-
     let max_size: usize = std::env::var("STREAM_PROCESSOR_BATCH_SIZE")
         .unwrap_or_else(|_| "500".into())
         .parse()
@@ -68,28 +62,28 @@ async fn main() -> anyhow::Result<()> {
             .expect("probe server error");
     });
 
-    // Background task to flush span metrics every 60 s. Kept on its original
-    // HTTP path to storage-writer's /internal/metrics -- a different data
-    // source (locally-aggregated span metrics) from the telemetry.raw.v1
-    // pipeline below, out of scope for the Phase 2 queue migration.
+    // Background task to flush span-derived metrics every 60 s onto
+    // `telemetry.normalized.v1` (ADR-029 / ADR-035).
     let agg_clone = aggregator.clone();
-    let http_clone = http.clone();
-    let writer_url_clone = writer_url.clone();
+    let producer_clone = normalized_producer.clone();
     tokio::spawn(async move {
         let mut interval = time::interval(Duration::from_secs(60));
         loop {
             interval.tick().await;
             let (series, points) = agg_clone.flush();
-            if !series.is_empty() {
-                let res = http_clone
-                    .post(format!("{writer_url_clone}/internal/metrics"))
-                    .json(&serde_json::json!({ "series": series, "points": points }))
-                    .send()
-                    .await;
-                if let Err(e) = res {
-                    tracing::error!(error = %e, "failed to flush span metrics");
+            if !series.is_empty() || !points.is_empty() {
+                let count = series.len();
+                let batch = NormalizedTelemetryBatch {
+                    spans: Vec::new(),
+                    logs: Vec::new(),
+                    series,
+                    points,
+                };
+                let key = uuid::Uuid::new_v4().to_string();
+                if let Err(e) = producer_clone.publish(&batch, &key).await {
+                    tracing::error!(error = %e, "failed to publish span metrics to normalized topic");
                 } else {
-                    tracing::info!(count = series.len(), "flushed span metrics");
+                    tracing::info!(count, "published span metrics to normalized topic");
                 }
             }
         }
