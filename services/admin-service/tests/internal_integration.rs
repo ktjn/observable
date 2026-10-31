@@ -14,7 +14,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
     middleware as axum_middleware,
-    routing::get,
+    routing::{get, post},
 };
 use chrono::{Duration, Utc};
 use http_body_util::BodyExt;
@@ -115,6 +115,10 @@ fn build_app(db: PgPool) -> Router {
         .route(
             "/internal/schemas/{signal_type}/resolve-label",
             get(internal::handle_resolve_label),
+        )
+        .route(
+            "/internal/query-audit",
+            post(internal::handle_record_query_audit),
         )
         .layer(axum_middleware::from_fn(
             admin_service::middleware::auth::require_internal_service,
@@ -425,4 +429,84 @@ async fn internal_schemas_metric_schema_and_fields_and_resolve_label() {
     let body = response_body_json(resp.into_body()).await;
     assert!(body["field_name"].is_null());
     assert_eq!(body["ambiguous"], false);
+}
+
+#[tokio::test]
+async fn query_audit_records_entry_in_database() {
+    let (db, _container) = start_postgres().await;
+    let tenant_id = Uuid::new_v4();
+    insert_tenant(&db, tenant_id).await;
+
+    let app = build_app(db.clone());
+    let payload = serde_json::json!({
+        "action": "trace_get",
+        "tenant_id": tenant_id,
+        "result_count": 42
+    });
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/internal/query-audit")
+        .header("content-type", "application/json")
+        .header("x-internal-token", INTERNAL_TOKEN)
+        .body(Body::from(serde_json::to_vec(&payload).unwrap()))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+    // Verify row inserted in query_audit_log
+    #[derive(sqlx::FromRow)]
+    struct Row {
+        action: String,
+        tenant_id: Uuid,
+        result_count: i64,
+    }
+
+    let row = sqlx::query_as::<_, Row>(
+        "SELECT action, tenant_id, result_count FROM query_audit_log WHERE tenant_id = $1",
+    )
+    .bind(tenant_id)
+    .fetch_one(&db)
+    .await
+    .expect("query_audit_log row must exist");
+
+    assert_eq!(row.action, "trace_get");
+    assert_eq!(row.tenant_id, tenant_id);
+    assert_eq!(row.result_count, 42);
+}
+
+#[tokio::test]
+async fn query_audit_rejects_missing_or_invalid_token() {
+    let (db, _container) = start_postgres().await;
+    let tenant_id = Uuid::new_v4();
+
+    let app = build_app(db.clone());
+    let payload = serde_json::json!({
+        "action": "log_search",
+        "tenant_id": tenant_id,
+        "result_count": 10
+    });
+
+    // 1. Missing token
+    let req = Request::builder()
+        .method("POST")
+        .uri("/internal/query-audit")
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_vec(&payload).unwrap()))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+    // 2. Invalid token
+    let app = build_app(db);
+    let req = Request::builder()
+        .method("POST")
+        .uri("/internal/query-audit")
+        .header("content-type", "application/json")
+        .header("x-internal-token", "wrong-token")
+        .body(Body::from(serde_json::to_vec(&payload).unwrap()))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }

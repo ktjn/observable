@@ -32,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
         // once a clickhouse-rs release fixes it.
         .with_compression(clickhouse::Compression::None);
 
-    let database_url = observable_config::require_database_url()?;
+    let database_url = observable_config::require_control_database_url()?;
     let db = PgPoolOptions::new()
         .max_connections(5)
         .connect(&database_url)
@@ -213,6 +213,10 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/internal/schemas/{signal_type}/resolve-label",
             get(internal::handle_resolve_label),
+        )
+        .route(
+            "/internal/query-audit",
+            post(internal::handle_record_query_audit),
         )
         .layer(axum_middleware::from_fn(
             middleware::auth::require_internal_service,

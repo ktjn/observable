@@ -13,7 +13,6 @@ use query_api::{
     middleware::auth::require_tenant, observability, planner::QueryPlanner, reliability, traces,
 };
 use serde_json::Value;
-use sqlx::postgres::PgPool;
 use std::{path::Path, sync::Arc};
 use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::clickhouse::ClickHouse;
@@ -119,50 +118,45 @@ async fn start_dev_auth_mock() -> MockServer {
 /// Most callers in this file don't hold on to the returned `MockServer`, so
 /// leak it for the (short) lifetime of the test process rather than
 /// threading an extra return value through every call site.
-async fn build_app_with_pg(ch: ChClient, db: PgPool) -> Router {
+async fn build_app(ch: ChClient) -> Router {
     let mock_server = Box::leak(Box::new(start_dev_auth_mock().await));
-    build_app_with_pg_at(ch, db, mock_server.uri())
+    build_app_at(ch, mock_server.uri())
 }
 
-/// Like `build_app_with_pg`, but also points discovery.rs/reliability.rs's
+/// Like `build_app`, but also points discovery.rs/reliability.rs's
 /// internal calls at caller-supplied mocks, for tests that need to control the
 /// alerting-enrichment/deployment-enrichment (or -correlation) responses.
-async fn build_app_with_pg_and_internal_mocks(
+async fn build_app_and_internal_mocks(
     ch: ChClient,
-    db: PgPool,
     admin_service_url: String,
     alert_evaluator_url: String,
 ) -> Router {
     let mock_server = Box::leak(Box::new(start_dev_auth_mock().await));
-    build_app_with_pg_at_with_internal(
+    build_app_at_with_internal(
         ch,
-        db,
         mock_server.uri(),
         admin_service_url,
         alert_evaluator_url,
     )
 }
 
-fn build_app_with_pg_at(ch: ChClient, db: PgPool, auth_service_url: String) -> Router {
-    build_app_with_pg_at_with_internal(
+fn build_app_at(ch: ChClient, auth_service_url: String) -> Router {
+    build_app_at_with_internal(
         ch,
-        db,
         auth_service_url,
         "http://admin-service:4324".into(),
         "http://alert-evaluator:4322".into(),
     )
 }
 
-fn build_app_with_pg_at_with_internal(
+fn build_app_at_with_internal(
     ch: ChClient,
-    db: PgPool,
     auth_service_url: String,
     admin_service_url: String,
     alert_evaluator_url: String,
 ) -> Router {
     let state = traces::AppState {
         ch,
-        db: db.clone(),
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url,
@@ -189,7 +183,6 @@ fn build_app_with_pg_at_with_internal(
             get(reliability::handle_get_service_reliability_report),
         )
         .layer(axum_middleware::from_fn(require_tenant))
-        .layer(axum::Extension(db))
         .layer(axum::Extension(auth_service_url))
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/readyz", get(observability::readyz))
@@ -202,16 +195,12 @@ fn build_app_with_pg_at_with_internal(
 }
 
 /// App used for tests where auth rejection happens before the handler is
-/// reached (i.e. missing Authorization header → immediate 401). The lazy
-/// Postgres pool is never actually queried in these cases.
-fn fake_app_no_db(auth_url: Option<String>) -> Router {
-    let db =
-        PgPool::connect_lazy("postgres://user:pass@127.0.0.1:5432/db").expect("valid postgres url");
+/// reached (i.e. missing Authorization header → immediate 401).
+fn fake_app(auth_url: Option<String>) -> Router {
     let ch = ChClient::default().with_url("http://127.0.0.1:19999");
     let auth_service_url = auth_url.unwrap_or_else(|| "http://auth-service:4319".into());
     let state = traces::AppState {
         ch,
-        db: db.clone(),
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: auth_service_url.clone(),
@@ -233,7 +222,6 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
             get(reliability::handle_get_service_reliability_report),
         )
         .layer(axum_middleware::from_fn(require_tenant))
-        .layer(axum::Extension(db))
         .layer(axum::Extension(auth_service_url_ext))
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/readyz", get(observability::readyz))
@@ -245,13 +233,10 @@ fn fake_app_no_db(auth_url: Option<String>) -> Router {
         .with_state(state)
 }
 
-fn fake_nlq_app_no_db() -> Router {
-    let db =
-        PgPool::connect_lazy("postgres://user:pass@127.0.0.1:5432/db").expect("valid postgres url");
+fn fake_nlq_app() -> Router {
     let ch = ChClient::default().with_url("http://127.0.0.1:19999");
     let state = traces::AppState {
         ch,
-        db,
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: "http://auth-service:4319".into(),
@@ -422,7 +407,7 @@ fn make_metric_point(
 /// Missing Authorization header → 401, before any DB query.
 #[tokio::test]
 async fn query_api_rejects_missing_authorization_header() {
-    let app = fake_app_no_db(None);
+    let app = fake_app(None);
     let req = Request::builder()
         .method("GET")
         .uri("/v1/traces/histogram?buckets=10")
@@ -439,9 +424,8 @@ async fn query_api_rejects_missing_authorization_header() {
 /// Valid token for tenant 0001 but X-Tenant-ID is a different UUID → 403.
 #[tokio::test]
 async fn query_api_rejects_tenant_header_not_owned_by_token() {
-    let db = test_support::postgres::shared_pool().await;
     let ch = ChClient::default().with_url("http://127.0.0.1:19999");
-    let app = build_app_with_pg(ch, db).await;
+    let app = build_app(ch).await;
 
     let other_tenant = Uuid::new_v4();
     let req = Request::builder()
@@ -461,9 +445,8 @@ async fn query_api_rejects_tenant_header_not_owned_by_token() {
 /// any non-401/403 status).
 #[tokio::test]
 async fn query_api_accepts_matching_token_and_tenant_header() {
-    let db = test_support::postgres::shared_pool().await;
     let (ch, _ch_container) = start_clickhouse().await;
-    let app = build_app_with_pg(ch, db).await;
+    let app = build_app(ch).await;
 
     let resp = app
         .oneshot(dev_request(
@@ -491,7 +474,7 @@ async fn missing_tenant_id_header_returns_401() {
         .mount(&mock_server)
         .await;
 
-    let app = fake_app_no_db(Some(mock_server.uri()));
+    let app = fake_app(Some(mock_server.uri()));
     // Has Authorization but no X-Tenant-ID
     let req = Request::builder()
         .method("GET")
@@ -507,7 +490,7 @@ async fn missing_tenant_id_header_returns_401() {
 
 #[tokio::test]
 async fn invalid_tenant_id_header_returns_400() {
-    let app = fake_app_no_db(None);
+    let app = fake_app(None);
     let req = Request::builder()
         .method("GET")
         .uri("/v1/traces/histogram?buckets=10")
@@ -526,8 +509,7 @@ async fn invalid_tenant_id_header_returns_400() {
 #[tokio::test]
 async fn query_api_readyz_returns_200_when_dependencies_are_up() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let db = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, db).await;
+    let app = build_app(ch).await;
 
     let req = Request::builder()
         .method("GET")
@@ -541,7 +523,7 @@ async fn query_api_readyz_returns_200_when_dependencies_are_up() {
 
 #[tokio::test]
 async fn query_api_readyz_returns_503_when_dependencies_are_unavailable() {
-    let app = fake_app_no_db(None);
+    let app = fake_app(None);
 
     let req = Request::builder()
         .method("GET")
@@ -555,7 +537,7 @@ async fn query_api_readyz_returns_503_when_dependencies_are_unavailable() {
 
 #[tokio::test]
 async fn query_api_metrics_endpoint_exposes_prometheus_text() {
-    let app = fake_app_no_db(None);
+    let app = fake_app(None);
     let metrics_app = app.clone();
 
     let request = Request::builder()
@@ -619,8 +601,7 @@ async fn query_api_metrics_endpoint_exposes_prometheus_text() {
 #[tokio::test]
 async fn trace_histogram_accepts_nanosecond_u64_timestamps() {
     let (ch, _container) = start_clickhouse().await;
-    let db = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, db).await;
+    let app = build_app(ch).await;
 
     let resp = app
         .oneshot(dev_request(
@@ -642,8 +623,7 @@ async fn trace_histogram_accepts_nanosecond_u64_timestamps() {
 #[tokio::test]
 async fn log_histogram_accepts_nanosecond_u64_timestamps() {
     let (ch, _container) = start_clickhouse().await;
-    let db = test_support::postgres::shared_pool().await;
-    let app = build_app_with_pg(ch, db).await;
+    let app = build_app(ch).await;
 
     let resp = app
         .oneshot(dev_request(
@@ -667,7 +647,6 @@ async fn log_histogram_accepts_nanosecond_u64_timestamps() {
 #[tokio::test]
 async fn trace_histogram_counts_inserted_spans() {
     let (ch, _container) = start_clickhouse().await;
-    let db = test_support::postgres::shared_pool().await;
     let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
     let now_ns = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -687,7 +666,7 @@ async fn trace_histogram_counts_inserted_spans() {
     )
     .await;
 
-    let app = build_app_with_pg(ch, db).await;
+    let app = build_app(ch).await;
     let from = base - 1;
     let to = base + 3_000_000_001;
     let uri = format!("/v1/traces/histogram?from={from}&to={to}&buckets=30");
@@ -707,7 +686,6 @@ async fn trace_histogram_counts_inserted_spans() {
 #[tokio::test]
 async fn log_histogram_counts_inserted_logs() {
     let (ch, _container) = start_clickhouse().await;
-    let db = test_support::postgres::shared_pool().await;
     let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
     let now_ns = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -719,7 +697,7 @@ async fn log_histogram_counts_inserted_logs() {
     insert_log(&ch, make_log(dev_tenant, "svc", base + 1_000_000_000)).await;
     insert_log(&ch, make_log(dev_tenant, "svc", base + 2_000_000_000)).await;
 
-    let app = build_app_with_pg(ch, db).await;
+    let app = build_app(ch).await;
     let from = base - 1;
     let to = base + 3_000_000_001;
     let uri = format!("/v1/logs/histogram?from={from}&to={to}&buckets=30");
@@ -741,7 +719,6 @@ async fn log_histogram_counts_inserted_logs() {
 #[tokio::test]
 async fn trace_histogram_tenant_isolation() {
     let (ch, _container) = start_clickhouse().await;
-    let db = test_support::postgres::shared_pool().await;
     let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
     // tenant_b is a different UUID; we insert its spans but query as dev_tenant
     let tenant_b = Uuid::new_v4();
@@ -758,7 +735,7 @@ async fn trace_histogram_tenant_isolation() {
     )
     .await;
 
-    let app = build_app_with_pg(ch, db).await;
+    let app = build_app(ch).await;
     let from = base - 1;
     let to = base + 2_000_000_001;
     let uri = format!("/v1/traces/histogram?from={from}&to={to}&buckets=30");
@@ -779,7 +756,6 @@ async fn trace_histogram_tenant_isolation() {
 #[tokio::test]
 async fn log_histogram_service_filter() {
     let (ch, _container) = start_clickhouse().await;
-    let db = test_support::postgres::shared_pool().await;
     let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
     let now_ns = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -790,7 +766,7 @@ async fn log_histogram_service_filter() {
     insert_log(&ch, make_log(dev_tenant, "svc-a", base)).await;
     insert_log(&ch, make_log(dev_tenant, "svc-b", base + 500_000_000)).await;
 
-    let app = build_app_with_pg(ch, db).await;
+    let app = build_app(ch).await;
     let from = base - 1;
     let to = base + 2_000_000_001;
     let uri = format!("/v1/logs/histogram?service=svc-a&from={from}&to={to}&buckets=30");
@@ -815,7 +791,6 @@ async fn log_histogram_service_filter() {
 #[tokio::test]
 async fn metric_list_groups_label_specific_series_by_metric_identity() {
     let (ch, _container) = start_clickhouse().await;
-    let db = test_support::postgres::shared_pool().await;
     let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
     insert_metric_series(
         &ch,
@@ -828,7 +803,7 @@ async fn metric_list_groups_label_specific_series_by_metric_identity() {
     )
     .await;
 
-    let app = build_app_with_pg(ch, db).await;
+    let app = build_app(ch).await;
     let resp = app
         .oneshot(dev_request("GET", "/v1/metrics?service=checkout"))
         .await
@@ -845,7 +820,6 @@ async fn metric_list_groups_label_specific_series_by_metric_identity() {
 #[tokio::test]
 async fn metric_list_orders_by_series_count_desc_not_alphabetically() {
     let (ch, _container) = start_clickhouse().await;
-    let db = test_support::postgres::shared_pool().await;
     let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
 
     // "a.low_count" sorts first alphabetically but has only one series;
@@ -864,7 +838,7 @@ async fn metric_list_orders_by_series_count_desc_not_alphabetically() {
         .await;
     }
 
-    let app = build_app_with_pg(ch, db).await;
+    let app = build_app(ch).await;
     let resp = app
         .oneshot(dev_request("GET", "/v1/metrics"))
         .await
@@ -882,7 +856,6 @@ async fn metric_list_orders_by_series_count_desc_not_alphabetically() {
 #[tokio::test]
 async fn metric_group_points_sum_label_specific_series_at_same_timestamp() {
     let (ch, _container) = start_clickhouse().await;
-    let db = test_support::postgres::shared_pool().await;
     let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
     let first_series = Uuid::new_v4();
     let second_series = Uuid::new_v4();
@@ -913,7 +886,7 @@ async fn metric_group_points_sum_label_specific_series_at_same_timestamp() {
     )
     .await;
 
-    let app = build_app_with_pg(ch, db).await;
+    let app = build_app(ch).await;
     let uri = "/v1/metrics/points?metric_name=span.calls_total&service=checkout&environment=prod&metric_type=sum&unit=1";
     let resp = app.oneshot(dev_request("GET", uri)).await.unwrap();
 
@@ -930,7 +903,6 @@ async fn metric_group_points_sum_label_specific_series_at_same_timestamp() {
 #[tokio::test]
 async fn service_summary_reports_slo_breach_alert_count_and_latest_deploy() {
     let (ch, _ch_container) = start_clickhouse().await;
-    let pg = test_support::postgres::shared_pool().await;
     let dev_tenant: Uuid = DEV_TENANT_ID.parse().unwrap();
     let now_ns = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -993,8 +965,7 @@ async fn service_summary_reports_slo_breach_alert_count_and_latest_deploy() {
         .mount(&alert_mock)
         .await;
 
-    let app =
-        build_app_with_pg_and_internal_mocks(ch, pg, admin_mock.uri(), alert_mock.uri()).await;
+    let app = build_app_and_internal_mocks(ch, admin_mock.uri(), alert_mock.uri()).await;
 
     let response = app
         .oneshot(dev_request("GET", "/v1/services/summary"))
@@ -1024,7 +995,7 @@ async fn service_summary_reports_slo_breach_alert_count_and_latest_deploy() {
 
 #[tokio::test]
 async fn nlq_base_ir_invalid_regex_filter_returns_400() {
-    let app = fake_nlq_app_no_db();
+    let app = fake_nlq_app();
     let long_pattern = "a".repeat(257);
 
     let body = serde_json::json!({
@@ -1065,7 +1036,7 @@ async fn nlq_base_ir_invalid_regex_filter_returns_400() {
 
 #[tokio::test]
 async fn nlq_metrics_base_ir_without_metric_returns_400() {
-    let app = fake_nlq_app_no_db();
+    let app = fake_nlq_app();
 
     let body = serde_json::json!({
         "mode": "execute",
@@ -1098,7 +1069,6 @@ async fn nlq_metrics_base_ir_without_metric_returns_400() {
 
 #[tokio::test]
 async fn test_mcp_query_rejects_unknown_filter_field() {
-    let db = test_support::postgres::shared_pool().await;
     let (ch_client, _ch_container) = start_clickhouse().await;
     let mock_server = start_dev_auth_mock().await;
 
@@ -1151,7 +1121,6 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
 
     let state = query_api::traces::AppState {
         ch: ch_client,
-        db: db.clone(),
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: mock_server.uri(),
@@ -1169,7 +1138,6 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
             post(query_api::mcp_query::handle_mcp_query),
         )
         .layer(axum_middleware::from_fn(require_tenant))
-        .layer(axum::Extension(db.clone()))
         .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
         .with_state(state);
 
@@ -1211,7 +1179,6 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
 
 #[tokio::test]
 async fn test_mcp_tools_endpoints_delegate_to_admin_service() {
-    let db = test_support::postgres::shared_pool().await;
     let mock_server = start_dev_auth_mock().await;
 
     wiremock::Mock::given(wiremock::matchers::method("GET"))
@@ -1277,7 +1244,6 @@ async fn test_mcp_tools_endpoints_delegate_to_admin_service() {
 
     let state = query_api::traces::AppState {
         ch: ChClient::default().with_url("http://127.0.0.1:19999"),
-        db: db.clone(),
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: mock_server.uri(),
@@ -1303,7 +1269,6 @@ async fn test_mcp_tools_endpoints_delegate_to_admin_service() {
             get(query_api::mcp_tools::handle_resolve_label),
         )
         .layer(axum_middleware::from_fn(require_tenant))
-        .layer(axum::Extension(db.clone()))
         .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
         .with_state(state.clone());
 
@@ -1343,7 +1308,6 @@ async fn test_mcp_tools_endpoints_delegate_to_admin_service() {
 
 #[tokio::test]
 async fn get_service_reliability_report_filters_service_environment_and_interval() {
-    let pg = test_support::postgres::shared_pool().await;
     let ch = ChClient::default().with_url("http://127.0.0.1:19999");
     let service_name = "checkout";
     let from = chrono::Utc::now() - chrono::Duration::hours(6);
@@ -1425,8 +1389,7 @@ async fn get_service_reliability_report_filters_service_environment_and_interval
         .mount(&admin_mock)
         .await;
 
-    let app =
-        build_app_with_pg_and_internal_mocks(ch, pg, admin_mock.uri(), alert_mock.uri()).await;
+    let app = build_app_and_internal_mocks(ch, admin_mock.uri(), alert_mock.uri()).await;
 
     let uri = format!(
         "/v1/services/{service_name}/reliability-report?from={}&to={}&environment=prod",
@@ -1453,4 +1416,37 @@ async fn get_service_reliability_report_filters_service_environment_and_interval
         mean_time >= 59.0,
         "expected MTTR to reflect the resolved incident duration, got {mean_time}"
     );
+}
+
+#[tokio::test]
+async fn query_audit_is_dispatched_to_admin_service_on_query() {
+    let (ch, _container) = start_clickhouse().await;
+    let auth_mock = start_dev_auth_mock().await;
+    let admin_mock = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/internal/query-audit"))
+        .and(wiremock::matchers::header(
+            "x-internal-token",
+            "test-internal-token",
+        ))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .mount(&admin_mock)
+        .await;
+
+    let app = build_app_at_with_internal(
+        ch,
+        auth_mock.uri(),
+        admin_mock.uri(),
+        "http://alert-evaluator:4322".into(),
+    );
+
+    let resp = app
+        .oneshot(dev_request("GET", "/v1/metrics"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    admin_mock.verify().await;
 }

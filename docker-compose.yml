@@ -311,7 +311,6 @@ services:
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CH_USER:-default}
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
-      DATABASE_URL: postgres://observable:observable@postgres:5432/observable
       AUTH_SERVICE_URL: http://auth-service:4319
       ADMIN_SERVICE_URL: http://admin-service:4324
       ALERT_EVALUATOR_URL: http://alert-evaluator:4322

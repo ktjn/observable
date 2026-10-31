@@ -3336,7 +3336,6 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "sqlx",
  "test-support",
  "testcontainers",
  "testcontainers-modules",

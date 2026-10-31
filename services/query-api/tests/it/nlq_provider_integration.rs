@@ -24,7 +24,6 @@ use query_api::{
     traces,
 };
 use serde_json::Value;
-use sqlx::postgres::PgPool;
 use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -78,10 +77,9 @@ async fn start_admin_mock_with_provider(provider: Option<&str>) -> MockServer {
     mock
 }
 
-fn build_nlq_app(ch: ChClient, db: PgPool, admin_service_url: String) -> Router {
+fn build_nlq_app(ch: ChClient, admin_service_url: String) -> Router {
     let state = traces::AppState {
         ch,
-        db,
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: "http://auth-service:4319".into(),
@@ -154,8 +152,7 @@ async fn fetch_provider_defaults_to_remote_in_fresh_admin() {
 #[tokio::test]
 async fn nlq_query_returns_503_when_provider_is_webllm() {
     let admin_mock = start_admin_mock_with_provider(Some("webllm")).await;
-    let db = test_support::postgres::shared_pool().await;
-    let app = build_nlq_app(fake_ch(), db, admin_mock.uri());
+    let app = build_nlq_app(fake_ch(), admin_mock.uri());
     let tenant = Uuid::new_v4();
 
     let resp = app
@@ -182,8 +179,7 @@ async fn nlq_query_returns_503_when_provider_is_webllm() {
 #[tokio::test]
 async fn nlq_query_remote_default_falls_back_to_shorthand_unchanged() {
     let admin_mock = start_admin_mock_with_provider(None).await;
-    let db = test_support::postgres::shared_pool().await;
-    let app = build_nlq_app(fake_ch(), db, admin_mock.uri());
+    let app = build_nlq_app(fake_ch(), admin_mock.uri());
     let tenant = Uuid::new_v4();
 
     let resp = app
@@ -209,8 +205,7 @@ async fn nlq_query_remote_default_falls_back_to_shorthand_unchanged() {
 #[tokio::test]
 async fn nlq_prepare_reaches_prepared_for_remote_provider() {
     let admin_mock = start_admin_mock_with_provider(Some("remote")).await;
-    let db = test_support::postgres::shared_pool().await;
-    let app = build_nlq_app(fake_ch(), db, admin_mock.uri());
+    let app = build_nlq_app(fake_ch(), admin_mock.uri());
     let tenant = Uuid::new_v4();
 
     let resp = app
@@ -230,8 +225,7 @@ async fn nlq_prepare_reaches_prepared_for_remote_provider() {
 #[tokio::test]
 async fn nlq_prepare_reaches_prepared_for_webllm_provider() {
     let admin_mock = start_admin_mock_with_provider(Some("webllm")).await;
-    let db = test_support::postgres::shared_pool().await;
-    let app = build_nlq_app(fake_ch(), db, admin_mock.uri());
+    let app = build_nlq_app(fake_ch(), admin_mock.uri());
     let tenant = Uuid::new_v4();
 
     let resp = app
@@ -255,8 +249,7 @@ async fn nlq_prepare_reaches_prepared_for_webllm_provider() {
 #[tokio::test]
 async fn nlq_prepare_shorthand_bypass_unaffected_by_webllm_provider() {
     let admin_mock = start_admin_mock_with_provider(Some("webllm")).await;
-    let db = test_support::postgres::shared_pool().await;
-    let app = build_nlq_app(fake_ch(), db, admin_mock.uri());
+    let app = build_nlq_app(fake_ch(), admin_mock.uri());
     let tenant = Uuid::new_v4();
 
     let resp = app

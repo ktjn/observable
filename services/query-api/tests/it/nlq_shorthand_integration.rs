@@ -21,7 +21,6 @@ use clickhouse::Client as ChClient;
 use http_body_util::BodyExt;
 use query_api::{llm_adapter, middleware::auth::TenantContext, planner::QueryPlanner, traces};
 use serde_json::Value;
-use sqlx::postgres::PgPool;
 use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -45,10 +44,9 @@ async fn inject_tenant_ctx(mut req: Request<Body>, next: axum_middleware::Next) 
     next.run(req).await
 }
 
-fn build_nlq_app(ch: ChClient, db: PgPool) -> Router {
+fn build_nlq_app(ch: ChClient) -> Router {
     let state = traces::AppState {
         ch,
-        db,
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: "http://auth-service:4319".into(),
@@ -67,10 +65,6 @@ fn build_nlq_app(ch: ChClient, db: PgPool) -> Router {
 
 fn fake_ch() -> ChClient {
     ChClient::default().with_url("http://127.0.0.1:19999")
-}
-
-fn fake_db() -> PgPool {
-    PgPool::connect_lazy("postgres://x:x@127.0.0.1:5432/x").expect("valid url")
 }
 
 fn nlq_post(tenant_id: Uuid, body: &str) -> Request<Body> {
@@ -94,7 +88,7 @@ async fn body_json(body: axum::body::Body) -> Value {
 /// without hitting ClickHouse or Postgres — neither is needed in this path.
 #[tokio::test]
 async fn nlq_slash_prefix_interpret_returns_shorthand_ir() {
-    let app = build_nlq_app(fake_ch(), fake_db());
+    let app = build_nlq_app(fake_ch());
     let tenant = Uuid::new_v4();
 
     let resp = app
@@ -128,7 +122,7 @@ async fn nlq_slash_prefix_interpret_returns_shorthand_ir() {
 /// that are not overridden are preserved; shorthand filters replace matching fields.
 #[tokio::test]
 async fn nlq_slash_prefix_with_base_ir_merges_shorthand_filters() {
-    let app = build_nlq_app(fake_ch(), fake_db());
+    let app = build_nlq_app(fake_ch());
     let tenant = Uuid::new_v4();
 
     let body = r#"{
@@ -173,8 +167,7 @@ async fn nlq_slash_prefix_with_base_ir_merges_shorthand_filters() {
 /// container is required so the DB config lookup can legitimately find nothing.
 #[tokio::test]
 async fn nlq_no_llm_configured_falls_back_to_shorthand_interpret() {
-    let db = test_support::postgres::shared_pool().await;
-    let app = build_nlq_app(fake_ch(), db);
+    let app = build_nlq_app(fake_ch());
     let tenant = Uuid::new_v4();
 
     // Plain text query (no '/' prefix) with empty DB config — shorthand fallback.

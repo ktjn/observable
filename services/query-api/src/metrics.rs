@@ -156,7 +156,7 @@ pub async fn list_metrics(
     let metrics = rows.into_iter().map(MetricCatalogEntry::from).collect();
 
     crate::audit::write(
-        &state.db,
+        &state,
         &crate::audit::QueryAuditEntry {
             action: "metric_series_list",
             tenant_id: ctx.tenant_id,
@@ -239,7 +239,7 @@ pub async fn get_metric_group_points(
     let points = rows.into_iter().map(MetricPoint::from).collect();
 
     crate::audit::write(
-        &state.db,
+        &state,
         &crate::audit::QueryAuditEntry {
             action: "metric_group_points_get",
             tenant_id: ctx.tenant_id,
@@ -281,7 +281,7 @@ pub async fn get_metric_points(
     let points = rows.into_iter().map(MetricPoint::from).collect();
 
     crate::audit::write(
-        &state.db,
+        &state,
         &crate::audit::QueryAuditEntry {
             action: "metric_points_get",
             tenant_id: ctx.tenant_id,

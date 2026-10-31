@@ -20,7 +20,6 @@ use axum::{
     routing::{get, post},
 };
 use clickhouse::Client;
-use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
 
@@ -40,11 +39,6 @@ async fn main() -> anyhow::Result<()> {
         // incorrect magic number) -- see docs/agent-context.md. Remove this
         // once a clickhouse-rs release fixes it.
         .with_compression(clickhouse::Compression::None);
-    let database_url = observable_config::require_database_url()?;
-    let db = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
-        .await?;
     let port: u16 = std::env::var("QUERY_API_PORT")
         .unwrap_or_else(|_| "8090".into())
         .parse()?;
@@ -52,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
         .map(|c| Arc::new(c) as Arc<dyn llm_adapter::LlmCaller>);
     if llm.is_none() {
         tracing::info!(
-            "LLM_API_KEY env var not set — NLQ will resolve config from DB at call time \
+            "LLM_API_KEY env var not set — NLQ will resolve config from admin-service at call time \
              (supports Ollama and other no-auth providers)"
         );
     }
@@ -62,7 +56,6 @@ async fn main() -> anyhow::Result<()> {
     let internal_service_token = observable_config::require_env("INTERNAL_SERVICE_TOKEN")?;
     let state = traces::AppState {
         ch,
-        db,
         planner: Arc::new(planner::QueryPlanner),
         llm,
         auth_service_url,
@@ -130,7 +123,6 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/nlq/complete", post(llm_adapter::handle_nlq_complete))
         .route("/v1/nlq/metadata", get(llm_adapter::handle_nlq_metadata))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
-        .layer(axum::Extension(state.db.clone()))
         .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
         .layer(axum::Extension(reqwest::Client::new()))
         .route("/health", get(|| async { axum::http::StatusCode::OK }))
