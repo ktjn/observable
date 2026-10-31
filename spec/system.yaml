@@ -1,0 +1,871 @@
+system:
+  id: observable-platform
+  version: "0.1.0"
+  status: verified
+  layers:
+    - experience
+    - application
+    - domain
+    - infrastructure
+  external_sources:
+    - otel-collectors
+    - oidc-idp
+    - cicd-events
+    - s3-object-storage
+  quality_attributes:
+    ingest_p99_ms: "<= 100"
+    query_p99_ms: "<= 500"
+    availability_target: "99.9%"
+
+components:
+  - id: observable-web
+    version: "0.1.0"
+    status: verified
+    layer: experience
+    consistency: strong
+    source_paths:
+      - apps/frontend
+    provides:
+      - explore-telemetry-ui
+    requires:
+      - validate-credential@^0.1
+      - manage-control-plane@^0.1
+      - query-telemetry@^0.1
+      - evaluate-alerts@^0.1
+
+  - id: observable-ingest
+    version: "0.1.0"
+    status: verified
+    layer: application
+    consistency: eventual
+    source_paths:
+      - services/ingest-gateway
+    provides:
+      - ingest-otlp
+    requires:
+      - validate-credential@^0.1
+      - normalize-telemetry@^0.1
+      - publish-deployment-markers@^0.1
+
+  - id: observable-query
+    version: "0.1.0"
+    status: verified
+    layer: application
+    consistency: strong
+    source_paths:
+      - services/query-api
+      - libs/query-core
+      - libs/domain-core
+    provides:
+      - query-telemetry
+    requires:
+      - validate-credential@^0.1
+      - manage-control-plane@^0.1
+      - evaluate-alerts@^0.1
+      - store-telemetry@^0.1
+
+  - id: observable-control
+    version: "0.1.0"
+    status: verified
+    layer: domain
+    consistency: strong
+    source_paths:
+      - services/admin-service
+    provides:
+      - manage-control-plane
+      - publish-deployment-markers
+    requires:
+      - validate-credential@^0.1
+    owns_data:
+      - tenant-config
+      - dashboard-model
+      - deployment-marker
+
+  - id: observable-alerting
+    version: "0.1.0"
+    status: verified
+    layer: domain
+    consistency: strong
+    source_paths:
+      - services/alert-evaluator
+    provides:
+      - evaluate-alerts
+    requires:
+      - validate-credential@^0.1
+      - store-telemetry@^0.1
+    owns_data:
+      - alert-rule
+      - slo-definition
+      - incident-record
+
+  - id: observable-process
+    version: "0.1.0"
+    status: verified
+    layer: domain
+    consistency: eventual
+    source_paths:
+      - services/stream-processor
+      - libs/observable-process
+    provides:
+      - normalize-telemetry
+    requires:
+      - store-telemetry@^0.1
+
+  - id: observable-auth
+    version: "0.1.0"
+    status: verified
+    layer: infrastructure
+    consistency: strong
+    source_paths:
+      - services/auth-service
+      - libs/observable-auth
+    provides:
+      - validate-credential
+    owns_data:
+      - api-key-credential
+      - user-session
+
+  - id: observable-store-clickhouse
+    version: "0.1.0"
+    status: verified
+    layer: infrastructure
+    consistency: eventual
+    source_paths:
+      - services/storage-writer
+      - migrations/clickhouse
+      - libs/observable-storage-contracts
+    provides:
+      - store-telemetry
+    owns_data:
+      - span-row
+      - log-row
+      - metric-point
+
+capabilities:
+  - id: explore-telemetry-ui
+    version: "0.1.0"
+    status: verified
+    preconditions:
+      - "Caller holds an active user-session or public share token"
+    postconditions:
+      - "Renders tenant-scoped traces, logs, metrics, dashboards, and alerts"
+    invariants:
+      - "Never executes cross-tenant telemetry queries"
+    failure_modes:
+      - unauthenticated
+      - upstream_unavailable
+    interface:
+      operation: GET /app/*
+      mode: sync
+      idempotent: true
+      auth: oidc_session
+      errors:
+        unauthenticated: 401
+        upstream_unavailable: 502
+
+  - id: ingest-otlp
+    version: "0.1.0"
+    status: verified
+    preconditions:
+      - "Request carries a valid ingest api-key-credential with write scope"
+      - "Payload conforms to OTLP v1 protobuf/JSON or deployment event schema"
+    postconditions:
+      - "Accepted telemetry batch is enqueued to bounded workers or published to Kafka raw topics"
+    invariants:
+      - "Tenant quota and rate limits are enforced prior to queue admission"
+      - "Queue saturation returns 429/503 without silent drop"
+    failure_modes:
+      - invalid_api_key
+      - quota_exceeded
+      - payload_too_large
+      - queue_full
+    interface:
+      operation: POST /v1/{traces,logs,metrics}
+      mode: async
+      request: span-row
+      idempotent: false
+      auth: bearer_api_key
+      errors:
+        invalid_api_key: 401
+        quota_exceeded: 429
+        payload_too_large: 413
+        queue_full: 503
+
+  - id: query-telemetry
+    version: "0.1.0"
+    status: verified
+    preconditions:
+      - "Caller presents a valid session JWT or read-scoped API key"
+      - "Time window and limit parameters are within configured guardrails"
+    postconditions:
+      - "Returns tenant-isolated telemetry rows, aggregations, or service dependency graphs"
+    invariants:
+      - "Every analytical query binds tenant_id as a mandatory predicate"
+    failure_modes:
+      - unauthorized
+      - invalid_query_window
+      - storage_timeout
+    interface:
+      operation: GET /api/v1/query/*
+      mode: sync
+      response: span-row
+      idempotent: true
+      auth: jwt_or_api_key
+      errors:
+        unauthorized: 401
+        invalid_query_window: 400
+        storage_timeout: 504
+
+  - id: manage-control-plane
+    version: "0.1.0"
+    status: verified
+    preconditions:
+      - "Caller holds a validated session or admin token for the target tenant"
+    postconditions:
+      - "Control-plane metadata is persisted atomically in control.* PostgreSQL tables"
+    invariants:
+      - "Tenant configuration and dashboard ownership remain isolated per tenant_id"
+    failure_modes:
+      - unauthorized
+      - tenant_not_found
+      - validation_error
+    interface:
+      operation: /api/v1/admin/*
+      mode: sync
+      request: tenant-config
+      response: dashboard-model
+      idempotent: true
+      auth: jwt_or_api_key
+      errors:
+        unauthorized: 401
+        tenant_not_found: 404
+        validation_error: 422
+
+  - id: publish-deployment-markers
+    version: "0.1.0"
+    status: verified
+    preconditions:
+      - "Caller provides a valid tenant-scoped marker payload from ingest or control API"
+    postconditions:
+      - "Deployment marker is persisted for timeline and correlation overlays"
+    invariants:
+      - "Markers are immutable once recorded for a given tenant, service, and revision"
+    failure_modes:
+      - unauthorized
+      - invalid_marker_payload
+    interface:
+      operation: POST /internal/deployments
+      mode: sync
+      request: deployment-marker
+      response: deployment-marker
+      idempotent: true
+      auth: internal_service_token
+      errors:
+        unauthorized: 401
+        invalid_marker_payload: 400
+
+  - id: evaluate-alerts
+    version: "0.1.0"
+    status: verified
+    preconditions:
+      - "Alert rule and SLO definitions belong to an active tenant"
+    postconditions:
+      - "Rule state transitions and incident correlation snapshots are persisted in alerting.* tables"
+    invariants:
+      - "Alert evaluations are strictly scoped to the rule's tenant_id"
+    failure_modes:
+      - unauthorized
+      - evaluation_timeout
+      - rule_not_found
+    interface:
+      operation: /api/v1/alerts/*
+      mode: sync
+      request: alert-rule
+      response: incident-record
+      idempotent: true
+      auth: jwt_or_service_token
+      errors:
+        unauthorized: 401
+        evaluation_timeout: 504
+        rule_not_found: 404
+
+  - id: normalize-telemetry
+    version: "0.1.0"
+    status: verified
+    preconditions:
+      - "Input record conforms to telemetry.raw.v1 envelope with tenant_id"
+    postconditions:
+      - "Scrubbed, schema-normalized records are published to telemetry.normalized.v1 or DLQ"
+    invariants:
+      - "PII scrubbing rules execute before any normalized record leaves the processor"
+    failure_modes:
+      - malformed_envelope
+      - dlq_publish_failed
+    interface:
+      operation: telemetry.raw.v1 -> telemetry.normalized.v1
+      mode: async
+      request: span-row
+      response: span-row
+      idempotent: true
+      auth: sasl_scram
+      errors:
+        malformed_envelope: dlq_routed
+        dlq_publish_failed: retry_backoff
+
+  - id: store-telemetry
+    version: "0.1.0"
+    status: verified
+    preconditions:
+      - "Records carry a valid tenant_id and conform to normalized ClickHouse table schemas"
+    postconditions:
+      - "Batches are flushed to ClickHouse MergeTree tables before Kafka offsets are committed"
+    invariants:
+      - "No acknowledged batch is silently lost before durable ClickHouse write"
+    failure_modes:
+      - clickhouse_write_failed
+      - schema_mismatch
+    interface:
+      operation: consume telemetry.normalized.v1 / SELECT spans,logs,metric_points
+      mode: async
+      request: span-row
+      response: span-row
+      idempotent: false
+      auth: clickhouse_credentials
+      errors:
+        clickhouse_write_failed: 503
+        schema_mismatch: 422
+
+  - id: validate-credential
+    version: "0.1.0"
+    status: verified
+    preconditions:
+      - "Caller supplies a bearer API key or session token over HTTP"
+    postconditions:
+      - "Returns verified PrincipalContext with tenant_id, role, and scopes or 401/403"
+    invariants:
+      - "Plaintext API keys are never persisted; lookup uses SHA-256 key_hash"
+    failure_modes:
+      - invalid_credential
+      - expired_credential
+      - insufficient_scope
+    interface:
+      operation: POST /internal/auth/validate
+      mode: sync
+      request: api-key-credential
+      response: user-session
+      idempotent: true
+      auth: internal_service_token
+      errors:
+        invalid_credential: 401
+        expired_credential: 401
+        insufficient_scope: 403
+
+data_models:
+  - id: span-row
+    version: "0.1.0"
+    owner: observable-store-clickhouse
+    classification: confidential
+    external_source: otel-collectors
+    schema_path: models/telemetry.mdl
+    fields:
+      tenant_id: string
+      trace_id: string
+      span_id: string
+      service_name: string
+      operation_name: string
+      start_time_ns: int64
+      duration_ns: int64
+      status_code: string
+      attributes: map<string,string>
+
+  - id: log-row
+    version: "0.1.0"
+    owner: observable-store-clickhouse
+    classification: confidential
+    external_source: otel-collectors
+    schema_path: models/telemetry.mdl
+    fields:
+      tenant_id: string
+      timestamp_ns: int64
+      trace_id: string
+      span_id: string
+      severity_number: uint8
+      body: string
+      attributes: map<string,string>
+
+  - id: metric-point
+    version: "0.1.0"
+    owner: observable-store-clickhouse
+    classification: internal
+    derived_from:
+      - span-row
+    declassified_by: req-pii-scrubbing
+    schema_path: models/telemetry.mdl
+    fields:
+      tenant_id: string
+      metric_name: string
+      timestamp_ns: int64
+      value: float64
+      labels: map<string,string>
+
+  - id: tenant-config
+    version: "0.1.0"
+    owner: observable-control
+    classification: internal
+    external_source: oidc-idp
+    schema_path: models/admin.mdl
+    fields:
+      tenant_id: uuid
+      slug: string
+      retention_days: uint16
+      ingest_quota_per_sec: uint32
+
+  - id: dashboard-model
+    version: "0.1.0"
+    owner: observable-control
+    classification: internal
+    derived_from:
+      - tenant-config
+    schema_path: models/admin.mdl
+    fields:
+      dashboard_id: uuid
+      tenant_id: uuid
+      title: string
+      layout_json: string
+
+  - id: deployment-marker
+    version: "0.1.0"
+    owner: observable-control
+    classification: internal
+    external_source: cicd-events
+    schema_path: models/admin.mdl
+    fields:
+      marker_id: uuid
+      tenant_id: uuid
+      service_name: string
+      version: string
+      deployed_at: timestamp
+
+  - id: alert-rule
+    version: "0.1.0"
+    owner: observable-alerting
+    classification: internal
+    derived_from:
+      - tenant-config
+    schema_path: models/alerts.mdl
+    fields:
+      rule_id: uuid
+      tenant_id: uuid
+      name: string
+      query_expr: string
+      threshold: float64
+      window_sec: uint32
+
+  - id: slo-definition
+    version: "0.1.0"
+    owner: observable-alerting
+    classification: internal
+    derived_from:
+      - metric-point
+    schema_path: models/slo.mdl
+    fields:
+      slo_id: uuid
+      tenant_id: uuid
+      service_name: string
+      target_percentage: float64
+      window_days: uint16
+
+  - id: incident-record
+    version: "0.1.0"
+    owner: observable-alerting
+    classification: confidential
+    derived_from:
+      - alert-rule
+      - span-row
+    schema_path: models/alerts.mdl
+    fields:
+      incident_id: uuid
+      tenant_id: uuid
+      rule_id: uuid
+      state: string
+      opened_at: timestamp
+
+  - id: api-key-credential
+    version: "0.1.0"
+    owner: observable-auth
+    classification: restricted
+    external_source: oidc-idp
+    schema_path: models/admin.mdl
+    fields:
+      key_id: uuid
+      tenant_id: uuid
+      key_prefix: string
+      key_hash_sha256: string
+      scopes: list<string>
+
+  - id: user-session
+    version: "0.1.0"
+    owner: observable-auth
+    classification: restricted
+    external_source: oidc-idp
+    schema_path: models/admin.mdl
+    fields:
+      session_id: uuid
+      user_id: uuid
+      tenant_id: uuid
+      role: string
+      expires_at: timestamp
+
+requirements:
+  - id: req-ui-tenant-session
+    version: "0.1.0"
+    target: explore-telemetry-ui
+    status: verified
+    kind: functional
+    category: functional
+    mandatory: true
+    criteria:
+      - "Unauthenticated browser sessions are redirected to OIDC login unless accessing a valid share token"
+      - "All UI telemetry queries bind the active session tenant_id"
+
+  - id: req-ingest-delivery
+    version: "0.1.0"
+    target: ingest-otlp
+    status: verified
+    kind: functional
+    category: functional
+    mandatory: true
+    criteria:
+      - "When bounded queues are full, ingest returns 429/503 backpressure without silent drop"
+      - "Every accepted OTLP item reaches stored ClickHouse state or the dead-letter queue"
+
+  - id: req-deployment-marker-immutability
+    version: "0.1.0"
+    target: publish-deployment-markers
+    status: verified
+    kind: functional
+    category: functional
+    mandatory: true
+    criteria:
+      - "Recorded deployment markers for a (tenant_id, service_name, version) tuple are persisted and queryable for timeline overlays"
+
+  - id: req-pii-scrubbing
+    version: "0.1.0"
+    target: normalize-telemetry
+    status: verified
+    kind: functional
+    category: semantic
+    mandatory: true
+    criteria:
+      - "Email, credit-card, and bearer token patterns are scrubbed from span attributes and log bodies before emitting telemetry.normalized.v1"
+      - "Derived metric-point aggregations contain no raw PII attributes, authorizing internal classification"
+
+  - id: req-component-compat
+    version: "0.1.0"
+    target: observable-platform
+    status: verified
+    kind: functional
+    category: contract
+    mandatory: true
+    criteria:
+      - "scripts/check-component-boundaries.sh reports zero unallowlisted cross-component source imports"
+      - "TLC model checking of ComponentCompatibility.tla verifies all 8 components satisfy SemVer requires ranges"
+
+  - id: req-otlp-envelope-serde
+    version: "0.1.0"
+    target: store-telemetry
+    status: verified
+    kind: functional
+    category: serialization
+    mandatory: true
+    criteria:
+      - "Raw and normalized telemetry envelopes and models/*.mdl schemas preserve field types and tenant_id across round-trip serialization"
+
+  - id: req-bounded-worker-concurrency
+    version: "0.1.0"
+    target: ingest-otlp
+    status: verified
+    kind: functional
+    category: concurrency
+    mandatory: true
+    criteria:
+      - "TelemetryDelivery.tla verifies BoundedQueues and terminal progress across all reachable states without deadlock"
+
+  - id: req-query-latency
+    version: "0.1.0"
+    target: query-telemetry
+    status: verified
+    kind: non-functional
+    category: performance
+    mandatory: true
+    criteria:
+      - "Tenant-scoped trace, log, and metric queries over a 1-hour window complete within p99 <= 500ms"
+
+  - id: req-ingest-throughput
+    version: "0.1.0"
+    target: ingest-otlp
+    status: verified
+    kind: non-functional
+    category: scalability
+    mandatory: true
+    criteria:
+      - "observable-ingest and observable-process sustain 10,000 spans/sec per replica with horizontal partition scaling"
+
+  - id: req-backpressure-resilience
+    version: "0.1.0"
+    target: store-telemetry
+    status: verified
+    kind: non-functional
+    category: resilience
+    mandatory: true
+    criteria:
+      - "observable-store-clickhouse withholds Kafka offset commits until ClickHouse batch insert succeeds and retries transient failures with backoff"
+
+  - id: req-tenant-auth-isolation
+    version: "0.1.0"
+    target: validate-credential
+    status: verified
+    kind: non-functional
+    category: security
+    mandatory: true
+    criteria:
+      - "observable-auth verifies SHA-256 API key hashes and rejects invalid, expired, or cross-tenant credentials with 401/403"
+
+  - id: req-self-observability
+    version: "0.1.0"
+    target: observable-platform
+    status: verified
+    kind: non-functional
+    category: observability
+    mandatory: true
+    criteria:
+      - "All deployable backend services expose /health, /ready, and Prometheus metrics for queue depth, latency, and error rates"
+
+  - id: req-dedup-idempotency
+    version: "0.1.0"
+    target: store-telemetry
+    status: verified
+    kind: non-functional
+    category: resilience
+    mandatory: true
+    criteria:
+      - "ClickHouse writes carry deterministic deduplication tokens or ReplacingMergeTree keys so crash-window Kafka redeliveries do not duplicate visible rows"
+      - "Span-derived metrics converge on telemetry.normalized.v1 instead of dual HTTP push"
+
+  - id: req-alerting-query-inversion
+    version: "0.1.0"
+    target: evaluate-alerts
+    status: verified
+    kind: functional
+    category: contract
+    mandatory: true
+    criteria:
+      - "observable-alerting does not depend on query-telemetry while observable-query depends on evaluate-alerts, preserving DAG (COMP-06) and layer ordering (COMP-05)"
+
+  - id: req-pg-schema-isolation
+    version: "0.1.0"
+    target: manage-control-plane
+    status: verified
+    kind: functional
+    category: contract
+    mandatory: true
+    criteria:
+      - "PostgreSQL schemas auth.*, control.*, and alerting.* maintain explicit table ownership and schema boundary isolation"
+
+risks:
+  - id: risk-at-least-once-duplicates
+    target: observable-store-clickhouse
+    treatment: mitigation
+    mitigated_by:
+      - req-dedup-idempotency
+
+  - id: risk-query-alerting-cycle-hazard
+    target: observable-alerting
+    treatment: mitigation
+    mitigated_by:
+      - req-alerting-query-inversion
+
+  - id: risk-pg-cross-schema-fks
+    target: observable-control
+    treatment: mitigation
+    mitigated_by:
+      - req-pg-schema-isolation
+
+evidence:
+  - id: ev-ui-session-e2e
+    requirement_id: req-ui-tenant-session
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: apps/frontend/e2e/auth-tenant-isolation.spec.ts
+    timestamp: "2026-10-30T20:00:00Z"
+    verifier: ci-playwright
+
+  - id: ev-tla-telemetry-delivery
+    requirement_id: req-ingest-delivery
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: model-check
+    passed: true
+    provenance: formal/tla/TelemetryDelivery.tla
+    bounds:
+      N: 3
+      Capacity: 2
+      WorkerCapacity: 1
+      MaxAttempts: 2
+    timestamp: "2026-10-30T20:00:00Z"
+    verifier: ci-tlc-verify
+
+  - id: ev-deployment-markers-test
+    requirement_id: req-deployment-marker-immutability
+    requirement_version: "0.1.0"
+    subject_id: publish-deployment-markers
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/admin-service/src/main.rs
+    timestamp: "2026-10-30T20:00:00Z"
+    verifier: ci-rust-test
+
+  - id: ev-tla-bounded-concurrency
+    requirement_id: req-bounded-worker-concurrency
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: model-check
+    passed: true
+    provenance: formal/tla/TelemetryDelivery.cfg
+    bounds:
+      N: 3
+      Capacity: 2
+      WorkerCapacity: 1
+      MaxAttempts: 2
+    timestamp: "2026-10-30T20:00:00Z"
+    verifier: ci-tlc-verify
+
+  - id: ev-tla-component-compat
+    requirement_id: req-component-compat
+    requirement_version: "0.1.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: model-check
+    passed: true
+    provenance: formal/tla/ComponentCompatibility.tla
+    bounds:
+      Components: 8
+      VersionRange: 2
+    timestamp: "2026-10-30T20:00:00Z"
+    verifier: ci-tlc-verify
+
+  - id: ev-pii-scrubbing-tests
+    requirement_id: req-pii-scrubbing
+    requirement_version: "0.1.0"
+    subject_id: normalize-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/stream-processor/src/main.rs
+    timestamp: "2026-10-30T20:00:00Z"
+    verifier: ci-rust-test
+
+  - id: ev-serde-contracts
+    requirement_id: req-otlp-envelope-serde
+    requirement_version: "0.1.0"
+    subject_id: store-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: libs/observable-storage-contracts/src/lib.rs
+    timestamp: "2026-10-30T20:00:00Z"
+    verifier: ci-rust-test
+
+  - id: ev-query-latency-bench
+    requirement_id: req-query-latency
+    requirement_version: "0.1.0"
+    subject_id: query-telemetry
+    subject_revision: "0.1.0"
+    method: analysis
+    passed: true
+    provenance: tests/performance/query-latency.js
+    timestamp: "2026-10-30T20:00:00Z"
+    verifier: ci-perf-gate
+
+  - id: ev-ingest-throughput-bench
+    requirement_id: req-ingest-throughput
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: analysis
+    passed: true
+    provenance: tests/performance/ingest-load.js
+    timestamp: "2026-10-30T20:00:00Z"
+    verifier: ci-perf-gate
+
+  - id: ev-backpressure-resilience-test
+    requirement_id: req-backpressure-resilience
+    requirement_version: "0.1.0"
+    subject_id: store-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/storage-writer/src/main.rs
+    timestamp: "2026-10-30T20:00:00Z"
+    verifier: ci-integration-test
+
+  - id: ev-auth-isolation-test
+    requirement_id: req-tenant-auth-isolation
+    requirement_version: "0.1.0"
+    subject_id: validate-credential
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/auth-service/src/main.rs
+    timestamp: "2026-10-30T20:00:00Z"
+    verifier: ci-security-gate
+
+  - id: ev-self-observability-test
+    requirement_id: req-self-observability
+    requirement_version: "0.1.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/main.rs
+    timestamp: "2026-10-30T20:00:00Z"
+    verifier: ci-rust-test
+
+  - id: ev-dedup-idempotency-test
+    requirement_id: req-dedup-idempotency
+    requirement_version: "0.1.0"
+    subject_id: store-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/storage-writer/src/main.rs
+    timestamp: "2026-10-30T20:00:00Z"
+    verifier: ci-rust-test
+
+  - id: ev-alerting-query-dag-check
+    requirement_id: req-alerting-query-inversion
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: scripts/check-component-boundaries.sh
+    timestamp: "2026-10-30T20:00:00Z"
+    verifier: ci-boundary-gate
+
+  - id: ev-pg-schema-isolation-check
+    requirement_id: req-pg-schema-isolation
+    requirement_version: "0.1.0"
+    subject_id: manage-control-plane
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: migrations/postgres
+    timestamp: "2026-10-30T20:00:00Z"
+    verifier: ci-schema-gate
