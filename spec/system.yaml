@@ -182,7 +182,10 @@ capabilities:
     interface:
       operation: POST /v1/{traces,logs,metrics}
       mode: async
-      request: span-row
+      request:
+        - span-row
+        - log-row
+        - metric-point
       idempotent: false
       auth: bearer_api_key
       errors:
@@ -208,7 +211,10 @@ capabilities:
     interface:
       operation: GET /api/v1/query/*
       mode: sync
-      response: span-row
+      response:
+        - span-row
+        - log-row
+        - metric-point
       idempotent: true
       auth: jwt_or_api_key
       errors:
@@ -304,8 +310,14 @@ capabilities:
     interface:
       operation: telemetry.raw.v1 -> telemetry.normalized.v1
       mode: async
-      request: span-row
-      response: span-row
+      request:
+        - span-row
+        - log-row
+        - metric-point
+      response:
+        - span-row
+        - log-row
+        - metric-point
       idempotent: true
       auth: sasl_scram
       errors:
@@ -327,8 +339,14 @@ capabilities:
     interface:
       operation: consume telemetry.normalized.v1 / SELECT spans,logs,metric_points
       mode: async
-      request: span-row
-      response: span-row
+      request:
+        - span-row
+        - log-row
+        - metric-point
+      response:
+        - span-row
+        - log-row
+        - metric-point
       idempotent: false
       auth: clickhouse_credentials
       errors:
@@ -366,7 +384,7 @@ data_models:
     owner: observable-store-clickhouse
     classification: confidential
     external_source: otel-collectors
-    schema_path: models/telemetry.mdl
+    schema_path: models/tracing.mdl
     fields:
       tenant_id: string
       trace_id: string
@@ -383,7 +401,7 @@ data_models:
     owner: observable-store-clickhouse
     classification: confidential
     external_source: otel-collectors
-    schema_path: models/telemetry.mdl
+    schema_path: models/logs.mdl
     fields:
       tenant_id: string
       timestamp_ns: int64
@@ -400,7 +418,7 @@ data_models:
     derived_from:
       - span-row
     declassified_by: req-pii-scrubbing
-    schema_path: models/telemetry.mdl
+    schema_path: models/metrics.mdl
     fields:
       tenant_id: string
       metric_name: string
@@ -426,7 +444,7 @@ data_models:
     classification: internal
     derived_from:
       - tenant-config
-    schema_path: models/admin.mdl
+    schema_path: models/dashboards.mdl
     fields:
       dashboard_id: uuid
       tenant_id: uuid
@@ -467,7 +485,7 @@ data_models:
     classification: internal
     derived_from:
       - metric-point
-    schema_path: models/slo.mdl
+    schema_path: models/slos.mdl
     fields:
       slo_id: uuid
       tenant_id: uuid
@@ -482,7 +500,7 @@ data_models:
     derived_from:
       - alert-rule
       - span-row
-    schema_path: models/alerts.mdl
+    schema_path: models/incidents.mdl
     fields:
       incident_id: uuid
       tenant_id: uuid
