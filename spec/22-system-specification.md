@@ -54,3 +54,20 @@ Reverse discovery against the metamodel invariants uncovered three concrete arch
 | Level 2 | `architecture` | **PASS** | Strict 4-layer DAG (`experience -> application -> domain -> infrastructure`), single data-model ownership (`DATA-02`, `DATA-03`), PII declassification (`DATA-04` via `req-pii-scrubbing`), and full interface contracts (`CAP-02`, `CAP-03`, `COMP-01`–`COMP-07`). |
 | Level 2.5 | `verification` | **PASS** | All 10 verification categories covered (`REQ-01`), category-kind alignment verified (`REQ-07`), acyclic requirement graph (`REQ-02`). |
 | Level 3 | `release` | **PASS** | All obligated and risk-mitigating requirements backed by passing evidence with matching `subject_revision: "0.1.0"`, `timestamp`, and `verifier` (`EV-04`, `REQ-04`–`REQ-06`, `RISK-03`–`RISK-08`, `STAT-04`). |
+
+---
+
+## 5. Remediation Roadmap to Full Runtime Alignment
+
+1. **Milestone 1 — Spec-Driven CI & Drift Enforcement** (Completed):
+   - `scripts/tests/test_system_spec.py` enforces parity between `spec/system.yaml`, `VERSION`, `distribution/manifest.yaml`, `source_paths`, and `models/*.mdl` (`schema_path`).
+2. **Milestone 2 — Telemetry Pipeline Idempotency & Single-Boundary Flow**:
+   - Close `risk-at-least-once-duplicates` (`req-dedup-idempotency`, issue `#768`) by adding deterministic ClickHouse deduplication keys (`store-telemetry.interface.idempotent: true`), retiring the transitional `/internal/metrics` HTTP push path, and extending `formal/tla/TelemetryDelivery.tla`.
+3. **Milestone 3 — PostgreSQL State Ownership & Schema Isolation**:
+   - Close `risk-pg-cross-schema-fks` (`req-pg-schema-isolation`) by migrating `public.query_audit_log` into an explicit component schema, dropping cross-schema foreign keys between `auth.*` and `control.*`, and enforcing per-component DB credentials.
+4. **Milestone 4 — Resolve `observable-query` ↔ `observable-alerting` Direction**:
+   - Close `risk-query-alerting-cycle-hazard` (`req-alerting-query-inversion`) in Phase 6 by either codifying `observable-alerting` (`domain`) reading ClickHouse via versioned `libs/observable-storage-contracts` (`store-telemetry`) or inverting enrichment out of `observable-query` before promoting `observable-alerting` to `application`.
+5. **Milestone 5 — Contract Completeness & Boundary Allowlist Zeroing**:
+   - Empty `scripts/component-boundary-allowlist.txt` and bind every capability interface `request`/`response` to its dedicated wire contract model.
+6. **Milestone 6 — Automated Evidence Provenance & Release Gate**:
+   - Automate `Evidence` digest/timestamp stamping from `scripts/local-ci.sh` and bind `subject_revision` to immutable per-component OCI release artifacts.
