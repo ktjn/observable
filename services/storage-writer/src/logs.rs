@@ -3,9 +3,14 @@ use domain::LogRecord;
 use observable_storage_contracts::LogRow;
 
 pub async fn insert_logs(ch: &Client, logs: Vec<LogRecord>) -> anyhow::Result<()> {
-    let mut insert = ch.insert::<LogRow>("logs").await?;
-    for log in logs {
-        insert.write(&LogRow::from(log)).await?;
+    if logs.is_empty() {
+        return Ok(());
+    }
+    let rows: Vec<LogRow> = logs.into_iter().map(LogRow::from).collect();
+    let dedup_ch = crate::deduplicated_client(ch, "logs", &rows);
+    let mut insert = dedup_ch.insert::<LogRow>("logs").await?;
+    for row in &rows {
+        insert.write(row).await?;
     }
     insert.end().await?;
     Ok(())

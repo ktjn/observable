@@ -3,22 +3,29 @@ use domain::{Span, SpanEvent};
 use observable_storage_contracts::{SpanEventRow, SpanRow};
 
 pub async fn insert_spans(ch: &Client, spans: Vec<Span>) -> anyhow::Result<()> {
+    if spans.is_empty() {
+        return Ok(());
+    }
     // Collect events before consuming spans
     let all_events: Vec<SpanEvent> = spans
         .iter()
         .flat_map(|s| s.events.iter().cloned())
         .collect();
 
-    let mut insert = ch.insert::<SpanRow>("spans").await?;
-    for span in spans {
-        insert.write(&SpanRow::from(span)).await?;
+    let rows: Vec<SpanRow> = spans.into_iter().map(SpanRow::from).collect();
+    let dedup_ch = crate::deduplicated_client(ch, "spans", &rows);
+    let mut insert = dedup_ch.insert::<SpanRow>("spans").await?;
+    for row in &rows {
+        insert.write(row).await?;
     }
     insert.end().await?;
 
     if !all_events.is_empty() {
-        let mut ev_insert = ch.insert::<SpanEventRow>("span_events").await?;
-        for ev in all_events {
-            ev_insert.write(&SpanEventRow::from(ev)).await?;
+        let ev_rows: Vec<SpanEventRow> = all_events.into_iter().map(SpanEventRow::from).collect();
+        let ev_ch = crate::deduplicated_client(ch, "span_events", &ev_rows);
+        let mut ev_insert = ev_ch.insert::<SpanEventRow>("span_events").await?;
+        for ev in &ev_rows {
+            ev_insert.write(ev).await?;
         }
         ev_insert.end().await?;
     }
@@ -178,7 +185,7 @@ mod tests {
     // NOTE: requires Docker to be running; skip if Docker unavailable
     #[tokio::test]
     #[ignore = "requires Docker"]
-    async fn insert_spans_writes_events_to_clickhouse() {
+    async fn insert_spans_writes_events_to_clickhouse_and_deduplicates_retries() {
         use std::path::Path;
         use testcontainers::{ImageExt, runners::AsyncRunner};
         use testcontainers_modules::clickhouse::ClickHouse;
@@ -268,11 +275,25 @@ mod tests {
             ..Default::default()
         };
 
+        insert_spans(&ch, vec![span.clone()])
+            .await
+            .expect("first insert succeeded");
+        // Simulate crash-window Kafka redelivery of the identical batch
         insert_spans(&ch, vec![span])
             .await
-            .expect("insert succeeded");
+            .expect("redelivered insert succeeded");
 
-        // Query span_events to verify 2 rows
+        let span_count: u64 = ch
+            .query(
+                "SELECT count() FROM spans WHERE tenant_id = ? AND trace_id = 'test-trace-events'",
+            )
+            .bind(tenant_id)
+            .fetch_one()
+            .await
+            .expect("span count query");
+        assert_eq!(span_count, 1, "expected deduplicated single span row");
+
+        // Query span_events to verify 2 rows (not 4)
         let count: u64 = ch
             .query(
                 "SELECT count() FROM span_events WHERE tenant_id = ? AND trace_id = 'test-trace-events'",
@@ -282,7 +303,10 @@ mod tests {
             .await
             .expect("count query");
 
-        assert_eq!(count, 2, "expected 2 span events to be written");
+        assert_eq!(
+            count, 2,
+            "expected 2 deduplicated span events to be written"
+        );
 
         // Verify event names
         let names: Vec<String> = ch

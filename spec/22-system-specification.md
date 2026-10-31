@@ -61,8 +61,8 @@ Reverse discovery against the metamodel invariants uncovered three concrete arch
 
 1. **Milestone 1 — Spec-Driven CI & Drift Enforcement** (Completed):
    - `scripts/tests/test_system_spec.py` enforces parity between `spec/system.yaml`, `VERSION`, `distribution/manifest.yaml`, `source_paths`, and `models/*.mdl` (`schema_path`).
-2. **Milestone 2 — Telemetry Pipeline Idempotency & Single-Boundary Flow**:
-   - Close `risk-at-least-once-duplicates` (`req-dedup-idempotency`, issue `#768`) by adding deterministic ClickHouse deduplication keys (`store-telemetry.interface.idempotent: true`), retiring the transitional `/internal/metrics` HTTP push path, and extending `formal/tla/TelemetryDelivery.tla`.
+2. **Milestone 2 — Telemetry Pipeline Idempotency & Single-Boundary Flow** (Completed):
+   - Closed `risk-at-least-once-duplicates` (`req-dedup-idempotency`, issue `#768`) by attaching deterministic ClickHouse `insert_deduplication_token` / `non_replicated_deduplication_window` to all telemetry inserts (`store-telemetry.interface.idempotent: true`), routing span-derived metrics through `telemetry.normalized.v1` and removing `/internal/metrics`, and verifying `NoDuplicateVisibleRows` in `formal/tla/TelemetryDelivery.tla`.
 3. **Milestone 3 — PostgreSQL State Ownership & Schema Isolation**:
    - Close `risk-pg-cross-schema-fks` (`req-pg-schema-isolation`) by migrating `public.query_audit_log` into an explicit component schema, dropping cross-schema foreign keys between `auth.*` and `control.*`, and enforcing per-component DB credentials.
 4. **Milestone 4 — Resolve `observable-query` ↔ `observable-alerting` Direction**:

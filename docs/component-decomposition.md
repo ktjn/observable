@@ -512,27 +512,19 @@ signal types). `stream-processor` publishes it unconditionally; `storage-writer`
 `NormalizedConsumer` that consumes it directly and forwards into `WriteBuffer`. The dual-run/
 `STORAGE_WRITE_MODE` switch and the original HTTP push existed only during migration and have been
 removed now that the queue path is the sole, verified path — there is no rollback toggle anymore;
-reverting means reverting the commit. `/internal/spans` and `/internal/logs` are gone.
-`/internal/metrics` **stays**: unlike the other two, it also serves `stream-processor`'s
-span-derived-metrics background flush, a separate aggregation path from a different data source
-(locally-computed span metrics, not `telemetry.raw.v1`) — see ADR-029. The original Phase 2 bullet
-above listing all three for removal was never fully achievable without also migrating that
-aggregator flush, which is out of scope here.
+reverting means reverting the commit. `/internal/spans`, `/internal/logs`, and `/internal/metrics` are gone (`stream-processor`'s span-derived-metrics background flush also publishes `NormalizedTelemetryBatch` events onto `telemetry.normalized.v1` per ADR-029 / ADR-035).
 
-**Idempotency is outage-survival (at-least-once), not exactly-once row-level dedup:**
+**Idempotent batch deduplication across crash-window redeliveries:**
 `stream-processor`'s `QueueConsumer` and `storage-writer`'s `NormalizedConsumer` both disable
 `enable.auto.commit` and commit an offset only after the corresponding write actually succeeds
-(the Kafka publish, or — via `WriteBuffer`'s new `send_*_durable` methods and a per-submission
+(the Kafka publish, or — via `WriteBuffer`'s `send_*_durable` methods and a per-submission
 `oneshot` ack — a confirmed ClickHouse insert), retrying with exponential backoff (500 ms → 30 s
-cap, indefinitely) instead of silently dropping on failure. A process crash between a successful
-ClickHouse insert and the (async, fire-and-forget) Kafka commit can still redeliver and re-insert a
-batch on restart. `spans`, `logs`, and `span_events` are plain `MergeTree` (no dedup on re-insert);
-of the metrics tables, `metric_series` is `ReplacingMergeTree` but `metric_points` is plain
-`MergeTree` too. Closing that crash-window gap needs a stable per-row identity plus a schema change
-across all three non-deduped signal tables (and `ReplacingMergeTree`'s lazy background-merge
-dedup would also need either query-side `FINAL` — a real performance cost on `query-api`'s hot
-paths — or accepting non-deterministic-timing eventual consistency) — a separate, larger piece of
-work, deliberately not attempted here.
+cap, indefinitely) instead of silently dropping on failure. In addition, `storage-writer` attaches a
+deterministic 128-bit FNV-1a `insert_deduplication_token` (with
+`non_replicated_deduplication_window = 1000`) to every ClickHouse insert block across `spans`,
+`span_events`, `logs`, `metric_series`, and `metric_points`, so a process crash between a successful
+ClickHouse insert and the Kafka offset commit deduplicates on redelivery (`NoDuplicateVisibleRows` in
+`formal/tla/TelemetryDelivery.tla`).
 
 All of the above verified for real, not just unit tests: the actual
 `docker compose --profile verification` smoke suite, run repeatedly through this migration

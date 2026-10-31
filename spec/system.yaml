@@ -347,7 +347,7 @@ capabilities:
         - span-row
         - log-row
         - metric-point
-      idempotent: false
+      idempotent: true
       auth: clickhouse_credentials
       errors:
         clickhouse_write_failed: 503

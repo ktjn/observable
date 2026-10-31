@@ -74,6 +74,7 @@ interleavings.
 | `BacklogBounded` | the uncommitted backlog never exceeds `Capacity` |
 | `InFlightBounded` | a worker never holds more than `WorkerCapacity` records |
 | `NoCommittedLoss` | every committed record is durably stored |
+| `NoDuplicateVisibleRows` | deterministic ClickHouse `insert_deduplication_token` prevents duplicate visible rows across crash-window redeliveries |
 
 ## Temporal properties
 

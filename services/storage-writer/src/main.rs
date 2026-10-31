@@ -1,32 +1,10 @@
 mod retention;
 
-use axum::{
-    Json, Router,
-    extract::State,
-    http::StatusCode,
-    routing::{get, post},
-};
+use axum::{Router, http::StatusCode, routing::get};
 use clickhouse::Client;
-use serde::Deserialize;
 use std::sync::Arc;
 use storage_writer::{AppState, buffer, normalized_consumer, observability};
 use tower_http::trace::TraceLayer;
-
-// /internal/metrics stays: it's still used by stream-processor's
-// span-derived-metrics flush (a separate aggregation path -- see ADR-029),
-// unrelated to the telemetry.normalized.v1 pipeline that replaced
-// /internal/spans and /internal/logs (removed; see docs/component-
-// decomposition.md Phase 2).
-#[derive(Deserialize)]
-struct MetricsBatch {
-    series: Vec<domain::MetricSeries>,
-    points: Vec<domain::MetricPoint>,
-}
-
-async fn write_metrics(State(state): State<AppState>, Json(b): Json<MetricsBatch>) -> StatusCode {
-    state.buffer.send_metrics(b.series, b.points);
-    StatusCode::NO_CONTENT
-}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -68,10 +46,8 @@ async fn main() -> anyhow::Result<()> {
         retention_config,
     ));
 
-    // Consumes telemetry.normalized.v1 unconditionally -- the target Phase 2
-    // ingress path (docs/component-decomposition.md). Harmless no-op today if
-    // stream-processor is running in its default HTTP write mode, since
-    // nothing is published to this topic in that case.
+    // Consumes telemetry.normalized.v1 unconditionally -- the sole Phase 2
+    // ingress path (docs/component-decomposition.md).
     let brokers = observable_config::require_env("REDPANDA_BROKERS")?;
     let normalized_topic = observable_config::require_env("NORMALIZED_TOPIC")?;
     let normalized_buffer = buffer.clone();
@@ -99,7 +75,6 @@ async fn main() -> anyhow::Result<()> {
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))
-        .route("/internal/metrics", post(write_metrics))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             observability::record_http_metrics,
