@@ -198,7 +198,8 @@ services:
         exec auth-service
     environment:
       <<: *platform-self-observability-env
-      DATABASE_URL: postgres://observable:observable@postgres:5432/observable
+      DATABASE_URL: postgres://observable_auth:observable_auth@postgres:5432/observable
+      AUTH_DATABASE_URL: postgres://observable_auth:observable_auth@postgres:5432/observable
       AUTH_SERVICE_PORT: "4319"
       ZITADEL_ISSUER: http://localhost:8082
       ZITADEL_API_BASE: http://zitadel:8080
@@ -341,7 +342,8 @@ services:
       <<: *platform-self-observability-env
       OBSERVABLE_ENV: dev
       ADMIN_SERVICE_PORT: "4324"
-      DATABASE_URL: postgres://observable:observable@postgres:5432/observable
+      DATABASE_URL: postgres://observable_control:observable_control@postgres:5432/observable
+      CONTROL_DATABASE_URL: postgres://observable_control:observable_control@postgres:5432/observable
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CH_USER:-default}
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
@@ -371,7 +373,8 @@ services:
     environment:
       <<: *platform-self-observability-env
       OBSERVABLE_ENV: dev
-      DATABASE_URL: postgres://observable:observable@postgres:5432/observable
+      DATABASE_URL: postgres://observable_alerting:observable_alerting@postgres:5432/observable
+      ALERTING_DATABASE_URL: postgres://observable_alerting:observable_alerting@postgres:5432/observable
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CH_USER:-default}
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
