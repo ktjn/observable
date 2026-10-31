@@ -1,0 +1,15 @@
+# ClickHouse storage-schema versions observable-alerting has been tested against.
+#
+# observable-store-clickhouse declares its current schema version in
+# migrations/clickhouse/SCHEMA_VERSION (validated against the highest-numbered
+# migration). scripts/check-clickhouse-schema-compat.sh fails when that version
+# falls outside this inclusive range, so the store cannot migrate ahead of
+# alerting without a deliberate update here.
+#
+# alerting (domain layer) reads observable.spans (migration 001) and
+# observable.metric_points (migration 003) directly via store-telemetry rather
+# than calling observable-query (application layer), preserving COMP-05 layer
+# ordering and COMP-06 DAG acyclicity while observable-query calls evaluate-alerts
+# for enrichment and correlation.
+min: 4
+max: 4

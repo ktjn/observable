@@ -210,13 +210,13 @@ Owns:
 - silencing
 - escalation state
 
-The preferred target is:
+The target DAG direction (`COMP-05` & `COMP-06` in `spec/system.yaml`) is:
 
 ```text
-observable-alerting -> observable-query -> telemetry
+observable-query (application) -> observable-alerting (domain) -> observable-store-clickhouse (infrastructure)
 ```
 
-Direct ClickHouse access is allowed only if performance evidence justifies an explicit exception.
+Because `observable-query` (`application`) calls `observable-alerting` (`domain`) for `/internal/alerting-enrichment` and `/internal/alerting-correlation`, `observable-alerting` evaluates telemetry directly against ClickHouse (`observable-store-clickhouse`) within its declared schema compatibility range (`services/alert-evaluator/clickhouse-schema-support.yaml`, validated by `scripts/check-clickhouse-schema-compat.sh`), avoiding a `COMP-06` dependency cycle and `COMP-05` layer inversion.
 
 ### observable-web
 
@@ -292,11 +292,13 @@ flowchart TD
     process -->|telemetry.normalized.v1| store
     store --> clickhouse[(ClickHouse)]
     clickhouse --> query
+    clickhouse --> alerting
 
     ingest -->|credential validation| auth
     control -->|identity operations| auth
     query -->|credential validation| auth
-    alerting -->|telemetry evaluation| query
+    query -->|alerting enrichment/correlation| alerting
+    alerting -->|credential validation| auth
 
     web --> auth
     web --> control
@@ -367,7 +369,8 @@ ClickHouse ownership:
 | Component | Access |
 | --- | --- |
 | `observable-store-clickhouse` | writes + migrations |
-| `observable-query` | reads within a declared schema compatibility range |
+| `observable-query` | reads within a declared schema compatibility range (`services/query-api/clickhouse-schema-support.yaml`) |
+| `observable-alerting` | reads within a declared schema compatibility range (`services/alert-evaluator/clickhouse-schema-support.yaml`) |
 
 ## Communication Contracts
 
@@ -794,7 +797,7 @@ Exit evidence:
 
 Move all alert/SLO/incident/notification APIs and persistence into one component.
 
-Prefer query API calls for telemetry evaluation.
+Codify the acyclic `observable-query (application) -> observable-alerting (domain) -> observable-store-clickhouse (infrastructure)` boundary (`COMP-05` & `COMP-06`), with `observable-alerting` declaring its tested ClickHouse schema range in `services/alert-evaluator/clickhouse-schema-support.yaml` (enforced by `scripts/check-clickhouse-schema-compat.sh`).
 
 **Done.** The alerting component is `alert-evaluator`: it owns evaluation and all alert-rule/SLO/
 notification/incident APIs and persistence. The interim "control" owner (`admin-service`) no longer
@@ -1158,7 +1161,8 @@ Additional control/alert topics may exist; each must be owned by a single compon
 | Component | Access | Notes |
 | --- | --- | --- |
 | `observable-store-clickhouse` | Writes + migrations | Owns CH schema, retention, and storage health. |
-| `observable-query` | Reads | Within a **declared schema compatibility range** (documented/covered by compatibility tests). Query may read CH directly for performance. |
+| `observable-query` | Reads | Within a **declared schema compatibility range** (`services/query-api/clickhouse-schema-support.yaml`, verified by `scripts/check-clickhouse-schema-compat.sh`). |
+| `observable-alerting` | Reads | Within a **declared schema compatibility range** (`services/alert-evaluator/clickhouse-schema-support.yaml`, verified by `scripts/check-clickhouse-schema-compat.sh`). Preserves `COMP-05` layer ordering and `COMP-06` DAG acyclicity while `observable-query` calls `observable-alerting` for enrichment/correlation. |
 
 ## Cross-Boundary Rules
 
@@ -1169,7 +1173,7 @@ Additional control/alert topics may exist; each must be owned by a single compon
 - **API/event boundary.** Cross-component writes use APIs or versioned events; synchronous HTTP only when caller needs result before continuing.
 - **Durable telemetry boundary.** `telemetry.normalized.v1` is the Redpanda-backed process→storage boundary; processor publishes, storage consumes with at-least-once ack semantics.
 - **Query has no control-plane PG (target).** Core `observable-query` operation must not depend on PostgreSQL (control-plane CRUD moved out). Direct CH reads allowed for performance.
-- **Alerting prefers query API.** Prefer `observable-alerting` → `observable-query` for telemetry evaluation; direct CH access only with explicit performance evidence.
+- **Alerting ↔ Query DAG (`COMP-05`, `COMP-06`).** `observable-query` (`application`) calls `observable-alerting` (`domain`) for enrichment/correlation; `observable-alerting` reads ClickHouse directly within its declared schema compatibility range (`services/alert-evaluator/clickhouse-schema-support.yaml`) rather than calling `observable-query`.
 - **Boundary lint.** `scripts/check-component-boundaries.sh` detects accidental cross-component source imports — Rust module paths (`auth_service::`), frontend path imports (`apps/frontend/`), and a `Cargo.toml` `path` dependency on another component's service crate — and runs as the "Component boundary lint" step of `scripts/local-ci.sh`. A deliberate transitional coupling must be recorded with a reason in `scripts/component-boundary-allowlist.txt`; a new coupling fails the gate. (See the script header for what is and is not flagged.)
 
 ## Distribution & Images

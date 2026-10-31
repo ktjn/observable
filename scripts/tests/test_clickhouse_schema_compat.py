@@ -1,10 +1,11 @@
 """Regression tests for the ClickHouse schema-compatibility gate (stdlib only).
 
-scripts/check-clickhouse-schema-compat.sh enforces the Phase 3 contract that
-observable-query's tested storage-schema range contains the store's declared
-current schema version (migrations/clickhouse/SCHEMA_VERSION, which must match
-the highest migration). These tests pin the gate's behavior with fixtures so a
-future edit cannot silently make it accept an incompatible schema.
+scripts/check-clickhouse-schema-compat.sh enforces the Phase 3 / Phase 6 contract
+that observable-query's and observable-alerting's tested storage-schema ranges
+contain the store's declared current schema version
+(migrations/clickhouse/SCHEMA_VERSION, which must match the highest migration).
+These tests pin the gate's behavior with fixtures so a future edit cannot
+silently make it accept an incompatible schema.
 """
 
 from pathlib import Path
@@ -32,8 +33,19 @@ def bash_path() -> str:
 
 
 class ClickHouseSchemaCompatTests(unittest.TestCase):
-    def _fixture(self, directory, *, version=4, migrations=4, minimum=4, maximum=4,
-                 support=True):
+    def _fixture(
+        self,
+        directory,
+        *,
+        version=4,
+        migrations=4,
+        minimum=4,
+        maximum=4,
+        alerting_min=None,
+        alerting_max=None,
+        support=True,
+        alerting_support=True,
+    ):
         repo = Path(directory)
         (repo / "scripts").mkdir()
         shutil.copy(
@@ -52,6 +64,14 @@ class ClickHouseSchemaCompatTests(unittest.TestCase):
             (query_dir / "clickhouse-schema-support.yaml").write_text(
                 f"min: {minimum}\nmax: {maximum}\n"
             )
+        if alerting_support:
+            alert_dir = repo / "services/alert-evaluator"
+            alert_dir.mkdir(parents=True)
+            amin = minimum if alerting_min is None else alerting_min
+            amax = maximum if alerting_max is None else alerting_max
+            (alert_dir / "clickhouse-schema-support.yaml").write_text(
+                f"min: {amin}\nmax: {amax}\n"
+            )
         return repo
 
     def _run(self, repo: Path) -> subprocess.CompletedProcess:
@@ -67,6 +87,7 @@ class ClickHouseSchemaCompatTests(unittest.TestCase):
             result = self._run(self._fixture(directory))
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn("within observable-query's tested range", result.stdout)
+            self.assertIn("within observable-alerting's tested range", result.stdout)
 
     def test_store_ahead_of_query_range_fails(self):
         with tempfile.TemporaryDirectory(prefix="observable-ch-compat-") as directory:
@@ -74,6 +95,15 @@ class ClickHouseSchemaCompatTests(unittest.TestCase):
             result = self._run(repo)
             self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
             self.assertIn("outside observable-query's tested range", result.stderr)
+
+    def test_store_ahead_of_alerting_range_fails(self):
+        with tempfile.TemporaryDirectory(prefix="observable-ch-compat-") as directory:
+            repo = self._fixture(
+                directory, version=5, migrations=5, maximum=5, alerting_max=4
+            )
+            result = self._run(repo)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn("outside observable-alerting's tested range", result.stderr)
 
     def test_store_behind_query_minimum_fails(self):
         with tempfile.TemporaryDirectory(prefix="observable-ch-compat-") as directory:
@@ -103,6 +133,13 @@ class ClickHouseSchemaCompatTests(unittest.TestCase):
             result = self._run(repo)
             self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
             self.assertIn("query schema-support file not found", result.stderr)
+
+    def test_missing_alerting_support_file_fails(self):
+        with tempfile.TemporaryDirectory(prefix="observable-ch-compat-") as directory:
+            repo = self._fixture(directory, alerting_support=False)
+            result = self._run(repo)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn("alerting schema-support file not found", result.stderr)
 
     def test_empty_range_fails(self):
         with tempfile.TemporaryDirectory(prefix="observable-ch-compat-") as directory:

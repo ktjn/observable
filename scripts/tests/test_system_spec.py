@@ -126,6 +126,55 @@ class SystemSpecConsistencyTests(unittest.TestCase):
                 f"DataModel '{did}' schema_path '{schema_rel}' does not exist",
             )
 
+    def test_component_dag_and_layer_ordering_comp05_comp06(self):
+        spec_text = SPEC.read_text(encoding="utf-8")
+        layers = ["experience", "application", "domain", "infrastructure"]
+        layer_rank = {name: idx for idx, name in enumerate(layers)}
+
+        comp_layer: dict[str, str] = {}
+        cap_provider: dict[str, str] = {}
+        comp_requires: dict[str, list[str]] = {}
+
+        for block in parse_spec_blocks(spec_text, "components"):
+            cid = re.search(r"^\s*-\s*id:\s*(\S+)", block, re.M).group(1)
+            layer = re.search(r"^\s*layer:\s*(\S+)", block, re.M).group(1)
+            comp_layer[cid] = layer
+
+            prov_tail = block.partition("provides:\n")[2]
+            for line in prov_tail.splitlines():
+                if line.startswith("      - "):
+                    cap_provider[line.removeprefix("      - ").strip()] = cid
+                else:
+                    break
+
+            req_tail = block.partition("requires:\n")[2]
+            reqs: list[str] = []
+            for line in req_tail.splitlines():
+                if line.startswith("      - "):
+                    reqs.append(line.removeprefix("      - ").strip().split("@")[0])
+                else:
+                    break
+            comp_requires[cid] = reqs
+
+        for cid, req_caps in comp_requires.items():
+            for cap in req_caps:
+                target = cap_provider[cap]
+                self.assertLessEqual(
+                    layer_rank[comp_layer[cid]],
+                    layer_rank[comp_layer[target]],
+                    f"COMP-05 violation: {cid} ({comp_layer[cid]}) cannot depend on {target} ({comp_layer[target]})",
+                )
+
+        self.assertIn("evaluate-alerts", comp_requires["observable-query"])
+        self.assertIn("store-telemetry", comp_requires["observable-alerting"])
+        self.assertNotIn("query-telemetry", comp_requires["observable-alerting"])
+        self.assertTrue(
+            (ROOT / "services/query-api/clickhouse-schema-support.yaml").is_file()
+        )
+        self.assertTrue(
+            (ROOT / "services/alert-evaluator/clickhouse-schema-support.yaml").is_file()
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
