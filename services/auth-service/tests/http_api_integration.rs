@@ -11,6 +11,7 @@ use axum::{
 use http_body_util::BodyExt as _;
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
+use std::path::Path;
 use std::sync::Arc;
 use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
@@ -37,11 +38,39 @@ fn test_app(state: OidcState) -> Router {
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))
+        .route(
+            "/internal/validate",
+            axum::routing::post(auth_service::validate_handler),
+        )
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             observability::record_http_metrics,
         ))
         .with_state(state)
+}
+
+async fn apply_migrations(pool: &PgPool) {
+    let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("migrations/postgres");
+
+    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
+        .expect("migrations/postgres must exist")
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+
+    for entry in entries {
+        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
+        sqlx::raw_sql(sqlx::AssertSqlSafe(sql))
+            .execute(pool)
+            .await
+            .expect("migration applied");
+    }
 }
 
 async fn start_pool() -> (
@@ -58,6 +87,7 @@ async fn start_pool() -> (
         "postgres://postgres:postgres@127.0.0.1:{port}/postgres"
     ));
     let pool = PgPool::connect(&url).await.expect("pool connected");
+    apply_migrations(&pool).await;
     (pool, container)
 }
 
@@ -157,4 +187,73 @@ async fn auth_service_metrics_endpoint_exposes_prometheus_text() {
         body.contains("auth_service_http_requests_total"),
         "metrics payload did not contain the auth-service request counter: {body}"
     );
+}
+
+#[tokio::test]
+async fn validate_api_key_writes_allow_audit_log_row() {
+    let (pool, _container) = start_pool().await;
+    let state = test_state(pool.clone());
+    let app = test_app(state);
+
+    let dev_key = "dev-api-key-0000";
+    let req = Request::builder()
+        .method("POST")
+        .uri("/internal/validate")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({"api_key": dev_key}).to_string(),
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let hash = auth_service::validate::sha256_hex(dev_key);
+    let row: (String, String, String, Option<uuid::Uuid>) = sqlx::query_as(
+        "SELECT action, outcome, credential_hash, tenant_id FROM credential_audit_log WHERE credential_hash = $1 ORDER BY occurred_at DESC LIMIT 1",
+    )
+    .bind(&hash)
+    .fetch_one(&pool)
+    .await
+    .expect("audit row written");
+
+    assert_eq!(row.0, "credential_validate");
+    assert_eq!(row.1, "allow");
+    assert_eq!(row.2, hash);
+    assert_eq!(
+        row.3,
+        Some(uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap())
+    );
+}
+
+#[tokio::test]
+async fn validate_api_key_failure_writes_deny_audit_log_row() {
+    let (pool, _container) = start_pool().await;
+    let state = test_state(pool.clone());
+    let app = test_app(state);
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/internal/validate")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({"api_key": "not-a-real-key"}).to_string(),
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+    let hash = auth_service::validate::sha256_hex("not-a-real-key");
+    let row: (String, String, Option<String>) = sqlx::query_as(
+        "SELECT action, outcome, denial_reason FROM credential_audit_log WHERE credential_hash = $1 ORDER BY occurred_at DESC LIMIT 1",
+    )
+    .bind(&hash)
+    .fetch_one(&pool)
+    .await
+    .expect("deny audit row written");
+
+    assert_eq!(row.0, "credential_validate");
+    assert_eq!(row.1, "deny");
+    assert_eq!(row.2, Some("not_found".to_string()));
 }
