@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-const VALID_SIGNAL_KINDS: &[&str] = &["logs"];
+const VALID_SIGNAL_KINDS: &[&str] = &["logs", "traces", "metrics"];
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct SavedViewItem {
@@ -638,7 +638,7 @@ mod tests {
     fn validate_create_request_rejects_invalid_signal_kind() {
         let req = CreateSavedViewRequest {
             name: "My view".into(),
-            signal_kind: "traces".into(),
+            signal_kind: "spans".into(),
             config: serde_json::json!({}),
         };
         assert!(validate_create_request(&req).is_err());
@@ -656,12 +656,14 @@ mod tests {
 
     #[test]
     fn validate_create_request_accepts_valid_input() {
-        let req = CreateSavedViewRequest {
-            name: "My view".into(),
-            signal_kind: "logs".into(),
-            config: serde_json::json!({"severity_filter": "error"}),
-        };
-        assert!(validate_create_request(&req).is_ok());
+        for kind in &["logs", "traces", "metrics"] {
+            let req = CreateSavedViewRequest {
+                name: "My view".into(),
+                signal_kind: (*kind).into(),
+                config: serde_json::json!({"filter": "test"}),
+            };
+            assert!(validate_create_request(&req).is_ok());
+        }
     }
 
     #[test]

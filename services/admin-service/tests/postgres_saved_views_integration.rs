@@ -314,6 +314,7 @@ async fn update_and_delete_require_write_and_delete_grants() {
     assert_eq!(updated["name"], "Renamed");
 
     let delete_resp = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("DELETE")
@@ -324,4 +325,55 @@ async fn update_and_delete_require_write_and_delete_grants() {
         .await
         .unwrap();
     assert_eq!(delete_resp.status(), StatusCode::NO_CONTENT);
+
+    // Verify trace and metric saved views can be created and listed
+    for (signal_kind, config) in [
+        (
+            "traces",
+            json!({"query": "service:checkout", "status_filter": "error"}),
+        ),
+        (
+            "metrics",
+            json!({"service": "order-service", "selected_metric": "http.server.duration"}),
+        ),
+    ] {
+        let create = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/saved-views")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        json!({"name": format!("{signal_kind} View"), "signal_kind": signal_kind, "config": config}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(create.status(), StatusCode::CREATED);
+        let created_item = response_body_json(create.into_body()).await;
+        assert_eq!(created_item["signal_kind"], signal_kind);
+
+        let list = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/v1/saved-views?signal_kind={signal_kind}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(list.status(), StatusCode::OK);
+        let list_body = response_body_json(list.into_body()).await;
+        let items = list_body["items"].as_array().unwrap();
+        assert!(
+            items
+                .iter()
+                .any(|v| v["signal_kind"] == signal_kind
+                    && v["name"] == format!("{signal_kind} View"))
+        );
+    }
 }

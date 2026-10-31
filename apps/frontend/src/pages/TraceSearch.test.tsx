@@ -291,3 +291,9 @@ test("renders the trace summary stat-card row", async () => {
   const summary = await screen.findByLabelText("Trace summary");
   expect(summary).toBeInTheDocument();
 });
+
+test("renders saved views control in trace explorer", async () => {
+  renderTraceSearch();
+
+  expect(await screen.findByRole("button", { name: /saved views/i })).toBeInTheDocument();
+});
