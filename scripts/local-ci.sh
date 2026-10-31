@@ -174,6 +174,12 @@ bash "$REPO_ROOT/scripts/render-pinned-compose.sh" --check && ok "pinned install
 step "Component boundary lint"
 bash "$REPO_ROOT/scripts/check-component-boundaries.sh" && ok "component boundaries" || fail "component boundary lint"
 
+step "System specification consistency"
+python3 "$REPO_ROOT/scripts/tests/test_system_spec.py" && ok "system specification consistency" || fail "system specification consistency"
+
+step "System specification evidence provenance"
+python3 "$REPO_ROOT/scripts/update-spec-evidence.py" --check && ok "system spec evidence provenance" || fail "system spec evidence provenance"
+
 step "ClickHouse schema compatibility"
 bash "$REPO_ROOT/scripts/check-clickhouse-schema-compat.sh" && ok "clickhouse schema compatibility" || fail "clickhouse schema compatibility"
 

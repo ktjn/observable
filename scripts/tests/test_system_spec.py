@@ -175,6 +175,29 @@ class SystemSpecConsistencyTests(unittest.TestCase):
             (ROOT / "services/alert-evaluator/clickhouse-schema-support.yaml").is_file()
         )
 
+    def test_evidence_provenance_paths_and_timestamps(self):
+        spec_text = SPEC.read_text(encoding="utf-8")
+        evidence_blocks = parse_spec_blocks(spec_text, "evidence")
+        self.assertGreater(len(evidence_blocks), 0, "No evidence records found")
+
+        iso_regex = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+
+        for block in evidence_blocks:
+            eid = re.search(r"^\s*-\s*id:\s*(\S+)", block, re.M).group(1)
+            pm = re.search(r"^\s*provenance:\s*(\S+)", block, re.M)
+            self.assertIsNotNone(pm, f"Evidence '{eid}' must declare provenance")
+            prov_rel = pm.group(1)
+            self.assertTrue(
+                (ROOT / prov_rel).is_file(),
+                f"Evidence '{eid}' provenance file '{prov_rel}' does not exist",
+            )
+            tm = re.search(r"^\s*timestamp:\s*\"([^\"]+)\"", block, re.M)
+            self.assertIsNotNone(tm, f"Evidence '{eid}' must declare timestamp")
+            self.assertTrue(
+                iso_regex.match(tm.group(1)),
+                f"Evidence '{eid}' timestamp '{tm.group(1)}' is not valid ISO 8601 UTC",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
