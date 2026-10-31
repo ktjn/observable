@@ -108,7 +108,7 @@ string or omit it for non-development environments.
 
 | Variable | Services | Description |
 |----------|----------|-------------|
-| `DATABASE_URL` | auth, query-api, admin, alert-evaluator | PostgreSQL connection string |
+| `DATABASE_URL` | auth, admin, alert-evaluator | PostgreSQL connection string (fallback for `AUTH_DATABASE_URL`, `CONTROL_DATABASE_URL`, `ALERTING_DATABASE_URL`) |
 | `CLICKHOUSE_URL` | query-api, admin, storage-writer, alert-evaluator | ClickHouse HTTP endpoint |
 | `CLICKHOUSE_USER` | query-api, admin, storage-writer, alert-evaluator | ClickHouse username |
 | `AUTH_SERVICE_URL` | query-api, admin, ingest-gateway, alert-evaluator | Internal URL of auth-service |

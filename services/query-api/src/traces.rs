@@ -8,7 +8,6 @@ use clickhouse::Client;
 use domain::{Span, SpanEvent};
 use observable_storage_contracts::{SpanEventRow, SpanRow};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -22,7 +21,6 @@ use crate::planner::QueryPlanner;
 #[derive(Clone)]
 pub struct AppState {
     pub ch: Client,
-    pub db: PgPool,
     pub planner: Arc<QueryPlanner>,
     /// Optional LLM caller. None when LLM_API_KEY is not set.
     pub llm: Option<Arc<dyn LlmCaller>>,
@@ -145,7 +143,7 @@ pub async fn get_trace(
     let events: Vec<SpanEvent> = event_rows.into_iter().map(SpanEvent::from).collect();
 
     crate::audit::write(
-        &state.db,
+        &state,
         &crate::audit::QueryAuditEntry {
             action: "trace_get",
             tenant_id: ctx.tenant_id,
@@ -282,7 +280,7 @@ pub async fn search_traces(
     }
 
     crate::audit::write(
-        &state.db,
+        &state,
         &crate::audit::QueryAuditEntry {
             action: "trace_search",
             tenant_id: ctx.tenant_id,

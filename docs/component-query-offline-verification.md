@@ -65,7 +65,6 @@ Start the exact query image through its original entrypoint with:
 
 ```text
 OBSERVABLE_ENV=acceptance
-DATABASE_URL=postgres://observable@OWNED_POSTGRES:5432/observable
 AUTH_SERVICE_URL=http://OWNED_AUTH:4319
 CLICKHOUSE_URL=http://OWNED_CLICKHOUSE:8123
 CLICKHOUSE_USER=default
@@ -76,8 +75,8 @@ INTERNAL_SERVICE_TOKEN=public-dummy-internal-token
 
 Leave LLM credentials and telemetry exporter endpoints absent. The tested log paths do not call
 control or alerting, so unreachable URLs satisfy configuration without verifying those dependencies.
-Require port 8090 `/health` and `/readyz` HTTP 200. Readiness executes PostgreSQL `SELECT 1` and
-ClickHouse `SELECT toInt64(1)`; it does not prove schema, auth availability or successful log reads.
+Require port 8090 `/health` and `/readyz` HTTP 200. Readiness executes ClickHouse `SELECT toInt64(1)`;
+it does not depend on PostgreSQL and does not prove schema, auth availability or successful log reads.
 
 ## Log API and audit assertions
 

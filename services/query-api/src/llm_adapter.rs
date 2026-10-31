@@ -2374,7 +2374,6 @@ pub async fn handle_nlq_metadata(
 mod tests {
     use super::*;
     use domain::{NlqOperation, NlqSignal, NlqTimeRange, NlqVisualizationHint};
-    use sqlx::PgPool;
 
     // ── Mock LlmCaller ────────────────────────────────────────────────────────
 
@@ -3510,10 +3509,6 @@ mod tests {
     // interpret-mode + log-signal IR skips both fuzzy metric resolution and
     // `execute_mcp_query`).
 
-    fn fake_db() -> PgPool {
-        PgPool::connect_lazy("postgres://user:pass@127.0.0.1:5432/db").expect("valid postgres url")
-    }
-
     fn fake_ch() -> clickhouse::Client {
         clickhouse::Client::default().with_url("http://127.0.0.1:19999")
     }
@@ -3681,7 +3676,6 @@ mod tests {
     fn fake_state() -> AppState {
         AppState {
             ch: fake_ch(),
-            db: fake_db(),
             planner: std::sync::Arc::new(crate::planner::QueryPlanner),
             llm: None,
             auth_service_url: "http://auth-service:4319".into(),

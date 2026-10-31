@@ -5,7 +5,6 @@ use axum::{
     routing::get,
 };
 use query_api::{middleware::auth::require_tenant, planner::QueryPlanner, traces::AppState};
-use sqlx::postgres::PgPool;
 use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -14,10 +13,9 @@ use wiremock::{
     matchers::{method, path},
 };
 
-fn build_app(db: PgPool, auth_service_url: String) -> Router {
+fn build_app(auth_service_url: String) -> Router {
     let state = AppState {
         ch: clickhouse::Client::default().with_url("http://127.0.0.1:19999"),
-        db: db.clone(),
         planner: Arc::new(QueryPlanner),
         llm: None,
         auth_service_url: auth_service_url.clone(),
@@ -31,14 +29,12 @@ fn build_app(db: PgPool, auth_service_url: String) -> Router {
     Router::new()
         .route("/v1/traces/histogram", get(|| async { StatusCode::OK }))
         .layer(axum::middleware::from_fn(require_tenant))
-        .layer(axum::Extension(db))
         .layer(axum::Extension(Arc::new(auth_service_url)))
         .with_state(state)
 }
 
 #[tokio::test]
 async fn session_auth_flow_success() {
-    let db = test_support::postgres::shared_pool().await;
     let mock_server = MockServer::start().await;
 
     let user_id = Uuid::new_v4();
@@ -56,7 +52,7 @@ async fn session_auth_flow_success() {
         .mount(&mock_server)
         .await;
 
-    let app = build_app(db, mock_server.uri());
+    let app = build_app(mock_server.uri());
 
     // 1. Request with session cookie
     let req = Request::builder()
@@ -81,7 +77,6 @@ async fn session_auth_flow_success() {
 
 #[tokio::test]
 async fn session_auth_tenant_mismatch_rejected() {
-    let db = test_support::postgres::shared_pool().await;
     let mock_server = MockServer::start().await;
 
     let requested_tenant_id = Uuid::new_v4();
@@ -92,7 +87,7 @@ async fn session_auth_tenant_mismatch_rejected() {
         .mount(&mock_server)
         .await;
 
-    let app = build_app(db, mock_server.uri());
+    let app = build_app(mock_server.uri());
 
     // Request with session for tenant A but X-Tenant-ID for tenant B (user not a member)
     let req = Request::builder()
@@ -108,7 +103,6 @@ async fn session_auth_tenant_mismatch_rejected() {
 
 #[tokio::test]
 async fn session_auth_cross_tenant_switch_success() {
-    let db = test_support::postgres::shared_pool().await;
     let mock_server = MockServer::start().await;
 
     let user_id = Uuid::new_v4();
@@ -125,7 +119,7 @@ async fn session_auth_cross_tenant_switch_success() {
         .mount(&mock_server)
         .await;
 
-    let app = build_app(db, mock_server.uri());
+    let app = build_app(mock_server.uri());
 
     let req = Request::builder()
         .uri("/v1/traces/histogram")

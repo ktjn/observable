@@ -1,25 +1,53 @@
-use sqlx::PgPool;
+use serde::Serialize;
 use uuid::Uuid;
 
+use crate::traces::AppState;
+
+#[derive(Debug, Clone, Serialize)]
 pub struct QueryAuditEntry {
     pub action: &'static str,
     pub tenant_id: Uuid,
     pub result_count: i64,
 }
 
-pub async fn write(db: &PgPool, entry: &QueryAuditEntry) {
-    let result = sqlx::query(
-        "INSERT INTO query_audit_log (action, tenant_id, result_count) \
-         VALUES ($1, $2, $3)",
+pub async fn write(state: &AppState, entry: &QueryAuditEntry) {
+    write_internal(
+        &state.http_client,
+        &state.admin_service_url,
+        &state.internal_service_token,
+        entry,
     )
-    .bind(entry.action)
-    .bind(entry.tenant_id)
-    .bind(entry.result_count)
-    .execute(db)
     .await;
+}
 
-    if let Err(e) = result {
-        tracing::warn!(error = %e, "failed to write query audit log");
+pub async fn write_internal(
+    client: &reqwest::Client,
+    admin_service_url: &str,
+    internal_service_token: &str,
+    entry: &QueryAuditEntry,
+) {
+    let url = format!(
+        "{}/internal/query-audit",
+        admin_service_url.trim_end_matches('/')
+    );
+    let res = client
+        .post(&url)
+        .header("x-internal-token", internal_service_token)
+        .json(entry)
+        .send()
+        .await;
+
+    match res {
+        Ok(resp) if !resp.status().is_success() => {
+            tracing::warn!(
+                status = %resp.status(),
+                "admin-service rejected query audit log"
+            );
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "failed to send query audit log to admin-service");
+        }
+        _ => {}
     }
 }
 

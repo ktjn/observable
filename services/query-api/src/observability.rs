@@ -126,15 +126,6 @@ pub async fn metrics(State(state): State<AppState>) -> Response {
 }
 
 pub async fn readyz(State(state): State<AppState>) -> StatusCode {
-    let postgres_ready = sqlx::query_scalar::<_, i32>("SELECT 1")
-        .fetch_one(&state.db)
-        .await
-        .map(|_| true)
-        .unwrap_or_else(|e| {
-            tracing::warn!(error = %e, "query-api readiness postgres check failed");
-            false
-        });
-
     let clickhouse_ready = match state
         .ch
         .query("SELECT toInt64(1) AS ok")
@@ -148,7 +139,7 @@ pub async fn readyz(State(state): State<AppState>) -> StatusCode {
         }
     };
 
-    if postgres_ready && clickhouse_ready {
+    if clickhouse_ready {
         StatusCode::OK
     } else {
         StatusCode::SERVICE_UNAVAILABLE
@@ -159,22 +150,16 @@ pub async fn readyz(State(state): State<AppState>) -> StatusCode {
 mod tests {
     use super::*;
     use axum::{Router, routing::get};
-    use sqlx::postgres::PgPoolOptions;
     use std::sync::Arc;
     use tower::ServiceExt;
 
     fn setup_test_state() -> AppState {
-        let db = PgPoolOptions::new()
-            .max_connections(1)
-            .connect_lazy("postgres://user:pass@127.0.0.1:5432/db")
-            .expect("lazy postgres pool");
         let ch = clickhouse::Client::default()
             .with_url("http://127.0.0.1:1")
             .with_user("default")
             .with_database("observable");
         AppState {
             ch,
-            db,
             planner: Arc::new(crate::planner::QueryPlanner),
             llm: None,
             auth_service_url: "http://auth-service:4319".into(),

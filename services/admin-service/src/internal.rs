@@ -460,3 +460,37 @@ pub async fn handle_resolve_label(
         })),
     }
 }
+
+// ── Query Audit Logging ──────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RecordQueryAuditRequest {
+    pub action: String,
+    pub tenant_id: Uuid,
+    pub result_count: i64,
+}
+
+/// POST /internal/query-audit
+///
+/// Records query audit entries in `control.query_audit_log` on behalf of
+/// `query-api`.
+pub async fn handle_record_query_audit(
+    State(state): State<AdminServiceAppState>,
+    Json(payload): Json<RecordQueryAuditRequest>,
+) -> Result<StatusCode, StatusCode> {
+    sqlx::query(
+        "INSERT INTO query_audit_log (action, tenant_id, result_count) \
+         VALUES ($1, $2, $3)",
+    )
+    .bind(&payload.action)
+    .bind(payload.tenant_id)
+    .bind(payload.result_count)
+    .execute(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::warn!(error = %e, "failed to insert query audit log");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(StatusCode::NO_CONTENT)
+}

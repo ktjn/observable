@@ -149,7 +149,7 @@ pub async fn search_logs(
     let logs = rows.into_iter().map(LogRecord::from).collect();
 
     crate::audit::write(
-        &state.db,
+        &state,
         &crate::audit::QueryAuditEntry {
             action: "log_search",
             tenant_id: ctx.tenant_id,
@@ -215,7 +215,7 @@ pub async fn tail_logs(
     let logs = rows.into_iter().map(LogRecord::from).collect();
 
     crate::audit::write(
-        &state.db,
+        &state,
         &crate::audit::QueryAuditEntry {
             action: "log_live_tail",
             tenant_id: ctx.tenant_id,
@@ -315,7 +315,7 @@ pub async fn get_log_context(
     let logs = all_rows.into_iter().map(LogRecord::from).collect();
 
     crate::audit::write(
-        &state.db,
+        &state,
         &crate::audit::QueryAuditEntry {
             action: "log_context",
             tenant_id: ctx.tenant_id,

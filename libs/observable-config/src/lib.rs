@@ -76,3 +76,51 @@ pub fn with_search_path(database_url: &str) -> String {
 pub fn require_database_url() -> anyhow::Result<String> {
     Ok(with_search_path(&require_env("DATABASE_URL")?))
 }
+
+/// Fetches the PostgreSQL URL for `observable-auth` (`AUTH_DATABASE_URL` with
+/// fallback to `DATABASE_URL`).
+pub fn require_auth_database_url() -> anyhow::Result<String> {
+    require_scoped_database_url("AUTH_DATABASE_URL")
+}
+
+/// Fetches the PostgreSQL URL for `observable-control` (`CONTROL_DATABASE_URL` with
+/// fallback to `DATABASE_URL`).
+pub fn require_control_database_url() -> anyhow::Result<String> {
+    require_scoped_database_url("CONTROL_DATABASE_URL")
+}
+
+/// Fetches the PostgreSQL URL for `observable-alerting` (`ALERTING_DATABASE_URL` with
+/// fallback to `DATABASE_URL`).
+pub fn require_alerting_database_url() -> anyhow::Result<String> {
+    require_scoped_database_url("ALERTING_DATABASE_URL")
+}
+
+fn require_scoped_database_url(scoped_var: &str) -> anyhow::Result<String> {
+    let url = match env::var(scoped_var) {
+        Ok(val) if !val.trim().is_empty() => val,
+        _ => require_env("DATABASE_URL")?,
+    };
+    Ok(with_search_path(&url))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn with_search_path_appends_options_correctly() {
+        let base = "postgres://user:pass@localhost:5432/db";
+        let with_opts = with_search_path(base);
+        assert_eq!(
+            with_opts,
+            "postgres://user:pass@localhost:5432/db?options=-c%20search_path%3Dauth,control,alerting,public"
+        );
+
+        let base_with_query = "postgres://user:pass@localhost:5432/db?sslmode=disable";
+        let with_opts2 = with_search_path(base_with_query);
+        assert_eq!(
+            with_opts2,
+            "postgres://user:pass@localhost:5432/db?sslmode=disable&options=-c%20search_path%3Dauth,control,alerting,public"
+        );
+    }
+}
