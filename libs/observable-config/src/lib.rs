@@ -23,6 +23,15 @@ pub fn require_env_or(name: &str, default: &str) -> String {
 fn dev_default(name: &str) -> String {
     match name {
         "DATABASE_URL" => "postgres://observable:observable@localhost:5432/observable".into(),
+        "AUTH_DATABASE_URL" => {
+            "postgres://observable_auth:observable_auth@localhost:5432/observable".into()
+        }
+        "CONTROL_DATABASE_URL" => {
+            "postgres://observable_control:observable_control@localhost:5432/observable".into()
+        }
+        "ALERTING_DATABASE_URL" => {
+            "postgres://observable_alerting:observable_alerting@localhost:5432/observable".into()
+        }
         "CLICKHOUSE_URL" => "http://localhost:8123".into(),
         "CLICKHOUSE_USER" => "default".into(),
         "CLICKHOUSE_PASSWORD" => String::new(),

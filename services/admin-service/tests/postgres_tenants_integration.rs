@@ -369,4 +369,24 @@ async fn migrations_enforce_schema_ownership_and_zero_cross_schema_fks() {
         role_isolation_ok,
         "component PostgreSQL roles must only have privileges on their owned schema tables"
     );
+
+    // Verify per-component login users inherit the schema-scoped roles and isolation
+    let user_isolation_ok: bool = sqlx::query_scalar(
+        "SELECT
+            has_table_privilege('observable_auth', 'auth.api_keys', 'SELECT, INSERT')
+            AND NOT has_table_privilege('observable_auth', 'control.tenants', 'SELECT')
+            AND NOT has_table_privilege('observable_auth', 'alerting.alert_rules', 'SELECT')
+            AND has_table_privilege('observable_control', 'control.tenants', 'SELECT, INSERT')
+            AND has_table_privilege('observable_control', 'control.query_audit_log', 'SELECT, INSERT')
+            AND NOT has_table_privilege('observable_control', 'auth.api_keys', 'SELECT')
+            AND has_table_privilege('observable_alerting', 'alerting.alert_rules', 'SELECT, INSERT')
+            AND NOT has_table_privilege('observable_alerting', 'control.tenants', 'SELECT')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(
+        user_isolation_ok,
+        "component PostgreSQL login users must inherit schema-scoped permissions and remain isolated"
+    );
 }

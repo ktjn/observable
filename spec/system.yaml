@@ -703,7 +703,7 @@ requirements:
     category: contract
     mandatory: true
     criteria:
-      - "PostgreSQL schemas auth.*, control.*, and alerting.* maintain explicit table ownership (including control.query_audit_log), zero cross-schema foreign keys, and schema-scoped component roles (observable_auth_role, observable_control_role, observable_alerting_role)"
+      - "PostgreSQL schemas auth.*, control.*, and alerting.* maintain explicit table ownership (including control.query_audit_log), zero cross-schema foreign keys, and schema-scoped component roles (observable_auth_role, observable_control_role, observable_alerting_role) with isolated login credentials (observable_auth, observable_control, observable_alerting)"
 
 risks:
   - id: risk-at-least-once-duplicates
@@ -733,7 +733,7 @@ evidence:
     method: test
     passed: true
     provenance: apps/frontend/e2e/tenant-isolation.spec.ts
-    timestamp: "2026-10-30T20:00:00Z"
+    timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-playwright
 
   - id: ev-tla-telemetry-delivery
@@ -749,7 +749,7 @@ evidence:
       Capacity: 2
       WorkerCapacity: 1
       MaxAttempts: 2
-    timestamp: "2026-10-30T20:00:00Z"
+    timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-tlc-verify
 
   - id: ev-deployment-markers-test
@@ -760,7 +760,7 @@ evidence:
     method: test
     passed: true
     provenance: services/admin-service/src/main.rs
-    timestamp: "2026-10-30T20:00:00Z"
+    timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-rust-test
 
   - id: ev-tla-bounded-concurrency
@@ -776,7 +776,7 @@ evidence:
       Capacity: 2
       WorkerCapacity: 1
       MaxAttempts: 2
-    timestamp: "2026-10-30T20:00:00Z"
+    timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-tlc-verify
 
   - id: ev-tla-component-compat
@@ -790,7 +790,7 @@ evidence:
     bounds:
       Components: 8
       VersionRange: 2
-    timestamp: "2026-10-30T20:00:00Z"
+    timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-tlc-verify
 
   - id: ev-pii-scrubbing-tests
@@ -801,7 +801,7 @@ evidence:
     method: test
     passed: true
     provenance: services/stream-processor/src/main.rs
-    timestamp: "2026-10-30T20:00:00Z"
+    timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-rust-test
 
   - id: ev-serde-contracts
@@ -812,7 +812,7 @@ evidence:
     method: test
     passed: true
     provenance: libs/observable-storage-contracts/src/lib.rs
-    timestamp: "2026-10-30T20:00:00Z"
+    timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-rust-test
 
   - id: ev-query-latency-bench
@@ -823,7 +823,7 @@ evidence:
     method: analysis
     passed: true
     provenance: scripts/perf-smoke.sh
-    timestamp: "2026-10-30T20:00:00Z"
+    timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-perf-gate
 
   - id: ev-ingest-throughput-bench
@@ -834,7 +834,7 @@ evidence:
     method: analysis
     passed: true
     provenance: scripts/perf-smoke.sh
-    timestamp: "2026-10-30T20:00:00Z"
+    timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-perf-gate
 
   - id: ev-backpressure-resilience-test
@@ -845,7 +845,7 @@ evidence:
     method: test
     passed: true
     provenance: services/storage-writer/src/main.rs
-    timestamp: "2026-10-30T20:00:00Z"
+    timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-integration-test
 
   - id: ev-auth-isolation-test
@@ -856,7 +856,7 @@ evidence:
     method: test
     passed: true
     provenance: services/auth-service/src/main.rs
-    timestamp: "2026-10-30T20:00:00Z"
+    timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-security-gate
 
   - id: ev-self-observability-test
@@ -867,7 +867,7 @@ evidence:
     method: test
     passed: true
     provenance: services/ingest-gateway/src/main.rs
-    timestamp: "2026-10-30T20:00:00Z"
+    timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-rust-test
 
   - id: ev-dedup-idempotency-test
@@ -878,7 +878,7 @@ evidence:
     method: test
     passed: true
     provenance: services/storage-writer/src/main.rs
-    timestamp: "2026-10-30T20:00:00Z"
+    timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-rust-test
 
   - id: ev-alerting-query-dag-check
@@ -889,7 +889,7 @@ evidence:
     method: test
     passed: true
     provenance: scripts/tests/test_system_spec.py
-    timestamp: "2026-10-30T20:00:00Z"
+    timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-boundary-gate
 
   - id: ev-pg-schema-isolation-check
@@ -900,5 +900,5 @@ evidence:
     method: test
     passed: true
     provenance: services/admin-service/tests/postgres_tenants_integration.rs
-    timestamp: "2026-10-30T20:00:00Z"
+    timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-rust-test
