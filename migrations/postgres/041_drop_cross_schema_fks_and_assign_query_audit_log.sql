@@ -62,15 +62,25 @@ BEGIN
     END LOOP;
 
     -- 3. Create component roles idempotently and scope permissions strictly to each owner schema.
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'observable_auth_role') THEN
-        CREATE ROLE observable_auth_role NOLOGIN;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'observable_control_role') THEN
-        CREATE ROLE observable_control_role NOLOGIN;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'observable_alerting_role') THEN
-        CREATE ROLE observable_alerting_role NOLOGIN;
-    END IF;
+    -- Catch unique_violation or duplicate_object in case of race across concurrent database migrations in shared cluster.
+    BEGIN
+        EXECUTE 'CREATE ROLE observable_auth_role NOLOGIN';
+    EXCEPTION
+        WHEN duplicate_object OR unique_violation THEN
+            NULL;
+    END;
+    BEGIN
+        EXECUTE 'CREATE ROLE observable_control_role NOLOGIN';
+    EXCEPTION
+        WHEN duplicate_object OR unique_violation THEN
+            NULL;
+    END;
+    BEGIN
+        EXECUTE 'CREATE ROLE observable_alerting_role NOLOGIN';
+    EXCEPTION
+        WHEN duplicate_object OR unique_violation THEN
+            NULL;
+    END;
 END $$;
 
 REVOKE ALL ON SCHEMA auth, control, alerting FROM PUBLIC, observable_auth_role, observable_control_role, observable_alerting_role;

@@ -601,7 +601,7 @@ requirements:
     category: contract
     mandatory: true
     criteria:
-      - "scripts/check-component-boundaries.sh reports zero unallowlisted cross-component source imports"
+      - "scripts/check-component-boundaries.sh reports zero cross-component source imports (0 allowlisted couplings)"
       - "TLC model checking of ComponentCompatibility.tla verifies all 8 components satisfy SemVer requires ranges"
 
   - id: req-otlp-envelope-serde

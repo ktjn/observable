@@ -41,5 +41,4 @@ tower                  = { version = "0.5", features = ["util"] }
 http-body-util         = "0.1"
 serde_json             = { workspace = true }
 wiremock               = "0.6"
-auth-service           = { path = "../auth-service" }
 test-support           = { path = "../../libs/test-support" }
