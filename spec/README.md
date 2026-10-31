@@ -27,6 +27,7 @@ Full-stack observability platform specification — Dynatrace / New Relic class,
 | [19-testbench.md](19-testbench.md)                   | Test bench: kind-based synthetic workload with full OTel + k8s cluster monitoring                                                               |
 | [20-nlq-ir-reference.md](20-nlq-ir-reference.md)     | NLQ IR canonical reference: DSL grammar, semantic rules, system prompt architecture, metadata injection, shorthand syntax, SQL template library |
 | [21-frontend-modules.md](21-frontend-modules.md)     | Independently buildable, runnable, testable frontend modules, manifests, runtime capability contracts, and dependency rules                     |
+| [22-system-specification.md](22-system-specification.md) | Machine-checkable system specification ([system.yaml](system.yaml)), reverse-discovery onboarding, and stage gate decision record               |
 
 ## Implementation Plans
 
