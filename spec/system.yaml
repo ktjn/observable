@@ -80,6 +80,7 @@ components:
       - tenant-config
       - dashboard-model
       - deployment-marker
+      - query-audit-entry
 
   - id: observable-alerting
     version: "0.1.0"
@@ -464,6 +465,20 @@ data_models:
       version: string
       deployed_at: timestamp
 
+  - id: query-audit-entry
+    version: "0.1.0"
+    owner: observable-control
+    classification: internal
+    derived_from:
+      - tenant-config
+    schema_path: models/admin.mdl
+    fields:
+      id: uuid
+      tenant_id: uuid
+      action: string
+      result_count: int64
+      occurred_at: timestamp
+
   - id: alert-rule
     version: "0.1.0"
     owner: observable-alerting
@@ -688,7 +703,7 @@ requirements:
     category: contract
     mandatory: true
     criteria:
-      - "PostgreSQL schemas auth.*, control.*, and alerting.* maintain explicit table ownership and schema boundary isolation"
+      - "PostgreSQL schemas auth.*, control.*, and alerting.* maintain explicit table ownership (including control.query_audit_log), zero cross-schema foreign keys, and schema-scoped component roles (observable_auth_role, observable_control_role, observable_alerting_role)"
 
 risks:
   - id: risk-at-least-once-duplicates
@@ -882,8 +897,8 @@ evidence:
     requirement_version: "0.1.0"
     subject_id: manage-control-plane
     subject_revision: "0.1.0"
-    method: inspection
+    method: test
     passed: true
-    provenance: migrations/postgres
+    provenance: services/admin-service/tests/postgres_tenants_integration.rs
     timestamp: "2026-10-30T20:00:00Z"
-    verifier: ci-schema-gate
+    verifier: ci-rust-test

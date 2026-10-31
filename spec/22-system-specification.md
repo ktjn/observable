@@ -20,7 +20,7 @@ This document records the reverse-discovery onboarding of `observable` (`0.1.0`)
 | `observable-web` | `experience` | `strong` | `explore-telemetry-ui` | `validate-credential@^0.1`, `manage-control-plane@^0.1`, `query-telemetry@^0.1`, `evaluate-alerts@^0.1` | — | `apps/frontend` |
 | `observable-ingest` | `application` | `eventual` | `ingest-otlp` | `validate-credential@^0.1`, `normalize-telemetry@^0.1`, `publish-deployment-markers@^0.1` | — | `services/ingest-gateway` |
 | `observable-query` | `application` | `strong` | `query-telemetry` | `validate-credential@^0.1`, `manage-control-plane@^0.1`, `evaluate-alerts@^0.1`, `store-telemetry@^0.1` | — | `services/query-api`, `libs/query-core`, `libs/domain-core` |
-| `observable-control` | `domain` | `strong` | `manage-control-plane`, `publish-deployment-markers` | `validate-credential@^0.1` | `tenant-config`, `dashboard-model`, `deployment-marker` | `services/admin-service` |
+| `observable-control` | `domain` | `strong` | `manage-control-plane`, `publish-deployment-markers` | `validate-credential@^0.1` | `tenant-config`, `dashboard-model`, `deployment-marker`, `query-audit-entry` | `services/admin-service` |
 | `observable-alerting` | `domain` | `strong` | `evaluate-alerts` | `validate-credential@^0.1`, `store-telemetry@^0.1` | `alert-rule`, `slo-definition`, `incident-record` | `services/alert-evaluator` |
 | `observable-process` | `domain` | `eventual` | `normalize-telemetry` | `store-telemetry@^0.1` | — | `services/stream-processor`, `libs/observable-process` |
 | `observable-auth` | `infrastructure` | `strong` | `validate-credential` | — | `api-key-credential`, `user-session` | `services/auth-service`, `libs/observable-auth` |
@@ -49,7 +49,7 @@ Reverse discovery against the metamodel invariants uncovered three concrete arch
 
 | Gate | Stage | Status | Evidence Summary |
 | :--- | :--- | :--- | :--- |
-| Level 0 | `inventory` | **PASS** | All 8 components, 9 capabilities, 11 data models, 15 requirements, 3 risks, and 15 evidence records resolve cleanly (`REF-01`–`REF-13`, `DATA-01`, `EV-01`–`EV-03`, `RISK-01`–`RISK-02`). |
+| Level 0 | `inventory` | **PASS** | All 8 components, 9 capabilities, 12 data models, 15 requirements, 3 risks, and 15 evidence records resolve cleanly (`REF-01`–`REF-13`, `DATA-01`, `EV-01`–`EV-03`, `RISK-01`–`RISK-02`). |
 | Level 1 | `discovery` | **PASS** | All 9 capabilities define explicit preconditions, postconditions, invariants, and failure modes (`STAT-01`, `CAP-01`). |
 | Level 2 | `architecture` | **PASS** | Strict 4-layer DAG (`experience -> application -> domain -> infrastructure`), single data-model ownership (`DATA-02`, `DATA-03`), PII declassification (`DATA-04` via `req-pii-scrubbing`), and full interface contracts (`CAP-02`, `CAP-03`, `COMP-01`–`COMP-07`). |
 | Level 2.5 | `verification` | **PASS** | All 10 verification categories covered (`REQ-01`), category-kind alignment verified (`REQ-07`), acyclic requirement graph (`REQ-02`). |
@@ -63,8 +63,8 @@ Reverse discovery against the metamodel invariants uncovered three concrete arch
    - `scripts/tests/test_system_spec.py` enforces parity between `spec/system.yaml`, `VERSION`, `distribution/manifest.yaml`, `source_paths`, and `models/*.mdl` (`schema_path`).
 2. **Milestone 2 — Telemetry Pipeline Idempotency & Single-Boundary Flow** (Completed):
    - Closed `risk-at-least-once-duplicates` (`req-dedup-idempotency`, issue `#768`) by attaching deterministic ClickHouse `insert_deduplication_token` / `non_replicated_deduplication_window` to all telemetry inserts (`store-telemetry.interface.idempotent: true`), routing span-derived metrics through `telemetry.normalized.v1` and removing `/internal/metrics`, and verifying `NoDuplicateVisibleRows` in `formal/tla/TelemetryDelivery.tla`.
-3. **Milestone 3 — PostgreSQL State Ownership & Schema Isolation**:
-   - Close `risk-pg-cross-schema-fks` (`req-pg-schema-isolation`) by migrating `public.query_audit_log` into an explicit component schema, dropping cross-schema foreign keys between `auth.*` and `control.*`, and enforcing per-component DB credentials.
+3. **Milestone 3 — PostgreSQL State Ownership & Schema Isolation** (Completed):
+   - Closed `risk-pg-cross-schema-fks` (`req-pg-schema-isolation`) by migrating `query_audit_log` into `control.query_audit_log` (`query-audit-entry` owned by `observable-control`), dropping all cross-schema foreign keys between `auth.*` and `control.*`, and provisioning schema-scoped PostgreSQL roles (`observable_auth_role`, `observable_control_role`, `observable_alerting_role`) in `migrations/postgres/041_drop_cross_schema_fks_and_assign_query_audit_log.sql`, verified via Testcontainers Postgres integration tests.
 4. **Milestone 4 — Resolve `observable-query` ↔ `observable-alerting` Direction**:
    - Close `risk-query-alerting-cycle-hazard` (`req-alerting-query-inversion`) in Phase 6 by either codifying `observable-alerting` (`domain`) reading ClickHouse via versioned `libs/observable-storage-contracts` (`store-telemetry`) or inverting enrichment out of `observable-query` before promoting `observable-alerting` to `application`.
 5. **Milestone 5 — Contract Completeness & Boundary Allowlist Zeroing**:

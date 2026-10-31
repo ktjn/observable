@@ -345,22 +345,12 @@ completely removed.
 | Owner | Tables (in schema of the same name) |
 | --- | --- |
 | `auth` | `users`, `user_tenant_roles`, `user_sessions`, `api_keys`, `credential_audit_log` |
-| `control` | `tenants`, `projects`, `change_events`, `deployment_markers`, `platform_config`, `schema_entries`, `semantic_annotations`, `dashboards`, `dashboard_panels`, `dashboard_grants`, `saved_views`, `saved_view_grants` |
+| `control` | `tenants`, `projects`, `change_events`, `deployment_markers`, `platform_config`, `schema_entries`, `semantic_annotations`, `dashboards`, `dashboard_panels`, `dashboard_grants`, `saved_views`, `saved_view_grants`, `query_audit_log` |
 | `alerting` | `alert_rules`, `alert_firings`, `slo_definitions`, `notification_channels`, `notification_audit_log`, `incidents`, `incident_events` |
 
-`query_audit_log` (query-api's own read-audit trail) deliberately stays in `public`, unassigned to
-any of the three owners above — `observable-query` has no target PostgreSQL ownership in this
-model at all (the target architecture's exit evidence is "core query runs without PostgreSQL"), so
-assigning it to one of the three would be guessing a decision nobody has made. Flagged as an
-explicit open question, not resolved by this migration.
+`query_audit_log` lives in `control` (`migrations/postgres/041_drop_cross_schema_fks_and_assign_query_audit_log.sql`) as `observable-control` owns tenant usage and audit reporting (`services/admin-service/src/usage.rs`, `query-audit-entry` in `spec/system.yaml`).
 
-**Known existing cross-owner foreign keys** (all still functionally valid post-move — PostgreSQL
-permits cross-schema FKs — but exactly the coupling the "no cross-owner SQL" rule targets removing):
-`auth.api_keys.tenant_id`, `auth.user_tenant_roles.tenant_id`, and `auth.user_sessions.tenant_id`
-all reference `control.tenants(id)`; `control.dashboard_grants.user_id`,
-`control.saved_views.owner_user_id`, and `control.saved_view_grants.user_id` all reference
-`auth.users(id)`. Resolving these (replacing the DB-enforced FK with an application-level check) is
-part of the not-yet-done "remove cross-owner SQL" work, not this migration.
+**Cross-owner foreign keys removed & component roles provisioned:** `migrations/postgres/041_drop_cross_schema_fks_and_assign_query_audit_log.sql` drops all cross-schema foreign keys between `auth.*` (`api_keys`, `user_tenant_roles`, `user_sessions`) and `control.tenants(id)` and between `control.*` (`dashboard_grants`, `saved_views`, `saved_view_grants`) and `auth.users(id)`, and provisions schema-scoped roles (`observable_auth_role`, `observable_control_role`, `observable_alerting_role`) with strictly isolated `USAGE` and DML grants on their respective schemas.
 
 **Implementation note for anyone touching PostgreSQL connection setup:** every connection URL in
 this codebase (production and test) must carry `?options=-c%20search_path%3Dpublic,auth,control,alerting`
@@ -1155,12 +1145,12 @@ Additional control/alert topics may exist; each must be owned by a single compon
 | Owner | Schema | Tables | Notes |
 | --- | --- | --- | --- |
 | `observable-auth` | `auth` | `users`, `user_tenant_roles`, `user_sessions`, `api_keys`, `credential_audit_log` | Owns identity/keys/credentials. |
-| `observable-control` | `control` | `tenants`, `projects`, `change_events`, `deployment_markers`, `platform_config`, `schema_entries`, `semantic_annotations`, `dashboards`, `dashboard_panels`, `dashboard_grants`, `saved_views`, `saved_view_grants` | Consolidates control-plane state. Ingest/query must not own/control-plane PG. |
+| `observable-control` | `control` | `tenants`, `projects`, `change_events`, `deployment_markers`, `platform_config`, `schema_entries`, `semantic_annotations`, `dashboards`, `dashboard_panels`, `dashboard_grants`, `saved_views`, `saved_view_grants`, `query_audit_log` | Consolidates control-plane state and usage/audit reporting. Ingest/query must not own control-plane PG. |
 | `observable-alerting` | `alerting` | `alert_rules`, `alert_firings`, `slo_definitions`, `notification_channels`, `notification_audit_log`, `incidents`, `incident_events` | Consolidated alerting persistence. |
 
 - **No cross-owner SQL.** No shared write credentials across owners. Cross-component access uses API or event.
-- **query_audit_log** remains in `public` (unassigned) as an open question (core query target has no PG ownership).
-- **Known cross-schema FKs exist** (e.g. `auth.*`→`control.tenants`, `control.*`→`auth.users`) — these are the coupling the "no cross-owner SQL" rule targets removing.
+- **`control.query_audit_log`** is owned by `observable-control` (`migrations/postgres/041_drop_cross_schema_fks_and_assign_query_audit_log.sql`).
+- **Zero cross-schema FKs** across `auth`, `control`, and `alerting` (`migrations/postgres/041_drop_cross_schema_fks_and_assign_query_audit_log.sql`).
 - Connections must carry `?options=-c%20search_path%3Dpublic,auth,control,alerting` (see Data Ownership section for details).
 
 ### ClickHouse Ownership

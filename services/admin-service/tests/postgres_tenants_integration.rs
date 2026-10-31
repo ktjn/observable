@@ -283,3 +283,90 @@ async fn list_tenant_environments_unknown_tenant_returns_empty() {
     let envs = body["environments"].as_array().unwrap();
     assert!(envs.is_empty(), "unknown tenant should return empty list");
 }
+
+#[tokio::test]
+async fn migrations_enforce_schema_ownership_and_zero_cross_schema_fks() {
+    let (pool, container) = start_pool().await;
+
+    let has_control_audit_log: bool = sqlx::query_scalar(
+        "SELECT EXISTS (
+            SELECT 1 FROM pg_tables
+            WHERE schemaname = 'control' AND tablename = 'query_audit_log'
+        )",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(
+        has_control_audit_log,
+        "query_audit_log must reside in the control schema"
+    );
+
+    let cross_schema_fks: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)
+         FROM pg_constraint con
+         JOIN pg_class cl_src      ON cl_src.oid = con.conrelid
+         JOIN pg_namespace ns_src  ON ns_src.oid = cl_src.relnamespace
+         JOIN pg_class cl_dst      ON cl_dst.oid = con.confrelid
+         JOIN pg_namespace ns_dst  ON ns_dst.oid = cl_dst.relnamespace
+         WHERE con.contype = 'f'
+           AND ns_src.nspname IN ('auth', 'control', 'alerting')
+           AND ns_dst.nspname <> ns_src.nspname",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        cross_schema_fks, 0,
+        "expected zero cross-schema foreign keys in auth/control/alerting"
+    );
+
+    // Replay all migrations on a bare connection (matching postgres-setup / migration-job)
+    let host = container.get_host().await.expect("host");
+    let port = container.get_host_port_ipv4(5432).await.expect("port");
+    let replay_pool = PgPool::connect(&format!(
+        "postgres://postgres:postgres@{host}:{port}/postgres"
+    ))
+    .await
+    .expect("replay pool connected");
+    apply_migrations(&replay_pool).await;
+
+    let cross_schema_fks_after_replay: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)
+         FROM pg_constraint con
+         JOIN pg_class cl_src      ON cl_src.oid = con.conrelid
+         JOIN pg_namespace ns_src  ON ns_src.oid = cl_src.relnamespace
+         JOIN pg_class cl_dst      ON cl_dst.oid = con.confrelid
+         JOIN pg_namespace ns_dst  ON ns_dst.oid = cl_dst.relnamespace
+         WHERE con.contype = 'f'
+           AND ns_src.nspname IN ('auth', 'control', 'alerting')
+           AND ns_dst.nspname <> ns_src.nspname",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        cross_schema_fks_after_replay, 0,
+        "expected zero cross-schema foreign keys after migration replay"
+    );
+
+    // Verify per-component roles have access only to their owned schemas
+    let role_isolation_ok: bool = sqlx::query_scalar(
+        "SELECT
+            has_table_privilege('observable_auth_role', 'auth.api_keys', 'SELECT, INSERT')
+            AND NOT has_table_privilege('observable_auth_role', 'control.tenants', 'SELECT')
+            AND NOT has_table_privilege('observable_auth_role', 'alerting.alert_rules', 'SELECT')
+            AND has_table_privilege('observable_control_role', 'control.tenants', 'SELECT, INSERT')
+            AND has_table_privilege('observable_control_role', 'control.query_audit_log', 'SELECT, INSERT')
+            AND NOT has_table_privilege('observable_control_role', 'auth.api_keys', 'SELECT')
+            AND has_table_privilege('observable_alerting_role', 'alerting.alert_rules', 'SELECT, INSERT')
+            AND NOT has_table_privilege('observable_alerting_role', 'control.tenants', 'SELECT')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(
+        role_isolation_ok,
+        "component PostgreSQL roles must only have privileges on their owned schema tables"
+    );
+}
