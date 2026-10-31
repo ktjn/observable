@@ -13,6 +13,8 @@ import { PillFilter } from "../../components/ui/pill-filter";
 import { TablePanel } from "../../components/ui/table-panel";
 import { TimeSeriesGraph, type TimeSeriesSeries } from "../../components/ui/time-series-graph";
 import { SignalExplorer, type SaveStatus } from "../../components/shared/SignalExplorer";
+import { SavedViewsControl } from "../signals/components/SavedViewsControl";
+import type { MetricViewConfig } from "../../api/savedViews";
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import { liveViewQueryOptions } from "../../hooks/useLiveRefresh";
@@ -133,6 +135,27 @@ export function ServiceMetricsWorkspace({
     }
   };
 
+  const currentViewConfig: MetricViewConfig = {
+    service: serviceName,
+    selected_metric: selectedMetricId,
+    time_range:
+      preset != null
+        ? { mode: "preset", preset }
+        : { mode: "absolute", from_ms: fromMs, to_ms: toMs },
+  };
+
+  const handleLoadView = (config: MetricViewConfig) => {
+    if (!lockedService) {
+      setServiceName(config.service || "");
+    }
+    setSelectedMetricId(config.selected_metric);
+    if (config.time_range.mode === "preset") {
+      clearCustomRange();
+    } else {
+      setCustomRange(config.time_range.from_ms, config.time_range.to_ms);
+    }
+  };
+
   if (isLoading) return <LoadingState>Loading service metrics...</LoadingState>;
   if (error) return <ErrorState title="Failed to load metrics" description={String(error)} />;
 
@@ -169,6 +192,14 @@ export function ServiceMetricsWorkspace({
         querySurface="metrics"
         saveStatus={saveStatus}
         onPromote={handlePromote}
+        savedViewsControl={
+          <SavedViewsControl<MetricViewConfig>
+            tenantId={tenantId}
+            signalKind="metrics"
+            currentConfig={currentViewConfig}
+            onLoad={handleLoadView}
+          />
+        }
         selectedId={selectedMetricId}
         onSelect={setSelectedMetricId}
         histogram={

@@ -2,7 +2,7 @@ function tenantHeaders(tenantId: string): HeadersInit {
   return { "X-Tenant-ID": tenantId };
 }
 
-export type SignalKind = "logs";
+export type SignalKind = "logs" | "traces" | "metrics";
 
 export interface LogViewConfig {
   query: string | null;
@@ -11,29 +11,44 @@ export interface LogViewConfig {
   visible_columns: string[];
 }
 
-export interface SavedView {
+export interface TraceViewConfig {
+  query: string | null;
+  status_filter: "all" | "ok" | "error";
+  time_range: { mode: "preset"; preset: string } | { mode: "absolute"; from_ms: number; to_ms: number };
+  visible_columns: string[];
+}
+
+export interface MetricViewConfig {
+  service: string;
+  selected_metric: string | null;
+  time_range: { mode: "preset"; preset: string } | { mode: "absolute"; from_ms: number; to_ms: number };
+}
+
+export type AnyViewConfig = LogViewConfig | TraceViewConfig | MetricViewConfig | Record<string, unknown>;
+
+export interface SavedView<T = AnyViewConfig> {
   saved_view_id: string;
   name: string;
   signal_kind: SignalKind;
   visibility: "private" | "public";
-  config: LogViewConfig;
+  config: T;
   created_at: string;
   updated_at: string;
 }
 
-export interface SavedViewListResponse {
-  items: SavedView[];
+export interface SavedViewListResponse<T = AnyViewConfig> {
+  items: SavedView<T>[];
 }
 
-export interface CreateSavedViewRequest {
+export interface CreateSavedViewRequest<T = AnyViewConfig> {
   name: string;
   signal_kind: SignalKind;
-  config: LogViewConfig;
+  config: T;
 }
 
-export interface UpdateSavedViewRequest {
+export interface UpdateSavedViewRequest<T = AnyViewConfig> {
   name: string;
-  config: LogViewConfig;
+  config: T;
   visibility?: "private" | "public";
 }
 
@@ -47,7 +62,7 @@ export interface GrantListResponse {
   grants: GrantItem[];
 }
 
-export async function fetchSavedViews(tenantId: string, signalKind: SignalKind): Promise<SavedViewListResponse> {
+export async function fetchSavedViews<T = AnyViewConfig>(tenantId: string, signalKind: SignalKind): Promise<SavedViewListResponse<T>> {
   const res = await fetch(`/v1/saved-views?signal_kind=${signalKind}`, {
     credentials: "include",
     headers: tenantHeaders(tenantId),
@@ -56,7 +71,7 @@ export async function fetchSavedViews(tenantId: string, signalKind: SignalKind):
   return res.json();
 }
 
-export async function createSavedView(tenantId: string, req: CreateSavedViewRequest): Promise<SavedView> {
+export async function createSavedView<T = AnyViewConfig>(tenantId: string, req: CreateSavedViewRequest<T>): Promise<SavedView<T>> {
   const res = await fetch("/v1/saved-views", {
     credentials: "include",
     method: "POST",
@@ -67,11 +82,11 @@ export async function createSavedView(tenantId: string, req: CreateSavedViewRequ
   return res.json();
 }
 
-export async function updateSavedView(
+export async function updateSavedView<T = AnyViewConfig>(
   tenantId: string,
   savedViewId: string,
-  req: UpdateSavedViewRequest,
-): Promise<SavedView> {
+  req: UpdateSavedViewRequest<T>,
+): Promise<SavedView<T>> {
   const res = await fetch(`/v1/saved-views/${savedViewId}`, {
     credentials: "include",
     method: "PUT",

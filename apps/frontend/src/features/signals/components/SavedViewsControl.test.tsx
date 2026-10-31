@@ -127,3 +127,31 @@ test("adding a grant calls savedViews.addGrant with the entered user id and rela
     expect(addGrantMock).toHaveBeenCalledWith("tenant-1", savedView.saved_view_id, "user-42", "viewer"),
   );
 });
+
+test("supports traces signal kind for listing and saving", async () => {
+  mockRuntime();
+  const traceConfig = {
+    query: "service:order",
+    status_filter: "error" as const,
+    time_range: { mode: "preset" as const, preset: "1h" },
+    visible_columns: ["service.name", "duration"],
+  };
+  render(<SavedViewsControl tenantId="tenant-1" signalKind="traces" currentConfig={traceConfig} onLoad={vi.fn()} />, {
+    wrapper,
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: /saved views/i }));
+  await waitFor(() => expect(listMock).toHaveBeenCalledWith("tenant-1", "traces"));
+
+  fireEvent.click(screen.getByRole("button", { name: /save current view/i }));
+  fireEvent.change(screen.getByLabelText(/view name/i), { target: { value: "Traces view" } });
+  fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
+
+  await waitFor(() =>
+    expect(createMock).toHaveBeenCalledWith("tenant-1", {
+      name: "Traces view",
+      signal_kind: "traces",
+      config: traceConfig,
+    }),
+  );
+});

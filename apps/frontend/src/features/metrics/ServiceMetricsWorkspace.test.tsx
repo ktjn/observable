@@ -49,6 +49,15 @@ vi.mock("../../hooks/useRuntime", () => ({
     mode: "http",
     metrics: { list: listMock, points: pointsMock },
     dashboards: { create: vi.fn() },
+    savedViews: {
+      list: vi.fn(async () => ({ items: [] })),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      listGrants: vi.fn(async () => ({ grants: [] })),
+      addGrant: vi.fn(),
+      revokeGrant: vi.fn(),
+    },
   }),
 }));
 
@@ -88,4 +97,10 @@ test("shows an error state for the chart when fetching data points fails", async
   renderWorkspace();
 
   await waitFor(() => expect(screen.getByText("Failed to load metric data")).toBeInTheDocument());
+});
+
+test("renders saved views control in metrics explorer", async () => {
+  renderWorkspace();
+
+  expect(await screen.findByRole("button", { name: /saved views/i })).toBeInTheDocument();
 });

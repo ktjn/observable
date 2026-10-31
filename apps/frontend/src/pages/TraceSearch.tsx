@@ -31,6 +31,8 @@ import { useColumnPreferences } from "../hooks/useColumnPreferences";
 import { SignalExplorer, SaveStatus } from "../components/shared/SignalExplorer";
 import { TraceResultsTable } from "../features/signals/components/TraceResultsTable";
 import { ColumnPickerControl } from "../features/signals/components/ColumnPickerControl";
+import { SavedViewsControl } from "../features/signals/components/SavedViewsControl";
+import type { TraceViewConfig } from "../api/savedViews";
 import { MetricCard } from "../components/ui/metric-card";
 
 const TRACE_BASE_IR: NlqIrLike = {
@@ -135,7 +137,7 @@ export function TraceExplorer({
   serviceName,
 }: TraceExplorerProps) {
   const { format } = useTimeDisplay();
-  const { fromMs, toMs, setCustomRange } = useGlobalDateRange();
+  const { fromMs, toMs, preset, setPreset, setCustomRange } = useGlobalDateRange();
   const { tenantId } = useTenantContext();
   const runtime = useRuntime();
 
@@ -149,7 +151,7 @@ export function TraceExplorer({
   const [userQuery, setUserQuery] = useState<string | null>(initialQuery);
   const [service, setService] = useState(initialService);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const { columnOrder, visibleColumns, toggleColumn: toggleTraceColumn, reorderColumns } = useColumnPreferences(
+  const { columnOrder, visibleColumns, toggleColumn: toggleTraceColumn, reorderColumns, applyColumns } = useColumnPreferences(
     "observable.trace-columns",
     showServiceColumn ? DEFAULT_TRACE_COLUMNS : DEFAULT_TRACE_COLUMNS.filter((key) => key !== "service.name"),
   );
@@ -241,6 +243,28 @@ export function TraceExplorer({
     }
   };
 
+  const currentViewConfig: TraceViewConfig = {
+    query: userQuery,
+    status_filter: statusFilter,
+    time_range:
+      preset != null
+        ? { mode: "preset", preset }
+        : { mode: "absolute", from_ms: fromMs, to_ms: toMs },
+    visible_columns: visibleColumns,
+  };
+
+  const handleLoadView = (config: TraceViewConfig) => {
+    setUserQuery(config.query);
+    setService("");
+    setStatusFilter(config.status_filter);
+    if (config.time_range.mode === "preset") {
+      setPreset(config.time_range.preset as Parameters<typeof setPreset>[0]);
+    } else {
+      setCustomRange(config.time_range.from_ms, config.time_range.to_ms);
+    }
+    applyColumns(config.visible_columns);
+  };
+
   return (
     <SignalExplorer
       title="Traces"
@@ -259,12 +283,20 @@ export function TraceExplorer({
       saveStatus={saveStatus}
       onPromote={handlePromote}
       savedViewsControl={
-        <ColumnPickerControl
-          columns={pickerColumns}
-          visibleColumns={visibleColumns}
-          onToggle={toggleTraceColumn}
-          onReorder={reorderColumns}
-        />
+        <>
+          <ColumnPickerControl
+            columns={pickerColumns}
+            visibleColumns={visibleColumns}
+            onToggle={toggleTraceColumn}
+            onReorder={reorderColumns}
+          />
+          <SavedViewsControl<TraceViewConfig>
+            tenantId={tenantId}
+            signalKind="traces"
+            currentConfig={currentViewConfig}
+            onLoad={handleLoadView}
+          />
+        </>
       }
       histogram={
         canRenderHistogram ? (

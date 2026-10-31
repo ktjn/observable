@@ -3,18 +3,25 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../../../components/ui/button";
 import { CopyableText } from "../../../components/ui/copy-button";
 import type {
-  LogViewConfig,
+  AnyViewConfig,
   SavedView,
+  SignalKind,
 } from "../../../api/savedViews";
 import { useRuntime } from "../../../hooks/useRuntime";
 
-export interface SavedViewsControlProps {
+export interface SavedViewsControlProps<T extends AnyViewConfig = AnyViewConfig> {
   tenantId: string;
-  currentConfig: LogViewConfig;
-  onLoad: (config: LogViewConfig) => void;
+  signalKind?: SignalKind;
+  currentConfig: T;
+  onLoad: (config: T) => void;
 }
 
-export function SavedViewsControl({ tenantId, currentConfig, onLoad }: SavedViewsControlProps) {
+export function SavedViewsControl<T extends AnyViewConfig = AnyViewConfig>({
+  tenantId,
+  signalKind = "logs",
+  currentConfig,
+  onLoad,
+}: SavedViewsControlProps<T>) {
   const runtime = useRuntime();
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -25,11 +32,11 @@ export function SavedViewsControl({ tenantId, currentConfig, onLoad }: SavedView
   const queryClient = useQueryClient();
 
   const { data } = useQuery({
-    queryKey: ["saved-views", tenantId, "logs"],
-    queryFn: () => runtime.savedViews.list(tenantId, "logs"),
+    queryKey: ["saved-views", tenantId, signalKind],
+    queryFn: () => runtime.savedViews.list(tenantId, signalKind),
     enabled: isOpen,
   });
-  const views = data?.items ?? [];
+  const views = (data?.items ?? []) as SavedView<T>[];
   const managingView = views.find((v) => v.saved_view_id === managingViewId) ?? null;
 
   const { data: grantsData } = useQuery({
@@ -41,9 +48,9 @@ export function SavedViewsControl({ tenantId, currentConfig, onLoad }: SavedView
 
   const createMutation = useMutation({
     mutationFn: (name: string) =>
-      runtime.savedViews.create(tenantId, { name, signal_kind: "logs", config: currentConfig }),
+      runtime.savedViews.create(tenantId, { name, signal_kind: signalKind, config: currentConfig }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["saved-views", tenantId, "logs"] });
+      queryClient.invalidateQueries({ queryKey: ["saved-views", tenantId, signalKind] });
       setIsSaving(false);
       setNewViewName("");
     },
@@ -52,19 +59,19 @@ export function SavedViewsControl({ tenantId, currentConfig, onLoad }: SavedView
   const deleteMutation = useMutation({
     mutationFn: (savedViewId: string) => runtime.savedViews.delete(tenantId, savedViewId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["saved-views", tenantId, "logs"] });
+      queryClient.invalidateQueries({ queryKey: ["saved-views", tenantId, signalKind] });
     },
   });
 
   const visibilityMutation = useMutation({
-    mutationFn: (view: SavedView) =>
+    mutationFn: (view: SavedView<T>) =>
       runtime.savedViews.update(tenantId, view.saved_view_id, {
         name: view.name,
         config: view.config,
         visibility: view.visibility === "private" ? "public" : "private",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["saved-views", tenantId, "logs"] });
+      queryClient.invalidateQueries({ queryKey: ["saved-views", tenantId, signalKind] });
     },
   });
 
