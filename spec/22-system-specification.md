@@ -69,5 +69,7 @@ Reverse discovery against the metamodel invariants uncovered three concrete arch
    - Closed `risk-query-alerting-cycle-hazard` (`req-alerting-query-inversion`) by codifying the acyclic `observable-query (application) -> observable-alerting (domain) -> observable-store-clickhouse (infrastructure)` boundary (`COMP-05` & `COMP-06`) in `docs/component-decomposition.md`, adding `services/alert-evaluator/clickhouse-schema-support.yaml` enforced by `scripts/check-clickhouse-schema-compat.sh`, and testing `COMP-05` / `COMP-06` in `scripts/tests/test_system_spec.py`.
 5. **Milestone 5 — Contract Completeness & Boundary Allowlist Zeroing** (Completed):
    - Emptied `scripts/component-boundary-allowlist.txt` (0 allowlisted entries), moved API-key audit tests directly into `services/auth-service/tests/http_api_integration.rs`, removed `auth-service` dev-dependency from `services/query-api/Cargo.toml`, and verified zero boundary violations with `scripts/check-component-boundaries.sh`.
-6. **Milestone 6 — Automated Evidence Provenance & Release Gate**:
-   - Automate `Evidence` digest/timestamp stamping from `scripts/local-ci.sh` and bind `subject_revision` to immutable per-component OCI release artifacts.
+6. **Milestone 6 — Automated Evidence Provenance & Release Gate** (Completed):
+   - Added `scripts/update-spec-evidence.py` to validate evidence provenance paths and stamp execution timestamps and Git commit metadata into `spec/system.yaml`.
+   - Wired evidence provenance checks and system specification consistency assertions directly into `scripts/local-ci.sh` and `scripts/tests/test_system_spec.py`.
+   - Validated full compliance across all 15 evidence records against `metamodel.py --stage release`.

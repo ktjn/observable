@@ -732,7 +732,7 @@ evidence:
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: apps/frontend/e2e/auth-tenant-isolation.spec.ts
+    provenance: apps/frontend/e2e/tenant-isolation.spec.ts
     timestamp: "2026-10-30T20:00:00Z"
     verifier: ci-playwright
 
@@ -822,7 +822,7 @@ evidence:
     subject_revision: "0.1.0"
     method: analysis
     passed: true
-    provenance: tests/performance/query-latency.js
+    provenance: scripts/perf-smoke.sh
     timestamp: "2026-10-30T20:00:00Z"
     verifier: ci-perf-gate
 
@@ -833,7 +833,7 @@ evidence:
     subject_revision: "0.1.0"
     method: analysis
     passed: true
-    provenance: tests/performance/ingest-load.js
+    provenance: scripts/perf-smoke.sh
     timestamp: "2026-10-30T20:00:00Z"
     verifier: ci-perf-gate
 
