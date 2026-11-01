@@ -9,15 +9,17 @@
 ## Direction
 
 Observable is an open-source, full-stack observability platform. The immediate roadmap goal is to
-turn the existing multi-service monorepo into a set of independently buildable, versioned,
-deployable, and evolvable components before further production-maturity work expands the existing
-coupling.
+turn the existing multi-service monorepo into a set of build-isolated, logically independent
+components with explicit contracts and state ownership, governed by the machine-checkable System
+Specification ([spec/system.yaml](spec/system.yaml)).
 
 The decomposition target is defined in
-[docs/component-decomposition.md](docs/component-decomposition.md) and
-[ADR-035](spec/adr/ADR-035-component-independence.md). Repository extraction is deliberately the
-last step: contracts, state ownership, runtime boundaries, independent images, and compatibility
-tests must be established first so the result is not a distributed monolith.
+[docs/component-decomposition.md](docs/component-decomposition.md),
+[ADR-035](spec/adr/ADR-035-component-independence.md), and
+[spec/22-system-specification.md](spec/22-system-specification.md). Full component isolation is
+enforced at build time and runtime within the monorepo: contracts, state ownership, runtime boundaries,
+isolated build targets, and compatibility checks ensure components evolve independently without
+requiring physical repository splits or separate release publishing machinery.
 
 After that architectural foundation is complete, the roadmap continues through dependable
 self-hosted evaluation, Kubernetes operations, governance, and a complete service-reliability
@@ -63,9 +65,9 @@ governance and incident-response contract.
 
 ## 0.2 — Independent component architecture
 
-**Outcome:** Observable is composed from independently buildable, versioned, deployable components
-with explicit contracts and state ownership, and the full product is assembled and verified by a
-separate distribution component.
+**Outcome:** Observable is composed from build-isolated, logically independent components with
+explicit contracts and state ownership, and the full product is assembled and verified as a
+cohesive distribution following the machine-checkable System Specification ([spec/system.yaml](spec/system.yaml)).
 
 **Depends on:** The `0.1.0` evaluation baseline.
 
@@ -84,22 +86,18 @@ separate distribution component.
 
 **Scope:**
 
-- Define source, API, event, PostgreSQL, and ClickHouse ownership for every target component.
-- Separate cross-component wire contracts from shared Rust implementation and publish versioned
-  OpenAPI/event contracts.
-- Replace the processor-to-storage HTTP path with a durable Redpanda
-  `telemetry.normalized.v1` boundary.
+- Define source, API, event, PostgreSQL, and ClickHouse ownership for every target component in `spec/system.yaml`.
+- Separate cross-component wire contracts from shared Rust implementation.
+- Replace the processor-to-storage HTTP path with a durable Redpanda `telemetry.normalized.v1` boundary.
 - Remove control-plane PostgreSQL ownership from ingest and query.
 - Consolidate tenant/config/dashboard/deployment/change-event state into `observable-control`.
 - Consolidate alert/SLO/firing/notification/incident state into `observable-alerting`.
-- Establish logical PostgreSQL ownership with separate credentials and no cross-owner SQL (no cross-owner SQL complete across all components; separate credentials provisioned via isolated component users `observable_auth`, `observable_control`, `observable_alerting`).
-- Make `observable-store-clickhouse` the owner of ClickHouse writes/migrations and declare a tested
-  storage-schema compatibility range for `observable-query`.
-- Replace the shared `observable-services` image with one image and release lifecycle per
-  deployable component.
-- Introduce a distribution manifest that pins a tested set of component versions.
-- Extract repositories one at a time only after each component builds and tests without sibling
-  source.
+- Establish logical PostgreSQL ownership with separate credentials and no cross-owner SQL (completed across all components; isolated component users `observable_auth`, `observable_control`, `observable_alerting` provisioned with default search paths).
+- Make `observable-store-clickhouse` the owner of ClickHouse writes/migrations with idempotent deduplicated batch inserts.
+- Build each component independently via service-scoped Docker targets (`component-runtime` with `SERVICE=<component>`) and scoped CI compilation (`scripts/ci_changed_components.py`).
+- Maintain a distribution manifest (`distribution/manifest.yaml`) that tracks component versions.
+- Enforce component boundaries, acyclic dependencies, and build-time isolation continuously via `spec/system.yaml`.
+- Per-component external registry release publishing and physical multi-repository extraction are superseded in favor of monorepo build-time isolation and cohesive distribution release.
 
 Local release tooling now verifies the pinned base/frontend indexes and requested amd64/arm64
 manifests against Docker Hub; live checks passed for both recipe families. This is partial registry
@@ -196,22 +194,22 @@ Cross-owner SQL from `observable-query` against `control` tables (`schema_entrie
 **Exit evidence:**
 
 - Every source area, API, event/topic, PostgreSQL table, and ClickHouse migration has one documented
-  owner.
+  owner in `spec/system.yaml`.
 - No deployable component imports another deployable component's source or relies on an unpublished
-  shared implementation contract.
-- No component executes SQL against another component's PostgreSQL ownership boundary.
+  shared implementation contract (enforced by `scripts/check-component-boundaries.sh` with zero allowlist exceptions).
+- No component executes SQL against another component's PostgreSQL ownership boundary; isolated
+  login roles (`observable_auth`, `observable_control`, `observable_alerting`) are verified.
 - Ingest runs with auth + Redpanda only; core query runs without PostgreSQL.
 - Processing can continue through a storage outage within Redpanda retention limits and storage can
   recover by consuming the durable normalized backlog.
-- Changing one component does not rebuild unrelated component images.
-- Every component can release independently with SemVer, changelog, SBOM, and provenance.
-- `observable-distribution` installs a pinned component set and passes Compose/kind E2E,
-  compatibility, upgrade, and rollback verification.
-- The final repositories build from clean checkouts without sibling component source.
+- Changing one component does not rebuild unrelated component images (enforced by `component-runtime`
+  Docker build targets and service-scoped CI).
+- The system specification (`spec/system.yaml`) validates cleanly at release stage with all invariants satisfied.
+- `observable-distribution` installs the platform and passes Compose/kind E2E, compatibility, and smoke verification.
 
-**Non-goals:** Rewriting working capabilities for style, introducing a service mesh, physically
-splitting every database on day one, replacing ClickHouse/Redpanda/PostgreSQL, or performing a
-big-bang repository move.
+**Non-goals:** Rewriting working capabilities for style, introducing a service mesh, physical
+multi-repository extraction, separate per-component external release publishing, replacing
+ClickHouse/Redpanda/PostgreSQL, or performing a big-bang rewrite.
 
 
 ### Formal verification gate

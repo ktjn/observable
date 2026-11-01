@@ -1,10 +1,10 @@
-# ADR-035: Independent Component and Repository Boundaries
+# ADR-035: Independent Component Boundaries and Build-Time Isolation
 
 **Date:** 2026-09-25
-**Status:** Accepted
+**Status:** Accepted (Amended 2026-11-01)
 **Authors:** OpenAI, ktjn
 **Deciders:** Project Stakeholders
-**Review date:** 2026-09-25
+**Review date:** 2026-11-01
 
 ## Context
 
@@ -29,8 +29,9 @@ the existing operational-maturity roadmap continues.
 
 ## Decision
 
-Observable will move to independently buildable, versioned, deployable components with a separate
-distribution repository.
+Observable establishes independently buildable, logically decoupled components with strict
+build-time and runtime isolation, governed by the machine-checkable System Specification
+([spec/system.yaml](../system.yaml)).
 
 The target component set is:
 
@@ -38,6 +39,36 @@ The target component set is:
 - `observable-auth`
 - `observable-control`
 - `observable-ingest`
+- `observable-process`
+- `observable-store-clickhouse`
+- `observable-query`
+- `observable-alerting`
+- `observable-web`
+- `observable-distribution`
+
+Detailed ownership and migration sequencing are defined in
+[docs/component-decomposition.md](../../docs/component-decomposition.md).
+
+### 2026-11-01 Amendment: Build-Time Component Isolation & System-Spec Alignment
+
+Following the implementation of machine-checkable specifications ([spec/system.yaml](../system.yaml)
+and [spec/22-system-specification.md](../22-system-specification.md)), the project refines its release
+and repository architecture:
+
+1. **Build-Time Component Isolation Replaces Repository Extraction**:
+   Components are defined as logical, bounded subsystems with strict build-time and state isolation.
+   Physical repository extraction (Phase 8) is superseded; components reside within the unified
+   monorepo with machine-verified boundaries, unambiguous source ownership (`source_paths`), and
+   isolated build targets (`SERVICE=<component>`).
+2. **Unified Distribution Release Replaces Per-Component Release Publishing**:
+   Publishing separate per-component OCI images to external registries on independent release cadences
+   (Phase 7 sub-step 5) is superseded. The full platform is verified, packaged, and released as a
+   cohesive distribution (`Observable`), while preserving per-component build caching, scoped CI
+   compilation, and local container verification.
+3. **Specification-Governed Architecture**:
+   Component boundaries, capability dependencies, data ownership, and build-time isolation are
+   governed and validated continuously against `spec/system.yaml` via the system specification
+   metamodel.
 - `observable-process`
 - `observable-store-clickhouse`
 - `observable-query`
@@ -80,161 +111,23 @@ The current processor-to-storage HTTP transport is transitional and will be remo
 
 ### Release rule
 
-Each deployable component receives its own container image and SemVer lifecycle. The
-`observable-distribution` repository owns the product version and pins a tested set of component
-versions.
+Deployable components are built using service-scoped Docker targets (`component-runtime` with
+`SERVICE=<component>`) and scoped CI compilation, ensuring changes to one component do not trigger
+unnecessary compilation of others.
 
-The current single root `VERSION` and `observable-services` image remain valid only during the
-migration.
-
-#### Immutable component release identity
-
-Per-component OCI version tags are immutable: an unchanged version reuses the original verified
-digest across product releases without a rebuild or push. Changed release inputs require a new
-component version. Release identity covers transitive build inputs as well as service source;
-the previous product tag or a changed-path selector alone is not a sufficient baseline.
-
-Publishing must fail closed on unverifiable identity or registry errors and prevent concurrent
-writers from replacing a component/version tag. Partial retries reuse published digests and
-finish their release evidence; rollback never deletes or replaces them. The detailed policy and
-implementation acceptance cases are in
-[VERSIONING.md](../../VERSIONING.md#immutable-component-releases) and
-[the deployment specification](../12-deployment.md#1932-independent-component-releases).
-This is a target requirement; per-component registry publishing remains unimplemented.
-
-The monorepo recipes pin every base and Dockerfile-frontend image by digest, and the
-[declared build-input identity](../../distribution/README.md#declared-build-input-identity)
-fingerprints the source closure, the recipe, the reachable pinned images, target platforms and
-effective supported build arguments as `component-input-v2`. Rust SERVICE selection stays fixed;
-web accepts only the two reviewed recipe arguments. Snapshot execution passes exactly the recorded
-values and verifies their input-digest image label. Version 1 omitted argument values and is not
-interchangeable with v2. This does not authenticate image digests or pin the materials apt, rustup
-and the language package managers resolve at build time,
-so it supplies a declared-input fingerprint rather than verified release identity.
-
-The read-only [recipe-image verifier](../../distribution/README.md#pinned-recipe-image-verification)
-checks those approved pins against fixed Docker Hub token/registry endpoints, using anonymous
-repository-scoped pull tokens held only in memory. Raw index digests and direct requested-platform
-manifest digests/sizes/media types must match their committed declarations. Origins/repositories
-are allowlisted; redirects, credential discovery and registry writes are prohibited. This supplies
-registry-bound manifest evidence, not publisher signatures, independently measured architecture,
-actual builder/frontend selection, layer availability or complete build-material identity.
-It never promotes declared inputs into trusted release-planner records.
-
-The initial monorepo attestation verifier trusts GitHub Actions OIDC certificates
-for `ktjn/observable` and its direct `.github/workflows/release-artifacts.yml`
-workflow, with both source and signer commits equal to the caller's approved full
-commit. It rejects self-hosted runners and requires separate SLSA v1 provenance
-and SPDX statements about the exact component repository and immutable image
-digest. Verification uses GitHub CLI's cryptographic policy enforcement, not
-caller-supplied verification JSON. This authenticates signed image evidence only;
-it does not establish complete external-material identity, source main/tag
-eligibility, per-platform SBOM completeness, release history or publication safety.
-Future extracted repositories/reusable builders require an explicit trust-policy
-revision before acceptance. See the [verifier contract](../../distribution/README.md#authenticated-image-attestations).
-
-The [npm material preparer](../../distribution/README.md#verified-npm-materials-and-offline-installation) verifies locked web archive bytes and revalidates them against
-approved Git metadata before an isolated `npm ci --offline --ignore-scripts` installation. A native
-Windows/amd64 full-lock install passed for 421 archives and 434 external package records. This is
-partial consumption evidence: offline OCI builds, complete external materials, authenticated history
-and publication safety remain open; it grants no release identity or publication authorization.
-The [native web build](../../distribution/README.md#native-web-compilation-from-verified-materials) additionally compiles committed production source
-from those materials and records a static-output digest inventory. Its compiler environment is
-restricted, but native execution has no network isolation or verified toolchain provenance; this
-compilation evidence does not satisfy the offline OCI build or publication gates.
-
-The [offline web image builder](../../distribution/README.md#offline-web-oci-image-builds) now executes the generated npm install and production
-compile recipe with BuildKit RUN networking disabled and cache reuse disabled. Web amd64 and emulated arm64 image
-binding and isolated nginx static serving passed. Its generated recipe/context identity is separate
-from the original Dockerfile declaration; pinned image resolution still uses registry transport.
-Trusted builder/material provenance, native arm64 hardware, release history and publication protection
-remain required. The local result grants no publication authorization.
-
-The [Cargo material preparer](../../distribution/README.md#verified-cargo-materials-and-frozen-resolution) verifies exact committed crates.io archive SHA256 values,
-then reconstructs a directory source with independently generated per-file checksums. All 526
-registry archives verified, and frozen resolution passed for 543 packages/17 workspace members in a
-network-disabled pinned Rust container with private Cargo state. The auth-service release binary
-also compiled frozen/offline and passed dynamic linkage without additional apt/rustup downloads.
-This verifies registry source consumption and that binary path, not all native toolchain materials,
-deployable image behavior or release authority.
-
-The [APT material preparer](../../distribution/README.md#locked-apt-materials-and-offline-installation) records native signed
-Debian resolution for the pinned Rust builder/runtime bases on amd64 and arm64: 16 builder and
-18 runtime archives per platform. A committed lock governs later HTTPS fetch and byte-revalidated
-staging; generated installers guard base dpkg state, select only locked archives and prohibit
-downloads. All four closures installed in network-disabled containers with exact dpkg versions,
-tool/CA/linkage checks and unlisted archives ignored; a missing archive failed before installation.
-Arm64 used emulation. This supplies native package material evidence, not a completed service image,
-reproducibility or publication authority.
-
-The [offline Rust image builder](../../distribution/README.md#offline-rust-oci-image-builds) now combines Git-only workspace
-source with reverified Cargo archives and committed builder/runtime APT closures. Its generated
-recipe disables RUN networking and cache reuse, compiles a frozen release and preserves the non-root
-runtime/proto/entrypoint contract. Inspected image digests, platform, labels and runtime configuration
-must match the local request. Component/platform runtime acceptance is separate; full release identity
-and publication authorization remain false. Auth amd64 built successfully and passed non-root
-runtime linkage/CA/proto checks, exact runtime package versions and HTTP 200 `/health`/`/readyz`
-against an isolated disposable PostgreSQL instance. Other Rust components/platforms, migrations,
-OIDC and full cluster acceptance remain open.
-
-The [process image acceptance](../../docs/component-process-offline-verification.md) additionally exercises native Kafka/CMake compilation and
-real log delivery. Broker-loss verification exposed a transient receive error terminating process;
-the source fix now preserves the consumer across transport loss, with fatal/other errors still
-propagated. Testcontainers stop/restart recovery and focused package checks pass. The corrected
-image passed non-root runtime checks, raw-to-normalized log delivery and broker-loss readiness 503
-while liveness remained 200. Other component/platform and full durability/integration gates remain open.
-
-The [storage image acceptance](../../docs/component-store-offline-verification.md) now passes on amd64: the
-actual offline-built executable persisted a normalized broker log with all 15 fields preserved
-against the four committed ClickHouse migrations. Non-root runtime checks and ClickHouse-loss
-readiness 503/liveness 200 also passed. Offset durability, dependency recovery, other signals and
-remaining component/platform acceptance remain open; release identity/publication flags stay false.
-
-The [ingest image acceptance](../../docs/component-ingest-offline-verification.md) passes on amd64 using the
-actual offline auth image, migrated PostgreSQL and Redpanda. Missing/invalid tokens returned 401
-without advancing the raw topic; authenticated OTLP logs reached the broker with token-bound
-tenant/environment and all fields checked. Runtime and broker-loss readiness/liveness checks
-passed. Recovery, other signals/platforms and full release authority remain open.
-
-The [control image acceptance](../../docs/component-control-offline-verification.md) passes on amd64: actual auth,
-PostgreSQL persistence and both deployment create/finish broker events were checked. Rejected
-writes changed neither rows nor offsets. During broker loss, another deployment still persisted
-with 201 and PG-only readiness stayed 200, matching the existing best-effort event policy. Other
-control paths, full target independence, recovery/platform and release-authority gates remain open.
-
-The [alerting image acceptance](../../docs/component-alerting-offline-verification.md) passes on amd64: the actual
-background worker created, updated without a duplicate ID and resolved a threshold firing from
-real ClickHouse samples. Authenticated tenant-scoped reads, cross-tenant detail 404s, runtime
-checks and ClickHouse-loss readiness 503/liveness 200 passed. Other rule types, notifications,
-incidents, recovery/platform and release-authority gates remain open.
-
-The [query image acceptance](../../docs/component-query-offline-verification.md) passes on amd64: actual log
-reads round-trip all 15 fields with tenant-scoped search/facets/tail/context, rejected tenant
-headers and cross-tenant pivot 404s. PostgreSQL contains the exact 10 query/15 credential audit
-events. Runtime and ClickHouse-loss readiness/liveness passed. All seven Rust components now have
-[recorded amd64 offline builds](../../distribution/README.md#rust-amd64-acceptance-inventory) at their listed revisions; this is not a single-revision distribution
-or full-runtime acceptance. Rust arm64, remaining runtime/cluster and release-authority gates stay open.
-
-The [release history and publication boundary adapter](../../distribution/README.md#release-history-and-publication-boundary-adapter)
-bridges registry inspection, attestation verification and authoritative release history into
-verified observations for the release planner, enforcing live reinspection, writer serialization
-and tag overwrite prevention.
-
-The [verified build-input identity](../../distribution/README.md#verified-build-input-identity)
-verifier binds source closure integrity, package manifest version parity, pinned base image manifests,
-and locked Cargo/APT/npm materials, yielding authenticated records with identity_verified: true. Live publishing,
-Rust arm64 and full cluster gates remain open.
-
-
-Full identity and publication flags remain false.
+As established in the 2026-11-01 Amendment, the project releases as a unified, tested distribution
+(`Observable`) rather than publishing separate per-component images with independent release cadences
+to external registries. Per-component versioning in `distribution/manifest.yaml` and Helm values
+governs component evolution while the overall release is verified and published as a cohesive unit.
 
 ### Repository rule
 
-The current monorepo remains the migration workspace until component boundaries are proven.
-Repository extraction is performed last, one component at a time, with history preserved.
+The monorepo is the permanent development and release environment. Build-time component isolation
+and architectural boundaries are enforced within the repository by tooling, Cargo workspace structure,
+and the machine-checkable specification (`spec/system.yaml`).
 
-Full-platform Compose, Helm, upgrade, rollback, and E2E verification move to
-`observable-distribution`.
+Physical multi-repository extraction is superseded. Full-platform Compose, Helm, upgrade, and E2E
+verification remain orchestrated under `distribution/` and `charts/observable/`.
 
 ### Control-plane ownership
 

@@ -38,14 +38,16 @@ Target rules:
 
 - `observable-contracts` owns released OpenAPI/event/wire contracts.
 - Deployable components consume released contracts, not sibling service source.
-- Each component owns its CI, SemVer lifecycle, container image, changelog, SBOM, and provenance.
+- Each component has isolated build targets (`SERVICE=<component>`) and service-scoped CI compilation.
 - `observable-distribution` pins compatible component versions and owns Compose, Helm, kind, and
-  full-platform E2E/upgrade/rollback verification.
-- Cross-component PostgreSQL access is forbidden; APIs/events cross ownership boundaries.
-- Repository extraction is the final decomposition phase after independent buildability is proven.
+  full-platform E2E verification.
+- Cross-component PostgreSQL access is forbidden; dedicated component login roles are enforced.
+- Physical repository extraction is superseded by build-time component isolation within the monorepo,
+  governed continuously by `spec/system.yaml`.
 
-The complete component map and extraction order are defined in
-[docs/component-decomposition.md](../docs/component-decomposition.md).
+The complete component map and boundaries are defined in
+[docs/component-decomposition.md](../docs/component-decomposition.md) and
+[spec/system.yaml](system.yaml).
 
 ### 16.2 Branching
 

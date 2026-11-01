@@ -68,24 +68,21 @@ directories; runtime images must receive only compiled binaries or static fronte
 - Production builds must be release-candidate artifacts that passed staging, canary, automated analysis, and rollback checks.
 - Rebuilding the same commit for promotion is disallowed; promote the same signed artifact across environments.
 
-### 19.3.2 Independent Component Releases
+### 19.3.2 Component Build-Time Isolation and Packaging
 
-[ADR-035](adr/ADR-035-component-independence.md) changes the target artifact topology.
+[ADR-035](adr/ADR-035-component-independence.md) (as amended 2026-11-01) establishes build-time component
+isolation within the unified monorepo.
 
-During roadmap `0.2`, the current monorepo and shared `observable-services` image are migration
-mechanisms. Before repository extraction, CI must produce independent images and versions for auth,
-control, ingest, process, ClickHouse storage, query, alerting, and web.
+Each deployable component has its own dedicated Docker build target (`component-runtime`, parameterized
+by `SERVICE`) and scoped CI compilation (`scripts/ci_changed_components.py`), ensuring that changes to
+one component's dependency closure compile only that component and do not trigger rebuilds of unrelated
+services.
 
-Each component release owns its changelog, SBOM, provenance, and immutable OCI image. A component
-release must not rebuild unrelated components.
-
-Component version tags must identify immutable OCI digests as defined by
-[the component release policy](../VERSIONING.md#immutable-component-releases). Product releases
-reuse verified existing component digests; changed release inputs require a component version bump.
-Publishing must verify recorded build identity, fail closed on registry errors, and prevent tag
-replacement by concurrent writers. A partial retry completes evidence against the original digest;
-rollback selects previously released digests. Per-component publishing cannot be enabled until these
-rules are enforced and locally tested. The current workflow still publishes the shared image.
+Following alignment with the machine-checkable System Specification ([spec/system.yaml](system.yaml)),
+publishing separate per-component OCI images to external registries on independent release cadences is
+superseded in favor of releasing the full platform as a verified, unified distribution (`Observable`),
+while retaining per-component build-time isolation, local image tagging, and independent version tracking
+in `distribution/manifest.yaml`.
 
 The monorepo [declared build-input identity](../distribution/README.md#declared-build-input-identity)
 resolves `component-input-v2` from committed bytes and digest-pinned recipes: every `FROM` image and
