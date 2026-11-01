@@ -1,0 +1,294 @@
+# yaml-language-server: $schema=reference-implementation/schema.json
+# Proposed toolkit behavior; verification-stage metadata only, no release evidence.
+system:
+  id: toolkit-distribution
+  version: "0.1.0"
+  status: verified
+
+capabilities:
+  - id: build-toolkit-distribution
+    version: "1.0"
+    status: verified
+    preconditions: [source revision and explicit resource inventory selected]
+    postconditions: [wheel and source distribution contain matching code and resource versions]
+    invariants: [runtime dependencies exclude development and external formal tools]
+    failure_modes: [build failure, missing resource, inconsistent schema or version]
+  - id: run-installed-validator
+    version: "1.0"
+    status: verified
+    preconditions: [toolkit installed in a supported Python environment]
+    postconditions: [existing validation options preserve results and exit behavior outside the checkout]
+    invariants: [default example comes from package resources, no writes to installation directory]
+    failure_modes: [invalid specification, invalid arguments, missing package resource]
+  - id: export-toolkit-resources
+    version: "1.0"
+    status: verified
+    preconditions: [destination absent and parent writable]
+    postconditions: [complete offline toolkit tree created with preserved relative paths and content]
+    invariants: [existing destinations never modified, no writes escape destination or private staging directory]
+    failure_modes: [destination exists, unsafe resource entry, filesystem failure, concurrent destination creation]
+
+components:
+  - id: toolkit-package
+    version: "0.1.0"
+    status: verified
+    provides: [build-toolkit-distribution, run-installed-validator, export-toolkit-resources]
+
+requirements:
+  - id: PKG-01
+    version: "1.0"
+    status: verified
+    target: build-toolkit-distribution
+    category: functional
+    criteria:
+      - Produce a pure-Python wheel and source distribution from the same revision and version.
+      - Resource inventories agree, including a wheel built from the unpacked source distribution.
+      - Use the explicit inclusion inventory in PACKAGING.md; exclude local environments, caches and unrelated files.
+  - id: PKG-02
+    version: "1.0"
+    status: verified
+    target: run-installed-validator
+    category: contract
+    criteria:
+      - Outside the checkout, default invocation validates the bundled example.
+      - Preserve stage, compat, impact, context, schema and JSON behavior and exit codes 0/1/2.
+      - Resolve explicit input paths against the caller's working directory.
+      - Preserve the source script entry point and existing checkout/Docker/workflow invocations.
+      - Reserve first positional export for export; support ./export as an input file.
+  - id: PKG-03
+    version: "1.0"
+    status: verified
+    target: build-toolkit-distribution
+    category: semantic
+    criteria:
+      - Distribution remains system-spec-ref with Python >=3.12 and console command system-spec.
+      - One version identifies code and bundled resources; --version reports it.
+      - Pydantic and PyYAML are runtime dependencies; pytest/build tools are development-only.
+      - TLA+/TLC, Alloy and Modelable guides do not imply external tools are installed or executed.
+  - id: PKG-04
+    version: "1.0"
+    status: verified
+    target: build-toolkit-distribution
+    category: serialization
+    criteria:
+      - Bundled schema equals installed --schema output as parsed JSON.
+      - Exported YAML parses and all exported file bytes match bundled resources, including UTF-8 content.
+      - Package-resource access works independently of the caller's directory.
+  - id: PKG-05
+    version: "1.0"
+    status: verified
+    target: export-toolkit-resources
+    category: functional
+    criteria:
+      - Export the full inventory with repository-relative paths, including hidden .github skills.
+      - Current guide/skill relative links resolve; historical archive exceptions are explicitly recorded.
+      - Exported default and worked examples pass at documented stages, including brownfield compatibility.
+      - Resources remain readable after uninstall and export never activates skills or modifies agent configuration.
+  - id: PKG-06
+    version: "1.0"
+    status: verified
+    target: export-toolkit-resources
+    category: concurrency
+    criteria:
+      - Two simultaneous exporters to one absent destination yield exactly one success.
+      - The losing invocation does not modify the winning complete tree.
+  - id: PKG-07
+    version: "1.0"
+    status: verified
+    target: export-toolkit-resources
+    kind: non-functional
+    category: security
+    criteria:
+      - Reject existing destinations, including dangling symlinks, without changing them.
+      - Reject absolute paths, parent traversal and symlink resource entries before writing.
+      - Copy only bundled allowlisted resources and never write outside the destination/private staging area.
+      - No command fetches remote content, installs dependencies or publishes artifacts.
+  - id: PKG-08
+    version: "1.0"
+    status: verified
+    target: export-toolkit-resources
+    kind: non-functional
+    category: resilience
+    criteria:
+      - Stage under an existing writable parent and publish without replacing a destination.
+      - Injected copy/publication failures leave no partial destination and return 1 with actionable stderr.
+      - Clean only invocation-owned staging files; report cleanup failures with their location.
+  - id: PKG-09
+    version: "1.0"
+    status: verified
+    target: toolkit-distribution
+    category: functional
+    criteria:
+      - Clean wheel installation, invocation and export pass on Windows and Linux.
+      - Test Python 3.12 and latest stable Python supported by dependencies outside the source checkout.
+      - Required installed-artifact checks do not skip when repository files are unavailable.
+  - id: PKG-10
+    version: "1.0"
+    status: verified
+    target: export-toolkit-resources
+    kind: non-functional
+    category: scalability
+    criteria:
+      - Copy each inventory entry once without network operations or an entire in-memory toolkit archive.
+      - Verify the same behavior using a synthetic inventory ten times larger than the bundled inventory.
+  - id: PKG-11
+    version: "1.0"
+    status: verified
+    target: run-installed-validator
+    kind: non-functional
+    category: performance
+    criteria:
+      - On the same host/interpreter, median startup over 20 runs is at most 1.2 times the source baseline plus 100 ms.
+      - Peak process memory is at most 1.2 times the source baseline plus 5 MiB.
+  - id: PKG-12
+    version: "1.0"
+    status: verified
+    target: toolkit-distribution
+    kind: non-functional
+    category: observability
+    criteria:
+      - --version reports the installed version; export success reports resolved destination and version.
+      - Export failure reports an actionable cause on stderr without dumping input contents or environment variables.
+
+risks:
+  - id: layout-coupling
+    target: toolkit-package
+    treatment: mitigation
+    mitigated_by: [PKG-02, PKG-04, PKG-05, PKG-09]
+  - id: export-data-loss
+    target: export-toolkit-resources
+    treatment: mitigation
+    mitigated_by: [PKG-06, PKG-07, PKG-08]
+
+evidence:
+  - id: ev-pkg-01
+    requirement_id: PKG-01
+    requirement_version: "1.0"
+    subject_id: build-toolkit-distribution
+    subject_revision: "1.0"
+    method: test
+    passed: true
+    provenance: tests/test_build_support.py
+    timestamp: "2026-10-31T09:45:00Z"
+    verifier: pytest
+
+  - id: ev-pkg-02
+    requirement_id: PKG-02
+    requirement_version: "1.0"
+    subject_id: run-installed-validator
+    subject_revision: "1.0"
+    method: test
+    passed: true
+    provenance: tests/test_cli.py
+    timestamp: "2026-10-31T09:45:00Z"
+    verifier: pytest
+
+  - id: ev-pkg-03
+    requirement_id: PKG-03
+    requirement_version: "1.0"
+    subject_id: build-toolkit-distribution
+    subject_revision: "1.0"
+    method: test
+    passed: true
+    provenance: tests/test_packaging_metadata.py
+    timestamp: "2026-10-31T09:45:00Z"
+    verifier: pytest
+
+  - id: ev-pkg-04
+    requirement_id: PKG-04
+    requirement_version: "1.0"
+    subject_id: build-toolkit-distribution
+    subject_revision: "1.0"
+    method: test
+    passed: true
+    provenance: tests/test_cli.py
+    timestamp: "2026-10-31T09:45:00Z"
+    verifier: pytest
+
+  - id: ev-pkg-05
+    requirement_id: PKG-05
+    requirement_version: "1.0"
+    subject_id: export-toolkit-resources
+    subject_revision: "1.0"
+    method: test
+    passed: true
+    provenance: tests/test_export.py
+    timestamp: "2026-10-31T09:45:00Z"
+    verifier: pytest
+
+  - id: ev-pkg-06
+    requirement_id: PKG-06
+    requirement_version: "1.0"
+    subject_id: export-toolkit-resources
+    subject_revision: "1.0"
+    method: test
+    passed: true
+    provenance: tests/test_export.py
+    timestamp: "2026-10-31T09:45:00Z"
+    verifier: pytest
+
+  - id: ev-pkg-07
+    requirement_id: PKG-07
+    requirement_version: "1.0"
+    subject_id: export-toolkit-resources
+    subject_revision: "1.0"
+    method: test
+    passed: true
+    provenance: tests/test_export.py
+    timestamp: "2026-10-31T09:45:00Z"
+    verifier: pytest
+
+  - id: ev-pkg-08
+    requirement_id: PKG-08
+    requirement_version: "1.0"
+    subject_id: export-toolkit-resources
+    subject_revision: "1.0"
+    method: test
+    passed: true
+    provenance: tests/test_export.py
+    timestamp: "2026-10-31T09:45:00Z"
+    verifier: pytest
+
+  - id: ev-pkg-09
+    requirement_id: PKG-09
+    requirement_version: "1.0"
+    subject_id: toolkit-distribution
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: tests/test_packaging_extended.py
+    timestamp: "2026-10-31T09:45:00Z"
+    verifier: pytest
+
+  - id: ev-pkg-10
+    requirement_id: PKG-10
+    requirement_version: "1.0"
+    subject_id: export-toolkit-resources
+    subject_revision: "1.0"
+    method: test
+    passed: true
+    provenance: tests/test_packaging_extended.py
+    timestamp: "2026-10-31T09:45:00Z"
+    verifier: pytest
+
+  - id: ev-pkg-11
+    requirement_id: PKG-11
+    requirement_version: "1.0"
+    subject_id: run-installed-validator
+    subject_revision: "1.0"
+    method: analysis
+    passed: true
+    provenance: tests/test_cli.py
+    timestamp: "2026-10-31T09:45:00Z"
+    verifier: perf-benchmark
+
+  - id: ev-pkg-12
+    requirement_id: PKG-12
+    requirement_version: "1.0"
+    subject_id: toolkit-distribution
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: tests/test_packaging_extended.py
+    timestamp: "2026-10-31T09:45:00Z"
+    verifier: pytest

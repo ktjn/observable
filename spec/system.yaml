@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../system-spec/reference-implementation/schema.json
 system:
   id: observable-platform
   version: "0.1.0"

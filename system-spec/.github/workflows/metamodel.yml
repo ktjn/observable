@@ -1,0 +1,51 @@
+name: metamodel
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: Script to run
+        type: choice
+        options: [metamodel.py, pytest]
+        default: metamodel.py
+      args:
+        description: "Arguments, paths relative to reference-implementation/ (e.g. 'example.yaml --json', '--impact order', '--schema'); empty validates example.yaml / runs all tests"
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build image
+        run: docker build -t metamodel reference-implementation
+      - name: Run
+        env:
+          SCRIPT: ${{ inputs.script }}
+          ARGS: ${{ inputs.args }}
+        run: |
+          run() { docker run --rm -v "$PWD:/repo" -w /repo/reference-implementation metamodel "$@" 2>&1 | tee -a out.txt; return "${PIPESTATUS[0]}"; }
+          status=0
+          if [ -n "$SCRIPT" ]; then
+            read -ra A <<< "$ARGS"
+            [ "$SCRIPT" = pytest ] && cmd=(pytest -p no:cacheprovider) || cmd=(python metamodel.py)
+            run "${cmd[@]}" "${A[@]}" || status=$?
+          else
+            for c in "pytest -p no:cacheprovider" \
+                     "python metamodel.py example.yaml" \
+                     "python metamodel.py ../examples/greenfield/spec.yaml --stage release" \
+                     "python metamodel.py ../examples/brownfield/level0.yaml --stage inventory" \
+                     "python metamodel.py ../examples/brownfield/level1.yaml --stage architecture" \
+                     "python metamodel.py ../examples/brownfield/old.yaml --stage verification" \
+                     "python metamodel.py ../examples/brownfield/spec.yaml --stage release --compat ../examples/brownfield/old.yaml"; do
+              read -ra cmd <<< "$c"
+              run "${cmd[@]}" || status=$?
+            done
+          fi
+          { echo '```'; cat out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"

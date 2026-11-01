@@ -1,0 +1,63 @@
+# yaml-language-server: $schema=schema.json
+system:
+  id: commerce-system
+  version: "0.9"
+  layers: [experience, application, domain, infrastructure]
+  external_sources: [erp-product-feed]
+  quality_attributes: { latency_p95: "<100ms" }
+
+capabilities:
+  - id: place-order
+    version: "1.0"
+    status: specified
+    preconditions: [cart_not_empty, customer_active]
+    postconditions: [order_created]
+    invariants: [order_paid_at_most_once]
+    failure_modes: [insufficient_inventory, customer_blocked]
+  - id: reserve-inventory
+    version: "1.0"
+    status: specified
+    preconditions: [product_exists, quantity_positive]
+    postconditions: [reservation_created, stock_decremented]
+    invariants: [stock_never_negative]
+    failure_modes: [insufficient_inventory, product_not_found]
+    interface: { operation: POST /v1/reservations, request: stock-item, idempotent: true, auth: service-token, errors: { insufficient_inventory: 409, product_not_found: 404 } }
+
+components:
+  - id: checkout
+    version: "1.0"
+    status: specified
+    layer: application
+    provides: [place-order]
+    requires: [reserve-inventory@^1.0]
+    owns_data: [order]
+  - id: inventory
+    version: "1.0"
+    status: specified
+    layer: domain
+    provides: [reserve-inventory]
+    owns_data: [stock-item]
+
+data_models:
+  - id: stock-item
+    version: "1.0"
+    owner: inventory
+    classification: internal
+    external_source: erp-product-feed
+    fields: { product_id: uuid, available_qty: int }
+  - id: order
+    version: "1.0"
+    owner: checkout
+    classification: confidential
+    fields: { order_id: uuid, customer_email: string, status: string }
+
+requirements:
+  - { id: req-order, version: "1.0", target: place-order, criteria: [order created when stock available] }
+  - { id: req-reserve, version: "1.0", target: reserve-inventory, criteria: [stock never negative] }
+
+risks:
+  - { id: risk-oversell, target: inventory, treatment: mitigation, mitigated_by: [req-reserve] }
+
+evidence:
+  - { id: ev-order-test, requirement_id: req-order, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_checkout }
+  - { id: ev-reserve-test, requirement_id: req-reserve, requirement_version: "1.0", method: proof, passed: true, provenance: tla+::Inventory.tla }

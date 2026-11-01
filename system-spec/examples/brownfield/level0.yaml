@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=../../reference-implementation/schema.json
+system:
+  id: billing-system
+  version: "1.0"
+  layers: [application, domain]
+  external_sources: [stripe-gateway]
+
+capabilities: []
+
+components:
+  - { id: invoicing, version: "1.0", layer: application }
+  - { id: payment-worker, version: "1.0", layer: domain }
