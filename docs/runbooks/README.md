@@ -9,3 +9,4 @@ Current coverage:
 - [Storage writer and ClickHouse recovery runbook](storage-recovery.md) — ClickHouse write stalls, disk space saturation, partition recovery, and consumer lag drainage on `telemetry.normalized.v1`.
 - [Identity and authorization runbook](auth-identity-failure.md) — Zitadel OIDC token exchange failures, session secret rotation, and OpenFGA authorization timeouts.
 - [Dependency outage and bounded degradation runbook](dependency-outage.md) — matrix of bounded-degradation behaviors during partial infrastructure loss and safe whole-cluster startup sequence.
+- [Kubernetes failure drills runbook](kubernetes-failure-drills.md) — automated and manual failure drills for Redpanda, ClickHouse, and PostgreSQL pod disruption, fail-closed boundaries, and data recovery SLAs.
