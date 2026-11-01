@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Finding": {
+      "additionalProperties": false,
+      "description": "A new fact surfaced while implementing (feeds constitution self-improvement).",
+      "properties": {
+        "kind": {
+          "description": "Finding type.",
+          "enum": [
+            "model-gap",
+            "hidden-coupling",
+            "failure-mode",
+            "assumption"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "description": "What was found.",
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "title": "Finding",
+      "type": "object"
+    },
+    "ReturnResult": {
+      "additionalProperties": false,
+      "description": "One verification result an agent returns for a requirement; maps 1:1 to an Evidence record.",
+      "properties": {
+        "requirement": {
+          "description": "Requirement ID.",
+          "title": "Requirement",
+          "type": "string"
+        },
+        "requirement_version": {
+          "description": "Requirement version verified.",
+          "title": "Requirement Version",
+          "type": "string"
+        },
+        "method": {
+          "description": "Verification method.",
+          "enum": [
+            "test",
+            "proof",
+            "model-check",
+            "analysis",
+            "inspection"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "passed": {
+          "description": "Result.",
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "provenance": {
+          "description": "Artifact or tool reference, e.g. 'tests/checkout/test_x.py::test_x'.",
+          "title": "Provenance",
+          "type": "string"
+        },
+        "subject_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Source revision the result was produced against.",
+          "title": "Subject Revision"
+        },
+        "environment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Where it ran (host, OS or CI job).",
+          "title": "Environment"
+        },
+        "criteria": {
+          "default": [],
+          "description": "Requirement criteria this result covers; empty covers the whole requirement.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Criteria",
+          "type": "array"
+        },
+        "skipped": {
+          "default": [],
+          "description": "Skipped check names/reasons; partial results cannot verify.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Skipped",
+          "type": "array"
+        }
+      },
+      "required": [
+        "requirement",
+        "requirement_version",
+        "method",
+        "passed",
+        "provenance"
+      ],
+      "title": "ReturnResult",
+      "type": "object"
+    },
+    "Unmet": {
+      "additionalProperties": false,
+      "description": "A requirement the handoff did not satisfy.",
+      "properties": {
+        "requirement": {
+          "description": "Requirement ID.",
+          "title": "Requirement",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why it is unmet.",
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requirement",
+        "reason"
+      ],
+      "title": "Unmet",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "What an implementer returns for a bounded component handoff (constitution \u00a7 Implementation Handoff).",
+  "properties": {
+    "component": {
+      "description": "Component ID the handoff targeted.",
+      "title": "Component",
+      "type": "string"
+    },
+    "base": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Spec/source revision the handoff started from.",
+      "title": "Base"
+    },
+    "results": {
+      "default": [],
+      "description": "Requirement-linked verification results.",
+      "items": {
+        "$ref": "#/$defs/ReturnResult"
+      },
+      "title": "Results",
+      "type": "array"
+    },
+    "unmet": {
+      "default": [],
+      "description": "Requirements not satisfied, each with a reason.",
+      "items": {
+        "$ref": "#/$defs/Unmet"
+      },
+      "title": "Unmet",
+      "type": "array"
+    },
+    "changed": {
+      "default": [],
+      "description": "Repository-relative paths changed.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Changed",
+      "type": "array"
+    },
+    "findings": {
+      "default": [],
+      "description": "Newly discovered facts or model gaps.",
+      "items": {
+        "$ref": "#/$defs/Finding"
+      },
+      "title": "Findings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "component"
+  ],
+  "title": "HandoffReturn",
+  "type": "object"
+}

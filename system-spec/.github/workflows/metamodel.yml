@@ -42,7 +42,10 @@ jobs:
                      "python metamodel.py ../examples/brownfield/level0.yaml --stage inventory" \
                      "python metamodel.py ../examples/brownfield/level1.yaml --stage architecture" \
                      "python metamodel.py ../examples/brownfield/old.yaml --stage verification" \
-                     "python metamodel.py ../examples/brownfield/spec.yaml --stage release --compat ../examples/brownfield/old.yaml"; do
+                     "python metamodel.py ../examples/brownfield/spec.yaml --stage release --compat ../examples/brownfield/old.yaml" \
+                     "python metamodel.py ../examples/components/spec.yaml" \
+                     "python metamodel.py ../examples/components/spec.yaml --check-artifacts --root ../examples/components" \
+                     "python metamodel.py ../examples/components/spec.yaml --check-drift --root ../examples/components"; do
               read -ra cmd <<< "$c"
               run "${cmd[@]}" || status=$?
             done

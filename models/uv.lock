@@ -189,7 +189,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "modelable", specifier = "==1.15.2" },
-    { name = "system-spec-ref", specifier = ">=0.2.0" },
+    { name = "system-spec-ref", specifier = ">=0.4.0" },
 ]
 
 [[package]]
@@ -600,15 +600,15 @@ wheels = [
 
 [[package]]
 name = "system-spec-ref"
-version = "0.2.0"
+version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a2/6d/d1337c443b4adc81e404f77b08e2df617bf8c5ed732992559991bfd193ea/system_spec_ref-0.2.0.tar.gz", hash = "sha256:3328e4e877603d085603feeca8c27dc061bad711ac89c16e7057367115977871", size = 240863, upload-time = "2026-11-01T07:48:40.854Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ea/93/7b60a1faf793d3bdc1eac0ba74ddc294b2bca593c2fc1e223d9548c7f279/system_spec_ref-0.4.0.tar.gz", hash = "sha256:54d05316cbdaef411f172fb7f2193eb2872b53f340ad6aa8aa9175269ca62737", size = 336461, upload-time = "2026-11-01T16:02:36.329Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/61/98/dad6654a75012264333788384b0458e69ae6551bfe9cf9f5f6933bb841ae/system_spec_ref-0.2.0-py3-none-any.whl", hash = "sha256:fb6e1f5db7ba95f4c3673ee7f6fc926a00fe70068928157387358609396463e8", size = 159342, upload-time = "2026-11-01T07:48:39.355Z" },
+    { url = "https://files.pythonhosted.org/packages/08/60/af49f6ce1e7cfb04e46a3b1565f42d310385b0af59de12845911a5e7c164/system_spec_ref-0.4.0-py3-none-any.whl", hash = "sha256:efbadff0a9d2a9e3bb6b840152dfa69a3b6ac51b8e18e27ebd469b2a767461aa", size = 220026, upload-time = "2026-11-01T16:02:34.642Z" },
 ]
 
 [[package]]

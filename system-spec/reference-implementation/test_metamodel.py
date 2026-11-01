@@ -2,7 +2,7 @@ import copy, json, re, yaml
 import pytest
 from datetime import date
 from pathlib import Path
-from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Evidence, Risk, Spec
+from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Domain, Evidence, Risk, Spec
 
 EXAMPLE = Path(__file__).parent / "example.yaml"
 
@@ -69,11 +69,33 @@ def test_treatments():
 def test_diagram(capsys):
     assert main([str(EXAMPLE), "--diagram"]) == 0
     out = capsys.readouterr().out
-    assert 'subgraph application["application"]' in out
-    assert "checkout -->|reserve-inventory| inventory" in out
-    assert "checkout -.->|owns| order" in out
-    assert "order_stock_projection -.->|derived_from| order" in out
-    assert "class checkout,inventory verified" in out
+    assert 'subgraph l_application["application"]' in out
+    assert "c_checkout -->|reserve-inventory| c_inventory" in out
+    assert "c_checkout -.->|owns| d_order" in out
+    assert "d_order_stock_projection -.->|derived_from| d_order" in out
+    assert "class c_checkout,c_inventory verified" in out
+    assert 'd_order("order<br>confidential")' in out and "logical" in out.splitlines()[-1]
+    s = spec()  # component named like its layer, owning a persisted model with the same ID
+    c, d = s.components[0], next(d for d in s.data_models if d.owner == s.components[0].id)
+    s.system.layers[s.system.layers.index(c.layer)] = c.id = c.layer = d.owner = d.id = "x"
+    d.namespace = "sales"
+    out = diagram(s).splitlines()
+    i = out.index('    subgraph l_x["x"]')
+    assert out[i + 1].startswith('      c_x["x v') and out[i + 2].startswith('      d_x[("x<br>sales<br>')
+    s = spec(); s.components[1].external, s.components[0].via = True, {"reserve-inventory": "x"}
+    out = diagram(s).splitlines()
+    end = out.index("  end")
+    assert out[end + 1] == '  c_inventory{{"inventory v1.0<br>external verified<br>API: reserve-inventory"}}' and out[end + 2].startswith("  d_stock_item")
+    assert "  c_checkout -.->|reserve-inventory via x| c_inventory" in out and not any("c_inventory[" in l for l in out)
+    s = spec(); s.system.domains = [Domain(id="sales", uses=["stock"]), Domain(id="stock")]
+    s.components[0].domain, s.components[1].domain = "sales", "stock"
+    assert validate_spec(s) == []
+    s.system.domains[1].uses = ["sales"]
+    s.risks.append(Risk(id="w", target="inventory", treatment="mitigation", mitigated_by=[s.requirements[0].id], waives="dependency-cycle", expires="release"))
+    assert not any("DOM-03" in e for e in validate_spec(s, "verification"))
+    out = diagram(s).splitlines()
+    i = out.index('    subgraph l_application["application"]')
+    assert out[i + 1] == '      subgraph g_application_sales["sales"]' and out[i + 2].startswith("        c_checkout[") and out[i + 3].startswith("        d_order")
 
 def test_impact_unknown(capsys):
     assert main([str(EXAMPLE), "--impact", "nope"]) == 1 and "Unknown --impact ID 'nope'" in capsys.readouterr().out

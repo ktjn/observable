@@ -23,6 +23,7 @@ system-spec path/to/spec.yaml --stage architecture
 * For an existing adoption, reuse its authoritative spec paths and gate records. The example directory is not mandatory; do not create a second baseline merely to match it.
 * Validate: `system-spec system-spec/spec.yaml --stage <inventory|discovery|architecture|verification|release>`.
 * Greenfield: follow `GREENFIELD.md`. Brownfield: follow `BROWNFIELD.md` (adoption levels 0–3).
+* Large systems: split the spec so agents edit separate files. Keep `system` in the root with `capabilities: []`, `components: []` and `include: [spec/*.yaml]`; put each component's capability, component, data models, requirements and evidence in `spec/<component>.yaml` (first line `# yaml-language-server: $schema=.../reference-implementation/fragment.schema.json`). See `examples/components/`.
 * Machine-readable format: `reference-implementation/schema.json` (also `system-spec --schema`).
 * Editor validation/autocomplete (YAML Language Server: VS Code, JetBrains, Cursor): first line of the spec, path relative to the spec file:
 
@@ -30,12 +31,16 @@ system-spec path/to/spec.yaml --stage architecture
 # yaml-language-server: $schema=../system-spec/reference-implementation/schema.json
 ```
 
+* Bind each component to its code and tests (`source_paths`, `test_paths`) so it can be developed from its `--context` slice; see `examples/components/`. Test evidence provenance should be a file path under `test_paths`, and each required capability needs a fake (`fakes`) under `test_paths`.
 * Artifact paths (`source_paths`, `schema_path`, evidence `artifacts`/`provenance`, `subject_bindings`) resolve against the repository root given by `--root`, not the spec file's location. `--root` is required for `--check-artifacts` and `--check-drift`:
 
 ```bash
 system-spec spec/system.yaml --check-artifacts --root .
-system-spec spec/system.yaml --check-drift --root .        # Python imports, JSON Schema fields
+system-spec spec/system.yaml --check-drift --root .        # Python/JS/TS imports, JSON Schema fields
 ```
+
+* Run ordinary stage validation separately from `--check-drift`. Drift selects a separate diagnostic path; even `--stage release --check-drift` does not run the stage's metadata/acceptance checks. Keep the existing stage/artifact gate as its own command.
+* Drift resolves absolute Python imports only under the repository root or `root/src`; other package roots (for example `cli/src` in a monorepo) can be missed without an `unchecked` entry. A clean drift result is not a complete dependency map.
 
 ## 3. CI gate
 
@@ -46,6 +51,8 @@ system-spec spec/system.yaml --check-drift --root .        # Python imports, JSO
     system-spec spec/system.yaml --stage release
 ```
 
+* Per-task scope gate for agent PRs: `git diff --name-only origin/main | system-spec spec/system.yaml --check-scope <component> --changed -` (add `--allow <path>` for shared files such as lockfiles).
+* Agent handoff return gate: `system-spec spec/system.yaml --check-return handoff-return.yaml` (schema: `reference-implementation/handoff-return.schema.json`).
 * Exit code is 0 for `VALID`, 1 for validation errors, 2 for invalid CLI usage.
 * Pre-commit: a local hook running `system-spec spec/system.yaml --stage release` works the same way.
 
@@ -54,7 +61,7 @@ system-spec spec/system.yaml --check-drift --root .        # Python imports, JSO
 Add to `AGENTS.md` (Codex, Copilot, and others) and/or `CLAUDE.md`; substitute the actual project-spec and toolkit paths below:
 
 ```markdown
-* system specification lives in `system-spec/`; follow `system-spec/CONSTITUTION.md` plus one track (`GREENFIELD.md` or `BROWNFIELD.md`)
+* system specification lives in `system-spec/`; follow `system-spec/CONSTITUTION.md` plus one track (`GREENFIELD.md` or `BROWNFIELD.md`; `FEATURE.md` for changes to an already-specified system)
 * specs must validate with `system-spec <spec> --stage <stage>` before committing
 * for bounded context use `system-spec <spec> --context <component-id>`
 * report model gaps and hidden coupling as feedback (`CONSTITUTION.md` § Self-Improvement and Model Feedback)
