@@ -7,35 +7,31 @@ mod http_json;
 mod observability;
 mod prometheus_rw;
 mod queue;
+mod rate_limiter;
 mod readyz;
 
 use deployment_registry::DeploymentRegistry;
 use observable_auth::{ApiKeyContext, AuthError};
-use std::num::NonZeroU32;
 use std::sync::Arc;
+#[cfg(test)]
 use uuid::Uuid;
 
 use queue::producer::QueueProducer;
+use rate_limiter::TenantRateLimiter;
 
 #[derive(Clone)]
 pub struct AppState {
     pub auth_service_url: String,
     pub http_client: reqwest::Client,
     pub producer: Option<Arc<QueueProducer>>,
-    pub trace_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
-    pub log_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
-    pub metric_rate_limiter: Arc<governor::DefaultKeyedRateLimiter<Uuid>>,
+    pub trace_rate_limiter: Arc<TenantRateLimiter>,
+    pub log_rate_limiter: Arc<TenantRateLimiter>,
+    pub metric_rate_limiter: Arc<TenantRateLimiter>,
     pub metric_cardinality: Arc<cardinality::MetricCardinalityBudget>,
     pub deployment_registry: Arc<DeploymentRegistry>,
+    pub metrics: Arc<observability::IngestGatewayMetrics>,
     #[cfg(test)]
     pub stub_tenant: Option<Uuid>,
-}
-
-fn build_rate_limiter(per_second: u32) -> Arc<governor::DefaultKeyedRateLimiter<Uuid>> {
-    let quota = governor::Quota::per_second(
-        NonZeroU32::new(per_second).expect("rate limit per second must be > 0"),
-    );
-    Arc::new(governor::RateLimiter::keyed(quota))
 }
 
 impl AppState {
@@ -68,11 +64,12 @@ impl AppState {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
             producer: None,
-            trace_rate_limiter: build_rate_limiter(1000),
-            log_rate_limiter: build_rate_limiter(1000),
-            metric_rate_limiter: build_rate_limiter(1000),
+            trace_rate_limiter: TenantRateLimiter::new(1000),
+            log_rate_limiter: TenantRateLimiter::new(1000),
+            metric_rate_limiter: TenantRateLimiter::new(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
             deployment_registry: DeploymentRegistry::new(),
+            metrics: Arc::new(observability::IngestGatewayMetrics::new()),
             stub_tenant: None,
         }
     }
@@ -83,11 +80,12 @@ impl AppState {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
             producer: None,
-            trace_rate_limiter: build_rate_limiter(1000),
-            log_rate_limiter: build_rate_limiter(1000),
-            metric_rate_limiter: build_rate_limiter(1000),
+            trace_rate_limiter: TenantRateLimiter::new(1000),
+            log_rate_limiter: TenantRateLimiter::new(1000),
+            metric_rate_limiter: TenantRateLimiter::new(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
             deployment_registry: DeploymentRegistry::new(),
+            metrics: Arc::new(observability::IngestGatewayMetrics::new()),
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
     }
@@ -98,11 +96,12 @@ impl AppState {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
             producer: None,
-            trace_rate_limiter: build_rate_limiter(per_second),
-            log_rate_limiter: build_rate_limiter(per_second),
-            metric_rate_limiter: build_rate_limiter(per_second),
+            trace_rate_limiter: TenantRateLimiter::new(per_second),
+            log_rate_limiter: TenantRateLimiter::new(per_second),
+            metric_rate_limiter: TenantRateLimiter::new(per_second),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(10_000),
             deployment_registry: DeploymentRegistry::new(),
+            metrics: Arc::new(observability::IngestGatewayMetrics::new()),
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
     }
@@ -113,11 +112,28 @@ impl AppState {
             auth_service_url: String::new(),
             http_client: reqwest::Client::new(),
             producer: None,
-            trace_rate_limiter: build_rate_limiter(1000),
-            log_rate_limiter: build_rate_limiter(1000),
-            metric_rate_limiter: build_rate_limiter(1000),
+            trace_rate_limiter: TenantRateLimiter::new(1000),
+            log_rate_limiter: TenantRateLimiter::new(1000),
+            metric_rate_limiter: TenantRateLimiter::new(1000),
             metric_cardinality: cardinality::MetricCardinalityBudget::new(budget),
             deployment_registry: DeploymentRegistry::new(),
+            metrics: Arc::new(observability::IngestGatewayMetrics::new()),
+            stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn with_stub_auth_and_enforced_metric_budget(tenant_id: &str, budget: u64) -> Self {
+        Self {
+            auth_service_url: String::new(),
+            http_client: reqwest::Client::new(),
+            producer: None,
+            trace_rate_limiter: TenantRateLimiter::new(1000),
+            log_rate_limiter: TenantRateLimiter::new(1000),
+            metric_rate_limiter: TenantRateLimiter::new(1000),
+            metric_cardinality: cardinality::MetricCardinalityBudget::with_enforce(budget, true),
+            deployment_registry: DeploymentRegistry::new(),
+            metrics: Arc::new(observability::IngestGatewayMetrics::new()),
             stub_tenant: Some(Uuid::parse_str(tenant_id).unwrap()),
         }
     }
@@ -157,6 +173,9 @@ async fn main() -> anyhow::Result<()> {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(10_000);
+    let metric_cardinality_enforce: bool = std::env::var("METRIC_CARDINALITY_ENFORCE")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
     let grpc_max_message_bytes: usize = std::env::var("INGEST_GRPC_MAX_MESSAGE_BYTES")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -184,20 +203,25 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    let ig_metrics = Arc::new(observability::IngestGatewayMetrics::new());
+
     let state = AppState {
         auth_service_url: observable_config::require_env("AUTH_SERVICE_URL")?,
         http_client: reqwest::Client::new(),
         producer: Some(producer),
-        trace_rate_limiter: build_rate_limiter(trace_rate_limit),
-        log_rate_limiter: build_rate_limiter(log_rate_limit),
-        metric_rate_limiter: build_rate_limiter(metric_rate_limit),
-        metric_cardinality: cardinality::MetricCardinalityBudget::new(metric_series_budget),
+        trace_rate_limiter: TenantRateLimiter::new(trace_rate_limit),
+        log_rate_limiter: TenantRateLimiter::new(log_rate_limit),
+        metric_rate_limiter: TenantRateLimiter::new(metric_rate_limit),
+        metric_cardinality: cardinality::MetricCardinalityBudget::with_enforce(
+            metric_series_budget,
+            metric_cardinality_enforce,
+        ),
         deployment_registry,
+        metrics: ig_metrics.clone(),
         #[cfg(test)]
         stub_tenant: None,
     };
 
-    let ig_metrics = observability::IngestGatewayMetrics::new();
     let metrics_registry = Arc::new(ig_metrics.registry.clone());
     let grpc_state = state.clone();
     let platform_state = state.clone();

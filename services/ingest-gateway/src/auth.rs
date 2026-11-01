@@ -24,14 +24,29 @@ pub async fn auth_middleware(
     mut req: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let bearer = observable_auth::extract_bearer_token(req.headers())
-        .map_err(StatusCode::from)?
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let bearer = match observable_auth::extract_bearer_token(req.headers()) {
+        Ok(Some(token)) => token,
+        Ok(None) | Err(_) => {
+            state
+                .metrics
+                .ingest_rejections_total
+                .with_label_values(&["http", "unauthorized"])
+                .inc();
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+    };
 
-    let api_key_ctx = state
-        .validate_api_key(&bearer)
-        .await
-        .map_err(StatusCode::from)?;
+    let api_key_ctx = match state.validate_api_key(&bearer).await {
+        Ok(ctx) => ctx,
+        Err(err) => {
+            state
+                .metrics
+                .ingest_rejections_total
+                .with_label_values(&["http", "unauthorized"])
+                .inc();
+            return Err(StatusCode::from(err));
+        }
+    };
 
     let ctx = TenantContext {
         tenant_id: api_key_ctx.tenant_id,
@@ -39,6 +54,11 @@ pub async fn auth_middleware(
         environment: api_key_ctx.environment,
     };
     if !ctx.can_ingest() {
+        state
+            .metrics
+            .ingest_rejections_total
+            .with_label_values(&["http", "permission_denied"])
+            .inc();
         tracing::warn!(tenant_id = %ctx.tenant_id, role = %ctx.role, "ingest rejected: insufficient role");
         return Err(StatusCode::FORBIDDEN);
     }

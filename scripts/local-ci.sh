@@ -182,10 +182,10 @@ step "System specification consistency"
 python3 "$REPO_ROOT/scripts/tests/test_system_spec.py" && ok "system specification consistency" || fail "system specification consistency"
 
 step "System specification release validation"
-if command -v system-spec >/dev/null 2>&1; then
-  system-spec "$REPO_ROOT/spec/system.yaml" --stage release --check-artifacts --check-drift --root "$REPO_ROOT" && ok "system specification release validation" || fail "system specification release validation"
-else
+if command -v uv >/dev/null 2>&1; then
   uv run --project "$REPO_ROOT/models" system-spec "$REPO_ROOT/spec/system.yaml" --stage release --check-artifacts --check-drift --root "$REPO_ROOT" && ok "system specification release validation" || fail "system specification release validation"
+elif command -v system-spec >/dev/null 2>&1; then
+  system-spec "$REPO_ROOT/spec/system.yaml" --stage release --check-artifacts --check-drift --root "$REPO_ROOT" && ok "system specification release validation" || fail "system specification release validation"
 fi
 
 step "System specification evidence provenance"

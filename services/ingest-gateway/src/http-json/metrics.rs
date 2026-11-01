@@ -18,14 +18,27 @@ pub async fn export_metrics(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
+    state
+        .metrics
+        .ingest_requests_total
+        .with_label_values(&["metrics", "http"])
+        .inc();
+
     if state.metric_rate_limiter.check_key(&ctx.tenant_id).is_err() {
+        state
+            .metrics
+            .ingest_rejections_total
+            .with_label_values(&["metrics", "rate_limit_exceeded"])
+            .inc();
         tracing::warn!(tenant_id = %ctx.tenant_id, "metric ingest rate limit exceeded");
         return (
             StatusCode::TOO_MANY_REQUESTS,
             [(header::RETRY_AFTER, "1")],
             Json(serde_json::json!({
                 "error": "rate_limit_exceeded",
-                "message": "Metric ingest rate limit exceeded"
+                "message": "Metric ingest rate limit exceeded",
+                "tenant_id": ctx.tenant_id,
+                "retry_after_seconds": 1
             })),
         )
             .into_response();
@@ -35,13 +48,27 @@ pub async fn export_metrics(
         Ok(DecodedBody::Json(json)) => {
             let resource_metrics = match json.get("resourceMetrics").and_then(|v| v.as_array()) {
                 Some(s) => s,
-                None => return StatusCode::BAD_REQUEST.into_response(),
+                None => {
+                    state
+                        .metrics
+                        .ingest_rejections_total
+                        .with_label_values(&["metrics", "malformed_request"])
+                        .inc();
+                    return StatusCode::BAD_REQUEST.into_response();
+                }
             };
 
             let (series, points) =
                 match super::convert::parse_otlp_metrics(&json, ctx.tenant_id, &ctx.environment) {
                     Ok(m) => m,
-                    Err(status) => return status.into_response(),
+                    Err(status) => {
+                        state
+                            .metrics
+                            .ingest_rejections_total
+                            .with_label_values(&["metrics", "malformed_request"])
+                            .inc();
+                        return status.into_response();
+                    }
                 };
 
             (resource_metrics.len(), series, points)
@@ -50,6 +77,11 @@ pub async fn export_metrics(
             let req = match ExportMetricsServiceRequest::decode(bytes) {
                 Ok(r) => r,
                 Err(e) => {
+                    state
+                        .metrics
+                        .ingest_rejections_total
+                        .with_label_values(&["metrics", "malformed_request"])
+                        .inc();
                     tracing::warn!("failed to decode OTLP/HTTP protobuf metric request: {e}");
                     return StatusCode::BAD_REQUEST.into_response();
                 }
@@ -61,12 +93,50 @@ pub async fn export_metrics(
             );
             (req.resource_metrics.len(), series, points)
         }
-        Err(status) => return status.into_response(),
+        Err(status) => {
+            state
+                .metrics
+                .ingest_rejections_total
+                .with_label_values(&["metrics", "malformed_request"])
+                .inc();
+            return status.into_response();
+        }
     };
 
-    state
+    if let Err(exceeded) = state
         .metric_cardinality
-        .observe(ctx.tenant_id, series.len());
+        .check_and_observe(ctx.tenant_id, series.len())
+    {
+        state
+            .metrics
+            .ingest_rejections_total
+            .with_label_values(&["metrics", "cardinality_budget_exceeded"])
+            .inc();
+        tracing::warn!(
+            tenant_id = %ctx.tenant_id,
+            error = %exceeded,
+            "metric cardinality budget exceeded"
+        );
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            [(header::RETRY_AFTER, "60")],
+            Json(serde_json::json!({
+                "error": "cardinality_budget_exceeded",
+                "message": "Metric cardinality budget exceeded for tenant",
+                "tenant_id": ctx.tenant_id,
+                "budget": exceeded.budget,
+                "current_count": exceeded.current_count,
+                "requested_series": exceeded.requested_series,
+                "retry_after_seconds": 60
+            })),
+        )
+            .into_response();
+    }
+
+    state
+        .metrics
+        .metrics_received_total
+        .add(points.len() as i64);
 
     tracing::info!(
         tenant_id = %ctx.tenant_id,
@@ -235,7 +305,7 @@ mod tests {
 
     #[tokio::test]
     async fn metrics_export_above_budget_still_returns_200() {
-        // Budget of 1; request carries 2 series — ingest must NOT be rejected.
+        // Budget of 1; request carries 2 series — non-enforcing mode must NOT be rejected.
         let state = AppState::with_stub_auth_and_metric_budget(TENANT, 1);
         let app = build_router(state);
         let server = TestServer::new(app);
@@ -245,6 +315,47 @@ mod tests {
             .json(&two_series_payload())
             .await;
         assert_eq!(resp.status_code(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn metrics_export_with_enforced_budget_exceeded_returns_429() {
+        // Budget of 1; request carries 2 series — enforced mode must reject with 429 and structured JSON.
+        let state = AppState::with_stub_auth_and_enforced_metric_budget(TENANT, 1);
+        let app = build_router(state);
+        let server = TestServer::new(app);
+        let resp = server
+            .post("/v1/metrics")
+            .add_header(auth_header().0, auth_header().1)
+            .json(&two_series_payload())
+            .await;
+
+        assert_eq!(resp.status_code(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(resp.headers()["retry-after"], "60");
+        let body: serde_json::Value = resp.json();
+        assert_eq!(body["error"], "cardinality_budget_exceeded");
+        assert_eq!(body["budget"], 1);
+        assert_eq!(body["requested_series"], 2);
+    }
+
+    #[tokio::test]
+    async fn metrics_export_enforces_tenant_specific_budget() {
+        let state = AppState::with_stub_auth_and_enforced_metric_budget(TENANT, 100);
+        let tid = uuid::Uuid::parse_str(TENANT).unwrap();
+        // Set strict tenant budget of 1
+        state.metric_cardinality.set_tenant_budget(tid, 1);
+
+        let app = build_router(state);
+        let server = TestServer::new(app);
+        let resp = server
+            .post("/v1/metrics")
+            .add_header(auth_header().0, auth_header().1)
+            .json(&two_series_payload())
+            .await;
+
+        assert_eq!(resp.status_code(), StatusCode::TOO_MANY_REQUESTS);
+        let body: serde_json::Value = resp.json();
+        assert_eq!(body["error"], "cardinality_budget_exceeded");
+        assert_eq!(body["budget"], 1);
     }
 
     #[tokio::test]

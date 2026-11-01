@@ -95,6 +95,15 @@ services:
   ingestGateway:
     image: { repository: observable-ingest, tag: "0.1.0" }   # Pin to the component version
     replicas: 3
+    # Production per-tenant rate limits
+    rateLimits:
+      trace: 500
+      log: 500
+      metric: 500
+    # Enforce metric cardinality budgets to prevent high-cardinality database exhaustion
+    cardinality:
+      budget: 50000
+      enforce: true
     resources:
       requests:
         cpu: 500m

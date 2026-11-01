@@ -205,9 +205,11 @@ Redpanda until restart.
 
 ## Backpressure behavior
 
-- **Ingest gateway:** Per-tenant rate limiters reject excess requests with 429.
-  Per-tenant metric cardinality budgets reject new series above the budget with
-  a warning response (the request succeeds but the over-budget series is noted).
+- **Ingest gateway:** Per-tenant rate limiters reject excess requests with 429 and `Retry-After: 1`.
+  Per-tenant metric series budgets support observation mode (logging warnings when thresholds are met)
+  and enforcement mode (`METRIC_CARDINALITY_ENFORCE=true`), rejecting over-budget submissions with
+  HTTP 429 (`cardinality_budget_exceeded`), `Retry-After: 60`, and incrementing
+  `ingest_gateway_rejections_total{reason="cardinality_budget_exceeded"}`.
   Validated envelopes are published to `telemetry.raw.v1`.
 - **Redpanda queue:** Provides durable buffering for `telemetry.raw.v1` and
   `telemetry.normalized.v1`. If brokers or consumers experience lag within retention limits,

@@ -19,6 +19,12 @@ pub async fn write(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
+    state
+        .metrics
+        .ingest_requests_total
+        .with_label_values(&["metrics", "prometheus_rw"])
+        .inc();
+
     // Content-type guard
     let content_type = headers
         .get(header::CONTENT_TYPE)
@@ -31,18 +37,33 @@ pub async fn write(
         .unwrap_or("")
         .eq_ignore_ascii_case("application/x-protobuf")
     {
+        state
+            .metrics
+            .ingest_rejections_total
+            .with_label_values(&["metrics", "unsupported_media_type"])
+            .inc();
         return StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response();
     }
 
     // Compressed body size cap — prevents allocate-on-header OOM attack
     const MAX_COMPRESSED_BODY_BYTES: usize = 4 * 1024 * 1024; // 4 MB
     if body.len() > MAX_COMPRESSED_BODY_BYTES {
+        state
+            .metrics
+            .ingest_rejections_total
+            .with_label_values(&["metrics", "payload_too_large"])
+            .inc();
         return StatusCode::PAYLOAD_TOO_LARGE.into_response();
     }
 
     // Check snappy header-declared decompressed size before allocating
     const MAX_DECOMPRESSED_BYTES: usize = 32 * 1024 * 1024; // 32 MB
     if snap::raw::decompress_len(&body).unwrap_or(0) > MAX_DECOMPRESSED_BYTES {
+        state
+            .metrics
+            .ingest_rejections_total
+            .with_label_values(&["metrics", "payload_too_large"])
+            .inc();
         return StatusCode::PAYLOAD_TOO_LARGE.into_response();
     }
 
@@ -50,13 +71,27 @@ pub async fn write(
     let mut decoder = snap::raw::Decoder::new();
     let proto_bytes = match decoder.decompress_vec(&body) {
         Ok(b) => b,
-        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+        Err(_) => {
+            state
+                .metrics
+                .ingest_rejections_total
+                .with_label_values(&["metrics", "malformed_request"])
+                .inc();
+            return StatusCode::BAD_REQUEST.into_response();
+        }
     };
 
     // Proto decode
     let req = match proto::WriteRequest::decode(proto_bytes.as_slice()) {
         Ok(r) => r,
-        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+        Err(_) => {
+            state
+                .metrics
+                .ingest_rejections_total
+                .with_label_values(&["metrics", "malformed_request"])
+                .inc();
+            return StatusCode::BAD_REQUEST.into_response();
+        }
     };
 
     // Empty request — nothing to do
@@ -66,6 +101,11 @@ pub async fn write(
 
     // Rate limit
     if state.metric_rate_limiter.check_key(&ctx.tenant_id).is_err() {
+        state
+            .metrics
+            .ingest_rejections_total
+            .with_label_values(&["metrics", "rate_limit_exceeded"])
+            .inc();
         tracing::warn!(tenant_id = %ctx.tenant_id, "prometheus remote_write rate limit exceeded");
         return (StatusCode::TOO_MANY_REQUESTS, [(header::RETRY_AFTER, "1")]).into_response();
     }
@@ -73,9 +113,37 @@ pub async fn write(
     // Translate
     let (series, points) = convert::write_request_to_metrics(req, ctx.tenant_id, &ctx.environment);
 
-    state
+    if let Err(exceeded) = state
         .metric_cardinality
-        .observe(ctx.tenant_id, series.len());
+        .check_and_observe(ctx.tenant_id, series.len())
+    {
+        state
+            .metrics
+            .ingest_rejections_total
+            .with_label_values(&["metrics", "cardinality_budget_exceeded"])
+            .inc();
+        tracing::warn!(
+            tenant_id = %ctx.tenant_id,
+            error = %exceeded,
+            "prometheus remote_write cardinality budget exceeded"
+        );
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            [
+                (header::RETRY_AFTER, "60"),
+                (
+                    header::HeaderName::from_static("x-observable-error"),
+                    "cardinality_budget_exceeded",
+                ),
+            ],
+        )
+            .into_response();
+    }
+
+    state
+        .metrics
+        .metrics_received_total
+        .add(points.len() as i64);
 
     tracing::info!(
         tenant_id = %ctx.tenant_id,
@@ -237,6 +305,29 @@ mod tests {
             .await;
         assert_eq!(second.status_code(), StatusCode::TOO_MANY_REQUESTS);
         assert_eq!(second.headers()["retry-after"], "1");
+    }
+
+    #[tokio::test]
+    async fn cardinality_budget_exceeded_returns_429() {
+        let state = AppState::with_stub_auth_and_enforced_metric_budget(TENANT, 0);
+        let probe = IngestGatewayProbeState {
+            brokers: "127.0.0.1:1".to_string(),
+            metrics_registry: None,
+        };
+        let server = TestServer::new(build_platform_router(state, probe));
+
+        let resp = server
+            .post("/api/v1/write")
+            .add_header(auth_header().0, auth_header().1)
+            .add_header(prom_content_type().0, prom_content_type().1)
+            .bytes(one_gauge_body().into())
+            .await;
+        assert_eq!(resp.status_code(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(resp.headers()["retry-after"], "60");
+        assert_eq!(
+            resp.headers()["x-observable-error"],
+            "cardinality_budget_exceeded"
+        );
     }
 
     #[tokio::test]

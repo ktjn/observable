@@ -23,12 +23,25 @@ impl MetricsService for OltpMetricService {
         &self,
         request: Request<ExportMetricsServiceRequest>,
     ) -> Result<Response<ExportMetricsServiceResponse>, Status> {
+        self.state
+            .metrics
+            .ingest_requests_total
+            .with_label_values(&["metrics", "grpc"])
+            .inc();
+
         let metadata = request.metadata();
         let auth_header = metadata
             .get("authorization")
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.strip_prefix("Bearer "))
-            .ok_or_else(|| Status::unauthenticated("missing authorization token"))?;
+            .ok_or_else(|| {
+                self.state
+                    .metrics
+                    .ingest_rejections_total
+                    .with_label_values(&["metrics", "unauthorized"])
+                    .inc();
+                Status::unauthenticated("missing authorization token")
+            })?;
 
         let observable_auth::ApiKeyContext {
             tenant_id,
@@ -38,9 +51,21 @@ impl MetricsService for OltpMetricService {
             .state
             .validate_api_key(auth_header)
             .await
-            .map_err(|_| Status::unauthenticated("invalid authorization token"))?;
+            .map_err(|_| {
+                self.state
+                    .metrics
+                    .ingest_rejections_total
+                    .with_label_values(&["metrics", "unauthorized"])
+                    .inc();
+                Status::unauthenticated("invalid authorization token")
+            })?;
 
         if role == "viewer" {
+            self.state
+                .metrics
+                .ingest_rejections_total
+                .with_label_values(&["metrics", "permission_denied"])
+                .inc();
             return Err(Status::permission_denied(
                 "viewer role cannot ingest metrics",
             ));
@@ -52,6 +77,11 @@ impl MetricsService for OltpMetricService {
             .check_key(&tenant_id)
             .is_err()
         {
+            self.state
+                .metrics
+                .ingest_rejections_total
+                .with_label_values(&["metrics", "rate_limit_exceeded"])
+                .inc();
             return Err(Status::resource_exhausted(
                 "metric ingest rate limit exceeded",
             ));
@@ -59,6 +89,8 @@ impl MetricsService for OltpMetricService {
 
         let inner = request.into_inner();
         let producer = self.state.producer.clone();
+        let cardinality = self.state.metric_cardinality.clone();
+        let metrics = self.state.metrics.clone();
         let span = if observable_telemetry::is_self_telemetry_env(&environment) {
             tracing::Span::none()
         } else {
@@ -70,6 +102,20 @@ impl MetricsService for OltpMetricService {
                 tenant_id,
                 &environment,
             );
+
+            if let Err(exceeded) = cardinality.check_and_observe(tenant_id, series.len()) {
+                metrics
+                    .ingest_rejections_total
+                    .with_label_values(&["metrics", "cardinality_budget_exceeded"])
+                    .inc();
+                return Err(Status::resource_exhausted(format!(
+                    "metric cardinality budget exceeded for tenant {} (budget: {}, current: {})",
+                    tenant_id, exceeded.budget, exceeded.current_count
+                )));
+            }
+
+            metrics.metrics_received_total.add(points.len() as i64);
+
             tracing::info!(
                 tenant_id = %tenant_id,
                 series_count = series.len(),
@@ -169,5 +215,49 @@ mod tests {
         let resp = svc.export(req).await.unwrap().into_inner();
         assert!(resp.partial_success.is_some());
         assert!(resp.partial_success.unwrap().rejected_data_points >= 1);
+    }
+
+    #[tokio::test]
+    async fn grpc_metrics_enforced_cardinality_budget_exceeded() {
+        let payload = ExportMetricsServiceRequest {
+            resource_metrics: vec![ResourceMetrics {
+                resource: None,
+                scope_metrics: vec![ScopeMetrics {
+                    scope: None,
+                    metrics: vec![Metric {
+                        name: "cpu_usage".to_string(),
+                        description: String::new(),
+                        unit: "%".to_string(),
+                        data: Some(metric::Data::Gauge(opentelemetry_proto::tonic::metrics::v1::Gauge {
+                            data_points: vec![opentelemetry_proto::tonic::metrics::v1::NumberDataPoint {
+                                attributes: vec![],
+                                start_time_unix_nano: 0,
+                                time_unix_nano: 1_000_000,
+                                value: Some(opentelemetry_proto::tonic::metrics::v1::number_data_point::Value::AsDouble(42.0)),
+                                exemplars: vec![],
+                                flags: 0,
+                            }],
+                        })),
+                        metadata: vec![],
+                    }],
+                    schema_url: String::new(),
+                }],
+                schema_url: String::new(),
+            }],
+        };
+
+        let mut req = Request::new(payload);
+        req.metadata_mut()
+            .insert("authorization", "Bearer dev-api-key-0000".parse().unwrap());
+
+        // Zero budget with enforcement active
+        let state = AppState::with_stub_auth_and_enforced_metric_budget(
+            "00000000-0000-0000-0000-000000000001",
+            0,
+        );
+        let svc = OltpMetricService::new(state);
+        let err = svc.export(req).await.unwrap_err();
+        assert_eq!(err.code(), tonic::Code::ResourceExhausted);
+        assert!(err.message().contains("metric cardinality budget exceeded"));
     }
 }

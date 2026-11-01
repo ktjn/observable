@@ -120,6 +120,15 @@ services:
     grpcPort: 4317
     platformPort: 4321
     replicas: 1
+    # Per-tenant rate limits (requests/second per tenant)
+    rateLimits:
+      trace: 100
+      log: 100
+      metric: 100
+    # Cardinality budgets and enforcement
+    cardinality:
+      budget: 10000
+      enforce: false
     # Canary deployment settings.  Set canary.enabled=true and canary.tag to
     # a new image tag to deploy a second ingest-gateway alongside stable for
     # analysis-gated promotion (see scripts/canary-promote.sh).
