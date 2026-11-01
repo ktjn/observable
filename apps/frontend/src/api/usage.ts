@@ -6,11 +6,18 @@ function msToIso(ms?: number): string | undefined {
   return ms != null ? new Date(ms).toISOString() : undefined;
 }
 
+export interface MetricCardinalitySummary {
+  metric_name: string;
+  series_count: number;
+}
+
 export interface UsageTelemetrySummary {
   spans: number;
   logs: number;
   metric_points: number;
   metric_series_created: number;
+  active_metric_series?: number;
+  top_cardinality_metrics?: MetricCardinalitySummary[];
 }
 
 export interface UsageControlPlaneSummary {
@@ -19,12 +26,15 @@ export interface UsageControlPlaneSummary {
   credential_checks: number;
   credential_allows: number;
   credential_denies: number;
+  token_operations?: number;
 }
 
 export interface TenantUsageReportResponse {
   tenant_id: string;
   from: string;
   to: string;
+  retention_days?: number;
+  ingest_quota_per_sec?: number;
   telemetry_summary: UsageTelemetrySummary;
   control_plane_summary: UsageControlPlaneSummary;
   estimated_cost_index: number;
