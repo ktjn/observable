@@ -13,15 +13,15 @@ Clients (OTLP gRPC/HTTP, Prom Remote Write)
 ┌──────────────────┐
 │  ingest-gateway  │ ── API-key auth, rate limiting, validation
 └──────────────────┘
-    │ (Redpanda topics: traces, logs, metrics)
+    │ (Redpanda topic: telemetry.raw.v1)
     ▼
 ┌──────────────────┐
-│ stream-processor │ ── Batching, span-metrics aggregation
+│ stream-processor │ ── Normalization, PII scrubbing, span metrics
 └──────────────────┘
-    │
+    │ (Redpanda topic: telemetry.normalized.v1)
     ▼
 ┌──────────────────┐
-│  storage-writer  │ ── Writes to ClickHouse
+│  storage-writer  │ ── Idempotent batch writes to ClickHouse
 └──────────────────┘
 
 ┌──────────────────┐
@@ -33,11 +33,11 @@ Clients (OTLP gRPC/HTTP, Prom Remote Write)
 └──────────────────┘
 
 ┌──────────────────┐
-│  admin-service   │ ── Tenant/member/token/dashboard/alert CRUD (PostgreSQL + OpenFGA)
+│  admin-service   │ ── Tenants, projects, dashboards, markers, change events
 └──────────────────┘
 
 ┌──────────────────┐
-│ alert-evaluator  │ ── Periodic alert rule evaluation, webhook notifications
+│ alert-evaluator  │ ── Alert rules, SLOs, firings, incidents, webhooks
 └──────────────────┘
 
 ┌──────────────────┐
@@ -48,34 +48,36 @@ Clients (OTLP gRPC/HTTP, Prom Remote Write)
 ### Data flow
 
 1. **Ingestion**: Clients send OTLP or Prometheus Remote Write to
-   `ingest-gateway`. The gateway validates API keys, enforces rate limits, and
-   publishes validated envelopes to Redpanda topics.
+   `ingest-gateway`. The gateway validates API keys with `auth-service`, enforces rate limits,
+   and publishes validated envelopes to the `telemetry.raw.v1` Redpanda topic.
 
-2. **Processing**: `stream-processor` consumes from Redpanda, batches records,
-   computes span-derived metrics, and forwards batches to `storage-writer`.
+2. **Processing**: `stream-processor` consumes from `telemetry.raw.v1`, normalizes
+   records, scrubs PII, computes span-derived metrics, and publishes normalized batches to
+   the `telemetry.normalized.v1` Redpanda topic.
 
-3. **Storage**: `storage-writer` inserts batches into ClickHouse tables
-   (`traces`, `logs`, `metrics`). Schema migrations run on service startup.
+3. **Storage**: `storage-writer` consumes from `telemetry.normalized.v1` and inserts
+   batches into ClickHouse tables (`spans`, `logs`, `metric_points`), committing offsets only
+   after ClickHouse write succeeds. ClickHouse migrations are owned and applied by `observable-store-clickhouse`.
 
-4. **Query**: `query-api` reads from ClickHouse and serves the frontend and
-   external consumers. It handles trace search, log filtering, metric queries,
-   and cross-signal correlation.
+4. **Query**: `query-api` reads from ClickHouse within a declared schema compatibility range and
+   serves the frontend and external consumers. It handles trace search, log filtering, metric queries,
+   and cross-signal correlation, delegating metadata queries to `admin-service` and alert enrichment to `alert-evaluator`.
 
-5. **Administration**: `admin-service` manages tenants, members, API keys,
-   dashboards, alert rules, SLOs, and notification channels through PostgreSQL.
+5. **Control Plane**: `admin-service` manages tenants, projects, change events, deployment markers,
+   dashboards, saved views, and query audit logging through PostgreSQL schema `control`.
    Fine-grained authorization checks go through OpenFGA.
 
-6. **Alerting**: `alert-evaluator` periodically evaluates alert rules by
-   querying ClickHouse, updates rule state in PostgreSQL, and delivers
-   notifications to configured webhook channels.
+6. **Alerting**: `alert-evaluator` manages alert rules, SLO definitions, firings, notification channels,
+   and incidents through PostgreSQL schema `alerting`. It periodically evaluates rules by
+   querying ClickHouse within its declared schema compatibility range and delivers notifications to webhook channels.
 
 ### Storage layout
 
 | Store | Contents |
 |-------|----------|
-| **ClickHouse** | Spans, logs, metric data points. Column-oriented storage optimized for time-range queries. Retention is configurable per table. |
-| **PostgreSQL** | Tenant configuration, user accounts, API keys, dashboards, alert rules, SLOs, notification channels, schema annotations. |
-| **Redpanda** | Transient ingest queue. Data is consumed by stream-processor and not retained long-term. |
+| **ClickHouse** | Spans, logs, metric data points. Column-oriented storage optimized for time-range queries. Governed by `observable-store-clickhouse`. |
+| **PostgreSQL** | Partitioned into isolated component-owned schemas with dedicated credentials and zero cross-schema foreign keys: `auth` (users, sessions, API keys), `control` (tenants, config, dashboards, markers, change events), and `alerting` (alert rules, SLOs, firings, incidents). |
+| **Redpanda** | Durable streaming backbone. Enforces durable decoupling across `telemetry.raw.v1` (ingest → process) and `telemetry.normalized.v1` (process → storage). |
 
 ### Authentication and authorization
 
