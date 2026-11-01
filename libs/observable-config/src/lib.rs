@@ -39,7 +39,6 @@ fn dev_default(name: &str) -> String {
         "INGEST_TOPIC" => "telemetry.raw.v1".into(),
         "NORMALIZED_TOPIC" => "telemetry.normalized.v1".into(),
         "AUTH_SERVICE_URL" => "http://localhost:4319".into(),
-        "STORAGE_WRITER_URL" => "http://localhost:4320".into(),
         "ZITADEL_ISSUER" => "http://localhost:8082".into(),
         "ZITADEL_API_BASE" => "http://localhost:8082".into(),
         "ZITADEL_CLIENT_ID" => "dev-client-id".into(),
