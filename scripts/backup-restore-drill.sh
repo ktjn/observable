@@ -3,12 +3,12 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/backup-restore-drill.sh [--source-db NAME] [--restore-db-prefix PREFIX] [--table TABLE]...
+Usage: scripts/backup-restore-drill.sh [--source-db NAME] [--restore-db-prefix PREFIX] [--table TABLE]... [--with-clickhouse]
 
 Defaults:
   --source-db observable
   --restore-db-prefix restore_drill
-  --table tenants --table api_keys --table users --table user_sessions
+  --table tenants --table change_events --table api_keys --table users --table user_sessions --table alert_rules
 EOF
 }
 
@@ -32,6 +32,7 @@ require_command tr
 SOURCE_DB="observable"
 RESTORE_DB_PREFIX="restore_drill"
 TABLES=()
+WITH_CLICKHOUSE=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -46,6 +47,10 @@ while [[ $# -gt 0 ]]; do
     --table)
       TABLES+=("${2:-}")
       shift 2
+      ;;
+    --with-clickhouse)
+      WITH_CLICKHOUSE=true
+      shift
       ;;
     -h|--help)
       usage
@@ -65,7 +70,7 @@ if [[ -z "$SOURCE_DB" || -z "$RESTORE_DB_PREFIX" ]]; then
 fi
 
 if [[ "${#TABLES[@]}" -eq 0 ]]; then
-  TABLES=(tenants api_keys users user_sessions)
+  TABLES=(tenants change_events api_keys users user_sessions alert_rules)
 fi
 
 if [[ "${#TABLES[@]}" -eq 0 ]]; then
@@ -77,7 +82,7 @@ PG_USER="${PG_USER:-observable}"
 PG_PASSWORD="${PG_PASSWORD:-observable}"
 
 compose_exec_postgres() {
-  docker compose exec -T -e "PGPASSWORD=$PG_PASSWORD" postgres "$@"
+  docker compose exec -T -e "PGPASSWORD=$PG_PASSWORD" -e "PGOPTIONS=-c search_path=public,auth,control,alerting" postgres "$@"
 }
 
 elapsed_ms() {
@@ -145,4 +150,58 @@ echo "Backup duration   : $(elapsed_ms "$backup_start_ns" "$backup_end_ns") ms"
 echo "Restore database  : $RESTORE_DB"
 echo "Validation ms     : $(elapsed_ms "$validate_start_ns" "$validate_end_ns")"
 echo "Row counts        : match for ${#TABLES[@]} table(s)"
-echo "Status            : PASS"
+echo "PostgreSQL Status : PASS"
+
+if [[ "$WITH_CLICKHOUSE" == "true" ]]; then
+  echo ""
+  echo "--- ClickHouse Backup and Restore Drill ---"
+  CH_USER="${CH_USER:-default}"
+  CH_PASSWORD="${CH_PASSWORD:-observable}"
+  CH_DB="${CH_DB:-observable}"
+  CH_TABLES=(spans logs metric_points)
+
+  compose_exec_ch() {
+    docker compose exec -T clickhouse clickhouse-client --user "$CH_USER" --password "$CH_PASSWORD" "$@"
+  }
+
+  ch_source_counts=()
+  for t in "${CH_TABLES[@]}"; do
+    cnt="$(compose_exec_ch --query "SELECT count() FROM \"$CH_DB\".\"$t\"" 2>/dev/null | tr -d '[:space:]' || echo "0")"
+    ch_source_counts+=("$cnt")
+  done
+  echo "Source counts     : spans=${ch_source_counts[0]}, logs=${ch_source_counts[1]}, metric_points=${ch_source_counts[2]}"
+
+  CH_BACKUP_NAME="drill_$(date -u +%Y%m%dT%H%M%SZ | tr -d ':')"
+  ch_backup_start="$(date +%s%N)"
+  compose_exec_ch --query "BACKUP DATABASE \"$CH_DB\" TO File('/var/lib/clickhouse/user_files/${CH_BACKUP_NAME}/')" >/dev/null
+  ch_backup_end="$(date +%s%N)"
+
+  CH_RESTORE_DB="restore_drill_${timestamp}"
+  compose_exec_ch --query "DROP DATABASE IF EXISTS \"$CH_RESTORE_DB\"" >/dev/null
+  ch_restore_start="$(date +%s%N)"
+  compose_exec_ch --query "RESTORE DATABASE \"$CH_DB\" AS \"$CH_RESTORE_DB\" FROM File('/var/lib/clickhouse/user_files/${CH_BACKUP_NAME}/')" >/dev/null
+  ch_restore_end="$(date +%s%N)"
+
+  ch_restore_counts=()
+  for t in "${CH_TABLES[@]}"; do
+    cnt="$(compose_exec_ch --query "SELECT count() FROM \"$CH_RESTORE_DB\".\"$t\"" 2>/dev/null | tr -d '[:space:]' || echo "0")"
+    ch_restore_counts+=("$cnt")
+  done
+
+  for i in "${!CH_TABLES[@]}"; do
+    if [[ "${ch_source_counts[$i]}" != "${ch_restore_counts[$i]}" ]]; then
+      echo "FAIL: ClickHouse row-count mismatch for table '${CH_TABLES[$i]}' (source=${ch_source_counts[$i]}, restore=${ch_restore_counts[$i]})" >&2
+      compose_exec_ch --query "DROP DATABASE IF EXISTS \"$CH_RESTORE_DB\"" >/dev/null 2>&1 || true
+      exit 1
+    fi
+  done
+
+  compose_exec_ch --query "DROP DATABASE IF EXISTS \"$CH_RESTORE_DB\"" >/dev/null
+  docker compose exec -T clickhouse rm -rf "/var/lib/clickhouse/user_files/${CH_BACKUP_NAME}" >/dev/null 2>&1 || true
+  echo "Backup duration   : $(elapsed_ms "$ch_backup_start" "$ch_backup_end") ms"
+  echo "Restore duration  : $(elapsed_ms "$ch_restore_start" "$ch_restore_end") ms"
+  echo "ClickHouse Status : PASS"
+fi
+
+echo ""
+echo "Overall Status    : PASS"

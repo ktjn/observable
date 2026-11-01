@@ -255,6 +255,8 @@ through Docker Compose without building from source or discovering undocumented 
 - Verify component-version compatibility from the distribution manifest rather than relying on one
   source commit.
 
+The evaluation guide ([docs/evaluation-guide.md](docs/evaluation-guide.md)) is synchronized with current Compose ports (frontend `5173`, Zitadel `8082`), standard evaluation credentials, and pinned collector configurations. Automated backup and restore drills ([scripts/backup-restore-drill.sh](scripts/backup-restore-drill.sh)) verify PostgreSQL component schema persistence (`auth`, `control`, `alerting`) and ClickHouse table datasets, integrated directly into the release-candidate test suite ([scripts/release-candidate-suites.sh](scripts/release-candidate-suites.sh)).
+
 **Exit evidence:**
 
 - A clean-host evaluator reaches first telemetry within the documented flow and time budget.

@@ -55,6 +55,7 @@ main() {
   run_stage "Chaos probe" bash "$SCRIPT_DIR/chaos-smoke.sh"
   run_stage "Dependency failure" bash "$SCRIPT_DIR/dependency-failure-test.sh"
   run_stage "Backpressure" bash "$SCRIPT_DIR/backpressure-test.sh"
+  run_stage "Backup and restore" bash "$SCRIPT_DIR/backup-restore-drill.sh --with-clickhouse"
   run_stage "Upgrade and rollback" bash "$SCRIPT_DIR/kind-test.sh"
 
   echo ""

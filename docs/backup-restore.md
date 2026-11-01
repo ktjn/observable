@@ -37,6 +37,15 @@ For production ClickHouse deployments, refer to the
 [ClickHouse backup documentation](https://clickhouse.com/docs/en/operations/backup)
 for S3-backed and incremental backup options.
 
+### Automated Backup & Restore Drill
+
+An automated drill verifies database dumps, restores into isolated test databases, and asserts row counts match across all component schemas:
+
+```bash
+# Verify PostgreSQL component schemas (auth, control, alerting) and ClickHouse
+bash scripts/backup-restore-drill.sh --with-clickhouse
+```
+
 ### What to back up
 
 | Data | Location | Priority |
