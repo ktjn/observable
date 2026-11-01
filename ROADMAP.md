@@ -285,6 +285,8 @@ failure, and lifecycle boundaries.
 - Exercise dependency interruption, restart, backup/restore, and bounded-degradation behavior in a
   representative Kubernetes environment.
 
+Operational runbooks ([docs/runbooks/README.md](docs/runbooks/README.md)) cover deployment regressions, ingest queue backpressure ([docs/runbooks/ingest-queue-failure.md](docs/runbooks/ingest-queue-failure.md)), ClickHouse storage recovery and consumer lag ([docs/runbooks/storage-recovery.md](docs/runbooks/storage-recovery.md)), identity and authorization failures ([docs/runbooks/auth-identity-failure.md](docs/runbooks/auth-identity-failure.md)), and dependency outage bounded-degradation procedures ([docs/runbooks/dependency-outage.md](docs/runbooks/dependency-outage.md)).
+
 **Exit evidence:**
 
 - Automated clean install, upgrade, rollback, and recovery checks pass against published artifacts.
