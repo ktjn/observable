@@ -18,28 +18,39 @@ pub struct UsageReportQuery {
     pub to: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MetricCardinalitySummary {
+    pub metric_name: String,
+    pub series_count: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UsageTelemetrySummary {
     pub spans: u64,
     pub logs: u64,
     pub metric_points: u64,
     pub metric_series_created: u64,
+    pub active_metric_series: u64,
+    pub top_cardinality_metrics: Vec<MetricCardinalitySummary>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UsageControlPlaneSummary {
     pub query_reads: u64,
     pub query_rows: u64,
     pub credential_checks: u64,
     pub credential_allows: u64,
     pub credential_denies: u64,
+    pub token_operations: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UsageReportResponse {
     pub tenant_id: Uuid,
     pub from: DateTime<Utc>,
     pub to: DateTime<Utc>,
+    pub retention_days: u16,
+    pub ingest_quota_per_sec: u32,
     pub telemetry_summary: UsageTelemetrySummary,
     pub control_plane_summary: UsageControlPlaneSummary,
     pub estimated_cost_index: u64,
@@ -98,6 +109,72 @@ async fn count_metric_series_created(
         .await
 }
 
+async fn count_active_metric_series(
+    state: &AdminServiceAppState,
+    tenant_id: Uuid,
+) -> Result<u64, clickhouse::error::Error> {
+    state
+        .ch
+        .query(
+            "SELECT toUInt64(count(DISTINCT metric_series_id)) \
+             FROM observable.metric_series \
+             WHERE tenant_id = ?",
+        )
+        .bind(tenant_id)
+        .fetch_one()
+        .await
+}
+
+#[derive(Debug, clickhouse::Row, Deserialize)]
+struct MetricCardinalityRow {
+    pub metric_name: String,
+    pub series_count: u64,
+}
+
+async fn fetch_top_cardinality_metrics(
+    state: &AdminServiceAppState,
+    tenant_id: Uuid,
+) -> Result<Vec<MetricCardinalitySummary>, clickhouse::error::Error> {
+    let rows: Vec<MetricCardinalityRow> = state
+        .ch
+        .query(
+            "SELECT metric_name, toUInt64(count(DISTINCT metric_series_id)) AS series_count \
+             FROM observable.metric_series \
+             WHERE tenant_id = ? \
+             GROUP BY metric_name \
+             ORDER BY series_count DESC, metric_name ASC \
+             LIMIT 10",
+        )
+        .bind(tenant_id)
+        .fetch_all()
+        .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| MetricCardinalitySummary {
+            metric_name: r.metric_name,
+            series_count: r.series_count,
+        })
+        .collect())
+}
+
+async fn query_tenant_posture(db: &sqlx::PgPool, tenant_id: Uuid) -> (u16, u32) {
+    let row: Option<(i32, i32)> = sqlx::query_as(
+        "SELECT retention_days, ingest_quota_per_sec \
+         FROM tenants \
+         WHERE id = $1",
+    )
+    .bind(tenant_id)
+    .fetch_optional(db)
+    .await
+    .unwrap_or(None);
+
+    match row {
+        Some((ret, quota)) => (ret.max(0) as u16, quota.max(0) as u32),
+        None => (30, 100),
+    }
+}
+
 async fn query_pg_usage(
     db: &sqlx::PgPool,
     tenant_id: Uuid,
@@ -117,22 +194,27 @@ async fn query_pg_usage(
     .fetch_one(db)
     .await?;
 
-    let (credential_checks, credential_allows, credential_denies): (i64, i64, i64) =
-        sqlx::query_as(
-            "SELECT \
+    let (credential_checks, credential_allows, credential_denies, token_operations): (
+        i64,
+        i64,
+        i64,
+        i64,
+    ) = sqlx::query_as(
+        "SELECT \
              COUNT(*)::BIGINT, \
              COUNT(*) FILTER (WHERE outcome = 'allow')::BIGINT, \
-             COUNT(*) FILTER (WHERE outcome = 'deny')::BIGINT \
+             COUNT(*) FILTER (WHERE outcome = 'deny')::BIGINT, \
+             COUNT(*) FILTER (WHERE action LIKE 'token_%')::BIGINT \
          FROM credential_audit_log \
          WHERE tenant_id = $1 \
            AND occurred_at >= $2 \
            AND occurred_at < $3",
-        )
-        .bind(tenant_id)
-        .bind(from)
-        .bind(to)
-        .fetch_one(db)
-        .await?;
+    )
+    .bind(tenant_id)
+    .bind(from)
+    .bind(to)
+    .fetch_one(db)
+    .await?;
 
     Ok(UsageControlPlaneSummary {
         query_reads: query_reads as u64,
@@ -140,6 +222,7 @@ async fn query_pg_usage(
         credential_checks: credential_checks as u64,
         credential_allows: credential_allows as u64,
         credential_denies: credential_denies as u64,
+        token_operations: token_operations as u64,
     })
 }
 
@@ -194,13 +277,19 @@ pub async fn get_tenant_usage_report(
     .await?;
     let metric_series_created =
         count_metric_series_created(state, tenant_id, query.from, query.to).await?;
+    let active_metric_series = count_active_metric_series(state, tenant_id).await?;
+    let top_cardinality_metrics = fetch_top_cardinality_metrics(state, tenant_id).await?;
+
     let telemetry_summary = UsageTelemetrySummary {
         spans,
         logs,
         metric_points,
         metric_series_created,
+        active_metric_series,
+        top_cardinality_metrics,
     };
 
+    let (retention_days, ingest_quota_per_sec) = query_tenant_posture(&state.db, tenant_id).await;
     let control_plane_summary = query_pg_usage(&state.db, tenant_id, query.from, query.to).await?;
     let estimated_cost_index = cost_index(&telemetry_summary, &control_plane_summary);
 
@@ -208,6 +297,8 @@ pub async fn get_tenant_usage_report(
         tenant_id,
         from: query.from,
         to: query.to,
+        retention_days,
+        ingest_quota_per_sec,
         telemetry_summary,
         control_plane_summary,
         estimated_cost_index,

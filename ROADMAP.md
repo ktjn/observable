@@ -318,6 +318,8 @@ Multi-tenant retention configurations and GDPR hard-purge workflows are enforced
 
 Credential lifecycle audit coverage is completed across token issuance, renewal, revocation, restoration, and deletion (`credential_audit_log` actions: `token_create`, `token_renew`, `token_revoke`, `token_restore`, `token_delete`), along with session tenant switching auditability (`action = 'tenant_select'`). Adversarial test suites (`auth_tenant_isolation_integration.rs`) verify that tokens and alert rules/firings are strictly isolated between tenants and cross-tenant access attempts are rejected.
 
+Actionable usage, cost, and cardinality diagnostics are exposed to operators and tenant administrators in `admin-service` (`GET /v1/tenants/usage-report`) and the Admin Console (`BillingReportPage`). The report reconciles telemetry volumes (spans, logs, metric points, created series), active metric series, top cardinality metrics breakdown, tenant quota posture (retention window, ingest quota), and control plane activity (query reads, query rows, credential checks, allowances, denials, and token lifecycle operations). Integration test suites (`usage_integration.rs`) verify scope isolation, cardinality ranking, and quota reporting against real ClickHouse and PostgreSQL containers.
+
 **Exit evidence:**
 
 - Load and adversarial tests prove limits cannot be bypassed across tenants or environments.

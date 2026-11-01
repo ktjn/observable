@@ -134,12 +134,27 @@ export function BillingReportPage() {
       </Panel>
 
       <Panel title="Quota posture" eyebrow="Usage">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="Retention window" value={`${data.retention_days ?? 30} days`} tone="info" />
+          <MetricCard label="Ingest quota" value={`${data.ingest_quota_per_sec ?? 100} req/s`} tone="info" />
+          <MetricCard
+            label="Active metric series"
+            value={telemetry.active_metric_series ?? telemetry.metric_series_created}
+            tone={countTone(telemetry.active_metric_series ?? telemetry.metric_series_created)}
+          />
+          <MetricCard
+            label="Token operations"
+            value={control.token_operations ?? 0}
+            tone={countTone(control.token_operations ?? 0)}
+          />
           <MetricCard label="Cost index" value={data.estimated_cost_index} tone={countTone(data.estimated_cost_index)} />
           <MetricCard label="Query reads" value={control.query_reads} tone={countTone(control.query_reads)} />
           <MetricCard label="Telemetry spans" value={telemetry.spans} tone={countTone(telemetry.spans)} />
-          <MetricCard label="Metric series" value={telemetry.metric_series_created} tone={countTone(telemetry.metric_series_created)} />
-          <MetricCard label="Credential denials" value={control.credential_denies} tone={control.credential_denies > 0 ? "warn" : "good"} />
+          <MetricCard
+            label="Credential denials"
+            value={control.credential_denies}
+            tone={control.credential_denies > 0 ? "warn" : "good"}
+          />
         </div>
       </Panel>
 
@@ -209,6 +224,29 @@ export function BillingReportPage() {
           </div>
         </Panel>
       </div>
+
+      {telemetry.top_cardinality_metrics && telemetry.top_cardinality_metrics.length > 0 && (
+        <Panel title="Cardinality diagnostics" eyebrow="Top metric series">
+          <TablePanel>
+            <table className="min-w-full border-collapse text-left text-sm">
+              <thead className="bg-[var(--surface-muted)] text-[var(--muted)]">
+                <tr>
+                  <th scope="col" className="px-3 py-2 font-semibold">Metric name</th>
+                  <th scope="col" className="px-3 py-2 font-semibold text-right">Active series</th>
+                </tr>
+              </thead>
+              <tbody>
+                {telemetry.top_cardinality_metrics.map((item) => (
+                  <tr key={item.metric_name}>
+                    <td className="px-3 py-2 font-mono text-xs text-[var(--text-strong)]">{item.metric_name}</td>
+                    <td className="px-3 py-2 text-right font-medium text-[var(--text)]">{item.series_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TablePanel>
+        </Panel>
+      )}
 
       <Panel title="Identity provider" eyebrow="Auth">
         <div className="overflow-x-auto">

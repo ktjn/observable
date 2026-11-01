@@ -83,6 +83,10 @@ async fn apply_pg_migrations(pool: &PgPool) {
 // exercise the handler, not the auth middleware.
 
 fn build_app(ch: ChClient, db: PgPool) -> Router {
+    build_app_for_tenant(ch, db, Uuid::parse_str(DEV_TENANT_ID).unwrap())
+}
+
+fn build_app_for_tenant(ch: ChClient, db: PgPool, tenant_id: Uuid) -> Router {
     let state = AdminServiceAppState {
         ch,
         db: db.clone(),
@@ -91,7 +95,6 @@ fn build_app(ch: ChClient, db: PgPool) -> Router {
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
         producer: None,
     };
-    let tenant_id = Uuid::parse_str(DEV_TENANT_ID).unwrap();
     Router::new()
         .route(
             "/v1/tenants/usage-report",
@@ -408,15 +411,27 @@ async fn get_tenant_usage_report_scopes_to_tenant_and_interval() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = response_body_json(response.into_body()).await;
     assert_eq!(body["tenant_id"], DEV_TENANT_ID);
+    assert_eq!(body["retention_days"], 30);
+    assert_eq!(body["ingest_quota_per_sec"], 100);
     assert_eq!(body["telemetry_summary"]["spans"], 1);
     assert_eq!(body["telemetry_summary"]["logs"], 1);
     assert_eq!(body["telemetry_summary"]["metric_points"], 1);
     assert_eq!(body["telemetry_summary"]["metric_series_created"], 1);
+    assert_eq!(body["telemetry_summary"]["active_metric_series"], 2);
+    assert_eq!(
+        body["telemetry_summary"]["top_cardinality_metrics"][0]["metric_name"],
+        "checkout.requests_total"
+    );
+    assert_eq!(
+        body["telemetry_summary"]["top_cardinality_metrics"][0]["series_count"],
+        2
+    );
     assert_eq!(body["control_plane_summary"]["query_reads"], 2);
     assert_eq!(body["control_plane_summary"]["query_rows"], 6);
     assert_eq!(body["control_plane_summary"]["credential_checks"], 2);
     assert_eq!(body["control_plane_summary"]["credential_allows"], 1);
     assert_eq!(body["control_plane_summary"]["credential_denies"], 1);
+    assert_eq!(body["control_plane_summary"]["token_operations"], 0);
     assert_eq!(body["estimated_cost_index"], 43);
 }
 
@@ -446,5 +461,146 @@ async fn get_tenant_usage_report_returns_zeroes_for_empty_interval() {
     assert_eq!(body["control_plane_summary"]["credential_checks"], 0);
     assert_eq!(body["control_plane_summary"]["credential_allows"], 0);
     assert_eq!(body["control_plane_summary"]["credential_denies"], 0);
+    assert_eq!(body["control_plane_summary"]["token_operations"], 0);
     assert_eq!(body["estimated_cost_index"], 0);
+}
+
+#[tokio::test]
+async fn get_tenant_usage_report_cardinality_diagnostics_and_custom_quota() {
+    let ch = test_support::clickhouse::shared_client().await;
+    let (pg, _pg_container) = start_postgres().await;
+    let tenant_id = Uuid::new_v4();
+
+    // Insert tenant with custom retention and ingest quota
+    sqlx::query(
+        "INSERT INTO tenants (id, name, retention_days, ingest_quota_per_sec) \
+         VALUES ($1, 'cardinality-diagnostics-tenant', 45, 500)",
+    )
+    .bind(tenant_id)
+    .execute(&pg)
+    .await
+    .expect("custom tenant inserted");
+
+    let app = build_app_for_tenant(ch.clone(), pg.clone(), tenant_id);
+
+    let from = chrono::Utc::now() - chrono::Duration::hours(1);
+    let to = chrono::Utc::now() + chrono::Duration::hours(1);
+
+    // Insert 3 series for http.server.duration with different attributes
+    for i in 1..=3 {
+        insert_metric_series(
+            &ch,
+            MetricSeriesRow {
+                tenant_id,
+                metric_series_id: Uuid::new_v4(),
+                metric_name: "http.server.duration".into(),
+                description: "HTTP server request latency".into(),
+                unit: "ms".into(),
+                metric_type: "histogram".into(),
+                is_monotonic: None,
+                aggregation_temporality: None,
+                attributes: format!(r#"{{"route":"/api/v{i}"}}"#),
+                resource_attributes: "{}".into(),
+                service_name: "gateway".into(),
+                environment: "prod".into(),
+            },
+        )
+        .await;
+    }
+
+    // Insert 2 series for rpc.client.duration
+    for i in 1..=2 {
+        insert_metric_series(
+            &ch,
+            MetricSeriesRow {
+                tenant_id,
+                metric_series_id: Uuid::new_v4(),
+                metric_name: "rpc.client.duration".into(),
+                description: "RPC client latency".into(),
+                unit: "ms".into(),
+                metric_type: "histogram".into(),
+                is_monotonic: None,
+                aggregation_temporality: None,
+                attributes: format!(r#"{{"method":"method_{i}"}}"#),
+                resource_attributes: "{}".into(),
+                service_name: "gateway".into(),
+                environment: "prod".into(),
+            },
+        )
+        .await;
+    }
+
+    // Insert 1 series for system.cpu.utilization
+    insert_metric_series(
+        &ch,
+        MetricSeriesRow {
+            tenant_id,
+            metric_series_id: Uuid::new_v4(),
+            metric_name: "system.cpu.utilization".into(),
+            description: "CPU load".into(),
+            unit: "%".into(),
+            metric_type: "gauge".into(),
+            is_monotonic: None,
+            aggregation_temporality: None,
+            attributes: r#"{"cpu":"0"}"#.into(),
+            resource_attributes: "{}".into(),
+            service_name: "node-agent".into(),
+            environment: "prod".into(),
+        },
+    )
+    .await;
+
+    // Record token operations in credential_audit_log
+    sqlx::query(
+        "INSERT INTO credential_audit_log (occurred_at, action, outcome, credential_hash, tenant_id, denial_reason) \
+         VALUES ($1, 'token_create', 'allow', 'tok-create-hash', $2, NULL)",
+    )
+    .bind(from + chrono::Duration::minutes(5))
+    .bind(tenant_id)
+    .execute(&pg)
+    .await
+    .expect("token_create audit row inserted");
+
+    sqlx::query(
+        "INSERT INTO credential_audit_log (occurred_at, action, outcome, credential_hash, tenant_id, denial_reason) \
+         VALUES ($1, 'token_revoke', 'allow', 'tok-revoke-hash', $2, NULL)",
+    )
+    .bind(from + chrono::Duration::minutes(10))
+    .bind(tenant_id)
+    .execute(&pg)
+    .await
+    .expect("token_revoke audit row inserted");
+
+    let uri = format!(
+        "/v1/tenants/usage-report?from={}&to={}",
+        from.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        to.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+    );
+    let response = app.oneshot(get_request(&uri)).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_body_json(response.into_body()).await;
+
+    // Check tenant config posture
+    assert_eq!(body["tenant_id"], tenant_id.to_string());
+    assert_eq!(body["retention_days"], 45);
+    assert_eq!(body["ingest_quota_per_sec"], 500);
+
+    // Check cardinality diagnostics
+    assert_eq!(body["telemetry_summary"]["active_metric_series"], 6);
+    assert_eq!(body["telemetry_summary"]["metric_series_created"], 6);
+
+    let top_metrics = body["telemetry_summary"]["top_cardinality_metrics"]
+        .as_array()
+        .expect("array");
+    assert_eq!(top_metrics.len(), 3);
+    assert_eq!(top_metrics[0]["metric_name"], "http.server.duration");
+    assert_eq!(top_metrics[0]["series_count"], 3);
+    assert_eq!(top_metrics[1]["metric_name"], "rpc.client.duration");
+    assert_eq!(top_metrics[1]["series_count"], 2);
+    assert_eq!(top_metrics[2]["metric_name"], "system.cpu.utilization");
+    assert_eq!(top_metrics[2]["series_count"], 1);
+
+    // Check token operations
+    assert_eq!(body["control_plane_summary"]["token_operations"], 2);
 }
