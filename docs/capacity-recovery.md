@@ -126,15 +126,17 @@ Redpanda until restart.
 - **Ingest gateway:** Per-tenant rate limiters reject excess requests with 429.
   Per-tenant metric cardinality budgets reject new series above the budget with
   a warning response (the request succeeds but the over-budget series is noted).
-- **Redpanda queue:** If the queue grows beyond Redpanda's configured retention,
-  oldest messages are dropped. Observable does not apply application-level
-  backpressure to Redpanda.
-- **Stream processor:** Processes batches sequentially. If storage-writer is
-  slow, batch processing blocks but does not crash. Redpanda consumer lag
-  grows.
-- **Storage writer:** Writes to ClickHouse synchronously per request. If
-  ClickHouse is slow, the HTTP handler blocks and stream-processor batches
-  queue up.
+  Validated envelopes are published to `telemetry.raw.v1`.
+- **Redpanda queue:** Provides durable buffering for `telemetry.raw.v1` and
+  `telemetry.normalized.v1`. If brokers or consumers experience lag within retention limits,
+  telemetry remains safely buffered without data loss.
+- **Stream processor:** Consumes from `telemetry.raw.v1`, normalizes batches, and
+  publishes to `telemetry.normalized.v1`. If storage-writer or ClickHouse is slow or
+  experiencing an outage, stream processing continues publishing to Redpanda up to retention limits.
+- **Storage writer:** Consumes from `telemetry.normalized.v1` and executes idempotent batch
+  writes to ClickHouse. If ClickHouse write latency increases or ClickHouse becomes transiently
+  unavailable, storage-writer withholds Kafka offset commits and retries with backpressure,
+  ensuring at-least-once delivery with deduplication upon recovery.
 
 ## Monitoring
 

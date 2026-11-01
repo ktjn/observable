@@ -8,13 +8,13 @@ are documented below.
 
 | Service | Default Port | Protocol | Description |
 |---------|-------------|----------|-------------|
-| **ingest-gateway** | 4317 (gRPC), 4318 (HTTP), 4321 (platform) | OTLP gRPC/HTTP, Prometheus Remote Write | Receives telemetry, authenticates API keys, enqueues to Redpanda |
-| **stream-processor** | 4323 (platform) | Internal | Consumes from Redpanda, batches and forwards to storage-writer |
-| **storage-writer** | 4320 | Internal HTTP | Writes spans, logs, and metrics to ClickHouse |
-| **query-api** | 8090 | HTTP/JSON | Read-path API for traces, logs, metrics, dashboards, alerts |
+| **ingest-gateway** | 4317 (gRPC), 4318 (HTTP), 4321 (platform) | OTLP gRPC/HTTP, Prometheus Remote Write | Receives telemetry, authenticates API keys via auth-service, enqueues to Redpanda `telemetry.raw.v1` |
+| **stream-processor** | 4323 (platform) | Internal | Consumes `telemetry.raw.v1`, normalizes/enriches, and publishes to `telemetry.normalized.v1` |
+| **storage-writer** | 4320 (platform) | Internal consumer | Consumes `telemetry.normalized.v1`, writes idempotent batches to ClickHouse |
+| **query-api** | 8090 | HTTP/JSON | Read-path API for traces, logs, metrics, correlation, and NLQ |
 | **auth-service** | 4319 | HTTP/JSON | OIDC login, session management, API-key validation |
-| **admin-service** | 4324 | HTTP/JSON | Member management, token CRUD, config |
-| **alert-evaluator** | 4322 (platform) | HTTP/JSON + internal | Alert-rule, SLO, notification, and incident APIs; polls rules on a timer, fires notifications |
+| **admin-service** | 4324 | HTTP/JSON | Member management, token CRUD, dashboards, markers, change events |
+| **alert-evaluator** | 4322 (platform) | HTTP/JSON + internal | Alert-rule, SLO, notification, and incident APIs; evaluates against ClickHouse, fires webhooks |
 | **frontend** | 80 | HTTP | React SPA served by nginx |
 
 ### Infrastructure dependencies
@@ -22,8 +22,8 @@ are documented below.
 | Component | Purpose | Required |
 |-----------|---------|----------|
 | **ClickHouse** | Span, log, and metric storage | Yes |
-| **PostgreSQL** | Tenant config, API keys, dashboards, alerts, SLOs | Yes |
-| **Redpanda** (Kafka-compatible) | Ingest queue between gateway and processor | Yes |
+| **PostgreSQL** | Component-owned schemas (`auth`, `control`, `alerting`) for tenant config, credentials, dashboards, alerts, SLOs | Yes |
+| **Redpanda** (Kafka-compatible) | Durable streaming backbone for raw (`telemetry.raw.v1`) and normalized (`telemetry.normalized.v1`) telemetry | Yes |
 | **Zitadel** | OIDC identity provider | Yes (browser auth) |
 | **OpenFGA** | Fine-grained authorization | Yes (admin operations) |
 
@@ -37,14 +37,14 @@ Internet / Clients
 | ingest-gateway  |  <-- API-key authenticated
 +-----------------+
     |
-    v (Redpanda)
+    v (Redpanda: telemetry.raw.v1)
 +-----------------+
 | stream-processor|  <-- Internal only
 +-----------------+
     |
-    v (HTTP)
+    v (Redpanda: telemetry.normalized.v1)
 +-----------------+
-| storage-writer  |  <-- Internal only, no auth
+| storage-writer  |  <-- Internal consumer
 +-----------------+
     |
     v
