@@ -1,0 +1,16 @@
+{{- if .Values.monitoring.grafanaDashboard.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-platform-health-dashboard
+  labels:
+    {{- include "observable-common.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+    app.kubernetes.io/component: monitoring
+    {{- with .Values.monitoring.grafanaDashboard.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+data:
+  observable-platform-health.json: |-
+{{ .Files.Get "dashboards/observable-platform-health.json" | indent 4 }}
+{{- end }}

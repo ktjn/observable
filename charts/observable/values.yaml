@@ -74,8 +74,7 @@ selfObservability:
   existingSecretKey: "OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN"
 
 # Per-service configuration.
-# Each block maps directly to one Deployment + one Service (except
-# streamProcessor which is headless).
+# Each block maps directly to one Deployment + one Service.
 services:
   authService:
     enabled: true
@@ -353,3 +352,24 @@ migrations:
   # Created by scripts/kind-test.sh (kind) or the release pipeline (CI).
   postgresConfigMap: observable-migrations-postgres
   clickhouseConfigMap: observable-migrations-clickhouse
+
+# Platform monitoring, alerting rules, and dashboards.
+# Integrates with prometheus-operator and kube-prometheus-stack.
+monitoring:
+  # Deploys monitoring.coreos.com/v1 PrometheusRule resources for critical platform paths
+  prometheusRule:
+    enabled: false
+    additionalLabels: {}
+      # release: kube-prometheus-stack
+  # Deploys monitoring.coreos.com/v1 ServiceMonitor resources scraping /metrics
+  serviceMonitor:
+    enabled: false
+    interval: "15s"
+    scrapeTimeout: "10s"
+    additionalLabels: {}
+      # release: kube-prometheus-stack
+  # Deploys a ConfigMap containing the Observable Platform Health Grafana dashboard
+  grafanaDashboard:
+    enabled: false
+    additionalLabels: {}
+      # grafana_dashboard: "1"

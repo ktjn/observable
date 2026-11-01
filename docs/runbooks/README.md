@@ -1,6 +1,6 @@
 # Operational Runbooks
 
-This directory contains operator-facing runbooks for production failure classes.
+This directory contains operator-facing runbooks for production failure classes. For Prometheus alerting rules and platform health dashboards, see [Platform Health & Alerting Guide](../platform-alerting.md).
 
 Current coverage:
 
