@@ -159,3 +159,110 @@ jobs:
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: 'dist/observable-services-${{ steps.version.outputs.tag }}-linux-amd64.oci.tar'
+
+  components:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: auth
+            package: auth-service
+            file: Dockerfile
+            target: component-runtime
+          - name: control
+            package: admin-service
+            file: Dockerfile
+            target: component-runtime
+          - name: ingest
+            package: ingest-gateway
+            file: Dockerfile
+            target: component-runtime
+          - name: process
+            package: stream-processor
+            file: Dockerfile
+            target: component-runtime
+          - name: store-clickhouse
+            package: storage-writer
+            file: Dockerfile
+            target: component-runtime
+          - name: query
+            package: query-api
+            file: Dockerfile
+            target: component-runtime
+          - name: alerting
+            package: alert-evaluator
+            file: Dockerfile
+            target: component-runtime
+          - name: web
+            package: ""
+            file: apps/frontend/Dockerfile
+            target: runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve component image tags
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          expected_tag="v${version}"
+          comp_version="$(bash scripts/component-version.sh "${{ matrix.name }}")"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/observable-${{ matrix.name }}"
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+          echo "tag=${expected_tag}" >> "$GITHUB_OUTPUT"
+          echo "comp_version=${comp_version}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push component image
+        id: publish
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
+          platforms: linux/amd64
+          push: true
+          build-args: ${{ matrix.package != '' && format('SERVICE={0}', matrix.package) || '' }}
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.comp_version }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.meta.outputs.comp_version }}
+          cache-from: type=gha,scope=release-${{ matrix.name }}-linux-amd64
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.name }}-linux-amd64
+          provenance: false
+          sbom: false
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ steps.meta.outputs.image }}
+          subject-digest: ${{ steps.publish.outputs.digest }}
+          sbom-path: sbom.spdx.json
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ steps.meta.outputs.image }}
+          subject-digest: ${{ steps.publish.outputs.digest }}

@@ -99,8 +99,9 @@ That builds every component image tagged with its manifest version
 Helm (`charts/observable`) pins each component as
 `services.<name>.image: { repository, tag }`; the tags must equal this
 manifest's component versions. `kind-test.sh` and `dev-reload.sh` build and load
-the per-component images. Only the release workflow still publishes the shared
-`observable-services` image, until per-component release publishing lands.
+the per-component images. The release workflow (`.github/workflows/release-artifacts.yml`)
+builds, packages, and attests both the shared `observable-services` image and each individual
+component image (`observable-<component>`) with SPDX SBOM and SLSA provenance attestations.
 
 ## Local immutable-release planning
 
