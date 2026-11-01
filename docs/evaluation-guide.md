@@ -14,24 +14,33 @@ Get Observable running and receiving telemetry in under ten minutes.
 ```bash
 git clone https://github.com/ktjn/observable.git
 cd observable
-docker compose --profile evaluation up -d
+
+# Recommended: build images and start the stack
+docker compose up -d --build
+# Equivalent convenience:
+# make dev
 ```
 
 Wait for all services to become healthy:
 
 ```bash
-docker compose --profile evaluation ps
+docker compose ps
 ```
 
 All containers should show `healthy` within two minutes. The frontend is
-available at **http://localhost:3000** and the OTLP endpoint at
+available at **http://localhost:5173** and the OTLP endpoint at
 **localhost:4317** (gRPC) / **localhost:4318** (HTTP).
 
-## 2. Create an API key
+## 2. Sign in and create an API key
 
-Open the browser at http://localhost:3000 and sign in through the Zitadel OIDC
-flow. The default evaluation credentials are shown in the Zitadel admin console
-at http://localhost:8080.
+Open your browser at **http://localhost:5173** and sign in using the local development account:
+
+| Field | Value |
+| :--- | :--- |
+| **Username** | `admin@observable.localhost` |
+| **Password** | `Dev@Admin1234!` |
+
+*(The underlying Zitadel identity console is available at http://localhost:8082 if you wish to inspect user or IdP configuration).*
 
 Once signed in, navigate to **Getting Started** (or `/getting-started`). The
 onboarding wizard walks through language selection, API key creation, and first
@@ -88,7 +97,7 @@ Run the collector:
 ```bash
 docker run --rm --network host \
   -v "$(pwd)/otel-collector-config.yaml:/etc/otelcol/config.yaml" \
-  otel/opentelemetry-collector-contrib:0.115.0
+  otel/opentelemetry-collector-contrib:0.162.0
 ```
 
 ### Using curl (OTLP HTTP)
@@ -130,7 +139,7 @@ remote_write:
 
 ## 4. Explore your data
 
-Open http://localhost:3000 and navigate to:
+Open http://localhost:5173 and navigate to:
 
 - **Traces** — search by service name, duration, or status code. Click a trace
   to see the waterfall view and correlated logs.
@@ -164,7 +173,8 @@ This dashboard shows per-service traces, error rates, and platform health.
 ## 7. Clean up
 
 ```bash
-docker compose --profile evaluation down -v
+docker compose down -v
+# or: make reset-volumes
 ```
 
 The `-v` flag removes all data volumes. Omit it to preserve data between
