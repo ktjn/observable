@@ -204,8 +204,17 @@ class SystemSpecConsistencyTests(unittest.TestCase):
 
         system_spec_bin = shutil.which("system-spec")
         uv_bin = shutil.which("uv")
+        flags = [
+            str(SPEC),
+            "--stage",
+            "release",
+            "--check-artifacts",
+            "--check-drift",
+            "--root",
+            str(ROOT),
+        ]
         if system_spec_bin:
-            cmd = [system_spec_bin, str(SPEC), "--stage", "release"]
+            cmd = [system_spec_bin] + flags
         elif uv_bin:
             cmd = [
                 uv_bin,
@@ -213,10 +222,7 @@ class SystemSpecConsistencyTests(unittest.TestCase):
                 "--project",
                 str(ROOT / "models"),
                 "system-spec",
-                str(SPEC),
-                "--stage",
-                "release",
-            ]
+            ] + flags
         else:
             self.fail("Neither system-spec nor uv is available in PATH")
 

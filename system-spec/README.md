@@ -27,11 +27,13 @@ Capability → Contract → Data Model → Verification → Implementation → E
   - [`.github/skills/tla/SKILL.md`](.github/skills/tla/SKILL.md) — TLA+/TLC concurrency and protocol verification.
   - [`.github/skills/alloy/SKILL.md`](.github/skills/alloy/SKILL.md) — Alloy structural and relational invariant verification.
   - [`.github/skills/modelable/SKILL.md`](.github/skills/modelable/SKILL.md) — deriving `.mdl` data contracts, typed codegen, and field-level compatibility checks.
+- **Distribution & Adoption**
+  - [`WIRING.md`](WIRING.md) — connecting an exported toolkit to a project, agent instructions, skills, CI and upgrades.
+  - [`templates/BROWNFIELD-INTAKE.md`](templates/BROWNFIELD-INTAKE.md) — intake and gate template for onboarding an existing system.
+  - [`PACKAGING.md`](PACKAGING.md) — wheel, CLI, offline toolkit export and release acceptance ([machine-readable requirements](packaging.yaml)); PyPI readme in [`PYPI.md`](PYPI.md).
 - **Roadmap & Archive**
-  - [`archive/feedback/modelable-onboarding.md`](archive/feedback/modelable-onboarding.md) — observations and proposed metamodel/workflow improvements from onboarding Modelable.
-  - [`PACKAGING.md`](PACKAGING.md) — wheel, CLI, offline toolkit export and release acceptance ([machine-readable requirements](packaging.yaml)); [`WIRING.md`](WIRING.md) — connecting an exported toolkit to a project, agent instructions and skills.
   - [`PLAN.md`](PLAN.md) — delivered architecture, completed milestones, and optional next horizons.
-  - [`archive/`](archive/README.md) — historical [review log](archive/REVIEW.md) and [standards benchmark](archive/BENCHMARK.md).
+  - [`archive/`](archive/README.md) — historical [review log](archive/REVIEW.md), [standards benchmark](archive/BENCHMARK.md) and onboarding [feedback](archive/feedback/).
 
 ## Install
 
@@ -66,6 +68,10 @@ uv run python metamodel.py example.yaml --context checkout
 
 # Render a Mermaid diagram of the system
 uv run python metamodel.py example.yaml --diagram
+
+# Check declared source/schema files and hashes, then Python import and JSON Schema drift
+uv run python metamodel.py spec.yaml --check-artifacts --root <repository>
+uv run python metamodel.py spec.yaml --check-drift --root <repository>
 
 # Export JSON Schema and run the full test suite
 uv run python metamodel.py --schema > schema.json
