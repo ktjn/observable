@@ -207,9 +207,12 @@ observable-ingest
     -> observable-query
 ```
 
-The current monorepo is the migration workspace. Repository extraction happens only after a
-component has an independent contract boundary, state ownership, image, version, and test surface.
-See [docs/component-decomposition.md](../docs/component-decomposition.md) for the extraction plan.
+Components are maintained with full build-time and runtime isolation within the monorepo, governed
+by the machine-checkable System Specification ([spec/system.yaml](system.yaml)). Independent contract
+boundaries, state ownership, dedicated database login credentials, and isolated build targets ensure
+components evolve independently without requiring physical repository splits. See
+[docs/component-decomposition.md](../docs/component-decomposition.md) and
+[ADR-035](adr/ADR-035-component-independence.md) for details.
 
 ---
 

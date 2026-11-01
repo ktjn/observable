@@ -187,6 +187,14 @@ making changes.
   is not recorded. Add a new numbered migration and record it with `--update` rather than editing a
   shipped one, which would silently change the schema a fresh deployment gets. See
   [docs/component-decomposition.md](component-decomposition.md) Phase 3.
+- **2026-11-01 (0.2 architecture & system-spec alignment)**: Per project decision and alignment with
+  the machine-checkable System Specification ([spec/system.yaml](../spec/system.yaml)), component
+  independence is governed by strict build-time and runtime isolation within the monorepo rather than
+  separate external release publishing or physical multi-repository extraction. All components have
+  dedicated database credentials (`observable_auth`, `observable_control`, `observable_alerting`),
+  zero cross-owner SQL, service-scoped Docker build targets (`component-runtime`), and contract boundaries
+  validated continuously against `spec/system.yaml`. See [ADR-035 amended](../spec/adr/ADR-035-component-independence.md),
+  [docs/component-decomposition.md](component-decomposition.md), and [spec/22-system-specification.md](../spec/22-system-specification.md).
 - **2026-10-18 (0.2 status sync)**: `docs/component-decomposition.md` marks Phase 6 (consolidate
   alerting) **Done** (its exit evidence is met; `admin-service` no longer reads any alerting table) and
   adds a "Remaining 0.2 work" table listing the open items and their blockers (cross-owner SQL / NLQ

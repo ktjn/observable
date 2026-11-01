@@ -61,10 +61,14 @@ components.
 The migration and exit criteria are defined in
 [docs/component-decomposition.md](docs/component-decomposition.md).
 
-### Immutable component releases
+### Immutable component releases (Superseded)
 
-This is the policy for Phase 7 per-component publishing; it is not yet implemented by the release
-workflow. It does not change the transitional shared-image release path below.
+Per the 2026-11-01 amendment to [ADR-035](spec/adr/ADR-035-component-independence.md) and alignment with
+the machine-checkable System Specification ([spec/system.yaml](spec/system.yaml)), separate per-component
+external image publishing is superseded in favor of monorepo build-time component isolation and cohesive
+distribution releases. Components build from service-scoped Docker targets (`component-runtime`), but are
+tested, packaged, and published as a unified distribution version. Historical requirements below are preserved
+for archival reference.
 
 - Publish deployable components as `ghcr.io/ktjn/observable-<component>:<version>`, using the
   manifest version without a `v` prefix and the existing image names (including
