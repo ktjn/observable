@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse, hashlib, json, sys, yaml
+import argparse, ast, hashlib, json, sys, yaml
 from collections import Counter
 from datetime import date, datetime
 from pathlib import Path, PureWindowsPath
@@ -556,6 +556,57 @@ def check_artifacts(spec: Spec, root: str | Path) -> list[str]:
             for path, digest in e.artifacts.items(): check(path, digest, file=True)
     return errors
 
+def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
+    """Optional static drift checks (parse only, never execute): Python import edges vs requires/provides/bindings, JSON Schema properties vs model fields."""
+    root, errors, unchecked = Path(root).resolve(), [], []
+    def inside(raw):
+        p = Path(raw.replace("\\", "/"))
+        if not raw or p.is_absolute() or PureWindowsPath(raw).drive or ".." in p.parts: return None
+        t = (root / p).resolve()
+        return t if t.is_relative_to(root) else None
+    rel = lambda f: f.relative_to(root).as_posix()
+    paths = {c.id: [t for r in c.source_paths if (t := inside(r))] for c in spec.components}
+    def owner(f):
+        hits = [(len(t.parts), c) for c, ts in paths.items() for t in ts if f == t or t in f.parents]
+        return max(hits)[1] if hits else None
+    def find(base, parts):
+        for n in range(len(parts), 0, -1):
+            t = base.joinpath(*parts[:n])
+            for f in (t.with_name(t.name + ".py"), t / "__init__.py"):
+                if f.is_file() and f.resolve().is_relative_to(root): return f.resolve()
+    provides, allowed = {c.id: set(c.provides) for c in spec.components}, {c.id: {r.partition("@^")[0] for r in c.requires} | set(c.bindings.values()) for c in spec.components}
+    seen = set()
+    for c in spec.components:
+        files = [f for t in paths[c.id] for f in ([t] if t.is_file() else sorted(t.rglob("*.py"))) if f.suffix == ".py" and f.resolve().is_relative_to(root)]
+        for f in files:
+            try: tree = ast.parse(f.read_text(encoding="utf-8"))
+            except (OSError, SyntaxError, ValueError): errors.append(f"drift: cannot parse '{rel(f)}'"); continue
+            for n in ast.walk(tree):
+                if isinstance(n, ast.Import): cands = [(b, a.name.split(".")) for a in n.names for b in (root, root / "src")]
+                elif isinstance(n, ast.ImportFrom):
+                    mod = n.module.split(".") if n.module else []
+                    bases = [f.parent.joinpath(*[".."] * (n.level - 1))] if n.level else [root, root / "src"]
+                    cands = [(b, mod + x) for b in bases for x in ([], *[[a.name] for a in n.names])]
+                else: continue
+                for base, parts in cands:
+                    target = find(base.resolve(), [p for p in parts if p != ".."]) if parts else None
+                    other = target and owner(target)
+                    if other and other != c.id and (c.id, other) not in seen:
+                        seen.add((c.id, other))
+                        if not (allowed[c.id] & provides[other] or other in allowed[c.id]):
+                            errors.append(f"drift: component '{c.id}' imports '{other}' ({rel(f)} -> {rel(target)}) without a required capability or binding provided by '{other}'")
+    for d in spec.data_models:
+        if not d.schema_path: continue
+        t = inside(d.schema_path)
+        if t is None or not t.is_file(): errors.append(f"drift: cannot read schema '{d.schema_path}' for '{d.id}'"); continue
+        if t.suffix != ".json": unchecked.append(d.schema_path); continue
+        try: props = json.loads(t.read_text(encoding="utf-8")).get("properties")
+        except (OSError, ValueError, AttributeError): props = None
+        if not isinstance(props, dict): errors.append(f"drift: schema '{d.schema_path}' for '{d.id}' has no top-level properties"); continue
+        if missing := sorted(set(d.fields) - set(props)): errors.append(f"drift: fields of '{d.id}' missing from schema '{d.schema_path}': {', '.join(missing)}")
+        if extra := sorted(set(props) - set(d.fields)): errors.append(f"drift: properties of schema '{d.schema_path}' undeclared in model '{d.id}': {', '.join(extra)}")
+    return {"errors": errors, "unchecked": unchecked}
+
 def load_spec(path: str | Path) -> Spec:
     return Spec.model_validate(yaml.safe_load(Path(path).read_text(encoding="utf-8")))
 
@@ -577,12 +628,13 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--diagram", action="store_true", help="print a Mermaid diagram of the system")
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
-    ap.add_argument("--root", type=Path, help="explicit repository root for --check-artifacts")
+    ap.add_argument("--check-drift", action="store_true", help="check Python imports and JSON Schema properties against the spec")
+    ap.add_argument("--root", type=Path, help="explicit repository root for --check-artifacts / --check-drift")
     ap.add_argument("--version", action="store_true", help="print installed version and exit")
     a = ap.parse_args(argv)
     if a.version:
         print(version or package_version()); return 0
-    if a.check_artifacts and a.root is None: ap.error("--check-artifacts requires --root")
+    if (a.check_artifacts or a.check_drift) and a.root is None: ap.error("--check-artifacts and --check-drift require --root")
     if a.schema:
         print(json.dumps(json_schema(), indent=2)); return 0
     try:
@@ -594,6 +646,9 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         known = {spec.system.id, *(x.id for x in spec.capabilities + spec.components + spec.data_models + spec.requirements)}
         artifact_errors = check_artifacts(spec, a.root) if a.check_artifacts else []
         if artifact_errors: out = {"valid": False, "errors": artifact_errors}
+        elif a.check_drift:
+            drift = check_drift(spec, a.root)
+            out = {"valid": not drift["errors"], **drift}
         elif a.context:
             if a.context not in {c.id for c in spec.components}: out = {"valid": False, "errors": [f"Unknown --context component '{a.context}'"]}
             else:

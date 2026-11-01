@@ -10,6 +10,7 @@ Validates [spec.md](../spec.md) with Python, Pydantic, YAML, and pytest.
 - Diagram: `uv run python metamodel.py example.yaml --diagram` — Mermaid flowchart (layers, resolved capability dependencies, data ownership/lineage, status styling); renders natively on GitHub/Markdown
 - JSON output: add `--json`
 - Optional local artifact integrity: `--check-artifacts --root <repository>` checks declared source/schema paths and source/evidence SHA-256 hashes without executing or fetching artifacts. An explicit root is required; ordinary validation remains metadata-only.
+- Optional drift check: `--check-drift --root <repository>` parses Python sources (never executes them) and reports an import between components with no `requires` capability or `bindings` entry reaching the imported component, and JSON Schema top-level `properties` that differ from `DataModel.fields`. Unsupported schema formats are listed as `unchecked`.
 - Run tests: `uv run pytest` (incl. `corpus.yaml`: one or more invalid patches of `example.yaml` per invariant ID; examples are the valid corpus)
 - Docker: `docker build -t metamodel . && docker run --rm metamodel [python metamodel.py ... | pytest]`
 - CI & remote: `.github/workflows/metamodel.yml` runs `pytest` automatically on `push`/`pull_request` and runs either script in Docker when dispatched manually (`script`, `args`)
@@ -36,7 +37,7 @@ Partial prototype; the serialization format is defined in [spec.md](../spec.md) 
 
 ## Limitations
 
-- `consistency` and `quality_attributes` parsed only. Source/schema paths are checked for existence/containment only with `--check-artifacts`; source import and schema/model semantic drift are not checked.
+- `consistency` and `quality_attributes` parsed only. Source/schema paths are checked for existence/containment with `--check-artifacts`; `--check-drift` covers Python imports and JSON Schema property names only (no other languages or formats, field types, `required`, `$ref`/`$defs`).
 - No automatic evidence invalidation; impact analysis only reports it.
 - Results separate schema from metadata errors; metadata errors carry invariant IDs but not stage labels.
 - JSON Schema does not encode all invariants.

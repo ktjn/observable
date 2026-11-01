@@ -9,7 +9,7 @@ This document records the reverse-discovery onboarding of `observable` (`0.1.0`)
 - **Canonical Specification**: [spec/system.yaml](file:///c:/git/observable/spec/system.yaml)
 - **Toolkit & Governance**: [system-spec/](file:///c:/git/observable/system-spec) (`system-spec-ref` on PyPI)
 - **CLI Commands**:
-  - Validation: `system-spec spec/system.yaml --stage release` (or `uv run --project models system-spec spec/system.yaml --stage release`)
+  - Validation: `system-spec spec/system.yaml --stage release --check-artifacts --check-drift --root .` (or `uv run --project models system-spec spec/system.yaml --stage release --check-artifacts --check-drift --root .`)
   - Bounded Context Slice: `system-spec spec/system.yaml --context <component-id>`
   - Architecture Diagram: `system-spec spec/system.yaml --diagram`
   - Change Impact Analysis: `system-spec spec/system.yaml --impact <entity-id>`

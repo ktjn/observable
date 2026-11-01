@@ -1,13 +1,13 @@
 # Toolkit Packaging Specification
 
-Status: verified; implementation and offline export complete.
+Status: implemented, released as 0.1.0 and accepted (PKG-11 peak memory waived by the owner; see Acceptance).
 Machine-readable requirements: [`packaging.yaml`](packaging.yaml), validated at `verification` stage. Produced wheel and sdist verified via `uv build` and `tests/`.
 
 ## Outcome and scope
 
 Distribute the validator, workflows, schema, examples and skills as one versioned Python toolkit. Users shall install a wheel, run `system-spec` outside this checkout, and export a readable toolkit directory without repository access.
 
-- Retain distribution name `system-spec-ref`, current version `0.1.0` and Python requirement `>=3.12` from [`reference-implementation/pyproject.toml`](reference-implementation/pyproject.toml).
+- Retain distribution name `system-spec-ref`, current version `0.2.0` and Python requirement `>=3.12` from [`reference-implementation/pyproject.toml`](reference-implementation/pyproject.toml).
 - Produce a pure-Python wheel and source distribution from the same revision and version. Registry publication is a separate delivery action.
 - Runtime dependencies remain Pydantic and PyYAML; pytest and build tools are development dependencies.
 - TLA+/TLC, Alloy and Modelable remain separately installed tools. Include their guides and example models; do not imply they are installed or executed by this package.
@@ -17,7 +17,7 @@ Distribute the validator, workflows, schema, examples and skills as one versione
 
 Use a root `pyproject.toml` as the authoritative distribution configuration, an import package named `system_spec_ref`, and a `system-spec` console entry point. The build backend is an implementation choice; it must support the standard wheel/source distribution workflow and explicit resource inclusion.
 
-The following is a **proposed installed layout**, not existing repository paths:
+Installed layout (`toolkit/` is generated at build time from `toolkit_manifest.txt`, not tracked):
 
 ```text
 system_spec_ref/
@@ -53,7 +53,7 @@ system_spec_ref/
 
 ## CLI contract
 
-These are proposed installed commands:
+Installed commands:
 
 ```text
 system-spec [SPEC] [existing validator options]
@@ -61,7 +61,7 @@ system-spec --version
 system-spec export DESTINATION
 ```
 
-- Existing validation options retain their behavior: `--stage`, `--compat`, `--impact`, `--context`, `--schema`, `--json`, and help.
+- Existing validation options retain their behavior: `--stage`, `--compat`, `--impact`, `--context`, `--diagram`, `--schema`, `--json`, `--check-artifacts`, `--check-drift`, `--root`, and help.
 - With no specification argument, validate the bundled `reference-implementation/example.yaml`; never resolve that default against the caller's directory.
 - Explicit specification and compatibility paths resolve against the caller's working directory, as today.
 - `export` is reserved only as the first positional token. A specification literally named `export` remains accessible as `./export` or an absolute path.
@@ -92,7 +92,14 @@ system-spec export DESTINATION
 
 ## Acceptance
 
-All checks below are pending implementation. [`packaging.yaml`](packaging.yaml) supplies requirement IDs and criteria; no execution evidence is asserted.
+[`packaging.yaml`](packaging.yaml) supplies requirement IDs and criteria. Evidence is automated in `tests/` and `.github/workflows/package.yml` (build, pytest and installed-wheel smoke on ubuntu/windows × Python 3.12/3.13) unless noted. Gaps are stated, not assumed closed.
+
+- Evidenced: PKG-02, PKG-03, PKG-04 (schema equality; UTF-8 byte check not separately confirmed), PKG-06, PKG-07, PKG-08, PKG-10, PKG-12 (tests); PKG-09 on 3.12/3.13 only (CI matrix).
+- PKG-01 (2026-11-01, Windows): wheel `toolkit/` inventory equals `toolkit_manifest.txt` (44 files) and every manifest entry is in the sdist; `uv build` builds the wheel from the sdist. Local rebuild digests differ from the published ones, so artifacts are not byte-reproducible.
+- PKG-05 (2026-11-01): all relative links in the 17 bundled Markdown files resolve inside the snapshot, including the skills' `../../../` links; no archive exceptions needed. Examples validate through the installed CLI in CI.
+- PKG-11 (2026-11-01, Windows, Python 3.15, median of 20): `system-spec` 252 ms vs `python metamodel.py example.yaml` 221 ms (+31 ms, +14%), within the allowance. Peak memory was not measured; the owner accepted that gap on 2026-11-01.
+
+Release record, 0.1.0: tag `v0.1.0` at `b2354ca63223106e67181d5fde793fe364c6b560`; published SHA-256: wheel `af360b98599fbdb716ee370ffbef47523cfb955fc91e39922e4de8b5e8e5cb29`, sdist `c66245494cbadeeb757efc10314f8ca84ba2b3e6f27fc37ee6c5b0e78aac6bb8`. Verified install from PyPI on Windows (Python 3.12); CI matrix covers ubuntu/windows × 3.12/3.13.
 
 | Requirement | Required verification |
 |---|---|
@@ -113,8 +120,8 @@ Before release, run the existing pytest suite and documented example validations
 
 ## Implementation order and feedback
 
-1. Add failing artifact/CLI tests, root build metadata and importable validator; retain the source entry point and existing workflow behavior.
-2. Bundle the explicit resource inventory, implement safe export and version reporting, then add isolated installed-artifact acceptance.
-3. Update quick starts to installed commands after acceptance passes. Record the source revision, artifact digests, platforms, interpreter/dependency versions and actual results before a release decision.
+1. (done) Add failing artifact/CLI tests, root build metadata and importable validator; retain the source entry point and existing workflow behavior.
+2. (done) Bundle the explicit resource inventory, implement safe export and version reporting, then add isolated installed-artifact acceptance.
+3. (done) Update quick starts to installed commands (README install section) and record the release evidence above.
 
 Feedback under [constitution self-improvement](CONSTITUTION.md#self-improvement-and-model-feedback): skill links traverse `../../../`, the CLI default uses `__file__`, and existing tests inspect the checkout. These are physical artifact dependencies absent from the current metamodel's executable checks. Track them with PKG-02/04/05 rather than changing the schema or claiming `VALID` verifies resource closure, safe filesystem writes or distribution correctness. No metamodel extension is needed for this specification; revisit artifact bindings if these checks need reusable machine-enforced rules.

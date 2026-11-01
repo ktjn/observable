@@ -21,9 +21,9 @@ The machine-checkable platform specification lives in `spec/system.yaml` and is 
 
 * **Validation Gate:** Specifications must validate cleanly at release stage before committing:
   ```bash
-  system-spec spec/system.yaml --stage release
+  system-spec spec/system.yaml --stage release --check-artifacts --check-drift --root .
   # or via uv:
-  uv run --project models system-spec spec/system.yaml --stage release
+  uv run --project models system-spec spec/system.yaml --stage release --check-artifacts --check-drift --root .
   ```
 * **Bounded Context Slicing:** Before implementing or modifying a component, inspect its bounded spec slice:
   ```bash
