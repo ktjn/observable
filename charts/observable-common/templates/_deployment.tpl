@@ -55,8 +55,17 @@ spec:
           env:
             {{- range .env }}
             - name: {{ .name }}
+              {{- if .valueFrom }}
+              valueFrom:
+                {{- toYaml .valueFrom | nindent 16 }}
+              {{- else }}
               value: {{ .value | quote }}
+              {{- end }}
             {{- end }}
+          {{- with .envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}

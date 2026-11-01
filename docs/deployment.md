@@ -163,16 +163,29 @@ See `charts/observable/values.yaml` for the full configuration reference.
 
 ```bash
 helm install observable ./charts/observable \
-  -f values.production.yaml \
-  --set identity.sessionSecret="$(openssl rand -base64 32)"
+  -f values.production.yaml
 ```
 
 For production, override at minimum:
 - `identity.env` — set to `""` (empty) or remove to disable dev defaults
-- `identity.sessionSecret` — unique random secret
-- `postgres.url` — production PostgreSQL connection string
-- `clickhouse.url`, `clickhouse.user`, `clickhouse.password` — production ClickHouse
+- `identity.existingSecret` (or `identity.sessionSecret`) — unique random session secret
+- `postgres.existingSecret` (or `postgres.url`) — production PostgreSQL connection string
+- `clickhouse.existingSecret` (or `clickhouse.password`) — production ClickHouse password
+- `internalServiceTokenSecret` (or `internalServiceToken`) — shared service token for `/internal/*` routes
 - `redpanda.brokers` — production Kafka-compatible broker
 - `identity.issuer`, `identity.apiBase`, `identity.clientId` — Zitadel/OIDC configuration
+
+### Secret Hardening & Scoped Database Credentials
+
+For least-privilege deployments, you can inject credentials via existing Kubernetes Secrets using `valueFrom.secretKeyRef` rather than putting plaintext secrets in Helm values:
+- **ClickHouse:** `clickhouse.existingSecret` and `clickhouse.existingSecretKey`.
+- **Global PostgreSQL:** `postgres.existingSecret` and `postgres.existingSecretKey`.
+- **Scoped Database Credentials:**
+  - `services.authService.existingSecret` (injects `AUTH_DATABASE_URL`).
+  - `services.adminService.existingSecret` (injects `CONTROL_DATABASE_URL`).
+  - `services.alertEvaluator.existingSecret` (injects `ALERTING_DATABASE_URL`).
+- **Internal Service Token:** `internalServiceTokenSecret` and `internalServiceTokenSecretKey`.
+- **Self-Observability Bearer Token:** `selfObservability.existingSecret` and `selfObservability.existingSecretKey`.
+- **Session Signing Secret:** `identity.existingSecret` and `identity.existingSecretKey`.
 
 See `charts/observable/values.production-example.yaml` for a complete example.

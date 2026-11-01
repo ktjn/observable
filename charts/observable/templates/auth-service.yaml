@@ -1,6 +1,6 @@
 {{- if .Values.services.authService.enabled -}}
-{{- if and (ne .Values.identity.env "dev") (empty .Values.identity.sessionSecret) -}}
-{{- fail "identity.sessionSecret must be set when identity.env is not \"dev\". Generate one with: openssl rand -base64 32" -}}
+{{- if and (ne .Values.identity.env "dev") (empty .Values.identity.sessionSecret) (empty .Values.identity.existingSecret) -}}
+{{- fail "identity.sessionSecret or identity.existingSecret must be set when identity.env is not \"dev\". Generate one with: openssl rand -base64 32" -}}
 {{- end -}}
 {{- $zitadelApiBase := printf "http://%s-zitadel:8080" .Release.Name -}}
 {{- $zitadelIssuer := include "observable-common.httpOrigin" (dict
@@ -8,17 +8,20 @@
     "port" .Values.zitadel.zitadel.configmapConfig.ExternalPort
 ) -}}
 {{- $zitadelClientSecretName := printf "%s-zitadel-client" .Release.Name -}}
+{{- $dbEnv := include "observable.postgresEnv" (dict "Values" .Values "service" .Values.services.authService "scopedEnvName" "AUTH_DATABASE_URL") | fromYaml -}}
+{{- $sessionSecretEnv := include "observable.sessionSecretEnv" . | fromYaml -}}
+{{- $selfObsTokenEnv := include "observable.selfObservabilityBearerTokenEnv" . | fromYaml -}}
 {{- $env := list
-    (dict "name" "DATABASE_URL"      "value" .Values.postgres.url)
+    $dbEnv
     (dict "name" "AUTH_SERVICE_PORT" "value" (toString .Values.services.authService.port))
     (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)
     (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT" "value" .Values.selfObservability.otlpEndpoint)
-    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN" "value" .Values.selfObservability.bearerToken)
+    $selfObsTokenEnv
     (dict "name" "ZITADEL_ISSUER"       "value" (coalesce .Values.identity.issuer $zitadelIssuer))
     (dict "name" "ZITADEL_API_BASE"     "value" (coalesce .Values.identity.apiBase $zitadelApiBase))
     (dict "name" "ZITADEL_CLIENT_ID"    "value" (default "" .Values.identity.clientId))
     (dict "name" "ZITADEL_REDIRECT_URI" "value" .Values.identity.redirectUri)
-    (dict "name" "SESSION_SECRET"       "value" .Values.identity.sessionSecret)
+    $sessionSecretEnv
     (dict "name" "OBSERVABLE_ENV"       "value" .Values.identity.env) -}}
 {{- $args := list "-c" (printf
 `set -eu
