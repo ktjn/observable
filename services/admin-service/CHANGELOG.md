@@ -12,7 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-tenant retention and ingest quota management endpoints (`GET /v1/tenants/:id/config`, `PUT /v1/tenants/:id/config`).
 - Comprehensive GDPR and multi-tenant hard-purge endpoint (`DELETE /v1/tenants/:id`) clearing all PostgreSQL control-plane entities and issuing ClickHouse telemetry deletion mutations.
 - Immutable audit log tracking for tenant purge events in `credential_audit_log` (`action = 'tenant_purge'`).
-- Integration tests in `tests/postgres_tenant_purge_integration.rs`.
+- Immutable audit logging for API token lifecycle operations (`token_create`, `token_revoke`, `token_renew`, `token_restore`, `token_delete`).
+- Integration tests in `tests/postgres_tenant_purge_integration.rs` and expanded `tests/auth_tenant_isolation_integration.rs`.
 
 ## [0.1.0] - 2026-07-18
 

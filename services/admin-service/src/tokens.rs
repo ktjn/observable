@@ -26,7 +26,7 @@ use uuid::Uuid;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct TokenRecord {
     pub id: Uuid,
     pub name: String,
@@ -36,18 +36,18 @@ pub struct TokenRecord {
     pub revoked: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct TokenListResponse {
     pub tokens: Vec<TokenRecord>,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct CreateTokenRequest {
     pub name: String,
     pub environment: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct CreateTokenResponse {
     #[serde(flatten)]
     pub token: TokenRecord,
@@ -143,6 +143,23 @@ pub async fn create_token(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
+    // Record audit event in credential_audit_log
+    let audit_actor = ctx
+        .user_id
+        .map(|u| u.to_string())
+        .unwrap_or_else(|| "admin_api".to_string());
+    let _ = sqlx::query(
+        r#"
+        INSERT INTO credential_audit_log
+        (action, outcome, credential_hash, tenant_id, auth_method)
+        VALUES ('token_create', 'allow', $1, $2, 'tenant_admin')
+        "#,
+    )
+    .bind(&audit_actor)
+    .bind(ctx.tenant_id)
+    .execute(&state.db)
+    .await;
+
     // Fetch tenant name for the response.
     let tenant_name: String =
         sqlx::query_scalar!("SELECT name FROM tenants WHERE id = $1", ctx.tenant_id)
@@ -192,6 +209,22 @@ pub async fn revoke_token(
         return Err(StatusCode::NOT_FOUND);
     }
 
+    let audit_actor = ctx
+        .user_id
+        .map(|u| u.to_string())
+        .unwrap_or_else(|| "admin_api".to_string());
+    let _ = sqlx::query(
+        r#"
+        INSERT INTO credential_audit_log
+        (action, outcome, credential_hash, tenant_id, auth_method)
+        VALUES ('token_revoke', 'allow', $1, $2, 'tenant_admin')
+        "#,
+    )
+    .bind(&audit_actor)
+    .bind(ctx.tenant_id)
+    .execute(&state.db)
+    .await;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -231,6 +264,22 @@ pub async fn renew_token(
         StatusCode::INTERNAL_SERVER_ERROR
     })?
     .ok_or(StatusCode::NOT_FOUND)?;
+
+    let audit_actor = ctx
+        .user_id
+        .map(|u| u.to_string())
+        .unwrap_or_else(|| "admin_api".to_string());
+    let _ = sqlx::query(
+        r#"
+        INSERT INTO credential_audit_log
+        (action, outcome, credential_hash, tenant_id, auth_method)
+        VALUES ('token_renew', 'allow', $1, $2, 'tenant_admin')
+        "#,
+    )
+    .bind(&audit_actor)
+    .bind(ctx.tenant_id)
+    .execute(&state.db)
+    .await;
 
     let tenant_name: String =
         sqlx::query_scalar!("SELECT name FROM tenants WHERE id = $1", ctx.tenant_id)
@@ -281,6 +330,22 @@ pub async fn restore_token(
         return Err(StatusCode::NOT_FOUND);
     }
 
+    let audit_actor = ctx
+        .user_id
+        .map(|u| u.to_string())
+        .unwrap_or_else(|| "admin_api".to_string());
+    let _ = sqlx::query(
+        r#"
+        INSERT INTO credential_audit_log
+        (action, outcome, credential_hash, tenant_id, auth_method)
+        VALUES ('token_restore', 'allow', $1, $2, 'tenant_admin')
+        "#,
+    )
+    .bind(&audit_actor)
+    .bind(ctx.tenant_id)
+    .execute(&state.db)
+    .await;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -312,6 +377,22 @@ pub async fn delete_token(
     if result.rows_affected() == 0 {
         return Err(StatusCode::NOT_FOUND);
     }
+
+    let audit_actor = ctx
+        .user_id
+        .map(|u| u.to_string())
+        .unwrap_or_else(|| "admin_api".to_string());
+    let _ = sqlx::query(
+        r#"
+        INSERT INTO credential_audit_log
+        (action, outcome, credential_hash, tenant_id, auth_method)
+        VALUES ('token_delete', 'allow', $1, $2, 'tenant_admin')
+        "#,
+    )
+    .bind(&audit_actor)
+    .bind(ctx.tenant_id)
+    .execute(&state.db)
+    .await;
 
     Ok(StatusCode::NO_CONTENT)
 }
