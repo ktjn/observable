@@ -70,6 +70,7 @@ components:
     status: verified
     layer: domain
     consistency: strong
+    test_scope: integration
     source_paths:
       - services/admin-service
     provides:
@@ -77,6 +78,7 @@ components:
       - publish-deployment-markers
     requires:
       - validate-credential@^0.1
+      - store-telemetry@^0.1
     owns_data:
       - tenant-config
       - dashboard-model
@@ -88,6 +90,7 @@ components:
     status: verified
     layer: domain
     consistency: strong
+    test_scope: integration
     source_paths:
       - services/alert-evaluator
     provides:

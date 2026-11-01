@@ -148,6 +148,19 @@
           "description": "One of system.layers.",
           "title": "Layer"
         },
+        "domain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One of system.domains.",
+          "title": "Domain"
+        },
         "consistency": {
           "default": "strong",
           "description": "Consistency guarantee.",
@@ -203,6 +216,24 @@
           "title": "Source Paths",
           "type": "array"
         },
+        "fakes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Required capability ID -> test double under test_paths that stands in for its provider (\u00a7 3).",
+          "title": "Fakes",
+          "type": "object"
+        },
+        "test_paths": {
+          "default": [],
+          "description": "Directories or files holding this component's own tests, or `tool::selector` entries (e.g. `nextest::-p crate`) for package-level runners; test evidence for it must come from here (\u00a7 3).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Test Paths",
+          "type": "array"
+        },
         "context_budget": {
           "additionalProperties": {
             "type": "integer"
@@ -218,6 +249,31 @@
           },
           "title": "Context Budget",
           "type": "object"
+        },
+        "external": {
+          "default": false,
+          "description": "Provider outside this system (platform, third-party API): provides only; exempt from layers, domains, budgets and tests; a drift target whose own sources are not scanned (\u00a7 3).",
+          "title": "External",
+          "type": "boolean"
+        },
+        "via": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Required capability ID -> required capability mediating it at runtime (e.g. a transaction platform); no direct code dependency expected (\u00a7 3).",
+          "title": "Via",
+          "type": "object"
+        },
+        "test_scope": {
+          "default": "unit",
+          "description": "unit: tests use fakes only; integration: tests may also use providers of required capabilities (\u00a7 3).",
+          "enum": [
+            "unit",
+            "integration"
+          ],
+          "title": "Test Scope",
+          "type": "string"
         }
       },
       "required": [
@@ -362,6 +418,37 @@
         "fields"
       ],
       "title": "DataModel",
+      "type": "object"
+    },
+    "Domain": {
+      "additionalProperties": false,
+      "description": "Cohesive group of components (bounded context), orthogonal to layers (\u00a7 2).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "description": "Purpose and boundary.",
+          "title": "Description",
+          "type": "string"
+        },
+        "uses": {
+          "default": [],
+          "description": "Domains this domain's components may depend on (\u00a7 2).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Uses",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Domain",
       "type": "object"
     },
     "Evidence": {
@@ -518,6 +605,28 @@
           "default": null,
           "description": "Verifier or tool identity.",
           "title": "Verifier"
+        },
+        "environment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Where the evidence was produced (host, OS or CI job), so local and remote runs can be told apart.",
+          "title": "Environment"
+        },
+        "criteria": {
+          "default": [],
+          "description": "Requirement criteria this record covers (exact strings from Requirement.criteria); empty covers the whole requirement. All criteria must be covered by passing records to verify a requirement.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Criteria",
+          "type": "array"
         },
         "supersedes": {
           "anyOf": [
@@ -865,10 +974,13 @@
                 "shared-data-ownership",
                 "context-budget",
                 "verification-category",
+                "domain-violation",
                 "DATA-03",
                 "COMP-03",
                 "COMP-05",
                 "COMP-06",
+                "DOM-02",
+                "DOM-03",
                 "REQ-01"
               ],
               "type": "string"
@@ -910,6 +1022,56 @@
         "treatment"
       ],
       "title": "Risk",
+      "type": "object"
+    },
+    "SpecImport": {
+      "additionalProperties": false,
+      "description": "Pinned reference to another system's specification (\u00a7 2): its capabilities are referenced as '<id>:<capability>' instead of copied.",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "path": {
+          "description": "Path to the imported spec, relative to this spec's directory.",
+          "title": "Path",
+          "type": "string"
+        },
+        "version": {
+          "description": "Imported system.version this pin was taken from.",
+          "title": "Version",
+          "type": "string"
+        },
+        "capabilities": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Referenced capability ID -> pinned version.",
+          "title": "Capabilities",
+          "type": "object"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional SHA-256 of the imported spec file bytes.",
+          "title": "Sha256"
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "version",
+        "capabilities"
+      ],
+      "title": "SpecImport",
       "type": "object"
     },
     "SubjectBinding": {
@@ -979,6 +1141,15 @@
           "title": "Layers",
           "type": "array"
         },
+        "domains": {
+          "default": [],
+          "description": "Domains; unordered, each may span layers (\u00a7 2).",
+          "items": {
+            "$ref": "#/$defs/Domain"
+          },
+          "title": "Domains",
+          "type": "array"
+        },
         "external_sources": {
           "default": [],
           "description": "Registered external data sources (\u00a7 5).",
@@ -986,6 +1157,15 @@
             "type": "string"
           },
           "title": "External Sources",
+          "type": "array"
+        },
+        "imports": {
+          "default": [],
+          "description": "Pinned references to other systems' specs; their capabilities are used as '<id>:<capability>' (\u00a7 2).",
+          "items": {
+            "$ref": "#/$defs/SpecImport"
+          },
+          "title": "Imports",
           "type": "array"
         },
         "quality_attributes": {
@@ -1075,6 +1255,15 @@
       "description": "Subject ID -> reviewed contract version, source revision and artifact hashes.",
       "title": "Subject Bindings",
       "type": "object"
+    },
+    "include": {
+      "default": [],
+      "description": "Fragment files merged on load (globs relative to this file, no '..'); consumed on load, so a resolved spec has none (spec.md \u00a7 12).",
+      "items": {
+        "type": "string"
+      },
+      "title": "Include",
+      "type": "array"
     }
   },
   "required": [

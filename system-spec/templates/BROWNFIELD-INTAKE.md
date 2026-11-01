@@ -97,6 +97,13 @@ Keep the active baseline separate from a proposed corrected description while co
 
 A named error catalog is not an exhaustive exception guarantee. Avoid copying every dependency exception into every operation: some paths wrap failures, some are guarded, and some do not call that dependency. Passing tests that characterize a known consumer defect are evidence of the defect, not remediation acceptance. Explicit-session protocol retries also do not prove an editor can recover session metadata after a first-turn fault.
 
+### Transport negotiation and reference semantics
+
+- Verify the actual framework handshake/initialize response for claimed protocol capabilities. Calling a helper directly does not establish wire advertisement or client admission.
+- For first-turn and replacement failures, trace backend pending state, reply metadata, client history/cache, retry/apply/discard and close. Distinguish live pending identifiers from historical attempted/applied identifiers; derive pending authority from actual ownership.
+- Define which identifiers name source models, artifacts or scopes. Optional navigation must tolerate non-model identifiers without inventing a source location; keep expected conversion failure separate from unexpected resolver faults.
+- Establish positive cache/state preconditions before cleanup assertions. Unchanged or binary-only previews can have no cached text. Keep native/protocol verification distinct from real-model/manual UI acceptance.
+
 ## Gate decision and feedback
 
 | Gate / precise scope | Observed evidence and skips | Pass, rework or scoped waiver | Remaining obligation, owner and expiry |

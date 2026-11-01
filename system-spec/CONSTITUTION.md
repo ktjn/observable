@@ -113,6 +113,7 @@ Experience → Application → Domain → Infrastructure
 
 - Higher layers may depend on lower layers, never the reverse.
 - Domain logic must not depend on infrastructure details.
+- Domains (`system.domains`) group cohesive components across layers; cross-domain dependencies are declared in `uses` and acyclic.
 
 ## Context Budget
 
@@ -125,12 +126,12 @@ For each bounded change, give the implementer:
 
 - The capability and expected outcome; accepted contract and data-model versions; affected invariants.
 - For local multi-step APIs, the state transitions, confirmation/freshness obligations, committed writes and recovery for each failure outcome. An exception after commit does not imply rollback.
-- The component boundary, permitted dependencies and relevant consumer/provider contracts.
+- The component boundary (`source_paths`, `test_paths`), permitted dependencies and relevant consumer/provider contracts. The component's own tests live under `test_paths` and reach other components only through declared required capabilities, so the handoff is buildable and testable from its `--context` slice.
 - Requirement IDs, measurable acceptance criteria, verification procedures and expected failure cases.
 - Applicable formal-model conclusions, assumptions, open risks and active waivers.
 - Allowed change scope and the evidence to return. Include neighboring contracts without importing unrelated implementation context.
 
-Resolve missing behavior or contradictory contracts before dependent implementation. If the packet cannot fit the context budget, split the work or revisit the component boundary. The implementer returns the change, requirement-linked results, affected revisions and any unmet criteria; it does not silently redefine the contract to fit the code.
+Resolve missing behavior or contradictory contracts before dependent implementation. If the packet cannot fit the context budget, split the work or revisit the component boundary. The implementer returns the change, requirement-linked results, affected revisions and any unmet criteria; it does not silently redefine the contract to fit the code. A machine-checkable return (schema: `reference-implementation/handoff-return.schema.json`) lists per-requirement results, unmet requirements with reasons, changed paths and findings; `--check-return` rejects dropped requirements, stale versions, results outside the component, failures not listed as unmet and changes outside scope.
 
 ## Traceability
 
@@ -171,6 +172,8 @@ Use the [brownfield intake template](templates/BROWNFIELD-INTAKE.md) for existin
 
 ### Change and Reverification Loop
 
+For a feature on an already-specified system, [`FEATURE.md`](FEATURE.md) sequences this loop per component.
+
 1. Identify the requested behavior change and the last reviewed baseline. Trace affected capabilities, components, data models, consumers and requirements, including transitive dependencies (`--impact <id>`).
 2. Decide whether the contract stays compatible (`--compat`). If it breaks, define consumer migration and recovery before implementation; a version bump alone does not establish compatibility.
 3. Reopen the earliest affected gate. Update its artifacts and verification criteria, then issue a bounded implementation handoff.
@@ -198,7 +201,7 @@ When discovery, implementation, verification, formal modeling or incident review
 | API contracts | Capability contracts, `requirements` and `data_models` (`capabilities.interface`) |
 | Verification | `requirements` (`status`, `category`, `resolved_by`), `evidence` (`subject_revision`, `supersedes`) |
 | Formal verification | `evidence.method: model-check` (with `bounds`) or `proof`; formal models in `provenance` |
-| Layering | `system.layers`, `components.layer` |
+| Layering | `system.layers`, `components.layer`, `system.domains`, `components.domain` |
 | Context budget | `system.context_budget` (`max_provides`, `max_requires`, `max_owns_data`); per-component override `components.context_budget` |
 | Waivers | `risks` (`mitigated_by`, `waives`, `expires`) |
 | Traceability | Capability, component, requirement, data model and evidence references |

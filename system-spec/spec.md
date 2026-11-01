@@ -18,15 +18,18 @@ A system is a composition of components.
 
 - Systems shall define their components and relationships.
 - Systems may organize components into layers with directional dependency constraints.
+- Systems may group components into domains (bounded contexts), orthogonal to layers.
 - Dependencies shall be resolved through capabilities.
 - Systems shall define requirements, risks and quality attributes.
 - System composition shall be validated for completeness and compatibility.
 
 Layer policies shall identify allowed dependency directions and whether same-layer or non-adjacent dependencies are permitted. Components subject to a layer policy shall belong to declared layers.
 
+Domains group cohesive components; a domain may span layers and a layer may hold several domains, so each component sits at one (layer, domain) cell. Layers set dependency direction; domains set which groups may depend on each other: a cross-domain dependency shall be declared in the consuming domain's `uses` (`DOM-02`), and `uses` shall be acyclic (`DOM-03`). Sibling groups that must not depend on each other are domains in the same layer without `uses` between them. Data models belong to their owner's domain.
+
 Logical capability dependencies and source-code dependencies shall be distinguished. A domain component may consume an infrastructure-provided capability through a technology-independent contract; its domain logic shall not depend on infrastructure implementation types.
 
-**Current reference format:** `SystemDef` (`system`) contains `id`, `version`, `status`, `layers` (ordered from highest to lowest), `external_sources`, `quality_attributes` and optional `context_budget` (`max_provides`, `max_requires`, `max_owns_data`).
+**Current reference format:** `SystemDef` (`system`) contains `id`, `version`, `status`, `layers` (ordered from highest to lowest), `domains` (`Domain`: `id`, `description`, `uses`), `external_sources`, `imports` (`SpecImport`: `id`, `path`, `version`, `capabilities`, optional `sha256`), `quality_attributes` and optional `context_budget` (`max_provides`, `max_requires`, `max_owns_data`).
 
 ## 3. Components
 
@@ -42,9 +45,11 @@ A component is an independent logical unit providing one or more capabilities.
 
 Context budgets shall bound component size by limiting provided capabilities, required capabilities and owned data models (default limits: `max_provides: 5`, `max_requires: 8`, `max_owns_data: 4`, overridable per system and, for composition roots, per component via `Component.context_budget`). Components exceeding the budget shall be split or covered by an active waiver (§ 7).
 
-Artifact bindings (`source_paths`) map a component to its implementation directories or modules so tools can verify that source-level imports conform to declared capability and layer dependencies.
+Artifact bindings (`source_paths`) map a component to its implementation directories or modules so tools can verify that source-level imports conform to declared capability and layer dependencies. A component can be developed and verified on its own: `test_paths` names the directories or files holding its own tests, test evidence for it shall come from there (`COMP-08`), and tests are subject to the same import-conformance check as source, and each required capability has a fake (`fakes`: capability ID → test double under `test_paths`, `COMP-09`). Tests shall not import other components; they depend on the fakes, so the component builds and tests from its slice alone. A capability that any component fakes shall have a verified `contract`-category requirement with passing evidence (`COMP-10`) so the fake's assumptions are tested at the provider; that a fake matches those tests is a review obligation. A component with `test_scope: integration` (assembly or end-to-end tests) is exempt from the fake obligation: its tests may also use real providers of capabilities it requires. Drift tools shall list what they cannot check, including components without `source_paths`.
 
-**Current reference format:** `Component` contains `id`, `version`, `status`, `layer`, `consistency`, `provides`, `requires`, `owns_data`, `bindings` and `source_paths`.
+An external component (`external: true`) is a provider outside the system, such as a platform or third-party API, modeled for its contracts: it only provides capabilities and declares no `layer`, `domain`, `requires`, `test_paths` or `fakes` (`COMP-11`), is exempt from context budgets, and its `source_paths`, if any, identify it as a dependency target without being checked themselves. A dependency mediated at runtime rather than in code (e.g. a cross-module write through a transaction platform) names its mediating required capability in `via` (required capability → mediating capability, `REF-05`); tools treat such edges as unverifiable by source analysis.
+
+**Current reference format:** `Component` contains `id`, `version`, `status`, `layer`, `domain`, `consistency`, `provides`, `requires`, `owns_data`, `bindings`, `source_paths`, `test_paths`, `fakes`, `test_scope`, `external` and `via`.
 
 ## 4. Capabilities
 
@@ -126,13 +131,13 @@ Risks describe potential failures, undesirable outcomes or tracked architectural
 
 Mitigation acceptance shall require valid evidence for the mitigating requirements, including optional requirements used as mitigations. A treatment label alone shall not establish that a risk has been addressed.
 
-A waiver (`waives`) allows a known brownfield violation (layer violation, dependency cycle, shared data ownership, context-budget overrun or missing verification category) below the `release` stage when:
+A waiver (`waives`) allows a known brownfield violation (layer or domain violation, dependency cycle, shared data ownership, context-budget overrun or missing verification category) below the `release` stage when:
 
 - `treatment` is `mitigation` or `acceptance` and `mitigated_by` names at least one remediation requirement.
 - `expires` specifies an ISO-8601 date (`YYYY-MM-DD`) or target stage (`architecture`, `verification`, `release`) that has not passed.
 - No waivers are permitted at `--stage release`.
 
-**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by`, `residual_accepted`, `transferred_to`, `waives` and `expires`. `waives` is one of `layer-violation` (`COMP-05`), `dependency-cycle` (`COMP-06`), `shared-data-ownership` (`DATA-03`), `context-budget` (`COMP-03`), `verification-category` (`REQ-01`) or the corresponding invariant ID; a waiver covers violations whose subjects include the risk `target`, or all of that kind when `target` is the system. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a counterparty (`transferred_to`) and accepted residual risk.
+**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by`, `residual_accepted`, `transferred_to`, `waives` and `expires`. `waives` is one of `layer-violation` (`COMP-05`), `domain-violation` (`DOM-02`), `dependency-cycle` (`COMP-06`, `DOM-03`), `shared-data-ownership` (`DATA-03`), `context-budget` (`COMP-03`), `verification-category` (`REQ-01`) or the corresponding invariant ID; a waiver covers violations whose subjects include the risk `target`, or all of that kind when `target` is the system. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a counterparty (`transferred_to`) and accepted residual risk.
 
 ## 8. Verification
 
@@ -155,9 +160,11 @@ Evidence shall cover the applicable acceptance criteria. A passing result shall 
 
 Changes to requirements, contracts, components, data models or relevant dependencies shall trigger impact analysis. Affected evidence shall be invalidated and the affected obligations reverified; an unchanged requirement version alone shall not justify reuse.
 
-**Current reference format:** `Evidence` contains `id`, `requirement_id`, `requirement_version`, `method`, `passed`, `provenance` and optional `bounds` (required for `model-check`), `subject_id` (defaults to `Requirement.target` when omitted), `subject_revision`, `subject_version`, `artifacts`, `skipped`, `timestamp`, `verifier`, `supersedes` and `supersession_reason`.
+**Current reference format:** `Evidence` contains `id`, `requirement_id`, `requirement_version`, `method`, `passed`, `provenance` and optional `bounds` (required for `model-check`), `subject_id` (defaults to `Requirement.target` when omitted), `subject_revision`, `subject_version`, `artifacts`, `skipped`, `timestamp`, `verifier`, `environment` (where it ran, e.g. host or CI job), `criteria` (requirement criteria it covers; empty means the whole requirement), `supersedes` and `supersession_reason`.
 
 **Current reference format:** `Spec` has optional `subject_bindings`, mapping subject IDs to `SubjectBinding` records containing `version`, `revision` and non-empty `artifacts` (repository-relative source file paths mapped to exact-byte lowercase SHA-256 digests). `Evidence.artifacts` uses the same path/digest format for retrievable execution outputs. `skipped` lists omitted check names/reasons; evidence with skips does not verify a requirement and cannot pass release. `SubjectBinding.version` and `Evidence.subject_version` shall match the modeled subject version; `Evidence.subject_revision` shall match its reviewed binding's source `revision`. A stale or absent binding fails release when `subject_version` is supplied. Existing evidence without a binding or `subject_version` retains the legacy convention that `subject_revision` equals the modeled version.
+
+`provenance` takes the form `<artifact>::<name>` or `<tool>::<name>`. For `test` evidence the artifact should be a repository-relative file path (`tests/checkout/test_checkout.py::test_place_order`); a bare tool label (`pytest::test_x`) names no file, so it cannot be checked against `--check-artifacts` or a component's `test_paths` (`COMP-08`). Package-level runners (Cargo `nextest -p`, `go test ./pkg`) use selectors instead: a `test_paths` or `fakes` entry containing `::` is a selector (`nextest::-p scalable-fm`); provenance or a fake matches it when equal or when it continues the selector with `::` (`nextest::-p scalable-fm::test_x`). Selectors name no files, so artifact and import checks skip them and `--check-drift` lists them as unchecked.
 
 Bindings are review inputs, not proof of a Git commit or source-to-build correspondence. Optional `--check-artifacts --root <repository>` checks declared source/schema existence, source/evidence file hashes and containment within that explicit repository root. It never executes artifacts or resolves remote provenance. Hashes cover exact file bytes, including checkout line endings. Unhashed source paths and schema paths receive existence checks only; schema/model semantic drift still requires independent verification beyond the optional `--check-drift --root <repository>`, which parses Python imports between components' `source_paths` (an undeclared dependency is one with no `requires` capability or `bindings` entry reaching the imported component) and compares top-level JSON Schema `properties` with `fields` names; other languages and schema formats are reported as unchecked or not inspected. Ordinary validation does not inspect files. A handoff retains applicable subject bindings in its context slice; evidence remains in the full specification/review record.
 
@@ -201,7 +208,7 @@ The metamodel shall define machine-verifiable invariants evaluated progressively
 |---|---|---|---|
 | `inventory` | `draft`+ | Unique IDs; valid target/reference syntax; registered `system`, `external_sources`, component stubs (`provides` optional) | Yes |
 | `discovery` | Capabilities `specified`+ | `inventory` + every capability defines non-empty contract clauses (`preconditions` or `postconditions`, `invariants`, `failure_modes`) | Yes |
-| `architecture` | Capabilities & components `specified`+ | `discovery` + every component provides ≥1 capability; required capabilities resolve; layer rules, cycle checks, data ownership, lineage, classification, interface contracts and context budgets hold | Yes (via `Risk.waives`) |
+| `architecture` | Capabilities & components `specified`+ | `discovery` + every component provides ≥1 capability; required capabilities resolve; layer and domain rules, cycle checks, data ownership, lineage, classification, interface contracts and context budgets hold | Yes (via `Risk.waives`) |
 | `verification` | Active requirements `specified`+ | `architecture` + every capability has requirements; all 10 verification categories covered; requirement dependency/refinement acyclic; no unresolved conflicts | Yes (via `Risk.waives`) |
 | `release` | All active entities `verified` (or `deprecated`) | `verification` + every mandatory and mitigating requirement has passing, current, non-superseded `Evidence`; all risks disposed (§ 7); zero active or expired waivers | No |
 
@@ -214,8 +221,9 @@ Each invariant has a stable ID that validators shall report with every violation
 | `REF-01` | `inventory` | — | IDs are unique within each entity type. |
 | `REF-02` | `inventory` | — | Requirement and risk targets resolve to exactly one system, component, capability or data model. |
 | `REF-03` | `inventory` | — | Provided capabilities exist. |
+| `IMP-01` | `inventory` | — | Imports have unique IDs; qualified capability references resolve to a pinned import and are provided only by external components. |
 | `REF-04` | `inventory` | — | Owned data models exist. |
-| `REF-05` | `inventory` | — | Bindings name required capabilities. |
+| `REF-05` | `inventory` | — | Bindings and via entries name required capabilities. |
 | `REF-06` | `inventory` | — | Requirement relationships reference existing requirements. |
 | `REF-07` | `inventory` | — | Evidence references an existing requirement. |
 | `REF-08` | `inventory` | — | Evidence subjects exist. |
@@ -236,6 +244,7 @@ Each invariant has a stable ID that validators shall report with every violation
 | `EV-03` | `inventory` | — | Supersession states a reason. |
 | `EV-04` | `release` | — | Release evidence matches the subject version and any declared source binding, with timestamp and verifier. |
 | `EV-05` | `release` | — | Release evidence has no skipped checks. |
+| `EV-06` | `inventory` | — | Evidence criteria name criteria of the verified requirement. |
 | `RISK-01` | `inventory` | — | Waivers require mitigation or acceptance, mitigating requirements and an expiry. |
 | `RISK-02` | `inventory` | — | Waivers have not expired. |
 | `RISK-03` | `release` | — | Mitigated and avoided risks name mitigating requirements. |
@@ -259,6 +268,13 @@ Each invariant has a stable ID that validators shall report with every violation
 | `COMP-05` | `architecture` | `layer-violation` | Components depend only on the same or lower layers. |
 | `COMP-06` | `architecture` | `dependency-cycle` | Component dependencies are acyclic. |
 | `COMP-07` | `architecture` | — | Active components do not require deprecated capabilities. |
+| `COMP-08` | `verification` | — | Test evidence for a component that declares test_paths comes from files or selectors under them. |
+| `COMP-09` | `verification` | — | A unit-scoped component that declares test_paths has a fake under them (file or selector) for each required capability. |
+| `COMP-10` | `release` | — | A capability that a consumer fakes has a verified contract requirement. |
+| `COMP-11` | `architecture` | — | External components declare no layer, domain, requires, test_paths or fakes. |
+| `DOM-01` | `architecture` | — | Component domains and domain uses are declared. |
+| `DOM-02` | `architecture` | `domain-violation` | Cross-domain dependencies are declared in Domain.uses. |
+| `DOM-03` | `architecture` | `dependency-cycle` | Domain uses are acyclic. |
 | `REQ-01` | `verification` | `verification-category` | Active requirements cover all verification categories. |
 | `REQ-02` | `verification` | — | Requirement dependencies and refinements are acyclic. |
 | `REQ-03` | `verification` | — | Requirement conflicts are resolved by an active requirement. |
@@ -292,8 +308,9 @@ A reference implementation shall demonstrate:
 - Contract and compatibility validation.
 - Verification evidence collection and evaluation.
 - Change-impact analysis.
+- Composition of one specification from fragment files, so components, teams or agents own separate files: a root file keeps `system` and may list `include` patterns (relative to the root, no absolute paths or `..`); each matched file is a fragment holding any other section (`capabilities`, `components`, `data_models`, `requirements`, `risks`, `evidence`, `subject_bindings`). Lists are concatenated in sorted path order, `subject_bindings` keys shall be unique, fragments shall not contain `system` or `include`, and the resolved specification is validated as one document (duplicate IDs remain `REF-01`). The root still declares the required `capabilities` and `components` keys (they may be empty). Artifact paths stay relative to the repository root, not the fragment.
 - Automated metamodel conformance checks.
 
-The reference implementation shall not constrain alternative implementations. A passing validator run shall not establish release acceptance, which still requires the evidence and obligations in §§ 7–11.
+The reference implementation shall not constrain alternative implementations. A system may reference capabilities of another system's specification without copying them: `system.imports` pins the other spec (`path`, `version`, and each referenced capability's version, optionally the file `sha256`), and an `external` component provides `<import-id>:<capability>`, which consumers require as `<import-id>:<capability>@^<version>`. The contracts (interfaces, data models) stay in the imported spec; `--check-imports --root <repository>` verifies the pins against it. A passing validator run shall not establish release acceptance, which still requires the evidence and obligations in §§ 7–11.
 
 The [Python reference implementation](reference-implementation/README.md) is a partial prototype; its README documents usage, behavior and limitations. Its JSON Schema ([`schema.json`](reference-implementation/schema.json), from `--schema`) is the machine-readable form of the current reference format.

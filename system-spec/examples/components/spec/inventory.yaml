@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../../reference-implementation/fragment.schema.json
+# Fragment owned by the inventory component; merged into ../spec.yaml by `include`.
+
+capabilities:
+  - id: reserve-inventory
+    version: "1.0"
+    status: verified
+    preconditions: [product_exists, quantity_positive]
+    postconditions: [reservation_created, stock_decremented]
+    invariants: [stock_never_negative]
+    failure_modes: [insufficient_inventory, product_not_found]
+    interface: { operation: POST /v1/reservations, request: stock-item, idempotent: true, auth: service-token, errors: { insufficient_inventory: 409, product_not_found: 404 } }
+
+components:
+  - id: inventory
+    version: "1.0"
+    status: verified
+    layer: domain
+    provides: [reserve-inventory]
+    owns_data: [stock-item, order-stock-projection]
+    source_paths: [src/inventory]
+    test_paths: [tests/inventory]
+
+data_models:
+  - id: stock-item
+    version: "1.0"
+    owner: inventory
+    classification: internal
+    external_source: erp-product-feed
+    schema_path: schemas/stock-item.json
+    fields: { product_id: uuid, available_qty: int }
+  - id: order-stock-projection
+    version: "1.0"
+    owner: inventory
+    classification: confidential
+    derived_from: [order, stock-item]
+    fields: { order_id: uuid, product_id: uuid }
+
+requirements:
+  - { id: req-reserve, version: "1.0", status: verified, category: concurrency, target: reserve-inventory, criteria: [stock never negative] }
+  - { id: req-reserve-contract, version: "1.0", status: verified, category: contract, target: reserve-inventory, criteria: [returns insufficient_inventory when stock is short] }
+  - { id: req-projection, version: "1.0", status: verified, category: semantic, target: order-stock-projection, criteria: [every projection references an existing order and stock-item] }
+
+risks:
+  - { id: risk-oversell, target: inventory, treatment: mitigation, mitigated_by: [req-reserve] }
+
+evidence:
+  - { id: ev-reserve-test, requirement_id: req-reserve, requirement_version: "1.0", method: model-check, bounds: { products: 2, max_qty: 3 }, passed: true, provenance: tla+::Inventory.tla, subject_revision: "1.0", timestamp: 2026-10-30, verifier: tlc }
+  - { id: ev-reserve-contract, requirement_id: req-reserve-contract, requirement_version: "1.0", method: test, passed: true, provenance: tests/inventory/test_inventory.py::test_reserve_contract, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci, environment: ci/ubuntu }
+  - { id: ev-projection-alloy, requirement_id: req-projection, requirement_version: "1.0", method: model-check, bounds: { scope: 5 }, passed: true, provenance: alloy::Inventory.als, subject_revision: "1.0", timestamp: 2026-10-30, verifier: alloy }

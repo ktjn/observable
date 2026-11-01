@@ -12,6 +12,7 @@ Lifecycle model, metamodel, and reference tooling supporting:
 - [`GREENFIELD.md`](GREENFIELD.md): phase sequence, gates, implementation loop, AI Execution Rule, and prompts.
 - [`BROWNFIELD.md`](BROWNFIELD.md): adoption levels, reverse discovery, waivers, characterization/migration loop, and prompts.
 - [`spec.md`](spec.md): normative metamodel, stage invariant table (§ 11), and current reference format.
+- [`FEATURE.md`](FEATURE.md): changing an already-specified system (impact, compatibility, per-component handoff, re-verification).
 - [`WIRING.md`](WIRING.md) and [`templates/BROWNFIELD-INTAKE.md`](templates/BROWNFIELD-INTAKE.md): toolkit adoption guide and brownfield intake/gate template.
 - [`.github/skills/<name>/SKILL.md`](.github/skills/): technique guides ([`tla`](.github/skills/tla/SKILL.md), [`alloy`](.github/skills/alloy/SKILL.md), [`modelable`](.github/skills/modelable/SKILL.md)).
 - [`examples/`](examples/): end-to-end [greenfield](examples/greenfield/README.md) (incl. [`Inventory.tla`](examples/greenfield/Inventory.tla) and [`Inventory.als`](examples/greenfield/Inventory.als)) and [brownfield](examples/brownfield/README.md) walkthroughs.
@@ -25,7 +26,7 @@ Lifecycle model, metamodel, and reference tooling supporting:
 
 - **Lifecycle, Adoption & Stages** ([`spec.md` §§ 10–11](spec.md#10-lifecycle-and-evolution))
   - Entity `status` (`capabilities`, `components`, `requirements`, `system`): `draft` → `specified` → `verified` → `deprecated`.
-  - Validation `--stage` (`inventory` → `discovery` → `architecture` → `verification` → `release`): 55 stage invariants + 9 `--compat` invariants (`REF`, `DATA`, `EV`, `RISK`, `STAT`, `CAP`, `COMP`, `REQ`, `COMPAT`), drift-tested against [`README.md`](README.md) and [`spec.md`](spec.md).
+  - Validation `--stage` (`inventory` → `discovery` → `architecture` → `verification` → `release`): 64 stage invariants + 9 `--compat` invariants (`REF`, `DATA`, `EV`, `RISK`, `STAT`, `CAP`, `COMP`, `DOM`, `REQ`, `COMPAT`), drift-tested against [`README.md`](README.md) and [`spec.md`](spec.md).
   - Brownfield adoption levels map to stages: Level 0 (`inventory`) → Level 1 (`architecture`, skipping standalone `discovery` because `architecture` enforces `CAP-01`) → Level 2 (`verification`) → Level 3 (`release`).
 - **Explicit Interface & Data Contracts** ([`spec.md` §§ 4–5](spec.md#4-capabilities))
   - Cross-component capabilities declare `Capability.interface` (`operation`, `mode`, `request`, `response`, `idempotent`, `auth`, `errors` matching `failure_modes`).
@@ -34,7 +35,7 @@ Lifecycle model, metamodel, and reference tooling supporting:
   - Configurable system context budget (`max_provides: 5`, `max_requires: 8`, `max_owns_data: 4`) and `--context <component-id>` bounded slice export.
   - Physical bindings (`Component.source_paths`, `DataModel.schema_path`, `Evidence.subject_revision` / `timestamp` / `verifier`).
 - **Architectural Waivers & Evidence Supersession** ([`spec.md` §§ 7–8](spec.md#7-risks))
-  - Known violations (`layer-violation`, `dependency-cycle`, `shared-data-ownership`, `context-budget`, `verification-category`) allowed below `release` via `Risk.waives` with `mitigated_by` and `expires` (ISO date or stage); zero waivers permitted at `release` (`RISK-08`).
+  - Known violations (`layer-violation`, `domain-violation`, `dependency-cycle`, `shared-data-ownership`, `context-budget`, `verification-category`) allowed below `release` via `Risk.waives` with `mitigated_by` and `expires` (ISO date or stage); zero waivers permitted at `release` (`RISK-08`).
   - Evidence supports `model-check` (mandatory `bounds`) and explicit failure supersession (`supersedes`, `supersession_reason`).
 - **Single Source of Truth & Formalization** ([`reference-implementation/`](reference-implementation/README.md))
   - Committed [`schema.json`](reference-implementation/schema.json) (`--schema`), drift-tested against `spec.md` format blocks.
@@ -77,10 +78,16 @@ Lifecycle model, metamodel, and reference tooling supporting:
 - [x] Add Alloy model of the metamodel (`reference-implementation/metamodel.als`) (step 5).
 - [x] Add invalid spec corpus covering every invariant ID (`reference-implementation/corpus.yaml`) (step 6).
 
+### Milestone 6: Onboarding Feedback
+- [x] Diagram readability (`DIAG-FB-01`–`03`, [`archive/feedback/diagram-feedback.md`](archive/feedback/diagram-feedback.md)): persisted vs logical data models, models inside owner layer, per-kind node ID prefixes.
+- [x] Scalable (Rust) onboarding (`SCL-FB-01`–`04`, `06`, [`archive/feedback/scalable-onboarding.md`](archive/feedback/scalable-onboarding.md)): selector `test_paths`/`fakes`, Cargo drift, `Evidence.environment`, domains orthogonal to layers (`DOM-01`–`03`).
+- [x] Marketplace model (`MKT-FB-01`–`03`, [`archive/feedback/marketplace-model.md`](archive/feedback/marketplace-model.md)): `external` components (`COMP-11`), runtime-mediated `via`, `test_scope`, unbound components listed as unchecked.
+
 ---
 
 ## 4. Optional Next Horizons
 
 - **Toolkit Distribution**: specified in [`PACKAGING.md`](PACKAGING.md) and [`packaging.yaml`](packaging.yaml); wheel/source distribution, installed CLI (`system-spec`), test suite in `tests/`, and safe offline resource export implemented and verified.
-- **Codebase & Schema Drift Verification**: `--check-drift --root` implemented for Python imports and JSON Schema properties; next: other languages (JS/TS) and schema formats (SQL DDL), field-type comparison.
-- **Standards Crosswalk & Exporters** (see [`archive/BENCHMARK.md`](archive/BENCHMARK.md)): Mermaid diagram export implemented (`metamodel.py --diagram`); optional exporters for Backstage catalogs (brownfield inventory) and C4/Structurizr diagrams remain.
+- **Codebase & Schema Drift Verification**: `--check-drift --root` covers Python and JS/TS imports, `Cargo.toml` path/workspace dependencies, tests (fakes or `test_scope: integration`) and JSON Schema properties, listing what it cannot check as `unchecked`; next: other languages (Go, Java, tsconfig path aliases), schema formats (SQL DDL), field-type comparison.
+- **Standards Crosswalk & Exporters** (see [`archive/BENCHMARK.md`](archive/BENCHMARK.md)): Mermaid diagram export implemented (`metamodel.py --diagram`); Backstage catalog and Structurizr DSL exports implemented (`--export`).
+- **Cross-spec references**: `system.imports` pins (`MKT-FB-01`) implemented; next: surfacing imported interfaces/data models in `--context`, and transitive pin checks across more than one level.

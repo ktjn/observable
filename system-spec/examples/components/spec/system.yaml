@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../../reference-implementation/fragment.schema.json
+# Fragment owned by system-level concerns; merged into ../spec.yaml by `include`.
+
+requirements:
+  - { id: req-latency, version: "1.0", status: verified, category: performance, target: commerce-system, kind: non-functional, criteria: [p95 < 100ms] }
+  - { id: req-scale, version: "1.0", status: verified, category: scalability, target: commerce-system, kind: non-functional, criteria: [sustains 1000 req/s] }
+  - { id: req-observability, version: "1.0", status: verified, category: observability, target: commerce-system, kind: non-functional, criteria: [emits correlation_id and latency metrics] }
+
+risks:
+  - { id: risk-erp-delay, target: commerce-system, treatment: acceptance, residual_accepted: true }
+  - { id: risk-payment-fraud, target: commerce-system, treatment: transfer, transferred_to: payment-provider, residual_accepted: true }
+
+evidence:
+  - { id: ev-latency-bench, requirement_id: req-latency, requirement_version: "1.0", method: analysis, passed: true, provenance: k6::load_report, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-scale, requirement_id: req-scale, requirement_version: "1.0", method: analysis, passed: true, provenance: k6::throughput_report, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-observability, requirement_id: req-observability, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_telemetry, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }

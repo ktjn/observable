@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../../reference-implementation/schema.json
+system:
+  id: commerce-system
+  version: "1.0"
+  status: verified
+  layers: [experience, application, domain, infrastructure]
+  external_sources: [erp-product-feed]
+  quality_attributes: { latency_p95: "<100ms", throughput: "1000 req/s" }
+
+capabilities: []
+components: []
+
+include: [spec/*.yaml]

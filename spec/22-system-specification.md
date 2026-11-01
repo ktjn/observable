@@ -24,7 +24,7 @@ This document records the reverse-discovery onboarding of `observable` (`0.1.0`)
 | `observable-web` | `experience` | `strong` | `explore-telemetry-ui` | `validate-credential@^0.1`, `manage-control-plane@^0.1`, `query-telemetry@^0.1`, `evaluate-alerts@^0.1` | — | `apps/frontend` |
 | `observable-ingest` | `application` | `eventual` | `ingest-otlp` | `validate-credential@^0.1`, `normalize-telemetry@^0.1`, `publish-deployment-markers@^0.1` | — | `services/ingest-gateway` |
 | `observable-query` | `application` | `strong` | `query-telemetry` | `validate-credential@^0.1`, `manage-control-plane@^0.1`, `evaluate-alerts@^0.1`, `store-telemetry@^0.1` | — | `services/query-api`, `libs/query-core`, `libs/domain-core` |
-| `observable-control` | `domain` | `strong` | `manage-control-plane`, `publish-deployment-markers` | `validate-credential@^0.1` | `tenant-config`, `dashboard-model`, `deployment-marker`, `query-audit-entry` | `services/admin-service` |
+| `observable-control` | `domain` | `strong` | `manage-control-plane`, `publish-deployment-markers` | `validate-credential@^0.1`, `store-telemetry@^0.1` | `tenant-config`, `dashboard-model`, `deployment-marker`, `query-audit-entry` | `services/admin-service` |
 | `observable-alerting` | `domain` | `strong` | `evaluate-alerts` | `validate-credential@^0.1`, `store-telemetry@^0.1` | `alert-rule`, `slo-definition`, `incident-record` | `services/alert-evaluator` |
 | `observable-process` | `domain` | `eventual` | `normalize-telemetry` | `store-telemetry@^0.1` | — | `services/stream-processor`, `libs/observable-process` |
 | `observable-auth` | `infrastructure` | `strong` | `validate-credential` | — | `api-key-credential`, `user-session` | `services/auth-service`, `libs/observable-auth` |

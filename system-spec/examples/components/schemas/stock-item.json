@@ -1,0 +1,7 @@
+{
+  "type": "object",
+  "properties": {
+    "product_id": { "type": "string", "format": "uuid" },
+    "available_qty": { "type": "integer" }
+  }
+}

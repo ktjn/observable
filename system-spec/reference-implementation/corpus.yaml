@@ -3,9 +3,11 @@
 # stage: validation stage (default release). old: {set, drop} patch building the old spec for compare_specs.
 - { id: REF-01, set: { requirements.-: [{ id: req-order, version: "1.0", status: verified, category: functional, target: place-order, criteria: [x] }] } }
 - { id: REF-02, set: { requirements.0.target: nope } }
+- { id: IMP-01, set: { system.imports: [{ id: a, path: a.yaml, version: "1", capabilities: {} }, { id: a, path: b.yaml, version: "1", capabilities: {} }] } }
 - { id: REF-03, set: { components.0.provides.-: [ghost] } }
 - { id: REF-04, set: { components.0.owns_data.-: [ghost] } }
 - { id: REF-05, set: { components.0.bindings: { ghost: inventory } } }
+- { id: REF-05, set: { components.0.via: { reserve-inventory: ghost } } }
 - { id: REF-06, set: { requirements.0.depends_on: [nope] } }
 - { id: REF-07, also: [REQ-05], set: { evidence.0.requirement_id: nope } }
 - { id: REF-08, set: { evidence.0.subject_id: nope } }
@@ -31,6 +33,7 @@
       - { id: ev-fail, requirement_id: req-order, requirement_version: "1.0", method: test, passed: false, provenance: ci, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
       - { id: ev-fix, requirement_id: req-order, requirement_version: "1.0", method: test, passed: true, provenance: ci, supersedes: ev-fail, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
 - { id: EV-04, drop: [evidence.0.timestamp] }
+- { id: EV-06, also: [REQ-05], set: { evidence.0.criteria: [not-a-criterion] } }
 - { id: EV-05, also: [REQ-05], set: { evidence.0.skipped: [symlinks unavailable] } }
 - { id: EV-04, set: { evidence.0.subject_revision: "0.0.1" } }
 - id: RISK-01
@@ -66,6 +69,13 @@
 - { id: COMP-05, also: [COMP-06], set: { components.1.requires: [place-order@^1.0] } }
 - { id: COMP-06, set: { system.layers: [], components.1.requires: [place-order@^1.0] } }
 - { id: COMP-07, stage: architecture, set: { capabilities.1.status: deprecated } }
+- { id: COMP-08, also: [COMP-09], stage: verification, set: { components.0.test_paths: [tests/checkout] } }
+- { id: COMP-10, set: { components.0.fakes: { reserve-inventory: tests/checkout/fakes/reserve.py } } }
+- { id: COMP-11, set: { components.1.external: true } }
+- { id: COMP-09, also: [COMP-08], stage: verification, set: { components.0.test_paths: [tests/checkout] } }
+- { id: DOM-01, set: { system.domains: [{ id: sales }], components.0.domain: sales, components.1.domain: stock } }
+- { id: DOM-02, set: { system.domains: [{ id: sales }, { id: stock }], components.0.domain: sales, components.1.domain: stock } }
+- { id: DOM-03, set: { system.domains: [{ id: sales, uses: [stock] }, { id: stock, uses: [sales] }], components.0.domain: sales, components.1.domain: stock } }
 - { id: REQ-01, stage: verification, drop: [requirements.3.category] }
 - { id: REQ-02, set: { requirements.0.depends_on: [req-reserve], requirements.1.refines: [req-order] } }
 - { id: REQ-03, set: { requirements.0.conflicts_with: [req-reserve] } }

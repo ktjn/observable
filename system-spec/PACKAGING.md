@@ -7,7 +7,7 @@ Machine-readable requirements: [`packaging.yaml`](packaging.yaml), validated at 
 
 Distribute the validator, workflows, schema, examples and skills as one versioned Python toolkit. Users shall install a wheel, run `system-spec` outside this checkout, and export a readable toolkit directory without repository access.
 
-- Retain distribution name `system-spec-ref`, current version `0.2.0` and Python requirement `>=3.12` from [`reference-implementation/pyproject.toml`](reference-implementation/pyproject.toml).
+- Retain distribution name `system-spec-ref`, current version `0.4.0` and Python requirement `>=3.12` from [`reference-implementation/pyproject.toml`](reference-implementation/pyproject.toml).
 - Produce a pure-Python wheel and source distribution from the same revision and version. Registry publication is a separate delivery action.
 - Runtime dependencies remain Pydantic and PyYAML; pytest and build tools are development dependencies.
 - TLA+/TLC, Alloy and Modelable remain separately installed tools. Include their guides and example models; do not imply they are installed or executed by this package.
@@ -29,6 +29,7 @@ system_spec_ref/
     CONSTITUTION.md
     GREENFIELD.md
     BROWNFIELD.md
+    FEATURE.md
     spec.md
     PLAN.md
     PACKAGING.md
@@ -61,7 +62,7 @@ system-spec --version
 system-spec export DESTINATION
 ```
 
-- Existing validation options retain their behavior: `--stage`, `--compat`, `--impact`, `--context`, `--diagram`, `--schema`, `--json`, `--check-artifacts`, `--check-drift`, `--root`, and help.
+- Existing validation options retain their behavior: `--stage`, `--compat`, `--impact`, `--context`, `--diagram`, `--schema`, `--json`, `--check-artifacts`, `--check-drift`, `--root`, `--plan`, `--check-scope`, `--export`, `--owner`, `--check-imports`, `--check-return`, `--return-schema`, `--fragment-schema`, `--changed`, `--allow`, and help.
 - With no specification argument, validate the bundled `reference-implementation/example.yaml`; never resolve that default against the caller's directory.
 - Explicit specification and compatibility paths resolve against the caller's working directory, as today.
 - `export` is reserved only as the first positional token. A specification literally named `export` remains accessible as `./export` or an absolute path.
@@ -85,6 +86,8 @@ system-spec export DESTINATION
 
 ## Version and source compatibility
 
+- Specs are backward compatible across toolkit releases when changes add only optional fields or opt-in checks. Tools are not forward compatible: a validator older than a field rejects specs that use it (`extra="forbid"`). Record such changes in [`CHANGELOG.md`](CHANGELOG.md); the release steps are in [`RELEASING.md`](RELEASING.md).
+
 - Use one distribution version for code and bundled resources. Toolkit releases and modeled systems' `system.version` values are separate identities.
 - Adding packaging must not change the metamodel, schema, stages or capability-version matching rules.
 - Keep the resource layout stable within a major toolkit version. Review changes to CLI behavior, exported paths or the schema for compatibility and document migrations before release.
@@ -98,6 +101,10 @@ system-spec export DESTINATION
 - PKG-01 (2026-11-01, Windows): wheel `toolkit/` inventory equals `toolkit_manifest.txt` (44 files) and every manifest entry is in the sdist; `uv build` builds the wheel from the sdist. Local rebuild digests differ from the published ones, so artifacts are not byte-reproducible.
 - PKG-05 (2026-11-01): all relative links in the 17 bundled Markdown files resolve inside the snapshot, including the skills' `../../../` links; no archive exceptions needed. Examples validate through the installed CLI in CI.
 - PKG-11 (2026-11-01, Windows, Python 3.15, median of 20): `system-spec` 252 ms vs `python metamodel.py example.yaml` 221 ms (+31 ms, +14%), within the allowance. Peak memory was not measured; the owner accepted that gap on 2026-11-01.
+
+Release record, 0.3.0: tag `v0.3.0` at `4e22cf2dc4a0e10968deb830060b82c82b727187`; published SHA-256: wheel `810a6587a412401f9b4c7073e9a839bf8871c5545986a73c131d27ffac22354a`, sdist `1373eebb4d218e71d91ab8e95fd9ad6b82e43b2e9795305993ac7a4e6411bba9`. Installed-wheel smoke runs in CI on ubuntu/windows × 3.12/3.13; clean-venv install of the locally built wheel verified on Windows.
+
+Release record, 0.2.0: tag `v0.2.0` at `c79e5dbb63c2f3508e691102e994571965e2c3b4`; published SHA-256: wheel `fb6e1f5db7ba95f4c3673ee7f6fc926a00fe70068928157387358609396463e8`, sdist `3328e4e877603d085603feeca8c27dc061bad711ac89c16e7057367115977871`. Installed-wheel smoke runs in CI on ubuntu/windows × 3.12/3.13.
 
 Release record, 0.1.0: tag `v0.1.0` at `b2354ca63223106e67181d5fde793fe364c6b560`; published SHA-256: wheel `af360b98599fbdb716ee370ffbef47523cfb955fc91e39922e4de8b5e8e5cb29`, sdist `c66245494cbadeeb757efc10314f8ca84ba2b3e6f27fc37ee6c5b0e78aac6bb8`. Verified install from PyPI on Windows (Python 3.12); CI matrix covers ubuntu/windows × 3.12/3.13.
 
