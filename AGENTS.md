@@ -15,6 +15,30 @@ These instructions are foundational mandates for any AI agent interacting with t
 
 Refer to `spec/10-process.md` for the official development process and AI agent guidance.
 
+## System Specification & Architecture Boundaries
+
+The machine-checkable platform specification lives in `spec/system.yaml` and is governed by the toolkit in `system-spec/` ([CONSTITUTION.md](system-spec/CONSTITUTION.md), [BROWNFIELD.md](system-spec/BROWNFIELD.md), [spec/22-system-specification.md](spec/22-system-specification.md)):
+
+* **Validation Gate:** Specifications must validate cleanly at release stage before committing:
+  ```bash
+  system-spec spec/system.yaml --stage release
+  # or via uv:
+  uv run --project models system-spec spec/system.yaml --stage release
+  ```
+* **Bounded Context Slicing:** Before implementing or modifying a component, inspect its bounded spec slice:
+  ```bash
+  system-spec spec/system.yaml --context <component-id>
+  ```
+* **Mermaid Architecture Graph:** View current component hierarchy, capability dependencies, and data ownership:
+  ```bash
+  system-spec spec/system.yaml --diagram
+  ```
+* **Change Impact Analysis:** Determine all transitive dependees before changing a capability or data model:
+  ```bash
+  system-spec spec/system.yaml --impact <id>
+  ```
+* **Model Feedback:** Report any model gaps, hidden coupling, or adapter issues as feedback per `system-spec/CONSTITUTION.md` (Self-Improvement and Model Feedback).
+
 ## Modelable Emitter Limitations (Manual Patches Required)
 
 **Never hand-edit a file under a `generated/` directory.** Files generated from `.mdl` sources (e.g. `apps/frontend/src/api/generated/`, `libs/observable-storage-contracts/src/generated/`) are overwritten by `scripts/regenerate-models.sh` and must never be edited directly to add or change fields — doing so silently drifts the generated code from its `.mdl` source of truth, and the next regeneration silently reverts the hand-edit, breaking anything that depended on it. To add or change a field, edit the relevant `models/*.mdl` file and run `scripts/regenerate-models.sh`; the only edits allowed directly in a `generated/` file are the documented manual patches listed below, which the script is not yet able to apply automatically.

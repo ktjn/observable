@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../reference-implementation/schema.json
+system:
+  id: billing-system
+  version: "1.0"
+  layers: [application, domain]
+  external_sources: [stripe-gateway]
+
+capabilities:
+  - id: issue-invoice
+    version: "1.0"
+    status: specified
+    preconditions: [amount_positive]
+    postconditions: [invoice_created]
+    invariants: [invoice_total_matches_lines]
+    failure_modes: [invalid_customer]
+  - id: charge-invoice
+    version: "1.0"
+    status: specified
+    preconditions: [invoice_unpaid]
+    postconditions: [ledger_entry_recorded]
+    invariants: [invoice_charged_at_most_once]
+    failure_modes: [card_declined, gateway_timeout]
+    interface: { operation: invoice.charge, mode: async, request: invoice, idempotent: false, auth: service-token, errors: { card_declined: charge.declined, gateway_timeout: charge.retry } }
+
+components:
+  - id: invoicing
+    version: "1.0"
+    status: specified
+    layer: application
+    provides: [issue-invoice]
+    requires: [charge-invoice@^1.0]
+    owns_data: [invoice]
+  - id: payment-worker
+    version: "1.0"
+    status: specified
+    layer: domain
+    provides: [charge-invoice]
+    owns_data: [ledger-entry]
+
+data_models:
+  - id: invoice
+    version: "1.0"
+    owner: invoicing
+    classification: confidential
+    fields: { invoice_id: uuid, amount_cents: int, status: string }
+  - id: ledger-entry
+    version: "1.0"
+    owner: payment-worker
+    classification: confidential
+    derived_from: [invoice]
+    external_source: stripe-gateway
+    fields: { entry_id: uuid, invoice_id: uuid, gateway_tx_id: string }
+
+requirements:
+  - { id: req-issue, version: "1.0", status: specified, category: functional, target: issue-invoice, criteria: [creates unpaid invoice when amount positive] }
+  - { id: req-charge, version: "1.0", status: specified, category: concurrency, target: charge-invoice, criteria: [charges unpaid invoice at most once] }
+  - { id: req-full-verification, version: "1.0", status: specified, target: billing-system, criteria: [all 10 verification categories covered before Level 3] }
+
+risks:
+  - { id: risk-double-charge, target: payment-worker, treatment: mitigation, mitigated_by: [req-charge] }
+  - { id: risk-unpinned-categories, target: billing-system, treatment: mitigation, mitigated_by: [req-full-verification], waives: verification-category, expires: release }
+
+evidence:
+  - { id: ev-issue-char, requirement_id: req-issue, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_invoicing_characterization }
+  - { id: ev-charge-char, requirement_id: req-charge, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_payment_characterization }

@@ -1,0 +1,1087 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Budget": {
+      "additionalProperties": false,
+      "description": "Context budget limits per component (\u00a7 3).",
+      "properties": {
+        "max_provides": {
+          "default": 5,
+          "description": "Max provided capabilities.",
+          "title": "Max Provides",
+          "type": "integer"
+        },
+        "max_requires": {
+          "default": 8,
+          "description": "Max required capabilities.",
+          "title": "Max Requires",
+          "type": "integer"
+        },
+        "max_owns_data": {
+          "default": 4,
+          "description": "Max owned data models.",
+          "title": "Max Owns Data",
+          "type": "integer"
+        }
+      },
+      "title": "Budget",
+      "type": "object"
+    },
+    "Capability": {
+      "additionalProperties": false,
+      "description": "Implementation-independent functionality with a contract (\u00a7 4).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "description": "Dot-separated integer version (\u00a7 10).",
+          "title": "Version",
+          "type": "string"
+        },
+        "status": {
+          "default": "draft",
+          "description": "Lifecycle status (\u00a7 10).",
+          "enum": [
+            "draft",
+            "specified",
+            "verified",
+            "deprecated"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "preconditions": {
+          "default": [],
+          "description": "Contract preconditions.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Preconditions",
+          "type": "array"
+        },
+        "postconditions": {
+          "default": [],
+          "description": "Contract postconditions.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Postconditions",
+          "type": "array"
+        },
+        "invariants": {
+          "default": [],
+          "description": "Contract invariants.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Invariants",
+          "type": "array"
+        },
+        "failure_modes": {
+          "default": [],
+          "description": "Named failure modes.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Failure Modes",
+          "type": "array"
+        },
+        "interface": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Interface"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Interface contract; required when another component requires this capability."
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "title": "Capability",
+      "type": "object"
+    },
+    "Component": {
+      "additionalProperties": false,
+      "description": "Independent logical unit providing capabilities (\u00a7 3).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "description": "Dot-separated integer version (\u00a7 10).",
+          "title": "Version",
+          "type": "string"
+        },
+        "status": {
+          "default": "draft",
+          "description": "Lifecycle status (\u00a7 10).",
+          "enum": [
+            "draft",
+            "specified",
+            "verified",
+            "deprecated"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "layer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One of system.layers.",
+          "title": "Layer"
+        },
+        "consistency": {
+          "default": "strong",
+          "description": "Consistency guarantee.",
+          "enum": [
+            "strong",
+            "eventual"
+          ],
+          "title": "Consistency",
+          "type": "string"
+        },
+        "provides": {
+          "default": [],
+          "description": "Provided capability IDs.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Provides",
+          "type": "array"
+        },
+        "requires": {
+          "default": [],
+          "description": "Required capability IDs or 'id@^version' (\u00a7 10).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Requires",
+          "type": "array"
+        },
+        "owns_data": {
+          "default": [],
+          "description": "Owned DataModel IDs.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Owns Data",
+          "type": "array"
+        },
+        "bindings": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Required capability ID -> provider component ID.",
+          "title": "Bindings",
+          "type": "object"
+        },
+        "source_paths": {
+          "default": [],
+          "description": "Implementation directories or modules (\u00a7 3).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Paths",
+          "type": "array"
+        },
+        "context_budget": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "default": {},
+          "description": "Per-component override of system.context_budget limits (\u00a7 3).",
+          "propertyNames": {
+            "enum": [
+              "max_provides",
+              "max_requires",
+              "max_owns_data"
+            ]
+          },
+          "title": "Context Budget",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "title": "Component",
+      "type": "object"
+    },
+    "DataModel": {
+      "additionalProperties": false,
+      "description": "Owned data structure with lineage and classification (\u00a7 5).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "description": "Dot-separated integer version (\u00a7 10).",
+          "title": "Version",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Owning component ID; must list this model in owns_data.",
+          "title": "Owner",
+          "type": "string"
+        },
+        "classification": {
+          "default": "unknown",
+          "description": "Classification; unknown requires review and is inventory-only.",
+          "enum": [
+            "unknown",
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ],
+          "title": "Classification",
+          "type": "string"
+        },
+        "classification_review": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Active requirement resolving an unknown/provisional classification.",
+          "title": "Classification Review"
+        },
+        "namespace": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Physical schema or database namespace prefix (e.g. 'auth', 'control').",
+          "title": "Namespace"
+        },
+        "storage_role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dedicated database/storage role with access permissions (e.g. 'observable_auth_role').",
+          "title": "Storage Role"
+        },
+        "fields": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Field name -> type description.",
+          "title": "Fields",
+          "type": "object"
+        },
+        "derived_from": {
+          "default": [],
+          "description": "Source DataModel IDs (lineage).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Derived From",
+          "type": "array"
+        },
+        "external_source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Entry in system.external_sources.",
+          "title": "External Source"
+        },
+        "schema_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Physical schema artifact (\u00a7 5).",
+          "title": "Schema Path"
+        },
+        "declassified_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Verified requirement authorizing lower classification than sources.",
+          "title": "Declassified By"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "owner",
+        "fields"
+      ],
+      "title": "DataModel",
+      "type": "object"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "description": "Verification result traceable to a requirement version (\u00a7 8).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "requirement_id": {
+          "description": "Verified requirement ID.",
+          "title": "Requirement Id",
+          "type": "string"
+        },
+        "requirement_version": {
+          "description": "Verified requirement version.",
+          "title": "Requirement Version",
+          "type": "string"
+        },
+        "method": {
+          "description": "Verification method.",
+          "enum": [
+            "test",
+            "proof",
+            "model-check",
+            "analysis",
+            "inspection"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "passed": {
+          "description": "Result.",
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "provenance": {
+          "description": "Artifact or tool reference, e.g. 'pytest::test_x'.",
+          "title": "Provenance",
+          "type": "string"
+        },
+        "bounds": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Bounds/scope; required for model-check.",
+          "title": "Bounds"
+        },
+        "subject_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Verified subject ID; defaults to Requirement.target when omitted.",
+          "title": "Subject Id"
+        },
+        "subject_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Subject version or immutable revision.",
+          "title": "Subject Revision"
+        },
+        "subject_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Contract version when subject_revision is bound to an implementation revision.",
+          "title": "Subject Version"
+        },
+        "artifacts": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Repository-relative evidence file paths mapped to SHA-256 digests of exact bytes.",
+          "title": "Artifacts",
+          "type": "object"
+        },
+        "skipped": {
+          "default": [],
+          "description": "Skipped check names/reasons; partial evidence cannot verify a requirement.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Skipped",
+          "type": "array"
+        },
+        "timestamp": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Execution time.",
+          "title": "Timestamp"
+        },
+        "verifier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Verifier or tool identity.",
+          "title": "Verifier"
+        },
+        "supersedes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Failed evidence ID this record supersedes.",
+          "title": "Supersedes"
+        },
+        "supersession_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Required with supersedes.",
+          "title": "Supersession Reason"
+        }
+      },
+      "required": [
+        "id",
+        "requirement_id",
+        "requirement_version",
+        "method",
+        "passed",
+        "provenance"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "Interface": {
+      "additionalProperties": false,
+      "description": "Interface contract of an exposed capability (\u00a7 4).",
+      "properties": {
+        "operation": {
+          "default": "",
+          "description": "Operation identifier or endpoint, e.g. 'POST /v1/orders'.",
+          "title": "Operation",
+          "type": "string"
+        },
+        "mode": {
+          "default": "sync",
+          "description": "Interaction mode.",
+          "enum": [
+            "sync",
+            "async"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "request": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Request DataModel ID(s).",
+          "title": "Request"
+        },
+        "response": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Response DataModel ID(s).",
+          "title": "Response"
+        },
+        "idempotent": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Whether repeated calls have the same effect.",
+          "title": "Idempotent"
+        },
+        "idempotency_strategy": {
+          "anyOf": [
+            {
+              "enum": [
+                "token",
+                "natural_key",
+                "replacing_merge_tree",
+                "outbox"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Concrete idempotency mechanism for storage or async writes.",
+          "title": "Idempotency Strategy"
+        },
+        "auth": {
+          "default": "",
+          "description": "Authentication/authorization requirement.",
+          "title": "Auth",
+          "type": "string"
+        },
+        "errors": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "description": "Failure mode -> status code or event; keys equal failure_modes.",
+          "title": "Errors",
+          "type": "object"
+        }
+      },
+      "title": "Interface",
+      "type": "object"
+    },
+    "Requirement": {
+      "additionalProperties": false,
+      "description": "Expected behavior or constraint with acceptance criteria (\u00a7 6).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "description": "Dot-separated integer version (\u00a7 10).",
+          "title": "Version",
+          "type": "string"
+        },
+        "target": {
+          "description": "System, component, capability or data model ID.",
+          "title": "Target",
+          "type": "string"
+        },
+        "status": {
+          "default": "draft",
+          "description": "Lifecycle status; 'deprecated' requirements are inactive (\u00a7 6).",
+          "enum": [
+            "draft",
+            "specified",
+            "verified",
+            "deprecated"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "kind": {
+          "default": "functional",
+          "description": "Property kind.",
+          "enum": [
+            "functional",
+            "non-functional"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "enum": [
+                "functional",
+                "semantic",
+                "contract",
+                "serialization",
+                "concurrency",
+                "performance",
+                "scalability",
+                "resilience",
+                "security",
+                "observability"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Verification category; all 10 must be covered (\u00a7 11).",
+          "title": "Category"
+        },
+        "mandatory": {
+          "default": true,
+          "description": "Mandatory requirements need evidence at release.",
+          "title": "Mandatory",
+          "type": "boolean"
+        },
+        "criteria": {
+          "description": "Acceptance criteria.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Criteria",
+          "type": "array"
+        },
+        "depends_on": {
+          "default": [],
+          "description": "Prerequisite requirement IDs.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "refines": {
+          "default": [],
+          "description": "Requirement IDs whose obligations this elaborates.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Refines",
+          "type": "array"
+        },
+        "conflicts_with": {
+          "default": [],
+          "description": "Incompatible requirement IDs.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Conflicts With",
+          "type": "array"
+        },
+        "resolved_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Active requirement resolving this requirement's conflicts.",
+          "title": "Resolved By"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "target",
+        "criteria"
+      ],
+      "title": "Requirement",
+      "type": "object"
+    },
+    "Risk": {
+      "additionalProperties": false,
+      "description": "Risk or tracked architectural exception (\u00a7 7).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "target": {
+          "description": "System, component, capability or data model ID.",
+          "title": "Target",
+          "type": "string"
+        },
+        "treatment": {
+          "description": "Risk treatment.",
+          "enum": [
+            "mitigation",
+            "acceptance",
+            "avoidance",
+            "transfer"
+          ],
+          "title": "Treatment",
+          "type": "string"
+        },
+        "mitigated_by": {
+          "default": [],
+          "description": "Mitigating or remediation requirement IDs; need evidence at release.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Mitigated By",
+          "type": "array"
+        },
+        "residual_accepted": {
+          "default": false,
+          "description": "Residual risk explicitly accepted.",
+          "title": "Residual Accepted",
+          "type": "boolean"
+        },
+        "transferred_to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Counterparty for 'transfer'.",
+          "title": "Transferred To"
+        },
+        "waives": {
+          "anyOf": [
+            {
+              "enum": [
+                "layer-violation",
+                "dependency-cycle",
+                "shared-data-ownership",
+                "context-budget",
+                "verification-category",
+                "DATA-03",
+                "COMP-03",
+                "COMP-05",
+                "COMP-06",
+                "REQ-01"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Waived violation kind or invariant ID (below release).",
+          "title": "Waives"
+        },
+        "expires": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "enum": [
+                "architecture",
+                "verification",
+                "release"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Waiver expiry: ISO date or stage.",
+          "title": "Expires"
+        }
+      },
+      "required": [
+        "id",
+        "target",
+        "treatment"
+      ],
+      "title": "Risk",
+      "type": "object"
+    },
+    "SubjectBinding": {
+      "additionalProperties": false,
+      "description": "Reviewed contract/source binding; optional file checks establish artifact integrity.",
+      "properties": {
+        "version": {
+          "description": "Dot-separated integer version (\u00a7 10).",
+          "title": "Version",
+          "type": "string"
+        },
+        "revision": {
+          "description": "Reviewed source revision; distinct from contract version.",
+          "title": "Revision",
+          "type": "string"
+        },
+        "artifacts": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Repository-relative source files mapped to exact-byte SHA-256 digests.",
+          "minProperties": 1,
+          "title": "Artifacts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "version",
+        "revision",
+        "artifacts"
+      ],
+      "title": "SubjectBinding",
+      "type": "object"
+    },
+    "SystemDef": {
+      "additionalProperties": false,
+      "description": "System: composition of components (\u00a7 2).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "description": "Dot-separated integer version (\u00a7 10).",
+          "title": "Version",
+          "type": "string"
+        },
+        "status": {
+          "default": "draft",
+          "description": "Lifecycle status (\u00a7 10).",
+          "enum": [
+            "draft",
+            "specified",
+            "verified",
+            "deprecated"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "layers": {
+          "default": [],
+          "description": "Layers, highest first; dependencies point downward (\u00a7 2).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Layers",
+          "type": "array"
+        },
+        "external_sources": {
+          "default": [],
+          "description": "Registered external data sources (\u00a7 5).",
+          "items": {
+            "type": "string"
+          },
+          "title": "External Sources",
+          "type": "array"
+        },
+        "quality_attributes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Measurable quality attributes (\u00a7 9).",
+          "title": "Quality Attributes",
+          "type": "object"
+        },
+        "context_budget": {
+          "$ref": "#/$defs/Budget",
+          "default": {
+            "max_provides": 5,
+            "max_requires": 8,
+            "max_owns_data": 4
+          },
+          "description": "Component size limits (\u00a7 3)."
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "title": "SystemDef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "System specification document (spec.md).",
+  "properties": {
+    "system": {
+      "$ref": "#/$defs/SystemDef"
+    },
+    "capabilities": {
+      "items": {
+        "$ref": "#/$defs/Capability"
+      },
+      "title": "Capabilities",
+      "type": "array"
+    },
+    "components": {
+      "items": {
+        "$ref": "#/$defs/Component"
+      },
+      "title": "Components",
+      "type": "array"
+    },
+    "data_models": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/DataModel"
+      },
+      "title": "Data Models",
+      "type": "array"
+    },
+    "requirements": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Requirement"
+      },
+      "title": "Requirements",
+      "type": "array"
+    },
+    "risks": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Risk"
+      },
+      "title": "Risks",
+      "type": "array"
+    },
+    "evidence": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Evidence"
+      },
+      "title": "Evidence",
+      "type": "array"
+    },
+    "subject_bindings": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SubjectBinding"
+      },
+      "default": {},
+      "description": "Subject ID -> reviewed contract version, source revision and artifact hashes.",
+      "title": "Subject Bindings",
+      "type": "object"
+    }
+  },
+  "required": [
+    "system",
+    "capabilities",
+    "components"
+  ],
+  "title": "Spec",
+  "type": "object"
+}

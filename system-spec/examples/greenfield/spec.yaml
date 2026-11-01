@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=../../reference-implementation/schema.json
+system:
+  id: commerce-system
+  version: "1.0"
+  status: verified
+  layers: [experience, application, domain, infrastructure]
+  external_sources: [erp-product-feed]
+  quality_attributes: { latency_p95: "<100ms", throughput: "1000 req/s" }
+
+capabilities:
+  - id: place-order
+    version: "1.0"
+    status: verified
+    preconditions: [cart_not_empty, customer_active]
+    postconditions: [order_created, inventory_reserved]
+    invariants: [order_paid_at_most_once]
+    failure_modes: [insufficient_inventory, customer_blocked]
+    interface: { operation: POST /v1/orders, request: order, response: order, idempotent: true, auth: customer-token, errors: { insufficient_inventory: 409, customer_blocked: 403 } }
+  - id: reserve-inventory
+    version: "1.0"
+    status: verified
+    preconditions: [product_exists, quantity_positive]
+    postconditions: [reservation_created, stock_decremented]
+    invariants: [stock_never_negative]
+    failure_modes: [insufficient_inventory, product_not_found]
+    interface: { operation: POST /v1/reservations, request: stock-item, idempotent: true, auth: service-token, errors: { insufficient_inventory: 409, product_not_found: 404 } }
+
+components:
+  - id: checkout
+    version: "1.0"
+    status: verified
+    layer: application
+    provides: [place-order]
+    requires: [reserve-inventory@^1.0]
+    owns_data: [order]
+  - id: inventory
+    version: "1.0"
+    status: verified
+    layer: domain
+    provides: [reserve-inventory]
+    owns_data: [stock-item, order-stock-projection]
+
+data_models:
+  - id: stock-item
+    version: "1.0"
+    owner: inventory
+    classification: internal
+    external_source: erp-product-feed
+    fields: { product_id: uuid, available_qty: int }
+  - id: order
+    version: "1.0"
+    owner: checkout
+    classification: confidential
+    fields: { order_id: uuid, customer_email: string, status: string }
+  - id: order-stock-projection
+    version: "1.0"
+    owner: inventory
+    classification: confidential
+    derived_from: [order, stock-item]
+    fields: { order_id: uuid, product_id: uuid }
+
+requirements:
+  - { id: req-order-func, version: "1.0", status: verified, category: functional, target: place-order, criteria: [order created when stock available] }
+  - { id: req-order-sem, version: "1.0", status: verified, category: semantic, target: place-order, criteria: [blocked customer cannot place order] }
+  - { id: req-order-contract, version: "1.0", status: verified, category: contract, target: place-order, criteria: [returns 201 on creation and 409 on insufficient_inventory] }
+  - { id: req-order-serial, version: "1.0", status: verified, category: serialization, target: order, criteria: [order JSON payload validates against schema] }
+  - { id: req-reserve-conc, version: "1.0", status: verified, category: concurrency, target: reserve-inventory, criteria: [stock never negative under concurrent reservations] }
+  - { id: req-projection, version: "1.0", status: verified, category: semantic, target: order-stock-projection, criteria: [every projection references an existing order and stock-item] }
+  - { id: req-latency, version: "1.0", status: verified, category: performance, target: commerce-system, kind: non-functional, criteria: [p95 < 100ms] }
+  - { id: req-scale, version: "1.0", status: verified, category: scalability, target: commerce-system, kind: non-functional, criteria: [sustains 1000 req/s] }
+  - { id: req-resilience, version: "1.0", status: verified, category: resilience, target: checkout, kind: non-functional, criteria: [retries transient inventory timeouts with idempotency key] }
+  - { id: req-security, version: "1.0", status: verified, category: security, target: checkout, kind: non-functional, criteria: [requires authenticated customer token] }
+  - { id: req-observability, version: "1.0", status: verified, category: observability, target: commerce-system, kind: non-functional, criteria: [emits correlation_id and reservation latency metrics] }
+
+risks:
+  - { id: risk-oversell, target: inventory, treatment: mitigation, mitigated_by: [req-reserve-conc] }
+  - { id: risk-erp-delay, target: commerce-system, treatment: acceptance, residual_accepted: true }
+  - { id: risk-payment-fraud, target: commerce-system, treatment: transfer, transferred_to: payment-provider, residual_accepted: true }
+
+evidence:
+  - { id: ev-order-func, requirement_id: req-order-func, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_checkout_create, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-order-sem, requirement_id: req-order-sem, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_blocked_customer, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-order-contract, requirement_id: req-order-contract, requirement_version: "1.0", method: test, passed: true, provenance: schemathesis::orders_api, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-order-serial, requirement_id: req-order-serial, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_order_serialization, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-reserve-tla, requirement_id: req-reserve-conc, requirement_version: "1.0", method: model-check, bounds: { products: 2, max_qty: 3 }, passed: true, provenance: tla+::Inventory.tla, subject_revision: "1.0", timestamp: 2026-10-30, verifier: tlc }
+  - { id: ev-projection-alloy, requirement_id: req-projection, requirement_version: "1.0", method: model-check, bounds: { scope: 5 }, passed: true, provenance: alloy::Inventory.als, subject_revision: "1.0", timestamp: 2026-10-30, verifier: alloy }
+  - { id: ev-latency, requirement_id: req-latency, requirement_version: "1.0", method: analysis, passed: true, provenance: k6::latency_report, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-scale, requirement_id: req-scale, requirement_version: "1.0", method: analysis, passed: true, provenance: k6::throughput_report, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-resilience, requirement_id: req-resilience, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_inventory_retry, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-security, requirement_id: req-security, requirement_version: "1.0", method: inspection, passed: true, provenance: sec::auth_review, subject_revision: "1.0", timestamp: 2026-10-30, verifier: sec-team }
+  - { id: ev-observability, requirement_id: req-observability, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_telemetry, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }

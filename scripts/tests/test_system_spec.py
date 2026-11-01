@@ -198,6 +198,36 @@ class SystemSpecConsistencyTests(unittest.TestCase):
                 f"Evidence '{eid}' timestamp '{tm.group(1)}' is not valid ISO 8601 UTC",
             )
 
+    def test_system_spec_release_stage_validation(self):
+        import shutil
+        import subprocess
+
+        system_spec_bin = shutil.which("system-spec")
+        uv_bin = shutil.which("uv")
+        if system_spec_bin:
+            cmd = [system_spec_bin, str(SPEC), "--stage", "release"]
+        elif uv_bin:
+            cmd = [
+                uv_bin,
+                "run",
+                "--project",
+                str(ROOT / "models"),
+                "system-spec",
+                str(SPEC),
+                "--stage",
+                "release",
+            ]
+        else:
+            self.fail("Neither system-spec nor uv is available in PATH")
+
+        res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(ROOT))
+        self.assertEqual(
+            res.returncode,
+            0,
+            f"system-spec release validation failed with exit {res.returncode}:\n{res.stderr}\n{res.stdout}",
+        )
+        self.assertIn("VALID", res.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=../../reference-implementation/schema.json
+system:
+  id: billing-system
+  version: "1.0"
+  layers: [application, domain]
+  external_sources: [stripe-gateway]
+
+capabilities:
+  - id: issue-invoice
+    version: "1.0"
+    status: specified
+    preconditions: [amount_positive]
+    postconditions: [invoice_created]
+    invariants: [invoice_total_matches_lines]
+    failure_modes: [invalid_customer]
+  - id: charge-invoice
+    version: "1.0"
+    status: specified
+    preconditions: [invoice_unpaid]
+    postconditions: [ledger_entry_recorded]
+    invariants: [invoice_charged_at_most_once]
+    failure_modes: [card_declined, gateway_timeout]
+    interface: { operation: invoice.charge, mode: async, request: invoice, idempotent: false, auth: service-token, errors: { card_declined: charge.declined, gateway_timeout: charge.retry } }
+
+components:
+  - id: invoicing
+    version: "1.0"
+    status: specified
+    layer: application
+    provides: [issue-invoice]
+    requires: [charge-invoice@^1.0]
+    owns_data: [invoice]
+  - id: payment-worker
+    version: "1.0"
+    status: specified
+    layer: domain
+    provides: [charge-invoice]
+    owns_data: [ledger-entry, invoice]
+
+data_models:
+  - id: invoice
+    version: "1.0"
+    owner: invoicing
+    classification: confidential
+    fields: { invoice_id: uuid, amount_cents: int, status: string }
+  - id: ledger-entry
+    version: "1.0"
+    owner: payment-worker
+    classification: confidential
+    derived_from: [invoice]
+    external_source: stripe-gateway
+    fields: { entry_id: uuid, invoice_id: uuid, gateway_tx_id: string }
+
+requirements:
+  - { id: req-split-ownership, version: "1.0", target: payment-worker, criteria: [payment-worker updates invoice only via issue-invoice or charge-invoice] }
+
+risks:
+  - { id: risk-shared-invoice-table, target: invoice, treatment: mitigation, mitigated_by: [req-split-ownership], waives: shared-data-ownership, expires: verification }

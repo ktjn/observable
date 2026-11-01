@@ -56,7 +56,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 step "CI policy regression tests"
-python -m unittest discover -s scripts/tests -p "test_*.py" || fail "CI policy regression tests"
+PYTHON_CMD="python"
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON_CMD="python3"
+fi
+PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}scripts/tests" $PYTHON_CMD -m unittest discover -s scripts/tests -p "test_*.py" || fail "CI policy regression tests"
 
 step "Version metadata"
 bash scripts/verify-version.sh && ok "version metadata" || fail "version metadata"
@@ -176,6 +180,13 @@ bash "$REPO_ROOT/scripts/check-component-boundaries.sh" && ok "component boundar
 
 step "System specification consistency"
 python3 "$REPO_ROOT/scripts/tests/test_system_spec.py" && ok "system specification consistency" || fail "system specification consistency"
+
+step "System specification release validation"
+if command -v system-spec >/dev/null 2>&1; then
+  system-spec "$REPO_ROOT/spec/system.yaml" --stage release && ok "system specification release validation" || fail "system specification release validation"
+else
+  uv run --project "$REPO_ROOT/models" system-spec "$REPO_ROOT/spec/system.yaml" --stage release && ok "system specification release validation" || fail "system specification release validation"
+fi
 
 step "System specification evidence provenance"
 python3 "$REPO_ROOT/scripts/update-spec-evidence.py" --check && ok "system spec evidence provenance" || fail "system spec evidence provenance"

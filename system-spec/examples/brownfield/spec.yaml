@@ -1,0 +1,85 @@
+# yaml-language-server: $schema=../../reference-implementation/schema.json
+system:
+  id: billing-system
+  version: "1.1"
+  status: verified
+  layers: [application, domain]
+  external_sources: [stripe-gateway]
+  quality_attributes: { charge_idempotency_window: "24h" }
+
+capabilities:
+  - id: issue-invoice
+    version: "1.1"
+    status: verified
+    preconditions: [amount_positive]
+    postconditions: [invoice_created, audit_logged]
+    invariants: [invoice_total_matches_lines]
+    failure_modes: [invalid_customer]
+    interface: { operation: POST /v1/invoices, request: invoice, response: invoice, idempotent: false, auth: merchant-token, errors: { invalid_customer: 422 } }
+  - id: charge-invoice
+    version: "1.1"
+    status: verified
+    preconditions: [invoice_unpaid]
+    postconditions: [ledger_entry_recorded, invoice_marked_paid]
+    invariants: [invoice_charged_at_most_once]
+    failure_modes: [card_declined, gateway_timeout]
+    interface: { operation: invoice.charge, mode: async, request: invoice, response: ledger-entry, idempotent: true, auth: service-token, errors: { card_declined: charge.declined, gateway_timeout: charge.retry } }
+
+components:
+  - id: invoicing
+    version: "1.1"
+    status: verified
+    layer: application
+    provides: [issue-invoice]
+    requires: [charge-invoice@^1.0]
+    owns_data: [invoice]
+  - id: payment-worker
+    version: "1.1"
+    status: verified
+    layer: domain
+    provides: [charge-invoice]
+    owns_data: [ledger-entry]
+
+data_models:
+  - id: invoice
+    version: "1.1"
+    owner: invoicing
+    classification: confidential
+    fields: { invoice_id: uuid, amount_cents: int, status: string }
+  - id: ledger-entry
+    version: "1.1"
+    owner: payment-worker
+    classification: confidential
+    derived_from: [invoice]
+    external_source: stripe-gateway
+    fields: { entry_id: uuid, invoice_id: uuid, gateway_tx_id: string }
+
+requirements:
+  - { id: req-issue-func, version: "1.1", status: verified, category: functional, target: issue-invoice, criteria: [creates unpaid invoice and audit log when amount positive] }
+  - { id: req-issue-sem, version: "1.1", status: verified, category: semantic, target: issue-invoice, criteria: [rejects invalid_customer and preserves invoice_total_matches_lines] }
+  - { id: req-issue-contract, version: "1.1", status: verified, category: contract, target: issue-invoice, criteria: [returns 201 on invoice creation and 422 on invalid_customer] }
+  - { id: req-invoice-serial, version: "1.1", status: verified, category: serialization, target: invoice, criteria: [invoice and ledger-entry payloads validate against schema] }
+  - { id: req-charge-conc, version: "1.1", status: verified, category: concurrency, target: charge-invoice, criteria: [charges unpaid invoice at most once under concurrent retries] }
+  - { id: req-ledger-rel, version: "1.1", status: verified, category: semantic, target: ledger-entry, criteria: [every ledger-entry references an existing invoice] }
+  - { id: req-latency, version: "1.1", status: verified, category: performance, target: billing-system, kind: non-functional, criteria: [issue-invoice p95 < 150ms] }
+  - { id: req-scale, version: "1.1", status: verified, category: scalability, target: billing-system, kind: non-functional, criteria: [sustains 500 charges/s] }
+  - { id: req-resilience, version: "1.1", status: verified, category: resilience, target: payment-worker, kind: non-functional, criteria: [retries gateway_timeout with idempotency key within 24h window] }
+  - { id: req-security, version: "1.1", status: verified, category: security, target: invoicing, kind: non-functional, criteria: [requires authenticated merchant token and restricts confidential fields] }
+  - { id: req-observability, version: "1.1", status: verified, category: observability, target: billing-system, kind: non-functional, criteria: [emits correlation_id, audit log and gateway latency metrics] }
+
+risks:
+  - { id: risk-double-charge, target: payment-worker, treatment: mitigation, mitigated_by: [req-charge-conc] }
+  - { id: risk-gateway-outage, target: billing-system, treatment: acceptance, residual_accepted: true }
+
+evidence:
+  - { id: ev-issue-func, requirement_id: req-issue-func, requirement_version: "1.1", method: test, passed: true, provenance: pytest::test_invoicing_create, subject_revision: "1.1", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-issue-sem, requirement_id: req-issue-sem, requirement_version: "1.1", method: test, passed: true, provenance: pytest::test_invoicing_rules, subject_revision: "1.1", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-issue-contract, requirement_id: req-issue-contract, requirement_version: "1.1", method: test, passed: true, provenance: schemathesis::billing_api, subject_revision: "1.1", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-invoice-serial, requirement_id: req-invoice-serial, requirement_version: "1.1", method: test, passed: true, provenance: pytest::test_invoice_serialization, subject_revision: "1.1", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-charge-tla, requirement_id: req-charge-conc, requirement_version: "1.1", method: model-check, bounds: { invoices: 2, retries: 3 }, passed: true, provenance: tla+::Billing.tla, subject_revision: "1.1", timestamp: 2026-10-30, verifier: tlc }
+  - { id: ev-ledger-alloy, requirement_id: req-ledger-rel, requirement_version: "1.1", method: model-check, bounds: { scope: 5 }, passed: true, provenance: alloy::Billing.als, subject_revision: "1.1", timestamp: 2026-10-30, verifier: alloy }
+  - { id: ev-latency, requirement_id: req-latency, requirement_version: "1.1", method: analysis, passed: true, provenance: k6::billing_latency, subject_revision: "1.1", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-scale, requirement_id: req-scale, requirement_version: "1.1", method: analysis, passed: true, provenance: k6::billing_throughput, subject_revision: "1.1", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-resilience, requirement_id: req-resilience, requirement_version: "1.1", method: test, passed: true, provenance: pytest::test_gateway_retry, subject_revision: "1.1", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-security, requirement_id: req-security, requirement_version: "1.1", method: inspection, passed: true, provenance: sec::billing_auth_review, subject_revision: "1.1", timestamp: 2026-10-30, verifier: sec-team }
+  - { id: ev-observability, requirement_id: req-observability, requirement_version: "1.1", method: test, passed: true, provenance: pytest::test_billing_telemetry, subject_revision: "1.1", timestamp: 2026-10-30, verifier: ci }
