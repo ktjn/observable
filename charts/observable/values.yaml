@@ -20,19 +20,29 @@ global:
 
 # Infrastructure connection strings.
 # These are consumed by multiple services and centralised here to avoid
-# repetition.  They must be overridden in production (use ExternalSecret or
-# a sealed-secrets file).
+# repetition.  They must be overridden in production (use ExternalSecret,
+# sealed-secrets, or Vault-injected secrets).
 clickhouse:
   url: "http://clickhouse:8123"
   user: "default"
   password: "observable"
   database: "observable"
+  # Existing Kubernetes Secret containing ClickHouse credentials.
+  # When set, CLICKHOUSE_PASSWORD will be injected via valueFrom.secretKeyRef.
+  existingSecret: ""
+  existingSecretKey: "CLICKHOUSE_PASSWORD"
 
 postgres:
   # Must include credentials; rotate via ExternalSecret in production.
   url: "postgres://observable:observable@postgres:5432/observable"
   user: "observable"
   password: "observable"
+  # Existing Kubernetes Secret containing global fallback PostgreSQL credentials.
+  # When set, DATABASE_URL will be injected via valueFrom.secretKeyRef.
+  existingSecret: ""
+  existingSecretKey: "DATABASE_URL"
+  # Secret key for postgres-migrate init container when running migrations
+  existingPasswordKey: "PGPASSWORD"
 
 redpanda:
   brokers: "redpanda:9093"
@@ -46,6 +56,9 @@ redpanda:
 # Rotate via ExternalSecret in production; this is a dev-only default matching
 # docker-compose.yml's.
 internalServiceToken: "dev-internal-token-0000"
+# When set, INTERNAL_SERVICE_TOKEN will be injected via valueFrom.secretKeyRef.
+internalServiceTokenSecret: ""
+internalServiceTokenSecretKey: "INTERNAL_SERVICE_TOKEN"
 
 selfObservability:
   # Supported modes:
@@ -56,6 +69,9 @@ selfObservability:
   # bearerToken: set to the plaintext API key for the observable-internal ingestion key.
   # The corresponding key must exist in the api_keys table with environment='observable'.
   bearerToken: ""
+  # When set, OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN will be injected via valueFrom.secretKeyRef.
+  existingSecret: ""
+  existingSecretKey: "OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN"
 
 # Per-service configuration.
 # Each block maps directly to one Deployment + one Service (except
@@ -66,6 +82,11 @@ services:
     image: { repository: observable-auth, tag: "0.1.0" }
     port: 4319
     replicas: 1
+    # Scoped database URL or secret (AUTH_DATABASE_URL).
+    # Overrides the global postgres.url or postgres.existingSecret.
+    databaseUrl: ""
+    existingSecret: ""
+    existingSecretKey: "AUTH_DATABASE_URL"
     resources:
       requests:
         cpu: 100m
@@ -80,6 +101,11 @@ services:
     port: 4324
     replicas: 1
     authServiceUrl: "http://auth-service:4319"
+    # Scoped database URL or secret (CONTROL_DATABASE_URL).
+    # Overrides the global postgres.url or postgres.existingSecret.
+    databaseUrl: ""
+    existingSecret: ""
+    existingSecretKey: "CONTROL_DATABASE_URL"
     resources:
       requests:
         cpu: 100m
@@ -156,6 +182,11 @@ services:
     replicas: 1
     # Interval at which the evaluator polls for alert conditions (seconds).
     evalIntervalSeconds: "60"
+    # Scoped database URL or secret (ALERTING_DATABASE_URL).
+    # Overrides the global postgres.url or postgres.existingSecret.
+    databaseUrl: ""
+    existingSecret: ""
+    existingSecretKey: "ALERTING_DATABASE_URL"
     resources:
       requests:
         cpu: 100m
@@ -289,7 +320,10 @@ identity:
   # REQUIRED for any non-dev install: a random, unique session-signing secret
   # (e.g. `openssl rand -base64 32`). Left empty by default so auth-service
   # fails closed instead of starting with a guessable default secret.
+  # Can be injected directly or via existingSecret.
   sessionSecret: ""
+  existingSecret: ""
+  existingSecretKey: "SESSION_SECRET"
   env: "dev"
 
 # Kubernetes Gateway API — attaches Zitadel browser paths to the shared

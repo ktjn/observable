@@ -59,13 +59,27 @@ spec:
             - name: PGUSER
               value: {{ .Values.postgres.user | default "observable" | quote }}
             - name: PGPASSWORD
+            {{- if .Values.postgres.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.existingSecret }}
+                  key: {{ .Values.postgres.existingPasswordKey | default "PGPASSWORD" }}
+            {{- else }}
               value: {{ .Values.postgres.password | default "observable" | quote }}
+            {{- end }}
             - name: OBSERVABLE_SELF_OBSERVABILITY_MODE
               value: {{ .Values.selfObservability.mode | quote }}
             - name: OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT
               value: {{ .Values.selfObservability.otlpEndpoint | quote }}
             - name: OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN
+            {{- if .Values.selfObservability.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.selfObservability.existingSecret }}
+                  key: {{ .Values.selfObservability.existingSecretKey | default "OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN" }}
+            {{- else }}
               value: {{ .Values.selfObservability.bearerToken | quote }}
+            {{- end }}
           volumeMounts:
             - name: postgres-migrations
               mountPath: /migrations/postgres
@@ -96,13 +110,27 @@ spec:
             - name: CLICKHOUSE_USER
               value: {{ .Values.clickhouse.user | quote }}
             - name: CLICKHOUSE_PASSWORD
+            {{- if .Values.clickhouse.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.clickhouse.existingSecret }}
+                  key: {{ .Values.clickhouse.existingSecretKey | default "CLICKHOUSE_PASSWORD" }}
+            {{- else }}
               value: {{ .Values.clickhouse.password | quote }}
+            {{- end }}
             - name: OBSERVABLE_SELF_OBSERVABILITY_MODE
               value: {{ .Values.selfObservability.mode | quote }}
             - name: OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT
               value: {{ .Values.selfObservability.otlpEndpoint | quote }}
             - name: OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN
+            {{- if .Values.selfObservability.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.selfObservability.existingSecret }}
+                  key: {{ .Values.selfObservability.existingSecretKey | default "OBSERVABLE_SELF_OBSERVABILITY_BEARER_TOKEN" }}
+            {{- else }}
               value: {{ .Values.selfObservability.bearerToken | quote }}
+            {{- end }}
           volumeMounts:
             - name: clickhouse-migrations
               mountPath: /migrations/clickhouse

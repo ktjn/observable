@@ -13,27 +13,41 @@ global:
     pullPolicy: IfNotPresent
 
 # Infrastructure — replace with your actual connection details.
-# For secrets, prefer ExternalSecret or sealed-secrets over inline values.
+# In production, avoid inline credentials and use existingSecret to reference
+# Kubernetes Secrets created by ExternalSecret, Vault CSI, or SealedSecrets.
 clickhouse:
   url: "http://clickhouse.infra.svc.cluster.local:8123"
   user: "observable"
-  password: "REPLACE_WITH_CLICKHOUSE_PASSWORD"
   database: "observable"
+  # In production, inject CLICKHOUSE_PASSWORD from a Kubernetes Secret:
+  existingSecret: "observable-clickhouse-credentials"
+  existingSecretKey: "password"
+  # password: ""  # Leave blank when existingSecret is used
 
 postgres:
-  url: "postgres://observable:REPLACE_WITH_PG_PASSWORD@postgres.infra.svc.cluster.local:5432/observable"
+  url: "postgres://observable@postgres.infra.svc.cluster.local:5432/observable"
   user: "observable"
-  password: "REPLACE_WITH_PG_PASSWORD"
+  # Global fallback PostgreSQL credentials secret:
+  existingSecret: "observable-postgres-credentials"
+  existingSecretKey: "DATABASE_URL"
+  existingPasswordKey: "PGPASSWORD"
+  # password: ""  # Leave blank when existingSecret is used
 
 redpanda:
   brokers: "redpanda.infra.svc.cluster.local:9093"
   ingestTopic: "telemetry.raw.v1"
   normalizedTopic: "telemetry.normalized.v1"
 
+# Internal service token secret for admin-service /internal/* endpoints
+internalServiceTokenSecret: "observable-internal-token"
+internalServiceTokenSecretKey: "token"
+
 selfObservability:
   mode: "self"
   otlpEndpoint: "http://ingest-gateway:4317"
-  bearerToken: ""   # Set to the API key for the observable-internal tenant
+  # Set via existingSecret to avoid plaintext API keys in values files:
+  existingSecret: "observable-selfobs-credentials"
+  existingSecretKey: "bearer-token"
 
 # Identity — MUST be configured for production.
 identity:
@@ -43,13 +57,18 @@ identity:
   apiBase: "http://zitadel:8080"
   clientId: "REPLACE_WITH_OIDC_CLIENT_ID"
   redirectUri: "https://observable.example.com/auth/callback"
-  # Generate with: openssl rand -base64 32
-  sessionSecret: "REPLACE_WITH_RANDOM_SECRET"
+  # Inject session signing secret via Kubernetes Secret:
+  existingSecret: "observable-session-secret"
+  existingSecretKey: "session-secret"
 
 services:
   authService:
     image: { repository: observable-auth, tag: "0.1.0" }   # Pin to the component version
     replicas: 2
+    # Optional scoped database credentials (AUTH_DATABASE_URL).
+    # Enables principle of least privilege / per-service database users.
+    existingSecret: "observable-auth-db-credentials"
+    existingSecretKey: "AUTH_DATABASE_URL"
     resources:
       requests:
         cpu: 200m
@@ -62,6 +81,9 @@ services:
     image: { repository: observable-control, tag: "0.1.0" }   # Pin to the component version
     replicas: 2
     authServiceUrl: "http://auth-service:4319"
+    # Optional scoped database credentials (CONTROL_DATABASE_URL).
+    existingSecret: "observable-control-db-credentials"
+    existingSecretKey: "CONTROL_DATABASE_URL"
     resources:
       requests:
         cpu: 200m
@@ -118,6 +140,9 @@ services:
     image: { repository: observable-alerting, tag: "0.1.0" }   # Pin to the component version
     replicas: 1
     evalIntervalSeconds: "60"
+    # Optional scoped database credentials (ALERTING_DATABASE_URL).
+    existingSecret: "observable-alerting-db-credentials"
+    existingSecretKey: "ALERTING_DATABASE_URL"
     resources:
       requests:
         cpu: 200m
