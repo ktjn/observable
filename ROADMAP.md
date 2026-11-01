@@ -316,6 +316,8 @@ Tenant-aware ingest quotas and cardinality limits are enforced prior to queue ad
 
 Multi-tenant retention configurations and GDPR hard-purge workflows are enforced in `admin-service` (`GET/PUT /v1/tenants/:id/config`, `DELETE /v1/tenants/:id`) across ClickHouse and PostgreSQL, with verifiable audit trails recorded in `credential_audit_log` (`action = 'tenant_purge'`) and detailed completion semantics documented in [docs/retention-deletion.md](docs/retention-deletion.md). Integration test suites (`postgres_tenant_purge_integration.rs`) verify end-to-end cascading deletion and non-admin access isolation.
 
+Credential lifecycle audit coverage is completed across token issuance, renewal, revocation, restoration, and deletion (`credential_audit_log` actions: `token_create`, `token_renew`, `token_revoke`, `token_restore`, `token_delete`), along with session tenant switching auditability (`action = 'tenant_select'`). Adversarial test suites (`auth_tenant_isolation_integration.rs`) verify that tokens and alert rules/firings are strictly isolated between tenants and cross-tenant access attempts are rejected.
+
 **Exit evidence:**
 
 - Load and adversarial tests prove limits cannot be bypassed across tenants or environments.

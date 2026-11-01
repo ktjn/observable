@@ -569,6 +569,11 @@ pub async fn validate_session_handler(
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if !active {
+        crate::audit::write(
+            &state.db,
+            &crate::audit::AuditEntry::deny(claims.nonce, user_id, "session_revoked_or_expired"),
+        )
+        .await;
         return Err(StatusCode::UNAUTHORIZED);
     }
 
@@ -588,7 +593,21 @@ pub async fn validate_session_handler(
             })?;
 
             match role_opt {
-                Some(r) => (req_tid.to_string(), r),
+                Some(r) => {
+                    crate::audit::write(
+                        &state.db,
+                        &crate::audit::AuditEntry {
+                            action: "tenant_select",
+                            credential_hash: claims.sub.clone(),
+                            tenant_id: Some(req_tid),
+                            outcome: "allow",
+                            denial_reason: None,
+                            auth_method: Some("oidc_session"),
+                        },
+                    )
+                    .await;
+                    (req_tid.to_string(), r)
+                }
                 None => {
                     tracing::warn!(
                         %user_id,
@@ -596,6 +615,18 @@ pub async fn validate_session_handler(
                         requested_tenant = %req_tid,
                         "user does not have access to requested tenant"
                     );
+                    crate::audit::write(
+                        &state.db,
+                        &crate::audit::AuditEntry {
+                            action: "tenant_select",
+                            credential_hash: claims.sub.clone(),
+                            tenant_id: Some(req_tid),
+                            outcome: "deny",
+                            denial_reason: Some("unauthorized_tenant"),
+                            auth_method: Some("oidc_session"),
+                        },
+                    )
+                    .await;
                     return Err(StatusCode::FORBIDDEN);
                 }
             }
