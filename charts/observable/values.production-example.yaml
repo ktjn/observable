@@ -167,3 +167,20 @@ gateway:
   port: 443
   zitadel:
     hostname: "auth.example.com"
+
+# Prometheus Operator & Grafana monitoring configuration for production.
+monitoring:
+  prometheusRule:
+    enabled: true
+    additionalLabels:
+      release: prometheus-stack
+  serviceMonitor:
+    enabled: true
+    interval: "15s"
+    scrapeTimeout: "10s"
+    additionalLabels:
+      release: prometheus-stack
+  grafanaDashboard:
+    enabled: true
+    additionalLabels:
+      grafana_dashboard: "1"

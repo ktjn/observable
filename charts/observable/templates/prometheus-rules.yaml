@@ -1,0 +1,151 @@
+{{- if .Values.monitoring.prometheusRule.enabled -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Release.Name }}-platform-alerts
+  labels:
+    {{- include "observable-common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitoring
+    {{- with .Values.monitoring.prometheusRule.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: observable.ingest.alerts
+      rules:
+        - alert: ObservableIngestGatewayDown
+          expr: up{app_kubernetes_io_component="ingest-gateway"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            tier: platform
+          annotations:
+            summary: "Ingest Gateway is down"
+            description: "No ingest-gateway pods are responding to probes. Telemetry ingestion is completely halted."
+            runbook_url: "https://github.com/ktjn/observable/blob/main/docs/runbooks/ingest-queue-failure.md"
+        - alert: ObservableIngestHighRejectionRate
+          expr: (sum(rate(ingest_gateway_rejections_total[5m])) or vector(0)) / (sum(rate(ingest_gateway_requests_total[5m])) + 0.001) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            tier: platform
+          annotations:
+            summary: "Ingest Gateway rejection rate exceeds 5%"
+            description: "More than 5% of incoming telemetry requests are being rejected due to rate limits or invalid authentication."
+            runbook_url: "https://github.com/ktjn/observable/blob/main/docs/runbooks/ingest-queue-failure.md"
+
+    - name: observable.stream.alerts
+      rules:
+        - alert: ObservableStreamProcessorDown
+          expr: up{app_kubernetes_io_component="stream-processor"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            tier: platform
+          annotations:
+            summary: "Stream Processor is down"
+            description: "Stream processor is not healthy. Raw telemetry is accumulating in Redpanda without normalization."
+            runbook_url: "https://github.com/ktjn/observable/blob/main/docs/runbooks/ingest-queue-failure.md"
+        - alert: ObservableStreamProcessorFlushErrors
+          expr: sum(rate(stream_processor_flush_errors_total[5m])) > 0
+          for: 5m
+          labels:
+            severity: warning
+            tier: platform
+          annotations:
+            summary: "Stream Processor failing to flush span metrics"
+            description: "Errors encountered while publishing span-derived metrics to the normalized stream."
+            runbook_url: "https://github.com/ktjn/observable/blob/main/docs/runbooks/ingest-queue-failure.md"
+
+    - name: observable.storage.alerts
+      rules:
+        - alert: ObservableStorageWriterDown
+          expr: up{app_kubernetes_io_component="storage-writer"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            tier: platform
+          annotations:
+            summary: "Storage Writer is down"
+            description: "Storage writer is not healthy. Normalized telemetry is not being written to ClickHouse."
+            runbook_url: "https://github.com/ktjn/observable/blob/main/docs/runbooks/storage-recovery.md"
+        - alert: ObservableStorageWriterHighErrorRate
+          expr: (sum(rate(storage_writer_http_requests_total{status=~"5.."}[5m])) or vector(0)) / (sum(rate(storage_writer_http_requests_total[5m])) + 0.001) > 0.01
+          for: 5m
+          labels:
+            severity: critical
+            tier: platform
+          annotations:
+            summary: "Storage Writer 5xx error rate exceeds 1%"
+            description: "Storage writer is encountering errors persisting telemetry batches to ClickHouse."
+            runbook_url: "https://github.com/ktjn/observable/blob/main/docs/runbooks/storage-recovery.md"
+
+    - name: observable.query.alerts
+      rules:
+        - alert: ObservableQueryApiDown
+          expr: up{app_kubernetes_io_component="query-api"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            tier: platform
+          annotations:
+            summary: "Query API is down"
+            description: "Query API is not responding to probes. Dashboard and telemetry queries are unavailable."
+            runbook_url: "https://github.com/ktjn/observable/blob/main/docs/runbooks/dependency-outage.md"
+        - alert: ObservableQueryApiHighErrorRate
+          expr: (sum(rate(query_api_http_requests_total{status=~"5.."}[5m])) or vector(0)) / (sum(rate(query_api_http_requests_total[5m])) + 0.001) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            tier: platform
+          annotations:
+            summary: "Query API 5xx error rate exceeds 5%"
+            description: "Query API is returning elevated 5xx responses for query requests."
+            runbook_url: "https://github.com/ktjn/observable/blob/main/docs/runbooks/dependency-outage.md"
+
+    - name: observable.auth.alerts
+      rules:
+        - alert: ObservableAuthServiceDown
+          expr: up{app_kubernetes_io_component="auth-service"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            tier: platform
+          annotations:
+            summary: "Auth Service is down"
+            description: "Auth service is down. User logins and ingestion key validations will fail closed."
+            runbook_url: "https://github.com/ktjn/observable/blob/main/docs/runbooks/auth-identity-failure.md"
+        - alert: ObservableAuthServiceHighErrorRate
+          expr: (sum(rate(auth_service_http_requests_total{status=~"5.."}[5m])) or vector(0)) / (sum(rate(auth_service_http_requests_total[5m])) + 0.001) > 0.02
+          for: 5m
+          labels:
+            severity: critical
+            tier: platform
+          annotations:
+            summary: "Auth Service 5xx error rate exceeds 2%"
+            description: "Auth service is encountering internal errors validating sessions or tokens."
+            runbook_url: "https://github.com/ktjn/observable/blob/main/docs/runbooks/auth-identity-failure.md"
+
+    - name: observable.control.alerts
+      rules:
+        - alert: ObservableAdminServiceDown
+          expr: up{app_kubernetes_io_component="admin-service"} == 0
+          for: 2m
+          labels:
+            severity: warning
+            tier: platform
+          annotations:
+            summary: "Admin Service is down"
+            description: "Admin service is not responding to probes. Tenant administration and configuration changes are blocked."
+            runbook_url: "https://github.com/ktjn/observable/blob/main/docs/runbooks/dependency-outage.md"
+        - alert: ObservableAlertEvaluatorDown
+          expr: up{app_kubernetes_io_component="alert-evaluator"} == 0
+          for: 2m
+          labels:
+            severity: warning
+            tier: platform
+          annotations:
+            summary: "Alert Evaluator is down"
+            description: "Alert evaluator is not healthy. Platform and customer alert rules are not being evaluated."
+            runbook_url: "https://github.com/ktjn/observable/blob/main/docs/runbooks/dependency-outage.md"
+{{- end }}
