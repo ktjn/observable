@@ -258,7 +258,6 @@ services:
       REDPANDA_BROKERS: redpanda:9092
       INGEST_TOPIC: telemetry.raw.v1
       NORMALIZED_TOPIC: telemetry.normalized.v1
-      STORAGE_WRITER_URL: http://storage-writer:4320
       STREAM_PROCESSOR_PLATFORM_PORT: "4323"
     ports: ["4323:4323"]
     healthcheck:

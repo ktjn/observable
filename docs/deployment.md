@@ -115,9 +115,9 @@ string or omit it for non-development environments.
 | `ADMIN_SERVICE_URL` | query-api | Internal URL of admin-service (deployment enrichment/correlation) |
 | `ALERT_EVALUATOR_URL` | query-api | Internal URL of alert-evaluator (alerting enrichment/correlation) |
 | `INTERNAL_SERVICE_TOKEN` | query-api, admin, alert-evaluator | Shared secret for `/internal/*` service-to-service calls |
-| `REDPANDA_BROKERS` | ingest-gateway, stream-processor | Kafka-compatible broker addresses |
-| `INGEST_TOPIC` | ingest-gateway, stream-processor | Kafka topic for raw telemetry |
-| `STORAGE_WRITER_URL` | stream-processor | Internal URL of storage-writer |
+| `REDPANDA_BROKERS` | ingest-gateway, stream-processor, storage-writer | Kafka-compatible broker addresses |
+| `INGEST_TOPIC` | ingest-gateway, stream-processor | Kafka topic for raw telemetry (`telemetry.raw.v1`) |
+| `NORMALIZED_TOPIC` | stream-processor, storage-writer | Kafka topic for normalized telemetry (`telemetry.normalized.v1`) |
 | `SESSION_SECRET` | auth-service | Session-signing secret (fail-closed if missing) |
 | `ZITADEL_ISSUER` | auth-service | Browser-reachable Zitadel URL |
 | `ZITADEL_API_BASE` | auth-service | In-cluster Zitadel URL for server-side calls |
