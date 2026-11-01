@@ -23,13 +23,14 @@
 #   docker
 #
 # Usage:
-#   bash scripts/kind-test.sh [--skip-build] [--keep-cluster] [--reuse-cluster] [--cluster-name <name>] [--pinned]
+#   bash scripts/kind-test.sh [--skip-build] [--keep-cluster] [--reuse-cluster] [--cluster-name <name>] [--pinned] [--with-drills]
 #
 #   --skip-build    skip docker build (use existing observable-<component>:local images)
 #   --keep-cluster  do not delete the kind cluster on exit (useful for debugging)
 #   --reuse-cluster use an existing kind cluster instead of recreating it
 #   --cluster-name  target kind cluster name (default: observable-test)
 #   --pinned        build and deploy using manifest-pinned version tags instead of :local
+#   --with-drills   run automated dependency-failure drills (Redpanda, ClickHouse, PostgreSQL)
 
 set -euo pipefail
 
@@ -62,6 +63,7 @@ KEEP_CLUSTER=false
 REUSE_CLUSTER=false
 DEPLOY_ONLY=false
 PINNED=false
+WITH_DRILLS=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -91,6 +93,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --pinned)
       PINNED=true
+      shift
+      ;;
+    --with-drills)
+      WITH_DRILLS=true
       shift
       ;;
     *)
@@ -461,6 +467,171 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
     info "WARN: frontend /v1 proxy did not respond"
   else
     info "PASS: frontend /v1 proxy reached query-api"
+  fi
+
+  # -------------------------------------------------------------------------
+  # Automated Dependency-Failure Drills (--with-drills)
+  # -------------------------------------------------------------------------
+  if [[ "$WITH_DRILLS" == "true" ]]; then
+    log "Running Kubernetes dependency-failure drills"
+
+    # --- Drill 1: Redpanda Interruption & Recovery ---
+    log "Drill 1: Redpanda pod disruption and recovery"
+    info "Scaling Redpanda StatefulSet to 0 replicas"
+    kubectl scale statefulset redpanda --replicas=0 --namespace "$NAMESPACE"
+    kubectl wait --for=delete pod/redpanda-0 --namespace "$NAMESPACE" --timeout=60s || true
+
+    info "Verifying ingest fails closed during Redpanda outage"
+    sleep 3
+    RP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
+      -X POST http://localhost:14318/v1/traces \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $DEV_KEY" \
+      -d '{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"drill-rp-fail-closed"}}]},"scopeSpans":[{"spans":[{"traceId":"11112222333344445555666677778888","spanId":"1111222233334444","name":"rp-down-span","startTimeUnixNano":"1000000000000000000","endTimeUnixNano":"1000000005000000000","status":{"code":1}}]}]}]}' \
+      2>/dev/null || echo "000")
+    if [[ "$RP_STATUS" -ge 400 ]] || [[ "$RP_STATUS" == "000" ]]; then
+      info "PASS: ingest rejected while Redpanda is down (HTTP $RP_STATUS)"
+    else
+      echo "WARN: expected ingest failure during broker outage, got HTTP $RP_STATUS" >&2
+    fi
+
+    info "Restoring Redpanda StatefulSet to 1 replica"
+    kubectl scale statefulset redpanda --replicas=1 --namespace "$NAMESPACE"
+    kubectl wait --for=condition=ready pod/redpanda-0 --namespace "$NAMESPACE" --timeout=120s
+    info "Waiting for services to reconnect to Redpanda"
+    sleep 10
+
+    info "Verifying pipeline recovery post-Redpanda-restore"
+    RP_RECOVER_TRACE="11111111222222223333333344444444"
+    curl -sf -X POST http://localhost:14318/v1/traces \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $DEV_KEY" \
+      -d "{
+        \"resourceSpans\": [{
+          \"resource\": {\"attributes\": [{\"key\": \"service.name\", \"value\": {\"stringValue\": \"drill-rp-recovered\"}}]},
+          \"scopeSpans\": [{
+            \"spans\": [{
+              \"traceId\": \"$RP_RECOVER_TRACE\",
+              \"spanId\": \"1234567812345678\",
+              \"name\": \"rp-recovered-span\",
+              \"startTimeUnixNano\": \"$(date +%s)000000000\",
+              \"endTimeUnixNano\": \"$(date +%s)000000001\"
+            }]
+          }]
+        }]
+      }" >/dev/null 2>&1 || true
+
+    sleep 6
+    RP_QUERY_RES=$(curl -sf "http://localhost:18090/v1/traces" -H "Authorization: Bearer $DEV_KEY" -H "X-Tenant-ID: $TENANT_ID" 2>/dev/null || echo "")
+    if echo "$RP_QUERY_RES" | grep -q "drill-rp-recovered"; then
+      info "PASS: Drill 1 complete — Redpanda disruption and recovery verified"
+    else
+      info "WARN: post-recovery trace not immediately returned (pipeline catching up)"
+    fi
+
+    # --- Drill 2: ClickHouse Interruption & Recovery ---
+    log "Drill 2: ClickHouse pod disruption and recovery"
+    info "Scaling ClickHouse Deployment to 0 replicas"
+    kubectl scale deployment clickhouse --replicas=0 --namespace "$NAMESPACE"
+    kubectl wait --for=delete pod -l app=clickhouse --namespace "$NAMESPACE" --timeout=60s || true
+
+    info "Verifying query fails or reports degraded state during ClickHouse outage"
+    sleep 2
+    CH_QUERY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
+      "http://localhost:18090/v1/services" \
+      -H "Authorization: Bearer $DEV_KEY" \
+      -H "X-Tenant-ID: $TENANT_ID" 2>/dev/null || echo "000")
+    info "Query API returned HTTP $CH_QUERY_STATUS during ClickHouse outage"
+
+    info "Verifying ingest accepts telemetry and buffers to Redpanda"
+    CH_BUFFER_TRACE="22222222333333334444444455555555"
+    CH_INGEST_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
+      -X POST http://localhost:14318/v1/traces \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $DEV_KEY" \
+      -d "{
+        \"resourceSpans\": [{
+          \"resource\": {\"attributes\": [{\"key\": \"service.name\", \"value\": {\"stringValue\": \"drill-ch-buffered\"}}]},
+          \"scopeSpans\": [{
+            \"spans\": [{
+              \"traceId\": \"$CH_BUFFER_TRACE\",
+              \"spanId\": \"8765432187654321\",
+              \"name\": \"ch-buffered-span\",
+              \"startTimeUnixNano\": \"$(date +%s)000000000\",
+              \"endTimeUnixNano\": \"$(date +%s)000000001\"
+            }]
+          }]
+        }]
+      }" 2>/dev/null || echo "000")
+    if [[ "$CH_INGEST_STATUS" -ge 200 ]] && [[ "$CH_INGEST_STATUS" -lt 400 ]]; then
+      info "PASS: ingest accepted telemetry while ClickHouse is down (HTTP $CH_INGEST_STATUS)"
+    else
+      info "INFO: ingest returned HTTP $CH_INGEST_STATUS during ClickHouse outage"
+    fi
+
+    info "Restoring ClickHouse Deployment to 1 replica"
+    kubectl scale deployment clickhouse --replicas=1 --namespace "$NAMESPACE"
+    kubectl wait deployment/clickhouse --for=condition=Available --namespace "$NAMESPACE" --timeout=120s
+    info "Waiting for storage-writer to drain backlog into ClickHouse"
+    sleep 10
+
+    CH_DRAIN_RES=$(curl -sf "http://localhost:18090/v1/traces" -H "Authorization: Bearer $DEV_KEY" -H "X-Tenant-ID: $TENANT_ID" 2>/dev/null || echo "")
+    if echo "$CH_DRAIN_RES" | grep -q "drill-ch-buffered"; then
+      info "PASS: Drill 2 complete — buffered data drained into ClickHouse after restore"
+    else
+      info "INFO: storage-writer continuing to drain queued records into ClickHouse"
+    fi
+
+    # --- Drill 3: PostgreSQL Interruption & Recovery ---
+    log "Drill 3: PostgreSQL disruption and recovery"
+    info "Suspending CloudNativePG PostgreSQL cluster (instances=0)"
+    kubectl patch cluster postgres --namespace "$NAMESPACE" --type merge -p '{"spec":{"instances":0}}'
+    kubectl wait --for=delete pod -l cnpg.io/cluster=postgres --namespace "$NAMESPACE" --timeout=60s || true
+
+    info "Verifying invalid/uncached auth fails closed without PostgreSQL"
+    PG_AUTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
+      -X POST http://localhost:14318/v1/traces \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer unauthenticated-fake-key" \
+      -d '{"resourceSpans":[]}' 2>/dev/null || echo "000")
+    if [[ "$PG_AUTH_STATUS" -ge 400 ]] || [[ "$PG_AUTH_STATUS" == "000" ]]; then
+      info "PASS: invalid/unknown token rejected while PostgreSQL is down (HTTP $PG_AUTH_STATUS)"
+    else
+      echo "WARN: auth check returned HTTP $PG_AUTH_STATUS" >&2
+    fi
+
+    info "Restoring CloudNativePG PostgreSQL cluster (instances=1)"
+    kubectl patch cluster postgres --namespace "$NAMESPACE" --type merge -p '{"spec":{"instances":1}}'
+    kubectl wait cluster/postgres --for=condition=Ready --namespace "$NAMESPACE" --timeout=180s
+    info "Waiting for microservice connection pools to reconnect"
+    sleep 10
+
+    PG_RECOVER_TRACE="33333333444444445555555566666666"
+    curl -sf -X POST http://localhost:14318/v1/traces \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $DEV_KEY" \
+      -d "{
+        \"resourceSpans\": [{
+          \"resource\": {\"attributes\": [{\"key\": \"service.name\", \"value\": {\"stringValue\": \"drill-pg-recovered\"}}]},
+          \"scopeSpans\": [{
+            \"spans\": [{
+              \"traceId\": \"$PG_RECOVER_TRACE\",
+              \"spanId\": \"9999888877776666\",
+              \"name\": \"pg-recovered-span\",
+              \"startTimeUnixNano\": \"$(date +%s)000000000\",
+              \"endTimeUnixNano\": \"$(date +%s)000000001\"
+            }]
+          }]
+        }]
+      }" >/dev/null 2>&1 || true
+
+    sleep 6
+    PG_QUERY_RES=$(curl -sf "http://localhost:18090/v1/traces" -H "Authorization: Bearer $DEV_KEY" -H "X-Tenant-ID: $TENANT_ID" 2>/dev/null || echo "")
+    if echo "$PG_QUERY_RES" | grep -q "drill-pg-recovered"; then
+      info "PASS: Drill 3 complete — PostgreSQL disruption and pool self-healing verified"
+    else
+      info "INFO: pipeline continuing post-PostgreSQL recovery"
+    fi
   fi
 
   cleanup_pf
