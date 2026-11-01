@@ -184,7 +184,8 @@ specific missing variable. Set it in your `.env` file or environment.
 2. **Redpanda**: Check that topics exist and have data:
    ```bash
    docker compose exec redpanda rpk topic list
-   docker compose exec redpanda rpk topic consume traces --num 1
+   docker compose exec redpanda rpk topic consume telemetry.raw.v1 --num 1
+   docker compose exec redpanda rpk topic consume telemetry.normalized.v1 --num 1
    ```
 
 3. **Stream processor**: Check `docker compose logs stream-processor` for
@@ -197,7 +198,7 @@ specific missing variable. Set it in your `.env` file or environment.
    ```bash
    docker compose exec clickhouse clickhouse-client \
      --user default --password observable \
-     --query "SELECT count() FROM observable.traces"
+     --query "SELECT count() FROM observable.spans"
    ```
 
 ### High memory or CPU usage
@@ -225,7 +226,7 @@ and [Capacity and Recovery](capacity-recovery.md) for tuning guidance.
 
 ### OIDC login failures
 
-1. Verify Zitadel is healthy: `curl http://localhost:8080/healthz`.
+1. Verify Zitadel is healthy: `curl http://localhost:8082/debug/ready`.
 2. Check `auth-service` logs for token exchange errors.
 3. Verify the OIDC redirect URI matches the frontend URL.
 4. Clear browser cookies and retry.

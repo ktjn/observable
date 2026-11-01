@@ -86,7 +86,80 @@ test_suite_runs_stages_in_order() {
   fi
 }
 
+test_suite_with_doctor_runs_doctor_stages() {
+  local output
+  output="$(
+    RELEASE_CANDIDATE_SUITES_SOURCE_ONLY=1 bash -c '
+      source "$1"
+      docker() { printf "%s\n" "docker $*"; }
+      bash() { printf "%s\n" "bash $*"; }
+      kind() { :; }
+      kubectl() { :; }
+      helm() { :; }
+      main --with-doctor
+    ' bash "$SUITE_SCRIPT" 2>&1
+  )"
+
+  if [[ "$output" != *"bash "*"/doctor.sh --preflight"* ]]; then
+    echo "FAIL: suite with --with-doctor should run doctor preflight"
+    echo "$output"
+    exit 1
+  fi
+
+  if [[ "$output" != *"bash "*"/doctor.sh"* ]]; then
+    echo "FAIL: suite with --with-doctor should run doctor diagnostics"
+    echo "$output"
+    exit 1
+  fi
+}
+
+test_suite_with_pinned_runs_pinned_install() {
+  local output
+  output="$(
+    RELEASE_CANDIDATE_SUITES_SOURCE_ONLY=1 bash -c '
+      source "$1"
+      docker() { printf "%s\n" "docker $*"; }
+      bash() { printf "%s\n" "bash $*"; }
+      kind() { :; }
+      kubectl() { :; }
+      helm() { :; }
+      main --with-pinned
+    ' bash "$SUITE_SCRIPT" 2>&1
+  )"
+
+  if [[ "$output" != *"bash "*"/pinned-install.sh"* ]]; then
+    echo "FAIL: suite with --with-pinned should run pinned-install.sh"
+    echo "$output"
+    exit 1
+  fi
+}
+
+test_suite_rejects_unknown_argument() {
+  local status=0
+  local output
+  output="$(
+    RELEASE_CANDIDATE_SUITES_SOURCE_ONLY=1 bash -c '
+      source "$1"
+      main --invalid-option-xyz
+    ' bash "$SUITE_SCRIPT" 2>&1
+  )" || status=$?
+
+  if [[ $status -eq 0 ]]; then
+    echo "FAIL: suite should reject unknown argument"
+    echo "$output"
+    exit 1
+  fi
+  if [[ "$output" != *"FAIL: unknown argument"* ]]; then
+    echo "FAIL: expected error message for unknown argument"
+    echo "$output"
+    exit 1
+  fi
+}
+
 run_test "loads helpers" test_exports_main_without_running_flow
 run_test "runs stages in order" test_suite_runs_stages_in_order
+run_test "with-doctor runs doctor stages" test_suite_with_doctor_runs_doctor_stages
+run_test "with-pinned runs pinned install" test_suite_with_pinned_runs_pinned_install
+run_test "rejects unknown argument" test_suite_rejects_unknown_argument
 
 echo "PASS: release candidate suite orchestration"
