@@ -33,6 +33,83 @@ platform into separately versioned component repositories.
 > Observable 0.1 is intended for evaluation and small non-critical deployments. Storage schemas,
 > APIs, Helm values, and upgrade procedures may change without backward compatibility before 1.0.
 
+## Architecture
+
+The platform architecture is specified in [spec/system.yaml](spec/system.yaml) and governed by the [system-spec](system-spec/) toolkit. It defines component layers, capability contracts, and state ownership:
+
+```mermaid
+graph LR
+  subgraph observable_platform["observable-platform v0.1.0 (verified)"]
+    subgraph experience["experience"]
+      observable_web["observable-web v0.1.0<br>verified"]
+    end
+    subgraph application["application"]
+      observable_ingest["observable-ingest v0.1.0<br>verified"]
+      observable_query["observable-query v0.1.0<br>verified"]
+    end
+    subgraph domain["domain"]
+      observable_control["observable-control v0.1.0<br>verified"]
+      observable_alerting["observable-alerting v0.1.0<br>verified"]
+      observable_process["observable-process v0.1.0<br>verified"]
+    end
+    subgraph infrastructure["infrastructure"]
+      observable_auth["observable-auth v0.1.0<br>verified"]
+      observable_store_clickhouse["observable-store-clickhouse v0.1.0<br>verified"]
+    end
+    span_row[("span-row<br>confidential")]
+    log_row[("log-row<br>confidential")]
+    metric_point[("metric-point<br>internal")]
+    tenant_config[("tenant-config<br>internal")]
+    dashboard_model[("dashboard-model<br>internal")]
+    deployment_marker[("deployment-marker<br>internal")]
+    query_audit_entry[("query-audit-entry<br>internal")]
+    alert_rule[("alert-rule<br>internal")]
+    slo_definition[("slo-definition<br>internal")]
+    incident_record[("incident-record<br>confidential")]
+    api_key_credential[("api-key-credential<br>restricted")]
+    user_session[("user-session<br>restricted")]
+  end
+  observable_web -->|validate-credential| observable_auth
+  observable_web -->|manage-control-plane| observable_control
+  observable_web -->|query-telemetry| observable_query
+  observable_web -->|evaluate-alerts| observable_alerting
+  observable_ingest -->|validate-credential| observable_auth
+  observable_ingest -->|normalize-telemetry| observable_process
+  observable_ingest -->|publish-deployment-markers| observable_control
+  observable_query -->|validate-credential| observable_auth
+  observable_query -->|manage-control-plane| observable_control
+  observable_query -->|evaluate-alerts| observable_alerting
+  observable_query -->|store-telemetry| observable_store_clickhouse
+  observable_control -->|validate-credential| observable_auth
+  observable_control -.->|owns| tenant_config
+  observable_control -.->|owns| dashboard_model
+  observable_control -.->|owns| deployment_marker
+  observable_control -.->|owns| query_audit_entry
+  observable_alerting -->|validate-credential| observable_auth
+  observable_alerting -->|store-telemetry| observable_store_clickhouse
+  observable_alerting -.->|owns| alert_rule
+  observable_alerting -.->|owns| slo_definition
+  observable_alerting -.->|owns| incident_record
+  observable_process -->|store-telemetry| observable_store_clickhouse
+  observable_auth -.->|owns| api_key_credential
+  observable_auth -.->|owns| user_session
+  observable_store_clickhouse -.->|owns| span_row
+  observable_store_clickhouse -.->|owns| log_row
+  observable_store_clickhouse -.->|owns| metric_point
+  metric_point -.->|derived_from| span_row
+  dashboard_model -.->|derived_from| tenant_config
+  query_audit_entry -.->|derived_from| tenant_config
+  alert_rule -.->|derived_from| tenant_config
+  slo_definition -.->|derived_from| metric_point
+  incident_record -.->|derived_from| alert_rule
+  incident_record -.->|derived_from| span_row
+  classDef draft fill:#eee,stroke:#999,color:#333
+  classDef specified fill:#cce5ff,stroke:#36c
+  classDef verified fill:#d5f5d5,stroke:#393
+  classDef deprecated fill:#fdd,stroke:#c33,stroke-dasharray:4
+  class observable_web,observable_ingest,observable_query,observable_control,observable_alerting,observable_process,observable_auth,observable_store_clickhouse verified
+```
+
 ## Documentation
 
 The full specification is located in the [spec/](spec/) directory, indexed in
