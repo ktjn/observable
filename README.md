@@ -39,75 +39,76 @@ The platform architecture is specified in [spec/system.yaml](spec/system.yaml) a
 
 ```mermaid
 graph LR
-  subgraph observable_platform["observable-platform v0.1.0 (verified)"]
-    subgraph experience["experience"]
-      observable_web["observable-web v0.1.0<br>verified"]
+  subgraph s_observable_platform["observable-platform v0.1.0 (verified)"]
+    subgraph l_experience["experience"]
+      c_observable_web["observable-web v0.1.0<br>verified"]
     end
-    subgraph application["application"]
-      observable_ingest["observable-ingest v0.1.0<br>verified"]
-      observable_query["observable-query v0.1.0<br>verified"]
+    subgraph l_application["application"]
+      c_observable_ingest["observable-ingest v0.1.0<br>verified"]
+      c_observable_query["observable-query v0.1.0<br>verified"]
     end
-    subgraph domain["domain"]
-      observable_control["observable-control v0.1.0<br>verified"]
-      observable_alerting["observable-alerting v0.1.0<br>verified"]
-      observable_process["observable-process v0.1.0<br>verified"]
+    subgraph l_domain["domain"]
+      c_observable_control["observable-control v0.1.0<br>verified"]
+      c_observable_alerting["observable-alerting v0.1.0<br>verified"]
+      c_observable_process["observable-process v0.1.0<br>verified"]
+      d_tenant_config[("tenant-config<br>control<br>internal")]
+      d_dashboard_model[("dashboard-model<br>control<br>internal")]
+      d_deployment_marker[("deployment-marker<br>control<br>internal")]
+      d_query_audit_entry[("query-audit-entry<br>control<br>internal")]
+      d_alert_rule[("alert-rule<br>alerting<br>internal")]
+      d_slo_definition[("slo-definition<br>alerting<br>internal")]
+      d_incident_record[("incident-record<br>alerting<br>confidential")]
     end
-    subgraph infrastructure["infrastructure"]
-      observable_auth["observable-auth v0.1.0<br>verified"]
-      observable_store_clickhouse["observable-store-clickhouse v0.1.0<br>verified"]
+    subgraph l_infrastructure["infrastructure"]
+      c_observable_auth["observable-auth v0.1.0<br>verified"]
+      c_observable_store_clickhouse["observable-store-clickhouse v0.1.0<br>verified"]
+      d_span_row[("span-row<br>observable<br>confidential")]
+      d_log_row[("log-row<br>observable<br>confidential")]
+      d_metric_point[("metric-point<br>observable<br>internal")]
+      d_api_key_credential[("api-key-credential<br>auth<br>restricted")]
+      d_user_session[("user-session<br>auth<br>restricted")]
     end
-    span_row[("span-row<br>confidential")]
-    log_row[("log-row<br>confidential")]
-    metric_point[("metric-point<br>internal")]
-    tenant_config[("tenant-config<br>internal")]
-    dashboard_model[("dashboard-model<br>internal")]
-    deployment_marker[("deployment-marker<br>internal")]
-    query_audit_entry[("query-audit-entry<br>internal")]
-    alert_rule[("alert-rule<br>internal")]
-    slo_definition[("slo-definition<br>internal")]
-    incident_record[("incident-record<br>confidential")]
-    api_key_credential[("api-key-credential<br>restricted")]
-    user_session[("user-session<br>restricted")]
   end
-  observable_web -->|validate-credential| observable_auth
-  observable_web -->|manage-control-plane| observable_control
-  observable_web -->|query-telemetry| observable_query
-  observable_web -->|evaluate-alerts| observable_alerting
-  observable_ingest -->|validate-credential| observable_auth
-  observable_ingest -->|normalize-telemetry| observable_process
-  observable_ingest -->|publish-deployment-markers| observable_control
-  observable_query -->|validate-credential| observable_auth
-  observable_query -->|manage-control-plane| observable_control
-  observable_query -->|evaluate-alerts| observable_alerting
-  observable_query -->|store-telemetry| observable_store_clickhouse
-  observable_control -->|validate-credential| observable_auth
-  observable_control -.->|owns| tenant_config
-  observable_control -.->|owns| dashboard_model
-  observable_control -.->|owns| deployment_marker
-  observable_control -.->|owns| query_audit_entry
-  observable_alerting -->|validate-credential| observable_auth
-  observable_alerting -->|store-telemetry| observable_store_clickhouse
-  observable_alerting -.->|owns| alert_rule
-  observable_alerting -.->|owns| slo_definition
-  observable_alerting -.->|owns| incident_record
-  observable_process -->|store-telemetry| observable_store_clickhouse
-  observable_auth -.->|owns| api_key_credential
-  observable_auth -.->|owns| user_session
-  observable_store_clickhouse -.->|owns| span_row
-  observable_store_clickhouse -.->|owns| log_row
-  observable_store_clickhouse -.->|owns| metric_point
-  metric_point -.->|derived_from| span_row
-  dashboard_model -.->|derived_from| tenant_config
-  query_audit_entry -.->|derived_from| tenant_config
-  alert_rule -.->|derived_from| tenant_config
-  slo_definition -.->|derived_from| metric_point
-  incident_record -.->|derived_from| alert_rule
-  incident_record -.->|derived_from| span_row
+  c_observable_web -->|validate-credential| c_observable_auth
+  c_observable_web -->|manage-control-plane| c_observable_control
+  c_observable_web -->|query-telemetry| c_observable_query
+  c_observable_web -->|evaluate-alerts| c_observable_alerting
+  c_observable_ingest -->|validate-credential| c_observable_auth
+  c_observable_ingest -->|normalize-telemetry| c_observable_process
+  c_observable_ingest -->|publish-deployment-markers| c_observable_control
+  c_observable_query -->|validate-credential| c_observable_auth
+  c_observable_query -->|manage-control-plane| c_observable_control
+  c_observable_query -->|evaluate-alerts| c_observable_alerting
+  c_observable_query -->|store-telemetry| c_observable_store_clickhouse
+  c_observable_control -->|validate-credential| c_observable_auth
+  c_observable_control -.->|owns| d_tenant_config
+  c_observable_control -.->|owns| d_dashboard_model
+  c_observable_control -.->|owns| d_deployment_marker
+  c_observable_control -.->|owns| d_query_audit_entry
+  c_observable_alerting -->|validate-credential| c_observable_auth
+  c_observable_alerting -->|store-telemetry| c_observable_store_clickhouse
+  c_observable_alerting -.->|owns| d_alert_rule
+  c_observable_alerting -.->|owns| d_slo_definition
+  c_observable_alerting -.->|owns| d_incident_record
+  c_observable_process -->|store-telemetry| c_observable_store_clickhouse
+  c_observable_auth -.->|owns| d_api_key_credential
+  c_observable_auth -.->|owns| d_user_session
+  c_observable_store_clickhouse -.->|owns| d_span_row
+  c_observable_store_clickhouse -.->|owns| d_log_row
+  c_observable_store_clickhouse -.->|owns| d_metric_point
+  d_metric_point -.->|derived_from| d_span_row
+  d_dashboard_model -.->|derived_from| d_tenant_config
+  d_query_audit_entry -.->|derived_from| d_tenant_config
+  d_alert_rule -.->|derived_from| d_tenant_config
+  d_slo_definition -.->|derived_from| d_metric_point
+  d_incident_record -.->|derived_from| d_alert_rule
+  d_incident_record -.->|derived_from| d_span_row
   classDef draft fill:#eee,stroke:#999,color:#333
   classDef specified fill:#cce5ff,stroke:#36c
   classDef verified fill:#d5f5d5,stroke:#393
   classDef deprecated fill:#fdd,stroke:#c33,stroke-dasharray:4
-  class observable_web,observable_ingest,observable_query,observable_control,observable_alerting,observable_process,observable_auth,observable_store_clickhouse verified
+  classDef logical stroke-dasharray:4
+  class c_observable_web,c_observable_ingest,c_observable_query,c_observable_control,c_observable_alerting,c_observable_process,c_observable_auth,c_observable_store_clickhouse verified
 ```
 
 ## Documentation
