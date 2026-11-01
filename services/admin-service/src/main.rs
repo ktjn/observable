@@ -162,6 +162,11 @@ async fn main() -> anyhow::Result<()> {
             "/v1/dashboards/{id}/grants/{user_id}",
             delete(dashboards::handle_revoke_grant),
         )
+        .route(
+            "/v1/tenants/{id}/config",
+            get(tenants::handle_get_tenant_config).put(tenants::handle_update_tenant_config),
+        )
+        .route("/v1/tenants/{id}", delete(tenants::handle_purge_tenant))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))
         .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
