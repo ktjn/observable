@@ -23,12 +23,13 @@
 #   docker
 #
 # Usage:
-#   bash scripts/kind-test.sh [--skip-build] [--keep-cluster] [--reuse-cluster] [--cluster-name <name>]
+#   bash scripts/kind-test.sh [--skip-build] [--keep-cluster] [--reuse-cluster] [--cluster-name <name>] [--pinned]
 #
 #   --skip-build    skip docker build (use existing observable-<component>:local images)
 #   --keep-cluster  do not delete the kind cluster on exit (useful for debugging)
 #   --reuse-cluster use an existing kind cluster instead of recreating it
 #   --cluster-name  target kind cluster name (default: observable-test)
+#   --pinned        build and deploy using manifest-pinned version tags instead of :local
 
 set -euo pipefail
 
@@ -54,28 +55,13 @@ declare -A COMPONENT_HELM_KEYS=(
   [web]=frontend
 )
 COMPONENTS=(auth control ingest process store-clickhouse query alerting web)
-COMPONENT_IMAGES=()
-for component in "${COMPONENTS[@]}"; do
-  COMPONENT_IMAGES+=("observable-${component}:local")
-done
-
-# Helm overrides pointing every component at its locally loaded image.
-helm_local_image_args() {
-  local component
-  echo "--set"
-  echo "global.image.pullPolicy=Never"
-  for component in "${COMPONENTS[@]}"; do
-    echo "--set"
-    echo "services.${COMPONENT_HELM_KEYS[$component]}.image.tag=local"
-  done
-}
-mapfile -t HELM_LOCAL_IMAGE_ARGS < <(helm_local_image_args)
 APP_CHART="$REPO_ROOT/charts/observable"
 
 SKIP_BUILD=false
 KEEP_CLUSTER=false
 REUSE_CLUSTER=false
 DEPLOY_ONLY=false
+PINNED=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -103,12 +89,40 @@ while [[ $# -gt 0 ]]; do
       DEPLOY_ONLY=true
       shift
       ;;
+    --pinned)
+      PINNED=true
+      shift
+      ;;
     *)
       echo "ERROR: unknown argument: $1" >&2
       exit 1
       ;;
   esac
 done
+
+COMPONENT_IMAGES=()
+for component in "${COMPONENTS[@]}"; do
+  if [[ "$PINNED" == "true" ]]; then
+    version="$(bash "$REPO_ROOT/scripts/component-version.sh" "$component")"
+    COMPONENT_IMAGES+=("observable-${component}:${version}")
+  else
+    COMPONENT_IMAGES+=("observable-${component}:local")
+  fi
+done
+
+# Helm overrides pointing every component at its locally loaded image.
+helm_local_image_args() {
+  local component
+  echo "--set"
+  echo "global.image.pullPolicy=Never"
+  if [[ "$PINNED" == "false" ]]; then
+    for component in "${COMPONENTS[@]}"; do
+      echo "--set"
+      echo "services.${COMPONENT_HELM_KEYS[$component]}.image.tag=local"
+    done
+  fi
+}
+mapfile -t HELM_LOCAL_IMAGE_ARGS < <(helm_local_image_args)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -167,7 +181,11 @@ info "docker:  $(docker version --format '{{.Client.Version}}')"
 
 if [[ "$SKIP_BUILD" == "false" ]]; then
   log "Building component images"
-  TAG=local bash "$REPO_ROOT/scripts/build-component-images.sh" "${COMPONENTS[@]}" \
+  BUILD_TAG="local"
+  if [[ "$PINNED" == "true" ]]; then
+    BUILD_TAG="manifest"
+  fi
+  TAG="$BUILD_TAG" bash "$REPO_ROOT/scripts/build-component-images.sh" "${COMPONENTS[@]}" \
     || { echo "ERROR: component image build failed" >&2; exit 1; }
   info "component images built: ${COMPONENT_IMAGES[*]}"
 else

@@ -1077,7 +1077,7 @@ System Specification ([spec/system.yaml](../spec/system.yaml)).
 | Database credentials & schema isolation (Phase 3 exit evidence) | Done | Migration `042_provision_component_users.sql` provisions isolated login credentials (`observable_auth`, `observable_control`, `observable_alerting`) with default search paths and user-level grant isolation. |
 | Per-component build targets & scoped CI (Phase 7) | Done | Root `Dockerfile` builds each component via `target: component-runtime` parameterized by `SERVICE`; `scripts/ci_changed_components.py` scopes CI compilation to modified components. |
 | Per-component release publishing (Phase 7 sub-step 5) | Superseded | Separate external registry image publishing is superseded in favor of build-time component isolation within the monorepo and releasing as a unified distribution. |
-| Helm/kind pinned install, compatibility, upgrade/rollback (Phase 7 sub-step 5) | Compose done | `scripts/pinned-install.sh` installs and verifies the pinned Compose set (web UI + smoke). Helm renders pinned component images per `distribution/manifest.yaml`. |
+| Helm/kind pinned install, compatibility, upgrade/rollback (Phase 7 sub-step 5) | Done | `scripts/pinned-install.sh` installs and verifies the pinned Compose set (web UI + smoke). Helm renders pinned component images per `distribution/manifest.yaml`, runnable via `scripts/kind-test.sh --pinned`. |
 | Repository extraction (Phase 8) | Superseded | Physical repository extraction is superseded by build-time component isolation and machine-checkable boundary governance via `spec/system.yaml`. |
 
 ## Component Definition of Done
