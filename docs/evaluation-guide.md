@@ -25,6 +25,8 @@ Wait for all services to become healthy:
 
 ```bash
 docker compose ps
+# Or run the platform diagnostic doctor:
+make doctor
 ```
 
 All containers should show `healthy` within two minutes. The frontend is

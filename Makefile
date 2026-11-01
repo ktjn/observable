@@ -1,4 +1,4 @@
-.PHONY: dev dev-down reset-volumes db-migrate test lint smoke-test ci
+.PHONY: dev dev-down reset-volumes db-migrate test lint smoke-test ci doctor
 
 dev:
 	docker compose rm -sf postgres-setup clickhouse-setup
@@ -30,3 +30,6 @@ smoke-test:
 
 ci:
 	bash scripts/ci.sh
+
+doctor:
+	bash scripts/doctor.sh

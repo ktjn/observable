@@ -163,6 +163,7 @@ make dev            # remove setup containers, then docker compose up -d --build
 make dev-down       # docker compose down
 make db-migrate     # re-run postgres/clickhouse setup to apply any new migrations
 make reset-volumes  # wipe all persistent volumes and start fresh
+make doctor         # inspect prerequisites, container health, and service endpoints
 make smoke-test     # run end-to-end smoke tests
 make lint           # cargo fmt/clippy + npm lint
 make test           # cargo test + frontend typecheck
