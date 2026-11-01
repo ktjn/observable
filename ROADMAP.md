@@ -314,6 +314,8 @@ accountability controls.
 
 Tenant-aware ingest quotas and cardinality limits are enforced prior to queue admission ([spec/system.yaml](spec/system.yaml) line 177). The `ingest-gateway` service enforces per-tenant custom rate limits (`TenantRateLimiter`) and configurable metric cardinality budgets (`METRIC_CARDINALITY_ENFORCE`) returning structured HTTP 429 / gRPC `ResourceExhausted` rejections (`cardinality_budget_exceeded`), `Retry-After` headers, and Prometheus rejection counters (`ingest_gateway_rejections_total`). Adversarial tests verify tenant isolation and prevent limit bypass across environments.
 
+Multi-tenant retention configurations and GDPR hard-purge workflows are enforced in `admin-service` (`GET/PUT /v1/tenants/:id/config`, `DELETE /v1/tenants/:id`) across ClickHouse and PostgreSQL, with verifiable audit trails recorded in `credential_audit_log` (`action = 'tenant_purge'`) and detailed completion semantics documented in [docs/retention-deletion.md](docs/retention-deletion.md). Integration test suites (`postgres_tenant_purge_integration.rs`) verify end-to-end cascading deletion and non-admin access isolation.
+
 **Exit evidence:**
 
 - Load and adversarial tests prove limits cannot be bypassed across tenants or environments.
