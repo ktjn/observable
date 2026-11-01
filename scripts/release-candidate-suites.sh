@@ -24,6 +24,30 @@ run_stage() {
 }
 
 main() {
+  local with_doctor=0
+  local with_pinned=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --with-doctor)
+        with_doctor=1
+        shift
+        ;;
+      --with-pinned)
+        with_pinned=1
+        shift
+        ;;
+      --help|-h)
+        echo "Usage: scripts/release-candidate-suites.sh [--with-doctor] [--with-pinned]"
+        exit 0
+        ;;
+      *)
+        echo "FAIL: unknown argument '$1'" >&2
+        exit 1
+        ;;
+    esac
+  done
+
   require_command docker
   require_command bash
   require_command kind
@@ -47,8 +71,16 @@ main() {
   }
   trap cleanup EXIT
 
+  if [[ $with_doctor -eq 1 ]]; then
+    run_stage "Doctor preflight" bash "$SCRIPT_DIR/doctor.sh" --preflight
+  fi
+
   run_stage "Core stack" docker compose up -d --wait "${core_services[@]}"
   RELEASE_CANDIDATE_STACK_CLEANUP=1
+
+  if [[ $with_doctor -eq 1 ]]; then
+    run_stage "Doctor diagnostics" bash "$SCRIPT_DIR/doctor.sh"
+  fi
 
   run_stage "Load baseline" docker compose run --rm perf-smoke
   run_stage "Tenant escape smoke" docker compose run --rm smoke-test
@@ -57,6 +89,10 @@ main() {
   run_stage "Backpressure" bash "$SCRIPT_DIR/backpressure-test.sh"
   run_stage "Backup and restore" bash "$SCRIPT_DIR/backup-restore-drill.sh --with-clickhouse"
   run_stage "Upgrade and rollback" bash "$SCRIPT_DIR/kind-test.sh"
+
+  if [[ $with_pinned -eq 1 ]]; then
+    run_stage "Pinned distribution" bash "$SCRIPT_DIR/pinned-install.sh"
+  fi
 
   echo ""
   echo "=== P4-S8 RELEASE-READINESS SUITE PASSED ==="
