@@ -158,4 +158,17 @@ for component in "${EXPECTED[@]}"; do
     || fail "Helm services.$helm_key.image.tag '$tag' does not match manifest component '$component' version '${versions[$component]}'"
 done
 
+# Cross-component version compatibility check against spec/system.yaml capability constraints
+python_cmd=""
+if command -v python3 >/dev/null 2>&1; then
+  python_cmd="python3"
+elif command -v python >/dev/null 2>&1; then
+  python_cmd="python"
+fi
+
+if [[ -n "$python_cmd" && -f "$REPO_ROOT/scripts/check_manifest_compatibility.py" && -f "$SOURCE_ROOT/spec/system.yaml" ]]; then
+  "$python_cmd" "$REPO_ROOT/scripts/check_manifest_compatibility.py" "$MANIFEST" "$SOURCE_ROOT/spec/system.yaml" --quiet \
+    || fail "distribution manifest component version compatibility check failed"
+fi
+
 echo "OK  distribution manifest valid (productVersion ${product_version}, ${#EXPECTED[@]} components)"

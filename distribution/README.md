@@ -29,6 +29,7 @@ fails validation.
 ```bash
 bash scripts/check-distribution-manifest.sh   # also run by scripts/verify-version.sh
 bash scripts/component-version.sh query       # prints one component's version
+python scripts/check_manifest_compatibility.py # verifies cross-component SemVer compatibility
 ```
 
 ## Per-component images
