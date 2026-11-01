@@ -312,6 +312,8 @@ accountability controls.
 - Mature role and resource scoping, audit coverage, credential lifecycle, and tenant-isolation tests.
 - Expose actionable usage, cost, and cardinality diagnostics to operators and tenant administrators.
 
+Tenant-aware ingest quotas and cardinality limits are enforced prior to queue admission ([spec/system.yaml](spec/system.yaml) line 177). The `ingest-gateway` service enforces per-tenant custom rate limits (`TenantRateLimiter`) and configurable metric cardinality budgets (`METRIC_CARDINALITY_ENFORCE`) returning structured HTTP 429 / gRPC `ResourceExhausted` rejections (`cardinality_budget_exceeded`), `Retry-After` headers, and Prometheus rejection counters (`ingest_gateway_rejections_total`). Adversarial tests verify tenant isolation and prevent limit bypass across environments.
+
 **Exit evidence:**
 
 - Load and adversarial tests prove limits cannot be bypassed across tenants or environments.

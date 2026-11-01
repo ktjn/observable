@@ -18,14 +18,27 @@ pub async fn export_traces(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
+    state
+        .metrics
+        .ingest_requests_total
+        .with_label_values(&["traces", "http"])
+        .inc();
+
     if state.trace_rate_limiter.check_key(&ctx.tenant_id).is_err() {
+        state
+            .metrics
+            .ingest_rejections_total
+            .with_label_values(&["traces", "rate_limit_exceeded"])
+            .inc();
         tracing::warn!(tenant_id = %ctx.tenant_id, "trace ingest rate limit exceeded");
         return (
             StatusCode::TOO_MANY_REQUESTS,
             [(header::RETRY_AFTER, "1")],
             Json(serde_json::json!({
                 "error": "rate_limit_exceeded",
-                "message": "Trace ingest rate limit exceeded"
+                "message": "Trace ingest rate limit exceeded",
+                "tenant_id": ctx.tenant_id,
+                "retry_after_seconds": 1
             })),
         )
             .into_response();
@@ -35,13 +48,27 @@ pub async fn export_traces(
         Ok(DecodedBody::Json(json)) => {
             let resource_spans = match json.get("resourceSpans").and_then(|v| v.as_array()) {
                 Some(s) => s,
-                None => return StatusCode::BAD_REQUEST.into_response(),
+                None => {
+                    state
+                        .metrics
+                        .ingest_rejections_total
+                        .with_label_values(&["traces", "malformed_request"])
+                        .inc();
+                    return StatusCode::BAD_REQUEST.into_response();
+                }
             };
 
             let spans =
                 match super::convert::parse_otlp_traces(&json, ctx.tenant_id, &ctx.environment) {
                     Ok(s) => s,
-                    Err(status) => return status.into_response(),
+                    Err(status) => {
+                        state
+                            .metrics
+                            .ingest_rejections_total
+                            .with_label_values(&["traces", "malformed_request"])
+                            .inc();
+                        return status.into_response();
+                    }
                 };
 
             (resource_spans.len(), spans)
@@ -50,6 +77,11 @@ pub async fn export_traces(
             let req = match ExportTraceServiceRequest::decode(bytes) {
                 Ok(r) => r,
                 Err(e) => {
+                    state
+                        .metrics
+                        .ingest_rejections_total
+                        .with_label_values(&["traces", "malformed_request"])
+                        .inc();
                     tracing::warn!("failed to decode OTLP/HTTP protobuf trace request: {e}");
                     return StatusCode::BAD_REQUEST.into_response();
                 }
@@ -61,7 +93,14 @@ pub async fn export_traces(
             );
             (req.resource_spans.len(), spans)
         }
-        Err(status) => return status.into_response(),
+        Err(status) => {
+            state
+                .metrics
+                .ingest_rejections_total
+                .with_label_values(&["traces", "malformed_request"])
+                .inc();
+            return status.into_response();
+        }
     };
 
     // Stamp deployment_id on each span by looking up the active deployment
@@ -80,6 +119,8 @@ pub async fn export_traces(
                 .await;
         }
     }
+
+    state.metrics.spans_received_total.add(spans.len() as i64);
 
     tracing::info!(
         tenant_id = %ctx.tenant_id,
@@ -278,6 +319,36 @@ mod tests {
             .json(&serde_json::json!({"resourceSpans": []}))
             .await;
         assert_eq!(resp_b.status_code(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn custom_tenant_rate_limit_isolated_in_shared_limiter() {
+        let state = AppState::with_stub_auth(TENANT);
+        let tid_a = uuid::Uuid::parse_str(TENANT).unwrap();
+        // Give tenant A a strict limit of 1 req/sec
+        state.trace_rate_limiter.set_tenant_limit(tid_a, 1);
+
+        let app = build_router(state);
+        let server = TestServer::new(app);
+
+        // First request succeeds
+        let first = server
+            .post("/v1/traces")
+            .add_header(auth_header().0, auth_header().1)
+            .json(&serde_json::json!({"resourceSpans": []}))
+            .await;
+        assert_eq!(first.status_code(), StatusCode::OK);
+
+        // Second request for tenant A is rate limited
+        let second = server
+            .post("/v1/traces")
+            .add_header(auth_header().0, auth_header().1)
+            .json(&serde_json::json!({"resourceSpans": []}))
+            .await;
+        assert_eq!(second.status_code(), StatusCode::TOO_MANY_REQUESTS);
+        let body: serde_json::Value = second.json();
+        assert_eq!(body["error"], "rate_limit_exceeded");
+        assert_eq!(body["tenant_id"], TENANT);
     }
 
     #[tokio::test]

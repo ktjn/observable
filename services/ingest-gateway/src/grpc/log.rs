@@ -22,12 +22,25 @@ impl LogsService for OltpLogService {
         &self,
         request: Request<ExportLogsServiceRequest>,
     ) -> Result<Response<ExportLogsServiceResponse>, Status> {
+        self.state
+            .metrics
+            .ingest_requests_total
+            .with_label_values(&["logs", "grpc"])
+            .inc();
+
         let metadata = request.metadata();
         let auth_header = metadata
             .get("authorization")
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.strip_prefix("Bearer "))
-            .ok_or_else(|| Status::unauthenticated("missing authorization token"))?;
+            .ok_or_else(|| {
+                self.state
+                    .metrics
+                    .ingest_rejections_total
+                    .with_label_values(&["logs", "unauthorized"])
+                    .inc();
+                Status::unauthenticated("missing authorization token")
+            })?;
 
         let observable_auth::ApiKeyContext {
             tenant_id,
@@ -37,18 +50,36 @@ impl LogsService for OltpLogService {
             .state
             .validate_api_key(auth_header)
             .await
-            .map_err(|_| Status::unauthenticated("invalid authorization token"))?;
+            .map_err(|_| {
+                self.state
+                    .metrics
+                    .ingest_rejections_total
+                    .with_label_values(&["logs", "unauthorized"])
+                    .inc();
+                Status::unauthenticated("invalid authorization token")
+            })?;
 
         if role == "viewer" {
+            self.state
+                .metrics
+                .ingest_rejections_total
+                .with_label_values(&["logs", "permission_denied"])
+                .inc();
             return Err(Status::permission_denied("viewer role cannot ingest logs"));
         }
 
         if self.state.log_rate_limiter.check_key(&tenant_id).is_err() {
+            self.state
+                .metrics
+                .ingest_rejections_total
+                .with_label_values(&["logs", "rate_limit_exceeded"])
+                .inc();
             return Err(Status::resource_exhausted("log ingest rate limit exceeded"));
         }
 
         let inner = request.into_inner();
         let producer = self.state.producer.clone();
+        let metrics = self.state.metrics.clone();
         let span = if observable_telemetry::is_self_telemetry_env(&environment) {
             tracing::Span::none()
         } else {
@@ -60,6 +91,7 @@ impl LogsService for OltpLogService {
                 tenant_id,
                 &environment,
             );
+            metrics.logs_received_total.add(logs.len() as i64);
             tracing::info!(tenant_id = %tenant_id, log_count = logs.len(), "received gRPC log export");
             if let Some(ref producer) = producer {
                 let envelope =

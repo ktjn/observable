@@ -18,14 +18,27 @@ pub async fn export_logs(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
+    state
+        .metrics
+        .ingest_requests_total
+        .with_label_values(&["logs", "http"])
+        .inc();
+
     if state.log_rate_limiter.check_key(&ctx.tenant_id).is_err() {
+        state
+            .metrics
+            .ingest_rejections_total
+            .with_label_values(&["logs", "rate_limit_exceeded"])
+            .inc();
         tracing::warn!(tenant_id = %ctx.tenant_id, "log ingest rate limit exceeded");
         return (
             StatusCode::TOO_MANY_REQUESTS,
             [(axum::http::header::RETRY_AFTER, "1")],
             Json(serde_json::json!({
                 "error": "rate_limit_exceeded",
-                "message": "Log ingest rate limit exceeded"
+                "message": "Log ingest rate limit exceeded",
+                "tenant_id": ctx.tenant_id,
+                "retry_after_seconds": 1
             })),
         )
             .into_response();
@@ -35,13 +48,27 @@ pub async fn export_logs(
         Ok(DecodedBody::Json(json)) => {
             let resource_logs = match json.get("resourceLogs").and_then(|v| v.as_array()) {
                 Some(s) => s,
-                None => return StatusCode::BAD_REQUEST.into_response(),
+                None => {
+                    state
+                        .metrics
+                        .ingest_rejections_total
+                        .with_label_values(&["logs", "malformed_request"])
+                        .inc();
+                    return StatusCode::BAD_REQUEST.into_response();
+                }
             };
 
             let logs = match super::convert::parse_otlp_logs(&json, ctx.tenant_id, &ctx.environment)
             {
                 Ok(l) => l,
-                Err(status) => return status.into_response(),
+                Err(status) => {
+                    state
+                        .metrics
+                        .ingest_rejections_total
+                        .with_label_values(&["logs", "malformed_request"])
+                        .inc();
+                    return status.into_response();
+                }
             };
 
             (resource_logs.len(), logs)
@@ -50,6 +77,11 @@ pub async fn export_logs(
             let req = match ExportLogsServiceRequest::decode(bytes) {
                 Ok(r) => r,
                 Err(e) => {
+                    state
+                        .metrics
+                        .ingest_rejections_total
+                        .with_label_values(&["logs", "malformed_request"])
+                        .inc();
                     tracing::warn!("failed to decode OTLP/HTTP protobuf log request: {e}");
                     return StatusCode::BAD_REQUEST.into_response();
                 }
@@ -61,8 +93,17 @@ pub async fn export_logs(
             );
             (req.resource_logs.len(), logs)
         }
-        Err(status) => return status.into_response(),
+        Err(status) => {
+            state
+                .metrics
+                .ingest_rejections_total
+                .with_label_values(&["logs", "malformed_request"])
+                .inc();
+            return status.into_response();
+        }
     };
+
+    state.metrics.logs_received_total.add(logs.len() as i64);
 
     tracing::info!(
         tenant_id = %ctx.tenant_id,

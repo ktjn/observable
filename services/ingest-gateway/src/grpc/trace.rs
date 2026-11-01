@@ -22,12 +22,25 @@ impl TraceService for OltpTraceService {
         &self,
         request: Request<ExportTraceServiceRequest>,
     ) -> Result<Response<ExportTraceServiceResponse>, Status> {
+        self.state
+            .metrics
+            .ingest_requests_total
+            .with_label_values(&["traces", "grpc"])
+            .inc();
+
         let metadata = request.metadata();
         let auth_header = metadata
             .get("authorization")
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.strip_prefix("Bearer "))
-            .ok_or_else(|| Status::unauthenticated("missing authorization token"))?;
+            .ok_or_else(|| {
+                self.state
+                    .metrics
+                    .ingest_rejections_total
+                    .with_label_values(&["traces", "unauthorized"])
+                    .inc();
+                Status::unauthenticated("missing authorization token")
+            })?;
 
         let observable_auth::ApiKeyContext {
             tenant_id,
@@ -37,15 +50,32 @@ impl TraceService for OltpTraceService {
             .state
             .validate_api_key(auth_header)
             .await
-            .map_err(|_| Status::unauthenticated("invalid authorization token"))?;
+            .map_err(|_| {
+                self.state
+                    .metrics
+                    .ingest_rejections_total
+                    .with_label_values(&["traces", "unauthorized"])
+                    .inc();
+                Status::unauthenticated("invalid authorization token")
+            })?;
 
         if role == "viewer" {
+            self.state
+                .metrics
+                .ingest_rejections_total
+                .with_label_values(&["traces", "permission_denied"])
+                .inc();
             return Err(Status::permission_denied(
                 "viewer role cannot ingest traces",
             ));
         }
 
         if self.state.trace_rate_limiter.check_key(&tenant_id).is_err() {
+            self.state
+                .metrics
+                .ingest_rejections_total
+                .with_label_values(&["traces", "rate_limit_exceeded"])
+                .inc();
             return Err(Status::resource_exhausted(
                 "trace ingest rate limit exceeded",
             ));
@@ -53,6 +83,7 @@ impl TraceService for OltpTraceService {
 
         let inner = request.into_inner();
         let producer = self.state.producer.clone();
+        let metrics = self.state.metrics.clone();
         let span = if observable_telemetry::is_self_telemetry_env(&environment) {
             tracing::Span::none()
         } else {
@@ -64,6 +95,7 @@ impl TraceService for OltpTraceService {
                 tenant_id,
                 &environment,
             );
+            metrics.spans_received_total.add(spans.len() as i64);
             tracing::info!(tenant_id = %tenant_id, span_count = spans.len(), "received gRPC trace export");
             if let Some(ref producer) = producer {
                 let envelope = build_envelope(

@@ -202,8 +202,8 @@ class SystemSpecConsistencyTests(unittest.TestCase):
         import shutil
         import subprocess
 
-        system_spec_bin = shutil.which("system-spec")
         uv_bin = shutil.which("uv")
+        system_spec_bin = shutil.which("system-spec")
         flags = [
             str(SPEC),
             "--stage",
@@ -213,9 +213,7 @@ class SystemSpecConsistencyTests(unittest.TestCase):
             "--root",
             str(ROOT),
         ]
-        if system_spec_bin:
-            cmd = [system_spec_bin] + flags
-        elif uv_bin:
+        if uv_bin:
             cmd = [
                 uv_bin,
                 "run",
@@ -223,8 +221,10 @@ class SystemSpecConsistencyTests(unittest.TestCase):
                 str(ROOT / "models"),
                 "system-spec",
             ] + flags
+        elif system_spec_bin:
+            cmd = [system_spec_bin] + flags
         else:
-            self.fail("Neither system-spec nor uv is available in PATH")
+            self.fail("Neither uv nor system-spec is available in PATH")
 
         res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(ROOT))
         self.assertEqual(
