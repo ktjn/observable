@@ -347,6 +347,8 @@ without manually reconstructing context across tools.
 - Provide versionable import/export for supported dashboards, alerts, SLOs, and related
   configuration.
 
+Responder incident lifecycle workflows and timeline correlations are supported in `alert-evaluator` and frontend (`IncidentDetailPage`), enabling responders to acknowledge incidents, transition lifecycle states (`investigating`, `resolved`), capture timeline comments, and link correlated deployment events with tenant isolation and real container integration coverage (`postgres_incidents_integration.rs`).
+
 **Exit evidence:**
 
 - End-to-end scenarios prove detect-to-review journeys for latency, errors, saturation, no-data, and

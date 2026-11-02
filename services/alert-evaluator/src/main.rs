@@ -107,6 +107,26 @@ async fn main() -> anyhow::Result<()> {
             "/v1/incidents/{incident_id}",
             get(incidents::handle_get_incident),
         )
+        .route(
+            "/v1/incidents/{incident_id}/acknowledge",
+            post(incidents::handle_acknowledge_incident),
+        )
+        .route(
+            "/v1/incidents/{incident_id}/status",
+            post(incidents::handle_update_incident_status),
+        )
+        .route(
+            "/v1/incidents/{incident_id}/resolve",
+            post(incidents::handle_resolve_incident),
+        )
+        .route(
+            "/v1/incidents/{incident_id}/comments",
+            post(incidents::handle_add_incident_comment),
+        )
+        .route(
+            "/v1/incidents/{incident_id}/link-deployment",
+            post(incidents::handle_link_incident_deployment),
+        )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(Extension(state.db.clone()))
         .layer(Extension(Arc::new(state.auth_service_url.clone())))

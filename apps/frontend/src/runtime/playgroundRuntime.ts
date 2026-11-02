@@ -1133,6 +1133,44 @@ export const playgroundRuntime: RuntimeApi = {
       return (await getIncidentRepository()).getDetail(tenantId, incidentId) ??
         (() => { throw new Error(`Failed to get incident: 404`); })();
     },
+    async acknowledge(
+      tenantId: string,
+      incidentId: string,
+      payload?: { actor?: string; message?: string }
+    ): Promise<IncidentDetailResponse> {
+      return (await getIncidentRepository()).acknowledge(tenantId, incidentId, payload);
+    },
+    async updateStatus(
+      tenantId: string,
+      incidentId: string,
+      status: string,
+      payload?: { actor?: string; message?: string }
+    ): Promise<IncidentDetailResponse> {
+      return (await getIncidentRepository()).updateStatus(tenantId, incidentId, status, payload);
+    },
+    async resolve(
+      tenantId: string,
+      incidentId: string,
+      payload?: { actor?: string; message?: string }
+    ): Promise<IncidentDetailResponse> {
+      return (await getIncidentRepository()).resolve(tenantId, incidentId, payload);
+    },
+    async addComment(
+      tenantId: string,
+      incidentId: string,
+      message: string,
+      actor?: string
+    ): Promise<IncidentDetailResponse> {
+      return (await getIncidentRepository()).addComment(tenantId, incidentId, message, actor);
+    },
+    async linkDeployment(
+      tenantId: string,
+      incidentId: string,
+      deploymentId: string,
+      payload?: { actor?: string; message?: string }
+    ): Promise<IncidentDetailResponse> {
+      return (await getIncidentRepository()).linkDeployment(tenantId, incidentId, deploymentId, payload);
+    },
   },
   slos: {
     async list(tenantId: string): Promise<SloListResponse> {
