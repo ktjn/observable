@@ -2,6 +2,10 @@
 
 Toolkit versions (`system-spec --version`) are independent of a modeled system's `system.version`. Spec files stay valid across releases when changes only add optional fields; a validator older than a field rejects specs that use it.
 
+## Unreleased
+
+- Docs: [`MODEL-SCOPE.md`](MODEL-SCOPE.md) states that the metamodel is conceptual and platform independent; methodology and the reference validator are optional, and acceptance policy belongs to the consuming project.
+
 ## 0.4.0
 
 Compatibility: all additions are optional or opt-in (`imports`, `include`, `domain`, `external`, `via`, `test_scope`, `Evidence.criteria`); existing specs validate unchanged. Specs that use them need a 0.4.0+ validator (older ones reject unknown fields). New invariants apply only when their feature is used (`IMP-01`, `EV-06`, `COMP-11`, `DOM-*`).

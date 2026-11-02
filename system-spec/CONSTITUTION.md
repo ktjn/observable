@@ -1,12 +1,14 @@
 # AI System Development Constitution
 
-Shared fundamentals for all work. Track-specific sequencing: [greenfield](GREENFIELD.md) (new systems), [brownfield](BROWNFIELD.md) (existing systems). Metamodel: [`spec.md`](spec.md).
+**Optional development methodology.** This constitution describes one opinionated way to apply the [metamodel](MODEL-SCOPE.md); its rules, architecture choices, gates and acceptance criteria are not universally binding. Consuming projects select or adapt them.
+
+Shared fundamentals for projects adopting this methodology. Track-specific sequencing: [greenfield](GREENFIELD.md) (new systems), [brownfield](BROWNFIELD.md) (existing systems). Metamodel: [`spec.md`](spec.md).
 
 This document defines shared obligations; tracks define sequencing. Tools may check parts of an artifact, but gate decisions require review of its meaning and evidence.
 
 ## Fundamental Principle
 
-Implementations are not the source of truth. The source of truth is:
+Within this methodology, implementations are not the source of truth. The source of truth is:
 
 1. Capabilities
 2. Business rules

@@ -1,6 +1,8 @@
-# AI-Native System Specification
+# System Specification — Platform-Independent Metamodel
 
-Contract-first metamodel, development workflows, and reference tooling for designing **greenfield** systems and onboarding **brownfield** systems with bounded AI context.
+A platform-independent metamodel for describing systems, components, capabilities, data, requirements, risks and verification. AI-driven development is one supported application, not a requirement.
+
+**[Scope and authority](MODEL-SCOPE.md):** projects choose their development methodology, policies, verification criteria and enforcement. The reference implementation is optional, illustrative tooling—not a strict or authoritative validator.
 
 ## Overview
 
@@ -10,7 +12,9 @@ Implementations are not the source of truth — capabilities, invariants, contra
 Capability → Contract → Data Model → Verification → Implementation → Evidence
 ```
 
-## Standalone Components
+## Standalone Components (Optional AI-Driven Workflow)
+
+The following describes one reference methodology; adopting projects may choose different work boundaries, testing strategies and gates.
 
 A component is the unit of work: it should be buildable and testable from its own `--context` slice, so an agent needs that slice, not the whole repository. The model supports this with explicit boundaries:
 
