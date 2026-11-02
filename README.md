@@ -81,6 +81,7 @@ graph LR
   c_observable_query -->|evaluate-alerts| c_observable_alerting
   c_observable_query -->|store-telemetry| c_observable_store_clickhouse
   c_observable_control -->|validate-credential| c_observable_auth
+  c_observable_control -->|store-telemetry| c_observable_store_clickhouse
   c_observable_control -.->|owns| d_tenant_config
   c_observable_control -.->|owns| d_dashboard_model
   c_observable_control -.->|owns| d_deployment_marker
