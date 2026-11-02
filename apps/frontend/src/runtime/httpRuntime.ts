@@ -27,7 +27,15 @@ import {
   getAlertRule,
   setAlertRuleRunbook,
 } from "../api/alerts";
-import { listIncidents, getIncident } from "../api/incidents";
+import {
+  listIncidents,
+  getIncident,
+  acknowledgeIncident,
+  updateIncidentStatus,
+  resolveIncident,
+  addIncidentComment,
+  linkIncidentDeployment,
+} from "../api/incidents";
 import { listDeployments } from "../api/deployments";
 import { listSlos, createSlo } from "../api/slos";
 import {
@@ -114,6 +122,11 @@ export const httpRuntime: RuntimeApi = {
   incidents: {
     list: listIncidents,
     get: getIncident,
+    acknowledge: acknowledgeIncident,
+    updateStatus: updateIncidentStatus,
+    resolve: resolveIncident,
+    addComment: addIncidentComment,
+    linkDeployment: linkIncidentDeployment,
   },
   slos: {
     list: listSlos,

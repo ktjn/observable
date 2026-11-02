@@ -7,7 +7,7 @@ use axum::{
     Router,
     body::Body,
     http::{Request, StatusCode},
-    routing::get,
+    routing::{get, post},
 };
 use http_body_util::BodyExt;
 use serde_json::Value;
@@ -88,6 +88,26 @@ fn build_app(db: PgPool, tenant_id: Uuid) -> Router {
         .route(
             "/v1/incidents/{incident_id}",
             get(incidents::handle_get_incident),
+        )
+        .route(
+            "/v1/incidents/{incident_id}/acknowledge",
+            post(incidents::handle_acknowledge_incident),
+        )
+        .route(
+            "/v1/incidents/{incident_id}/status",
+            post(incidents::handle_update_incident_status),
+        )
+        .route(
+            "/v1/incidents/{incident_id}/resolve",
+            post(incidents::handle_resolve_incident),
+        )
+        .route(
+            "/v1/incidents/{incident_id}/comments",
+            post(incidents::handle_add_incident_comment),
+        )
+        .route(
+            "/v1/incidents/{incident_id}/link-deployment",
+            post(incidents::handle_link_incident_deployment),
         )
         .layer(axum::Extension(TenantContext {
             tenant_id,
@@ -401,4 +421,152 @@ async fn get_incident_detail_impacted_service_null_for_threshold_rule() {
         body["impacted_service"].is_null(),
         "threshold incident must have null impacted_service"
     );
+}
+
+#[tokio::test]
+async fn incident_lifecycle_transitions_and_responder_actions() {
+    let (db, _container) = start_postgres().await;
+    let tenant = Uuid::new_v4();
+    insert_tenant(&db, tenant).await;
+
+    let incident_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO incidents (incident_id, tenant_id, title, severity, status, dedup_key) \
+         VALUES ($1, $2, 'Payment latency spike', 'critical', 'triggered', 'dedup-lifecycle-1')",
+    )
+    .bind(incident_id)
+    .bind(tenant)
+    .execute(&db)
+    .await
+    .expect("incident inserted");
+
+    let app = build_app(db.clone(), tenant);
+
+    // 1. Acknowledge incident
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/incidents/{incident_id}/acknowledge"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    r#"{"actor":"alice","message":"Looking into it"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = response_body_json(res.into_body()).await;
+    assert_eq!(body["status"], "acknowledged");
+    assert_eq!(body["acknowledged_by"], "alice");
+    assert!(body["acknowledged_at"].is_string());
+    let timeline = body["timeline"].as_array().unwrap();
+    assert!(
+        timeline
+            .iter()
+            .any(|e| e["event_type"] == "acknowledged" && e["actor"] == "alice")
+    );
+
+    // 2. Add a comment
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/incidents/{incident_id}/comments"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    r#"{"actor":"bob","message":"Identified DB connection pool saturation"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = response_body_json(res.into_body()).await;
+    let timeline = body["timeline"].as_array().unwrap();
+    assert!(timeline.iter().any(|e| e["event_type"] == "comment"
+        && e["actor"] == "bob"
+        && e["message"] == "Identified DB connection pool saturation"));
+
+    // 3. Link deployment
+    let dep_id = Uuid::new_v4();
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/incidents/{incident_id}/link-deployment"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(format!(
+                    r#"{{"deployment_id":"{dep_id}","actor":"alice","message":"Correlated with rollout"}}"#
+                )))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = response_body_json(res.into_body()).await;
+    assert_eq!(body["related_deployment_id"], dep_id.to_string());
+    let timeline = body["timeline"].as_array().unwrap();
+    assert!(timeline.iter().any(
+        |e| e["event_type"] == "deployment_linked" && e["message"] == "Correlated with rollout"
+    ));
+
+    // 4. Update status to investigating
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/incidents/{incident_id}/status"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"status":"investigating","actor":"bob"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = response_body_json(res.into_body()).await;
+    assert_eq!(body["status"], "investigating");
+
+    // 5. Resolve incident
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/incidents/{incident_id}/resolve"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    r#"{"actor":"alice","message":"Pool size bumped, recovered"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = response_body_json(res.into_body()).await;
+    assert_eq!(body["status"], "resolved");
+    assert_eq!(body["resolved_by"], "alice");
+    assert!(body["resolved_at"].is_string());
+
+    // 6. Cross-tenant isolation verification
+    let other_tenant = Uuid::new_v4();
+    insert_tenant(&db, other_tenant).await;
+    let other_app = build_app(db, other_tenant);
+    let res = other_app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/incidents/{incident_id}/acknowledge"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"actor":"mallory"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
 }
