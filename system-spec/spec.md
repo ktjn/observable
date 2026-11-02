@@ -6,9 +6,11 @@ A platform-independent metamodel for building scalable systems composed of indep
 
 The metamodel defines structure, relationships, constraints, processes and verification. Implementation technologies are unrestricted.
 
-A reference implementation shall demonstrate and validate the metamodel.
+A reference implementation may demonstrate and check one interpretation of the metamodel. It is non-normative and does not determine project conformance or release readiness.
 
-This document defines metamodel requirements. The [constitution](CONSTITUTION.md) defines shared development rules; the [greenfield](GREENFIELD.md) and [brownfield](BROWNFIELD.md) tracks define their workflows; [skills](.github/skills/) describe individual techniques.
+The consuming project decides which model constraints, methods, quality policies and verification obligations to apply. AI-driven development is a supported use case, not a required implementation approach. See [scope and authority](MODEL-SCOPE.md).
+
+This document defines metamodel semantics and a current illustrative reference format. Any prescriptive workflow or stage-specific rule applies only when adopted by a consuming project. The [constitution](CONSTITUTION.md) defines shared development rules; the [greenfield](GREENFIELD.md) and [brownfield](BROWNFIELD.md) tracks define their workflows; [skills](.github/skills/) describe individual techniques.
 
 Blocks marked **Current reference format** define the serialization shared by tracks, skills and tooling; its limitations do not relax these requirements. Prototype behavior and limitations: [reference implementation](reference-implementation/README.md).
 

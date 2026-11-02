@@ -31,7 +31,7 @@ system-spec path/to/spec.yaml --stage architecture
 # yaml-language-server: $schema=../system-spec/reference-implementation/schema.json
 ```
 
-* Bind each component to its code and tests (`source_paths`, `test_paths`) so it can be developed from its `--context` slice; see `examples/components/`. Test evidence provenance should be a file path under `test_paths`, and each required capability needs a fake (`fakes`) under `test_paths`.
+* Bind each component to its code and tests (`source_paths`, `test_paths`) so it can be developed from its `--context` slice; see `examples/components/`. Test evidence provenance should name the actual test file (optionally with `::selector`) under `test_paths`; keep JUnit/output captures in evidence `artifacts`. Unit-scoped components need a fake (`fakes`) under `test_paths` for each required capability. Use `test_scope: integration` only for observed assembly/end-to-end tests; it permits declared providers rather than claiming isolation.
 * Artifact paths (`source_paths`, `schema_path`, evidence `artifacts`/`provenance`, `subject_bindings`) resolve against the repository root given by `--root`, not the spec file's location. `--root` is required for `--check-artifacts` and `--check-drift`:
 
 ```bash
@@ -52,7 +52,7 @@ system-spec spec/system.yaml --check-drift --root .        # Python/JS/TS import
 ```
 
 * Per-task scope gate for agent PRs: `git diff --name-only origin/main | system-spec spec/system.yaml --check-scope <component> --changed -` (add `--allow <path>` for shared files such as lockfiles).
-* Agent handoff return gate: `system-spec spec/system.yaml --check-return handoff-return.yaml` (schema: `reference-implementation/handoff-return.schema.json`).
+* Agent handoff return gate: `system-spec spec/system.yaml --check-return handoff-return.yaml` (schema: `reference-implementation/handoff-return.schema.json`). A return with every obligation explicitly `unmet` can be structurally valid; inspect unmet work and findings before acceptance. System-targeted requirements and native/manual gates need separate review.
 * Exit code is 0 for `VALID`, 1 for validation errors, 2 for invalid CLI usage.
 * Pre-commit: a local hook running `system-spec spec/system.yaml --stage release` works the same way.
 
@@ -90,5 +90,6 @@ sed -i 's#\.\./\.\./\.\./#../../../system-spec/#g' .github/skills/*/SKILL.md
 * Diff against the old export, merge wanted changes, update the paths in your agent instructions and skills.
 * Re-validate every spec at its existing stage, including artifact checks where used; if validation changed, follow the migration notes in the release.
 * Preserve historical validator/source/evidence pins and decisions rather than relabeling old captures. Record the new snapshot and review schema/validation differences before reusing evidence.
+* Before adding `test_paths`, check retained test provenance against `COMP-08`. If a record names a log, preserve that artifact and its hashes, identify the actual executed test file from its capture, and record the provenance correction with the old spec/manifest retained. Do not add log directories to test paths or claim a rerun. Add criterion/environment metadata only where the retained execution supports it.
 * Installation or successful metadata validation does not advance adoption levels, approve a contract proposal or replace native/manual acceptance gates.
 * Toolkit version (`system-spec --version`) is separate from a modeled system's `system.version`.

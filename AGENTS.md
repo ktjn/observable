@@ -37,7 +37,15 @@ The machine-checkable platform specification lives in `spec/system.yaml` and is 
   ```bash
   system-spec spec/system.yaml --impact <id>
   ```
+* **Change Flow (contract-first):** For a change to capabilities, contracts, data models, or component boundaries, follow [FEATURE.md](system-spec/FEATURE.md) in this order. Checks run locally (CI does not run `system-spec` for cost reasons), so record the results in the PR:
+  1. `system-spec spec/system.yaml --impact <id>` before editing; list affected components, requirements, and `invalidated_evidence` in the PR.
+  2. Edit `spec/system.yaml` (contract, versions, requirements) before the implementation; bump versions per the compatibility result.
+  3. `git show main:spec/system.yaml > /tmp/old.yaml && system-spec spec/system.yaml --compat /tmp/old.yaml` must be `VALID`; a break needs a major bump, consumer migration, and prior `deprecated` status for removals.
+  4. Implement, then rerun invalidated evidence and update the affected `evidence` records.
+  5. When a change targets a single component, `git diff --name-only main | system-spec spec/system.yaml --check-scope <component-id> --changed -` must report nothing outside its paths (`--allow <path>` for lockfiles, docs, `spec/system.yaml`).
+  6. Finish with the Validation Gate above.
 * **Model Feedback:** Report any model gaps, hidden coupling, or adapter issues as feedback per `system-spec/CONSTITUTION.md` (Self-Improvement and Model Feedback).
+* **Model Scope:** Treat [MODEL-SCOPE.md](system-spec/MODEL-SCOPE.md) as the architectural authority boundary: the metamodel is conceptual; methodology and validator are optional aids, and acceptance policy is this project's.
 
 ## Modelable Emitter Limitations (Manual Patches Required)
 

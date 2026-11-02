@@ -86,7 +86,7 @@ system-spec export DESTINATION
 
 ## Version and source compatibility
 
-- Specs are backward compatible across toolkit releases when changes add only optional fields or opt-in checks. Tools are not forward compatible: a validator older than a field rejects specs that use it (`extra="forbid"`). Record such changes in [`CHANGELOG.md`](CHANGELOG.md); the release steps are in [`RELEASING.md`](RELEASING.md).
+- Specs are backward compatible across toolkit releases when changes add only optional fields or opt-in checks. Tools are not forward compatible: a validator older than a field rejects specs that use it (`extra="forbid"`). Record such changes in [`CHANGELOG.md`](CHANGELOG.md); the release steps are in [`RELEASING.md`](https://github.com/ktjn/system-specification/blob/main/RELEASING.md).
 
 - Use one distribution version for code and bundled resources. Toolkit releases and modeled systems' `system.version` values are separate identities.
 - Adding packaging must not change the metamodel, schema, stages or capability-version matching rules.
@@ -101,6 +101,8 @@ system-spec export DESTINATION
 - PKG-01 (2026-11-01, Windows): wheel `toolkit/` inventory equals `toolkit_manifest.txt` (44 files) and every manifest entry is in the sdist; `uv build` builds the wheel from the sdist. Local rebuild digests differ from the published ones, so artifacts are not byte-reproducible.
 - PKG-05 (2026-11-01): all relative links in the 17 bundled Markdown files resolve inside the snapshot, including the skills' `../../../` links; no archive exceptions needed. Examples validate through the installed CLI in CI.
 - PKG-11 (2026-11-01, Windows, Python 3.15, median of 20): `system-spec` 252 ms vs `python metamodel.py example.yaml` 221 ms (+31 ms, +14%), within the allowance. Peak memory was not measured; the owner accepted that gap on 2026-11-01.
+
+Release record, 0.4.0: tag `v0.4.0` at `aaf8cc9b16f3052913c64a376fa0a6fed5c336b9`; published SHA-256: wheel `efbadff0a9d2a9e3bb6b840152dfa69a3b6ac51b8e18e27ebd469b2a767461aa`, sdist `54d05316cbdaef411f172fb7f2193eb2872b53f340ad6aa8aa9175269ca62737`. Installed-wheel smoke runs in CI on ubuntu/windows × 3.12/3.13; clean-venv install of the locally built wheel verified on Windows (export contains no bytecode caches).
 
 Release record, 0.3.0: tag `v0.3.0` at `4e22cf2dc4a0e10968deb830060b82c82b727187`; published SHA-256: wheel `810a6587a412401f9b4c7073e9a839bf8871c5545986a73c131d27ffac22354a`, sdist `1373eebb4d218e71d91ab8e95fd9ad6b82e43b2e9795305993ac7a4e6411bba9`. Installed-wheel smoke runs in CI on ubuntu/windows × 3.12/3.13; clean-venv install of the locally built wheel verified on Windows.
 
