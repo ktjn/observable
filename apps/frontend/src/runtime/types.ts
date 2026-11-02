@@ -167,6 +167,34 @@ export interface RuntimeApi {
   incidents: {
     list(tenantId: string, status?: string): Promise<IncidentListResponse>;
     get(tenantId: string, incidentId: string): Promise<IncidentDetailResponse>;
+    acknowledge(
+      tenantId: string,
+      incidentId: string,
+      payload?: { actor?: string; message?: string }
+    ): Promise<IncidentDetailResponse>;
+    updateStatus(
+      tenantId: string,
+      incidentId: string,
+      status: string,
+      payload?: { actor?: string; message?: string }
+    ): Promise<IncidentDetailResponse>;
+    resolve(
+      tenantId: string,
+      incidentId: string,
+      payload?: { actor?: string; message?: string }
+    ): Promise<IncidentDetailResponse>;
+    addComment(
+      tenantId: string,
+      incidentId: string,
+      message: string,
+      actor?: string
+    ): Promise<IncidentDetailResponse>;
+    linkDeployment(
+      tenantId: string,
+      incidentId: string,
+      deploymentId: string,
+      payload?: { actor?: string; message?: string }
+    ): Promise<IncidentDetailResponse>;
   };
   slos: {
     list(tenantId: string): Promise<SloListResponse>;

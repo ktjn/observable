@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { IncidentEventItem } from "../../api/incidents";
 import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
 import { LoadingState } from "../../components/ui/loading-state";
 import { Panel } from "../../components/ui/panel";
 import { CopyableText } from "../../components/ui/copy-button";
@@ -46,12 +48,48 @@ const LINKED_EVENT_TYPES = new Set(["alert_fired", "alert_resolved"]);
 export function IncidentDetailPage() {
   const { tenantId } = useTenantContext();
   const runtime = useRuntime();
+  const queryClient = useQueryClient();
   const { format } = useTimeDisplay();
   const { incidentId } = useParams({ from: "/incidents/$incidentId" });
+  const [commentText, setCommentText] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["incident", tenantId, incidentId],
     queryFn: () => runtime.incidents.get(tenantId, incidentId),
+  });
+
+  const acknowledgeMutation = useMutation({
+    mutationFn: () => runtime.incidents.acknowledge(tenantId, incidentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["incident", tenantId, incidentId] });
+      queryClient.invalidateQueries({ queryKey: ["incidents", tenantId] });
+    },
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: (newStatus: string) =>
+      runtime.incidents.updateStatus(tenantId, incidentId, newStatus),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["incident", tenantId, incidentId] });
+      queryClient.invalidateQueries({ queryKey: ["incidents", tenantId] });
+    },
+  });
+
+  const resolveMutation = useMutation({
+    mutationFn: () => runtime.incidents.resolve(tenantId, incidentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["incident", tenantId, incidentId] });
+      queryClient.invalidateQueries({ queryKey: ["incidents", tenantId] });
+    },
+  });
+
+  const commentMutation = useMutation({
+    mutationFn: (message: string) =>
+      runtime.incidents.addComment(tenantId, incidentId, message),
+    onSuccess: () => {
+      setCommentText("");
+      queryClient.invalidateQueries({ queryKey: ["incident", tenantId, incidentId] });
+    },
   });
 
   const triggeredAtMs = data ? new Date(data.triggered_at).getTime() : 0;
@@ -90,6 +128,33 @@ export function IncidentDetailPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
+          {data.status === "triggered" && (
+            <Button
+              variant="secondary"
+              disabled={acknowledgeMutation.isPending}
+              onClick={() => acknowledgeMutation.mutate()}
+            >
+              Acknowledge
+            </Button>
+          )}
+          {data.status !== "investigating" && data.status !== "resolved" && (
+            <Button
+              variant="secondary"
+              disabled={statusMutation.isPending}
+              onClick={() => statusMutation.mutate("investigating")}
+            >
+              Investigate
+            </Button>
+          )}
+          {data.status !== "resolved" && (
+            <Button
+              variant="primary"
+              disabled={resolveMutation.isPending}
+              onClick={() => resolveMutation.mutate()}
+            >
+              Resolve
+            </Button>
+          )}
           <Badge tone={severityColor(data.severity)}>{data.severity}</Badge>
           <Badge tone={statusColor(data.status)}>
             {data.status.charAt(0).toUpperCase() + data.status.slice(1)}
@@ -130,7 +195,34 @@ export function IncidentDetailPage() {
       </Panel>
 
       <Panel>
-        <h3 className="text-sm font-semibold mb-3">Timeline</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold">Timeline</h3>
+        </div>
+        <form
+          className="mb-4 flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (commentText.trim()) {
+              commentMutation.mutate(commentText.trim());
+            }
+          }}
+        >
+          <input
+            type="text"
+            className="input-base flex-1 text-sm"
+            placeholder="Add a timeline note or comment..."
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            disabled={commentMutation.isPending}
+          />
+          <Button
+            type="submit"
+            variant="secondary"
+            disabled={!commentText.trim() || commentMutation.isPending}
+          >
+            Add Note
+          </Button>
+        </form>
         <div className="space-y-3">
           {data.timeline.map((event: IncidentEventItem, idx: number) => {
             const showLink =
