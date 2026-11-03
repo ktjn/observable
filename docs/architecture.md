@@ -196,9 +196,9 @@ specific missing variable. Set it in your `.env` file or environment.
 
 5. **ClickHouse**: Verify data exists:
    ```bash
-   docker compose exec clickhouse clickhouse-client \
-     --user default --password observable \
-     --query "SELECT count() FROM observable.spans"
+   docker compose exec clickhouse sh -c 'clickhouse-client \
+     --user default --password "$CLICKHOUSE_PASSWORD" \
+     --query "SELECT count() FROM observable.spans"'
    ```
 
 ### High memory or CPU usage
