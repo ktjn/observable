@@ -49,16 +49,16 @@ Redpanda: `telemetry.normalized.v1`
 
 3. **Check ClickHouse cluster liveness and disk space**:
    ```bash
-   kubectl exec -n observable -it deploy/clickhouse -- clickhouse-client \
-     --user default --password observable \
-     --query "SELECT name, path, formatReadableSize(free_space), formatReadableSize(total_space) FROM system.disks"
+   kubectl exec -n observable -it deploy/clickhouse -- sh -c 'clickhouse-client \
+     --user default --password "$CLICKHOUSE_PASSWORD" \
+     --query "SELECT name, path, formatReadableSize(free_space), formatReadableSize(total_space) FROM system.disks"'
    ```
 
 4. **Check for long-running mutations or part merges**:
    ```bash
-   kubectl exec -n observable -it deploy/clickhouse -- clickhouse-client \
-     --user default --password observable \
-     --query "SELECT query_id, elapsed, query FROM system.processes WHERE is_cancelled = 0"
+   kubectl exec -n observable -it deploy/clickhouse -- sh -c 'clickhouse-client \
+     --user default --password "$CLICKHOUSE_PASSWORD" \
+     --query "SELECT query_id, elapsed, query FROM system.processes WHERE is_cancelled = 0"'
    ```
 
 ## Mitigation & Recovery Paths

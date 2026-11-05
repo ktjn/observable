@@ -57,11 +57,15 @@ export class SqliteIncidentRepository {
     return {
       ...incident,
       dedup_key: `dedup-${incident.incident_id}`,
+      acknowledged_at: (incident as unknown as { acknowledged_at?: string }).acknowledged_at ?? null,
+      acknowledged_by: (incident as unknown as { acknowledged_by?: string }).acknowledged_by ?? null,
       resolved_at: incident.resolved_at ?? null,
+      resolved_by: (incident as unknown as { resolved_by?: string }).resolved_by ?? null,
       triggered_by_rule_id: incident.triggered_by_rule_id ?? null,
+      related_deployment_id: (incident as unknown as { related_deployment_id?: string }).related_deployment_id ?? null,
       runbook_url: null,
       rule_name: incident.triggered_by_rule_id === "playground-rule-1" ? "payment error rate > 5%" : null,
-      timeline: [{
+      timeline: (incident as unknown as { timeline?: IncidentDetailResponse["timeline"] }).timeline ?? [{
         event_time: incident.triggered_at,
         event_type: "triggered",
         actor: "alert-evaluator",
@@ -69,6 +73,146 @@ export class SqliteIncidentRepository {
       }],
       impacted_service: incident.triggered_by_rule_id === "playground-rule-1" ? "payment" : null,
     };
+  }
+
+  acknowledge(
+    tenantId: string,
+    incidentId: string,
+    payload?: { actor?: string; message?: string }
+  ): IncidentDetailResponse {
+    const detail = this.getDetail(tenantId, incidentId);
+    if (!detail) throw new Error("Incident not found");
+    const now = new Date().toISOString();
+    const actor = payload?.actor ?? "playground-user";
+    const updated: IncidentDetailResponse = {
+      ...detail,
+      status: "acknowledged",
+      acknowledged_at: now,
+      acknowledged_by: actor,
+      timeline: [
+        ...detail.timeline,
+        {
+          event_time: now,
+          event_type: "acknowledged",
+          actor,
+          message: payload?.message ?? "Incident acknowledged",
+        },
+      ],
+    };
+    this.insert(tenantId, updated as unknown as IncidentItem);
+    return updated;
+  }
+
+  updateStatus(
+    tenantId: string,
+    incidentId: string,
+    status: string,
+    payload?: { actor?: string; message?: string }
+  ): IncidentDetailResponse {
+    const detail = this.getDetail(tenantId, incidentId);
+    if (!detail) throw new Error("Incident not found");
+    const now = new Date().toISOString();
+    const actor = payload?.actor ?? "playground-user";
+    const resolved_at = status === "resolved" ? (detail.resolved_at ?? now) : detail.resolved_at;
+    const resolved_by = status === "resolved" ? (detail.resolved_by ?? actor) : detail.resolved_by;
+    const updated: IncidentDetailResponse = {
+      ...detail,
+      status,
+      resolved_at,
+      resolved_by,
+      timeline: [
+        ...detail.timeline,
+        {
+          event_time: now,
+          event_type: "status_change",
+          actor,
+          message: payload?.message ?? `Status updated to ${status}`,
+        },
+      ],
+    };
+    this.insert(tenantId, updated as unknown as IncidentItem);
+    return updated;
+  }
+
+  resolve(
+    tenantId: string,
+    incidentId: string,
+    payload?: { actor?: string; message?: string }
+  ): IncidentDetailResponse {
+    const detail = this.getDetail(tenantId, incidentId);
+    if (!detail) throw new Error("Incident not found");
+    const now = new Date().toISOString();
+    const actor = payload?.actor ?? "playground-user";
+    const updated: IncidentDetailResponse = {
+      ...detail,
+      status: "resolved",
+      resolved_at: now,
+      resolved_by: actor,
+      timeline: [
+        ...detail.timeline,
+        {
+          event_time: now,
+          event_type: "status_change",
+          actor,
+          message: payload?.message ?? "Incident marked resolved",
+        },
+      ],
+    };
+    this.insert(tenantId, updated as unknown as IncidentItem);
+    return updated;
+  }
+
+  addComment(
+    tenantId: string,
+    incidentId: string,
+    message: string,
+    actor?: string
+  ): IncidentDetailResponse {
+    const detail = this.getDetail(tenantId, incidentId);
+    if (!detail) throw new Error("Incident not found");
+    const now = new Date().toISOString();
+    const commentActor = actor ?? "playground-user";
+    const updated: IncidentDetailResponse = {
+      ...detail,
+      timeline: [
+        ...detail.timeline,
+        {
+          event_time: now,
+          event_type: "comment",
+          actor: commentActor,
+          message,
+        },
+      ],
+    };
+    this.insert(tenantId, updated as unknown as IncidentItem);
+    return updated;
+  }
+
+  linkDeployment(
+    tenantId: string,
+    incidentId: string,
+    deploymentId: string,
+    payload?: { actor?: string; message?: string }
+  ): IncidentDetailResponse {
+    const detail = this.getDetail(tenantId, incidentId);
+    if (!detail) throw new Error("Incident not found");
+    const now = new Date().toISOString();
+    const actor = payload?.actor ?? "playground-user";
+    const updated: IncidentDetailResponse = {
+      ...detail,
+      related_deployment_id: deploymentId,
+      timeline: [
+        ...detail.timeline,
+        {
+          event_time: now,
+          event_type: "deployment_linked",
+          actor,
+          message: payload?.message ?? `Linked deployment ${deploymentId}`,
+        },
+      ],
+    };
+    this.insert(tenantId, updated as unknown as IncidentItem);
+    return updated;
   }
 
   private insert(tenantId: string, incident: IncidentItem): void {

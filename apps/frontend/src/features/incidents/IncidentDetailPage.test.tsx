@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, test, vi, beforeEach } from "vitest";
 import type { IncidentDetailResponse } from "../../api/incidents";
@@ -168,4 +168,45 @@ test("does not render Impacted Services panel when impacted_service is null", as
   renderPage();
   await waitFor(() => screen.getByRole("heading", { level: 1 }));
   expect(screen.queryByText("Impacted Services")).not.toBeInTheDocument();
+});
+
+test("renders responder action buttons and allows acknowledging and resolving", async () => {
+  const acknowledgeMock = vi.fn().mockResolvedValue({ ...baseDetail, status: "acknowledged" });
+  const updateStatusMock = vi.fn().mockResolvedValue({ ...baseDetail, status: "investigating" });
+  const resolveMock = vi.fn().mockResolvedValue({ ...baseDetail, status: "resolved" });
+  const addCommentMock = vi.fn().mockResolvedValue({ ...baseDetail });
+
+  vi.mocked(useRuntime).mockReturnValue({
+    incidents: {
+      list: vi.fn(),
+      get: vi.fn(async () => baseDetail),
+      acknowledge: acknowledgeMock,
+      updateStatus: updateStatusMock,
+      resolve: resolveMock,
+      addComment: addCommentMock,
+      linkDeployment: vi.fn(),
+    },
+    topology: { get: vi.fn() },
+  } as unknown as RuntimeApi);
+
+  renderPage();
+  await waitFor(() => screen.getByRole("button", { name: "Acknowledge" }));
+
+  const ackBtn = screen.getByRole("button", { name: "Acknowledge" });
+  expect(ackBtn).toBeInTheDocument();
+  const investBtn = screen.getByRole("button", { name: "Investigate" });
+  expect(investBtn).toBeInTheDocument();
+  const resolveBtn = screen.getByRole("button", { name: "Resolve" });
+  expect(resolveBtn).toBeInTheDocument();
+
+  fireEvent.click(ackBtn);
+  await waitFor(() => expect(acknowledgeMock).toHaveBeenCalledWith("test-tenant", "inc-1"));
+
+  fireEvent.click(investBtn);
+  await waitFor(() =>
+    expect(updateStatusMock).toHaveBeenCalledWith("test-tenant", "inc-1", "investigating")
+  );
+
+  fireEvent.click(resolveBtn);
+  await waitFor(() => expect(resolveMock).toHaveBeenCalledWith("test-tenant", "inc-1"));
 });
