@@ -104,7 +104,7 @@ No implementation is accepted until all categories are addressed:
 ## Formal Verification
 
 - Assess per component. Indicators: concurrency, distributed state, financial transactions, safety-critical logic, complex state machines, protocols.
-- If applicable, produce TLA+/Alloy models or state machines; see skills [`tla`](.github/skills/tla/SKILL.md) (concurrency, protocols) and [`alloy`](.github/skills/alloy/SKILL.md) (structure, relations).
+- If applicable, produce TLA+/Alloy/Quint models or state machines; see skills [`tla`](.github/skills/tla/SKILL.md) (concurrency, protocols), [`quint`](.github/skills/quint/SKILL.md) (typed state machines) and [`alloy`](.github/skills/alloy/SKILL.md) (structure, relations).
 - Record bounded checks as `method: model-check` with explicit `bounds` and unbounded proofs as `method: proof` ([`spec.md` § 8](spec.md#8-verification)).
 
 ## Layering

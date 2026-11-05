@@ -1,5 +1,6 @@
 from __future__ import annotations
 import argparse, ast, hashlib, json, re, sys, tomllib, yaml
+import xml.etree.ElementTree as ET
 from collections import Counter
 from datetime import date, datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -76,6 +77,7 @@ INVARIANTS = {
     "REQ-05": ("release", None, "Obligated (mandatory, declassifying, resolving) requirements have passing evidence for their version."),
     "REQ-06": ("release", None, "Dependencies of obligated and mitigating requirements are verified."),
     "REQ-07": ("verification", None, "Requirement kind matches its verification category."),
+    "REQ-08": ("release", None, "Obligation passes to refining requirements, and obligated or mitigating requirements are refined only by verified requirements."),
     "COMPAT-01": (None, None, "Preconditions are not strengthened."),
     "COMPAT-02": (None, None, "Postconditions are not removed."),
     "COMPAT-03": (None, None, "Invariants are not removed."),
@@ -511,12 +513,18 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
             if e.skipped: add("EV-05", f"Evidence '{e.id}' has skipped checks: {e.skipped}")
     mitig = {m for k in spec.risks for m in k.mitigated_by}
     oblig = {r.id for r in active.values() if r.mandatory} | {d.declassified_by for d in spec.data_models} | {r.resolved_by for r in active.values()}
+    kids: dict[str, list[str]] = {}
+    for r in active.values():
+        for p in r.refines: kids.setdefault(p, []).append(r.id)
+    while new := {k for p in oblig for k in kids.get(p, [])} - oblig: oblig |= new
     for r in active.values():
         _, failing, uncovered = state.get((r.id, r.version), (False, [], []))
         part = lambda cs: f" for criteria {cs}" if cs and set(cs) != set(r.criteria) else ""
         if r.id in oblig and (r.id, r.version) in failed: add("REQ-04", f"Requirement '{r.id}@{r.version}' has unresolved failing evidence{part(failing)}")
         elif r.id in oblig and r.id not in ok: add("REQ-05", f"Requirement '{r.id}@{r.version}' missing valid verification evidence{part(uncovered)}")
         if r.id in oblig | mitig:
+            for k in kids.get(r.id, []):
+                if k not in ok: add("REQ-08", f"Requirement '{r.id}' is refined by unverified requirement '{k}'")
             for d in r.depends_on:
                 if d in reqs and d not in ok: add("REQ-06", f"Requirement '{r.id}' depends on unverified requirement '{d}'")
     for k in sorted({k for c in spec.components for k in c.fakes}):
@@ -713,6 +721,43 @@ def check_imports(spec: Spec, root: str | Path, base: str | Path) -> list[str]:
             elif have[k] != v: errors.append(f"imports: '{i.id}' capability '{k}' pins {v}, spec has {have[k]}")
         if i.sha256 and hashlib.sha256(t.read_bytes()).hexdigest() != i.sha256: errors.append(f"imports: '{i.id}' sha256 mismatch for {i.path}")
     return errors
+
+def _report(paths: list[str]) -> list[tuple[str, list[str], bool, ET.Element]]:
+    """JUnit testcases as (test id, bound 'requirement@version' refs, passed, enclosing testsuite). The test id is the `test` property, else classname::name; refs are `verifies` properties."""
+    out = []
+    for path in paths:
+        for ts in ET.parse(path).getroot().iter("testsuite"):
+            for tc in ts.findall("testcase"):
+                props = [(x.get("name"), x.get("value", "")) for x in tc.iter("property")]
+                out.append((next((v for k, v in props if k == "test"), f"{tc.get('classname')}::{tc.get('name')}"), [v for k, v in props if k == "verifies"],
+                            not any(tc.find(t) is not None for t in ("failure", "error", "skipped")), ts))
+    return out
+
+def check_report(spec: Spec, paths: list[str]) -> list[str]:
+    """Every reported test binds exactly one current requirement version; non-superseded `test` evidence is present in the reports and agrees on requirement, version and result (§ 8)."""
+    reqs, sup, errors, seen = {r.id: r for r in spec.requirements}, _superseded(spec), [], {}
+    for tid, refs, passed, _ in _report(paths):
+        seen[tid] = (refs, passed)
+        if len(refs) != 1: errors.append(f"report: test '{tid}' must bind exactly one requirement, found {len(refs)}"); continue
+        rid, _, ver = refs[0].partition("@")
+        if rid not in reqs: errors.append(f"report: test '{tid}' binds unknown requirement '{rid}'")
+        elif reqs[rid].version != ver: errors.append(f"report: test '{tid}' binds '{rid}@{ver}', current version is {reqs[rid].version}")
+    for e in spec.evidence:
+        if e.method != "test" or e.id in sup: continue
+        if e.provenance not in seen: errors.append(f"report: evidence '{e.id}' provenance '{e.provenance}' is not in the run reports")
+        else:
+            refs, passed = seen[e.provenance]
+            if refs != [f"{e.requirement_id}@{e.requirement_version}"]: errors.append(f"report: evidence '{e.id}' is for '{e.requirement_id}@{e.requirement_version}' but the test binds {refs}")
+            if passed != e.passed: errors.append(f"report: evidence '{e.id}' passed={e.passed} but the run reports passed={passed}")
+    return errors
+
+def evidence_from_report(spec: Spec, paths: list[str]) -> list[dict]:
+    """`test` evidence records derived from run reports; add subject_revision and verifier (EV-04) in the producing CI step."""
+    reqs = {r.id: r for r in spec.requirements}
+    return [{"id": "ev-" + re.sub(r"\W+", "-", tid).strip("-"), "requirement_id": refs[0].partition("@")[0], "requirement_version": refs[0].partition("@")[2],
+             "method": "test", "passed": passed, "provenance": tid, **({"timestamp": ts.get("timestamp")} if ts.get("timestamp") else {}),
+             **({"environment": ts.get("hostname")} if ts.get("hostname") else {})}
+            for tid, refs, passed, ts in _report(paths) if len(refs) == 1 and refs[0].partition("@")[0] in reqs]
 
 _LIFECYCLE = {"draft": "experimental", "specified": "experimental", "verified": "production", "deprecated": "deprecated"}
 
@@ -1001,6 +1046,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--return-schema", action="store_true", help="print JSON Schema for a handoff return (committed as handoff-return.schema.json)")
     ap.add_argument("--check-return", metavar="FILE", help="check an implementer's handoff return (YAML/JSON) against the spec; --allow permits extra changed paths")
     ap.add_argument("--check-imports", action="store_true", help="verify pinned imports against the imported specs (paths resolve from this spec's directory, inside --root)")
+    ap.add_argument("--check-report", metavar="JUNIT", action="append", default=[], help="check JUnit run reports (repeatable): every test binds one requirement version via a 'verifies' property; test evidence agrees with the reports")
+    ap.add_argument("--emit-evidence", metavar="JUNIT", action="append", default=[], help="print test Evidence records derived from JUnit run reports (repeatable)")
     ap.add_argument("--export", choices=["backstage", "structurizr"], help="print a Backstage catalog (YAML) or Structurizr DSL workspace for the spec")
     ap.add_argument("--owner", default="unknown", help="owner for --export backstage (Backstage requires one; not modeled)")
     ap.add_argument("--plan", metavar="ID", help="delivery plan for a change to ID: provider-first component waves, slices, evidence to revisit")
@@ -1039,6 +1086,14 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
                 print(json.dumps(sl, indent=2) if a.json else yaml.safe_dump(sl, sort_keys=False, default_flow_style=None), end=""); return 0
         elif a.export:
             print(yaml.safe_dump_all(export_backstage(spec, a.owner), sort_keys=False) if a.export == "backstage" else export_structurizr(spec), end=""); return 0
+        elif a.check_report or a.emit_evidence:
+            try:
+                if a.emit_evidence:
+                    ev = evidence_from_report(spec, a.emit_evidence)
+                    print(json.dumps(ev, indent=2) if a.json else yaml.safe_dump(ev, sort_keys=False, default_flow_style=None), end=""); return 0
+                errs = check_report(spec, a.check_report)
+            except (OSError, ET.ParseError) as e: errs = [f"report: {e}"]
+            out = {"valid": not errs, "errors": errs}
         elif a.check_imports:
             errs = check_imports(spec, a.root, Path(a.spec).parent)
             out = {"valid": not errs, "errors": errs}

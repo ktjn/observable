@@ -118,6 +118,8 @@ Requirements specify expected behavior and constraints.
 - A composition shall identify its active requirements (`status` in `draft`, `specified`, `verified`; `deprecated` requirements are inactive).
 - Conflicts between active requirements shall be rejected unless resolved via `resolved_by` referencing an active requirement whose criteria and evidence supersede or reconcile the conflicting obligations.
 - Setting a requirement to optional shall not resolve a conflict or remove its dependencies.
+- A requirement may be decomposed into sub-requirements that refine it. A requirement spanning components shall be decomposed so each sub-requirement targets one component (or a capability it provides) and can be developed and verified in isolation; the parent is then verified by the join (integration evidence) once its sub-requirements are verified.
+- Obligation passes to refining requirements: if a requirement is obligated, so are its sub-requirements. An obligated or mitigating requirement is verified only if every sub-requirement is verified and it has its own passing evidence (`REQ-08`).
 
 **Current reference format:** requirements use `id`, `version`, `target`, `kind`, `mandatory`, `criteria`, `depends_on`, `refines`, `conflicts_with`, `status`, `category` and `resolved_by`. `kind` is `functional` or `non-functional`; `mandatory` defaults to `true`; `category` is one of `functional`, `semantic`, `contract`, `serialization`, `concurrency`, `performance`, `scalability`, `resilience`, `security`, `observability`.
 
@@ -157,6 +159,8 @@ Valid evidence shall identify:
 - The verified subject (`subject_id`) and its version or immutable revision (`subject_revision`).
 - Execution time (`timestamp`), verifier or tool identity (`verifier`), conditions, assumptions and bounds/scope (mandatory for `model-check`).
 - Retrievable supporting artifacts and their provenance.
+
+Every test shall trace to exactly one requirement version, and test evidence shall be derived from test-runner results rather than asserted by hand. A tool that produces JUnit XML records the binding as a `verifies` property (`<requirement>@<version>`) and the evidence provenance as a `test` property (`<file>::<name>`) on each test case; how the binding is authored is project-specific, in order of preference: a native framework marker or annotation, a structured comment, an external mapping, and as a last resort a deterministic encoding of the requirement in the test name. `--check-report` rejects tests without exactly one binding, bindings to unknown or non-current requirement versions, and `test` evidence absent from the reports or disagreeing with them on requirement, version or result; `--emit-evidence` derives the `test` evidence records from the reports.
 
 Evidence shall cover the applicable acceptance criteria. A passing result shall not override an unresolved failure for the same obligation and applicable subject unless the new evidence explicitly declares `supersedes` (referencing the failed evidence ID) and `supersession_reason`.
 
@@ -284,6 +288,7 @@ Each invariant has a stable ID that validators shall report with every violation
 | `REQ-05` | `release` | — | Obligated (mandatory, declassifying, resolving) requirements have passing evidence for their version. |
 | `REQ-06` | `release` | — | Dependencies of obligated and mitigating requirements are verified. |
 | `REQ-07` | `verification` | — | Requirement kind matches its verification category. |
+| `REQ-08` | `release` | — | Obligation passes to refining requirements, and obligated or mitigating requirements are refined only by verified requirements. |
 | `COMPAT-01` | change | — | Preconditions are not strengthened. |
 | `COMPAT-02` | change | — | Postconditions are not removed. |
 | `COMPAT-03` | change | — | Invariants are not removed. |
