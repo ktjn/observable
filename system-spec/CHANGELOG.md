@@ -4,6 +4,12 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- Docs: [`FEATURE.md`](FEATURE.md) § Using with OpenSpec maps an OpenSpec change workflow onto the feature steps; no integration is provided.
+- Skill [`quint`](.github/skills/quint/SKILL.md): Quint models (typecheck, `run` simulation as `analysis`, `verify` bounded check as `model-check`) recorded as Evidence.
+Compatibility: `REQ-08` is a new release-stage invariant. Specs where a mandatory or mitigating requirement is refined (`refines`) by a requirement without passing evidence now fail at `release`; the new flags are opt-in.
+
+- `REQ-08` (release): obligation passes to refining requirements (sub-requirements), and obligated or mitigating requirements are verified only when every sub-requirement is. A parent still needs its own (integration) evidence.
+- `--check-report JUNIT` / `--emit-evidence JUNIT`: tests bind exactly one requirement version through a `verifies` JUnit property; `test` evidence must agree with the run reports and can be derived from them. `reference-implementation/conftest.py` shows a pytest `verifies` marker.
 - Docs: [`MODEL-SCOPE.md`](MODEL-SCOPE.md) states that the metamodel is conceptual and platform independent; methodology and the reference validator are optional, and acceptance policy belongs to the consuming project.
 
 ## 0.4.0

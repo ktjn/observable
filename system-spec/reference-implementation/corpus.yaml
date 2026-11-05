@@ -2,6 +2,7 @@
 # set: {dotted.path: value}; numeric segments index lists; `path.-: [items]` appends. drop: [dotted.path].
 # stage: validation stage (default release). old: {set, drop} patch building the old spec for compare_specs.
 - { id: REF-01, set: { requirements.-: [{ id: req-order, version: "1.0", status: verified, category: functional, target: place-order, criteria: [x] }] } }
+- { id: REQ-08, also: [REQ-05], set: { requirements.-: [{ id: req-sub, version: "1.0", status: verified, category: functional, target: place-order, mandatory: false, refines: [req-order], criteria: [x] }] } }
 - { id: REF-02, set: { requirements.0.target: nope } }
 - { id: IMP-01, set: { system.imports: [{ id: a, path: a.yaml, version: "1", capabilities: {} }, { id: a, path: b.yaml, version: "1", capabilities: {} }] } }
 - { id: REF-03, set: { components.0.provides.-: [ghost] } }

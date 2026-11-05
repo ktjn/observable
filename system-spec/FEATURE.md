@@ -19,6 +19,8 @@ Contract-first sequencing for adding or changing behavior in a system that alrea
 
 Rules:
 
+- Decompose the feature's requirement into sub-requirements (`refines`) so each targets one component; that is the unit of handoff. Components are developed and verified separately against fakes, then joined: the parent requirement needs its own integration evidence (a `test_scope: integration` component) and every sub-requirement verified (`REQ-08`); iterate by superseding failed evidence until the parent holds.
+- Tests trace to exactly one requirement: bind them with a `verifies` marker/annotation and check run reports with `--check-report`; derive `test` evidence with `--emit-evidence` instead of writing `passed` by hand.
 - Do not change implementation first. If code already exists, bring the spec to the new behavior and re-derive tests before merging.
 - One component per handoff, enforced with `--check-scope <component> --changed <file|->` (path list such as `git diff --name-only <base>`; `--allow <path>` for lockfiles or docs). Spec edits belong to the contract step; in a split spec a component's requirements and evidence live in its own fragment (pass it with `--allow spec/<component>.yaml`). A feature spanning components is delivered provider-first, each with its own slice, fakes and tests; a consumer never imports the provider in tests (`--check-drift`).
 - Reopen the earliest affected gate and record it in the [gate decision record](CONSTITUTION.md#gate-decision-record); do not relabel an incomplete artifact to advance.
@@ -43,3 +45,19 @@ Rules:
 - **Implement**: "Implement this `--context <component-id>` slice within `source_paths`; write tests under `test_paths` that depend only on the fakes. Return requirement-linked results and any new facts or model gaps."
 
 Example of the component layout (source, tests, fakes, schema, checks): [`examples/components/`](examples/components/README.md).
+
+## Using with OpenSpec
+
+[OpenSpec](https://github.com/Fission-AI/OpenSpec) (Fission AI) is a prose spec-and-change workflow for AI assistants: proposal, design notes, tasks, spec deltas (ADDED/MODIFIED/REMOVED), archive. It is a process layer; this model is the checked layer underneath. Neither requires the other, and the toolkit has no OpenSpec importer or exporter.
+
+| OpenSpec | Here |
+|---|---|
+| Proposal, design notes | Scope and Contract steps, gate reviews |
+| Spec delta | `--compat OLD.yaml` and `--impact <id>` |
+| Task list | `--plan <id>` waves; one `--context <component>` slice per handoff |
+| Archive | Version bumps, `supersedes` evidence history, [gate decision record](CONSTITUTION.md#gate-decision-record) |
+| `openspec validate` | `--stage <stage>`, `--check-report` |
+
+- Keep proposals and tasks in OpenSpec if the team uses it; the change is not accepted until the spec passes the Acceptance gate above. Archiving a change is not acceptance.
+- Prose requirements and scenarios carry no contracts, components, data models or evidence: express them as `Requirement.criteria` and the model entities before relying on them.
+- Treat the spec delta as a review aid; `--compat` is the check.

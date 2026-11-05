@@ -2,7 +2,7 @@ import copy, json, re, yaml
 import pytest
 from datetime import date
 from pathlib import Path
-from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Domain, Evidence, Risk, Spec
+from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Domain, Evidence, Risk, Spec, Requirement, check_report, evidence_from_report
 
 EXAMPLE = Path(__file__).parent / "example.yaml"
 
@@ -271,3 +271,50 @@ def test_docs_invariant_counts():
     n_all, n_st, n_cp = len(INVARIANTS), sum(1 for s, _, _ in INVARIANTS.values() if s), sum(1 for s, _, _ in INVARIANTS.values() if not s)
     assert f"{n_all} stage/compatibility invariants" in (root / "README.md").read_text(encoding="utf-8")
     assert f"{n_st} stage invariants + {n_cp} `--compat` invariants" in (root / "PLAN.md").read_text(encoding="utf-8")
+
+def sub_req(**kw): return Requirement(id="req-sub", version="1.0", status="verified", category="functional", target="place-order", refines=["req-order"], criteria=["x"], **kw)
+
+def ids(errs): return {e[1:e.index("]")] for e in errs}
+
+def test_subrequirement_inherits_obligation():
+    s = spec(); s.requirements.append(sub_req(mandatory=False))
+    assert ids(validate_spec(s)) == {"REQ-05", "REQ-08"}
+
+def test_subrequirement_rolls_up():
+    s = spec(); s.requirements.append(sub_req()); s.evidence.append(s.evidence[0].model_copy(update={"id": "ev-sub", "requirement_id": "req-sub"}))
+    assert validate_spec(s) == []
+    s.evidence[-1].passed = False
+    assert "REQ-08" in ids(validate_spec(s))
+
+def report(tmp_path, *cases, suite=""):
+    f = tmp_path / "r.xml"
+    f.write_text(f'<testsuites><testsuite {suite}>' + "".join(
+        f'<testcase classname="t" name="{n}">' + (f'<properties>{"".join(f"<property name={chr(34)}{k}{chr(34)} value={chr(34)}{v}{chr(34)}/>" for k, v in props)}</properties>' if props else "") + ("<failure/>" if fail else "") + "</testcase>"
+        for n, props, fail in cases) + "</testsuite></testsuites>")
+    return str(f)
+
+def bound(name, ref="req-order@1.0", fail=False): return (name, [("verifies", ref), ("test", f"tests/{name}.py::{name}")], fail)
+
+def test_report_agrees(tmp_path):
+    s = spec(); s.evidence = [s.evidence[0]]; s.evidence[0].provenance = "tests/test_checkout.py::test_checkout"
+    assert check_report(s, [report(tmp_path, bound("test_checkout"))]) == []
+
+def test_report_rejects_unbound_unknown_stale(tmp_path):
+    f = report(tmp_path, ("orphan", [], False), bound("a", "nope@1.0"), bound("b", "req-order@0.1"), ("c", [("verifies", "req-order@1.0"), ("verifies", "req-reserve@1.0")], False))
+    errs = check_report(spec(), [f])
+    assert sum("exactly one requirement" in e for e in errs) == 2 and any("unknown requirement 'nope'" in e for e in errs) and any("current version is 1.0" in e for e in errs)
+
+def test_report_checks_test_evidence(tmp_path):
+    s = spec(); s.evidence = [s.evidence[0]]; s.evidence[0].provenance = "tests/test_checkout.py::test_checkout"
+    assert any("not in the run reports" in e for e in check_report(s, [report(tmp_path, bound("other"))]))
+    assert any("passed=True but the run reports passed=False" in e for e in check_report(s, [report(tmp_path, bound("test_checkout", fail=True))]))
+    assert any("binds ['req-reserve@1.0']" in e for e in check_report(s, [report(tmp_path, bound("test_checkout", "req-reserve@1.0"))]))
+
+def test_emit_evidence_and_cli(tmp_path, capsys):
+    f = report(tmp_path, bound("test_checkout"), bound("x", "nope@1.0"), suite='timestamp="2026-11-02T10:00:00" hostname="ci"')
+    ev = evidence_from_report(spec(), [f])
+    assert ev == [{"id": "ev-tests-test_checkout-py-test_checkout", "requirement_id": "req-order", "requirement_version": "1.0", "method": "test", "passed": True,
+                   "provenance": "tests/test_checkout.py::test_checkout", "timestamp": "2026-11-02T10:00:00", "environment": "ci"}]
+    assert main([str(EXAMPLE), "--emit-evidence", f]) == 0 and "ev-tests-test_checkout-py-test_checkout" in capsys.readouterr().out
+    assert main([str(EXAMPLE), "--check-report", f, "--json"]) == 1 and "binds unknown requirement" in capsys.readouterr().out
+    assert main([str(EXAMPLE), "--check-report", str(tmp_path / "missing.xml")]) == 1 and "report:" in capsys.readouterr().out
