@@ -362,4 +362,36 @@ mod tests {
             .await;
         assert_eq!(resp.status_code(), StatusCode::NO_CONTENT);
     }
+
+    #[tokio::test]
+    async fn platform_metrics_endpoint_exposes_prometheus_text() {
+        let state = AppState::with_stub_auth_and_rate_limit(TENANT, 1);
+        let probe = IngestGatewayProbeState {
+            brokers: "127.0.0.1:1".to_string(),
+            metrics_registry: Some(std::sync::Arc::new(state.metrics.registry.clone())),
+        };
+        let server = TestServer::new(build_platform_router(state, probe));
+        for _ in 0..2 {
+            server
+                .post("/api/v1/write")
+                .add_header(auth_header().0, auth_header().1)
+                .add_header(prom_content_type().0, prom_content_type().1)
+                .bytes(one_gauge_body().into())
+                .await;
+        }
+
+        assert_eq!(server.get("/health").await.status_code(), StatusCode::OK);
+        let resp = server.get("/metrics").await;
+        assert_eq!(resp.status_code(), StatusCode::OK);
+        assert_eq!(
+            resp.headers()["content-type"],
+            "text/plain; version=0.0.4; charset=utf-8"
+        );
+        let body = resp.text();
+        assert!(body.contains("ingest_gateway_requests_total"), "{body}");
+        assert!(
+            body.contains("ingest_gateway_rejections_total{reason=\"rate_limit_exceeded\""),
+            "{body}"
+        );
+    }
 }

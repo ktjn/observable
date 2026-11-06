@@ -600,25 +600,25 @@ requirements:
   - id: req-ingest-rate-limit
     version: "0.1.0"
     target: ingest-otlp
-    status: specified
+    status: verified
     kind: functional
     category: functional
     mandatory: false
     criteria:
-      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant rate limit (default 1000 requests/s per signal, configurable per signal by environment variable)"
-      - "A request over the limit is rejected with HTTP 429 and Retry-After: 1, or gRPC ResourceExhausted, and counted in ingest_rejections_total with reason rate_limit_exceeded"
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant, per-signal request rate limit"
+      - "A request over the limit is rejected with HTTP 429 and Retry-After: 1, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason rate_limit_exceeded"
       - "One tenant exhausting its limit does not consume another tenant's quota"
 
   - id: req-ingest-cardinality-budget
     version: "0.1.0"
     target: ingest-otlp
-    status: specified
+    status: verified
     kind: functional
     category: functional
     mandatory: false
     criteria:
-      - "When METRIC_CARDINALITY_ENFORCE is true, a metrics request that would take a tenant's cumulative submitted series count over its budget (default 10000, METRIC_SERIES_BUDGET_PER_TENANT) is rejected with HTTP 429 and Retry-After: 60, or gRPC ResourceExhausted, and counted with reason cardinality_budget_exceeded"
-      - "When enforcement is off (default), the budget is only observed and requests are accepted"
+      - "When METRIC_CARDINALITY_ENFORCE is true, a metrics request that would take a tenant's cumulative submitted series count over its budget is rejected with HTTP 429 and Retry-After: 60, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason cardinality_budget_exceeded"
+      - "When enforcement is off, the budget is only observed and requests are accepted"
 
   - id: req-deployment-marker-immutability
     version: "0.1.0"
@@ -631,14 +631,13 @@ requirements:
       - "Recorded deployment markers for a (tenant_id, service_name, version) tuple are persisted and queryable for timeline overlays"
 
   - id: req-pii-scrubbing
-    version: "0.1.0"
+    version: "0.2.0"
     target: normalize-telemetry
     status: verified
     kind: functional
     category: semantic
     mandatory: true
     criteria:
-      - "Email, credit-card, and bearer token patterns are scrubbed from span attributes and log bodies before emitting telemetry.normalized.v1"
       - "Derived metric-point aggregations contain no raw PII attributes, authorizing internal classification"
 
   - id: req-component-compat
@@ -713,14 +712,14 @@ requirements:
       - "observable-auth verifies SHA-256 API key hashes and rejects invalid, expired, or cross-tenant credentials with 401/403"
 
   - id: req-self-observability
-    version: "0.1.0"
+    version: "0.2.0"
     target: observable-platform
     status: verified
     kind: non-functional
     category: observability
     mandatory: true
     criteria:
-      - "All deployable backend services expose /health, /ready, and Prometheus metrics for queue depth, latency, and error rates"
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
 
   - id: req-dedup-idempotency
     version: "0.1.0"
@@ -773,17 +772,108 @@ risks:
     mitigated_by:
       - req-pg-schema-isolation
 
+  # Gap: gRPC rate limiting had no test. Closed by the gRPC rate-limit tests bound
+  # as evidence of req-ingest-rate-limit.
+  - id: risk-ingest-grpc-rate-limit-unverified
+    target: ingest-otlp
+    treatment: mitigation
+    mitigated_by:
+      - req-ingest-rate-limit
+
+  # Gap: TenantRateLimiter::set_tenant_limit and MetricCardinalityBudget::set_tenant_budget
+  # have no production caller; per-tenant custom quotas cannot be configured at runtime.
+  # Only global per-signal defaults (env vars) apply. Accepted by the owner; ROADMAP.md 0.5 states the limit.
+  - id: risk-ingest-tenant-quota-not-configurable
+    target: ingest-otlp
+    treatment: acceptance
+    residual_accepted: true
+
+  # Gap: the cardinality count is cumulative submitted series per tenant, held in memory per
+  # replica; it never decays or resets except on restart, and enforcement defaults off.
+  - id: risk-ingest-cardinality-count-never-resets
+    target: ingest-otlp
+    treatment: acceptance
+    residual_accepted: true
+
+  # Gap: limits key on tenant_id only; there is no per-environment rate limit or budget.
+  # Accepted by the owner; ROADMAP.md 0.5 states the limit.
+  - id: risk-ingest-no-per-environment-limits
+    target: ingest-otlp
+    treatment: acceptance
+    residual_accepted: true
+
+  # Gap: no code scrubs email, credit-card or bearer-token patterns from span attributes or
+  # log bodies; normalise.rs only fills duration, status and tenant_id. Raw PII reaches
+  # telemetry.normalized.v1 and ClickHouse. Remediation: PII scrubbing slice in the plan.
+  - id: risk-pii-not-scrubbed
+    target: normalize-telemetry
+    treatment: acceptance
+    residual_accepted: true
+
+  # Gap: no service exports a queue-depth metric, and stream-processor has no processing-latency
+  # metric. Remediation: queue-depth and latency metrics slice in the plan.
+  - id: risk-selfobs-no-queue-depth-latency
+    target: observable-platform
+    treatment: acceptance
+    residual_accepted: true
+
 evidence:
-  - id: ev-ui-session-e2e
+  # No share-token feature exists, so the criterion's share-token exception is vacuous.
+  - id: ev-ui-unauth-redirect-e2e
     requirement_id: req-ui-tenant-session
     requirement_version: "0.1.0"
     subject_id: explore-telemetry-ui
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: apps/frontend/e2e/tenant-isolation.spec.ts
-    timestamp: "2026-10-31T18:35:01Z"
-    verifier: ci-playwright
+    provenance: "apps/frontend/e2e/tenant-isolation.spec.ts::redirects to login when auth fails"
+    criteria:
+      - "Unauthenticated browser sessions are redirected to OIDC login unless accessing a valid share token"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-ui-login-oidc-redirect-e2e
+    requirement_id: req-ui-tenant-session
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/login.spec.ts::auto-redirects to OIDC when no error param"
+    criteria:
+      - "Unauthenticated browser sessions are redirected to OIDC login unless accessing a valid share token"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-ui-tenant-header-e2e
+    requirement_id: req-ui-tenant-session
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/tenant-isolation.spec.ts::API calls include tenant context"
+    criteria:
+      - "All UI telemetry queries bind the active session tenant_id"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-ui-tenant-binding-unit
+    requirement_id: req-ui-tenant-session
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/api/telemetry-tenant-binding.test.ts::every telemetry query function sends the active session tenant_id"
+    criteria:
+      - "All UI telemetry queries bind the active session tenant_id"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: vitest
+    environment: local
 
   - id: ev-tla-telemetry-delivery
     requirement_id: req-ingest-delivery
@@ -801,16 +891,47 @@ evidence:
     timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-tlc-verify
 
-  - id: ev-deployment-markers-test
+  - id: ev-deploy-marker-create-query
     requirement_id: req-deployment-marker-immutability
     requirement_version: "0.1.0"
     subject_id: publish-deployment-markers
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: services/admin-service/src/main.rs
-    timestamp: "2026-10-31T18:35:01Z"
-    verifier: ci-rust-test
+    provenance: "services/admin-service/tests/postgres_deployments_integration.rs::create_then_finish_deployment_round_trips"
+    criteria:
+      - "Recorded deployment markers for a (tenant_id, service_name, version) tuple are persisted and queryable for timeline overlays"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test-testcontainers
+    environment: local
+
+  - id: ev-deploy-marker-list-tenant-scoped
+    requirement_id: req-deployment-marker-immutability
+    requirement_version: "0.1.0"
+    subject_id: publish-deployment-markers
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/postgres_deployments_integration.rs::list_deployments_returns_seeded_markers_scoped_to_tenant"
+    criteria:
+      - "Recorded deployment markers for a (tenant_id, service_name, version) tuple are persisted and queryable for timeline overlays"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test-testcontainers
+    environment: local
+
+  - id: ev-deploy-marker-list-by-service
+    requirement_id: req-deployment-marker-immutability
+    requirement_version: "0.1.0"
+    subject_id: publish-deployment-markers
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/postgres_deployments_integration.rs::list_deployments_filters_by_service_name"
+    criteria:
+      - "Recorded deployment markers for a (tenant_id, service_name, version) tuple are persisted and queryable for timeline overlays"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test-testcontainers
+    environment: local
 
   - id: ev-tla-bounded-concurrency
     requirement_id: req-bounded-worker-concurrency
@@ -842,27 +963,159 @@ evidence:
     timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-tlc-verify
 
-  - id: ev-pii-scrubbing-tests
+  - id: ev-pii-derived-metrics-no-attributes
     requirement_id: req-pii-scrubbing
-    requirement_version: "0.1.0"
+    requirement_version: "0.2.0"
     subject_id: normalize-telemetry
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: services/stream-processor/src/main.rs
-    timestamp: "2026-10-31T18:35:01Z"
-    verifier: ci-rust-test
+    provenance: "services/stream-processor/src/metrics.rs::derived_metrics_exclude_raw_span_attributes"
+    criteria:
+      - "Derived metric-point aggregations contain no raw PII attributes, authorizing internal classification"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
 
-  - id: ev-serde-contracts
+  - id: ev-serde-envelope-raw
     requirement_id: req-otlp-envelope-serde
     requirement_version: "0.1.0"
     subject_id: store-telemetry
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: libs/observable-storage-contracts/src/lib.rs
-    timestamp: "2026-10-31T18:35:01Z"
-    verifier: ci-rust-test
+    provenance: "libs/domain/src/envelope.rs::telemetry_envelope_roundtrip_preserves_tenant_id_and_payload"
+    criteria:
+      - "Raw and normalized telemetry envelopes and models/*.mdl schemas preserve field types and tenant_id across round-trip serialization"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-serde-envelope-normalized
+    requirement_id: req-otlp-envelope-serde
+    requirement_version: "0.1.0"
+    subject_id: store-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "libs/domain/src/envelope.rs::normalized_batch_roundtrip_preserves_tenant_ids_and_field_types"
+    criteria:
+      - "Raw and normalized telemetry envelopes and models/*.mdl schemas preserve field types and tenant_id across round-trip serialization"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-serde-schema-span
+    requirement_id: req-otlp-envelope-serde
+    requirement_version: "0.1.0"
+    subject_id: store-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "libs/domain/src/contract_schema_test.rs::span_matches_tracing_span_v1_schema"
+    criteria:
+      - "Raw and normalized telemetry envelopes and models/*.mdl schemas preserve field types and tenant_id across round-trip serialization"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-serde-schema-span-event
+    requirement_id: req-otlp-envelope-serde
+    requirement_version: "0.1.0"
+    subject_id: store-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "libs/domain/src/contract_schema_test.rs::span_event_matches_tracing_span_event_v1_schema"
+    criteria:
+      - "Raw and normalized telemetry envelopes and models/*.mdl schemas preserve field types and tenant_id across round-trip serialization"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-serde-schema-log
+    requirement_id: req-otlp-envelope-serde
+    requirement_version: "0.1.0"
+    subject_id: store-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "libs/domain/src/contract_schema_test.rs::log_record_matches_logs_log_record_v1_schema"
+    criteria:
+      - "Raw and normalized telemetry envelopes and models/*.mdl schemas preserve field types and tenant_id across round-trip serialization"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-serde-schema-metric-point
+    requirement_id: req-otlp-envelope-serde
+    requirement_version: "0.1.0"
+    subject_id: store-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "libs/domain/src/contract_schema_test.rs::metric_point_matches_metrics_metric_point_v1_schema"
+    criteria:
+      - "Raw and normalized telemetry envelopes and models/*.mdl schemas preserve field types and tenant_id across round-trip serialization"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-serde-row-span
+    requirement_id: req-otlp-envelope-serde
+    requirement_version: "0.1.0"
+    subject_id: store-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/storage-writer/src/spans.rs::span_row_roundtrip_preserves_all_scalar_fields"
+    criteria:
+      - "Raw and normalized telemetry envelopes and models/*.mdl schemas preserve field types and tenant_id across round-trip serialization"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-serde-row-log
+    requirement_id: req-otlp-envelope-serde
+    requirement_version: "0.1.0"
+    subject_id: store-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/storage-writer/src/logs.rs::log_row_roundtrip_preserves_all_fields"
+    criteria:
+      - "Raw and normalized telemetry envelopes and models/*.mdl schemas preserve field types and tenant_id across round-trip serialization"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-serde-row-metric-series
+    requirement_id: req-otlp-envelope-serde
+    requirement_version: "0.1.0"
+    subject_id: store-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/storage-writer/src/metrics.rs::metric_series_roundtrip_preserves_all_fields"
+    criteria:
+      - "Raw and normalized telemetry envelopes and models/*.mdl schemas preserve field types and tenant_id across round-trip serialization"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-serde-row-metric-point
+    requirement_id: req-otlp-envelope-serde
+    requirement_version: "0.1.0"
+    subject_id: store-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/storage-writer/src/metrics.rs::metric_point_roundtrip_preserves_all_fields"
+    criteria:
+      - "Raw and normalized telemetry envelopes and models/*.mdl schemas preserve field types and tenant_id across round-trip serialization"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
 
   - id: ev-query-latency-bench
     requirement_id: req-query-latency
@@ -886,40 +1139,359 @@ evidence:
     timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-perf-gate
 
-  - id: ev-backpressure-resilience-test
+  - id: ev-backpressure-durable-ack-withheld
     requirement_id: req-backpressure-resilience
     requirement_version: "0.1.0"
     subject_id: store-telemetry
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: services/storage-writer/src/main.rs
-    timestamp: "2026-10-31T18:35:01Z"
-    verifier: ci-integration-test
+    provenance: "services/storage-writer/src/buffer.rs::durable_send_withholds_ack_while_clickhouse_is_unavailable"
+    criteria:
+      - "observable-store-clickhouse withholds Kafka offset commits until ClickHouse batch insert succeeds and retries transient failures with backoff"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
 
-  - id: ev-auth-isolation-test
+  - id: ev-backpressure-retry-not-drop
+    requirement_id: req-backpressure-resilience
+    requirement_version: "0.1.0"
+    subject_id: store-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/storage-writer/src/buffer.rs::flush_retries_until_success_instead_of_dropping"
+    criteria:
+      - "observable-store-clickhouse withholds Kafka offset commits until ClickHouse batch insert succeeds and retries transient failures with backoff"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-backpressure-retry-backoff
+    requirement_id: req-backpressure-resilience
+    requirement_version: "0.1.0"
+    subject_id: store-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/storage-writer/src/buffer.rs::retry_backoff_doubles_from_initial_and_caps_at_max"
+    criteria:
+      - "observable-store-clickhouse withholds Kafka offset commits until ClickHouse batch insert succeeds and retries transient failures with backoff"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  # API keys have no expiry (only revocation); 'expired' is covered for sessions.
+  # API-key tenant mismatch is enforced by callers via the resolved tenant_id (admin middleware test).
+  - id: ev-auth-key-hash-accepts
     requirement_id: req-tenant-auth-isolation
     requirement_version: "0.1.0"
     subject_id: validate-credential
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: services/auth-service/src/main.rs
-    timestamp: "2026-10-31T18:35:01Z"
-    verifier: ci-security-gate
+    provenance: "services/auth-service/src/validate.rs::valid_key_returns_tenant_id_and_role"
+    criteria:
+      - "observable-auth verifies SHA-256 API key hashes and rejects invalid, expired, or cross-tenant credentials with 401/403"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
 
-  - id: ev-self-observability-test
-    requirement_id: req-self-observability
+  - id: ev-auth-key-hash-rejects
+    requirement_id: req-tenant-auth-isolation
     requirement_version: "0.1.0"
+    subject_id: validate-credential
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/src/validate.rs::wrong_key_is_rejected"
+    criteria:
+      - "observable-auth verifies SHA-256 API key hashes and rejects invalid, expired, or cross-tenant credentials with 401/403"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-auth-key-revoked
+    requirement_id: req-tenant-auth-isolation
+    requirement_version: "0.1.0"
+    subject_id: validate-credential
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/src/validate.rs::revoked_key_is_rejected"
+    criteria:
+      - "observable-auth verifies SHA-256 API key hashes and rejects invalid, expired, or cross-tenant credentials with 401/403"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-auth-unknown-key-401
+    requirement_id: req-tenant-auth-isolation
+    requirement_version: "0.1.0"
+    subject_id: validate-credential
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/http_api_integration.rs::validate_api_key_failure_writes_deny_audit_log_row"
+    criteria:
+      - "observable-auth verifies SHA-256 API key hashes and rejects invalid, expired, or cross-tenant credentials with 401/403"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-auth-session-expired
+    requirement_id: req-tenant-auth-isolation
+    requirement_version: "0.1.0"
+    subject_id: validate-credential
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/src/session.rs::expired_session_is_rejected"
+    criteria:
+      - "observable-auth verifies SHA-256 API key hashes and rejects invalid, expired, or cross-tenant credentials with 401/403"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-auth-session-cross-tenant
+    requirement_id: req-tenant-auth-isolation
+    requirement_version: "0.1.0"
+    subject_id: validate-credential
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/oidc_callback_integration.rs::validate_session_cross_tenant_allowed_and_forbidden"
+    criteria:
+      - "observable-auth verifies SHA-256 API key hashes and rejects invalid, expired, or cross-tenant credentials with 401/403"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-auth-client-401
+    requirement_id: req-tenant-auth-isolation
+    requirement_version: "0.1.0"
+    subject_id: validate-credential
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "libs/observable-auth/src/lib.rs::verify_api_key_unauthorized_on_non_2xx"
+    criteria:
+      - "observable-auth verifies SHA-256 API key hashes and rejects invalid, expired, or cross-tenant credentials with 401/403"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-auth-client-403
+    requirement_id: req-tenant-auth-isolation
+    requirement_version: "0.1.0"
+    subject_id: validate-credential
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "libs/observable-auth/src/lib.rs::verify_session_with_tenant_forbidden_on_403"
+    criteria:
+      - "observable-auth verifies SHA-256 API key hashes and rejects invalid, expired, or cross-tenant credentials with 401/403"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-auth-key-cross-tenant-403
+    requirement_id: req-tenant-auth-isolation
+    requirement_version: "0.1.0"
+    subject_id: validate-credential
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/src/middleware/auth.rs::api_key_for_other_tenant_is_forbidden"
+    criteria:
+      - "observable-auth verifies SHA-256 API key hashes and rejects invalid, expired, or cross-tenant credentials with 401/403"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-selfobs-auth-readyz
+    requirement_id: req-self-observability
+    requirement_version: "0.2.0"
     subject_id: observable-platform
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: services/ingest-gateway/src/main.rs
-    timestamp: "2026-10-31T18:35:01Z"
-    verifier: ci-rust-test
+    provenance: "services/auth-service/tests/http_api_integration.rs::auth_service_readyz_returns_503_when_postgres_is_unavailable"
+    criteria:
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
 
-  - id: ev-dedup-idempotency-test
+  - id: ev-selfobs-auth-metrics
+    requirement_id: req-self-observability
+    requirement_version: "0.2.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/http_api_integration.rs::auth_service_metrics_endpoint_exposes_prometheus_text"
+    criteria:
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-selfobs-control-probes
+    requirement_id: req-self-observability
+    requirement_version: "0.2.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/http_probes_integration.rs::admin_service_health_readyz_and_metrics_endpoints"
+    criteria:
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-selfobs-store-readyz
+    requirement_id: req-self-observability
+    requirement_version: "0.2.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/storage-writer/tests/http_api_integration.rs::storage_writer_readyz_returns_503_when_clickhouse_is_unavailable"
+    criteria:
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-selfobs-store-metrics
+    requirement_id: req-self-observability
+    requirement_version: "0.2.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/storage-writer/tests/http_api_integration.rs::storage_writer_metrics_endpoint_exposes_prometheus_text"
+    criteria:
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-selfobs-query-readyz
+    requirement_id: req-self-observability
+    requirement_version: "0.2.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/http_api_integration.rs::query_api_readyz_returns_503_when_dependencies_are_unavailable"
+    criteria:
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-selfobs-query-metrics
+    requirement_id: req-self-observability
+    requirement_version: "0.2.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/http_api_integration.rs::query_api_metrics_endpoint_exposes_prometheus_text"
+    criteria:
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-selfobs-ingest-readyz
+    requirement_id: req-self-observability
+    requirement_version: "0.2.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/ingest-gateway/tests/http_readyz_integration.rs::ingest_gateway_readyz_returns_503_when_redpanda_unavailable"
+    criteria:
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-selfobs-process-readyz
+    requirement_id: req-self-observability
+    requirement_version: "0.2.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/stream-processor/tests/http_readyz_integration.rs::stream_processor_readyz_returns_503_when_redpanda_unavailable"
+    criteria:
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-selfobs-alerting-readyz
+    requirement_id: req-self-observability
+    requirement_version: "0.2.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/http_api_integration.rs::alert_evaluator_readyz_returns_503_when_clickhouse_unavailable"
+    criteria:
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-selfobs-ingest-metrics
+    requirement_id: req-self-observability
+    requirement_version: "0.2.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/ingest-gateway/src/prometheus_rw/mod.rs::platform_metrics_endpoint_exposes_prometheus_text"
+    criteria:
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-selfobs-process-metrics
+    requirement_id: req-self-observability
+    requirement_version: "0.2.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/stream-processor/tests/http_readyz_integration.rs::stream_processor_metrics_endpoint_exposes_prometheus_text"
+    criteria:
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-selfobs-alerting-metrics
+    requirement_id: req-self-observability
+    requirement_version: "0.2.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/http_api_integration.rs::alert_evaluator_metrics_endpoint_exposes_prometheus_text"
+    criteria:
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-dedup-token-deterministic
     requirement_id: req-dedup-idempotency
     requirement_version: "0.1.0"
     subject_id: store-telemetry
@@ -929,25 +1501,280 @@ evidence:
     provenance: services/storage-writer/tests/clickhouse_deduplication.rs
     timestamp: "2026-11-06T19:51:56Z"
     verifier: cargo-test-storage-writer-clickhouse-deduplication
+    provenance: "services/storage-writer/src/lib.rs::batch_deduplication_token_is_deterministic_and_content_sensitive"
+    criteria:
+      - "ClickHouse writes carry deterministic deduplication tokens or ReplacingMergeTree keys so crash-window Kafka redeliveries do not duplicate visible rows"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
 
-  - id: ev-alerting-query-dag-check
+  - id: ev-dedup-span-metrics-normalized
+    requirement_id: req-dedup-idempotency
+    requirement_version: "0.1.0"
+    subject_id: store-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/stream-processor/src/metrics.rs::flush_normalized_emits_metrics_only_batch_for_normalized_topic"
+    criteria:
+      - "Span-derived metrics converge on telemetry.normalized.v1 instead of dual HTTP push"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-alerting-dag-no-query-dependency
     requirement_id: req-alerting-query-inversion
     requirement_version: "0.1.0"
     subject_id: evaluate-alerts
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: scripts/tests/test_system_spec.py
-    timestamp: "2026-10-31T18:35:01Z"
-    verifier: ci-boundary-gate
+    provenance: "scripts/tests/test_system_spec.py::SystemSpecConsistencyTests::test_component_dag_and_layer_ordering_comp05_comp06"
+    criteria:
+      - "observable-alerting (domain) consumes store-telemetry within its declared ClickHouse schema compatibility range (services/alert-evaluator/clickhouse-schema-support.yaml) and never depends on query-telemetry while observable-query (application) depends on evaluate-alerts, preserving DAG (COMP-06) and layer ordering (COMP-05)"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: python-unittest
+    environment: local
 
-  - id: ev-pg-schema-isolation-check
+  - id: ev-alerting-schema-range-holds
+    requirement_id: req-alerting-query-inversion
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "scripts/tests/test_clickhouse_schema_compat.py::ClickHouseSchemaCompatTests::test_repository_contract_holds"
+    criteria:
+      - "observable-alerting (domain) consumes store-telemetry within its declared ClickHouse schema compatibility range (services/alert-evaluator/clickhouse-schema-support.yaml) and never depends on query-telemetry while observable-query (application) depends on evaluate-alerts, preserving DAG (COMP-06) and layer ordering (COMP-05)"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: python-unittest
+    environment: local
+
+  - id: ev-alerting-schema-range-enforced
+    requirement_id: req-alerting-query-inversion
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "scripts/tests/test_clickhouse_schema_compat.py::ClickHouseSchemaCompatTests::test_store_ahead_of_alerting_range_fails"
+    criteria:
+      - "observable-alerting (domain) consumes store-telemetry within its declared ClickHouse schema compatibility range (services/alert-evaluator/clickhouse-schema-support.yaml) and never depends on query-telemetry while observable-query (application) depends on evaluate-alerts, preserving DAG (COMP-06) and layer ordering (COMP-05)"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: python-unittest
+    environment: local
+
+  - id: ev-pg-schema-isolation-migrations
     requirement_id: req-pg-schema-isolation
     requirement_version: "0.1.0"
     subject_id: manage-control-plane
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: services/admin-service/tests/postgres_tenants_integration.rs
-    timestamp: "2026-10-31T18:35:01Z"
-    verifier: ci-rust-test
+    provenance: "services/admin-service/tests/postgres_tenants_integration.rs::migrations_enforce_schema_ownership_and_zero_cross_schema_fks"
+    criteria:
+      - "PostgreSQL schemas auth.*, control.*, and alerting.* maintain explicit table ownership (including control.query_audit_log), zero cross-schema foreign keys, and schema-scoped component roles (observable_auth_role, observable_control_role, observable_alerting_role) with isolated login credentials (observable_auth, observable_control, observable_alerting)"
+    timestamp: "2026-11-06T06:30:00Z"
+    verifier: cargo-test-testcontainers
+    environment: local
+
+  - id: ev-ingest-rl-http-traces
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/http-json/traces.rs::exceeding_rate_limit_returns_429
+    criteria:
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant, per-signal request rate limit"
+      - "A request over the limit is rejected with HTTP 429 and Retry-After: 1, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason rate_limit_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-rl-http-logs
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/http-json/logs.rs::exceeding_rate_limit_returns_429
+    criteria:
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant, per-signal request rate limit"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-rl-http-metrics
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/http-json/metrics.rs::exceeding_rate_limit_returns_429
+    criteria:
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant, per-signal request rate limit"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-rl-grpc-traces
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/grpc/trace.rs::grpc_traces_rate_limit_exceeded_returns_resource_exhausted
+    criteria:
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant, per-signal request rate limit"
+      - "A request over the limit is rejected with HTTP 429 and Retry-After: 1, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason rate_limit_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-rl-grpc-logs
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/grpc/log.rs::grpc_logs_rate_limit_exceeded_returns_resource_exhausted
+    criteria:
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant, per-signal request rate limit"
+      - "A request over the limit is rejected with HTTP 429 and Retry-After: 1, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason rate_limit_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-rl-grpc-metrics
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/grpc/metric.rs::grpc_metrics_rate_limit_exceeded_returns_resource_exhausted
+    criteria:
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant, per-signal request rate limit"
+      - "A request over the limit is rejected with HTTP 429 and Retry-After: 1, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason rate_limit_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-rl-prom-rw
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/prometheus_rw/mod.rs::rate_limit_exceeded_returns_429
+    criteria:
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant, per-signal request rate limit"
+      - "A request over the limit is rejected with HTTP 429 and Retry-After: 1, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason rate_limit_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-rl-tenant-isolation
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/rate_limiter.rs::default_limit_applies_per_tenant
+    criteria:
+      - "One tenant exhausting its limit does not consume another tenant's quota"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-rl-http-tenant-isolation
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/http-json/traces.rs::rate_limit_is_per_tenant
+    criteria:
+      - "One tenant exhausting its limit does not consume another tenant's quota"
+    timestamp: "2026-11-06T06:28:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-cb-unit-enforce
+    requirement_id: req-ingest-cardinality-budget
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/cardinality.rs::enforce_mode_rejects_exceeded_budget
+    criteria:
+      - "When METRIC_CARDINALITY_ENFORCE is true, a metrics request that would take a tenant's cumulative submitted series count over its budget is rejected with HTTP 429 and Retry-After: 60, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason cardinality_budget_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-cb-http-enforced
+    requirement_id: req-ingest-cardinality-budget
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/http-json/metrics.rs::metrics_export_with_enforced_budget_exceeded_returns_429
+    criteria:
+      - "When METRIC_CARDINALITY_ENFORCE is true, a metrics request that would take a tenant's cumulative submitted series count over its budget is rejected with HTTP 429 and Retry-After: 60, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason cardinality_budget_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-cb-grpc-enforced
+    requirement_id: req-ingest-cardinality-budget
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/grpc/metric.rs::grpc_metrics_enforced_cardinality_budget_exceeded
+    criteria:
+      - "When METRIC_CARDINALITY_ENFORCE is true, a metrics request that would take a tenant's cumulative submitted series count over its budget is rejected with HTTP 429 and Retry-After: 60, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason cardinality_budget_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-cb-prom-rw-enforced
+    requirement_id: req-ingest-cardinality-budget
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/prometheus_rw/mod.rs::cardinality_budget_exceeded_returns_429
+    criteria:
+      - "When METRIC_CARDINALITY_ENFORCE is true, a metrics request that would take a tenant's cumulative submitted series count over its budget is rejected with HTTP 429 and Retry-After: 60, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason cardinality_budget_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-cb-http-observe-only
+    requirement_id: req-ingest-cardinality-budget
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/http-json/metrics.rs::metrics_export_above_budget_still_returns_200
+    criteria:
+      - "When enforcement is off, the budget is only observed and requests are accepted"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local

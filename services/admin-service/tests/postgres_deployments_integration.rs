@@ -221,6 +221,7 @@ async fn create_then_finish_deployment_round_trips() {
     let deployment_id = created["deployment_id"].as_str().unwrap().to_string();
 
     let finish_resp = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("PATCH")
@@ -232,6 +233,25 @@ async fn create_then_finish_deployment_round_trips() {
         .await
         .unwrap();
     assert_eq!(finish_resp.status(), StatusCode::NO_CONTENT);
+
+    let list_resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/deployments?service_name=checkout")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(list_resp.status(), StatusCode::OK);
+    let body = response_body_json(list_resp.into_body()).await;
+    let items = body["items"].as_array().expect("items array");
+    assert_eq!(items.len(), 1, "created marker is queryable");
+    assert_eq!(items[0]["deployment_id"], deployment_id.as_str());
+    assert_eq!(items[0]["tenant_id"], tenant_id.to_string());
+    assert_eq!(items[0]["service_name"], "checkout");
+    assert_eq!(items[0]["service_version"], "v1.2.3");
+    assert_eq!(items[0]["status"], "success");
 }
 
 #[tokio::test]
