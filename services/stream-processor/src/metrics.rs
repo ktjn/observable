@@ -1,6 +1,6 @@
 use domain::{
-    AggregationTemporality, MetricPoint, MetricSeries, MetricType, Span, StatusCode,
-    deterministic_metric_series_id,
+    AggregationTemporality, MetricPoint, MetricSeries, MetricType, NormalizedTelemetryBatch, Span,
+    StatusCode, deterministic_metric_series_id,
 };
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -194,6 +194,22 @@ impl SpanMetricsAggregator {
         (series, points)
     }
 
+    /// Drains the window into a `telemetry.normalized.v1` batch carrying only
+    /// metric series and points, or `None` when nothing was recorded. Span
+    /// metrics reach storage through this topic only (ADR-029 / ADR-035).
+    pub fn flush_normalized(&self) -> Option<NormalizedTelemetryBatch> {
+        let (series, points) = self.flush();
+        if series.is_empty() && points.is_empty() {
+            return None;
+        }
+        Some(NormalizedTelemetryBatch {
+            spans: Vec::new(),
+            logs: Vec::new(),
+            series,
+            points,
+        })
+    }
+
     fn make_attributes(&self, key: &MetricKey) -> HashMap<String, String> {
         let mut attrs = HashMap::new();
         attrs.insert("operation".into(), key.operation_name.clone());
@@ -260,5 +276,74 @@ mod tests {
             .map(|p| p.histogram_count.unwrap())
             .sum();
         assert_eq!(total_duration_count, 2);
+    }
+
+    #[test]
+    fn flush_normalized_emits_metrics_only_batch_for_normalized_topic() {
+        let agg = SpanMetricsAggregator::new();
+        assert!(
+            agg.flush_normalized().is_none(),
+            "empty window publishes nothing"
+        );
+
+        let tenant_id = Uuid::new_v4();
+        agg.record_span(
+            &Span {
+                service_name: "checkout".into(),
+                operation_name: "POST /order".into(),
+                duration_ns: 3_000_000,
+                ..Default::default()
+            },
+            tenant_id,
+        );
+
+        let batch = agg
+            .flush_normalized()
+            .expect("recorded spans yield a batch");
+        assert!(batch.spans.is_empty() && batch.logs.is_empty());
+        assert!(!batch.series.is_empty());
+        assert_eq!(batch.series.len(), batch.points.len());
+        assert!(batch.series.iter().all(|s| s.tenant_id == tenant_id));
+        assert!(batch.points.iter().all(|p| p.tenant_id == tenant_id));
+        assert!(agg.flush_normalized().is_none(), "flush drains the window");
+    }
+
+    #[test]
+    fn derived_metrics_exclude_raw_span_attributes() {
+        let agg = SpanMetricsAggregator::new();
+        let pii = [
+            "alice@example.com",
+            "4111 1111 1111 1111",
+            "Bearer eyJhbGciOiJIUzI1NiJ9.secret",
+        ];
+        let span = Span {
+            service_name: "checkout".into(),
+            operation_name: "POST /order".into(),
+            status_code: StatusCode::Error,
+            attributes: HashMap::from([
+                ("user.email".into(), serde_json::json!(pii[0])),
+                ("payment.card".into(), serde_json::json!(pii[1])),
+                (
+                    "http.request.header.authorization".into(),
+                    serde_json::json!(pii[2]),
+                ),
+            ]),
+            resource_attributes: HashMap::from([("owner".into(), serde_json::json!(pii[0]))]),
+            ..Default::default()
+        };
+        agg.record_span(&span, Uuid::new_v4());
+
+        let (series, points) = agg.flush();
+        assert!(!series.is_empty());
+        for s in &series {
+            let mut keys: Vec<&str> = s.attributes.keys().map(String::as_str).collect();
+            keys.sort_unstable();
+            assert_eq!(keys, ["operation", "span.kind", "status.code"]);
+            assert!(s.resource_attributes.is_empty());
+        }
+        let encoded = serde_json::to_string(&(series, points)).unwrap();
+        for value in pii {
+            assert!(!encoded.contains(value), "derived metrics leaked {value:?}");
+        }
     }
 }

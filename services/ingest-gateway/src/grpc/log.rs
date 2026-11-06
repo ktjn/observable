@@ -169,4 +169,30 @@ mod tests {
         let err = client.export(req).await.unwrap_err();
         assert_eq!(err.code(), tonic::Code::Unauthenticated);
     }
+
+    #[tokio::test]
+    async fn grpc_logs_rate_limit_exceeded_returns_resource_exhausted() {
+        let state = AppState::with_stub_auth_and_rate_limit(TENANT, 1);
+        let metrics = state.metrics.clone();
+        let svc = OltpLogService::new(state);
+        let request = || {
+            let mut req = Request::new(ExportLogsServiceRequest {
+                resource_logs: vec![],
+            });
+            req.metadata_mut()
+                .insert("authorization", "Bearer dev-api-key-0000".parse().unwrap());
+            req
+        };
+
+        assert!(svc.export(request()).await.is_ok());
+        let err = svc.export(request()).await.unwrap_err();
+        assert_eq!(err.code(), tonic::Code::ResourceExhausted);
+        assert_eq!(
+            metrics
+                .ingest_rejections_total
+                .with_label_values(&["logs", "rate_limit_exceeded"])
+                .get(),
+            1
+        );
+    }
 }

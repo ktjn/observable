@@ -117,3 +117,42 @@ async fn alert_evaluator_readyz_returns_200_when_dependencies_reachable() {
 
     assert_eq!(response.status(), StatusCode::OK);
 }
+
+#[tokio::test]
+async fn alert_evaluator_metrics_endpoint_exposes_prometheus_text() {
+    let state = disconnected_state("http://127.0.0.1:1");
+    state
+        .metrics
+        .evaluations_total
+        .with_label_values(&["ok"])
+        .inc();
+    let app = Router::new()
+        .route("/metrics", get(alert_evaluator::observability::metrics))
+        .with_state(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/metrics")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("router responded");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers()["content-type"],
+        "text/plain; version=0.0.4; charset=utf-8"
+    );
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let body = String::from_utf8(bytes.to_vec()).expect("utf-8");
+    assert!(body.contains("alert_evaluator_evaluations_total"), "{body}");
+    assert!(
+        body.contains("alert_evaluator_http_in_flight_requests"),
+        "{body}"
+    );
+}

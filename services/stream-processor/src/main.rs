@@ -70,15 +70,8 @@ async fn main() -> anyhow::Result<()> {
         let mut interval = time::interval(Duration::from_secs(60));
         loop {
             interval.tick().await;
-            let (series, points) = agg_clone.flush();
-            if !series.is_empty() || !points.is_empty() {
-                let count = series.len();
-                let batch = NormalizedTelemetryBatch {
-                    spans: Vec::new(),
-                    logs: Vec::new(),
-                    series,
-                    points,
-                };
+            if let Some(batch) = agg_clone.flush_normalized() {
+                let count = batch.series.len();
                 let key = uuid::Uuid::new_v4().to_string();
                 if let Err(e) = producer_clone.publish(&batch, &key).await {
                     tracing::error!(error = %e, "failed to publish span metrics to normalized topic");
