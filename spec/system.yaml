@@ -597,6 +597,29 @@ requirements:
       - "When bounded queues are full, ingest returns 429/503 backpressure without silent drop"
       - "Every accepted OTLP item reaches stored ClickHouse state or the dead-letter queue"
 
+  - id: req-ingest-rate-limit
+    version: "0.1.0"
+    target: ingest-otlp
+    status: specified
+    kind: functional
+    category: functional
+    mandatory: false
+    criteria:
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant rate limit (default 1000 requests/s per signal, configurable per signal by environment variable)"
+      - "A request over the limit is rejected with HTTP 429 and Retry-After: 1, or gRPC ResourceExhausted, and counted in ingest_rejections_total with reason rate_limit_exceeded"
+      - "One tenant exhausting its limit does not consume another tenant's quota"
+
+  - id: req-ingest-cardinality-budget
+    version: "0.1.0"
+    target: ingest-otlp
+    status: specified
+    kind: functional
+    category: functional
+    mandatory: false
+    criteria:
+      - "When METRIC_CARDINALITY_ENFORCE is true, a metrics request that would take a tenant's cumulative submitted series count over its budget (default 10000, METRIC_SERIES_BUDGET_PER_TENANT) is rejected with HTTP 429 and Retry-After: 60, or gRPC ResourceExhausted, and counted with reason cardinality_budget_exceeded"
+      - "When enforcement is off (default), the budget is only observed and requests are accepted"
+
   - id: req-deployment-marker-immutability
     version: "0.1.0"
     target: publish-deployment-markers
