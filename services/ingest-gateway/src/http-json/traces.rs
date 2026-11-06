@@ -287,38 +287,27 @@ mod tests {
 
     #[tokio::test]
     async fn rate_limit_is_per_tenant() {
-        // tenant A exhausts its quota; tenant B should still succeed
-        let state_a = AppState::with_stub_auth_and_rate_limit(TENANT, 1);
-        let app = build_router(state_a);
-        let server = TestServer::new(app);
-
-        // exhaust tenant A
-        server
-            .post("/v1/traces")
-            .add_header(auth_header().0, auth_header().1)
-            .json(&serde_json::json!({"resourceSpans": []}))
-            .await;
-        let rate_limited = server
-            .post("/v1/traces")
-            .add_header(auth_header().0, auth_header().1)
-            .json(&serde_json::json!({"resourceSpans": []}))
-            .await;
-        assert_eq!(rate_limited.status_code(), StatusCode::TOO_MANY_REQUESTS);
-
-        // tenant B uses a separate limiter instance (different AppState)
+        // Both tenants share one limiter, as in production; tenant A exhausting its
+        // quota must not consume tenant B's.
         const TENANT_B: &str = "00000000-0000-0000-0000-000000000002";
-        let state_b = AppState::with_stub_auth_and_rate_limit(TENANT_B, 1);
-        let app_b = build_router(state_b);
-        let server_b = TestServer::new(app_b);
-        let resp_b = server_b
-            .post("/v1/traces")
-            .add_header(
-                axum::http::header::AUTHORIZATION,
-                axum::http::HeaderValue::from_static("Bearer dev-api-key-0000"),
-            )
-            .json(&serde_json::json!({"resourceSpans": []}))
-            .await;
-        assert_eq!(resp_b.status_code(), StatusCode::OK);
+        let state_a = AppState::with_stub_auth_and_rate_limit(TENANT, 1);
+        let mut state_b = AppState::with_stub_auth_and_rate_limit(TENANT_B, 1);
+        state_b.trace_rate_limiter = state_a.trace_rate_limiter.clone();
+        let server_a = TestServer::new(build_router(state_a));
+        let server_b = TestServer::new(build_router(state_b));
+        let post = |server: &TestServer| {
+            server
+                .post("/v1/traces")
+                .add_header(auth_header().0, auth_header().1)
+                .json(&serde_json::json!({"resourceSpans": []}))
+        };
+
+        assert_eq!(post(&server_a).await.status_code(), StatusCode::OK);
+        assert_eq!(
+            post(&server_a).await.status_code(),
+            StatusCode::TOO_MANY_REQUESTS
+        );
+        assert_eq!(post(&server_b).await.status_code(), StatusCode::OK);
     }
 
     #[tokio::test]
