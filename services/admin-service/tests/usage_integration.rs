@@ -281,11 +281,12 @@ async fn get_tenant_usage_report_scopes_to_tenant_and_interval() {
     .await;
     ch.query(
         "INSERT INTO observable.metric_series \
-         (tenant_id, metric_series_id, metric_name, metric_type, service_name, created_at) \
-         VALUES (?, ?, 'checkout.requests_total', 'sum', 'checkout', toDateTime(?))",
+         (tenant_id, metric_series_id, metric_name, metric_type, service_name, attributes, created_at) \
+         VALUES (?, ?, 'checkout.requests_total', 'sum', 'checkout', ?, toDateTime(?))",
     )
     .bind(tenant)
     .bind(out_window_series_id)
+    .bind(r#"{"window":"old"}"#)
     .bind((from - chrono::Duration::hours(4)).timestamp())
     .execute()
     .await
@@ -400,6 +401,12 @@ async fn get_tenant_usage_report_scopes_to_tenant_and_interval() {
     .execute(&pg)
     .await
     .expect("out-of-window credential row inserted");
+
+    // Series cardinality must remain stable after ReplacingMergeTree merges.
+    ch.query("OPTIMIZE TABLE observable.metric_series FINAL")
+        .execute()
+        .await
+        .expect("metric series merged");
 
     let uri = format!(
         "/v1/tenants/usage-report?from={}&to={}",

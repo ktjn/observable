@@ -24,6 +24,8 @@ Use ClickHouse for metrics in Phase 1 and until a concrete performance or cardin
 
 ClickHouse writes and migrations are owned by `observable-store-clickhouse`; `observable-query` reads within a declared schema compatibility range and does not write or migrate. See [ADR-035](adr/ADR-035-component-independence.md).
 
+Telemetry inserts carry deterministic `insert_deduplication_token` query settings. Migration `005_enable_insert_deduplication.sql` enables a table-level `non_replicated_deduplication_window` of 1000 blocks on `spans`, `span_events`, `logs`, `metric_series`, and `metric_points`. The window is not a query setting. Retry deduplication is bounded by the retained block window; it does not establish arbitrary replay or rebatched-message idempotency.
+
 **Profiles**
 
 Separate profile storage/indexing is acceptable initially; converge later behind a unified API. OTel profiles are still emerging, so design the domain model now but keep implementation modular.
