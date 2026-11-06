@@ -2,6 +2,14 @@
 
 Contract-first sequencing for adding or changing behavior in a system that already has a validated spec (built via [greenfield](GREENFIELD.md) or onboarded via [brownfield](BROWNFIELD.md) at Level 1+). Artifact rules: [constitution](CONSTITUTION.md). Load this document together with the constitution, the applicable skill and one component slice only.
 
+## Specification authority
+
+For a previously accepted scope, define the intended behavioral delta against the reviewed specification before implementation. Existing code is not authority for silently extending contracts. A change that reveals undocumented behavior requires an explicit decision to preserve, reject or leave it unconstrained. If the aim is to replace code without changing expected behavior, use [REPLACEMENT.md](REPLACEMENT.md).
+
+## Isolation-aware changes
+
+When [component isolation](COMPONENT-ISOLATION.md) is adopted, update the provider's published programmable mock and its contract tests as part of any changed capability. Verify consumers against the mock and the provider independently before the integration join. Changing a mock to match a defective implementation does not amend the accepted contract.
+
 ## Steps
 
 | # | Step | Output | Check |
@@ -10,9 +18,9 @@ Contract-first sequencing for adding or changing behavior in a system that alrea
 | 2 | Scope | Capability delta, affected IDs, target components in dependency order (providers first) | `--impact <id>`; `--plan <id>` for provider-first waves (components in a wave can run as parallel agents) |
 | 3 | Contract | New or changed capabilities, interfaces and data models; versions bumped | `--compat old.yaml`; a break needs consumer migration, a major bump and prior `deprecated` status for removals |
 | 4 | Boundary | Owning component per change; `provides`, `requires`, `fakes`, `test_paths`; split if over budget | `--stage architecture` |
-| 5 | Verification spec | New/changed requirements in every affected category; evidence obligations | `--stage verification` |
+| 5 | Verification spec | Feature requirement decomposed into one sub-requirement (`refines`) per component ([below](#decompose-and-hand-off)); new/changed requirements in every affected category; evidence obligations | `--stage verification` |
 | 6 | Invalidate | Evidence for changed requirements, subjects or dependencies marked historical until rerun | `--impact` lists `invalidated_evidence` |
-| 7 | Handoff | One bounded `--context <component-id>` slice per component | Slice contains the contracts, fakes and `source_paths`/`test_paths` |
+| 7 | Handoff | One bounded `--context <component-id>` slice per component, given to one implementer (person, agent or session) | Slice contains the contracts, fakes and `source_paths`/`test_paths` |
 | 8 | Implement | Code under `source_paths`; tests under `test_paths` against the fakes | Tests fail first where behavior is missing; `--check-scope <id> --changed -` (fed by `git diff --name-only <base>`) reports nothing outside the component |
 | 9 | Verify | Fresh results per requirement; provider contract tests for each fake | `--check-artifacts --root`, `--check-drift --root`, `--stage release` |
 | 10 | Accept | Gate decision; new evidence bound to subject versions/revisions | Failures kept (`supersedes` with reason), no waivers at release |
@@ -27,6 +35,21 @@ Rules:
 - A fake is only as good as its provider's contract tests; the change is not accepted until the provider verifies the behavior the fake models.
 - The implementer returns a handoff return (`reference-implementation/handoff-return.schema.json`): `--check-return <file>` verifies every requirement of the component is a result or unmet, versions are current, failures are unmet, and changes stay in scope; its `results` map 1:1 to `Evidence` records for the component's fragment.
 - Hidden coupling, undocumented failure modes or metamodel gaps found along the way go to [feedback](CONSTITUTION.md#self-improvement-and-model-feedback), not into a workaround.
+
+## Decompose and hand off
+
+Order: requirements and contracts first, then one independent implementation per component, then a join. The toolkit is tool-agnostic: the "implementer" below is whoever receives a slice (a person, a subagent or a separate session).
+
+1. **Write the feature requirement** against the capability (steps 3-5), before any code.
+2. **Split it** into sub-requirements that `refines` it, each targeting exactly one component (or a capability it provides). Each must be buildable and verifiable alone, against fakes.
+3. **Order the work.** `--plan <id>` prints waves, providers first. Components in the same wave are independent and can be implemented in parallel; a later wave starts when the providers it `requires` are verified.
+4. **Hand off** one component per implementer. The bundle is: the `--context <component-id>` slice, its sub-requirement, the fakes it uses, the allowed paths (`source_paths`/`test_paths`), and the [handoff return](reference-implementation/handoff-return.schema.json) to fill in.
+5. **Check each return**: `--check-scope <component-id> --changed -` (nothing outside its paths) and `--check-return <file>` (every requirement of the component is a result or unmet).
+6. **Join.** Record each `results` entry as evidence in the component's fragment. The parent requirement then needs its own integration evidence (`test_scope: integration` component), and every sub-requirement verified (`REQ-08`, since 0.5.0, unreleased). A failed join supersedes evidence and iterates; it does not relabel.
+
+Illustration (not in the shipped example spec): feature "place an order reserves stock" is `req-order-reserves` on `commerce-system`. It is refined by `req-reserve` (target `reserve-inventory`, component `inventory`, wave 1) and `req-order` (target `place-order`, component `checkout`, wave 2, uses the `reserve_inventory` fake). Inventory and checkout implementers work from separate slices; the integration component proves `req-order-reserves` once both are verified and the provider's contract test keeps the fake honest.
+
+Not specified: how an implementer is run (subagent, session, human), or how many run at once; that is project policy.
 
 ## Gate Review
 

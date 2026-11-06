@@ -26,6 +26,14 @@ The metamodel defines the vocabulary and relationships. It permits projects to d
 
 A reference validator result does **not** establish that a project is compliant, correctly implemented, or ready for release. A validation failure does not automatically prohibit adoption: projects determine the applicability of policies and the checks they require. The current reference format and its stage checks represent one possible interpretation and must not silently become universal metamodel constraints.
 
+## Durable specification versus replaceable implementation
+
+The durable intent of a system consists of requirements, risks, capabilities, behavioral contracts, invariants and verification obligations. An implementation is a replaceable candidate realization. Verification evidence is bound to the implementation and conditions actually examined; it is not transferable to another implementation merely because the specification is unchanged.
+
+A replacement can use different code, language, structure or algorithm when the adopted behavioral and quality obligations permit it. A passing finite test suite does not prove that all intended behavior was specified or exercised. Unknown or unspecified behaviors must not be silently inferred from a legacy implementation or promoted to normative requirements.
+
+Brownfield discovery uses existing source and tests as evidence to recover an accepted specification. Once accepted for a bounded scope, subsequent implementation, evolution or replacement is governed by the specification and project policy. Existing code can remain a useful source of observations without being the authoritative behavioral definition.
+
 ## Use in AI-driven development
 
 AI-driven development is one supported application, not an intrinsic dependency. A project can derive bounded work scopes, dependency context, contracts, required evidence and traceability from the model. Scheduling, agent isolation, source ownership, independent review, context budgets, fake dependencies and acceptance gates are project/methodology decisions, not mandatory metamodel properties.

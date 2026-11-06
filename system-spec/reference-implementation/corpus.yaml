@@ -2,6 +2,7 @@
 # set: {dotted.path: value}; numeric segments index lists; `path.-: [items]` appends. drop: [dotted.path].
 # stage: validation stage (default release). old: {set, drop} patch building the old spec for compare_specs.
 - { id: REF-01, set: { requirements.-: [{ id: req-order, version: "1.0", status: verified, category: functional, target: place-order, criteria: [x] }] } }
+- { id: REQ-09, set: { requirements.0.superseded_by: req-reserve } }
 - { id: REQ-08, also: [REQ-05], set: { requirements.-: [{ id: req-sub, version: "1.0", status: verified, category: functional, target: place-order, mandatory: false, refines: [req-order], criteria: [x] }] } }
 - { id: REF-02, set: { requirements.0.target: nope } }
 - { id: IMP-01, set: { system.imports: [{ id: a, path: a.yaml, version: "1", capabilities: {} }, { id: a, path: b.yaml, version: "1", capabilities: {} }] } }
@@ -95,3 +96,31 @@
 - { id: COMPAT-07, set: { data_models.1.version: "2.0", evidence.5.subject_revision: "2.0" }, old: { set: { data_models.1.classification: restricted } } }
 - { id: COMPAT-08, also: [COMPAT-04], old: { set: { capabilities.0.failure_modes: [insufficient_inventory] } } }
 - { id: COMPAT-09, old: { set: { capabilities.-: [{ id: legacy, version: "1.0" }] } } }
+- id: EXP-01
+  set:
+    views:
+      - &v1 { id: overview, purpose: list services, actions: [select], states: { empty: explain why and offer a next step, error: show the cause and retry } }
+      - &v2 { id: detail, actions: [back], states: { ready: show the detail } }
+      - *v1
+    experiences:
+      - &exp
+        id: browse
+        requirements: [req-order]
+        capabilities: [place-order]
+        views: [overview, detail]
+        interactions: [{ id: open, from_view: overview, to_view: detail, trigger: select, outcome: detail shown, failure_modes: { missing: error } }]
+        scenarios: [{ id: s1, requirement: req-order, interactions: [open], states: [overview.empty] }]
+- { id: EXP-02, set: { views: [*v1, *v2], experiences: [{ <<: *exp, requirements: [nope] }] } }
+- { id: EXP-03, set: { views: [*v1, *v2], experiences: [{ <<: *exp, interactions: [{ id: open, from_view: overview, to_view: detail, trigger: select }] }] } }
+- { id: EXP-04, set: { views: [*v1, *v2], experiences: [{ <<: *exp, interactions: [{ id: open, from_view: overview, to_view: detail, trigger: select, outcome: detail shown, failure_modes: { missing: no-such-state } }] }] } }
+- { id: EXP-05, set: { views: [*v1, *v2], experiences: [{ <<: *exp, critical: true, scenarios: [] }] } }
+- { id: EXP-06, set: { views: [{ <<: *v1, references: [{ path: ui/overview.svg, authority: normative }] }, *v2], experiences: [*exp] } }
+- { id: EXP-08, set: { views: [*v1, *v2], experiences: [{ <<: *exp, critical: true, exhaustive: true, requirements: [req-order, req-reserve], scenarios: [{ id: s1, requirement: req-order, interactions: [open] }, { id: s2, requirement: req-order, kind: negative, interactions: [open] }] }] } }
+- id: EXP-07
+  set:
+    requirements.-: [{ id: req-ux, version: "1.0", status: verified, category: functional, mandatory: false, target: place-order, criteria: [x] }]
+    views: [*v1, *v2]
+    experiences:
+      - <<: *exp
+        critical: true
+        scenarios: [{ id: s1, requirement: req-ux, interactions: [open] }, { id: s2, requirement: req-ux, interactions: [open], kind: negative }]

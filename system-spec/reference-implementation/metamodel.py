@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse, ast, hashlib, json, re, sys, tomllib, yaml
+import argparse, ast, hashlib, json, os, re, subprocess, sys, tomllib, yaml
 import xml.etree.ElementTree as ET
 from collections import Counter
 from datetime import date, datetime
@@ -70,7 +70,7 @@ INVARIANTS = {
     "DOM-01": ("architecture", None, "Component domains and domain uses are declared."),
     "DOM-02": ("architecture", "domain-violation", "Cross-domain dependencies are declared in Domain.uses."),
     "DOM-03": ("architecture", "dependency-cycle", "Domain uses are acyclic."),
-    "REQ-01": ("verification", "verification-category", "Active requirements cover all verification categories."),
+    "REQ-01": ("verification", "verification-category", "Active requirements cover all required verification categories (all ten unless `system.verification_categories` narrows them)."),
     "REQ-02": ("verification", None, "Requirement dependencies and refinements are acyclic."),
     "REQ-03": ("verification", None, "Requirement conflicts are resolved by an active requirement."),
     "REQ-04": ("release", None, "Obligated requirements have no unsuperseded failing evidence for their version."),
@@ -78,6 +78,15 @@ INVARIANTS = {
     "REQ-06": ("release", None, "Dependencies of obligated and mitigating requirements are verified."),
     "REQ-07": ("verification", None, "Requirement kind matches its verification category."),
     "REQ-08": ("release", None, "Obligation passes to refining requirements, and obligated or mitigating requirements are refined only by verified requirements."),
+    "REQ-09": ("inventory", None, "`superseded_by` is set only on deprecated requirements and names an active requirement."),
+    "EXP-01": ("inventory", None, "Experience, view, interaction and scenario IDs are unique."),
+    "EXP-02": ("inventory", None, "Experience references to requirements, capabilities, views, entries, interactions, state sets and view states resolve, and each interaction has exactly one source."),
+    "EXP-03": ("architecture", None, "Interactions have an observable outcome and a trigger offered by their source view."),
+    "EXP-04": ("architecture", None, "View states state their handling, and interaction failure modes map to a state of the source or target view."),
+    "EXP-05": ("verification", None, "Critical experiences exercise every interaction in a scenario, and every interaction with failure modes in a negative scenario."),
+    "EXP-06": ("inventory", None, "Normative visual references declare a version and an acceptance authority."),
+    "EXP-07": ("release", None, "Requirements verifying scenarios and constraints of critical experiences have passing evidence."),
+    "EXP-08": ("verification", None, "Exhaustive critical experiences exercise every realized requirement in a scenario or give a reason in not_exercised."),
     "COMPAT-01": (None, None, "Preconditions are not strengthened."),
     "COMPAT-02": (None, None, "Postconditions are not removed."),
     "COMPAT-03": (None, None, "Invariants are not removed."),
@@ -128,6 +137,7 @@ class SystemDef(M):
     external_sources: list[str] = F("Registered external data sources (§ 5).", [])
     imports: list[SpecImport] = F("Pinned references to other systems' specs; their capabilities are used as '<id>:<capability>' (§ 2).", [])
     quality_attributes: dict[str, str] = F("Measurable quality attributes (§ 9).", {})
+    verification_categories: list[Literal[tuple(CATEGORIES)]] | None = Field(None, min_length=1, description="Verification categories REQ-01 requires; default all 10. Omitted categories are reported (§ 11).")
     context_budget: Budget = F("Component size limits (§ 3).", Budget())
 
 class Interface(M):
@@ -146,17 +156,26 @@ class Capability(M):
     id: str = ID
     version: str = VER
     status: Status = ST
+    description: str = F("Human-readable purpose.", "")
     preconditions: list[str] = F("Contract preconditions.", [])
     postconditions: list[str] = F("Contract postconditions.", [])
     invariants: list[str] = F("Contract invariants.", [])
     failure_modes: list[str] = F("Named failure modes.", [])
     interface: Interface | None = F("Interface contract; required when another component requires this capability.", None)
 
+class MockBinding(M):
+    """Provider-owned, programmable substitute for one capability."""
+    path: str = F("Repository-relative mock adapter path.")
+    contract_suite: list[str] = F("Argv executed in real and mock modes against the same contract.")
+    scenarios: list[str] = F("Scenarios supported by the programmable mock (reviewed by its suite).", [])
+
 class Component(M):
     """Independent logical unit providing capabilities (§ 3)."""
     id: str = ID
     version: str = VER
     status: Status = ST
+    description: str = F("Human-readable purpose.", "")
+    owner: str | None = F("Accountable role or team (a reference; not validated) (§ 3).", None)
     layer: str | None = F("One of system.layers.", None)
     domain: str | None = F("One of system.domains.", None)
     consistency: Literal["strong", "eventual"] = F("Consistency guarantee.", "strong")
@@ -166,6 +185,8 @@ class Component(M):
     bindings: dict[str, str] = F("Required capability ID -> provider component ID.", {})
     source_paths: list[str] = F("Implementation directories or modules (§ 3).", [])
     fakes: dict[str, str] = F("Required capability ID -> test double under test_paths that stands in for its provider (§ 3).", {})
+    provided_mocks: dict[str, MockBinding] = F("Provided capability ID -> programmable mock adapter and shared real/mock contract suite (optional isolation methodology).", {})
+    standalone_harness: list[str] = F("Command argv to run this component with dependency substitutes, without real internal providers (optional isolation methodology).", [])
     test_paths: list[str] = F("Directories or files holding this component's own tests, or `tool::selector` entries (e.g. `nextest::-p crate`) for package-level runners; test evidence for it must come from here (§ 3).", [])
     context_budget: dict[Literal["max_provides", "max_requires", "max_owns_data"], int] = F("Per-component override of system.context_budget limits (§ 3).", {})
     external: bool = F("Provider outside this system (platform, third-party API): provides only; exempt from layers, domains, budgets and tests; a drift target whose own sources are not scanned (§ 3).", False)
@@ -193,12 +214,16 @@ class Requirement(M):
     version: str = VER
     target: str = F("System, component, capability or data model ID.")
     status: Status = F("Lifecycle status; 'deprecated' requirements are inactive (§ 6).", "draft")
+    statement: str | None = F("The obligation itself; criteria then hold only its acceptance checks (§ 6).", None)
+    priority: str | None = F("Project-defined phase or priority, e.g. P0; independent of mandatory and without effect on stage invariants (§ 6).", None)
+    owner: str | None = F("Accountable role or approver (a reference; not validated) (§ 6).", None)
+    superseded_by: str | None = F("Active requirement that replaces this deprecated one (REQ-09) (§ 6).", None)
     kind: Literal["functional", "non-functional"] = F("Property kind.", "functional")
-    category: Literal[tuple(CATEGORIES)] | None = F("Verification category; all 10 must be covered (§ 11).", None)
+    category: Literal[tuple(CATEGORIES)] | None = F("Verification category; the project's required categories must be covered (§ 11).", None)
     mandatory: bool = F("Mandatory requirements need evidence at release.", True)
     criteria: list[str] = F("Acceptance criteria.")
     depends_on: list[str] = F("Prerequisite requirement IDs.", [])
-    refines: list[str] = F("Requirement IDs whose obligations this elaborates.", [])
+    refines: list[str] = F("Requirement IDs whose obligations this elaborates; refinement is co-obligation (REQ-08), so link across priority or phase with depends_on (§ 6).", [])
     conflicts_with: list[str] = F("Incompatible requirement IDs.", [])
     resolved_by: str | None = F("Active requirement resolving this requirement's conflicts.", None)
 
@@ -206,6 +231,8 @@ class Risk(M):
     """Risk or tracked architectural exception (§ 7)."""
     id: str = ID
     target: str = F("System, component, capability or data model ID.")
+    description: str = F("Human-readable description of the risk.", "")
+    owner: str | None = F("Accountable role or approver (a reference; not validated) (§ 7).", None)
     treatment: Literal["mitigation", "acceptance", "avoidance", "transfer"] = F("Risk treatment.")
     mitigated_by: list[str] = F("Mitigating or remediation requirement IDs; need evidence at release.", [])
     residual_accepted: bool = F("Residual risk explicitly accepted.", False)
@@ -242,6 +269,68 @@ class SubjectBinding(M):
     revision: str = F("Reviewed source revision; distinct from contract version.")
     artifacts: dict[str, str] = Field(description="Repository-relative source files mapped to exact-byte SHA-256 digests.", min_length=1)
 
+class VisualReference(M):
+    """Reference artifact for a view or experience; only a normative one constrains presentation (§ 13)."""
+    path: str = F("Repository-relative artifact path.")
+    authority: Literal["illustrative", "normative"] = F("illustrative: guidance for agents, never a pass/fail criterion; normative: presentation must conform, as accepted by accepted_by.", "illustrative")
+    version: str | None = F("Reference version; required when normative.", None)
+    accepted_by: str | None = F("Role that accepts conformance to the reference; required when normative.", None)
+    sha256: str | None = F("Optional SHA-256 of the artifact bytes (--check-artifacts).", None)
+    consistent_with: list[str] = F("Requirement IDs the reference must not contradict; the reference stays illustrative and a review may reject it where it does (EXP-02 resolves the IDs).", [])
+
+class View(M):
+    """Presentation context (screen, page, CLI output, conversational turn), independent of any UI technology (§ 13)."""
+    id: str = ID
+    purpose: str = F("What the view is for.", "")
+    content: list[str] = F("Information hierarchy and content obligations, most important first.", [])
+    actions: list[str] = F("Triggers the view offers; an interaction leaving the view names one.", [])
+    states: dict[str, str] = F("State name -> required handling (e.g. empty: explain why and offer a next step); scoped to this view and overriding state_sets.", {})
+    state_sets: list[str] = F("Names of Spec.state_sets whose states this view includes.", [])
+    references: list[VisualReference] = F("Visual references for this view.", [])
+
+class Interaction(M):
+    """Transition between views of an experience (§ 13)."""
+    id: str = ID
+    from_view: str | None = F("Source view ID; exactly one of from_view and from_entry. Source and target may be the same view for an action inside it.", None)
+    from_entry: str | None = F("Source entry point declared in Experience.entries (notification, deep link, command); exactly one of from_view and from_entry.", None)
+    to_view: str = F("Target view ID.")
+    trigger: str = F("Action of the source view, or the event at the source entry, that starts the interaction.")
+    preconditions: list[str] = F("Conditions that must hold.", [])
+    preserves: list[str] = F("Context carried to the target view (e.g. time-range, filters).", [])
+    outcome: str = F("Observable result; required (EXP-03).", "")
+    invariants: list[str] = F("Conditions that hold throughout.", [])
+    failure_modes: dict[str, str] = F("Failure mode -> state of the source or target view that handles it (EXP-04).", {})
+
+class Scenario(M):
+    """Verification scenario that exercises interactions and states of its experience; verified through an existing requirement (§ 13)."""
+    id: str = ID
+    requirement: str | None = F("Requirement ID carrying the verification obligation; shorthand for a one-element requirements.", None)
+    requirements: list[str] = F("Requirement IDs whose Evidence verifies the scenario; all must pass (EXP-07).", [])
+    interactions: list[str] = F("Interaction IDs exercised.", [])
+    states: list[str] = F("'view.state' entries exercised.", [])
+    kind: Literal["positive", "negative"] = F("negative: exercises failure modes, denial or boundary behavior.", "positive")
+
+class Constraint(M):
+    """Design constraint with the requirement that verifies it (§ 13)."""
+    value: str = F("Standard or value, e.g. WCAG-2.2-AA.")
+    requirement: str | None = F("Requirement ID that verifies the constraint (EXP-02, EXP-07).", None)
+
+class Experience(M):
+    """Optional user-facing workflow or goal; orthogonal to components, layers and domains (§ 13)."""
+    id: str = ID
+    description: str = F("Goal of the workflow.", "")
+    critical: bool = F("Critical workflows need verification scenarios (EXP-05, EXP-07).", False)
+    requirements: list[str] = F("Requirement IDs the experience realizes.", [])
+    capabilities: list[str] = F("Capability IDs the experience realizes.", [])
+    views: list[str] = F("IDs of the Spec.views taking part.", [])
+    entries: dict[str, str] = F("Entry points that are not views: name -> description (notification, deep link, command, conversational trigger).", {})
+    interactions: list[Interaction] = F("Transitions between its views.", [])
+    constraints: dict[str, str | Constraint] = F("Named design constraints: a value, or a Constraint naming the requirement that verifies it.", {})
+    exhaustive: bool = F("With critical: every realized requirement is the target of a scenario or listed in not_exercised (EXP-08).", False)
+    not_exercised: dict[str, str] = F("Realized requirement ID -> reason it has no scenario (EXP-08).", {})
+    references: list[VisualReference] = F("Visual references for the whole experience.", [])
+    scenarios: list[Scenario] = F("Verification scenarios.", [])
+
 class Spec(M):
     """System specification document (spec.md)."""
     system: SystemDef
@@ -252,6 +341,9 @@ class Spec(M):
     risks: list[Risk] = []
     evidence: list[Evidence] = []
     subject_bindings: dict[str, SubjectBinding] = F("Subject ID -> reviewed contract version, source revision and artifact hashes.", {})
+    state_sets: dict[str, dict[str, str]] = F("Reusable view states: set name -> state name -> required handling; views include them with state_sets (§ 13).", {})
+    views: list[View] = F("Optional experience views (§ 13).", [])
+    experiences: list[Experience] = F("Optional experience specification (§ 13).", [])
     include: list[str] = F("Fragment files merged on load (globs relative to this file, no '..'); consumed on load, so a resolved spec has none (spec.md § 12).", [])
 
 # A spec fragment holds any Spec section except `system` and `include`, so teams or agents can own separate files.
@@ -378,6 +470,8 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
         for rel in ("depends_on", "refines", "conflicts_with", "resolved_by"):
             for x in _list(getattr(r, rel)):
                 if x not in reqs: add("REF-06", f"Requirement '{r.id}' {rel} unknown requirement '{x}'")
+        if r.superseded_by and (r.status != "deprecated" or r.superseded_by not in active):
+            add("REQ-09", f"Requirement '{r.id}' superseded_by '{r.superseded_by}' must name an active requirement and be set only on a deprecated one")
     for e in spec.evidence:
         if e.requirement_id not in reqs: add("REF-07", f"Evidence '{e.id}' references unknown requirement '{e.requirement_id}'")
         if e.criteria and e.requirement_id in reqs and (bad := [c for c in e.criteria if c not in reqs[e.requirement_id].criteria]):
@@ -471,7 +565,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
     targeted = {r.target for r in active.values()}
     for cap in spec.capabilities:
         if cap.status != "deprecated" and cap.id not in targeted: add("CAP-04", f"Capability '{cap.id}' has no associated requirements")
-    missing = [c for c in CATEGORIES if c not in {r.category for r in active.values()}]
+    missing = [c for c in spec.system.verification_categories or CATEGORIES if c not in {r.category for r in active.values()}]
     if missing: add("REQ-01", f"Missing verification categories: {missing}", sid)
     for cy in _cycles({r.id: [*r.depends_on, *r.refines] for r in spec.requirements}):
         add("REQ-02", f"Requirement cycle: {' -> '.join(cy)}")
@@ -498,6 +592,81 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
         for k, p in c.fakes.items():
             if k not in need_caps: add("COMP-09", f"Component '{c.id}' declares a fake for '{k}', which it does not require", c.id)
             elif not _under_tests(p, c.test_paths): add("COMP-09", f"Component '{c.id}' fake '{p}' for '{k}' is outside test_paths", c.id)
+
+    # experiences (optional; vacuous when none are declared)
+    views, sets = {v.id: v for v in spec.views}, spec.state_sets
+    vstates = lambda v: {**{k: h for n in v.state_sets for k, h in sets.get(n, {}).items()}, **v.states}
+    scr = lambda sc: [*([sc.requirement] if sc.requirement else []), *sc.requirements]
+    for kind, xs in [("view", spec.views), ("experience", spec.experiences)]:
+        for i, n in Counter(x.id for x in xs).items():
+            if n > 1: add("EXP-01", f"Duplicate {kind} id '{i}'")
+    refs = [(f"View '{v.id}'", v.references) for v in spec.views] + [(f"Experience '{x.id}'", x.references) for x in spec.experiences]
+    for who, rs in refs:
+        for r in rs:
+            if r.authority == "normative" and not (r.version and r.accepted_by):
+                add("EXP-06", f"{who} normative reference '{r.path}' requires version and accepted_by")
+            for q in r.consistent_with:
+                if q not in reqs: add("EXP-02", f"{who} reference '{r.path}' is consistent_with unknown requirement '{q}'")
+    for v in spec.views:
+        for n in v.state_sets:
+            if n not in sets: add("EXP-02", f"View '{v.id}' uses unknown state set '{n}'")
+        for name, handling in v.states.items():
+            if not handling.strip(): add("EXP-04", f"View '{v.id}' state '{name}' states no handling")
+    for n, st in sets.items():
+        for name, handling in st.items():
+            if not handling.strip(): add("EXP-04", f"State set '{n}' state '{name}' states no handling")
+    for x in spec.experiences:
+        for kind, xs in [("interaction", x.interactions), ("scenario", x.scenarios)]:
+            for i, n in Counter(y.id for y in xs).items():
+                if n > 1: add("EXP-01", f"Experience '{x.id}' has duplicate {kind} id '{i}'")
+        for r in x.requirements:
+            if r not in reqs: add("EXP-02", f"Experience '{x.id}' realizes unknown requirement '{r}'")
+        for c in x.capabilities:
+            if c not in caps and _import_cap(spec, c) is None: add("EXP-02", f"Experience '{x.id}' realizes unknown capability '{c}'")
+        for v in x.views:
+            if v not in views: add("EXP-02", f"Experience '{x.id}' uses unknown view '{v}'")
+        for name, c in x.constraints.items():
+            if isinstance(c, Constraint) and c.requirement and c.requirement not in reqs:
+                add("EXP-02", f"Experience '{x.id}' constraint '{name}' names unknown requirement '{c.requirement}'")
+        own, acts = {v for v in x.views if v in views}, {i.id: i for i in x.interactions}
+        for i in x.interactions:
+            who = f"Interaction '{x.id}.{i.id}'"
+            if (i.from_view is None) == (i.from_entry is None): add("EXP-02", f"{who} needs exactly one of from_view and from_entry")
+            if i.from_view is not None and i.from_view not in own: add("EXP-02", f"{who} from_view '{i.from_view}' is not a view of the experience")
+            if i.from_entry is not None and i.from_entry not in x.entries: add("EXP-02", f"{who} from_entry '{i.from_entry}' is not an entry of the experience")
+            if i.to_view not in own: add("EXP-02", f"{who} to_view '{i.to_view}' is not a view of the experience")
+            ends = [views[v] for v in (i.from_view, i.to_view) if v in own]
+            if not i.outcome.strip() or (i.from_view in own and i.trigger not in views[i.from_view].actions):
+                add("EXP-03", f"{who} needs an observable outcome and, from a view, a trigger that view offers")
+            for fm, st in i.failure_modes.items():
+                if not any(st in vstates(v) for v in ends): add("EXP-04", f"{who} failure mode '{fm}' maps to '{st}', which is not a state of its views")
+        for sc in x.scenarios:
+            if not scr(sc): add("EXP-02", f"Scenario '{x.id}.{sc.id}' needs at least one requirement")
+            for r in scr(sc):
+                if r not in reqs: add("EXP-02", f"Scenario '{x.id}.{sc.id}' verifies through unknown requirement '{r}'")
+            for a in sc.interactions:
+                if a not in acts: add("EXP-02", f"Scenario '{x.id}.{sc.id}' exercises unknown interaction '{a}'")
+            for st in sc.states:
+                v, _, name = st.partition(".")
+                if v not in own or name not in vstates(views[v]): add("EXP-02", f"Scenario '{x.id}.{sc.id}' exercises unknown view state '{st}'")
+        if x.critical:
+            done = {a for sc in x.scenarios for a in sc.interactions}
+            neg = {a for sc in x.scenarios if sc.kind == "negative" for a in sc.interactions}
+            gaps = [i.id for i in x.interactions if i.id not in done or (i.failure_modes and i.id not in neg)]
+            if gaps or not x.scenarios: add("EXP-05", f"Critical experience '{x.id}' lacks positive/negative scenarios for interactions {gaps or 'at all'}")
+            for sc in x.scenarios:
+                for r in scr(sc):
+                    if r in reqs and r not in ok: add("EXP-07", f"Scenario '{x.id}.{sc.id}' requirement '{r}' is not verified")
+            for name, c in x.constraints.items():
+                if isinstance(c, Constraint) and c.requirement in reqs and c.requirement not in ok:
+                    add("EXP-07", f"Experience '{x.id}' constraint '{name}' requirement '{c.requirement}' is not verified")
+            if x.exhaustive:
+                exercised = {r for sc in x.scenarios for r in scr(sc)}
+                for r in x.requirements:
+                    if r not in exercised and not x.not_exercised.get(r, "").strip():
+                        add("EXP-08", f"Exhaustive critical experience '{x.id}' requirement '{r}' is exercised by no scenario and has no not_exercised reason")
+                for r in x.not_exercised:
+                    if r not in x.requirements: add("EXP-08", f"Experience '{x.id}' not_exercised names '{r}', which it does not realize")
 
     # release: status, evidence, risk disposition, no waivers
     need("STAT-04", "verified", [("System", [spec.system]), ("Capability", spec.capabilities), ("Component", spec.components)])
@@ -819,7 +988,8 @@ def change_plan(spec: Spec, target_id: str) -> dict:
         waves.append(wave := sorted(c for c in affected - done if deps[c] <= done) or sorted(affected - done)); done |= set(wave)
     return {"target": target_id, "waves": waves,
             "components": {c: {"requires": sorted(res.get(c, {})), "fakes": by[c].fakes, "source_paths": by[c].source_paths, "test_paths": by[c].test_paths} for c in sorted(affected)},
-            "requirements": imp["requirements"], "invalidated_evidence": imp["invalidated_evidence"]}
+            "requirements": imp["requirements"], "invalidated_evidence": imp["invalidated_evidence"],
+            **({"priorities": pri} if (pri := {r.id: r.priority for r in spec.requirements if r.id in imp["requirements"] and r.priority}) else {})}
 
 def check_scope(spec: Spec, component_id: str, changed: list[str], allow: list[str] = ()) -> list[str]:
     """Path-only handoff scope check (no filesystem access): changed files must lie under the component's source/test paths, fakes, owned schemas or allow entries."""
@@ -838,6 +1008,61 @@ def json_schema() -> dict:
 
 def fragment_json_schema() -> dict:
     return {"$schema": "https://json-schema.org/draft/2020-12/schema", **SpecFragment.model_json_schema()}
+
+def check_isolation(spec: Spec, root: str | Path, timeout: int = 30) -> list[str]:
+    """Opt-in execution of trusted repository harnesses and shared real/mock contract suites."""
+    root = Path(root).resolve()
+    if not root.is_dir(): return [f"isolation: invalid root '{root}'"]
+    errors = []
+    def resolve(raw: str):
+        p = PurePosixPath(raw.replace("\\\\", "/"))
+        if not raw or p.is_absolute() or PureWindowsPath(raw).drive or ".." in p.parts:
+            return None
+        dest = (root / p).resolve()
+        return dest if dest.is_relative_to(root) and dest.is_file() else None
+    def run(command, label, mode, component, capability=None, mock_path=None):
+        if not command or not all(isinstance(v, str) and v.strip() and "\\x00" not in v for v in command):
+            errors.append(f"isolation: {label}: missing or invalid argv"); return
+        if any(".." in PurePosixPath(v.replace("\\\\", "/")).parts for v in command):
+            errors.append(f"isolation: {label}: unsafe argv"); return
+        env = {"PATH": os.environ.get("PATH", ""), "PYTHONPATH": str(root),
+               "SYSTEM_SPEC_MODE": mode, "SYSTEM_SPEC_COMPONENT": component}
+        if capability: env["SYSTEM_SPEC_CAPABILITY"] = capability
+        if mock_path: env["SYSTEM_SPEC_MOCK"] = str(mock_path)
+        try:
+            result = subprocess.run(command, cwd=root, env=env, timeout=timeout, capture_output=True, text=True, check=False)
+            if result.returncode:
+                output = (result.stderr or result.stdout).strip()[-1200:]
+                errors.append(f"isolation: {label}: exit {result.returncode}: {output}")
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            errors.append(f"isolation: {label}: {exc}")
+    for component in spec.components:
+        if component.external: continue
+        if not component.standalone_harness:
+            errors.append(f"isolation: {component.id}: missing standalone_harness")
+        for required in component.requires:
+            cap = required.partition("@^")[0]
+            path = component.fakes.get(cap)
+            if not path or not resolve(path):
+                errors.append(f"isolation: {component.id}: missing or invalid dependency substitute for '{cap}'")
+        if component.standalone_harness:
+            run(component.standalone_harness, f"{component.id} standalone", "standalone", component.id)
+        extra = set(component.provided_mocks) - set(component.provides)
+        for cap in sorted(extra):
+            errors.append(f"isolation: {component.id}: mock of undeclared provided capability '{cap}'")
+        for cap in component.provides:
+            binding = component.provided_mocks.get(cap)
+            if binding is None:
+                errors.append(f"isolation: {component.id}: missing provided mock for '{cap}'"); continue
+            path = resolve(binding.path)
+            if path is None:
+                errors.append(f"isolation: {component.id}/{cap}: invalid mock path '{binding.path}'"); continue
+            if not binding.contract_suite:
+                errors.append(f"isolation: {component.id}/{cap}: missing contract_suite"); continue
+            for mode in ("real", "mock"):
+                run(binding.contract_suite, f"{component.id}/{cap} {mode} contract",
+                    mode, component.id, cap, path)
+    return errors
 
 def check_artifacts(spec: Spec, root: str | Path) -> list[str]:
     """Optional local integrity checks; never execute artifacts or infer semantic correctness."""
@@ -867,6 +1092,7 @@ def check_artifacts(spec: Spec, root: str | Path) -> list[str]:
         if d.schema_path: check(d.schema_path, file=True)
     for b in spec.subject_bindings.values():
         for path, digest in b.artifacts.items(): check(path, digest, file=True)
+    for r in [r for v in spec.views for r in v.references] + [r for x in spec.experiences for r in x.references]: check(r.path, r.sha256, file=True)
     for e in spec.evidence:
         if e.id not in _superseded(spec):
             if e.provenance:
@@ -1043,6 +1269,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
     ap.add_argument("--check-drift", action="store_true", help="check Python imports and JSON Schema properties against the spec")
+    ap.add_argument("--check-isolation", action="store_true", help="execute opt-in standalone harnesses and shared real/mock capability suites (runs project code)")
     ap.add_argument("--return-schema", action="store_true", help="print JSON Schema for a handoff return (committed as handoff-return.schema.json)")
     ap.add_argument("--check-return", metavar="FILE", help="check an implementer's handoff return (YAML/JSON) against the spec; --allow permits extra changed paths")
     ap.add_argument("--check-imports", action="store_true", help="verify pinned imports against the imported specs (paths resolve from this spec's directory, inside --root)")
@@ -1060,7 +1287,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     if a.version:
         print(version or package_version()); return 0
     if a.check_scope and a.changed is None: ap.error("--check-scope requires --changed")
-    if (a.check_artifacts or a.check_drift or a.check_imports) and a.root is None: ap.error("--check-artifacts, --check-drift and --check-imports require --root")
+    if (a.check_artifacts or a.check_drift or a.check_imports or a.check_isolation) and a.root is None: ap.error("--check-artifacts, --check-drift, --check-imports and --check-isolation require --root")
     if a.schema:
         print(json.dumps(json_schema(), indent=2)); return 0
     if a.return_schema:
@@ -1076,6 +1303,9 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         known = {spec.system.id, *(x.id for x in spec.capabilities + spec.components + spec.data_models + spec.requirements)}
         artifact_errors = check_artifacts(spec, a.root) if a.check_artifacts else []
         if artifact_errors: out = {"valid": False, "errors": artifact_errors}
+        elif a.check_isolation:
+            errs = check_isolation(spec, a.root)
+            out = {"valid": not errs, "errors": errs}
         elif a.check_drift:
             drift = check_drift(spec, a.root)
             out = {"valid": not drift["errors"], **drift}
@@ -1121,10 +1351,13 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         else:
             errs = validate_spec(spec, a.stage) + (compare_specs(old, spec) if old else [])
             out = {"valid": not errs, "stage": a.stage, "errors": errs, "residual_risks": residual_risks(spec),
-                   "waivers": [k.id for k in active_waivers(spec, a.stage)]}
+                   "waivers": [k.id for k in active_waivers(spec, a.stage)],
+                   "omitted_categories": [c for c in CATEGORIES if spec.system.verification_categories and c not in spec.system.verification_categories]}
     if a.json: print(json.dumps(out, indent=2))
     elif "valid" not in out: print("\n".join(f"{k}: {', '.join(v)}" for k, v in out.items()))
-    else: print("VALID" if out["valid"] else "\n".join(out.get("errors") or out["schema_errors"]))
+    else:
+        print("VALID" if out["valid"] else "\n".join(out.get("errors") or out["schema_errors"]))
+        if out.get("omitted_categories"): print(f"note: verification categories not required by this project: {', '.join(out['omitted_categories'])}")
     return 0 if out.get("valid", True) else 1
 
 if __name__ == "__main__":
