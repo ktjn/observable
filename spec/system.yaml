@@ -631,14 +631,13 @@ requirements:
       - "Recorded deployment markers for a (tenant_id, service_name, version) tuple are persisted and queryable for timeline overlays"
 
   - id: req-pii-scrubbing
-    version: "0.1.0"
+    version: "0.2.0"
     target: normalize-telemetry
     status: verified
     kind: functional
     category: semantic
     mandatory: true
     criteria:
-      - "Email, credit-card, and bearer token patterns are scrubbed from span attributes and log bodies before emitting telemetry.normalized.v1"
       - "Derived metric-point aggregations contain no raw PII attributes, authorizing internal classification"
 
   - id: req-component-compat
@@ -713,14 +712,14 @@ requirements:
       - "observable-auth verifies SHA-256 API key hashes and rejects invalid, expired, or cross-tenant credentials with 401/403"
 
   - id: req-self-observability
-    version: "0.1.0"
+    version: "0.2.0"
     target: observable-platform
     status: verified
     kind: non-functional
     category: observability
     mandatory: true
     criteria:
-      - "All deployable backend services expose /health, /ready, and Prometheus metrics for queue depth, latency, and error rates"
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
 
   - id: req-dedup-idempotency
     version: "0.1.0"
@@ -799,6 +798,21 @@ risks:
   # Accepted by the owner; ROADMAP.md 0.5 states the limit.
   - id: risk-ingest-no-per-environment-limits
     target: ingest-otlp
+    treatment: acceptance
+    residual_accepted: true
+
+  # Gap: no code scrubs email, credit-card or bearer-token patterns from span attributes or
+  # log bodies; normalise.rs only fills duration, status and tenant_id. Raw PII reaches
+  # telemetry.normalized.v1 and ClickHouse. Remediation: PII scrubbing slice in the plan.
+  - id: risk-pii-not-scrubbed
+    target: normalize-telemetry
+    treatment: acceptance
+    residual_accepted: true
+
+  # Gap: no service exports a queue-depth metric, and stream-processor has no processing-latency
+  # metric. Remediation: queue-depth and latency metrics slice in the plan.
+  - id: risk-selfobs-no-queue-depth-latency
+    target: observable-platform
     treatment: acceptance
     residual_accepted: true
 
@@ -948,25 +962,9 @@ evidence:
     timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-tlc-verify
 
-  # Gap: no code scrubs email, credit-card or bearer-token patterns; normalise.rs only fills
-  # duration, status and tenant_id. Fails until scrubbing is implemented and tested.
-  - id: ev-pii-scrubbing-not-implemented
-    requirement_id: req-pii-scrubbing
-    requirement_version: "0.1.0"
-    subject_id: normalize-telemetry
-    subject_revision: "0.1.0"
-    method: inspection
-    passed: false
-    provenance: services/stream-processor/src/normalise.rs
-    criteria:
-      - "Email, credit-card, and bearer token patterns are scrubbed from span attributes and log bodies before emitting telemetry.normalized.v1"
-    timestamp: "2026-11-06T06:30:00Z"
-    verifier: inspection
-    environment: local
-
   - id: ev-pii-derived-metrics-no-attributes
     requirement_id: req-pii-scrubbing
-    requirement_version: "0.1.0"
+    requirement_version: "0.2.0"
     subject_id: normalize-telemetry
     subject_revision: "0.1.0"
     method: test
@@ -974,7 +972,7 @@ evidence:
     provenance: "services/stream-processor/src/metrics.rs::derived_metrics_exclude_raw_span_attributes"
     criteria:
       - "Derived metric-point aggregations contain no raw PII attributes, authorizing internal classification"
-    timestamp: "2026-11-06T06:30:00Z"
+    timestamp: "2026-11-06T06:44:00Z"
     verifier: cargo-test
     environment: local
 
@@ -1310,160 +1308,185 @@ evidence:
     verifier: cargo-test
     environment: local
 
-  # Gap: no service exports a queue-depth metric; stream-processor has no request-latency metric;
-  # ingest-gateway, stream-processor and alert-evaluator have no /metrics test.
-  # Fails until those exist and are tested; the passing records below cover the rest.
-  - id: ev-selfobs-gap
-    requirement_id: req-self-observability
-    requirement_version: "0.1.0"
-    subject_id: observable-platform
-    subject_revision: "0.1.0"
-    method: inspection
-    passed: false
-    provenance: services/stream-processor/src/observability.rs
-    criteria:
-      - "All deployable backend services expose /health, /ready, and Prometheus metrics for queue depth, latency, and error rates"
-    timestamp: "2026-11-06T06:30:00Z"
-    verifier: inspection
-    environment: local
-
   - id: ev-selfobs-auth-readyz
     requirement_id: req-self-observability
-    requirement_version: "0.1.0"
+    requirement_version: "0.2.0"
     subject_id: observable-platform
     subject_revision: "0.1.0"
     method: test
     passed: true
     provenance: "services/auth-service/tests/http_api_integration.rs::auth_service_readyz_returns_503_when_postgres_is_unavailable"
     criteria:
-      - "All deployable backend services expose /health, /ready, and Prometheus metrics for queue depth, latency, and error rates"
-    timestamp: "2026-11-06T06:30:00Z"
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
     verifier: cargo-test
     environment: local
 
   - id: ev-selfobs-auth-metrics
     requirement_id: req-self-observability
-    requirement_version: "0.1.0"
+    requirement_version: "0.2.0"
     subject_id: observable-platform
     subject_revision: "0.1.0"
     method: test
     passed: true
     provenance: "services/auth-service/tests/http_api_integration.rs::auth_service_metrics_endpoint_exposes_prometheus_text"
     criteria:
-      - "All deployable backend services expose /health, /ready, and Prometheus metrics for queue depth, latency, and error rates"
-    timestamp: "2026-11-06T06:30:00Z"
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
     verifier: cargo-test
     environment: local
 
   - id: ev-selfobs-control-probes
     requirement_id: req-self-observability
-    requirement_version: "0.1.0"
+    requirement_version: "0.2.0"
     subject_id: observable-platform
     subject_revision: "0.1.0"
     method: test
     passed: true
     provenance: "services/admin-service/tests/http_probes_integration.rs::admin_service_health_readyz_and_metrics_endpoints"
     criteria:
-      - "All deployable backend services expose /health, /ready, and Prometheus metrics for queue depth, latency, and error rates"
-    timestamp: "2026-11-06T06:30:00Z"
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
     verifier: cargo-test
     environment: local
 
   - id: ev-selfobs-store-readyz
     requirement_id: req-self-observability
-    requirement_version: "0.1.0"
+    requirement_version: "0.2.0"
     subject_id: observable-platform
     subject_revision: "0.1.0"
     method: test
     passed: true
     provenance: "services/storage-writer/tests/http_api_integration.rs::storage_writer_readyz_returns_503_when_clickhouse_is_unavailable"
     criteria:
-      - "All deployable backend services expose /health, /ready, and Prometheus metrics for queue depth, latency, and error rates"
-    timestamp: "2026-11-06T06:30:00Z"
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
     verifier: cargo-test
     environment: local
 
   - id: ev-selfobs-store-metrics
     requirement_id: req-self-observability
-    requirement_version: "0.1.0"
+    requirement_version: "0.2.0"
     subject_id: observable-platform
     subject_revision: "0.1.0"
     method: test
     passed: true
     provenance: "services/storage-writer/tests/http_api_integration.rs::storage_writer_metrics_endpoint_exposes_prometheus_text"
     criteria:
-      - "All deployable backend services expose /health, /ready, and Prometheus metrics for queue depth, latency, and error rates"
-    timestamp: "2026-11-06T06:30:00Z"
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
     verifier: cargo-test
     environment: local
 
   - id: ev-selfobs-query-readyz
     requirement_id: req-self-observability
-    requirement_version: "0.1.0"
+    requirement_version: "0.2.0"
     subject_id: observable-platform
     subject_revision: "0.1.0"
     method: test
     passed: true
     provenance: "services/query-api/tests/it/http_api_integration.rs::query_api_readyz_returns_503_when_dependencies_are_unavailable"
     criteria:
-      - "All deployable backend services expose /health, /ready, and Prometheus metrics for queue depth, latency, and error rates"
-    timestamp: "2026-11-06T06:30:00Z"
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
     verifier: cargo-test
     environment: local
 
   - id: ev-selfobs-query-metrics
     requirement_id: req-self-observability
-    requirement_version: "0.1.0"
+    requirement_version: "0.2.0"
     subject_id: observable-platform
     subject_revision: "0.1.0"
     method: test
     passed: true
     provenance: "services/query-api/tests/it/http_api_integration.rs::query_api_metrics_endpoint_exposes_prometheus_text"
     criteria:
-      - "All deployable backend services expose /health, /ready, and Prometheus metrics for queue depth, latency, and error rates"
-    timestamp: "2026-11-06T06:30:00Z"
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
     verifier: cargo-test
     environment: local
 
   - id: ev-selfobs-ingest-readyz
     requirement_id: req-self-observability
-    requirement_version: "0.1.0"
+    requirement_version: "0.2.0"
     subject_id: observable-platform
     subject_revision: "0.1.0"
     method: test
     passed: true
     provenance: "services/ingest-gateway/tests/http_readyz_integration.rs::ingest_gateway_readyz_returns_503_when_redpanda_unavailable"
     criteria:
-      - "All deployable backend services expose /health, /ready, and Prometheus metrics for queue depth, latency, and error rates"
-    timestamp: "2026-11-06T06:30:00Z"
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
     verifier: cargo-test
     environment: local
 
   - id: ev-selfobs-process-readyz
     requirement_id: req-self-observability
-    requirement_version: "0.1.0"
+    requirement_version: "0.2.0"
     subject_id: observable-platform
     subject_revision: "0.1.0"
     method: test
     passed: true
     provenance: "services/stream-processor/tests/http_readyz_integration.rs::stream_processor_readyz_returns_503_when_redpanda_unavailable"
     criteria:
-      - "All deployable backend services expose /health, /ready, and Prometheus metrics for queue depth, latency, and error rates"
-    timestamp: "2026-11-06T06:30:00Z"
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
     verifier: cargo-test
     environment: local
 
   - id: ev-selfobs-alerting-readyz
     requirement_id: req-self-observability
-    requirement_version: "0.1.0"
+    requirement_version: "0.2.0"
     subject_id: observable-platform
     subject_revision: "0.1.0"
     method: test
     passed: true
     provenance: "services/alert-evaluator/tests/http_api_integration.rs::alert_evaluator_readyz_returns_503_when_clickhouse_unavailable"
     criteria:
-      - "All deployable backend services expose /health, /ready, and Prometheus metrics for queue depth, latency, and error rates"
-    timestamp: "2026-11-06T06:30:00Z"
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-selfobs-ingest-metrics
+    requirement_id: req-self-observability
+    requirement_version: "0.2.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/ingest-gateway/src/prometheus_rw/mod.rs::platform_metrics_endpoint_exposes_prometheus_text"
+    criteria:
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-selfobs-process-metrics
+    requirement_id: req-self-observability
+    requirement_version: "0.2.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/stream-processor/tests/http_readyz_integration.rs::stream_processor_metrics_endpoint_exposes_prometheus_text"
+    criteria:
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-selfobs-alerting-metrics
+    requirement_id: req-self-observability
+    requirement_version: "0.2.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/http_api_integration.rs::alert_evaluator_metrics_endpoint_exposes_prometheus_text"
+    criteria:
+      - "All deployable backend services expose /health, /readyz and a Prometheus /metrics endpoint; /readyz returns 503 when a required dependency is unavailable"
+    timestamp: "2026-11-06T06:44:00Z"
     verifier: cargo-test
     environment: local
 
@@ -1668,17 +1691,17 @@ evidence:
     verifier: cargo-test
     environment: local
 
-  - id: ev-ingest-rl-shared-limiter-isolation
+  - id: ev-ingest-rl-http-tenant-isolation
     requirement_id: req-ingest-rate-limit
     requirement_version: "0.1.0"
     subject_id: ingest-otlp
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: services/ingest-gateway/src/http-json/traces.rs::custom_tenant_rate_limit_isolated_in_shared_limiter
+    provenance: services/ingest-gateway/src/http-json/traces.rs::rate_limit_is_per_tenant
     criteria:
       - "One tenant exhausting its limit does not consume another tenant's quota"
-    timestamp: "2026-11-06T05:54:00Z"
+    timestamp: "2026-11-06T06:28:00Z"
     verifier: cargo-test
     environment: local
 

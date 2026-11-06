@@ -1,8 +1,8 @@
 # Plan: Reverse-Engineer Requirements, Tests and Risks into `spec/system.yaml`
 
-**Status:** Slice 1 steps 0-2 done (both ingest-limit requirements `verified`, four gap risks recorded); step 3 next
+**Status:** Slice 1 closed; release stage passes. Next: slice 2 (retention and purge)
 **Method:** [system-spec/BROWNFIELD.md](../../system-spec/BROWNFIELD.md) Reverse Discovery steps 4-5; change flow in [AGENTS.md](../../AGENTS.md)
-**Current spec:** 17 requirements, 7 risks, 67 evidence records (`spec/system.yaml`); every `method: test` record names a test as `path::test_name`
+**Current spec:** 17 requirements, 9 risks, 68 evidence records (`spec/system.yaml`); every `method: test` record names a test as `path::test_name`
 
 ## Principles
 
@@ -19,6 +19,8 @@
 3. Credential lifecycle and tenant isolation (`observable-auth`).
 4. Usage report (`admin-service`).
 5. Remaining 0.3/0.4 claims with executable checks (doctor, backup/restore drill, manifest compatibility).
+6. PII scrubbing (`stream-processor`): implement scrubbing, restore the scrubbing criterion on `req-pii-scrubbing`, close `risk-pii-not-scrubbed`. Design first: spec/06-agents.md §10.11 and ADR-018 expect configurable per-project rules (redact, hash, drop).
+7. Queue-depth and latency metrics (all services): define queue depth per service (consumer lag, buffer length), add the metrics and tests, restore the criterion on `req-self-observability`, close `risk-selfobs-no-queue-depth-latency`.
 
 ## Slice 1: ingest limits
 
@@ -63,17 +65,16 @@ Result (done):
   - The CLI skips stage validation when `--check-artifacts` or `--check-drift` is given and those checks pass, so the AGENTS.md release gate never runs stage invariants. Run `--stage release` on its own as well.
   - A non-mandatory requirement marked `verified` with partial evidence passes release; STAT-04 checks status only and REQ-05 checks obligated requirements only.
 
-### Step 3: obsolete-test audit (propose only)
+### Step 3: obsolete-test audit (done)
 
-- List candidate tests per slice with a reason and evidence: duplicate assertion already covered by a broader test, test for removed behavior, or test bound to no requirement and no unique regression value.
-- Candidates found so far: none for deletion. Unit tests in `rate_limiter.rs` and `cardinality.rs` cover distinct logic from the HTTP tests and are not redundant.
-- Weak test: `http-json/traces.rs::rate_limit_is_per_tenant` builds a separate `AppState` per tenant, so it cannot detect shared-quota leakage; isolation evidence uses `rate_limiter.rs::default_limit_applies_per_tenant` and `custom_tenant_rate_limit_isolated_in_shared_limiter` instead. Propose rewriting it against one shared state.
+- Deletion candidates: none. Unit tests in `rate_limiter.rs` and `cardinality.rs` cover distinct logic from the HTTP tests.
+- `http-json/traces.rs::rate_limit_is_per_tenant` built a separate `AppState` per tenant, so it could not detect shared-quota leakage. Rewritten to share one limiter across two tenants; it is now the HTTP isolation evidence.
+- `http-json/traces.rs::custom_tenant_rate_limit_isolated_in_shared_limiter` never sends a second tenant's request, so it was wrongly bound as isolation evidence. Unbound; kept, since it covers `set_tenant_limit`, the remediation path for `risk-ingest-tenant-quota-not-configurable`.
 - Deletion needs explicit user approval per test; run the owning suite before and after and record the result.
 
-### Step 4: close the slice
+### Step 4: close the slice (done)
 
-- Run `system-spec spec/system.yaml --stage release --check-artifacts --check-drift --root .`.
-- Record gate results in the PR; update this plan's status; start the next slice.
+- `--stage release`, `--stage release --check-artifacts --check-drift --root .` and `--compat` against `main`: `VALID`.
 
 ## Cross-cutting: requirement -> test binding (done)
 
@@ -91,13 +92,14 @@ Tests added where a criterion had no test:
 | `req-self-observability` | `services/admin-service/tests/http_probes_integration.rs::admin_service_health_readyz_and_metrics_endpoints` |
 | `req-deployment-marker-immutability` | `create_then_finish_deployment_round_trips` now reads the marker back |
 
-Requirements without a passing named test for every criterion (recorded as `method: inspection`, `passed: false`; release stage reports `REQ-04`):
+Requirements that had a criterion with no implementation, narrowed to tested behavior at 0.2.0 (user decision), gaps recorded as accepted risks with remediation slices 6 and 7:
 
-- `req-pii-scrubbing`: criterion 1. No code scrubs email, credit-card or bearer-token patterns.
-- `req-self-observability`: no queue-depth metric in any service; stream-processor has no request-latency metric; ingest-gateway, stream-processor and alert-evaluator have no `/metrics` test.
+- `req-pii-scrubbing`: the pattern-scrubbing criterion is removed; `risk-pii-not-scrubbed`. No code scrubs email, credit-card or bearer-token patterns.
+- `req-self-observability`: criterion now covers `/health`, `/readyz` (503 on dependency loss) and `/metrics` for every service; `/metrics` tests added for ingest-gateway, stream-processor and alert-evaluator. `risk-selfobs-no-queue-depth-latency`: no queue-depth metric in any service, no stream-processor processing-latency metric.
 
 Caveats on bound evidence (not failing):
 
 - `req-ui-tenant-session`: no share-token feature exists, so the share-token exception is vacuous.
 - `req-tenant-auth-isolation`: API keys have no expiry, only revocation; "expired" is covered for sessions. API-key tenant mismatch is enforced by callers through the resolved `tenant_id`.
 - `req-alerting-query-inversion` evidence is a spec/structure check (Python), not a runtime test.
+- `req-self-observability`: most probe tests build their own router with a stub `/health` route, so they verify the `readyz` and `metrics` handlers, not each service's real route table. The ingest-gateway `/metrics` test uses the real `build_platform_router`.

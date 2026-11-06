@@ -97,3 +97,47 @@ async fn stream_processor_readyz_returns_200_when_redpanda_reachable() {
 
     assert_eq!(response.status(), StatusCode::OK);
 }
+
+#[tokio::test]
+async fn stream_processor_metrics_endpoint_exposes_prometheus_text() {
+    let metrics = stream_processor::observability::StreamProcessorMetrics::new();
+    metrics
+        .batches_processed_total
+        .with_label_values(&["traces"])
+        .inc();
+    let app = Router::new()
+        .route("/metrics", get(stream_processor::observability::metrics))
+        .with_state(StreamProcessorProbeState {
+            brokers: "127.0.0.1:1".to_string(),
+            metrics_registry: Some(std::sync::Arc::new(metrics.registry.clone())),
+        });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/metrics")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("router responded");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers()["content-type"],
+        "text/plain; version=0.0.4; charset=utf-8"
+    );
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let body = String::from_utf8(bytes.to_vec()).expect("utf-8");
+    assert!(
+        body.contains("stream_processor_batches_processed_total"),
+        "{body}"
+    );
+    assert!(
+        body.contains("stream_processor_envelopes_processed_total"),
+        "{body}"
+    );
+}
