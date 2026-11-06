@@ -469,6 +469,57 @@ mod tests {
         assert_eq!(batches[0].len(), 2, "the full retried batch was flushed");
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn retry_backoff_doubles_from_initial_and_caps_at_max() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        const FAILURES: usize = 8;
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let attempts2 = attempts.clone();
+        let started = tokio::time::Instant::now();
+
+        retry_until_success(
+            vec![make_span()],
+            move |_rows| {
+                let attempts = attempts2.clone();
+                async move {
+                    if attempts.fetch_add(1, Ordering::SeqCst) < FAILURES {
+                        anyhow::bail!("simulated transient clickhouse failure");
+                    }
+                    Ok(())
+                }
+            },
+            "spans",
+        )
+        .await;
+
+        assert_eq!(attempts.load(Ordering::SeqCst), FAILURES + 1);
+        // 0.5 + 1 + 2 + 4 + 8 + 16 s, then capped at 30 s twice.
+        let expected: Duration = [500u64, 1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000]
+            .iter()
+            .map(|ms| Duration::from_millis(*ms))
+            .sum();
+        assert_eq!(started.elapsed(), expected);
+    }
+
+    #[tokio::test]
+    async fn durable_send_withholds_ack_while_clickhouse_is_unavailable() {
+        let ch = clickhouse::Client::default().with_url("http://127.0.0.1:9");
+        let buffer = WriteBuffer::new(ch, 1, Duration::from_millis(50));
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(2),
+            buffer.send_spans_durable(vec![make_span()]),
+        )
+        .await;
+
+        assert!(
+            result.is_err(),
+            "durable send must not resolve (so the Kafka offset is not committed) \
+             while every ClickHouse insert fails; got {result:?}"
+        );
+    }
+
     #[tokio::test]
     async fn send_spans_durable_resolves_only_after_flush_succeeds() {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<(Vec<Span>, Ack)>(16);
