@@ -20,16 +20,15 @@ pub struct AppState {
 
 /// Computes a deterministic FNV-1a 128-bit deduplication token for a batch of
 /// rows targeting `table` and returns a ClickHouse client configured with
-/// `insert_deduplication_token` and `non_replicated_deduplication_window`.
+/// `insert_deduplication_token`. The deduplication window is a table setting
+/// configured by the ClickHouse migrations, not a query setting.
 ///
 /// This makes crash-window redeliveries idempotent on single-node `MergeTree`
 /// tables (`spans`, `span_events`, `logs`, `metric_points`) as well as
 /// `ReplacingMergeTree` (`metric_series`).
 pub fn deduplicated_client<T: Serialize>(ch: &Client, table: &str, rows: &[T]) -> Client {
     let token = batch_deduplication_token(table, rows);
-    ch.clone()
-        .with_setting("non_replicated_deduplication_window", "1000")
-        .with_setting("insert_deduplication_token", token)
+    ch.clone().with_setting("insert_deduplication_token", token)
 }
 
 pub fn batch_deduplication_token<T: Serialize>(table: &str, rows: &[T]) -> String {

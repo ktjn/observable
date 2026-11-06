@@ -731,6 +731,7 @@ requirements:
     mandatory: true
     criteria:
       - "ClickHouse writes carry deterministic deduplication tokens or ReplacingMergeTree keys so crash-window Kafka redeliveries do not duplicate visible rows"
+      - "Non-replicated telemetry tables enable their deduplication window through a versioned table-settings migration, not a query setting"
       - "Span-derived metrics converge on telemetry.normalized.v1 instead of dual HTTP push"
 
   - id: req-alerting-query-inversion
@@ -925,9 +926,9 @@ evidence:
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: services/storage-writer/src/main.rs
-    timestamp: "2026-10-31T18:35:01Z"
-    verifier: ci-rust-test
+    provenance: services/storage-writer/src/spans.rs
+    timestamp: "2026-11-06T19:43:50Z"
+    verifier: cargo-test-storage-writer-lib
 
   - id: ev-alerting-query-dag-check
     requirement_id: req-alerting-query-inversion

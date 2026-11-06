@@ -182,10 +182,8 @@ mod tests {
         }
     }
 
-    // NOTE: requires Docker to be running; skip if Docker unavailable
     #[tokio::test]
-    #[ignore = "requires Docker"]
-    async fn insert_spans_writes_events_to_clickhouse_and_deduplicates_retries() {
+    async fn inserts_all_telemetry_tables_and_deduplicates_retries() {
         use std::path::Path;
         use testcontainers::{ImageExt, runners::AsyncRunner};
         use testcontainers_modules::clickhouse::ClickHouse;
@@ -319,5 +317,79 @@ mod tests {
             .expect("names query");
 
         assert_eq!(names, vec!["exception".to_string(), "retry".to_string()]);
+
+        let log = domain::LogRecord {
+            tenant_id,
+            log_id: Uuid::new_v4(),
+            timestamp_unix_nano: now_ns,
+            observed_timestamp_unix_nano: now_ns,
+            body: serde_json::json!("deduplication regression"),
+            ..Default::default()
+        };
+        let series = domain::MetricSeries {
+            tenant_id,
+            metric_series_id: Uuid::new_v4(),
+            metric_name: "deduplication_regression".into(),
+            service_name: "test".into(),
+            ..Default::default()
+        };
+        let point = domain::MetricPoint {
+            tenant_id,
+            metric_series_id: series.metric_series_id,
+            metric_name: series.metric_name.clone(),
+            service_name: series.service_name.clone(),
+            time_unix_nano: now_ns,
+            value_double: Some(1.0),
+            ..Default::default()
+        };
+        for _ in 0..2 {
+            crate::logs::insert_logs(&ch, vec![log.clone()])
+                .await
+                .expect("log insert succeeded");
+            crate::metrics::insert_metric_series(&ch, vec![series.clone()])
+                .await
+                .expect("series insert succeeded");
+            crate::metrics::insert_metric_points(&ch, vec![point.clone()])
+                .await
+                .expect("point insert succeeded");
+        }
+        // Startup reapplies migrations: changing settings again must preserve
+        // existing rows and the deduplication history.
+        let migration =
+            std::fs::read_to_string(migrations_dir.join("005_enable_insert_deduplication.sql"))
+                .expect("deduplication migration");
+        for _ in 0..2 {
+            for statement in migration
+                .split(';')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                root.query(statement).execute().await.unwrap();
+            }
+        }
+        // Retry after reapplying the settings, too.
+        crate::logs::insert_logs(&ch, vec![log]).await.unwrap();
+        crate::metrics::insert_metric_series(&ch, vec![series])
+            .await
+            .unwrap();
+        crate::metrics::insert_metric_points(&ch, vec![point])
+            .await
+            .unwrap();
+        for table in [
+            "spans",
+            "span_events",
+            "logs",
+            "metric_series",
+            "metric_points",
+        ] {
+            let count: u64 = ch
+                .query(&format!("SELECT count() FROM {table} WHERE tenant_id = ?"))
+                .bind(tenant_id)
+                .fetch_one()
+                .await
+                .expect("row count query");
+            let expected = if table == "span_events" { 2 } else { 1 };
+            assert_eq!(count, expected, "unexpected rows in {table}");
+        }
     }
 }

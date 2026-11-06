@@ -12,4 +12,4 @@
 # ordering and COMP-06 DAG acyclicity while observable-query calls evaluate-alerts
 # for enrichment and correlation.
 min: 4
-max: 4
+max: 5

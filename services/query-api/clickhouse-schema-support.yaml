@@ -10,4 +10,4 @@
 # observable.metric_series and observable.metric_points (003), and
 # observable.span_events (004), so it requires at least schema version 4.
 min: 4
-max: 4
+max: 5
