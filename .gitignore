@@ -25,3 +25,4 @@ models/enum-numbers.lock
 
 # TLA+ tool cache (pinned tla2tools.jar downloaded by scripts/run-formal-verification.sh)
 .tla/
+.local-ci/

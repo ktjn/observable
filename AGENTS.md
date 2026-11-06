@@ -127,6 +127,11 @@ Use flags to skip stages when Docker or Node are unavailable:
 - `--skip-helm` — skip Helm chart lint
 - `--skip-smoke` — build image but skip smoke test
 
+Independent stages run as concurrent lanes (checks, Rust, frontend, images); Compose smoke/perf runs after all lanes pass. Each lane logs to `.local-ci/<lane>.log`, and the gate prints per-stage timings at exit. The first failing lane stops the others; these flags change scheduling only, never coverage:
+- `--serial` (or `LOCAL_CI_PARALLEL=0`) — run every stage sequentially in the foreground
+- `--keep-going` (or `LOCAL_CI_KEEP_GOING=1`) — let the other lanes finish after a lane fails
+- `LOCAL_CI_JOBS=<n>` — cap concurrent CI policy test modules (default: CPU count)
+
 On Windows, prefer native Git Bash. If WSL invokes Windows `uv.exe`, the
 Modelable drift check keeps temporary outputs under the mounted repository so
 both environments see the same files. An unmodified WSL `/tmp` is unsafe for
