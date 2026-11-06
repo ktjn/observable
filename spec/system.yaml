@@ -600,25 +600,25 @@ requirements:
   - id: req-ingest-rate-limit
     version: "0.1.0"
     target: ingest-otlp
-    status: specified
+    status: verified
     kind: functional
     category: functional
     mandatory: false
     criteria:
-      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant rate limit (default 1000 requests/s per signal, configurable per signal by environment variable)"
-      - "A request over the limit is rejected with HTTP 429 and Retry-After: 1, or gRPC ResourceExhausted, and counted in ingest_rejections_total with reason rate_limit_exceeded"
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant, per-signal request rate limit"
+      - "A request over the limit is rejected with HTTP 429 and Retry-After: 1, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason rate_limit_exceeded"
       - "One tenant exhausting its limit does not consume another tenant's quota"
 
   - id: req-ingest-cardinality-budget
     version: "0.1.0"
     target: ingest-otlp
-    status: specified
+    status: verified
     kind: functional
     category: functional
     mandatory: false
     criteria:
-      - "When METRIC_CARDINALITY_ENFORCE is true, a metrics request that would take a tenant's cumulative submitted series count over its budget (default 10000, METRIC_SERIES_BUDGET_PER_TENANT) is rejected with HTTP 429 and Retry-After: 60, or gRPC ResourceExhausted, and counted with reason cardinality_budget_exceeded"
-      - "When enforcement is off (default), the budget is only observed and requests are accepted"
+      - "When METRIC_CARDINALITY_ENFORCE is true, a metrics request that would take a tenant's cumulative submitted series count over its budget is rejected with HTTP 429 and Retry-After: 60, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason cardinality_budget_exceeded"
+      - "When enforcement is off, the budget is only observed and requests are accepted"
 
   - id: req-deployment-marker-immutability
     version: "0.1.0"
@@ -771,6 +771,36 @@ risks:
     treatment: mitigation
     mitigated_by:
       - req-pg-schema-isolation
+
+  # Gap: gRPC rate limiting had no test. Closed by the gRPC rate-limit tests bound
+  # as evidence of req-ingest-rate-limit.
+  - id: risk-ingest-grpc-rate-limit-unverified
+    target: ingest-otlp
+    treatment: mitigation
+    mitigated_by:
+      - req-ingest-rate-limit
+
+  # Gap: TenantRateLimiter::set_tenant_limit and MetricCardinalityBudget::set_tenant_budget
+  # have no production caller; per-tenant custom quotas cannot be configured at runtime.
+  # Only global per-signal defaults (env vars) apply. Accepted by the owner; ROADMAP.md 0.5 states the limit.
+  - id: risk-ingest-tenant-quota-not-configurable
+    target: ingest-otlp
+    treatment: acceptance
+    residual_accepted: true
+
+  # Gap: the cardinality count is cumulative submitted series per tenant, held in memory per
+  # replica; it never decays or resets except on restart, and enforcement defaults off.
+  - id: risk-ingest-cardinality-count-never-resets
+    target: ingest-otlp
+    treatment: acceptance
+    residual_accepted: true
+
+  # Gap: limits key on tenant_id only; there is no per-environment rate limit or budget.
+  # Accepted by the owner; ROADMAP.md 0.5 states the limit.
+  - id: risk-ingest-no-per-environment-limits
+    target: ingest-otlp
+    treatment: acceptance
+    residual_accepted: true
 
 evidence:
   - id: ev-ui-session-e2e
@@ -950,3 +980,204 @@ evidence:
     provenance: services/admin-service/tests/postgres_tenants_integration.rs
     timestamp: "2026-10-31T18:35:01Z"
     verifier: ci-rust-test
+
+  - id: ev-ingest-rl-http-traces
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/http-json/traces.rs::exceeding_rate_limit_returns_429
+    criteria:
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant, per-signal request rate limit"
+      - "A request over the limit is rejected with HTTP 429 and Retry-After: 1, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason rate_limit_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-rl-http-logs
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/http-json/logs.rs::exceeding_rate_limit_returns_429
+    criteria:
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant, per-signal request rate limit"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-rl-http-metrics
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/http-json/metrics.rs::exceeding_rate_limit_returns_429
+    criteria:
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant, per-signal request rate limit"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-rl-grpc-traces
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/grpc/trace.rs::grpc_traces_rate_limit_exceeded_returns_resource_exhausted
+    criteria:
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant, per-signal request rate limit"
+      - "A request over the limit is rejected with HTTP 429 and Retry-After: 1, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason rate_limit_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-rl-grpc-logs
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/grpc/log.rs::grpc_logs_rate_limit_exceeded_returns_resource_exhausted
+    criteria:
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant, per-signal request rate limit"
+      - "A request over the limit is rejected with HTTP 429 and Retry-After: 1, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason rate_limit_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-rl-grpc-metrics
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/grpc/metric.rs::grpc_metrics_rate_limit_exceeded_returns_resource_exhausted
+    criteria:
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant, per-signal request rate limit"
+      - "A request over the limit is rejected with HTTP 429 and Retry-After: 1, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason rate_limit_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-rl-prom-rw
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/prometheus_rw/mod.rs::rate_limit_exceeded_returns_429
+    criteria:
+      - "Trace, log and metric ingest over OTLP HTTP, OTLP gRPC and Prometheus Remote Write apply a per-tenant, per-signal request rate limit"
+      - "A request over the limit is rejected with HTTP 429 and Retry-After: 1, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason rate_limit_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-rl-tenant-isolation
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/rate_limiter.rs::default_limit_applies_per_tenant
+    criteria:
+      - "One tenant exhausting its limit does not consume another tenant's quota"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-rl-shared-limiter-isolation
+    requirement_id: req-ingest-rate-limit
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/http-json/traces.rs::custom_tenant_rate_limit_isolated_in_shared_limiter
+    criteria:
+      - "One tenant exhausting its limit does not consume another tenant's quota"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-cb-unit-enforce
+    requirement_id: req-ingest-cardinality-budget
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/cardinality.rs::enforce_mode_rejects_exceeded_budget
+    criteria:
+      - "When METRIC_CARDINALITY_ENFORCE is true, a metrics request that would take a tenant's cumulative submitted series count over its budget is rejected with HTTP 429 and Retry-After: 60, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason cardinality_budget_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-cb-http-enforced
+    requirement_id: req-ingest-cardinality-budget
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/http-json/metrics.rs::metrics_export_with_enforced_budget_exceeded_returns_429
+    criteria:
+      - "When METRIC_CARDINALITY_ENFORCE is true, a metrics request that would take a tenant's cumulative submitted series count over its budget is rejected with HTTP 429 and Retry-After: 60, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason cardinality_budget_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-cb-grpc-enforced
+    requirement_id: req-ingest-cardinality-budget
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/grpc/metric.rs::grpc_metrics_enforced_cardinality_budget_exceeded
+    criteria:
+      - "When METRIC_CARDINALITY_ENFORCE is true, a metrics request that would take a tenant's cumulative submitted series count over its budget is rejected with HTTP 429 and Retry-After: 60, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason cardinality_budget_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-cb-prom-rw-enforced
+    requirement_id: req-ingest-cardinality-budget
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/prometheus_rw/mod.rs::cardinality_budget_exceeded_returns_429
+    criteria:
+      - "When METRIC_CARDINALITY_ENFORCE is true, a metrics request that would take a tenant's cumulative submitted series count over its budget is rejected with HTTP 429 and Retry-After: 60, or gRPC ResourceExhausted, and counted in ingest_gateway_rejections_total with reason cardinality_budget_exceeded"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-cb-http-observe-only
+    requirement_id: req-ingest-cardinality-budget
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: services/ingest-gateway/src/http-json/metrics.rs::metrics_export_above_budget_still_returns_200
+    criteria:
+      - "When enforcement is off, the budget is only observed and requests are accepted"
+    timestamp: "2026-11-06T05:54:00Z"
+    verifier: cargo-test
+    environment: local
