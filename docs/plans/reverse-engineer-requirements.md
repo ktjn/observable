@@ -2,7 +2,7 @@
 
 **Status:** Slice 1 steps 0-2 done (both ingest-limit requirements `verified`, four gap risks recorded); step 3 next
 **Method:** [system-spec/BROWNFIELD.md](../../system-spec/BROWNFIELD.md) Reverse Discovery steps 4-5; change flow in [AGENTS.md](../../AGENTS.md)
-**Current spec:** 17 requirements, 7 risks, 29 evidence records (`spec/system.yaml`)
+**Current spec:** 17 requirements, 7 risks, 67 evidence records (`spec/system.yaml`); every `method: test` record names a test as `path::test_name`
 
 ## Principles
 
@@ -74,3 +74,30 @@ Result (done):
 
 - Run `system-spec spec/system.yaml --stage release --check-artifacts --check-drift --root .`.
 - Record gate results in the PR; update this plan's status; start the next slice.
+
+## Cross-cutting: requirement -> test binding (done)
+
+All pre-existing `method: test` evidence pointed at whole files. Each record is now one record per named test (`path::test_name`, `path::Class::test` for Python), each naming the criteria it covers. `scripts/tests/test_system_spec.py` checks that the file exists and the named test is defined in it.
+
+Tests added where a criterion had no test:
+
+| Requirement | Test |
+|---|---|
+| `req-ui-tenant-session` | `apps/frontend/src/api/telemetry-tenant-binding.test.ts` (every telemetry query function sends `X-Tenant-ID`) |
+| `req-otlp-envelope-serde` | `libs/domain/src/envelope.rs` raw and normalized envelope round-trips |
+| `req-backpressure-resilience` | `services/storage-writer/src/buffer.rs::durable_send_withholds_ack_while_clickhouse_is_unavailable`, `retry_backoff_doubles_from_initial_and_caps_at_max` |
+| `req-pii-scrubbing` (criterion 2) | `services/stream-processor/src/metrics.rs::derived_metrics_exclude_raw_span_attributes` |
+| `req-dedup-idempotency` (criterion 2) | `services/stream-processor/src/metrics.rs::flush_normalized_emits_metrics_only_batch_for_normalized_topic` |
+| `req-self-observability` | `services/admin-service/tests/http_probes_integration.rs::admin_service_health_readyz_and_metrics_endpoints` |
+| `req-deployment-marker-immutability` | `create_then_finish_deployment_round_trips` now reads the marker back |
+
+Requirements without a passing named test for every criterion (recorded as `method: inspection`, `passed: false`; release stage reports `REQ-04`):
+
+- `req-pii-scrubbing`: criterion 1. No code scrubs email, credit-card or bearer-token patterns.
+- `req-self-observability`: no queue-depth metric in any service; stream-processor has no request-latency metric; ingest-gateway, stream-processor and alert-evaluator have no `/metrics` test.
+
+Caveats on bound evidence (not failing):
+
+- `req-ui-tenant-session`: no share-token feature exists, so the share-token exception is vacuous.
+- `req-tenant-auth-isolation`: API keys have no expiry, only revocation; "expired" is covered for sessions. API-key tenant mismatch is enforced by callers through the resolved `tenant_id`.
+- `req-alerting-query-inversion` evidence is a spec/structure check (Python), not a runtime test.

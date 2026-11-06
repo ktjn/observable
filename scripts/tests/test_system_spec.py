@@ -65,6 +65,18 @@ def parse_spec_blocks(text: str, section: str) -> list[str]:
     return ["\n".join(b) for b in blocks]
 
 
+def defines_test(path: Path, selector: str) -> bool:
+    """True if `selector` (test name; `Class::method` for Python) is defined in `path`."""
+    name = selector.split("::")[-1]
+    text = path.read_text(encoding="utf-8")
+    if path.suffix in (".ts", ".tsx"):
+        title = re.escape(name)
+        return re.search(rf"""\b(?:test|it)\(\s*["'`]{title}["'`]""", text) is not None
+    pattern = rf"^\s*(?:async\s+)?fn\s+{re.escape(name)}\s*[<(]" if path.suffix == ".rs" \
+        else rf"^\s*def\s+{re.escape(name)}\s*\("
+    return re.search(pattern, text, re.M) is not None
+
+
 class SystemSpecConsistencyTests(unittest.TestCase):
     def test_system_spec_exists_and_matches_root_version(self):
         self.assertTrue(SPEC.is_file(), "spec/system.yaml must exist")
@@ -184,13 +196,24 @@ class SystemSpecConsistencyTests(unittest.TestCase):
 
         for block in evidence_blocks:
             eid = re.search(r"^\s*-\s*id:\s*(\S+)", block, re.M).group(1)
-            pm = re.search(r"^\s*provenance:\s*(\S+)", block, re.M)
+            pm = re.search(r"^\s*provenance:\s*(.+?)\s*$", block, re.M)
             self.assertIsNotNone(pm, f"Evidence '{eid}' must declare provenance")
-            prov_rel = pm.group(1)
+            prov = pm.group(1).strip("\"'")
+            prov_rel, _, selector = prov.partition("::")
             self.assertTrue(
                 (ROOT / prov_rel).is_file(),
                 f"Evidence '{eid}' provenance file '{prov_rel}' does not exist",
             )
+            mm = re.search(r"^\s*method:\s*(\S+)", block, re.M)
+            if mm and mm.group(1) == "test":
+                self.assertTrue(
+                    selector,
+                    f"Evidence '{eid}' (method: test) must name a test as path::test_name",
+                )
+                self.assertTrue(
+                    defines_test(ROOT / prov_rel, selector),
+                    f"Evidence '{eid}' test '{selector}' is not defined in '{prov_rel}'",
+                )
             tm = re.search(r"^\s*timestamp:\s*\"([^\"]+)\"", block, re.M)
             self.assertIsNotNone(tm, f"Evidence '{eid}' must declare timestamp")
             self.assertTrue(
