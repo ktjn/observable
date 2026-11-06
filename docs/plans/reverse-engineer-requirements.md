@@ -48,16 +48,16 @@
 - Evidence for each criterion that has a test (method `test`, provenance `path::test_name`); `--check-artifacts` must pass.
 - Risks for the gaps in step 0, each with a remediation requirement and `expires` if waived:
   - gRPC rate limits unverified.
-  - Custom per-tenant quota has no runtime configuration path (roadmap wording claims it).
+  - Custom per-tenant quota has no runtime configuration path (ROADMAP 0.5 wording claimed it; fixed).
   - Cardinality enforcement defaults off and the count never decays or resets.
-  - No per-environment limits (roadmap exit evidence says "across tenants or environments").
+  - No per-environment limits (ROADMAP 0.5 claimed bypass prevention across environments; fixed).
 - Decide per gap whether it is a test to add (small PR), a roadmap wording fix, or an accepted residual risk. Do not weaken ROADMAP claims without user approval.
 
 Result (done):
 
 - Evidence: 14 `test` records, one per test, provenance `path::test_name`, each naming the criteria it covers. Added gRPC rate-limit tests for traces, logs and metrics, and rejection-counter asserts on the gRPC rate-limit and cardinality paths.
 - `risk-ingest-grpc-rate-limit-unverified`: mitigation, closed by the new gRPC tests.
-- `risk-ingest-tenant-quota-not-configurable`, `risk-ingest-cardinality-count-never-resets`, `risk-ingest-no-per-environment-limits`: `acceptance` with `residual_accepted`, pending user approval in review. A remediation requirement cannot sit in the spec unverified: release fails on STAT-04 and RISK-04. Remediation options per gap: implement (then switch to `mitigation`), or reword ROADMAP.md 0.3 (needs user approval).
+- `risk-ingest-tenant-quota-not-configurable`, `risk-ingest-cardinality-count-never-resets`, `risk-ingest-no-per-environment-limits`: `acceptance` with `residual_accepted`, pending user approval in review. A remediation requirement cannot sit in the spec unverified: release fails on STAT-04 and RISK-04. User approved acceptance and a ROADMAP.md 0.5 wording fix (done): the 0.5 paragraph no longer claims per-tenant custom limits or bypass prevention across environments, and lists the three accepted risks. Implementing a fix later switches its risk to `mitigation`.
 - `verifies` tags and `--check-report` not used: unreleased toolkit feature, and `cargo test` emits no JUnit properties.
 - Toolkit feedback (in-repo `system-spec/reference-implementation/metamodel.py`):
   - The CLI skips stage validation when `--check-artifacts` or `--check-drift` is given and those checks pass, so the AGENTS.md release gate never runs stage invariants. Run `--stage release` on its own as well.

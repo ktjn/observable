@@ -782,7 +782,7 @@ risks:
 
   # Gap: TenantRateLimiter::set_tenant_limit and MetricCardinalityBudget::set_tenant_budget
   # have no production caller; per-tenant custom quotas cannot be configured at runtime.
-  # Only global per-signal defaults (env vars) apply. ROADMAP.md 0.3 claims per-tenant custom limits.
+  # Only global per-signal defaults (env vars) apply. Accepted by the owner; ROADMAP.md 0.5 states the limit.
   - id: risk-ingest-tenant-quota-not-configurable
     target: ingest-otlp
     treatment: acceptance
@@ -796,7 +796,7 @@ risks:
     residual_accepted: true
 
   # Gap: limits key on tenant_id only; there is no per-environment rate limit or budget.
-  # ROADMAP.md 0.3 exit evidence cites bypass prevention "across environments".
+  # Accepted by the owner; ROADMAP.md 0.5 states the limit.
   - id: risk-ingest-no-per-environment-limits
     target: ingest-otlp
     treatment: acceptance
