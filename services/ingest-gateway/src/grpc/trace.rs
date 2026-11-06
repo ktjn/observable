@@ -116,3 +116,36 @@ impl TraceService for OltpTraceService {
         .await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TENANT: &str = "00000000-0000-0000-0000-000000000001";
+
+    #[tokio::test]
+    async fn grpc_traces_rate_limit_exceeded_returns_resource_exhausted() {
+        let state = AppState::with_stub_auth_and_rate_limit(TENANT, 1);
+        let metrics = state.metrics.clone();
+        let svc = OltpTraceService::new(state);
+        let request = || {
+            let mut req = Request::new(ExportTraceServiceRequest {
+                resource_spans: vec![],
+            });
+            req.metadata_mut()
+                .insert("authorization", "Bearer dev-api-key-0000".parse().unwrap());
+            req
+        };
+
+        assert!(svc.export(request()).await.is_ok());
+        let err = svc.export(request()).await.unwrap_err();
+        assert_eq!(err.code(), tonic::Code::ResourceExhausted);
+        assert_eq!(
+            metrics
+                .ingest_rejections_total
+                .with_label_values(&["traces", "rate_limit_exceeded"])
+                .get(),
+            1
+        );
+    }
+}

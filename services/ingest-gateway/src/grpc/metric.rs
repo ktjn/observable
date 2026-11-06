@@ -157,6 +157,8 @@ impl MetricsService for OltpMetricService {
 mod tests {
     use super::*;
     use crate::AppState;
+
+    const TENANT: &str = "00000000-0000-0000-0000-000000000001";
     use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsServiceRequest;
     use opentelemetry_proto::tonic::collector::metrics::v1::metrics_service_server::MetricsService;
     use opentelemetry_proto::tonic::metrics::v1::{
@@ -255,9 +257,43 @@ mod tests {
             "00000000-0000-0000-0000-000000000001",
             0,
         );
+        let metrics = state.metrics.clone();
         let svc = OltpMetricService::new(state);
         let err = svc.export(req).await.unwrap_err();
         assert_eq!(err.code(), tonic::Code::ResourceExhausted);
         assert!(err.message().contains("metric cardinality budget exceeded"));
+        assert_eq!(
+            metrics
+                .ingest_rejections_total
+                .with_label_values(&["metrics", "cardinality_budget_exceeded"])
+                .get(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn grpc_metrics_rate_limit_exceeded_returns_resource_exhausted() {
+        let state = AppState::with_stub_auth_and_rate_limit(TENANT, 1);
+        let metrics = state.metrics.clone();
+        let svc = OltpMetricService::new(state);
+        let request = || {
+            let mut req = Request::new(ExportMetricsServiceRequest {
+                resource_metrics: vec![],
+            });
+            req.metadata_mut()
+                .insert("authorization", "Bearer dev-api-key-0000".parse().unwrap());
+            req
+        };
+
+        assert!(svc.export(request()).await.is_ok());
+        let err = svc.export(request()).await.unwrap_err();
+        assert_eq!(err.code(), tonic::Code::ResourceExhausted);
+        assert_eq!(
+            metrics
+                .ingest_rejections_total
+                .with_label_values(&["metrics", "rate_limit_exceeded"])
+                .get(),
+            1
+        );
     }
 }
