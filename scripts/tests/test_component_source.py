@@ -120,7 +120,7 @@ members = ["services/query-api", "services/auth-service", "libs/shared", "libs/d
         self.git('-c', 'commit.gpgsign=false', 'commit', '-qm', 'mode')
         executable = self.collect()['source_digest']
         self.assertNotEqual(renamed, executable)
-        self.git('rm', 'libs/shared/src/renamed.rs')
+        self.git('rm', '-f', 'libs/shared/src/renamed.rs')
         self.commit()
         self.assertNotEqual(executable, self.collect()['source_digest'])
 

@@ -5,6 +5,7 @@ import { defineConfig, devices } from "@playwright/test";
 // section 15 ("Playwright must run against the built static artifact").
 const port = process.env.PLAYGROUND_PREVIEW_PORT ?? "4174";
 const baseURL = `http://localhost:${port}/observable/`;
+const build = process.env.PLAYGROUND_PREBUILT === "1" ? "" : "npm run build:playground && ";
 
 export default defineConfig({
   testDir: "./e2e/playground",
@@ -21,7 +22,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run build:playground && npm run preview:playground -- --port ${port}`,
+    command: `${build}npm run preview:playground -- --port ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
