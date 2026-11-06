@@ -30,6 +30,18 @@ Worked progression from Level 0 to Level 3: [`examples/brownfield/`](examples/br
 
 Real onboarding feedback: [Modelable](archive/feedback/modelable-onboarding.md) records bounded adoption, existing authority/tool mapping, evidence revision binding and unresolved model gaps; it is not a full-conformance example. [Observable](archive/feedback/observable-onboarding.md) records complete brownfield onboarding across all 6 milestones to Level 3 release conformance, covering multi-schema database isolation, schema compatibility matrices, and automated evidence provenance. [Scalable](archive/feedback/scalable-onboarding.md) records a Rust re-onboarding with open gaps: layer vs domain grouping, sibling-layer ranks and per-test evidence scoping.
 
+## Convergence: from code-assisted discovery to specification-controlled development
+
+Brownfield onboarding is a knowledge-recovery track, not a mandate to preserve every observed implementation detail. Treat code, tests and operational observations as discovery evidence. Classify discovered behavior as required, forbidden, permitted, unknown or a proposed change; do not silently convert an accidental behavior into a required contract.
+
+For each bounded adoption scope, record a **specification authority decision** after behavioral characterization: which capabilities/contracts and requirements are accepted, which risks and verification obligations are covered, which assumptions hold, what remains unknown, and what source/observation revision supported discovery. This decision is separate from Level 3 full-conformance or release acceptance; partial scopes must not imply whole-system completeness.
+
+After that decision, further development of the accepted scope follows [FEATURE.md](FEATURE.md), and replacement implementations follow [REPLACEMENT.md](REPLACEMENT.md). The original source remains useful for diagnosing discrepancies but is no longer the normative definition of expected behavior. If a replacement exposes a missing requirement, reopen specification review before changing either implementation's acceptance criteria.
+
+## Progressive component isolation
+
+For projects adopting [component isolation](COMPONENT-ISOLATION.md), record which legacy components can execute alone, which dependencies still require real services, and which provided capabilities have programmable mocks. Create explicit seams and provider-owned mock contracts incrementally per accepted adoption slice. Characterize observed behavior before simulating it; preserve unverified cases as discovery/verification gaps. Do not claim isolation merely because a fake file exists or source dependencies form a DAG.
+
 ## Reverse Discovery
 
 Start with the [intake and gate template](templates/BROWNFIELD-INTAKE.md): record the repository root, exact source revision, adoption scope, existing authorities, product/validator tool map, validator/schema pin and native gates. Use separate whole-product and slice decisions; a slice pass does not advance excluded components. Record external/deferred/unknown boundaries explicitly; an unresolved required provider keeps architecture open. Imported schemas and capability catalogs are discovery inputs, not acceptance evidence.

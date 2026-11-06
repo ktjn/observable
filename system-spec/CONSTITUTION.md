@@ -67,6 +67,10 @@ components:
 - Contracts and invariants belong to `capabilities`; requirements target capabilities, components or data models.
 - No implementation details in component specifications.
 
+### Independent component execution and programmable mocks
+
+For projects adopting [component isolation](COMPONENT-ISOLATION.md), every component is independently runnable/invocable with substituted required capabilities; every provided capability has a provider-owned, versioned programmable mock for consumers. Consumer-owned `fakes` alone are insufficient. Mocks implement accepted behavioral contracts, support controlled scenarios and resettable state, and are verified against provider contract tests. Use separate integration tests with real providers. These are optional methodology obligations, not universal metamodel invariants.
+
 ## Data Contracts
 
 - Every externally visible structure is explicitly defined.
@@ -128,7 +132,7 @@ For each bounded change, give the implementer:
 
 - The capability and expected outcome; accepted contract and data-model versions; affected invariants.
 - For local multi-step APIs, the state transitions, confirmation/freshness obligations, committed writes and recovery for each failure outcome. An exception after commit does not imply rollback.
-- The component boundary (`source_paths`, `test_paths`), permitted dependencies and relevant consumer/provider contracts. The component's own tests live under `test_paths` and reach other components only through declared required capabilities, so the handoff is buildable and testable from its `--context` slice.
+- The component boundary (`source_paths`, `test_paths`), permitted dependencies, relevant consumer/provider contracts, standalone harness and runnable dependency substitutions where component isolation is adopted. Include published programmable mocks for provided capabilities and their contract-suite evidence.- The component boundary (`source_paths`, `test_paths`), permitted dependencies and relevant consumer/provider contracts. The component's own tests live under `test_paths` and reach other components only through declared required capabilities, so the handoff is buildable and testable from its `--context` slice.
 - Requirement IDs, measurable acceptance criteria, verification procedures and expected failure cases.
 - Applicable formal-model conclusions, assumptions, open risks and active waivers.
 - Allowed change scope and the evidence to return. Include neighboring contracts without importing unrelated implementation context.

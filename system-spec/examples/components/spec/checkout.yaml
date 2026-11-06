@@ -22,6 +22,12 @@ components:
     source_paths: [src/checkout]
     test_paths: [tests/checkout]
     fakes: { reserve-inventory: tests/checkout/fakes/reserve_inventory.py }
+    standalone_harness: [python, tests/isolation_runner.py]
+    provided_mocks:
+      place-order:
+        path: tests/checkout/mocks/place_order.py
+        contract_suite: [python, tests/isolation_runner.py]
+        scenarios: [success, domain_failure, timeout, reset]
 
 data_models:
   - id: order

@@ -1,0 +1,132 @@
+# yaml-language-server: $schema=../../reference-implementation/schema.json
+# Optional experience specification: a user journey across two components. See README.md and EXPERIENCE.md.
+system:
+  id: service-health
+  version: "1.0"
+  status: specified
+  verification_categories: [functional, semantic, security]
+
+capabilities:
+  - id: list-services
+    version: "1.0"
+    status: specified
+    postconditions: [services_listed_with_health]
+    invariants: [health_reflects_latest_evidence]
+    failure_modes: [catalog_unavailable]
+  - id: show-service-detail
+    version: "1.0"
+    status: specified
+    preconditions: [service_exists, caller_authorized]
+    postconditions: [detail_and_evidence_returned]
+    invariants: [scope_preserved]
+    failure_modes: [service_unknown, unauthorized_evidence]
+  - id: investigate-incident
+    version: "1.0"
+    status: specified
+    preconditions: [incident_exists]
+    postconditions: [timeline_returned]
+    invariants: [scope_preserved]
+    failure_modes: [incident_unknown]
+
+components:
+  - id: service-catalog
+    version: "1.0"
+    status: specified
+    provides: [list-services, show-service-detail]
+  - id: incident-store
+    version: "1.0"
+    status: specified
+    provides: [investigate-incident]
+
+requirements:
+  - { id: req-overview, version: "1.0", status: specified, category: functional, target: list-services, criteria: ["Acceptance: every service is listed with its current health", "Negative: an unavailable catalog shows an error state, not an empty list"] }
+  - { id: req-detail, version: "1.0", status: specified, category: functional, target: show-service-detail, criteria: ["Acceptance: selecting a service shows its health and the evidence behind it"] }
+  - { id: req-investigate, version: "1.0", status: specified, category: semantic, target: investigate-incident, criteria: ["Acceptance: the incident timeline is relative to the selected time range"] }
+  - { id: req-authz, version: "1.0", status: specified, kind: non-functional, category: security, target: show-service-detail, criteria: ["Negative: evidence the caller may not read is withheld and the unauthorized state is shown"] }
+  - { id: req-journey, version: "1.0", status: specified, category: functional, target: service-health, criteria: ["Acceptance: overview, detail and incident investigation can be traversed keeping environment, time range and filters"] }
+  - { id: req-journey-denied, version: "1.0", status: specified, kind: non-functional, category: security, target: service-health, criteria: ["Negative: an unauthorized caller reaches the unauthorized state and no evidence"] }
+  - { id: req-a11y, version: "1.0", status: specified, category: functional, target: service-health, criteria: ["Acceptance: every view of the journey passes WCAG 2.2 AA checks"] }
+
+state_sets:
+  data-conditions:
+    stale: show the data age and offer a refresh
+    error: show the cause and offer a retry
+
+views:
+  - id: service-overview
+    purpose: Find a degraded service.
+    content: [services ordered by health, current health per service]
+    actions: [select-service, refresh]
+    state_sets: [data-conditions]
+    states:
+      loading: show a placeholder; keep the previous scope
+      ready: list the services
+      empty: explain that no service matches the scope and offer to clear filters
+    references:
+      - { path: assets/service-overview.svg, authority: illustrative, consistent_with: [req-overview], sha256: 1309d880737e193799f988ffa245da680d5b04d42ac5485231be8b6d6db9aac1 }
+  - id: service-detail
+    purpose: See the evidence behind a service's health.
+    content: [health summary, evidence for the degradation, related incidents]
+    actions: [open-incident, back]
+    state_sets: [data-conditions]
+    states:
+      ready: show the summary and evidence
+      unauthorized: state that evidence is restricted; show no evidence content
+    references:
+      - { path: assets/service-detail.svg, authority: normative, version: "1", accepted_by: design-lead, sha256: e13e37299d68708a854af6bf6da5b62027a77761c5d66d230f3d47638da369f5 }
+  - id: incident-investigation
+    purpose: Understand what happened and when.
+    content: [incident timeline, affected services]
+    actions: [back]
+    state_sets: [data-conditions]
+    states:
+      ready: show the timeline
+
+experiences:
+  - id: investigate-degraded-service
+    description: From noticing a degraded service to understanding its incident.
+    critical: true
+    requirements: [req-journey, req-journey-denied]
+    capabilities: [list-services, show-service-detail, investigate-incident]
+    views: [service-overview, service-detail, incident-investigation]
+    entries: { alert-notification: "A notification opens the incident with service, environment and time window preselected." }
+    constraints: { accessibility: { value: WCAG-2.2-AA, requirement: req-a11y } }
+    interactions:
+      - id: refresh
+        from_view: service-overview
+        to_view: service-overview
+        trigger: refresh
+        preserves: [selection, scope]
+        outcome: the data age is updated and the selection stays where it was
+        invariants: [selection_kept]
+        failure_modes: { refresh-failed: error }
+      - id: open-alert
+        from_entry: alert-notification
+        to_view: incident-investigation
+        trigger: notification-selected
+        preserves: [service, environment, time-range]
+        outcome: the incident opens with the alert's scope preselected and shown
+        invariants: [scope_preselected]
+        failure_modes: { incident-unknown: error }
+      - id: open-service
+        from_view: service-overview
+        to_view: service-detail
+        trigger: select-service
+        preserves: [environment, time-range, filters]
+        outcome: the selected service's evidence is shown within the same scope
+        invariants: [scope_preserved]
+        failure_modes: { lost-scope: error, unauthorized-evidence: unauthorized }
+      - id: open-incident
+        from_view: service-detail
+        to_view: incident-investigation
+        trigger: open-incident
+        preserves: [environment, time-range]
+        outcome: the incident timeline is shown for the selected time range
+        failure_modes: { incident-unknown: error }
+    scenarios:
+      - { id: traverse, requirements: [req-journey, req-a11y], interactions: [open-service, open-incident], states: [service-overview.ready, incident-investigation.ready] }
+      - { id: from-alert, requirement: req-investigate, interactions: [open-alert], states: [incident-investigation.ready] }
+      - { id: alert-incident-gone, requirement: req-investigate, kind: negative, interactions: [open-alert], states: [incident-investigation.error] }
+      - { id: refresh, requirement: req-overview, interactions: [refresh], states: [service-overview.ready] }
+      - { id: refresh-fails, requirement: req-overview, kind: negative, interactions: [refresh], states: [service-overview.error] }
+      - { id: denied, requirement: req-journey-denied, kind: negative, interactions: [open-service, open-incident], states: [service-detail.unauthorized] }

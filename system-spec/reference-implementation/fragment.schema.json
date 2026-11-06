@@ -27,6 +27,12 @@
           "title": "Status",
           "type": "string"
         },
+        "description": {
+          "default": "",
+          "description": "Human-readable purpose.",
+          "title": "Description",
+          "type": "string"
+        },
         "preconditions": {
           "default": [],
           "description": "Contract preconditions.",
@@ -108,6 +114,25 @@
           ],
           "title": "Status",
           "type": "string"
+        },
+        "description": {
+          "default": "",
+          "description": "Human-readable purpose.",
+          "title": "Description",
+          "type": "string"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Accountable role or team (a reference; not validated) (\u00a7 3).",
+          "title": "Owner"
         },
         "layer": {
           "anyOf": [
@@ -199,6 +224,24 @@
           "title": "Fakes",
           "type": "object"
         },
+        "provided_mocks": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MockBinding"
+          },
+          "default": {},
+          "description": "Provided capability ID -> programmable mock adapter and shared real/mock contract suite (optional isolation methodology).",
+          "title": "Provided Mocks",
+          "type": "object"
+        },
+        "standalone_harness": {
+          "default": [],
+          "description": "Command argv to run this component with dependency substitutes, without real internal providers (optional isolation methodology).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Standalone Harness",
+          "type": "array"
+        },
         "test_paths": {
           "default": [],
           "description": "Directories or files holding this component's own tests, or `tool::selector` entries (e.g. `nextest::-p crate`) for package-level runners; test evidence for it must come from here (\u00a7 3).",
@@ -255,6 +298,35 @@
         "version"
       ],
       "title": "Component",
+      "type": "object"
+    },
+    "Constraint": {
+      "additionalProperties": false,
+      "description": "Design constraint with the requirement that verifies it (\u00a7 13).",
+      "properties": {
+        "value": {
+          "description": "Standard or value, e.g. WCAG-2.2-AA.",
+          "title": "Value",
+          "type": "string"
+        },
+        "requirement": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Requirement ID that verifies the constraint (EXP-02, EXP-07).",
+          "title": "Requirement"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "Constraint",
       "type": "object"
     },
     "DataModel": {
@@ -609,6 +681,224 @@
       "title": "Evidence",
       "type": "object"
     },
+    "Experience": {
+      "additionalProperties": false,
+      "description": "Optional user-facing workflow or goal; orthogonal to components, layers and domains (\u00a7 13).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "description": "Goal of the workflow.",
+          "title": "Description",
+          "type": "string"
+        },
+        "critical": {
+          "default": false,
+          "description": "Critical workflows need verification scenarios (EXP-05, EXP-07).",
+          "title": "Critical",
+          "type": "boolean"
+        },
+        "requirements": {
+          "default": [],
+          "description": "Requirement IDs the experience realizes.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Requirements",
+          "type": "array"
+        },
+        "capabilities": {
+          "default": [],
+          "description": "Capability IDs the experience realizes.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "views": {
+          "default": [],
+          "description": "IDs of the Spec.views taking part.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Views",
+          "type": "array"
+        },
+        "entries": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Entry points that are not views: name -> description (notification, deep link, command, conversational trigger).",
+          "title": "Entries",
+          "type": "object"
+        },
+        "interactions": {
+          "default": [],
+          "description": "Transitions between its views.",
+          "items": {
+            "$ref": "#/$defs/Interaction"
+          },
+          "title": "Interactions",
+          "type": "array"
+        },
+        "constraints": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/Constraint"
+              }
+            ]
+          },
+          "default": {},
+          "description": "Named design constraints: a value, or a Constraint naming the requirement that verifies it.",
+          "title": "Constraints",
+          "type": "object"
+        },
+        "exhaustive": {
+          "default": false,
+          "description": "With critical: every realized requirement is the target of a scenario or listed in not_exercised (EXP-08).",
+          "title": "Exhaustive",
+          "type": "boolean"
+        },
+        "not_exercised": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Realized requirement ID -> reason it has no scenario (EXP-08).",
+          "title": "Not Exercised",
+          "type": "object"
+        },
+        "references": {
+          "default": [],
+          "description": "Visual references for the whole experience.",
+          "items": {
+            "$ref": "#/$defs/VisualReference"
+          },
+          "title": "References",
+          "type": "array"
+        },
+        "scenarios": {
+          "default": [],
+          "description": "Verification scenarios.",
+          "items": {
+            "$ref": "#/$defs/Scenario"
+          },
+          "title": "Scenarios",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Experience",
+      "type": "object"
+    },
+    "Interaction": {
+      "additionalProperties": false,
+      "description": "Transition between views of an experience (\u00a7 13).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "from_view": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Source view ID; exactly one of from_view and from_entry. Source and target may be the same view for an action inside it.",
+          "title": "From View"
+        },
+        "from_entry": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Source entry point declared in Experience.entries (notification, deep link, command); exactly one of from_view and from_entry.",
+          "title": "From Entry"
+        },
+        "to_view": {
+          "description": "Target view ID.",
+          "title": "To View",
+          "type": "string"
+        },
+        "trigger": {
+          "description": "Action of the source view, or the event at the source entry, that starts the interaction.",
+          "title": "Trigger",
+          "type": "string"
+        },
+        "preconditions": {
+          "default": [],
+          "description": "Conditions that must hold.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Preconditions",
+          "type": "array"
+        },
+        "preserves": {
+          "default": [],
+          "description": "Context carried to the target view (e.g. time-range, filters).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Preserves",
+          "type": "array"
+        },
+        "outcome": {
+          "default": "",
+          "description": "Observable result; required (EXP-03).",
+          "title": "Outcome",
+          "type": "string"
+        },
+        "invariants": {
+          "default": [],
+          "description": "Conditions that hold throughout.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Invariants",
+          "type": "array"
+        },
+        "failure_modes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Failure mode -> state of the source or target view that handles it (EXP-04).",
+          "title": "Failure Modes",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "to_view",
+        "trigger"
+      ],
+      "title": "Interaction",
+      "type": "object"
+    },
     "Interface": {
       "additionalProperties": false,
       "description": "Interface contract of an exposed capability (\u00a7 4).",
@@ -725,6 +1015,40 @@
       "title": "Interface",
       "type": "object"
     },
+    "MockBinding": {
+      "additionalProperties": false,
+      "description": "Provider-owned, programmable substitute for one capability.",
+      "properties": {
+        "path": {
+          "description": "Repository-relative mock adapter path.",
+          "title": "Path",
+          "type": "string"
+        },
+        "contract_suite": {
+          "description": "Argv executed in real and mock modes against the same contract.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Contract Suite",
+          "type": "array"
+        },
+        "scenarios": {
+          "default": [],
+          "description": "Scenarios supported by the programmable mock (reviewed by its suite).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Scenarios",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path",
+        "contract_suite"
+      ],
+      "title": "MockBinding",
+      "type": "object"
+    },
     "Requirement": {
       "additionalProperties": false,
       "description": "Expected behavior or constraint with acceptance criteria (\u00a7 6).",
@@ -755,6 +1079,58 @@
           ],
           "title": "Status",
           "type": "string"
+        },
+        "statement": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The obligation itself; criteria then hold only its acceptance checks (\u00a7 6).",
+          "title": "Statement"
+        },
+        "priority": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Project-defined phase or priority, e.g. P0; independent of mandatory and without effect on stage invariants (\u00a7 6).",
+          "title": "Priority"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Accountable role or approver (a reference; not validated) (\u00a7 6).",
+          "title": "Owner"
+        },
+        "superseded_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Active requirement that replaces this deprecated one (REQ-09) (\u00a7 6).",
+          "title": "Superseded By"
         },
         "kind": {
           "default": "functional",
@@ -788,7 +1164,7 @@
             }
           ],
           "default": null,
-          "description": "Verification category; all 10 must be covered (\u00a7 11).",
+          "description": "Verification category; the project's required categories must be covered (\u00a7 11).",
           "title": "Category"
         },
         "mandatory": {
@@ -816,7 +1192,7 @@
         },
         "refines": {
           "default": [],
-          "description": "Requirement IDs whose obligations this elaborates.",
+          "description": "Requirement IDs whose obligations this elaborates; refinement is co-obligation (REQ-08), so link across priority or phase with depends_on (\u00a7 6).",
           "items": {
             "type": "string"
           },
@@ -868,6 +1244,25 @@
           "description": "System, component, capability or data model ID.",
           "title": "Target",
           "type": "string"
+        },
+        "description": {
+          "default": "",
+          "description": "Human-readable description of the risk.",
+          "title": "Description",
+          "type": "string"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Accountable role or approver (a reference; not validated) (\u00a7 7).",
+          "title": "Owner"
         },
         "treatment": {
           "description": "Risk treatment.",
@@ -967,6 +1362,72 @@
       "title": "Risk",
       "type": "object"
     },
+    "Scenario": {
+      "additionalProperties": false,
+      "description": "Verification scenario that exercises interactions and states of its experience; verified through an existing requirement (\u00a7 13).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "requirement": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Requirement ID carrying the verification obligation; shorthand for a one-element requirements.",
+          "title": "Requirement"
+        },
+        "requirements": {
+          "default": [],
+          "description": "Requirement IDs whose Evidence verifies the scenario; all must pass (EXP-07).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Requirements",
+          "type": "array"
+        },
+        "interactions": {
+          "default": [],
+          "description": "Interaction IDs exercised.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Interactions",
+          "type": "array"
+        },
+        "states": {
+          "default": [],
+          "description": "'view.state' entries exercised.",
+          "items": {
+            "type": "string"
+          },
+          "title": "States",
+          "type": "array"
+        },
+        "kind": {
+          "default": "positive",
+          "description": "negative: exercises failure modes, denial or boundary behavior.",
+          "enum": [
+            "positive",
+            "negative"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Scenario",
+      "type": "object"
+    },
     "SubjectBinding": {
       "additionalProperties": false,
       "description": "Reviewed contract/source binding; optional file checks establish artifact integrity.",
@@ -997,6 +1458,147 @@
         "artifacts"
       ],
       "title": "SubjectBinding",
+      "type": "object"
+    },
+    "View": {
+      "additionalProperties": false,
+      "description": "Presentation context (screen, page, CLI output, conversational turn), independent of any UI technology (\u00a7 13).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "purpose": {
+          "default": "",
+          "description": "What the view is for.",
+          "title": "Purpose",
+          "type": "string"
+        },
+        "content": {
+          "default": [],
+          "description": "Information hierarchy and content obligations, most important first.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Content",
+          "type": "array"
+        },
+        "actions": {
+          "default": [],
+          "description": "Triggers the view offers; an interaction leaving the view names one.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Actions",
+          "type": "array"
+        },
+        "states": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "State name -> required handling (e.g. empty: explain why and offer a next step); scoped to this view and overriding state_sets.",
+          "title": "States",
+          "type": "object"
+        },
+        "state_sets": {
+          "default": [],
+          "description": "Names of Spec.state_sets whose states this view includes.",
+          "items": {
+            "type": "string"
+          },
+          "title": "State Sets",
+          "type": "array"
+        },
+        "references": {
+          "default": [],
+          "description": "Visual references for this view.",
+          "items": {
+            "$ref": "#/$defs/VisualReference"
+          },
+          "title": "References",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "View",
+      "type": "object"
+    },
+    "VisualReference": {
+      "additionalProperties": false,
+      "description": "Reference artifact for a view or experience; only a normative one constrains presentation (\u00a7 13).",
+      "properties": {
+        "path": {
+          "description": "Repository-relative artifact path.",
+          "title": "Path",
+          "type": "string"
+        },
+        "authority": {
+          "default": "illustrative",
+          "description": "illustrative: guidance for agents, never a pass/fail criterion; normative: presentation must conform, as accepted by accepted_by.",
+          "enum": [
+            "illustrative",
+            "normative"
+          ],
+          "title": "Authority",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reference version; required when normative.",
+          "title": "Version"
+        },
+        "accepted_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Role that accepts conformance to the reference; required when normative.",
+          "title": "Accepted By"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional SHA-256 of the artifact bytes (--check-artifacts).",
+          "title": "Sha256"
+        },
+        "consistent_with": {
+          "default": [],
+          "description": "Requirement IDs the reference must not contradict; the reference stays illustrative and a review may reject it where it does (EXP-02 resolves the IDs).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Consistent With",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "VisualReference",
       "type": "object"
     }
   },
@@ -1108,6 +1710,57 @@
       "default": null,
       "description": "Subject ID -> reviewed contract version, source revision and artifact hashes.",
       "title": "Subject Bindings"
+    },
+    "state_sets": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Reusable view states: set name -> state name -> required handling; views include them with state_sets (\u00a7 13).",
+      "title": "State Sets"
+    },
+    "views": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/View"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional experience views (\u00a7 13).",
+      "title": "Views"
+    },
+    "experiences": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/Experience"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional experience specification (\u00a7 13).",
+      "title": "Experiences"
     }
   },
   "title": "SpecFragment",

@@ -2,7 +2,7 @@ import copy, json, re, yaml
 import pytest
 from datetime import date
 from pathlib import Path
-from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Domain, Evidence, Risk, Spec, Requirement, check_report, evidence_from_report
+from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Domain, Evidence, Risk, Spec, Requirement, check_report, evidence_from_report, Constraint, change_plan, CATEGORIES, check_artifacts
 
 EXAMPLE = Path(__file__).parent / "example.yaml"
 
@@ -198,7 +198,7 @@ def test_context(capsys):
 def test_examples():
     d = Path(__file__).parent; b = d.parent / "examples/brownfield"
     if not b.exists(): pytest.skip("examples/ not mounted")
-    for f, st in [(d / "old.yaml", "architecture"), (d.parent / "examples/greenfield/spec.yaml", "release"), (b / "level0.yaml", "inventory"),
+    for f, st in [(d / "old.yaml", "architecture"), (d.parent / "examples/greenfield/spec.yaml", "release"), (b.parent / "business/spec.yaml", "verification"), (b.parent / "experience/spec.yaml", "verification"), (b / "level0.yaml", "inventory"),
                   (b / "level1.yaml", "architecture"), (b / "old.yaml", "verification"), (b / "spec.yaml", "release")]:
         assert validate_spec(load_spec(f), st) == [], f
     assert compare_specs(load_spec(b / "old.yaml"), load_spec(b / "spec.yaml")) == []
@@ -318,3 +318,113 @@ def test_emit_evidence_and_cli(tmp_path, capsys):
     assert main([str(EXAMPLE), "--emit-evidence", f]) == 0 and "ev-tests-test_checkout-py-test_checkout" in capsys.readouterr().out
     assert main([str(EXAMPLE), "--check-report", f, "--json"]) == 1 and "binds unknown requirement" in capsys.readouterr().out
     assert main([str(EXAMPLE), "--check-report", str(tmp_path / "missing.xml")]) == 1 and "report:" in capsys.readouterr().out
+
+def test_new_optional_fields_default_off():
+    s = spec(); r = s.requirements[0]
+    assert (r.statement, r.priority, r.owner, r.superseded_by) == (None,) * 4 and s.components[0].description == "" and s.system.verification_categories is None
+    assert validate_spec(s) == []
+
+def test_superseded_by():
+    s = spec(); s.requirements[0].superseded_by = "req-reserve"
+    assert ids(validate_spec(s)) == {"REQ-09"}
+    s.requirements[0].status = "deprecated"
+    assert "REQ-09" not in ids(validate_spec(s))
+    s.requirements[0].superseded_by = "nope"
+    assert "REQ-09" in ids(validate_spec(s))
+    s.requirements[0].superseded_by = "req-reserve"; s.requirements[1].status = "deprecated"
+    assert "REQ-09" in ids(validate_spec(s))
+
+def test_verification_categories_profile():
+    s = spec(); s.requirements = [r for r in s.requirements if r.category != "scalability"]
+    assert "REQ-01" in ids(validate_spec(s, "verification"))
+    s.system.verification_categories = [c for c in CATEGORIES if c != "scalability"]
+    assert "REQ-01" not in ids(validate_spec(s, "verification"))
+    with pytest.raises(ValueError): Spec.model_validate({**s.model_dump(mode="json"), "system": {**s.system.model_dump(mode="json"), "verification_categories": []}})
+
+def test_omitted_categories_reported(capsys):
+    assert main([str(Path(__file__).parent.parent / "examples/business/spec.yaml"), "--stage", "verification", "--json"]) == 0
+    assert "serialization" in json.loads(capsys.readouterr().out)["omitted_categories"]
+    assert main([str(Path(__file__).parent.parent / "examples/business/spec.yaml"), "--stage", "verification"]) == 0
+    assert "note: verification categories not required" in capsys.readouterr().out
+    assert main([str(EXAMPLE), "--json"]) == 0 and json.loads(capsys.readouterr().out)["omitted_categories"] == []
+
+def test_plan_lists_priorities(capsys):
+    s = spec(); s.requirements[0].priority = "P0"
+    assert change_plan(s, "place-order")["priorities"] == {"req-order": "P0"} and "priorities" not in change_plan(spec(), "place-order")
+
+def test_experiences_are_optional():
+    s = spec()
+    assert s.views == [] and s.experiences == [] and not any(e.startswith("[EXP-") for e in validate_spec(s))
+
+def test_experience_example():
+    s = load_spec(Path(__file__).parent.parent / "examples/experience/spec.yaml")
+    assert validate_spec(s, "verification") == [] and "EXP-07" in ids(validate_spec(s))
+    s.experiences[0].scenarios = [sc for sc in s.experiences[0].scenarios if sc.kind != "negative"]
+    assert ids(validate_spec(s, "verification")) == {"EXP-05"}
+
+def test_experience_references_checked_as_artifacts():
+    root = Path(__file__).parent.parent / "examples/experience"
+    s = load_spec(root / "spec.yaml")
+    assert check_artifacts(s, root) == []
+    s.views[1].references[0].sha256 = "0" * 64
+    assert any("hash mismatch" in e for e in check_artifacts(s, root))
+    s.views[1].references[0].path = "assets/missing.svg"
+    assert any("missing" in e for e in check_artifacts(s, root))
+
+def exp_spec(): return load_spec(Path(__file__).parent.parent / "examples/experience/spec.yaml")
+
+def exp_ids(s, stage="verification"): return {e[1:e.index("]")] for e in validate_spec(s, stage) if e.startswith("[EXP-")}
+
+def test_experience_example_uses_new_features():
+    s = exp_spec(); x = s.experiences[0]
+    assert exp_ids(s) == set() and x.entries and s.state_sets and isinstance(x.constraints["accessibility"], Constraint)
+    assert x.scenarios[0].requirements and any(i.from_entry for i in x.interactions) and any(i.from_view == i.to_view for i in x.interactions)
+
+def test_scenario_requirements():
+    s = exp_spec(); sc = s.experiences[0].scenarios[0]
+    sc.requirements = ["req-journey", "nope"]
+    assert exp_ids(s) == {"EXP-02"}
+    sc.requirements, sc.requirement = [], None
+    assert exp_ids(s) == {"EXP-02"}
+    sc.requirement, sc.requirements = "req-journey", ["req-a11y"]
+    assert exp_ids(s) == set() and "EXP-07" in exp_ids(s, "release")
+
+def test_entry_source():
+    s = exp_spec(); i = next(i for i in s.experiences[0].interactions if i.from_entry)
+    i.from_entry = "ghost"
+    assert exp_ids(s) == {"EXP-02"}
+    i.from_entry, i.from_view = None, None
+    assert exp_ids(s) == {"EXP-02"}
+    i.from_entry, i.from_view = "alert-notification", "service-detail"
+    assert "EXP-02" in exp_ids(s)
+
+def test_state_sets():
+    s = exp_spec(); s.views[0].state_sets.append("ghost")
+    assert exp_ids(s) == {"EXP-02"}
+    s = exp_spec(); s.state_sets["data-conditions"]["stale"] = " "
+    assert exp_ids(s) == {"EXP-04"}
+    s = exp_spec(); s.views[2].state_sets = []
+    assert exp_ids(s) == {"EXP-02", "EXP-04"}
+    s = exp_spec(); s.views[0].states["error"] = "own handling overrides the set"
+    assert exp_ids(s) == set()
+
+def test_constraint_requirement():
+    s = exp_spec(); x = s.experiences[0]
+    x.constraints["accessibility"] = Constraint(value="WCAG-2.2-AA", requirement="ghost")
+    assert exp_ids(s) == {"EXP-02"}
+    x.constraints["accessibility"] = "WCAG-2.2-AA"
+    assert exp_ids(s) == set() and "EXP-07" in exp_ids(exp_spec(), "release")
+
+def test_consistent_with():
+    s = exp_spec(); s.views[0].references[0].consistent_with = ["ghost"]
+    assert exp_ids(s) == {"EXP-02"}
+
+def test_exhaustive_experience():
+    s = exp_spec(); x = s.experiences[0]; x.exhaustive = True
+    assert exp_ids(s) == set()
+    x.requirements.append("req-detail")
+    assert exp_ids(s) == {"EXP-08"}
+    x.not_exercised = {"req-detail": "covered by the workflow scenarios"}
+    assert exp_ids(s) == set()
+    x.not_exercised["ghost"] = "not realized"
+    assert exp_ids(s) == {"EXP-08"}

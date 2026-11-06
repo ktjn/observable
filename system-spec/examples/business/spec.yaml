@@ -1,0 +1,115 @@
+# yaml-language-server: $schema=../../reference-implementation/schema.json
+# Business-level specification: obligations of an organization, not software. See README.md.
+system:
+  id: acme-operations
+  version: "1.0"
+  status: specified
+  verification_categories: [functional, semantic, security, observability]
+  quality_attributes: { incident_detection: "<5 min from onset" }
+
+capabilities:
+  - id: incident-response.platform
+    version: "1.0"
+    status: specified
+    description: The tooling holds incident records and alerts the roster.
+    preconditions: [monitoring_connected]
+    postconditions: [incident_recorded, on_call_alerted]
+    invariants: [no_incident_without_owner]
+    failure_modes: [alert_undelivered]
+  - id: incident-response.process
+    version: "1.0"
+    status: specified
+    description: The documented procedure for classifying and closing incidents.
+    postconditions: [incident_classified, incident_closed_with_review]
+    invariants: [severity_assigned_before_closure]
+    failure_modes: [classification_disputed]
+  - id: incident-response.organization
+    version: "1.0"
+    status: specified
+    description: The people and roles that staff the process.
+    postconditions: [roster_staffed]
+    invariants: [no_unstaffed_shift]
+    failure_modes: [roster_gap]
+
+components:
+  - id: incident-response
+    version: "1.0"
+    status: specified
+    description: Business area covering detection, triage and closure of operational incidents.
+    owner: head-of-operations
+    provides: [incident-response.platform, incident-response.process, incident-response.organization]
+
+requirements:
+  - id: ir-detect
+    version: "1.0"
+    status: specified
+    category: functional
+    target: incident-response.platform
+    priority: P0
+    owner: head-of-operations
+    statement: The platform shall record every incident within five minutes of onset.
+    criteria:
+      - "Acceptance: a simulated outage appears as an incident within five minutes"
+      - "Negative: an outage with monitoring disconnected is reported as undetected, not silently dropped"
+  - id: ir-triage
+    version: "1.0"
+    status: specified
+    category: semantic
+    target: incident-response.process
+    priority: P0
+    owner: head-of-operations
+    statement: Every incident shall carry a severity before it is closed.
+    criteria:
+      - "Acceptance: closing an incident without severity is rejected"
+      - "Negative: severity cannot be changed after closure without a recorded review"
+  - id: ir-access
+    version: "1.0"
+    status: specified
+    kind: non-functional
+    category: security
+    target: incident-response.platform
+    priority: P0
+    owner: security-officer
+    statement: Only on-call staff shall be able to change an incident record.
+    criteria:
+      - "Acceptance: a non-roster user's edit is refused and logged"
+  - id: ir-roster
+    version: "1.0"
+    status: specified
+    category: functional
+    mandatory: false
+    target: incident-response.organization
+    priority: P1
+    owner: head-of-operations
+    statement: Every shift shall have a named primary and secondary on-call.
+    criteria:
+      - "Acceptance: the roster for the next 14 days has no unstaffed shift"
+  - id: ir-metrics
+    version: "1.0"
+    status: specified
+    kind: non-functional
+    category: observability
+    mandatory: false
+    target: incident-response.platform
+    priority: P1
+    statement: Detection and closure times shall be reported per month.
+    depends_on: [ir-detect]
+    criteria:
+      - "Acceptance: the monthly report lists time to detect and time to close per severity"
+  - id: ir-legacy-alerting
+    version: "1.0"
+    status: deprecated
+    category: functional
+    target: incident-response.platform
+    priority: P0
+    superseded_by: ir-detect
+    statement: Incidents shall be reported by email.
+    criteria: ["Consolidated into ir-detect"]
+
+risks:
+  - id: risk-missed-incident
+    target: incident-response
+    description: An outage goes unnoticed because monitoring is disconnected or the alert is not delivered.
+    owner: head-of-operations
+    treatment: mitigation
+    mitigated_by: [ir-detect, ir-access]

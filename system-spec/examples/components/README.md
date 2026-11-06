@@ -16,6 +16,14 @@ uv run python metamodel.py ../examples/components/spec.yaml --context checkout  
 
 Source and tests live in this directory so `--root` points here. Illustrative evidence values (dates, verifiers) were not produced by running a pipeline.
 
+## Executable isolation
+
+```bash
+python ../../reference-implementation/metamodel.py spec.yaml --check-isolation --root .
+```
+
+Run this command from `examples/components/` using the repository's Python environment. It runs checkout and inventory independently, then exercises each provided capability's shared contract suite in `real` and `mock` modes. The inventory mock supports configured outcomes, timeouts, call observation and reset; checkout no longer directly imports inventory. This does not prove complete contract equivalence or sandboxing.
+
 ## Break it on purpose
 
 - Add `import src.checkout.app` to `src/inventory/api.py` → `--check-drift` reports `inventory` imports `checkout` with no declared requirement.

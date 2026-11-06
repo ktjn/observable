@@ -20,6 +20,12 @@ components:
     owns_data: [stock-item, order-stock-projection]
     source_paths: [src/inventory]
     test_paths: [tests/inventory]
+    standalone_harness: [python, tests/isolation_runner.py]
+    provided_mocks:
+      reserve-inventory:
+        path: tests/inventory/mocks/reserve_inventory.py
+        contract_suite: [python, tests/isolation_runner.py]
+        scenarios: [success, domain_failure, timeout, reset]
 
 data_models:
   - id: stock-item
