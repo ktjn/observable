@@ -90,9 +90,9 @@ Summary: no area is complete. Areas 18, 28, 30, 35 and 37 have no P0; of these o
    - **Ownership.** OBS `owner` roles (17) and the `roles` catalog need a home; `spec/catalog.yaml` is a rendering sidecar upstream.
    - **Stale copy.** `spec/observability_business_spec/` is removed in the merge PR.
    - **Upstream.** After the merge, upstream changes are applied through FEATURE.md; the upstream repo is archived or kept read-only (Q9).
-2. **Service catalog as a new owned state.** New data model (`business-service`, `service-component` mapping to OTel `service.name`, owners, criticality, lifecycle, coverage obligation). Owner component: `observable-control` or a new `observable-catalog` (Q5).
+2. **Service catalog as a new owned state.** New data model (`business-service`, `service-component` mapping to OTel `service.name`, owners, criticality, lifecycle, coverage obligation). Owner component (Q5, decided): a new domain component `observable-catalog`. `observable-control` keeps tenant configuration; the catalog is the service model every other phase reads, so it gets its own state, contract and test paths per ADR-035.
 3. **Health evaluation as a domain capability.** Move health from a query-time error-rate helper into an evaluated, rule-based state with evidence age, maintenance windows and unknown. Feeds overview, alerting, SLO and data-quality.
-4. **Incident management: build or integrate (Q4).** Spec scope says incident capabilities "may be satisfied by integrated incident-management tooling". Same question for on-call schedules (37) and status communication (30).
+4. **Incident management: own and integrate (Q4, decided).** Observable owns incidents, on-call schedules (37) and status communication (30) as first-class capabilities, and exchanges them with external tooling through adapters (OBS-16-01, 16-04, 16-08). Owned state is authoritative; adapters sync context, not ownership. Adapter targets are chosen in the phase 5-6 detailed plans.
 5. **Authorization model.** Purpose-based and existence-hiding access (14, 25-02, 31-03) needs fine-grained checks. OpenFGA runs in Compose but no service code calls it; ADR-008 must be revisited.
 6. **Experience layer.** Adopt the spec's views, workflows and baseline state set as the UI contract; add `views`/`experiences` to `spec/system.yaml` or keep them in the upstream spec with Playwright evidence binding.
 
@@ -102,7 +102,7 @@ Ordered by dependency. Each phase becomes one detailed-plan run and several FEAT
 
 | Phase | Name | Areas | Depends on | Exit (spec terms) |
 |---|---|---|---|---|
-| 0 | Adoption baseline | all | — | Q2-Q9 decided; OBS requirements, views and experiences merged into `spec/system.yaml`; per-requirement gap status for all 293; stale copy removed |
+| 0 | Adoption baseline | all | — | Q8-Q10 decided; OBS requirements, views and experiences merged into `spec/system.yaml`; per-requirement gap status for all 293; stale copy removed |
 | 1 | Service model | 01, 02, 27, 34-01, 36-01 | 0 | P0 of 01, 02, 27 verified; catalog maps OTel services |
 | 2 | Evidence trust and health | 03, 26, 29-03, 13-03, 24-01/02 | 1 | `risk-false-healthy` mitigated; UX-07 passes |
 | 3 | Experience shell | 20, 21, 22, 24, 25 | 2 | scope bar, state set, navigation; UX-01, UX-02, UX-09, UX-10 pass |
@@ -118,11 +118,11 @@ Phase 8 can run in parallel with 2-7 after phase 1. Phase 3 UI shell work can st
 
 ### Phase 0 detailed-plan deliverables (next run)
 
-1. Decide Q2-Q9.
+1. Decide Q8-Q10.
 2. Classify all 293 requirements (met/partial/missing/org) with evidence (file, route or test).
 3. Map each OBS requirement to an owning component and capability, creating capabilities where none fits.
 4. Merge PR: OBS requirements, risks, views, experiences and roles into `spec/system.yaml`; `--compat` against `main`; AGENTS.md gate switched to `--stage verification`; readiness report added.
-5. Reconcile with [ROADMAP.md](../../ROADMAP.md): place each phase relative to 0.2-1.0 (Q2).
+5. Replace [ROADMAP.md](../../ROADMAP.md) with a phase-based roadmap derived from this plan (Q2); carry over still-valid exit evidence (component independence, distribution, Kubernetes) as cross-cutting tracks.
 6. Write ADR drafts for decisions 1-5 in section 4.
 
 ## 6. Breaking changes
@@ -139,10 +139,10 @@ Known areas that change shape (redesign, not migration): health states, service 
 ## 7. Risks
 
 - **Critical: scope.** 293 requirements against a 17-requirement system. Without a P0-first cut the plan does not converge. Mitigation: phases 1-9 target P0 only; P1/P2 deferred to phase 10.
-- **Critical: false-healthy today.** The current health derivation violates OBS-03-01 now. Consider fixing it ahead of the plan (Q6).
+- **Critical: false-healthy today.** The current health derivation violates OBS-03-01 now. Not fixed standalone (Q6); phase 2 replaces it.
 - **Critical: release gate red after merge.** 293 unverified requirements fail STAT-04/REQ-05 at `--stage release`. Policy (Q7): gate at `--stage verification` with a P0 readiness report; the release stage is only the exit check for the target release.
 - **Business-owned thresholds.** The spec defines no numbers. Every acceptance test needs configured thresholds; the platform must make thresholds configurable, not hard-coded.
-- **Roadmap conflict.** ROADMAP.md 0.2 (component independence) is in progress. A new start may replace ROADMAP.md (Q2). Whatever survives must follow ADR-035 isolation rules.
+- **Roadmap replacement.** ROADMAP.md 0.2 (component independence) is in progress and is replaced by this plan (Q2). Unfinished 0.2-1.0 evidence must be re-placed or dropped explicitly, not silently lost. ADR-035 isolation rules still apply.
 - **Organization/process obligations** (34 requirements) cannot be verified by tests. The platform records them; verification is inspection by the business owner.
 - **Upstream drift.** The business spec is versioned separately (v2.5 now). Pin a version; re-run the gap map on each upstream release.
 - **Toolkit gap.** OBSSPEC-EXP-09 (`state_sets` in include fragments) is open upstream.
@@ -154,8 +154,8 @@ Known areas that change shape (redesign, not migration): health states, service 
 - **Q8.** Targets: retarget OBS requirements to Observable capabilities (recommended), or import the 37 areas as logical components?
 - **Q10.** Reuse or rebuild: refactor the existing services into the target (keep Rust/React stack, ingest, storage), or rebuild from the spec per REPLACEMENT.md and reuse code only where it fits?
 - **Q9.** Upstream repo after merge: archive, keep read-only, or keep authoring there and sync?
-- **Q2.** Release placement: does this replace the ROADMAP 0.3-1.0 sequence, extend it after 1.0, or interleave (for example phase 1-2 inside 0.6)?
-- **Q3.** Target cut: P0 platform requirements (88) as the first milestone, with P1/P2 later?
-- **Q4.** Incidents, on-call schedules and status communication: build in Observable or integrate external tooling?
-- **Q5.** Catalog ownership: extend `observable-control` or add a new component?
-- **Q6.** Fix the false-healthy health derivation now as a standalone PR, ahead of the plan?
+- **Q2.** Decided 2026-11-07: this plan replaces ROADMAP.md.
+- **Q3.** Decided 2026-11-07: first milestone is the 88 P0 platform requirements; P1/P2 later.
+- **Q4.** Decided 2026-11-07: own incidents, on-call and status communication, and integrate with external tooling.
+- **Q5.** Delegated 2026-11-07; chosen: new component `observable-catalog`.
+- **Q6.** Decided 2026-11-07: no standalone fix; wait for phase 2.
