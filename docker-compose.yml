@@ -482,6 +482,52 @@ services:
       stream-processor: { condition: service_healthy }
       storage-writer: { condition: service_healthy }
 
+  # --- HOST VERIFICATION (scripts/local-stack.sh) ---
+  # Same runners as above, pointed at services running as host executables.
+  # host.docker.internal resolves to the host on Docker Desktop natively and on
+  # Linux through the host-gateway mapping.
+  otel-collector-host:
+    image: otel/opentelemetry-collector-contrib:0.162.0
+    profiles: ["host-verification"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    # Published for the host-side smoke runner (scripts/local-stack.sh smoke).
+    ports: ["14317:4317", "14318:4318"]
+    volumes:
+      - ./tests/e2e/otel-collector-host-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+
+  smoke-test-host:
+    image: observable-verification:local
+    build: { context: ., dockerfile: Dockerfile, target: verification-tools }
+    profiles: ["host-verification"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      INGEST_URL: http://host.docker.internal:4318
+      GRPC_INGEST_URL: http://host.docker.internal:4317
+      PLATFORM_URL: http://host.docker.internal:4321
+      QUERY_URL: http://host.docker.internal:8090
+      ADMIN_URL: http://host.docker.internal:4324
+      ALERT_URL: http://host.docker.internal:4322
+      COLLECTOR_URL: http://otel-collector-host:4318
+      COLLECTOR_GRPC_URL: http://otel-collector-host:4317
+    entrypoint: ["/bin/bash", "/app/tests/e2e/smoke_test.sh"]
+    volumes:
+      - .:/app:ro
+    depends_on:
+      otel-collector-host: { condition: service_started }
+
+  perf-smoke-host:
+    image: observable-verification:local
+    build: { context: ., dockerfile: Dockerfile, target: verification-tools }
+    profiles: ["host-verification"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      INGEST_URL: http://host.docker.internal:4318
+      QUERY_URL: http://host.docker.internal:8090
+      SAMPLE_COUNT: "20"
+    entrypoint: ["/bin/bash", "/app/scripts/perf-smoke.sh"]
+    volumes:
+      - .:/app:ro
+
   seed:
     build:
       context: .

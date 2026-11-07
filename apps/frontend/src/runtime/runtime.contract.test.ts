@@ -673,7 +673,8 @@ describe("runtime contract", () => {
         }),
       })
     );
-    vi.stubGlobal("window", { location: { origin: "http://localhost" } });
+    // jsdom already provides window.location; replacing window itself breaks
+    // the vmThreads pool (window is non-configurable in the VM context).
   });
 
   runContract("http", httpRuntime);

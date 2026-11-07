@@ -195,7 +195,7 @@ main() {
   GRPC_HOST=$(echo "$GRPC_INGEST" | sed 's|http://||')
   GRPC_BODY="smoke-grpc-log-$(date +%s%N)"
   grpcurl -plaintext \
-    -import-path /proto/otlp \
+    -import-path "${OTLP_PROTO_DIR:-/proto/otlp}" \
     -proto opentelemetry/proto/collector/logs/v1/logs_service.proto \
     -H "Authorization: Bearer $TOKEN" \
     -d "{\"resourceLogs\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"$GRPC_SERVICE_NAME\"}}]},\"scopeLogs\":[{\"logRecords\":[{\"timeUnixNano\":\"$(date +%s%N)\",\"severityNumber\":9,\"body\":{\"stringValue\":\"$GRPC_BODY\"}}]}]}]}" \

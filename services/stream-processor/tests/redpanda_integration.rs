@@ -55,30 +55,38 @@ async fn create_topic(brokers: &str, topic: &str) {
 
 #[tokio::test]
 async fn redpanda_container_preserves_tenant_id_and_payload_across_queue_boundary() {
-    // Pick a free host port before starting the container so we can tell Redpanda
-    // to advertise exactly that address. This keeps metadata discovery working for
-    // the single-node setup: rdkafka will follow the advertised broker address from
-    // the metadata response, which must resolve back to the container's Kafka port.
-    let host_port = pick_free_port();
-    let advertise_addr = format!("127.0.0.1:{host_port}");
-    let brokers = advertise_addr.clone();
+    // Topic isolation is enough here, so a shared external broker works.
+    let (brokers, _container) = match test_support::kafka::external_brokers() {
+        Some(brokers) => (brokers, None),
+        None => {
+            // Pick a free host port before starting the container so we can tell
+            // Redpanda to advertise exactly that address. This keeps metadata
+            // discovery working for the single-node setup: rdkafka will follow the
+            // advertised broker address from the metadata response, which must
+            // resolve back to the container's Kafka port.
+            let host_port = pick_free_port();
+            let advertise_addr = format!("127.0.0.1:{host_port}");
+            let brokers = advertise_addr.clone();
 
-    let _container: ContainerAsync<GenericImage> =
-        GenericImage::new("redpandadata/redpanda", "v26.2.4")
-            .with_wait_for(WaitFor::message_on_stderr("Successfully started Redpanda!"))
-            .with_cmd(vec![
-                "redpanda".to_string(),
-                "start".to_string(),
-                "--smp=1".to_string(),
-                "--memory=512M".to_string(),
-                "--overprovisioned".to_string(),
-                "--kafka-addr=0.0.0.0:9092".to_string(),
-                format!("--advertise-kafka-addr={advertise_addr}"),
-            ])
-            .with_mapped_port(host_port, 9092_u16.tcp())
-            .start()
-            .await
-            .expect("redpanda container started");
+            let container: ContainerAsync<GenericImage> =
+                GenericImage::new("redpandadata/redpanda", "v26.2.4")
+                    .with_wait_for(WaitFor::message_on_stderr("Successfully started Redpanda!"))
+                    .with_cmd(vec![
+                        "redpanda".to_string(),
+                        "start".to_string(),
+                        "--smp=1".to_string(),
+                        "--memory=512M".to_string(),
+                        "--overprovisioned".to_string(),
+                        "--kafka-addr=0.0.0.0:9092".to_string(),
+                        format!("--advertise-kafka-addr={advertise_addr}"),
+                    ])
+                    .with_mapped_port(host_port, 9092_u16.tcp())
+                    .start()
+                    .await
+                    .expect("redpanda container started");
+            (brokers, Some(container))
+        }
+    };
 
     wait_for_kafka_ready(&brokers).await;
 

@@ -17,30 +17,75 @@ static CONTAINER_ID: OnceLock<String> = OnceLock::new();
 fn cleanup_on_exit() {
     if let Some(id) = CONTAINER_ID.get() {
         let _ = std::process::Command::new("docker")
-            .args(["rm", "-f", id])
+            .args(["rm", "-f", "-v", id])
             .output();
     }
 }
 
-const USER: &str = "default";
-const PASSWORD: &str = "test";
+/// Environment variables naming an external server (e.g. the stack started by
+/// `scripts/local-stack.sh`). Required under cargo-nextest, which runs every
+/// test in its own process and would otherwise start one container per test.
+pub const EXTERNAL_URL_ENV: &str = "OBSERVABLE_TEST_CLICKHOUSE_URL";
+pub const EXTERNAL_USER_ENV: &str = "OBSERVABLE_TEST_CLICKHOUSE_USER";
+pub const EXTERNAL_PASSWORD_ENV: &str = "OBSERVABLE_TEST_CLICKHOUSE_PASSWORD";
 
-async fn base_url() -> String {
-    let container = CONTAINER
+const CONTAINER_USER: &str = "default";
+const CONTAINER_PASSWORD: &str = "test";
+
+struct Server {
+    url: String,
+    user: String,
+    password: String,
+}
+
+static SERVER: OnceCell<Server> = OnceCell::const_new();
+
+async fn server() -> &'static Server {
+    SERVER
         .get_or_init(|| async {
-            let container = ClickHouse::default()
-                .with_tag("26.9")
-                .with_env_var("CLICKHOUSE_USER", USER)
-                .with_env_var("CLICKHOUSE_PASSWORD", PASSWORD)
-                .start()
-                .await
-                .expect("clickhouse container started");
-            let _ = CONTAINER_ID.set(container.id().to_string());
-            container
+            if let Ok(url) = std::env::var(EXTERNAL_URL_ENV)
+                && !url.trim().is_empty()
+            {
+                return Server {
+                    url: url.trim().trim_end_matches('/').to_string(),
+                    user: std::env::var(EXTERNAL_USER_ENV).unwrap_or_else(|_| "default".into()),
+                    password: std::env::var(EXTERNAL_PASSWORD_ENV).unwrap_or_default(),
+                };
+            }
+            let container = CONTAINER
+                .get_or_init(|| async {
+                    let container = ClickHouse::default()
+                        .with_tag("26.9")
+                        .with_env_var("CLICKHOUSE_USER", CONTAINER_USER)
+                        .with_env_var("CLICKHOUSE_PASSWORD", CONTAINER_PASSWORD)
+                        .start()
+                        .await
+                        .expect("clickhouse container started");
+                    let _ = CONTAINER_ID.set(container.id().to_string());
+                    container
+                })
+                .await;
+            let port = container.get_host_port_ipv4(8123).await.expect("port");
+            Server {
+                url: format!("http://127.0.0.1:{port}"),
+                user: CONTAINER_USER.into(),
+                password: CONTAINER_PASSWORD.into(),
+            }
         })
-        .await;
-    let port = container.get_host_port_ipv4(8123).await.expect("port");
-    format!("http://127.0.0.1:{port}")
+        .await
+}
+
+/// Root (database-less) client for the server `shared_client` uses, for tests
+/// that manage their own databases.
+pub async fn root_client() -> Client {
+    let server = server().await;
+    Client::default()
+        .with_url(&server.url)
+        .with_user(&server.user)
+        .with_password(&server.password)
+        // See docs/agent-context.md: clickhouse-rs 0.15.2 can't decompress
+        // ClickHouse 26.9's response framing. Remove once a fixed release ships.
+        .with_compression(clickhouse::Compression::None)
 }
 
 /// Returns a client scoped to the shared `observable` database. Starts the
@@ -49,26 +94,14 @@ async fn base_url() -> String {
 /// unique tenant_id per test to stay isolated from other tests sharing this
 /// database.
 pub async fn shared_client() -> Client {
-    let base_url = base_url().await;
-    MIGRATED
-        .get_or_init(|| async { apply_migrations(&base_url).await })
-        .await;
-
-    Client::default()
-        .with_url(&base_url)
-        .with_user(USER)
-        .with_password(PASSWORD)
-        .with_database("observable")
-        // See docs/agent-context.md: clickhouse-rs 0.15.2 can't decompress
-        // ClickHouse 26.9's response framing. Remove once a fixed release ships.
-        .with_compression(clickhouse::Compression::None)
+    // Migrations are idempotent (CREATE ... IF NOT EXISTS, MODIFY SETTING), so
+    // re-applying them once per process is safe against a shared server.
+    MIGRATED.get_or_init(apply_migrations).await;
+    root_client().await.with_database("observable")
 }
 
-async fn apply_migrations(base_url: &str) {
-    let root = Client::default()
-        .with_url(base_url)
-        .with_user(USER)
-        .with_password(PASSWORD);
+async fn apply_migrations() {
+    let root = root_client().await;
 
     root.query("CREATE DATABASE IF NOT EXISTS observable")
         .execute()

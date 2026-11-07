@@ -31,6 +31,11 @@ export default defineConfig(({ mode }) => ({
   },
   test: {
     environment: "jsdom",
+    // One jsdom per worker instead of one per file: 111 jsdom set-ups were
+    // ~57% of the run (56s -> 15s on 4 vCPU). Files stay isolated in their
+    // own VM context. Tests must not replace `window` itself (it is
+    // non-configurable there); stub its members instead.
+    pool: "vmThreads",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
     exclude: ["**/node_modules/**", "**/dist/**", "e2e/**"],

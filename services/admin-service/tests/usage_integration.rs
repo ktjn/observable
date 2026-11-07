@@ -16,10 +16,8 @@ use clickhouse::Client as ChClient;
 use http_body_util::BodyExt;
 use observable_storage_contracts::{LogRow, MetricPointRow, MetricSeriesRow, SpanRow};
 use serde_json::Value;
-use sqlx::postgres::{PgPool, PgPoolOptions};
-use std::{path::Path, sync::Arc};
-use testcontainers::{ImageExt, runners::AsyncRunner};
-use testcontainers_modules::postgres::Postgres;
+use sqlx::postgres::PgPool;
+use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -27,51 +25,10 @@ use uuid::Uuid;
 // Migration 017 moves dev-key to the dev-tenant at ...0002.
 // Tenant ...0001 is the 'observable' self-ingestion tenant.
 
-const DEV_TENANT_ID: &str = "00000000-0000-0000-0000-000000000002";
-
 // ── Container helpers ────────────────────────────────────────────────────────
 
-async fn start_postgres() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
-    let container = Postgres::default()
-        .with_tag("17")
-        .start()
-        .await
-        .expect("postgres container started");
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = observable_config::with_search_path(&format!(
-        "postgres://postgres:postgres@127.0.0.1:{port}/postgres"
-    ));
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&url)
-        .await
-        .expect("postgres pool connected");
-    apply_pg_migrations(&pool).await;
-    (pool, container)
-}
-
-async fn apply_pg_migrations(pool: &PgPool) {
-    let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/postgres");
-
-    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
-        .expect("migrations/postgres must exist")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        sqlx::raw_sql(sqlx::AssertSqlSafe(sql))
-            .execute(pool)
-            .await
-            .expect("pg migration applied");
-    }
+async fn start_postgres() -> (PgPool, test_support::postgres::TestDatabase) {
+    test_support::postgres::isolated_pool().await
 }
 
 // ── App builder ──────────────────────────────────────────────────────────────
@@ -82,8 +39,18 @@ async fn apply_pg_migrations(pool: &PgPool) {
 // admin_members_integration.rs in this crate, since these tests only need to
 // exercise the handler, not the auth middleware.
 
-fn build_app(ch: ChClient, db: PgPool) -> Router {
-    build_app_for_tenant(ch, db, Uuid::parse_str(DEV_TENANT_ID).unwrap())
+/// Creates a tenant unique to the calling test. ClickHouse is shared across
+/// tests and runs (and with the smoke test, which writes as the dev tenant), so
+/// usage totals are only deterministic for a tenant nobody else writes to.
+async fn seed_tenant(db: &PgPool) -> Uuid {
+    let tenant_id = Uuid::new_v4();
+    sqlx::query("INSERT INTO tenants (id, name) VALUES ($1, $2)")
+        .bind(tenant_id)
+        .bind(format!("usage-test-{tenant_id}"))
+        .execute(db)
+        .await
+        .expect("tenant seeded");
+    tenant_id
 }
 
 fn build_app_for_tenant(ch: ChClient, db: PgPool, tenant_id: Uuid) -> Router {
@@ -227,8 +194,8 @@ fn make_metric_point(
 async fn get_tenant_usage_report_scopes_to_tenant_and_interval() {
     let ch = test_support::clickhouse::shared_client().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app(ch.clone(), pg.clone());
-    let tenant = Uuid::parse_str(DEV_TENANT_ID).unwrap();
+    let tenant = seed_tenant(&pg).await;
+    let app = build_app_for_tenant(ch.clone(), pg.clone(), tenant);
     let other_tenant = Uuid::new_v4();
 
     let from = chrono::Utc::now() - chrono::Duration::hours(2);
@@ -417,7 +384,7 @@ async fn get_tenant_usage_report_scopes_to_tenant_and_interval() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let body = response_body_json(response.into_body()).await;
-    assert_eq!(body["tenant_id"], DEV_TENANT_ID);
+    assert_eq!(body["tenant_id"], tenant.to_string());
     assert_eq!(body["retention_days"], 30);
     assert_eq!(body["ingest_quota_per_sec"], 100);
     assert_eq!(body["telemetry_summary"]["spans"], 1);
@@ -446,7 +413,8 @@ async fn get_tenant_usage_report_scopes_to_tenant_and_interval() {
 async fn get_tenant_usage_report_returns_zeroes_for_empty_interval() {
     let ch = test_support::clickhouse::shared_client().await;
     let (pg, _pg_container) = start_postgres().await;
-    let app = build_app(ch, pg.clone());
+    let tenant = seed_tenant(&pg).await;
+    let app = build_app_for_tenant(ch, pg.clone(), tenant);
 
     let from = chrono::Utc::now() - chrono::Duration::days(3);
     let to = chrono::Utc::now() - chrono::Duration::days(2);

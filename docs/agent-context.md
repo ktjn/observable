@@ -563,6 +563,17 @@ scripts/local-ci.sh`; and a `modelable lineage <Type@version>` proof in the PR d
   pilot's implementation. Follow-up slices (same pattern, one per service) remain for
   `admin-service`, `alert-evaluator`, `auth-service`, `storage-writer`, `ingest-gateway`, and
   `stream-processor` (the last needs a new `test_support::redpanda` module, not yet built).
+- **2026-11-07**: Local gate runs services on the host. `scripts/local-ci.sh` no longer builds
+  Docker images by default: `scripts/local-stack.sh` starts only ClickHouse, Redpanda and
+  PostgreSQL in Compose (kept running between runs), Rust tests run under cargo-nextest
+  (`.config/nextest.toml`), and the smoke/perf runners hit the services as `target/debug` host
+  executables via the `host-verification` Compose profile. `--containers` restores the image
+  builds and Compose smoke. `libs/test-support` honors `OBSERVABLE_TEST_POSTGRES_URL` /
+  `OBSERVABLE_TEST_CLICKHOUSE_URL` (set by `local-stack.sh env`) and clones a migrated template
+  database per `shared_pool()` call; `admin-service`, `alert-evaluator`, `auth-service` and
+  `storage-writer` integration tests now use those fixtures instead of a container per test.
+  Still per-test containers: `query-api`'s fixed-tenant ClickHouse tests and the Redpanda tests
+  (nextest test group `dedicated-containers`).
 
 ## Dev Environment Gotchas
 

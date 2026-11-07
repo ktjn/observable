@@ -18,8 +18,6 @@ use serde_json::Value;
 use sqlx::PgPool;
 use std::path::Path;
 use std::sync::Arc;
-use testcontainers::{ImageExt, runners::AsyncRunner};
-use testcontainers_modules::postgres::Postgres;
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -49,20 +47,8 @@ async fn apply_migrations(pool: &PgPool) {
     }
 }
 
-async fn start_pool() -> (PgPool, testcontainers::ContainerAsync<Postgres>) {
-    let container = Postgres::default()
-        .with_tag("17")
-        .start()
-        .await
-        .expect("postgres container started");
-    let host = container.get_host().await.expect("host");
-    let port = container.get_host_port_ipv4(5432).await.expect("port");
-    let url = observable_config::with_search_path(&format!(
-        "postgres://postgres:postgres@{host}:{port}/postgres"
-    ));
-    let pool = PgPool::connect(&url).await.expect("pool connected");
-    apply_migrations(&pool).await;
-    (pool, container)
+async fn start_pool() -> (PgPool, test_support::postgres::TestDatabase) {
+    test_support::postgres::isolated_pool().await
 }
 
 // ── App builder ──────────────────────────────────────────────────────────────
@@ -286,7 +272,7 @@ async fn list_tenant_environments_unknown_tenant_returns_empty() {
 
 #[tokio::test]
 async fn migrations_enforce_schema_ownership_and_zero_cross_schema_fks() {
-    let (pool, container) = start_pool().await;
+    let (pool, _container) = start_pool().await;
 
     let has_control_audit_log: bool = sqlx::query_scalar(
         "SELECT EXISTS (
@@ -322,13 +308,14 @@ async fn migrations_enforce_schema_ownership_and_zero_cross_schema_fks() {
     );
 
     // Replay all migrations on a bare connection (matching postgres-setup / migration-job)
-    let host = container.get_host().await.expect("host");
-    let port = container.get_host_port_ipv4(5432).await.expect("port");
-    let replay_pool = PgPool::connect(&format!(
-        "postgres://postgres:postgres@{host}:{port}/postgres"
-    ))
-    .await
-    .expect("replay pool connected");
+    let database: String = sqlx::query_scalar("SELECT current_database()")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let server = test_support::postgres::server_url().await;
+    let replay_pool = PgPool::connect(&format!("{server}/{database}"))
+        .await
+        .expect("replay pool connected");
     apply_migrations(&replay_pool).await;
 
     let cross_schema_fks_after_replay: i64 = sqlx::query_scalar(
