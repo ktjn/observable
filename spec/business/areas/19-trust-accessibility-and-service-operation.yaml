@@ -1,0 +1,119 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Area: Make the observability capability dependable and usable during incidents.
+requirements:
+- id: OBS-19-01
+  version: 0.1.0
+  target: observable-platform
+  kind: non-functional
+  category: resilience
+  mandatory: false
+  status: deprecated
+  priority: P0
+  owner: observability-platform-owner
+  superseded_by: OBS-29-01
+  statement: Authorized responders shall be able to use the platform during a material incident affecting a monitored service.
+  criteria:
+  - 'Acceptance: A resilience exercise demonstrates access to essential monitoring and incident context.'
+- id: OBS-19-02
+  version: 0.1.0
+  target: observable-platform
+  kind: non-functional
+  category: observability
+  mandatory: false
+  status: deprecated
+  priority: P0
+  owner: observability-platform-owner
+  superseded_by: OBS-29-03
+  statement: The platform shall clearly indicate when its own information is incomplete, delayed, or unavailable.
+  criteria:
+  - 'Acceptance: An induced observation gap is labeled unknown rather than healthy.'
+- id: OBS-19-03
+  version: 0.1.0
+  target: observable-platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: The organization shall assign accountability for the observability platform as a business service.
+  criteria:
+  - 'Acceptance: Its owner, support route, operating commitments, and escalation are documented.'
+  - 'Negative: A platform incident has a named owner and escalation route that does not depend on the platform itself.'
+- id: OBS-19-04
+  version: 0.1.0
+  target: observable-platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Essential investigative and response workflows shall remain usable by personnel with approved accessibility needs.
+  criteria:
+  - 'Acceptance: A review against agreed accessibility criteria succeeds for critical workflows.'
+  depends_on:
+  - OBS-24-05
+- id: OBS-19-05
+  version: 0.1.0
+  target: observable-platform
+  kind: functional
+  category: concurrency
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: The platform shall provide consistent time interpretation across relevant teams and business jurisdictions.
+  criteria:
+  - 'Acceptance: Two reviewers in different time zones reconstruct the same incident chronology.'
+- id: OBS-19-06
+  version: 0.1.0
+  target: observable-platform
+  kind: non-functional
+  category: observability
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: The organization shall be able to verify and periodically test the effectiveness of critical observability capabilities.
+  criteria:
+  - 'Acceptance: A controlled exercise records expected and actual detection, notification, and investigation outcomes.'
+  depends_on:
+  - OBS-29-02
+- id: OBS-19-07
+  version: 0.1.0
+  target: observable-platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: observability-platform-owner
+  statement: New service owners shall be able to establish expected monitoring coverage without specialist-only knowledge.
+  criteria:
+  - 'Acceptance: A trained owner completes an approved onboarding scenario and sees missing prerequisites.'
+- id: OBS-19-08
+  version: 0.1.0
+  target: observable-platform
+  kind: non-functional
+  category: performance
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Essential status, incident and investigation views shall respond within business-approved times, including during major incidents with elevated usage.
+  criteria:
+  - 'Acceptance: A load exercise at the agreed major-incident usage keeps essential views within the approved response times.'
+- id: OBS-19-09
+  version: 0.1.0
+  target: observable-platform
+  kind: non-functional
+  category: scalability
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: The platform shall sustain agreed assessment, detection and notification behavior as monitored services, users and evidence volume grow within approved planning ranges.
+  criteria:
+  - 'Acceptance: A growth exercise at the approved planning ceiling shows no loss of detection, notification or essential-view usability.'

@@ -1,0 +1,79 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Area: Preserve essential operational awareness when services or the observability capability itself is disrupted.
+requirements:
+- id: OBS-29-01
+  version: 0.1.0
+  target: observable-platform
+  kind: non-functional
+  category: resilience
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: operational-resilience-lead
+  statement: Essential service health, incident status, and response information shall remain accessible under agreed disruption scenarios.
+  criteria:
+  - 'Acceptance: An approved resilience exercise confirms that responders can obtain essential status during a major incident.'
+  - 'Negative: With the primary operating location unavailable, responders still obtain essential status.'
+- id: OBS-29-02
+  version: 0.1.0
+  target: observable-platform
+  kind: non-functional
+  category: resilience
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: operational-resilience-lead
+  statement: The organization shall be able to verify that critical detection, notification and escalation capabilities remain operational.
+  criteria:
+  - 'Acceptance: A controlled test proves a critical event reaches an accountable responder.'
+  - 'Negative: A test event during a degraded notification route still reaches an accountable responder or is reported as failed.'
+- id: OBS-29-03
+  version: 0.1.0
+  target: observable-platform
+  kind: non-functional
+  category: observability
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: operational-resilience-lead
+  statement: The system shall visibly communicate when its own ability to assess, detect or report conditions is degraded.
+  criteria:
+  - 'Acceptance: During a monitoring outage, users see an explicit loss-of-confidence warning.'
+  - 'Negative: During an induced monitoring outage, affected views show a loss-of-confidence warning, not healthy status.'
+- id: OBS-29-04
+  version: 0.1.0
+  target: observable-platform
+  kind: non-functional
+  category: resilience
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: operational-resilience-lead
+  statement: Critical incident response shall have defined fallback procedures when observability is partially or wholly unavailable.
+  criteria:
+  - 'Acceptance: An incident exercise demonstrates use of an approved alternative response process.'
+- id: OBS-29-05
+  version: 0.1.0
+  target: observable-platform
+  kind: non-functional
+  category: resilience
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: operational-resilience-lead
+  statement: Operational resilience objectives for the observability capability shall be reviewed with business and risk owners.
+  criteria:
+  - 'Acceptance: A governance review records agreed essential functions, failure scenarios and acceptance evidence.'
+- id: OBS-29-06
+  version: 0.1.0
+  target: observable-platform
+  kind: non-functional
+  category: resilience
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: operational-resilience-lead
+  statement: Essential detection and notification for critical services shall not share the failure scenarios they are intended to detect.
+  criteria:
+  - 'Acceptance: Loss of a monitored region does not remove the ability to detect and notify about that loss.'

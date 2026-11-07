@@ -1,0 +1,66 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Area: Keep the people who respond to incidents effective, correctly reached and not overloaded.
+requirements:
+- id: OBS-37-01
+  version: 0.1.0
+  target: manage-on-call
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-engineering
+  statement: Responsibility schedules, including rotations, overrides and cross-location handovers, shall determine who is notified at any time.
+  criteria:
+  - 'Acceptance: A schedule override routes a critical alert to the substitute responder.'
+  depends_on:
+  - OBS-07-01
+- id: OBS-37-02
+  version: 0.1.0
+  target: manage-on-call
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-engineering
+  statement: Gaps in responsibility coverage shall be detected before they occur.
+  criteria:
+  - 'Acceptance: A schedule gap next week is flagged to the team owner.'
+- id: OBS-37-03
+  version: 0.1.0
+  target: manage-on-call
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-engineering
+  statement: Managers shall be able to review responder load, including notification volume, out-of-hours interruptions and incident time, subject to applicable employment and privacy rules.
+  criteria:
+  - 'Acceptance: A monthly review shows out-of-hours interruptions per team.'
+- id: OBS-37-04
+  version: 0.1.0
+  target: manage-on-call
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-engineering
+  statement: Teams shall be able to identify when responder load exceeds agreed sustainable levels and record remediation.
+  criteria:
+  - 'Acceptance: A team above its agreed out-of-hours level has a recorded action and owner.'
+- id: OBS-37-05
+  version: 0.1.0
+  target: manage-on-call
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: head-of-engineering
+  statement: Responders shall be able to manage personal notification preferences within approved policy without weakening critical escalation.
+  criteria:
+  - 'Acceptance: A responder changes channel, and critical escalation still reaches them.'

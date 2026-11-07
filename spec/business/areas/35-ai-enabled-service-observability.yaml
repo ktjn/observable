@@ -1,0 +1,88 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Area: Observe services that rely on AI models and agents with the same accountability as any other service.
+requirements:
+- id: OBS-35-01
+  version: 0.1.0
+  target: observe-ai-services
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ai-model-owner
+  statement: Owners of AI-enabled services shall be able to assess quality, safety and correctness of AI outputs against agreed criteria.
+  criteria:
+  - 'Acceptance: A drop in evaluated answer quality is visible for a customer-facing assistant.'
+- id: OBS-35-02
+  version: 0.1.0
+  target: observe-ai-services
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ai-model-owner
+  statement: Users shall be able to observe responsiveness, failure and consumption, including usage-based cost, of AI model interactions per service and feature.
+  criteria:
+  - 'Acceptance: A consumption spike attributable to one feature is visible to its owner.'
+- id: OBS-35-03
+  version: 0.1.0
+  target: observe-ai-services
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ai-model-owner
+  statement: Changes to models, instructions, configuration or reference content shall be visible as changes affecting the service.
+  criteria:
+  - 'Acceptance: An instruction change is shown alongside a resulting quality shift.'
+- id: OBS-35-04
+  version: 0.1.0
+  target: observe-ai-services
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: dpo
+  statement: Investigators shall be able to inspect the inputs, intermediate steps, tool use and outputs of an AI-driven interaction, subject to privacy controls.
+  criteria:
+  - 'Acceptance: An investigator reconstructs why an agent took an incorrect action.'
+- id: OBS-35-05
+  version: 0.1.0
+  target: observe-ai-services
+  kind: non-functional
+  category: security
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ciso
+  statement: The platform shall surface policy violations by AI-enabled services, such as disclosure of restricted information, harmful content or actions outside approved scope.
+  criteria:
+  - 'Acceptance: A controlled test that elicits restricted content is flagged to the owner.'
+- id: OBS-35-06
+  version: 0.1.0
+  target: observe-ai-services
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: ai-model-owner
+  statement: Owners shall be able to detect gradual drift in AI behavior or input characteristics relative to approved baselines.
+  criteria:
+  - 'Acceptance: A material shift in input topics is reported for review.'
+- id: OBS-35-07
+  version: 0.1.0
+  target: observe-ai-services
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: ai-model-owner
+  statement: Users shall be able to relate end-user feedback on AI outputs to the underlying interaction evidence.
+  criteria:
+  - 'Acceptance: Negative feedback on an answer links to the interaction that produced it.'

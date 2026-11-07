@@ -1,0 +1,93 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Area: Make evidence available for operational and management decisions.
+requirements:
+- id: OBS-13-01
+  version: 0.1.0
+  target: report-service-status
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: Operational users shall have a consolidated view of their accountable services and active issues.
+  criteria:
+  - 'Acceptance: A user can see all currently critical issues for their area.'
+  - 'Negative: A critical issue for an accountable service is not hidden by a personal filter.'
+- id: OBS-13-02
+  version: 0.1.0
+  target: report-service-status
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: Users shall be able to inspect historical trends across an approved reporting period.
+  criteria:
+  - 'Acceptance: A monthly service review can be reproduced for a past period.'
+  - 'Negative: A reproduced past report uses the data and definitions in force for that period.'
+- id: OBS-13-03
+  version: 0.1.0
+  target: report-service-status
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: Displayed results shall disclose the reporting period, scope, and freshness of information.
+  criteria:
+  - 'Acceptance: A reviewer can identify whether a chart is current, delayed, or partial.'
+  - 'Negative: A partially loaded chart states that it is partial.'
+- id: OBS-13-04
+  version: 0.1.0
+  target: report-service-status
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Business and engineering stakeholders shall have views tailored to their distinct decisions.
+  criteria:
+  - 'Acceptance: A business owner and responder can each locate their required view without irrelevant detail.'
+- id: OBS-13-05
+  version: 0.1.0
+  target: report-service-status
+  kind: non-functional
+  category: security
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ciso
+  statement: Authorized users shall be able to share reporting views without expanding recipients’ access rights.
+  criteria:
+  - 'Acceptance: A recipient lacking permission cannot inspect restricted details via a shared link.'
+  depends_on:
+  - OBS-25-02
+- id: OBS-13-06
+  version: 0.1.0
+  target: report-service-status
+  kind: functional
+  category: semantic
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Reports shall support consistent comparison across services and business areas.
+  criteria:
+  - 'Acceptance: A leadership report uses common definitions for shared indicators.'
+- id: OBS-13-07
+  version: 0.1.0
+  target: report-service-status
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: observability-platform-owner
+  statement: Stakeholders shall be able to receive periodic status and trend reports.
+  criteria:
+  - 'Acceptance: An approved scheduled report reflects the chosen business scope.'

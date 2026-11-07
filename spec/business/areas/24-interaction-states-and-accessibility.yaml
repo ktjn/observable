@@ -1,0 +1,166 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Area: Ensure incident-critical workflows remain understandable and operable.
+requirements:
+- id: OBS-24-01
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: semantic
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: The UI shall distinguish healthy, degraded, unavailable, unknown, and planned-maintenance states by text and visual treatment.
+  criteria:
+  - 'Acceptance: A color-blind reviewer can identify all five conditions without relying on color.'
+  - 'Negative: In grayscale and with a screen reader, all five states remain distinguishable.'
+- id: OBS-24-02
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: semantic
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: Empty, incomplete, delayed, stale, unavailable, and access-restricted information shall be clearly differentiated.
+  criteria:
+  - 'Acceptance: Loss of evidence cannot appear as zero errors or a healthy state.'
+  - 'Negative: A failed data source never renders as zero errors or a healthy state.'
+  refines:
+  - OBS-26-04
+- id: OBS-24-03
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: Critical actions shall expose their consequences and require confirmation where the action has material operational impact.
+  criteria:
+  - 'Acceptance: A user cannot unintentionally perform an irreversible or high-impact operation.'
+  - 'Negative: A high-impact action cannot complete from a single unintended click.'
+- id: OBS-24-04
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: User-visible errors shall state what could not be completed and an actionable recovery path where possible.
+  criteria:
+  - 'Acceptance: A failed data retrieval shows an error and a retry or support route rather than silent omission.'
+  - 'Negative: A failed retrieval never renders an empty chart that could read as no activity.'
+- id: OBS-24-05
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: The essential web user experience shall satisfy WCAG 2.2 Level AA, subject to an approved accessibility conformance process.
+  criteria:
+  - 'Acceptance: Keyboard, screen-reader, focus, contrast, and zoom checks pass for agreed critical workflows.'
+  - 'Negative: Critical workflows remain operable by keyboard only and at 400% zoom.'
+- id: OBS-24-06
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Charts and status indications shall have accessible textual or tabular alternatives.
+  criteria:
+  - 'Acceptance: A screen-reader user can obtain the substantive values and status conveyed by a graph.'
+- id: OBS-24-07
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: semantic
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: The UI shall use consistent terminology and interaction patterns across monitoring and investigation areas.
+  criteria:
+  - 'Acceptance: A repeated filter or incident action has the same meaning in relevant views.'
+- id: OBS-24-08
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: The UI shall indicate when displayed data was last updated and whether automatic refresh is active.
+  criteria:
+  - 'Acceptance: An on-call responder can distinguish frozen data from a continuously updated view.'
+  depends_on:
+  - OBS-13-03
+- id: OBS-24-09
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: The UI shall provide understandable feedback about the progress, completion or failure of user actions and long-running operations.
+  criteria:
+  - 'Acceptance: An operator can tell whether an acknowledgement is pending, completed or unsuccessful.'
+  - 'Negative: A failed acknowledgement cannot be presented as completed or silently discarded.'
+  refines:
+  - OBS-24-04
+- id: OBS-24-10
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Users shall be able to cancel, undo or recover from actions when this can be done safely and without violating audit obligations.
+  criteria:
+  - 'Acceptance: An operator can recover a mistaken filter change and receives clear guidance for a non-reversible action.'
+  depends_on:
+  - OBS-24-03
+- id: OBS-24-11
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: semantic
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Automatic refresh shall not change the scope, selection or values a user is actively inspecting without a visible notice and a way to return.
+  criteria:
+  - 'Acceptance: While an investigator inspects a selected interval, new data is announced and applied only on request or with a notice.'
+  depends_on:
+  - OBS-24-08
+- id: OBS-24-12
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: non-functional
+  category: resilience
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Session expiry or loss of connectivity during an action shall preserve unsent input and report the action's actual outcome once the user reconnects.
+  criteria:
+  - 'Acceptance: A responder whose session expires while adding an incident note re-authenticates and finds the note preserved and its saved state shown.'
+  depends_on:
+  - OBS-24-09

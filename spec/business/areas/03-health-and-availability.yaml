@@ -1,0 +1,104 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Area: Provide an accurate operational picture of service condition.
+requirements:
+- id: OBS-03-01
+  version: 0.1.0
+  target: assess-service-health
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: head-of-operations
+  statement: Users shall be able to see the current health of every in-scope critical service.
+  criteria:
+  - 'Acceptance: A service overview shows normal, degraded, unavailable, or unknown condition.'
+  - 'Negative: A critical service with no recent evidence shows unknown, never normal.'
+- id: OBS-03-02
+  version: 0.1.0
+  target: assess-service-health
+  kind: functional
+  category: semantic
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: head-of-operations
+  statement: Users shall be able to distinguish unavailable, degraded, planned maintenance, and lack-of-evidence states.
+  criteria:
+  - 'Acceptance: A test of each condition yields a distinct, correctly labeled status.'
+  - 'Negative: Each induced condition, including absent evidence, yields its own label; none is shown as normal.'
+- id: OBS-03-03
+  version: 0.1.0
+  target: assess-service-health
+  kind: functional
+  category: semantic
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: head-of-operations
+  statement: The platform shall show when a service last had sufficient evidence to assess its health.
+  criteria:
+  - 'Acceptance: Stale or absent evidence cannot be mistaken for a healthy service.'
+  - 'Negative: Evidence older than the agreed threshold is marked stale and the last-evidence time is shown.'
+- id: OBS-03-04
+  version: 0.1.0
+  target: assess-service-health
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: head-of-operations
+  statement: Users shall be able to inspect recent and historical service interruptions and degradations.
+  criteria:
+  - 'Acceptance: A known outage can be located with its onset, duration, and resolution status.'
+  - 'Negative: An outage with a missing end time is shown as unresolved or of unknown duration, not as resolved.'
+- id: OBS-03-05
+  version: 0.1.0
+  target: assess-service-health
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-operations
+  statement: Services shall be assessable across relevant operating regions, channels, and customer segments where applicable.
+  criteria:
+  - 'Acceptance: A regional incident is visible without incorrectly labeling all segments as affected.'
+- id: OBS-03-06
+  version: 0.1.0
+  target: assess-service-health
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-operations
+  statement: The platform shall identify recurring health problems affecting the same service.
+  criteria:
+  - 'Acceptance: A service review reveals repeated degradations over a selected period.'
+- id: OBS-03-07
+  version: 0.1.0
+  target: assess-service-health
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-operations
+  statement: Service owners shall be able to define and review how component and dependency conditions contribute to the health of a business service.
+  criteria:
+  - 'Acceptance: An owner can explain why a degraded supporting component does or does not degrade the business service.'
+- id: OBS-03-08
+  version: 0.1.0
+  target: assess-service-health
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-operations
+  statement: Users shall be able to see the health of shared platforms, networks and infrastructure that critical services rely on.
+  criteria:
+  - 'Acceptance: A shared-network degradation is visible alongside the business services it supports.'

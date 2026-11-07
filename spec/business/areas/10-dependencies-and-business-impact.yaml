@@ -1,0 +1,116 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Area: Understand the blast radius and prioritize what matters.
+requirements:
+- id: OBS-10-01
+  version: 0.1.0
+  target: map-dependencies-and-impact
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: enterprise-architect
+  statement: Users shall be able to identify which business services depend on an affected service or external provider.
+  criteria:
+  - 'Acceptance: A dependency failure shows its immediate business service exposure.'
+  - 'Negative: A dependency with unconfirmed mapping is shown as unconfirmed, not omitted.'
+- id: OBS-10-02
+  version: 0.1.0
+  target: map-dependencies-and-impact
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: enterprise-architect
+  statement: Incident severity assessments shall consider impacted critical business processes and customer journeys.
+  criteria:
+  - 'Acceptance: Two incidents with similar technical symptoms can receive different impact priorities.'
+  - 'Negative: Two incidents with identical symptoms but different business exposure receive different priorities.'
+- id: OBS-10-03
+  version: 0.1.0
+  target: map-dependencies-and-impact
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Authorized users shall be able to explore direct and indirect dependencies between services.
+  criteria:
+  - 'Acceptance: A second-order dependency is discoverable during impact assessment.'
+- id: OBS-10-04
+  version: 0.1.0
+  target: map-dependencies-and-impact
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Users shall be able to see known downstream and upstream effects during an incident.
+  criteria:
+  - 'Acceptance: A representative shared-service outage identifies potentially affected consumers.'
+- id: OBS-10-05
+  version: 0.1.0
+  target: map-dependencies-and-impact
+  kind: functional
+  category: functional
+  mandatory: false
+  status: deprecated
+  priority: P1
+  owner: enterprise-architect
+  superseded_by: OBS-36-01
+  statement: Dependencies on material third-party services shall be visible to relevant business owners.
+  criteria:
+  - 'Acceptance: A third-party outage is linked to in-scope affected business services.'
+- id: OBS-10-06
+  version: 0.1.0
+  target: map-dependencies-and-impact
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: enterprise-architect
+  statement: Business owners shall be able to estimate the scale of impact using approved business measures.
+  criteria:
+  - 'Acceptance: An impact view provides the agreed measure and marks estimates as estimates.'
+- id: OBS-10-07
+  version: 0.1.0
+  target: map-dependencies-and-impact
+  kind: functional
+  category: semantic
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: enterprise-architect
+  statement: Business impact assessments shall distinguish observed impact from estimates, assumptions, and unknown impact.
+  criteria:
+  - 'Acceptance: An incident review labels affected transactions confirmed by evidence separately from estimated customer exposure.'
+  - 'Negative: An estimate is never shown without its estimate label, and unknown impact is never shown as zero.'
+- id: OBS-10-08
+  version: 0.1.0
+  target: map-dependencies-and-impact
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Users shall be able to assess impact by applicable products, customer groups, functions and transaction outcomes.
+  criteria:
+  - 'Acceptance: A service incident report identifies the affected business products and unsuccessful transaction outcomes without claiming unsupported precision.'
+- id: OBS-10-09
+  version: 0.1.0
+  target: map-dependencies-and-impact
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Dependency information shall disclose its source, last confirmation and confidence, and shall surface undocumented dependencies indicated by observed evidence.
+  criteria:
+  - 'Acceptance: An observed but undeclared dependency is flagged for owner confirmation.'

@@ -221,41 +221,33 @@ class SystemSpecConsistencyTests(unittest.TestCase):
                 f"Evidence '{eid}' timestamp '{tm.group(1)}' is not valid ISO 8601 UTC",
             )
 
-    def test_system_spec_release_stage_validation(self):
+    def test_system_spec_verification_stage_validation(self):
+        """2.0 gate (docs/plans/business-spec-adoption.md Q7): the spec validates at
+        verification stage until the target release. The stage runs on its own
+        because the CLI skips stage invariants when --check-artifacts/--check-drift pass."""
         import shutil
         import subprocess
 
         uv_bin = shutil.which("uv")
         system_spec_bin = shutil.which("system-spec")
-        flags = [
-            str(SPEC),
-            "--stage",
-            "release",
-            "--check-artifacts",
-            "--check-drift",
-            "--root",
-            str(ROOT),
-        ]
         if uv_bin:
-            cmd = [
-                uv_bin,
-                "run",
-                "--project",
-                str(ROOT / "models"),
-                "system-spec",
-            ] + flags
+            base = [uv_bin, "run", "--project", str(ROOT / "models"), "system-spec"]
         elif system_spec_bin:
-            cmd = [system_spec_bin] + flags
+            base = [system_spec_bin]
         else:
             self.fail("Neither uv nor system-spec is available in PATH")
 
-        res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(ROOT))
-        self.assertEqual(
-            res.returncode,
-            0,
-            f"system-spec release validation failed with exit {res.returncode}:\n{res.stderr}\n{res.stdout}",
-        )
-        self.assertIn("VALID", res.stdout)
+        for flags in (
+            [str(SPEC), "--stage", "verification"],
+            [str(SPEC), "--stage", "verification", "--check-artifacts", "--check-drift", "--root", str(ROOT)],
+        ):
+            res = subprocess.run(base + flags, capture_output=True, text=True, cwd=str(ROOT))
+            self.assertEqual(
+                res.returncode,
+                0,
+                f"system-spec {' '.join(flags[1:])} failed with exit {res.returncode}:\n{res.stderr}\n{res.stdout}",
+            )
+            self.assertIn("VALID", res.stdout)
 
 
 if __name__ == "__main__":
