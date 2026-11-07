@@ -124,12 +124,19 @@ Phase 8 can run in parallel with 2-7 after phase 1. Phase 3 UI shell work can st
 4. Replace [ROADMAP.md](../../ROADMAP.md) with a phase-based roadmap derived from this plan (Q2); carry over still-valid exit evidence (component independence, distribution, Kubernetes) as cross-cutting tracks.
 5. Write ADR drafts for decisions 1-5 in section 4.
 
+## 5a. Branch strategy (decided 2026-11-07)
+
+- All work in this plan targets the long-lived `2.0` branch (created from `main` at `5b03847`). Feature PRs branch from `2.0` and merge into `2.0`.
+- `main` keeps the existing 0.x product unchanged. Fixes needed on both lines land on `main` first and are merged forward into `2.0` when relevant; nothing flows from `2.0` to `main` until 2.0 replaces it.
+- The ROADMAP.md replacement, the `spec/system.yaml` merge and the gate change happen on `2.0` only.
+- Product version on `2.0`: `2.0.0` pre-release; capability versions restart there.
+
 ## 6. Breaking changes
 
 **Policy (decided 2026-11-07):** this is a new start; breaking anything is allowed. Consequences:
 
 - No data migrations, dual-emit, backfills or deprecation periods. Schemas, APIs, `.mdl` models and the UI are redesigned to the spec.
-- `--compat` against `main` is not a gate for this work; capability versions restart (numbering decided in phase 0).
+- `--compat` against `main` is not a gate for this work; capability versions restart on `2.0` (section 5a).
 - Postgres and ClickHouse migrations may be squashed into a new baseline; existing tenants and data are not preserved.
 - Existing `spec/system.yaml` requirements, risks and evidence are kept only where they still describe the target; the rest are deprecated or deleted.
 
