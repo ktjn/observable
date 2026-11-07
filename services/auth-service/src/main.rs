@@ -106,6 +106,15 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    let internal_token = auth_service::authz::resolve_internal_token(
+        std::env::var("INTERNAL_SERVICE_TOKEN").ok(),
+        dev_mode,
+    )?;
+    let authz_state = auth_service::authz::AuthzState {
+        db: db.clone(),
+        internal_token: Arc::new(internal_token),
+    };
+
     let app = Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/readyz", get(observability::readyz))
@@ -122,15 +131,16 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/v1/auth/logout", post(auth_service::oidc::logout_handler))
         .route("/v1/auth/me", get(auth_service::oidc::me_handler))
+        .with_state(state.clone())
+        .merge(auth_service::authz::router(authz_state))
         .layer(axum::middleware::from_fn_with_state(
-            state.clone(),
+            state,
             observability::record_http_metrics,
         ))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(observable_telemetry::OtelMakeSpan::new(Level::INFO)),
-        )
-        .with_state(state);
+        );
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "auth-service listening");

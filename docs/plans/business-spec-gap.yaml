@@ -2061,8 +2061,8 @@ refinements:
     holder: platform
     phase: 1
     target: decide-access
-    status: missing
-    evidence: OpenFGA runs in Compose but no service calls it (ADR-041); no decision endpoint exists.
+    status: verified
+    evidence: Phase 1 S2. observable-auth POST /internal/authz/decide and /filter over the auth policy store (migration 047); real/mock contract suite in services/auth-service/tests/authz_contract_integration.rs and libs/observable-auth/tests/contract_mock.rs.
   req-catalog-access-control:
     priority: P0
     holder: platform

@@ -248,6 +248,7 @@ dependencies = [
  "domain",
  "http-body-util",
  "jsonwebtoken",
+ "observable-auth",
  "observable-config",
  "observable-telemetry",
  "opentelemetry",
@@ -2794,6 +2795,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "chrono",
  "observable-telemetry",
  "reqwest",
  "serde",

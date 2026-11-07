@@ -205,6 +205,7 @@ services:
       ZITADEL_API_BASE: http://zitadel:8080
       ZITADEL_REDIRECT_URI: "http://localhost:${FRONTEND_PORT:-5173}/auth/callback"
       SESSION_SECRET: ${SESSION_SECRET:-dev-session-secret-for-observable-00}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000}
       OBSERVABLE_ENV: dev
     volumes:
       - zitadel-bootstrap:/bootstrap:ro

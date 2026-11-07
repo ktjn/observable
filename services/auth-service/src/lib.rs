@@ -1,4 +1,5 @@
 pub mod audit;
+pub mod authz;
 pub mod observability;
 pub mod oidc;
 pub mod session;

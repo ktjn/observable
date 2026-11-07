@@ -77,7 +77,8 @@ service_env() {
         ZITADEL_API_BASE=http://localhost:8082 \
         ZITADEL_CLIENT_ID=local-ci \
         "ZITADEL_REDIRECT_URI=http://localhost:${FRONTEND_PORT:-5173}/auth/callback" \
-        SESSION_SECRET=${SESSION_SECRET:-dev-session-secret-for-observable-00} ;;
+        SESSION_SECRET=${SESSION_SECRET:-dev-session-secret-for-observable-00} \
+        INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000} ;;
     storage-writer)
       printf '%s\n' "${ch[@]}" STORAGE_WRITER_PORT=4320 REDPANDA_BROKERS=localhost:9092 \
         NORMALIZED_TOPIC=telemetry.normalized.v1 ;;
