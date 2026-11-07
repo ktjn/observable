@@ -49,6 +49,17 @@ The machine-checkable platform specification lives in `spec/system.yaml` and is 
 * **Model Feedback:** Report any model gaps, hidden coupling, or adapter issues as feedback per `system-spec/CONSTITUTION.md` (Self-Improvement and Model Feedback).
 * **Model Scope:** Treat [MODEL-SCOPE.md](system-spec/MODEL-SCOPE.md) as the architectural authority boundary: the metamodel is conceptual; methodology and validator are optional aids, and acceptance policy is this project's.
 
+## Business and UX verification obligations (2.0)
+
+- Treat `spec/business/` and its imported baseline as authoritative business intent. Do not edit business requirements to make generated implementation pass; apply approved changes through FEATURE.md with explicit impact and reviewer decision.
+- Run `python scripts/check-ux-contracts.py` when modifying experiences, views, UI workflows or UX-facing capabilities. This checks minimum interaction completeness and scenario links; it is **not** browser verification.
+- Before marking an OBS P0 requirement `verified`, run every declared acceptance and negative criterion and attach current passing evidence **per criterion** (`Evidence.criteria` with stable provenance and `requirement_version`). `scripts/spec-readiness.py` will not count a requirement verified merely because an unrelated passing test exists. Business/process requirements need accountable inspection evidence.
+- For each changed capability or UI experience, record linked `OBS-*` requirements, failure risks, affected UX interactions, invalidated evidence, scenario tests and independent verifier. Run negative tests for unknown/stale health, unauthorized access and action failure.
+- New internal provider components must provide dependency injection, an independently runnable harness, a versioned programmable mock and a shared real/mock contract suite. Default-deny access and purpose-based authorization apply from initial implementation, not only governance phase 8.
+- Domain boundaries in `spec/system.yaml` reflect logical responsibility, orthogonal to layers; any new cross-domain dependency requires an explicit `uses` relationship and architectural review.
+
+See [Phase 0 assurance hardening](docs/plans/phase0-assurance-hardening.md), [UX contracts](spec/business/experience/ux-workflows.yaml) and [ADR-042](spec/adr/ADR-042-operational-domain-boundaries.md).
+
 ## Modelable Emitter Limitations (Manual Patches Required)
 
 **Never hand-edit a file under a `generated/` directory.** Files generated from `.mdl` sources (e.g. `apps/frontend/src/api/generated/`, `libs/observable-storage-contracts/src/generated/`) are overwritten by `scripts/regenerate-models.sh` and must never be edited directly to add or change fields — doing so silently drifts the generated code from its `.mdl` source of truth, and the next regeneration silently reverts the hand-edit, breaking anything that depended on it. To add or change a field, edit the relevant `models/*.mdl` file and run `scripts/regenerate-models.sh`; the only edits allowed directly in a `generated/` file are the documented manual patches listed below, which the script is not yet able to apply automatically.

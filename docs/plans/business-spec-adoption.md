@@ -165,3 +165,8 @@ Known areas that change shape (redesign, not migration): health states, service 
 - **Q4.** Decided 2026-11-07: own incidents, on-call and status communication, and integrate with external tooling.
 - **Q5.** Delegated 2026-11-07; chosen: new component `observable-catalog`.
 - **Q6.** Decided 2026-11-07: no standalone fix; wait for phase 2.
+
+
+## 9. Phase 0 assurance hardening (2026-11-07)
+
+The Phase 0 integration was completed on `2.0` before implementation. Additional specification controls are recorded in [phase0-assurance-hardening.md](phase0-assurance-hardening.md): complete UX interactions with linked failure scenarios; criterion-level verification readiness; provider-owned programmable mocks; early purpose-bound authorization; orthogonal implementation domains; immutable OBS baseline provenance. The implementation scope and 293 OBS requirements remain unchanged. None of these model-only changes establishes new runtime compliance or passing evidence.

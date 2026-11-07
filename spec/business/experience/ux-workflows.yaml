@@ -179,6 +179,7 @@ views:
   - open-shared-link
   - request-elevation
   - inspect-evidence
+  - search-restricted
   state_sets:
   - baseline
   states:
@@ -277,6 +278,45 @@ experiences:
     - units_and_sampling_visible
     failure_modes:
       restricted-evidence: unauthorized
+  - id: ux-02-refine-filter
+    from_view: visual-exploration
+    to_view: visual-exploration
+    trigger: refine-filter
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Authorized attribute filters incrementally narrow observations without resetting time context.
+    invariants:
+    - scope_not_silently_changed
+    failure_modes:
+      refine-filter-failure: error
+  - id: ux-02-compare-baseline
+    from_view: visual-exploration
+    to_view: visual-exploration
+    trigger: compare-baseline
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: An aligned baseline comparison shows differences in period length, units and missing data.
+    invariants:
+    - scope_not_silently_changed
+    failure_modes:
+      compare-baseline-failure: error
+  - id: ux-02-inspect-evidence
+    from_view: visual-exploration
+    to_view: visual-exploration
+    trigger: open-evidence
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: The selected point exposes contributing authorized observations; restricted evidence stays hidden.
+    invariants:
+    - scope_not_silently_changed
+    failure_modes:
+      inspect-evidence-failure: unauthorized
   scenarios:
   - id: ux-02-success
     kind: positive
@@ -302,6 +342,55 @@ experiences:
     - ux-02-transition
     states:
     - visual-exploration.unauthorized
+  - id: ux-02-refine-filter-success
+    kind: positive
+    requirements:
+    - OBS-22-12
+    interactions:
+    - ux-02-refine-filter
+    states:
+    - visual-exploration.ready
+  - id: ux-02-refine-filter-failure
+    kind: negative
+    requirements:
+    - OBS-22-12
+    interactions:
+    - ux-02-refine-filter
+    states:
+    - visual-exploration.error
+  - id: ux-02-compare-baseline-success
+    kind: positive
+    requirements:
+    - OBS-22-01
+    interactions:
+    - ux-02-compare-baseline
+    states:
+    - visual-exploration.ready
+  - id: ux-02-compare-baseline-failure
+    kind: negative
+    requirements:
+    - OBS-22-01
+    interactions:
+    - ux-02-compare-baseline
+    states:
+    - visual-exploration.error
+  - id: ux-02-inspect-evidence-success
+    kind: positive
+    requirements:
+    - OBS-22-03
+    interactions:
+    - ux-02-inspect-evidence
+    states:
+    - visual-exploration.ready
+  - id: ux-02-inspect-evidence-failure
+    kind: negative
+    requirements:
+    - OBS-22-03
+    interactions:
+    - ux-02-inspect-evidence
+    states:
+    - visual-exploration.unauthorized
+
 - id: UX-03
   description: Transaction investigation
   critical: true
@@ -334,6 +423,32 @@ experiences:
     - missing_step_shown_as_gap
     failure_modes:
       unauthorized-lookup: unauthorized
+  - id: ux-03-search-reference
+    from_view: transaction-lookup
+    to_view: transaction-lookup
+    trigger: search-transaction
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: A purpose-bound, audited search returns only authorized matching business references.
+    invariants:
+    - scope_not_silently_changed
+    failure_modes:
+      search-reference-failure: unauthorized
+  - id: ux-03-inspect-step
+    from_view: transaction-detail
+    to_view: transaction-detail
+    trigger: inspect-step
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: A selected processing step exposes timing, observed result and any evidence gap without inventing success.
+    invariants:
+    - scope_not_silently_changed
+    failure_modes:
+      inspect-step-failure: stale
   scenarios:
   - id: ux-03-success
     kind: positive
@@ -355,6 +470,39 @@ experiences:
     - ux-03-transition
     states:
     - transaction-detail.unauthorized
+  - id: ux-03-search-reference-success
+    kind: positive
+    requirements:
+    - OBS-31-01
+    interactions:
+    - ux-03-search-reference
+    states:
+    - transaction-lookup.ready
+  - id: ux-03-search-reference-failure
+    kind: negative
+    requirements:
+    - OBS-31-01
+    interactions:
+    - ux-03-search-reference
+    states:
+    - transaction-lookup.unauthorized
+  - id: ux-03-inspect-step-success
+    kind: positive
+    requirements:
+    - OBS-31-02
+    interactions:
+    - ux-03-inspect-step
+    states:
+    - transaction-detail.ready
+  - id: ux-03-inspect-step-failure
+    kind: negative
+    requirements:
+    - OBS-31-02
+    interactions:
+    - ux-03-inspect-step
+    states:
+    - transaction-detail.stale
+
 - id: UX-04
   description: Incident response
   critical: true
@@ -409,6 +557,58 @@ experiences:
     - hypothesis_never_styled_as_confirmed_cause
     failure_modes:
       action-failed: failed
+  - id: ux-04-acknowledge
+    from_view: incident-investigation
+    to_view: incident-investigation
+    trigger: acknowledge
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Acknowledgement is only shown completed after confirmation from its authoritative owner.
+    invariants:
+    - scope_not_silently_changed
+    failure_modes:
+      acknowledge-failure: failed
+  - id: ux-04-inspect-evidence
+    from_view: incident-investigation
+    to_view: incident-investigation
+    trigger: inspect-evidence
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: The responder can inspect the evidence underlying impact and timeline without losing incident scope.
+    invariants:
+    - scope_not_silently_changed
+    failure_modes:
+      inspect-evidence-failure: unauthorized
+  - id: ux-04-record-hypothesis
+    from_view: incident-investigation
+    to_view: incident-investigation
+    trigger: record-hypothesis
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: An investigator records an attributed hypothesis visibly distinct from a confirmed conclusion.
+    invariants:
+    - scope_not_silently_changed
+    failure_modes:
+      record-hypothesis-failure: error
+  - id: ux-04-retry-action
+    from_view: incident-investigation
+    to_view: incident-investigation
+    trigger: retry
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: A failed incident action can be retried safely, with no duplicate acknowledgement or false success.
+    invariants:
+    - scope_not_silently_changed
+    failure_modes:
+      retry-action-failure: failed
   scenarios:
   - id: ux-04-success
     kind: positive
@@ -441,6 +641,71 @@ experiences:
     states:
     - incident-investigation.error
     - incident-investigation.failed
+  - id: ux-04-acknowledge-success
+    kind: positive
+    requirements:
+    - OBS-23-05
+    interactions:
+    - ux-04-acknowledge
+    states:
+    - incident-investigation.ready
+  - id: ux-04-acknowledge-failure
+    kind: negative
+    requirements:
+    - OBS-23-05
+    interactions:
+    - ux-04-acknowledge
+    states:
+    - incident-investigation.failed
+  - id: ux-04-inspect-evidence-success
+    kind: positive
+    requirements:
+    - OBS-23-03
+    interactions:
+    - ux-04-inspect-evidence
+    states:
+    - incident-investigation.ready
+  - id: ux-04-inspect-evidence-failure
+    kind: negative
+    requirements:
+    - OBS-23-03
+    interactions:
+    - ux-04-inspect-evidence
+    states:
+    - incident-investigation.unauthorized
+  - id: ux-04-record-hypothesis-success
+    kind: positive
+    requirements:
+    - OBS-23-11
+    interactions:
+    - ux-04-record-hypothesis
+    states:
+    - incident-investigation.ready
+  - id: ux-04-record-hypothesis-failure
+    kind: negative
+    requirements:
+    - OBS-23-11
+    interactions:
+    - ux-04-record-hypothesis
+    states:
+    - incident-investigation.error
+  - id: ux-04-retry-action-success
+    kind: positive
+    requirements:
+    - OBS-24-09
+    interactions:
+    - ux-04-retry-action
+    states:
+    - incident-investigation.ready
+  - id: ux-04-retry-action-failure
+    kind: negative
+    requirements:
+    - OBS-24-09
+    interactions:
+    - ux-04-retry-action
+    states:
+    - incident-investigation.failed
+
 - id: UX-05
   description: Dependency exploration
   critical: true
@@ -536,6 +801,32 @@ experiences:
     - unconfirmed_action_never_shown_completed
     failure_modes:
       connectivity-lost: offline
+  - id: ux-06-acknowledge
+    from_view: mobile-notification
+    to_view: mobile-notification
+    trigger: acknowledge
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: The mobile responder sees acknowledgement pending until server confirmation; offline is not success.
+    invariants:
+    - scope_not_silently_changed
+    failure_modes:
+      acknowledge-failure: offline
+  - id: ux-06-retry
+    from_view: mobile-notification
+    to_view: mobile-notification
+    trigger: retry
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: After reconnection the responder reconciles the authoritative acknowledgement state before retrying.
+    invariants:
+    - scope_not_silently_changed
+    failure_modes:
+      retry-failure: offline
   scenarios:
   - id: ux-06-success
     kind: positive
@@ -559,6 +850,39 @@ experiences:
     - ux-06-transition
     states:
     - mobile-notification.offline
+  - id: ux-06-acknowledge-success
+    kind: positive
+    requirements:
+    - OBS-24-12
+    interactions:
+    - ux-06-acknowledge
+    states:
+    - mobile-notification.ready
+  - id: ux-06-acknowledge-failure
+    kind: negative
+    requirements:
+    - OBS-24-12
+    interactions:
+    - ux-06-acknowledge
+    states:
+    - mobile-notification.offline
+  - id: ux-06-retry-success
+    kind: positive
+    requirements:
+    - OBS-24-09
+    interactions:
+    - ux-06-retry
+    states:
+    - mobile-notification.ready
+  - id: ux-06-retry-failure
+    kind: negative
+    requirements:
+    - OBS-24-09
+    interactions:
+    - ux-06-retry
+    states:
+    - mobile-notification.offline
+
 - id: UX-07
   description: Degraded observability
   critical: true
@@ -746,6 +1070,45 @@ experiences:
     - elevated_access_visibly_marked_and_recorded
     failure_modes:
       access-denied: unauthorized
+  - id: ux-10-search-restricted
+    from_view: restricted-investigation
+    to_view: restricted-investigation
+    trigger: search-restricted
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Search does not reveal a restricted incident's existence, identifiers or content.
+    invariants:
+    - scope_not_silently_changed
+    failure_modes:
+      search-restricted-failure: unauthorized
+  - id: ux-10-request-elevation
+    from_view: restricted-investigation
+    to_view: restricted-investigation
+    trigger: request-elevation
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Approved elevation is explicit, scoped, time-bound and visible before privileged action.
+    invariants:
+    - scope_not_silently_changed
+    failure_modes:
+      request-elevation-failure: error
+  - id: ux-10-inspect-evidence
+    from_view: restricted-investigation
+    to_view: restricted-investigation
+    trigger: inspect-evidence
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Evidence only appears after authorization; audit records active purpose and elevation.
+    invariants:
+    - scope_not_silently_changed
+    failure_modes:
+      inspect-evidence-failure: unauthorized
   scenarios:
   - id: ux-10-success
     kind: positive
@@ -766,5 +1129,53 @@ experiences:
     - OBS-20-02
     interactions:
     - ux-10-entry
+    states:
+    - restricted-investigation.unauthorized
+  - id: ux-10-search-restricted-success
+    kind: positive
+    requirements:
+    - OBS-20-02
+    interactions:
+    - ux-10-search-restricted
+    states:
+    - restricted-investigation.ready
+  - id: ux-10-search-restricted-failure
+    kind: negative
+    requirements:
+    - OBS-20-02
+    interactions:
+    - ux-10-search-restricted
+    states:
+    - restricted-investigation.unauthorized
+  - id: ux-10-request-elevation-success
+    kind: positive
+    requirements:
+    - OBS-25-03
+    interactions:
+    - ux-10-request-elevation
+    states:
+    - restricted-investigation.ready
+  - id: ux-10-request-elevation-failure
+    kind: negative
+    requirements:
+    - OBS-25-03
+    interactions:
+    - ux-10-request-elevation
+    states:
+    - restricted-investigation.error
+  - id: ux-10-inspect-evidence-success
+    kind: positive
+    requirements:
+    - OBS-25-02
+    interactions:
+    - ux-10-inspect-evidence
+    states:
+    - restricted-investigation.ready
+  - id: ux-10-inspect-evidence-failure
+    kind: negative
+    requirements:
+    - OBS-25-02
+    interactions:
+    - ux-10-inspect-evidence
     states:
     - restricted-investigation.unauthorized

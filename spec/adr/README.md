@@ -49,3 +49,6 @@ Architecture Decision Records (ADRs) capture significant technology and design c
 | [ADR-039](ADR-039-health-assessment-capability.md) | Health Assessment as a Domain Capability | Proposed | New `observable-health` evaluates configurable five-state health with evidence age; absent evidence is unknown |
 | [ADR-040](ADR-040-incident-response-ownership.md) | Own Incident Response and Integrate External Tooling | Proposed | New `observable-response` owns incidents, guidance and status communication; adapters exchange context with external tools |
 | [ADR-041](ADR-041-purpose-bound-authorization.md) | Purpose-Bound and Existence-Hiding Authorization | Proposed | Single policy decision point in `observable-auth` with purpose and elevation context; restricted records never returned or counted |
+
+
+- [ADR-042 — Operational domain boundaries](ADR-042-operational-domain-boundaries.md): orthogonal implementation domains, dependency directions and P0 verification prerequisites (proposed on 2.0).

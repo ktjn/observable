@@ -2,9 +2,9 @@
 """Business-spec readiness report for the 2.0 line.
 
 Reads spec/system.yaml (with includes) and docs/plans/business-spec-gap.yaml and
-prints, per plan phase, how many OBS requirements are verified, partial or
+prints, per plan phase, how many OBS requirements have full criterion evidence, partial or
 missing. A requirement counts as verified only when its status is `verified`
-and it has passing evidence for its version.
+and each criterion has current passing evidence for its version.
 
 Usage:
   uv run --project models python scripts/spec-readiness.py [--priority P0] [--phase N] [--json]
@@ -50,7 +50,10 @@ def main(argv: list[str] | None = None) -> int:
         spec = _load_spec_fallback()
     gap = yaml.safe_load(GAP.read_text(encoding="utf-8"))["requirements"]
     reqs = {r.id: r for r in spec.requirements if r.id.startswith("OBS-") and r.status != "deprecated"}
-    passing = {(e.requirement_id, e.requirement_version) for e in spec.evidence if e.passed}
+    passing_criteria = defaultdict(set)
+    for e in spec.evidence:
+        if e.passed and e.criteria:
+            passing_criteria[(e.requirement_id, e.requirement_version)].update(e.criteria)
 
     missing_in_gap = sorted(set(reqs) - set(gap))
     extra_in_gap = sorted(set(gap) - set(reqs))
@@ -66,7 +69,11 @@ def main(argv: list[str] | None = None) -> int:
             continue
         if a.phase is not None and g["phase"] != a.phase:
             continue
-        verified = r.status == "verified" and (rid, r.version) in passing
+        verified = (
+            r.status == "verified"
+            and bool(r.criteria)
+            and set(r.criteria).issubset(passing_criteria.get((rid, r.version), set()))
+        )
         state = "verified" if verified else g["status"]
         rows[g["phase"]][state] += 1
         rows[g["phase"]]["total"] += 1

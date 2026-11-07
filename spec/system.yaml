@@ -8,6 +8,29 @@ system:
     - application
     - domain
     - infrastructure
+  domains:
+    - id: operational-experience
+      description: User-facing operational journeys and interaction contracts.
+      uses: [investigation, service-control, incident-response, identity]
+    - id: ingestion
+      description: Telemetry admission and transport.
+      uses: [identity, processing, service-control]
+    - id: investigation
+      description: Telemetry query and evidence exploration.
+      uses: [identity, service-control, incident-response, telemetry-storage]
+    - id: service-control
+      description: Configuration, catalog coordination and control-plane state.
+      uses: [identity, telemetry-storage]
+    - id: incident-response
+      description: Detection and incident domain responsibilities.
+      uses: [identity, telemetry-storage]
+    - id: processing
+      description: Telemetry transformation and normalization.
+      uses: [telemetry-storage]
+    - id: identity
+      description: Authentication and authorization decisions.
+    - id: telemetry-storage
+      description: Durable telemetry persistence and retrieval contracts.
   external_sources:
     - otel-collectors
     - oidc-idp
@@ -23,6 +46,7 @@ components:
     version: "0.1.0"
     status: verified
     layer: experience
+    domain: operational-experience
     consistency: strong
     source_paths:
       - apps/frontend
@@ -39,6 +63,7 @@ components:
     version: "0.1.0"
     status: verified
     layer: application
+    domain: ingestion
     consistency: eventual
     source_paths:
       - services/ingest-gateway
@@ -53,6 +78,7 @@ components:
     version: "0.1.0"
     status: verified
     layer: application
+    domain: investigation
     consistency: strong
     source_paths:
       - services/query-api
@@ -74,6 +100,7 @@ components:
     version: "0.1.0"
     status: verified
     layer: domain
+    domain: service-control
     consistency: strong
     test_scope: integration
     source_paths:
@@ -97,6 +124,7 @@ components:
     version: "0.1.0"
     status: verified
     layer: domain
+    domain: incident-response
     consistency: strong
     test_scope: integration
     source_paths:
@@ -117,6 +145,7 @@ components:
     version: "0.1.0"
     status: verified
     layer: domain
+    domain: processing
     consistency: eventual
     source_paths:
       - services/stream-processor
@@ -130,6 +159,7 @@ components:
     version: "0.1.0"
     status: verified
     layer: infrastructure
+    domain: identity
     consistency: strong
     source_paths:
       - services/auth-service
@@ -146,6 +176,7 @@ components:
     version: "0.1.0"
     status: verified
     layer: infrastructure
+    domain: telemetry-storage
     consistency: eventual
     source_paths:
       - services/storage-writer
