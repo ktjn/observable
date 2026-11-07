@@ -68,6 +68,13 @@ cleanup_smoke_compose() {
 
   stop_lanes
 
+  # Host services run in their own sessions (setsid) inside a lane, so neither
+  # stopping the lanes' process groups nor a flag set in the lane reaches them;
+  # their pid files do.
+  if compgen -G "$LOG_DIR/stack/*.pid" >/dev/null; then
+    bash "$REPO_ROOT/scripts/local-stack.sh" services-down || true
+  fi
+
   if [[ $SMOKE_COMPOSE_STARTED -eq 1 ]]; then
     step "Compose cleanup"
     if docker compose --profile verification down --remove-orphans; then
@@ -96,6 +103,12 @@ SKIP_MODELABLE=${SKIP_MODELABLE:-0}
 SKIP_SMOKE=${SKIP_SMOKE:-0}
 PARALLEL=${LOCAL_CI_PARALLEL:-1}
 KEEP_GOING=${LOCAL_CI_KEEP_GOING:-0}
+# 0 (default): services run as host executables against the backing stack from
+# scripts/local-stack.sh. 1: also build every Docker image and run the smoke
+# tests against the containerized services (release-equivalent, slow).
+CONTAINERS=${LOCAL_CI_CONTAINERS:-0}
+FRESH_STACK=${LOCAL_CI_FRESH_STACK:-0}
+STOP_STACK=${LOCAL_CI_STOP_STACK:-0}
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -106,6 +119,9 @@ while [[ $# -gt 0 ]]; do
     --skip-smoke)      SKIP_SMOKE=1      ;;
     --serial)          PARALLEL=0        ;;
     --keep-going)      KEEP_GOING=1      ;;
+    --containers)      CONTAINERS=1      ;;
+    --fresh-stack)     FRESH_STACK=1     ;;
+    --stop-stack)      STOP_STACK=1      ;;
     *) echo "Unknown flag: $1"; exit 1   ;;
   esac
   shift
@@ -281,20 +297,95 @@ check_modelable() {
   fi
 }
 
+start_backing_stack() {
+  # Starts in the background so container start-up and migrations overlap
+  # fmt/clippy; tests wait for it in wait_backing_stack.
+  if [[ $FRESH_STACK -eq 1 ]]; then
+    docker compose down --volumes --remove-orphans >"$LOG_DIR/stack.log" 2>&1 || true
+  fi
+  bash "$REPO_ROOT/scripts/local-stack.sh" up >>"$LOG_DIR/stack.log" 2>&1 &
+  STACK_PID=$!
+}
+
+wait_backing_stack() {
+  step "Backing stack (ClickHouse, Redpanda, PostgreSQL)"
+  if wait "$STACK_PID"; then
+    eval "$(bash "$REPO_ROOT/scripts/local-stack.sh" env)"
+    ok "backing stack ($(tail -n 1 "$LOG_DIR/stack.log"))"
+  else
+    tail -n 60 "$LOG_DIR/stack.log"
+    fail "backing stack (log: .local-ci/stack.log)"
+  fi
+}
+
+run_rust_tests() {
+  local label=$1 filter=$2
+  if command -v cargo-nextest >/dev/null 2>&1; then
+    # Integration tests mostly wait on the backing stack; 2x cores keeps the
+    # CPU busy (measured: 4 threads 94s, 8 threads 65s on 4 vCPU).
+    local threads=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4) * 2 ))
+    cargo nextest run --workspace --lib --bins --tests --profile local-ci --no-tests=warn \
+      --test-threads "${LOCAL_CI_TEST_THREADS:-$threads}" -E "$filter" \
+      && ok "$label" || fail "$label"
+  else
+    say "${YELLOW}cargo-nextest not found; falling back to cargo test (install: cargo install cargo-nextest --locked)${NC}"
+    if [[ $filter == 'kind(lib) | kind(bin)' ]]; then
+      cargo test --workspace --lib --bins && ok "$label" || fail "$label"
+    else
+      cargo test --workspace --lib --bins && cargo test --workspace --tests && ok "$label" || fail "$label"
+    fi
+  fi
+}
+
 lane_rust() {
+  if [[ $SKIP_DOCKER -eq 0 ]]; then
+    start_backing_stack
+  fi
+
   step "Rust fmt"
   cargo fmt --all -- --check && ok "cargo fmt" || fail "cargo fmt"
 
   step "Rust clippy"
   cargo clippy --workspace --all-targets -- -D warnings && ok "cargo clippy" || fail "cargo clippy"
 
-  step "Rust unit tests"
-  cargo test --workspace --lib --bins && ok "cargo unit tests" || fail "cargo unit tests"
-
-  if [[ $SKIP_DOCKER -eq 0 ]]; then
-    step "Rust integration tests"
-    cargo test --workspace --tests && ok "cargo integration tests" || fail "cargo integration tests"
+  if [[ $SKIP_DOCKER -eq 1 ]]; then
+    step "Rust unit tests"
+    run_rust_tests "cargo unit tests" 'kind(lib) | kind(bin)'
+    return
   fi
+
+  # Compile before waiting on the stack so the build overlaps its start-up.
+  step "Rust test build"
+  if command -v cargo-nextest >/dev/null 2>&1; then
+    cargo nextest run --workspace --lib --bins --tests --no-run && ok "rust test build" || fail "rust test build"
+  else
+    cargo test --workspace --lib --bins --tests --no-run && ok "rust test build" || fail "rust test build"
+  fi
+
+  wait_backing_stack
+
+  # Unit and integration tests (cargo test --workspace --tests coverage) in one
+  # nextest run: one process per test, scheduled across all cores.
+  step "Rust unit + integration tests"
+  run_rust_tests "cargo unit + integration tests" 'all()'
+
+  if [[ $CONTAINERS -eq 0 && $SKIP_SMOKE -eq 0 ]]; then
+    host_smoke
+  fi
+}
+
+host_smoke() {
+  step "Host services start"
+  # Binaries come from the test build above (target/debug).
+  bash "$REPO_ROOT/scripts/local-stack.sh" services-up && ok "host services" || fail "host services (logs: .local-ci/stack/)"
+
+  step "Smoke test (host services)"
+  bash "$REPO_ROOT/scripts/local-stack.sh" smoke-test && ok "smoke-test" || fail "smoke-test (service logs: .local-ci/stack/)"
+
+  step "Performance smoke (host services)"
+  bash "$REPO_ROOT/scripts/local-stack.sh" perf-smoke && ok "perf-smoke" || fail "perf-smoke"
+
+  bash "$REPO_ROOT/scripts/local-stack.sh" services-down
 }
 
 lane_frontend() {
@@ -311,7 +402,8 @@ lane_frontend() {
   npm run test --workspace=apps/frontend -- --run && ok "tests" || fail "tests"
 
   step "Frontend browser tests"
-  CI=true npm run test:a11y --workspace=apps/frontend && ok "frontend browser tests" || fail "frontend browser tests (install Chromium with: npx playwright install chromium)"
+  # Served from the dist/ built above (vite preview), one worker per core.
+  CI=true FRONTEND_PREBUILT=1 npm run test:a11y --workspace=apps/frontend -- --workers=100% && ok "frontend browser tests" || fail "frontend browser tests (install Chromium with: npx playwright install chromium)"
 
   step "Playground build"
   bash scripts/build-playground.sh && ok "playground build" || fail "playground build"
@@ -319,7 +411,7 @@ lane_frontend() {
   step "Playground browser smoke"
   (cd apps/frontend && CI=true PLAYGROUND_PREBUILT=1 npx playwright test --config=playwright.playground.config.ts) && ok "playground smoke" || fail "playground smoke"
 
-  if [[ $SKIP_DOCKER -eq 0 ]]; then
+  if [[ $SKIP_DOCKER -eq 0 && $CONTAINERS -eq 1 ]]; then
     step "Frontend image build"
     docker compose build frontend && ok "frontend image build" || fail "frontend image build"
   fi
@@ -402,13 +494,13 @@ start_lane rust lane_rust
 if [[ $SKIP_FRONTEND -eq 0 ]]; then
   start_lane frontend lane_frontend
 fi
-if [[ $SKIP_DOCKER -eq 0 ]]; then
+if [[ $SKIP_DOCKER -eq 0 && $CONTAINERS -eq 1 ]]; then
   start_lane images lane_images
 fi
 [[ $PARALLEL -eq 0 ]] || wait_lanes
 set +m
 
-if [[ $SKIP_DOCKER -eq 0 && $SKIP_SMOKE -eq 0 ]]; then
+if [[ $SKIP_DOCKER -eq 0 && $SKIP_SMOKE -eq 0 && $CONTAINERS -eq 1 ]]; then
   step "Smoke test"
   SMOKE_COMPOSE_STARTED=1
   if docker compose up smoke-test --abort-on-container-exit; then
@@ -421,8 +513,14 @@ if [[ $SKIP_DOCKER -eq 0 && $SKIP_SMOKE -eq 0 ]]; then
   fi
 fi
 
+if [[ $SKIP_DOCKER -eq 0 && $STOP_STACK -eq 1 ]]; then
+  bash "$REPO_ROOT/scripts/local-stack.sh" down >/dev/null
+fi
+
 if [[ $SKIP_DOCKER -eq 1 || $SKIP_FRONTEND -eq 1 || $SKIP_HELM -eq 1 || $SKIP_MODELABLE -eq 1 || $SKIP_SMOKE -eq 1 ]]; then
   echo -e "\n${YELLOW}${BOLD}Selected checks passed; skipped stages are NOT validated.${NC}"
+elif [[ $CONTAINERS -eq 0 ]]; then
+  echo -e "\n${GREEN}${BOLD}All checks passed${NC} (host services; Docker images not built, use --containers for release-equivalent image checks)."
 else
   echo -e "\n${GREEN}${BOLD}All checks passed.${NC}"
 fi

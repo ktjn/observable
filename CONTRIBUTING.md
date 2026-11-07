@@ -28,6 +28,19 @@ the codebase reviewable and regression-free — please read this before opening 
    before they reach CI. See flags to skip stages (`--skip-docker`, `--skip-frontend`,
    `--skip-helm`, `--skip-smoke`) if a dependency isn't available locally, and state which
    stages you skipped in your PR description.
+
+   By default the gate runs the Rust services as host executables (`target/debug`) against a
+   backing container stack (ClickHouse, Redpanda, PostgreSQL) from `scripts/local-stack.sh`, and
+   runs Rust tests with [cargo-nextest](https://nexte.st) (`cargo install cargo-nextest --locked`;
+   falls back to `cargo test`). The stack stays up between runs for reuse; `--fresh-stack`
+   recreates it with empty volumes, `--stop-stack` stops it afterwards. Pass `--containers` for
+   the release-equivalent path: Docker image builds, image verification and the Compose smoke
+   tests. Run it when you touch a `Dockerfile`, `docker-compose.yml` service definitions or
+   packaging. To run tests by hand against the stack:
+   ```bash
+   bash scripts/local-stack.sh up && eval "$(bash scripts/local-stack.sh env)"
+   cargo nextest run --workspace
+   ```
 5. **For any Rust change**, run `cargo fmt --all` before staging and committing — Rust
    formatting is enforced inside the Docker build.
 6. **Keep docs in sync.** If your change affects architecture, the data model, security, or

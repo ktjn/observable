@@ -11,10 +11,7 @@ use axum::{
 use http_body_util::BodyExt as _;
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
-use std::path::Path;
 use std::sync::Arc;
-use testcontainers::{ImageExt, runners::AsyncRunner};
-use testcontainers_modules::postgres::Postgres;
 use tower::ServiceExt;
 
 fn test_state(db: PgPool) -> OidcState {
@@ -49,46 +46,8 @@ fn test_app(state: OidcState) -> Router {
         .with_state(state)
 }
 
-async fn apply_migrations(pool: &PgPool) {
-    let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/postgres");
-
-    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
-        .expect("migrations/postgres must exist")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        sqlx::raw_sql(sqlx::AssertSqlSafe(sql))
-            .execute(pool)
-            .await
-            .expect("migration applied");
-    }
-}
-
-async fn start_pool() -> (
-    PgPool,
-    testcontainers::ContainerAsync<testcontainers_modules::postgres::Postgres>,
-) {
-    let container = Postgres::default()
-        .with_tag("17")
-        .start()
-        .await
-        .expect("postgres container started");
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = observable_config::with_search_path(&format!(
-        "postgres://postgres:postgres@127.0.0.1:{port}/postgres"
-    ));
-    let pool = PgPool::connect(&url).await.expect("pool connected");
-    apply_migrations(&pool).await;
-    (pool, container)
+async fn start_pool() -> (PgPool, test_support::postgres::TestDatabase) {
+    test_support::postgres::isolated_pool().await
 }
 
 #[tokio::test]
@@ -112,8 +71,11 @@ async fn auth_service_readyz_returns_200_when_postgres_is_reachable() {
 
 #[tokio::test]
 async fn auth_service_readyz_returns_503_when_postgres_is_unavailable() {
+    // Fail fast: the default 30s acquire timeout made this the slowest test
+    // in the workspace while asserting nothing about the timeout itself.
     let pool = PgPoolOptions::new()
         .max_connections(1)
+        .acquire_timeout(std::time::Duration::from_millis(500))
         .connect_lazy("postgres://user:pass@127.0.0.1:1/db")
         .expect("lazy postgres pool");
     let app = test_app(test_state(pool));
