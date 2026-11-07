@@ -4,7 +4,7 @@
 
 ### 19.1 Recommended Runtime
 
-Kubernetes-first.
+Kubernetes is the production orchestration target. Docker Compose and single-node evaluation are supported deployment profiles, not second-class development-only modes; do not require Kubernetes to evaluate Observable.
 
 Reasons:
 - operability
@@ -551,12 +551,12 @@ analysis (spec §19.3), replacing this script when that tooling is provisioned.
 - tonic / gRPC
 - protobuf
 - Arrow
-- DataFusion
+- DataFusion only when federation/custom execution is justified by a benchmark (ADR-005)
 - Kafka/Redpanda class broker
-- ClickHouse for logs, traces, and metrics
+- ClickHouse for logs, traces, and metrics by default; VictoriaMetrics/VictoriaLogs benchmark candidates only (ADR-045)
 - object storage
 - OTel Collector distribution
-- OpenFGA for fine-grained auth
+- Tenant/purpose-aware authorization as a capability; OpenFGA is conditional on demonstrated ReBAC needs (ADR-008)
 
 **Frontend**
 - React 19

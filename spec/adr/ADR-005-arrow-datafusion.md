@@ -1,47 +1,33 @@
-# ADR-005: Arrow/DataFusion Query Layer
+# ADR-005: ClickHouse-first query execution; DataFusion conditional
 
-**Date:** 2026-04-15 (updated 2026-04-22)  
-**Status:** Accepted (Implementation Deferred)  
-**Authors:** Gemini CLI  
-**Deciders:** Project Stakeholders  
-**Review date:** 2026-04-22  
+**Original decision:** 2026-04-15  
+**Revised:** 2026-11-07  
+**Status:** Accepted — DataFusion is optional, not a 2.0 prerequisite
 
 ## Context
 
-The platform requires a high-performance, extensible query layer capable of federating queries across multiple storage engines (ClickHouse, object storage, TSDB). It must handle complex analytical queries with low latency and support custom operators for observability-specific logic.
+Observable currently generates and executes scoped ClickHouse SQL through a Rust query facade. Adding a second general-purpose execution engine before demonstrated cross-source needs increases query-plan complexity, latency risk, maintenance and duplicated optimization work. Business capabilities and experience contracts do not require DataFusion.
 
 ## Decision
 
-The **query substrate will be built using Apache Arrow as the in-memory format and Apache DataFusion as the query engine**. DataFusion, a Rust-native, extensible query engine, provides a strong foundation for building a unified, multi-signal query API.
+- Keep the Rust query API, semantic query/planner abstraction and storage-independent public contracts.
+- Use ClickHouse as the default execution and aggregation engine for logs, traces, metrics and business evidence in 2.0.
+- Push predicate, time range, tenant scope, aggregation and limits to the storage engine wherever supported.
+- Apache Arrow remains an **optional** interchange/in-memory representation when it provides measured value; it is not mandatory for every query path.
+- Introduce Apache DataFusion only through a separate design/ADR supported by workload evidence: unavoidable cross-source federation, reusable custom operators or local columnar computation that a single engine cannot efficiently perform.
+- Keep the source of the authorization decision outside the generated SQL. Mandatory tenant/purpose enforcement and query-budget validation must hold regardless of optimizer or storage adapter.
+- Do not introduce DataFusion just to implement MetricsQL, LogsQL, dashboards or trace-log correlation.
 
-### Implementation Status Update (2026-04-22)
+## Adoption test
 
-As of P3-S7b, the project has introduced a `QueryPlanner` abstraction in `query-api` to encapsulate SQL generation. While DataFusion remains the target for Phase 4 (v1 production readiness) and federated query support, the current implementation continues to use direct ClickHouse SQL to minimize immediate complexity during Phase 3. The `QueryPlanner` provides the injection point for DataFusion when needed.
+Prove the need with realistic traces, logs, metric series and business evidence. Measure P50/P95 latency, memory, query correctness, tenant isolation, planner complexity and operational cost against direct query execution. Include negative authorization and failure cases. The implementation must preserve the existing capability contracts and UX scenarios.
 
 ## Consequences
 
-**Easier:** 
-- Federated queries across multiple engines.
-- Unified, columnar in-memory format (Arrow).
-- Extensible via custom physical and logical plans.
-- Built-in SQL support and query optimization.
-
-**Harder:** 
-- Requires significant custom implementation for observability-specific operators (e.g., trace waterfall reconstruction, percentile rollups).
-- Integration with external storage engines (ClickHouse) needs a custom connector.
-
-**Constrained:** 
-- The query API's execution model is tied to DataFusion's capabilities and architecture.
-
-## Alternatives Considered
-
-### Option A: Custom-built Query Engine
-Rejected due to high development effort and risk compared to leveraging the well-tested DataFusion core.
-
-### Option B: DuckDB
-Rejected because DataFusion offers better extensibility and is natively built in Rust, aligning with ADR-004.
+The 2.0 execution model stays simple. Federation may later use DataFusion, but is not a committed milestone. A future metric/log store adapter may use a native query language without a system-wide DataFusion dependency.
 
 ## Related
 
-- `spec/03-storage.md` (Query Engine and Compute)
-- `spec/adr/ADR-004: Rust for Data Plane Services`
+- [Storage engine evaluation](ADR-045-victoria-storage-evaluation.md)
+- [Storage specification](../03-storage.md)
+- [Business verification plan](../../docs/plans/phase0-assurance-hardening.md)

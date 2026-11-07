@@ -12,7 +12,7 @@
 | Build | Vite 8 | Sub-second HMR; production-optimized output |
 | Server state | TanStack Query | Request dedup, caching, background refresh—essential for polling dashboards |
 | Routing | TanStack Router (typed routes) | URL = full application state; enables deep links and compare mode |
-| Visualization | `@grafana/ui` + `@grafana/scenes` (Apache-2.0) | Production-grade observability charts; no AGPL obligation (see ADR-016) |
+| Visualization | Observable-owned visualization contracts with interchangeable chart adapters (D3 where useful) | Keep UX contracts independent from rendering libraries (ADR-016) |
 | Query editor | Monaco Editor | Syntax highlighting, autocomplete, schema hints for query workbench |
 | Design system | Base UI + Tailwind CSS v4 | Accessibility baseline, "render prop" primitives, high-performance styling |
 
@@ -51,7 +51,7 @@ Consistency in an observability UI is critical for reducing cognitive load. **Al
 - **Styling Method**: **Tailwind CSS v4** is used for all styling. Its Rust-based compiler provides the performance required for extremely dense data visualizations without the management overhead of CSS Modules.
 - **Design Tokens**: Defined within Tailwind's theme and custom CSS variables in `src/styles/globals.css`.
 - **Ownership Model**: We follow the **Shadcn pattern**—component code for primitives (Button, Popover, etc.) is copied into `src/components/ui/` and styled locally. This allows for deep performance optimizations without library lock-in.
-- **Visuals**: **Grafana Scenes** are used specifically for data-heavy dashboarding and complex chart interactions.
+- **Visuals**: Visualization components consume Observable-owned panel/query contracts. D3 or other focused renderers may be used; Grafana packages are optional adapters, not mandatory architecture.
 - **Reusability Mandate**: 
   - Developers MUST check for existing components in `src/components/` and `src/features/**/components/` before creating new ones.
   - Shared UI logic and data patterns MUST be extracted into hooks (in `src/hooks/` or feature-local `hooks/`) or utilities.
@@ -325,7 +325,7 @@ The service map is derived from distributed trace data, not manually configured.
 
 Dashboards follow a **hybrid model**: operators can build dashboards through the UI builder, but every dashboard is stored and distributed as a serialized artifact (JSON/YAML). This enables version control and CI/CD review.
 
-#### Dashboard State Model (Grafana Scenes-inspired)
+#### Dashboard State Model (Observable-owned; optional Grafana interoperability)
 
 Each dashboard is represented as a tree of scene objects:
 
@@ -435,7 +435,7 @@ Apply the **inverted pyramid**: show the minimum information needed to assess he
 - Couple UI components directly to storage (ClickHouse SQL in the browser). All data access via the query facade API
 - Diverge query syntax per page (log explorer and trace explorer must use the same filter language)
 - Duplicate time range state machines (one global time range context, per-panel overrides only)
-- Lock in a chart library without an adapter layer (all visualization goes through `@grafana/ui` panel wrappers)
+- Lock in a chart library without an Observable-owned adapter contract (Grafana interoperability is optional)
 - Build service map topology from a manually maintained CMDB — derive from traces only
 - Allow dashboards to exist only in the UI store — all dashboards must be serializable as code artifacts
 

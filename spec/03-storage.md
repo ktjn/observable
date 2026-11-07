@@ -4,7 +4,7 @@
 
 ### 5.1 Recommended Storage Pattern
 
-Use polyglot storage — not one engine for all workloads.
+Use fit-for-purpose persistent stores: PostgreSQL for transactional control state and ClickHouse for telemetry and analytics initially. Do not add signal-specific databases without a measured requirement and an approved migration ADR.
 
 **Logs and traces**
 
@@ -20,7 +20,7 @@ Use ClickHouse for metrics in Phase 1 and until a concrete performance or cardin
 - exemplar support
 - label filtering via WHERE clauses on attribute columns
 
-**Revisit condition:** If Phase 2 or Phase 3 cardinality testing reveals that ClickHouse cannot meet the P50 < 1 s query target under production-representative label cardinality, open a new ADR to evaluate a dedicated TSDB (e.g., VictoriaMetrics). The query facade abstracts storage engines from clients, so a later migration is contained.
+**Evaluation gate:** [ADR-045](adr/ADR-045-victoria-storage-evaluation.md) defines a reproducible VictoriaMetrics-vs-ClickHouse metrics benchmark and separate VictoriaLogs-vs-ClickHouse logs benchmark. The likely first alternative is VictoriaMetrics for metrics while retaining ClickHouse for logs, traces and business analytics. No engine switch is approved without measured wins, required semantics, tenant/purpose isolation and tested recovery. A query facade alone does not guarantee an effortless migration: ingest, retention, identity mapping, historical data and query languages also need compatibility tests.
 
 ClickHouse writes and migrations are owned by `observable-store-clickhouse`; `observable-query` reads within a declared schema compatibility range and does not write or migrate. See [ADR-035](adr/ADR-035-component-independence.md).
 
@@ -201,18 +201,15 @@ They are versioned with the same monotonic version counter as structural schema 
 
 ## 6. Query Engine and Compute
 
-A Rust-native query/middle tier is a strong fit. Apache DataFusion is an extensible Rust query engine built on Arrow, which aligns well with an observability platform needing custom execution and columnar processing. Arrow's ecosystem makes it a credible foundation for data interchange and in-memory execution.
+A Rust query facade owns authorization, business semantics, query budgets and signal adapters. Direct, scoped ClickHouse SQL is the **default execution path** for 2.0. Apache Arrow is optional for interoperability or measured in-memory use. DataFusion is **not** required without validated federation or custom execution needs; see [ADR-005](adr/ADR-005-arrow-datafusion.md).
 
 ### 6.1 Recommendation
 
-- Write control services and query orchestration in Rust.
-- Use Arrow as in-memory format.
-- Use DataFusion for:
-  - federated query planning
-  - custom logical operators
-  - query rewriting
-  - cost-aware pushdown
-  - cross-signal joins
+- Keep stable query capability contracts independent of storage engines and raw query languages.
+- Execute well-scoped analytics in ClickHouse, including native aggregation and predicate pushdown.
+- Validate bounded time windows, tenant and purpose before dispatch; never accept untrusted raw backend queries as authorization.
+- Support metrics/logs/traces adapters with explicit capability differences and compatibility tests. Consider MetricsQL and LogsQL only when their corresponding engines are adopted through ADR-045.
+- Introduce DataFusion only after a benchmarked case for federated, cross-engine analytics that cannot reasonably be performed through query orchestration and pushdown.
 
 ### 6.2 Custom Operators
 

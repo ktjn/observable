@@ -47,6 +47,13 @@ The machine-checkable platform specification lives in `spec/system.yaml` and is 
 * **Model Feedback:** Report any model gaps, hidden coupling, or adapter issues as feedback per `system-spec/CONSTITUTION.md` (Self-Improvement and Model Feedback).
 * **Model Scope:** Treat [MODEL-SCOPE.md](system-spec/MODEL-SCOPE.md) as the architectural authority boundary: the metamodel is conceptual; methodology and validator are optional aids, and acceptance policy is this project's.
 
+## Technology substitution policy (2.0)
+
+- Query and storage: ClickHouse SQL is the default execution path; DataFusion, VictoriaMetrics and VictoriaLogs require the benchmark and approval gates in ADR-005 and ADR-045. Do not introduce an alternate store without the accepted capability contract and authorization tests.
+- UI: own visualization contracts and UX verification independent of rendering libraries. Grafana internal packages are optional adapters, not default dependencies (ADR-016).
+- Authorization: apply tenant, purpose, action and resource checks server-side, including search, exports, existence-hiding and query access. Never rely on UI controls, or adopt OpenFGA as a substitute for application-level authorization (ADR-008).
+- Do not rewrite business requirements or acceptance thresholds to justify new technology; attach comparable test evidence, negative security cases and an explicit decision for technology replacement.
+
 ## Business and UX verification obligations (2.0)
 
 - Treat `spec/business/` and its baseline `spec/business/baseline/v2.5/` as authoritative business intent. Never edit the baseline. Do not edit business requirements to make generated implementation pass; apply approved changes through FEATURE.md with explicit impact and reviewer decision, and declare every changed or removed baseline element in `spec/business/refinements.yaml` (`scripts/check-business-baseline.py`).

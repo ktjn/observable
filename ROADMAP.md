@@ -33,6 +33,16 @@
 
 Detailed acceptance and handoff rules: [phase-0 assurance plan](docs/plans/phase0-assurance-hardening.md). Domains: [ADR-042](spec/adr/ADR-042-operational-domain-boundaries.md).
 
+## Technology decisions and measured alternatives
+
+- **Default query path:** Rust semantic query facade → scoped ClickHouse queries. Apache Arrow optional; DataFusion deferred until federation/custom execution shows an independently verified benefit ([ADR-005](spec/adr/ADR-005-arrow-datafusion.md)).
+- **Frontend:** React/TanStack/Base UI retained; Observable-owned visualization contracts and adapters replace the old mandatory Grafana library assumption. Grafana integration remains optional ([ADR-016](spec/adr/ADR-016-grafana-visualization-strategy.md)).
+- **Authorization:** Zitadel/OIDC integration retained; purpose-bound, tenant-scoped and existence-hiding enforcement are required independent of whether OpenFGA is adopted. Prototype ReBAC requirements before committing to additional operations ([ADR-008](spec/adr/ADR-008-authorization-model.md)).
+- **Storage experiment:** ClickHouse remains authoritative. Benchmark VictoriaMetrics for metrics first, VictoriaLogs for logs second; consider hybrid only after contract parity, security, correctness, storage/latency and recovery evidence ([ADR-045](spec/adr/ADR-045-victoria-storage-evaluation.md)).
+- **Evaluation deployment:** Compose/single-node operation is a supported test profile. Kubernetes remains the production orchestration target, not a prerequisite for agent development or demos.
+
+Do not declare technology replacements based only on vendor numbers or passing synthetic happy paths.
+
 ## Release model
 
 - Each phase has an outcome, dependencies, the P0 requirements it must verify, and exit evidence.
@@ -59,6 +69,14 @@ Detailed acceptance and handoff rules: [phase-0 assurance plan](docs/plans/phase
 | 2.x | P1/P2 expansion: providers, synthetics, status communication, on-call, AI services, assistance, remaining P1/P2 | per area | — | per-area detailed plan |
 
 Phase 8 can run in parallel with 2-7 once phase 1 lands. Its cross-cutting access and audit primitives required in earlier phases are prerequisites, not deferred phase-8 deliverables.
+
+## Technology evaluation (non-blocking until an affected capability requires it)
+
+- Define reproducible telemetry workloads, retention and cardinality distributions; record comparable ClickHouse and VictoriaMetrics ingestion, metric query and resource results.
+- Separately exercise VictoriaLogs against real log UX-02/04 scenarios: faceting, search, tail, drill-down, and restricted-tenant security.
+- Keep all experiments behind versioned storage capability adapters and real/mock contract tests; no backend swap without a separate ADR and rollback plan.
+- Verify optional Grafana connectors only after the owned visualization model is functional.
+- Benchmark single-node Compose and full Kubernetes topology separately; record the required operational burden.
 
 ## Cross-cutting tracks carried over from 0.x
 
