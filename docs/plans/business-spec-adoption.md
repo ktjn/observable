@@ -102,7 +102,7 @@ Ordered by dependency. Each phase becomes one detailed-plan run and several FEAT
 
 | Phase | Name | Areas | Depends on | Exit (spec terms) |
 |---|---|---|---|---|
-| 0 | Adoption baseline | all | — | Q8-Q10 decided; OBS requirements, views and experiences merged into `spec/system.yaml`; per-requirement gap status for all 293; stale copy removed |
+| 0 | Adoption baseline | all | — | Q8-Q9 decided; OBS requirements, views and experiences merged into `spec/system.yaml`; per-requirement gap status for all 293; stale copy removed |
 | 1 | Service model | 01, 02, 27, 34-01, 36-01 | 0 | P0 of 01, 02, 27 verified; catalog maps OTel services |
 | 2 | Evidence trust and health | 03, 26, 29-03, 13-03, 24-01/02 | 1 | `risk-false-healthy` mitigated; UX-07 passes |
 | 3 | Experience shell | 20, 21, 22, 24, 25 | 2 | scope bar, state set, navigation; UX-01, UX-02, UX-09, UX-10 pass |
@@ -118,7 +118,7 @@ Phase 8 can run in parallel with 2-7 after phase 1. Phase 3 UI shell work can st
 
 ### Phase 0 detailed-plan deliverables (next run)
 
-1. Decide Q8-Q10.
+1. Decide Q8-Q9.
 2. Classify all 293 requirements (met/partial/missing/org) with evidence (file, route or test).
 3. Map each OBS requirement to an owning component and capability, creating capabilities where none fits.
 4. Merge PR: OBS requirements, risks, views, experiences and roles into `spec/system.yaml`; `--compat` against `main`; AGENTS.md gate switched to `--stage verification`; readiness report added.
@@ -130,7 +130,7 @@ Phase 8 can run in parallel with 2-7 after phase 1. Phase 3 UI shell work can st
 **Policy (decided 2026-11-07):** this is a new start; breaking anything is allowed. Consequences:
 
 - No data migrations, dual-emit, backfills or deprecation periods. Schemas, APIs, `.mdl` models and the UI are redesigned to the spec.
-- `--compat` against `main` is not a gate for this work; capability versions restart (for example 2.0.0 or 0.x, Q10).
+- `--compat` against `main` is not a gate for this work; capability versions restart (numbering decided in phase 0).
 - Postgres and ClickHouse migrations may be squashed into a new baseline; existing tenants and data are not preserved.
 - Existing `spec/system.yaml` requirements, risks and evidence are kept only where they still describe the target; the rest are deprecated or deleted.
 
@@ -152,7 +152,7 @@ Known areas that change shape (redesign, not migration): health states, service 
 - **Q1.** Decided 2026-11-07: merge into `spec/system.yaml`.
 - **Q7.** Decided 2026-11-07: validate at `--stage verification` until the target release, plus a readiness report of verified P0s per phase. Phase 0 adds the report script and updates the AGENTS.md gate command.
 - **Q8.** Targets: retarget OBS requirements to Observable capabilities (recommended), or import the 37 areas as logical components?
-- **Q10.** Reuse or rebuild: refactor the existing services into the target (keep Rust/React stack, ingest, storage), or rebuild from the spec per REPLACEMENT.md and reuse code only where it fits?
+- **Q10.** Decided 2026-11-07: refactor existing code. Keep the Rust/React stack, ingest, storage, query and auth; redesign models, APIs and UI freely. Existing tests stay evidence only where they still exercise a merged OBS criterion.
 - **Q9.** Upstream repo after merge: archive, keep read-only, or keep authoring there and sync?
 - **Q2.** Decided 2026-11-07: this plan replaces ROADMAP.md.
 - **Q3.** Decided 2026-11-07: first milestone is the 88 P0 platform requirements; P1/P2 later.
