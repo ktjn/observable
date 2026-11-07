@@ -1,0 +1,77 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Area: Govern alerts, objectives, dashboards, checks and health rules as owned, managed business assets.
+requirements:
+- id: OBS-34-01
+  version: 0.1.0
+  target: govern-observability-assets
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: Alerts, objectives, dashboards, proactive checks and health rules shall each have an accountable owner.
+  criteria:
+  - 'Acceptance: Any critical alert shows its current owner.'
+  - 'Negative: An asset whose owner leaves is reported as ownerless.'
+- id: OBS-34-02
+  version: 0.1.0
+  target: govern-observability-assets
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Changes to critical observability configuration shall be versioned, reviewable and reversible.
+  criteria:
+  - 'Acceptance: A changed alert threshold can be compared with and restored to its previous version.'
+- id: OBS-34-03
+  version: 0.1.0
+  target: govern-observability-assets
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Changes to critical observability configuration shall follow an approval process proportionate to risk.
+  criteria:
+  - 'Acceptance: A change to a critical alert route requires approval before taking effect.'
+- id: OBS-34-04
+  version: 0.1.0
+  target: govern-observability-assets
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: The organization shall be able to apply observability configuration consistently across environments and reuse approved templates.
+  criteria:
+  - 'Acceptance: A new service adopts the standard critical-alert set from an approved template.'
+- id: OBS-34-05
+  version: 0.1.0
+  target: govern-observability-assets
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Unused, ownerless, duplicate or obsolete observability assets shall be identifiable for review or retirement.
+  criteria:
+  - 'Acceptance: A quarterly review lists unviewed dashboards and never-triggered alerts with owners.'
+- id: OBS-34-06
+  version: 0.1.0
+  target: govern-observability-assets
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: observability-platform-owner
+  statement: Teams shall be able to manage observability configuration together with the service it observes.
+  criteria:
+  - 'Acceptance: A service change and its related alert change are reviewed and released together.'

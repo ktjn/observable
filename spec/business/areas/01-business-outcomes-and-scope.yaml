@@ -1,0 +1,92 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Area: Make the platform accountable for outcomes rather than a collection of tools.
+requirements:
+- id: OBS-01-01
+  version: 0.1.0
+  target: manage-service-catalog
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: The organization shall identify the business services and critical customer journeys covered by observability.
+  criteria:
+  - 'Acceptance: A business owner can identify all in-scope services and journeys and their criticality.'
+  - 'Negative: A critical journey missing from the covered list is reported as a coverage gap, not silently treated as in scope.'
+- id: OBS-01-02
+  version: 0.1.0
+  target: manage-service-catalog
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: Every in-scope service shall have an explicit business outcome that observability is intended to protect or improve.
+  criteria:
+  - 'Acceptance: Each critical service has at least one approved outcome and its accountable owner.'
+  - 'Negative: A critical service without an approved outcome or owner is listed as an exception.'
+- id: OBS-01-03
+  version: 0.1.0
+  target: manage-service-catalog
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: The platform shall distinguish production, non-production, and business-critical operating contexts.
+  criteria:
+  - 'Acceptance: Users can restrict views and reporting to each approved context without ambiguity.'
+  - 'Negative: A non-production failure does not change production health or production reporting.'
+- id: OBS-01-04
+  version: 0.1.0
+  target: manage-service-catalog
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: Business and operational stakeholders shall be able to assess whether critical services are operating within agreed expectations.
+  criteria:
+  - 'Acceptance: In a review, stakeholders can determine compliant, at-risk, or breached status for a selected service.'
+  - 'Negative: A service lacking current evidence is shown as unknown, never as compliant.'
+- id: OBS-01-05
+  version: 0.1.0
+  target: manage-service-catalog
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: The organization shall be able to track improvements in detection, response, service reliability, and customer impact.
+  criteria:
+  - 'Acceptance: Quarterly reporting compares an agreed baseline with the current period.'
+- id: OBS-01-06
+  version: 0.1.0
+  target: manage-service-catalog
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Observability coverage shall be governed by an approved risk-based prioritization.
+  criteria:
+  - 'Acceptance: Uncovered critical services are visible with a documented owner, risk, and decision.'
+- id: OBS-01-07
+  version: 0.1.0
+  target: manage-service-catalog
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: observability-platform-owner
+  statement: The organization shall be able to assess adoption and effective use of observability capabilities across teams.
+  criteria:
+  - 'Acceptance: A review shows which critical-service teams actively use the agreed workflows and where enablement is needed.'

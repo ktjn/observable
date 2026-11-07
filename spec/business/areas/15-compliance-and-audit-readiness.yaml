@@ -1,0 +1,116 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Area: Provide evidence of controls and operational resilience.
+requirements:
+- id: OBS-15-01
+  version: 0.1.0
+  target: audit-and-compliance
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: head-of-compliance
+  statement: The organization shall be able to demonstrate that monitoring responsibility exists for critical business functions.
+  criteria:
+  - 'Acceptance: An auditor can obtain current owners, scope, and control status for critical functions.'
+  - 'Negative: A critical function with no monitoring owner is reported as a control failure.'
+- id: OBS-15-02
+  version: 0.1.0
+  target: audit-and-compliance
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: head-of-compliance
+  statement: Records shall support reconstruction of significant incidents and decisions within required retention periods.
+  criteria:
+  - 'Acceptance: An audit sample shows incident chronology and responsible decision makers.'
+  - 'Negative: A sampled incident within retention can be reconstructed without reliance on individual memory.'
+- id: OBS-15-03
+  version: 0.1.0
+  target: audit-and-compliance
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-compliance
+  statement: The platform shall support reviews of detection, escalation, recovery, and recurring control failures.
+  criteria:
+  - 'Acceptance: A control assessment can trace an identified issue through closure and verification.'
+- id: OBS-15-04
+  version: 0.1.0
+  target: audit-and-compliance
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-compliance
+  statement: The organization shall be able to produce evidence for applicable regulatory and contractual reporting duties.
+  criteria:
+  - 'Acceptance: A compliance reviewer can compile the required approved evidence for a representative event.'
+- id: OBS-15-05
+  version: 0.1.0
+  target: audit-and-compliance
+  kind: functional
+  category: semantic
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-compliance
+  statement: Compliance reporting shall distinguish observed facts from assessed or manually supplied information.
+  criteria:
+  - 'Acceptance: A sample report clearly identifies evidence-based and estimated content.'
+- id: OBS-15-06
+  version: 0.1.0
+  target: audit-and-compliance
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: head-of-compliance
+  statement: Regulated business units shall be able to report material third-party disruption exposure.
+  criteria:
+  - 'Acceptance: A review links a material provider incident to affected regulated functions.'
+  depends_on:
+  - OBS-36-01
+- id: OBS-15-07
+  version: 0.1.0
+  target: audit-and-compliance
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-compliance
+  statement: The organization shall be able to classify incidents against applicable regulatory criteria and track mandatory notification deadlines.
+  criteria:
+  - 'Acceptance: A major incident shows its regulatory classification, reporting deadlines and submitted reports.'
+- id: OBS-15-08
+  version: 0.1.0
+  target: audit-and-compliance
+  kind: non-functional
+  category: security
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ciso
+  statement: Records used as audit or regulatory evidence shall be protected against undetected alteration or deletion.
+  criteria:
+  - 'Acceptance: An attempted modification of a retained incident record is detectable during audit.'
+- id: OBS-15-09
+  version: 0.1.0
+  target: audit-and-compliance
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-compliance
+  statement: Authorized users shall be able to retrieve retained historical evidence within agreed timeframes for audit, investigation or legal requests.
+  criteria:
+  - 'Acceptance: An archived period within the retention window is retrieved for an audit sample within the agreed time.'

@@ -1,0 +1,52 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Area: Provide controlled, accurate communication of operational impact to relevant audiences.
+requirements:
+- id: OBS-30-01
+  version: 0.1.0
+  target: communicate-incident-status
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: communications-lead
+  statement: Authorized stakeholders shall be able to communicate confirmed incident status and impact to designated internal or external audiences.
+  criteria:
+  - 'Acceptance: A communications owner issues an approved incident update to a defined audience.'
+- id: OBS-30-02
+  version: 0.1.0
+  target: communicate-incident-status
+  kind: functional
+  category: semantic
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: communications-lead
+  statement: Incident updates shall distinguish verified facts, estimates, unknowns, and next expected updates.
+  criteria:
+  - 'Acceptance: An update clearly labels suspected scope and confirmed affected services.'
+- id: OBS-30-03
+  version: 0.1.0
+  target: communicate-incident-status
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: communications-lead
+  statement: Stakeholders shall be able to track communication ownership, approval, timing and prior updates.
+  criteria:
+  - 'Acceptance: A review shows who approved and released each incident communication.'
+- id: OBS-30-04
+  version: 0.1.0
+  target: communicate-incident-status
+  kind: non-functional
+  category: security
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: communications-lead
+  statement: Communication content shall be appropriate to audience, authorization, and applicable disclosure rules.
+  criteria:
+  - 'Acceptance: A customer-facing summary contains no internal-only or restricted evidence.'

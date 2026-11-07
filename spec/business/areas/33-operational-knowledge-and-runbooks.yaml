@@ -1,0 +1,65 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Area: Put current, owned operational know-how in front of responders at the moment it is needed.
+requirements:
+- id: OBS-33-01
+  version: 0.1.0
+  target: manage-operational-guidance
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: sre-lead
+  statement: Critical alerts and service conditions shall link to current, owned operational guidance.
+  criteria:
+  - 'Acceptance: A responder opens the applicable runbook directly from a critical alert.'
+  - 'Negative: A critical alert whose guidance is missing or past review is flagged to its owner.'
+- id: OBS-33-02
+  version: 0.1.0
+  target: manage-operational-guidance
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: sre-lead
+  statement: Operational guidance shall have an owner, review date and visible status, and stale guidance shall be identifiable.
+  criteria:
+  - 'Acceptance: A review lists runbooks past their review date with owners.'
+- id: OBS-33-03
+  version: 0.1.0
+  target: manage-operational-guidance
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: sre-lead
+  statement: Responders shall be able to find known errors, workarounds and prior resolutions relevant to the current condition.
+  criteria:
+  - 'Acceptance: A recurring symptom surfaces its documented workaround.'
+- id: OBS-33-04
+  version: 0.1.0
+  target: manage-operational-guidance
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: sre-lead
+  statement: Teams shall be able to record whether guidance was used and effective during an incident and feed improvements back.
+  criteria:
+  - 'Acceptance: A post-incident review shows an updated runbook step and its approver.'
+- id: OBS-33-05
+  version: 0.1.0
+  target: manage-operational-guidance
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: sre-lead
+  statement: Approved operational procedures shall be executable with recorded inputs, outputs and approvals where automation is permitted.
+  criteria:
+  - 'Acceptance: An executed procedure records each step, actor and result.'

@@ -147,11 +147,19 @@ lane_checks() {
   step "System specification consistency"
   python3 "$REPO_ROOT/scripts/tests/test_system_spec.py" && ok "system specification consistency" || fail "system specification consistency"
 
-  step "System specification release validation"
+  step "System specification verification-stage validation"
+  # 2.0 line: verification stage until the target release (docs/plans/business-spec-adoption.md Q7).
+  # The stage runs separately because the CLI skips stage invariants when --check-artifacts/--check-drift pass.
   if command -v uv >/dev/null 2>&1; then
-    uv run --project "$REPO_ROOT/models" system-spec "$REPO_ROOT/spec/system.yaml" --stage release --check-artifacts --check-drift --root "$REPO_ROOT" && ok "system specification release validation" || fail "system specification release validation"
+    { uv run --project "$REPO_ROOT/models" system-spec "$REPO_ROOT/spec/system.yaml" --stage verification \
+      && uv run --project "$REPO_ROOT/models" system-spec "$REPO_ROOT/spec/system.yaml" --stage verification --check-artifacts --check-drift --root "$REPO_ROOT"; } \
+      && ok "system specification verification validation" || fail "system specification verification validation"
+    uv run --project "$REPO_ROOT/models" python "$REPO_ROOT/scripts/spec-readiness.py" --priority P0 \
+      && ok "business spec readiness report" || fail "business spec readiness report"
   elif command -v system-spec >/dev/null 2>&1; then
-    system-spec "$REPO_ROOT/spec/system.yaml" --stage release --check-artifacts --check-drift --root "$REPO_ROOT" && ok "system specification release validation" || fail "system specification release validation"
+    { system-spec "$REPO_ROOT/spec/system.yaml" --stage verification \
+      && system-spec "$REPO_ROOT/spec/system.yaml" --stage verification --check-artifacts --check-drift --root "$REPO_ROOT"; } \
+      && ok "system specification verification validation" || fail "system specification verification validation"
   fi
 
   step "System specification evidence provenance"

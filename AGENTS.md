@@ -19,12 +19,14 @@ Refer to `spec/10-process.md` for the official development process and AI agent 
 
 The machine-checkable platform specification lives in `spec/system.yaml` and is governed by the toolkit in `system-spec/` ([CONSTITUTION.md](system-spec/CONSTITUTION.md), [BROWNFIELD.md](system-spec/BROWNFIELD.md), [spec/22-system-specification.md](spec/22-system-specification.md)):
 
-* **Validation Gate:** Specifications must validate cleanly at release stage before committing:
+* **Validation Gate (2.0 line):** `spec/system.yaml` includes the business specification (`spec/business/`, 293 `OBS-*` requirements). Until the target release, specifications must validate cleanly at **verification** stage; release stage is the exit check for that release ([docs/plans/business-spec-adoption.md](docs/plans/business-spec-adoption.md), Q7). Run the stage on its own as well, because the CLI skips stage invariants when `--check-artifacts`/`--check-drift` pass:
   ```bash
-  system-spec spec/system.yaml --stage release --check-artifacts --check-drift --root .
-  # or via uv:
-  uv run --project models system-spec spec/system.yaml --stage release --check-artifacts --check-drift --root .
+  uv run --project models system-spec spec/system.yaml --stage verification
+  uv run --project models system-spec spec/system.yaml --stage verification --check-artifacts --check-drift --root .
+  # P0 readiness per plan phase (reads docs/plans/business-spec-gap.yaml):
+  uv run --project models python scripts/spec-readiness.py --priority P0
   ```
+  When a slice verifies an `OBS-*` requirement, set its status to `verified`, add `path::test_name` evidence, and update its entry in `docs/plans/business-spec-gap.yaml`.
 * **Bounded Context Slicing:** Before implementing or modifying a component, inspect its bounded spec slice:
   ```bash
   system-spec spec/system.yaml --context <component-id>

@@ -1,0 +1,129 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Area: Make critical views usable across working contexts and controlled by policy.
+requirements:
+- id: OBS-25-01
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: non-functional
+  category: resilience
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: Essential status and incident-response information shall remain usable on approved desktop and smaller-screen devices.
+  criteria:
+  - 'Acceptance: A responder can read incident status, affected services, and acknowledgement options on an approved mobile viewport.'
+  - 'Negative: On an approved mobile viewport, acknowledgement remains available when non-essential content fails to load.'
+- id: OBS-25-02
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: non-functional
+  category: security
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: ciso
+  statement: The interface shall only reveal data and actions authorized for the active user and context.
+  criteria:
+  - 'Acceptance: A business viewer cannot access restricted investigation details through search or shared links.'
+  - 'Negative: A shared link opened by a user without permission reveals no restricted data or actions.'
+- id: OBS-25-03
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: non-functional
+  category: security
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: ciso
+  statement: The UI shall clearly identify the user’s active organizational context and any impersonation or elevated-access state.
+  criteria:
+  - 'Acceptance: An operator can identify elevated permissions before acting.'
+  - 'Negative: An action taken under elevated access is visibly marked before confirmation and recorded.'
+- id: OBS-25-04
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Users shall be able to adjust presentation preferences such as preferred time zone and relevant display density where approved.
+  criteria:
+  - 'Acceptance: A user changes time display without changing the original event timestamps or other users’ settings.'
+- id: OBS-25-05
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: The platform shall provide role-appropriate onboarding and contextual explanations for unfamiliar measures and statuses.
+  criteria:
+  - 'Acceptance: A first-time business user can interpret SLO attainment without operational training.'
+- id: OBS-25-06
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: The UI shall provide a clear way to report misleading displays, missing context, and usability problems.
+  criteria:
+  - 'Acceptance: A user submits feedback linked to the relevant view and selected context.'
+- id: OBS-25-07
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: serialization
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Users shall be able to export or share approved views in an accessible form suited to operational handover or reporting.
+  criteria:
+  - 'Acceptance: An authorized reviewer receives a readable report with units, filters, and time context.'
+- id: OBS-25-08
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: observability-platform-owner
+  statement: Operations centres shall be able to present continuously updated shared status views suitable for large-screen display.
+  criteria:
+  - 'Acceptance: A wall display shows priority incidents and critical-service status legibly without user interaction.'
+- id: OBS-25-09
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: observability-platform-owner
+  statement: The UI shall support the organization’s approved working languages for essential workflows.
+  criteria:
+  - 'Acceptance: A responder completes the essential incident workflow in an approved language.'
+- id: OBS-25-10
+  version: 0.1.0
+  target: explore-telemetry-ui
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Essential user workflows shall meet business-approved task completion, interpretation accuracy and usability objectives verified with representative users.
+  criteria:
+  - 'Acceptance: A representative user group completes the critical incident workflow within its approved usability targets.'
+  depends_on:
+  - OBS-25-01

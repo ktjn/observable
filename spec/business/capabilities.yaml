@@ -1,0 +1,296 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+capabilities:
+- id: manage-service-catalog
+  version: 0.1.0
+  status: specified
+  description: 'Make the platform accountable for outcomes rather than a collection of tools. Establish one accountable view of monitored services and gaps. Planned provider: observable-catalog (not yet built).'
+  postconditions:
+  - covered_services_have_approved_outcomes
+  - service_found_with_owner_and_coverage
+  invariants:
+  - every_in_scope_service_has_an_outcome_owner
+  - critical_service_has_accountable_owner
+  failure_modes:
+  - uncovered_critical_service
+  - outcome_without_owner
+  - process_not_followed
+  - accountability_unassigned
+  - unregistered_service
+  - stale_ownership
+- id: assess-service-health
+  version: 0.1.0
+  status: specified
+  description: 'Provide an accurate operational picture of service condition. Understand service responsiveness and operating headroom. Ensure operational decisions can be based on transparent and dependable observations. Planned provider: observable-health (not yet built).'
+  postconditions:
+  - current_health_state_shown
+  - responsiveness_and_headroom_assessed
+  - fitness_of_evidence_disclosed
+  invariants:
+  - unknown_never_shown_as_healthy
+  - slow_service_reported_as_degraded_not_unavailable
+  - absence_of_information_not_absence_of_failure
+  failure_modes:
+  - false_healthy
+  - stale_health_state
+  - undetected_regression
+  - capacity_exhaustion
+  - incomplete_evidence_trusted
+  - sampled_result_read_as_exact
+- id: assess-customer-experience
+  version: 0.1.0
+  status: specified
+  description: 'Observe what customers experience, not only internal service status. Discover broken customer and business journeys before they are reported by customers. Planned provider: observable-health (not yet built).'
+  postconditions:
+  - customer_journey_outcome_visible
+  - journey_failure_found_before_customer_report
+  invariants:
+  - customer_impact_visible_despite_healthy_internals
+  - proactive_and_real_user_findings_distinguished
+  failure_modes:
+  - undetected_customer_impact
+  - privacy_breach_in_journey_evidence
+  - unverified_critical_journey
+  - expired_time_bound_dependency
+- id: manage-reliability-objectives
+  version: 0.1.0
+  status: specified
+  description: Manage reliability against customer-relevant commitments. Provided by observable-alerting.
+  postconditions:
+  - slo_attainment_and_budget_shown
+  invariants:
+  - historical_report_uses_target_in_force
+  failure_modes:
+  - slo_sla_confusion
+  - unwarned_budget_exhaustion
+  - process_not_followed
+- id: manage-incidents
+  version: 0.1.0
+  status: specified
+  description: 'Coordinate recovery and continuous improvement. Planned provider: observable-response (not yet built).'
+  postconditions:
+  - incident_status_authoritative_and_shared
+  invariants:
+  - incident_milestones_time_ordered
+  failure_modes:
+  - inconsistent_incident_status
+  - lost_milestone
+  - process_not_followed
+  - accountability_unassigned
+- id: support-investigation
+  version: 0.1.0
+  status: specified
+  description: Reduce effort required to explain new or unexpected failures. Provided by observable-query.
+  postconditions:
+  - failure_explained_with_evidence
+  invariants:
+  - hypothesis_never_presented_as_verified_cause
+  failure_modes:
+  - misattributed_cause
+  - lost_investigation_context
+- id: map-dependencies-and-impact
+  version: 0.1.0
+  status: specified
+  description: 'Understand the blast radius and prioritize what matters. Planned provider: observable-catalog (not yet built).'
+  postconditions:
+  - blast_radius_identified
+  invariants:
+  - estimated_impact_labeled_as_estimate
+  failure_modes:
+  - unknown_dependency
+  - overstated_impact_precision
+- id: track-changes
+  version: 0.1.0
+  status: specified
+  description: Identify regressions and support evidence-based release decisions. Provided by observable-control.
+  postconditions:
+  - change_linked_to_health_event
+  invariants:
+  - all_change_types_visible
+  failure_modes:
+  - unattributed_regression
+  - process_not_followed
+- id: track-business-processes
+  version: 0.1.0
+  status: specified
+  description: 'Connect operational behavior to business execution. Make time-bound and queued business processing as observable as interactive services. Planned provider: observable-health (not yet built).'
+  postconditions:
+  - process_outcome_measured
+  - deadline_risk_detected_before_cut_off
+  invariants:
+  - business_rejection_not_counted_as_outage
+  - registered_process_has_deadline_and_owner
+  failure_modes:
+  - stalled_process_undetected
+  - missed_cut_off
+  - silent_non_start
+  - missing_delivery
+- id: report-service-status
+  version: 0.1.0
+  status: specified
+  description: Make evidence available for operational and management decisions. Provided by observable-control.
+  postconditions:
+  - decision_ready_view_available
+  invariants:
+  - displayed_result_discloses_period_scope_freshness
+  failure_modes:
+  - stale_report_mistaken_for_current
+- id: govern-data-access
+  version: 0.1.0
+  status: specified
+  description: Protect information while enabling accountable use. Provided by observable-auth.
+  postconditions:
+  - access_follows_role_and_need
+  invariants:
+  - sensitive_content_never_exposed
+  failure_modes:
+  - unauthorized_disclosure
+  - unaudited_change
+  - accountability_unassigned
+- id: audit-and-compliance
+  version: 0.1.0
+  status: specified
+  description: Provide evidence of controls and operational resilience. Provided by observable-auth.
+  postconditions:
+  - significant_incident_reconstructable
+  invariants:
+  - evidence_distinguished_from_assessment
+  failure_modes:
+  - missed_regulatory_deadline
+  - tampered_evidence
+  - process_not_followed
+  - accountability_unassigned
+- id: exchange-operational-context
+  version: 0.1.0
+  status: specified
+  description: 'Fit existing workflows and avoid dependence on one supplier. Planned provider: observable-response (not yet built).'
+  postconditions:
+  - context_exchanged_without_loss
+  invariants:
+  - exported_records_remain_interpretable
+  failure_modes:
+  - supplier_lock_in
+  - lost_handoff_context
+  - accountability_unassigned
+- id: report-observability-cost
+  version: 0.1.0
+  status: specified
+  description: Make observability expenditure understandable and governable. Provided by observable-control.
+  postconditions:
+  - cost_attributed_to_owner
+  invariants:
+  - material_overrun_reaches_owner
+  failure_modes:
+  - unattributed_cost
+  - unwarned_overrun
+  - process_not_followed
+- id: assist-operations
+  version: 0.1.0
+  status: specified
+  description: Reduce repetitive work while preserving human accountability. Provided by observable-query.
+  postconditions:
+  - assistance_linked_to_evidence
+  invariants:
+  - automation_bounded_by_approval_and_authorization
+  failure_modes:
+  - ai_disclosure_across_access_boundary
+  - unauthorized_automated_action
+- id: investigate-incidents-ui
+  version: 0.1.0
+  status: specified
+  description: Turn an alert into a coordinated evidence-based response. Provided by observable-web.
+  postconditions:
+  - alert_turned_into_coordinated_response
+  invariants:
+  - facts_inferences_and_recommendations_distinguished
+  failure_modes:
+  - inconsistent_incident_view
+  - unverified_cause_acted_on
+- id: govern-observability-assets
+  version: 0.1.0
+  status: specified
+  description: 'Make observability coverage an owned, continuously verified service obligation. Govern alerts, objectives, dashboards, checks and health rules as owned, managed business assets. Planned provider: observable-catalog (not yet built).'
+  postconditions:
+  - required_coverage_compared_with_actual
+  - asset_changes_reviewable_and_reversible
+  invariants:
+  - critical_gap_has_owner_or_accepted_risk
+  - every_asset_has_owner
+  failure_modes:
+  - coverage_decay
+  - unowned_gap
+  - process_not_followed
+  - accountability_unassigned
+  - unowned_asset
+  - unreviewed_critical_change
+- id: communicate-incident-status
+  version: 0.1.0
+  status: specified
+  description: 'Provide controlled, accurate communication of operational impact to relevant audiences. Planned provider: observable-response (not yet built).'
+  postconditions:
+  - approved_update_reaches_audience
+  invariants:
+  - updates_label_facts_estimates_unknowns
+  failure_modes:
+  - restricted_content_disclosed
+  - unapproved_update
+- id: trace-transactions
+  version: 0.1.0
+  status: specified
+  description: Answer “what happened to this specific transaction or customer” quickly, accurately and lawfully. Provided by observable-query.
+  postconditions:
+  - individual_transaction_outcome_found
+  invariants:
+  - uncertain_outcome_never_reported_successful
+  - lookup_audited
+  failure_modes:
+  - untraceable_transaction
+  - unaudited_customer_lookup
+- id: manage-operational-guidance
+  version: 0.1.0
+  status: specified
+  description: 'Put current, owned operational know-how in front of responders at the moment it is needed. Planned provider: observable-response (not yet built).'
+  postconditions:
+  - current_guidance_reached_from_alert
+  invariants:
+  - critical_alert_links_owned_guidance
+  failure_modes:
+  - stale_guidance
+  - knowledge_held_by_individuals
+  - process_not_followed
+  - accountability_unassigned
+- id: observe-ai-services
+  version: 0.1.0
+  status: specified
+  description: Observe services that rely on AI models and agents with the same accountability as any other service. Provided by observable-query.
+  postconditions:
+  - ai_output_quality_observed
+  invariants:
+  - model_changes_visible_as_changes
+  failure_modes:
+  - silent_quality_degradation
+  - policy_violation
+- id: manage-providers
+  version: 0.1.0
+  status: specified
+  description: 'Treat material providers as observed dependencies with owned risk, evidence and coordination. Planned provider: observable-catalog (not yet built).'
+  postconditions:
+  - provider_dependency_and_performance_known
+  invariants:
+  - material_provider_mapped_to_functions
+  failure_modes:
+  - undetected_provider_outage
+  - concentration_risk
+  - accountability_unassigned
+- id: manage-on-call
+  version: 0.1.0
+  status: specified
+  description: Keep the people who respond to incidents effective, correctly reached and not overloaded. Provided by observable-alerting.
+  postconditions:
+  - current_responder_reached
+  invariants:
+  - schedule_gaps_detected_before_occurring
+  failure_modes:
+  - coverage_gap
+  - responder_overload
+  - process_not_followed

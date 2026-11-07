@@ -1,0 +1,2056 @@
+# Phase 0 gap classification. Updated as phases land; readiness: scripts/spec-readiness.py
+spec_version: observability-spec 2.5 (523e682)
+assessed: '2026-11-07'
+method: surface scan of routes, migrations, UI and tests; partial = some related capability exists, not that criteria pass
+requirements:
+  OBS-01-01:
+    priority: P0
+    holder: organization
+    phase: 1
+    target: manage-service-catalog
+    status: missing
+    evidence: No capability found in scan.
+  OBS-01-02:
+    priority: P0
+    holder: organization
+    phase: 1
+    target: manage-service-catalog
+    status: missing
+    evidence: No capability found in scan.
+  OBS-01-03:
+    priority: P0
+    holder: platform
+    phase: 1
+    target: manage-service-catalog
+    status: partial
+    evidence: Environment scoping exists (ADR-031, /v1/environments); no production/non-production/business-critical classification.
+  OBS-01-04:
+    priority: P0
+    holder: platform
+    phase: 1
+    target: manage-service-catalog
+    status: partial
+    evidence: Service health pills and SLO reliability report (services/query-api/src/discovery.rs, services/query-api/src/reliability.rs); no agreed expectations per business service.
+  OBS-01-05:
+    priority: P1
+    holder: process
+    phase: 1
+    target: manage-service-catalog
+    status: missing
+    evidence: No trend tracking of detection, response or reliability improvements.
+  OBS-01-06:
+    priority: P1
+    holder: organization
+    phase: 1
+    target: manage-service-catalog
+    status: missing
+    evidence: No capability found in scan.
+  OBS-01-07:
+    priority: P2
+    holder: process
+    phase: 1
+    target: manage-service-catalog
+    status: missing
+    evidence: No capability found in scan.
+  OBS-02-01:
+    priority: P0
+    holder: platform
+    phase: 1
+    target: manage-service-catalog
+    status: partial
+    evidence: Service list search by OTel service.name (apps/frontend/src/pages/ServicesPage.tsx); no business name, domain or owner.
+  OBS-02-02:
+    priority: P0
+    holder: platform
+    phase: 1
+    target: manage-service-catalog
+    status: missing
+    evidence: No capability found in scan.
+  OBS-02-03:
+    priority: P0
+    holder: platform
+    phase: 1
+    target: manage-service-catalog
+    status: missing
+    evidence: No coverage status per service.
+  OBS-02-04:
+    priority: P0
+    holder: platform
+    phase: 1
+    target: manage-service-catalog
+    status: missing
+    evidence: No capability found in scan.
+  OBS-02-05:
+    priority: P1
+    holder: platform
+    phase: 1
+    target: manage-service-catalog
+    status: missing
+    evidence: No capability found in scan.
+  OBS-02-06:
+    priority: P1
+    holder: platform
+    phase: 1
+    target: manage-service-catalog
+    status: missing
+    evidence: No capability found in scan.
+  OBS-02-07:
+    priority: P1
+    holder: platform
+    phase: 1
+    target: manage-service-catalog
+    status: partial
+    evidence: Services are discovered from telemetry (services/query-api/src/discovery.rs), but there is no catalog to compare against.
+  OBS-02-08:
+    priority: P1
+    holder: platform
+    phase: 1
+    target: manage-service-catalog
+    status: missing
+    evidence: No capability found in scan.
+  OBS-03-01:
+    priority: P0
+    holder: platform
+    phase: 2
+    target: assess-service-health
+    status: partial
+    evidence: 'Health pill healthy/watch/breach (services/query-api/src/discovery.rs health_state). Violates negative criterion: no spans yields healthy.'
+  OBS-03-02:
+    priority: P0
+    holder: platform
+    phase: 2
+    target: assess-service-health
+    status: missing
+    evidence: No unavailable, planned-maintenance or unknown state.
+  OBS-03-03:
+    priority: P0
+    holder: platform
+    phase: 2
+    target: assess-service-health
+    status: missing
+    evidence: No last-evidence time or staleness marking.
+  OBS-03-04:
+    priority: P0
+    holder: platform
+    phase: 2
+    target: assess-service-health
+    status: partial
+    evidence: Alert firings with start/resolved_at (migrations/postgres/020_*.sql) and incidents; no interruption history per service.
+  OBS-03-05:
+    priority: P1
+    holder: platform
+    phase: 2
+    target: assess-service-health
+    status: partial
+    evidence: Environment filter only; no region/channel/segment breakdown model.
+  OBS-03-06:
+    priority: P1
+    holder: platform
+    phase: 2
+    target: assess-service-health
+    status: missing
+    evidence: No capability found in scan.
+  OBS-03-07:
+    priority: P1
+    holder: platform
+    phase: 2
+    target: assess-service-health
+    status: missing
+    evidence: No capability found in scan.
+  OBS-03-08:
+    priority: P1
+    holder: platform
+    phase: 2
+    target: assess-service-health
+    status: partial
+    evidence: Infrastructure inventory and detail (apps/frontend/src/pages/InfrastructureInventoryPage.tsx).
+  OBS-04-01:
+    priority: P0
+    holder: platform
+    phase: 4
+    target: assess-service-health
+    status: partial
+    evidence: Latency percentiles and response-time history (services/query-api/src/discovery.rs, /v1/services/{service_name}/response-time-history); no agreed expectations.
+  OBS-04-02:
+    priority: P0
+    holder: platform
+    phase: 4
+    target: assess-service-health
+    status: partial
+    evidence: Throughput/request-rate per service and metric charts.
+  OBS-04-03:
+    priority: P0
+    holder: platform
+    phase: 4
+    target: assess-service-health
+    status: missing
+    evidence: No distinct degraded vs unavailable state.
+  OBS-04-04:
+    priority: P1
+    holder: platform
+    phase: 4
+    target: assess-service-health
+    status: partial
+    evidence: Trace/log filtering by attributes; no customer-group model.
+  OBS-04-05:
+    priority: P1
+    holder: platform
+    phase: 4
+    target: assess-service-health
+    status: missing
+    evidence: No capability found in scan.
+  OBS-04-06:
+    priority: P2
+    holder: platform
+    phase: 4
+    target: assess-service-health
+    status: missing
+    evidence: No capability found in scan.
+  OBS-04-07:
+    priority: P1
+    holder: platform
+    phase: 4
+    target: assess-service-health
+    status: partial
+    evidence: Threshold alert rules on metrics; no declared limits/quotas/ceilings model.
+  OBS-04-08:
+    priority: P1
+    holder: platform
+    phase: 4
+    target: assess-service-health
+    status: partial
+    evidence: Trace detail with span timing and infrastructure panel (apps/frontend/src/pages/TraceDetail.tsx, apps/frontend/src/components/ServiceInfraPanel.tsx).
+  OBS-05-01:
+    priority: P0
+    holder: platform
+    phase: 7
+    target: assess-customer-experience
+    status: missing
+    evidence: No capability found in scan.
+  OBS-05-02:
+    priority: P0
+    holder: platform
+    phase: 7
+    target: assess-customer-experience
+    status: missing
+    evidence: No capability found in scan.
+  OBS-05-03:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: assess-customer-experience
+    status: missing
+    evidence: No capability found in scan.
+  OBS-05-05:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: assess-customer-experience
+    status: missing
+    evidence: No consent model; RUM not implemented (ADR-018).
+  OBS-05-06:
+    priority: P2
+    holder: platform
+    phase: 7
+    target: assess-customer-experience
+    status: missing
+    evidence: No capability found in scan.
+  OBS-05-07:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: assess-customer-experience
+    status: missing
+    evidence: No capability found in scan.
+  OBS-05-08:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: assess-customer-experience
+    status: missing
+    evidence: No capability found in scan.
+  OBS-05-09:
+    priority: P2
+    holder: platform
+    phase: 7
+    target: assess-customer-experience
+    status: missing
+    evidence: No capability found in scan.
+  OBS-06-01:
+    priority: P0
+    holder: platform
+    phase: 4
+    target: manage-reliability-objectives
+    status: partial
+    evidence: Only availability SLI (migrations/postgres/021_create_slo_definitions.sql sli_type CHECK 'availability').
+  OBS-06-02:
+    priority: P0
+    holder: platform
+    phase: 4
+    target: manage-reliability-objectives
+    status: partial
+    evidence: SLO definitions with target and window; no approval.
+  OBS-06-03:
+    priority: P0
+    holder: platform
+    phase: 4
+    target: manage-reliability-objectives
+    status: missing
+    evidence: No capability found in scan.
+  OBS-06-04:
+    priority: P0
+    holder: platform
+    phase: 4
+    target: manage-reliability-objectives
+    status: partial
+    evidence: Reliability report and burn-rate rules (services/query-api/src/reliability.rs, services/alert-evaluator/src/evaluator.rs evaluate_burn_rate); error budget remaining not verified.
+  OBS-06-05:
+    priority: P1
+    holder: platform
+    phase: 4
+    target: manage-reliability-objectives
+    status: partial
+    evidence: Multi-window burn-rate alerts.
+  OBS-06-06:
+    priority: P1
+    holder: platform
+    phase: 4
+    target: manage-reliability-objectives
+    status: partial
+    evidence: Per-service reliability report; no business-area aggregation.
+  OBS-06-07:
+    priority: P1
+    holder: platform
+    phase: 4
+    target: manage-reliability-objectives
+    status: missing
+    evidence: No capability found in scan.
+  OBS-06-08:
+    priority: P1
+    holder: process
+    phase: 4
+    target: manage-reliability-objectives
+    status: missing
+    evidence: No capability found in scan.
+  OBS-06-09:
+    priority: P1
+    holder: platform
+    phase: 4
+    target: manage-reliability-objectives
+    status: missing
+    evidence: No capability found in scan.
+  OBS-06-10:
+    priority: P2
+    holder: platform
+    phase: 4
+    target: manage-reliability-objectives
+    status: missing
+    evidence: No capability found in scan.
+  OBS-07-01:
+    priority: P0
+    holder: platform
+    phase: 5
+    target: evaluate-alerts
+    status: partial
+    evidence: Alert rules notify webhook channels (services/alert-evaluator/src/notifications.rs); no accountable responder.
+  OBS-07-02:
+    priority: P0
+    holder: platform
+    phase: 5
+    target: evaluate-alerts
+    status: partial
+    evidence: Alert has severity, rule, time, runbook_url (migrations/postgres/029_*.sql); no support route.
+  OBS-07-03:
+    priority: P0
+    holder: platform
+    phase: 5
+    target: evaluate-alerts
+    status: partial
+    evidence: Static rule severity critical/warning/info; not impact-based.
+  OBS-07-04:
+    priority: P0
+    holder: platform
+    phase: 5
+    target: evaluate-alerts
+    status: partial
+    evidence: Incident acknowledge/resolve (services/alert-evaluator/src/incidents.rs); no escalate, no alert-level ack.
+  OBS-07-05:
+    priority: P1
+    holder: platform
+    phase: 5
+    target: evaluate-alerts
+    status: partial
+    evidence: Incident dedup_key and firing suppression (migrations/postgres/027_*.sql, migrations/postgres/036_*.sql).
+  OBS-07-06:
+    priority: P1
+    holder: platform
+    phase: 5
+    target: evaluate-alerts
+    status: partial
+    evidence: Rule silence flag (/v1/admin/alerts/rules/{rule_id}/silence); no scheduled maintenance windows.
+  OBS-07-07:
+    priority: P1
+    holder: process
+    phase: 5
+    target: evaluate-alerts
+    status: missing
+    evidence: No capability found in scan.
+  OBS-07-08:
+    priority: P0
+    holder: organization
+    phase: 5
+    target: evaluate-alerts
+    status: missing
+    evidence: No capability found in scan.
+  OBS-07-09:
+    priority: P1
+    holder: platform
+    phase: 5
+    target: evaluate-alerts
+    status: partial
+    evidence: notification_audit_log pending/sent/failed (migrations/postgres/024_*.sql); no ack tracking.
+  OBS-07-10:
+    priority: P1
+    holder: platform
+    phase: 5
+    target: evaluate-alerts
+    status: missing
+    evidence: No capability found in scan.
+  OBS-07-11:
+    priority: P1
+    holder: platform
+    phase: 5
+    target: evaluate-alerts
+    status: missing
+    evidence: No capability found in scan.
+  OBS-07-12:
+    priority: P2
+    holder: platform
+    phase: 5
+    target: evaluate-alerts
+    status: missing
+    evidence: No capability found in scan.
+  OBS-08-01:
+    priority: P0
+    holder: platform
+    phase: 6
+    target: manage-incidents
+    status: partial
+    evidence: Incidents auto-created from rules (auto_trigger); manual association missing.
+  OBS-08-02:
+    priority: P0
+    holder: platform
+    phase: 6
+    target: manage-incidents
+    status: partial
+    evidence: Incident severity and status (apps/frontend/src/features/incidents/IncidentDetailPage.tsx); no owner or impact.
+  OBS-08-03:
+    priority: P0
+    holder: platform
+    phase: 6
+    target: manage-incidents
+    status: partial
+    evidence: incident_events timeline and comments (migrations/postgres/028_create_incident_events.sql).
+  OBS-08-05:
+    priority: P1
+    holder: platform
+    phase: 6
+    target: manage-incidents
+    status: missing
+    evidence: No capability found in scan.
+  OBS-08-06:
+    priority: P1
+    holder: platform
+    phase: 6
+    target: manage-incidents
+    status: missing
+    evidence: No capability found in scan.
+  OBS-08-07:
+    priority: P2
+    holder: process
+    phase: 6
+    target: manage-incidents
+    status: missing
+    evidence: No capability found in scan.
+  OBS-08-08:
+    priority: P1
+    holder: organization
+    phase: 6
+    target: manage-incidents
+    status: missing
+    evidence: No capability found in scan.
+  OBS-08-09:
+    priority: P1
+    holder: platform
+    phase: 6
+    target: manage-incidents
+    status: missing
+    evidence: No capability found in scan.
+  OBS-09-01:
+    priority: P0
+    holder: platform
+    phase: 6
+    target: support-investigation
+    status: partial
+    evidence: Service detail tabs and global time range; no investigation entity.
+  OBS-09-02:
+    priority: P0
+    holder: platform
+    phase: 6
+    target: support-investigation
+    status: partial
+    evidence: Trace-log-metric correlation (apps/frontend/src/components/LogCorrelatedList.tsx).
+  OBS-09-03:
+    priority: P0
+    holder: platform
+    phase: 6
+    target: support-investigation
+    status: partial
+    evidence: Trace comparison (apps/frontend/src/pages/TraceCompare.tsx); no period comparison.
+  OBS-09-04:
+    priority: P1
+    holder: platform
+    phase: 6
+    target: support-investigation
+    status: partial
+    evidence: Attribute filters and facets.
+  OBS-09-05:
+    priority: P1
+    holder: platform
+    phase: 6
+    target: support-investigation
+    status: missing
+    evidence: No capability found in scan.
+  OBS-09-07:
+    priority: P2
+    holder: platform
+    phase: 6
+    target: support-investigation
+    status: missing
+    evidence: No capability found in scan.
+  OBS-09-08:
+    priority: P0
+    holder: platform
+    phase: 6
+    target: support-investigation
+    status: missing
+    evidence: No capability found in scan.
+  OBS-09-09:
+    priority: P1
+    holder: platform
+    phase: 6
+    target: support-investigation
+    status: missing
+    evidence: No capability found in scan.
+  OBS-09-10:
+    priority: P1
+    holder: platform
+    phase: 6
+    target: support-investigation
+    status: partial
+    evidence: Trace waterfall (apps/frontend/src/pages/TraceDetail.tsx).
+  OBS-10-01:
+    priority: P0
+    holder: platform
+    phase: 7
+    target: map-dependencies-and-impact
+    status: partial
+    evidence: Trace-derived topology (/v1/topology, apps/frontend/src/pages/ServiceTopologyPage.tsx); no business services or providers.
+  OBS-10-02:
+    priority: P0
+    holder: platform
+    phase: 7
+    target: map-dependencies-and-impact
+    status: missing
+    evidence: No capability found in scan.
+  OBS-10-03:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: map-dependencies-and-impact
+    status: partial
+    evidence: Topology graph of direct edges.
+  OBS-10-04:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: map-dependencies-and-impact
+    status: missing
+    evidence: No capability found in scan.
+  OBS-10-06:
+    priority: P2
+    holder: platform
+    phase: 7
+    target: map-dependencies-and-impact
+    status: missing
+    evidence: No capability found in scan.
+  OBS-10-07:
+    priority: P0
+    holder: platform
+    phase: 7
+    target: map-dependencies-and-impact
+    status: missing
+    evidence: No capability found in scan.
+  OBS-10-08:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: map-dependencies-and-impact
+    status: missing
+    evidence: No capability found in scan.
+  OBS-10-09:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: map-dependencies-and-impact
+    status: partial
+    evidence: Edges observed from traces; no source/confidence/last-confirmed.
+  OBS-11-01:
+    priority: P0
+    holder: platform
+    phase: 6
+    target: track-changes
+    status: partial
+    evidence: Deployment markers and change events on service timeline (apps/frontend/src/components/DeploymentTimeline.tsx, services/admin-service/src/change_events.rs).
+  OBS-11-02:
+    priority: P1
+    holder: platform
+    phase: 6
+    target: track-changes
+    status: partial
+    evidence: Reliability report correlates deployments in window; no before/after comparison.
+  OBS-11-03:
+    priority: P1
+    holder: process
+    phase: 6
+    target: track-changes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-11-04:
+    priority: P1
+    holder: platform
+    phase: 6
+    target: track-changes
+    status: partial
+    evidence: deployment_regression alert type exists; no release-team routing.
+  OBS-11-05:
+    priority: P2
+    holder: platform
+    phase: 6
+    target: track-changes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-11-06:
+    priority: P2
+    holder: process
+    phase: 6
+    target: track-changes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-11-07:
+    priority: P1
+    holder: platform
+    phase: 6
+    target: track-changes
+    status: partial
+    evidence: change_events types config_change, feature_flag, migration (migrations/postgres/032_*.sql); no infrastructure or third-party types.
+  OBS-11-08:
+    priority: P2
+    holder: platform
+    phase: 6
+    target: track-changes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-11-09:
+    priority: P2
+    holder: platform
+    phase: 6
+    target: track-changes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-12-01:
+    priority: P0
+    holder: platform
+    phase: 7
+    target: track-business-processes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-12-02:
+    priority: P0
+    holder: platform
+    phase: 7
+    target: track-business-processes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-12-03:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: track-business-processes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-12-04:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: track-business-processes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-12-05:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: track-business-processes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-12-06:
+    priority: P2
+    holder: platform
+    phase: 7
+    target: track-business-processes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-13-01:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: report-service-status
+    status: partial
+    evidence: Home page and services list (apps/frontend/src/pages/HomePage.tsx); not scoped to accountable services.
+  OBS-13-02:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: report-service-status
+    status: partial
+    evidence: Histograms and charts over a selected range.
+  OBS-13-03:
+    priority: P0
+    holder: platform
+    phase: 2
+    target: report-service-status
+    status: partial
+    evidence: Global date range picker shows period; no freshness disclosure.
+  OBS-13-04:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: report-service-status
+    status: partial
+    evidence: Dashboards; no stakeholder-tailored views.
+  OBS-13-05:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: report-service-status
+    status: partial
+    evidence: Dashboard and saved-view grants (migrations/postgres/031_*.sql, migrations/postgres/038_*.sql).
+  OBS-13-06:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: report-service-status
+    status: missing
+    evidence: No capability found in scan.
+  OBS-13-07:
+    priority: P2
+    holder: platform
+    phase: 3
+    target: report-service-status
+    status: missing
+    evidence: No capability found in scan.
+  OBS-14-01:
+    priority: P0
+    holder: platform
+    phase: 8
+    target: govern-data-access
+    status: partial
+    evidence: Roles tenant_admin/member/viewer (migrations/postgres/018_*.sql), tenant isolation (req-tenant-auth-isolation).
+  OBS-14-02:
+    priority: P0
+    holder: platform
+    phase: 8
+    target: normalize-telemetry
+    status: missing
+    evidence: No secret/PII scrubbing (risk-pii-not-scrubbed).
+  OBS-14-03:
+    priority: P0
+    holder: platform
+    phase: 8
+    target: govern-data-access
+    status: partial
+    evidence: Tenant retention and purge (services/admin-service/src/tenants.rs, docs/retention-deletion.md); no classification or purpose.
+  OBS-14-04:
+    priority: P0
+    holder: platform
+    phase: 8
+    target: govern-data-access
+    status: partial
+    evidence: credential_audit_log and query_audit_log (migrations/postgres/004_*.sql, migrations/postgres/005_*.sql); not all material actions.
+  OBS-14-05:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: govern-data-access
+    status: partial
+    evidence: Dashboard grants; no sensitive-domain access control.
+  OBS-14-06:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: govern-data-access
+    status: missing
+    evidence: No capability found in scan.
+  OBS-14-07:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: govern-data-access
+    status: partial
+    evidence: Tenant hard purge; no per-subject privacy request or legal hold.
+  OBS-14-08:
+    priority: P0
+    holder: organization
+    phase: 8
+    target: govern-data-access
+    status: missing
+    evidence: No capability found in scan.
+  OBS-14-09:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: govern-data-access
+    status: missing
+    evidence: No capability found in scan.
+  OBS-14-10:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: govern-data-access
+    status: missing
+    evidence: No capability found in scan.
+  OBS-14-11:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: normalize-telemetry
+    status: missing
+    evidence: No capability found in scan.
+  OBS-15-01:
+    priority: P0
+    holder: organization
+    phase: 8
+    target: audit-and-compliance
+    status: missing
+    evidence: No capability found in scan.
+  OBS-15-02:
+    priority: P0
+    holder: platform
+    phase: 8
+    target: audit-and-compliance
+    status: partial
+    evidence: Incident events and audit logs; retention-bound reconstruction not verified.
+  OBS-15-03:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: audit-and-compliance
+    status: missing
+    evidence: No capability found in scan.
+  OBS-15-04:
+    priority: P1
+    holder: process
+    phase: 8
+    target: audit-and-compliance
+    status: missing
+    evidence: No capability found in scan.
+  OBS-15-05:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: audit-and-compliance
+    status: missing
+    evidence: No capability found in scan.
+  OBS-15-06:
+    priority: P2
+    holder: platform
+    phase: 8
+    target: audit-and-compliance
+    status: missing
+    evidence: No capability found in scan.
+  OBS-15-07:
+    priority: P1
+    holder: process
+    phase: 8
+    target: audit-and-compliance
+    status: missing
+    evidence: No capability found in scan.
+  OBS-15-08:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: audit-and-compliance
+    status: missing
+    evidence: No capability found in scan.
+  OBS-15-09:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: audit-and-compliance
+    status: missing
+    evidence: No capability found in scan.
+  OBS-16-01:
+    priority: P0
+    holder: platform
+    phase: 8
+    target: exchange-operational-context
+    status: missing
+    evidence: No capability found in scan.
+  OBS-16-02:
+    priority: P0
+    holder: platform
+    phase: 8
+    target: exchange-operational-context
+    status: partial
+    evidence: REST API, dashboard export (services/admin-service/src/dashboards.rs /export).
+  OBS-16-03:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: exchange-operational-context
+    status: partial
+    evidence: OTLP and Prometheus Remote Write ingest accept any producer.
+  OBS-16-04:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: exchange-operational-context
+    status: partial
+    evidence: Webhook notification channel only.
+  OBS-16-05:
+    priority: P1
+    holder: organization
+    phase: 8
+    target: exchange-operational-context
+    status: missing
+    evidence: No capability found in scan.
+  OBS-16-06:
+    priority: P2
+    holder: platform
+    phase: 8
+    target: exchange-operational-context
+    status: missing
+    evidence: No capability found in scan.
+  OBS-16-07:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: exchange-operational-context
+    status: partial
+    evidence: API keys with roles; MCP query tools (/v1/mcp/*).
+  OBS-16-08:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: exchange-operational-context
+    status: missing
+    evidence: No capability found in scan.
+  OBS-16-09:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: exchange-operational-context
+    status: partial
+    evidence: OTLP ingest (ADR-001); dashboard import/export in own format.
+  OBS-17-01:
+    priority: P0
+    holder: platform
+    phase: 8
+    target: report-observability-cost
+    status: partial
+    evidence: Usage report per tenant (services/admin-service/src/usage.rs, apps/frontend/src/features/admin/BillingReportPage.tsx); no cost attribution per service.
+  OBS-17-02:
+    priority: P0
+    holder: platform
+    phase: 8
+    target: report-observability-cost
+    status: missing
+    evidence: No capability found in scan.
+  OBS-17-03:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: report-observability-cost
+    status: missing
+    evidence: No capability found in scan.
+  OBS-17-04:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: report-observability-cost
+    status: partial
+    evidence: Retention days and quota visible in usage report; no cost impact.
+  OBS-17-05:
+    priority: P1
+    holder: platform
+    phase: 8
+    target: report-observability-cost
+    status: missing
+    evidence: No capability found in scan.
+  OBS-17-06:
+    priority: P2
+    holder: platform
+    phase: 8
+    target: report-observability-cost
+    status: missing
+    evidence: No capability found in scan.
+  OBS-17-07:
+    priority: P2
+    holder: process
+    phase: 8
+    target: report-observability-cost
+    status: missing
+    evidence: No capability found in scan.
+  OBS-18-01:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: partial
+    evidence: Natural-language query (services/query-api/src/nlq_session.rs, ADR-021).
+  OBS-18-02:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: partial
+    evidence: change_detection and anomaly alert types (services/alert-evaluator/src/evaluator.rs evaluate_change_detection).
+  OBS-18-03:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: No capability found in scan.
+  OBS-18-04:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: No capability found in scan.
+  OBS-18-05:
+    priority: P2
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: No capability found in scan.
+  OBS-18-06:
+    priority: P2
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: No capability found in scan.
+  OBS-18-07:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: partial
+    evidence: NLQ runs under tenant-bound session; no data-policy filtering.
+  OBS-18-08:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: No capability found in scan.
+  OBS-18-09:
+    priority: P2
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: No capability found in scan.
+  OBS-19-03:
+    priority: P0
+    holder: organization
+    phase: 9
+    target: observable-platform
+    status: missing
+    evidence: No capability found in scan.
+  OBS-19-04:
+    priority: P1
+    holder: platform
+    phase: 9
+    target: observable-platform
+    status: missing
+    evidence: No capability found in scan.
+  OBS-19-05:
+    priority: P1
+    holder: platform
+    phase: 9
+    target: observable-platform
+    status: partial
+    evidence: Time display helpers (apps/frontend/src/lib/timeDisplay.test.ts, ADR-030).
+  OBS-19-06:
+    priority: P1
+    holder: process
+    phase: 9
+    target: observable-platform
+    status: partial
+    evidence: Self-observability probes and drills (req-self-observability, docs/runbooks/kubernetes-failure-drills.md).
+  OBS-19-07:
+    priority: P2
+    holder: platform
+    phase: 9
+    target: observable-platform
+    status: partial
+    evidence: Onboarding wizard (apps/frontend/src/features/onboarding/OnboardingWizard.tsx).
+  OBS-19-08:
+    priority: P1
+    holder: platform
+    phase: 9
+    target: observable-platform
+    status: partial
+    evidence: req-query-latency and perf smoke; no business-approved targets under incident load.
+  OBS-19-09:
+    priority: P1
+    holder: platform
+    phase: 9
+    target: observable-platform
+    status: partial
+    evidence: req-ingest-throughput, capacity guidance (docs/capacity-recovery.md).
+  OBS-20-01:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Sidebar areas Traces/Logs/Metrics/Services/Alerts/Incidents (apps/frontend/src/components/AppShell.tsx); no customer-experience or reporting entry.
+  OBS-20-02:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Search by service name and trace ID.
+  OBS-20-03:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Global tenant/environment/time context (ADR-031).
+  OBS-20-04:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Environment and time visible in shell; filters not shown in every view.
+  OBS-20-05:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Router history; selections not guaranteed.
+  OBS-20-06:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Saved views (logs only).
+  OBS-20-07:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Service detail tabs link alerts, deployments, infrastructure.
+  OBS-20-08:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Service, trace and log drilldowns keep global context.
+  OBS-20-09:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Tree navigation (apps/frontend/src/components/TreeNav.tsx); no investigation breadcrumb.
+  OBS-20-10:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-21-01:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Home and services overview; no critical-service focus.
+  OBS-21-02:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Service detail with reliability and deployments tabs (apps/frontend/src/features/services/).
+  OBS-21-03:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Incidents list/detail; no ownership, impact or next action.
+  OBS-21-04:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-21-05:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Dashboards with grants and panel templates.
+  OBS-21-06:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-21-07:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-21-08:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Overview to service detail to traces/logs.
+  OBS-21-09:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-22-01:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Absolute and relative ranges (apps/frontend/src/components/GlobalDateRangePicker.tsx); no period comparison.
+  OBS-22-02:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Facet filters (apps/frontend/src/components/FacetSidebar.tsx).
+  OBS-22-03:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Histogram to log/trace lists.
+  OBS-22-04:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Histograms, workbench, NLQ visualizations.
+  OBS-22-05:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Charts show units inconsistently; aggregation not always stated.
+  OBS-22-06:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Trace compare only.
+  OBS-22-07:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Query workbench (apps/frontend/src/features/workbench/).
+  OBS-22-08:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Saved views with grants (logs only).
+  OBS-22-09:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-22-10:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Attribute schemas (/v1/schemas/{signal_type}/attributes) and facets.
+  OBS-22-11:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Histogram bucket selection narrows log/trace lists.
+  OBS-22-12:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Filter and group controls in workbench.
+  OBS-22-13:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-23-01:
+    priority: P0
+    holder: platform
+    phase: 6
+    target: investigate-incidents-ui
+    status: partial
+    evidence: 'Incident detail: severity, status, triggered_at; no owner, impacted services or impact.'
+  OBS-23-02:
+    priority: P0
+    holder: platform
+    phase: 6
+    target: investigate-incidents-ui
+    status: partial
+    evidence: Incident timeline of events and comments.
+  OBS-23-03:
+    priority: P0
+    holder: platform
+    phase: 6
+    target: investigate-incidents-ui
+    status: partial
+    evidence: Linked deployment; no navigation to affected services' evidence with scope.
+  OBS-23-04:
+    priority: P0
+    holder: platform
+    phase: 6
+    target: investigate-incidents-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-23-05:
+    priority: P0
+    holder: platform
+    phase: 6
+    target: investigate-incidents-ui
+    status: partial
+    evidence: Acknowledge, status update, resolve; no assign or escalate.
+  OBS-23-06:
+    priority: P1
+    holder: platform
+    phase: 6
+    target: investigate-incidents-ui
+    status: partial
+    evidence: Deployment link on incident.
+  OBS-23-07:
+    priority: P1
+    holder: platform
+    phase: 6
+    target: investigate-incidents-ui
+    status: partial
+    evidence: Incident comments.
+  OBS-23-08:
+    priority: P1
+    holder: platform
+    phase: 6
+    target: investigate-incidents-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-23-09:
+    priority: P1
+    holder: platform
+    phase: 6
+    target: investigate-incidents-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-23-10:
+    priority: P1
+    holder: platform
+    phase: 6
+    target: investigate-incidents-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-23-11:
+    priority: P0
+    holder: platform
+    phase: 6
+    target: investigate-incidents-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-24-01:
+    priority: P0
+    holder: platform
+    phase: 2
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-24-02:
+    priority: P0
+    holder: platform
+    phase: 2
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Ad hoc loading/empty states; no stale/unauthorized distinction.
+  OBS-24-03:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-24-04:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Error messages ad hoc.
+  OBS-24-05:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-24-06:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No textual/tabular chart alternatives.
+  OBS-24-07:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Shared UI components (AGENTS.md mandate).
+  OBS-24-08:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Live tail and refresh controls (apps/frontend/src/components/LogLiveTail.tsx).
+  OBS-24-09:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Mutation feedback ad hoc.
+  OBS-24-10:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-24-11:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-24-12:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-25-01:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-25-02:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Role-gated admin pages and tenant scoping; existence hiding not verified.
+  OBS-25-03:
+    priority: P0
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Active tenant shown in shell (apps/frontend/src/components/UserMenu.tsx); no elevated-access state.
+  OBS-25-04:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Time display preference handling.
+  OBS-25-05:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Onboarding wizard.
+  OBS-25-06:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-25-07:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: partial
+    evidence: Dashboard export.
+  OBS-25-08:
+    priority: P2
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-25-09:
+    priority: P2
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-25-10:
+    priority: P1
+    holder: platform
+    phase: 3
+    target: explore-telemetry-ui
+    status: missing
+    evidence: No capability found in scan.
+  OBS-26-01:
+    priority: P0
+    holder: platform
+    phase: 2
+    target: assess-service-health
+    status: missing
+    evidence: No capability found in scan.
+  OBS-26-02:
+    priority: P0
+    holder: platform
+    phase: 2
+    target: assess-service-health
+    status: partial
+    evidence: deadman alert type detects absent data (services/alert-evaluator/src/evaluator.rs evaluate_deadman).
+  OBS-26-03:
+    priority: P1
+    holder: platform
+    phase: 2
+    target: assess-service-health
+    status: missing
+    evidence: No capability found in scan.
+  OBS-26-04:
+    priority: P0
+    holder: platform
+    phase: 2
+    target: assess-service-health
+    status: missing
+    evidence: No capability found in scan.
+  OBS-26-05:
+    priority: P1
+    holder: platform
+    phase: 2
+    target: assess-service-health
+    status: missing
+    evidence: No capability found in scan.
+  OBS-26-06:
+    priority: P1
+    holder: platform
+    phase: 2
+    target: assess-service-health
+    status: partial
+    evidence: Sampling strategy (ADR-011); not disclosed in views.
+  OBS-27-01:
+    priority: P0
+    holder: organization
+    phase: 1
+    target: govern-observability-assets
+    status: missing
+    evidence: No capability found in scan.
+  OBS-27-02:
+    priority: P0
+    holder: platform
+    phase: 1
+    target: govern-observability-assets
+    status: missing
+    evidence: No capability found in scan.
+  OBS-27-03:
+    priority: P1
+    holder: process
+    phase: 1
+    target: govern-observability-assets
+    status: missing
+    evidence: No capability found in scan.
+  OBS-27-04:
+    priority: P0
+    holder: organization
+    phase: 1
+    target: govern-observability-assets
+    status: missing
+    evidence: No capability found in scan.
+  OBS-27-05:
+    priority: P1
+    holder: process
+    phase: 1
+    target: govern-observability-assets
+    status: missing
+    evidence: No capability found in scan.
+  OBS-28-01:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assess-customer-experience
+    status: missing
+    evidence: No capability found in scan.
+  OBS-28-02:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assess-customer-experience
+    status: missing
+    evidence: No capability found in scan.
+  OBS-28-03:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assess-customer-experience
+    status: missing
+    evidence: No capability found in scan.
+  OBS-28-04:
+    priority: P2
+    holder: platform
+    phase: 10
+    target: assess-customer-experience
+    status: missing
+    evidence: No capability found in scan.
+  OBS-28-05:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assess-customer-experience
+    status: missing
+    evidence: No capability found in scan.
+  OBS-28-06:
+    priority: P2
+    holder: platform
+    phase: 10
+    target: assess-customer-experience
+    status: missing
+    evidence: No capability found in scan.
+  OBS-29-01:
+    priority: P0
+    holder: platform
+    phase: 9
+    target: observable-platform
+    status: missing
+    evidence: No capability found in scan.
+  OBS-29-02:
+    priority: P0
+    holder: process
+    phase: 9
+    target: observable-platform
+    status: partial
+    evidence: Platform alerting rules and drills (docs/platform-alerting.md, scripts/kind-test.sh --with-drills).
+  OBS-29-03:
+    priority: P0
+    holder: platform
+    phase: 2
+    target: observable-platform
+    status: missing
+    evidence: No capability found in scan.
+  OBS-29-04:
+    priority: P1
+    holder: process
+    phase: 9
+    target: observable-platform
+    status: partial
+    evidence: Runbooks (docs/runbooks/).
+  OBS-29-05:
+    priority: P1
+    holder: organization
+    phase: 9
+    target: observable-platform
+    status: missing
+    evidence: No capability found in scan.
+  OBS-29-06:
+    priority: P1
+    holder: platform
+    phase: 9
+    target: observable-platform
+    status: missing
+    evidence: No capability found in scan.
+  OBS-30-01:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: communicate-incident-status
+    status: missing
+    evidence: No capability found in scan.
+  OBS-30-02:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: communicate-incident-status
+    status: missing
+    evidence: No capability found in scan.
+  OBS-30-03:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: communicate-incident-status
+    status: missing
+    evidence: No capability found in scan.
+  OBS-30-04:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: communicate-incident-status
+    status: missing
+    evidence: No capability found in scan.
+  OBS-31-01:
+    priority: P0
+    holder: platform
+    phase: 7
+    target: trace-transactions
+    status: missing
+    evidence: No capability found in scan.
+  OBS-31-02:
+    priority: P0
+    holder: platform
+    phase: 7
+    target: trace-transactions
+    status: partial
+    evidence: Trace waterfall by trace ID.
+  OBS-31-03:
+    priority: P0
+    holder: platform
+    phase: 7
+    target: trace-transactions
+    status: partial
+    evidence: query_audit_log (migrations/postgres/005_*.sql); no purpose binding.
+  OBS-31-04:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: trace-transactions
+    status: partial
+    evidence: Span status OK/ERROR; no pending/retried/unknown outcome.
+  OBS-31-05:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: trace-transactions
+    status: missing
+    evidence: No capability found in scan.
+  OBS-31-06:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: trace-transactions
+    status: missing
+    evidence: No capability found in scan.
+  OBS-32-01:
+    priority: P0
+    holder: platform
+    phase: 7
+    target: track-business-processes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-32-02:
+    priority: P0
+    holder: platform
+    phase: 7
+    target: track-business-processes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-32-03:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: track-business-processes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-32-04:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: track-business-processes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-32-05:
+    priority: P1
+    holder: platform
+    phase: 7
+    target: track-business-processes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-32-06:
+    priority: P2
+    holder: platform
+    phase: 7
+    target: track-business-processes
+    status: missing
+    evidence: No capability found in scan.
+  OBS-33-01:
+    priority: P0
+    holder: platform
+    phase: 5
+    target: manage-operational-guidance
+    status: partial
+    evidence: runbook_url on alert rules (migrations/postgres/029_*.sql); no ownership or currency.
+  OBS-33-02:
+    priority: P1
+    holder: organization
+    phase: 5
+    target: manage-operational-guidance
+    status: missing
+    evidence: No capability found in scan.
+  OBS-33-03:
+    priority: P1
+    holder: platform
+    phase: 5
+    target: manage-operational-guidance
+    status: missing
+    evidence: No capability found in scan.
+  OBS-33-04:
+    priority: P1
+    holder: process
+    phase: 5
+    target: manage-operational-guidance
+    status: missing
+    evidence: No capability found in scan.
+  OBS-33-05:
+    priority: P2
+    holder: platform
+    phase: 5
+    target: manage-operational-guidance
+    status: missing
+    evidence: No capability found in scan.
+  OBS-34-01:
+    priority: P0
+    holder: organization
+    phase: 1
+    target: govern-observability-assets
+    status: partial
+    evidence: Dashboard owner via grants; alerts/SLOs have no owner.
+  OBS-34-02:
+    priority: P1
+    holder: platform
+    phase: 1
+    target: govern-observability-assets
+    status: missing
+    evidence: No capability found in scan.
+  OBS-34-03:
+    priority: P1
+    holder: process
+    phase: 1
+    target: govern-observability-assets
+    status: missing
+    evidence: No capability found in scan.
+  OBS-34-04:
+    priority: P1
+    holder: platform
+    phase: 1
+    target: govern-observability-assets
+    status: partial
+    evidence: Dashboard import/export and panel templates.
+  OBS-34-05:
+    priority: P1
+    holder: platform
+    phase: 1
+    target: govern-observability-assets
+    status: missing
+    evidence: No capability found in scan.
+  OBS-34-06:
+    priority: P2
+    holder: platform
+    phase: 1
+    target: govern-observability-assets
+    status: partial
+    evidence: Dashboard JSON import/export can live with service code.
+  OBS-35-01:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: observe-ai-services
+    status: missing
+    evidence: No capability found in scan.
+  OBS-35-02:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: observe-ai-services
+    status: partial
+    evidence: Generic span metrics (ADR-029); no GenAI-specific model.
+  OBS-35-03:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: observe-ai-services
+    status: missing
+    evidence: No capability found in scan.
+  OBS-35-04:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: observe-ai-services
+    status: missing
+    evidence: No capability found in scan.
+  OBS-35-05:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: observe-ai-services
+    status: missing
+    evidence: No capability found in scan.
+  OBS-35-06:
+    priority: P2
+    holder: platform
+    phase: 10
+    target: observe-ai-services
+    status: missing
+    evidence: No capability found in scan.
+  OBS-35-07:
+    priority: P2
+    holder: platform
+    phase: 10
+    target: observe-ai-services
+    status: missing
+    evidence: No capability found in scan.
+  OBS-36-01:
+    priority: P0
+    holder: organization
+    phase: 1
+    target: manage-providers
+    status: missing
+    evidence: No capability found in scan.
+  OBS-36-02:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-providers
+    status: missing
+    evidence: No capability found in scan.
+  OBS-36-03:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-providers
+    status: missing
+    evidence: No capability found in scan.
+  OBS-36-04:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-providers
+    status: missing
+    evidence: No capability found in scan.
+  OBS-36-05:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-providers
+    status: missing
+    evidence: No capability found in scan.
+  OBS-36-06:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-providers
+    status: missing
+    evidence: No capability found in scan.
+  OBS-37-01:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-on-call
+    status: missing
+    evidence: No capability found in scan.
+  OBS-37-02:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-on-call
+    status: missing
+    evidence: No capability found in scan.
+  OBS-37-03:
+    priority: P1
+    holder: process
+    phase: 10
+    target: manage-on-call
+    status: missing
+    evidence: No capability found in scan.
+  OBS-37-04:
+    priority: P1
+    holder: process
+    phase: 10
+    target: manage-on-call
+    status: missing
+    evidence: No capability found in scan.
+  OBS-37-05:
+    priority: P2
+    holder: platform
+    phase: 10
+    target: manage-on-call
+    status: missing
+    evidence: No capability found in scan.

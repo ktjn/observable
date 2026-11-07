@@ -1,0 +1,153 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Area: Ensure actionable problems reach accountable responders.
+requirements:
+- id: OBS-07-01
+  version: 0.1.0
+  target: evaluate-alerts
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: sre-lead
+  statement: The platform shall notify accountable responders when critical services breach agreed operating conditions.
+  criteria:
+  - 'Acceptance: A simulated critical failure reaches the designated response group.'
+  - 'Negative: With the primary responder unavailable, a simulated critical breach still reaches an accountable responder.'
+- id: OBS-07-02
+  version: 0.1.0
+  target: evaluate-alerts
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: sre-lead
+  statement: Each alert shall state affected service, severity, detected condition, time, and next action or support route.
+  criteria:
+  - 'Acceptance: An on-call responder can determine the immediate action from the alert.'
+  - 'Negative: An alert missing its service or support route is detected as incomplete before delivery.'
+- id: OBS-07-03
+  version: 0.1.0
+  target: evaluate-alerts
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: sre-lead
+  statement: Alert severity shall reflect urgency and business impact rather than raw event volume alone.
+  criteria:
+  - 'Acceptance: A non-critical condition does not receive the same severity as a customer-critical outage.'
+  - 'Negative: A high-volume, low-impact condition does not receive critical severity.'
+- id: OBS-07-04
+  version: 0.1.0
+  target: evaluate-alerts
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: sre-lead
+  statement: Responsible teams shall be able to acknowledge, escalate, and close actionable alerts.
+  criteria:
+  - 'Acceptance: A controlled alert shows the complete acknowledgement and escalation lifecycle.'
+  - 'Negative: An alert cannot be closed by an unauthorized actor, and a closed alert keeps its acknowledgement history.'
+- id: OBS-07-05
+  version: 0.1.0
+  target: evaluate-alerts
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: sre-lead
+  statement: The platform shall reduce duplicate and related notifications about the same incident.
+  criteria:
+  - 'Acceptance: A single simulated underlying failure does not result in unmanaged redundant pages.'
+- id: OBS-07-06
+  version: 0.1.0
+  target: evaluate-alerts
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: sre-lead
+  statement: Authorized users shall be able to schedule alert exclusions for approved maintenance.
+  criteria:
+  - 'Acceptance: An approved maintenance period suppresses only the eligible notifications.'
+- id: OBS-07-07
+  version: 0.1.0
+  target: evaluate-alerts
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: sre-lead
+  statement: Service owners shall be able to review missed alerts, false positives, and recurring noise.
+  criteria:
+  - 'Acceptance: An alert-quality review provides counts and examples for a selected period.'
+- id: OBS-07-08
+  version: 0.1.0
+  target: evaluate-alerts
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: sre-lead
+  statement: Each critical alert shall have an accountable response owner and a defined escalation path when acknowledgement is not received.
+  criteria:
+  - 'Acceptance: An unacknowledged critical alert reaches the next approved responder and retains an escalation history.'
+  - 'Negative: An unacknowledged critical alert escalates to the next responder within the agreed interval.'
+- id: OBS-07-09
+  version: 0.1.0
+  target: evaluate-alerts
+  kind: non-functional
+  category: observability
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: sre-lead
+  statement: Service owners shall be able to assess whether notifications were delivered, acknowledged, and acted upon within agreed expectations.
+  criteria:
+  - 'Acceptance: An alert review distinguishes generated, delivered, acknowledged and unhandled notifications.'
+- id: OBS-07-10
+  version: 0.1.0
+  target: evaluate-alerts
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: sre-lead
+  statement: Alert definitions shall be verifiable before activation and after material change.
+  criteria:
+  - 'Acceptance: A new critical alert is shown to trigger on a controlled condition before it is enabled for paging.'
+- id: OBS-07-11
+  version: 0.1.0
+  target: evaluate-alerts
+  kind: non-functional
+  category: resilience
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: sre-lead
+  statement: Critical notifications shall have an alternative delivery route when the primary route fails or is not acknowledged.
+  criteria:
+  - 'Acceptance: A blocked primary channel does not prevent a critical notification from reaching a responder.'
+- id: OBS-07-12
+  version: 0.1.0
+  target: evaluate-alerts
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: sre-lead
+  statement: Users shall be able to receive warnings of predicted breaches of agreed conditions before they occur, with the basis of the prediction disclosed.
+  criteria:
+  - 'Acceptance: A forecast capacity breach generates a predictive warning labeled as a forecast.'

@@ -1,0 +1,113 @@
+# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
+# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Area: Identify regressions and support evidence-based release decisions.
+requirements:
+- id: OBS-11-01
+  version: 0.1.0
+  target: track-changes
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: head-of-engineering
+  statement: Service owners shall be able to see significant changes associated with service health events.
+  criteria:
+  - 'Acceptance: A recent release is visible alongside a resulting service regression.'
+  - 'Negative: A change made outside the release process still appears alongside the resulting health event.'
+- id: OBS-11-02
+  version: 0.1.0
+  target: track-changes
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-engineering
+  statement: Users shall be able to compare reliability and performance before and after a change.
+  criteria:
+  - 'Acceptance: A reviewer can evaluate equivalent pre- and post-change periods.'
+- id: OBS-11-03
+  version: 0.1.0
+  target: track-changes
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-engineering
+  statement: Teams shall be able to establish measurable acceptance criteria for business-critical releases.
+  criteria:
+  - 'Acceptance: A release review records whether its agreed customer and reliability criteria passed.'
+- id: OBS-11-04
+  version: 0.1.0
+  target: track-changes
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-engineering
+  statement: The platform shall make change-related service degradation visible to the accountable release team.
+  criteria:
+  - 'Acceptance: A controlled regression is associated with the relevant release owner.'
+- id: OBS-11-05
+  version: 0.1.0
+  target: track-changes
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: head-of-engineering
+  statement: Leadership shall be able to review delivery performance alongside reliability outcomes.
+  criteria:
+  - 'Acceptance: A report includes approved delivery and reliability measures without treating them as equivalent.'
+- id: OBS-11-06
+  version: 0.1.0
+  target: track-changes
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: head-of-engineering
+  statement: Service owners shall be able to document release decisions and associated accepted risks.
+  criteria:
+  - 'Acceptance: An exception decision has an approver, rationale, and affected service.'
+- id: OBS-11-07
+  version: 0.1.0
+  target: track-changes
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-engineering
+  statement: Change visibility shall include code releases, configuration, feature activation, infrastructure, data-structure and third-party changes affecting a service.
+  criteria:
+  - 'Acceptance: A configuration change and a feature activation both appear in the service change history.'
+- id: OBS-11-08
+  version: 0.1.0
+  target: track-changes
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: head-of-engineering
+  statement: Teams shall be able to evaluate incremental or partial releases against the unchanged population before wider rollout.
+  criteria:
+  - 'Acceptance: A partial release shows comparative results for exposed and unexposed users.'
+- id: OBS-11-09
+  version: 0.1.0
+  target: track-changes
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: head-of-engineering
+  statement: Users shall be able to see approved change-freeze periods and changes made during them.
+  criteria:
+  - 'Acceptance: A change during a freeze is visible with its approval or exception.'

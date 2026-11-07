@@ -2,7 +2,7 @@
 system:
   id: observable-platform
   version: "0.1.0"
-  status: verified
+  status: specified
   layers:
     - experience
     - application
@@ -28,6 +28,7 @@ components:
       - apps/frontend
     provides:
       - explore-telemetry-ui
+      - investigate-incidents-ui
     requires:
       - validate-credential@^0.1
       - manage-control-plane@^0.1
@@ -59,6 +60,10 @@ components:
       - libs/domain-core
     provides:
       - query-telemetry
+      - support-investigation
+      - trace-transactions
+      - assist-operations
+      - observe-ai-services
     requires:
       - validate-credential@^0.1
       - manage-control-plane@^0.1
@@ -76,6 +81,9 @@ components:
     provides:
       - manage-control-plane
       - publish-deployment-markers
+      - track-changes
+      - report-service-status
+      - report-observability-cost
     requires:
       - validate-credential@^0.1
       - store-telemetry@^0.1
@@ -95,6 +103,8 @@ components:
       - services/alert-evaluator
     provides:
       - evaluate-alerts
+      - manage-reliability-objectives
+      - manage-on-call
     requires:
       - validate-credential@^0.1
       - store-telemetry@^0.1
@@ -126,6 +136,8 @@ components:
       - libs/observable-auth
     provides:
       - validate-credential
+      - govern-data-access
+      - audit-and-compliance
     owns_data:
       - api-key-credential
       - user-session
@@ -1778,3 +1790,19 @@ evidence:
     timestamp: "2026-11-06T05:54:00Z"
     verifier: cargo-test
     environment: local
+
+# Business specification (observability-spec v2.5), merged 2026-11-07.
+# state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
+state_sets:
+  baseline:
+    loading: Indicate that evidence is being retrieved without implying a service is healthy.
+    ready: Show the current scoped evidence and when it was observed.
+    empty: Explain that no authorized records match the selection.
+    stale: Show the age of evidence and warn against interpreting it as current.
+    error: Explain the failed operation and provide a safe recovery route.
+    unauthorized: Withhold restricted content and actions without exposing the existence of protected records.
+include:
+  - business/capabilities.yaml
+  - business/areas/*.yaml
+  - business/risks.yaml
+  - business/experience/*.yaml
