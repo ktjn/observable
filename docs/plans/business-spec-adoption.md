@@ -121,7 +121,7 @@ Phase 8 can run in parallel with 2-7 after phase 1. Phase 3 UI shell work can st
 1. Decide Q2-Q9.
 2. Classify all 293 requirements (met/partial/missing/org) with evidence (file, route or test).
 3. Map each OBS requirement to an owning component and capability, creating capabilities where none fits.
-4. Merge PR: OBS requirements, risks, views, experiences and roles into `spec/system.yaml`; `--compat` against `main`; gate adjusted per Q7.
+4. Merge PR: OBS requirements, risks, views, experiences and roles into `spec/system.yaml`; `--compat` against `main`; AGENTS.md gate switched to `--stage verification`; readiness report added.
 5. Reconcile with [ROADMAP.md](../../ROADMAP.md): place each phase relative to 0.2-1.0 (Q2).
 6. Write ADR drafts for decisions 1-5 in section 4.
 
@@ -140,7 +140,7 @@ Known areas that change shape (redesign, not migration): health states, service 
 
 - **Critical: scope.** 293 requirements against a 17-requirement system. Without a P0-first cut the plan does not converge. Mitigation: phases 1-9 target P0 only; P1/P2 deferred to phase 10.
 - **Critical: false-healthy today.** The current health derivation violates OBS-03-01 now. Consider fixing it ahead of the plan (Q6).
-- **Critical: release gate red after merge.** 293 unverified requirements fail STAT-04/REQ-05 at `--stage release`. Needs an explicit gate policy (Q7) before the merge PR.
+- **Critical: release gate red after merge.** 293 unverified requirements fail STAT-04/REQ-05 at `--stage release`. Policy (Q7): gate at `--stage verification` with a P0 readiness report; the release stage is only the exit check for the target release.
 - **Business-owned thresholds.** The spec defines no numbers. Every acceptance test needs configured thresholds; the platform must make thresholds configurable, not hard-coded.
 - **Roadmap conflict.** ROADMAP.md 0.2 (component independence) is in progress. A new start may replace ROADMAP.md (Q2). Whatever survives must follow ADR-035 isolation rules.
 - **Organization/process obligations** (34 requirements) cannot be verified by tests. The platform records them; verification is inspection by the business owner.
@@ -150,7 +150,7 @@ Known areas that change shape (redesign, not migration): health states, service 
 ## 8. Open questions
 
 - **Q1.** Decided 2026-11-07: merge into `spec/system.yaml`.
-- **Q7.** Gate after merge: (a) validate at `--stage verification` until the target release, plus a readiness report of verified P0s; (b) merge requirements phase by phase so only the current phase is red; (c) keep `--stage release` red and accept it. Recommended: (a).
+- **Q7.** Decided 2026-11-07: validate at `--stage verification` until the target release, plus a readiness report of verified P0s per phase. Phase 0 adds the report script and updates the AGENTS.md gate command.
 - **Q8.** Targets: retarget OBS requirements to Observable capabilities (recommended), or import the 37 areas as logical components?
 - **Q10.** Reuse or rebuild: refactor the existing services into the target (keep Rust/React stack, ingest, storage), or rebuild from the spec per REPLACEMENT.md and reuse code only where it fits?
 - **Q9.** Upstream repo after merge: archive, keep read-only, or keep authoring there and sync?
