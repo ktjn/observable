@@ -1,0 +1,161 @@
+components:
+- id: incident-response
+  version: '1.0'
+  status: specified
+  description: Coordinate recovery and continuous improvement.
+  owner: incident-manager
+  layer: capability
+  domain: response
+  provides:
+  - incident-response.platform
+  - incident-response.process
+  - incident-response.organization
+capabilities:
+- id: incident-response.platform
+  version: '1.0'
+  status: specified
+  description: Incident and problem response — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - incident_status_authoritative_and_shared
+  invariants:
+  - incident_milestones_time_ordered
+  failure_modes:
+  - inconsistent_incident_status
+  - lost_milestone
+- id: incident-response.process
+  version: '1.0'
+  status: specified
+  description: Incident and problem response — operational process performed with the platform; verified by exercise or record review.
+  postconditions:
+  - incident_status_authoritative_and_shared
+  invariants:
+  - incident_milestones_time_ordered
+  failure_modes:
+  - inconsistent_incident_status
+  - lost_milestone
+  - process_not_followed
+- id: incident-response.organization
+  version: '1.0'
+  status: specified
+  description: Incident and problem response — governance obligation such as ownership, approval or policy; verified by inspection.
+  postconditions:
+  - incident_status_authoritative_and_shared
+  invariants:
+  - incident_milestones_time_ordered
+  failure_modes:
+  - inconsistent_incident_status
+  - lost_milestone
+  - accountability_unassigned
+requirements:
+- id: OBS-08-01
+  version: '1.0'
+  target: incident-response.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: incident-manager
+  statement: Responders shall be able to associate critical alerts and affected services with an incident record.
+  criteria:
+  - 'Acceptance: An incident can be opened with its affected services and alert context.'
+  - 'Negative: An incident cannot be created for a service that does not exist in the catalog without a recorded exception.'
+- id: OBS-08-02
+  version: '1.0'
+  target: incident-response.platform
+  kind: functional
+  category: concurrency
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: incident-manager
+  statement: Incident responders shall be able to see the incident owner, severity, status, and current impact.
+  criteria:
+  - 'Acceptance: All responders in a simulation see the same authoritative incident status.'
+  - 'Negative: Concurrent status updates by two responders converge to one authoritative status visible to all.'
+- id: OBS-08-03
+  version: '1.0'
+  target: incident-response.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: incident-manager
+  statement: The platform shall preserve a time-ordered record of material incident milestones.
+  criteria:
+  - 'Acceptance: A resolved incident shows detection, acknowledgement, mitigation, and resolution milestones.'
+  - 'Negative: A milestone recorded late keeps its true event time and does not reorder or overwrite earlier milestones.'
+- id: OBS-08-04
+  version: '1.0'
+  target: incident-response.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: deprecated
+  priority: P1
+  owner: incident-manager
+  superseded_by: OBS-30-01
+  statement: Teams shall be able to communicate current impact and recovery status to approved audiences.
+  criteria:
+  - 'Acceptance: A prepared status update differentiates internal and external audience information.'
+- id: OBS-08-05
+  version: '1.0'
+  target: incident-response.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: incident-manager
+  statement: Incidents shall be reviewable against response and restoration targets.
+  criteria:
+  - 'Acceptance: A post-incident review measures agreed intervals without manual reconstruction.'
+- id: OBS-08-06
+  version: '1.0'
+  target: incident-response.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: incident-manager
+  statement: Recurring incidents shall be linkable to an ongoing problem and corrective actions.
+  criteria:
+  - 'Acceptance: A reviewer can see incidents tied to one problem and action ownership.'
+- id: OBS-08-07
+  version: '1.0'
+  target: incident-response.process
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: incident-manager
+  statement: Incident reviews shall support documented lessons learned and follow-up verification.
+  criteria:
+  - 'Acceptance: A corrective action can be traced to a later review of its effectiveness.'
+- id: OBS-08-08
+  version: '1.0'
+  target: incident-response.organization
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: incident-manager
+  statement: The organization shall apply consistent criteria for declaring, classifying and escalating major incidents.
+  criteria:
+  - 'Acceptance: Two similar incidents in different domains receive the same classification under the agreed criteria.'
+- id: OBS-08-09
+  version: '1.0'
+  target: incident-response.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: incident-manager
+  statement: Responders shall be able to assign and see incident roles, such as incident lead, communications lead and subject experts.
+  criteria:
+  - 'Acceptance: All responders can see who holds each incident role and the role handover history.'

@@ -1,7 +1,7 @@
 # ADR-037: Business Specification as the 2.0 Requirement Baseline
 
 **Date:** 2026-11-07  
-**Status:** Proposed  
+**Status:** Accepted (2026-11-07; decisions Q1–Q10 in docs/plans/business-spec-adoption.md, accepted by merging the 2.0 re-review PR)  
 **Authors:** Claude Code  
 **Deciders:** Tommy (ktjn)  
 **Superseded by:**  
@@ -19,7 +19,7 @@ Merge the business specification into `spec/system.yaml` (via `include` fragment
 
 **Easier:** One spec, one validator run, one impact analysis; requirements, workflows and risks resolve against real components and capabilities; progress is measurable per phase (`scripts/spec-readiness.py`).  
 **Harder:** `--stage release` fails until every active requirement is verified, so it cannot guard regressions on the 2.0 line until `2.0.0`; per-requirement gap status lives outside the metamodel (`docs/plans/business-spec-gap.yaml`).  
-**Constrained:** No compatibility, migration or data preservation from 0.x on `2.0`. Area and holder are not metamodel fields; they live in fragment file names and the gap file. `state_sets` stays in the root file until OBSSPEC-EXP-09 is fixed upstream.
+**Constrained:** No compatibility, migration or data preservation from 0.x on `2.0`. Area and holder are not metamodel fields; they are recoverable from the vendored baseline target (`spec/business/baseline/v2.5/`, `<area>.<holder>`) and mirrored in the gap file (model feedback MF-1). `state_sets` stays in the root file until OBSSPEC-EXP-09 is fixed upstream.
 
 ## Alternatives Considered
 

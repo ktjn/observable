@@ -47,7 +47,7 @@ The existing codebase is already well-positioned for this work:
 - The frontend is already a static React/Vite SPA (`ADR-006`).
 - `services/query-api/src/planner/` contains pure SQL-planning logic that is a strong extraction candidate.
 - Generated shared models already exist through Modelable and are committed for both Rust and TypeScript (`ADR-032`).
-- WebLLM is already present in the frontend and accepted as a client-side NLQ provider (`ADR-035`).
+- WebLLM is already present in the frontend and accepted as a client-side NLQ provider (`ADR-043`).
 
 The main blocker is dependency coupling. `libs/domain` currently pulls server/runtime dependencies such as `axum`, `tonic`, `reqwest`, OpenTelemetry exporters, and tracing subscribers. The service crates likewise combine pure policy/business logic with HTTP, Kafka, ClickHouse, PostgreSQL, and Tokio runtime concerns. Those boundaries need to be separated before meaningful reuse in WASM is possible.
 
@@ -498,7 +498,7 @@ The existing workbench may expose SQL. In playground mode:
 
 ## 11. NLQ / WebLLM
 
-`ADR-035` already establishes WebLLM as a client-side provider. The playground should make it the only AI provider initially.
+`ADR-043` already establishes WebLLM as a client-side provider. The playground should make it the only AI provider initially.
 
 ### Default
 

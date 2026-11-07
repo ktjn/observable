@@ -1,6 +1,6 @@
-# ADR-036: Build-Time Agent Component Development
+# ADR-044: Build-Time Agent Component Development
 
-**Status:** Proposed
+**Status:** Proposed (renumbered from a duplicate ADR-036 on 2026-11-07)
 **Date:** 2026-10-16
 
 ## Context

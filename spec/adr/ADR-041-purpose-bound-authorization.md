@@ -1,7 +1,7 @@
 # ADR-041: Purpose-Bound and Existence-Hiding Authorization
 
 **Date:** 2026-11-07  
-**Status:** Proposed  
+**Status:** Accepted (2026-11-07; decisions Q1–Q10 in docs/plans/business-spec-adoption.md, accepted by merging the 2.0 re-review PR)  
 **Authors:** Claude Code  
 **Deciders:** Tommy (ktjn)  
 **Superseded by:**  
@@ -13,7 +13,7 @@ ADR-008 accepted OpenFGA relationship-based authorization, but no service calls 
 
 ## Decision
 
-Implement authorization as a single policy decision point in `observable-auth` (`govern-data-access`) using relationship-based checks per ADR-008, extended with purpose and elevation context on each request, list filtering at query time so restricted records are never returned or counted, and audit records for elevated and purpose-bound access (`audit-and-compliance`). Whether OpenFGA remains the engine is decided in the phase 8 detailed plan.
+Implement authorization as a single policy decision point in `observable-auth`, exposed as the `decide-access` contract (`POST /internal/authz/decide`, fail closed, denied and non-existent indistinguishable) that realizes `govern-data-access`, using relationship-based checks per ADR-008, extended with purpose and elevation context on each request, list filtering at query time so restricted records are never returned or counted, and audit records for elevated and purpose-bound access (`audit-and-compliance`). The contract and `req-decide-access-fail-closed` are Phase 1 deliverables because `observable-catalog` and `observable-health` call it from their first protected read. Whether OpenFGA remains the engine is decided in the phase 8 detailed plan.
 
 ## Consequences
 

@@ -1,0 +1,101 @@
+components:
+- id: transaction-tracing
+  version: '1.0'
+  status: specified
+  description: Answer “what happened to this specific transaction or customer” quickly, accurately and lawfully.
+  owner: business-process-owner
+  layer: capability
+  domain: investigation
+  provides:
+  - transaction-tracing.platform
+capabilities:
+- id: transaction-tracing.platform
+  version: '1.0'
+  status: specified
+  description: Transaction and customer-case tracing — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - individual_transaction_outcome_found
+  invariants:
+  - uncertain_outcome_never_reported_successful
+  - lookup_audited
+  failure_modes:
+  - untraceable_transaction
+  - unaudited_customer_lookup
+requirements:
+- id: OBS-31-01
+  version: '1.0'
+  target: transaction-tracing.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: business-process-owner
+  statement: Authorized users shall be able to locate an individual business transaction by its approved business reference.
+  criteria:
+  - 'Acceptance: A support agent finds a payment by its reference and sees its current status.'
+  - 'Negative: A lookup for a reference outside the user''s purpose or role is refused and recorded.'
+- id: OBS-31-02
+  version: '1.0'
+  target: transaction-tracing.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: business-process-owner
+  statement: Users shall be able to see the processing path, steps, timing and outcome of an individual transaction across involved services.
+  criteria:
+  - 'Acceptance: An investigator identifies the step where a delayed transaction is held.'
+  - 'Negative: A transaction whose path evidence is incomplete shows the gap rather than an assumed completion.'
+- id: OBS-31-03
+  version: '1.0'
+  target: transaction-tracing.platform
+  kind: non-functional
+  category: security
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: dpo
+  statement: Transaction and customer lookups shall be restricted by purpose, role and data classification, and shall be auditable.
+  criteria:
+  - 'Acceptance: Each lookup records the actor, stated purpose and accessed reference.'
+  - 'Negative: A lookup without a stated purpose is refused, and every lookup appears in the audit record.'
+- id: OBS-31-04
+  version: '1.0'
+  target: transaction-tracing.platform
+  kind: functional
+  category: semantic
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: business-process-owner
+  statement: Users shall be able to distinguish transactions that are complete, pending, failed, retried or of unknown outcome.
+  criteria:
+  - 'Acceptance: A transaction with an uncertain outcome is never reported as successful.'
+- id: OBS-31-05
+  version: '1.0'
+  target: transaction-tracing.platform
+  kind: non-functional
+  category: security
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: dpo
+  statement: Authorized support staff shall be able to determine whether a specific customer was affected by a known incident without access to unrelated personal data.
+  criteria:
+  - 'Acceptance: A support agent confirms impact for a caller using approved identifiers only.'
+  depends_on:
+  - OBS-31-03
+- id: OBS-31-06
+  version: '1.0'
+  target: transaction-tracing.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: business-process-owner
+  statement: Users shall be able to identify all transactions affected by an incident within an agreed scope for follow-up and remediation.
+  criteria:
+  - 'Acceptance: A remediation team obtains the failed transactions for a defined incident window.'

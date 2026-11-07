@@ -1,7 +1,7 @@
-# ADR-035: WebLLM as a Client-Side NLQ Provider
+# ADR-043: WebLLM as a Client-Side NLQ Provider
 
 **Date:** 2026-07-18
-**Status:** Accepted
+**Status:** Accepted (renumbered from a duplicate ADR-035 on 2026-11-07)
 **Authors:** ktjn
 **Deciders:** Project Stakeholders
 **Review date:** 2027-01-18

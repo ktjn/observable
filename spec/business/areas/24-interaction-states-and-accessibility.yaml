@@ -1,10 +1,11 @@
-# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
-# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
+# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
+# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
 # Area: Ensure incident-critical workflows remain understandable and operable.
 requirements:
 - id: OBS-24-01
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: interaction-states-ui
   kind: functional
   category: semantic
   mandatory: true
@@ -17,7 +18,7 @@ requirements:
   - 'Negative: In grayscale and with a screen reader, all five states remain distinguishable.'
 - id: OBS-24-02
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: interaction-states-ui
   kind: functional
   category: semantic
   mandatory: true
@@ -32,7 +33,7 @@ requirements:
   - OBS-26-04
 - id: OBS-24-03
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: interaction-states-ui
   kind: functional
   category: functional
   mandatory: true
@@ -45,7 +46,7 @@ requirements:
   - 'Negative: A high-impact action cannot complete from a single unintended click.'
 - id: OBS-24-04
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: interaction-states-ui
   kind: functional
   category: functional
   mandatory: true
@@ -58,7 +59,7 @@ requirements:
   - 'Negative: A failed retrieval never renders an empty chart that could read as no activity.'
 - id: OBS-24-05
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: interaction-states-ui
   kind: functional
   category: functional
   mandatory: true
@@ -71,7 +72,7 @@ requirements:
   - 'Negative: Critical workflows remain operable by keyboard only and at 400% zoom.'
 - id: OBS-24-06
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: interaction-states-ui
   kind: functional
   category: functional
   mandatory: false
@@ -83,7 +84,7 @@ requirements:
   - 'Acceptance: A screen-reader user can obtain the substantive values and status conveyed by a graph.'
 - id: OBS-24-07
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: interaction-states-ui
   kind: functional
   category: semantic
   mandatory: false
@@ -95,7 +96,7 @@ requirements:
   - 'Acceptance: A repeated filter or incident action has the same meaning in relevant views.'
 - id: OBS-24-08
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: interaction-states-ui
   kind: functional
   category: functional
   mandatory: false
@@ -109,7 +110,7 @@ requirements:
   - OBS-13-03
 - id: OBS-24-09
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: interaction-states-ui
   kind: functional
   category: functional
   mandatory: true
@@ -124,7 +125,7 @@ requirements:
   - OBS-24-04
 - id: OBS-24-10
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: interaction-states-ui
   kind: functional
   category: functional
   mandatory: false
@@ -138,7 +139,7 @@ requirements:
   - OBS-24-03
 - id: OBS-24-11
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: interaction-states-ui
   kind: functional
   category: semantic
   mandatory: false
@@ -152,7 +153,7 @@ requirements:
   - OBS-24-08
 - id: OBS-24-12
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: interaction-states-ui
   kind: non-functional
   category: resilience
   mandatory: false

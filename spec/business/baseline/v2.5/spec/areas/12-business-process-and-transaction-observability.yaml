@@ -1,0 +1,96 @@
+components:
+- id: business-process
+  version: '1.0'
+  status: specified
+  description: Connect operational behavior to business execution.
+  owner: business-process-owner
+  layer: capability
+  domain: service-health
+  provides:
+  - business-process.platform
+capabilities:
+- id: business-process.platform
+  version: '1.0'
+  status: specified
+  description: Business process and transaction observability — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - process_outcome_measured
+  invariants:
+  - business_rejection_not_counted_as_outage
+  failure_modes:
+  - stalled_process_undetected
+requirements:
+- id: OBS-12-01
+  version: '1.0'
+  target: business-process.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: business-process-owner
+  statement: The platform shall support business-defined measures for critical end-to-end processes.
+  criteria:
+  - 'Acceptance: An owner can view the current outcome of a designated business process.'
+  - 'Negative: A process measure whose source stops reporting shows unknown, not normal completion.'
+- id: OBS-12-02
+  version: '1.0'
+  target: business-process.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: business-process-owner
+  statement: Business process health shall include successful completions, failures, and material delays where relevant.
+  criteria:
+  - 'Acceptance: A simulated stalled process is reported even if involved services remain available.'
+  - 'Negative: A stalled process is reported even while every involved service reports available.'
+- id: OBS-12-03
+  version: '1.0'
+  target: business-process.platform
+  kind: functional
+  category: semantic
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: business-process-owner
+  statement: Users shall be able to distinguish business-rule rejection from an operational failure.
+  criteria:
+  - 'Acceptance: A valid business rejection is not counted as an operational outage.'
+- id: OBS-12-04
+  version: '1.0'
+  target: business-process.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: business-process-owner
+  statement: Business owners shall be able to evaluate process quality by approved dimensions, including product or channel.
+  criteria:
+  - 'Acceptance: A product-specific issue can be separated from unaffected products.'
+- id: OBS-12-05
+  version: '1.0'
+  target: business-process.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: business-process-owner
+  statement: Business owners shall be able to quantify the impact of disrupted journeys using approved business indicators.
+  criteria:
+  - 'Acceptance: A report shows affected transactions or equivalent approved impact indicator.'
+- id: OBS-12-06
+  version: '1.0'
+  target: business-process.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: business-process-owner
+  statement: Users shall be able to detect abnormal business process patterns relative to established baselines.
+  criteria:
+  - 'Acceptance: A controlled material deviation is reported for review.'

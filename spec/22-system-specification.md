@@ -10,7 +10,7 @@ This document records the reverse-discovery onboarding of `observable` (`0.1.0`)
 - **Toolkit & Governance**: [system-spec/](file:///c:/git/observable/system-spec) (`system-spec-ref` on PyPI)
 - **Toolkit snapshot (2026-11-06)**: upgraded the dependency lock and offline export from `system-spec-ref` 0.4.0 to 0.5.0. This tooling update does not change platform contracts, architecture, or product acceptance; no ADR change is required. Existing evidence and historical gate records below are retained, not recertified. Both validators report the existing release-stage `STAT-04` failures for `req-ingest-rate-limit` and `req-ingest-cardinality-budget`, which remain `specified`.
 - **CLI Commands**:
-  - Validation (2.0 line): `uv run --project models system-spec spec/system.yaml --stage verification`, then the same with `--check-artifacts --check-drift --root .`; P0 readiness via `scripts/spec-readiness.py`. Release stage is the exit check for the target release (see AGENTS.md).
+  - Validation (2.0 line): `bash scripts/spec-gate.sh` (verification stage alone and with `--check-artifacts --check-drift --root .`, business baseline integrity, UX contracts, strict readiness evidence policy). Mandatory for every change. `--stage release` cannot be scoped to P0; the `2.0.0` exit gate is defined in ROADMAP.md.
   - Bounded Context Slice: `system-spec spec/system.yaml --context <component-id>`
   - Architecture Diagram: `system-spec spec/system.yaml --diagram`
   - Change Impact Analysis: `system-spec spec/system.yaml --impact <entity-id>`

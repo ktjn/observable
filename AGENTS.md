@@ -21,12 +21,10 @@ The machine-checkable platform specification lives in `spec/system.yaml` and is 
 
 * **Validation Gate (2.0 line):** `spec/system.yaml` includes the business specification (`spec/business/`, 293 `OBS-*` requirements). Until the target release, specifications must validate cleanly at **verification** stage; release stage is the exit check for that release ([docs/plans/business-spec-adoption.md](docs/plans/business-spec-adoption.md), Q7). Run the stage on its own as well, because the CLI skips stage invariants when `--check-artifacts`/`--check-drift` pass:
   ```bash
-  uv run --project models system-spec spec/system.yaml --stage verification
-  uv run --project models system-spec spec/system.yaml --stage verification --check-artifacts --check-drift --root .
-  # P0 readiness per plan phase (reads docs/plans/business-spec-gap.yaml):
-  uv run --project models python scripts/spec-readiness.py --priority P0
+  bash scripts/spec-gate.sh
   ```
-  When a slice verifies an `OBS-*` requirement, set its status to `verified`, add `path::test_name` evidence, and update its entry in `docs/plans/business-spec-gap.yaml`.
+  The gate runs the verification stage on its own and with `--check-artifacts --check-drift`, the business baseline check, the UX contract check, the strict readiness evidence policy and its regression tests. It is mandatory for every change, including spec- and docs-only changes. P0 progress per plan phase: `uv run --project models python scripts/spec-readiness.py --priority P0`.
+  When a slice verifies an `OBS-*` requirement, set its status to `verified`, add one evidence record per criterion group with `criteria` naming the exact criterion strings, `requirement_version`, a `path::test_name` provenance and a `verifier`, and update its entry in `docs/plans/business-spec-gap.yaml`.
 * **Bounded Context Slicing:** Before implementing or modifying a component, inspect its bounded spec slice:
   ```bash
   system-spec spec/system.yaml --context <component-id>
@@ -51,12 +49,12 @@ The machine-checkable platform specification lives in `spec/system.yaml` and is 
 
 ## Business and UX verification obligations (2.0)
 
-- Treat `spec/business/` and its imported baseline as authoritative business intent. Do not edit business requirements to make generated implementation pass; apply approved changes through FEATURE.md with explicit impact and reviewer decision.
-- Run `python scripts/check-ux-contracts.py` when modifying experiences, views, UI workflows or UX-facing capabilities. This checks minimum interaction completeness and scenario links; it is **not** browser verification.
-- Before marking an OBS P0 requirement `verified`, run every declared acceptance and negative criterion and attach current passing evidence **per criterion** (`Evidence.criteria` with stable provenance and `requirement_version`). `scripts/spec-readiness.py` will not count a requirement verified merely because an unrelated passing test exists. Business/process requirements need accountable inspection evidence.
+- Treat `spec/business/` and its baseline `spec/business/baseline/v2.5/` as authoritative business intent. Never edit the baseline. Do not edit business requirements to make generated implementation pass; apply approved changes through FEATURE.md with explicit impact and reviewer decision, and declare every changed or removed baseline element in `spec/business/refinements.yaml` (`scripts/check-business-baseline.py`).
+- `scripts/check-ux-contracts.py` (part of `spec-gate.sh`) checks interaction completeness, failure-mode coverage, state reachability and scenario links; it is **not** browser verification and cannot prove a requirement link is semantically right.
+- Before marking an OBS requirement `verified`, run every declared acceptance and negative criterion and attach current passing evidence **per criterion** (`Evidence.criteria` with stable provenance, `verifier` and `requirement_version`). `scripts/spec-readiness.py --strict` rejects blanket records without `criteria`, skipped or unsuperseded failing records, missing verifiers, and methods that do not fit the holder (platform: test/analysis/model-check/proof; organization/process: inspection/analysis).
 - For each changed capability or UI experience, record linked `OBS-*` requirements, failure risks, affected UX interactions, invalidated evidence, scenario tests and independent verifier. Run negative tests for unknown/stale health, unauthorized access and action failure.
-- New internal provider components must provide dependency injection, an independently runnable harness, a versioned programmable mock and a shared real/mock contract suite. Default-deny access and purpose-based authorization apply from initial implementation, not only governance phase 8.
-- Domain boundaries in `spec/system.yaml` reflect logical responsibility, orthogonal to layers; any new cross-domain dependency requires an explicit `uses` relationship and architectural review.
+- New internal provider components must provide dependency injection, an independently runnable harness, a versioned programmable mock and a shared real/mock contract suite. Default-deny access and purpose-based authorization apply from initial implementation through `decide-access` (ADR-041), not only governance phase 8.
+- Domain boundaries in `spec/system.yaml` reflect logical responsibility, orthogonal to layers; any new cross-domain dependency requires an explicit `uses` relationship and architectural review. `incident-response` must never use `investigation` (ADR-042).
 
 See [Phase 0 assurance hardening](docs/plans/phase0-assurance-hardening.md), [UX contracts](spec/business/experience/ux-workflows.yaml) and [ADR-042](spec/adr/ADR-042-operational-domain-boundaries.md).
 
@@ -122,7 +120,7 @@ building on different branches at once), use a separate full clone instead.
 
 You **MUST** run `bash scripts/local-ci.sh` before pushing **ANY** code changes. No exceptions. GitHub Actions builds artifacts on pull requests and pushes to `main` (see `.github/workflows/build.yml`); validation suites run locally only (ADR-019).
 
-**Note:** Pure documentation changes (files under `docs/`, `spec/`, or any `.md` files) are exempt.
+**Note:** Pure documentation changes (files under `docs/`, `spec/`, or any `.md` files) are exempt from the full gate, but **not** from `bash scripts/spec-gate.sh`, which every change must pass.
 
 **For any Rust code change — run this first, every time, no exceptions:**
 ```

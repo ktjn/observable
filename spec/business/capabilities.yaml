@@ -1,10 +1,10 @@
-# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
-# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Observable capabilities that realize the business baseline (spec/business/baseline/v2.5). Not part of the baseline.
+# Owned by this repository; change through system-spec/FEATURE.md. See docs/plans/business-spec-adoption.md.
 capabilities:
 - id: manage-service-catalog
   version: 0.1.0
   status: specified
-  description: 'Make the platform accountable for outcomes rather than a collection of tools. Establish one accountable view of monitored services and gaps. Planned provider: observable-catalog (not yet built).'
+  description: 'Make the platform accountable for outcomes rather than a collection of tools. Establish one accountable view of monitored services and gaps. Planned provider: observable-catalog, domain service-model (not yet built).'
   postconditions:
   - covered_services_have_approved_outcomes
   - service_found_with_owner_and_coverage
@@ -21,7 +21,7 @@ capabilities:
 - id: assess-service-health
   version: 0.1.0
   status: specified
-  description: 'Provide an accurate operational picture of service condition. Understand service responsiveness and operating headroom. Ensure operational decisions can be based on transparent and dependable observations. Planned provider: observable-health (not yet built).'
+  description: 'Provide an accurate operational picture of service condition. Understand service responsiveness and operating headroom. Ensure operational decisions can be based on transparent and dependable observations. Planned provider: observable-health, domain service-assessment (not yet built).'
   postconditions:
   - current_health_state_shown
   - responsiveness_and_headroom_assessed
@@ -40,7 +40,7 @@ capabilities:
 - id: assess-customer-experience
   version: 0.1.0
   status: specified
-  description: 'Observe what customers experience, not only internal service status. Discover broken customer and business journeys before they are reported by customers. Planned provider: observable-health (not yet built).'
+  description: 'Observe what customers experience, not only internal service status. Discover broken customer and business journeys before they are reported by customers. Provider and domain are decided in the Phase 7 detailed plan (ADR-039).'
   postconditions:
   - customer_journey_outcome_visible
   - journey_failure_found_before_customer_report
@@ -67,7 +67,7 @@ capabilities:
 - id: manage-incidents
   version: 0.1.0
   status: specified
-  description: 'Coordinate recovery and continuous improvement. Planned provider: observable-response (not yet built).'
+  description: 'Coordinate recovery and continuous improvement. Planned provider: observable-response, domain incident-response (not yet built).'
   postconditions:
   - incident_status_authoritative_and_shared
   invariants:
@@ -91,7 +91,7 @@ capabilities:
 - id: map-dependencies-and-impact
   version: 0.1.0
   status: specified
-  description: 'Understand the blast radius and prioritize what matters. Planned provider: observable-catalog (not yet built).'
+  description: 'Understand the blast radius and prioritize what matters. Planned provider: observable-catalog, domain service-model (not yet built).'
   postconditions:
   - blast_radius_identified
   invariants:
@@ -113,7 +113,7 @@ capabilities:
 - id: track-business-processes
   version: 0.1.0
   status: specified
-  description: 'Connect operational behavior to business execution. Make time-bound and queued business processing as observable as interactive services. Planned provider: observable-health (not yet built).'
+  description: 'Connect operational behavior to business execution. Make time-bound and queued business processing as observable as interactive services. Provider and domain are decided in the Phase 7 detailed plan (ADR-039).'
   postconditions:
   - process_outcome_measured
   - deadline_risk_detected_before_cut_off
@@ -138,7 +138,7 @@ capabilities:
 - id: govern-data-access
   version: 0.1.0
   status: specified
-  description: Protect information while enabling accountable use. Provided by observable-auth.
+  description: Protect information while enabling accountable use. Provided by observable-auth; enforced at capability boundaries through decide-access (ADR-041).
   postconditions:
   - access_follows_role_and_need
   invariants:
@@ -163,7 +163,7 @@ capabilities:
 - id: exchange-operational-context
   version: 0.1.0
   status: specified
-  description: 'Fit existing workflows and avoid dependence on one supplier. Planned provider: observable-response (not yet built).'
+  description: 'Fit existing workflows and avoid dependence on one supplier. Planned provider: observable-response, domain incident-response (not yet built).'
   postconditions:
   - context_exchanged_without_loss
   invariants:
@@ -209,7 +209,7 @@ capabilities:
 - id: govern-observability-assets
   version: 0.1.0
   status: specified
-  description: 'Make observability coverage an owned, continuously verified service obligation. Govern alerts, objectives, dashboards, checks and health rules as owned, managed business assets. Planned provider: observable-catalog (not yet built).'
+  description: 'Make observability coverage an owned, continuously verified service obligation. Govern alerts, objectives, dashboards, checks and health rules as owned, managed business assets. Planned provider: observable-catalog, domain service-model (not yet built).'
   postconditions:
   - required_coverage_compared_with_actual
   - asset_changes_reviewable_and_reversible
@@ -226,7 +226,7 @@ capabilities:
 - id: communicate-incident-status
   version: 0.1.0
   status: specified
-  description: 'Provide controlled, accurate communication of operational impact to relevant audiences. Planned provider: observable-response (not yet built).'
+  description: 'Provide controlled, accurate communication of operational impact to relevant audiences. Planned provider: observable-response, domain incident-response (not yet built).'
   postconditions:
   - approved_update_reaches_audience
   invariants:
@@ -249,7 +249,7 @@ capabilities:
 - id: manage-operational-guidance
   version: 0.1.0
   status: specified
-  description: 'Put current, owned operational know-how in front of responders at the moment it is needed. Planned provider: observable-response (not yet built).'
+  description: 'Put current, owned operational know-how in front of responders at the moment it is needed. Planned provider: observable-response, domain incident-response (not yet built).'
   postconditions:
   - current_guidance_reached_from_alert
   invariants:
@@ -273,7 +273,7 @@ capabilities:
 - id: manage-providers
   version: 0.1.0
   status: specified
-  description: 'Treat material providers as observed dependencies with owned risk, evidence and coordination. Planned provider: observable-catalog (not yet built).'
+  description: 'Treat material providers as observed dependencies with owned risk, evidence and coordination. Planned provider: observable-catalog, domain service-model (not yet built).'
   postconditions:
   - provider_dependency_and_performance_known
   invariants:
@@ -294,3 +294,40 @@ capabilities:
   - coverage_gap
   - responder_overload
   - process_not_followed
+- id: navigate-operational-workspaces-ui
+  version: 0.1.0
+  status: specified
+  description: Navigation, scope retention and role-based operational workspaces (areas 20 and 21). Provided by observable-web.
+  postconditions:
+  - scope_and_location_visible_in_every_investigative_view
+  - overview_to_detail_and_back_retains_scope
+  invariants:
+  - navigation_never_silently_replaces_scope
+  failure_modes:
+  - lost_context
+  - unrecognizable_entity
+- id: interaction-states-ui
+  version: 0.1.0
+  status: specified
+  description: Baseline interaction states, action feedback and accessibility (area 24). Provided by observable-web.
+  postconditions:
+  - action_progress_completion_and_failure_reported
+  - wcag_2_2_aa_for_essential_flows
+  invariants:
+  - unconfirmed_action_never_shown_completed
+  - unknown_never_styled_as_healthy
+  failure_modes:
+  - false_completion
+  - indistinguishable_state
+  - inaccessible_flow
+- id: access-aware-ui
+  version: 0.1.0
+  status: specified
+  description: Responsive access, active context, elevation and existence-hiding presentation (area 25). Provided by observable-web; decisions come from govern-data-access.
+  postconditions:
+  - active_context_and_elevation_visible_before_action
+  invariants:
+  - restricted_existence_and_data_withheld
+  failure_modes:
+  - unauthorized_disclosure
+  - hidden_elevation

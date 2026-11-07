@@ -1,10 +1,11 @@
-# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
-# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
+# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
+# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
 # Area: Provide focused information for different business and operational decisions.
 requirements:
 - id: OBS-21-01
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: navigate-operational-workspaces-ui
   kind: functional
   category: functional
   mandatory: true
@@ -17,7 +18,7 @@ requirements:
   - 'Negative: A critical service with unknown health is shown as unknown in the overview, not omitted.'
 - id: OBS-21-02
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: navigate-operational-workspaces-ui
   kind: functional
   category: functional
   mandatory: false
@@ -29,7 +30,7 @@ requirements:
   - 'Acceptance: An owner can assess whether an individual service is meeting commitments.'
 - id: OBS-21-03
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: navigate-operational-workspaces-ui
   kind: functional
   category: functional
   mandatory: true
@@ -42,7 +43,7 @@ requirements:
   - 'Negative: An unassigned critical issue is highlighted as unassigned in the responder view.'
 - id: OBS-21-04
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: navigate-operational-workspaces-ui
   kind: functional
   category: functional
   mandatory: false
@@ -54,7 +55,7 @@ requirements:
   - 'Acceptance: A business owner identifies a degraded journey and affected customer segment.'
 - id: OBS-21-05
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: navigate-operational-workspaces-ui
   kind: functional
   category: functional
   mandatory: false
@@ -66,7 +67,7 @@ requirements:
   - 'Acceptance: Two teams can use different views of the same service without changing each other’s defaults.'
 - id: OBS-21-06
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: navigate-operational-workspaces-ui
   kind: functional
   category: functional
   mandatory: false
@@ -80,7 +81,7 @@ requirements:
   - OBS-34-01
 - id: OBS-21-07
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: navigate-operational-workspaces-ui
   kind: functional
   category: semantic
   mandatory: false
@@ -92,7 +93,7 @@ requirements:
   - 'Acceptance: A user can tell whether a displayed value is current, historical, or a scheduled report.'
 - id: OBS-21-08
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: navigate-operational-workspaces-ui
   kind: functional
   category: functional
   mandatory: true
@@ -107,7 +108,7 @@ requirements:
   - OBS-21-01
 - id: OBS-21-09
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: navigate-operational-workspaces-ui
   kind: functional
   category: functional
   mandatory: false

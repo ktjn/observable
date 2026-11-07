@@ -14,7 +14,7 @@ Each PR must describe the source requirement IDs, changed boundaries, test evide
 
 ```text
 spec/20-agent-component-development.md
-spec/adr/ADR-036-agent-component-development.md
+spec/adr/ADR-044-agent-component-development.md
 docs/plans/agent-component-development.md
 agentbuild/
   schemas/

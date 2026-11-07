@@ -1,10 +1,11 @@
-# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
-# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
+# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
+# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
 # Area: Make critical views usable across working contexts and controlled by policy.
 requirements:
 - id: OBS-25-01
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: access-aware-ui
   kind: non-functional
   category: resilience
   mandatory: true
@@ -17,7 +18,7 @@ requirements:
   - 'Negative: On an approved mobile viewport, acknowledgement remains available when non-essential content fails to load.'
 - id: OBS-25-02
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: access-aware-ui
   kind: non-functional
   category: security
   mandatory: true
@@ -30,7 +31,7 @@ requirements:
   - 'Negative: A shared link opened by a user without permission reveals no restricted data or actions.'
 - id: OBS-25-03
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: access-aware-ui
   kind: non-functional
   category: security
   mandatory: true
@@ -43,7 +44,7 @@ requirements:
   - 'Negative: An action taken under elevated access is visibly marked before confirmation and recorded.'
 - id: OBS-25-04
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: access-aware-ui
   kind: functional
   category: functional
   mandatory: false
@@ -55,7 +56,7 @@ requirements:
   - 'Acceptance: A user changes time display without changing the original event timestamps or other users’ settings.'
 - id: OBS-25-05
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: access-aware-ui
   kind: functional
   category: functional
   mandatory: false
@@ -67,7 +68,7 @@ requirements:
   - 'Acceptance: A first-time business user can interpret SLO attainment without operational training.'
 - id: OBS-25-06
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: access-aware-ui
   kind: functional
   category: functional
   mandatory: false
@@ -79,7 +80,7 @@ requirements:
   - 'Acceptance: A user submits feedback linked to the relevant view and selected context.'
 - id: OBS-25-07
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: access-aware-ui
   kind: functional
   category: serialization
   mandatory: false
@@ -91,7 +92,7 @@ requirements:
   - 'Acceptance: An authorized reviewer receives a readable report with units, filters, and time context.'
 - id: OBS-25-08
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: access-aware-ui
   kind: functional
   category: functional
   mandatory: false
@@ -103,7 +104,7 @@ requirements:
   - 'Acceptance: A wall display shows priority incidents and critical-service status legibly without user interaction.'
 - id: OBS-25-09
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: access-aware-ui
   kind: functional
   category: functional
   mandatory: false
@@ -115,7 +116,7 @@ requirements:
   - 'Acceptance: A responder completes the essential incident workflow in an approved language.'
 - id: OBS-25-10
   version: 0.1.0
-  target: explore-telemetry-ui
+  target: access-aware-ui
   kind: functional
   category: functional
   mandatory: false

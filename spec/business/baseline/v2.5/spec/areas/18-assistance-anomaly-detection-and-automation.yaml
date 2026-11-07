@@ -1,0 +1,133 @@
+components:
+- id: assistance-automation
+  version: '1.0'
+  status: specified
+  description: Reduce repetitive work while preserving human accountability.
+  owner: observability-platform-owner
+  layer: capability
+  domain: intelligence
+  provides:
+  - assistance-automation.platform
+capabilities:
+- id: assistance-automation.platform
+  version: '1.0'
+  status: specified
+  description: Assistance, anomaly detection and automation — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - assistance_linked_to_evidence
+  invariants:
+  - automation_bounded_by_approval_and_authorization
+  failure_modes:
+  - ai_disclosure_across_access_boundary
+  - unauthorized_automated_action
+requirements:
+- id: OBS-18-01
+  version: '1.0'
+  target: assistance-automation.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Authorized users shall be offered assistance in finding relevant evidence for operational questions.
+  criteria:
+  - 'Acceptance: A responder can request a plain-language summary linked to supporting evidence.'
+- id: OBS-18-02
+  version: '1.0'
+  target: assistance-automation.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: The platform shall identify unusual patterns that are material to service or business outcomes.
+  criteria:
+  - 'Acceptance: A known significant anomaly is surfaced while negligible variation is deprioritized.'
+- id: OBS-18-03
+  version: '1.0'
+  target: assistance-automation.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Suggested causes and corrective actions shall disclose uncertainty and supporting evidence.
+  criteria:
+  - 'Acceptance: An operator can distinguish a proposed action from a verified root cause.'
+  depends_on:
+  - OBS-09-08
+- id: OBS-18-04
+  version: '1.0'
+  target: assistance-automation.platform
+  kind: non-functional
+  category: security
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ciso
+  statement: Automated operational actions shall follow approved responsibility, authority, and risk controls.
+  criteria:
+  - 'Acceptance: A high-impact proposed action cannot execute without the required approval.'
+- id: OBS-18-05
+  version: '1.0'
+  target: assistance-automation.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: observability-platform-owner
+  statement: Teams shall be able to assess the usefulness and error rate of automated recommendations.
+  criteria:
+  - 'Acceptance: An owner can review accepted, rejected, and inaccurate recommendations.'
+- id: OBS-18-06
+  version: '1.0'
+  target: assistance-automation.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: observability-platform-owner
+  statement: The organization shall be able to suspend automated behavior when business risk requires it.
+  criteria:
+  - 'Acceptance: An authorized operator can disable an automated action path during a controlled exercise.'
+- id: OBS-18-07
+  version: '1.0'
+  target: assistance-automation.platform
+  kind: non-functional
+  category: security
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ciso
+  statement: Assistance and automated features shall only use and reveal information the requesting user is authorized to access and that data policy permits for that purpose.
+  criteria:
+  - 'Acceptance: A user without access to a restricted service receives no restricted content in an assistant answer.'
+- id: OBS-18-08
+  version: '1.0'
+  target: assistance-automation.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Assistant outputs and automated recommendations used in operational decisions shall be recorded and attributable.
+  criteria:
+  - 'Acceptance: An incident review shows which assistant output informed a decision and who accepted it.'
+- id: OBS-18-09
+  version: '1.0'
+  target: assistance-automation.platform
+  kind: non-functional
+  category: security
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: ciso
+  statement: Automated agents acting for users shall operate within an explicit, reviewable scope of permitted investigations and actions.
+  criteria:
+  - 'Acceptance: An agent cannot perform an action outside its declared scope during a controlled test.'

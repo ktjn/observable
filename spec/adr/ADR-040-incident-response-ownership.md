@@ -1,7 +1,7 @@
 # ADR-040: Own Incident Response and Integrate External Tooling
 
 **Date:** 2026-11-07  
-**Status:** Proposed  
+**Status:** Accepted (2026-11-07; decisions Q1–Q10 in docs/plans/business-spec-adoption.md, accepted by merging the 2.0 re-review PR)  
 **Authors:** Claude Code  
 **Deciders:** Tommy (ktjn)  
 **Superseded by:**  

@@ -1,0 +1,135 @@
+risks:
+- id: risk-false-healthy
+  target: health
+  description: Service shown healthy while evidence is missing or stale.
+  owner: head-of-operations
+  treatment: mitigation
+  mitigated_by:
+  - OBS-03-01
+  - OBS-03-03
+  - OBS-24-02
+  - OBS-26-04
+  - OBS-29-03
+- id: risk-missed-escalation
+  target: alerting
+  description: Critical condition does not reach an accountable responder.
+  owner: sre-lead
+  treatment: mitigation
+  mitigated_by:
+  - OBS-07-01
+  - OBS-07-08
+  - OBS-29-02
+- id: risk-monitoring-outage
+  target: operational-resilience
+  description: Observability capability fails together with what it monitors.
+  owner: operational-resilience-lead
+  treatment: mitigation
+  mitigated_by:
+  - OBS-29-01
+  - OBS-29-02
+  - OBS-29-03
+- id: risk-undetected-customer-impact
+  target: customer-experience
+  description: Customers are affected while internal services appear healthy.
+  owner: customer-experience-owner
+  treatment: mitigation
+  mitigated_by:
+  - OBS-05-01
+  - OBS-05-02
+  - OBS-12-02
+- id: risk-unauthorized-disclosure
+  target: security-privacy
+  description: Restricted or personal information disclosed through views, links, export or assistance.
+  owner: ciso
+  treatment: mitigation
+  mitigated_by:
+  - OBS-14-01
+  - OBS-14-02
+  - OBS-18-07
+  - OBS-25-02
+  - OBS-31-03
+- id: risk-misattributed-cause
+  target: investigation
+  description: Unverified hypothesis acted on as confirmed cause.
+  owner: sre-lead
+  treatment: mitigation
+  mitigated_by:
+  - OBS-09-08
+  - OBS-23-04
+- id: risk-overstated-impact
+  target: dependencies-impact
+  description: Estimated or unknown impact reported as observed fact.
+  owner: enterprise-architect
+  treatment: mitigation
+  mitigated_by:
+  - OBS-10-07
+  - OBS-23-01
+- id: risk-missed-cut-off
+  target: batch-processing
+  description: Scheduled business processing misses a deadline without timely warning.
+  owner: head-of-operations
+  treatment: mitigation
+  mitigated_by:
+  - OBS-32-01
+  - OBS-32-02
+- id: risk-inconsistent-incident-state
+  target: incident-response
+  description: Responders act on divergent incident status.
+  owner: incident-manager
+  treatment: mitigation
+  mitigated_by:
+  - OBS-08-02
+  - OBS-23-05
+- id: risk-unaccountable-coverage-gap
+  target: coverage-lifecycle
+  description: Critical observability gap persists without owner or accepted risk.
+  owner: sre-lead
+  treatment: mitigation
+  mitigated_by:
+  - OBS-27-01
+  - OBS-27-04
+  - OBS-14-08
+- id: risk-corrupted-audit-evidence
+  target: compliance-audit
+  description: Audit or regulatory incident records are incomplete, altered without detection, or miss reporting deadlines.
+  owner: head-of-compliance
+  treatment: mitigation
+  mitigated_by:
+  - OBS-15-02
+  - OBS-15-07
+  - OBS-15-08
+- id: risk-unowned-observability-asset
+  target: asset-governance
+  description: Unowned or unreviewed alerts, rules and dashboards decay into noise or silent failure.
+  owner: observability-platform-owner
+  treatment: mitigation
+  mitigated_by:
+  - OBS-33-01
+  - OBS-34-01
+  - OBS-34-02
+- id: risk-unassessed-provider-disruption
+  target: providers
+  description: Material third-party provider degradation affects critical functions without visibility or attribution.
+  owner: vendor-manager
+  treatment: mitigation
+  mitigated_by:
+  - OBS-36-01
+  - OBS-36-02
+- id: risk-responder-overload
+  target: responders
+  description: Schedule gaps or excessive alert load delay critical response.
+  owner: head-of-engineering
+  treatment: mitigation
+  mitigated_by:
+  - OBS-07-04
+  - OBS-37-01
+  - OBS-37-02
+- id: risk-platform-overload-during-incident
+  target: platform-service
+  description: Observability views degrade or become unusable under major-incident load.
+  owner: observability-platform-owner
+  treatment: mitigation
+  mitigated_by:
+  - OBS-19-03
+  - OBS-19-08
+  - OBS-19-09
