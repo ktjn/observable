@@ -118,11 +118,11 @@ Phase 8 can run in parallel with 2-7 after phase 1. Phase 3 UI shell work can st
 
 ### Phase 0 detailed-plan deliverables (next run)
 
-2. Classify all 293 requirements (met/partial/missing/org) with evidence (file, route or test).
-3. Map each OBS requirement to an owning component and capability, creating capabilities where none fits.
-4. Merge PR: OBS requirements, risks, views, experiences and roles into `spec/system.yaml`; `--compat` against `main`; AGENTS.md gate switched to `--stage verification`; readiness report added.
-5. Replace [ROADMAP.md](../../ROADMAP.md) with a phase-based roadmap derived from this plan (Q2); carry over still-valid exit evidence (component independence, distribution, Kubernetes) as cross-cutting tracks.
-6. Write ADR drafts for decisions 1-5 in section 4.
+1. Classify all 293 requirements (met/partial/missing/org) with evidence (file, route or test).
+2. Map each OBS requirement to an owning component and capability, creating capabilities where none fits.
+3. Merge PR: OBS requirements, risks, views, experiences and roles into `spec/system.yaml`; AGENTS.md gate switched to `--stage verification`; readiness report added.
+4. Replace [ROADMAP.md](../../ROADMAP.md) with a phase-based roadmap derived from this plan (Q2); carry over still-valid exit evidence (component independence, distribution, Kubernetes) as cross-cutting tracks.
+5. Write ADR drafts for decisions 1-5 in section 4.
 
 ## 6. Breaking changes
 
