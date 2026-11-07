@@ -127,17 +127,14 @@ Phase 8 can run in parallel with 2-7 after phase 1. Phase 3 UI shell work can st
 
 ## 6. Breaking changes
 
-| Change | Affects | Migration |
-|---|---|---|
-| Health enum `healthy/watch/breach` to five states | query-api `ServiceSummary`, infrastructure API, frontend, playground | new field version, dual-emit, then remove |
-| Service identity from `service_name` string to catalog entity | alert rules, SLOs, incidents, dashboards, saved views, change events | backfill mapping one component per discovered service |
-| Incident status and severity model | `alerting.incidents`, alert-evaluator, UI | migration with status mapping table |
-| SLO model (SLI types, commitment type, versioned definitions) | `slo_definitions`, burn-rate rules | new versioned table, copy-forward |
-| Roles and permissions | users, API keys, OpenFGA | role mapping, ADR-008 update |
-| Notification channels beyond webhook, delivery tracking | `notification_channels`, audit log | additive |
-| Saved views beyond logs | `saved_views` | additive |
+**Policy (decided 2026-11-07):** this is a new start; breaking anything is allowed. Consequences:
 
-All model changes go through `.mdl` sources and `scripts/check-breaking-changes.sh`. Pre-1.0 policy allows breaks ([VERSIONING.md](../../VERSIONING.md)), but each needs `--compat` output and a major bump of the affected capability.
+- No data migrations, dual-emit, backfills or deprecation periods. Schemas, APIs, `.mdl` models and the UI are redesigned to the spec.
+- `--compat` against `main` is not a gate for this work; capability versions restart (for example 2.0.0 or 0.x, Q10).
+- Postgres and ClickHouse migrations may be squashed into a new baseline; existing tenants and data are not preserved.
+- Existing `spec/system.yaml` requirements, risks and evidence are kept only where they still describe the target; the rest are deprecated or deleted.
+
+Known areas that change shape (redesign, not migration): health states, service identity (catalog entity instead of `service_name`), incident model, SLO model, roles and permissions, notification channels, saved views.
 
 ## 7. Risks
 
@@ -145,7 +142,7 @@ All model changes go through `.mdl` sources and `scripts/check-breaking-changes.
 - **Critical: false-healthy today.** The current health derivation violates OBS-03-01 now. Consider fixing it ahead of the plan (Q6).
 - **Critical: release gate red after merge.** 293 unverified requirements fail STAT-04/REQ-05 at `--stage release`. Needs an explicit gate policy (Q7) before the merge PR.
 - **Business-owned thresholds.** The spec defines no numbers. Every acceptance test needs configured thresholds; the platform must make thresholds configurable, not hard-coded.
-- **Roadmap conflict.** ROADMAP.md 0.2 (component independence) is in progress. New components (catalog, health) must follow ADR-035 isolation rules.
+- **Roadmap conflict.** ROADMAP.md 0.2 (component independence) is in progress. A new start may replace ROADMAP.md (Q2). Whatever survives must follow ADR-035 isolation rules.
 - **Organization/process obligations** (34 requirements) cannot be verified by tests. The platform records them; verification is inspection by the business owner.
 - **Upstream drift.** The business spec is versioned separately (v2.5 now). Pin a version; re-run the gap map on each upstream release.
 - **Toolkit gap.** OBSSPEC-EXP-09 (`state_sets` in include fragments) is open upstream.
@@ -155,6 +152,7 @@ All model changes go through `.mdl` sources and `scripts/check-breaking-changes.
 - **Q1.** Decided 2026-11-07: merge into `spec/system.yaml`.
 - **Q7.** Gate after merge: (a) validate at `--stage verification` until the target release, plus a readiness report of verified P0s; (b) merge requirements phase by phase so only the current phase is red; (c) keep `--stage release` red and accept it. Recommended: (a).
 - **Q8.** Targets: retarget OBS requirements to Observable capabilities (recommended), or import the 37 areas as logical components?
+- **Q10.** Reuse or rebuild: refactor the existing services into the target (keep Rust/React stack, ingest, storage), or rebuild from the spec per REPLACEMENT.md and reuse code only where it fits?
 - **Q9.** Upstream repo after merge: archive, keep read-only, or keep authoring there and sync?
 - **Q2.** Release placement: does this replace the ROADMAP 0.3-1.0 sequence, extend it after 1.0, or interleave (for example phase 1-2 inside 0.6)?
 - **Q3.** Target cut: P0 platform requirements (88) as the first milestone, with P1/P2 later?
