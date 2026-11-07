@@ -1,6 +1,6 @@
 # Plan: Adopt the Observability Business Specification
 
-**Status:** Draft 1 (planning the plan). Gap analysis is a surface scan; per-requirement verification is phase 0 work.
+**Status:** Draft 2. Decisions Q1-Q10 recorded (section 8). Gap analysis is a surface scan; per-requirement verification is phase 0 work.
 **Target spec:** `observability-spec` v2.5 (2026-11-06, commit `523e682`), local path `C:\git\observability-spec`
 **Current system:** `spec/system.yaml` (`observable-platform` 0.1.0, 8 components, 17 requirements, 9 risks, 68 evidence records)
 **Method:** [system-spec/FEATURE.md](../../system-spec/FEATURE.md) per slice, upstream intent from [GREENFIELD.md](../../system-spec/GREENFIELD.md); change flow in [AGENTS.md](../../AGENTS.md)
@@ -102,7 +102,7 @@ Ordered by dependency. Each phase becomes one detailed-plan run and several FEAT
 
 | Phase | Name | Areas | Depends on | Exit (spec terms) |
 |---|---|---|---|---|
-| 0 | Adoption baseline | all | — | Q8-Q9 decided; OBS requirements, views and experiences merged into `spec/system.yaml`; per-requirement gap status for all 293; stale copy removed |
+| 0 | Adoption baseline | all | — | all decisions recorded (section 8); OBS requirements, views and experiences merged into `spec/system.yaml`; per-requirement gap status for all 293; stale copy removed |
 | 1 | Service model | 01, 02, 27, 34-01, 36-01 | 0 | P0 of 01, 02, 27 verified; catalog maps OTel services |
 | 2 | Evidence trust and health | 03, 26, 29-03, 13-03, 24-01/02 | 1 | `risk-false-healthy` mitigated; UX-07 passes |
 | 3 | Experience shell | 20, 21, 22, 24, 25 | 2 | scope bar, state set, navigation; UX-01, UX-02, UX-09, UX-10 pass |
@@ -118,7 +118,6 @@ Phase 8 can run in parallel with 2-7 after phase 1. Phase 3 UI shell work can st
 
 ### Phase 0 detailed-plan deliverables (next run)
 
-1. Decide Q8-Q9.
 2. Classify all 293 requirements (met/partial/missing/org) with evidence (file, route or test).
 3. Map each OBS requirement to an owning component and capability, creating capabilities where none fits.
 4. Merge PR: OBS requirements, risks, views, experiences and roles into `spec/system.yaml`; `--compat` against `main`; AGENTS.md gate switched to `--stage verification`; readiness report added.
@@ -151,9 +150,9 @@ Known areas that change shape (redesign, not migration): health states, service 
 
 - **Q1.** Decided 2026-11-07: merge into `spec/system.yaml`.
 - **Q7.** Decided 2026-11-07: validate at `--stage verification` until the target release, plus a readiness report of verified P0s per phase. Phase 0 adds the report script and updates the AGENTS.md gate command.
-- **Q8.** Targets: retarget OBS requirements to Observable capabilities (recommended), or import the 37 areas as logical components?
+- **Q8.** Decided 2026-11-07: retarget each OBS requirement to an Observable capability (new capabilities per phase), keep the `OBS-NN-NN` ID, record area and holder on the requirement.
 - **Q10.** Decided 2026-11-07: refactor existing code. Keep the Rust/React stack, ingest, storage, query and auth; redesign models, APIs and UI freely. Existing tests stay evidence only where they still exercise a merged OBS criterion.
-- **Q9.** Upstream repo after merge: archive, keep read-only, or keep authoring there and sync?
+- **Q9.** Decided 2026-11-07: remove the upstream `observability-spec` repo after the merge PR lands; `spec/system.yaml` is then the only source. Removal is done by the owner, not by an agent.
 - **Q2.** Decided 2026-11-07: this plan replaces ROADMAP.md.
 - **Q3.** Decided 2026-11-07: first milestone is the 88 P0 platform requirements; P1/P2 later.
 - **Q4.** Decided 2026-11-07: own incidents, on-call and status communication, and integrate with external tooling.
