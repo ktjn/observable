@@ -157,7 +157,8 @@ components:
 
   # Phase 1 (docs/plans/phase1-service-catalog.md). S1 shipped the runtime skeleton, S3 the
   # service records behind manage-service-catalog, S4 journeys, scope and operating contexts
-  # (environment classes read from manage-control-plane). The provided programmable mock and real/mock
+  # (environment classes read from manage-control-plane), S5 coverage and the asset registry
+  # behind govern-observability-assets (signals read from store-telemetry). The provided programmable mock and real/mock
   # suite for manage-service-catalog land with its first consumer (S8, web); the other provided
   # capabilities gain theirs in S5-S7.
   - id: observable-catalog
@@ -172,6 +173,7 @@ components:
       - migrations/postgres/046_create_catalog_schema.sql
       - migrations/postgres/048_create_catalog_service_records.sql
       - migrations/postgres/051_create_catalog_journeys.sql
+      - migrations/postgres/053_create_catalog_coverage.sql
     test_paths:
       - services/catalog-service/tests
     standalone_harness: ["cargo", "test", "-p", "catalog-service", "--test", "http_probes_integration"]
@@ -188,6 +190,8 @@ components:
     owns_data:
       - business-service
       - critical-journey
+      - observability-asset
+      - coverage-record
 
   - id: observable-process
     version: "0.1.0"
@@ -744,6 +748,50 @@ data_models:
       owner_kind: string
       owner_id: uuid
       service_ids: list<uuid>
+
+  # Phase 1 S5 (migration 053): registered observability assets, and the coverage record of a
+  # tenant (policies per criticality, bindings, claims, assessment results and gaps).
+  - id: observability-asset
+    version: "0.1.0"
+    owner: observable-catalog
+    namespace: catalog
+    storage_role: observable_catalog_role
+    classification: internal
+    schema_path: models/catalog.mdl
+    fields:
+      tenant_id: uuid
+      kind: string
+      external_id: string
+      owning_component: string
+      service_id: uuid
+      owner_kind: string
+      owner_id: uuid
+
+  - id: coverage-record
+    version: "0.1.0"
+    owner: observable-catalog
+    namespace: catalog
+    storage_role: observable_catalog_role
+    classification: internal
+    schema_path: models/catalog.mdl
+    fields:
+      tenant_id: uuid
+      policy_criticality: string
+      policy_items: list<string>
+      policy_window_minutes: int32
+      policy_approved_by: uuid
+      coverage_status: string
+      assessed_at: timestamp
+      gap_id: uuid
+      service_id: uuid
+      journey_id: uuid
+      item: string
+      gap_state: string
+      remediation_owner_id: uuid
+      due_date: date
+      review_date: date
+      acceptance_approver: uuid
+      acceptance_rationale: string
 
   - id: api-key-credential
     version: "0.1.0"
@@ -2295,6 +2343,81 @@ evidence:
       - "Negative: A search or direct lookup for a service the user may not see returns the same response as for a non-existent service and reveals no owner, count or identifier."
       - "Negative: When the policy decision point is unavailable, catalog reads fail closed with an error and never return unfiltered records."
     timestamp: "2026-11-07T23:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  # Phase 1 S5: coverage against the store-telemetry substitute and the asset registry.
+  # OBS-27-01 and OBS-27-04 are organization-held; their supporting tests are named in the gap file.
+
+  - id: ev-coverage-distinguishable
+    requirement_id: OBS-02-03
+    requirement_version: "0.1.0"
+    subject_id: manage-service-catalog
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/catalog-service/tests/catalog_coverage_integration.rs::missing_or_incomplete_coverage_is_distinguishable"
+    criteria:
+      - "Acceptance: A missing or incomplete coverage case is distinguishable from a healthy service."
+    timestamp: "2026-11-07T21:45:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-coverage-uncovered-not-healthy
+    requirement_id: OBS-02-03
+    requirement_version: "0.1.0"
+    subject_id: manage-service-catalog
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/catalog-service/tests/catalog_coverage_integration.rs::service_without_monitoring_is_uncovered_not_healthy"
+    criteria:
+      - "Negative: A service with no monitoring is shown as uncovered, not as healthy."
+    timestamp: "2026-11-07T21:45:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-coverage-unmet-identified
+    requirement_id: OBS-27-02
+    requirement_version: "0.1.0"
+    subject_id: govern-observability-assets
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/catalog-service/tests/catalog_coverage_integration.rs::coverage_report_identifies_each_unmet_requirement"
+    criteria:
+      - "Acceptance: A coverage report identifies each unmet requirement for a selected service."
+    timestamp: "2026-11-07T21:45:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-coverage-claim-not-evidence
+    requirement_id: OBS-27-02
+    requirement_version: "0.1.0"
+    subject_id: govern-observability-assets
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/catalog-service/tests/catalog_coverage_integration.rs::claimed_requirement_without_evidence_is_unmet"
+    criteria:
+      - "Negative: A requirement claimed as met without supporting evidence is reported as unmet."
+    timestamp: "2026-11-07T21:45:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-coverage-access
+    requirement_id: req-catalog-access-control
+    requirement_version: "0.1.0"
+    subject_id: manage-service-catalog
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/catalog-service/tests/catalog_coverage_integration.rs::coverage_reads_respect_service_access"
+    criteria:
+      - "Acceptance: A user sees only the catalog services, owners and support routes the policy decision point permits for the active tenant and role."
+      - "Negative: A search or direct lookup for a service the user may not see returns the same response as for a non-existent service and reveals no owner, count or identifier."
+      - "Negative: When the policy decision point is unavailable, catalog reads fail closed with an error and never return unfiltered records."
+    timestamp: "2026-11-07T21:45:00Z"
     verifier: cargo-test
     environment: local
 

@@ -71,8 +71,8 @@ requirements:
     holder: platform
     phase: 1
     target: manage-service-catalog
-    status: missing
-    evidence: No coverage status per service.
+    status: verified
+    evidence: Phase 1 S5. Coverage status covered, partial, uncovered or unknown per service (GET /v1/catalog/coverage, /v1/catalog/services/{id}/coverage), never a health state; a service without monitoring is uncovered and a critical one is an exception (services/catalog-service/tests/catalog_coverage_integration.rs).
   OBS-02-04:
     priority: P0
     holder: platform
@@ -1625,15 +1625,15 @@ requirements:
     holder: organization
     phase: 1
     target: govern-observability-assets
-    status: missing
-    evidence: No capability found in scan.
+    status: partial
+    evidence: Phase 1 S5. Coverage policies per criticality with human approval (withdrawn on change); a critical service without an approved policy is the exception no_approved_coverage_policy (services/catalog-service/tests/catalog_coverage_integration.rs test critical_service_without_agreed_coverage_is_an_exception). Organization-held, so inspection evidence comes at phase exit (S9).
   OBS-27-02:
     priority: P0
     holder: platform
     phase: 1
     target: govern-observability-assets
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: Phase 1 S5. The coverage report lists each required item with demonstrated evidence or the reason it is unmet; owner claims, stale telemetry and assets without an active owner never count as evidence (services/catalog-service/tests/catalog_coverage_integration.rs).
   OBS-27-03:
     priority: P1
     holder: process
@@ -1646,8 +1646,8 @@ requirements:
     holder: organization
     phase: 1
     target: govern-observability-assets
-    status: missing
-    evidence: No capability found in scan.
+    status: partial
+    evidence: Phase 1 S5. Unmet items of critical services and critical journeys open gaps; a gap closes only when remediated with current evidence or under an approved, unexpired risk acceptance with rationale and review date (services/catalog-service/tests/catalog_coverage_integration.rs tests critical_gap_closes_only_when_remediated_or_risk_accepted and missing_journey_coverage_cannot_be_closed_without_remediation). Organization-held, so inspection evidence comes at phase exit (S9).
   OBS-27-05:
     priority: P1
     holder: process

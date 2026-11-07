@@ -22,7 +22,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: sre-lead
   statement: Service owners shall be able to compare required observability coverage with demonstrated actual coverage.

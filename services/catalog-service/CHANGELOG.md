@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Monitoring coverage and the observability asset registry (phase 1 S5).
+
+### Added
+
+- Migration `053_create_catalog_coverage.sql`: telemetry bindings, coverage policies with
+  approval, observability assets, coverage claims, assessment runs and items, and coverage gaps.
+- Telemetry bindings (`PUT /v1/catalog/services/{id}/bindings`) and coverage policies
+  (`/v1/catalog/coverage/policies`, tenant_admin; approval by a session user, withdrawn on change).
+- Coverage assessment against `store-telemetry` (ClickHouse) and registered assets:
+  `GET /v1/catalog/services/{id}/coverage`, `GET /v1/catalog/coverage`,
+  `POST /v1/catalog/coverage/assess`. Status is `covered`, `partial`, `uncovered` or `unknown`;
+  every demonstrated item carries an evidence reference; claims (`PUT .../coverage/claims/{item}`)
+  never count as evidence.
+- Asset registry (`govern-observability-assets`): `/v1/catalog/assets` (list, `ownerless=true`,
+  register and retire) and producer routes `/internal/catalog/assets/{kind}/{external_id}`
+  (internal token; service by id or bound telemetry identity).
+- Gaps (`/v1/catalog/gaps`): opened for unmet items of critical services and for critical
+  journeys without full coverage; remediate (owner, due date), accept (session user, rationale,
+  future review date) and close (only when remediated with evidence or under an approved,
+  unexpired acceptance).
+- Coverage exceptions on critical services: `no_approved_coverage_policy`, `coverage_partial`,
+  `coverage_uncovered`, `coverage_unknown`.
+- `CLICKHOUSE_URL`, `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD` configuration.
+
 Critical journeys, scope and operating contexts (phase 1 S4).
 
 ### Added

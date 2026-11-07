@@ -35,7 +35,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: service-management-lead
   statement: Each in-scope service shall have a visible monitoring coverage status.

@@ -603,6 +603,7 @@ dependencies = [
  "anyhow",
  "axum",
  "chrono",
+ "clickhouse",
  "http-body-util",
  "observable-auth",
  "observable-config",
