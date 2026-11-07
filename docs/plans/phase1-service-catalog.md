@@ -82,7 +82,7 @@ Data models go in `models/catalog.mdl` (Modelable, ADR-032) with generated Rust/
 | `manage-service-catalog` 0.1.0 | `GET/POST/PATCH /v1/catalog/services`, `GET /v1/catalog/services/{id}`, `GET /v1/catalog/search?q=` (business name, operational name, alias, domain, owner), journeys CRUD, `GET /v1/catalog/exceptions` (no outcome, no owner, owner left, uncovered) | existing set in `spec/business/capabilities.yaml` plus `access_denied` (rendered as not found) |
 | `govern-observability-assets` 0.1.0 | `PUT /internal/catalog/assets/{kind}/{id}` (register/update, owner required), `DELETE` (retire), `GET /v1/catalog/assets?ownerless=true`, coverage policy CRUD, `GET /v1/catalog/services/{id}/coverage`, gaps CRUD with state machine | `ownerless_asset`, `gap_without_remediation`, `unsupported_evidence` |
 | `manage-providers` 0.1.0 | providers CRUD, dependencies, `GET /v1/catalog/providers/gaps` | `unregistered_provider` |
-| `decide-access` 0.1.0 → 0.2.0 | add `POST /internal/authz/filter` (batch: resource refs → permitted subset, no counts of denied) to satisfy the list invariant | unchanged |
+| `decide-access` 0.1.0 (extended in S2, never released) | add `POST /internal/authz/filter` (batch: resource refs → permitted subset, no counts of denied) to satisfy the list invariant | unchanged |
 | `lookup-principals` 0.1.0 (new, observable-auth) | `POST /internal/principals/resolve` → active/departed per user and team | `principal_unknown` |
 
 Contract versions follow `--compat`; interface blocks are added to the capabilities before implementation (FEATURE.md step 2).

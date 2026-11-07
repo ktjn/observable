@@ -11,6 +11,7 @@
 {{- $dbEnv := include "observable.postgresEnv" (dict "Values" .Values "service" .Values.services.authService "scopedEnvName" "AUTH_DATABASE_URL") | fromYaml -}}
 {{- $sessionSecretEnv := include "observable.sessionSecretEnv" . | fromYaml -}}
 {{- $selfObsTokenEnv := include "observable.selfObservabilityBearerTokenEnv" . | fromYaml -}}
+{{- $token := include "observable.internalServiceTokenEnv" . | fromYaml -}}
 {{- $env := list
     $dbEnv
     (dict "name" "AUTH_SERVICE_PORT" "value" (toString .Values.services.authService.port))
@@ -22,6 +23,7 @@
     (dict "name" "ZITADEL_CLIENT_ID"    "value" (default "" .Values.identity.clientId))
     (dict "name" "ZITADEL_REDIRECT_URI" "value" .Values.identity.redirectUri)
     $sessionSecretEnv
+    $token
     (dict "name" "OBSERVABLE_ENV"       "value" .Values.identity.env) -}}
 {{- $args := list "-c" (printf
 `set -eu

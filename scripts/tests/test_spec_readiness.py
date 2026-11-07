@@ -41,6 +41,11 @@ class ReadinessPolicyTests(unittest.TestCase):
                 return spec
 
         self.rd.load_metamodel = lambda: Shim()
+        # Requirements verified elsewhere in the spec are the baseline; each case measures its
+        # own record against it.
+        _, base = self._report()
+        self.base = base["p0_verified"]
+        self.base_platform = base["p0_by_holder"]["platform"]["verified"]
 
     def ev(self, eid, **kw):
         base = dict(id=eid, requirement_id=self.RID, requirement_version=self.req.version, method="test",
@@ -50,6 +55,9 @@ class ReadinessPolicyTests(unittest.TestCase):
 
     def run_report(self, *records):
         self.spec.evidence = list(self.spec.evidence) + list(records)
+        return self._report()
+
+    def _report(self):
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
             rc = self.rd.main(["--phase", "2", "--json", "--strict"])
@@ -58,38 +66,38 @@ class ReadinessPolicyTests(unittest.TestCase):
     def test_complete_criterion_evidence_verifies(self):
         rc, out = self.run_report(self.ev("ev-ok"))
         self.assertEqual(rc, 0)
-        self.assertEqual(out["p0_by_holder"]["platform"]["verified"], 1)
+        self.assertEqual(out["p0_by_holder"]["platform"]["verified"], self.base_platform + 1)
 
     def test_skipped_record_does_not_verify(self):
         rc, out = self.run_report(self.ev("ev-skip", skipped=["negative path skipped"]))
         self.assertEqual(rc, 1)
-        self.assertEqual(out["p0_verified"], 0)
+        self.assertEqual(out["p0_verified"], self.base)
 
     def test_unsuperseded_failing_record_blocks_verification(self):
         rc, out = self.run_report(self.ev("ev-ok"), self.ev("ev-fail", passed=False, criteria=[self.req.criteria[1]]))
         self.assertEqual(rc, 1)
-        self.assertEqual(out["p0_verified"], 0)
+        self.assertEqual(out["p0_verified"], self.base)
 
     def test_blanket_record_is_a_policy_violation(self):
         rc, out = self.run_report(self.ev("ev-blanket", criteria=[]))
         self.assertEqual(rc, 1)
-        self.assertEqual(out["p0_verified"], 0)
+        self.assertEqual(out["p0_verified"], self.base)
         self.assertTrue(any("blanket" in v for v in out["violations"]))
 
     def test_inspection_cannot_verify_platform_requirement(self):
         rc, out = self.run_report(self.ev("ev-inspect", method="inspection"))
         self.assertEqual(rc, 1)
-        self.assertEqual(out["p0_verified"], 0)
+        self.assertEqual(out["p0_verified"], self.base)
 
     def test_missing_verifier_is_a_policy_violation(self):
         rc, out = self.run_report(self.ev("ev-nobody", verifier=None))
         self.assertEqual(rc, 1)
-        self.assertEqual(out["p0_verified"], 0)
+        self.assertEqual(out["p0_verified"], self.base)
 
     def test_partial_criteria_do_not_verify(self):
         rc, out = self.run_report(self.ev("ev-half", criteria=[self.req.criteria[0]]))
         self.assertEqual(rc, 1)
-        self.assertEqual(out["p0_verified"], 0)
+        self.assertEqual(out["p0_verified"], self.base)
 
 
 if __name__ == "__main__":

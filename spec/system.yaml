@@ -177,6 +177,7 @@ components:
     requires:
       - validate-credential@^0.1
       - decide-access@^0.1
+      - lookup-principals@^0.1
       - store-telemetry@^0.1
       - manage-control-plane@^0.1
 
@@ -206,8 +207,21 @@ components:
     provides:
       - validate-credential
       - decide-access
+      - lookup-principals
       - govern-data-access
       - audit-and-compliance
+    # Provider-owned programmable mocks and the shared real/mock contract suite (ISO-03/04).
+    # scripts/contract-suite.sh runs libs/observable-auth/tests/contract_mock.rs in mock mode and
+    # services/auth-service/tests/authz_contract_integration.rs in real mode.
+    provided_mocks:
+      decide-access:
+        path: libs/observable-auth/src/authz.rs
+        contract_suite: ["bash", "scripts/contract-suite.sh"]
+        scenarios: [policy, unavailable, delay]
+      lookup-principals:
+        path: libs/observable-auth/src/principals.rs
+        contract_suite: ["bash", "scripts/contract-suite.sh"]
+        scenarios: [directory, unavailable, delay]
     owns_data:
       - api-key-credential
       - user-session
@@ -466,8 +480,9 @@ capabilities:
         expired_credential: 401
         insufficient_scope: 403
 
-  # Policy decision point contract (ADR-041). Required by observable-catalog and observable-health
-  # from Phase 1/2; designed now so the first protected reads have a contract to call.
+  # Policy decision point contract (ADR-041), implemented in phase 1 S2 over the PostgreSQL policy
+  # store (migration 047). Two operations: decide (one resource) and filter (list subset). The
+  # contract was never released, so filter extends 0.1.0 instead of bumping it.
   - id: decide-access
     version: "0.1.0"
     status: specified
@@ -475,6 +490,7 @@ capabilities:
       - "Caller presents a verified principal, tenant, resource reference, action and, where required, a stated purpose and elevation grant"
     postconditions:
       - "Returns permit or deny for the resource and action, and records actor, purpose, elevation and decision"
+      - "Filter returns only the permitted subset of the requested resources"
     invariants:
       - "A denied resource and a non-existent resource produce the same response"
       - "An undecidable request is denied (fail closed)"
@@ -485,7 +501,7 @@ capabilities:
       - elevation_expired
       - decision_unavailable
     interface:
-      operation: POST /internal/authz/decide
+      operation: POST /internal/authz/decide, POST /internal/authz/filter
       mode: sync
       idempotent: true
       auth: internal_service_token
@@ -494,6 +510,28 @@ capabilities:
         purpose_missing: 422
         elevation_expired: 403
         decision_unavailable: 503
+
+  # Principal directory for ownership checks (owner left, OBS-02-02); phase 1 S2.
+  - id: lookup-principals
+    version: "0.1.0"
+    status: specified
+    preconditions:
+      - "Caller names a tenant and up to 500 user principal identifiers"
+    postconditions:
+      - "Returns one state per distinct principal: active (role in the tenant), departed (known user without a role in the tenant) or unknown"
+    invariants:
+      - "Membership is evaluated per tenant only"
+    failure_modes:
+      - principal_unknown
+      - directory_unavailable
+    interface:
+      operation: POST /internal/principals/resolve
+      mode: sync
+      idempotent: true
+      auth: internal_service_token
+      errors:
+        principal_unknown: "state unknown in response"
+        directory_unavailable: 503
 
 data_models:
   - id: span-row
@@ -871,7 +909,7 @@ requirements:
   - id: req-decide-access-fail-closed
     version: "0.1.0"
     target: decide-access
-    status: specified
+    status: verified
     kind: non-functional
     category: security
     mandatory: true
@@ -884,6 +922,21 @@ requirements:
       - "Negative: A purpose-bound request without a stated purpose is denied and recorded."
       - "Negative: A request under an expired elevation grant is denied."
       - "Negative: When the policy store is unavailable, every request is denied."
+
+  - id: req-lookup-principals-tenant-scoped
+    version: "0.1.0"
+    target: lookup-principals
+    status: verified
+    kind: non-functional
+    category: security
+    mandatory: true
+    priority: P1
+    owner: ciso
+    statement: The principal directory resolves each user principal to active, departed or unknown for the requested tenant only.
+    criteria:
+      - "Acceptance: A member of the tenant resolves active, a known user without a role in the tenant resolves departed and an unknown identifier resolves unknown, in request order without duplicates."
+      - "Negative: An active member of another tenant resolves departed, never active."
+      - "Negative: When the directory is unavailable, resolution fails instead of returning states."
 
   - id: req-catalog-access-control
     version: "0.1.0"
@@ -984,6 +1037,122 @@ risks:
     residual_accepted: true
 
 evidence:
+
+  # Phase 1 S2: decide-access over the PostgreSQL policy store, real-provider contract suite.
+  - id: ev-principals-real-suite
+    requirement_id: req-lookup-principals-tenant-scoped
+    requirement_version: "0.1.0"
+    subject_id: lookup-principals
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/authz_contract_integration.rs::real_lookup_principals_suite"
+    criteria:
+      - "Acceptance: A member of the tenant resolves active, a known user without a role in the tenant resolves departed and an unknown identifier resolves unknown, in request order without duplicates."
+      - "Negative: An active member of another tenant resolves departed, never active."
+      - "Negative: When the directory is unavailable, resolution fails instead of returning states."
+    timestamp: "2026-11-07T19:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-authz-permit-recorded
+    requirement_id: req-decide-access-fail-closed
+    requirement_version: "0.1.0"
+    subject_id: decide-access
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/authz_contract_integration.rs::real_permit_is_recorded_with_actor_purpose_and_elevation"
+    criteria:
+      - "Acceptance: A permitted request returns permit and an audit record with actor, purpose, elevation and decision."
+    timestamp: "2026-11-07T19:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-authz-deny-hides-existence
+    requirement_id: req-decide-access-fail-closed
+    requirement_version: "0.1.0"
+    subject_id: decide-access
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/authz_contract_integration.rs::real_denied_and_nonexistent_are_indistinguishable"
+    criteria:
+      - "Negative: A denied resource and a non-existent resource return identical responses."
+    timestamp: "2026-11-07T19:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-authz-deny-byte-identical
+    requirement_id: req-decide-access-fail-closed
+    requirement_version: "0.1.0"
+    subject_id: decide-access
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/authz_contract_integration.rs::real_denied_and_nonexistent_responses_are_byte_identical"
+    criteria:
+      - "Negative: A denied resource and a non-existent resource return identical responses."
+    timestamp: "2026-11-07T19:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-authz-purpose-missing
+    requirement_id: req-decide-access-fail-closed
+    requirement_version: "0.1.0"
+    subject_id: decide-access
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/authz_contract_integration.rs::real_purpose_missing_is_denied_and_recorded"
+    criteria:
+      - "Negative: A purpose-bound request without a stated purpose is denied and recorded."
+    timestamp: "2026-11-07T19:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-authz-elevation-expired
+    requirement_id: req-decide-access-fail-closed
+    requirement_version: "0.1.0"
+    subject_id: decide-access
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/authz_contract_integration.rs::real_expired_elevation_is_denied"
+    criteria:
+      - "Negative: A request under an expired elevation grant is denied."
+    timestamp: "2026-11-07T19:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-authz-store-unavailable
+    requirement_id: req-decide-access-fail-closed
+    requirement_version: "0.1.0"
+    subject_id: decide-access
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/authz_contract_integration.rs::real_unavailable_store_denies_every_request"
+    criteria:
+      - "Negative: When the policy store is unavailable, every request is denied."
+    timestamp: "2026-11-07T19:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-authz-store-unavailable-503
+    requirement_id: req-decide-access-fail-closed
+    requirement_version: "0.1.0"
+    subject_id: decide-access
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/authz_contract_integration.rs::real_unavailable_store_returns_decision_unavailable"
+    criteria:
+      - "Negative: When the policy store is unavailable, every request is denied."
+    timestamp: "2026-11-07T19:00:00Z"
+    verifier: cargo-test
+    environment: local
+
   # No share-token feature exists, so the criterion's share-token exception is vacuous.
   - id: ev-ui-unauth-redirect-e2e
     requirement_id: req-ui-tenant-session

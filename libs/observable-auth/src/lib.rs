@@ -6,6 +6,10 @@
 //! `/internal/validate` and `/internal/validate-session` endpoints, and
 //! extracting auth-related headers from incoming requests.
 
+pub mod authz;
+pub mod contract;
+pub mod principals;
+
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
