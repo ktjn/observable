@@ -35,6 +35,7 @@ RUST_COMPONENTS = {
     "store-clickhouse": "storage-writer",
     "query": "query-api",
     "alerting": "alert-evaluator",
+    "catalog": "catalog-service",
 }
 ALL_COMPONENTS = [*RUST_COMPONENTS, "web"]
 

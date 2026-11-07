@@ -18,6 +18,7 @@ COMPONENT_SOURCES = [
     "services/storage-writer/Cargo.toml",
     "services/query-api/Cargo.toml",
     "services/alert-evaluator/Cargo.toml",
+    "services/catalog-service/Cargo.toml",
     "apps/frontend/package.json",
 ]
 HELM_VALUES = "charts/observable/values.yaml"

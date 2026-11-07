@@ -21,6 +21,7 @@ PLATFORM="${PLATFORM_URL:-http://localhost:4321}"
 QUERY="${QUERY_URL:-http://localhost:8090}"
 ADMIN="${ADMIN_URL:-http://localhost:4324}"
 ALERT="${ALERT_URL:-http://localhost:4322}"
+CATALOG="${CATALOG_URL:-http://localhost:4325}"
 COLLECTOR="${COLLECTOR_URL:-http://localhost:4318}"
 COLLECTOR_GRPC="${COLLECTOR_GRPC_URL:-http://localhost:4317}"
 TOKEN="dev-api-key-0000"
@@ -272,6 +273,9 @@ main() {
     -H "X-Tenant-ID: $TENANT_ID" \
     -H "Authorization: Bearer $TOKEN" \
     "$ALERT/v1/incidents"
+
+  echo "7d. Verifying observable-catalog is ready..."
+  assert_http_status "catalog readyz" "200" "$CATALOG/readyz"
 
   echo ""
   echo "=== Phase 2: Collector-based Ingestion (Black-box) ==="

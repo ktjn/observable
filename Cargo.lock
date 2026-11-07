@@ -596,6 +596,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49e78e506b9d7633710dab98996f22f95f3d0f488e8f1aa162830556ed9fc14d"
 
 [[package]]
+name = "catalog-service"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "http-body-util",
+ "observable-config",
+ "observable-telemetry",
+ "prometheus",
+ "sqlx",
+ "tokio",
+ "tower",
+ "tower-http 0.7.1",
+ "tracing",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.65"
 source = "registry+https://github.com/rust-lang/crates.io-index"

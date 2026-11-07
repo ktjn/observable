@@ -68,6 +68,7 @@ owner_of() {
     services/storage-writer/*|migrations/clickhouse/*) echo store_clickhouse ;;
     services/query-api/*|libs/query-core/*)          echo query ;;
     services/alert-evaluator/*)                      echo alerting ;;
+    services/catalog-service/*)                      echo catalog ;;
     apps/frontend/*)                                 echo web ;;
     distribution/*)                                  echo distribution ;;
     *) echo unknown ;;
@@ -84,6 +85,7 @@ declare -A COMPONENT_SOURCE_REFS=(
   [process]='\bstream_processor::'
   [query]='\bquery_api::|\bquery_core::'
   [alerting]='\balert_evaluator::'
+  [catalog]='\bcatalog_service::'
   [store_clickhouse]='\bstorage_writer::'
   [web]='apps/frontend/'
 )

@@ -28,7 +28,10 @@ class AffectedComponentTests(unittest.TestCase):
         self.assertAffected(["libs/observable-process/src/lib.rs"], ["process"])
 
     def test_shared_lib_change_reaches_every_dependent(self):
-        self.assertAffected(["libs/domain/src/lib.rs"], ALL_RUST)
+        self.assertAffected(["libs/observable-telemetry/src/lib.rs"], ALL_RUST)
+        self.assertAffected(
+            ["libs/domain/src/lib.rs"], [c for c in ALL_RUST if c != "catalog"]
+        )
 
     def test_dev_only_crates_do_not_rebuild_artifacts(self):
         self.assertAffected(["libs/test-support/src/lib.rs"], [])

@@ -1,0 +1,23 @@
+{{- if .Values.services.catalogService.enabled -}}
+{{- $dbEnv := include "observable.postgresEnv" (dict "Values" .Values "service" .Values.services.catalogService "scopedEnvName" "CATALOG_DATABASE_URL") | fromYaml -}}
+{{- $selfObsTokenEnv := include "observable.selfObservabilityBearerTokenEnv" . | fromYaml -}}
+{{- $env := list
+    $dbEnv
+    (dict "name" "CATALOG_SERVICE_PORT"     "value" (toString .Values.services.catalogService.port))
+    (dict "name" "OBSERVABLE_ENV"           "value" .Values.identity.env)
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT" "value" .Values.selfObservability.otlpEndpoint)
+    $selfObsTokenEnv -}}
+{{- $ctx := dict
+    "name"    "catalog-service"
+    "command" "catalog-service"
+    "port"    .Values.services.catalogService.port
+    "service" .Values.services.catalogService
+    "env"     $env
+    "Values"  .Values
+    "Chart"   .Chart
+    "Release" .Release -}}
+{{ include "observable-common.deployment" $ctx }}
+---
+{{ include "observable-common.service" $ctx }}
+{{- end }}

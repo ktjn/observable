@@ -195,6 +195,10 @@ jobs:
             package: alert-evaluator
             file: Dockerfile
             target: component-runtime
+          - name: catalog
+            package: catalog-service
+            file: Dockerfile
+            target: component-runtime
           - name: web
             package: ""
             file: apps/frontend/Dockerfile

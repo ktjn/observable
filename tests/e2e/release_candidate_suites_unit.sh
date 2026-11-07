@@ -55,7 +55,7 @@ test_suite_runs_stages_in_order() {
     ' bash "$SUITE_SCRIPT" 2>&1
   )"
 
-  if [[ "$output" != *"docker compose up -d --wait auth-service storage-writer stream-processor ingest-gateway query-api alert-evaluator frontend"* ]]; then
+  if [[ "$output" != *"docker compose up -d --wait auth-service storage-writer stream-processor ingest-gateway query-api alert-evaluator catalog-service frontend"* ]]; then
     echo "FAIL: suite should bootstrap the core compose stack first"
     echo "$output"
     exit 1

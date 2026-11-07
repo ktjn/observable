@@ -61,6 +61,7 @@ main() {
     ingest-gateway
     query-api
     alert-evaluator
+    catalog-service
     frontend
   )
 

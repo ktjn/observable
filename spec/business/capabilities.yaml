@@ -4,7 +4,7 @@ capabilities:
 - id: manage-service-catalog
   version: 0.1.0
   status: specified
-  description: 'Make the platform accountable for outcomes rather than a collection of tools. Establish one accountable view of monitored services and gaps. Planned provider: observable-catalog, domain service-model (not yet built).'
+  description: 'Make the platform accountable for outcomes rather than a collection of tools. Establish one accountable view of monitored services and gaps. Provider: observable-catalog, domain service-model (skeleton since phase 1 S1; behavior lands in S3).'
   postconditions:
   - covered_services_have_approved_outcomes
   - service_found_with_owner_and_coverage
@@ -209,7 +209,7 @@ capabilities:
 - id: govern-observability-assets
   version: 0.1.0
   status: specified
-  description: 'Make observability coverage an owned, continuously verified service obligation. Govern alerts, objectives, dashboards, checks and health rules as owned, managed business assets. Planned provider: observable-catalog, domain service-model (not yet built).'
+  description: 'Make observability coverage an owned, continuously verified service obligation. Govern alerts, objectives, dashboards, checks and health rules as owned, managed business assets. Provider: observable-catalog, domain service-model (skeleton since phase 1 S1; behavior lands in S5-S6).'
   postconditions:
   - required_coverage_compared_with_actual
   - asset_changes_reviewable_and_reversible
@@ -273,7 +273,7 @@ capabilities:
 - id: manage-providers
   version: 0.1.0
   status: specified
-  description: 'Treat material providers as observed dependencies with owned risk, evidence and coordination. Planned provider: observable-catalog, domain service-model (not yet built).'
+  description: 'Treat material providers as observed dependencies with owned risk, evidence and coordination. Provider: observable-catalog, domain service-model (skeleton since phase 1 S1; behavior lands in S7).'
   postconditions:
   - provider_dependency_and_performance_known
   invariants:

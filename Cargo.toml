@@ -18,6 +18,7 @@ members = [
     "services/query-api",
     "services/alert-evaluator",
     "services/admin-service",
+    "services/catalog-service",
 ]
 
 [workspace.package]
