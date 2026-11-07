@@ -1,8 +1,9 @@
-//! Required-capability ports with real (HTTP to observable-auth) and substitute adapters, so
+//! Required-capability ports with real (HTTP to observable-auth and observable-control) and
+//! substitute adapters, so
 //! the catalog runs standalone against the provider-owned mocks (ISO-02).
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use axum::http::HeaderMap;
 use observable_auth::authz::{
@@ -16,6 +17,7 @@ use observable_auth::principals::{
 use observable_auth::{
     AuthError, extract_bearer_token, extract_session_cookie, extract_tenant_id_header,
 };
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Verified caller of a catalog API request.
@@ -145,6 +147,95 @@ impl PrincipalDirectory for Directory {
         match self {
             Self::Http(d) => d.resolve(tenant_id, user_ids).await,
             Self::Mock(d) => d.resolve(tenant_id, user_ids).await,
+        }
+    }
+}
+
+/// One environment and its class as `manage-control-plane` reports it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EnvironmentClass {
+    pub environment: String,
+    /// `production`, `non_production` or `unclassified`.
+    pub class: String,
+}
+
+#[derive(Deserialize)]
+struct EnvironmentClassList {
+    environments: Vec<EnvironmentClass>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ControlUnavailable;
+
+/// Substitute state: per-tenant environment classes.
+pub type ClassTable = HashMap<Uuid, Vec<EnvironmentClass>>;
+
+/// `manage-control-plane` port for environment classes (`GET /internal/environment-classes`).
+#[derive(Clone)]
+pub enum Environments {
+    Http {
+        base_url: Arc<String>,
+        internal_token: Arc<String>,
+        client: reqwest::Client,
+    },
+    /// Programmable substitute: per-tenant classes, or unavailable when `None`.
+    Static(Arc<Mutex<Option<ClassTable>>>),
+}
+
+impl Environments {
+    pub fn substitute() -> Self {
+        Self::Static(Arc::new(Mutex::new(Some(HashMap::new()))))
+    }
+
+    /// Substitute only: replaces a tenant's classes.
+    pub fn set(&self, tenant_id: Uuid, classes: Vec<EnvironmentClass>) {
+        if let Self::Static(s) = self {
+            s.lock()
+                .expect("substitute poisoned")
+                .get_or_insert_with(HashMap::new)
+                .insert(tenant_id, classes);
+        }
+    }
+
+    /// Substitute only: makes every call fail as unavailable.
+    pub fn set_unavailable(&self) {
+        if let Self::Static(s) = self {
+            *s.lock().expect("substitute poisoned") = None;
+        }
+    }
+
+    pub async fn classes(
+        &self,
+        tenant_id: Uuid,
+    ) -> Result<Vec<EnvironmentClass>, ControlUnavailable> {
+        match self {
+            Self::Static(s) => s
+                .lock()
+                .expect("substitute poisoned")
+                .as_ref()
+                .map(|m| m.get(&tenant_id).cloned().unwrap_or_default())
+                .ok_or(ControlUnavailable),
+            Self::Http {
+                base_url,
+                internal_token,
+                client,
+            } => {
+                let response = client
+                    .get(format!(
+                        "{}/internal/environment-classes?tenant_id={tenant_id}",
+                        base_url.trim_end_matches('/')
+                    ))
+                    .header("X-Internal-Token", internal_token.as_str())
+                    .send()
+                    .await
+                    .map_err(|_| ControlUnavailable)?;
+                if response.status().as_u16() != 200 {
+                    return Err(ControlUnavailable);
+                }
+                let body: EnvironmentClassList =
+                    response.json().await.map_err(|_| ControlUnavailable)?;
+                Ok(body.environments)
+            }
         }
     }
 }

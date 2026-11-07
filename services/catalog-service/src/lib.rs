@@ -1,11 +1,12 @@
 //! `observable-catalog`: business service catalog (domain `service-model`).
 //!
-//! Provides `manage-service-catalog` (phase 1 S3): service records, owners, teams, outcomes,
-//! search and exceptions, with every read authorized through `decide-access`. Coverage
+//! Provides `manage-service-catalog` (phase 1 S3-S4): service records, owners, teams, outcomes,
+//! search, exceptions, critical journeys, scope and operating contexts, with every read authorized through `decide-access`. Coverage
 //! (`govern-observability-assets`) and providers (`manage-providers`) follow in S5-S7; see
 //! docs/plans/phase1-service-catalog.md.
 
 pub mod api;
+pub mod journeys;
 pub mod observability;
 pub mod ports;
 
@@ -23,7 +24,7 @@ use sqlx::PgPool;
 use tower_http::trace::TraceLayer;
 use tracing::Level;
 
-use ports::{Credentials, Decider, Directory};
+use ports::{Credentials, Decider, Directory, Environments};
 
 pub const DEFAULT_PORT: u16 = 4325;
 
@@ -34,6 +35,7 @@ pub struct CatalogState {
     pub credentials: Credentials,
     pub decider: Decider,
     pub directory: Directory,
+    pub environments: Environments,
 }
 
 impl CatalogState {
@@ -42,6 +44,7 @@ impl CatalogState {
         credentials: Credentials,
         decider: Decider,
         directory: Directory,
+        environments: Environments,
     ) -> Self {
         Self {
             db,
@@ -49,6 +52,7 @@ impl CatalogState {
             credentials,
             decider,
             directory,
+            environments,
         }
     }
 }
@@ -98,6 +102,16 @@ pub fn app(state: CatalogState) -> Router {
             get(api::list_teams).post(api::create_team),
         )
         .route("/v1/catalog/teams/{id}/members", put(api::put_team_members))
+        .route(
+            "/v1/catalog/journeys",
+            get(journeys::list_journeys).post(journeys::create_journey),
+        )
+        .route(
+            "/v1/catalog/journeys/{id}",
+            get(journeys::get_journey).patch(journeys::update_journey),
+        )
+        .route("/v1/catalog/scope", get(journeys::scope))
+        .route("/v1/catalog/contexts", get(journeys::contexts))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             require_caller,

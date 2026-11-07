@@ -20,4 +20,22 @@ domain catalog {
     createdAt: timestamp
     updatedAt: timestamp
   }
+
+  // Critical customer journey (table catalog.journeys, migration 051). Mirrors
+  // services/catalog-service/src/journeys.rs JourneyRow field-for-field; ordered service links
+  // live in catalog.journey_services and are returned on the journey detail.
+  @wire(json.fieldCase: "snake_case")
+  entity CriticalJourney @ 1 (additive) {
+    @key id: uuid
+    name: string
+    description: string
+    criticality: enum(critical, high, standard, low)
+    inScope: bool
+    scopeRationale: string
+    classification: enum(public, internal, confidential, restricted)
+    ownerKind?: enum(user, team)
+    ownerId?: uuid
+    createdAt: timestamp
+    updatedAt: timestamp
+  }
 }

@@ -1,12 +1,13 @@
 //! Standalone harness: the catalog with its real PostgreSQL schema and the provider-owned
-//! mocks of `validate-credential` (static callers), `decide-access` and `lookup-principals`.
+//! mocks of `validate-credential` (static callers), `decide-access` and `lookup-principals`, and
+//! a substitute for the environment classes of `manage-control-plane`.
 #![allow(dead_code)]
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::{Router, body::Body, http::Request};
-use catalog_service::ports::{Caller, Credentials, Decider, Directory};
+use catalog_service::ports::{Caller, Credentials, Decider, Directory, Environments};
 use catalog_service::{CatalogState, app};
 use http_body_util::BodyExt as _;
 use observable_auth::authz::{Classification, MockAccessDecider};
@@ -20,6 +21,7 @@ pub struct Harness {
     pub app: Router,
     pub decider: MockAccessDecider,
     pub directory: MockPrincipalDirectory,
+    pub environments: Environments,
     pub tenant: Uuid,
     pub other_tenant: Uuid,
     pub admin: Uuid,
@@ -28,7 +30,7 @@ pub struct Harness {
     pub _db: Option<test_support::postgres::TestDatabase>,
 }
 
-/// Mirrors the default grants of migrations 047 and 049.
+/// Mirrors the default grants of migrations 047, 049 and 052.
 pub fn seed_default_policy(m: &MockAccessDecider) {
     use Classification::*;
     for (role, rt, action, max) in [
@@ -42,6 +44,11 @@ pub fn seed_default_policy(m: &MockAccessDecider) {
         ("tenant_admin", "catalog.team", "read", Internal),
         ("member", "catalog.team", "write", Internal),
         ("tenant_admin", "catalog.team", "write", Internal),
+        ("viewer", "catalog.journey", "read", Internal),
+        ("member", "catalog.journey", "read", Confidential),
+        ("tenant_admin", "catalog.journey", "read", Restricted),
+        ("member", "catalog.journey", "write", Internal),
+        ("tenant_admin", "catalog.journey", "write", Restricted),
     ] {
         m.grant(role, rt, action, max);
     }
@@ -90,16 +97,19 @@ impl Harness {
                 caller(other_tenant, Some(outsider), "tenant_admin"),
             ),
         ]);
+        let environments = Environments::substitute();
         let state = CatalogState::new(
             db,
             Credentials::Static(Arc::new(callers)),
             Decider::Mock(decider.clone()),
             Directory::Mock(directory.clone()),
+            environments.clone(),
         );
         Self {
             app: app(state),
             decider,
             directory,
+            environments,
             tenant,
             other_tenant,
             admin,

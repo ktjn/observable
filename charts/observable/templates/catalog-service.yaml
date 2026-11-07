@@ -6,6 +6,7 @@
     $dbEnv
     (dict "name" "CATALOG_SERVICE_PORT"     "value" (toString .Values.services.catalogService.port))
     (dict "name" "AUTH_SERVICE_URL"         "value" (printf "http://auth-service:%d" (int .Values.services.authService.port)))
+    (dict "name" "ADMIN_SERVICE_URL"        "value" (printf "http://admin-service:%d" (int .Values.services.adminService.port)))
     $token
     (dict "name" "OBSERVABLE_ENV"           "value" .Values.identity.env)
     (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)

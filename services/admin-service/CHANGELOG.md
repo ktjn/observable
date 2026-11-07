@@ -5,6 +5,16 @@ All notable changes to the `observable-control` component are documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Environment classes (phase 1 S4, OBS-01-03): migration `050_create_control_environment_classes.sql`
+  (`control.environment_classes`), `GET /v1/tenants/{id}/environment-classes` (any tenant role),
+  `PUT`/`DELETE /v1/tenants/{id}/environment-classes/{environment}` (tenant_admin; `production` or
+  `non_production`, invalid input 422) and `GET /internal/environment-classes?tenant_id=` for the
+  catalog. Environments seen on API keys but never classified are listed as `unclassified`.
+
 ## [0.5.0] - 2026-11-01
 
 ### Added
