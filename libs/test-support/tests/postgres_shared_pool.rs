@@ -30,3 +30,30 @@ async fn two_calls_share_a_container_but_get_isolated_databases() {
         "pool_b must not see rows inserted into pool_a's database"
     );
 }
+
+#[tokio::test]
+async fn isolated_pool_drops_its_database_with_the_guard() {
+    let (pool, guard) = test_support::postgres::isolated_pool().await;
+    let name: String = sqlx::query_scalar("SELECT current_database()")
+        .fetch_one(&pool)
+        .await
+        .expect("current database");
+
+    // Template clones carry the migrated schema and the search_path default.
+    let tenants: i64 = sqlx::query_scalar("SELECT count(*) FROM tenants")
+        .fetch_one(&pool)
+        .await
+        .expect("migrated tenants table");
+    assert!(tenants >= 1);
+
+    drop(guard);
+
+    let observer = test_support::postgres::shared_pool().await;
+    let exists: bool =
+        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)")
+            .bind(&name)
+            .fetch_one(&observer)
+            .await
+            .expect("pg_database lookup");
+    assert!(!exists, "database {name} must be dropped with its guard");
+}

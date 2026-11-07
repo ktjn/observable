@@ -58,7 +58,8 @@ describe("telemetry query API tenant binding", () => {
       "fetch",
       vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) }),
     );
-    vi.stubGlobal("window", { location: { origin: "http://localhost" } });
+    // jsdom already provides window.location; replacing window itself breaks
+    // the vmThreads pool (window is non-configurable in the VM context).
   });
 
   it("every telemetry query function sends the active session tenant_id", async () => {

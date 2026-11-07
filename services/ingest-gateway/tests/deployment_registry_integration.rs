@@ -60,7 +60,13 @@ async fn create_topic(brokers: &str, topic: &str) {
         .expect("topic creation request sent");
 }
 
-async fn start_redpanda() -> (String, ContainerAsync<GenericImage>) {
+async fn start_redpanda() -> (String, Option<ContainerAsync<GenericImage>>) {
+    // The test only needs topic isolation, which a per-test topic provides on
+    // a shared broker.
+    if let Some(brokers) = test_support::kafka::external_brokers() {
+        wait_for_kafka_ready(&brokers).await;
+        return (brokers, None);
+    }
     let host_port = pick_free_port();
     let advertise_addr = format!("127.0.0.1:{host_port}");
     let brokers = advertise_addr.clone();
@@ -83,7 +89,7 @@ async fn start_redpanda() -> (String, ContainerAsync<GenericImage>) {
             .expect("redpanda container started");
 
     wait_for_kafka_ready(&brokers).await;
-    (brokers, container)
+    (brokers, Some(container))
 }
 
 #[tokio::test]

@@ -2,6 +2,14 @@ import { defineConfig, devices } from "@playwright/test";
 
 const frontendPort = process.env.FRONTEND_PORT ?? "5173";
 const frontendUrl = `http://localhost:${frontendPort}`;
+// FRONTEND_PREBUILT=1 (scripts/local-ci.sh, after `npm run build`) serves the
+// built dist/ with `vite preview` instead of the on-demand-transforming dev
+// server: 153 tests in ~38s instead of ~98s on 4 vCPU, and it exercises the
+// production bundle.
+const webServerCommand =
+  process.env.FRONTEND_PREBUILT === "1"
+    ? `npx vite preview --port ${frontendPort} --strictPort`
+    : `npm run dev -- --port ${frontendPort}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -26,7 +34,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run dev -- --port ${frontendPort}`,
+    command: webServerCommand,
     url: frontendUrl,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,

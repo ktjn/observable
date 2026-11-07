@@ -1,0 +1,28 @@
+# cargo-nextest configuration (https://nexte.st/docs/configuration/).
+#
+# nextest runs every test in its own process, so process-wide fixtures
+# (libs/test-support's shared Postgres/ClickHouse) are only shared when the
+# backing stack is external. scripts/local-ci.sh starts it via
+# scripts/local-stack.sh and exports OBSERVABLE_TEST_POSTGRES_URL and
+# OBSERVABLE_TEST_CLICKHOUSE_URL; without them each test process starts its
+# own container (correct, but slow).
+
+[test-groups]
+# Tests that still start a dedicated container per test (exclusive broker or
+# fixed-tenant ClickHouse state). Cap their concurrency so container start-up
+# does not starve the CPU-bound tests.
+dedicated-containers = { max-threads = 2 }
+
+[profile.default]
+slow-timeout = { period = "60s", terminate-after = 5 }
+fail-fast = false
+
+[[profile.default.overrides]]
+filter = '(package(query-api) & binary(it) & test(/http_api_integration::/)) | test(=queue_consumer_survives_broker_transport_loss_and_resumes_delivery)'
+test-group = 'dedicated-containers'
+
+[profile.local-ci]
+# Show failures at the end of the run instead of interleaved with output.
+final-status-level = "fail"
+status-level = "fail"
+failure-output = "final"

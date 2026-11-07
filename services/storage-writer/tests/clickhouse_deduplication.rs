@@ -3,58 +3,7 @@ use uuid::Uuid;
 
 #[tokio::test]
 async fn inserts_all_telemetry_tables_and_deduplicates_retries() {
-    use std::path::Path;
-    use testcontainers::{ImageExt, runners::AsyncRunner};
-    use testcontainers_modules::clickhouse::ClickHouse;
-
-    let container = ClickHouse::default()
-        .with_tag("26.9")
-        .with_env_var("CLICKHOUSE_USER", "default")
-        .with_env_var("CLICKHOUSE_PASSWORD", "test")
-        .start()
-        .await
-        .expect("clickhouse container started");
-    let port = container.get_host_port_ipv4(8123).await.unwrap();
-    let base_url = format!("http://127.0.0.1:{port}");
-
-    // Apply migrations
-    let root = clickhouse::Client::default()
-        .with_url(&base_url)
-        .with_user("default")
-        .with_password("test");
-    root.query("CREATE DATABASE IF NOT EXISTS observable")
-        .execute()
-        .await
-        .unwrap();
-
-    let migrations_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("migrations/clickhouse");
-    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
-        .expect("migrations/clickhouse must exist")
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "sql"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-    for entry in entries {
-        let sql = std::fs::read_to_string(entry.path()).expect("readable migration");
-        for stmt in sql.split(';') {
-            let stmt = stmt.trim();
-            if !stmt.is_empty() {
-                root.query(stmt).execute().await.unwrap();
-            }
-        }
-    }
-
-    let ch = clickhouse::Client::default()
-        .with_url(&base_url)
-        .with_user("default")
-        .with_password("test")
-        .with_database("observable")
-        .with_compression(clickhouse::Compression::None);
+    let ch = test_support::clickhouse::shared_client().await;
 
     let tenant_id = Uuid::new_v4();
     let now_ns = std::time::SystemTime::now()
@@ -172,6 +121,9 @@ async fn inserts_all_telemetry_tables_and_deduplicates_retries() {
     }
     // Startup reapplies migrations: changing settings again must preserve
     // existing rows and the deduplication history.
+    let root = test_support::clickhouse::root_client().await;
+    let migrations_dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/clickhouse");
     let migration =
         std::fs::read_to_string(migrations_dir.join("005_enable_insert_deduplication.sql"))
             .expect("deduplication migration");

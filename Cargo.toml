@@ -26,6 +26,16 @@ edition = "2024"
 [profile.release]
 overflow-checks = true
 
+# Dev/test builds (local gate, cargo nextest): keep file:line backtraces for
+# workspace code but drop full DWARF. Full debug info made target/ ~25 GB and
+# dominated link time for ~60 test binaries. For a debugger session with
+# locals: CARGO_PROFILE_DEV_DEBUG=true cargo build
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 [workspace.dependencies]
 tokio              = { version = "1", features = ["full"] }
 axum               = { version = "0.8", features = ["json", "macros"] }

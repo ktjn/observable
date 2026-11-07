@@ -9,7 +9,8 @@ describe("services API from/to params", () => {
       ok: true,
       json: async () => ({ items: [] }),
     }));
-    vi.stubGlobal("window", { location: { origin: "http://localhost" } });
+    // jsdom already provides window.location; replacing window itself breaks
+    // the vmThreads pool (window is non-configurable in the VM context).
   });
 
   it("listServiceSummaries sends from and to as ISO strings", async () => {
