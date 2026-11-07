@@ -8,9 +8,9 @@ system:
     - application
     - domain
     - infrastructure
-  # Domains are logical responsibilities, orthogonal to layers (ADR-042). service-model and
-  # service-assessment are declared ahead of their planned providers (observable-catalog,
-  # observable-health) so their placement is reviewed before Phase 1/2 code exists.
+  # Domains are logical responsibilities, orthogonal to layers (ADR-042). service-assessment is
+  # declared ahead of its planned provider (observable-health) so its placement is reviewed
+  # before Phase 2 code exists.
   # incident-response must never use investigation: investigation already uses incident-response.
   domains:
     - id: operational-experience
@@ -29,7 +29,7 @@ system:
       description: Evaluated service health with evidence age, maintenance windows and unknown state (planned observable-health).
       uses: [identity, service-model, telemetry-storage]
     - id: service-model
-      description: Business services, owners, criticality, coverage obligations and their mapping to telemetry service identities (planned observable-catalog).
+      description: Business services, owners, criticality, coverage obligations and their mapping to telemetry service identities (observable-catalog).
       uses: [identity, service-control, telemetry-storage]
     - id: service-control
       description: Tenant configuration, dashboards, deployment markers and control-plane state.
@@ -153,6 +153,32 @@ components:
       - alert-rule
       - slo-definition
       - incident-record
+
+  # Phase 1 (docs/plans/phase1-service-catalog.md). S1 ships the runtime skeleton only; the
+  # provided capabilities gain contracts, programmable mocks and real/mock suites with the
+  # slices that implement them (S3, S5-S7), and lookup-principals is added with S2.
+  - id: observable-catalog
+    version: "0.1.0"
+    status: specified
+    layer: domain
+    domain: service-model
+    consistency: strong
+    test_scope: integration
+    source_paths:
+      - services/catalog-service
+      - migrations/postgres/046_create_catalog_schema.sql
+    test_paths:
+      - services/catalog-service/tests
+    standalone_harness: ["cargo", "test", "-p", "catalog-service", "--test", "http_probes_integration"]
+    provides:
+      - manage-service-catalog
+      - govern-observability-assets
+      - manage-providers
+    requires:
+      - validate-credential@^0.1
+      - decide-access@^0.1
+      - store-telemetry@^0.1
+      - manage-control-plane@^0.1
 
   - id: observable-process
     version: "0.1.0"

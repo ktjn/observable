@@ -43,6 +43,7 @@ COMPONENTS=(
   store-clickhouse:storage-writer
   query:query-api
   alerting:alert-evaluator
+  catalog:catalog-service
 )
 
 failures=0

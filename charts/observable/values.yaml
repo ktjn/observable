@@ -113,6 +113,24 @@ services:
         cpu: 500m
         memory: 256Mi
 
+  catalogService:
+    enabled: true
+    image: { repository: observable-catalog, tag: "0.1.0" }
+    port: 4325
+    replicas: 1
+    # Scoped database URL or secret (CATALOG_DATABASE_URL), login observable_catalog.
+    # Overrides the global postgres.url or postgres.existingSecret.
+    databaseUrl: ""
+    existingSecret: ""
+    existingSecretKey: "CATALOG_DATABASE_URL"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
   ingestGateway:
     enabled: true
     image: { repository: observable-ingest, tag: "0.1.0" }

@@ -238,6 +238,8 @@ test_health_endpoints_consistent() {
     "http://localhost:4324/readyz|admin-service readyz"
     "http://localhost:4322/health|alert-evaluator health"
     "http://localhost:4322/readyz|alert-evaluator readyz"
+    "http://localhost:4325/health|catalog-service health"
+    "http://localhost:4325/readyz|catalog-service readyz"
   )
 
   for entry in "${endpoints[@]}"; do

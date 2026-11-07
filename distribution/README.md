@@ -65,6 +65,7 @@ Component name → image → Cargo package:
 | `store-clickhouse` | `observable-store-clickhouse` | `services/storage-writer` |
 | `query` | `observable-query` | `services/query-api` |
 | `alerting` | `observable-alerting` | `services/alert-evaluator` |
+| `catalog` | `observable-catalog` | `services/catalog-service` |
 | `web` | `observable-web` | `apps/frontend` |
 
 `docker-compose.yml` runs each Rust service from its own

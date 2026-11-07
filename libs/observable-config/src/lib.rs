@@ -32,6 +32,9 @@ fn dev_default(name: &str) -> String {
         "ALERTING_DATABASE_URL" => {
             "postgres://observable_alerting:observable_alerting@localhost:5432/observable".into()
         }
+        "CATALOG_DATABASE_URL" => {
+            "postgres://observable_catalog:observable_catalog@localhost:5432/observable".into()
+        }
         "CLICKHOUSE_URL" => "http://localhost:8123".into(),
         "CLICKHOUSE_USER" => "default".into(),
         "CLICKHOUSE_PASSWORD" => String::new(),
@@ -103,6 +106,23 @@ pub fn require_alerting_database_url() -> anyhow::Result<String> {
     require_scoped_database_url("ALERTING_DATABASE_URL")
 }
 
+/// Fetches the PostgreSQL URL for `observable-catalog` (`CATALOG_DATABASE_URL` with
+/// fallback to `DATABASE_URL`). The search path names only the `catalog` schema,
+/// which the catalog owns exclusively.
+pub fn require_catalog_database_url() -> anyhow::Result<String> {
+    let url = match env::var("CATALOG_DATABASE_URL") {
+        Ok(val) if !val.trim().is_empty() => val,
+        _ => require_env("DATABASE_URL")?,
+    };
+    Ok(with_catalog_search_path(&url))
+}
+
+/// Appends `search_path=catalog,public` to a PostgreSQL connection URL.
+pub fn with_catalog_search_path(database_url: &str) -> String {
+    let sep = if database_url.contains('?') { '&' } else { '?' };
+    format!("{database_url}{sep}options=-c%20search_path%3Dcatalog,public")
+}
+
 fn require_scoped_database_url(scoped_var: &str) -> anyhow::Result<String> {
     let url = match env::var(scoped_var) {
         Ok(val) if !val.trim().is_empty() => val,
@@ -129,6 +149,18 @@ mod tests {
         assert_eq!(
             with_opts2,
             "postgres://user:pass@localhost:5432/db?sslmode=disable&options=-c%20search_path%3Dauth,control,alerting,public"
+        );
+    }
+
+    #[test]
+    fn with_catalog_search_path_names_only_the_catalog_schema() {
+        assert_eq!(
+            with_catalog_search_path("postgres://u:p@h:5432/db"),
+            "postgres://u:p@h:5432/db?options=-c%20search_path%3Dcatalog,public"
+        );
+        assert_eq!(
+            with_catalog_search_path("postgres://u:p@h:5432/db?sslmode=disable"),
+            "postgres://u:p@h:5432/db?sslmode=disable&options=-c%20search_path%3Dcatalog,public"
         );
     }
 }

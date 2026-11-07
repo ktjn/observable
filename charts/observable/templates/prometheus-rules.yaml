@@ -148,4 +148,14 @@ spec:
             summary: "Alert Evaluator is down"
             description: "Alert evaluator is not healthy. Platform and customer alert rules are not being evaluated."
             runbook_url: "https://github.com/ktjn/observable/blob/main/docs/runbooks/dependency-outage.md"
+        - alert: ObservableCatalogServiceDown
+          expr: up{app_kubernetes_io_component="catalog-service"} == 0
+          for: 2m
+          labels:
+            severity: warning
+            tier: platform
+          annotations:
+            summary: "Catalog Service is down"
+            description: "Catalog service is not responding to probes. Business service records, ownership and coverage are unavailable."
+            runbook_url: "https://github.com/ktjn/observable/blob/main/docs/runbooks/dependency-outage.md"
 {{- end }}

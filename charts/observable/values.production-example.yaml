@@ -92,6 +92,20 @@ services:
         cpu: 1000m
         memory: 512Mi
 
+  catalogService:
+    image: { repository: observable-catalog, tag: "0.1.0" }   # Pin to the component version
+    replicas: 2
+    # Optional scoped database credentials (CATALOG_DATABASE_URL).
+    existingSecret: "observable-catalog-db-credentials"
+    existingSecretKey: "CATALOG_DATABASE_URL"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
   ingestGateway:
     image: { repository: observable-ingest, tag: "0.1.0" }   # Pin to the component version
     replicas: 3

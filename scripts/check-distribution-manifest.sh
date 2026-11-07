@@ -24,7 +24,7 @@ if [[ ! -f "$MANIFEST" ]]; then
 fi
 
 SEMVER='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
-EXPECTED=(contracts auth control ingest process storeClickhouse query alerting web)
+EXPECTED=(contracts auth control ingest process storeClickhouse query alerting catalog web)
 
 fail() {
   echo "FAIL: $1" >&2
@@ -46,6 +46,7 @@ component_source() {
     storeClickhouse) echo "services/storage-writer/Cargo.toml" ;;
     query) echo "services/query-api/Cargo.toml" ;;
     alerting) echo "services/alert-evaluator/Cargo.toml" ;;
+    catalog) echo "services/catalog-service/Cargo.toml" ;;
     web) echo "apps/frontend/package.json" ;;
     contracts) echo "" ;;
   esac
@@ -75,6 +76,7 @@ component_helm_key() {
     storeClickhouse) echo "storageWriter observable-store-clickhouse" ;;
     query) echo "queryApi observable-query" ;;
     alerting) echo "alertEvaluator observable-alerting" ;;
+    catalog) echo "catalogService observable-catalog" ;;
     web) echo "frontend observable-web" ;;
     contracts) echo "" ;;
   esac

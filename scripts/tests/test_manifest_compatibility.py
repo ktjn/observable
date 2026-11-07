@@ -65,6 +65,7 @@ components:
   storeClickhouse: 0.1.0
   query: 0.1.0
   alerting: 0.1.0
+  catalog: 0.1.0
   web: 0.1.0
 """
         spec_text = SPEC_FILE.read_text(encoding="utf-8")
@@ -84,6 +85,7 @@ components:
   storeClickhouse: 0.1.0
   query: 0.1.0
   alerting: 0.1.0
+  catalog: 0.1.0
   web: 0.1.0
 """
         spec_text = SPEC_FILE.read_text(encoding="utf-8")
@@ -105,6 +107,7 @@ components:
   storeClickhouse: 0.1.0
   query: 0.1.0
   alerting: 0.1.0
+  catalog: 0.1.0
   web: 0.1.0
 """
         spec_text = SPEC_FILE.read_text(encoding="utf-8")

@@ -362,6 +362,28 @@ services:
       auth-service: { condition: service_healthy }
       redpanda-setup: { condition: service_completed_successfully }
 
+  catalog-service:
+    image: observable-catalog:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: component-runtime
+      args: { SERVICE: catalog-service }
+    environment:
+      <<: *platform-self-observability-env
+      OBSERVABLE_ENV: dev
+      CATALOG_SERVICE_PORT: "4325"
+      DATABASE_URL: postgres://observable_catalog:observable_catalog@postgres:5432/observable
+      CATALOG_DATABASE_URL: postgres://observable_catalog:observable_catalog@postgres:5432/observable
+    ports: ["4325:4325"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4325/readyz"]
+      interval: 2s
+      timeout: 1s
+      retries: 10
+    depends_on:
+      postgres-setup: { condition: service_completed_successfully }
+
   alert-evaluator:
     image: observable-alerting:local
     build:
@@ -432,6 +454,7 @@ services:
       QUERY_URL: http://query-api:8090
       ADMIN_URL: http://admin-service:4324
       ALERT_URL: http://alert-evaluator:4322
+      CATALOG_URL: http://catalog-service:4325
       COLLECTOR_URL: http://otel-collector-verification:4318
       COLLECTOR_GRPC_URL: http://otel-collector-verification:4317
     entrypoint: ["/bin/bash", "/app/tests/e2e/smoke_test.sh"]
@@ -442,6 +465,7 @@ services:
       query-api: { condition: service_healthy }
       admin-service: { condition: service_healthy }
       alert-evaluator: { condition: service_healthy }
+      catalog-service: { condition: service_healthy }
       stream-processor: { condition: service_healthy }
       otel-collector-verification: { condition: service_started }
 

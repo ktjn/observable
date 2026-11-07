@@ -26,6 +26,7 @@ MANIFEST_TO_SPEC = {
     "storeClickhouse": "observable-store-clickhouse",
     "query": "observable-query",
     "alerting": "observable-alerting",
+    "catalog": "observable-catalog",
     "web": "observable-web",
 }
 SPEC_TO_MANIFEST = {v: k for k, v in MANIFEST_TO_SPEC.items()}

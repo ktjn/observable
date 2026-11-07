@@ -51,7 +51,7 @@
       "query_kind": "traces",
       "service": "auth-service",
       "filters": {},
-      "layout": { "x": 0, "y": 10, "w": 4, "h": 4 },
+      "layout": { "x": 0, "y": 10, "w": 3, "h": 4 },
       "time_range": { "mode": "preset", "preset": "1h" }
     },
     {
@@ -60,7 +60,7 @@
       "query_kind": "traces",
       "service": "admin-service",
       "filters": {},
-      "layout": { "x": 4, "y": 10, "w": 4, "h": 4 },
+      "layout": { "x": 3, "y": 10, "w": 3, "h": 4 },
       "time_range": { "mode": "preset", "preset": "1h" }
     },
     {
@@ -69,7 +69,16 @@
       "query_kind": "traces",
       "service": "alert-evaluator",
       "filters": {},
-      "layout": { "x": 8, "y": 10, "w": 4, "h": 4 },
+      "layout": { "x": 6, "y": 10, "w": 3, "h": 4 },
+      "time_range": { "mode": "preset", "preset": "1h" }
+    },
+    {
+      "title": "Catalog Service — Recent Traces",
+      "panel_kind": "query",
+      "query_kind": "traces",
+      "service": "catalog-service",
+      "filters": {},
+      "layout": { "x": 9, "y": 10, "w": 3, "h": 4 },
       "time_range": { "mode": "preset", "preset": "1h" }
     },
     {

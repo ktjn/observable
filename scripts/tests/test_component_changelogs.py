@@ -26,6 +26,7 @@ COMPONENTS = {
     "storeClickhouse": "services/storage-writer/CHANGELOG.md",
     "query": "services/query-api/CHANGELOG.md",
     "alerting": "services/alert-evaluator/CHANGELOG.md",
+    "catalog": "services/catalog-service/CHANGELOG.md",
     "web": "apps/frontend/CHANGELOG.md",
 }
 

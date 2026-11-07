@@ -20,6 +20,7 @@ MANIFEST_TO_SPEC_COMPONENT = {
     "storeClickhouse": "observable-store-clickhouse",
     "query": "observable-query",
     "alerting": "observable-alerting",
+    "catalog": "observable-catalog",
     "web": "observable-web",
 }
 

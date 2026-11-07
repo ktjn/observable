@@ -53,6 +53,7 @@ RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/regi
           /app/target/release/query-api \
           /app/target/release/alert-evaluator \
           /app/target/release/admin-service \
+          /app/target/release/catalog-service \
           /app/bin/
 
 # --- Per-component images (Phase 7, docs/component-decomposition.md) ---
@@ -126,6 +127,7 @@ COPY bin/ingest-gateway /usr/local/bin/ingest-gateway
 COPY bin/query-api /usr/local/bin/query-api
 COPY bin/alert-evaluator /usr/local/bin/alert-evaluator
 COPY bin/admin-service /usr/local/bin/admin-service
+COPY bin/catalog-service /usr/local/bin/catalog-service
 COPY proto/otlp /proto/otlp
 
 USER 65532:65532
@@ -159,6 +161,7 @@ COPY --from=rust-builder /app/bin/ingest-gateway /usr/local/bin/ingest-gateway
 COPY --from=rust-builder /app/bin/query-api /usr/local/bin/query-api
 COPY --from=rust-builder /app/bin/alert-evaluator /usr/local/bin/alert-evaluator
 COPY --from=rust-builder /app/bin/admin-service /usr/local/bin/admin-service
+COPY --from=rust-builder /app/bin/catalog-service /usr/local/bin/catalog-service
 COPY proto/otlp /proto/otlp
 
 USER 65532:65532
