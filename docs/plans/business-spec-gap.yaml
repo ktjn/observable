@@ -8,8 +8,8 @@ requirements:
     holder: organization
     phase: 1
     target: manage-service-catalog
-    status: missing
-    evidence: No capability found in scan.
+    status: partial
+    evidence: Phase 1 S4. Critical journeys with criticality, owner, ordered services and in-scope flag; GET /v1/catalog/scope lists in-scope services and journeys with criticality and excluded journeys with rationale; a critical journey out of scope is a catalog exception (services/catalog-service/tests/catalog_journeys_integration.rs tests scope_lists_in_scope_services_and_journeys_with_criticality, critical_journey_outside_scope_is_reported_as_a_gap). Organization-held, so inspection evidence comes at phase exit (S9).
   OBS-01-02:
     priority: P0
     holder: organization
@@ -23,7 +23,7 @@ requirements:
     phase: 1
     target: manage-service-catalog
     status: partial
-    evidence: Environment scoping exists (ADR-031, /v1/environments); no production/non-production/business-critical classification.
+    evidence: Phase 1 S4. Environment classes (production, non_production, explicit unclassified) in observable-control (migration 050, /v1/tenants/{id}/environment-classes); GET /v1/catalog/contexts partitions environments and business-critical services; catalog lists restrict to business_critical (services/catalog-service/tests/catalog_journeys_integration.rs). Telemetry views and health do not yet filter by context, so neither criterion is verified.
   OBS-01-04:
     priority: P0
     holder: platform

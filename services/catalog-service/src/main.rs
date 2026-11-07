@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use catalog_service::ports::{Credentials, Decider, Directory};
+use catalog_service::ports::{Credentials, Decider, Directory, Environments};
 use catalog_service::{CatalogState, DEFAULT_PORT, app};
 use observable_auth::authz::HttpAccessDecider;
 use observable_auth::principals::HttpPrincipalDirectory;
@@ -19,9 +19,12 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let auth_url = observable_config::require_env("AUTH_SERVICE_URL")?;
+    let admin_url = observable_config::require_env("ADMIN_SERVICE_URL")?;
     let internal_token = observable_config::require_env("INTERNAL_SERVICE_TOKEN")?;
     if internal_token.trim().is_empty() {
-        anyhow::bail!("INTERNAL_SERVICE_TOKEN must be set for decide-access and lookup-principals");
+        anyhow::bail!(
+            "INTERNAL_SERVICE_TOKEN must be set for decide-access, lookup-principals and environment classes"
+        );
     }
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
@@ -40,8 +43,13 @@ async fn main() -> anyhow::Result<()> {
         Directory::Http(HttpPrincipalDirectory::new(
             &auth_url,
             &internal_token,
-            client,
+            client.clone(),
         )),
+        Environments::Http {
+            base_url: Arc::new(admin_url),
+            internal_token: Arc::new(internal_token.clone()),
+            client,
+        },
     );
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;

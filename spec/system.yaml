@@ -118,6 +118,7 @@ components:
     test_scope: integration
     source_paths:
       - services/admin-service
+      - migrations/postgres/050_create_control_environment_classes.sql
     provides:
       - manage-control-plane
       - publish-deployment-markers
@@ -155,7 +156,8 @@ components:
       - incident-record
 
   # Phase 1 (docs/plans/phase1-service-catalog.md). S1 shipped the runtime skeleton, S3 the
-  # service records behind manage-service-catalog. The provided programmable mock and real/mock
+  # service records behind manage-service-catalog, S4 journeys, scope and operating contexts
+  # (environment classes read from manage-control-plane). The provided programmable mock and real/mock
   # suite for manage-service-catalog land with its first consumer (S8, web); the other provided
   # capabilities gain theirs in S5-S7.
   - id: observable-catalog
@@ -169,6 +171,7 @@ components:
       - services/catalog-service
       - migrations/postgres/046_create_catalog_schema.sql
       - migrations/postgres/048_create_catalog_service_records.sql
+      - migrations/postgres/051_create_catalog_journeys.sql
     test_paths:
       - services/catalog-service/tests
     standalone_harness: ["cargo", "test", "-p", "catalog-service", "--test", "http_probes_integration"]
@@ -184,6 +187,7 @@ components:
       - manage-control-plane@^0.1
     owns_data:
       - business-service
+      - critical-journey
 
   - id: observable-process
     version: "0.1.0"
@@ -601,6 +605,7 @@ data_models:
       slug: string
       retention_days: uint16
       ingest_quota_per_sec: uint32
+      environment_classes: map<string,string>
 
   - id: dashboard-model
     version: "0.1.0"
@@ -718,6 +723,27 @@ data_models:
       classification: string
       support_route: string
       aliases: list<string>
+
+  # Phase 1 S4: critical customer journey (migration 051), ordered service links in
+  # catalog.journey_services.
+  - id: critical-journey
+    version: "0.1.0"
+    owner: observable-catalog
+    namespace: catalog
+    storage_role: observable_catalog_role
+    classification: internal
+    schema_path: models/catalog.mdl
+    fields:
+      id: uuid
+      tenant_id: uuid
+      name: string
+      criticality: string
+      in_scope: bool
+      scope_rationale: string
+      classification: string
+      owner_kind: string
+      owner_id: uuid
+      service_ids: list<uuid>
 
   - id: api-key-credential
     version: "0.1.0"
@@ -2251,6 +2277,24 @@ evidence:
     criteria:
       - "Negative: When the policy decision point is unavailable, catalog reads fail closed with an error and never return unfiltered records."
     timestamp: "2026-11-07T22:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  # Phase 1 S4: journeys under the catalog access boundary. OBS-01-01 is organization-held and
+  # takes inspection evidence at phase exit (S9); its supporting tests are named in the gap file.
+  - id: ev-catalog-journey-access
+    requirement_id: req-catalog-access-control
+    requirement_version: "0.1.0"
+    subject_id: manage-service-catalog
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/catalog-service/tests/catalog_journeys_integration.rs::journey_access_is_decided_and_hidden_journeys_match_missing_ones"
+    criteria:
+      - "Acceptance: A user sees only the catalog services, owners and support routes the policy decision point permits for the active tenant and role."
+      - "Negative: A search or direct lookup for a service the user may not see returns the same response as for a non-existent service and reveals no owner, count or identifier."
+      - "Negative: When the policy decision point is unavailable, catalog reads fail closed with an error and never return unfiltered records."
+    timestamp: "2026-11-07T23:00:00Z"
     verifier: cargo-test
     environment: local
 

@@ -1,12 +1,13 @@
 use admin_service::{
-    AdminServiceAppState, admin_members, change_events, config, dashboards, deployments, internal,
-    middleware, observability, saved_views, schemas, tenants, tokens, usage,
+    AdminServiceAppState, admin_members, change_events, config, dashboards, deployments,
+    environments, internal, middleware, observability, saved_views, schemas, tenants, tokens,
+    usage,
 };
 use axum::{
     Router,
     http::StatusCode,
     middleware as axum_middleware,
-    routing::{delete, get, patch, post},
+    routing::{delete, get, patch, post, put},
 };
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
@@ -167,6 +168,15 @@ async fn main() -> anyhow::Result<()> {
             get(tenants::handle_get_tenant_config).put(tenants::handle_update_tenant_config),
         )
         .route("/v1/tenants/{id}", delete(tenants::handle_purge_tenant))
+        .route(
+            "/v1/tenants/{id}/environment-classes",
+            get(environments::handle_list_environment_classes),
+        )
+        .route(
+            "/v1/tenants/{id}/environment-classes/{environment}",
+            put(environments::handle_set_environment_class)
+                .delete(environments::handle_clear_environment_class),
+        )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))
         .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
@@ -222,6 +232,10 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/internal/query-audit",
             post(internal::handle_record_query_audit),
+        )
+        .route(
+            "/internal/environment-classes",
+            get(environments::handle_internal_environment_classes),
         )
         .layer(axum_middleware::from_fn(
             middleware::auth::require_internal_service,

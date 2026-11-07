@@ -377,6 +377,7 @@ services:
       DATABASE_URL: postgres://observable_catalog:observable_catalog@postgres:5432/observable
       CATALOG_DATABASE_URL: postgres://observable_catalog:observable_catalog@postgres:5432/observable
       AUTH_SERVICE_URL: http://auth-service:4319
+      ADMIN_SERVICE_URL: http://admin-service:4324
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000}
     ports: ["4325:4325"]
     healthcheck:
@@ -387,6 +388,7 @@ services:
     depends_on:
       postgres-setup: { condition: service_completed_successfully }
       auth-service: { condition: service_healthy }
+      admin-service: { condition: service_healthy }
 
   alert-evaluator:
     image: observable-alerting:local

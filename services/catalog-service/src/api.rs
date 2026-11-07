@@ -1,4 +1,4 @@
-//! `manage-service-catalog` HTTP API (phase 1 S3): service records, identifiers and aliases,
+//! `manage-service-catalog` HTTP API (phase 1 S3; journeys and contexts in `journeys`): service records, identifiers and aliases,
 //! criticality and lifecycle, owners and support route, teams, business outcomes, search and
 //! the exception list.
 //!
@@ -31,10 +31,10 @@ use crate::ports::Caller;
 
 pub const SERVICE: &str = "catalog.service";
 pub const TEAM: &str = "catalog.team";
-const READ: &str = "read";
-const WRITE: &str = "write";
+pub(crate) const READ: &str = "read";
+pub(crate) const WRITE: &str = "write";
 
-const CRITICALITY: &[&str] = &["critical", "high", "standard", "low"];
+pub(crate) const CRITICALITY: &[&str] = &["critical", "high", "standard", "low"];
 const LIFECYCLE: &[&str] = &["planned", "live", "deprecated", "retired"];
 const OWNER_ROLES: &[&str] = &["business_owner", "operational_owner"];
 
@@ -93,9 +93,9 @@ impl From<sqlx::Error> for ApiError {
     }
 }
 
-type ApiResult<T> = Result<T, ApiError>;
+pub(crate) type ApiResult<T> = Result<T, ApiError>;
 
-fn one_of(field: &str, value: &str, allowed: &[&str]) -> ApiResult<()> {
+pub(crate) fn one_of(field: &str, value: &str, allowed: &[&str]) -> ApiResult<()> {
     if allowed.contains(&value) {
         Ok(())
     } else {
@@ -106,7 +106,7 @@ fn one_of(field: &str, value: &str, allowed: &[&str]) -> ApiResult<()> {
     }
 }
 
-fn non_empty(field: &str, value: &str) -> ApiResult<String> {
+pub(crate) fn non_empty(field: &str, value: &str) -> ApiResult<String> {
     let v = value.trim();
     if v.is_empty() || v.len() > 200 {
         return Err(ApiError::BadRequest(format!(
@@ -116,7 +116,7 @@ fn non_empty(field: &str, value: &str) -> ApiResult<String> {
     Ok(v.to_owned())
 }
 
-fn classification(value: &str) -> ApiResult<Classification> {
+pub(crate) fn classification(value: &str) -> ApiResult<Classification> {
     Classification::parse(value).ok_or_else(|| {
         ApiError::BadRequest(
             "classification must be one of public, internal, confidential, restricted".into(),
@@ -128,7 +128,7 @@ fn classification(value: &str) -> ApiResult<Classification> {
 // Access helpers
 // ---------------------------------------------------------------------------
 
-async fn decide(
+pub(crate) async fn decide(
     state: &CatalogState,
     caller: &Caller,
     action: &str,
@@ -155,7 +155,7 @@ async fn decide(
     }
 }
 
-async fn permitted(
+pub(crate) async fn permitted(
     state: &CatalogState,
     caller: &Caller,
     resource_type: &str,
@@ -275,7 +275,7 @@ async fn load_service(
     .await
 }
 
-async fn load_services(
+pub(crate) async fn load_services(
     db: &PgPool,
     tenant_id: Uuid,
     ids: Option<&[Uuid]>,
@@ -396,14 +396,14 @@ struct ServiceDetail {
 // Owner resolution and exceptions
 // ---------------------------------------------------------------------------
 
-struct Resolution {
-    users: HashMap<Uuid, PrincipalState>,
-    teams: HashMap<Uuid, (String, Vec<Uuid>)>,
-    available: bool,
+pub(crate) struct Resolution {
+    pub(crate) users: HashMap<Uuid, PrincipalState>,
+    pub(crate) teams: HashMap<Uuid, (String, Vec<Uuid>)>,
+    pub(crate) available: bool,
 }
 
 impl Resolution {
-    fn state(&self, kind: &str, id: Uuid) -> &'static str {
+    pub(crate) fn state(&self, kind: &str, id: Uuid) -> &'static str {
         if !self.available {
             return "unknown";
         }
@@ -429,7 +429,7 @@ impl Resolution {
     }
 }
 
-async fn resolve_principals(
+pub(crate) async fn resolve_principals(
     state: &CatalogState,
     tenant_id: Uuid,
     owners: &[(String, Uuid)],
@@ -681,6 +681,8 @@ pub async fn create_service(
 #[derive(Deserialize)]
 pub struct ListQuery {
     lifecycle: Option<String>,
+    /// `business_critical` restricts to critical, non-retired services (OBS-01-03).
+    context: Option<String>,
     criticality: Option<String>,
     limit: Option<usize>,
     offset: Option<usize>,
@@ -688,12 +690,12 @@ pub struct ListQuery {
 
 #[derive(Serialize)]
 pub struct Page<T> {
-    items: Vec<T>,
+    pub(crate) items: Vec<T>,
     /// Number of permitted records matching the query (never counts denied records).
-    total: usize,
+    pub(crate) total: usize,
 }
 
-fn paginate<T>(items: Vec<T>, limit: Option<usize>, offset: Option<usize>) -> Page<T> {
+pub(crate) fn paginate<T>(items: Vec<T>, limit: Option<usize>, offset: Option<usize>) -> Page<T> {
     let total = items.len();
     let limit = limit.unwrap_or(50).clamp(1, 200);
     let items = items
@@ -705,7 +707,7 @@ fn paginate<T>(items: Vec<T>, limit: Option<usize>, offset: Option<usize>) -> Pa
 }
 
 /// Permitted rows in their original order.
-async fn visible(
+pub(crate) async fn visible(
     state: &CatalogState,
     caller: &Caller,
     rows: Vec<ServiceRow>,
@@ -726,10 +728,12 @@ pub async fn list_services(
     Extension(caller): Extension<Caller>,
     Query(q): Query<ListQuery>,
 ) -> ApiResult<Json<Page<ServiceSummary>>> {
+    let critical_only = crate::journeys::catalog_context(q.context.as_deref())?;
     let rows = load_services(&state.db, caller.tenant_id, None).await?;
     let rows = visible(&state, &caller, rows).await?;
     let items: Vec<ServiceSummary> = rows
         .iter()
+        .filter(|r| !critical_only || (r.criticality == "critical" && r.lifecycle != "retired"))
         .filter(|r| q.lifecycle.as_deref().is_none_or(|l| r.lifecycle == l))
         .filter(|r| q.criticality.as_deref().is_none_or(|c| r.criticality == c))
         .map(ServiceSummary::from)
@@ -858,12 +862,12 @@ pub async fn update_service(
 
 #[derive(Deserialize)]
 pub struct PrincipalRef {
-    principal_kind: String,
-    principal_id: Uuid,
+    pub(crate) principal_kind: String,
+    pub(crate) principal_id: Uuid,
 }
 
 /// Validates an owner principal: a team of this tenant, or a user who is active in it.
-async fn check_principal(
+pub(crate) async fn check_principal(
     state: &CatalogState,
     caller: &Caller,
     kind: &str,
@@ -1109,12 +1113,21 @@ pub struct ExceptionItem {
     reasons: Vec<String>,
 }
 
+#[derive(Serialize)]
+pub struct Exceptions {
+    items: Vec<ExceptionItem>,
+    total: usize,
+    /// Journey exceptions (OBS-01-01), see `journeys::journey_exceptions_for`.
+    journeys: Vec<crate::journeys::JourneyException>,
+}
+
 /// Critical, non-retired services without accountable owners (missing, departed or
-/// unresolvable), support route or approved outcome (OBS-01-02, OBS-02-02).
+/// unresolvable), support route or approved outcome (OBS-01-02, OBS-02-02), plus journey
+/// exceptions (OBS-01-01).
 pub async fn exceptions(
     State(state): State<CatalogState>,
     Extension(caller): Extension<Caller>,
-) -> ApiResult<Json<Page<ExceptionItem>>> {
+) -> ApiResult<Json<Exceptions>> {
     let rows = load_services(&state.db, caller.tenant_id, None).await?;
     let rows: Vec<ServiceRow> = visible(&state, &caller, rows)
         .await?
@@ -1137,7 +1150,12 @@ pub async fn exceptions(
             })
         })
         .collect();
-    Ok(Json(paginate(items, Some(200), None)))
+    let page = paginate(items, Some(200), None);
+    Ok(Json(Exceptions {
+        items: page.items,
+        total: page.total,
+        journeys: crate::journeys::journey_exceptions_for(&state, &caller).await?,
+    }))
 }
 
 // ---------------------------------------------------------------------------

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Critical journeys, scope and operating contexts (phase 1 S4).
+
+### Added
+
+- Migration `051_create_catalog_journeys.sql`: `catalog.journeys` (criticality, in-scope flag with
+  rationale, owner, classification) and ordered `catalog.journey_services`.
+- `/v1/catalog/journeys` (create, list, get, update), `/v1/catalog/scope` (in-scope services and
+  journeys, excluded journeys) and `/v1/catalog/contexts` (production and non-production
+  environments from `manage-control-plane`, business-critical services). Journeys are decided as
+  `catalog.journey`; a journey never identifies or counts services the caller may not read.
+- Journey exceptions in `/v1/catalog/exceptions` (`journeys`): critical journey not in scope, no
+  services, retired service, missing, departed or unresolved owner.
+- `context=business_critical` on `/v1/catalog/services` and `/v1/catalog/scope`; environment
+  contexts are rejected on catalog records rather than guessed.
+- `ADMIN_SERVICE_URL` configuration; `/v1/catalog/contexts` returns
+  `503 {"error":"control_plane_unavailable"}` when environment classes cannot be read.
+
+### Changed
+
+- `/v1/catalog/exceptions` returns `{items, total, journeys}`.
+
 Service records behind `manage-service-catalog` (phase 1 S3).
 
 ### Added
