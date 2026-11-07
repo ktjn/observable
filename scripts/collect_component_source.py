@@ -20,7 +20,7 @@ from ci_changed_components import ALL_COMPONENTS, RUST_COMPONENTS, closure, load
 ROOT = Path(__file__).resolve().parents[1]
 ALGORITHM = "component-source-v1"
 RECIPES = {
-    "Dockerfile": "81ccccef973009f7bfcd5e821f372a424e771fbbe9c4622dd3284cbf53c0a2ff",
+    "Dockerfile": "374b82059ec5b5f2ab6f770449f3b4bfd543adb8e911459f83fca59d26891f07",
     "apps/frontend/Dockerfile": "f1f4d8b71fad48003126f31a12de7eeb9a234c03c1c97ea1334cae7407932c36",
 }
 # The image stage each recipe builds into a deployable component artifact. A
