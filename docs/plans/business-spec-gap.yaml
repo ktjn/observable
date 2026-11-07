@@ -57,15 +57,15 @@ requirements:
     holder: platform
     phase: 1
     target: manage-service-catalog
-    status: partial
-    evidence: Service list search by OTel service.name (apps/frontend/src/pages/ServicesPage.tsx); no business name, domain or owner.
+    status: verified
+    evidence: Phase 1 S3. GET /v1/catalog/search matches business and operational name prefixes, active aliases, domain, team name and owner user id; retired aliases never match (services/catalog-service/tests/catalog_records_integration.rs).
   OBS-02-02:
     priority: P0
     holder: platform
     phase: 1
     target: manage-service-catalog
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: Phase 1 S3. Service detail shows business and operational owners (user or team) with directory state and support route; GET /v1/catalog/exceptions flags departed, unresolved or missing owners of critical services (services/catalog-service/tests/catalog_records_integration.rs).
   OBS-02-03:
     priority: P0
     holder: platform
@@ -78,8 +78,8 @@ requirements:
     holder: platform
     phase: 1
     target: manage-service-catalog
-    status: missing
-    evidence: No capability found in scan.
+    status: partial
+    evidence: Phase 1 S3. Criticality and lifecycle on every record; retired services are marked not live in search, listing and exceptions (services/catalog-service/tests/catalog_records_integration.rs). Health is phase 2, so the negative criterion is not yet verifiable.
   OBS-02-05:
     priority: P1
     holder: platform
@@ -2068,8 +2068,8 @@ refinements:
     holder: platform
     phase: 1
     target: manage-service-catalog
-    status: missing
-    evidence: No catalog exists; no service calls the decide-access decision point.
+    status: verified
+    evidence: Phase 1 S3. Every catalog read and write goes through decide-access (filter for lists and search); hidden and missing services return the same 404; an unavailable decision point returns 503 (services/catalog-service/tests/catalog_records_integration.rs).
   req-health-access-control:
     priority: P0
     holder: platform

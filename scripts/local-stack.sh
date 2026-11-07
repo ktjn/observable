@@ -102,7 +102,7 @@ service_env() {
         DATABASE_URL=postgres://observable_alerting:observable_alerting@localhost:5432/observable \
         ALERTING_DATABASE_URL=postgres://observable_alerting:observable_alerting@localhost:5432/observable ;;
     catalog-service)
-      printf '%s\n' CATALOG_SERVICE_PORT=4325 \
+      printf '%s\n' "${internal[@]}" CATALOG_SERVICE_PORT=4325 \
         DATABASE_URL=postgres://observable_catalog:observable_catalog@localhost:5432/observable \
         CATALOG_DATABASE_URL=postgres://observable_catalog:observable_catalog@localhost:5432/observable ;;
   esac

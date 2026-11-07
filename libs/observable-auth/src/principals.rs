@@ -156,6 +156,17 @@ impl MockPrincipalDirectory {
     }
 }
 
+impl MockPrincipalDirectory {
+    /// The user leaves the tenant: still known, so it resolves `departed` there.
+    pub fn remove_member(&self, tenant_id: Uuid, user_id: Uuid) {
+        self.with(|s| {
+            if let Some(m) = s.members.get_mut(&tenant_id) {
+                m.remove(&user_id);
+            }
+        });
+    }
+}
+
 impl PrincipalDirectory for MockPrincipalDirectory {
     async fn resolve(
         &self,

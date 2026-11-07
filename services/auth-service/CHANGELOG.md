@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `decide-access` policy decision point (ADR-041): `POST /internal/authz/decide` and `POST /internal/authz/filter` over a PostgreSQL policy store in the `auth` schema (migration `047_create_authz_policy_store.sql`: role grants by classification, purpose rules, time-limited elevations, `access_decision_log`). Fails closed; every deny is `403 {"decision":"deny"}` regardless of reason.
 - `lookup-principals`: `POST /internal/principals/resolve` returns active, departed or unknown per user for one tenant.
+- Migration `049_authz_grants_catalog_team.sql`: default `catalog.team` read/write grants (up to `internal`).
+- `MockPrincipalDirectory::remove_member` so consumers can simulate a departed owner.
 - Shared decision semantics, HTTP clients, programmable mocks and real/mock contract suites in `libs/observable-auth` (`authz`, `principals`, `contract`).
 
 ### Changed

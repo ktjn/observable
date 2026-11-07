@@ -1,18 +1,29 @@
 //! `observable-catalog`: business service catalog (domain `service-model`).
 //!
-//! Phase 1 slice S1 provides only the runtime skeleton: probes, metrics and
-//! the PostgreSQL pool scoped to the `catalog` schema. Catalog capabilities
-//! (`manage-service-catalog`, `govern-observability-assets`, `manage-providers`)
-//! arrive in later slices; see docs/plans/phase1-service-catalog.md.
+//! Provides `manage-service-catalog` (phase 1 S3): service records, owners, teams, outcomes,
+//! search and exceptions, with every read authorized through `decide-access`. Coverage
+//! (`govern-observability-assets`) and providers (`manage-providers`) follow in S5-S7; see
+//! docs/plans/phase1-service-catalog.md.
 
+pub mod api;
 pub mod observability;
+pub mod ports;
 
 use std::sync::Arc;
 
-use axum::{Router, http::StatusCode, routing::get};
+use axum::{
+    Router,
+    extract::{Request, State},
+    http::StatusCode,
+    middleware::Next,
+    response::Response,
+    routing::{get, post, put},
+};
 use sqlx::PgPool;
 use tower_http::trace::TraceLayer;
 use tracing::Level;
+
+use ports::{Credentials, Decider, Directory};
 
 pub const DEFAULT_PORT: u16 = 4325;
 
@@ -20,22 +31,83 @@ pub const DEFAULT_PORT: u16 = 4325;
 pub struct CatalogState {
     pub db: PgPool,
     pub metrics: Arc<observability::CatalogServiceMetrics>,
+    pub credentials: Credentials,
+    pub decider: Decider,
+    pub directory: Directory,
 }
 
 impl CatalogState {
-    pub fn new(db: PgPool) -> Self {
+    pub fn new(
+        db: PgPool,
+        credentials: Credentials,
+        decider: Decider,
+        directory: Directory,
+    ) -> Self {
         Self {
             db,
             metrics: Arc::new(observability::CatalogServiceMetrics::new()),
+            credentials,
+            decider,
+            directory,
         }
     }
 }
 
+/// Resolves the caller through `validate-credential`; unauthenticated requests never reach a
+/// catalog handler.
+async fn require_caller(
+    State(state): State<CatalogState>,
+    mut req: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    let caller = state
+        .credentials
+        .verify(req.headers())
+        .await
+        .map_err(StatusCode::from)?;
+    req.extensions_mut().insert(caller);
+    Ok(next.run(req).await)
+}
+
 pub fn app(state: CatalogState) -> Router {
+    let catalog = Router::new()
+        .route(
+            "/v1/catalog/services",
+            get(api::list_services).post(api::create_service),
+        )
+        .route(
+            "/v1/catalog/services/{id}",
+            get(api::get_service).patch(api::update_service),
+        )
+        .route(
+            "/v1/catalog/services/{id}/owners/{role}",
+            put(api::put_owner).delete(api::delete_owner),
+        )
+        .route(
+            "/v1/catalog/services/{id}/outcomes",
+            post(api::create_outcome),
+        )
+        .route(
+            "/v1/catalog/services/{id}/outcomes/{outcome_id}/approve",
+            post(api::approve_outcome),
+        )
+        .route("/v1/catalog/search", get(api::search))
+        .route("/v1/catalog/exceptions", get(api::exceptions))
+        .route(
+            "/v1/catalog/teams",
+            get(api::list_teams).post(api::create_team),
+        )
+        .route("/v1/catalog/teams/{id}/members", put(api::put_team_members))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            require_caller,
+        ));
+
     Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))
+        .merge(catalog)
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             observability::record_http_metrics,
