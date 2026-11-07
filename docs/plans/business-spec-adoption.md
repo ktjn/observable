@@ -82,7 +82,14 @@ Summary: no area is complete. Areas 18, 28, 30, 35 and 37 have no P0; of these o
 
 ## 4. Architecture decisions the plan needs
 
-1. **Spec integration model (Q1).** Recommended: keep the business spec as an external, pinned upstream (its own repo, version-tagged). Add a traceability map in this repo (`spec/business-trace.yaml`: OBS-ID to `spec/system.yaml` requirement IDs, status, phase) with a checker script. `spec/system.yaml` stays the technical source; new technical requirements cite the OBS IDs they realize. Alternative: merge the OBS requirements into `spec/system.yaml` (one validation, but mixes business and technical layers and 293 unverified requirements break the release gate).
+1. **Spec integration model (Q1, decided 2026-11-07: merge).** The OBS requirements move into `spec/system.yaml`; the upstream repo stays the authoring source until the merge, then `spec/system.yaml` is authoritative. Consequences and sub-decisions:
+   - **Release gate.** STAT-04 fails at `--stage release` for any active requirement that is not `verified` (`draft` and `specified` both fail), and REQ-05 fails for unverified mandatory P0s. Merging 293 unverified requirements turns the AGENTS.md gate red until they are verified (Q7).
+   - **Targets.** OBS requirements target the spec's 37 logical areas (`health.platform`, ...). Observable components are runtime units. Recommended: retarget each OBS requirement to an Observable capability (new capabilities per phase), keep the `OBS-NN-NN` ID, and record area and holder in the requirement description or tags. Alternative: import the 37 areas as logical components alongside the runtime ones (Q8).
+   - **Layers and domains.** Spec layers `experience/capability/governance` and its 10 domains differ from Observable's `experience/application/domain/infrastructure`. Retargeting (recommended above) avoids importing them.
+   - **Experience.** `views`, `experiences` and `state_sets.baseline` merge into `spec/system.yaml` (root-level `state_sets`, per OBSSPEC-EXP-09).
+   - **Ownership.** OBS `owner` roles (17) and the `roles` catalog need a home; `spec/catalog.yaml` is a rendering sidecar upstream.
+   - **Stale copy.** `spec/observability_business_spec/` is removed in the merge PR.
+   - **Upstream.** After the merge, upstream changes are applied through FEATURE.md; the upstream repo is archived or kept read-only (Q9).
 2. **Service catalog as a new owned state.** New data model (`business-service`, `service-component` mapping to OTel `service.name`, owners, criticality, lifecycle, coverage obligation). Owner component: `observable-control` or a new `observable-catalog` (Q5).
 3. **Health evaluation as a domain capability.** Move health from a query-time error-rate helper into an evaluated, rule-based state with evidence age, maintenance windows and unknown. Feeds overview, alerting, SLO and data-quality.
 4. **Incident management: build or integrate (Q4).** Spec scope says incident capabilities "may be satisfied by integrated incident-management tooling". Same question for on-call schedules (37) and status communication (30).
@@ -95,7 +102,7 @@ Ordered by dependency. Each phase becomes one detailed-plan run and several FEAT
 
 | Phase | Name | Areas | Depends on | Exit (spec terms) |
 |---|---|---|---|---|
-| 0 | Adoption baseline | all | — | Q1-Q6 decided; traceability map with per-requirement status (met/partial/missing/org) for all 293; stale copy replaced |
+| 0 | Adoption baseline | all | — | Q2-Q9 decided; OBS requirements, views and experiences merged into `spec/system.yaml`; per-requirement gap status for all 293; stale copy removed |
 | 1 | Service model | 01, 02, 27, 34-01, 36-01 | 0 | P0 of 01, 02, 27 verified; catalog maps OTel services |
 | 2 | Evidence trust and health | 03, 26, 29-03, 13-03, 24-01/02 | 1 | `risk-false-healthy` mitigated; UX-07 passes |
 | 3 | Experience shell | 20, 21, 22, 24, 25 | 2 | scope bar, state set, navigation; UX-01, UX-02, UX-09, UX-10 pass |
@@ -111,11 +118,12 @@ Phase 8 can run in parallel with 2-7 after phase 1. Phase 3 UI shell work can st
 
 ### Phase 0 detailed-plan deliverables (next run)
 
-1. Decide Q1-Q6.
-2. Create the traceability map and checker; classify all 293 requirements with evidence (file, route or test) per status.
-3. Map each OBS P0 to an owning `spec/system.yaml` component and capability, or to a new one.
-4. Reconcile with [ROADMAP.md](../../ROADMAP.md): place each phase relative to 0.2-1.0 (Q2).
-5. Write ADR drafts for decisions 1-5 in section 4.
+1. Decide Q2-Q9.
+2. Classify all 293 requirements (met/partial/missing/org) with evidence (file, route or test).
+3. Map each OBS requirement to an owning component and capability, creating capabilities where none fits.
+4. Merge PR: OBS requirements, risks, views, experiences and roles into `spec/system.yaml`; `--compat` against `main`; gate adjusted per Q7.
+5. Reconcile with [ROADMAP.md](../../ROADMAP.md): place each phase relative to 0.2-1.0 (Q2).
+6. Write ADR drafts for decisions 1-5 in section 4.
 
 ## 6. Breaking changes
 
@@ -135,7 +143,7 @@ All model changes go through `.mdl` sources and `scripts/check-breaking-changes.
 
 - **Critical: scope.** 293 requirements against a 17-requirement system. Without a P0-first cut the plan does not converge. Mitigation: phases 1-9 target P0 only; P1/P2 deferred to phase 10.
 - **Critical: false-healthy today.** The current health derivation violates OBS-03-01 now. Consider fixing it ahead of the plan (Q6).
-- **Spec layer mixing.** Business and technical requirements in one file break the release gate (STAT-04, REQ-05) with hundreds of unverified items. Mitigated by decision 1.
+- **Critical: release gate red after merge.** 293 unverified requirements fail STAT-04/REQ-05 at `--stage release`. Needs an explicit gate policy (Q7) before the merge PR.
 - **Business-owned thresholds.** The spec defines no numbers. Every acceptance test needs configured thresholds; the platform must make thresholds configurable, not hard-coded.
 - **Roadmap conflict.** ROADMAP.md 0.2 (component independence) is in progress. New components (catalog, health) must follow ADR-035 isolation rules.
 - **Organization/process obligations** (34 requirements) cannot be verified by tests. The platform records them; verification is inspection by the business owner.
@@ -144,7 +152,10 @@ All model changes go through `.mdl` sources and `scripts/check-breaking-changes.
 
 ## 8. Open questions
 
-- **Q1.** Integration model: external pinned spec plus traceability map (recommended), or merge into `spec/system.yaml`? Remove `spec/observability_business_spec/`?
+- **Q1.** Decided 2026-11-07: merge into `spec/system.yaml`.
+- **Q7.** Gate after merge: (a) validate at `--stage verification` until the target release, plus a readiness report of verified P0s; (b) merge requirements phase by phase so only the current phase is red; (c) keep `--stage release` red and accept it. Recommended: (a).
+- **Q8.** Targets: retarget OBS requirements to Observable capabilities (recommended), or import the 37 areas as logical components?
+- **Q9.** Upstream repo after merge: archive, keep read-only, or keep authoring there and sync?
 - **Q2.** Release placement: does this replace the ROADMAP 0.3-1.0 sequence, extend it after 1.0, or interleave (for example phase 1-2 inside 0.6)?
 - **Q3.** Target cut: P0 platform requirements (88) as the first milestone, with P1/P2 later?
 - **Q4.** Incidents, on-call schedules and status communication: build in Observable or integrate external tooling?
