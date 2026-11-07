@@ -1,5 +1,6 @@
-# Imported from observability-spec v2.5 (523e682); retargeted to Observable capabilities.
-# See docs/plans/business-spec-adoption.md. Edit here; the upstream repo is retired after merge.
+# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
+# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
+# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
 # Area: Treat material providers as observed dependencies with owned risk, evidence and coordination.
 requirements:
 - id: OBS-36-01

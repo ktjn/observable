@@ -93,7 +93,7 @@ Summary: no area is complete. Areas 18, 28, 30, 35 and 37 have no P0; of these o
 2. **Service catalog as a new owned state.** New data model (`business-service`, `service-component` mapping to OTel `service.name`, owners, criticality, lifecycle, coverage obligation). Owner component (Q5, decided): a new domain component `observable-catalog`. `observable-control` keeps tenant configuration; the catalog is the service model every other phase reads, so it gets its own state, contract and test paths per ADR-035.
 3. **Health evaluation as a domain capability.** Move health from a query-time error-rate helper into an evaluated, rule-based state with evidence age, maintenance windows and unknown. Feeds overview, alerting, SLO and data-quality.
 4. **Incident management: own and integrate (Q4, decided).** Observable owns incidents, on-call schedules (37) and status communication (30) as first-class capabilities, and exchanges them with external tooling through adapters (OBS-16-01, 16-04, 16-08). Owned state is authoritative; adapters sync context, not ownership. Adapter targets are chosen in the phase 5-6 detailed plans.
-5. **Authorization model.** Purpose-based and existence-hiding access (14, 25-02, 31-03) needs fine-grained checks. OpenFGA runs in Compose but no service code calls it; ADR-008 must be revisited.
+5. **Authorization model.** Purpose-based and existence-hiding access (14, 25-02, 31-03) needs fine-grained checks. OpenFGA runs in Compose but no service code calls it; ADR-041 makes `observable-auth` the single policy decision point behind the `decide-access` contract, required from Phase 1.
 6. **Experience layer.** Adopt the spec's views, workflows and baseline state set as the UI contract; add `views`/`experiences` to `spec/system.yaml` or keep them in the upstream spec with Playwright evidence binding.
 
 ## 5. Phases
@@ -129,7 +129,7 @@ Phase 8 can run in parallel with 2-7 after phase 1. Phase 3 UI shell work can st
 - All work in this plan targets the long-lived `2.0` branch (created from `main` at `5b03847`). Feature PRs branch from `2.0` and merge into `2.0`.
 - `main` keeps the existing 0.x product unchanged. Fixes needed on both lines land on `main` first and are merged forward into `2.0` when relevant; nothing flows from `2.0` to `main` until 2.0 replaces it.
 - The ROADMAP.md replacement, the `spec/system.yaml` merge and the gate change happen on `2.0` only.
-- Product version on `2.0`: `2.0.0` pre-release; capability versions restart there.
+- Product version on `2.0`: `2.0.0` pre-release; capability versions restart there. `VERSION` stays `0.1.0` until the first 2.0 component release PR, which bumps `VERSION`, `distribution/manifest.yaml`, the Helm chart and workspace crates together (`scripts/verify-version.sh`, VERSIONING.md).
 
 ## 6. Breaking changes
 
@@ -159,9 +159,9 @@ Known areas that change shape (redesign, not migration): health states, service 
 - **Q7.** Decided 2026-11-07: validate at `--stage verification` until the target release, plus a readiness report of verified P0s per phase. Phase 0 adds the report script and updates the AGENTS.md gate command.
 - **Q8.** Decided 2026-11-07: retarget each OBS requirement to an Observable capability (new capabilities per phase), keep the `OBS-NN-NN` ID, record area and holder on the requirement.
 - **Q10.** Decided 2026-11-07: refactor existing code. Keep the Rust/React stack, ingest, storage, query and auth; redesign models, APIs and UI freely. Existing tests stay evidence only where they still exercise a merged OBS criterion.
-- **Q9.** Decided 2026-11-07: remove the upstream `observability-spec` repo after the merge PR lands; `spec/system.yaml` is then the only source. Removal is done by the owner, not by an agent.
+- **Q9.** Decided 2026-11-07: remove the upstream `observability-spec` repo after the merge PR lands; `spec/system.yaml` is then the only source. Removal is done by the owner, not by an agent, and is blocked until the vendored baseline `spec/business/baseline/v2.5/` (with manifest) is merged on `2.0`.
 - **Q2.** Decided 2026-11-07: this plan replaces ROADMAP.md.
-- **Q3.** Decided 2026-11-07: first milestone is the 88 P0 platform requirements; P1/P2 later.
+- **Q3.** Decided 2026-11-07: first milestone is the 88 P0 platform requirements; P1/P2 later. Reconciled 2026-11-07 (re-review, owner to confirm in review): ROADMAP.md already sets the `2.0.0` exit at all 99 OBS P0, so the 88 platform P0 are verified by test or analysis and the 11 organization/process P0 by accountable inspection, plus the 3 phase-gating authorization refinements.
 - **Q4.** Decided 2026-11-07: own incidents, on-call and status communication, and integrate with external tooling.
 - **Q5.** Delegated 2026-11-07; chosen: new component `observable-catalog`.
 - **Q6.** Decided 2026-11-07: no standalone fix; wait for phase 2.
@@ -170,3 +170,5 @@ Known areas that change shape (redesign, not migration): health states, service 
 ## 9. Phase 0 assurance hardening (2026-11-07)
 
 The Phase 0 integration was completed on `2.0` before implementation. Additional specification controls are recorded in [phase0-assurance-hardening.md](phase0-assurance-hardening.md): complete UX interactions with linked failure scenarios; criterion-level verification readiness; provider-owned programmable mocks; early purpose-bound authorization; orthogonal implementation domains; immutable OBS baseline provenance. The implementation scope and 293 OBS requirements remain unchanged. None of these model-only changes establishes new runtime compliance or passing evidence.
+
+A re-review of that hardening is recorded in [phase0-assurance-hardening.md section 8](phase0-assurance-hardening.md#8-20-re-review-2026-11-07).

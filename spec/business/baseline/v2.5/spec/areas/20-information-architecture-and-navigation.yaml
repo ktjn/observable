@@ -1,0 +1,155 @@
+components:
+- id: navigation
+  version: '1.0'
+  status: specified
+  description: Let every stakeholder reach the relevant operational context with minimal interpretation.
+  owner: observability-platform-owner
+  layer: experience
+  domain: experience
+  provides:
+  - navigation.platform
+capabilities:
+- id: navigation.platform
+  version: '1.0'
+  status: specified
+  description: Information architecture and navigation — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - context_reached_with_scope_retained
+  invariants:
+  - current_scope_always_visible
+  failure_modes:
+  - lost_scope
+  - hidden_filter
+requirements:
+- id: OBS-20-01
+  version: '1.0'
+  target: navigation.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: The user interface shall provide clearly distinguished entry points for service health, incidents, investigation, customer experience, and reporting.
+  criteria:
+  - 'Acceptance: A responder locates each area from the primary navigation without knowing internal product terminology.'
+  - 'Negative: An entry point labeled only with internal product terminology or hidden behind unrelated menus fails acceptance.'
+- id: OBS-20-02
+  version: '1.0'
+  target: navigation.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: Users shall be able to find services, incidents, and relevant evidence using recognizable names and identifiers.
+  criteria:
+  - 'Acceptance: Searching by a known service name or incident ID yields its relevant entry.'
+  - 'Negative: A search for an incident ID the user may not access does not reveal its existence or details.'
+- id: OBS-20-03
+  version: '1.0'
+  target: navigation.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: Users shall be able to move from an overview to relevant detail while retaining service, environment, and selected time context.
+  criteria:
+  - 'Acceptance: Opening a degraded service and investigating its failures preserves the initial scope.'
+  - 'Negative: Drilling into detail never resets the time range or environment without a visible notice.'
+- id: OBS-20-04
+  version: '1.0'
+  target: navigation.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: The UI shall identify the current service, environment, filters, and time period in every investigative view.
+  criteria:
+  - 'Acceptance: A reviewer can state the selected scope without inspecting hidden settings.'
+  - 'Negative: No investigative view applies a filter that is not visible to the user.'
+- id: OBS-20-05
+  version: '1.0'
+  target: navigation.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Users shall be able to navigate backward through an investigation without losing previous selections.
+  criteria:
+  - 'Acceptance: The operator returns to a prior investigation step with its scope intact.'
+- id: OBS-20-06
+  version: '1.0'
+  target: navigation.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Frequently used services, views, and investigations shall be directly accessible through saved or recent entries.
+  criteria:
+  - 'Acceptance: A responder reopens a saved investigation without reconstructing the query.'
+- id: OBS-20-07
+  version: '1.0'
+  target: navigation.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: The UI shall make related services, incidents, changes, and customer journeys discoverable from the current context.
+  criteria:
+  - 'Acceptance: The user reaches a related incident from the service view.'
+- id: OBS-20-08
+  version: '1.0'
+  target: navigation.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: "Users shall be able to navigate between related operational entities while preserving investigation scope and relevant selections."
+  criteria:
+  - "Acceptance: A responder moves from a service to a related incident and back without reconstructing the time range, environment or filters."
+  - "Negative: Navigation cannot silently replace the selected incident window or remove applied restrictions."
+  refines:
+  - OBS-20-03
+- id: OBS-20-09
+  version: '1.0'
+  target: navigation.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: "Users shall be able to identify their current location and revisit prior steps in an investigation."
+  criteria:
+  - "Acceptance: An investigator returns to the previous evidence view and recognizes the path taken."
+  depends_on:
+  - OBS-20-05
+- id: OBS-20-10
+  version: '1.0'
+  target: navigation.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: "Notifications and alerts shall open the related incident or service view with the alert's service, environment and time window preselected."
+  criteria:
+  - "Acceptance: A responder opens a critical alert from a phone notification and lands on the incident view scoped to the alert window."
+  depends_on:
+  - OBS-07-02
+  - OBS-20-03

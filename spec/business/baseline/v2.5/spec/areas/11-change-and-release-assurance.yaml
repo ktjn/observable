@@ -1,0 +1,143 @@
+components:
+- id: change-assurance
+  version: '1.0'
+  status: specified
+  description: Identify regressions and support evidence-based release decisions.
+  owner: head-of-engineering
+  layer: capability
+  domain: reliability
+  provides:
+  - change-assurance.platform
+  - change-assurance.process
+capabilities:
+- id: change-assurance.platform
+  version: '1.0'
+  status: specified
+  description: Change and release assurance — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - change_linked_to_health_event
+  invariants:
+  - all_change_types_visible
+  failure_modes:
+  - unattributed_regression
+- id: change-assurance.process
+  version: '1.0'
+  status: specified
+  description: Change and release assurance — operational process performed with the platform; verified by exercise or record review.
+  postconditions:
+  - change_linked_to_health_event
+  invariants:
+  - all_change_types_visible
+  failure_modes:
+  - unattributed_regression
+  - process_not_followed
+requirements:
+- id: OBS-11-01
+  version: '1.0'
+  target: change-assurance.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: head-of-engineering
+  statement: Service owners shall be able to see significant changes associated with service health events.
+  criteria:
+  - 'Acceptance: A recent release is visible alongside a resulting service regression.'
+  - 'Negative: A change made outside the release process still appears alongside the resulting health event.'
+- id: OBS-11-02
+  version: '1.0'
+  target: change-assurance.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-engineering
+  statement: Users shall be able to compare reliability and performance before and after a change.
+  criteria:
+  - 'Acceptance: A reviewer can evaluate equivalent pre- and post-change periods.'
+- id: OBS-11-03
+  version: '1.0'
+  target: change-assurance.process
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-engineering
+  statement: Teams shall be able to establish measurable acceptance criteria for business-critical releases.
+  criteria:
+  - 'Acceptance: A release review records whether its agreed customer and reliability criteria passed.'
+- id: OBS-11-04
+  version: '1.0'
+  target: change-assurance.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-engineering
+  statement: The platform shall make change-related service degradation visible to the accountable release team.
+  criteria:
+  - 'Acceptance: A controlled regression is associated with the relevant release owner.'
+- id: OBS-11-05
+  version: '1.0'
+  target: change-assurance.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: head-of-engineering
+  statement: Leadership shall be able to review delivery performance alongside reliability outcomes.
+  criteria:
+  - 'Acceptance: A report includes approved delivery and reliability measures without treating them as equivalent.'
+- id: OBS-11-06
+  version: '1.0'
+  target: change-assurance.process
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: head-of-engineering
+  statement: Service owners shall be able to document release decisions and associated accepted risks.
+  criteria:
+  - 'Acceptance: An exception decision has an approver, rationale, and affected service.'
+- id: OBS-11-07
+  version: '1.0'
+  target: change-assurance.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-engineering
+  statement: Change visibility shall include code releases, configuration, feature activation, infrastructure, data-structure and third-party changes affecting a service.
+  criteria:
+  - 'Acceptance: A configuration change and a feature activation both appear in the service change history.'
+- id: OBS-11-08
+  version: '1.0'
+  target: change-assurance.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: head-of-engineering
+  statement: Teams shall be able to evaluate incremental or partial releases against the unchanged population before wider rollout.
+  criteria:
+  - 'Acceptance: A partial release shows comparative results for exposed and unexposed users.'
+- id: OBS-11-09
+  version: '1.0'
+  target: change-assurance.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: head-of-engineering
+  statement: Users shall be able to see approved change-freeze periods and changes made during them.
+  criteria:
+  - 'Acceptance: A change during a freeze is visible with its approval or exception.'

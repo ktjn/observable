@@ -1,0 +1,95 @@
+components:
+- id: proactive-assurance
+  version: '1.0'
+  status: specified
+  description: Discover broken customer and business journeys before they are reported by customers.
+  owner: customer-experience-owner
+  layer: capability
+  domain: service-health
+  provides:
+  - proactive-assurance.platform
+capabilities:
+- id: proactive-assurance.platform
+  version: '1.0'
+  status: specified
+  description: Proactive assurance — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - journey_failure_found_before_customer_report
+  invariants:
+  - proactive_and_real_user_findings_distinguished
+  failure_modes:
+  - unverified_critical_journey
+  - expired_time_bound_dependency
+requirements:
+- id: OBS-28-01
+  version: '1.0'
+  target: proactive-assurance.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: customer-experience-owner
+  statement: The organization shall be able to verify designated critical journeys proactively under agreed conditions.
+  criteria:
+  - 'Acceptance: An agreed journey failure is surfaced independently of customer complaints.'
+- id: OBS-28-02
+  version: '1.0'
+  target: proactive-assurance.platform
+  kind: functional
+  category: semantic
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: customer-experience-owner
+  statement: The system shall distinguish proactively detected issues from failures observed in actual user activity.
+  criteria:
+  - 'Acceptance: An operator can identify the source of a journey-failure report.'
+- id: OBS-28-03
+  version: '1.0'
+  target: proactive-assurance.platform
+  kind: non-functional
+  category: observability
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: customer-experience-owner
+  statement: Service owners shall be able to review the coverage, outcomes and reliability of proactive checks.
+  criteria:
+  - 'Acceptance: A critical journey review shows verification gaps, recent failed checks and their resolution status.'
+- id: OBS-28-04
+  version: '1.0'
+  target: proactive-assurance.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: customer-experience-owner
+  statement: Business owners shall be able to assess readiness of critical journeys before material business events.
+  criteria:
+  - 'Acceptance: A pre-event readiness report states tested journeys, results and unresolved risks.'
+- id: OBS-28-05
+  version: '1.0'
+  target: proactive-assurance.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: customer-experience-owner
+  statement: The organization shall be warned before expiry of certificates, credentials, licenses, contracts and other time-bound dependencies of critical services.
+  criteria:
+  - 'Acceptance: An expiring certificate generates an owned warning within the agreed notice period.'
+- id: OBS-28-06
+  version: '1.0'
+  target: proactive-assurance.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: customer-experience-owner
+  statement: Teams shall be able to observe planned fault-injection or resilience experiments and confirm expected detection and recovery.
+  criteria:
+  - 'Acceptance: An experiment report shows the induced fault, detection, alerting and recovery outcomes.'

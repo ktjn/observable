@@ -1,0 +1,139 @@
+components:
+- id: workspaces
+  version: '1.0'
+  status: specified
+  description: Provide focused information for different business and operational decisions.
+  owner: observability-platform-owner
+  layer: experience
+  domain: experience
+  provides:
+  - workspaces.platform
+capabilities:
+- id: workspaces.platform
+  version: '1.0'
+  status: specified
+  description: Role-based workspaces and dashboards — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - role_view_available
+  invariants:
+  - live_and_historical_views_distinguished
+  failure_modes:
+  - irrelevant_view_for_role
+requirements:
+- id: OBS-21-01
+  version: '1.0'
+  target: workspaces.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: The UI shall offer an organization-wide operational overview of critical services and active incidents.
+  criteria:
+  - 'Acceptance: An authorized duty manager can identify priority outages and affected services from one view.'
+  - 'Negative: A critical service with unknown health is shown as unknown in the overview, not omitted.'
+- id: OBS-21-02
+  version: '1.0'
+  target: workspaces.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Service owners shall have a service-focused view of health, reliability objectives, dependencies, and recent changes.
+  criteria:
+  - 'Acceptance: An owner can assess whether an individual service is meeting commitments.'
+- id: OBS-21-03
+  version: '1.0'
+  target: workspaces.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: Incident responders shall have a focused view of active issues, severity, ownership, impact, and next actions.
+  criteria:
+  - 'Acceptance: A responder can identify the currently assigned issue and its escalation route.'
+  - 'Negative: An unassigned critical issue is highlighted as unassigned in the responder view.'
+- id: OBS-21-04
+  version: '1.0'
+  target: workspaces.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Business stakeholders shall have an outcome-focused view of customer journeys and service impact without requiring telemetry expertise.
+  criteria:
+  - 'Acceptance: A business owner identifies a degraded journey and affected customer segment.'
+- id: OBS-21-05
+  version: '1.0'
+  target: workspaces.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Authorized users shall be able to tailor dashboards to agreed operational questions and share them with permitted audiences.
+  criteria:
+  - 'Acceptance: Two teams can use different views of the same service without changing each other’s defaults.'
+- id: OBS-21-06
+  version: '1.0'
+  target: workspaces.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Dashboards shall provide clear ownership, intended purpose, and last-revised information.
+  criteria:
+  - 'Acceptance: A reviewer identifies the accountable dashboard owner and whether the view is maintained.'
+  depends_on:
+  - OBS-34-01
+- id: OBS-21-07
+  version: '1.0'
+  target: workspaces.platform
+  kind: functional
+  category: semantic
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: The UI shall distinguish live operational views from historical analytical reports.
+  criteria:
+  - 'Acceptance: A user can tell whether a displayed value is current, historical, or a scheduled report.'
+- id: OBS-21-08
+  version: '1.0'
+  target: workspaces.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: "Users shall be able to move between a high-level operational summary and detailed evidence for the same subject."
+  criteria:
+  - "Acceptance: A responder opens detailed evidence for a degraded service directly from its overview."
+  - "Negative: A detailed view with unavailable evidence cannot imply that the service is healthy."
+  refines:
+  - OBS-21-01
+- id: OBS-21-09
+  version: '1.0'
+  target: workspaces.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: "The UI shall prioritize information relevant to the user role, active task and incident severity."
+  criteria:
+  - "Acceptance: A duty manager sees current critical disruptions before low-priority historical analytics."
+  depends_on:
+  - OBS-21-03

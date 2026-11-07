@@ -1,0 +1,173 @@
+components:
+- id: security-privacy
+  version: '1.0'
+  status: specified
+  description: Protect information while enabling accountable use.
+  owner: ciso
+  layer: governance
+  domain: governance
+  provides:
+  - security-privacy.platform
+  - security-privacy.organization
+capabilities:
+- id: security-privacy.platform
+  version: '1.0'
+  status: specified
+  description: Security, privacy and data governance — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - access_follows_role_and_need
+  invariants:
+  - sensitive_content_never_exposed
+  failure_modes:
+  - unauthorized_disclosure
+  - unaudited_change
+- id: security-privacy.organization
+  version: '1.0'
+  status: specified
+  description: Security, privacy and data governance — governance obligation such as ownership, approval or policy; verified by inspection.
+  postconditions:
+  - access_follows_role_and_need
+  invariants:
+  - sensitive_content_never_exposed
+  failure_modes:
+  - unauthorized_disclosure
+  - unaudited_change
+  - accountability_unassigned
+requirements:
+- id: OBS-14-01
+  version: '1.0'
+  target: security-privacy.platform
+  kind: non-functional
+  category: security
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: ciso
+  statement: Access to observability information shall follow approved organizational roles and business need.
+  criteria:
+  - 'Acceptance: A restricted user cannot view another team’s sensitive service information.'
+  - 'Negative: A user removed from a role loses access at the next access check.'
+- id: OBS-14-02
+  version: '1.0'
+  target: security-privacy.platform
+  kind: non-functional
+  category: security
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: ciso
+  statement: The platform shall prevent disclosure of prohibited secrets and sensitive personal information in user-accessible evidence.
+  criteria:
+  - 'Acceptance: A test with prohibited sample data does not expose its sensitive content.'
+  - 'Negative: Seeded secrets and personal data are not retrievable through search, export, sharing or assistance.'
+- id: OBS-14-03
+  version: '1.0'
+  target: security-privacy.platform
+  kind: non-functional
+  category: security
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: dpo
+  statement: Data use shall comply with approved classification, purpose, retention, and deletion policies.
+  criteria:
+  - 'Acceptance: A data owner can review the applicable policy and verify a sample retention decision.'
+  - 'Negative: Data past its retention period is not retrievable except under an active legal hold.'
+- id: OBS-14-04
+  version: '1.0'
+  target: security-privacy.platform
+  kind: non-functional
+  category: security
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: ciso
+  statement: Material user and administrative actions shall be attributable and auditable.
+  criteria:
+  - 'Acceptance: An audit reviewer can determine who changed an alert, access policy, or objective and when.'
+  - 'Negative: A change to an alert, policy or objective made through any route is recorded with actor and time.'
+- id: OBS-14-05
+  version: '1.0'
+  target: security-privacy.platform
+  kind: non-functional
+  category: security
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ciso
+  statement: Business owners shall be able to control which people and teams may access sensitive domains.
+  criteria:
+  - 'Acceptance: An approved entitlement change is reflected in subsequent access checks.'
+- id: OBS-14-06
+  version: '1.0'
+  target: security-privacy.platform
+  kind: non-functional
+  category: security
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: dpo
+  statement: Authorized reviewers shall be able to identify data ownership and approved cross-border handling constraints.
+  criteria:
+  - 'Acceptance: A data governance review identifies the owner and permissible processing jurisdictions.'
+- id: OBS-14-07
+  version: '1.0'
+  target: security-privacy.platform
+  kind: non-functional
+  category: security
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: dpo
+  statement: The platform shall support privacy requests and legal preservation obligations where applicable.
+  criteria:
+  - 'Acceptance: A reviewed case shows compliant handling of a valid deletion or hold request.'
+- id: OBS-14-08
+  version: '1.0'
+  target: security-privacy.organization
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: head-of-compliance
+  statement: Exceptions to required observability coverage and controls shall be approved, assigned an accountable risk owner, and reviewed periodically.
+  criteria:
+  - 'Acceptance: An approved gap records its rationale, expiry or review date, accountable owner and current status.'
+  - 'Negative: An exception past its review date is flagged and is not treated as approved.'
+- id: OBS-14-09
+  version: '1.0'
+  target: security-privacy.platform
+  kind: non-functional
+  category: security
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ciso
+  statement: Access to restricted evidence beyond normal entitlements shall require a recorded justification, be time-limited and be reviewed afterwards.
+  criteria:
+  - 'Acceptance: An emergency access grant expires automatically and appears in the next access review.'
+- id: OBS-14-10
+  version: '1.0'
+  target: security-privacy.platform
+  kind: non-functional
+  category: security
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ciso
+  statement: The platform shall support segregation of observability information by legal entity, business unit or jurisdiction where required.
+  criteria:
+  - 'Acceptance: Users of one legal entity cannot view another entity’s restricted evidence.'
+- id: OBS-14-11
+  version: '1.0'
+  target: security-privacy.platform
+  kind: non-functional
+  category: security
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: dpo
+  statement: Sensitive information shall be minimized, masked or pseudonymized at the earliest approved point while keeping investigations possible.
+  criteria:
+  - 'Acceptance: An investigator correlates events for one customer without seeing the customer’s identifying details.'

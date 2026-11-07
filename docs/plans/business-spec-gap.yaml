@@ -1127,133 +1127,133 @@ requirements:
     priority: P0
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: partial
     evidence: Sidebar areas Traces/Logs/Metrics/Services/Alerts/Incidents (apps/frontend/src/components/AppShell.tsx); no customer-experience or reporting entry.
   OBS-20-02:
     priority: P0
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: partial
     evidence: Search by service name and trace ID.
   OBS-20-03:
     priority: P0
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: partial
     evidence: Global tenant/environment/time context (ADR-031).
   OBS-20-04:
     priority: P0
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: partial
     evidence: Environment and time visible in shell; filters not shown in every view.
   OBS-20-05:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: partial
     evidence: Router history; selections not guaranteed.
   OBS-20-06:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: partial
     evidence: Saved views (logs only).
   OBS-20-07:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: partial
     evidence: Service detail tabs link alerts, deployments, infrastructure.
   OBS-20-08:
     priority: P0
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: partial
     evidence: Service, trace and log drilldowns keep global context.
   OBS-20-09:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: partial
     evidence: Tree navigation (apps/frontend/src/components/TreeNav.tsx); no investigation breadcrumb.
   OBS-20-10:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: missing
     evidence: No capability found in scan.
   OBS-21-01:
     priority: P0
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: partial
     evidence: Home and services overview; no critical-service focus.
   OBS-21-02:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: partial
     evidence: Service detail with reliability and deployments tabs (apps/frontend/src/features/services/).
   OBS-21-03:
     priority: P0
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: partial
     evidence: Incidents list/detail; no ownership, impact or next action.
   OBS-21-04:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: missing
     evidence: No capability found in scan.
   OBS-21-05:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: partial
     evidence: Dashboards with grants and panel templates.
   OBS-21-06:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: missing
     evidence: No capability found in scan.
   OBS-21-07:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: missing
     evidence: No capability found in scan.
   OBS-21-08:
     priority: P0
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: partial
     evidence: Overview to service detail to traces/logs.
   OBS-21-09:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: navigate-operational-workspaces-ui
     status: missing
     evidence: No capability found in scan.
   OBS-22-01:
@@ -1428,154 +1428,154 @@ requirements:
     priority: P0
     holder: platform
     phase: 2
-    target: explore-telemetry-ui
+    target: interaction-states-ui
     status: missing
     evidence: No capability found in scan.
   OBS-24-02:
     priority: P0
     holder: platform
     phase: 2
-    target: explore-telemetry-ui
+    target: interaction-states-ui
     status: partial
     evidence: Ad hoc loading/empty states; no stale/unauthorized distinction.
   OBS-24-03:
     priority: P0
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: interaction-states-ui
     status: missing
     evidence: No capability found in scan.
   OBS-24-04:
     priority: P0
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: interaction-states-ui
     status: partial
     evidence: Error messages ad hoc.
   OBS-24-05:
     priority: P0
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: interaction-states-ui
     status: missing
     evidence: No capability found in scan.
   OBS-24-06:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: interaction-states-ui
     status: missing
     evidence: No textual/tabular chart alternatives.
   OBS-24-07:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: interaction-states-ui
     status: partial
     evidence: Shared UI components (AGENTS.md mandate).
   OBS-24-08:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: interaction-states-ui
     status: partial
     evidence: Live tail and refresh controls (apps/frontend/src/components/LogLiveTail.tsx).
   OBS-24-09:
     priority: P0
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: interaction-states-ui
     status: partial
     evidence: Mutation feedback ad hoc.
   OBS-24-10:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: interaction-states-ui
     status: missing
     evidence: No capability found in scan.
   OBS-24-11:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: interaction-states-ui
     status: missing
     evidence: No capability found in scan.
   OBS-24-12:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: interaction-states-ui
     status: missing
     evidence: No capability found in scan.
   OBS-25-01:
     priority: P0
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: access-aware-ui
     status: missing
     evidence: No capability found in scan.
   OBS-25-02:
     priority: P0
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: access-aware-ui
     status: partial
     evidence: Role-gated admin pages and tenant scoping; existence hiding not verified.
   OBS-25-03:
     priority: P0
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: access-aware-ui
     status: partial
     evidence: Active tenant shown in shell (apps/frontend/src/components/UserMenu.tsx); no elevated-access state.
   OBS-25-04:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: access-aware-ui
     status: partial
     evidence: Time display preference handling.
   OBS-25-05:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: access-aware-ui
     status: partial
     evidence: Onboarding wizard.
   OBS-25-06:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: access-aware-ui
     status: missing
     evidence: No capability found in scan.
   OBS-25-07:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: access-aware-ui
     status: partial
     evidence: Dashboard export.
   OBS-25-08:
     priority: P2
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: access-aware-ui
     status: missing
     evidence: No capability found in scan.
   OBS-25-09:
     priority: P2
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: access-aware-ui
     status: missing
     evidence: No capability found in scan.
   OBS-25-10:
     priority: P1
     holder: platform
     phase: 3
-    target: explore-telemetry-ui
+    target: access-aware-ui
     status: missing
     evidence: No capability found in scan.
   OBS-26-01:
@@ -2054,3 +2054,26 @@ requirements:
     target: manage-on-call
     status: missing
     evidence: No capability found in scan.
+# Project requirements that gate a phase in addition to its OBS P0 set (read by scripts/spec-readiness.py).
+refinements:
+  req-decide-access-fail-closed:
+    priority: P0
+    holder: platform
+    phase: 1
+    target: decide-access
+    status: missing
+    evidence: OpenFGA runs in Compose but no service calls it (ADR-041); no decision endpoint exists.
+  req-catalog-access-control:
+    priority: P0
+    holder: platform
+    phase: 1
+    target: manage-service-catalog
+    status: missing
+    evidence: No catalog exists; no service calls the decide-access decision point.
+  req-health-access-control:
+    priority: P0
+    holder: platform
+    phase: 2
+    target: assess-service-health
+    status: missing
+    evidence: Health is computed in services/query-api/src/discovery.rs without per-service access filtering.

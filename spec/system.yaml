@@ -8,21 +8,31 @@ system:
     - application
     - domain
     - infrastructure
+  # Domains are logical responsibilities, orthogonal to layers (ADR-042). service-model and
+  # service-assessment are declared ahead of their planned providers (observable-catalog,
+  # observable-health) so their placement is reviewed before Phase 1/2 code exists.
+  # incident-response must never use investigation: investigation already uses incident-response.
   domains:
     - id: operational-experience
       description: User-facing operational journeys and interaction contracts.
-      uses: [investigation, service-control, incident-response, identity]
+      uses: [investigation, service-model, service-assessment, service-control, incident-response, identity]
     - id: ingestion
       description: Telemetry admission and transport.
       uses: [identity, processing, service-control]
     - id: investigation
       description: Telemetry query and evidence exploration.
-      uses: [identity, service-control, incident-response, telemetry-storage]
-    - id: service-control
-      description: Configuration, catalog coordination and control-plane state.
-      uses: [identity, telemetry-storage]
+      uses: [identity, service-model, service-assessment, service-control, incident-response, telemetry-storage]
     - id: incident-response
-      description: Detection and incident domain responsibilities.
+      description: Detection, alerting, incidents, on-call and response coordination (observable-alerting; planned observable-response).
+      uses: [identity, service-model, service-assessment, telemetry-storage]
+    - id: service-assessment
+      description: Evaluated service health with evidence age, maintenance windows and unknown state (planned observable-health).
+      uses: [identity, service-model, telemetry-storage]
+    - id: service-model
+      description: Business services, owners, criticality, coverage obligations and their mapping to telemetry service identities (planned observable-catalog).
+      uses: [identity, service-control, telemetry-storage]
+    - id: service-control
+      description: Tenant configuration, dashboards, deployment markers and control-plane state.
       uses: [identity, telemetry-storage]
     - id: processing
       description: Telemetry transformation and normalization.
@@ -44,7 +54,7 @@ system:
 components:
   - id: observable-web
     version: "0.1.0"
-    status: verified
+    status: specified
     layer: experience
     domain: operational-experience
     consistency: strong
@@ -52,6 +62,9 @@ components:
       - apps/frontend
     provides:
       - explore-telemetry-ui
+      - navigate-operational-workspaces-ui
+      - interaction-states-ui
+      - access-aware-ui
       - investigate-incidents-ui
     requires:
       - validate-credential@^0.1
@@ -76,7 +89,7 @@ components:
 
   - id: observable-query
     version: "0.1.0"
-    status: verified
+    status: specified
     layer: application
     domain: investigation
     consistency: strong
@@ -98,7 +111,7 @@ components:
 
   - id: observable-control
     version: "0.1.0"
-    status: verified
+    status: specified
     layer: domain
     domain: service-control
     consistency: strong
@@ -122,7 +135,7 @@ components:
 
   - id: observable-alerting
     version: "0.1.0"
-    status: verified
+    status: specified
     layer: domain
     domain: incident-response
     consistency: strong
@@ -143,7 +156,7 @@ components:
 
   - id: observable-process
     version: "0.1.0"
-    status: verified
+    status: specified
     layer: domain
     domain: processing
     consistency: eventual
@@ -157,7 +170,7 @@ components:
 
   - id: observable-auth
     version: "0.1.0"
-    status: verified
+    status: specified
     layer: infrastructure
     domain: identity
     consistency: strong
@@ -166,6 +179,7 @@ components:
       - libs/observable-auth
     provides:
       - validate-credential
+      - decide-access
       - govern-data-access
       - audit-and-compliance
     owns_data:
@@ -192,7 +206,7 @@ components:
 capabilities:
   - id: explore-telemetry-ui
     version: "0.1.0"
-    status: verified
+    status: specified
     preconditions:
       - "Caller holds an active user-session or public share token"
     postconditions:
@@ -320,7 +334,7 @@ capabilities:
 
   - id: evaluate-alerts
     version: "0.1.0"
-    status: verified
+    status: specified
     preconditions:
       - "Alert rule and SLO definitions belong to an active tenant"
     postconditions:
@@ -345,7 +359,7 @@ capabilities:
 
   - id: normalize-telemetry
     version: "0.1.0"
-    status: verified
+    status: specified
     preconditions:
       - "Input record conforms to telemetry.raw.v1 envelope with tenant_id"
     postconditions:
@@ -425,6 +439,35 @@ capabilities:
         invalid_credential: 401
         expired_credential: 401
         insufficient_scope: 403
+
+  # Policy decision point contract (ADR-041). Required by observable-catalog and observable-health
+  # from Phase 1/2; designed now so the first protected reads have a contract to call.
+  - id: decide-access
+    version: "0.1.0"
+    status: specified
+    preconditions:
+      - "Caller presents a verified principal, tenant, resource reference, action and, where required, a stated purpose and elevation grant"
+    postconditions:
+      - "Returns permit or deny for the resource and action, and records actor, purpose, elevation and decision"
+    invariants:
+      - "A denied resource and a non-existent resource produce the same response"
+      - "An undecidable request is denied (fail closed)"
+      - "List decisions filter before counting, so restricted records are never returned or counted"
+    failure_modes:
+      - access_denied
+      - purpose_missing
+      - elevation_expired
+      - decision_unavailable
+    interface:
+      operation: POST /internal/authz/decide
+      mode: sync
+      idempotent: true
+      auth: internal_service_token
+      errors:
+        access_denied: 403
+        purpose_missing: 422
+        elevation_expired: 403
+        decision_unavailable: 503
 
 data_models:
   - id: span-row
@@ -795,6 +838,60 @@ requirements:
     mandatory: true
     criteria:
       - "PostgreSQL schemas auth.*, control.*, and alerting.* maintain explicit table ownership (including control.query_audit_log), zero cross-schema foreign keys, and schema-scoped component roles (observable_auth_role, observable_control_role, observable_alerting_role) with isolated login credentials (observable_auth, observable_control, observable_alerting)"
+
+  # Phase 1/2 authorization gates (docs/plans/phase0-assurance-hardening.md section 4).
+  # Refine OBS-25-02 and OBS-14-01 at the new capability boundaries so access control ships with
+  # the first catalog and health reads instead of waiting for Phase 8.
+  - id: req-decide-access-fail-closed
+    version: "0.1.0"
+    target: decide-access
+    status: specified
+    kind: non-functional
+    category: security
+    mandatory: true
+    priority: P0
+    owner: ciso
+    statement: The policy decision point hides existence, requires purpose where policy demands it, honours elevation expiry and fails closed.
+    criteria:
+      - "Acceptance: A permitted request returns permit and an audit record with actor, purpose, elevation and decision."
+      - "Negative: A denied resource and a non-existent resource return identical responses."
+      - "Negative: A purpose-bound request without a stated purpose is denied and recorded."
+      - "Negative: A request under an expired elevation grant is denied."
+      - "Negative: When the policy store is unavailable, every request is denied."
+
+  - id: req-catalog-access-control
+    version: "0.1.0"
+    target: manage-service-catalog
+    status: specified
+    kind: non-functional
+    category: security
+    mandatory: true
+    priority: P0
+    owner: ciso
+    refines: [OBS-25-02, OBS-14-01]
+    depends_on: [req-decide-access-fail-closed]
+    statement: Catalog search, lookup and service records are filtered by tenant, role and data classification at the capability boundary through decide-access.
+    criteria:
+      - "Acceptance: A user sees only the catalog services, owners and support routes the policy decision point permits for the active tenant and role."
+      - "Negative: A search or direct lookup for a service the user may not see returns the same response as for a non-existent service and reveals no owner, count or identifier."
+      - "Negative: When the policy decision point is unavailable, catalog reads fail closed with an error and never return unfiltered records."
+
+  - id: req-health-access-control
+    version: "0.1.0"
+    target: assess-service-health
+    status: specified
+    kind: non-functional
+    category: security
+    mandatory: true
+    priority: P0
+    owner: ciso
+    refines: [OBS-25-02, OBS-14-01]
+    depends_on: [req-decide-access-fail-closed]
+    statement: Health states, evidence age and contributing observations are disclosed only for services and evidence the user may access, checked at the capability boundary through decide-access.
+    criteria:
+      - "Acceptance: A user sees health, last-evidence time and contributing conditions only for services the policy decision point permits."
+      - "Negative: A restricted contributing observation is withheld and the health view states that some evidence is restricted; it never exposes the observation and never reports the service as normal because evidence was withheld."
+      - "Negative: When the policy decision point is unavailable, health reads fail closed with an error and never return unfiltered observations."
 
 risks:
   - id: risk-at-least-once-duplicates

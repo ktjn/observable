@@ -1,0 +1,122 @@
+components:
+- id: performance-capacity
+  version: '1.0'
+  status: specified
+  description: Understand service responsiveness and operating headroom.
+  owner: head-of-operations
+  layer: capability
+  domain: service-health
+  provides:
+  - performance-capacity.platform
+capabilities:
+- id: performance-capacity.platform
+  version: '1.0'
+  status: specified
+  description: Performance and capacity — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - responsiveness_and_headroom_assessed
+  invariants:
+  - slow_service_reported_as_degraded_not_unavailable
+  failure_modes:
+  - undetected_regression
+  - capacity_exhaustion
+requirements:
+- id: OBS-04-01
+  version: '1.0'
+  target: performance-capacity.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: head-of-operations
+  statement: Users shall be able to assess whether important service interactions meet agreed responsiveness expectations.
+  criteria:
+  - 'Acceptance: A representative slow journey can be identified against its approved target.'
+  - 'Negative: An interaction without an approved target is shown as unassessed, not as meeting expectations.'
+- id: OBS-04-02
+  version: '1.0'
+  target: performance-capacity.platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: head-of-operations
+  statement: Users shall be able to view service demand and workload trends over a selected period.
+  criteria:
+  - 'Acceptance: An operator can compare demand across two equivalent business periods.'
+  - 'Negative: A period with missing demand data is shown as a gap, not as zero demand.'
+- id: OBS-04-03
+  version: '1.0'
+  target: performance-capacity.platform
+  kind: functional
+  category: semantic
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: head-of-operations
+  statement: Performance degradation shall be distinguishable from complete unavailability.
+  criteria:
+  - 'Acceptance: A functioning but slow service is reported as degraded rather than unavailable.'
+  - 'Negative: A slow but functioning service is never reported as unavailable, and an unavailable one never as merely slow.'
+- id: OBS-04-04
+  version: '1.0'
+  target: performance-capacity.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-operations
+  statement: Users shall be able to identify which customer groups, transactions, or operating periods experience poor performance.
+  criteria:
+  - 'Acceptance: A selected regression can be segmented by at least one approved business dimension.'
+- id: OBS-04-05
+  version: '1.0'
+  target: performance-capacity.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-operations
+  statement: Service owners shall be able to assess capacity risk before expected business peaks.
+  criteria:
+  - 'Acceptance: A readiness review identifies forecast demand, risk, and accountable action.'
+- id: OBS-04-06
+  version: '1.0'
+  target: performance-capacity.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: head-of-operations
+  statement: Authorized users shall be able to compare performance and capacity against historical comparable peaks.
+  criteria:
+  - 'Acceptance: A seasonal review compares performance under similar demand conditions.'
+- id: OBS-04-07
+  version: '1.0'
+  target: performance-capacity.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-operations
+  statement: Users shall be warned before services approach known resource limits, quotas or contractual consumption ceilings.
+  criteria:
+  - 'Acceptance: A controlled approach to an approved limit warns the accountable owner before exhaustion.'
+- id: OBS-04-08
+  version: '1.0'
+  target: performance-capacity.platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: head-of-operations
+  statement: Investigators shall be able to attribute degraded performance to the responsible component, operation and resource consumption at the most detailed level of available evidence.
+  criteria:
+  - 'Acceptance: A slow operation is traced to the specific component and the resource it consumes most.'
