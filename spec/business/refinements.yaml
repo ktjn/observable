@@ -11,6 +11,7 @@ field_policies:
   requirements:
     target: Retargeted from logical area.holder to an Observable capability (ADR-037, plan Q8). Area and holder stay recoverable from the baseline target.
     version: Requirement versions restart at 0.1.0 on the 2.0 line (plan section 5a).
+    status: Lifecycle status advances from the baseline (specified) to verified as Observable evidence covering every criterion lands (system-spec metamodel).
   risks:
     id_prefix: obs-
     fields:

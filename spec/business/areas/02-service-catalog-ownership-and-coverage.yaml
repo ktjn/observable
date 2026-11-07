@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: service-management-lead
   statement: Users shall be able to find a service by its business name, operational name, domain, or owner.
@@ -22,7 +22,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: service-management-lead
   statement: Each critical service shall identify its accountable business owner, operational owner, and support route.

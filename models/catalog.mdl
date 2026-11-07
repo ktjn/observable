@@ -1,0 +1,23 @@
+// Domain: catalog (business service records, phase 1 S3). Not generated: the API types are
+// hand-written in services/catalog-service/src/api.rs until the web module (phase 1 S8) consumes them.
+domain catalog {
+  owner: "service-management-lead"
+
+  // Canonical catalog service record. Mirrors services/catalog-service/src/api.rs ServiceRow
+  // field-for-field (table catalog.services, migration 048; tenant_id stays server-side). Aliases, owners and outcomes are child records of
+  // the same aggregate and are returned on the service detail.
+  @wire(json.fieldCase: "snake_case")
+  entity BusinessService @ 1 (additive) {
+    @key id: uuid
+    businessName: string
+    operationalName: string
+    domain: string
+    description: string
+    criticality: enum(critical, high, standard, low)
+    lifecycle: enum(planned, live, deprecated, retired)
+    classification: enum(public, internal, confidential, restricted)
+    supportRoute: string
+    createdAt: timestamp
+    updatedAt: timestamp
+  }
+}

@@ -4,7 +4,7 @@ capabilities:
 - id: manage-service-catalog
   version: 0.1.0
   status: specified
-  description: 'Make the platform accountable for outcomes rather than a collection of tools. Establish one accountable view of monitored services and gaps. Provider: observable-catalog, domain service-model (skeleton since phase 1 S1; behavior lands in S3).'
+  description: 'Make the platform accountable for outcomes rather than a collection of tools. Establish one accountable view of monitored services and gaps. Provider: observable-catalog, domain service-model (service records, owners, outcomes, search and exceptions since phase 1 S3).'
   postconditions:
   - covered_services_have_approved_outcomes
   - service_found_with_owner_and_coverage
