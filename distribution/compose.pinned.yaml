@@ -20,5 +20,7 @@ services:
     image: observable-alerting:0.1.0
   catalog-service:
     image: observable-catalog:0.1.0
+  health-service:
+    image: observable-health:0.1.0
   frontend:
     image: observable-web:0.1.0

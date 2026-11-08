@@ -44,6 +44,7 @@ COMPONENTS=(
   query:query-api
   alerting:alert-evaluator
   catalog:catalog-service
+  health:health-service
 )
 
 failures=0

@@ -106,6 +106,20 @@ services:
         cpu: 500m
         memory: 256Mi
 
+  healthService:
+    image: { repository: observable-health, tag: "0.1.0" }   # Pin to the component version
+    replicas: 2
+    # Set a rotated credential for the dedicated health login (HEALTH_DATABASE_URL).
+    existingSecret: "observable-health-db-credentials"
+    existingSecretKey: "HEALTH_DATABASE_URL"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
   ingestGateway:
     image: { repository: observable-ingest, tag: "0.1.0" }   # Pin to the component version
     replicas: 3

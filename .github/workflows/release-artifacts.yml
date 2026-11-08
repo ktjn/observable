@@ -199,6 +199,10 @@ jobs:
             package: catalog-service
             file: Dockerfile
             target: component-runtime
+          - name: health
+            package: health-service
+            file: Dockerfile
+            target: component-runtime
           - name: web
             package: ""
             file: apps/frontend/Dockerfile

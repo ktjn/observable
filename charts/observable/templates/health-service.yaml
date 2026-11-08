@@ -1,0 +1,26 @@
+{{- if .Values.services.healthService.enabled -}}
+{{- if not (or .Values.services.healthService.existingSecret .Values.services.healthService.databaseUrl) -}}
+{{- fail "healthService requires its own PostgreSQL databaseUrl or existingSecret" -}}
+{{- end -}}
+{{- $dbEnv := include "observable.postgresEnv" (dict "Values" .Values "service" .Values.services.healthService "scopedEnvName" "HEALTH_DATABASE_URL") | fromYaml -}}
+{{- $selfObsTokenEnv := include "observable.selfObservabilityBearerTokenEnv" . | fromYaml -}}
+{{- $env := list
+    $dbEnv
+    (dict "name" "HEALTH_SERVICE_PORT"     "value" (toString .Values.services.healthService.port))
+    (dict "name" "OBSERVABLE_ENV"           "value" .Values.identity.env)
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT" "value" .Values.selfObservability.otlpEndpoint)
+    $selfObsTokenEnv -}}
+{{- $ctx := dict
+    "name"    "health-service"
+    "command" "health-service"
+    "port"    .Values.services.healthService.port
+    "service" .Values.services.healthService
+    "env"     $env
+    "Values"  .Values
+    "Chart"   .Chart
+    "Release" .Release -}}
+{{ include "observable-common.deployment" $ctx }}
+---
+{{ include "observable-common.service" $ctx }}
+{{- end }}

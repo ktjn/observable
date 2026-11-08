@@ -16,7 +16,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 KEYS = ["contracts", "auth", "control", "ingest", "process", "storeClickhouse",
-        "query", "alerting", "catalog", "web"]
+        "query", "alerting", "catalog", "health", "web"]
 
 
 def bash_path() -> str:

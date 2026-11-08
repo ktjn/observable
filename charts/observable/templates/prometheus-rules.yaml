@@ -158,4 +158,14 @@ spec:
             summary: "Catalog Service is down"
             description: "Catalog service is not responding to probes. Business service records, ownership and coverage are unavailable."
             runbook_url: "https://github.com/ktjn/observable/blob/main/docs/runbooks/dependency-outage.md"
+        - alert: ObservableHealthServiceDown
+          expr: up{app_kubernetes_io_component="health-service"} == 0
+          for: 2m
+          labels:
+            severity: warning
+            tier: platform
+          annotations:
+            summary: "Health service is down"
+            description: "The service assessment runtime is not responding to probes."
+            runbook_url: "https://github.com/ktjn/observable/blob/main/docs/runbooks/dependency-outage.md"
 {{- end }}

@@ -27,6 +27,7 @@ COMPONENTS = {
     "query": "services/query-api/CHANGELOG.md",
     "alerting": "services/alert-evaluator/CHANGELOG.md",
     "catalog": "services/catalog-service/CHANGELOG.md",
+    "health": "services/health-service/CHANGELOG.md",
     "web": "apps/frontend/CHANGELOG.md",
 }
 

@@ -1859,6 +1859,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "health-service"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "http-body-util",
+ "observable-config",
+ "observable-telemetry",
+ "prometheus",
+ "sqlx",
+ "test-support",
+ "tokio",
+ "tower",
+ "tower-http 0.7.1",
+ "tracing",
+]
+
+[[package]]
 name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

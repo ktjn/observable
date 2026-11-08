@@ -39,12 +39,13 @@ component_package() {
     query) echo "query-api" ;;
     alerting) echo "alert-evaluator" ;;
     catalog) echo "catalog-service" ;;
+    health) echo "health-service" ;;
     web) echo "" ;;
     *) echo "unknown component: $1" >&2; return 1 ;;
   esac
 }
 
-ALL_COMPONENTS=(auth control ingest process store-clickhouse query alerting catalog web)
+ALL_COMPONENTS=(auth control ingest process store-clickhouse query alerting catalog health web)
 
 if [[ $# -gt 0 ]]; then
   components=("$@")

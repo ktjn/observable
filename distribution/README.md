@@ -66,6 +66,7 @@ Component name → image → Cargo package:
 | `query` | `observable-query` | `services/query-api` |
 | `alerting` | `observable-alerting` | `services/alert-evaluator` |
 | `catalog` | `observable-catalog` | `services/catalog-service` |
+| `health` | `observable-health` | `services/health-service` |
 | `web` | `observable-web` | `apps/frontend` |
 
 `docker-compose.yml` runs each Rust service from its own

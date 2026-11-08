@@ -22,6 +22,7 @@ class AffectedComponentTests(unittest.TestCase):
     def test_service_change_is_scoped(self):
         self.assertAffected(["services/query-api/src/main.rs"], ["query"])
         self.assertAffected(["services/auth-service/Cargo.toml"], ["auth"])
+        self.assertAffected(["services/health-service/src/main.rs"], ["health"])
 
     def test_lib_change_reaches_only_dependents(self):
         self.assertAffected(["libs/query-core/src/lib.rs"], ["query"])
@@ -30,7 +31,7 @@ class AffectedComponentTests(unittest.TestCase):
     def test_shared_lib_change_reaches_every_dependent(self):
         self.assertAffected(["libs/observable-telemetry/src/lib.rs"], ALL_RUST)
         self.assertAffected(
-            ["libs/domain/src/lib.rs"], [c for c in ALL_RUST if c != "catalog"]
+            ["libs/domain/src/lib.rs"], [c for c in ALL_RUST if c not in {"catalog", "health"}]
         )
 
     def test_dev_only_crates_do_not_rebuild_artifacts(self):
