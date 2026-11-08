@@ -113,7 +113,8 @@ RUN --network=none node /offline/compile.mjs
 FROM {nginx} AS runtime
 RUN --network=none rm -rf /usr/share/nginx/html/*
 COPY --from=build /app/apps/frontend/dist /usr/share/nginx/html
-COPY workspace/apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1 NGINX_ENVSUBST_FILTER="^(NGINX_LOCAL_RESOLVERS|OBSERVABLE_CATALOG_UPSTREAM)$" OBSERVABLE_CATALOG_UPSTREAM=catalog-service:4325
+COPY workspace/apps/frontend/nginx.conf /etc/nginx/templates/default.conf.template
 EXPOSE 80
 CMD ["nginx","-g","daemon off;"]
 """.encode()

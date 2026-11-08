@@ -71,6 +71,9 @@ components:
       - manage-control-plane@^0.1
       - query-telemetry@^0.1
       - evaluate-alerts@^0.1
+      - manage-service-catalog@^0.1
+      - govern-observability-assets@^0.1
+      - manage-providers@^0.1
 
   - id: observable-ingest
     version: "0.1.0"
@@ -163,9 +166,8 @@ components:
   # behind govern-observability-assets (signals read from store-telemetry), S6 the producers:
   # alerting pushes rules and objectives, and the catalog pulls control's dashboards through
   # manage-control-plane (control never calls the catalog, so the graph stays acyclic), S7
-  # providers and dependencies behind manage-providers. The provided programmable mock and real/mock
-  # suite for manage-service-catalog land with its first consumer (S8, web); the other provided
-  # capabilities gain theirs in S5-S7.
+  # providers and dependencies behind manage-providers. S8 consumes the catalog from the web
+  # and adds the versioned manage-service-catalog read mock and shared real/mock scenarios.
   - id: observable-catalog
     version: "0.1.0"
     status: specified
@@ -182,7 +184,13 @@ components:
       - migrations/postgres/056_create_catalog_providers.sql
     test_paths:
       - services/catalog-service/tests
+      - services/catalog-service/mocks
     standalone_harness: ["cargo", "test", "-p", "catalog-service", "--test", "http_probes_integration"]
+    provided_mocks:
+      manage-service-catalog:
+        path: services/catalog-service/mocks/manage-service-catalog.v0.1.mjs
+        contract_suite: ["bash", "scripts/contract-suite.sh"]
+        scenarios: [visible_records, hidden_records, unavailable, delay]
     provides:
       - manage-service-catalog
       - govern-observability-assets
@@ -1957,9 +1965,6 @@ evidence:
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: services/storage-writer/tests/clickhouse_deduplication.rs
-    timestamp: "2026-11-06T19:51:56Z"
-    verifier: cargo-test-storage-writer-clickhouse-deduplication
     provenance: "services/storage-writer/src/lib.rs::batch_deduplication_token_is_deterministic_and_content_sensitive"
     criteria:
       - "ClickHouse writes carry deterministic deduplication tokens or ReplacingMergeTree keys so crash-window Kafka redeliveries do not duplicate visible rows"

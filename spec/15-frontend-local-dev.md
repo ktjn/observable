@@ -325,7 +325,10 @@ FROM nginx:1.31-alpine@sha256:<digest> AS runtime
 
 RUN rm -rf /usr/share/nginx/html/*
 COPY --from=build /app/apps/frontend/dist /usr/share/nginx/html
-COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1 \
+    NGINX_ENVSUBST_FILTER="^(NGINX_LOCAL_RESOLVERS|OBSERVABLE_CATALOG_UPSTREAM)$" \
+    OBSERVABLE_CATALOG_UPSTREAM=catalog-service:4325
+COPY apps/frontend/nginx.conf /etc/nginx/templates/default.conf.template
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
@@ -338,7 +341,7 @@ server {
     listen 80;
     root /usr/share/nginx/html;
     index index.html;
-    resolver 127.0.0.11 valid=10s ipv6=off;
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=10s;
 
     # Serve static assets with long cache TTL (filenames include content hash).
     location /assets/ {
@@ -346,9 +349,17 @@ server {
         add_header Cache-Control "public, immutable";
     }
 
-    # Proxy /v1/* to the control-plane backend service.
-    # In production, the Kubernetes ingress handles this routing;
-    # this nginx rule is only active when running the container standalone.
+    # Resolve the catalog service at request time.
+    location ^~ /v1/catalog/ {
+        set $catalog_backend http://${OBSERVABLE_CATALOG_UPSTREAM};
+        proxy_pass $catalog_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Proxy remaining /v1/* requests to the default query backend.
     location /v1/ {
         set $query_api http://query-api:8090;
         proxy_pass $query_api;
@@ -372,9 +383,8 @@ server {
 
 **Rules:**
 
-- The nginx `location /v1/` block is a local-container convenience only. In Kubernetes,
-  path-based routing is handled by the ingress controller, not by nginx inside the frontend
-  container.
+- The frontend serves the catalog API on the same origin as the web app. The Helm chart sets
+  the catalog upstream using the release namespace and `global.clusterDomain`.
 - `index.html` must **not** be cached. The nginx default `Cache-Control: no-cache` for
   non-asset routes achieves this; do not add `expires` directives to the `/` or `/api/`
   location blocks.

@@ -6,6 +6,8 @@
 #   helm install observable ./charts/observable -f values.prod.yaml
 
 global:
+  # DNS suffix for Kubernetes Services.
+  clusterDomain: cluster.local
   image:
     # Optional registry/namespace prefix applied to every component image,
     # e.g. ghcr.io/ktjn. Blank uses the bare repository names (local/kind).

@@ -1,4 +1,15 @@
 import { test } from "@playwright/test";
+import { mockCatalog } from "./catalogFixtures";
+
+test("visual: service catalog and service record", async ({ page }) => {
+  await mockCatalog(page);
+  await page.goto("/catalog");
+  await page.getByRole("table", { name: "Catalog services" }).waitFor();
+  await page.screenshot({ path: "e2e/screenshots/catalog.png", fullPage: true });
+  await page.getByRole("link", { name: "Checkout", exact: true }).click();
+  await page.getByText("No active objective").waitFor();
+  await page.screenshot({ path: "e2e/screenshots/catalog-service.png", fullPage: true });
+});
 
 const MOCK_USER = {
   user_id: "00000000-0000-0000-0000-000000000001",

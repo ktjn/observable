@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ALGORITHM = "component-source-v1"
 RECIPES = {
     "Dockerfile": "81ccccef973009f7bfcd5e821f372a424e771fbbe9c4622dd3284cbf53c0a2ff",
-    "apps/frontend/Dockerfile": "f1f4d8b71fad48003126f31a12de7eeb9a234c03c1c97ea1334cae7407932c36",
+    "apps/frontend/Dockerfile": "9f73194a145393201269a6b169bdf4911b32e83b663ed236354f7e24466648b8",
 }
 # The image stage each recipe builds into a deployable component artifact. A
 # `None` target is the recipe's last stage (the frontend serves from nginx).

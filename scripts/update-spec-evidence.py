@@ -42,7 +42,8 @@ def get_provenance_files(spec_text: str) -> list[tuple[str, str]]:
             continue
         prov_m = re.match(r"^\s+provenance:\s*(\S+)", line)
         if prov_m and cur_id:
-            entries.append((cur_id, prov_m.group(1)))
+            path, _, _ = prov_m.group(1).strip("\"'").partition("::")
+            entries.append((cur_id, path))
             cur_id = None
     return entries
 
@@ -80,7 +81,7 @@ def main() -> int:
     missing = []
     for eid, path_str in provenances:
         target = REPO_ROOT / path_str
-        if not target.exists():
+        if not path_str or not target.exists():
             missing.append((eid, path_str))
 
     if missing:
