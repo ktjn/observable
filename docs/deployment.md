@@ -113,6 +113,9 @@ string or omit it for non-development environments.
 | `CLICKHOUSE_USER` | query-api, admin, storage-writer, alert-evaluator | ClickHouse username |
 | `AUTH_SERVICE_URL` | query-api, admin, ingest-gateway, alert-evaluator | Internal URL of auth-service |
 | `ADMIN_SERVICE_URL` | query-api | Internal URL of admin-service (deployment enrichment/correlation) |
+| `CATALOG_URL` | alert-evaluator | Internal URL of catalog-service; alert rules and SLOs are synced to its asset registry. Unset turns the sync off |
+| `CATALOG_SYNC_INTERVAL_SECONDS` | alert-evaluator | Asset registry sync interval (default `60`) |
+| `CATALOG_ASSET_PULL_INTERVAL_SECONDS` | catalog-service | Interval for pulling control's dashboards into the asset registry (default `60`) |
 | `ALERT_EVALUATOR_URL` | query-api | Internal URL of alert-evaluator (alerting enrichment/correlation) |
 | `INTERNAL_SERVICE_TOKEN` | query-api, admin, alert-evaluator | Shared secret for `/internal/*` service-to-service calls |
 | `REDPANDA_BROKERS` | ingest-gateway, stream-processor, storage-writer | Kafka-compatible broker addresses |

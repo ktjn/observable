@@ -390,7 +390,7 @@ async fn asset_views(
         .collect())
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct AssetBody {
     service_id: Option<Uuid>,
     /// Internal producers may name the service by telemetry identity instead of id.
@@ -415,8 +415,8 @@ fn asset_key(kind: &str, external_id: &str) -> ApiResult<()> {
     Ok(())
 }
 
-async fn upsert_asset(
-    db: &PgPool,
+async fn upsert_asset<'e, E: sqlx::PgExecutor<'e>>(
+    db: E,
     tenant_id: Uuid,
     kind: &str,
     external_id: &str,
@@ -590,34 +590,15 @@ pub async fn internal_put_asset(
     let tenant_id = body
         .tenant_id
         .ok_or_else(|| ApiError::BadRequest("tenant_id is required".into()))?;
-    let component = body
-        .owning_component
-        .as_deref()
-        .map(str::trim)
-        .filter(|c| !c.is_empty() && c.len() <= 100)
-        .ok_or_else(|| ApiError::BadRequest("owning_component is required".into()))?
-        .to_owned();
-    let service_id: Option<Uuid> = match (body.service_id, body.service_name.as_deref()) {
-        (Some(id), _) => {
-            sqlx::query_scalar("SELECT id FROM catalog.services WHERE tenant_id = $1 AND id = $2")
-                .bind(tenant_id)
-                .bind(id)
-                .fetch_optional(&state.db)
-                .await?
-        }
-        (None, Some(name)) => {
-            sqlx::query_scalar(
-                "SELECT service_id FROM catalog.service_bindings WHERE tenant_id = $1 \
-             AND service_name = $2 AND environment IN ($3, '') ORDER BY environment DESC LIMIT 1",
-            )
-            .bind(tenant_id)
-            .bind(name)
-            .bind(body.environment.trim())
-            .fetch_optional(&state.db)
-            .await?
-        }
-        (None, None) => None,
-    };
+    let component = owning_component(body.owning_component.as_deref())?;
+    let service_id = resolve_service(
+        &state.db,
+        tenant_id,
+        body.service_id,
+        body.service_name.as_deref(),
+        &body.environment,
+    )
+    .await?;
     let service_id = service_id.ok_or(ApiError::Unprocessable("unknown_service"))?;
     upsert_asset(
         &state.db,
@@ -630,6 +611,238 @@ pub async fn internal_put_asset(
     )
     .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Resolves a producer's service reference: a catalog service id of the tenant, or a telemetry
+/// identity through the service bindings (an exact environment wins over an any-environment
+/// binding; without an environment the identity must be bound to exactly one service).
+async fn resolve_service(
+    db: &PgPool,
+    tenant_id: Uuid,
+    service_id: Option<Uuid>,
+    service_name: Option<&str>,
+    environment: &str,
+) -> Result<Option<Uuid>, sqlx::Error> {
+    match (service_id, service_name) {
+        (Some(id), _) => {
+            sqlx::query_scalar("SELECT id FROM catalog.services WHERE tenant_id = $1 AND id = $2")
+                .bind(tenant_id)
+                .bind(id)
+                .fetch_optional(db)
+                .await
+        }
+        (None, Some(name)) if !environment.trim().is_empty() => {
+            sqlx::query_scalar(
+                "SELECT service_id FROM catalog.service_bindings WHERE tenant_id = $1 \
+                 AND service_name = $2 AND environment IN ($3, '') ORDER BY environment DESC LIMIT 1",
+            )
+            .bind(tenant_id)
+            .bind(name)
+            .bind(environment.trim())
+            .fetch_optional(db)
+            .await
+        }
+        // No environment named: the identity resolves only when all its bindings name one service.
+        (None, Some(name)) => {
+            let ids: Vec<Uuid> = sqlx::query_scalar(
+                "SELECT DISTINCT service_id FROM catalog.service_bindings \
+                 WHERE tenant_id = $1 AND service_name = $2",
+            )
+            .bind(tenant_id)
+            .bind(name)
+            .fetch_all(db)
+            .await?;
+            Ok(match ids.as_slice() {
+                [only] => Some(*only),
+                _ => None,
+            })
+        }
+        (None, None) => Ok(None),
+    }
+}
+
+fn owning_component(raw: Option<&str>) -> ApiResult<String> {
+    raw.map(str::trim)
+        .filter(|c| !c.is_empty() && c.len() <= 100 && *c != "catalog")
+        .map(str::to_owned)
+        .ok_or_else(|| ApiError::BadRequest("owning_component is required".into()))
+}
+
+const SYNC_MAX_ASSETS: usize = 10_000;
+
+#[derive(Clone, Deserialize)]
+pub struct SyncAsset {
+    pub(crate) external_id: String,
+    #[serde(flatten)]
+    pub(crate) body: AssetBody,
+}
+
+#[derive(Deserialize)]
+pub struct SyncBody {
+    tenant_id: Uuid,
+    owning_component: String,
+    kind: String,
+    assets: Vec<SyncAsset>,
+}
+
+/// POST /internal/catalog/assets/sync (internal token): a producer reports the full set of its
+/// assets of one kind for one tenant. Listed assets whose service resolves are registered; the
+/// producer's other assets of that kind (deleted at the source, or no longer bound to a catalog
+/// service) are retired so they stop counting as coverage.
+pub async fn internal_sync_assets(
+    State(state): State<CatalogState>,
+    headers: HeaderMap,
+    Json(body): Json<SyncBody>,
+) -> ApiResult<Json<serde_json::Value>> {
+    internal_auth(&state, &headers)?;
+    one_of("kind", &body.kind, ASSET_KINDS)?;
+    let component = owning_component(Some(&body.owning_component))?;
+    if body.assets.len() > SYNC_MAX_ASSETS {
+        return Err(ApiError::BadRequest(format!(
+            "at most {SYNC_MAX_ASSETS} assets per sync"
+        )));
+    }
+    for a in &body.assets {
+        asset_key(&body.kind, &a.external_id)?;
+    }
+    let summary = apply_sync(
+        &state.db,
+        body.tenant_id,
+        &component,
+        &body.kind,
+        &body.assets,
+    )
+    .await?;
+    Ok(Json(json!(summary)))
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct SyncSummary {
+    pub registered: usize,
+    pub skipped: usize,
+    pub retired: u64,
+}
+
+/// Registers the listed assets of one producer component and kind whose service resolves, and
+/// retires that component's other assets of the kind. Keys held by another component (or
+/// registered by hand) are never taken over.
+pub async fn apply_sync(
+    db: &PgPool,
+    tenant_id: Uuid,
+    component: &str,
+    kind: &str,
+    assets: &[SyncAsset],
+) -> Result<SyncSummary, sqlx::Error> {
+    let mut tx = db.begin().await?;
+    let mut kept: Vec<String> = Vec::with_capacity(assets.len());
+    let mut skipped = 0usize;
+    for a in assets {
+        let resolved = resolve_service(
+            db,
+            tenant_id,
+            a.body.service_id,
+            a.body.service_name.as_deref(),
+            &a.body.environment,
+        )
+        .await?;
+        let Some(service_id) = resolved else {
+            skipped += 1;
+            continue;
+        };
+        let foreign: Option<String> = sqlx::query_scalar(
+            "SELECT owning_component FROM catalog.observability_assets \
+             WHERE tenant_id = $1 AND kind = $2 AND external_id = $3 AND owning_component <> $4",
+        )
+        .bind(tenant_id)
+        .bind(kind)
+        .bind(&a.external_id)
+        .bind(component)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if foreign.is_some() {
+            skipped += 1;
+            continue;
+        }
+        upsert_asset(
+            &mut *tx,
+            tenant_id,
+            kind,
+            &a.external_id,
+            component,
+            service_id,
+            &a.body,
+        )
+        .await?;
+        kept.push(a.external_id.clone());
+    }
+    let retired = sqlx::query(
+        "UPDATE catalog.observability_assets SET retired_at = now(), updated_at = now() \
+         WHERE tenant_id = $1 AND owning_component = $2 AND kind = $3 AND retired_at IS NULL \
+         AND NOT (external_id = ANY($4))",
+    )
+    .bind(tenant_id)
+    .bind(component)
+    .bind(kind)
+    .bind(&kept)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+    tx.commit().await?;
+    Ok(SyncSummary {
+        registered: kept.len(),
+        skipped,
+        retired,
+    })
+}
+
+/// The component whose dashboards the catalog pulls from `manage-control-plane`.
+pub const CONTROL_COMPONENT: &str = "observable-control";
+/// Asset kinds control produces; each is reconciled even when control lists none.
+pub const CONTROL_KINDS: &[&str] = &["dashboard"];
+
+/// One pull of control's assets (phase 1 S6) for every tenant with catalog services. The
+/// dependency runs catalog -> control, as for environment classes, so control never calls the
+/// catalog. A tenant whose control read fails keeps its registered assets until the next pull.
+pub async fn pull_control_assets(
+    state: &CatalogState,
+    control: &crate::ports::ControlAssets,
+) -> Result<(usize, usize), sqlx::Error> {
+    let tenants: Vec<Uuid> = sqlx::query_scalar("SELECT DISTINCT tenant_id FROM catalog.services")
+        .fetch_all(&state.db)
+        .await?;
+    let (mut synced, mut failed) = (0, 0);
+    for tenant in tenants {
+        let Ok(assets) = control.assets(tenant).await else {
+            failed += 1;
+            tracing::warn!(%tenant, "control assets unavailable; registry left as is");
+            continue;
+        };
+        for kind in CONTROL_KINDS {
+            let of_kind: Vec<SyncAsset> = assets
+                .iter()
+                .filter(|a| a.kind == *kind && asset_key(kind, &a.asset.external_id).is_ok())
+                .map(|a| a.asset.clone())
+                .collect();
+            apply_sync(&state.db, tenant, CONTROL_COMPONENT, kind, &of_kind).await?;
+        }
+        synced += 1;
+    }
+    Ok((synced, failed))
+}
+
+pub async fn start_control_asset_worker(
+    state: CatalogState,
+    control: crate::ports::ControlAssets,
+    interval: std::time::Duration,
+) {
+    let mut ticker = tokio::time::interval(interval);
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    loop {
+        ticker.tick().await;
+        if let Err(e) = pull_control_assets(&state, &control).await {
+            tracing::warn!(error = %e, "control asset pull failed");
+        }
+    }
 }
 
 #[derive(Deserialize)]

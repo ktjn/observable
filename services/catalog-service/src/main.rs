@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use catalog_service::ports::{Credentials, Decider, Directory, Environments, Telemetry};
+use catalog_service::ports::{
+    ControlAssets, Credentials, Decider, Directory, Environments, Telemetry,
+};
 use catalog_service::{CatalogState, DEFAULT_PORT, app};
 use observable_auth::authz::HttpAccessDecider;
 use observable_auth::principals::HttpPrincipalDirectory;
@@ -54,13 +56,29 @@ async fn main() -> anyhow::Result<()> {
             client.clone(),
         )),
         Environments::Http {
-            base_url: Arc::new(admin_url),
+            base_url: Arc::new(admin_url.clone()),
             internal_token: Arc::new(internal_token.clone()),
-            client,
+            client: client.clone(),
         },
         Telemetry::ClickHouse(Box::new(ch)),
     )
-    .with_internal_token(internal_token);
+    .with_internal_token(internal_token.clone());
+
+    // Dashboards are pulled from control into the asset registry (phase 1 S6).
+    let pull_secs = std::env::var("CATALOG_ASSET_PULL_INTERVAL_SECONDS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|s| *s > 0)
+        .unwrap_or(60);
+    tokio::spawn(catalog_service::coverage::start_control_asset_worker(
+        state.clone(),
+        ControlAssets::Http {
+            base_url: Arc::new(admin_url),
+            internal_token: Arc::new(internal_token),
+            client,
+        },
+        std::time::Duration::from_secs(pull_secs),
+    ));
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "catalog-service listening");

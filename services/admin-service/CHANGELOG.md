@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `GET /internal/observability-assets?tenant_id=` (internal token; catalog consumer, phase 1 S6):
+  dashboards whose service panels name one service, with the panels' single environment filter
+  and the earliest owner grant.
+
 - Environment classes (phase 1 S4, OBS-01-03): migration `050_create_control_environment_classes.sql`
   (`control.environment_classes`), `GET /v1/tenants/{id}/environment-classes` (any tenant role),
   `PUT`/`DELETE /v1/tenants/{id}/environment-classes/{environment}` (tenant_admin; `production` or

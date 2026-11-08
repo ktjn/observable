@@ -100,7 +100,8 @@ service_env() {
     alert-evaluator)
       printf '%s\n' "${ch[@]}" "${internal[@]}" ALERT_EVALUATOR_PORT=4322 ALERT_EVAL_INTERVAL_SECONDS=60 \
         DATABASE_URL=postgres://observable_alerting:observable_alerting@localhost:5432/observable \
-        ALERTING_DATABASE_URL=postgres://observable_alerting:observable_alerting@localhost:5432/observable ;;
+        ALERTING_DATABASE_URL=postgres://observable_alerting:observable_alerting@localhost:5432/observable \
+        CATALOG_URL=http://localhost:4325 ;;
     catalog-service)
       printf '%s\n' "${ch[@]}" "${internal[@]}" CATALOG_SERVICE_PORT=4325 ADMIN_SERVICE_URL=http://localhost:4324 \
         DATABASE_URL=postgres://observable_catalog:observable_catalog@localhost:5432/observable \

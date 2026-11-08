@@ -1,4 +1,5 @@
 pub mod alerts;
+pub mod catalog_sync;
 pub mod evaluator;
 pub mod incidents;
 pub mod internal;

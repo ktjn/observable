@@ -237,6 +237,10 @@ async fn main() -> anyhow::Result<()> {
             "/internal/environment-classes",
             get(environments::handle_internal_environment_classes),
         )
+        .route(
+            "/internal/observability-assets",
+            get(admin_service::observability_assets::handle_internal_observability_assets),
+        )
         .layer(axum_middleware::from_fn(
             middleware::auth::require_internal_service,
         ))

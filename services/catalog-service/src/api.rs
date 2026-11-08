@@ -879,7 +879,7 @@ pub async fn update_service(
 // Owners and outcomes
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct PrincipalRef {
     pub(crate) principal_kind: String,
     pub(crate) principal_id: Uuid,

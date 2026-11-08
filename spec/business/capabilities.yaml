@@ -209,7 +209,7 @@ capabilities:
 - id: govern-observability-assets
   version: 0.1.0
   status: specified
-  description: 'Make observability coverage an owned, continuously verified service obligation. Govern alerts, objectives, dashboards, checks and health rules as owned, managed business assets. Provider: observable-catalog, domain service-model (coverage policies, assessment, gaps and the asset registry since phase 1 S5; alerting and control producers land in S6).'
+  description: 'Make observability coverage an owned, continuously verified service obligation. Govern alerts, objectives, dashboards, checks and health rules as owned, managed business assets. Provider: observable-catalog, domain service-model (coverage policies, assessment, gaps and the asset registry since phase 1 S5; alerting pushes rules and objectives and control dashboards are pulled since S6).'
   postconditions:
   - required_coverage_compared_with_actual
   - asset_changes_reviewable_and_reversible
@@ -223,6 +223,22 @@ capabilities:
   - accountability_unassigned
   - unowned_asset
   - unreviewed_critical_change
+  # Producer contract (phase 1 S6): a producer reports the full set of its assets of one kind
+  # for a tenant; listed assets that resolve to a catalog service are registered with their
+  # owner and the producer's other assets of that kind are retired. Errors name the governance
+  # outcome each failure mode leads to.
+  interface:
+    operation: POST /internal/catalog/assets/sync
+    mode: sync
+    idempotent: true
+    auth: internal_service_token
+    errors:
+      coverage_decay: coverage_partial
+      unowned_gap: 409
+      process_not_followed: 409
+      accountability_unassigned: 422
+      unowned_asset: ownerless_asset
+      unreviewed_critical_change: 409
 - id: communicate-incident-status
   version: 0.1.0
   status: specified

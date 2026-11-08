@@ -8,6 +8,7 @@ pub mod internal;
 pub mod llm_probe;
 pub mod middleware;
 pub mod observability;
+pub mod observability_assets;
 pub mod queue;
 pub mod saved_views;
 pub mod schemas;

@@ -1,5 +1,6 @@
 use crate::AppState;
-use crate::middleware::auth::TenantContext;
+use crate::alerts::{OwnerRef, UpdateOwnerRequest, resolve_owner};
+use crate::middleware::auth::{TenantContext, require_admin};
 use axum::{Extension, Json, extract::State, http::StatusCode};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -26,6 +27,9 @@ pub struct SloDefinitionItem {
     pub last_fired_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Accountable owner (OBS-34-01): `user` or `team`, or none when ownerless.
+    pub owner_kind: Option<String>,
+    pub owner_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -37,6 +41,9 @@ pub struct CreateSloRequest {
     pub burn_rate_fast_threshold: f64,
     pub burn_rate_slow_threshold: f64,
     pub description: Option<String>,
+    /// Defaults to the calling user (resolved by the handler); stored as given.
+    #[serde(default)]
+    pub owner: Option<OwnerRef>,
 }
 
 #[derive(Serialize)]
@@ -108,7 +115,7 @@ pub async fn list_slos(
             AND ar.alert_type = 'slo_burn_rate' \
             AND ar.condition->>'slo_id' = slo_definitions.slo_id::text \
             AND af.state = 'active') AS last_fired_at, \
-         created_at, updated_at \
+         created_at, updated_at, owner_kind, owner_id \
          FROM slo_definitions WHERE tenant_id = $1 ORDER BY created_at DESC",
     )
     .bind(tenant_id)
@@ -125,11 +132,13 @@ pub async fn create_slo(
 
     let mut tx = db.begin().await.map_err(CreateSloError::Db)?;
     let description = req.description.as_deref().unwrap_or("");
+    let owner_kind = req.owner.as_ref().map(|o| o.principal_kind.as_str());
+    let owner_id = req.owner.as_ref().map(|o| o.principal_id);
     let slo_id: Uuid = sqlx::query_scalar(
         "INSERT INTO slo_definitions \
          (tenant_id, service_name, environment, sli_type, target, window_days, \
-          burn_rate_fast_threshold, burn_rate_slow_threshold, description) \
-         VALUES ($1, $2, $3, 'availability', $4, $5, $6, $7, $8) \
+          burn_rate_fast_threshold, burn_rate_slow_threshold, description, owner_kind, owner_id) \
+         VALUES ($1, $2, $3, 'availability', $4, $5, $6, $7, $8, $9, $10) \
          RETURNING slo_id",
     )
     .bind(tenant_id)
@@ -140,6 +149,8 @@ pub async fn create_slo(
     .bind(req.burn_rate_fast_threshold)
     .bind(req.burn_rate_slow_threshold)
     .bind(description)
+    .bind(owner_kind)
+    .bind(owner_id)
     .fetch_one(&mut *tx)
     .await
     .map_err(CreateSloError::Db)?;
@@ -155,12 +166,16 @@ pub async fn create_slo(
         req.environment.trim()
     );
     sqlx::query(
-        "INSERT INTO alert_rules (tenant_id, name, alert_type, severity, condition) \
-         VALUES ($1, $2, 'slo_burn_rate', 'critical', $3)",
+        "INSERT INTO alert_rules \
+         (tenant_id, name, alert_type, severity, condition, service_name, owner_kind, owner_id) \
+         VALUES ($1, $2, 'slo_burn_rate', 'critical', $3, $4, $5, $6)",
     )
     .bind(tenant_id)
     .bind(rule_name)
     .bind(condition)
+    .bind(req.service_name.trim())
+    .bind(owner_kind)
+    .bind(owner_id)
     .execute(&mut *tx)
     .await
     .map_err(CreateSloError::Db)?;
@@ -188,8 +203,9 @@ pub async fn handle_list_slos(
 pub async fn handle_create_slo(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
-    Json(req): Json<CreateSloRequest>,
+    Json(mut req): Json<CreateSloRequest>,
 ) -> Result<(StatusCode, Json<SloDefinitionItem>), StatusCode> {
+    req.owner = resolve_owner(req.owner.as_ref(), &ctx)?;
     match create_slo(&state.db, ctx.tenant_id, &req).await {
         Ok(item) => Ok((StatusCode::CREATED, Json(item))),
         Err(CreateSloError::InvalidInput(msg)) => {
@@ -201,4 +217,50 @@ pub async fn handle_create_slo(
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+/// PUT /v1/slos/{slo_id}/owner (tenant_admin): reassigns or clears the owner of an objective and
+/// of its burn-rate alert rule.
+pub async fn handle_update_slo_owner(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    axum::extract::Path(slo_id): axum::extract::Path<Uuid>,
+    Json(req): Json<UpdateOwnerRequest>,
+) -> Result<StatusCode, StatusCode> {
+    require_admin(&ctx)?;
+    req.validate()?;
+    let kind = req.owner.as_ref().map(|o| o.principal_kind.as_str());
+    let id = req.owner.as_ref().map(|o| o.principal_id);
+    let fail = |e: sqlx::Error| {
+        tracing::error!(error = %e, "failed to update SLO owner");
+        StatusCode::INTERNAL_SERVER_ERROR
+    };
+    let mut tx = state.db.begin().await.map_err(fail)?;
+    let updated: Option<Uuid> = sqlx::query_scalar(
+        "UPDATE slo_definitions SET owner_kind = $1, owner_id = $2, updated_at = now() \
+         WHERE slo_id = $3 AND tenant_id = $4 RETURNING slo_id",
+    )
+    .bind(kind)
+    .bind(id)
+    .bind(slo_id)
+    .bind(ctx.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(fail)?;
+    if updated.is_none() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    sqlx::query(
+        "UPDATE alert_rules SET owner_kind = $1, owner_id = $2 \
+         WHERE tenant_id = $3 AND alert_type = 'slo_burn_rate' AND condition->>'slo_id' = $4",
+    )
+    .bind(kind)
+    .bind(id)
+    .bind(ctx.tenant_id)
+    .bind(slo_id.to_string())
+    .execute(&mut *tx)
+    .await
+    .map_err(fail)?;
+    tx.commit().await.map_err(fail)?;
+    Ok(StatusCode::NO_CONTENT)
 }

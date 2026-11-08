@@ -19,6 +19,7 @@ use uuid::Uuid;
 
 pub struct Harness {
     pub app: Router,
+    pub state: CatalogState,
     pub decider: MockAccessDecider,
     pub directory: MockPrincipalDirectory,
     pub environments: Environments,
@@ -116,7 +117,8 @@ impl Harness {
         )
         .with_internal_token(INTERNAL_TOKEN);
         Self {
-            app: app(state),
+            app: app(state.clone()),
+            state,
             decider,
             directory,
             environments,
