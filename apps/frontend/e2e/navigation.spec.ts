@@ -1,4 +1,32 @@
 import { test, expect } from "@playwright/test";
+import { mockCatalog } from "./catalogFixtures";
+
+test("catalog navigation shows coverage, gaps, providers and ownerless assets", async ({ page }) => {
+  await mockCatalog(page);
+  await page.goto("/catalog");
+  await expect(page.getByRole("table", { name: "Catalog services" })).toBeVisible();
+  await expect(page.getByRole("row", { name: /Checkout.*Critical.*Live/ })).toBeVisible();
+  await page.getByRole("link", { name: "Coverage", exact: true }).click();
+  await expect(page.getByRole("row", { name: /Checkout.*Unknown.*Stale/ })).toBeVisible();
+  await page.getByRole("link", { name: "Gaps", exact: true }).click();
+  await expect(page.getByRole("row", { name: /Objective.*Open/ })).toBeVisible();
+  await page.getByRole("link", { name: "Providers", exact: true }).click();
+  await expect(page.getByRole("row", { name: /Payment Gateway.*Material/ })).toBeVisible();
+  await expect(page.getByRole("row", { name: /Card Tokenizer.*Unregistered provider.*Tokenize cards/ })).toBeVisible();
+  await page.getByRole("link", { name: "Payment Gateway", exact: true }).click();
+  await expect(page.getByText("Processing agreement")).toBeVisible();
+  await expect(page.getByRole("row", { name: /Authorize payments.*Checkout/ })).toBeVisible();
+  await page.getByRole("link", { name: "Back to providers" }).click();
+  await page.getByRole("link", { name: "Ownerless assets", exact: true }).click();
+  await expect(page.getByRole("row", { name: /Checkout errors.*Departed/ })).toBeVisible();
+  await page.getByRole("link", { name: "Catalog", exact: true }).click();
+  await page.getByRole("link", { name: "Checkout", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Checkout", exact: true })).toBeVisible();
+  await expect(page.getByText("Commerce team", { exact: false })).toBeVisible();
+  await expect(page.getByText("#checkout-on-call")).toBeVisible();
+  await expect(page.getByText("Uncovered", { exact: true })).toBeVisible();
+  await expect(page.getByText("No active objective")).toBeVisible();
+});
 
 // ── Shared mocks ──────────────────────────────────────────────────────────────
 

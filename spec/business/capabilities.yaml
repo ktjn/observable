@@ -4,6 +4,18 @@ capabilities:
 - id: manage-service-catalog
   version: 0.1.0
   status: specified
+  interface:
+    operation: GET /v1/catalog/services, /v1/catalog/services/{id}, /v1/catalog/search, /v1/catalog/exceptions
+    auth: oidc_session
+    idempotent: true
+    # Business outcomes, not HTTP status codes. Transport authorization is specified separately.
+    errors:
+      uncovered_critical_service: uncovered
+      outcome_without_owner: no_approved_outcome
+      process_not_followed: outside_catalog_read_contract
+      accountability_unassigned: missing_business_or_operational_owner
+      unregistered_service: 404
+      stale_ownership: departed_or_unresolved_owner
   description: 'Make the platform accountable for outcomes rather than a collection of tools. Establish one accountable view of monitored services and gaps. Provider: observable-catalog, domain service-model (service records, owners, outcomes, search and exceptions since phase 1 S3; journeys, scope and operating contexts since S4).'
   postconditions:
   - covered_services_have_approved_outcomes
@@ -289,6 +301,14 @@ capabilities:
 - id: manage-providers
   version: 0.1.0
   status: specified
+  interface:
+    operation: GET /v1/catalog/providers, /v1/catalog/providers/{id}, /v1/catalog/providers/gaps
+    auth: oidc_session
+    idempotent: true
+    errors:
+      undetected_provider_outage: outside_catalog_read_contract
+      concentration_risk: outside_catalog_read_contract
+      accountability_unassigned: missing_departed_or_unresolved_contract_owner
   description: 'Treat material providers as observed dependencies with owned risk, evidence and coordination. Provider: observable-catalog, domain service-model (providers, dependencies and provider gaps since phase 1 S7).'
   postconditions:
   - provider_dependency_and_performance_known
