@@ -1,6 +1,6 @@
 # Phase 1 detailed plan: Service model (`observable-catalog`)
 
-**Status:** Draft 1 (2026-11-07). Open questions in section 10 block slices S4, S5 and S9 only.
+**Status:** S1–S8 merged. S9 remains open while the closure slices and accountable inspections are completed.
 
 **S9 review (2026-11-08):** [Exit review and inspection workbook](phase1-exit-review.md).
 S1–S8 are merged. Phase exit remains blocked at 6/15 verified, pending six accountable
@@ -33,7 +33,7 @@ Phase 1 must verify 15 P0 requirements:
 
 Exit evidence (ROADMAP): catalog maps OTel services; coverage status visible; the 15 requirements `verified` under `scripts/spec-readiness.py --priority P0 --strict`; UX-01 negatives `ux-01-restricted-service` and `ux-01-search-service-restricted` pass in a browser test; `bash scripts/spec-gate.sh` green.
 
-Out of scope (later phases or P1): health states (phase 2), objectives and compliant/at-risk/breached status (phase 4), consumers switching from `service_name` strings to catalog IDs (each consumer's own phase), unregistered-service detection beyond a simple list (OBS-02-07, P1), reconciliation with external CMDBs (OBS-02-08, P1), dependency mapping (OBS-10, phase 7).
+The closure slices in section 11 bring forward the health, objectives and catalog identity integration needed by the Phase 1 exit criteria. The rest of the Phase 2 health and Phase 4 objectives work stays in those phases. Unregistered-service detection beyond a simple list (OBS-02-07, P1), reconciliation with external CMDBs (OBS-02-08, P1) and dependency mapping (OBS-10, phase 7) remain out of scope.
 
 ## 2. Component placement
 
@@ -130,7 +130,7 @@ Each slice lists the requirements it verifies; evidence is `path::test_name` per
 | S6 | Asset registry and producers: alerting registers rules and SLOs, control registers dashboards; owner required; ownerless report. Shipped as one PR: alerting pushes (`POST /internal/catalog/assets/sync`), the catalog pulls control's dashboards (`GET /internal/observability-assets`) because control -> catalog would close a cycle with environment classes; owners default to the creator and API-key-created assets are reported ownerless rather than refused | catalog, alerting, control | records for 34-01 | S3 |
 | S7 | Providers and dependencies, unregistered-provider gaps. Shipped with dependencies on services or journeys, by provider id or by name (unregistered), contract-owner and unmapped-provider gaps, and `unregistered_provider` on the exception list; `observability-asset` folded into `coverage-record` for COMP-03 | catalog | records for 36-01 | S3 |
 | S8 | Web `catalog` module: list, search, service record, coverage, gaps, providers, ownerless assets; restricted-service and restricted-search negatives in Playwright | web | UX-01 `ux-01-restricted-service`, `ux-01-search-service-restricted`; UI criteria of 02-01..04 | S3-S7 |
-| S9 | Phase exit: inspection evidence for organization-held requirements, readiness `--strict`, roadmap/gap update | spec | OBS-01-01, 01-02, 27-01, 27-04, 34-01, 36-01 | S3-S8, Q2 |
+| S9 | Phase exit: inspection evidence for organization-held requirements, criterion evidence for outstanding platform requirements, readiness `--strict`, roadmap/gap update | spec | OBS-01-01, 01-02, 01-03, 01-04, 02-04, 27-01, 27-04, 34-01, 36-01 | S3–S8 and section 11 |
 
 S6 and S7 can run in parallel after S3. S5 waits for S6 because demonstrated coverage counts registered assets.
 
@@ -139,14 +139,39 @@ S6 and S7 can run in parallel after S3. S5 waits for S6 because demonstrated cov
 - **Critical: onboarding breadth.** A new runtime component touches about 30 files and many policy tests (section 2). S1 is large and must land before any behavior.
 - **Authorization latency.** Every list goes through `filter`; measure p95 under the perf smoke and keep it inside `req-query-latency`.
 - **Owner semantics.** "Owner has left" needs a principal directory; without teams, ownership by individuals is brittle (Q4).
-- **OBS-01-03, 01-04 and 02-04 cross phases.** Context isolation, agreed expectations and retired-service health need health/reporting integration (phase 2) and objectives (phase 4). See Q1 and the S9 review. OBS-02-03 coverage status is already verified.
-- **Organization obligations.** Six P0s are verified by accountable inspection, not tests; the platform only makes them possible (Q2).
+- **Health and objectives dependencies.** Context isolation, agreed expectations and retired-service health require the integration in section 11. OBS-02-03 coverage status is already verified.
+- **Organization obligations.** Six P0s require accountable inspection of an approved inventory and deployed records. See Q2 and the S9 workbook.
 - **Consumers keep `service_name`.** Alert rules, SLOs and incidents still key on strings until their phases; the catalog binding is the bridge, so binding changes must not orphan assets.
 
 ## 10. Open questions
 
-- **Q1.** OBS-01-04 needs objectives and health, and its negative needs `unknown`. Move its verification to phase 4 (ROADMAP change), keeping only outcome/expectation records in phase 1? Recommended: yes.
-- **Q2.** Who signs the accountable inspections for the organization-held P0s (01-01, 01-02, 27-01, 27-04, 34-01, 36-01): Tommy as acting owner for all catalog roles, or named roles per requirement? Recommended: Tommy as acting owner, recorded per role.
+- **Q1. Resolved 2026-11-08.** Close Phase 1 first. Keep OBS-01-04 and the other two platform requirements in Phase 1 and bring forward the work in section 11.
+- **Q2. Inspector named 2026-11-08.** Tommy (`ktjn`) will sign as observability platform owner, SRE lead and vendor manager. Deployment, tenant, approved inventory and criterion results are pending his verification.
 - **Q3.** Environment class lives in `observable-control` (recommended) or in the catalog?
 - **Q4.** Owners: users and teams (teams stored in the catalog, members resolved through auth; recommended), or users only?
 - **Q5.** Catalog entry: API and UI only in phase 1 (recommended), or also YAML import (Backstage-style `catalog-info.yaml`)?
+
+## 11. Phase 1 closure slices
+
+Run the inspection track as soon as the deployment and inventory are confirmed. On
+the platform track, land provider contracts and their tests before wiring consumers.
+Use the existing Phase 1 requirements as the acceptance gate for this work.
+
+| Order | Slice | Required verification |
+|---|---|---|
+| C1 | Specify the catalog inputs for service assessment and reporting. Resolve catalog service ID, lifecycle and telemetry bindings with approved environment classification. Reuse the existing authorized catalog and control operations where their response and permissions suffice. | Exercise production and non-production bindings with the same telemetry name, business-critical filtering, a retired service and a denied service. Verify an unclassified binding cannot enter production. |
+| C2 | Add the `observable-health` provider under ADR-039. Evaluate and persist health for catalog service and approved context, using scoped telemetry, rules and evidence age. Require `decide-access` from the first protected read. | Real/mock provider contracts cover isolation by tenant and context, retired services, absent or stale evidence, authorization denial and authorization outage. |
+| C3 | Bind an approved measurable objective to a catalog service and its relevant context. Evaluate compliance against current scoped evidence. Keep the approved outcome statement separate from the measurable objective definition. | Test compliant, at-risk and breached results for a selected service. Missing or stale evidence yields unknown. Unapproved expectations cannot produce a compliance result. |
+| C4 | Integrate the query and web health, reporting and review paths with those provider contracts. Replace the legacy derived health on the affected paths. | Use the same service in production and non-production. Inject a failure only in non-production and verify production health and reporting are unchanged while the non-production views reflect the failure (OBS-01-03). Retire the service and verify search, health and reporting (OBS-02-04). Exercise all four expectation states through stakeholder review (OBS-01-04). |
+| C5 | Record current evidence for all criteria and run the S9 exit checks. | Six signed organization inspections, strict readiness with 15/15 verified, both UX-01 negatives in the browser, and a passing specification gate. |
+
+C1 starts from `GET /v1/catalog/contexts` for environment classes and service detail
+for lifecycle. Bindings are currently returned by the coverage assessment, which
+reads telemetry and refuses retired services. A read-only binding operation should
+reuse the catalog authorization and binding lookup without running coverage. Confirm
+the caller and policy contract before implementing it, including how an empty
+environment binding is handled for production. Run impact analysis for each touched
+capability and deliver one component per PR where possible. Every new
+provider needs an independent harness, a versioned mock and real/mock parity. Run
+the local CI gate before pushing code and keep Phase 2 and Phase 4 acceptance gates
+open for their remaining scope.

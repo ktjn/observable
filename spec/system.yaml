@@ -9,8 +9,8 @@ system:
     - domain
     - infrastructure
   # Domains are logical responsibilities, orthogonal to layers (ADR-042). service-assessment is
-  # declared ahead of its planned provider (observable-health) so its placement is reviewed
-  # before Phase 2 code exists.
+  # declared ahead of its planned provider (observable-health). ADR-039 brings forward
+  # the health work needed for Phase 1 exit before the remaining Phase 2 work.
   # incident-response must never use investigation: investigation already uses incident-response.
   domains:
     - id: operational-experience

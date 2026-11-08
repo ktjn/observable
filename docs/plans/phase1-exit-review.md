@@ -10,9 +10,11 @@ workbook, not an accountable sign-off. No requirement is promoted to verified he
 - [x] Audit merged S1–S8 requirement statuses, criteria and supporting tests.
 - [x] Run strict readiness, the specification gate and catalog browser negatives.
 - [x] Reconcile the stale OBS-01-02 gap classification and publish inspection steps.
-- [ ] Identify the accountable inspectors and the deployment, tenant and inventory to inspect (Q2).
+- [x] Name the accountable inspector for all three roles (Q2).
+- [ ] Confirm the deployment, tenant and approved inventory to inspect.
 - [ ] Record actual observations and signed criterion-level results for six organization requirements.
-- [ ] Resolve the phase dependency conflict and implement the three outstanding platform requirements.
+- [x] Resolve sequencing by bringing the required health and objectives work into Phase 1 closeout.
+- [ ] Implement and verify the three outstanding platform requirements.
 - [ ] Rerun readiness and approve phase exit only after every exit obligation is satisfied.
 
 ## Readiness and verification
@@ -50,16 +52,13 @@ Validation for this documentation review:
 
 | Requirement | Remaining acceptance work | Dependency |
 |---|---|---|
-| OBS-01-03 | Restrict views and reporting to approved contexts, and demonstrate that a non-production failure cannot change production health or reporting. Catalog context classification alone is insufficient. | Health and reporting integration, including Phase 2 |
-| OBS-01-04 | Demonstrate compliant, at-risk and breached status against agreed service expectations, with unknown when current evidence is absent. Outcome records alone are insufficient. | Phases 2 and 4, existing Q1 |
-| OBS-02-04 | Demonstrate that retired services cannot appear live in health as well as search and reporting. The catalog lifecycle tests do not exercise health. | Phase 2 |
+| OBS-01-03 | Restrict views and reporting to approved contexts, and demonstrate that a non-production failure cannot change production health or reporting. Catalog context classification alone is insufficient. | Scoped health and reporting |
+| OBS-01-04 | Demonstrate compliant, at-risk and breached status against agreed service expectations, with unknown when current evidence is absent. Outcome records alone are insufficient. | Approved objectives and current scoped evidence |
+| OBS-02-04 | Demonstrate that retired services cannot appear live in health as well as search and reporting. The catalog lifecycle tests do not exercise health. | Health and reporting tied to catalog lifecycle |
 
-The current roadmap requires Phase 1 exit before Phase 2, but these criteria depend on
-later phases. Q1 only mentions OBS-01-04 and does not resolve the other two. Keep Phase 1
-open until the owner chooses either to bring the necessary work forward or to approve
-a coordinated phase reassignment. A reassignment must update ROADMAP.md, the phase plan,
-gap assignments, affected specs and ADRs together, preserving every criterion and the
-102-P0 release threshold. This review makes no such scope change.
+The Phase 1 [closure slices](phase1-service-catalog.md#11-phase-1-closure-slices)
+bring the required work forward. Phase 1 retains all 15 P0 requirements. The
+2.0.0 release threshold remains 102 P0 requirements.
 
 ## Accountable inspection workbook
 
@@ -71,9 +70,8 @@ An empty catalog, synthetic fixtures or a test suite alone cannot establish comp
 Use a controlled test tenant for negative scenarios. Do not alter operational records
 merely to collect evidence.
 
-All six rows are **pending**. Proposed inspector roles come from the requirements' `owner`
-fields. Q2 must name the person acting in each role. Appointment alone does not certify
-that an inspection was performed or that it passed.
+Tommy (`ktjn`) will sign as observability platform owner, SRE lead and vendor manager.
+All six rows are **pending** while he verifies the deployment, tenant and inventory.
 
 | Requirement / role | Acceptance inspection | Negative inspection | Supporting source (relative to repository root) |
 |---|---|---|---|
@@ -92,13 +90,9 @@ for actually observed criteria, copying the exact criterion strings from the cor
 the requirement and gap status only when all criteria are covered by current passing
 evidence and the strict policy accepts it.
 
-## Review decisions still required
+## Remaining exit work
 
-1. Name the inspectors for the three roles above, and identify the deployment/tenant,
-   approved business inventory and location of inspection records. Q2 proposes Tommy
-   acting in each role, but that proposal has not been recorded as accepted.
-2. Resolve the three platform dependencies without weakening their criteria. Until then,
-   this review does not authorize or certify Phase 1 exit or commencement of dependent phases.
-
-No runtime, contract, architecture or roadmap scope change is made by this review, so no
-ADR change is required. The existing phase assignment and release obligations remain in force.
+1. Confirm the deployment revision, tenant, approved business inventory and location
+   for the signed inspection records. For each criterion, capture the expected result,
+   actual observation, evidence reference, result and sign-off date in that record.
+2. Implement and verify the closure slices, then rerun the exit checks above.

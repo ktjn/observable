@@ -164,7 +164,7 @@ Known areas that change shape (redesign, not migration): health states, service 
 - **Q3.** Decided 2026-11-07: first milestone is the 88 P0 platform requirements; P1/P2 later. Reconciled 2026-11-07 (re-review, owner to confirm in review): ROADMAP.md already sets the `2.0.0` exit at all 99 OBS P0, so the 88 platform P0 are verified by test or analysis and the 11 organization/process P0 by accountable inspection, plus the 3 phase-gating authorization refinements.
 - **Q4.** Decided 2026-11-07: own incidents, on-call and status communication, and integrate with external tooling.
 - **Q5.** Delegated 2026-11-07; chosen: new component `observable-catalog`.
-- **Q6.** Decided 2026-11-07: no standalone fix; wait for phase 2.
+- **Q6.** Decided 2026-11-07: replace query-time health through ADR-039. Sequencing amended 2026-11-08: deliver the Phase 1 health prerequisites in the [closure slices](phase1-service-catalog.md#11-phase-1-closure-slices), then proceed with the remaining Phase 2 scope.
 
 
 ## 9. Phase 0 assurance hardening (2026-11-07)
