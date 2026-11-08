@@ -21,5 +21,7 @@ export interface AlertsAlertRuleV1 {
   auto_trigger_incident: boolean;
   service_name?: string;
   suppressed: boolean;
+  owner_kind?: 'user' | 'team';
+  owner_id?: string;
 }
 export type AlertRule = AlertsAlertRuleV1;
