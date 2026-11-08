@@ -23,14 +23,14 @@ requirements:
     phase: 1
     target: manage-service-catalog
     status: partial
-    evidence: Phase 1 S4. Environment classes (production, non_production, explicit unclassified) in observable-control (migration 050, /v1/tenants/{id}/environment-classes); GET /v1/catalog/contexts partitions environments and business-critical services; catalog lists restrict to business_critical (services/catalog-service/tests/catalog_journeys_integration.rs). Telemetry views and health do not yet filter by context, so neither criterion is verified.
+    evidence: Phase 1 S4. Environment classes (production, non_production, explicit unclassified) in observable-control (migration 050, /v1/tenants/{id}/environment-classes); GET /v1/catalog/contexts partitions environments and business-critical services; catalog lists restrict to business_critical (services/catalog-service/tests/catalog_journeys_integration.rs). Health and reporting context isolation remains pending in the Phase 1 closure slices.
   OBS-01-04:
     priority: P0
     holder: platform
     phase: 1
     target: manage-service-catalog
     status: partial
-    evidence: Service health pills and SLO reliability report (services/query-api/src/discovery.rs, services/query-api/src/reliability.rs); no agreed expectations per business service.
+    evidence: The legacy health pills and reliability report (services/query-api/src/discovery.rs, services/query-api/src/reliability.rs) do not evaluate agreed expectations per catalog service. Approved objectives and current scoped evidence remain pending in the Phase 1 closure slices.
   OBS-01-05:
     priority: P1
     holder: process
@@ -79,7 +79,7 @@ requirements:
     phase: 1
     target: manage-service-catalog
     status: partial
-    evidence: Phase 1 S3. Criticality and lifecycle on every record; retired services are marked not live in search, listing and exceptions (services/catalog-service/tests/catalog_records_integration.rs). Health is phase 2, so the negative criterion is not yet verifiable.
+    evidence: Phase 1 S3. Criticality and lifecycle on every record; retired services are marked not live in search, listing and exceptions (services/catalog-service/tests/catalog_records_integration.rs). Health and reporting integration for the negative criterion remains pending in the Phase 1 closure slices.
   OBS-02-05:
     priority: P1
     holder: platform
