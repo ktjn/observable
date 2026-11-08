@@ -1,13 +1,13 @@
 //! Standalone harness: the catalog with its real PostgreSQL schema and the provider-owned
 //! mocks of `validate-credential` (static callers), `decide-access` and `lookup-principals`, and
-//! a substitute for the environment classes of `manage-control-plane`.
+//! substitutes for the environment classes of `manage-control-plane` and for `store-telemetry`.
 #![allow(dead_code)]
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::{Router, body::Body, http::Request};
-use catalog_service::ports::{Caller, Credentials, Decider, Directory, Environments};
+use catalog_service::ports::{Caller, Credentials, Decider, Directory, Environments, Telemetry};
 use catalog_service::{CatalogState, app};
 use http_body_util::BodyExt as _;
 use observable_auth::authz::{Classification, MockAccessDecider};
@@ -22,6 +22,7 @@ pub struct Harness {
     pub decider: MockAccessDecider,
     pub directory: MockPrincipalDirectory,
     pub environments: Environments,
+    pub telemetry: Telemetry,
     pub tenant: Uuid,
     pub other_tenant: Uuid,
     pub admin: Uuid,
@@ -30,7 +31,9 @@ pub struct Harness {
     pub _db: Option<test_support::postgres::TestDatabase>,
 }
 
-/// Mirrors the default grants of migrations 047, 049 and 052.
+pub const INTERNAL_TOKEN: &str = "test-internal-token";
+
+/// Mirrors the default grants of migrations 047, 049, 052 and 054.
 pub fn seed_default_policy(m: &MockAccessDecider) {
     use Classification::*;
     for (role, rt, action, max) in [
@@ -49,6 +52,10 @@ pub fn seed_default_policy(m: &MockAccessDecider) {
         ("tenant_admin", "catalog.journey", "read", Restricted),
         ("member", "catalog.journey", "write", Internal),
         ("tenant_admin", "catalog.journey", "write", Restricted),
+        ("viewer", "catalog.coverage_policy", "read", Internal),
+        ("member", "catalog.coverage_policy", "read", Internal),
+        ("tenant_admin", "catalog.coverage_policy", "read", Internal),
+        ("tenant_admin", "catalog.coverage_policy", "write", Internal),
     ] {
         m.grant(role, rt, action, max);
     }
@@ -98,18 +105,22 @@ impl Harness {
             ),
         ]);
         let environments = Environments::substitute();
+        let telemetry = Telemetry::substitute();
         let state = CatalogState::new(
             db,
             Credentials::Static(Arc::new(callers)),
             Decider::Mock(decider.clone()),
             Directory::Mock(directory.clone()),
             environments.clone(),
-        );
+            telemetry.clone(),
+        )
+        .with_internal_token(INTERNAL_TOKEN);
         Self {
             app: app(state),
             decider,
             directory,
             environments,
+            telemetry,
             tenant,
             other_tenant,
             admin,
@@ -126,9 +137,24 @@ impl Harness {
         token: Option<&str>,
         body: Option<Value>,
     ) -> (u16, Value, String) {
+        self.call_with(method, uri, token, None, body).await
+    }
+
+    /// Like `call`, optionally sending `X-Internal-Token`.
+    pub async fn call_with(
+        &self,
+        method: &str,
+        uri: &str,
+        token: Option<&str>,
+        internal_token: Option<&str>,
+        body: Option<Value>,
+    ) -> (u16, Value, String) {
         let mut req = Request::builder().method(method).uri(uri);
         if let Some(t) = token {
             req = req.header("Authorization", format!("Bearer {t}"));
+        }
+        if let Some(t) = internal_token {
+            req = req.header("X-Internal-Token", t);
         }
         let req = match body {
             Some(b) => req

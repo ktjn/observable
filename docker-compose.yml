@@ -379,6 +379,9 @@ services:
       AUTH_SERVICE_URL: http://auth-service:4319
       ADMIN_SERVICE_URL: http://admin-service:4324
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000}
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CH_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
     ports: ["4325:4325"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4325/readyz"]
@@ -389,6 +392,7 @@ services:
       postgres-setup: { condition: service_completed_successfully }
       auth-service: { condition: service_healthy }
       admin-service: { condition: service_healthy }
+      clickhouse-setup: { condition: service_completed_successfully }
 
   alert-evaluator:
     image: observable-alerting:local

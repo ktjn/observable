@@ -41,6 +41,9 @@ const OWNER_ROLES: &[&str] = &["business_owner", "operational_owner"];
 #[derive(Debug)]
 pub enum ApiError {
     NotFound,
+    Unauthorized,
+    /// 422 with a machine-readable error code.
+    Unprocessable(&'static str),
     Forbidden,
     BadRequest(String),
     Conflict(String),
@@ -54,6 +57,16 @@ impl IntoResponse for ApiError {
             Self::NotFound => {
                 (StatusCode::NOT_FOUND, Json(json!({"error": "not_found"}))).into_response()
             }
+            Self::Unauthorized => (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"error": "unauthorized"})),
+            )
+                .into_response(),
+            Self::Unprocessable(code) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(json!({"error": code})),
+            )
+                .into_response(),
             Self::Forbidden => {
                 (StatusCode::FORBIDDEN, Json(json!({"error": "forbidden"}))).into_response()
             }
@@ -192,7 +205,7 @@ pub(crate) async fn permitted(
 }
 
 /// Loads a service the caller may read; missing and denied are the same `NotFound`.
-async fn readable_service(
+pub(crate) async fn readable_service(
     state: &CatalogState,
     caller: &Caller,
     id: Uuid,
@@ -217,7 +230,7 @@ async fn readable_service(
 }
 
 /// A readable service the caller may also change; a readable but read-only record is 403.
-async fn writable_service(
+pub(crate) async fn writable_service(
     state: &CatalogState,
     caller: &Caller,
     id: Uuid,
@@ -316,7 +329,7 @@ struct OutcomeRow {
 // Wire types
 // ---------------------------------------------------------------------------
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct ServiceSummary {
     pub id: Uuid,
     pub business_name: String,
@@ -568,7 +581,13 @@ async fn detail(
         owners_and_outcomes(state, caller.tenant_id, &[row.id]).await?;
     let owners = owners.remove(&row.id).unwrap_or_default();
     let outcomes = outcomes.remove(&row.id).unwrap_or_default();
-    let exceptions = exceptions_for(&row, &owners, &outcomes);
+    let mut exceptions = exceptions_for(&row, &owners, &outcomes);
+    exceptions.extend(
+        crate::coverage::coverage_exceptions(&state.db, caller.tenant_id, &[&row])
+            .await?
+            .remove(&row.id)
+            .unwrap_or_default(),
+    );
     Ok(ServiceDetail {
         summary: ServiceSummary::from(&row),
         description: row.description,
@@ -1122,8 +1141,8 @@ pub struct Exceptions {
 }
 
 /// Critical, non-retired services without accountable owners (missing, departed or
-/// unresolvable), support route or approved outcome (OBS-01-02, OBS-02-02), plus journey
-/// exceptions (OBS-01-01).
+/// unresolvable), support route, approved outcome (OBS-01-02, OBS-02-02), approved coverage
+/// policy or full coverage (OBS-27-01, OBS-02-03), plus journey exceptions (OBS-01-01).
 pub async fn exceptions(
     State(state): State<CatalogState>,
     Extension(caller): Extension<Caller>,
@@ -1136,14 +1155,18 @@ pub async fn exceptions(
         .collect();
     let ids: Vec<Uuid> = rows.iter().map(|r| r.id).collect();
     let (mut owners, mut outcomes) = owners_and_outcomes(&state, caller.tenant_id, &ids).await?;
+    let refs: Vec<&ServiceRow> = rows.iter().collect();
+    let mut coverage =
+        crate::coverage::coverage_exceptions(&state.db, caller.tenant_id, &refs).await?;
     let items: Vec<ExceptionItem> = rows
         .iter()
         .filter_map(|r| {
-            let reasons = exceptions_for(
+            let mut reasons = exceptions_for(
                 r,
                 &owners.remove(&r.id).unwrap_or_default(),
                 &outcomes.remove(&r.id).unwrap_or_default(),
             );
+            reasons.extend(coverage.remove(&r.id).unwrap_or_default());
             (!reasons.is_empty()).then(|| ExceptionItem {
                 service: ServiceSummary::from(r),
                 reasons,

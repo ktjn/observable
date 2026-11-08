@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use catalog_service::ports::{Credentials, Decider, Directory, Environments};
+use catalog_service::ports::{Credentials, Decider, Directory, Environments, Telemetry};
 use catalog_service::{CatalogState, DEFAULT_PORT, app};
 use observable_auth::authz::HttpAccessDecider;
 use observable_auth::principals::HttpPrincipalDirectory;
@@ -26,6 +26,14 @@ async fn main() -> anyhow::Result<()> {
             "INTERNAL_SERVICE_TOKEN must be set for decide-access, lookup-principals and environment classes"
         );
     }
+    let ch = clickhouse::Client::default()
+        .with_url(observable_config::require_env("CLICKHOUSE_URL")?)
+        .with_user(observable_config::require_env("CLICKHOUSE_USER")?)
+        .with_password(observable_config::require_env_or("CLICKHOUSE_PASSWORD", ""))
+        .with_database("observable")
+        // clickhouse-rs 0.15 cannot decode ClickHouse 26.9 compressed framing; see
+        // docs/agent-context.md.
+        .with_compression(clickhouse::Compression::None);
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
         .build()?;
@@ -50,7 +58,9 @@ async fn main() -> anyhow::Result<()> {
             internal_token: Arc::new(internal_token.clone()),
             client,
         },
-    );
+        Telemetry::ClickHouse(Box::new(ch)),
+    )
+    .with_internal_token(internal_token);
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "catalog-service listening");

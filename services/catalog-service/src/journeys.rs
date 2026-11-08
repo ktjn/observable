@@ -57,7 +57,7 @@ pub struct JourneyRow {
 const JOURNEY_COLUMNS: &str = "id, name, description, criticality, in_scope, scope_rationale, \
      classification, owner_kind, owner_id, created_at, updated_at";
 
-async fn load_journeys(
+pub(crate) async fn load_journeys(
     db: &PgPool,
     tenant_id: Uuid,
     id: Option<Uuid>,
@@ -93,7 +93,7 @@ async fn load_links(
     Ok(links)
 }
 
-async fn visible_journeys(
+pub(crate) async fn visible_journeys(
     state: &CatalogState,
     caller: &Caller,
     rows: Vec<JourneyRow>,
@@ -134,7 +134,7 @@ async fn readable_journey(
     }
 }
 
-async fn writable_journey(
+pub(crate) async fn writable_journey(
     state: &CatalogState,
     caller: &Caller,
     id: Uuid,

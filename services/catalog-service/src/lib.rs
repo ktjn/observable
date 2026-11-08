@@ -1,11 +1,12 @@
 //! `observable-catalog`: business service catalog (domain `service-model`).
 //!
 //! Provides `manage-service-catalog` (phase 1 S3-S4): service records, owners, teams, outcomes,
-//! search, exceptions, critical journeys, scope and operating contexts, with every read authorized through `decide-access`. Coverage
+//! search, exceptions, critical journeys, scope, operating contexts and coverage (S5), with every read authorized through `decide-access`. Coverage
 //! (`govern-observability-assets`) and providers (`manage-providers`) follow in S5-S7; see
 //! docs/plans/phase1-service-catalog.md.
 
 pub mod api;
+pub mod coverage;
 pub mod journeys;
 pub mod observability;
 pub mod ports;
@@ -24,7 +25,7 @@ use sqlx::PgPool;
 use tower_http::trace::TraceLayer;
 use tracing::Level;
 
-use ports::{Credentials, Decider, Directory, Environments};
+use ports::{Credentials, Decider, Directory, Environments, Telemetry};
 
 pub const DEFAULT_PORT: u16 = 4325;
 
@@ -36,6 +37,9 @@ pub struct CatalogState {
     pub decider: Decider,
     pub directory: Directory,
     pub environments: Environments,
+    pub telemetry: Telemetry,
+    /// Shared secret for `/internal/catalog/*` producer routes; `None` refuses them.
+    pub internal_token: Option<Arc<String>>,
 }
 
 impl CatalogState {
@@ -45,6 +49,7 @@ impl CatalogState {
         decider: Decider,
         directory: Directory,
         environments: Environments,
+        telemetry: Telemetry,
     ) -> Self {
         Self {
             db,
@@ -53,7 +58,14 @@ impl CatalogState {
             decider,
             directory,
             environments,
+            telemetry,
+            internal_token: None,
         }
+    }
+
+    pub fn with_internal_token(mut self, token: impl Into<String>) -> Self {
+        self.internal_token = Some(Arc::new(token.into()));
+        self
     }
 }
 
@@ -112,13 +124,58 @@ pub fn app(state: CatalogState) -> Router {
         )
         .route("/v1/catalog/scope", get(journeys::scope))
         .route("/v1/catalog/contexts", get(journeys::contexts))
+        .route(
+            "/v1/catalog/services/{id}/bindings",
+            put(coverage::put_bindings),
+        )
+        .route(
+            "/v1/catalog/services/{id}/coverage",
+            get(coverage::service_coverage),
+        )
+        .route(
+            "/v1/catalog/services/{id}/coverage/claims/{item}",
+            put(coverage::put_claim),
+        )
+        .route("/v1/catalog/coverage", get(coverage::list_coverage))
+        .route("/v1/catalog/coverage/assess", post(coverage::assess_all))
+        .route(
+            "/v1/catalog/coverage/policies",
+            get(coverage::list_policies),
+        )
+        .route(
+            "/v1/catalog/coverage/policies/{criticality}",
+            put(coverage::put_policy),
+        )
+        .route(
+            "/v1/catalog/coverage/policies/{criticality}/approve",
+            post(coverage::approve_policy),
+        )
+        .route("/v1/catalog/assets", get(coverage::list_assets))
+        .route(
+            "/v1/catalog/assets/{kind}/{external_id}",
+            put(coverage::put_asset).delete(coverage::delete_asset),
+        )
+        .route("/v1/catalog/gaps", get(coverage::list_gaps))
+        .route(
+            "/v1/catalog/gaps/{id}/remediate",
+            post(coverage::remediate_gap),
+        )
+        .route("/v1/catalog/gaps/{id}/accept", post(coverage::accept_gap))
+        .route("/v1/catalog/gaps/{id}/close", post(coverage::close_gap))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             require_caller,
         ));
 
+    // Producer routes authenticate with the internal service token, not a caller credential.
+    let internal = Router::new().route(
+        "/internal/catalog/assets/{kind}/{external_id}",
+        put(coverage::internal_put_asset).delete(coverage::internal_delete_asset),
+    );
+
     Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
+        .merge(internal)
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))
         .merge(catalog)

@@ -239,3 +239,155 @@ impl Environments {
         }
     }
 }
+
+/// Most recent data per signal for one telemetry identity, in Unix nanoseconds.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SignalsSeen {
+    pub traces: Option<u64>,
+    pub logs: Option<u64>,
+    pub metrics: Option<u64>,
+}
+
+impl SignalsSeen {
+    pub fn get(&self, signal: &str) -> Option<u64> {
+        match signal {
+            "traces" => self.traces,
+            "logs" => self.logs,
+            "metrics" => self.metrics,
+            _ => None,
+        }
+    }
+
+    fn merge(&mut self, other: SignalsSeen) {
+        self.traces = self.traces.max(other.traces);
+        self.logs = self.logs.max(other.logs);
+        self.metrics = self.metrics.max(other.metrics);
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TelemetryUnavailable;
+
+/// Substitute state: `(tenant, service.name, environment)` -> signals seen.
+pub type SignalTable = HashMap<(Uuid, String, String), SignalsSeen>;
+
+/// `store-telemetry` port: recent data per signal for a telemetry identity. An empty
+/// environment matches every environment.
+#[derive(Clone)]
+pub enum Telemetry {
+    ClickHouse(Box<clickhouse::Client>),
+    /// Programmable substitute; `None` makes every read fail.
+    Static(Arc<Mutex<Option<SignalTable>>>),
+}
+
+#[derive(clickhouse::Row, Deserialize)]
+struct SignalRow {
+    signal: String,
+    last_seen: u64,
+}
+
+impl Telemetry {
+    pub fn substitute() -> Self {
+        Self::Static(Arc::new(Mutex::new(Some(HashMap::new()))))
+    }
+
+    /// Substitute only: records data for an identity.
+    pub fn record(
+        &self,
+        tenant_id: Uuid,
+        service_name: &str,
+        environment: &str,
+        seen: SignalsSeen,
+    ) {
+        if let Self::Static(s) = self {
+            s.lock()
+                .expect("substitute poisoned")
+                .get_or_insert_with(HashMap::new)
+                .insert((tenant_id, service_name.into(), environment.into()), seen);
+        }
+    }
+
+    /// Substitute only: makes every read fail.
+    pub fn set_unavailable(&self) {
+        if let Self::Static(s) = self {
+            *s.lock().expect("substitute poisoned") = None;
+        }
+    }
+
+    /// Latest data at or after `since_ns` per signal.
+    pub async fn seen_since(
+        &self,
+        tenant_id: Uuid,
+        service_name: &str,
+        environment: &str,
+        since_ns: u64,
+    ) -> Result<SignalsSeen, TelemetryUnavailable> {
+        match self {
+            Self::Static(s) => {
+                let guard = s.lock().expect("substitute poisoned");
+                let table = guard.as_ref().ok_or(TelemetryUnavailable)?;
+                let mut out = SignalsSeen::default();
+                for ((t, name, env), seen) in table {
+                    if *t == tenant_id
+                        && name == service_name
+                        && (environment.is_empty() || env == environment)
+                    {
+                        let keep = |v: Option<u64>| v.filter(|ns| *ns >= since_ns);
+                        out.merge(SignalsSeen {
+                            traces: keep(seen.traces),
+                            logs: keep(seen.logs),
+                            metrics: keep(seen.metrics),
+                        });
+                    }
+                }
+                Ok(out)
+            }
+            Self::ClickHouse(ch) => {
+                let rows: Vec<SignalRow> = ch
+                    .query(
+                        "SELECT 'traces' AS signal, max(start_time_unix_nano) AS last_seen FROM observable.spans \
+                         WHERE tenant_id = ? AND service_name = ? AND (? = '' OR environment = ?) AND start_time_unix_nano >= ? \
+                         UNION ALL SELECT 'logs', max(timestamp_unix_nano) FROM observable.logs \
+                         WHERE tenant_id = ? AND service_name = ? AND (? = '' OR environment = ?) AND timestamp_unix_nano >= ? \
+                         UNION ALL SELECT 'metrics', max(time_unix_nano) FROM observable.metric_points \
+                         WHERE tenant_id = ? AND service_name = ? AND time_unix_nano >= ? AND (? = '' OR metric_series_id IN \
+                         (SELECT metric_series_id FROM observable.metric_series WHERE tenant_id = ? AND service_name = ? AND environment = ?))",
+                    )
+                    .bind(tenant_id)
+                    .bind(service_name)
+                    .bind(environment)
+                    .bind(environment)
+                    .bind(since_ns)
+                    .bind(tenant_id)
+                    .bind(service_name)
+                    .bind(environment)
+                    .bind(environment)
+                    .bind(since_ns)
+                    .bind(tenant_id)
+                    .bind(service_name)
+                    .bind(since_ns)
+                    .bind(environment)
+                    .bind(tenant_id)
+                    .bind(service_name)
+                    .bind(environment)
+                    .fetch_all()
+                    .await
+                    .map_err(|e| {
+                        tracing::warn!(error = %e, "telemetry coverage read failed");
+                        TelemetryUnavailable
+                    })?;
+                let mut out = SignalsSeen::default();
+                for r in rows {
+                    let v = (r.last_seen > 0).then_some(r.last_seen);
+                    match r.signal.as_str() {
+                        "traces" => out.traces = v,
+                        "logs" => out.logs = v,
+                        "metrics" => out.metrics = v,
+                        _ => {}
+                    }
+                }
+                Ok(out)
+            }
+        }
+    }
+}

@@ -38,4 +38,51 @@ domain catalog {
     createdAt: timestamp
     updatedAt: timestamp
   }
+
+  // Coverage policy per criticality (table catalog.coverage_policies, migration 053; part of the
+  // coverage-record data model). Mirrors
+  // services/catalog-service/src/coverage.rs PolicyRow; approval is withdrawn on every change.
+  @wire(json.fieldCase: "snake_case")
+  entity CoveragePolicy @ 1 (additive) {
+    @key criticality: enum(critical, high, standard, low)
+    items: array<string>
+    windowMinutes: int
+    approvedBy?: uuid
+    approvedAt?: timestamp
+  }
+
+  // Registered observability asset (table catalog.observability_assets, migration 053).
+  // Mirrors coverage.rs AssetRow.
+  @wire(json.fieldCase: "snake_case")
+  entity ObservabilityAsset @ 1 (additive) {
+    @key externalId: string
+    kind: enum(alert_rule, objective, dashboard, proactive_check, health_rule, runbook)
+    owningComponent: string
+    serviceId: uuid
+    name: string
+    ownerKind?: enum(user, team)
+    ownerId?: uuid
+    registeredAt: timestamp
+    updatedAt: timestamp
+  }
+
+  // Coverage gap of a service item or a critical journey (table catalog.coverage_gaps,
+  // migration 053; part of the coverage-record data model). Mirrors coverage.rs GapRow.
+  @wire(json.fieldCase: "snake_case")
+  entity CoverageGap @ 1 (additive) {
+    @key id: uuid
+    serviceId?: uuid
+    journeyId?: uuid
+    item: string
+    state: enum(open, remediating, accepted, closed)
+    remediationOwnerKind?: enum(user, team)
+    remediationOwnerId?: uuid
+    dueDate?: date
+    reviewDate?: date
+    acceptanceApprover?: uuid
+    acceptanceRationale?: string
+    closedReason?: enum(remediated, risk_accepted)
+    createdAt: timestamp
+    updatedAt: timestamp
+  }
 }
