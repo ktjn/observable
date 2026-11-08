@@ -70,6 +70,11 @@ Do not declare technology replacements based only on vendor numbers or passing s
 
 Detailed phase plans: [phase 1](docs/plans/phase1-service-catalog.md).
 
+Phase 1 [S9 exit review](docs/plans/phase1-exit-review.md), 2026-11-08: S8 is merged,
+but exit remains open at 6/15 verified. Six accountable inspections and three platform
+requirements remain. The review records the health/objectives dependency conflict for
+owner resolution; phase assignments and exit criteria remain unchanged.
+
 Phase 8 can run in parallel with 2-7 once phase 1 lands. Its cross-cutting access and audit primitives required in earlier phases are prerequisites, not deferred phase-8 deliverables.
 
 ## Technology evaluation (non-blocking until an affected capability requires it)

@@ -15,8 +15,8 @@ requirements:
     holder: organization
     phase: 1
     target: manage-service-catalog
-    status: missing
-    evidence: No capability found in scan.
+    status: partial
+    evidence: Phase 1 S9 audit of S3. Outcome creation and human approval, accountable owner fields and missing-approved-outcome exceptions exist (services/catalog-service/tests/catalog_records_integration.rs::critical_service_without_approved_outcome_is_an_exception). Accountable inspection of actual in-scope records remains pending; see docs/plans/phase1-exit-review.md. No criterion is newly verified.
   OBS-01-03:
     priority: P0
     holder: platform

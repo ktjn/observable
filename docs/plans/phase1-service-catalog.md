@@ -1,6 +1,11 @@
 # Phase 1 detailed plan: Service model (`observable-catalog`)
 
 **Status:** Draft 1 (2026-11-07). Open questions in section 10 block slices S4, S5 and S9 only.
+
+**S9 review (2026-11-08):** [Exit review and inspection workbook](phase1-exit-review.md).
+S1–S8 are merged. Phase exit remains blocked at 6/15 verified, pending six accountable
+inspections and three platform requirements. The table below records the original planning
+baseline; the gap register and S9 review contain current readiness.
 **Inputs:** [ROADMAP.md](../../ROADMAP.md) phase 1, [business-spec-adoption.md](business-spec-adoption.md), [phase0-assurance-hardening.md](phase0-assurance-hardening.md), ADR-038 (catalog), ADR-041 (decide-access), ADR-042 (domains), [COMPONENT-ISOLATION.md](../../system-spec/COMPONENT-ISOLATION.md).
 **Branch policy:** every slice is one PR into `2.0`, one component per PR where possible, `bash scripts/spec-gate.sh` green, change flow per `system-spec/FEATURE.md`.
 
@@ -134,7 +139,7 @@ S6 and S7 can run in parallel after S3. S5 waits for S6 because demonstrated cov
 - **Critical: onboarding breadth.** A new runtime component touches about 30 files and many policy tests (section 2). S1 is large and must land before any behavior.
 - **Authorization latency.** Every list goes through `filter`; measure p95 under the perf smoke and keep it inside `req-query-latency`.
 - **Owner semantics.** "Owner has left" needs a principal directory; without teams, ownership by individuals is brittle (Q4).
-- **OBS-01-04 and 02-03 cross phases.** Their negatives need health (phase 2) and objectives (phase 4). See Q1.
+- **OBS-01-03, 01-04 and 02-04 cross phases.** Context isolation, agreed expectations and retired-service health need health/reporting integration (phase 2) and objectives (phase 4). See Q1 and the S9 review. OBS-02-03 coverage status is already verified.
 - **Organization obligations.** Six P0s are verified by accountable inspection, not tests; the platform only makes them possible (Q2).
 - **Consumers keep `service_name`.** Alert rules, SLOs and incidents still key on strings until their phases; the catalog binding is the bridge, so binding changes must not orphan assets.
 
