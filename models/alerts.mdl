@@ -26,6 +26,9 @@ domain alerts {
     autoTriggerIncident: bool
     serviceName?: string
     suppressed: bool
+    // Accountable owner (phase 1 S6, OBS-34-01); absent when ownerless.
+    ownerKind?: enum(user, team)
+    ownerId?: uuid
   }
 
   // Canonical alert firing entity. Mirrors

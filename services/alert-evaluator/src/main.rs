@@ -1,11 +1,11 @@
 use alert_evaluator::middleware::auth::InternalServiceToken;
 use alert_evaluator::{
-    AppState, alerts, evaluator, incidents, internal, middleware, notifications, observability,
-    readyz, slos,
+    AppState, alerts, catalog_sync, evaluator, incidents, internal, middleware, notifications,
+    observability, readyz, slos,
 };
 use axum::{
     Extension, Router, middleware as axum_middleware,
-    routing::{delete, get, patch, post},
+    routing::{delete, get, patch, post, put},
 };
 use clickhouse::Client;
 use sqlx::postgres::PgPoolOptions;
@@ -61,6 +61,31 @@ async fn main() -> anyhow::Result<()> {
 
     tokio::spawn(evaluator::notification_worker(db.clone()));
 
+    // Rules and objectives are registered in the catalog asset registry (phase 1 S6). Without
+    // CATALOG_URL the sync is off, e.g. a stack that runs no catalog.
+    match std::env::var("CATALOG_URL")
+        .ok()
+        .filter(|u| !u.trim().is_empty())
+    {
+        Some(url) => {
+            let sync_secs = std::env::var("CATALOG_SYNC_INTERVAL_SECONDS")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok())
+                .filter(|s| *s > 0)
+                .unwrap_or(60);
+            tokio::spawn(catalog_sync::start_sync_worker(
+                db.clone(),
+                catalog_sync::CatalogClient::new(
+                    url,
+                    internal_service_token.clone(),
+                    http_client.clone(),
+                ),
+                std::time::Duration::from_secs(sync_secs),
+            ));
+        }
+        None => tracing::warn!("CATALOG_URL is not set; catalog asset sync is off"),
+    }
+
     let metrics = Arc::new(observability::AlertEvaluatorMetrics::new());
     let state = AppState {
         db,
@@ -87,6 +112,14 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/admin/alerts/rules/{rule_id}",
             patch(alerts::handle_update_rule),
+        )
+        .route(
+            "/v1/admin/alerts/rules/{rule_id}/owner",
+            put(alerts::handle_update_rule_owner),
+        )
+        .route(
+            "/v1/slos/{slo_id}/owner",
+            put(slos::handle_update_slo_owner),
         )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))

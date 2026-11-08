@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Asset producers (phase 1 S6).
+
+### Added
+
+- `POST /internal/catalog/assets/sync` (internal token): a producer reports the full set of its
+  assets of one kind for a tenant; listed assets whose service resolves are registered with their
+  owner, the producer's other assets of that kind are retired, and keys held by another component
+  are never taken over. Returns `{registered, skipped, retired}`. Used by observable-alerting.
+- Control dashboards are pulled from `GET /internal/observability-assets` on admin-service
+  (`manage-control-plane`) every `CATALOG_ASSET_PULL_INTERVAL_SECONDS` (default 60) for tenants
+  with catalog services; a failed read leaves the tenant's registry unchanged.
+
+### Changed
+
+- A producer identity without an environment resolves only when its bindings name exactly one
+  service. `owning_component` `catalog` is reserved for assets registered through the API.
+
 Monitoring coverage and the observability asset registry (phase 1 S5).
 
 ### Added

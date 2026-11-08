@@ -25,5 +25,8 @@ domain slos {
     lastFiredAt?: timestamp
     createdAt: timestamp
     updatedAt: timestamp
+    // Accountable owner (phase 1 S6, OBS-34-01); absent when ownerless.
+    ownerKind?: enum(user, team)
+    ownerId?: uuid
   }
 }

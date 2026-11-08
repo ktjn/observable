@@ -1892,7 +1892,7 @@ requirements:
     phase: 1
     target: govern-observability-assets
     status: partial
-    evidence: Dashboard owner via grants; alerts/SLOs have no owner.
+    evidence: Phase 1 S6. Alert rules and SLOs record an owner (creator by default, reassignable by tenant admins; services/alert-evaluator/tests/postgres_asset_owners_integration.rs), alerting pushes them to the catalog asset registry and the catalog pulls control dashboards with their owner grant (services/catalog-service/tests/catalog_asset_sync_integration.rs, services/admin-service/tests/postgres_observability_assets_integration.rs). The registry reports assets without an active owner as ownerless (services/catalog-service/tests/catalog_coverage_integration.rs). Organization-held, so inspection evidence comes at phase exit (S9).
   OBS-34-02:
     priority: P1
     holder: platform

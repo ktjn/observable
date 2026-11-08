@@ -150,6 +150,8 @@ components:
     requires:
       - validate-credential@^0.1
       - store-telemetry@^0.1
+      # Phase 1 S6: rules and objectives are synced to the catalog asset registry.
+      - govern-observability-assets@^0.1
     owns_data:
       - alert-rule
       - slo-definition
@@ -158,7 +160,9 @@ components:
   # Phase 1 (docs/plans/phase1-service-catalog.md). S1 shipped the runtime skeleton, S3 the
   # service records behind manage-service-catalog, S4 journeys, scope and operating contexts
   # (environment classes read from manage-control-plane), S5 coverage and the asset registry
-  # behind govern-observability-assets (signals read from store-telemetry). The provided programmable mock and real/mock
+  # behind govern-observability-assets (signals read from store-telemetry), S6 the producers:
+  # alerting pushes rules and objectives, and the catalog pulls control's dashboards through
+  # manage-control-plane (control never calls the catalog, so the graph stays acyclic). The provided programmable mock and real/mock
   # suite for manage-service-catalog land with its first consumer (S8, web); the other provided
   # capabilities gain theirs in S5-S7.
   - id: observable-catalog
@@ -673,6 +677,8 @@ data_models:
       query_expr: string
       threshold: float64
       window_sec: uint32
+      owner_kind: string
+      owner_id: uuid
 
   - id: slo-definition
     version: "0.1.0"
@@ -689,6 +695,8 @@ data_models:
       service_name: string
       target_percentage: float64
       window_days: uint16
+      owner_kind: string
+      owner_id: uuid
 
   - id: incident-record
     version: "0.1.0"

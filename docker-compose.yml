@@ -412,6 +412,7 @@ services:
       ALERT_EVALUATOR_PORT: "4322"
       ALERT_EVAL_INTERVAL_SECONDS: "60"
       AUTH_SERVICE_URL: http://auth-service:4319
+      CATALOG_URL: http://catalog-service:4325
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000}
     ports: ["4322:4322"]
     healthcheck:

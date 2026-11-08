@@ -391,3 +391,91 @@ impl Telemetry {
         }
     }
 }
+
+/// An asset a producer reports, with its kind.
+#[derive(Clone, serde::Deserialize)]
+pub struct ProducerAsset {
+    pub kind: String,
+    #[serde(flatten)]
+    pub asset: crate::coverage::SyncAsset,
+}
+
+#[derive(serde::Deserialize)]
+struct ProducerAssetList {
+    assets: Vec<ProducerAsset>,
+}
+
+/// Substitute state: per-tenant control assets.
+pub type ControlAssetTable = HashMap<Uuid, Vec<serde_json::Value>>;
+
+/// `manage-control-plane` port for control's observability assets, i.e. dashboards
+/// (`GET /internal/observability-assets`).
+#[derive(Clone)]
+pub enum ControlAssets {
+    Http {
+        base_url: Arc<String>,
+        internal_token: Arc<String>,
+        client: reqwest::Client,
+    },
+    /// Programmable substitute: per-tenant assets as JSON, or unavailable when `None`.
+    Static(Arc<Mutex<Option<ControlAssetTable>>>),
+}
+
+impl ControlAssets {
+    pub fn substitute() -> Self {
+        Self::Static(Arc::new(Mutex::new(Some(HashMap::new()))))
+    }
+
+    /// Substitute only: replaces a tenant's assets.
+    pub fn set(&self, tenant_id: Uuid, assets: Vec<serde_json::Value>) {
+        if let Self::Static(s) = self {
+            s.lock()
+                .expect("substitute poisoned")
+                .get_or_insert_with(HashMap::new)
+                .insert(tenant_id, assets);
+        }
+    }
+
+    /// Substitute only: makes every call fail as unavailable.
+    pub fn set_unavailable(&self) {
+        if let Self::Static(s) = self {
+            *s.lock().expect("substitute poisoned") = None;
+        }
+    }
+
+    pub async fn assets(&self, tenant_id: Uuid) -> Result<Vec<ProducerAsset>, ControlUnavailable> {
+        match self {
+            Self::Static(s) => {
+                let rows = s
+                    .lock()
+                    .expect("substitute poisoned")
+                    .as_ref()
+                    .map(|m| m.get(&tenant_id).cloned().unwrap_or_default())
+                    .ok_or(ControlUnavailable)?;
+                serde_json::from_value(serde_json::Value::Array(rows))
+                    .map_err(|_| ControlUnavailable)
+            }
+            Self::Http {
+                base_url,
+                internal_token,
+                client,
+            } => {
+                let response = client
+                    .get(format!(
+                        "{}/internal/observability-assets?tenant_id={tenant_id}",
+                        base_url.trim_end_matches('/')
+                    ))
+                    .header("X-Internal-Token", internal_token.as_str())
+                    .send()
+                    .await
+                    .map_err(|_| ControlUnavailable)?;
+                if response.status().as_u16() != 200 {
+                    return Err(ControlUnavailable);
+                }
+                let body: ProducerAssetList =
+                    response.json().await.map_err(|_| ControlUnavailable)?;
+                Ok(body.assets)
+            }
+        }
+    }
+}

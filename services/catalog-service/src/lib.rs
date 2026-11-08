@@ -168,10 +168,15 @@ pub fn app(state: CatalogState) -> Router {
         ));
 
     // Producer routes authenticate with the internal service token, not a caller credential.
-    let internal = Router::new().route(
-        "/internal/catalog/assets/{kind}/{external_id}",
-        put(coverage::internal_put_asset).delete(coverage::internal_delete_asset),
-    );
+    let internal = Router::new()
+        .route(
+            "/internal/catalog/assets/sync",
+            post(coverage::internal_sync_assets),
+        )
+        .route(
+            "/internal/catalog/assets/{kind}/{external_id}",
+            put(coverage::internal_put_asset).delete(coverage::internal_delete_asset),
+        );
 
     Router::new()
         .route("/health", get(|| async { StatusCode::OK }))

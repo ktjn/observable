@@ -77,6 +77,15 @@ paths:
           in: path
           required: true
           schema: { type: string, format: uuid }
+  /v1/admin/alerts/rules/{rule_id}/owner:
+    put:
+      summary: Reassign or clear the accountable owner of an alert rule
+      operationId: updateAlertRuleOwner
+      parameters:
+        - name: rule_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
 components:
   securitySchemes:
     CookieAuth:

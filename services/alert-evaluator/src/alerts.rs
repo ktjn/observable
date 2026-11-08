@@ -43,6 +43,9 @@ pub struct AlertRuleItem {
     pub auto_trigger_incident: bool,
     pub service_name: Option<String>,
     pub suppressed: bool,
+    /// Accountable owner (OBS-34-01): `user` or `team`, or none when ownerless.
+    pub owner_kind: Option<String>,
+    pub owner_id: Option<Uuid>,
 }
 
 #[derive(Serialize)]
@@ -75,6 +78,8 @@ pub struct AlertRuleDetailResponse {
     pub firing: bool,
     pub firings: Vec<FiringItem>,
     pub runbook_url: Option<String>,
+    pub owner_kind: Option<String>,
+    pub owner_id: Option<Uuid>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -87,6 +92,8 @@ struct AlertRuleDetailRow {
     silenced: bool,
     firing: bool,
     runbook_url: Option<String>,
+    owner_kind: Option<String>,
+    owner_id: Option<Uuid>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -113,6 +120,8 @@ struct AlertRuleRow {
     auto_trigger_incident: bool,
     service_name: Option<String>,
     suppressed: bool,
+    owner_kind: Option<String>,
+    owner_id: Option<Uuid>,
 }
 
 fn condition_fields(condition: &serde_json::Value) -> Option<(String, String, f64)> {
@@ -175,7 +184,7 @@ pub async fn list_alert_rules(
              SELECT 1 FROM alert_firings af \
              WHERE af.rule_id = r.rule_id AND af.tenant_id = r.tenant_id \
                AND af.state = 'suppressed' \
-         ) AS suppressed \
+         ) AS suppressed, r.owner_kind, r.owner_id \
          FROM alert_rules r \
          WHERE r.tenant_id = $1 AND r.alert_type IN ('threshold', 'deadman', 'change_detection') \
          ORDER BY r.created_at DESC",
@@ -203,6 +212,8 @@ pub async fn list_alert_rules(
                     auto_trigger_incident: row.auto_trigger_incident,
                     service_name: row.service_name,
                     suppressed: row.suppressed,
+                    owner_kind: row.owner_kind,
+                    owner_id: row.owner_id,
                 }),
                 None => {
                     tracing::warn!(rule_id = %row.rule_id, "skipping alert rule with malformed condition JSONB");
@@ -220,6 +231,7 @@ pub async fn get_alert_rule(
 ) -> Result<Option<AlertRuleDetailResponse>, sqlx::Error> {
     let row: Option<AlertRuleDetailRow> = sqlx::query_as(
         "SELECT r.rule_id, r.name, r.severity, r.alert_type, r.condition, r.silenced, r.runbook_url, \
+         r.owner_kind, r.owner_id, \
          EXISTS( \
              SELECT 1 FROM alert_firings af \
              WHERE af.rule_id = r.rule_id AND af.tenant_id = r.tenant_id \
@@ -261,6 +273,8 @@ pub async fn get_alert_rule(
         silenced: row.silenced,
         firing: row.firing,
         runbook_url: row.runbook_url,
+        owner_kind: row.owner_kind,
+        owner_id: row.owner_id,
         firings: firings
             .into_iter()
             .map(|f| FiringItem {
@@ -322,6 +336,50 @@ pub struct CreateRuleRequest {
     pub window_secs: Option<i64>,
     pub baseline_offset_secs: Option<i64>,
     pub threshold_percent: Option<f64>,
+    /// Defaults to the calling user; an API-key caller without one creates an ownerless rule.
+    pub owner: Option<OwnerRef>,
+}
+
+/// An accountable owner principal (OBS-34-01). Whether the principal is still active is
+/// reported by the catalog asset registry, which knows the directory.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct OwnerRef {
+    pub principal_kind: String,
+    pub principal_id: Uuid,
+}
+
+fn known_kind(o: &OwnerRef) -> bool {
+    matches!(o.principal_kind.as_str(), "user" | "team")
+}
+
+/// The explicit owner, else the calling user. `Err` for an unknown principal kind.
+pub fn resolve_owner(
+    explicit: Option<&OwnerRef>,
+    ctx: &TenantContext,
+) -> Result<Option<OwnerRef>, StatusCode> {
+    match explicit {
+        Some(o) if known_kind(o) => Ok(Some(o.clone())),
+        Some(_) => Err(StatusCode::BAD_REQUEST),
+        None => Ok(ctx.user_id.map(|principal_id| OwnerRef {
+            principal_kind: "user".into(),
+            principal_id,
+        })),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct UpdateOwnerRequest {
+    /// `null` clears the owner, which the catalog then reports as ownerless.
+    pub owner: Option<OwnerRef>,
+}
+
+impl UpdateOwnerRequest {
+    pub fn validate(&self) -> Result<(), StatusCode> {
+        match &self.owner {
+            Some(o) if !known_kind(o) => Err(StatusCode::BAD_REQUEST),
+            _ => Ok(()),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -348,6 +406,9 @@ pub async fn handle_create_rule(
     if req.name.trim().is_empty() {
         return Err(StatusCode::BAD_REQUEST);
     }
+    let owner = resolve_owner(req.owner.as_ref(), &ctx)?;
+    let owner_kind = owner.as_ref().map(|o| o.principal_kind.as_str());
+    let owner_id = owner.as_ref().map(|o| o.principal_id);
 
     let alert_type = req.alert_type.as_deref().unwrap_or("threshold");
 
@@ -372,8 +433,8 @@ pub async fn handle_create_rule(
             sqlx::query_scalar(
                 "INSERT INTO alert_rules \
                  (tenant_id, name, alert_type, severity, condition, notification_channels, \
-                  auto_trigger_incident, runbook_url, service_name) \
-                 VALUES ($1, $2, 'threshold', 'warning', $3, $4, $5, $6, $7) \
+                  auto_trigger_incident, runbook_url, service_name, owner_kind, owner_id) \
+                 VALUES ($1, $2, 'threshold', 'warning', $3, $4, $5, $6, $7, $8, $9) \
                  RETURNING rule_id",
             )
             .bind(ctx.tenant_id)
@@ -383,6 +444,8 @@ pub async fn handle_create_rule(
             .bind(auto_trigger)
             .bind(req.runbook_url.as_deref())
             .bind(req.service_name.as_deref())
+            .bind(owner_kind)
+            .bind(owner_id)
             .fetch_one(&state.db)
             .await
         }
@@ -405,8 +468,8 @@ pub async fn handle_create_rule(
             sqlx::query_scalar(
                 "INSERT INTO alert_rules \
                  (tenant_id, name, alert_type, severity, condition, notification_channels, \
-                  auto_trigger_incident, runbook_url, service_name) \
-                 VALUES ($1, $2, 'deadman', 'warning', $3, $4, $5, $6, $7) \
+                  auto_trigger_incident, runbook_url, service_name, owner_kind, owner_id) \
+                 VALUES ($1, $2, 'deadman', 'warning', $3, $4, $5, $6, $7, $8, $9) \
                  RETURNING rule_id",
             )
             .bind(ctx.tenant_id)
@@ -416,6 +479,8 @@ pub async fn handle_create_rule(
             .bind(auto_trigger)
             .bind(req.runbook_url.as_deref())
             .bind(service_name.as_deref())
+            .bind(owner_kind)
+            .bind(owner_id)
             .fetch_one(&state.db)
             .await
         }
@@ -443,8 +508,8 @@ pub async fn handle_create_rule(
             sqlx::query_scalar(
                 "INSERT INTO alert_rules \
                  (tenant_id, name, alert_type, severity, condition, notification_channels, \
-                  auto_trigger_incident, runbook_url, service_name) \
-                 VALUES ($1, $2, 'change_detection', 'warning', $3, $4, $5, $6, $7) \
+                  auto_trigger_incident, runbook_url, service_name, owner_kind, owner_id) \
+                 VALUES ($1, $2, 'change_detection', 'warning', $3, $4, $5, $6, $7, $8, $9) \
                  RETURNING rule_id",
             )
             .bind(ctx.tenant_id)
@@ -454,6 +519,8 @@ pub async fn handle_create_rule(
             .bind(auto_trigger)
             .bind(req.runbook_url.as_deref())
             .bind(req.service_name.as_deref())
+            .bind(owner_kind)
+            .bind(owner_id)
             .fetch_one(&state.db)
             .await
         }
@@ -559,6 +626,36 @@ pub async fn handle_update_rule(
     }
 }
 
+/// PUT /v1/admin/alerts/rules/{rule_id}/owner (tenant_admin): reassigns or clears the owner.
+pub async fn handle_update_rule_owner(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(rule_id): Path<Uuid>,
+    Json(req): Json<UpdateOwnerRequest>,
+) -> Result<StatusCode, StatusCode> {
+    require_admin(&ctx)?;
+    req.validate()?;
+    let updated: Option<Uuid> = sqlx::query_scalar(
+        "UPDATE alert_rules SET owner_kind = $1, owner_id = $2 \
+         WHERE rule_id = $3 AND tenant_id = $4 \
+         RETURNING rule_id",
+    )
+    .bind(req.owner.as_ref().map(|o| o.principal_kind.as_str()))
+    .bind(req.owner.as_ref().map(|o| o.principal_id))
+    .bind(rule_id)
+    .bind(ctx.tenant_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to update alert rule owner");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    match updated {
+        Some(_) => Ok(StatusCode::NO_CONTENT),
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -651,6 +748,8 @@ mod tests {
             firing: false,
             firings: vec![],
             runbook_url: Some("https://example.com/runbook".into()),
+            owner_kind: None,
+            owner_id: None,
         };
         let v = serde_json::to_value(&r).unwrap();
         assert_eq!(v["runbook_url"], "https://example.com/runbook");
@@ -674,6 +773,8 @@ mod tests {
             auto_trigger_incident: true,
             service_name: None,
             suppressed: false,
+            owner_kind: None,
+            owner_id: None,
         };
         let v = serde_json::to_value(&item).unwrap();
         assert_eq!(v["name"], "High error rate");
@@ -701,6 +802,8 @@ mod tests {
             auto_trigger_incident: false,
             service_name: Some("payments".into()),
             suppressed: false,
+            owner_kind: None,
+            owner_id: None,
         };
         assert_eq!(item.service_name, Some("payments".into()));
         assert!(!item.suppressed);
