@@ -34,6 +34,18 @@ capabilities:
 - id: assess-service-health
   version: 0.1.0
   status: specified
+  interface:
+    operation: GET /v1/health/services/{id}?environment_class=production|non_production
+    auth: oidc_session_and_decide_access_for_service_and_evidence
+    idempotent: true
+    # Map the existing capability failure modes to observable outcomes.
+    errors:
+      false_healthy: unknown
+      stale_health_state: unknown
+      undetected_regression: unknown_when_evidence_is_insufficient
+      capacity_exhaustion: unknown_when_evaluation_is_unavailable
+      incomplete_evidence_trusted: unknown
+      sampled_result_read_as_exact: disclose_sampling_or_mark_unknown
   description: 'Provide an accurate operational picture of service condition. Understand service responsiveness and operating headroom. Ensure operational decisions can be based on transparent and dependable observations. Planned provider: observable-health, domain service-assessment (not yet built).'
   postconditions:
   - current_health_state_shown
@@ -43,6 +55,9 @@ capabilities:
   - unknown_never_shown_as_healthy
   - slow_service_reported_as_degraded_not_unavailable
   - absence_of_information_not_absence_of_failure
+  - assessments_use_only_explicit_bindings_in_the_selected_tenant_and_environment_class
+  - retired_services_have_no_current_health_assessment
+  - restricted_contributing_evidence_cannot_affect_the_disclosed_health_state_or_evidence_time
   failure_modes:
   - false_healthy
   - stale_health_state
