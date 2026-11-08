@@ -10,6 +10,7 @@ pub mod coverage;
 pub mod journeys;
 pub mod observability;
 pub mod ports;
+pub mod providers;
 
 use std::sync::Arc;
 
@@ -19,7 +20,7 @@ use axum::{
     http::StatusCode,
     middleware::Next,
     response::Response,
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
 };
 use sqlx::PgPool;
 use tower_http::trace::TraceLayer;
@@ -121,6 +122,33 @@ pub fn app(state: CatalogState) -> Router {
         .route(
             "/v1/catalog/journeys/{id}",
             get(journeys::get_journey).patch(journeys::update_journey),
+        )
+        .route(
+            "/v1/catalog/journeys/{id}/dependencies",
+            get(providers::journey_dependencies),
+        )
+        .route(
+            "/v1/catalog/providers",
+            get(providers::list_providers).post(providers::create_provider),
+        )
+        .route("/v1/catalog/providers/gaps", get(providers::provider_gaps))
+        .route(
+            "/v1/catalog/providers/dependencies",
+            post(providers::create_dependency),
+        )
+        .route(
+            "/v1/catalog/providers/dependencies/{id}",
+            delete(providers::delete_dependency),
+        )
+        .route(
+            "/v1/catalog/providers/{id}",
+            get(providers::get_provider)
+                .put(providers::update_provider)
+                .delete(providers::delete_provider),
+        )
+        .route(
+            "/v1/catalog/services/{id}/dependencies",
+            get(providers::service_dependencies),
         )
         .route("/v1/catalog/scope", get(journeys::scope))
         .route("/v1/catalog/contexts", get(journeys::contexts))

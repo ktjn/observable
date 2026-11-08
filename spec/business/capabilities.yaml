@@ -289,7 +289,7 @@ capabilities:
 - id: manage-providers
   version: 0.1.0
   status: specified
-  description: 'Treat material providers as observed dependencies with owned risk, evidence and coordination. Provider: observable-catalog, domain service-model (skeleton since phase 1 S1; behavior lands in S7).'
+  description: 'Treat material providers as observed dependencies with owned risk, evidence and coordination. Provider: observable-catalog, domain service-model (providers, dependencies and provider gaps since phase 1 S7).'
   postconditions:
   - provider_dependency_and_performance_known
   invariants:

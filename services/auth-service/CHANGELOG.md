@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration `049_authz_grants_catalog_team.sql`: default `catalog.team` read/write grants (up to `internal`).
 - Migration `052_authz_grants_catalog_journey.sql`: default `catalog.journey` grants (same ceilings as `catalog.service`).
 - Migration `054_authz_grants_catalog_coverage_policy.sql`: `catalog.coverage_policy` read for every role, write for tenant_admin.
+- Migration `057_authz_grants_catalog_provider.sql`: default `catalog.provider` grants (same ceilings as `catalog.service`).
 - `MockPrincipalDirectory::remove_member` so consumers can simulate a departed owner.
 - Shared decision semantics, HTTP clients, programmable mocks and real/mock contract suites in `libs/observable-auth` (`authz`, `principals`, `contract`).
 

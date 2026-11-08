@@ -109,7 +109,7 @@ pub(crate) async fn visible_journeys(
         .collect())
 }
 
-async fn readable_journey(
+pub(crate) async fn readable_journey(
     state: &CatalogState,
     caller: &Caller,
     id: Uuid,

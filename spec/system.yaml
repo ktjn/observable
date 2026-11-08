@@ -162,7 +162,8 @@ components:
   # (environment classes read from manage-control-plane), S5 coverage and the asset registry
   # behind govern-observability-assets (signals read from store-telemetry), S6 the producers:
   # alerting pushes rules and objectives, and the catalog pulls control's dashboards through
-  # manage-control-plane (control never calls the catalog, so the graph stays acyclic). The provided programmable mock and real/mock
+  # manage-control-plane (control never calls the catalog, so the graph stays acyclic), S7
+  # providers and dependencies behind manage-providers. The provided programmable mock and real/mock
   # suite for manage-service-catalog land with its first consumer (S8, web); the other provided
   # capabilities gain theirs in S5-S7.
   - id: observable-catalog
@@ -178,6 +179,7 @@ components:
       - migrations/postgres/048_create_catalog_service_records.sql
       - migrations/postgres/051_create_catalog_journeys.sql
       - migrations/postgres/053_create_catalog_coverage.sql
+      - migrations/postgres/056_create_catalog_providers.sql
     test_paths:
       - services/catalog-service/tests
     standalone_harness: ["cargo", "test", "-p", "catalog-service", "--test", "http_probes_integration"]
@@ -194,8 +196,8 @@ components:
     owns_data:
       - business-service
       - critical-journey
-      - observability-asset
       - coverage-record
+      - provider-record
 
   - id: observable-process
     version: "0.1.0"
@@ -757,24 +759,9 @@ data_models:
       owner_id: uuid
       service_ids: list<uuid>
 
-  # Phase 1 S5 (migration 053): registered observability assets, and the coverage record of a
-  # tenant (policies per criticality, bindings, claims, assessment results and gaps).
-  - id: observability-asset
-    version: "0.1.0"
-    owner: observable-catalog
-    namespace: catalog
-    storage_role: observable_catalog_role
-    classification: internal
-    schema_path: models/catalog.mdl
-    fields:
-      tenant_id: uuid
-      kind: string
-      external_id: string
-      owning_component: string
-      service_id: uuid
-      owner_kind: string
-      owner_id: uuid
-
+  # Phase 1 S5 (migration 053): the coverage record of a tenant: policies per criticality,
+  # bindings, registered observability assets, claims, assessment results and gaps. Assets were
+  # folded in during S7 so the catalog stays within four owned data models (COMP-03).
   - id: coverage-record
     version: "0.1.0"
     owner: observable-catalog
@@ -800,6 +787,36 @@ data_models:
       review_date: date
       acceptance_approver: uuid
       acceptance_rationale: string
+      asset_kind: string
+      asset_external_id: string
+      asset_owning_component: string
+      asset_owner_kind: string
+      asset_owner_id: uuid
+
+  # Phase 1 S7 (migration 056): material providers and the service or journey functions that
+  # depend on them; a dependency may name a provider that is not registered yet.
+  - id: provider-record
+    version: "0.1.0"
+    owner: observable-catalog
+    namespace: catalog
+    storage_role: observable_catalog_role
+    classification: internal
+    schema_path: models/catalog.mdl
+    fields:
+      id: uuid
+      tenant_id: uuid
+      name: string
+      kind: string
+      material: bool
+      contract_ref: string
+      contract_owner_kind: string
+      contract_owner_id: uuid
+      classification: string
+      dependency_id: uuid
+      dependency_provider_name: string
+      dependency_service_id: uuid
+      dependency_journey_id: uuid
+      dependency_function: string
 
   - id: api-key-credential
     version: "0.1.0"
