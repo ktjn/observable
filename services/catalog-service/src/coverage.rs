@@ -260,6 +260,18 @@ async fn bindings_of(
     .await
 }
 
+/// GET /v1/catalog/services/{id}/bindings: reads stored identities without assessing coverage.
+pub async fn get_bindings(
+    State(state): State<CatalogState>,
+    Extension(caller): Extension<Caller>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<serde_json::Value>> {
+    readable_service(&state, &caller, id).await?;
+    Ok(Json(
+        json!({ "bindings": bindings_of(&state.db, caller.tenant_id, id).await? }),
+    ))
+}
+
 #[derive(Deserialize)]
 pub struct BindingsBody {
     bindings: Vec<Binding>,

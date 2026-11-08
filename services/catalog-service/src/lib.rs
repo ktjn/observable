@@ -154,7 +154,7 @@ pub fn app(state: CatalogState) -> Router {
         .route("/v1/catalog/contexts", get(journeys::contexts))
         .route(
             "/v1/catalog/services/{id}/bindings",
-            put(coverage::put_bindings),
+            get(coverage::get_bindings).put(coverage::put_bindings),
         )
         .route(
             "/v1/catalog/services/{id}/coverage",

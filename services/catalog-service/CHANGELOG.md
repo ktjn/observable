@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Phase 1 C1 adds `GET /v1/catalog/services/{id}/bindings` for authorized reads of
+  stored telemetry bindings without running a coverage assessment.
+
 Providers and dependencies (phase 1 S7).
 
 ### Added

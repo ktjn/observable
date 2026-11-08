@@ -165,12 +165,15 @@ Use the existing Phase 1 requirements as the acceptance gate for this work.
 | C4 | Integrate the query and web health, reporting and review paths with those provider contracts. Replace the legacy derived health on the affected paths. | Use the same service in production and non-production. Inject a failure only in non-production and verify production health and reporting are unchanged while the non-production views reflect the failure (OBS-01-03). Retire the service and verify search, health and reporting (OBS-02-04). Exercise all four expectation states through stakeholder review (OBS-01-04). |
 | C5 | Record current evidence for all criteria and run the S9 exit checks. | Six signed organization inspections, strict readiness with 15/15 verified, both UX-01 negatives in the browser, and a passing specification gate. |
 
-C1 starts from `GET /v1/catalog/contexts` for environment classes and service detail
-for lifecycle. Bindings are currently returned by the coverage assessment, which
-reads telemetry and refuses retired services. A read-only binding operation should
-reuse the catalog authorization and binding lookup without running coverage. Confirm
-the caller and policy contract before implementing it, including how an empty
-environment binding is handled for production. Run impact analysis for each touched
+C1 uses `GET /v1/catalog/contexts` for environment classes and service detail for
+lifecycle. `GET /v1/catalog/services/{id}/bindings` uses the service read policy and
+returns `{"bindings": [{"service_name": "checkout", "environment": "prod"}]}` with
+stored values ordered by service name and environment. Authorized reads include
+retired services and return an empty list for an unbound service. Missing and denied
+services return the same 404. Policy outages fail closed for existing services.
+The read accesses catalog metadata only. An empty environment remains an unscoped
+binding. Consumers must select explicitly classified environments for production
+and exclude retired services from live health. Run impact analysis for each touched
 capability and deliver one component per PR where possible. Every new
 provider needs an independent harness, a versioned mock and real/mock parity. Run
 the local CI gate before pushing code and keep Phase 2 and Phase 4 acceptance gates
