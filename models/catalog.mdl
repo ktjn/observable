@@ -51,8 +51,8 @@ domain catalog {
     approvedAt?: timestamp
   }
 
-  // Registered observability asset (table catalog.observability_assets, migration 053).
-  // Mirrors coverage.rs AssetRow.
+  // Registered observability asset (table catalog.observability_assets, migration 053; part of
+  // the coverage-record data model). Mirrors coverage.rs AssetRow.
   @wire(json.fieldCase: "snake_case")
   entity ObservabilityAsset @ 1 (additive) {
     @key externalId: string
@@ -84,5 +84,34 @@ domain catalog {
     closedReason?: enum(remediated, risk_accepted)
     createdAt: timestamp
     updatedAt: timestamp
+  }
+
+  // Material provider (table catalog.providers, migration 056; part of the provider-record data
+  // model). Mirrors services/catalog-service/src/providers.rs ProviderRow.
+  @wire(json.fieldCase: "snake_case")
+  entity Provider @ 1 (additive) {
+    @key id: uuid
+    name: string
+    kind: enum(cloud, saas, network, payment, data, other)
+    material: bool
+    contractRef: string
+    contractOwnerKind?: enum(user, team)
+    contractOwnerId?: uuid
+    classification: enum(public, internal, confidential, restricted)
+    createdAt: timestamp
+    updatedAt: timestamp
+  }
+
+  // A function of a service or journey that depends on a provider (table
+  // catalog.provider_dependencies, migration 056). An unregistered provider has no providerId.
+  // Mirrors providers.rs DependencyRow.
+  @wire(json.fieldCase: "snake_case")
+  entity ProviderDependency @ 1 (additive) {
+    @key id: uuid
+    providerId?: uuid
+    providerName: string
+    serviceId?: uuid
+    journeyId?: uuid
+    function: string
   }
 }

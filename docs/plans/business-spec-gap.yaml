@@ -1982,8 +1982,8 @@ requirements:
     holder: organization
     phase: 1
     target: manage-providers
-    status: missing
-    evidence: No capability found in scan.
+    status: partial
+    evidence: Phase 1 S7. Provider records with kind, materiality, contract reference and contract owner list the service and journey functions that depend on them (services/catalog-service/tests/catalog_providers_integration.rs test provider_record_lists_dependent_critical_functions_and_contract_owner). A critical function depending on an unregistered provider is the gap unregistered_provider and a service exception (test critical_function_on_an_unregistered_provider_is_a_gap). Organization-held, so inspection evidence comes at phase exit (S9).
   OBS-36-02:
     priority: P1
     holder: platform

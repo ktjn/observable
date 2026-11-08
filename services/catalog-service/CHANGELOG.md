@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Providers and dependencies (phase 1 S7).
+
+### Added
+
+- Migration `056_create_catalog_providers.sql`: `catalog.providers` (kind, materiality, contract
+  reference, contract owner, classification) and `catalog.provider_dependencies` (a service or
+  journey function depending on a provider, possibly not yet registered).
+- `manage-providers`: `/v1/catalog/providers` (list, create), `/v1/catalog/providers/{id}` (get
+  with dependent functions and contract owner state, replace, delete),
+  `/v1/catalog/providers/dependencies` (create by provider id or name, delete),
+  `/v1/catalog/services/{id}/dependencies`, `/v1/catalog/journeys/{id}/dependencies`.
+  Registering a provider links dependencies of that name; deleting one makes them unregistered.
+- `GET /v1/catalog/providers/gaps`: `unregistered_provider` for critical functions, and
+  `missing_contract_owner`, `contract_owner_departed`, `contract_owner_unresolved` and
+  `unmapped_material_provider` for material providers. Critical services with an unregistered
+  provider get the exception `unregistered_provider`.
+- Access on `catalog.provider` via `decide-access`; dependents and providers the caller may not
+  read are withheld, never identified or counted.
+
+### Changed
+
+- The `observability-asset` data model is folded into `coverage-record`, so the catalog keeps
+  four owned data models with the new `provider-record` (COMP-03).
+
 Asset producers (phase 1 S6).
 
 ### Added

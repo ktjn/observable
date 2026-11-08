@@ -34,7 +34,7 @@ pub struct Harness {
 
 pub const INTERNAL_TOKEN: &str = "test-internal-token";
 
-/// Mirrors the default grants of migrations 047, 049, 052 and 054.
+/// Mirrors the default grants of migrations 047, 049, 052, 054 and 057.
 pub fn seed_default_policy(m: &MockAccessDecider) {
     use Classification::*;
     for (role, rt, action, max) in [
@@ -57,6 +57,11 @@ pub fn seed_default_policy(m: &MockAccessDecider) {
         ("member", "catalog.coverage_policy", "read", Internal),
         ("tenant_admin", "catalog.coverage_policy", "read", Internal),
         ("tenant_admin", "catalog.coverage_policy", "write", Internal),
+        ("viewer", "catalog.provider", "read", Internal),
+        ("member", "catalog.provider", "read", Confidential),
+        ("tenant_admin", "catalog.provider", "read", Restricted),
+        ("member", "catalog.provider", "write", Internal),
+        ("tenant_admin", "catalog.provider", "write", Restricted),
     ] {
         m.grant(role, rt, action, max);
     }

@@ -1142,7 +1142,8 @@ pub struct Exceptions {
 
 /// Critical, non-retired services without accountable owners (missing, departed or
 /// unresolvable), support route, approved outcome (OBS-01-02, OBS-02-02), approved coverage
-/// policy or full coverage (OBS-27-01, OBS-02-03), plus journey exceptions (OBS-01-01).
+/// policy or full coverage (OBS-27-01, OBS-02-03), or with a function depending on an
+/// unregistered provider (OBS-36-01), plus journey exceptions (OBS-01-01).
 pub async fn exceptions(
     State(state): State<CatalogState>,
     Extension(caller): Extension<Caller>,
@@ -1158,6 +1159,7 @@ pub async fn exceptions(
     let refs: Vec<&ServiceRow> = rows.iter().collect();
     let mut coverage =
         crate::coverage::coverage_exceptions(&state.db, caller.tenant_id, &refs).await?;
+    let unregistered = crate::providers::unregistered_provider_services(&state, &caller).await?;
     let items: Vec<ExceptionItem> = rows
         .iter()
         .filter_map(|r| {
@@ -1167,6 +1169,9 @@ pub async fn exceptions(
                 &outcomes.remove(&r.id).unwrap_or_default(),
             );
             reasons.extend(coverage.remove(&r.id).unwrap_or_default());
+            if unregistered.contains(&r.id) {
+                reasons.push("unregistered_provider".into());
+            }
             (!reasons.is_empty()).then(|| ExceptionItem {
                 service: ServiceSummary::from(r),
                 reasons,
