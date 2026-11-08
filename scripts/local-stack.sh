@@ -37,7 +37,7 @@ BACKING=(clickhouse redpanda postgres)
 SETUP=(clickhouse-setup postgres-setup redpanda-setup)
 # Start order matters only for health dependencies: ingest-gateway validates
 # keys through auth-service; query-api proxies to admin-service.
-SERVICES=(auth-service admin-service alert-evaluator catalog-service ingest-gateway storage-writer stream-processor query-api)
+SERVICES=(auth-service admin-service alert-evaluator catalog-service health-service ingest-gateway storage-writer stream-processor query-api)
 
 service_port() {
   case $1 in
@@ -49,6 +49,7 @@ service_port() {
     admin-service)    echo 4324 ;;
     alert-evaluator)  echo 4322 ;;
     catalog-service)  echo 4325 ;;
+    health-service)  echo 4326 ;;
   esac
 }
 
@@ -106,6 +107,9 @@ service_env() {
       printf '%s\n' "${ch[@]}" "${internal[@]}" CATALOG_SERVICE_PORT=4325 ADMIN_SERVICE_URL=http://localhost:4324 \
         DATABASE_URL=postgres://observable_catalog:observable_catalog@localhost:5432/observable \
         CATALOG_DATABASE_URL=postgres://observable_catalog:observable_catalog@localhost:5432/observable ;;
+    health-service)
+      printf '%s\n' HEALTH_SERVICE_PORT=4326 \
+        HEALTH_DATABASE_URL=postgres://observable_health:observable_health@localhost:5432/observable ;;
   esac
 }
 

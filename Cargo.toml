@@ -19,6 +19,7 @@ members = [
     "services/alert-evaluator",
     "services/admin-service",
     "services/catalog-service",
+    "services/health-service",
 ]
 
 [workspace.package]

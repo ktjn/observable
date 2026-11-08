@@ -8,9 +8,7 @@ system:
     - application
     - domain
     - infrastructure
-  # Domains are logical responsibilities, orthogonal to layers (ADR-042). service-assessment is
-  # declared ahead of its planned provider (observable-health). ADR-039 brings forward
-  # the health work needed for Phase 1 exit before the remaining Phase 2 work.
+  # Domains are logical responsibilities, orthogonal to layers (ADR-042).
   # incident-response must never use investigation: investigation already uses incident-response.
   domains:
     - id: operational-experience
@@ -26,7 +24,7 @@ system:
       description: Detection, alerting, incidents, on-call and response coordination (observable-alerting; planned observable-response).
       uses: [identity, service-model, service-assessment, telemetry-storage]
     - id: service-assessment
-      description: Evaluated service health with evidence age, maintenance windows and unknown state (planned observable-health).
+      description: Evaluated service health with evidence age, maintenance windows and unknown state (observable-health).
       uses: [identity, service-model, telemetry-storage]
     - id: service-model
       description: Business services, owners, criticality, coverage obligations and their mapping to telemetry service identities (observable-catalog).
@@ -206,6 +204,21 @@ components:
       - critical-journey
       - coverage-record
       - provider-record
+
+  # C2.1 onboards probes and the schema role. Assessment, its data models and the
+  # provider mock land with the slices that implement the reviewed C2 contract.
+  - id: observable-health
+    version: "0.1.0"
+    status: specified
+    layer: domain
+    domain: service-assessment
+    source_paths:
+      - services/health-service
+      - migrations/postgres/058_create_health_schema.sql
+    test_paths:
+      - services/health-service/tests
+    standalone_harness: ["cargo", "test", "-p", "health-service", "--test", "http_probes_integration"]
+    provides: [assess-service-health]
 
   - id: observable-process
     version: "0.1.0"

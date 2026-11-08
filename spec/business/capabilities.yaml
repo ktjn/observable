@@ -46,7 +46,7 @@ capabilities:
       capacity_exhaustion: unknown_when_evaluation_is_unavailable
       incomplete_evidence_trusted: unknown
       sampled_result_read_as_exact: disclose_sampling_or_mark_unknown
-  description: 'Provide an accurate operational picture of service condition. Understand service responsiveness and operating headroom. Ensure operational decisions can be based on transparent and dependable observations. Planned provider: observable-health, domain service-assessment (not yet built).'
+  description: 'Provide an accurate operational picture of service condition. Understand service responsiveness and operating headroom. Ensure operational decisions can be based on transparent and dependable observations. Provider: observable-health, domain service-assessment (runtime probes since Phase 1 C2.1; assessment in C2.3).'
   postconditions:
   - current_health_state_shown
   - responsiveness_and_headroom_assessed

@@ -31,7 +31,7 @@
 #                        Rust backend (one observable-<component>:local image each):
 #                          query-api, stream-processor, ingest-gateway,
 #                          storage-writer, auth-service, alert-evaluator,
-#                          admin-service, catalog-service
+#                          admin-service, catalog-service, health-service
 #                        Shorthand for all Rust services:
 #                          backend
 #                        Frontend:
@@ -141,6 +141,7 @@ component_for_deployment() {
     query-api) echo "query" ;;
     alert-evaluator) echo "alerting" ;;
     catalog-service) echo "catalog" ;;
+    health-service) echo "health" ;;
     frontend) echo "web" ;;
   esac
 }
@@ -154,7 +155,7 @@ component_target() {
 
 rust_backend_targets() {
   local dep
-  for dep in query-api stream-processor ingest-gateway storage-writer auth-service alert-evaluator admin-service catalog-service; do
+  for dep in query-api stream-processor ingest-gateway storage-writer auth-service alert-evaluator admin-service catalog-service health-service; do
     component_target "$dep"
   done
 }
@@ -171,7 +172,7 @@ case "$SERVICE" in
     ) ;;
   backend)
     mapfile -t RELOAD_TARGETS < <(rust_backend_targets) ;;
-  query-api|stream-processor|ingest-gateway|storage-writer|auth-service|alert-evaluator|admin-service|catalog-service|frontend)
+  query-api|stream-processor|ingest-gateway|storage-writer|auth-service|alert-evaluator|admin-service|catalog-service|health-service|frontend)
     RELOAD_TARGETS=("$(component_target "$SERVICE")") ;;
   testbench)
     RELOAD_TARGETS=(
@@ -191,7 +192,7 @@ case "$SERVICE" in
   *)
     echo "ERROR: unknown service '$SERVICE'." >&2
     echo "       Valid values: all, backend, query-api, stream-processor, ingest-gateway," >&2
-    echo "       storage-writer, auth-service, alert-evaluator, admin-service, catalog-service, frontend," >&2
+    echo "       storage-writer, auth-service, alert-evaluator, admin-service, catalog-service, health-service, frontend," >&2
     echo "       testbench, testbench-api, testbench-frontend, testbench-worker, testbench-loadgen" >&2
     exit 1 ;;
 esac

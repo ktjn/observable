@@ -427,7 +427,7 @@ lane_images() {
 
   step "Component image build (Compose)"
   docker compose --profile verification build \
-    auth-service storage-writer stream-processor ingest-gateway query-api admin-service alert-evaluator catalog-service \
+    auth-service storage-writer stream-processor ingest-gateway query-api admin-service alert-evaluator catalog-service health-service \
     smoke-test && ok "component image build" || fail "component image build"
 
   step "Component image verification"

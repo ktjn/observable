@@ -62,6 +62,7 @@ main() {
     query-api
     alert-evaluator
     catalog-service
+    health-service
     frontend
   )
 

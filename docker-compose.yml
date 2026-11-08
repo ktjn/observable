@@ -394,6 +394,27 @@ services:
       admin-service: { condition: service_healthy }
       clickhouse-setup: { condition: service_completed_successfully }
 
+  health-service:
+    image: observable-health:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: component-runtime
+      args: { SERVICE: health-service }
+    environment:
+      <<: *platform-self-observability-env
+      OBSERVABLE_ENV: dev
+      HEALTH_SERVICE_PORT: "4326"
+      HEALTH_DATABASE_URL: postgres://observable_health:observable_health@postgres:5432/observable
+    ports: ["4326:4326"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4326/readyz"]
+      interval: 2s
+      timeout: 1s
+      retries: 10
+    depends_on:
+      postgres-setup: { condition: service_completed_successfully }
+
   alert-evaluator:
     image: observable-alerting:local
     build:
@@ -466,6 +487,7 @@ services:
       ADMIN_URL: http://admin-service:4324
       ALERT_URL: http://alert-evaluator:4322
       CATALOG_URL: http://catalog-service:4325
+      HEALTH_URL: http://health-service:4326
       COLLECTOR_URL: http://otel-collector-verification:4318
       COLLECTOR_GRPC_URL: http://otel-collector-verification:4317
     entrypoint: ["/bin/bash", "/app/tests/e2e/smoke_test.sh"]
@@ -477,6 +499,7 @@ services:
       admin-service: { condition: service_healthy }
       alert-evaluator: { condition: service_healthy }
       catalog-service: { condition: service_healthy }
+      health-service: { condition: service_healthy }
       stream-processor: { condition: service_healthy }
       otel-collector-verification: { condition: service_started }
 

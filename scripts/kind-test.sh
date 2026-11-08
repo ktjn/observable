@@ -54,9 +54,10 @@ declare -A COMPONENT_HELM_KEYS=(
   [query]=queryApi
   [alerting]=alertEvaluator
   [catalog]=catalogService
+  [health]=healthService
   [web]=frontend
 )
-COMPONENTS=(auth control ingest process store-clickhouse query alerting catalog web)
+COMPONENTS=(auth control ingest process store-clickhouse query alerting catalog health web)
 APP_CHART="$REPO_ROOT/charts/observable"
 
 SKIP_BUILD=false
@@ -367,6 +368,7 @@ wait_for_rollouts_parallel "$NAMESPACE" 300s \
   deployment/query-api \
   deployment/alert-evaluator \
   deployment/catalog-service \
+  deployment/health-service \
   deployment/frontend \
   || { KEEP_CLUSTER=true; exit 1; }
 info "All service Deployments ready"

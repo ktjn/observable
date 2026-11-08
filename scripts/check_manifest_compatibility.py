@@ -27,6 +27,7 @@ MANIFEST_TO_SPEC = {
     "query": "observable-query",
     "alerting": "observable-alerting",
     "catalog": "observable-catalog",
+    "health": "observable-health",
     "web": "observable-web",
 }
 SPEC_TO_MANIFEST = {v: k for k, v in MANIFEST_TO_SPEC.items()}

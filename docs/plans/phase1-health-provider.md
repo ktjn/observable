@@ -63,6 +63,12 @@ outage so cached assessments or different failure responses cannot reveal existe
 
 ## Delivery and acceptance
 
+The C2.1 runtime listens on port `4326` and requires `HEALTH_DATABASE_URL` for its
+dedicated login. `/health` reports process liveness, `/readyz` checks access to the
+migrated `health` schema, and `/metrics` reports HTTP activity. Use a rotated login
+credential through `services.healthService.existingSecret` in production. The
+schema migration does not provision a production secret.
+
 | Slice | Deliverable | Evidence to run |
 |---|---|---|
 | C2.1 | Onboard the `observable-health` runtime, distribution entries, probes and schema role. Follow the catalog S1 checklist. The domain is `service-assessment`. | Startup, ready and schema privilege checks on Testcontainers, component boundary and image checks, Compose and Helm packaging. |

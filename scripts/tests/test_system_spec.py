@@ -21,6 +21,7 @@ MANIFEST_TO_SPEC_COMPONENT = {
     "query": "observable-query",
     "alerting": "observable-alerting",
     "catalog": "observable-catalog",
+    "health": "observable-health",
     "web": "observable-web",
 }
 

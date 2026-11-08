@@ -19,7 +19,7 @@ REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 MANIFEST="$REPO_ROOT/distribution/manifest.yaml"
 OUT="$REPO_ROOT/distribution/compose.pinned.yaml"
 
-EXPECTED=(contracts auth control ingest process storeClickhouse query alerting catalog web)
+EXPECTED=(contracts auth control ingest process storeClickhouse query alerting catalog health web)
 
 fail() {
   echo "FAIL: $1" >&2
@@ -39,6 +39,7 @@ component_compose() {
     query) echo "query-api observable-query" ;;
     alerting) echo "alert-evaluator observable-alerting" ;;
     catalog) echo "catalog-service observable-catalog" ;;
+    health) echo "health-service observable-health" ;;
     web) echo "frontend observable-web" ;;
   esac
 }
