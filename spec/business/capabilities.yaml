@@ -5,7 +5,7 @@ capabilities:
   version: 0.1.0
   status: specified
   interface:
-    operation: GET /v1/catalog/services, /v1/catalog/services/{id}, /v1/catalog/search, /v1/catalog/exceptions
+    operation: GET /v1/catalog/services, /v1/catalog/services/{id}, /v1/catalog/services/{id}/bindings, /v1/catalog/search, /v1/catalog/exceptions
     auth: oidc_session
     idempotent: true
     # Business outcomes, not HTTP status codes. Transport authorization is specified separately.
@@ -20,6 +20,7 @@ capabilities:
   postconditions:
   - covered_services_have_approved_outcomes
   - service_found_with_owner_and_coverage
+  - authorized_service_binding_read_returns_stored_telemetry_identities_without_assessment
   invariants:
   - every_in_scope_service_has_an_outcome_owner
   - critical_service_has_accountable_owner

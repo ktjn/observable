@@ -3,23 +3,23 @@
  * The harness supplies service records, access decisions, and failure conditions.
  */
 export function createCatalogReadMock({
-  records, canRead = () => true, unavailable = () => false, delayMs = 0,
+  records, bindingsByService = {}, canRead = () => true, unavailable = () => false, delayMs = 0,
 }) {
   return async (url) => {
     const { pathname, searchParams } = url;
     const prefix = "/v1/catalog/";
     if (!pathname.startsWith(prefix)) return undefined;
     const path = pathname.slice(prefix.length);
-    const detail = /^services\/([^/]+)$/.exec(path);
+    const detail = /^services\/([^/]+)(\/bindings)?$/.exec(path);
     if (!detail && path !== "search" && path !== "services") return undefined;
     if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
     if (unavailable()) return { status: 503, body: { error: "access_decision_unavailable" } };
 
     if (detail) {
       const record = records.find(({ id }) => id === detail[1]);
-      return record && canRead(record)
-        ? { status: 200, body: record }
-        : { status: 404, body: { error: "not_found" } };
+      if (!record || !canRead(record)) return { status: 404, body: { error: "not_found" } };
+      const body = detail[2] ? { bindings: bindingsByService[record.id] ?? [] } : record;
+      return { status: 200, body };
     }
 
     const query = (searchParams.get("q") ?? "").trim().toLowerCase();
