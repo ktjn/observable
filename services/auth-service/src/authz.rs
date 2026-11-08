@@ -43,6 +43,10 @@ pub fn router(state: AuthzState) -> Router {
         .route("/internal/authz/decide", post(decide_handler))
         .route("/internal/authz/filter", post(filter_handler))
         .route("/internal/principals/resolve", post(resolve_handler))
+        .route(
+            "/internal/health-worker/validate",
+            post(crate::health_worker::validate),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             require_internal_token,

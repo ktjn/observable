@@ -63,6 +63,22 @@ outage so cached assessments or different failure responses cannot reveal existe
 
 ## Delivery and acceptance
 
+The auth prerequisite for C2.2 validates an expiring health worker credential at
+`POST /internal/health-worker/validate`, protected by the existing internal service
+authentication. Send the intended `tenant_id` and the worker `token` in the JSON
+body. A matching, active credential returns 204. Invalid, expired, revoked and
+wrong-tenant credentials all return 401. Store failure returns 503. A successful
+validation confirms the worker's identity for that tenant. The catalog and
+telemetry ports still require their own resource checks.
+
+Worker credentials use an `ohw_` prefix followed by 64 lowercase hexadecimal
+characters generated from 32 random bytes. Authorized provisioning registers only
+the SHA-256 digest of the complete token, its tenant and expiration in
+`auth.health_worker_credentials`. It supplies the plaintext directly to the worker's
+secret store. Revoke an old credential by setting its `revoked_at` timestamp. This
+auth slice provides validation and storage. Deployment provisioning and the scoped
+consumer ports are separate slices.
+
 The C2.1 runtime listens on port `4326` and requires `HEALTH_DATABASE_URL` for its
 dedicated login. `/health` reports process liveness, `/readyz` checks access to the
 migrated `health` schema, and `/metrics` reports HTTP activity. Use a rotated login

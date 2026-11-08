@@ -243,6 +243,7 @@ components:
     source_paths:
       - services/auth-service
       - libs/observable-auth
+      - migrations/postgres/059_create_health_worker_credentials.sql
     provides:
       - validate-credential
       - decide-access
@@ -264,6 +265,7 @@ components:
     owns_data:
       - api-key-credential
       - user-session
+      - health-worker-credential
 
   - id: observable-store-clickhouse
     version: "0.1.0"
@@ -501,14 +503,16 @@ capabilities:
       - "Caller supplies a bearer API key or session token over HTTP"
     postconditions:
       - "Returns verified PrincipalContext with tenant_id, role, and scopes or 401/403"
+      - "Health worker validation accepts only an active dedicated credential for the requested tenant"
     invariants:
       - "Plaintext API keys are never persisted; lookup uses SHA-256 key_hash"
+      - "Health worker credentials are hash-only and are separate from ingestion keys and user sessions"
     failure_modes:
       - invalid_credential
       - expired_credential
       - insufficient_scope
     interface:
-      operation: POST /internal/auth/validate
+      operation: POST /internal/auth/validate, POST /internal/health-worker/validate
       mode: sync
       request: api-key-credential
       response: user-session
@@ -868,6 +872,19 @@ data_models:
       tenant_id: uuid
       role: string
       expires_at: timestamp
+
+  - id: health-worker-credential
+    version: "0.1.0"
+    owner: observable-auth
+    namespace: auth
+    storage_role: observable_auth_role
+    classification: restricted
+    schema_path: migrations/postgres/059_create_health_worker_credentials.sql
+    fields:
+      token_hash_sha256: string
+      tenant_id: uuid
+      expires_at: timestamp
+      revoked_at: nullable<timestamp>
 
 requirements:
   - id: req-ui-tenant-session
