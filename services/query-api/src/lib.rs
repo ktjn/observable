@@ -11,6 +11,7 @@ pub mod nlq_session;
 pub mod observability;
 pub mod planner;
 pub mod reliability;
+pub mod review;
 pub mod setup;
 pub mod sql_templates;
 pub mod traces;

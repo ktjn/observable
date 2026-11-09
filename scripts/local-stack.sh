@@ -92,7 +92,8 @@ service_env() {
         DEPLOYMENT_MARKERS_TOPIC=deployment.markers.v1 AUTH_SERVICE_URL=http://localhost:4319 ;;
     query-api)
       printf '%s\n' "${ch[@]}" "${internal[@]}" QUERY_API_PORT=8090 \
-        ADMIN_SERVICE_URL=http://localhost:4324 ALERT_EVALUATOR_URL=http://localhost:4322 ;;
+        ADMIN_SERVICE_URL=http://localhost:4324 ALERT_EVALUATOR_URL=http://localhost:4322 \
+        CATALOG_URL=http://localhost:4325 HEALTH_URL=http://localhost:4326 ;;
     admin-service)
       printf '%s\n' "${ch[@]}" "${internal[@]}" ADMIN_SERVICE_PORT=4324 \
         DATABASE_URL=postgres://observable_control:observable_control@localhost:5432/observable \
