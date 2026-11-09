@@ -65,13 +65,18 @@ async fn health_service_health_readyz_and_metrics_endpoints() {
 async fn health_service_unknown_route_is_not_found() {
     let app = app(unreachable_postgres_state());
     assert_eq!(
+        get_path(&app, "/v1/health/unknown").await.status(),
+        StatusCode::NOT_FOUND
+    );
+    // The read contract (C2.3) authenticates before anything else.
+    assert_eq!(
         get_path(
             &app,
             "/v1/health/services/00000000-0000-0000-0000-000000000000?environment_class=production"
         )
         .await
         .status(),
-        StatusCode::NOT_FOUND
+        StatusCode::UNAUTHORIZED
     );
 }
 
@@ -103,6 +108,17 @@ async fn migrated_health_login_can_use_only_its_own_schema() {
         .await
         .expect("own schema read");
     assert_eq!(value, 1);
+    // The evaluator's tables (migration 061) are usable by the scoped login.
+    let rule = health_service::assessment::current_rule(&db, uuid::Uuid::new_v4())
+        .await
+        .expect("rule read")
+        .expect("platform default rule");
+    assert_eq!(rule.rule_id, "platform-default");
+    let stored: i64 = sqlx::query_scalar("SELECT count(*) FROM health.assessments")
+        .fetch_one(&db)
+        .await
+        .expect("snapshot read");
+    assert_eq!(stored, 0);
     for schema in ["auth", "catalog", "control", "alerting"] {
         let allowed: bool =
             sqlx::query_scalar("SELECT has_schema_privilege(current_user, $1, 'USAGE')")

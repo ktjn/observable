@@ -406,6 +406,12 @@ services:
       OBSERVABLE_ENV: dev
       HEALTH_SERVICE_PORT: "4326"
       HEALTH_DATABASE_URL: postgres://observable_health:observable_health@postgres:5432/observable
+      AUTH_SERVICE_URL: http://auth-service:4319
+      CATALOG_URL: http://catalog-service:4325
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000}
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CH_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
     ports: ["4326:4326"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4326/readyz"]
@@ -414,6 +420,7 @@ services:
       retries: 10
     depends_on:
       postgres-setup: { condition: service_completed_successfully }
+      clickhouse-setup: { condition: service_completed_successfully }
 
   alert-evaluator:
     image: observable-alerting:local

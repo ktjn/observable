@@ -437,3 +437,48 @@ async fn health_worker_grant_reads_catalog_services_and_writes_nothing() {
     };
     assert!(matches!(d.decide(&decide).await, Ok(Decision::Deny)));
 }
+
+#[tokio::test]
+async fn default_health_grants_follow_role_ceilings() {
+    let p = RealProvider::start().await;
+    let d = HttpAccessDecider::new(&p.url, TOKEN, reqwest::Client::new());
+    use observable_auth::authz::{
+        AccessDecider, Classification, FilterRequest, Principal, ResourceRef,
+    };
+    let all = [
+        Classification::Public,
+        Classification::Internal,
+        Classification::Confidential,
+        Classification::Restricted,
+    ];
+    let of = |rt: &str| -> Vec<ResourceRef> {
+        all.into_iter()
+            .map(|c| ResourceRef::new(rt, c.as_str(), c))
+            .collect()
+    };
+    for (role, evidence, assessment) in [
+        ("viewer", 2, 1),
+        ("member", 3, 1),
+        ("tenant_admin", 4, 1),
+        ("health_worker", 0, 0),
+    ] {
+        for (rt, visible) in [
+            ("health.evidence", evidence),
+            ("health.assessment", assessment),
+        ] {
+            let req = FilterRequest {
+                tenant_id: Some(p.tenant_id),
+                principal: Some(Principal::service(role)),
+                action: Some("read".into()),
+                resources: of(rt),
+                purpose: None,
+                elevation_id: None,
+            };
+            assert_eq!(
+                d.filter(&req).await.expect("available").len(),
+                visible,
+                "{role} {rt}"
+            );
+        }
+    }
+}

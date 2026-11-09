@@ -10,11 +10,20 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use axum::http::HeaderMap;
+use axum::http::header::{AUTHORIZATION, COOKIE};
+use observable_auth::authz::{
+    AccessDecider, DecideRequest, Decision, DecisionUnavailable, FilterRequest, HttpAccessDecider,
+    MockAccessDecider, Principal, ResourceKey,
+};
+use observable_auth::{
+    AuthError, extract_bearer_token, extract_session_cookie, extract_tenant_id_header,
+};
 use serde::Deserialize;
 use uuid::Uuid;
 
 /// Approved environment class of a binding.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EnvironmentClass {
     Production,
@@ -27,6 +36,13 @@ impl EnvironmentClass {
             "production" => Some(Self::Production),
             "non_production" => Some(Self::NonProduction),
             _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Production => "production",
+            Self::NonProduction => "non_production",
         }
     }
 }
@@ -95,6 +111,21 @@ impl CatalogInputs {
         if let Self::Static(s) = self {
             *s.lock().expect("substitute poisoned") = None;
         }
+    }
+
+    /// Tenants the worker holds a credential for (substitute: tenants with inputs).
+    pub fn tenants(&self) -> Vec<Uuid> {
+        let mut out: Vec<Uuid> = match self {
+            Self::Http { workers, .. } => workers.keys().copied().collect(),
+            Self::Static(s) => s
+                .lock()
+                .expect("substitute poisoned")
+                .as_ref()
+                .map(|m| m.keys().copied().collect())
+                .unwrap_or_default(),
+        };
+        out.sort();
+        out
     }
 
     pub async fn inputs(&self, tenant_id: Uuid) -> Result<TenantInputs, InputsUnavailable> {
@@ -282,6 +313,239 @@ impl Evidence {
                     }
                 }
                 Ok(out)
+            }
+        }
+    }
+}
+
+// --- Caller-facing ports of the read contract ------------------------------------------------
+
+/// Verified caller of a health read.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Caller {
+    pub tenant_id: Uuid,
+    /// Present for human sessions; API-key callers have none.
+    pub user_id: Option<Uuid>,
+    pub role: String,
+}
+
+impl Caller {
+    pub fn principal(&self) -> Principal {
+        match self.user_id {
+            Some(id) => Principal::user(id),
+            None => Principal::service(&self.role),
+        }
+    }
+}
+
+/// `validate-credential` port.
+#[derive(Clone)]
+pub enum Credentials {
+    Http {
+        auth_url: Arc<String>,
+        client: reqwest::Client,
+    },
+    /// Bearer token -> caller (standalone harness and tests).
+    Static(Arc<HashMap<String, Caller>>),
+}
+
+impl Credentials {
+    pub async fn verify(&self, headers: &HeaderMap) -> Result<Caller, AuthError> {
+        match self {
+            Self::Static(callers) => {
+                let token = extract_bearer_token(headers)?.ok_or(AuthError::Unauthorized)?;
+                callers.get(&token).cloned().ok_or(AuthError::Unauthorized)
+            }
+            Self::Http { auth_url, client } => verify_http(client, auth_url, headers).await,
+        }
+    }
+}
+
+/// Same resolution order as the catalog: API key with `X-Tenant-ID` (must match the key's
+/// tenant), API key alone, then session cookie or bearer session.
+async fn verify_http(
+    client: &reqwest::Client,
+    auth_url: &str,
+    headers: &HeaderMap,
+) -> Result<Caller, AuthError> {
+    let bearer = extract_bearer_token(headers)?;
+    let cookie = extract_session_cookie(headers);
+    let tenant_hdr = match extract_tenant_id_header(headers) {
+        Ok(t) => Some(t),
+        Err(AuthError::BadRequest) => return Err(AuthError::BadRequest),
+        Err(_) => None,
+    };
+    if let Some(token) = bearer.as_deref()
+        && (tenant_hdr.is_some() || cookie.is_none())
+    {
+        match observable_auth::verify_api_key(client, auth_url, token).await {
+            Ok(ctx) => {
+                if tenant_hdr.is_some_and(|t| t != ctx.tenant_id) {
+                    return Err(AuthError::Forbidden);
+                }
+                return Ok(Caller {
+                    tenant_id: ctx.tenant_id,
+                    user_id: None,
+                    role: ctx.role,
+                });
+            }
+            Err(AuthError::Unauthorized) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    let session = cookie.or(bearer).ok_or(AuthError::Unauthorized)?;
+    let ctx =
+        observable_auth::verify_session_with_tenant(client, auth_url, &session, tenant_hdr).await?;
+    Ok(Caller {
+        tenant_id: ctx.tenant_id,
+        user_id: Some(ctx.user_id),
+        role: ctx.role,
+    })
+}
+
+/// `decide-access` port.
+#[derive(Clone)]
+pub enum Decider {
+    Http(HttpAccessDecider),
+    Mock(MockAccessDecider),
+}
+
+impl AccessDecider for Decider {
+    async fn decide(&self, request: &DecideRequest) -> Result<Decision, DecisionUnavailable> {
+        match self {
+            Self::Http(d) => d.decide(request).await,
+            Self::Mock(d) => d.decide(request).await,
+        }
+    }
+
+    async fn filter(
+        &self,
+        request: &FilterRequest,
+    ) -> Result<Vec<ResourceKey>, DecisionUnavailable> {
+        match self {
+            Self::Http(d) => d.filter(request).await,
+            Self::Mock(d) => d.filter(request).await,
+        }
+    }
+}
+
+/// The caller's view of one catalog service: what health needs to authorize and scope a read.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+pub struct ServiceView {
+    pub id: Uuid,
+    pub lifecycle: String,
+    pub classification: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ServiceReadError {
+    /// Missing or hidden from the caller; the catalog does not distinguish them.
+    NotFound,
+    Unauthorized,
+    Unavailable,
+}
+
+/// Substitute state: `(tenant, service id)` -> record, ids hidden from every caller, and
+/// availability.
+#[derive(Default)]
+pub struct ServiceTable {
+    pub records: HashMap<(Uuid, Uuid), ServiceView>,
+    pub hidden: std::collections::HashSet<Uuid>,
+    pub unavailable: bool,
+}
+
+/// `manage-service-catalog` port for the caller's own read of a service
+/// (`GET /v1/catalog/services/{id}`). The caller's credential is forwarded, so the catalog
+/// authorizes the service record under the caller's tenant and role.
+#[derive(Clone)]
+pub enum ServiceReads {
+    Http {
+        base_url: Arc<String>,
+        client: reqwest::Client,
+    },
+    Static(Arc<Mutex<ServiceTable>>),
+}
+
+impl ServiceReads {
+    pub fn substitute() -> Self {
+        Self::Static(Arc::new(Mutex::new(ServiceTable::default())))
+    }
+
+    /// Substitute only: stores or replaces a record.
+    pub fn put(&self, tenant_id: Uuid, view: ServiceView) {
+        if let Self::Static(s) = self {
+            s.lock()
+                .expect("substitute poisoned")
+                .records
+                .insert((tenant_id, view.id), view);
+        }
+    }
+
+    /// Substitute only: hides a record from every caller.
+    pub fn hide(&self, id: Uuid) {
+        if let Self::Static(s) = self {
+            s.lock().expect("substitute poisoned").hidden.insert(id);
+        }
+    }
+
+    /// Substitute only: makes every read unavailable, or available again.
+    pub fn set_unavailable(&self, unavailable: bool) {
+        if let Self::Static(s) = self {
+            s.lock().expect("substitute poisoned").unavailable = unavailable;
+        }
+    }
+
+    pub async fn read(
+        &self,
+        caller: &Caller,
+        headers: &HeaderMap,
+        id: Uuid,
+    ) -> Result<ServiceView, ServiceReadError> {
+        match self {
+            Self::Static(s) => {
+                let table = s.lock().expect("substitute poisoned");
+                if table.unavailable {
+                    return Err(ServiceReadError::Unavailable);
+                }
+                match table.records.get(&(caller.tenant_id, id)) {
+                    Some(v) if !table.hidden.contains(&id) => Ok(v.clone()),
+                    _ => Err(ServiceReadError::NotFound),
+                }
+            }
+            Self::Http { base_url, client } => {
+                let mut req = client.get(format!(
+                    "{}/v1/catalog/services/{id}",
+                    base_url.trim_end_matches('/')
+                ));
+                for name in [AUTHORIZATION, COOKIE] {
+                    if let Some(v) = headers.get(&name) {
+                        req = req.header(name, v.clone());
+                    }
+                }
+                if let Some(v) = headers.get("x-tenant-id") {
+                    req = req.header("x-tenant-id", v.clone());
+                }
+                let response = req
+                    .timeout(Duration::from_secs(5))
+                    .send()
+                    .await
+                    .map_err(|_| ServiceReadError::Unavailable)?;
+                match response.status().as_u16() {
+                    200 => {
+                        let view: ServiceView = response
+                            .json()
+                            .await
+                            .map_err(|_| ServiceReadError::Unavailable)?;
+                        // A record for another id is never trusted.
+                        if view.id != id {
+                            return Err(ServiceReadError::Unavailable);
+                        }
+                        Ok(view)
+                    }
+                    404 => Err(ServiceReadError::NotFound),
+                    401 => Err(ServiceReadError::Unauthorized),
+                    _ => Err(ServiceReadError::Unavailable),
+                }
             }
         }
     }

@@ -10,6 +10,9 @@ path = "src/lib.rs"
 [dependencies]
 observable-config    = { path = "../../libs/observable-config" }
 observable-telemetry = { path = "../../libs/observable-telemetry" }
+observable-auth      = { path = "../../libs/observable-auth" }
+serde_json           = { workspace = true }
+chrono               = { workspace = true }
 tokio                = { workspace = true }
 axum                 = { workspace = true }
 tower-http           = { workspace = true }
@@ -27,4 +30,3 @@ tokio          = { version = "1", features = ["full"] }
 tower          = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 test-support   = { path = "../../libs/test-support" }
-serde_json     = { workspace = true }
