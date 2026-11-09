@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Approved objectives per catalog service and environment class (phase 1 C3, OBS-01-04):
+  migration `063_create_alerting_service_objectives.sql` and `POST/GET /v1/objectives`,
+  `PATCH /v1/objectives/{id}` (clears approval), `POST /v1/objectives/{id}/approve`
+  (tenant admin, a person, the revision read) and `GET /v1/objectives/{id}/compliance`.
+  Compliance is `compliant`, `at_risk`, `breached` or `unknown` (missing or stale evidence),
+  evaluated on request over spans of the service's bindings in exactly the objective's class.
+  Unapproved objectives return 409 `objective_not_approved`. Catalog reads forward the
+  caller's credential (`CATALOG_URL`); hidden, missing and retired services are 404.
+
 - Accountable owners for alert rules and SLOs (phase 1 S6, OBS-34-01): migration
   `055_alerting_asset_owners.sql` (`owner_kind`, `owner_id`), an optional `owner` on create
   (defaults to the calling user; API-key callers without one create an ownerless asset),
