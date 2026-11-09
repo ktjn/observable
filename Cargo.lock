@@ -1864,8 +1864,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "chrono",
  "clickhouse",
  "http-body-util",
+ "observable-auth",
  "observable-config",
  "observable-telemetry",
  "prometheus",

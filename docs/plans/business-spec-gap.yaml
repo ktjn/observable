@@ -120,15 +120,15 @@ requirements:
     holder: platform
     phase: 2
     target: assess-service-health
-    status: missing
-    evidence: No unavailable, planned-maintenance or unknown state.
+    status: partial
+    evidence: Phase 1 C2.3. observable-health discloses unknown for absent, stale, restricted or unevaluable evidence (services/health-service/tests/health_read_contract_integration.rs). The default rule cannot yet establish unavailable or planned maintenance, and query and web still show the legacy pill.
   OBS-03-03:
     priority: P0
     holder: platform
     phase: 2
     target: assess-service-health
-    status: missing
-    evidence: No last-evidence time or staleness marking.
+    status: partial
+    evidence: Phase 1 C2.3. GET /v1/health/services/{id} returns last_evidence_at and evidence_status current, stale or missing, with staleness judged at read time (services/health-service/tests/health_assessment_integration.rs). Not yet shown in query and web.
   OBS-03-04:
     priority: P0
     holder: platform

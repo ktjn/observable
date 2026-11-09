@@ -15,7 +15,7 @@ use crate::ports::{EnvironmentClass, TelemetryIdentity, TenantInputs};
 pub enum Scope {
     /// A live service and its identities in the class; may be empty (no evidence possible).
     Bound(Vec<TelemetryIdentity>),
-    /// Missing, hidden from the worker, or retired: nothing is evaluated.
+    /// Missing, hidden from the worker, planned or retired: nothing is evaluated.
     NotEvaluated,
     /// The catalog inputs are incomplete or ambiguous.
     Unavailable,
@@ -47,8 +47,9 @@ pub fn scope(inputs: &TenantInputs, service_id: Uuid, class: EnvironmentClass) -
         return Scope::Unavailable;
     }
     match service.lifecycle.as_str() {
-        "retired" => return Scope::NotEvaluated,
-        "planned" | "live" | "deprecated" => {}
+        // Only running services have current health: planned and retired are non-live.
+        "planned" | "retired" => return Scope::NotEvaluated,
+        "live" | "deprecated" => {}
         _ => return Scope::Unavailable,
     }
     let mut bound: Vec<TelemetryIdentity> = service

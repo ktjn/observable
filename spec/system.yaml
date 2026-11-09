@@ -205,8 +205,8 @@ components:
       - coverage-record
       - provider-record
 
-  # C2.1 onboards probes and the schema role. Assessment, its data models and the
-  # provider mock land with the slices that implement the reviewed C2 contract.
+  # C2.1 onboards probes and the schema role; C2.2 the worker ports; C2.3 evaluation,
+  # scope-bound snapshots, the authorized read contract and the provider mock.
   - id: observable-health
     version: "0.1.0"
     status: specified
@@ -217,15 +217,27 @@ components:
     source_paths:
       - services/health-service
       - migrations/postgres/058_create_health_schema.sql
+      - migrations/postgres/061_create_health_assessments.sql
     test_paths:
       - services/health-service/tests
+      - services/health-service/mocks
     standalone_harness: ["cargo", "test", "-p", "health-service", "--test", "http_probes_integration"]
+    provided_mocks:
+      assess-service-health:
+        path: services/health-service/mocks/assess-service-health.v0.1.mjs
+        contract_suite: ["bash", "scripts/contract-suite.sh"]
+        scenarios: [fresh, stale, absent, restricted_service, restricted_contributor, retired, unavailable, delay]
     provides: [assess-service-health]
     # C2.2: the worker reads catalog inputs with a tenant-bound credential and evidence through
-    # a read-only ClickHouse session. Evaluation wiring follows in C2.3.
+    # a read-only ClickHouse session. C2.3: reads authenticate the caller, authorize through
+    # decide-access and the caller's own catalog read, and disclose scope-bound snapshots.
     requires:
+      - validate-credential@^0.1
+      - decide-access@^0.1
       - manage-service-catalog@^0.1
       - store-telemetry@^0.1
+    owns_data:
+      - health-assessment
 
   - id: observable-process
     version: "0.1.0"
@@ -880,6 +892,27 @@ data_models:
       tenant_id: uuid
       role: string
       expires_at: timestamp
+
+  - id: health-assessment
+    version: "0.1.0"
+    owner: observable-health
+    namespace: health
+    storage_role: observable_health_role
+    classification: confidential
+    schema_path: migrations/postgres/061_create_health_assessments.sql
+    fields:
+      tenant_id: uuid
+      service_id: uuid
+      environment_class: string
+      rule_id: string
+      rule_revision: integer
+      scope_key: string
+      identities: json
+      state: string
+      conditions: json
+      freshness_seconds: integer
+      last_evidence_at: nullable<timestamp>
+      evaluated_at: timestamp
 
   - id: health-worker-credential
     version: "0.1.0"

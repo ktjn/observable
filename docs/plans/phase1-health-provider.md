@@ -93,6 +93,24 @@ session with `readonly = 2`, and `scope` returns `Unavailable` when a service re
 its identities is duplicated. Retired, missing and hidden services are not evaluated. Planned
 and deprecated services are scoped like live ones; C2.3 decides how rules treat them.
 
+C2.3 delivers evaluation and the read contract. Rules live in `health.rules`. Migration
+061 seeds `platform-default` revision 1: any signal of a bound identity within 300 seconds
+is current evidence, looked up over the last 24 hours. Timestamps alone cannot prove
+degraded, unavailable or maintenance, so this rule yields only `normal` or `unknown`.
+Tenant rule writes, with their audit fields, come with the rule slice. The worker evaluates
+every live and deprecated service in both classes for each tenant it holds a credential for.
+It stores one snapshot per tenant, service and class, keyed by the rule revision and the
+canonical identity set. The upsert keeps the snapshot with the latest evaluation start, so a
+slow older evaluation cannot overwrite a newer one. Reads check, in order: the caller's
+credential, the class, `decide-access` on `health.assessment` for the requested id (before
+any lookup, so outages answer missing and existing IDs alike), the caller's own catalog read
+(lifecycle and classification), and `decide-access` on one `health.evidence` resource per rule
+condition, classified at least as the service. A denied contributor yields the restricted
+unknown response. A snapshot is disclosed only for the current rule revision and the current
+scope from the worker's catalog inputs; otherwise the response is `unknown` with `missing`,
+or `evaluation_unavailable` when inputs cannot be read. Freshness is judged at read time.
+Migration 062 adds the grants. Planned services are non-live and return 404.
+
 The C2.1 runtime listens on port `4326` and requires `HEALTH_DATABASE_URL` for its
 dedicated login. `/health` reports process liveness, `/readyz` checks access to the
 migrated `health` schema, and `/metrics` reports HTTP activity. Use a rotated login

@@ -108,7 +108,7 @@ service_env() {
         DATABASE_URL=postgres://observable_catalog:observable_catalog@localhost:5432/observable \
         CATALOG_DATABASE_URL=postgres://observable_catalog:observable_catalog@localhost:5432/observable ;;
     health-service)
-      printf '%s\n' HEALTH_SERVICE_PORT=4326 \
+      printf '%s\n' "${ch[@]}" "${internal[@]}" HEALTH_SERVICE_PORT=4326 CATALOG_URL=http://localhost:4325 \
         HEALTH_DATABASE_URL=postgres://observable_health:observable_health@localhost:5432/observable ;;
   esac
 }

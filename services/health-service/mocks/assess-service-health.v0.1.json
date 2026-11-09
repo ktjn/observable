@@ -1,0 +1,27 @@
+{
+  "fixtures": [
+    { "name": "fresh", "lifecycle": "live", "classification": "internal", "production": "fresh", "non_production": "absent" },
+    { "name": "stale", "lifecycle": "live", "classification": "internal", "production": "stale" },
+    { "name": "absent", "lifecycle": "live", "classification": "internal", "production": "absent" },
+    { "name": "unevaluated", "lifecycle": "live", "classification": "internal" },
+    { "name": "retired_after_evaluation", "lifecycle": "retired", "classification": "internal", "production": "fresh" },
+    { "name": "restricted_service", "lifecycle": "live", "classification": "internal", "production": "fresh", "hidden": true },
+    { "name": "restricted_contributor", "lifecycle": "live", "classification": "confidential", "production": "fresh" }
+  ],
+  "scenarios": [
+    { "name": "fresh evidence", "service": "fresh", "class": "production", "status": 200, "state": "normal", "evidence_status": "current", "times": true },
+    { "name": "non-production failure", "service": "fresh", "class": "non_production", "status": 200, "state": "unknown", "evidence_status": "missing", "times": false },
+    { "name": "stale evidence", "service": "stale", "class": "production", "status": 200, "state": "unknown", "evidence_status": "stale", "times": true },
+    { "name": "absent evidence", "service": "absent", "class": "production", "status": 200, "state": "unknown", "evidence_status": "missing", "times": false },
+    { "name": "no assessment yet", "service": "unevaluated", "class": "production", "status": 200, "state": "unknown", "evidence_status": "missing", "times": false },
+    { "name": "retired after a stored evaluation", "service": "retired_after_evaluation", "class": "production", "status": 404, "error": "not_found" },
+    { "name": "restricted service", "service": "restricted_service", "class": "production", "status": 404, "error": "not_found" },
+    { "name": "missing service", "service": "missing", "class": "production", "status": 404, "error": "not_found" },
+    { "name": "restricted contributor", "service": "restricted_contributor", "class": "production", "caller": "viewer", "status": 200, "state": "unknown", "evidence_status": "restricted", "times": false },
+    { "name": "restricted contributor, permitted caller", "service": "restricted_contributor", "class": "production", "caller": "member", "status": 200, "state": "normal", "evidence_status": "current", "times": true },
+    { "name": "unsupported class", "service": "fresh", "class": "staging", "status": 400, "error": "invalid_request" },
+    { "name": "policy outage, existing id", "service": "fresh", "class": "production", "unavailable": true, "status": 503, "error": "access_decision_unavailable" },
+    { "name": "policy outage, restricted id", "service": "restricted_service", "class": "production", "unavailable": true, "status": 503, "error": "access_decision_unavailable" },
+    { "name": "policy outage, missing id", "service": "missing", "class": "production", "unavailable": true, "status": 503, "error": "access_decision_unavailable" }
+  ]
+}

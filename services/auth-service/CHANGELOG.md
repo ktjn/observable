@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Migration `062_authz_grants_health.sql`: `health.assessment` read (public) and `health.evidence` read with the `catalog.service` role ceilings.
 - Migration `060_authz_health_worker_role.sql` admits the `health_worker` service role and grants it `catalog.service` read up to `restricted`, with no write grant.
 - Tenant-bound health worker credential validation at `POST /internal/health-worker/validate`, backed by the separate hash-only store in migration 059.
 - `decide-access` policy decision point (ADR-041): `POST /internal/authz/decide` and `POST /internal/authz/filter` over a PostgreSQL policy store in the `auth` schema (migration `047_create_authz_policy_store.sql`: role grants by classification, purpose rules, time-limited elevations, `access_decision_log`). Fails closed; every deny is `403 {"decision":"deny"}` regardless of reason.
