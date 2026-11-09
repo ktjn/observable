@@ -581,7 +581,7 @@ pub async fn list_assets(
     Ok(Json(json!({ "items": items, "total": total })))
 }
 
-fn internal_auth(state: &CatalogState, headers: &HeaderMap) -> ApiResult<()> {
+pub(crate) fn internal_auth(state: &CatalogState, headers: &HeaderMap) -> ApiResult<()> {
     match state.internal_token.as_deref() {
         Some(token) => observable_auth::verify_internal_token(headers, token)
             .map_err(|_| ApiError::Unauthorized),

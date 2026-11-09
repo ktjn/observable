@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use catalog_service::ports::{
-    ControlAssets, Credentials, Decider, Directory, Environments, Telemetry,
+    ControlAssets, Credentials, Decider, Directory, Environments, Telemetry, WorkerCredentials,
 };
 use catalog_service::{CatalogState, DEFAULT_PORT, app};
 use observable_auth::authz::HttpAccessDecider;
@@ -62,6 +62,11 @@ async fn main() -> anyhow::Result<()> {
         },
         Telemetry::ClickHouse(Box::new(ch)),
     )
+    .with_worker_credentials(WorkerCredentials::Http {
+        auth_url: Arc::new(auth_url.clone()),
+        internal_token: Arc::new(internal_token.clone()),
+        client: client.clone(),
+    })
     .with_internal_token(internal_token.clone());
 
     // Dashboards are pulled from control into the asset registry (phase 1 S6).

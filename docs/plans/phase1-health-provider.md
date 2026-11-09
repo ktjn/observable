@@ -79,6 +79,20 @@ secret store. Revoke an old credential by setting its `revoked_at` timestamp. Th
 auth slice provides validation and storage. Deployment provisioning and the scoped
 consumer ports are separate slices.
 
+C2.2 delivers the worker ports. The catalog serves
+`GET /internal/catalog/health-inputs?tenant_id=` only with both the internal service token
+and an `X-Health-Worker-Token` that auth validates for that tenant. Any other combination,
+including a tenant session, returns 401. The catalog then authorizes each service record
+through `decide-access` as the `health_worker` service principal. Migration 060 grants that
+role `catalog.service` read up to `restricted` and no write. The response carries lifecycle,
+criticality, classification and each binding with its approved class, or null for an empty or
+unclassified environment. Credential store, policy and control outages return 503 with no
+service data. In the health service, `CatalogInputs` holds one credential per tenant and
+rejects a response for any other tenant. `Evidence` queries exact identities through a ClickHouse
+session with `readonly = 2`, and `scope` returns `Unavailable` when a service record or one of
+its identities is duplicated. Retired, missing and hidden services are not evaluated. Planned
+and deprecated services are scoped like live ones; C2.3 decides how rules treat them.
+
 The C2.1 runtime listens on port `4326` and requires `HEALTH_DATABASE_URL` for its
 dedicated login. `/health` reports process liveness, `/readyz` checks access to the
 migrated `health` schema, and `/metrics` reports HTTP activity. Use a rotated login

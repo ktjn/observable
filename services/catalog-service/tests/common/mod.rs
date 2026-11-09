@@ -7,7 +7,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::{Router, body::Body, http::Request};
-use catalog_service::ports::{Caller, Credentials, Decider, Directory, Environments, Telemetry};
+use catalog_service::ports::{
+    Caller, Credentials, Decider, Directory, Environments, Telemetry, WorkerCredentials,
+};
 use catalog_service::{CatalogState, app};
 use http_body_util::BodyExt as _;
 use observable_auth::authz::{Classification, MockAccessDecider};
@@ -24,6 +26,7 @@ pub struct Harness {
     pub directory: MockPrincipalDirectory,
     pub environments: Environments,
     pub telemetry: Telemetry,
+    pub workers: WorkerCredentials,
     pub tenant: Uuid,
     pub other_tenant: Uuid,
     pub admin: Uuid,
@@ -34,7 +37,7 @@ pub struct Harness {
 
 pub const INTERNAL_TOKEN: &str = "test-internal-token";
 
-/// Mirrors the default grants of migrations 047, 049, 052, 054 and 057.
+/// Mirrors the default grants of migrations 047, 049, 052, 054, 057 and 060.
 pub fn seed_default_policy(m: &MockAccessDecider) {
     use Classification::*;
     for (role, rt, action, max) in [
@@ -62,6 +65,7 @@ pub fn seed_default_policy(m: &MockAccessDecider) {
         ("tenant_admin", "catalog.provider", "read", Restricted),
         ("member", "catalog.provider", "write", Internal),
         ("tenant_admin", "catalog.provider", "write", Restricted),
+        ("health_worker", "catalog.service", "read", Restricted),
     ] {
         m.grant(role, rt, action, max);
     }
@@ -112,6 +116,7 @@ impl Harness {
         ]);
         let environments = Environments::substitute();
         let telemetry = Telemetry::substitute();
+        let workers = WorkerCredentials::substitute();
         let state = CatalogState::new(
             db,
             Credentials::Static(Arc::new(callers)),
@@ -120,6 +125,7 @@ impl Harness {
             environments.clone(),
             telemetry.clone(),
         )
+        .with_worker_credentials(workers.clone())
         .with_internal_token(INTERNAL_TOKEN);
         Self {
             app: app(state.clone()),
@@ -128,6 +134,7 @@ impl Harness {
             directory,
             environments,
             telemetry,
+            workers,
             tenant,
             other_tenant,
             admin,

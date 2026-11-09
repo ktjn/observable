@@ -479,3 +479,94 @@ impl ControlAssets {
         }
     }
 }
+
+/// Why a health worker credential was not accepted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WorkerRejected {
+    /// Invalid, expired, revoked or issued for another tenant.
+    Unauthorized,
+    /// The credential store or the auth service could not answer.
+    Unavailable,
+}
+
+/// Substitute state: worker token -> tenant it was issued for.
+pub type WorkerTable = HashMap<String, Uuid>;
+
+/// `validate-credential` port for tenant-bound health worker credentials
+/// (`POST /internal/health-worker/validate`).
+#[derive(Clone)]
+pub enum WorkerCredentials {
+    Http {
+        auth_url: Arc<String>,
+        internal_token: Arc<String>,
+        client: reqwest::Client,
+    },
+    /// Programmable substitute; `None` makes every validation unavailable.
+    Static(Arc<Mutex<Option<WorkerTable>>>),
+}
+
+impl WorkerCredentials {
+    pub fn substitute() -> Self {
+        Self::Static(Arc::new(Mutex::new(Some(HashMap::new()))))
+    }
+
+    /// Substitute only: accepts `token` for `tenant_id`.
+    pub fn issue(&self, token: &str, tenant_id: Uuid) {
+        if let Self::Static(s) = self {
+            s.lock()
+                .expect("substitute poisoned")
+                .get_or_insert_with(HashMap::new)
+                .insert(token.to_owned(), tenant_id);
+        }
+    }
+
+    /// Substitute only: stops accepting `token`.
+    pub fn revoke(&self, token: &str) {
+        if let Self::Static(s) = self
+            && let Some(m) = s.lock().expect("substitute poisoned").as_mut()
+        {
+            m.remove(token);
+        }
+    }
+
+    /// Substitute only: makes every validation unavailable.
+    pub fn set_unavailable(&self) {
+        if let Self::Static(s) = self {
+            *s.lock().expect("substitute poisoned") = None;
+        }
+    }
+
+    pub async fn validate(&self, tenant_id: Uuid, token: &str) -> Result<(), WorkerRejected> {
+        match self {
+            Self::Static(s) => {
+                let guard = s.lock().expect("substitute poisoned");
+                let table = guard.as_ref().ok_or(WorkerRejected::Unavailable)?;
+                match table.get(token) {
+                    Some(t) if *t == tenant_id => Ok(()),
+                    _ => Err(WorkerRejected::Unauthorized),
+                }
+            }
+            Self::Http {
+                auth_url,
+                internal_token,
+                client,
+            } => {
+                let response = client
+                    .post(format!(
+                        "{}/internal/health-worker/validate",
+                        auth_url.trim_end_matches('/')
+                    ))
+                    .header("X-Internal-Token", internal_token.as_str())
+                    .json(&serde_json::json!({ "tenant_id": tenant_id, "token": token }))
+                    .send()
+                    .await
+                    .map_err(|_| WorkerRejected::Unavailable)?;
+                match response.status().as_u16() {
+                    204 => Ok(()),
+                    401 => Err(WorkerRejected::Unauthorized),
+                    _ => Err(WorkerRejected::Unavailable),
+                }
+            }
+        }
+    }
+}

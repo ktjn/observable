@@ -5,7 +5,7 @@ capabilities:
   version: 0.1.0
   status: specified
   interface:
-    operation: GET /v1/catalog/services, /v1/catalog/services/{id}, /v1/catalog/services/{id}/bindings, /v1/catalog/search, /v1/catalog/exceptions
+    operation: GET /v1/catalog/services, /v1/catalog/services/{id}, /v1/catalog/services/{id}/bindings, /v1/catalog/search, /v1/catalog/exceptions, /internal/catalog/health-inputs
     auth: oidc_session
     idempotent: true
     # Business outcomes, not HTTP status codes. Transport authorization is specified separately.
@@ -21,6 +21,7 @@ capabilities:
   - covered_services_have_approved_outcomes
   - service_found_with_owner_and_coverage
   - authorized_service_binding_read_returns_stored_telemetry_identities_without_assessment
+  - health_worker_reads_only_its_credential_tenant_inputs_filtered_by_decide_access
   invariants:
   - every_in_scope_service_has_an_outcome_owner
   - critical_service_has_accountable_owner
