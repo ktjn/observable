@@ -153,10 +153,13 @@ components:
       - store-telemetry@^0.1
       # Phase 1 S6: rules and objectives are synced to the catalog asset registry.
       - govern-observability-assets@^0.1
+      # Phase 1 C3: objectives bind to catalog services; reads forward the caller's credential.
+      - manage-service-catalog@^0.1
     owns_data:
       - alert-rule
       - slo-definition
       - incident-record
+      - service-objective
 
   # Phase 1 (docs/plans/phase1-service-catalog.md). S1 shipped the runtime skeleton, S3 the
   # service records behind manage-service-catalog, S4 journeys, scope and operating contexts
@@ -726,6 +729,26 @@ data_models:
       window_sec: uint32
       owner_kind: string
       owner_id: uuid
+
+  - id: service-objective
+    version: "0.1.0"
+    owner: observable-alerting
+    namespace: alerting
+    storage_role: observable_alerting_role
+    classification: internal
+    schema_path: migrations/postgres/063_create_alerting_service_objectives.sql
+    fields:
+      objective_id: uuid
+      tenant_id: uuid
+      service_id: uuid
+      environment_class: string
+      sli_type: string
+      target: float64
+      window_days: integer
+      at_risk_budget_fraction: float64
+      freshness_seconds: integer
+      approved_by: nullable<uuid>
+      approved_at: nullable<timestamp>
 
   - id: slo-definition
     version: "0.1.0"

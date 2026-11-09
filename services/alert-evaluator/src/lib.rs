@@ -5,6 +5,7 @@ pub mod incidents;
 pub mod internal;
 pub mod middleware;
 pub mod notifications;
+pub mod objectives;
 pub mod observability;
 pub mod readyz;
 pub mod slos;

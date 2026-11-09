@@ -1,7 +1,7 @@
 use alert_evaluator::middleware::auth::InternalServiceToken;
 use alert_evaluator::{
     AppState, alerts, catalog_sync, evaluator, incidents, internal, middleware, notifications,
-    observability, readyz, slos,
+    objectives, observability, readyz, slos,
 };
 use axum::{
     Extension, Router, middleware as axum_middleware,
@@ -63,10 +63,18 @@ async fn main() -> anyhow::Result<()> {
 
     // Rules and objectives are registered in the catalog asset registry (phase 1 S6). Without
     // CATALOG_URL the sync is off, e.g. a stack that runs no catalog.
-    match std::env::var("CATALOG_URL")
+    let catalog_url = std::env::var("CATALOG_URL")
         .ok()
-        .filter(|u| !u.trim().is_empty())
-    {
+        .filter(|u| !u.trim().is_empty());
+    // Objective reads forward the caller's credential to the catalog (phase 1 C3).
+    let objective_catalog = match &catalog_url {
+        Some(url) => objectives::ObjectiveCatalog::Http {
+            base_url: Arc::new(url.clone()),
+            client: http_client.clone(),
+        },
+        None => objectives::ObjectiveCatalog::Disabled,
+    };
+    match catalog_url {
         Some(url) => {
             let sync_secs = std::env::var("CATALOG_SYNC_INTERVAL_SECONDS")
                 .ok()
@@ -160,7 +168,21 @@ async fn main() -> anyhow::Result<()> {
             "/v1/incidents/{incident_id}/link-deployment",
             post(incidents::handle_link_incident_deployment),
         )
+        .route(
+            "/v1/objectives",
+            get(objectives::handle_list).post(objectives::handle_create),
+        )
+        .route("/v1/objectives/{id}", patch(objectives::handle_update))
+        .route(
+            "/v1/objectives/{id}/approve",
+            post(objectives::handle_approve),
+        )
+        .route(
+            "/v1/objectives/{id}/compliance",
+            get(objectives::handle_compliance),
+        )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
+        .layer(Extension(objective_catalog))
         .layer(Extension(state.db.clone()))
         .layer(Extension(Arc::new(state.auth_service_url.clone())))
         .layer(Extension(state.http_client.clone()))

@@ -173,7 +173,20 @@ retired services and return an empty list for an unbound service. Missing and de
 services return the same 404. Policy outages fail closed for existing services.
 The read accesses catalog metadata only. An empty environment remains an unscoped
 binding. Consumers must select explicitly classified environments for production
-and exclude retired services from live health. Run impact analysis for each touched
+and exclude retired services from live health.
+
+C3 places objectives in `observable-alerting`, the provider of
+`manage-reliability-objectives`. `alerting.service_objectives` (migration 063) binds an
+availability target, window, at-risk budget share and freshness bound to a catalog service
+id and one environment class. It does not reference the catalog's approved outcome
+statement: the outcome states the business expectation, the objective its measure. A
+tenant admin approves the revision they read, and any change clears the approval.
+`GET /v1/objectives/{id}/compliance` forwards the caller's credential to the catalog
+(service detail, bindings and contexts), counts spans of the bindings whose exact
+environment is in the class over the window, and returns `breached` below target,
+`at_risk` at or above the budget share, otherwise `compliant`. No spans, or none within
+the freshness bound, yields `unknown`. An unapproved objective returns 409 with no result.
+The legacy `slo_definitions` and their burn-rate alerts are unchanged. Run impact analysis for each touched
 capability and deliver one component per PR where possible. Every new
 provider needs an independent harness, a versioned mock and real/mock parity. Run
 the local CI gate before pushing code and keep Phase 2 and Phase 4 acceptance gates

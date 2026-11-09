@@ -30,7 +30,7 @@ requirements:
     phase: 1
     target: manage-service-catalog
     status: partial
-    evidence: The legacy health pills and reliability report (services/query-api/src/discovery.rs, services/query-api/src/reliability.rs) do not evaluate agreed expectations per catalog service. Approved objectives and current scoped evidence remain pending in the Phase 1 closure slices.
+    evidence: Phase 1 C3. Approved objectives per catalog service and environment class in observable-alerting (migration 063); GET /v1/objectives/{id}/compliance returns compliant, at_risk, breached, or unknown for missing or stale evidence, and no result for an unapproved objective (services/alert-evaluator/tests/postgres_objectives_integration.rs). Stakeholder review in query and web remains pending in C4; the legacy pills (services/query-api/src/discovery.rs, reliability.rs) are still shown.
   OBS-01-05:
     priority: P1
     holder: process
