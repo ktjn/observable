@@ -205,7 +205,10 @@ Non-production choice, and the catalog's Service review view (`/catalog?view=rev
 reports business-critical or all services per class. Retired rows read Not live; unknown
 states carry their reason (`apps/frontend/e2e/catalog.spec.ts`). C4.3 retires the legacy derived `health_state`
 (`services/query-api/src/discovery.rs`, `libs/query-core/src/service_query.rs` and the web
-pills). Run impact analysis for each touched
+pills): telemetry summaries carry `slo_breaching` as a fact, the services pages show signals
+with a link to the review, and the home banner reports the worst expectation of
+business-critical production services from the review (never within expectations while any is
+unknown). Infrastructure entity health is not a catalog service assessment and stays. Run impact analysis for each touched
 capability and deliver one component per PR where possible. Every new
 provider needs an independent harness, a versioned mock and real/mock parity. Run
 the local CI gate before pushing code and keep Phase 2 and Phase 4 acceptance gates

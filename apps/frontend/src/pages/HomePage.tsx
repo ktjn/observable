@@ -9,6 +9,8 @@ import { TablePanel } from "../components/ui/table-panel";
 import { LoadingState } from "../components/ui/loading-state";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { useRuntime } from "../hooks/useRuntime";
+import { useCatalogQuery } from "../features/catalog/catalogUi";
+import type { ServiceReview } from "../runtime/catalogContract";
 
 export default function HomePage() {
   const { tenantId } = useTenantContext();
@@ -35,26 +37,22 @@ export default function HomePage() {
 
   const stats = useMemo(() => {
     const count = services.length;
-    const breach = services.filter((s) => s.health_state === "breach").length;
-    const watch = services.filter((s) => s.health_state === "watch").length;
-    const healthy = services.filter((s) => s.health_state === "healthy").length;
     const avgP95 = count > 0 ? services.reduce((a, s) => a + s.p95_latency_ms, 0) / count : 0;
     const avgError = count > 0 ? services.reduce((a, s) => a + s.error_rate, 0) / count : 0;
     const firingAlerts = alerts.filter((a) => a.firing).length;
     const openIncidents = incidents.length;
-    return { count, breach, watch, healthy, avgP95, avgError, firingAlerts, openIncidents };
+    return { count, avgP95, avgError, firingAlerts, openIncidents };
   }, [services, alerts, incidents]);
 
-  const systemStatus =
-    stats.breach > 0 ? "breach" : stats.watch > 0 ? "watch" : "healthy";
-
-  const statusLabel = systemStatus === "breach" ? "Degraded" : systemStatus === "watch" ? "Warning" : "Operational";
-  const statusColor =
-    systemStatus === "breach" ? "var(--bad)" : systemStatus === "watch" ? "var(--warn)" : "var(--good)";
-  const statusBg =
-    systemStatus === "breach" ? "var(--bad-bg)" : systemStatus === "watch" ? "var(--warn-bg)" : "var(--good-bg)";
-
-  const unhealthyServices = services.filter((s) => s.health_state !== "healthy");
+  // Status comes from the catalog service review of business-critical production services,
+  // never from telemetry error rates (phase 1 C4.3).
+  const review = useCatalogQuery(["reviews", "production", "business_critical", 0],
+    (catalog, tenant, signal) => catalog.reviews(tenant, "production", "business_critical", 0, signal));
+  const status = reviewStatus(review.data?.items, review.isError);
+  const errorServices = services
+    .filter((s) => s.error_rate > 0)
+    .sort((a, b) => b.error_rate - a.error_rate)
+    .slice(0, 5);
   const recentIncidents = incidents.slice(0, 5);
   const firingAlerts = alerts.filter((a) => a.firing).slice(0, 5);
 
@@ -76,12 +74,14 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* System status banner */}
+      {/* Business-critical expectations banner */}
       <div
+        role="region"
+        aria-label="Business-critical expectations"
         style={{
-          background: statusBg,
-          border: `1px solid ${statusColor}`,
-          borderLeft: `4px solid ${statusColor}`,
+          background: status.background,
+          border: `1px solid ${status.color}`,
+          borderLeft: `4px solid ${status.color}`,
           padding: "10px 14px",
           display: "flex",
           alignItems: "center",
@@ -94,20 +94,17 @@ export default function HomePage() {
             width: 8,
             height: 8,
             borderRadius: "50%",
-            background: statusColor,
+            background: status.color,
             flexShrink: 0,
           }}
         />
-        <span className="font-bold text-sm" style={{ color: statusColor }}>
-          {statusLabel}
+        <span className="font-bold text-sm" style={{ color: status.color }}>
+          {review.isPending ? "Checking expectations…" : status.label}
         </span>
-        {servicesLoading ? (
-          <span className="text-xs text-[var(--muted)]">Checking services…</span>
-        ) : (
-          <span className="text-xs text-[var(--muted)]">
-            {stats.healthy} healthy · {stats.watch} watch · {stats.breach} breach across {stats.count} services
-          </span>
-        )}
+        <span className="text-xs text-[var(--muted)]">{status.detail}</span>
+        <Link to="/catalog" search={{ view: "review" }} className="ml-auto text-xs text-[var(--brand)] hover:underline">
+          Service review →
+        </Link>
       </div>
 
       {/* Key metrics */}
@@ -134,10 +131,10 @@ export default function HomePage() {
       </div>
 
       <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
-        {/* Unhealthy services */}
+        {/* Highest error rates: a telemetry signal, not a health assessment */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <div className="text-xs font-bold uppercase text-[var(--muted)]">Unhealthy Services</div>
+            <div className="text-xs font-bold uppercase text-[var(--muted)]">Highest Error Rates</div>
             <Link to="/services" className="text-xs text-[var(--brand)] hover:underline">
               View all →
             </Link>
@@ -145,45 +142,27 @@ export default function HomePage() {
           <TablePanel>
             {servicesLoading ? (
               <LoadingState>Loading…</LoadingState>
-            ) : unhealthyServices.length === 0 ? (
-              <EmptyState title="All services healthy" compact />
+            ) : errorServices.length === 0 ? (
+              <EmptyState title="No errors in observed telemetry" compact />
             ) : (
-              <table aria-label="Unhealthy services">
+              <table aria-label="Highest error rates">
                 <thead>
                   <tr>
                     <th>Service</th>
-                    <th>Health</th>
                     <th>Error Rate</th>
                     <th>P95</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {unhealthyServices.map((s) => (
+                  {errorServices.map((s) => (
                     <tr key={s.service_name}>
                       <td className="strong-cell">
                         <Link to="/services/$serviceId" params={{ serviceId: s.service_name }}>
                           {s.service_name}
                         </Link>
                       </td>
-                      <td>
-                        <Badge tone={s.health_state === "breach" ? "bad" : "warn"}>
-                          {s.health_state === "breach" ? "Breach" : "Watch"}
-                        </Badge>
-                      </td>
-                      <td>
-                        <span style={{ color: s.error_rate >= 0.05 ? "var(--bad)" : "var(--warn)" }}>
-                          {(s.error_rate * 100).toFixed(2)}%
-                        </span>
-                      </td>
-                      <td>
-                        <span
-                          style={{
-                            color: s.p95_latency_ms >= 500 ? "var(--bad)" : "var(--warn)",
-                          }}
-                        >
-                          {Math.round(s.p95_latency_ms)}ms
-                        </span>
-                      </td>
+                      <td>{(s.error_rate * 100).toFixed(2)}%</td>
+                      <td>{Math.round(s.p95_latency_ms)}ms</td>
                     </tr>
                   ))}
                 </tbody>
@@ -314,4 +293,26 @@ export default function HomePage() {
       </div>
     </section>
   );
+}
+
+interface ReviewStatus {
+  label: string;
+  detail: string;
+  color: string;
+  background: string;
+}
+
+/** Worst agreed-expectation state across business-critical production services. */
+export function reviewStatus(items: ServiceReview[] | undefined, failed: boolean): ReviewStatus {
+  const neutral = { color: "var(--muted)", background: "var(--surface-subtle)" };
+  if (failed) return { ...neutral, label: "Expectations unavailable", detail: "The service review could not be loaded." };
+  const live = (items ?? []).filter((item) => item.live && item.expectation);
+  if (live.length === 0) return { ...neutral, label: "No business-critical services", detail: "No live business-critical services in production." };
+  const count = (status: string) => live.filter((item) => item.expectation?.status === status).length;
+  const [breached, atRisk, unknown, compliant] = [count("breached"), count("at_risk"), count("unknown"), count("compliant")];
+  const detail = `${compliant} compliant · ${atRisk} at risk · ${breached} breached · ${unknown} unknown across ${live.length} business-critical production services`;
+  if (breached > 0) return { label: "Expectations breached", detail, color: "var(--bad)", background: "var(--bad-bg)" };
+  if (atRisk > 0) return { label: "Expectations at risk", detail, color: "var(--warn)", background: "var(--warn-bg)" };
+  if (unknown > 0) return { ...neutral, label: "Expectations unknown", detail };
+  return { label: "Within expectations", detail, color: "var(--good)", background: "var(--good-bg)" };
 }

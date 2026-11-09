@@ -136,7 +136,7 @@ function ServiceDetailView({
         <MetricCard
           label="Error Rate"
           value={`${(service.error_rate * 100).toFixed(2)}%`}
-          tone={service.health_state === "breach" ? "bad" : service.health_state === "watch" ? "warn" : "good"}
+          tone={service.error_rate > 0 ? "warn" : "info"}
         />
         <MetricCard
           label="P95 Latency"
@@ -158,7 +158,6 @@ function ServiceDetailView({
       <ServiceSignalTabs
         serviceName={service.service_name}
         activeTab={activeTab}
-        healthState={service.health_state}
       />
     </section>
   );
@@ -179,11 +178,9 @@ function signalTabFromPath(pathname: string): ServiceSignalTab {
 function ServiceSignalTabs({
   serviceName,
   activeTab,
-  healthState,
 }: {
   serviceName: string;
   activeTab: ServiceSignalTab;
-  healthState: ServiceSummary["health_state"];
 }) {
   const encodedService = encodeURIComponent(serviceName);
   const tabLinks = [
@@ -217,7 +214,7 @@ function ServiceSignalTabs({
       {activeTab === "infrastructure" && <ServiceInfraPanel serviceName={serviceName} />}
       {activeTab === "deployments" && <ServiceDeploymentsTab serviceName={serviceName} />}
       {activeTab === "reliability" && (
-        <ServiceReliabilityTab serviceName={serviceName} healthState={healthState} />
+        <ServiceReliabilityTab serviceName={serviceName} />
       )}
       {activeTab === "alerts" && <ServiceAlertsTab />}
     </Panel>

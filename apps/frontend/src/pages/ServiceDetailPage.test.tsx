@@ -84,7 +84,7 @@ const sampleSummary: servicesApi.ServiceSummary = {
   request_rate: 12.5,
   error_rate: 0.02,
   p95_latency_ms: 245,
-  health_state: "healthy",
+  slo_breaching: false,
   active_alert_count: 0,
   latest_deployment: "v2.3.1",
 };

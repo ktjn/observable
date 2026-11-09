@@ -33,26 +33,10 @@ function formatMinutes(value: number | null): string {
   return `${Math.round(value)}m`;
 }
 
-type HealthState = "healthy" | "watch" | "breach";
-
-function healthTone(state: HealthState): "good" | "warn" | "bad" {
-  if (state === "breach") return "bad";
-  if (state === "watch") return "warn";
-  return "good";
-}
-
-function healthLabel(state: HealthState): string {
-  if (state === "breach") return "Breach";
-  if (state === "watch") return "Watch";
-  return "Healthy";
-}
-
 export function ServiceReliabilityTab({
   serviceName,
-  healthState,
 }: {
   serviceName: string;
-  healthState: HealthState;
 }) {
   const { tenantId, environment } = useTenantContext();
   const { fromMs, toMs } = useGlobalDateRange();
@@ -93,7 +77,6 @@ export function ServiceReliabilityTab({
     <div className="space-y-1">
       <div className="flex items-center gap-2 text-xs font-bold uppercase text-[var(--muted)]">
         <span>Reliability</span>
-        <Badge tone={healthTone(healthState)}>{healthLabel(healthState)}</Badge>
       </div>
       <h3 className="text-lg font-semibold text-[var(--text-strong)]">
         {serviceName}
@@ -202,7 +185,7 @@ export function ServiceReliabilityTab({
                       </td>
                       <td className="py-2 pr-4 text-[var(--muted)]">{slo.environment}</td>
                       <td className="py-2 pr-4">
-                        <Badge tone={slo.firing ? "bad" : "good"}>{slo.firing ? "Firing" : "Healthy"}</Badge>
+                        <Badge tone={slo.firing ? "bad" : "neutral"}>{slo.firing ? "Firing" : "Not firing"}</Badge>
                       </td>
                       <td className="py-2 pr-4 text-[var(--muted)]">{(slo.target * 100).toFixed(1)}%</td>
                       <td className="py-2 pr-4 text-[var(--muted)]">{slo.window_days}d</td>

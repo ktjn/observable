@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { ServiceSummary, TopologyEdge } from "../api/services";
 import { useRuntime } from "../hooks/useRuntime";
-import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { CopyableText } from "../components/ui/copy-button";
 import { DataFreshness } from "../components/ui/data-freshness";
@@ -11,7 +10,6 @@ import { EmptyState } from "../components/ui/empty-state";
 import { ErrorState } from "../components/ui/error-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
-import { PillFilter } from "../components/ui/pill-filter";
 import { ErrorRateCell, LatencyCell } from "../components/ui/metric-cells";
 import { TablePanel } from "../components/ui/table-panel";
 import { TopologyMap } from "../components/topology/TopologyMap";
@@ -35,8 +33,7 @@ export default function ServicesPage() {
   const [view, setView] = useState<ViewMode>("list");
   const [environment, setEnvironment] = useState<string>("all");
   const [search, setSearch] = useState("");
-  const [healthFilter, setHealthFilter] = useState("all");
-  const [sortBy, setSortBy] = useState<keyof ServiceSummary | "health">("service_name");
+  const [sortBy, setSortBy] = useState<keyof ServiceSummary>("service_name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const { tenantId } = useTenantContext();
   const runtime = useRuntime();
@@ -51,40 +48,21 @@ export default function ServicesPage() {
 
   const items = servicesData?.items ?? [];
 
-  // Health pill counts (ignore health filter so each pill shows how many match)
-  const healthCounts = useMemo(() => {
-    const base = search
-      ? items.filter((s) => s.service_name.toLowerCase().includes(search.trim().toLowerCase()))
-      : items;
-    return base.reduce(
-      (acc, s) => {
-        if (s.health_state === "healthy") acc.healthy += 1;
-        if (s.health_state === "watch") acc.watch += 1;
-        if (s.health_state === "breach") acc.breach += 1;
-        return acc;
-      },
-      { healthy: 0, watch: 0, breach: 0 },
-    );
-  }, [items, search]);
-
   const filteredAndSorted = useMemo(() => {
     let list = [...items];
     if (search) {
       const sv = search.trim().toLowerCase();
       list = list.filter((s) => s.service_name.toLowerCase().includes(sv));
     }
-    if (healthFilter !== "all") {
-      list = list.filter((s) => s.health_state === healthFilter);
-    }
     list.sort((a, b) => {
-      let valA: string | number = sortBy === "health" ? a.error_rate : (a[sortBy as keyof ServiceSummary] ?? "");
-      let valB: string | number = sortBy === "health" ? b.error_rate : (b[sortBy as keyof ServiceSummary] ?? "");
+      const valA = a[sortBy] ?? "";
+      const valB = b[sortBy] ?? "";
       if (valA < valB) return sortOrder === "asc" ? -1 : 1;
       if (valA > valB) return sortOrder === "asc" ? 1 : -1;
       return 0;
     });
     return list;
-  }, [items, search, healthFilter, sortBy, sortOrder]);
+  }, [items, search, sortBy, sortOrder]);
 
   const stats = useMemo(() => {
     if (items.length === 0) return { count: 0, avgP95: 0, avgError: 0, alertCount: 0 };
@@ -95,7 +73,7 @@ export default function ServicesPage() {
     return { count, avgP95, avgError, alertCount };
   }, [items]);
 
-  function handleSort(column: keyof ServiceSummary | "health") {
+  function handleSort(column: keyof ServiceSummary) {
     if (sortBy === column) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
@@ -104,7 +82,7 @@ export default function ServicesPage() {
     }
   }
 
-  function SortIndicator({ column }: { column: keyof ServiceSummary | "health" }) {
+  function SortIndicator({ column }: { column: keyof ServiceSummary }) {
     if (sortBy !== column) return null;
     return <span aria-hidden="true"> {sortOrder === "asc" ? "▲" : "▼"}</span>;
   }
@@ -152,35 +130,22 @@ export default function ServicesPage() {
       <div className="toolbar-row">
         <QueryInput
           baseIr={SERVICES_BASE_IR}
-          placeholder='Filter services, e.g. "prod checkout services in watch"'
+          placeholder='Filter services, e.g. "prod checkout services"'
           onIr={(ir) => {
             const filters = deriveViewFiltersFromIr(ir, "services");
             setSearch(filters.text ?? "");
             setEnvironment(filters.environment ?? "all");
-            setHealthFilter(filters.health ?? "all");
           }}
         />
       </div>
 
       {view === "list" && (
         <>
-          <div className="toolbar-row flex-wrap gap-y-2">
-            <PillFilter
-              pills={(["all", "healthy", "watch", "breach"] as const).map((health) => {
-                const count =
-                  health === "all"
-                    ? healthCounts.healthy + healthCounts.watch + healthCounts.breach
-                    : healthCounts[health];
-                const activeColor =
-                  health === "breach" ? "var(--bad)" : health === "watch" ? "var(--warn)" : health === "healthy" ? "var(--good)" : "var(--brand)";
-                return { key: health, label: health === "all" ? "All health" : health, count, activeColor };
-              })}
-              activeKey={healthFilter}
-              onSelect={(key) => setHealthFilter(key)}
-              rounded
-              ariaLabel="Filter by health"
-            />
-          </div>
+          <p className="text-xs text-[var(--muted)]">
+            Telemetry signals per service name. Health and agreed expectations are assessed per catalog
+            service and environment class in the{" "}
+            <Link to="/catalog" search={{ view: "review" }} className="underline">service review</Link>.
+          </p>
 
           <div
             className="grid gap-3 max-[860px]:grid-cols-2 max-[560px]:grid-cols-1"
@@ -212,7 +177,6 @@ export default function ServicesPage() {
                     <th onClick={() => handleSort("request_rate")} className="sortable">
                       RPS<SortIndicator column="request_rate" />
                     </th>
-                    <th>Health</th>
                     <th onClick={() => handleSort("error_rate")} className="sortable">
                       Error Rate<SortIndicator column="error_rate" />
                     </th>
@@ -244,24 +208,14 @@ export default function ServicesPage() {
 // ── Service list row ──────────────────────────────────────────────────────────
 
 function ServiceRow({ row }: { row: ServiceSummary }) {
-  const rowBorderClass =
-    row.health_state === "breach"
-      ? "border-l-2 border-l-[var(--bad)]"
-      : row.health_state === "watch"
-        ? "border-l-2 border-l-[var(--warn)]"
-        : "";
-
   return (
-    <tr className={rowBorderClass}>
+    <tr>
       <td className="strong-cell">
         <Link to="/services/$serviceId" params={{ serviceId: row.service_name }}>
           {row.service_name}
         </Link>
       </td>
       <td>{row.request_rate.toFixed(2)}</td>
-      <td>
-        <HealthStatus healthState={row.health_state} />
-      </td>
       <td>
         <ErrorRateCell value={row.error_rate} />
       </td>
@@ -286,12 +240,6 @@ function ServiceRow({ row }: { row: ServiceSummary }) {
   );
 }
 
-
-function HealthStatus({ healthState }: { healthState: ServiceSummary["health_state"] }) {
-  const tone = healthState === "breach" ? "bad" : healthState === "watch" ? "warn" : "good";
-  const label = healthState === "breach" ? "Breach" : healthState === "watch" ? "Watch" : "Healthy";
-  return <Badge tone={tone}>{label}</Badge>;
-}
 
 // ── Topology view ─────────────────────────────────────────────────────────────
 

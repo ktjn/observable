@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- The derived `health_state` (healthy, watch, breach from error rate) on `/v1/services/summary`
+  and `/v1/services/{name}/summary` (phase 1 C4.3). It called a service with no requests healthy
+  and mixed environments. Summaries now carry `slo_breaching`, a firing legacy SLO burn-rate
+  alert, as a fact; health and agreed expectations come from `/v1/review/services`.
+  Infrastructure entity health is unchanged.
+
 ### Added
 
 - Service review (phase 1 C4, OBS-01-03, OBS-01-04, OBS-02-04):

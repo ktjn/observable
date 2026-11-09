@@ -61,7 +61,9 @@ pub struct ServiceSummary {
     pub request_rate: f64,
     pub error_rate: f64,
     pub p95_latency_ms: f64,
-    pub health_state: String,
+    /// A legacy SLO burn-rate alert for this telemetry service name is firing. Health and
+    /// agreed expectations come only from the catalog service review (`/v1/review/services`).
+    pub slo_breaching: bool,
     pub active_alert_count: u64,
     pub latest_deployment: Option<String>,
 }
@@ -745,9 +747,7 @@ fn apply_catalog_enrichment(
     if let Some(e) = enrichment {
         summary.active_alert_count = e.active_alert_count;
         summary.latest_deployment = e.latest_deployment.clone();
-        if e.slo_breaching {
-            summary.health_state = "breach".to_string();
-        }
+        summary.slo_breaching = e.slo_breaching;
     }
     summary
 }
@@ -764,13 +764,14 @@ fn service_summary_from_row(row: ServiceSummaryRow, duration_secs: f64) -> Servi
         request_rate: (row.request_count as f64) / duration_secs,
         error_rate,
         p95_latency_ms: row.p95_latency_ns / 1_000_000.0,
-        health_state: health_state(error_rate).to_string(),
+        slo_breaching: false,
         active_alert_count: 0,
         latest_deployment: None,
     }
 }
 
-fn health_state(error_rate: f64) -> &'static str {
+/// Infrastructure entities are not catalog services; their error-rate band stays here.
+fn infrastructure_health_state(error_rate: f64) -> &'static str {
     if error_rate > 0.05 {
         "breach"
     } else if error_rate > 0.01 {
@@ -958,7 +959,7 @@ fn infrastructure_entity_summary_from_row(
         None
     };
     let log_rate_per_minute = Some((row.log_events as f64) / (lookback_minutes as f64));
-    let health_state = health_state(error_rate.unwrap_or_default()).to_string();
+    let health_state = infrastructure_health_state(error_rate.unwrap_or_default()).to_string();
     let environment = normalize_infrastructure_string(row.environment);
 
     InfrastructureEntitySummary {
@@ -1114,7 +1115,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn summary_row_derives_red_metrics_and_health() {
+    fn summary_row_derives_red_metrics_without_a_health_label() {
         let summary = service_summary_from_row(
             ServiceSummaryRow {
                 service_name: "checkout".into(),
@@ -1129,16 +1130,11 @@ mod tests {
         assert_eq!(summary.request_rate, 2.0);
         assert_eq!(summary.error_rate, 0.025);
         assert_eq!(summary.p95_latency_ms, 245.0);
-        assert_eq!(summary.health_state, "watch");
+        assert!(!summary.slo_breaching);
         assert_eq!(summary.active_alert_count, 0);
+        let json = serde_json::to_value(&summary).unwrap();
+        assert!(json.get("health_state").is_none());
         assert_eq!(summary.latest_deployment, None);
-    }
-
-    #[test]
-    fn health_state_thresholds_are_stable() {
-        assert_eq!(health_state(0.0), "healthy");
-        assert_eq!(health_state(0.02), "watch");
-        assert_eq!(health_state(0.06), "breach");
     }
 
     fn healthy_summary() -> ServiceSummary {
@@ -1154,34 +1150,17 @@ mod tests {
     }
 
     #[test]
-    fn enrichment_overrides_health_state_to_breach_when_slo_breaching() {
-        let summary = healthy_summary();
-        assert_eq!(summary.health_state, "healthy");
-
+    fn enrichment_reports_a_breaching_slo_as_a_fact() {
         let enrichment = ServiceCatalogEnrichment {
             active_alert_count: 1,
             slo_breaching: true,
             latest_deployment: None,
         };
 
-        let enriched = apply_catalog_enrichment(summary, Some(&enrichment));
+        let enriched = apply_catalog_enrichment(healthy_summary(), Some(&enrichment));
 
-        assert_eq!(enriched.health_state, "breach");
-    }
-
-    #[test]
-    fn enrichment_leaves_error_rate_health_state_when_slo_not_breaching() {
-        let summary = healthy_summary();
-
-        let enrichment = ServiceCatalogEnrichment {
-            active_alert_count: 0,
-            slo_breaching: false,
-            latest_deployment: None,
-        };
-
-        let enriched = apply_catalog_enrichment(summary, Some(&enrichment));
-
-        assert_eq!(enriched.health_state, "healthy");
+        assert!(enriched.slo_breaching);
+        assert_eq!(enriched.active_alert_count, 1);
     }
 
     #[test]
@@ -1206,7 +1185,7 @@ mod tests {
 
         let enriched = apply_catalog_enrichment(summary, None);
 
-        assert_eq!(enriched.health_state, "healthy");
+        assert!(!enriched.slo_breaching);
         assert_eq!(enriched.active_alert_count, 0);
         assert_eq!(enriched.latest_deployment, None);
     }
@@ -1241,11 +1220,11 @@ mod tests {
     }
 
     #[test]
-    fn infrastructure_health_state_matches_shared_service_thresholds() {
-        assert_eq!(health_state(0.0), "healthy");
-        assert_eq!(health_state(0.02), "watch");
-        assert_eq!(health_state(0.05), "watch");
-        assert_eq!(health_state(0.06), "breach");
+    fn infrastructure_health_state_thresholds_are_stable() {
+        assert_eq!(infrastructure_health_state(0.0), "healthy");
+        assert_eq!(infrastructure_health_state(0.02), "watch");
+        assert_eq!(infrastructure_health_state(0.05), "watch");
+        assert_eq!(infrastructure_health_state(0.06), "breach");
 
         let summary = infrastructure_entity_summary_from_row(
             InfrastructureEntityType::Pod,
