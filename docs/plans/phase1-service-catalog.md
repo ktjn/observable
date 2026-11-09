@@ -186,7 +186,23 @@ tenant admin approves the revision they read, and any change clears the approval
 environment is in the class over the window, and returns `breached` below target,
 `at_risk` at or above the budget share, otherwise `compliant`. No spans, or none within
 the freshness bound, yields `unknown`. An unapproved objective returns 409 with no result.
-The legacy `slo_definitions` and their burn-rate alerts are unchanged. Run impact analysis for each touched
+The legacy `slo_definitions` and their burn-rate alerts are unchanged.
+
+C4 ships in three PRs. C4.1 adds the service review to `observable-query`, which now requires
+`manage-service-catalog`, `assess-service-health` and `manage-reliability-objectives` (web
+stays within its requires budget by reading the review through `query-telemetry`).
+`GET /v1/review/services/{id}?environment_class=` reads the catalog record, then health and the
+class's objectives with their compliance, all with the caller's credential. A hidden or missing
+service is one 404 and no provider is asked; a catalog outage is 503. Health or objectives that
+are withheld (404) or unavailable yield `unknown` with `restricted` or `evaluation_unavailable`.
+The expectation combines approved objectives: any breach, then any risk, then any unknown,
+otherwise compliant; no approved objective is `unknown` with `no_approved_objective`.
+`GET /v1/review/services?environment_class=&context=business_critical|all` pages the same
+review over catalog records; `business_critical` delegates the live and criticality filter to
+the catalog, and `all` lists retired services as not live. C4.2 moves the web catalog record and
+a business-critical report onto the review. C4.3 retires the legacy derived `health_state`
+(`services/query-api/src/discovery.rs`, `libs/query-core/src/service_query.rs` and the web
+pills). Run impact analysis for each touched
 capability and deliver one component per PR where possible. Every new
 provider needs an independent harness, a versioned mock and real/mock parity. Run
 the local CI gate before pushing code and keep Phase 2 and Phase 4 acceptance gates

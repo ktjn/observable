@@ -10,6 +10,8 @@
     (dict "name" "AUTH_SERVICE_URL"   "value" (printf "http://auth-service:%d" (int .Values.services.authService.port)))
     (dict "name" "ADMIN_SERVICE_URL"  "value" (printf "http://admin-service:%d" (int .Values.services.adminService.port)))
     (dict "name" "ALERT_EVALUATOR_URL" "value" (printf "http://alert-evaluator:%d" (int .Values.services.alertEvaluator.port)))
+    (dict "name" "CATALOG_URL"        "value" (ternary (printf "http://catalog-service:%d" (int .Values.services.catalogService.port)) "" .Values.services.catalogService.enabled))
+    (dict "name" "HEALTH_URL"         "value" (ternary (printf "http://health-service:%d" (int .Values.services.healthService.port)) "" .Values.services.healthService.enabled))
     $token
     (dict "name" "OBSERVABLE_ENV"     "value" .Values.identity.env)
     (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)

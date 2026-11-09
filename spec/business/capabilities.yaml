@@ -84,7 +84,16 @@ capabilities:
 - id: manage-reliability-objectives
   version: 0.1.0
   status: specified
-  description: Manage reliability against customer-relevant commitments. Provided by observable-alerting.
+  interface:
+    operation: GET /v1/objectives?service_id= and GET /v1/objectives/{id}/compliance
+    auth: oidc_session_and_catalog_service_read
+    idempotent: true
+    # Map the existing capability failure modes to observable outcomes.
+    errors:
+      slo_sla_confusion: measurable_objective_kept_separate_from_outcome_statement
+      unwarned_budget_exhaustion: at_risk_before_breached
+      process_not_followed: 409_without_compliance_result_until_approved
+  description: 'Manage reliability against customer-relevant commitments. Provided by observable-alerting (approved objectives per catalog service and environment class since Phase 1 C3).'
   postconditions:
   - slo_attainment_and_budget_shown
   invariants:

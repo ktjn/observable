@@ -5,4 +5,5 @@ mod http_api_integration;
 mod nlq_provider_integration;
 mod nlq_shorthand_integration;
 mod postgres_mcp_tools_integration;
+mod review_integration;
 mod session_auth_integration;

@@ -315,6 +315,8 @@ services:
       AUTH_SERVICE_URL: http://auth-service:4319
       ADMIN_SERVICE_URL: http://admin-service:4324
       ALERT_EVALUATOR_URL: http://alert-evaluator:4322
+      CATALOG_URL: http://catalog-service:4325
+      HEALTH_URL: http://health-service:4326
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000}
       LLM_API_KEY: ${LLM_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}

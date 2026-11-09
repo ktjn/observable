@@ -109,6 +109,11 @@ components:
       - manage-control-plane@^0.1
       - evaluate-alerts@^0.1
       - store-telemetry@^0.1
+      # Phase 1 C4: service review composes the catalog record, health and approved objective
+      # compliance with the caller's own credential (GET /v1/review/services).
+      - manage-service-catalog@^0.1
+      - assess-service-health@^0.1
+      - manage-reliability-objectives@^0.1
 
   - id: observable-control
     version: "0.1.0"

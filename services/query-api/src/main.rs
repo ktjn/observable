@@ -11,6 +11,7 @@ mod nlq_session;
 mod observability;
 mod planner;
 mod reliability;
+mod review;
 mod setup;
 mod sql_templates;
 mod traces;
@@ -54,6 +55,20 @@ async fn main() -> anyhow::Result<()> {
     let admin_service_url = observable_config::require_env("ADMIN_SERVICE_URL")?;
     let alert_evaluator_url = observable_config::require_env("ALERT_EVALUATOR_URL")?;
     let internal_service_token = observable_config::require_env("INTERNAL_SERVICE_TOKEN")?;
+    // Service review (C4) needs the catalog and health providers; without them it answers 503.
+    let review_providers = match (std::env::var("CATALOG_URL"), std::env::var("HEALTH_URL")) {
+        (Ok(catalog), Ok(health)) if !catalog.trim().is_empty() && !health.trim().is_empty() => {
+            review::ReviewProviders::http(
+                catalog,
+                health,
+                alert_evaluator_url.clone(),
+                reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_secs(5))
+                    .build()?,
+            )
+        }
+        _ => review::ReviewProviders::disabled(),
+    };
     let state = traces::AppState {
         ch,
         planner: Arc::new(planner::QueryPlanner),
@@ -101,6 +116,8 @@ async fn main() -> anyhow::Result<()> {
             get(discovery::get_service_response_time_history),
         )
         .route("/v1/environments", get(discovery::list_environments))
+        .route("/v1/review/services", get(review::list_service_reviews))
+        .route("/v1/review/services/{id}", get(review::get_service_review))
         .route(
             "/v1/services/{service_name}/reliability-report",
             get(reliability::handle_get_service_reliability_report),
@@ -122,6 +139,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/nlq/prepare", post(llm_adapter::handle_nlq_prepare))
         .route("/v1/nlq/complete", post(llm_adapter::handle_nlq_complete))
         .route("/v1/nlq/metadata", get(llm_adapter::handle_nlq_metadata))
+        .layer(axum::Extension(review_providers))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
         .layer(axum::Extension(reqwest::Client::new()))
