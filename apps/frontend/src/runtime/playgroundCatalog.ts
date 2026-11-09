@@ -1,4 +1,7 @@
-import { catalogPageSize, type CatalogRuntime, type CatalogServiceRecord, type CatalogProviderRecord } from "./catalogContract";
+import {
+  catalogPageSize, type CatalogRuntime, type CatalogServiceRecord, type CatalogProviderRecord,
+  type EnvironmentClass, type ServiceReview,
+} from "./catalogContract";
 
 const checkout: CatalogServiceRecord = {
   id: "00000000-0000-0000-0000-000000000011",
@@ -31,6 +34,28 @@ const payment: CatalogProviderRecord = {
 };
 
 const assessedAt = new Date().toISOString();
+
+/** Production meets its approved objective; non-production has no approved objective yet. */
+function reviewOf(environmentClass: EnvironmentClass): ServiceReview {
+  const production = environmentClass === "production";
+  return {
+    service: { id: checkout.id, business_name: checkout.business_name, criticality: checkout.criticality, lifecycle: checkout.lifecycle },
+    environment_class: environmentClass,
+    live: true,
+    health: production
+      ? { state: "normal", evidence_status: "current", evaluated_at: assessedAt, last_evidence_at: assessedAt }
+      : { state: "unknown", evidence_status: "missing", evaluated_at: assessedAt, last_evidence_at: null },
+    expectation: production
+      ? {
+        status: "compliant", reason: "current", objectives: [{
+          objective_id: "checkout-availability", sli_type: "availability", target: 0.995, window_days: 30,
+          description: "Orders are confirmed after payment.", approved: true, status: "compliant",
+          evidence_status: "current", attainment: 0.998, error_budget_consumed: 0.4, last_evidence_at: assessedAt,
+        }],
+      }
+      : { status: "unknown", reason: "no_approved_objective", objectives: [] },
+  };
+}
 
 function page<T>(items: T[], offset = 0) {
   return { items: items.slice(offset, offset + catalogPageSize), total: items.length };
@@ -77,6 +102,12 @@ export const playgroundCatalog: CatalogRuntime = {
   },
   async providerGaps() {
     return page([]);
+  },
+  async review(_tenant, id, environmentClass) {
+    return id === checkout.id ? reviewOf(environmentClass) : null;
+  },
+  async reviews(_tenant, environmentClass, _scope, offset) {
+    return page([reviewOf(environmentClass)], offset);
   },
   async ownerlessAssets() {
     return page([{

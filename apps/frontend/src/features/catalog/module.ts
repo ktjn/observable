@@ -3,6 +3,7 @@ import { BookOpen } from "lucide-react";
 
 export const catalogViews = [
   { id: "services", label: "Service records" },
+  { id: "review", label: "Service review" },
   { id: "coverage", label: "Coverage" },
   { id: "gaps", label: "Gaps" },
   { id: "providers", label: "Providers" },
@@ -31,9 +32,13 @@ export function validateCatalogSearch(search: Record<string, unknown>) {
   const q = typeof search.q === "string" ? search.q.trim() : "";
   const validQuery = Array.from(q).length >= 2 && new TextEncoder().encode(q).length <= 200;
   const offset = typeof search.offset === "number" ? search.offset : 0;
+  const review = view === "review";
   return {
     view: view === "services" ? undefined : view,
     q: view === "services" && validQuery ? q : undefined,
     offset: Number.isSafeInteger(offset) && offset > 0 ? offset : undefined,
+    // Reviews always name one class; production is the default, never a mix.
+    env: review && search.env === "non_production" ? "non_production" as const : undefined,
+    scope: review && search.scope === "all" ? "all" as const : undefined,
   };
 }

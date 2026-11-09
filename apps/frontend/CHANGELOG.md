@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Service catalog search, service records, monitoring coverage, gaps, providers, and ownerless assets.
+- Service review (phase 1 C4.2): the catalog service record shows health and agreed
+  expectations for one environment class at a time, and the catalog's Service review view
+  reports business-critical (or all) services per class from `GET /v1/review/services`.
+  Unknown health and expectations are labeled with their reason and never toned as healthy;
+  retired services are shown as not live.
 
 ## [0.1.0] - 2026-07-18
 

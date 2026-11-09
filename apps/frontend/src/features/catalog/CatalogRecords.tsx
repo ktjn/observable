@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { DlRow } from "../../components/ui/dl-row";
 import { EmptyState } from "../../components/ui/empty-state";
 import { Panel } from "../../components/ui/panel";
-import type { CatalogServiceRecord } from "../../runtime/catalogContract";
-import { CatalogResult, CatalogTable, CoverageLabel, labelOf, principalName, ServiceLink, useCatalogQuery } from "./catalogUi";
+import { type CatalogServiceRecord, type EnvironmentClass, type ServiceReview } from "../../runtime/catalogContract";
+import {
+  CatalogResult, CatalogTable, classLabels, CoverageLabel, EnvironmentClassPicker, ExpectationLabel, HealthLabel, labelOf, principalName,
+  reasonOf, ServiceLink, useCatalogQuery,
+} from "./catalogUi";
 
 const serviceRoute = getRouteApi("/catalog/services/$serviceId");
 const providerRoute = getRouteApi("/catalog/providers/$providerId");
@@ -58,6 +62,9 @@ function ServiceRecord({ service }: { service: CatalogServiceRecord }) {
           ? <p>Coverage assessments are unavailable for retired services.</p>
           : <ServiceAssessment serviceId={service.id} />}
       </Panel>
+      <Panel title="Health and expectations">
+        <ServiceReviewPanel serviceId={service.id} />
+      </Panel>
       <Panel title="Business outcomes">
         <CatalogTable title="Business outcomes" headings={["Outcome", "Expectation", "Approval"]}
           rows={service.outcomes.map((outcome) => ({ id: outcome.id, cells: [
@@ -90,6 +97,48 @@ function ServiceAssessment({ serviceId }: { serviceId: string }) {
     )
     : <p>Coverage is unavailable.</p>}
   </CatalogResult>;
+}
+
+function ServiceReviewPanel({ serviceId }: { serviceId: string }) {
+  // The review is requested only after the service lookup succeeds, one class at a time.
+  const [environmentClass, setEnvironmentClass] = useState<EnvironmentClass>("production");
+  const query = useCatalogQuery(["review", serviceId, environmentClass],
+    (catalog, tenant, signal) => catalog.review(tenant, serviceId, environmentClass, signal));
+  return (
+    <div className="grid gap-3">
+      <EnvironmentClassPicker value={environmentClass} onChange={setEnvironmentClass} />
+      <CatalogResult query={query} label="health and expectations">{(review) => review
+        ? <ReviewDetail review={review} />
+        : <p>Health and expectations are unavailable.</p>}
+      </CatalogResult>
+    </div>
+  );
+}
+
+function ReviewDetail({ review }: { review: ServiceReview }) {
+  const { health, expectation } = review;
+  if (!review.live || !health || !expectation) {
+    return <p>{labelOf(review.service.lifecycle)} services are not live and have no current health or expectation.</p>;
+  }
+  return (
+    <div className="grid gap-3">
+      <dl className={recordGrid}>
+        <DlRow label="Health"><HealthLabel state={health.state} /> {reasonOf(health.evidence_status)}</DlRow>
+        <DlRow label="Last evidence">{health.last_evidence_at ? new Date(health.last_evidence_at).toLocaleString() : "None"}</DlRow>
+        <DlRow label="Expectation"><ExpectationLabel status={expectation.status} /> {reasonOf(expectation.reason)}</DlRow>
+      </dl>
+      <CatalogTable title="Objectives" empty={`No objectives for ${classLabels[review.environment_class].toLowerCase()}`}
+        headings={["Objective", "Target", "Window", "Approval", "Compliance", "Evidence"]}
+        rows={expectation.objectives.map((objective) => ({ id: objective.objective_id, cells: [
+          objective.description || labelOf(objective.sli_type),
+          `${(objective.target * 100).toFixed(2)}%`,
+          `${objective.window_days} days`,
+          objective.approved ? "Approved" : "Pending approval",
+          objective.approved && objective.status ? <ExpectationLabel status={objective.status} /> : "No result",
+          objective.approved ? reasonOf(objective.evidence_status) : "—",
+        ] }))} />
+    </div>
+  );
 }
 
 export function CatalogProviderPage() {
