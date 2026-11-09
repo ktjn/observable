@@ -1,7 +1,7 @@
 import { catalogPageSize, type CatalogRuntime } from "../runtime/catalogContract";
 
-async function get<T>(tenant: string, path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`/v1/catalog/${path}`, {
+async function get<T>(tenant: string, path: string, signal?: AbortSignal, root = "/v1/catalog/"): Promise<T> {
+  const response = await fetch(`${root}${path}`, {
     credentials: "include",
     cache: "no-store",
     headers: { "X-Tenant-ID": tenant },
@@ -19,9 +19,9 @@ class CatalogHttpError extends Error {
   }
 }
 
-async function record<T>(tenant: string, path: string, signal?: AbortSignal): Promise<T | null> {
+async function record<T>(tenant: string, path: string, signal?: AbortSignal, root?: string): Promise<T | null> {
   try {
-    return await get<T>(tenant, path, signal);
+    return await get<T>(tenant, path, signal, root);
   } catch (error) {
     if (error instanceof CatalogHttpError && error.status === 404) return null;
     throw error;
@@ -31,6 +31,8 @@ async function record<T>(tenant: string, path: string, signal?: AbortSignal): Pr
 function paging(offset: number) {
   return new URLSearchParams({ offset: String(offset), limit: String(catalogPageSize) });
 }
+
+const reviewRoot = "/v1/review/services/";
 
 export const httpCatalog: CatalogRuntime = {
   services(tenant, offset, query, signal) {
@@ -46,4 +48,9 @@ export const httpCatalog: CatalogRuntime = {
   provider: (tenant, id, signal) => record(tenant, `providers/${encodeURIComponent(id)}`, signal),
   providerGaps: (tenant, signal) => get(tenant, "providers/gaps", signal),
   ownerlessAssets: (tenant, signal) => get(tenant, "assets?ownerless=true", signal),
+  // The service review is composed by observable-query from catalog, health and objectives.
+  review: (tenant, id, environmentClass, signal) => record(tenant,
+    `${encodeURIComponent(id)}?${new URLSearchParams({ environment_class: environmentClass })}`, signal, reviewRoot),
+  reviews: (tenant, environmentClass, scope, offset, signal) => get(tenant,
+    `?${new URLSearchParams({ environment_class: environmentClass, context: scope, offset: String(offset) })}`, signal, reviewRoot.slice(0, -1)),
 };

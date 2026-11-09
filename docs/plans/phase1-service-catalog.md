@@ -199,8 +199,11 @@ The expectation combines approved objectives: any breach, then any risk, then an
 otherwise compliant; no approved objective is `unknown` with `no_approved_objective`.
 `GET /v1/review/services?environment_class=&context=business_critical|all` pages the same
 review over catalog records; `business_critical` delegates the live and criticality filter to
-the catalog, and `all` lists retired services as not live. C4.2 moves the web catalog record and
-a business-critical report onto the review. C4.3 retires the legacy derived `health_state`
+the catalog, and `all` lists retired services as not live. C4.2 moves the web onto the review: the
+catalog service record gains a Health and expectations panel with an explicit Production or
+Non-production choice, and the catalog's Service review view (`/catalog?view=review&env=&scope=`)
+reports business-critical or all services per class. Retired rows read Not live; unknown
+states carry their reason (`apps/frontend/e2e/catalog.spec.ts`). C4.3 retires the legacy derived `health_state`
 (`services/query-api/src/discovery.rs`, `libs/query-core/src/service_query.rs` and the web
 pills). Run impact analysis for each touched
 capability and deliver one component per PR where possible. Every new

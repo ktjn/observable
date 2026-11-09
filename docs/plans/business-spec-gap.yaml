@@ -23,14 +23,14 @@ requirements:
     phase: 1
     target: manage-service-catalog
     status: partial
-    evidence: Phase 1 S4. Environment classes (production, non_production, explicit unclassified) in observable-control (migration 050, /v1/tenants/{id}/environment-classes); GET /v1/catalog/contexts partitions environments and business-critical services; catalog lists restrict to business_critical (services/catalog-service/tests/catalog_journeys_integration.rs). Phase 1 C4.1. GET /v1/review/services keeps production and non-production reviews and reports separate for the same service (services/query-api/tests/it/review_integration.rs). Web views remain pending in C4.2.
+    evidence: Phase 1 S4. Environment classes (production, non_production, explicit unclassified) in observable-control (migration 050, /v1/tenants/{id}/environment-classes); GET /v1/catalog/contexts partitions environments and business-critical services; catalog lists restrict to business_critical (services/catalog-service/tests/catalog_journeys_integration.rs). Phase 1 C4.1. GET /v1/review/services keeps production and non-production reviews and reports separate for the same service (services/query-api/tests/it/review_integration.rs). Phase 1 C4.2. The web service record and Service review report select one class at a time (apps/frontend/e2e/catalog.spec.ts).
   OBS-01-04:
     priority: P0
     holder: platform
     phase: 1
     target: manage-service-catalog
     status: partial
-    evidence: Phase 1 C3. Approved objectives per catalog service and environment class in observable-alerting (migration 063); GET /v1/objectives/{id}/compliance returns compliant, at_risk, breached, or unknown for missing or stale evidence, and no result for an unapproved objective (services/alert-evaluator/tests/postgres_objectives_integration.rs). Phase 1 C4.1. the query service review combines approved objectives into compliant, at_risk, breached or unknown, never compliant without current evidence (services/query-api/tests/it/review_integration.rs). Web review lands in C4.2; the legacy pills (services/query-api/src/discovery.rs, reliability.rs) are retired in C4.3.
+    evidence: Phase 1 C3. Approved objectives per catalog service and environment class in observable-alerting (migration 063); GET /v1/objectives/{id}/compliance returns compliant, at_risk, breached, or unknown for missing or stale evidence, and no result for an unapproved objective (services/alert-evaluator/tests/postgres_objectives_integration.rs). Phase 1 C4.1. the query service review combines approved objectives into compliant, at_risk, breached or unknown, never compliant without current evidence (services/query-api/tests/it/review_integration.rs). Phase 1 C4.2. The web service record and Service review report show all four states with their reason (apps/frontend/e2e/catalog.spec.ts). The legacy pills (services/query-api/src/discovery.rs, reliability.rs) are retired in C4.3.
   OBS-01-05:
     priority: P1
     holder: process
@@ -79,7 +79,7 @@ requirements:
     phase: 1
     target: manage-service-catalog
     status: partial
-    evidence: Phase 1 S3. Criticality and lifecycle on every record; retired services are marked not live in search, listing and exceptions (services/catalog-service/tests/catalog_records_integration.rs). Phase 1 C4.1. the service review and report mark retired services not live with no health or expectation (services/query-api/tests/it/review_integration.rs). Web views remain pending in C4.2.
+    evidence: Phase 1 S3. Criticality and lifecycle on every record; retired services are marked not live in search, listing and exceptions (services/catalog-service/tests/catalog_records_integration.rs). Phase 1 C4.1. the service review and report mark retired services not live with no health or expectation (services/query-api/tests/it/review_integration.rs). Phase 1 C4.2. The web service record and Service review report show retired services as Not live (apps/frontend/e2e/catalog.spec.ts).
   OBS-02-05:
     priority: P1
     holder: platform

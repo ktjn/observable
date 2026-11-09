@@ -23,6 +23,34 @@ export const checkout = {
   exceptions: [],
 };
 
+type Review = {
+  live?: boolean;
+  lifecycle?: string;
+  health?: [state: string, evidence: string];
+  expectation?: [status: string, reason: string];
+  objectives?: { status: string | null; evidence_status: string | null; approved: boolean }[];
+};
+
+/** A query service review (`/v1/review/services`) for one service in one class. */
+export function review(environmentClass: string, service: { id: string; business_name: string }, r: Review = {}) {
+  const live = r.live ?? true;
+  const [state, evidence] = r.health ?? ["normal", "current"];
+  const [status, reason] = r.expectation ?? ["compliant", "current"];
+  return {
+    service: { id: service.id, business_name: service.business_name, criticality: "critical", lifecycle: r.lifecycle ?? "live" },
+    environment_class: environmentClass,
+    live,
+    health: live ? { state, evidence_status: evidence, evaluated_at: "2026-11-09T12:00:00Z", last_evidence_at: "2026-11-09T11:59:00Z" } : null,
+    expectation: live ? {
+      status, reason,
+      objectives: (r.objectives ?? [{ status, evidence_status: reason, approved: true }]).map((o, i) => ({
+        objective_id: `objective-${environmentClass}-${i}`, sli_type: "availability", target: 0.995, window_days: 30,
+        description: `Checkout availability ${i + 1}`, attainment: null, error_budget_consumed: null, last_evidence_at: null, ...o,
+      })),
+    } : null,
+  };
+}
+
 export async function mockCatalog(page: Page) {
   const read = createCatalogReadMock({
     records: [
@@ -38,6 +66,17 @@ export async function mockCatalog(page: Page) {
     json: { tenants: [{ id: catalogTenant, name: "observable" }] },
   }));
   await page.route("**/v1/tenants/**/environments", (route) => route.fulfill({ json: { environments: [] } }));
+  // Default service review: production meets its objective, non-production has none approved.
+  await page.route("**/v1/review/services**", (route) => {
+    expect(route.request().headers()["x-tenant-id"]).toBe(catalogTenant);
+    const url = new URL(route.request().url());
+    const environmentClass = url.searchParams.get("environment_class") ?? "";
+    const nonProduction = { health: ["unknown", "missing"] as [string, string], expectation: ["unknown", "no_approved_objective"] as [string, string], objectives: [] };
+    const body = (environmentClass === "production" ? review(environmentClass, checkout) : review(environmentClass, checkout, nonProduction));
+    if (url.pathname === "/v1/review/services") return route.fulfill({ json: { environment_class: environmentClass, items: [body], total: 1 } });
+    if (url.pathname === `/v1/review/services/${checkout.id}`) return route.fulfill({ json: body });
+    return route.fulfill({ status: 404, json: { error: "not_found" } });
+  });
   await page.route("**/v1/catalog/**", async (route) => {
     expect(route.request().headers()["x-tenant-id"]).toBe(catalogTenant);
     const url = new URL(route.request().url());

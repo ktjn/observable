@@ -2,8 +2,12 @@ import { useState, type FormEvent } from "react";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import { Select, SelectOption } from "../../components/ui/select";
 import { catalogPageSize } from "../../runtime/catalogContract";
-import { CatalogResult, CatalogTable, CoverageLabel, labelOf, ProviderLink, ServiceLink, useCatalogQuery } from "./catalogUi";
+import {
+  CatalogResult, CatalogTable, CoverageLabel, EnvironmentClassPicker, ExpectationLabel, HealthLabel, labelOf, ProviderLink, reasonOf, ServiceLink,
+  useCatalogQuery,
+} from "./catalogUi";
 import { catalogViews, validateCatalogSearch } from "./module";
 
 const route = getRouteApi("/catalog");
@@ -25,6 +29,7 @@ export default function CatalogPage() {
           </Link>
         ))}
       </nav>
+      {view === "review" && <ServiceReviewReport />}
       {view === "coverage" && <CoverageList />}
       {view === "gaps" && <Gaps />}
       {view === "providers" && <Providers />}
@@ -87,6 +92,50 @@ function ServiceList() {
               service.domain || "Unassigned", labelOf(service.criticality), labelOf(service.lifecycle),
             ] }))} />
           <Pagination total={total} label="Service pages" />
+        </>
+      )}</CatalogResult>
+    </div>
+  );
+}
+
+function ServiceReviewReport() {
+  const search = route.useSearch();
+  const navigate = useNavigate();
+  const environmentClass = search.env ?? "production";
+  const scope = search.scope ?? "business_critical";
+  const offset = search.offset ?? 0;
+  const query = useCatalogQuery(["reviews", environmentClass, scope, offset],
+    (catalog, tenant, signal) => catalog.reviews(tenant, environmentClass, scope, offset, signal));
+  const update = (next: Partial<typeof search>) =>
+    void navigate({ to: "/catalog", search: { ...search, offset: undefined, ...next } });
+  return (
+    <div className="grid gap-3">
+      <div className="flex flex-wrap items-end gap-4">
+        <EnvironmentClassPicker value={environmentClass}
+          onChange={(value) => update({ env: value === "production" ? undefined : value })} />
+        <label className="grid gap-1 text-sm">
+          <span className="font-semibold">Services</span>
+          <Select value={scope} onChange={(event) => update({ scope: event.target.value === "all" ? "all" : undefined })}>
+            <SelectOption value="business_critical">Business-critical</SelectOption>
+            <SelectOption value="all">All services</SelectOption>
+          </Select>
+        </label>
+      </div>
+      <CatalogResult query={query} label="service review">{({ items, total }) => (
+        <>
+          <CatalogTable title="Service review" empty="No services in this review"
+            headings={["Service", "Lifecycle", "Health", "Health evidence", "Expectation", "Expectation basis"]}
+            rows={items.map((review) => ({ id: review.service.id, cells: review.live && review.health && review.expectation
+              ? [
+                <ServiceLink id={review.service.id}>{review.service.business_name}</ServiceLink>, labelOf(review.service.lifecycle),
+                <HealthLabel state={review.health.state} />, reasonOf(review.health.evidence_status),
+                <ExpectationLabel status={review.expectation.status} />, reasonOf(review.expectation.reason),
+              ]
+              : [
+                <ServiceLink id={review.service.id}>{review.service.business_name}</ServiceLink>, labelOf(review.service.lifecycle),
+                "Not live", "—", "Not live", "—",
+              ] }))} />
+          <Pagination total={total} label="Review pages" />
         </>
       )}</CatalogResult>
     </div>
