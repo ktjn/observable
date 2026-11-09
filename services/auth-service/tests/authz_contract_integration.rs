@@ -375,3 +375,65 @@ async fn default_catalog_grants_follow_role_ceilings() {
         );
     }
 }
+
+#[tokio::test]
+async fn health_worker_grant_reads_catalog_services_and_writes_nothing() {
+    let p = RealProvider::start().await;
+    let d = HttpAccessDecider::new(&p.url, TOKEN, reqwest::Client::new());
+    use observable_auth::authz::{
+        AccessDecider, Classification, DecideRequest, Decision, FilterRequest, Principal,
+        ResourceRef,
+    };
+    let all = [
+        Classification::Public,
+        Classification::Internal,
+        Classification::Confidential,
+        Classification::Restricted,
+    ];
+    let resources: Vec<_> = all
+        .into_iter()
+        .map(|c| ResourceRef::new("catalog.service", c.as_str(), c))
+        .collect();
+    let filter = |action: &str, resources: Vec<ResourceRef>| FilterRequest {
+        tenant_id: Some(p.tenant_id),
+        principal: Some(Principal::service("health_worker")),
+        action: Some(action.into()),
+        resources,
+        purpose: None,
+        elevation_id: None,
+    };
+    assert_eq!(
+        d.filter(&filter("read", resources.clone()))
+            .await
+            .unwrap()
+            .len(),
+        4
+    );
+    assert!(
+        d.filter(&filter("write", resources))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    // No grant reaches other catalog records or other providers' resources.
+    for rt in ["catalog.journey", "catalog.provider", "catalog.team"] {
+        let r = vec![ResourceRef::new(rt, "x", Classification::Public)];
+        assert!(
+            d.filter(&filter("read", r)).await.unwrap().is_empty(),
+            "{rt}"
+        );
+    }
+    let decide = DecideRequest {
+        tenant_id: Some(p.tenant_id),
+        principal: Some(Principal::service("health_worker")),
+        action: Some("write".into()),
+        resource: Some(ResourceRef::new(
+            "catalog.service",
+            "svc",
+            Classification::Public,
+        )),
+        purpose: None,
+        elevation_id: None,
+    };
+    assert!(matches!(d.decide(&decide).await, Ok(Decision::Deny)));
+}

@@ -1864,16 +1864,21 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "clickhouse",
  "http-body-util",
  "observable-config",
  "observable-telemetry",
  "prometheus",
+ "reqwest",
+ "serde",
+ "serde_json",
  "sqlx",
  "test-support",
  "tokio",
  "tower",
  "tower-http 0.7.1",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

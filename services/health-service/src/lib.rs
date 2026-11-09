@@ -1,7 +1,10 @@
 //! Phase 1 C2.1 runtime for observable-health in the service-assessment domain.
-//! Health assessment routes are delivered with the authorized provider contract.
+//! C2.2 adds the worker's scoped catalog and telemetry ports (`ports`, `scope`). Health
+//! assessment routes are delivered with the authorized provider contract.
 
 pub mod observability;
+pub mod ports;
+pub mod scope;
 
 use std::sync::Arc;
 

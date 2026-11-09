@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Phase 1 C2.2 adds `GET /internal/catalog/health-inputs?tenant_id=` for the health worker. It
+  requires the internal service token and an `X-Health-Worker-Token` that auth validates for the
+  requested tenant, reads as the `health_worker` service principal through `decide-access`, and
+  returns lifecycle and bindings with their approved environment class (null for empty or
+  unclassified environments). Credential store and control outages return 503.
 - Phase 1 C1 adds `GET /v1/catalog/services/{id}/bindings` for authorized reads of
   stored telemetry bindings without running a coverage assessment.
 
