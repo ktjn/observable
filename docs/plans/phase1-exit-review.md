@@ -5,6 +5,11 @@
 **Decision:** Phase 1 exit remains blocked. This is an evidence audit and inspection
 workbook, not an accountable sign-off. No requirement is promoted to verified here.
 
+**C5 update (2026-11-10):** after closure slices C1–C4.3 the three platform requirements
+are verified with criterion evidence. Phase 1 now reads **9 verified, 6 partial,
+0 missing**. Exit is blocked only on the six signed organization inspections in
+[phase1-inspections.yaml](phase1-inspections.yaml).
+
 ## Work status
 
 - [x] Audit merged S1–S8 requirement statuses, criteria and supporting tests.
@@ -14,7 +19,7 @@ workbook, not an accountable sign-off. No requirement is promoted to verified he
 - [ ] Confirm the deployment, tenant and approved inventory to inspect.
 - [ ] Record actual observations and signed criterion-level results for six organization requirements.
 - [x] Resolve sequencing by bringing the required health and objectives work into Phase 1 closeout.
-- [ ] Implement and verify the three outstanding platform requirements.
+- [x] Implement and verify the three outstanding platform requirements (C1–C5).
 - [ ] Rerun readiness and approve phase exit only after every exit obligation is satisfied.
 
 ## Readiness and verification
@@ -48,7 +53,33 @@ Validation for this documentation review:
   for this documentation-only change. No operational deployment or business inventory
   was inspected, and no organizational approval is inferred from the S8 merge.
 
-## Outstanding platform criteria
+## Platform criteria (verified in C5)
+
+Each criterion is covered by current passing tests at the catalog, objective, query review
+and web layers. Query and web records use their own capability as subject
+(`query-telemetry`, `explore-telemetry-ui`) because COMP-08 binds `manage-service-catalog`
+evidence to catalog test paths.
+
+| Requirement | Evidence records (`spec/system.yaml`) |
+|---|---|
+| OBS-01-03 | `ev-catalog-contexts-partitioned`, `ev-objectives-classes-evaluated-apart`, `ev-review-nonprod-failure-isolated`, `ev-ui-review-nonprod-failure-isolated` |
+| OBS-01-04 | `ev-objectives-compliance-states`, `ev-objectives-missing-evidence-unknown`, `ev-review-expectation-states`, `ev-review-outage-unknown`, `ev-ui-review-expectation-states` |
+| OBS-02-04 | `ev-catalog-retired-differentiated`, `ev-catalog-retired-never-live`, `ev-review-retired-not-live`, `ev-ui-review-retired-not-live`, `ev-ui-retired-record-no-health` |
+
+C5 validation, all passing on 2026-11-10:
+
+- `uv run --project models python scripts/spec-readiness.py --priority P0 --phase 1 --strict`:
+  9 verified, 6 partial, 0 missing, no policy violations.
+- `bash scripts/spec-gate.sh`.
+- `cargo test -p catalog-service --test catalog_records_integration --test catalog_journeys_integration`
+  (19), `cargo test -p alert-evaluator --test postgres_objectives_integration` (7),
+  `cargo test -p query-api --test it review_` (8).
+- `npx playwright test e2e/catalog.spec.ts` (8), including both UX-01 negatives.
+
+These tests use mocked providers or containers. They verify platform behavior, not a
+deployed tenant or an organization's records.
+
+### S9 baseline (superseded)
 
 | Requirement | Remaining acceptance work | Dependency |
 |---|---|---|
@@ -82,7 +113,9 @@ All six rows are **pending** while he verifies the deployment, tenant and invent
 | OBS-34-01 / observability-platform-owner | Reconcile alerts, objectives, dashboards, proactive checks and health rules with their accountable owners. Inspect current owner visibility for critical alerts. Explicitly inventory asset kinds whose producers are deferred. | Observe an asset with a departed owner in the ownerless report. | `services/alert-evaluator/tests/postgres_asset_owners_integration.rs::a_rule_is_owned_by_its_creator_or_an_explicit_principal`, `services/catalog-service/tests/catalog_coverage_integration.rs::claimed_requirement_without_evidence_is_unmet` |
 | OBS-36-01 / vendor-manager | Reconcile material providers against the external inventory and inspect dependent critical functions, services, contract references and contract owners. | Observe the gap for a critical function depending on an unregistered provider. | `services/catalog-service/tests/catalog_providers_integration.rs::provider_record_lists_dependent_critical_functions_and_contract_owner`, `::critical_function_on_an_unregistered_provider_is_a_gap` |
 
-After inspection, retain the signed observations in a stable artifact. Add evidence only
+Record observations in [phase1-inspections.yaml](phase1-inspections.yaml): one entry per
+criterion, with the exact criterion string, the expected observation and empty
+`observed`, `evidence_ref`, `result` and `signed_at` fields. After inspection, retain the signed observations in that file. Add evidence only
 for actually observed criteria, copying the exact criterion strings from the corresponding
 `spec/business/areas/` requirement. Each record needs `requirement_version`, `criteria`,
 `verifier`, `method: inspection` (or justified analysis), result and stable
@@ -95,4 +128,5 @@ evidence and the strict policy accepts it.
 1. Confirm the deployment revision, tenant, approved business inventory and location
    for the signed inspection records. For each criterion, capture the expected result,
    actual observation, evidence reference, result and sign-off date in that record.
-2. Implement and verify the closure slices, then rerun the exit checks above.
+2. Fill and sign the twelve entries in `phase1-inspections.yaml`, add the matching
+   `method: inspection` evidence, then rerun strict readiness and approve exit at 15/15.
