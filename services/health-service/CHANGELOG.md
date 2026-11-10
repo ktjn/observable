@@ -4,6 +4,7 @@
 
 ### Added
 
+- Phase 2 E6: the health read discloses the rule's `freshness_seconds` (null when withheld), so composed views can state the freshness bound.
 - Phase 2 E4: data-quality issues (migration 072), reconciled by the evaluation worker per service and class. `source_stopped` opens when a bound identity had evidence within the lookback and none for one freshness bound, stays open while it is silent, and resolves when evidence returns or the identity is unbound. `inconsistent_inputs` opens for ambiguous catalog inputs and `evaluation_failed` when evidence cannot be read; both resolve on the next clean evaluation. Retired and planned services have no open issues. Tenant purge deletes issues.
 - `GET /v1/health/services/{id}/issues?environment_class=` returns open issues and those resolved in the last 7 days, with `open` count. Checks follow the health read under `health.issue` (migration 073); denied evidence returns the restricted response. The health and history reads share these checks (`guard`).
 - `GET /internal/health/self-status` (internal token; an unset token refuses every caller) reports the evaluation worker's last pass and counts with no tenant data. `state` is `stale` once the last pass is older than twice `HEALTH_EVALUATION_INTERVAL_SECONDS`, so a stopped worker is visible.

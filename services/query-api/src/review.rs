@@ -8,6 +8,12 @@
 //! Query never widens access: a record the catalog hides is a 404, and a provider that
 //! withholds or cannot evaluate yields `unknown`, never a healthy or compliant result.
 //! Retired and planned services are not live and carry no health or expectation.
+//!
+//! Phase 2 E6: every review also discloses its scope, period, evidence freshness, open
+//! data-quality issues and the platform confidence (`crate::confidence`), and is
+//! `fit_for_decision` only when evidence is current and confidence is full (OBS-26-01).
+//! `GET /v1/overview/services?environment_class=` lists the business-critical services in that
+//! shape. An unreadable issue list is `evaluation_unavailable`, never zero open issues.
 
 use std::sync::Arc;
 
@@ -17,9 +23,13 @@ use axum::{
     http::{HeaderMap, HeaderName, StatusCode, header},
     response::{IntoResponse, Response},
 };
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
+
+use crate::confidence::{self, PlatformConfidence, PlatformSignals};
+use crate::middleware::auth::TenantContext;
 
 const FORWARDED: [HeaderName; 3] = [
     header::AUTHORIZATION,
@@ -117,6 +127,8 @@ pub struct Health {
     pub evidence_status: String,
     pub evaluated_at: Option<String>,
     pub last_evidence_at: Option<String>,
+    /// The tenant rule's freshness bound, when the assessment is disclosed.
+    pub freshness_seconds: Option<i64>,
 }
 
 impl Health {
@@ -126,8 +138,41 @@ impl Health {
             evidence_status: evidence_status.into(),
             evaluated_at: None,
             last_evidence_at: None,
+            freshness_seconds: None,
         }
     }
+}
+
+/// Evidence freshness judged at read time.
+#[derive(Debug, Serialize, PartialEq)]
+pub struct Freshness {
+    pub status: String,
+    pub last_evidence_at: Option<String>,
+    pub age_seconds: Option<i64>,
+    pub bound_seconds: Option<i64>,
+}
+
+impl Freshness {
+    fn of(h: &Health, now: DateTime<Utc>) -> Self {
+        let age = h
+            .last_evidence_at
+            .as_deref()
+            .and_then(|t| t.parse::<DateTime<Utc>>().ok())
+            .map(|t| (now - t).num_seconds().max(0));
+        Self {
+            status: h.evidence_status.clone(),
+            last_evidence_at: h.last_evidence_at.clone(),
+            age_seconds: age,
+            bound_seconds: h.freshness_seconds,
+        }
+    }
+}
+
+/// Open data-quality issues. `open` is `None` unless the list was read (`status: current`).
+#[derive(Debug, Serialize, PartialEq)]
+pub struct Issues {
+    pub status: String,
+    pub open: Option<u64>,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -163,6 +208,30 @@ pub struct ServiceReview {
     pub live: bool,
     pub health: Option<Health>,
     pub expectation: Option<Expectation>,
+    pub freshness: Option<Freshness>,
+    pub issues: Option<Issues>,
+    pub fit_for_decision: bool,
+    /// Why the review is not fit: `not_live`, `evidence_<status>`, `confidence_<state>`.
+    pub unfit_reasons: Vec<String>,
+}
+
+impl ServiceReview {
+    /// Rule 5 of the phase 2 state semantics: current evidence and full confidence.
+    fn judge(&mut self, confidence: &PlatformConfidence) {
+        let mut reasons = Vec::new();
+        match &self.health {
+            None => reasons.push("not_live".to_string()),
+            Some(h) if h.evidence_status != "current" => {
+                reasons.push(format!("evidence_{}", h.evidence_status));
+            }
+            Some(_) => {}
+        }
+        if !confidence.is_full() {
+            reasons.push(format!("confidence_{}", confidence.confidence));
+        }
+        self.fit_for_decision = reasons.is_empty();
+        self.unfit_reasons = reasons;
+    }
 }
 
 /// Combines approved objectives into one expectation status. Evidenced breaches and risks win;
@@ -245,6 +314,7 @@ async fn health(
                     evidence_status,
                     evaluated_at: text("evaluated_at"),
                     last_evidence_at: text("last_evidence_at"),
+                    freshness_seconds: v.get("freshness_seconds").and_then(Value::as_i64),
                 }),
                 _ => Ok(Health::unknown("evaluation_unavailable")),
             }
@@ -253,6 +323,38 @@ async fn health(
         Err(Failure::NotFound) => Ok(Health::unknown("restricted")),
         Err(Failure::Unauthorized) => Err(Failure::Unauthorized),
         Err(Failure::Unavailable) => Ok(Health::unknown("evaluation_unavailable")),
+    }
+}
+
+async fn issues(
+    urls: &Urls,
+    headers: &HeaderMap,
+    id: Uuid,
+    class: &str,
+) -> Result<Issues, Failure> {
+    let url = format!(
+        "{}/v1/health/services/{id}/issues?environment_class={class}",
+        urls.health
+    );
+    let unread = |status: &str| Issues {
+        status: status.into(),
+        open: None,
+    };
+    match fetch(urls, headers, url).await {
+        Ok(v) => {
+            let status = v.get("evidence_status").and_then(Value::as_str);
+            match (status, v.get("open").and_then(Value::as_u64)) {
+                (Some("current"), Some(open)) => Ok(Issues {
+                    status: "current".into(),
+                    open: Some(open),
+                }),
+                (Some("restricted"), _) => Ok(unread("restricted")),
+                _ => Ok(unread("evaluation_unavailable")),
+            }
+        }
+        Err(Failure::NotFound) => Ok(unread("restricted")),
+        Err(Failure::Unauthorized) => Err(Failure::Unauthorized),
+        Err(Failure::Unavailable) => Ok(unread("evaluation_unavailable")),
     }
 }
 
@@ -347,22 +449,46 @@ async fn review(
     class: &str,
 ) -> Result<ServiceReview, Failure> {
     let live = service.live();
-    let (health, expectation) = if live {
-        let (h, e) = tokio::join!(
+    let (health, expectation, issues) = if live {
+        let (h, e, i) = tokio::join!(
             health(urls, headers, service.id, class),
-            expectation(urls, headers, service.id, class)
+            expectation(urls, headers, service.id, class),
+            issues(urls, headers, service.id, class)
         );
-        (Some(h?), Some(e?))
+        (Some(h?), Some(e?), Some(i?))
     } else {
-        (None, None)
+        (None, None, None)
     };
+    let now = Utc::now();
     Ok(ServiceReview {
         service,
         environment_class: class.into(),
         live,
+        freshness: health.as_ref().map(|h| Freshness::of(h, now)),
         health,
         expectation,
+        issues,
+        fit_for_decision: false,
+        unfit_reasons: Vec::new(),
     })
+}
+
+type Signals = Option<Extension<PlatformSignals>>;
+type Tenant = Option<Extension<TenantContext>>;
+
+async fn platform(signals: &Signals, tenant: &Tenant) -> PlatformConfidence {
+    confidence::assess(
+        signals.as_ref().map(|Extension(s)| s),
+        tenant.as_ref().map(|Extension(t)| t.tenant_id),
+    )
+    .await
+}
+
+fn period(checked_at: DateTime<Utc>, reviews: &[&ServiceReview]) -> Value {
+    let bound = reviews
+        .iter()
+        .find_map(|r| r.health.as_ref().and_then(|h| h.freshness_seconds));
+    json!({ "as_of": checked_at, "freshness_seconds": bound })
 }
 
 fn service_ref(v: &Value) -> Option<ServiceRef> {
@@ -372,6 +498,8 @@ fn service_ref(v: &Value) -> Option<ServiceRef> {
 /// GET /v1/review/services/{id}?environment_class=
 pub async fn get_service_review(
     Extension(providers): Extension<ReviewProviders>,
+    signals: Signals,
+    tenant: Tenant,
     headers: HeaderMap,
     Path(id): Path<String>,
     Query(q): Query<ReviewQuery>,
@@ -398,15 +526,69 @@ pub async fn get_service_review(
     let Some(service) = service_ref(&record) else {
         return error(StatusCode::SERVICE_UNAVAILABLE, "catalog_unavailable");
     };
-    match review(urls, &headers, service, class).await {
-        Ok(r) => Json(r).into_response(),
-        Err(f) => catalog_failure(f),
+    let (reviewed, confidence) = tokio::join!(
+        review(urls, &headers, service, class),
+        platform(&signals, &tenant)
+    );
+    let mut r = match reviewed {
+        Ok(r) => r,
+        Err(f) => return catalog_failure(f),
+    };
+    r.judge(&confidence);
+    let mut body = serde_json::to_value(&r).unwrap_or(Value::Null);
+    body["scope"] = json!({ "environment_class": class, "service_id": r.service.id });
+    body["period"] = period(confidence.checked_at, &[&r]);
+    body["confidence"] = json!(confidence);
+    Json(body).into_response()
+}
+
+/// Reads one catalog page in `class` and reviews each service, in catalog order.
+async fn review_page(
+    urls: Arc<Urls>,
+    headers: HeaderMap,
+    class: &str,
+    filter: &str,
+    offset: usize,
+) -> Result<(Vec<ServiceReview>, u64), Response> {
+    let page = fetch(
+        &urls,
+        &headers,
+        format!(
+            "{}/v1/catalog/services?limit={PAGE_LIMIT}&offset={offset}{filter}",
+            urls.catalog
+        ),
+    )
+    .await
+    .map_err(catalog_failure)?;
+    let total = page.get("total").and_then(Value::as_u64).unwrap_or(0);
+    let services = page
+        .get("items")
+        .and_then(Value::as_array)
+        .map(|items| items.iter().filter_map(service_ref).collect::<Vec<_>>())
+        .ok_or_else(|| error(StatusCode::SERVICE_UNAVAILABLE, "catalog_unavailable"))?;
+    let headers = Arc::new(headers);
+    let mut tasks = tokio::task::JoinSet::new();
+    for (i, service) in services.into_iter().enumerate() {
+        let (urls, headers, class) = (urls.clone(), headers.clone(), class.to_string());
+        tasks.spawn(async move { (i, review(&urls, &headers, service, &class).await) });
     }
+    let mut items: Vec<(usize, ServiceReview)> = Vec::new();
+    while let Some(joined) = tasks.join_next().await {
+        match joined {
+            Ok((i, Ok(r))) => items.push((i, r)),
+            Ok((_, Err(f))) => return Err(catalog_failure(f)),
+            Err(_) => return Err(error(StatusCode::INTERNAL_SERVER_ERROR, "internal")),
+        }
+    }
+    items.sort_by_key(|(i, _)| *i);
+    Ok((items.into_iter().map(|(_, r)| r).collect(), total))
 }
 
 /// GET /v1/review/services?environment_class=&context=business_critical|all&offset=
 pub async fn list_service_reviews(
     Extension(providers): Extension<ReviewProviders>,
+    signals: Signals,
+    tenant: Tenant,
     headers: HeaderMap,
     Query(q): Query<ReviewQuery>,
 ) -> Response {
@@ -432,46 +614,77 @@ pub async fn list_service_reviews(
         return error(StatusCode::SERVICE_UNAVAILABLE, "review_unavailable");
     };
     let offset = q.offset.unwrap_or(0);
-    let page = match fetch(
-        &urls,
-        &headers,
-        format!(
-            "{}/v1/catalog/services?limit={PAGE_LIMIT}&offset={offset}{filter}",
-            urls.catalog
-        ),
-    )
-    .await
-    {
-        Ok(v) => v,
-        Err(f) => return catalog_failure(f),
+    let (page, confidence) = tokio::join!(
+        review_page(urls, headers, &class, filter, offset),
+        platform(&signals, &tenant)
+    );
+    let (mut items, total) = match page {
+        Ok(p) => p,
+        Err(r) => return r,
     };
-    let total = page.get("total").and_then(Value::as_u64).unwrap_or(0);
-    let Some(services) = page
-        .get("items")
-        .and_then(Value::as_array)
-        .map(|items| items.iter().filter_map(service_ref).collect::<Vec<_>>())
-    else {
-        return error(StatusCode::SERVICE_UNAVAILABLE, "catalog_unavailable");
-    };
-    let headers = Arc::new(headers);
-    let mut tasks = tokio::task::JoinSet::new();
-    for (i, service) in services.into_iter().enumerate() {
-        let (urls, headers, class) = (urls.clone(), headers.clone(), class.clone());
-        tasks.spawn(async move { (i, review(&urls, &headers, service, &class).await) });
+    for r in &mut items {
+        r.judge(&confidence);
     }
-    let mut items: Vec<(usize, ServiceReview)> = Vec::new();
-    while let Some(joined) = tasks.join_next().await {
-        match joined {
-            Ok((i, Ok(r))) => items.push((i, r)),
-            Ok((_, Err(f))) => return catalog_failure(f),
-            Err(_) => return error(StatusCode::INTERNAL_SERVER_ERROR, "internal"),
-        }
-    }
-    items.sort_by_key(|(i, _)| *i);
-    let items: Vec<ServiceReview> = items.into_iter().map(|(_, r)| r).collect();
+    let refs: Vec<&ServiceReview> = items.iter().collect();
     Json(json!({
         "environment_class": class,
         "context": context,
+        "scope": { "environment_class": class, "context": context },
+        "period": period(confidence.checked_at, &refs),
+        "confidence": confidence,
+        "items": items,
+        "total": total,
+    }))
+    .into_response()
+}
+
+/// GET /v1/overview/services?environment_class=&offset=
+///
+/// The business-critical services in `environment_class`: state, evidence age, open issues
+/// and fitness, with the platform confidence they depend on (OBS-03-01, OBS-03-03).
+pub async fn list_service_overview(
+    Extension(providers): Extension<ReviewProviders>,
+    signals: Signals,
+    tenant: Tenant,
+    headers: HeaderMap,
+    Query(q): Query<ReviewQuery>,
+) -> Response {
+    let Some(class) = class_of(&q).map(str::to_string) else {
+        return invalid_class();
+    };
+    let Some(urls) = providers.inner.clone() else {
+        return error(StatusCode::SERVICE_UNAVAILABLE, "review_unavailable");
+    };
+    let offset = q.offset.unwrap_or(0);
+    let (page, confidence) = tokio::join!(
+        review_page(urls, headers, &class, "&context=business_critical", offset),
+        platform(&signals, &tenant)
+    );
+    let (mut reviews, total) = match page {
+        Ok(p) => p,
+        Err(r) => return r,
+    };
+    let refs: Vec<&ServiceReview> = reviews.iter().collect();
+    let period = period(confidence.checked_at, &refs);
+    let items: Vec<Value> = reviews
+        .iter_mut()
+        .map(|r| {
+            r.judge(&confidence);
+            json!({
+                "service": r.service,
+                "live": r.live,
+                "state": r.health.as_ref().map(|h| h.state.as_str()),
+                "freshness": r.freshness,
+                "issues": r.issues,
+                "fit_for_decision": r.fit_for_decision,
+                "unfit_reasons": r.unfit_reasons,
+            })
+        })
+        .collect();
+    Json(json!({
+        "scope": { "environment_class": class, "context": "business_critical" },
+        "period": period,
+        "confidence": confidence,
         "items": items,
         "total": total,
     }))

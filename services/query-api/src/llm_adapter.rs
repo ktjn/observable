@@ -569,7 +569,7 @@ When in doubt, produce an IR. Only decline when the question **explicitly** ment
              entity attributes — NOT asking for a time-series chart or metric computation.\n\
              **ALWAYS use `operation: \"inventory\"` for queries on this page.** \
              Valid filter fields: `entity_type` (host/cluster/namespace/pod/container), \
-             `environment`, `service_name`, `health_state` (healthy/watch/breach), \
+             `environment`, `service_name`, `health_state` (healthy/watch/breach/unknown), \
              `display_name` (text search). Do NOT add a `metric` field.\n"
         } else if base.signals.contains(&NlqSignal::Logs) {
             "\n## Page context\n\n\
@@ -637,7 +637,7 @@ Operations:
 - topk: rank entities by a metric value ("top N by X", "highest X") — REQUIRES `metric`; `limit` = N (default 10 if unspecified)
 - table: raw recent rows for a metric, OR log search — for logs: signals:["logs"], metric:null, `query`=free-text body search, filters may use service_name/severity_text(INFO|WARN|ERROR|FATAL)/environment/trace_id/span_id
 - catalog: list distinct values of a dimension ("list services", "what X exist") — set `catalog_field` (e.g. "service_name","environment","metric_name", or any label key), no `metric`, no ranking
-- inventory: filter an infrastructure entity table by attributes (NOT a metric/chart) — filters use entity_type(host|cluster|namespace|pod|container)/environment/service_name/health_state(healthy|watch|breach)/display_name, no `metric`, no `catalog_field`
+- inventory: filter an infrastructure entity table by attributes (NOT a metric/chart) — filters use entity_type(host|cluster|namespace|pod|container)/environment/service_name/health_state(healthy|watch|breach|unknown)/display_name, no `metric`, no `catalog_field`
 
 Rules:
 - distribution vs timeseries: user names a stat (p95, average, median, ...) -> distribution; otherwise a metric mention alone -> timeseries. Never confuse with topk (topk ranks entities, catalog lists entities — topk requires computing/ranking a metric, catalog does not).

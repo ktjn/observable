@@ -83,7 +83,7 @@ The Query API must support the following patterns required by the Frontend (see 
 
 #### Infrastructure Views
 - **Capability**: Query endpoints must support infrastructure inventory and detail views for hosts, Kubernetes clusters, namespaces, pods, and containers when those resource attributes or catalog entities exist.
-- **Required Fields**: Entity identity, entity type, health state, CPU, memory, disk, network, restart count where applicable, recent log/error rate, related service names, and last-seen timestamp.
+- **Required Fields**: Entity identity, entity type, health state (`healthy`, `watch`, `breach`, or `unknown` when there is no span evidence), CPU, memory, disk, network, restart count where applicable, recent log/error rate, related service names, and last-seen timestamp.
 - **Filtering**: Must support project, environment, tenant, entity type, entity ID/name, related service, and time range filters.
 
 #### Dashboard Promotion

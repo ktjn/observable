@@ -112,6 +112,9 @@ components:
       - store-telemetry@^0.1
       # Phase 1 C4: service review composes the catalog record, health and approved objective
       # compliance with the caller's own credential (GET /v1/review/services).
+      # Phase 2 E6: reviews and GET /v1/overview/services add freshness, issues and fitness;
+      # GET /v1/platform/confidence composes the health and alerting self-statuses (internal
+      # token) and the store-telemetry ingest watermark of the caller's tenant.
       - manage-service-catalog@^0.1
       - assess-service-health@^0.1
       - manage-reliability-objectives@^0.1

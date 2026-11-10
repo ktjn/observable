@@ -771,13 +771,13 @@ fn service_summary_from_row(row: ServiceSummaryRow, duration_secs: f64) -> Servi
 }
 
 /// Infrastructure entities are not catalog services; their error-rate band stays here.
-fn infrastructure_health_state(error_rate: f64) -> &'static str {
-    if error_rate > 0.05 {
-        "breach"
-    } else if error_rate > 0.01 {
-        "watch"
-    } else {
-        "healthy"
+/// No span evidence is `unknown`, never `healthy` (OBS-24-02).
+fn infrastructure_health_state(error_rate: Option<f64>) -> &'static str {
+    match error_rate {
+        None => "unknown",
+        Some(r) if r > 0.05 => "breach",
+        Some(r) if r > 0.01 => "watch",
+        Some(_) => "healthy",
     }
 }
 
@@ -959,7 +959,7 @@ fn infrastructure_entity_summary_from_row(
         None
     };
     let log_rate_per_minute = Some((row.log_events as f64) / (lookback_minutes as f64));
-    let health_state = infrastructure_health_state(error_rate.unwrap_or_default()).to_string();
+    let health_state = infrastructure_health_state(error_rate).to_string();
     let environment = normalize_infrastructure_string(row.environment);
 
     InfrastructureEntitySummary {
@@ -1221,10 +1221,11 @@ mod tests {
 
     #[test]
     fn infrastructure_health_state_thresholds_are_stable() {
-        assert_eq!(infrastructure_health_state(0.0), "healthy");
-        assert_eq!(infrastructure_health_state(0.02), "watch");
-        assert_eq!(infrastructure_health_state(0.05), "watch");
-        assert_eq!(infrastructure_health_state(0.06), "breach");
+        assert_eq!(infrastructure_health_state(None), "unknown");
+        assert_eq!(infrastructure_health_state(Some(0.0)), "healthy");
+        assert_eq!(infrastructure_health_state(Some(0.02)), "watch");
+        assert_eq!(infrastructure_health_state(Some(0.05)), "watch");
+        assert_eq!(infrastructure_health_state(Some(0.06)), "breach");
 
         let summary = infrastructure_entity_summary_from_row(
             InfrastructureEntityType::Pod,
@@ -1507,7 +1508,8 @@ mod tests {
         assert_eq!(summary.environment.as_deref(), Some("prod"));
         assert_eq!(summary.log_rate_per_minute, Some(0.0));
         assert_eq!(summary.error_rate, None);
-        assert_eq!(summary.health_state, "healthy");
+        // No spans: no error-rate evidence, so never healthy (OBS-24-02).
+        assert_eq!(summary.health_state, "unknown");
     }
 
     // Regression test: toUnixTimestamp64Nano returns Int64. Mixed with UInt64 columns from spans

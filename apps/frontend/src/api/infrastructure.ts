@@ -16,7 +16,7 @@ export interface InfrastructureEntitySummary {
   parent_id: string | null;
   parent_display_name: string | null;
   environment: string | null;
-  health_state: "healthy" | "watch" | "breach";
+  health_state: "healthy" | "watch" | "breach" | "unknown";
   last_seen_unix_nano: number;
   related_services: string[];
   log_rate_per_minute: number | null;
