@@ -8,6 +8,7 @@ pub mod assessment;
 pub mod observability;
 pub mod ports;
 pub mod scope;
+pub mod tenant_purge;
 
 use std::sync::Arc;
 

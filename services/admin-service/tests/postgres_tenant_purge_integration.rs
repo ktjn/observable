@@ -3,11 +3,12 @@
 //   PUT    /v1/tenants/{id}/config
 //   DELETE /v1/tenants/{id}
 //
-// Tests use a real Postgres instance via Testcontainers and exercise the full
-// handler path via tower::ServiceExt::oneshot.
+// Tests use real Postgres (the purge runs as the scoped observable_control login), real
+// ClickHouse and a stand-in auth-service, and exercise the handler via tower::ServiceExt::oneshot.
 
 use admin_service::{
     AdminServiceAppState,
+    auth_directory::AuthDirectory,
     middleware::auth::TenantContext,
     observability,
     tenants::{self, PurgeTenantResponse, TenantConfigResponse, UpdateTenantConfigRequest},
@@ -23,6 +24,12 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
+use wiremock::{
+    Mock, MockServer, ResponseTemplate,
+    matchers::{body_json, header, method, path},
+};
+
+const INTERNAL_TOKEN: &str = "test-internal-token";
 
 // ── Dev credentials (matching migrations seed) ──────────────────────────────
 const DEV_TENANT_ID: &str = "00000000-0000-0000-0000-000000000002";
@@ -36,10 +43,20 @@ async fn start_pool() -> (PgPool, test_support::postgres::TestDatabase) {
 // ── App builder ──────────────────────────────────────────────────────────────
 
 fn build_admin_tenants_app(pool: PgPool, ctx: TenantContext) -> Router {
+    build_app(
+        pool,
+        clickhouse::Client::default().with_url("http://127.0.0.1:19999"),
+        "http://127.0.0.1:1".into(),
+        ctx,
+    )
+}
+
+fn build_app(pool: PgPool, ch: clickhouse::Client, auth_url: String, ctx: TenantContext) -> Router {
+    let directory = AuthDirectory::new(&auth_url, INTERNAL_TOKEN, reqwest::Client::new());
     let state = AdminServiceAppState {
         db: pool,
-        ch: clickhouse::Client::default().with_url("http://127.0.0.1:19999"),
-        auth_service_url: "http://auth-service:4319".into(),
+        ch,
+        auth_service_url: auth_url,
         http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
         producer: None,
@@ -51,6 +68,7 @@ fn build_admin_tenants_app(pool: PgPool, ctx: TenantContext) -> Router {
         )
         .route("/v1/tenants/{id}", delete(tenants::handle_purge_tenant))
         .layer(Extension(ctx))
+        .layer(Extension(directory))
         .with_state(state)
 }
 
@@ -134,105 +152,167 @@ async fn test_tenant_config_forbidden_for_non_admin() {
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 }
 
-#[tokio::test]
-async fn test_tenant_hard_purge_workflow() {
-    let (pool, _container) = start_pool().await;
+async fn seed_tenant(owner: &PgPool, tenant: Uuid) {
+    for sql in [
+        "INSERT INTO control.tenants (id, name, retention_days, ingest_quota_per_sec) VALUES ($1, 'purge-target', 14, 50)",
+        "INSERT INTO control.projects (tenant_id, name) VALUES ($1, 'demo-project')",
+        "INSERT INTO control.deployment_markers (tenant_id, service_name, environment, service_version, status) VALUES ($1, 'srv', 'prod', 'v1.0', 'success')",
+        "INSERT INTO control.dashboards (tenant_id, name) VALUES ($1, 'd')",
+    ] {
+        sqlx::query(sql).bind(tenant).execute(owner).await.unwrap();
+    }
+}
 
-    // Create a target tenant for purge
-    let purge_tenant_id = Uuid::new_v4();
-    sqlx::query("INSERT INTO tenants (id, name, retention_days, ingest_quota_per_sec) VALUES ($1, 'purge-target', 14, 50)")
-        .bind(purge_tenant_id)
-        .execute(&pool)
-        .await
-        .unwrap();
+async fn control_rows(owner: &PgPool, tenant: Uuid) -> i64 {
+    sqlx::query_scalar(
+        "SELECT (SELECT count(*) FROM control.tenants WHERE id = $1) \
+         + (SELECT count(*) FROM control.projects WHERE tenant_id = $1) \
+         + (SELECT count(*) FROM control.deployment_markers WHERE tenant_id = $1) \
+         + (SELECT count(*) FROM control.dashboards WHERE tenant_id = $1)",
+    )
+    .bind(tenant)
+    .fetch_one(owner)
+    .await
+    .unwrap()
+}
 
-    // Seed child rows across various tables
-    sqlx::query("INSERT INTO projects (id, tenant_id, name) VALUES ($1, $2, 'demo-project')")
-        .bind(Uuid::new_v4())
-        .bind(purge_tenant_id)
-        .execute(&pool)
-        .await
-        .unwrap();
-
-    sqlx::query("INSERT INTO api_keys (tenant_id, key_hash, name, environment, role) VALUES ($1, 'hash-purge', 'purge-key', 'prod', 'member')")
-        .bind(purge_tenant_id)
-        .execute(&pool)
-        .await
-        .unwrap();
-
-    sqlx::query("INSERT INTO alert_rules (rule_id, tenant_id, name, alert_type, severity, condition) VALUES ($1, $2, 'purge-alert', 'threshold', 'warning', '{}')")
-        .bind(Uuid::new_v4())
-        .bind(purge_tenant_id)
-        .execute(&pool)
-        .await
-        .unwrap();
-
-    sqlx::query("INSERT INTO deployment_markers (deployment_id, tenant_id, service_name, environment, service_version, status) VALUES ($1, $2, 'srv', 'prod', 'v1.0', 'success')")
-        .bind(Uuid::new_v4())
-        .bind(purge_tenant_id)
-        .execute(&pool)
-        .await
-        .unwrap();
-
-    // Call DELETE /v1/tenants/{id} as admin of this tenant
-    let user_id = Uuid::new_v4();
-    let ctx = TenantContext {
-        tenant_id: purge_tenant_id,
-        user_id: Some(user_id),
-        role: "tenant_admin".to_string(),
-    };
-    let app = build_admin_tenants_app(pool.clone(), ctx);
-
+async fn delete_tenant(app: Router, tenant: Uuid) -> (StatusCode, serde_json::Value) {
     let req = Request::builder()
         .method("DELETE")
-        .uri(format!("/v1/tenants/{purge_tenant_id}"))
+        .uri(format!("/v1/tenants/{tenant}"))
         .body(Body::empty())
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     let status = resp.status();
     let body = resp.into_body().collect().await.unwrap().to_bytes();
-    if status != StatusCode::OK {
-        eprintln!(
-            "Purge failed with status {status}: {}",
-            String::from_utf8_lossy(&body)
-        );
+    (status, serde_json::from_slice(&body).unwrap_or_default())
+}
+
+fn admin_of(tenant: Uuid, user: Uuid) -> TenantContext {
+    TenantContext {
+        tenant_id: tenant,
+        user_id: Some(user),
+        role: "tenant_admin".to_string(),
     }
-    assert_eq!(status, StatusCode::OK);
-    let purge_resp: PurgeTenantResponse = serde_json::from_slice(&body).unwrap();
-    assert_eq!(purge_resp.status, "purged");
-    assert_eq!(purge_resp.tenant_id, purge_tenant_id);
+}
 
-    // Verify tenant is deleted from Postgres
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tenants WHERE id = $1")
-        .bind(purge_tenant_id)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-    assert_eq!(count, 0);
+#[tokio::test]
+async fn test_tenant_hard_purge_workflow() {
+    let (owner, _db) = start_pool().await;
+    let scoped = test_support::postgres::scoped_pool(&owner, "observable_control").await;
+    let ch = test_support::clickhouse::shared_client().await;
+    let (tenant, other, user) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    seed_tenant(&owner, tenant).await;
+    seed_tenant(&owner, other).await;
 
-    // Verify related rows are deleted
-    let key_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM api_keys WHERE tenant_id = $1")
-        .bind(purge_tenant_id)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-    assert_eq!(key_count, 0);
+    let auth = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path(format!("/internal/tenants/{tenant}/purge")))
+        .and(header("x-internal-token", INTERNAL_TOKEN))
+        .and(body_json(serde_json::json!({ "actor": user.to_string() })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(
+            serde_json::json!({ "tenant_id": tenant, "purged_tables": ["api_keys"] }),
+        ))
+        .expect(1)
+        .mount(&auth)
+        .await;
 
-    let rule_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM alert_rules WHERE tenant_id = $1")
-            .bind(purge_tenant_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    assert_eq!(rule_count, 0);
+    let app = build_app(scoped, ch, auth.uri(), admin_of(tenant, user));
+    let (status, body) = delete_tenant(app, tenant).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let purge: PurgeTenantResponse = serde_json::from_value(body).unwrap();
+    assert_eq!(purge.status, "purged");
+    assert_eq!(purge.tenant_id, tenant);
+    assert!(
+        purge
+            .purged_postgres_tables
+            .contains(&"control.tenants".to_string())
+    );
+    assert!(
+        purge
+            .purged_postgres_tables
+            .contains(&"auth.api_keys".to_string())
+    );
+    assert_eq!(purge.purged_clickhouse_tables.len(), 5);
+    assert_eq!(purge.pending_components, ["alerting", "catalog", "health"]);
 
-    // Verify credential_audit_log contains the tenant_purge audit event
-    let audit_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM credential_audit_log WHERE tenant_id = $1 AND action = 'tenant_purge' AND outcome = 'allow'",
-    )
-    .bind(purge_tenant_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(audit_count, 1);
+    assert_eq!(control_rows(&owner, tenant).await, 0);
+    assert_eq!(
+        control_rows(&owner, other).await,
+        4,
+        "other tenants are untouched"
+    );
+}
+
+#[tokio::test]
+async fn test_tenant_purge_retries_after_auth_is_unavailable() {
+    let (owner, _db) = start_pool().await;
+    let scoped = test_support::postgres::scoped_pool(&owner, "observable_control").await;
+    let ch = test_support::clickhouse::shared_client().await;
+    let (tenant, user) = (Uuid::new_v4(), Uuid::new_v4());
+    seed_tenant(&owner, tenant).await;
+
+    let auth = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(503))
+        .up_to_n_times(1)
+        .mount(&auth)
+        .await;
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({ "tenant_id": tenant, "purged_tables": [] })),
+        )
+        .mount(&auth)
+        .await;
+
+    let app = build_app(scoped, ch, auth.uri(), admin_of(tenant, user));
+    let (status, _) = delete_tenant(app.clone(), tenant).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    // Auth goes last: the caller's session survives, and the retry completes the purge.
+    let (status, body) = delete_tenant(app, tenant).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(control_rows(&owner, tenant).await, 0);
+}
+
+#[tokio::test]
+async fn test_tenant_purge_is_refused_before_any_deletion() {
+    let (owner, _db) = start_pool().await;
+    let (tenant, other) = (Uuid::new_v4(), Uuid::new_v4());
+    seed_tenant(&owner, tenant).await;
+    let auth = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(0)
+        .mount(&auth)
+        .await;
+    let ch = test_support::clickhouse::shared_client().await;
+
+    let member = TenantContext {
+        role: "member".to_string(),
+        ..admin_of(tenant, Uuid::new_v4())
+    };
+    let app = build_app(owner.clone(), ch.clone(), auth.uri(), member);
+    assert_eq!(delete_tenant(app, tenant).await.0, StatusCode::FORBIDDEN);
+    let app = build_app(
+        owner.clone(),
+        ch.clone(),
+        auth.uri(),
+        admin_of(other, Uuid::new_v4()),
+    );
+    assert_eq!(delete_tenant(app, tenant).await.0, StatusCode::FORBIDDEN);
+
+    // ClickHouse down: nothing in Postgres or auth is touched.
+    let down = clickhouse::Client::default().with_url("http://127.0.0.1:19999");
+    let app = build_app(
+        owner.clone(),
+        down,
+        auth.uri(),
+        admin_of(tenant, Uuid::new_v4()),
+    );
+    assert_eq!(
+        delete_tenant(app, tenant).await.0,
+        StatusCode::SERVICE_UNAVAILABLE
+    );
+    assert_eq!(control_rows(&owner, tenant).await, 4);
 }

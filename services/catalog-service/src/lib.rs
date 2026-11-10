@@ -12,6 +12,7 @@ pub mod journeys;
 pub mod observability;
 pub mod ports;
 pub mod providers;
+pub mod tenant_purge;
 
 use std::sync::Arc;
 

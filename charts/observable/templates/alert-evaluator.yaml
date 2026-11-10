@@ -12,6 +12,7 @@
     (dict "name" "ALERT_EVAL_INTERVAL_SECONDS" "value" .Values.services.alertEvaluator.evalIntervalSeconds)
     (dict "name" "AUTH_SERVICE_URL"          "value" (printf "http://auth-service:%d" (int .Values.services.authService.port)))
     (dict "name" "CATALOG_URL"               "value" (ternary (printf "http://catalog-service:%d" (int .Values.services.catalogService.port)) "" .Values.services.catalogService.enabled))
+    (dict "name" "ADMIN_SERVICE_URL"       "value" (printf "http://admin-service:%d" (int .Values.services.adminService.port)))
     $token
     (dict "name" "OBSERVABLE_ENV"              "value" .Values.identity.env)
     (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)

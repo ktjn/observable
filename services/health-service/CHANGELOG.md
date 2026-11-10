@@ -4,6 +4,7 @@
 
 ### Added
 
+- Tenant purge: a background worker (`TENANT_PURGE_INTERVAL_SECONDS`, default 60) pulls pending requests for `health` from observable-control (`GET /internal/tenant-purges`, requires `ADMIN_SERVICE_URL`), deletes the tenant's rows in its own schema in one transaction as the scoped login, and acknowledges only after the commit. Platform-default rules are kept.
 - Worker credential provisioning: `scripts/health-worker-credential.py issue|revoke` registers only the token digest and writes the plaintext to the worker's credentials file (0600). Helm `services.healthService.workerCredentials.existingSecret` mounts it and sets `HEALTH_WORKER_CREDENTIALS_FILE`; `scripts/local-stack.sh up` rotates a dev-tenant credential.
 - Phase 1 C2.3 adds `GET /v1/health/services/{id}?environment_class=`. It authenticates the
   caller, checks `decide-access` on `health.assessment` before any lookup, authorizes the

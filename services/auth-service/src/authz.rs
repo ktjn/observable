@@ -55,6 +55,10 @@ pub fn router(state: AuthzState) -> Router {
             "/internal/users/{user_id}/tenants",
             axum::routing::get(crate::directory::user_tenants),
         )
+        .route(
+            "/internal/tenants/{tenant_id}/purge",
+            post(crate::tenant_purge::purge_handler),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             require_internal_token,

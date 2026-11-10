@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Tenant purge: a background worker (`TENANT_PURGE_INTERVAL_SECONDS`, default 60) pulls pending requests for `alerting` from observable-control (`GET /internal/tenant-purges`, requires `ADMIN_SERVICE_URL`), deletes the tenant's rows in its own schema in one transaction as the scoped login, and acknowledges only after the commit. Covers rules, firings, channels, notification audit, incidents, SLOs and objectives.
 - Approved objectives per catalog service and environment class (phase 1 C3, OBS-01-04):
   migration `063_create_alerting_service_objectives.sql` and `POST/GET /v1/objectives`,
   `PATCH /v1/objectives/{id}` (clears approval), `POST /v1/objectives/{id}/approve`

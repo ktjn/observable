@@ -22,10 +22,11 @@ system:
       uses: [identity, service-model, service-assessment, service-control, incident-response, telemetry-storage]
     - id: incident-response
       description: Detection, alerting, incidents, on-call and response coordination (observable-alerting; planned observable-response).
-      uses: [identity, service-model, service-assessment, telemetry-storage]
+      # service-control: tenant purge requests are pulled from control.
+      uses: [identity, service-model, service-assessment, service-control, telemetry-storage]
     - id: service-assessment
       description: Evaluated service health with evidence age, maintenance windows and unknown state (observable-health).
-      uses: [identity, service-model, telemetry-storage]
+      uses: [identity, service-model, service-control, telemetry-storage]
     - id: service-model
       description: Business services, owners, criticality, coverage obligations and their mapping to telemetry service identities (observable-catalog).
       uses: [identity, service-control, telemetry-storage]
@@ -125,6 +126,7 @@ components:
     source_paths:
       - services/admin-service
       - migrations/postgres/050_create_control_environment_classes.sql
+      - migrations/postgres/065_create_control_tenant_purges.sql
     provides:
       - manage-control-plane
       - publish-deployment-markers
@@ -160,6 +162,8 @@ components:
       - govern-observability-assets@^0.1
       # Phase 1 C3: objectives bind to catalog services; reads forward the caller's credential.
       - manage-service-catalog@^0.1
+      # Tenant purge: pulls purge requests from control (control cannot call alerting).
+      - manage-control-plane@^0.1
     owns_data:
       - alert-rule
       - slo-definition
@@ -244,6 +248,8 @@ components:
       - decide-access@^0.1
       - manage-service-catalog@^0.1
       - store-telemetry@^0.1
+      # Tenant purge: pulls purge requests from control (control cannot call health).
+      - manage-control-plane@^0.1
     owns_data:
       - health-assessment
 
@@ -272,6 +278,7 @@ components:
       - libs/observable-auth
       - migrations/postgres/059_create_health_worker_credentials.sql
       - migrations/postgres/060_authz_health_worker_role.sql
+      - migrations/postgres/064_auth_purge_health_worker_credentials.sql
     provides:
       - validate-credential
       - decide-access
