@@ -1,6 +1,7 @@
 pub mod audit;
 pub mod authz;
 mod health_worker;
+mod key_environments;
 pub mod observability;
 pub mod oidc;
 pub mod session;
