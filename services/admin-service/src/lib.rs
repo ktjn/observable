@@ -1,4 +1,5 @@
 pub mod admin_members;
+pub mod auth_directory;
 pub mod change_events;
 pub mod config;
 pub mod dashboards;

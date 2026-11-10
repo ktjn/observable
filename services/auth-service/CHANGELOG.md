@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `GET /internal/users/{user_id}/tenants` (internal token): a user's tenant memberships for observable-control's tenant picker, so control never reads `auth.user_tenant_roles`. Store failure returns 503.
 - `GET /internal/key-environments?tenant_id=` (internal token): distinct environments of a tenant's active API keys, so observable-control lists unclassified environments without reading `auth.api_keys`. Store failure returns 503.
 - Migration `062_authz_grants_health.sql`: `health.assessment` read (public) and `health.evidence` read with the `catalog.service` role ceilings.
 - Migration `060_authz_health_worker_role.sql` admits the `health_worker` service role and grants it `catalog.service` read up to `restricted`, with no write grant.
