@@ -2,10 +2,12 @@
 //! C2.2 adds the worker's scoped catalog and telemetry ports (`ports`, `scope`).
 //! C2.3 adds evaluation and scope-bound snapshots (`assessment`) and the authorized read
 //! contract (`api`).
-//! Phase 2 E1 adds threshold conditions and tenant rule revisions (`rules`).
+//! Phase 2 E1 adds threshold conditions and tenant rule revisions (`rules`); E2 adds
+//! maintenance windows with second-person approval (`maintenance`).
 
 pub mod api;
 pub mod assessment;
+pub mod maintenance;
 pub mod observability;
 pub mod ports;
 pub mod rules;
@@ -14,7 +16,11 @@ pub mod tenant_purge;
 
 use std::sync::Arc;
 
-use axum::{Router, http::StatusCode, routing::get};
+use axum::{
+    Router,
+    http::StatusCode,
+    routing::{get, post},
+};
 use sqlx::PgPool;
 use tower_http::trace::TraceLayer;
 use tracing::Level;
@@ -74,6 +80,18 @@ pub fn app(state: HealthState) -> Router {
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))
         .route("/v1/health/services/{id}", get(api::get_health))
+        .route(
+            "/v1/health/services/{id}/maintenance",
+            get(maintenance::list).post(maintenance::request),
+        )
+        .route(
+            "/v1/health/maintenance/{id}/approve",
+            post(maintenance::approve),
+        )
+        .route(
+            "/v1/health/maintenance/{id}/cancel",
+            post(maintenance::cancel),
+        )
         .route(
             "/v1/health/rules",
             get(rules::get_rule).put(rules::put_rule),

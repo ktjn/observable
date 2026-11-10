@@ -27,10 +27,12 @@ pub struct Harness {
     pub evidence: Evidence,
     pub tenant: Uuid,
     pub other_tenant: Uuid,
+    /// Token -> user id of each human caller.
+    pub users: HashMap<String, Uuid>,
     pub _db: test_support::postgres::TestDatabase,
 }
 
-/// Mirrors migrations 062 and 067.
+/// Mirrors migrations 062, 067 and 069.
 pub fn seed_default_policy(m: &MockAccessDecider) {
     use Classification::*;
     for (role, rt, max) in [
@@ -48,6 +50,11 @@ pub fn seed_default_policy(m: &MockAccessDecider) {
         m.grant(role, rt, "read", max);
     }
     m.grant("tenant_admin", "health.rule", "write", Internal);
+    // Migration 069.
+    for role in ["viewer", "member", "tenant_admin"] {
+        m.grant(role, "health.maintenance", "read", Public);
+    }
+    m.grant("tenant_admin", "health.maintenance", "write", Restricted);
 }
 
 impl Harness {
@@ -58,14 +65,17 @@ impl Harness {
         let decider = MockAccessDecider::new();
         seed_default_policy(&decider);
         let mut callers = HashMap::new();
+        let mut users = HashMap::new();
         for (token, t, role) in [
             ("member", tenant, "member"),
             ("viewer", tenant, "viewer"),
             ("admin", tenant, "tenant_admin"),
+            ("admin2", tenant, "tenant_admin"),
             ("other-member", other_tenant, "member"),
         ] {
             let user = Uuid::new_v4();
             decider.add_member(t, user, role);
+            users.insert(token.to_owned(), user);
             callers.insert(
                 token.to_owned(),
                 Caller {
@@ -103,6 +113,7 @@ impl Harness {
             evidence,
             tenant,
             other_tenant,
+            users,
             _db: guard,
         }
     }
@@ -171,6 +182,7 @@ pub fn view(id: Uuid, lifecycle: &str, classification: &str) -> ServiceView {
         id,
         lifecycle: lifecycle.into(),
         classification: classification.into(),
+        owners: vec![],
     }
 }
 

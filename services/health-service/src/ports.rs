@@ -581,6 +581,32 @@ pub struct ServiceView {
     pub id: Uuid,
     pub lifecycle: String,
     pub classification: String,
+    /// Accountable owners as the catalog discloses them to the caller.
+    #[serde(default)]
+    pub owners: Vec<OwnerRef>,
+}
+
+/// One accountable owner of a service (`business_owner` or `operational_owner`).
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+pub struct OwnerRef {
+    pub role: String,
+    pub principal_kind: String,
+    pub principal_id: Uuid,
+    /// `active`, `departed` or `unknown`.
+    pub state: String,
+}
+
+impl ServiceView {
+    /// Whether `user` is this service's active operational owner in person. Team owners are
+    /// not resolved here.
+    pub fn operated_by(&self, user: Uuid) -> bool {
+        self.owners.iter().any(|o| {
+            o.role == "operational_owner"
+                && o.principal_kind == "user"
+                && o.principal_id == user
+                && o.state == "active"
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
