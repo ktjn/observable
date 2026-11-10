@@ -17,18 +17,14 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::{DateTime, Duration, Utc};
-use observable_auth::authz::{
-    AccessDecider, Classification, DecideRequest, Decision, FilterRequest, ResourceRef,
-};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::HealthState;
-use crate::api::EVIDENCE;
-use crate::assessment::{Snapshot, current_rule, load};
-use crate::ports::{EnvironmentClass, ServiceReadError};
+use crate::assessment::{Snapshot, load};
+use crate::ports::EnvironmentClass;
 
 pub const HISTORY: &str = "health.history";
 /// Default and longest history period.
@@ -263,10 +259,6 @@ pub struct HistoryQuery {
     until: Option<DateTime<Utc>>,
 }
 
-fn error(status: StatusCode, code: &str) -> Response {
-    (status, Json(json!({ "error": code }))).into_response()
-}
-
 fn invalid(message: &str) -> Response {
     (
         StatusCode::BAD_REQUEST,
@@ -326,17 +318,9 @@ pub async fn get_history(
     Path(raw_id): Path<String>,
     Query(q): Query<HistoryQuery>,
 ) -> Response {
-    let caller = match state.credentials.verify(&headers).await {
+    let caller = match crate::guard::caller(&state, &headers).await {
         Ok(c) => c,
-        Err(e) => {
-            let status = StatusCode::from(e);
-            let code = if status == StatusCode::BAD_REQUEST {
-                "invalid_request"
-            } else {
-                "unauthorized"
-            };
-            return error(status, code);
-        }
+        Err(r) => return r,
     };
     let Some(class) = q
         .environment_class
@@ -357,79 +341,17 @@ pub async fn get_history(
         return invalid("the period is at most 90 days");
     }
 
-    let req = DecideRequest {
-        tenant_id: Some(caller.tenant_id),
-        principal: Some(caller.principal()),
-        action: Some("read".into()),
-        resource: Some(ResourceRef::new(HISTORY, &raw_id, Classification::Public)),
-        purpose: None,
-        elevation_id: None,
-    };
-    match state.decider.decide(&req).await {
-        Ok(Decision::Permit) => {}
-        Ok(Decision::Deny | Decision::PurposeMissing) => {
-            return error(StatusCode::NOT_FOUND, "not_found");
-        }
-        Err(_) => {
-            return error(
-                StatusCode::SERVICE_UNAVAILABLE,
-                "access_decision_unavailable",
-            );
-        }
-    }
-    let Ok(id) = raw_id.parse::<Uuid>() else {
-        return error(StatusCode::NOT_FOUND, "not_found");
-    };
-    let service = match state.services.read(&caller, &headers, id).await {
-        Ok(s) => s,
-        Err(ServiceReadError::NotFound) => return error(StatusCode::NOT_FOUND, "not_found"),
-        Err(ServiceReadError::Unauthorized) => {
-            return error(StatusCode::UNAUTHORIZED, "unauthorized");
-        }
-        Err(ServiceReadError::Unavailable) => {
-            return error(
-                StatusCode::SERVICE_UNAVAILABLE,
-                "access_decision_unavailable",
-            );
-        }
-    };
     // History stays readable for retired services the caller can still see.
-    let service_class =
-        Classification::parse(&service.classification).unwrap_or(Classification::Restricted);
-    let rule = match current_rule(&state.db, caller.tenant_id).await {
-        Ok(Some(r)) => r,
-        _ => return withheld(id, class, since, until, "evaluation_unavailable"),
-    };
-    let contributors: Vec<ResourceRef> = rule
-        .conditions
-        .iter()
-        .enumerate()
-        .map(|(i, c)| {
-            let c = Classification::parse(&c.classification)
-                .unwrap_or(Classification::Restricted)
-                .max(service_class);
-            ResourceRef::new(EVIDENCE, &format!("{id}/{}/{i}", class.as_str()), c)
-        })
-        .collect();
-    let wanted = contributors.len();
-    let filter = FilterRequest {
-        tenant_id: Some(caller.tenant_id),
-        principal: Some(caller.principal()),
-        action: Some("read".into()),
-        resources: contributors,
-        purpose: None,
-        elevation_id: None,
-    };
-    match state.decider.filter(&filter).await {
-        Ok(keys) if keys.len() == wanted => {}
-        Ok(_) => return withheld(id, class, since, until, "restricted"),
-        Err(_) => {
-            return error(
-                StatusCode::SERVICE_UNAVAILABLE,
-                "access_decision_unavailable",
-            );
+    let id = match crate::guard::evidence_read(&state, &caller, &headers, &raw_id, HISTORY, class)
+        .await
+    {
+        Ok((id, _)) => id,
+        Err(crate::guard::Refusal::Respond(r)) => return r,
+        Err(crate::guard::Refusal::Withhold(status)) => {
+            let id = raw_id.parse().unwrap_or_default();
+            return withheld(id, class, since, until, status);
         }
-    }
+    };
 
     let (mut rows, snapshot) = match tokio::try_join!(
         transitions(&state.db, caller.tenant_id, id, class, since, until),

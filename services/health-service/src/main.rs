@@ -62,23 +62,25 @@ async fn main() -> anyhow::Result<()> {
         client: client.clone(),
     };
     let evidence = Evidence::clickhouse(ch);
-    let state = HealthState::new(db.clone()).with_ports(
-        Credentials::Http {
-            auth_url: Arc::new(auth_url.clone()),
-            client: client.clone(),
-        },
-        Decider::Http(HttpAccessDecider::new(
-            &auth_url,
-            &internal_token,
-            client.clone(),
-        )),
-        ServiceReads::Http {
-            base_url: Arc::new(catalog_url),
-            client: client.clone(),
-        },
-        inputs.clone(),
-        evidence.clone(),
-    );
+    let state = HealthState::new(db.clone())
+        .with_ports(
+            Credentials::Http {
+                auth_url: Arc::new(auth_url.clone()),
+                client: client.clone(),
+            },
+            Decider::Http(HttpAccessDecider::new(
+                &auth_url,
+                &internal_token,
+                client.clone(),
+            )),
+            ServiceReads::Http {
+                base_url: Arc::new(catalog_url),
+                client: client.clone(),
+            },
+            inputs.clone(),
+            evidence.clone(),
+        )
+        .with_internal_token(&internal_token);
 
     // Tenant purge requests are pulled from observable-control (it cannot call this component).
     let purge_secs = std::env::var("TENANT_PURGE_INTERVAL_SECONDS")
@@ -108,6 +110,7 @@ async fn main() -> anyhow::Result<()> {
         evidence,
         Duration::from_secs(interval),
         chrono::Duration::days(retention_days),
+        state.worker.clone(),
     ));
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;

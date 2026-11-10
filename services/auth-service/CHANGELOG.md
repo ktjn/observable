@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Default grants for `health.issue` (migration `073_authz_grants_health_issue.sql`): viewer, member and tenant_admin read (request level).
 - Default grants for `health.history` (migration `071_authz_grants_health_history.sql`): viewer, member and tenant_admin read (request level).
 - Default grants for `health.maintenance` (migration `069_authz_grants_health_maintenance.sql`): viewer, member and tenant_admin read (request level); only tenant_admin writes.
 - Default grants for `health.rule` (migration `067_authz_grants_health_rule.sql`): viewer, member and tenant_admin read; only tenant_admin writes.
